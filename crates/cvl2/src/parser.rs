@@ -785,6 +785,17 @@ pub fn tokenize(source: &mut Source) -> TokenizationResult {
                     };
                 } else if "()[]{},;\"'`".contains(first_char) {
                     current_token = first_char.to_string();
+                } else if first_char == '.' && source.peek() == Some('*') {
+                    source.take();
+                    current_syntax_nodes
+                        .borrow_mut()
+                        .push(BuilderNode::Identifier(IdentifierToken {
+                            pos: start,
+                            str: "*".to_string(),
+                            ident_tag: IdentifierTag::Access,
+                            ident_tag_raw: ".".to_string(),
+                        }));
+                    continue;
                 } else if OPERATOR_CHARS.contains(first_char) {
                     while source.peek().is_some_and(|c| OPERATOR_CHARS.contains(c)) {
                         source.take();
@@ -796,17 +807,6 @@ pub fn tokenize(source: &mut Source) -> TokenizationResult {
                         source.take();
                     }
                     current_token = source.text_slice(start.idx, source.current_index);
-                    if current_token == ".*" {
-                        current_syntax_nodes
-                            .borrow_mut()
-                            .push(BuilderNode::Identifier(IdentifierToken {
-                                pos: start,
-                                str: "*".to_string(),
-                                ident_tag: IdentifierTag::Access,
-                                ident_tag_raw: ".".to_string(),
-                            }));
-                        continue;
-                    }
                 } else if first_char == '\\' {
                     current_token = "\\".to_string();
                 } else {

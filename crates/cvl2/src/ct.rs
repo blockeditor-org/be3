@@ -9,12 +9,13 @@ use crate::compiler::{
     AnalysisBlock, AnalysisLine, AnalysisResult, Binary2, ComptimeFolder, ComptimeNamespace,
     ComptimeValue, ComptimeValueBuildArtifact, ComptimeValueCExportName, ComptimeValueCInt,
     ComptimeValueDeclaration, ComptimeValueExportList, ComptimeValueExportListEntry,
-    ComptimeValueKey, ComptimeValueKwBool, ComptimeValueKwInt, ComptimeValueMcIdentifier,
-    ComptimeValueMcNbtRef, ComptimeValueMcResult, ComptimeValueOperatorName,
-    ComptimeValueUint8Array, ComptimeValueVoid, ConsumedErrorToken, Env, PositionedError, Region,
-    RuntimeValue, Symbol, Uint8ArraySourcemapEntry, add_err, analyze, analyze_base, analyze_block,
-    analyze_call, analyze_function, block_append, cast_value, compiler_pos, create_declaration,
-    empty_block, get_declaration, read_binary, throw_consumed_err, throw_err, trim_ws,
+    ComptimeValueKey, ComptimeValueKwBool, ComptimeValueKwInt, ComptimeValueKwString,
+    ComptimeValueMcIdentifier, ComptimeValueMcNbtRef, ComptimeValueMcResult,
+    ComptimeValueOperatorName, ComptimeValueUint8Array, ComptimeValueVoid, ConsumedErrorToken, Env,
+    PositionedError, Region, RuntimeValue, Symbol, Uint8ArraySourcemapEntry, add_err, analyze,
+    analyze_base, analyze_block, analyze_call, analyze_function, block_append, compiler_pos,
+    create_declaration, empty_block, get_declaration, read_binary, throw_consumed_err, throw_err,
+    trim_ws,
 };
 use crate::comptime::{ComptimeValueKind, comptime_eval, get_comptime};
 use crate::parser::{
@@ -70,6 +71,23 @@ pub enum Type {
     KwMut(KwMut),
     Never(TypeNever),
     Infer(TypeInfer),
+    KwString(KwString),
+    KwList(KwList),
+    KwField(TypeKwField),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct KwString;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct KwList {
+    pub elem: Box<Type>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypeKwField {
+    pub receiver: Box<Type>,
+    pub name: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -105,6 +123,24 @@ impl Type {
     ) -> Result<AnalysisResult, PositionedError> {
         match self {
             Type::McResult(m) => m.cast_into(env, block, other, pos),
+            Type::CtBuildArtifact(artifact)
+                if matches!(other.ty, Type::KwString(_))
+                    && artifact.narrow != Some(CtBuildArtifactNarrow::Folder) =>
+            {
+                let idx = block_append(
+                    block,
+                    AnalysisLine::ComptimeFileCreate {
+                        pos,
+                        value: other.value,
+                    },
+                );
+                Ok(AnalysisResult {
+                    ty: Type::CtBuildArtifact(CtBuildArtifact {
+                        narrow: Some(CtBuildArtifactNarrow::File),
+                    }),
+                    value: RuntimeValue::Runtime(idx),
+                })
+            }
             _ if matches!(other.ty, Type::Never(_)) => Ok(AnalysisResult {
                 ty: self.clone(),
                 value: other.value,
@@ -140,12 +176,13 @@ impl Type {
                     | Type::CExportName(_)
                     | Type::OperatorName(_)
                     | Type::CtKey(_)
+                    | Type::KwString(_)
             ),
             LiteralKind::Map => matches!(
                 self,
                 Type::CtExportList(_) | Type::CtBuildArtifact(_) | Type::CtType(_)
             ),
-            LiteralKind::List => matches!(self, Type::Tuple(_)),
+            LiteralKind::List => matches!(self, Type::Tuple(_) | Type::KwList(_)),
             LiteralKind::Number => {
                 matches!(self, Type::McResult(_) | Type::CInt(_) | Type::KwInt(_))
             }
@@ -174,6 +211,10 @@ impl Type {
                 .map(|ast| t.from_string(env, slot, ast, block)),
             (LiteralKind::String, Type::CExportName(t)) => literal_block(node, BracketTag::String)
                 .map(|ast| t.from_string(env, slot, ast, block)),
+            (LiteralKind::String, Type::KwString(_)) => literal_block(node, BracketTag::String)
+                .map(|ast| crate::kw::string_literal(env, ast, block)),
+            (LiteralKind::List, Type::KwList(t)) => literal_block(node, BracketTag::List)
+                .map(|ast| crate::kw::list_literal(env, t, ast, block)),
             (LiteralKind::String, Type::CtKey(_)) => {
                 literal_block(node, BracketTag::String).map(|ast| string_key(env, ast, block))
             }
@@ -248,6 +289,9 @@ impl Type {
             Type::KwMut(_) => "KwMut",
             Type::Never(_) => "Never",
             Type::Infer(_) => "TypeUnknown",
+            Type::KwString(_) => "KwString",
+            Type::KwList(_) => "KwList",
+            Type::KwField(_) => "KwField",
         }
         .to_string()
     }
@@ -291,6 +335,7 @@ impl Type {
             Type::CIf(t) => t.analyze_call(env, pos, method, arg_in, block),
             Type::KwIf(t) => t.analyze_call(env, pos, method, arg_in, block),
             Type::Label(t) => t.analyze_call(env, pos, arg_in, block),
+            Type::KwField(t) => crate::kw::call_field(env, t, method.value, pos, arg_in, block),
             Type::InlineFn(t) => {
                 crate::user_type::inline_call(env, &t.func, Vec::new(), arg_in, block)
             }
@@ -350,6 +395,11 @@ impl Type {
             }
             _ => {
                 let key = access_key(env, block, prop, &pos)?;
+                if let ComptimeValueKey::String { key: name } = &key
+                    && let Some(field) = crate::kw::value_field(env, block, self, &obj, &pos, name)?
+                {
+                    return Ok(field);
+                }
                 let has_value_symbol = match &key {
                     ComptimeValueKey::Symbol { key, .. } => self.has_value_symbol(env, *key)?,
                     ComptimeValueKey::String { .. } => false,
@@ -437,6 +487,9 @@ impl Type {
     }
 
     pub fn type_field(&self, name: &str) -> Option<AnalysisResult> {
+        if let Some(field) = crate::kw::type_field(self, name) {
+            return Some(field);
+        }
         match (self, name) {
             (Type::KwBool(_), "true" | "false") => Some(AnalysisResult {
                 ty: Type::KwBool(KwBool),
@@ -470,6 +523,7 @@ impl Type {
                     | Type::Label(_)
                     | Type::Bound(_)
                     | Type::InlineFn(_)
+                    | Type::KwField(_)
             );
         }
         builtin_operator(self, OperatorKind::Lhs, key).is_some()
@@ -710,7 +764,7 @@ impl TypeTuple {
     }
 }
 
-fn list_items(
+pub fn list_items(
     env: &mut Env,
     ast: &BlockToken,
 ) -> Result<Vec<OperatorSegmentToken>, PositionedError> {
@@ -908,7 +962,12 @@ impl CtType {
         arg_in: CallArg,
         block: &mut AnalysisBlock,
     ) -> Result<AnalysisResult, PositionedError> {
-        let slot_type = get_comptime(env, Some(ComptimeValueKind::Type), method.value, pos)?;
+        let slot_type = get_comptime(
+            env,
+            Some(ComptimeValueKind::Type),
+            method.value,
+            pos.clone(),
+        )?;
         let ComptimeValue::Type(slot_type) = slot_type else {
             unreachable!("get_comptime guarantees a matching kind")
         };
@@ -916,7 +975,10 @@ impl CtType {
             crate::compiler::post_return(&infer.key, slot_type.ty.clone());
         }
         let result = analyze(env, slot_type.ty.clone(), arg_in.pos, arg_in.ast, block)?;
-        Ok(cast_value(slot_type.ty, result))
+        if result.ty == slot_type.ty {
+            return Ok(result);
+        }
+        slot_type.ty.cast_into(env, block, result, pos)
     }
 }
 
@@ -1734,6 +1796,12 @@ fn builtin_operator(ty: &Type, kind: OperatorKind, key: Symbol) -> Option<CBinar
     match (ty, kind, op.is_comparison()) {
         (Type::KwInt(_), OperatorKind::Slot, false) => Some(op),
         (Type::KwInt(_), OperatorKind::Lhs, _) => Some(op),
+        (Type::KwString(_), OperatorKind::Slot, false) if op == CBinaryOp::Add => Some(op),
+        (Type::KwString(_), OperatorKind::Lhs, _)
+            if matches!(op, CBinaryOp::Add | CBinaryOp::Eq | CBinaryOp::Ne) =>
+        {
+            Some(op)
+        }
         (Type::KwBool(_), OperatorKind::Lhs, _) if matches!(op, CBinaryOp::Eq | CBinaryOp::Ne) => {
             Some(op)
         }
@@ -1760,7 +1828,7 @@ fn builtin_binary(
     let ty = if op.is_comparison() {
         Type::KwBool(KwBool)
     } else {
-        Type::KwInt(KwInt)
+        ty.clone()
     };
     if let (RuntimeValue::Comptime(l), RuntimeValue::Comptime(r)) = (&lhs, &rhs) {
         let value = fold_kw_binary(env, &pos, op, l, r)?;
@@ -1812,6 +1880,14 @@ pub fn fold_kw_binary(
                 )),
             }
         }
+        (ComptimeValue::KwString(a), ComptimeValue::KwString(b)) => match op {
+            CBinaryOp::Add => Ok(ComptimeValue::KwString(ComptimeValueKwString {
+                value: format!("{}{}", a.value, b.value),
+            })),
+            CBinaryOp::Eq => bool(a.value == b.value),
+            CBinaryOp::Ne => bool(a.value != b.value),
+            _ => unreachable!("std.kw.string only has +, == and !="),
+        },
         (ComptimeValue::KwBool(a), ComptimeValue::KwBool(b)) => match op {
             CBinaryOp::Eq => bool(a.value == b.value),
             CBinaryOp::Ne => bool(a.value != b.value),

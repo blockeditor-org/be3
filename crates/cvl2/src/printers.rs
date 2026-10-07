@@ -300,6 +300,7 @@ pub(crate) fn analysis_line_tag(line: &AnalysisLine) -> &'static str {
         },
         AnalysisLine::RegionEnd { .. } => "region_end",
         AnalysisLine::MutNew { .. } => "kw:mut_new",
+        AnalysisLine::KwBuiltin { op, .. } => op.name(),
         AnalysisLine::MutGet { .. } => "kw:mut_get",
         AnalysisLine::MutSet { .. } => "kw:mut_set",
     }
@@ -323,6 +324,7 @@ pub(crate) fn analysis_line_pos(line: &AnalysisLine) -> &TokenPosition {
         AnalysisLine::RegionBegin { pos, .. } => pos,
         AnalysisLine::RegionEnd { pos } => pos,
         AnalysisLine::MutNew { pos, .. } => pos,
+        AnalysisLine::KwBuiltin { pos, .. } => pos,
         AnalysisLine::MutGet { pos, .. } => pos,
         AnalysisLine::MutSet { pos, .. } => pos,
     }
@@ -350,6 +352,8 @@ fn comptime_value_kind(value: &ComptimeValue) -> &'static str {
         ComptimeValue::KwBool(_) => "kw:bool",
         ComptimeValue::Tuple(_) => "tuple",
         ComptimeValue::KwMut(_) => "kw:mut",
+        ComptimeValue::KwString(_) => "kw:string",
+        ComptimeValue::KwList(_) => "kw:list",
         ComptimeValue::McNbtRef(_) => "mc:nbt_ref",
         ComptimeValue::Error(_) => "error",
         ComptimeValue::Mc(_) => "mc",

@@ -47,6 +47,8 @@ pub enum ComptimeValueKind {
     KwBool,
     Tuple,
     KwMut,
+    KwString,
+    KwList,
     McNbtRef,
     Error,
     Mc,
@@ -75,6 +77,8 @@ impl ComptimeValueKind {
             ComptimeValue::KwBool(_) => ComptimeValueKind::KwBool,
             ComptimeValue::Tuple(_) => ComptimeValueKind::Tuple,
             ComptimeValue::KwMut(_) => ComptimeValueKind::KwMut,
+            ComptimeValue::KwString(_) => ComptimeValueKind::KwString,
+            ComptimeValue::KwList(_) => ComptimeValueKind::KwList,
             ComptimeValue::McNbtRef(_) => ComptimeValueKind::McNbtRef,
             ComptimeValue::Error(_) => ComptimeValueKind::Error,
             ComptimeValue::Mc(_) => ComptimeValueKind::Mc,
@@ -326,20 +330,30 @@ fn comptime_eval_with_args(
                     block,
                     results: &results,
                 };
-                let arg_val = get_comptime_impl(
+                let bytes = match get_comptime_impl(
                     env,
-                    Some(ComptimeValueKind::Uint8Array),
+                    None,
                     value.clone(),
                     ipos.clone(),
                     Some(&runtime),
-                )?;
-                let ComptimeValue::Uint8Array(arg_val) = arg_val else {
-                    unreachable!("get_comptime guarantees a matching kind")
+                )? {
+                    ComptimeValue::KwString(s) => s.value.into_bytes(),
+                    other => {
+                        let ComptimeValue::Uint8Array(bytes) = get_comptime_impl(
+                            env,
+                            Some(ComptimeValueKind::Uint8Array),
+                            RuntimeValue::Comptime(other),
+                            ipos.clone(),
+                            None,
+                        )?
+                        else {
+                            unreachable!("get_comptime guarantees a matching kind")
+                        };
+                        bytes.value
+                    }
                 };
                 results[i] = Some(ComptimeValue::BuildArtifact(
-                    ComptimeValueBuildArtifact::File(ComptimeFile {
-                        value: arg_val.value,
-                    }),
+                    ComptimeValueBuildArtifact::File(ComptimeFile { value: bytes }),
                 ));
             }
             AnalysisLine::Tuple { pos: ipos, items } => {
@@ -449,6 +463,27 @@ fn comptime_eval_with_args(
                 }
             }
             AnalysisLine::LabelBegin { .. } => {}
+            AnalysisLine::KwBuiltin {
+                pos: ipos,
+                op,
+                args,
+            } => {
+                let runtime = RuntimeData {
+                    block,
+                    results: &results,
+                };
+                let mut values = Vec::new();
+                for arg in args {
+                    values.push(get_comptime_impl(
+                        env,
+                        None,
+                        arg.clone(),
+                        ipos.clone(),
+                        Some(&runtime),
+                    )?);
+                }
+                results[i] = Some(crate::kw::eval(env, ipos, *op, values)?);
+            }
             AnalysisLine::MutNew { pos: ipos, init } => {
                 let runtime = RuntimeData {
                     block,

@@ -454,6 +454,7 @@ fn codegen_c_body(
             AnalysisLine::RegionBegin { pos, .. }
             | AnalysisLine::KwBinary { pos, .. }
             | AnalysisLine::MutNew { pos, .. }
+            | AnalysisLine::KwBuiltin { pos, .. }
             | AnalysisLine::MutGet { pos, .. }
             | AnalysisLine::MutSet { pos, .. } => {
                 return Err(throw_err(

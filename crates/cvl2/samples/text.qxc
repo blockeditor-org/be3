@@ -1,0 +1,29 @@
+#builtin.build .= () => std.Folder: [
+  "squares.txt" .= std.File: squares(4)
+  "greeting.txt" .= std.File: greet(std.kw.list(std.kw.string): ("Ada", "Grace", "Linus"))
+]
+
+squares :: (n: std.kw.int) => std.kw.string: :done {
+  lines := std.kw.mut(std.kw.list(std.kw.string): ())
+  i := std.kw.mut(std.kw.int: 1)
+  std.kw.loop {
+    std.kw.if (i.* > n) {
+      done: lines.*.join("\n")
+    }
+    lines = lines.*.push(std.kw.string.from_int(i.*) + " squared is " + std.kw.string.from_int(i.* * i.*))
+    i = i.* + 1
+  }
+}
+
+greet :: (names: std.kw.list(std.kw.string)) => std.kw.string: :done {
+  out := std.kw.mut(std.kw.string: "")
+  i := std.kw.mut(std.kw.int: 0)
+  std.kw.loop {
+    std.kw.if (i.* == names.len) {
+      done: out.*
+    }
+    out = out.* + "hello, " + names.get(i.*) + "!\n"
+    i = i.* + 1
+  }
+}
+std :: #builtin.std

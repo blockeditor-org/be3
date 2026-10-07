@@ -122,6 +122,7 @@ pub fn codegen_mcfunction(
             | AnalysisLine::LabelEnd { pos, .. }
             | AnalysisLine::KwBinary { pos, .. }
             | AnalysisLine::MutNew { pos, .. }
+            | AnalysisLine::KwBuiltin { pos, .. }
             | AnalysisLine::MutGet { pos, .. }
             | AnalysisLine::MutSet { pos, .. }
             | AnalysisLine::RegionBegin { pos, .. }

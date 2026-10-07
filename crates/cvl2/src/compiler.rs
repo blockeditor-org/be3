@@ -475,6 +475,11 @@ pub enum AnalysisLine {
         pos: TokenPosition,
         init: RuntimeValue,
     },
+    KwBuiltin {
+        pos: TokenPosition,
+        op: crate::kw::KwBuiltinOp,
+        args: Vec<RuntimeValue>,
+    },
     MutGet {
         pos: TokenPosition,
         cell: RuntimeValue,
@@ -663,6 +668,11 @@ pub struct ComptimeValueKwInt {
 }
 
 #[derive(Debug, Clone)]
+pub struct ComptimeValueKwString {
+    pub value: String,
+}
+
+#[derive(Debug, Clone)]
 pub struct ComptimeValueKwBool {
     pub value: bool,
 }
@@ -774,6 +784,8 @@ pub enum ComptimeValue {
     OperatorName(ComptimeValueOperatorName),
     KwInt(ComptimeValueKwInt),
     KwBool(ComptimeValueKwBool),
+    KwString(ComptimeValueKwString),
+    KwList(Vec<ComptimeValue>),
     Tuple(ComptimeValueTuple),
     KwMut(Rc<RefCell<ComptimeValue>>),
     McNbtRef(ComptimeValueMcNbtRef),
@@ -3015,6 +3027,33 @@ fn builtin_c_int_from_kw_call(
     })
 }
 
+fn builtin_kw_list_call(
+    env: &mut Env,
+    _slot: Type,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    let elem = analyze(env, Type::CtType(CtType), arg_ast.pos, arg_ast.ast, block)?;
+    let ComptimeValue::Type(elem) = crate::comptime::get_comptime(
+        env,
+        Some(crate::comptime::ComptimeValueKind::Type),
+        elem.value,
+        pos,
+    )?
+    else {
+        unreachable!("get_comptime guarantees a matching kind")
+    };
+    Ok(AnalysisResult {
+        ty: Type::CtType(CtType),
+        value: RuntimeValue::Comptime(ComptimeValue::Type(ComptimeValueType {
+            ty: Type::KwList(crate::ct::KwList {
+                elem: Box::new(elem.ty),
+            }),
+        })),
+    })
+}
+
 fn builtin_kw_mut_call(
     env: &mut Env,
     _slot: Type,
@@ -3325,6 +3364,18 @@ fn build_builtin_namespace_descriptor() -> Rc<dyn Descriptor> {
                                             )),
                                         }),
                                     ),
+                                    (
+                                        "string",
+                                        d_raw(AnalysisResult {
+                                            ty: Type::CtType(CtType),
+                                            value: RuntimeValue::Comptime(ComptimeValue::Type(
+                                                ComptimeValueType {
+                                                    ty: Type::KwString(crate::ct::KwString),
+                                                },
+                                            )),
+                                        }),
+                                    ),
+                                    ("list", d_ns(vec![], Some(builtin_kw_list_call))),
                                     (
                                         "bool",
                                         d_raw(AnalysisResult {

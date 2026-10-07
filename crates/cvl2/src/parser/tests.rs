@@ -60,6 +60,7 @@ mod tokenize_bad_token_reports_error;
 mod tokenize_bind_operators;
 mod tokenize_bracket_blocks;
 mod tokenize_deref_is_an_access;
+mod tokenize_deref_then_access;
 mod tokenize_equals_assignment;
 mod tokenize_extra_close_bracket_reports_error;
 mod tokenize_identifier;
