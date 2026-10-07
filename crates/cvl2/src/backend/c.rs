@@ -451,7 +451,11 @@ fn codegen_c_body(
                 body.indent -= 1;
                 body.line("}");
             }
-            AnalysisLine::RegionBegin { pos, .. } | AnalysisLine::KwBinary { pos, .. } => {
+            AnalysisLine::RegionBegin { pos, .. }
+            | AnalysisLine::KwBinary { pos, .. }
+            | AnalysisLine::MutNew { pos, .. }
+            | AnalysisLine::MutGet { pos, .. }
+            | AnalysisLine::MutSet { pos, .. } => {
                 return Err(throw_err(
                     env,
                     Some(pos.clone()),

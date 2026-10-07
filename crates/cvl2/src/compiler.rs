@@ -465,6 +465,19 @@ pub enum AnalysisLine {
     RegionEnd {
         pos: TokenPosition,
     },
+    MutNew {
+        pos: TokenPosition,
+        init: RuntimeValue,
+    },
+    MutGet {
+        pos: TokenPosition,
+        cell: RuntimeValue,
+    },
+    MutSet {
+        pos: TokenPosition,
+        cell: RuntimeValue,
+        value: RuntimeValue,
+    },
     ComptimeFileCreate {
         pos: TokenPosition,
         value: RuntimeValue,
@@ -480,6 +493,7 @@ pub enum Region {
     CIf { cond: RuntimeValue },
     KwIf { cond: RuntimeValue },
     KwElse { if_end: BlockIdx },
+    KwLoop,
 }
 
 #[derive(Debug, Clone)]
@@ -755,6 +769,7 @@ pub enum ComptimeValue {
     KwInt(ComptimeValueKwInt),
     KwBool(ComptimeValueKwBool),
     Tuple(ComptimeValueTuple),
+    KwMut(Rc<RefCell<ComptimeValue>>),
     McNbtRef(ComptimeValueMcNbtRef),
     Error(ComptimeValueError),
     Mc(crate::backend::mc::ComptimeValueMc),
@@ -1475,13 +1490,17 @@ fn analyze_block_body(
                     )?);
                     continue;
                 }
-                analyze(
+                let result = analyze(
                     env,
                     Type::Void(TypeVoid),
                     line.pos.clone(),
                     &line.items,
                     block,
                 )?;
+                if let Type::Never(_) = result.ty {
+                    retloc = Some(line.pos.clone());
+                    ret = Some(result);
+                }
             }
         }
     }
@@ -1935,6 +1954,16 @@ pub fn analyze_sub(
     }
 }
 
+fn assigns_to_discard(bin: &BinaryExpressionToken) -> bool {
+    let Some(SyntaxNode::OperatorSegment(lhs)) = bin.items.first() else {
+        return false;
+    };
+    matches!(
+        trim_ws(&lhs.items).as_slice(),
+        [SyntaxNode::Identifier(id)] if id.ident_tag == IdentifierTag::Discard
+    )
+}
+
 fn analyze_label(
     env: &mut Env,
     slot: Type,
@@ -2317,6 +2346,9 @@ pub fn analyze_base(
                 ast,
                 block,
             )
+        }
+        SyntaxNode::BinaryExpression(be) if be.tag == OpTag::Assign && !assigns_to_discard(be) => {
+            analyze_binary_op(env, slot, be, block)
         }
         SyntaxNode::BinaryExpression(be) if be.tag == OpTag::Assign => {
             let rbr = read_binary2(env, std::slice::from_ref(ast), OpTag::Assign)?;
@@ -2954,6 +2986,68 @@ fn builtin_c_int_from_kw_call(
     })
 }
 
+fn builtin_kw_mut_call(
+    env: &mut Env,
+    _slot: Type,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    env.require_target(TargetEnv::Build, pos.clone(), "std.kw.mut")?;
+    let init = analyze(
+        env,
+        Type::Unknown(TypeUnknown),
+        arg_ast.pos,
+        arg_ast.ast,
+        block,
+    )?;
+    if let Type::Unknown(_) = init.ty {
+        return Err(throw_err(
+            env,
+            Some(pos),
+            "std.kw.mut needs a value of a known type",
+            None,
+            None,
+        ));
+    }
+    let cell = block_append(
+        block,
+        AnalysisLine::MutNew {
+            pos,
+            init: init.value,
+        },
+    );
+    Ok(AnalysisResult {
+        ty: Type::KwMut(crate::ct::KwMut {
+            inner: Box::new(init.ty),
+        }),
+        value: RuntimeValue::Runtime(cell),
+    })
+}
+
+fn builtin_kw_loop_call(
+    env: &mut Env,
+    _slot: Type,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    env.require_target(TargetEnv::Build, pos.clone(), "std.kw.loop")?;
+    block_append(
+        block,
+        AnalysisLine::RegionBegin {
+            pos: pos.clone(),
+            region: Region::KwLoop,
+        },
+    );
+    analyze(env, Type::Void(TypeVoid), arg_ast.pos, arg_ast.ast, block)?;
+    block_append(block, AnalysisLine::RegionEnd { pos });
+    Ok(AnalysisResult {
+        ty: Type::Never(crate::ct::TypeNever),
+        value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
+    })
+}
+
 fn builtin_kw_if_call(
     env: &mut Env,
     _slot: Type,
@@ -3214,6 +3308,8 @@ fn build_builtin_namespace_descriptor() -> Rc<dyn Descriptor> {
                                         }),
                                     ),
                                     ("if", d_ns(vec![], Some(builtin_kw_if_call))),
+                                    ("loop", d_ns(vec![], Some(builtin_kw_loop_call))),
+                                    ("mut", d_ns(vec![], Some(builtin_kw_mut_call))),
                                 ],
                                 None,
                             ),
@@ -3364,7 +3460,24 @@ fn import_file_body(
     Ok(result)
 }
 
+const IMPORT_STACK_SIZE: usize = 1 << 30;
+
 pub fn import_file(
+    filename: &str,
+    contents: &str,
+) -> Result<ComptimeValueBuildArtifact, Vec<TokenizationError>> {
+    let filename = filename.to_string();
+    let contents = contents.to_string();
+    std::thread::Builder::new()
+        .name("cvl2 import".to_string())
+        .stack_size(IMPORT_STACK_SIZE)
+        .spawn(move || import_file_on_this_thread(&filename, &contents))
+        .expect("spawning the import thread")
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+}
+
+fn import_file_on_this_thread(
     filename: &str,
     contents: &str,
 ) -> Result<ComptimeValueBuildArtifact, Vec<TokenizationError>> {

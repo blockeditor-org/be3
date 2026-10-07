@@ -1,0 +1,48 @@
+#builtin.build .= () => std.Folder: [
+  "sum.txt" .= std.File: check(sum_to(10) == 55)
+  "fact.txt" .= std.File: check(fact(5) == 120)
+  "collatz.txt" .= std.File: check(collatz_steps(27) == 111)
+]
+
+sum_to :: (n: std.kw.int) => std.kw.int: :done {
+  total := std.kw.mut(std.kw.int: 0)
+  i := std.kw.mut(std.kw.int: 1)
+  std.kw.loop {
+    std.kw.if (i.* > n) {
+      done: total.*
+    }
+    total = total.* + i.*
+    i = i.* + 1
+  }
+}
+
+fact :: (n: std.kw.int) => std.kw.int: :out {
+  std.kw.if (n == 0) {
+    out: 1
+  }
+  -> n * fact(n - 1)
+}
+
+collatz_steps :: (start: std.kw.int) => std.kw.int: :done {
+  n := std.kw.mut(start)
+  steps := std.kw.mut(std.kw.int: 0)
+  std.kw.loop {
+    std.kw.if (n.* == 1) {
+      done: steps.*
+    }
+    std.kw.if (n.* % 2 == 0) {
+      n = n.* / 2
+    } .else {
+      n = n.* * 3 + 1
+    }
+    steps = steps.* + 1
+  }
+}
+
+check :: (ok: std.kw.bool) => std.File: :out {
+  std.kw.if (ok) {
+    out: "yes"
+  }
+  -> "no"
+}
+std :: #builtin.std

@@ -67,6 +67,21 @@ pub enum Type {
     KwIfResult(KwIfResult),
     User(crate::user_type::UserType),
     InlineFn(TypeInlineFn),
+    KwMut(KwMut),
+    Never(TypeNever),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct KwMut {
+    pub inner: Box<Type>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypeNever;
+
+fn is_mut_assign(ty: &Type, key: Symbol) -> bool {
+    matches!(ty, Type::KwMut(_))
+        && symbol_operator(key) == Some((OperatorKind::Lhs, "=".to_string()))
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -84,6 +99,10 @@ impl Type {
     ) -> Result<AnalysisResult, PositionedError> {
         match self {
             Type::McResult(m) => m.cast_into(env, block, other, pos),
+            _ if matches!(other.ty, Type::Never(_)) => Ok(AnalysisResult {
+                ty: self.clone(),
+                value: other.value,
+            }),
             Type::Void(_) if matches!(other.ty, Type::KwIfResult(_)) => Ok(AnalysisResult {
                 ty: Type::Void(TypeVoid),
                 value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
@@ -220,6 +239,8 @@ impl Type {
             Type::KwIfResult(_) => "KwIfResult",
             Type::User(_) => unreachable!("handled above"),
             Type::InlineFn(_) => "InlineFn",
+            Type::KwMut(_) => "KwMut",
+            Type::Never(_) => "Never",
         }
         .to_string()
     }
@@ -328,6 +349,24 @@ impl Type {
                 };
                 match key {
                     ComptimeValueKey::String { key }
+                        if key == "*" && matches!(self, Type::KwMut(_)) =>
+                    {
+                        let Type::KwMut(cell) = self else {
+                            unreachable!("matched KwMut above")
+                        };
+                        let idx = block_append(
+                            block,
+                            AnalysisLine::MutGet {
+                                pos,
+                                cell: obj.value,
+                            },
+                        );
+                        Ok(AnalysisResult {
+                            ty: (*cell.inner).clone(),
+                            value: RuntimeValue::Runtime(idx),
+                        })
+                    }
+                    ComptimeValueKey::String { key }
                         if key == "else" && matches!(self, Type::KwIfResult(_)) =>
                     {
                         Ok(AnalysisResult {
@@ -410,6 +449,9 @@ impl Type {
     }
 
     fn builtin_has_value_symbol(&self, key: Symbol) -> bool {
+        if is_mut_assign(self, key) {
+            return true;
+        }
         if symbol_std_key(key) == Some(StdKey::Call) {
             return matches!(
                 self,
@@ -462,6 +504,22 @@ impl Type {
         if symbol_std_key(key) == Some(StdKey::Call) {
             return self.builtin_call(env, slot, pos, receiver, arg_in, block);
         }
+        if let (true, Type::KwMut(cell)) = (is_mut_assign(self, key), self) {
+            let value = analyze(env, (*cell.inner).clone(), arg_in.pos, arg_in.ast, block)?;
+            let value = cell.inner.cast_into(env, block, value, pos.clone())?;
+            block_append(
+                block,
+                AnalysisLine::MutSet {
+                    pos,
+                    cell: receiver.value,
+                    value: value.value,
+                },
+            );
+            return Ok(AnalysisResult {
+                ty: Type::Void(TypeVoid),
+                value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
+            });
+        }
         let Some(op) = builtin_operator(self, OperatorKind::Lhs, key) else {
             unreachable!("bound only to symbols has_value_symbol accepted")
         };
@@ -513,7 +571,10 @@ impl TypeFn {
                 let ComptimeValue::Fn(callee) = callee else {
                     unreachable!("get_comptime guarantees a matching kind")
                 };
-                analyze_function(env, &callee)?.ty
+                match declared_return(env, &callee) {
+                    Some(ty) => ty,
+                    None => analyze_function(env, &callee)?.ty,
+                }
             }
             ret => ret.clone(),
         };
@@ -1449,7 +1510,7 @@ impl TypeLabel {
             },
         );
         Ok(AnalysisResult {
-            ty: Type::Void(TypeVoid),
+            ty: Type::Never(TypeNever),
             value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
         })
     }
@@ -1856,4 +1917,34 @@ fn string_key(
             key: String::from_utf8_lossy(&u8a.value).into_owned(),
         })),
     })
+}
+
+fn declared_return(env: &mut Env, func: &crate::compiler::ComptimeValueFn) -> Option<Type> {
+    let body = trim_ws(&func.body().ast);
+    let [prefix @ .., SyntaxNode::Block(last)] = body.as_slice() else {
+        return None;
+    };
+    if last.tag != BracketTag::ColonCall || prefix.is_empty() {
+        return None;
+    }
+    let errors = env.errors.len();
+    let saved = std::mem::replace(&mut env.scope.bindings, func.body().scope.bindings.clone());
+    let result = analyze(
+        env,
+        Type::Unknown(TypeUnknown),
+        func.pos().clone(),
+        prefix,
+        &mut empty_block(),
+    );
+    env.scope.bindings = saved;
+    match result {
+        Ok(AnalysisResult {
+            ty: Type::CtType(_),
+            value: RuntimeValue::Comptime(ComptimeValue::Type(ty)),
+        }) => Some(ty.ty),
+        _ => {
+            env.errors.truncate(errors);
+            None
+        }
+    }
 }

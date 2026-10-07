@@ -1,4 +1,13 @@
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::rc::Rc;
+
+const MAX_STEPS: usize = 10_000_000;
+const MAX_CALL_DEPTH: usize = 1000;
+
+thread_local! {
+    static CALL_DEPTH: Cell<usize> = const { Cell::new(0) };
+}
 
 use crate::compiler::{
     AnalysisBlock, AnalysisLine, ComptimeFile, ComptimeValue, ComptimeValueBuildArtifact,
@@ -32,6 +41,7 @@ pub enum ComptimeValueKind {
     KwInt,
     KwBool,
     Tuple,
+    KwMut,
     McNbtRef,
     Error,
     Mc,
@@ -59,6 +69,7 @@ impl ComptimeValueKind {
             ComptimeValue::KwInt(_) => ComptimeValueKind::KwInt,
             ComptimeValue::KwBool(_) => ComptimeValueKind::KwBool,
             ComptimeValue::Tuple(_) => ComptimeValueKind::Tuple,
+            ComptimeValue::KwMut(_) => ComptimeValueKind::KwMut,
             ComptimeValue::McNbtRef(_) => ComptimeValueKind::McNbtRef,
             ComptimeValue::Error(_) => ComptimeValueKind::Error,
             ComptimeValue::Mc(_) => ComptimeValueKind::Mc,
@@ -158,6 +169,7 @@ fn comptime_eval_with_args(
 ) -> Result<ComptimeValue, PositionedError> {
     let mut results: Vec<Option<ComptimeValue>> = block.lines.iter().map(|_| None).collect();
     let mut region_end: Vec<Option<usize>> = vec![None; block.lines.len()];
+    let mut region_begin: Vec<Option<usize>> = vec![None; block.lines.len()];
     let mut label_end: HashMap<Symbol, usize> = HashMap::new();
     let mut open = Vec::new();
     for (i, instr) in block.lines.iter().enumerate() {
@@ -166,6 +178,7 @@ fn comptime_eval_with_args(
             AnalysisLine::RegionEnd { .. } | AnalysisLine::LabelEnd { .. } => {
                 let begin = open.pop().expect("analysis closes every region it opens");
                 region_end[begin] = Some(i);
+                region_begin[i] = Some(begin);
                 if let AnalysisLine::LabelEnd { label, .. } = instr {
                     label_end.insert(*label, i);
                 }
@@ -175,9 +188,20 @@ fn comptime_eval_with_args(
     }
 
     let mut i = 0;
+    let mut steps: usize = 0;
     while i < block.lines.len() {
         let instr = &block.lines[i];
         let mut next = i + 1;
+        steps += 1;
+        if steps > MAX_STEPS {
+            return Err(throw_err(
+                env,
+                Some(crate::printers::analysis_line_pos(instr).clone()),
+                "compile-time evaluation took too many steps; is a std.kw.loop missing a break?",
+                None,
+                None,
+            ));
+        }
         match instr {
             AnalysisLine::ComptimeKvListInit { .. } => {
                 results[i] = Some(ComptimeValue::KvFields(NsFields {
@@ -253,13 +277,26 @@ fn comptime_eval_with_args(
                 let arg_val =
                     get_comptime_impl(env, None, arg.clone(), ipos.clone(), Some(&runtime))?;
                 let body = analyze_function(env, &method_val)?;
+                let depth = CALL_DEPTH.with(|d| d.get());
+                if depth >= MAX_CALL_DEPTH {
+                    return Err(throw_err(
+                        env,
+                        Some(ipos.clone()),
+                        "compile-time calls are nested too deeply",
+                        None,
+                        None,
+                    ));
+                }
+                CALL_DEPTH.with(|d| d.set(depth + 1));
                 let value = comptime_eval_with_args(
                     env,
                     &body.block,
                     body.value,
                     ipos.clone(),
                     Some(RuntimeValue::Comptime(arg_val)),
-                )?;
+                );
+                CALL_DEPTH.with(|d| d.set(depth));
+                let value = value?;
                 results[i] = Some(value);
             }
             AnalysisLine::Args { pos: ipos } => {
@@ -384,6 +421,7 @@ fn comptime_eval_with_args(
                             next = end + 1;
                         }
                     }
+                    Region::KwLoop => {}
                     Region::CIf { .. } => {
                         return Err(throw_err(
                             env,
@@ -395,7 +433,66 @@ fn comptime_eval_with_args(
                     }
                 }
             }
-            AnalysisLine::RegionEnd { .. } | AnalysisLine::LabelBegin { .. } => {}
+            AnalysisLine::RegionEnd { .. } => {
+                let begin = region_begin[i].expect("every region_end has a region_begin");
+                if let AnalysisLine::RegionBegin {
+                    region: Region::KwLoop,
+                    ..
+                } = &block.lines[begin]
+                {
+                    next = begin + 1;
+                }
+            }
+            AnalysisLine::LabelBegin { .. } => {}
+            AnalysisLine::MutNew { pos: ipos, init } => {
+                let runtime = RuntimeData {
+                    block,
+                    results: &results,
+                };
+                let init =
+                    get_comptime_impl(env, None, init.clone(), ipos.clone(), Some(&runtime))?;
+                results[i] = Some(ComptimeValue::KwMut(Rc::new(RefCell::new(init))));
+            }
+            AnalysisLine::MutGet { pos: ipos, cell } => {
+                let runtime = RuntimeData {
+                    block,
+                    results: &results,
+                };
+                let ComptimeValue::KwMut(cell) = get_comptime_impl(
+                    env,
+                    Some(ComptimeValueKind::KwMut),
+                    cell.clone(),
+                    ipos.clone(),
+                    Some(&runtime),
+                )?
+                else {
+                    unreachable!("get_comptime guarantees a matching kind")
+                };
+                results[i] = Some(cell.borrow().clone());
+            }
+            AnalysisLine::MutSet {
+                pos: ipos,
+                cell,
+                value,
+            } => {
+                let runtime = RuntimeData {
+                    block,
+                    results: &results,
+                };
+                let ComptimeValue::KwMut(cell) = get_comptime_impl(
+                    env,
+                    Some(ComptimeValueKind::KwMut),
+                    cell.clone(),
+                    ipos.clone(),
+                    Some(&runtime),
+                )?
+                else {
+                    unreachable!("get_comptime guarantees a matching kind")
+                };
+                let value =
+                    get_comptime_impl(env, None, value.clone(), ipos.clone(), Some(&runtime))?;
+                *cell.borrow_mut() = value;
+            }
             AnalysisLine::LabelEnd {
                 pos: ipos, value, ..
             } => {

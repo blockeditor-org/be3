@@ -563,8 +563,12 @@ fn lookup_config(token: &str) -> Option<ConfigEntry> {
 }
 
 pub fn is_overloadable_operator(token: &str) -> bool {
-    lookup_config(token)
-        .is_some_and(|cfg| matches!(cfg.op_tag, Some(OpTag::Compare | OpTag::Add | OpTag::Mul)))
+    lookup_config(token).is_some_and(|cfg| {
+        matches!(
+            cfg.op_tag,
+            Some(OpTag::Compare | OpTag::Add | OpTag::Mul | OpTag::Assign)
+        )
+    })
 }
 
 fn set_mode_for_bracket_tag(tag: BracketTag) -> Option<TokenizerMode> {
@@ -792,6 +796,17 @@ pub fn tokenize(source: &mut Source) -> TokenizationResult {
                         source.take();
                     }
                     current_token = source.text_slice(start.idx, source.current_index);
+                    if current_token == ".*" {
+                        current_syntax_nodes
+                            .borrow_mut()
+                            .push(BuilderNode::Identifier(IdentifierToken {
+                                pos: start,
+                                str: "*".to_string(),
+                                ident_tag: IdentifierTag::Access,
+                                ident_tag_raw: ".".to_string(),
+                            }));
+                        continue;
+                    }
                 } else if first_char == '\\' {
                     current_token = "\\".to_string();
                 } else {
