@@ -118,6 +118,7 @@ mod analyze_call_not_supported_call_type_errors;
 mod analyze_namespace_errors_on_non_key_bind_target;
 mod block_append_returns_sequential_indices;
 mod get_err_includes_message_and_trace;
+mod import_file_builds_demo_sample;
 mod ns_key_distinguishes_str_and_sym_variants;
 mod read_binary2_extracts_matching_triplet;
 mod read_binary2_returns_none_for_empty_input;

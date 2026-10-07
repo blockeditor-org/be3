@@ -2,6 +2,6 @@ load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test"
 
 cargo_library()
 
-cargo_test()
+cargo_test(srcs = glob(["src/**/*.rs", "samples/**/*.qxc"]))
 
 cargo_binary()

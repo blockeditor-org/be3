@@ -2309,7 +2309,10 @@ fn import_file_body(
     Ok(result)
 }
 
-pub fn import_file(filename: &str, contents: &str) -> Result<(), Vec<TokenizationError>> {
+pub fn import_file(
+    filename: &str,
+    contents: &str,
+) -> Result<ComptimeValueBuildArtifact, Vec<TokenizationError>> {
     let mut source = Source::new(filename, contents);
     let tokenized = tokenize(&mut source);
     let root_pos = TokenPosition {
@@ -2333,20 +2336,13 @@ pub fn import_file(filename: &str, contents: &str) -> Result<(), Vec<Tokenizatio
         builtin_cache: Rc::new(PerComptimeScopeCache::new()),
     };
 
-    match import_file_body(&mut env, filename, root_pos, &tokenized.result) {
-        Ok(result) => {
-            println!(
-                "got result{}",
-                crate::printers::printers::FOLDER_OR_FILE
-                    .dump(&result, crate::printers::UNLIMITED_DEPTH)
-            );
+    let result = import_file_body(&mut env, filename, root_pos, &tokenized.result);
+    match result {
+        Ok(artifact) if env.errors.is_empty() => Ok(artifact),
+        Ok(_) => Err(env.errors),
+        Err(e) => {
+            handle_err(&mut env, e);
+            Err(env.errors)
         }
-        Err(e) => handle_err(&mut env, e),
-    }
-
-    if env.errors.is_empty() {
-        Ok(())
-    } else {
-        Err(env.errors)
     }
 }

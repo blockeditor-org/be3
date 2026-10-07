@@ -1,6 +1,6 @@
 use std::{env, fs, process::ExitCode};
 
-use cvl2::{Source, import_file, pretty_print_errors, render_tokenized_output, tokenize};
+use cvl2::{Source, import_file, pretty_print_errors, printers, render_tokenized_output, tokenize};
 
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().skip(1).collect();
@@ -22,7 +22,13 @@ fn main() -> ExitCode {
     println!("{}", render_tokenized_output(&tokenized, &source));
 
     match import_file(filename, &contents) {
-        Ok(()) => ExitCode::SUCCESS,
+        Ok(artifact) => {
+            println!(
+                "got result{}",
+                printers::printers::FOLDER_OR_FILE.dump(&artifact, printers::UNLIMITED_DEPTH)
+            );
+            ExitCode::SUCCESS
+        }
         Err(errors) => {
             let source = Source::new(filename.as_str(), contents.as_str());
             println!("{}", pretty_print_errors(&[&source], &errors));
