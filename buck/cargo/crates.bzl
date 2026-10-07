@@ -8427,6 +8427,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-ui-test:block-ui-test",
+                    "//third-party/rust:serde_json-1.0.150",
                 ],
                 "test_features": [],
             },

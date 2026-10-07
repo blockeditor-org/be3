@@ -85,6 +85,10 @@ pub trait DocumentRead {
 
     fn anchor_index(&self, anchor: Anchor) -> Option<usize>;
 
+    fn deleted_anchor_index(&self, _anchor: Anchor) -> Option<usize> {
+        None
+    }
+
     fn language(&self) -> TextLanguage;
 
     fn indentation(&self) -> TextIndentation;
@@ -179,6 +183,10 @@ impl DocumentRead for DocumentView<'_> {
 
     fn anchor_index(&self, anchor: Anchor) -> Option<usize> {
         self.read.anchor_index(anchor)
+    }
+
+    fn deleted_anchor_index(&self, anchor: Anchor) -> Option<usize> {
+        self.read.deleted_anchor_index(anchor)
     }
 
     fn language(&self) -> TextLanguage {
@@ -372,6 +380,10 @@ impl DocumentRead for BufferRead<'_> {
         self.state.anchors().index(anchor)
     }
 
+    fn deleted_anchor_index(&self, anchor: Anchor) -> Option<usize> {
+        self.state.anchors().deleted_at(anchor)
+    }
+
     fn language(&self) -> TextLanguage {
         self.state.language
     }
@@ -401,6 +413,10 @@ impl DocumentRead for BufferEdit<'_> {
 
     fn anchor_index(&self, anchor: Anchor) -> Option<usize> {
         self.state.anchors().index(anchor)
+    }
+
+    fn deleted_anchor_index(&self, anchor: Anchor) -> Option<usize> {
+        self.state.anchors().deleted_at(anchor)
     }
 
     fn language(&self) -> TextLanguage {
