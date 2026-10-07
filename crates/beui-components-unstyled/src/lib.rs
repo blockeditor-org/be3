@@ -126,8 +126,8 @@ pub use stack::Stack;
 pub use text_area::text_area_handles;
 pub use text_area::{
     Completer, Completion, CompletionMenu, CompletionRowHandle, RemoteTextCursor, SyntaxColors,
-    TextArea, TextAreaColors, TextAreaLayout, TextAreaState, TextWidget, emoji_completer,
-    search_emoji, text_area_index_at, text_area_shown, text_area_state,
+    TextArea, TextAreaColors, TextAreaLayout, TextAreaState, TextCheckbox, TextWidget,
+    emoji_completer, search_emoji, text_area_index_at, text_area_shown, text_area_state,
 };
 pub use text_input::text_input_handles;
 pub use text_input::{
