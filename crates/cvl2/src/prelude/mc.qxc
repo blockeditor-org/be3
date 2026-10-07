@@ -1,125 +1,114 @@
 std :: #builtin.std
+kw :: std.kw
 
 target :: std.Target: "mc"
 
-Line :: std.Enum["command" .= std.kw.string, "value" .= std.kw.int]
+Line :: std.Enum["command" .= kw.string, "value" .= kw.int]
 
 Result :: std.Type[
   .statics .= [
-    std.literal.number .= (n: std.kw.int) => std.emit(Result, Line.value(n), ())
+    std.literal.number .= (n: kw.int) => std.emit(Result, Line.value(n), ())
   ]
 ]
 
-runCommand :: (cmd :: std.kw.string) #inline => Result: std.emit(Result, Line.command(cmd), ())
+runCommand :: (cmd :: kw.string) #inline => Result: std.emit(Result, Line.command(cmd), ())
 
 Names :: std.Struct[
-  "order" .= std.kw.list(std.reflect.Fn)
-  "ids" .= std.kw.map(std.reflect.Fn, std.kw.string)
-  "internal" .= std.kw.int
+  "order" .= kw.list(std.reflect.Fn)
+  "ids" .= kw.map(std.reflect.Fn, kw.string)
+  "internal" .= kw.int
 ]
 
-name :: (names: Names, f: std.reflect.Fn) => Names: :done {
-  std.kw.if (_ := names.ids.get(f)) {
-    done: names
+name :: (names: Names, f: std.reflect.Fn) => Names: :return {
+  kw.if (_ := names.ids.get(f)) {
+    return: names
   }
   -> Names[
     "order" .= names.order.push(f)
-    "ids" .= names.ids.set(f, "_0:_" + std.kw.string.from_int(names.internal))
+    "ids" .= names.ids.set(f, "_0:_" + kw.string.from_int(names.internal))
     "internal" .= names.internal + 1
   ]
 }
 
-Body :: std.Struct["names" .= Names, "text" .= std.kw.string]
+Pending :: std.Struct["command" .= kw.string, "at" .= kw.int]
 
-body :: (f: std.reflect.Function, start: Names) => Body: :done {
-  names := std.kw.mut(Names).new: start
-  commands := std.kw.mut(std.kw.list(std.kw.string)).new: ()
-  pending := std.kw.mut(std.kw.string).new: ""
-  pending_at := std.kw.mut(std.kw.int).new: 0 - 1
-  i := std.kw.mut(std.kw.int).new: 0
-  std.kw.loop {
-    std.kw.if (i.* == f.lines.len) {
-      done: finish(f, names.*, commands.*, pending.*, pending_at.*)
-    }
-    line := f.lines.get(i.*)
-    i = i.* + 1
-    command := std.kw.mut(std.Option(std.kw.string)).new: std.kw.null
-    std.kw.if (c := line.call) {
-      callee := c.callee.constant.?.fn.?
-      names = name(names.*, callee)
-      command = std.kw.string: "function " + names.*.ids.get(callee).?
-    }
-    std.kw.if (e := line.emit) {
-      std.kw.if (cmd := e.data.as(Line).?.command) {
-        command = cmd
-      }
-    }
-    std.kw.if (o := line.other) {
-      _ = std.reflect.fail(o.at, o.name + " is not supported in a datapack")
-    }
-    std.kw.if (b := line.break) {
-      _ = std.reflect.fail(b.at, "break is not supported in a datapack")
-    }
-    std.kw.if (cmd := command.*) {
-      std.kw.if (pending_at.* != 0 - 1) {
-        commands = commands.*.push(pending.*)
-      }
-      pending = cmd
-      pending_at = i.* - 1
-    }
-  }
-}
+Body :: std.Struct["names" .= Names, "text" .= kw.string]
 
-finish :: (f: std.reflect.Function, names: Names, commands: std.kw.list(std.kw.string), pending: std.kw.string, pending_at: std.kw.int) => Body: :done {
-  v := f.result.value.?
-  std.kw.if (e := f.lines.get(v.index).emit) {
-    std.kw.if (n := e.data.as(Line).?.value) {
-      std.kw.if (pending_at != 0 - 1) {
-        done: Body["names" .= names, "text" .= commands.push(pending).push("return " + std.kw.string.from_int(n)).join("\n")]
+body :: (f: std.reflect.Function, start: Names) => Body: :return {
+  names := kw.mut(Names).new: start
+  commands := kw.mut(kw.list(kw.string)).new: ()
+  pending := kw.mut(std.Option(Pending)).new: kw.null
+  kw.for (i := kw.range(0, f.lines.len)) {
+    command := kw.mut(std.Option(kw.string)).new: kw.null
+    kw.match (f.lines.get(i)) [
+      .call .= (c) => {
+        callee := c.callee.constant.?.fn.?
+        names = name(names.*, callee)
+        command = kw.string: "function " + names.ids.*.get(callee).?
       }
-      done: Body["names" .= names, "text" .= commands.push("return " + std.kw.string.from_int(n)).join("\n")]
-    }
-  }
-  std.kw.if (v.index == pending_at) {
-    done: Body["names" .= names, "text" .= commands.push("return run " + pending).join("\n")]
-  }
-  -> std.reflect.fail(v, "this result was lost")
-}
-
-compile :: (exports: std.kw.map(std.kw.string, std.reflect.Fn)) => std.Folder: :done {
-  names := std.kw.mut(Names).new(Names[
-    "order" .= exports.values
-    "ids" .= std.kw.map(std.reflect.Fn, std.kw.string): []
-    "internal" .= 0
-  ])
-  i := std.kw.mut(std.kw.int).new: 0
-  std.kw.loop {
-    std.kw.if (i.* == exports.len) {
-      done: files(names.*)
-    }
-    names = Names[
-      "order" .= names.*.order
-      "ids" .= names.*.ids.set(exports.values.get(i.*), exports.keys.get(i.*))
-      "internal" .= 0
+      .emit .= (e) => {
+        kw.if (cmd := e.data.as(Line).?.command) {
+          command = cmd
+        }
+      }
+      .break .= (b) => {
+        _ = std.reflect.fail(b.at, "break is not supported in a datapack")
+      }
+      .other .= (o) => {
+        _ = std.reflect.fail(o.at, o.name + " is not supported in a datapack")
+      }
+      .else .= () => { }
     ]
-    i = i.* + 1
+    kw.if (cmd := command.*) {
+      kw.if (p := pending.*) {
+        commands = commands.*.push(p.command)
+      }
+      pending = Pending["command" .= cmd, "at" .= i]
+    }
   }
+  result := f.result.value.?
+  kw.if (e := f.lines.get(result.index).emit) {
+    kw.if (n := e.data.as(Line).?.value) {
+      kw.if (p := pending.*) {
+        commands = commands.*.push(p.command)
+      }
+      return: Body["names" .= names.*, "text" .= commands.*.push("return " + kw.string.from_int(n)).join("\n")]
+    }
+  }
+  kw.if (p := pending.*) {
+    kw.if (p.at == result.index) {
+      return: Body["names" .= names.*, "text" .= commands.*.push("return run " + p.command).join("\n")]
+    }
+  }
+  -> std.reflect.fail(result, "this result was lost")
 }
 
-files :: (start: Names) => std.kw.map(std.kw.string, std.kw.string): :done {
-  names := std.kw.mut(Names).new: start
-  out := std.kw.mut(std.kw.map(std.kw.string, std.kw.string)).new: []
-  i := std.kw.mut(std.kw.int).new: 0
-  std.kw.loop {
-    std.kw.if (i.* == names.*.order.len) {
-      done: out.*
+compile :: (exports: kw.map(kw.string, std.reflect.Fn)) => std.Folder: {
+  names := kw.mut(Names).new: Names[
+    "order" .= exports.values
+    "ids" .= kw.map(std.reflect.Fn, kw.string): []
+    "internal" .= 0
+  ]
+  kw.for ((id, f) := exports) {
+    names.ids = names.ids.*.set(f, id)
+  }
+  -> files(names.*)
+}
+
+files :: (start: Names) => kw.map(kw.string, kw.string): :return {
+  names := kw.mut(Names).new: start
+  out := kw.mut(kw.map(kw.string, kw.string)).new: []
+  done := kw.mut(kw.int).new: 0
+  kw.loop {
+    kw.if (done.* == names.order.*.len) {
+      return: out.*
     }
-    f := names.*.order.get(i.*)
-    id := names.*.ids.get(f).?.split(":")
+    f := names.order.*.get(done.*)
+    id := names.ids.*.get(f).?.split(":")
     result := body(std.reflect.function(target, f), names.*)
     names = result.names
     out = out.*.set("data/" + id.get(0) + "/functions/" + id.get(1) + ".mcfunction", result.text)
-    i = i.* + 1
+    done += 1
   }
 }
 

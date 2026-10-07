@@ -5,54 +5,51 @@
   "count.txt" .= std.File: check(count_down(4) == 4)
 ]
 
-sum_to :: (n: std.kw.int) => std.kw.int: :done {
-  total := std.kw.mut(std.kw.int).new: 0
-  i := std.kw.mut(std.kw.int).new: 1
-  std.kw.loop {
-    std.kw.if (i.* > n) {
-      done: total.*
-    }
-    total = total.* + i.*
-    i = i.* + 1
+sum_to :: (n: kw.int) => kw.int: {
+  total := kw.mut(kw.int).new: 0
+  kw.for (i := kw.range(1, n + 1)) {
+    total += i
   }
+  -> total.*
 }
 
-fact :: (n: std.kw.int) => std.kw.int: :out {
-  std.kw.if (n == 0) {
-    out: 1
+fact :: (n: kw.int) => kw.int: :return {
+  kw.if (n == 0) {
+    return: 1
   }
   -> n * fact(n - 1)
 }
 
-collatz_steps :: (start: std.kw.int) => std.kw.int: :done {
-  n := std.kw.mut(std.kw.int).new: start
-  steps := std.kw.mut(std.kw.int).new: 0
-  std.kw.loop {
-    std.kw.if (n.* == 1) {
-      done: steps.*
+collatz_steps :: (start: kw.int) => kw.int: :return {
+  n := kw.mut(kw.int).new: start
+  steps := kw.mut(kw.int).new: 0
+  kw.loop {
+    kw.if (n.* == 1) {
+      return: steps.*
     }
-    std.kw.if (n.* % 2 == 0) {
-      n = n.* / 2
+    kw.if (n.* % 2 == 0) {
+      n /= 2
     } .else {
       n = n.* * 3 + 1
     }
-    steps = steps.* + 1
+    steps += 1
   }
 }
 
-count_down :: (n: std.kw.int) => {
-  -> std.kw.int: :out {
-    std.kw.if (n == 0) {
-      out: 0
+count_down :: (n: kw.int) => {
+  -> kw.int: :return {
+    kw.if (n == 0) {
+      return: 0
     }
     -> 1 + count_down(n - 1)
   }
 }
 
-check :: (ok: std.kw.bool) => std.File: :out {
-  std.kw.if (ok) {
-    out: "yes"
+check :: (ok: kw.bool) => std.File: :return {
+  kw.if (ok) {
+    return: "yes"
   }
   -> "no"
 }
 std :: #builtin.std
+kw :: std.kw

@@ -1,37 +1,34 @@
 #builtin.build .= () => std.Folder[
   "found.txt" .= std.File: describe(find(letters(), "b"))
   "missing.txt" .= std.File: describe(find(letters(), "z"))
-  "forced.txt" .= std.File: std.kw.string.from_int(find(letters(), "c").?)
-  "flag.txt" .= std.File: flag(std.Option(std.kw.bool): .true)
+  "forced.txt" .= std.File: kw.string.from_int(find(letters(), "c").?)
+  "flag.txt" .= std.File: flag(std.Option(kw.bool): .true)
 ]
 
-letters :: () => std.kw.list(std.kw.string): ("a", "b", "c")
+letters :: () => kw.list(kw.string): ("a", "b", "c")
 
-find :: (xs: std.kw.list(std.kw.string), target: std.kw.string) => std.Option(std.kw.int): :done {
-  i := std.kw.mut(std.kw.int).new: 0
-  std.kw.loop {
-    std.kw.if (i.* == xs.len) {
-      done: std.kw.null
+find :: (xs: kw.list(kw.string), target: kw.string) => std.Option(kw.int): :return {
+  kw.for (i := kw.range(0, xs.len)) {
+    kw.if (xs.get(i) == target) {
+      return: i
     }
-    std.kw.if (xs.get(i.*) == target) {
-      done: i.*
-    }
-    i = i.* + 1
   }
+  -> kw.null
 }
 
-describe :: (index: std.Option(std.kw.int)) => std.kw.string: :out {
-  std.kw.if (i := index) {
-    out: "found at " + std.kw.string.from_int(i)
+describe :: (index: std.Option(kw.int)) => kw.string: :return {
+  kw.if (i := index) {
+    return: "found at " + kw.string.from_int(i)
   } .else {
-    out: "not found"
+    return: "not found"
   }
 }
 
-flag :: (value: std.Option(std.kw.bool)) => std.kw.string: :out {
-  std.kw.if (value.? == std.Option(std.kw.bool).true) {
-    out: "set"
+flag :: (value: std.Option(kw.bool)) => kw.string: :return {
+  kw.if (value.? == std.Option(kw.bool).true) {
+    return: "set"
   }
   -> "unset"
 }
 std :: #builtin.std
+kw :: std.kw

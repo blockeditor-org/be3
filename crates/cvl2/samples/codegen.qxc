@@ -1,20 +1,16 @@
 #builtin.build .= () => std.Folder[
-  "sum.c" .= std.File: emit_sum(std.kw.list(std.kw.int): (1, 2, 3))
+  "sum.c" .= std.File: emit_sum(kw.list(kw.int): (1, 2, 3))
 ]
 
-emit_sum :: (terms: std.kw.list(std.kw.int)) => std.kw.text: :done {
-  lines := std.kw.mut(std.kw.list(std.kw.text)).new: ()
-  acc := std.kw.mut(std.kw.text).new: std.kw.text.fresh("t")
-  lines = lines.*.push("int \(acc.*) = 0;")
-  i := std.kw.mut(std.kw.int).new: 0
-  std.kw.loop {
-    std.kw.if (i.* == terms.len) {
-      done: lines.*.join("\n") + "\nreturn \(acc.*);\n"
-    }
-    next := std.kw.text.fresh("t")
-    lines = lines.*.push("int \(next) = \(acc.*) + \(terms.get(i.*));")
+emit_sum :: (terms: kw.list(kw.int)) => kw.text: {
+  acc := kw.mut(kw.text).new: kw.text.fresh("t")
+  lines := kw.mut(kw.list(kw.text)).new: ("int \(acc.*) = 0;")
+  kw.for (term := terms) {
+    next := kw.text.fresh("t")
+    lines = lines.*.push("int \(next) = \(acc.*) + \(term);")
     acc = next
-    i = i.* + 1
   }
+  -> lines.*.join("\n") + "\nreturn \(acc.*);\n"
 }
 std :: #builtin.std
+kw :: std.kw

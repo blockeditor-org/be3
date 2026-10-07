@@ -1,29 +1,22 @@
 #builtin.build .= () => std.Folder: [
   "squares.txt" .= std.File: squares(4)
-  "greeting.txt" .= std.File: greet(std.kw.list(std.kw.string): ("Ada", "Grace", "Linus"))
+  "greeting.txt" .= std.File: greet(kw.list(kw.string): ("Ada", "Grace", "Linus"))
 ]
 
-squares :: (n: std.kw.int) => std.kw.string: :done {
-  lines := std.kw.mut(std.kw.list(std.kw.string)).new: ()
-  i := std.kw.mut(std.kw.int).new: 1
-  std.kw.loop {
-    std.kw.if (i.* > n) {
-      done: lines.*.join("\n")
-    }
-    lines = lines.*.push(std.kw.string.from_int(i.*) + " squared is " + std.kw.string.from_int(i.* * i.*))
-    i = i.* + 1
+squares :: (n: kw.int) => kw.string: {
+  lines := kw.mut(kw.list(kw.string)).new: ()
+  kw.for (i := kw.range(1, n + 1)) {
+    lines = lines.*.push(kw.string.from_int(i) + " squared is " + kw.string.from_int(i * i))
   }
+  -> lines.*.join("\n")
 }
 
-greet :: (names: std.kw.list(std.kw.string)) => std.kw.string: :done {
-  out := std.kw.mut(std.kw.string).new: ""
-  i := std.kw.mut(std.kw.int).new: 0
-  std.kw.loop {
-    std.kw.if (i.* == names.len) {
-      done: out.*
-    }
-    out = out.* + "hello, " + names.get(i.*) + "!\n"
-    i = i.* + 1
+greet :: (names: kw.list(kw.string)) => kw.string: {
+  out := kw.mut(kw.string).new: ""
+  kw.for (name := names) {
+    out += "hello, " + name + "!\n"
   }
+  -> out.*
 }
 std :: #builtin.std
+kw :: std.kw

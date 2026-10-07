@@ -1,4 +1,5 @@
 std :: #builtin.std
+kw :: std.kw
 raw :: #builtin.reflect
 
 Operand :: std.Enum[
@@ -10,22 +11,22 @@ At :: std.Struct["at" .= raw.Value]
 
 Line :: std.Enum[
   "args" .= At
-  "tuple" .= std.Struct["at" .= raw.Value, "items" .= std.kw.list(Operand)]
-  "tuple_get" .= std.Struct["at" .= raw.Value, "tuple" .= Operand, "index" .= std.kw.int]
+  "tuple" .= std.Struct["at" .= raw.Value, "items" .= kw.list(Operand)]
+  "tuple_get" .= std.Struct["at" .= raw.Value, "tuple" .= Operand, "index" .= kw.int]
   "call" .= std.Struct["at" .= raw.Value, "callee" .= Operand, "arg" .= Operand]
-  "c_binary" .= std.Struct["at" .= raw.Value, "op" .= std.kw.string, "lhs" .= Operand, "rhs" .= Operand]
+  "c_binary" .= std.Struct["at" .= raw.Value, "op" .= kw.string, "lhs" .= Operand, "rhs" .= Operand]
   "label_begin" .= std.Struct["at" .= raw.Value, "ty" .= std.Type]
   "label_end" .= std.Struct["at" .= raw.Value, "label" .= raw.Value, "value" .= Operand]
   "break" .= std.Struct["at" .= raw.Value, "label" .= raw.Value, "value" .= Operand]
   "c_if" .= std.Struct["at" .= raw.Value, "cond" .= Operand]
   "end" .= At
-  "emit" .= std.Struct["at" .= raw.Value, "data" .= raw.Data, "operands" .= std.kw.list(Operand)]
-  "other" .= std.Struct["at" .= raw.Value, "name" .= std.kw.string]
+  "emit" .= std.Struct["at" .= raw.Value, "data" .= raw.Data, "operands" .= kw.list(Operand)]
+  "other" .= std.Struct["at" .= raw.Value, "name" .= kw.string]
 ]
 
 Function :: std.Struct[
-  "lines" .= std.kw.list(Line)
-  "params" .= std.kw.list(std.Type)
+  "lines" .= kw.list(Line)
+  "params" .= kw.list(std.Type)
   "ret" .= std.Type
   "result" .= Operand
 ]

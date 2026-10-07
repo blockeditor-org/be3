@@ -29,6 +29,7 @@ fn import_file_builds_data_sample() {
             ("circle.txt", "circle of radius 2".to_string()),
             ("dot.txt", "dot".to_string()),
             ("bool.txt", "false".to_string()),
+            ("moved.txt", "13,0 len2=169".to_string()),
         ]
     );
 }
