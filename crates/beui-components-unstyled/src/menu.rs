@@ -1,3 +1,4 @@
+use accesskit::Role;
 use beui_core::base::overlay::Placement;
 use beui_core::document::Document;
 use beui_core::input::{Key, KeyPress};
@@ -244,6 +245,7 @@ fn MenuRow(
         )
     };
     let disabled = item.disabled.clone();
+    let (spoken, unavailable) = (item.label.clone(), item.disabled.clone());
     let test_id = item.test_id.clone();
     let tagged = button.clone();
     let action = item.action.clone();
@@ -292,6 +294,9 @@ fn MenuRow(
         <List spacing=0.0>
             <unstyled::Button
                 @node_ref=&button
+                label={spoken}
+                role=Role::MenuItem
+                disabled={unavailable}
                 tab_stop={focused.memo(Focus::Row(index))}
                 focused={focused.memo(Focus::Row(index))}
                 on_focus_change={move |has_focus: bool| {

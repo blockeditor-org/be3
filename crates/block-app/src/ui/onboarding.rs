@@ -8,7 +8,7 @@ use beui::reactive::{
 };
 use beui::styled::{
     Button, ButtonVariant, Caption, Card, Dialog, Heading, Icon, IconButton, MenuButton, Paragraph,
-    Scroll, Spinner, Tabs, TextInput, Title, Tooltip, use_theme,
+    Scroll, Spinner, SplitButton, Switch, Tabs, TextInput, Title, Tooltip, use_theme,
 };
 use beui::unstyled::{ChoiceOption, MenuItem};
 use beui::{NodeId, TextAlign};
@@ -16,6 +16,7 @@ use uuid::Uuid;
 
 use super::{AccountForm, AccountRow, AppViewStore, ErrorAction, UiCommand, WorkspacesState, send};
 use crate::platform;
+use crate::root_settings::{SESSION_TYPES, session_type_name};
 
 const COLUMN_WIDTH: f32 = 460.0;
 
@@ -587,11 +588,25 @@ pub(super) fn ProfilesScreen(view: AppViewStore) -> NodeId {
     let loaded = create_memo(clone!(status -> move || status.get().profiles_loaded));
     let loading = create_memo(clone!(loaded -> move || !loaded.get()));
     let title = create_memo(clone!(status -> move || status.get().workspace));
+    let every_type = create_memo(clone!(status -> move || status.get().every_profile_type));
+    let session_type = create_memo(clone!(status -> move || status.get().session_type));
+    let new_label = create_memo(clone!(session_type -> move || {
+        format!("New {} profile", session_type_name(session_type.get()))
+    }));
+    let new_type = session_type;
     let rows = status;
     view! {
         <Column>
             <Title content={title} />
-            <Caption content="Choose a profile to open." />
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <Caption @sizing=ItemSize::Percent(100.0) content="Choose a profile to open." />
+                <Caption content="Show every type" />
+                <Switch
+                    on={every_type}
+                    label="Show profiles of every type"
+                    on_change={|every: bool| send(UiCommand::EveryProfileType(every))}
+                />
+            </List>
             <Show condition={loading.clone()}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Spinner />
@@ -606,9 +621,11 @@ pub(super) fn ProfilesScreen(view: AppViewStore) -> NodeId {
                             .profiles
                             .into_iter()
                             .find(|profile| profile.id == id)
-                            .map(|profile| match profile.current {
-                                true => format!("{} (last used)", profile.name),
-                                false => profile.name,
+                            .map(|profile| match (profile.kind, profile.current) {
+                                (Some(kind), true) => format!("{} ({kind}, last used)", profile.name),
+                                (Some(kind), false) => format!("{} ({kind})", profile.name),
+                                (None, true) => format!("{} (last used)", profile.name),
+                                (None, false) => profile.name,
                             })
                             .unwrap_or_default()
                     });
@@ -621,12 +638,25 @@ pub(super) fn ProfilesScreen(view: AppViewStore) -> NodeId {
                     }
                 }}
             </ForEach>
-            <Button
-                label="New profile"
+            <SplitButton
+                label={new_label}
                 glyph={ICON_ADD.to_owned()}
                 variant=ButtonVariant::Secondary
+                menu_label="New profile of another type"
                 disabled={loading}
-                on_click={|| send(UiCommand::OpenNewProfile)}
+                items={view! {
+                    <ForEach keys={(0..SESSION_TYPES.len()).collect::<Vec<_>>()}>
+                        {|index: usize| view! {
+                            <MenuItem label={format!("New {} profile", SESSION_TYPES[index].1)} />
+                        }}
+                    </ForEach>
+                }}
+                on_click={move || send(UiCommand::OpenNewProfile(new_type.get_untracked()))}
+                on_select={|path: Vec<usize>| {
+                    if let Some((editor, _)) = path.first().and_then(|index| SESSION_TYPES.get(*index)) {
+                        send(UiCommand::OpenNewProfile(*editor));
+                    }
+                }}
             />
             <Button
                 label="Back to workspaces"
