@@ -4,6 +4,7 @@ mod file_saver;
 pub(crate) mod http;
 #[cfg(not(target_arch = "wasm32"))]
 mod native;
+mod utc_offset;
 #[cfg(target_arch = "wasm32")]
 mod web;
 
@@ -12,6 +13,7 @@ pub(crate) use file_saver::{SavedFile, save_file};
 pub(crate) use native::start_embedded_server_at;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) use native::{EmbeddedServer, spawn_request, start_embedded_server};
+pub(crate) use utc_offset::utc_offset;
 #[cfg(target_arch = "wasm32")]
 pub(crate) use web::spawn_request;
 

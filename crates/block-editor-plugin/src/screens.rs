@@ -143,6 +143,7 @@ impl Screens {
                 self.surface = accepted.surface;
             }
             Message::Fonts(fonts) => crate::fonts::receive(fonts),
+            Message::UtcOffset(seconds) => crate::clock::receive(*seconds),
             Message::DrawFrame { now_micros } => {
                 crate::clock::set_frame_time(std::time::Duration::from_micros(*now_micros));
                 return false;

@@ -1,12 +1,12 @@
 {
-  "id": "be3.workspace-ui",
-  "name": "Workspace",
+  "id": "be3.linux-desktop",
+  "name": "Linux desktop",
   "version": "0.1.0",
   "editors": [
     {
-      "block_type": "776f726b-7370-6163-652d-75692d303031",
-      "display_name": "Workspace",
-      "icon": "\ue8f0",
+      "block_type": "6c696e75-782d-6465-736b-746f702d3031",
+      "display_name": "Linux desktop",
+      "icon": "",
       "interaction": "Live",
       "resize": "None",
       "regions": [
@@ -21,5 +21,5 @@
       ]
     }
   ],
-  "entry_point": "workspace_ui.wasm"
+  "entry_point": "linux_desktop.wasm"
 }

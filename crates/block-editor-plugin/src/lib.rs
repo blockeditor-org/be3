@@ -33,7 +33,7 @@ pub use block_plugin_api::{
     WebViewId, WheelUnit,
 };
 pub use block_ui;
-pub use clock::frame_time;
+pub use clock::{frame_time, utc_offset};
 pub use content::ContentProjection;
 pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};
 pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphCommand};

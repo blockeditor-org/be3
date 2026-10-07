@@ -19,6 +19,7 @@ fn manifest_validation() {
         capabilities: EditorCapabilities::default(),
         resize: ResizeMode::Both,
         regions: vec![EditorRegion::Frame, EditorRegion::Preview],
+        accepts: Vec::new(),
     };
     let manifest = PluginManifest {
         identity: PluginIdentity {

@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use block_editor_beui::be_block::profile::VIEW_EDITORS;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_LOCK;
 use block_editor_beui::beui::reactive::{
@@ -163,13 +164,22 @@ pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
         true => TopBar::Phone,
         false => TopBar::Shown,
     }));
-    let desktop = create_memo(move || !phone.get());
+    let session = workspace
+        .tab(tab)
+        .is_some_and(|item| VIEW_EDITORS.contains(&item.block_type));
+    let desktop = create_memo(move || !phone.get() && !session);
     let details = Rc::clone(&workspace);
+    let (artifact, artifact_info) = (Rc::clone(&workspace), info.clone());
+    let (linked, linked_info) = (Rc::clone(&workspace), info.clone());
     view! {
         <Frame>
             <List spacing=0.0>
-                <ArtifactBar workspace={Rc::clone(&workspace)} info={info.clone()} />
-                <LinkedBar workspace={Rc::clone(&workspace)} info={info.clone()} />
+                <Show condition={!session}>
+                    <ArtifactBar workspace={Rc::clone(&artifact)} info={artifact_info.clone()} />
+                </Show>
+                <Show condition={!session}>
+                    <LinkedBar workspace={Rc::clone(&linked)} info={linked_info.clone()} />
+                </Show>
                 <Dynamic value={content}>
                     {move |content: Content| {
                         let workspace = Rc::clone(&branch);
