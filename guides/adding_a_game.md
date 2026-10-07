@@ -104,7 +104,8 @@ An `ItemId` names one thing for as long as the game shows it, so give a piece
 or a card the same id wherever it goes: when a new screen shows an id
 somewhere else, the editor slides it there rather than making it disappear in
 one place and appear in another. `ItemId::new(group, index)` keeps a game's
-kinds of thing apart; group 0 belongs to the helpers.
+kinds of thing apart; the two highest groups belong to the helpers below, so a
+game numbers its own from 0.
 
 The board's `hand` is the viewer's own cards, which are not on the table at
 all: the editor shows them in a bar under the board, at a fixed size however

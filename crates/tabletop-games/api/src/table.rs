@@ -8,7 +8,7 @@ use crate::cards::{Card, deck};
 
 pub const DRAW_PILE: u32 = 0;
 pub const DISCARD_PILE: u32 = 1;
-const CARDS: u32 = 1;
+const CARDS: u32 = u32::MAX - 1;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Dealt {

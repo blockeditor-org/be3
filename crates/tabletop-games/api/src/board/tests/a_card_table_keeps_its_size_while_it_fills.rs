@@ -18,6 +18,18 @@ fn a_card_table_keeps_its_size_while_it_fills() {
     ]);
 
     assert_eq!((empty.width, empty.height), (dealt.width, dealt.height));
+    let around = |cards: u32| {
+        let opponents = (2..5)
+            .map(|pile| Pile::fanned(pile, "P", backs(pile, cards)))
+            .collect();
+        card_table(vec![
+            opponents,
+            vec![Pile::stacked(0, "Draw pile", backs(1, 20))],
+        ])
+        .width
+    };
+    assert_eq!(around(8), around(5));
+    assert_eq!(around(8), around(0));
     let deck: Vec<&Area> = empty
         .items
         .iter()

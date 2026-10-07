@@ -9,7 +9,7 @@ const FAN_STEP: i32 = 36;
 const FAN_WIDTH: i32 = 220;
 const PILE_GAP: i32 = 28;
 const ROW_GAP: i32 = 20;
-const LAYOUT: u32 = 0;
+const LAYOUT: u32 = u32::MAX;
 
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Hash, Serialize)]
 pub struct Board {
@@ -261,6 +261,13 @@ impl Pile {
         }
     }
 
+    fn room(&self) -> i32 {
+        match self.fanned {
+            true => FAN_WIDTH,
+            false => CARD_WIDTH,
+        }
+    }
+
     fn width(&self) -> i32 {
         match self.fanned {
             true => CARD_WIDTH + self.step() * self.cards.len().saturating_sub(1) as i32,
@@ -303,7 +310,7 @@ impl Pile {
 
 pub fn card_table(rows: Vec<Vec<Pile>>) -> Board {
     let row_width = |row: &[Pile]| {
-        row.iter().map(Pile::width).sum::<i32>() + PILE_GAP * (row.len() as i32 - 1).max(0)
+        row.iter().map(Pile::room).sum::<i32>() + PILE_GAP * (row.len() as i32 - 1).max(0)
     };
     let width = rows
         .iter()
@@ -319,7 +326,7 @@ pub fn card_table(rows: Vec<Vec<Pile>>) -> Board {
         let y = number as i32 * (row_height + ROW_GAP);
         for pile in row {
             pile.place(&mut board, x, y);
-            x += pile.width() + PILE_GAP;
+            x += pile.room() + PILE_GAP;
         }
     }
     board
