@@ -6,14 +6,14 @@ use beui::icons::{
     ICON_ACCOUNT_TREE, ICON_ALT_ROUTE, ICON_BUG_REPORT, ICON_CALENDAR_MONTH, ICON_CODE,
     ICON_CONTENT_COPY, ICON_CONTENT_PASTE, ICON_CONTRAST, ICON_CROP_SQUARE, ICON_DASHBOARD,
     ICON_DELETE, ICON_DRAG_INDICATOR, ICON_DRAW, ICON_EDIT, ICON_FLIP_TO_FRONT, ICON_GRID_VIEW,
-    ICON_INPUT, ICON_LAYERS, ICON_LINK, ICON_LIST, ICON_MAIL, ICON_MENU, ICON_MOUSE, ICON_NOTES,
-    ICON_OPEN_IN_NEW, ICON_PALETTE, ICON_PLAY_ARROW, ICON_RADIO_BUTTON_CHECKED, ICON_SHARE,
-    ICON_SMART_BUTTON, ICON_STAR, ICON_SWAP_VERT, ICON_TEXT_FIELDS, ICON_TITLE, ICON_TOGGLE_ON,
-    ICON_TOUCH_APP, ICON_TUNE, ICON_VIEW_COLUMN, ICON_VIEW_QUILT, ICON_WIDGETS,
+    ICON_INPUT, ICON_LAYERS, ICON_LINK, ICON_LIST, ICON_LOCK, ICON_MAIL, ICON_MENU, ICON_MOUSE,
+    ICON_NOTES, ICON_OPEN_IN_NEW, ICON_PALETTE, ICON_PLAY_ARROW, ICON_RADIO_BUTTON_CHECKED,
+    ICON_SHARE, ICON_SMART_BUTTON, ICON_STAR, ICON_SWAP_VERT, ICON_TEXT_FIELDS, ICON_TITLE,
+    ICON_TOGGLE_ON, ICON_TOUCH_APP, ICON_TUNE, ICON_VIEW_COLUMN, ICON_VIEW_QUILT, ICON_WIDGETS,
 };
 use beui::reactive::{
-    Align, Callback, Canvas, CanvasItem, CanvasView, Child, Children, ClickCallback, ForEach,
-    Frame, Func, Justify, List, ListChild, Memo, Prop, ReadSignal, Selector, Show, Spacer,
+    Action, Align, Callback, Canvas, CanvasItem, CanvasView, Child, Children, Chord, ClickCallback,
+    ForEach, Frame, Func, Justify, List, ListChild, Memo, Prop, ReadSignal, Selector, Show, Spacer,
     SpanStyle, Text, TextSpan, VirtualList, WriteSignal, batch, build, clone, create_memo,
     create_selector, create_signal, focus_ring, on_shortcut, provide_context, use_context, view,
     with_document,
@@ -22,13 +22,13 @@ use beui::styled::DocumentTheme;
 use beui::styled::theme::{CARD_RADIUS, FONT_SMALL, NARROW_WIDTH, RADIUS};
 use beui::styled::{
     Accordion, ActionRow, Body, Bordered, Button, ButtonVariant, Calendar, Caption, Card, Checkbox,
-    Chip, Code, ColorInput, ColorPicker, ColorWheel, ContextMenu, DateTimeField, Dialog, Display,
-    Docking, FocusRing, Fullscreen, Heading, Icon, IconButton, IconButtonSize, IconSized, Launcher,
-    LauncherItem, Link, ListRow, Listbox, MenuButton, ModalSheet, NumberInput, OklchColorWheel,
-    Paragraph, Popover, Progress, RadioGroup, ResponsiveTabs, Scroll, Select, SelectableText,
-    Separator, Shortcut, Slider, Spinner, SplitButton, Stack, Switch, Tabs, TextArea, TextInput,
-    Theme, ThemeProvider, Title, Toast, Toasts, ToggleButton, Tooltip, Tree, TreeRowFace,
-    use_theme,
+    Chip, Code, ColorInput, ColorPicker, ColorWheel, CommandPalette, ContextMenu, DateTimeField,
+    Dialog, Display, Docking, FocusRing, Fullscreen, Heading, Icon, IconButton, IconButtonSize,
+    IconSized, Launcher, LauncherItem, Link, ListRow, Listbox, MenuButton, ModalSheet, NumberInput,
+    OklchColorWheel, Paragraph, Popover, Progress, RadioGroup, ResponsiveTabs, Scroll, Select,
+    SelectableText, Separator, Shortcut, Slider, Spinner, SplitButton, Stack, Switch, Tabs,
+    TextArea, TextInput, Theme, ThemeProvider, Title, Toast, Toasts, ToggleButton, Tooltip, Tree,
+    TreeRowFace, use_theme,
 };
 use beui::unstyled::{
     ChoiceOption, Container, DateTimeParts, DockMode, DockPane, DockSplit, DockTab, DockingLayout,
@@ -36,7 +36,7 @@ use beui::unstyled::{
     SyntaxColors, TabId, TextAreaState, TreeItem, dock_actions, narrower_than, use_dock_tab,
 };
 use beui::{
-    Color32, Context, Direction, Document, FontId, Image, ItemSize, NodeId, Rect, TextAlign,
+    Color32, Context, Direction, Document, FontId, Image, ItemSize, Key, NodeId, Rect, TextAlign,
     unstyled,
 };
 use beui_macros::{component, sample};

@@ -19,7 +19,7 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck test //crates/editors/checklist:test -- --test-arg=adding` | only the tests whose names contain `adding`; `--test-arg` passes its value to the test binary, and a bare argument after `--` is an error |
 | `./scripts/test adding [--update]` | the tests whose names contain `adding`, in every crate that has one, with all their output; it finds each crate's `:test` and runs it with `BE3_VERBOSE=1` and `--nocapture` |
 | `./scripts/buck run //crates/block-app:app` | the app, with every plugin beside it |
-| `./scripts/buck run //crates/block-app:smoke` | the app for ten seconds in a virtual display |
+| `./scripts/buck run //crates/block-app:smoke` | the app for ten seconds in a virtual display; `:smoke-desktop` with `--desktop` |
 | `./scripts/buck build //crates/block-app:dist --out DIR` | a platform's release: app and `be-server` |
 | `./scripts/buck build //crates/block-app:plugins --out DIR` | the plugins alone, shared by every platform |
 | `./scripts/buck build //crates/block-app:web --out DIR` | the web bundle with every plugin (`:web-dist` without) |

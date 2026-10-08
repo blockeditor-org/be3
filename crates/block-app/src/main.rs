@@ -92,7 +92,8 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     for argument in arguments {
         if argument == "--dev-workspace" {
             app.open_dev_workspace(None);
-        } else if argument == "--session" && session {
+        } else if cfg!(target_os = "linux") && (argument == "--session" || argument == "--desktop")
+        {
             app.run_as_desktop();
         } else if let Some(path) = argument.strip_prefix("--accessibility-tree=") {
             options.accessibility_dump = Some(PathBuf::from(path));
