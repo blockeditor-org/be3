@@ -16,12 +16,12 @@ fn arrow_keys_walk_the_rows_of_the_inspector_tree() {
     harness.key(Key::ArrowDown, Modifiers::NONE);
 
     assert_eq!(harness.focused_row_index(), Some(1));
-    assert_eq!(harness.inspector().state.selected.get(), Some(padding));
+    assert_eq!(harness.inspector().highlighted(), Some(padding));
 
     harness.key(Key::ArrowDown, Modifiers::NONE);
 
     assert_eq!(harness.focused_row_index(), Some(2));
-    assert_eq!(harness.inspector().state.selected.get(), Some(text));
+    assert_eq!(harness.inspector().highlighted(), Some(text));
 
     harness.key(Key::ArrowDown, Modifiers::NONE);
 
@@ -42,5 +42,10 @@ fn arrow_keys_walk_the_rows_of_the_inspector_tree() {
     harness.key(Key::ArrowUp, Modifiers::NONE);
 
     assert_eq!(harness.focused_row_index(), Some(1));
-    assert_eq!(harness.inspector().state.selected.get(), Some(padding));
+    assert_eq!(harness.inspector().highlighted(), Some(padding));
+    assert_eq!(
+        harness.inspector().state.selected.get(),
+        None,
+        "moving between rows highlights them without selecting them"
+    );
 }

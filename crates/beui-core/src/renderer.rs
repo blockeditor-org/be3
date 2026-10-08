@@ -22,6 +22,10 @@ pub trait Renderer {
 
     fn set_active(&mut self, _active: bool) {}
 
+    fn recover(&mut self) -> Result<bool, Box<dyn Error>> {
+        Ok(false)
+    }
+
     fn attach(
         &mut self,
         _window: Arc<dyn WindowHandle>,
@@ -117,6 +121,14 @@ impl Renderers {
         for slot in &self.slots {
             slot.renderer.provide(setup);
         }
+    }
+
+    pub fn recover(&mut self) -> Result<bool, Box<dyn Error>> {
+        let mut replaced = false;
+        for slot in &mut self.slots {
+            replaced |= slot.renderer.recover()?;
+        }
+        Ok(replaced)
     }
 
     pub fn attach(

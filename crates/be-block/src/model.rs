@@ -55,6 +55,15 @@ impl<R: Root> LiveEdit for Document<R> {
     fn child_operations(&self, change: ChildChange) -> Option<Vec<Self::Op>> {
         self.root().child_edit(change).map(|edit| vec![edit])
     }
+
+    fn session_state(&self) -> Vec<u8> {
+        Document::session_state(self)
+    }
+
+    fn adopt_session_state(&mut self, state: &[u8]) -> Result<(), ContentError> {
+        Document::adopt_session_state(self, state)
+            .map_err(|_| ContentError::Malformed("session state"))
+    }
 }
 
 impl<R: Root> Merge for Document<R> {

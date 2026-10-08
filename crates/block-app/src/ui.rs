@@ -152,9 +152,11 @@ pub(crate) struct StatusView {
     pub(crate) changes_saved: bool,
     pub(crate) workspace: String,
     pub(crate) signed_in_as: String,
-    pub(crate) accounts: Vec<AccountRow>,
     pub(crate) profiles: Vec<ProfileRow>,
     pub(crate) profiles_loaded: bool,
+    pub(crate) every_profile_type: bool,
+    pub(crate) session_type: Uuid,
+    pub(crate) can_close: bool,
     pub(crate) runs_programs: bool,
 }
 
@@ -162,6 +164,7 @@ pub(crate) struct StatusView {
 pub(crate) struct ProfileRow {
     pub(crate) id: Uuid,
     pub(crate) name: String,
+    pub(crate) kind: Option<String>,
     pub(crate) current: bool,
 }
 
@@ -220,7 +223,8 @@ pub(crate) enum UiCommand {
     OpenWorkspace(Uuid),
     ChooseProfile(Uuid),
     OpenProfile(Uuid),
-    OpenNewProfile,
+    OpenNewProfile(Uuid),
+    EveryProfileType(bool),
     RespondInvitation(Uuid, bool),
     CreateWorkspace(String),
     SwitchAccount,
@@ -231,11 +235,9 @@ pub(crate) enum UiCommand {
     OpenInspector,
     InviteMember,
     SwitchWorkspace,
-    SwitchTo(String),
-    SwitchProfile(Uuid),
-    NewProfile,
     ManageAccounts,
     About(bool),
+    CloseApp,
     RunProgram(bool),
     Launch(String),
     AppMenu(bool),

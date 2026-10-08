@@ -14,6 +14,8 @@ pub(crate) fn before(_context: &Context, _rect: Rect, _document: &mut Document) 
 
 pub(crate) fn after(_context: &Context, _document: &mut Document) {}
 
+pub(crate) fn replace_gpu(_setup: &Setup) {}
+
 pub(crate) fn exiting() {}
 
 pub(crate) fn revision() -> u64 {

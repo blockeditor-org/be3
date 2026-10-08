@@ -275,13 +275,16 @@ extension ships: the toolchain's panics on this workspace.
 - **Downloads.** Every `http_archive` has `size_bytes` as well as `sha256`;
   without it buck2 sends a HEAD request per download on every new daemon.
 - **`./scripts/verify`** is one `buck2 bxl` of `buck/dev/verify.bxl`, which
-  builds everything with `--keep-going` and prints what the script reads
-  after: the generated files, the paintings, and each crate's fixes. The
-  autofixes are actions (`buck/dev/fix.sh`), one a crate: clippy's
-  machine-applicable suggestions from every target's `[clippy.json]`, then
-  fix-rust-source, then rustfmt, on a copy of the crate's sources, output as
-  the files that changed. The script copies them into the checkout. A fix that
-  makes another possible shows up on the next run.
+  builds everything with `--keep-going` and prints what is read after: the
+  generated files, the paintings, each crate's fixes, and `crates/verify`,
+  built for this machine, which the script then runs to read the rest and
+  write it into the checkout. Anything after the build belongs in
+  `crates/verify` rather than in bash, so it works the same on Linux, macOS
+  and Git Bash on Windows. The autofixes are actions (`buck/dev/fix.sh`), one
+  a crate: clippy's machine-applicable suggestions from every target's
+  `[clippy.json]`, then fix-rust-source, then rustfmt, on a copy of the
+  crate's sources, output as the files that changed. A fix that makes another
+  possible shows up on the next run.
 - **Clippy** reads every target's `[clippy.json]` in the configurations
   `//crates/...` resolves to, and, like `//:check`, in `windows_x86_64` and
   `macos_arm64` for the desktop programs' first-party dependencies

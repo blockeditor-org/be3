@@ -6,6 +6,7 @@ use crate::Anchor;
 pub struct AnchorTable {
     by_index: BTreeMap<usize, Anchor>,
     by_anchor: HashMap<Anchor, usize>,
+    deleted: HashMap<Anchor, usize>,
 }
 
 impl AnchorTable {
@@ -22,6 +23,10 @@ impl AnchorTable {
         self.by_anchor.get(&anchor).copied()
     }
 
+    pub fn deleted_at(&self, anchor: Anchor) -> Option<usize> {
+        self.deleted.get(&anchor).copied()
+    }
+
     pub fn len(&self) -> usize {
         self.by_index.len()
     }
@@ -35,15 +40,22 @@ impl AnchorTable {
             self.by_anchor.remove(&replaced);
         }
         self.by_anchor.insert(anchor, index);
+        self.deleted.remove(&anchor);
     }
 
     pub fn splice(&mut self, index: usize, delete: usize, insert: usize) -> Vec<(usize, Anchor)> {
         let mut tail = self.by_index.split_off(&index);
         let after = tail.split_off(&(index + delete));
+        for boundary in self.deleted.values_mut() {
+            if *boundary >= index {
+                *boundary = (*boundary).max(index + delete) - delete + insert;
+            }
+        }
         let removed = tail
             .into_iter()
             .map(|(held, anchor)| {
                 self.by_anchor.remove(&anchor);
+                self.deleted.insert(anchor, index + insert);
                 (held - index, anchor)
             })
             .collect();
@@ -61,12 +73,18 @@ impl AnchorTable {
         }
     }
 
-    pub fn remap(&mut self, mut moved: impl FnMut(usize) -> Option<usize>) {
+    pub fn remap(&mut self, mut moved: impl FnMut(usize) -> Result<usize, usize>) {
+        for boundary in self.deleted.values_mut() {
+            *boundary = moved(*boundary).unwrap_or_else(|deleted_at| deleted_at);
+        }
         let held = std::mem::take(&mut self.by_index);
         self.by_anchor.clear();
         for (index, anchor) in held {
-            if let Some(index) = moved(index) {
-                self.insert(index, anchor);
+            match moved(index) {
+                Ok(index) => self.insert(index, anchor),
+                Err(deleted_at) => {
+                    self.deleted.insert(anchor, deleted_at);
+                }
             }
         }
     }

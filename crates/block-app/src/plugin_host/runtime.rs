@@ -626,6 +626,15 @@ pub(crate) fn install(setup: &beui::Setup) {
     });
 }
 
+pub(crate) fn replace_gpu(setup: &beui::Setup) {
+    install(setup);
+    HOST.with(|host| {
+        for runtime in host.borrow_mut().runtimes.values_mut() {
+            runtime.restart();
+        }
+    });
+}
+
 pub(crate) struct HostFrame {
     pub(crate) content: Rect,
 }

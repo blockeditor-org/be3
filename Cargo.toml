@@ -35,6 +35,7 @@ members = [
     "crates/beui-view",
     "crates/beui-plugin-input",
     "crates/geometry",
+    "crates/sequence",
     "crates/beui-macros",
     "crates/reactive-macros",
     "crates/reactive",
@@ -95,6 +96,7 @@ members = [
     "crates/plugin-test-runner",
     "crates/fix-rust-source",
     "crates/buck-tools",
+    "crates/verify",
     "crates/wasi-threads",
 ]
 resolver = "3"

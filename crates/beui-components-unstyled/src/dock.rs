@@ -22,8 +22,9 @@ use crate::DropHandle;
 use crate::DropTarget;
 use crate::Scroll;
 use crate::back_slide::BackSlide;
-use crate::context_menu::{ContextMenu, MenuStyle};
+use crate::context_menu::ContextMenu;
 use crate::menu::MenuItem;
+use crate::menu_popup::MenuStyle;
 use crate::rubber_band::{Band, WINDOW_SPRING};
 use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
 use beui_core::base::{Direction, ItemSize};
@@ -1105,9 +1106,9 @@ fn DockStack(dock: Handle) -> NodeId {
         switcher.call(switcher_handle(
             &dock,
             shown.clone(),
-            tabs,
+            tabs.clone(),
             switching,
-            set_switching,
+            set_switching.clone(),
         ))
     });
     on_cleanup(move || {
@@ -1117,9 +1118,17 @@ fn DockStack(dock: Handle) -> NodeId {
     });
     let barred = create_memo(clone!(occupied -> move || bar.is_some() && occupied.get()));
     let empty = dock.empty.clone();
+    let homeward = dock.clone();
     view! {
         <BackSlide
             enabled={away}
+            behind={move || {
+                let (dock, tabs, set_switching) =
+                    (homeward.clone(), tabs.clone(), set_switching.clone());
+                view! {
+                    <HomePreview dock tabs set_switching />
+                }
+            }}
             on_back={move || {
                 if let Some(home) = going.home.get_untracked() {
                     going.show(home);
@@ -1139,6 +1148,28 @@ fn DockStack(dock: Handle) -> NodeId {
                 {switcher}
             </List>
         </BackSlide>
+    }
+}
+
+#[component]
+fn HomePreview(dock: Handle, tabs: Memo<Vec<TabId>>, set_switching: WriteSignal<bool>) -> NodeId {
+    let Some(home) = dock.home.get_untracked() else {
+        return view! {
+            <Frame />
+        };
+    };
+    let shown = create_memo(move || Some(home));
+    let away = create_memo(|| false);
+    let bar = dock
+        .stack
+        .clone()
+        .map(|stack| stack.call(stack_handle(&dock, shown, away, tabs, set_switching)));
+    let panel = dock.panel(home);
+    view! {
+        <List spacing=0.0>
+            {bar}
+            <Portal node={Some(panel)} @sizing=ItemSize::Percent(100.0) />
+        </List>
     }
 }
 

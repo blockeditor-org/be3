@@ -152,6 +152,12 @@ pub struct PointerPress {
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
+pub struct PointerSample {
+    pub pos: Pos2,
+    pub touch: bool,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct ScrollGesture {
     pub delta: Vec2,
     pub fling: Vec2,
@@ -410,6 +416,7 @@ impl InputState {
             }
         }
         input.pointer.pos = input.pointer.pos.map(scale);
+        input.pointer.press_pos = input.pointer.press_pos.map(scale);
         input.pointer.motion *= factor;
         input.pointer.last_click = input
             .pointer
@@ -499,6 +506,7 @@ impl InputState {
                             self.pointer.primary_down = *pressed;
                             if *pressed {
                                 self.pointer.primary_pressed = true;
+                                self.pointer.press_pos = Some(*pos);
                                 self.pointer.count_click(*pos, now);
                             } else {
                                 self.pointer.primary_released = true;
@@ -583,6 +591,7 @@ impl InputState {
 #[derive(Clone, Copy, Default, Debug)]
 pub struct Pointer {
     pub pos: Option<Pos2>,
+    pub press_pos: Option<Pos2>,
     pub motion: Vec2,
     pub primary_down: bool,
     pub primary_pressed: bool,
@@ -750,6 +759,7 @@ impl TouchState {
         pointer.pos = Some(pos);
         pointer.primary_down = true;
         pointer.primary_pressed = true;
+        pointer.press_pos = Some(pos);
         pointer.from_touch = true;
         pointer.count_click(pos, self.now);
     }
@@ -1042,6 +1052,10 @@ impl Pointer {
 
     pub fn interact_pos(&self) -> Option<Pos2> {
         self.pos
+    }
+
+    pub fn from_touch(&self) -> bool {
+        self.from_touch
     }
 
     pub fn primary_pressed(&self) -> bool {
