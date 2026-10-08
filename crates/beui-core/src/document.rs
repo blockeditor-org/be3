@@ -589,6 +589,18 @@ impl Document {
         self.arena.get(id).detail()
     }
 
+    pub fn node_properties(&self, id: NodeId) -> Vec<(&'static str, String)> {
+        self.arena.get(id).properties()
+    }
+
+    pub fn node_parent(&self, id: NodeId) -> Option<NodeId> {
+        self.arena.parent(id)
+    }
+
+    pub fn node_test_ids(&self, id: NodeId) -> &[String] {
+        self.node_test_ids.get(&id).map_or(&[], Vec::as_slice)
+    }
+
     pub fn node_rect(&self, id: impl Into<NodeId>) -> Option<Rect> {
         let id = id.into();
         self.rects.get(&id)

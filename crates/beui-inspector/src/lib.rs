@@ -922,6 +922,9 @@ impl Inspector {
                 .and_then(|id| target.node_rect(id))
                 .map(bounds_label)
                 .unwrap_or_default(),
+            properties: selected
+                .map(|id| tree::properties(target, id))
+                .unwrap_or_default(),
         }
     }
 

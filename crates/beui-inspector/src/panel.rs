@@ -46,6 +46,7 @@ const PERFORMANCE_SPACING: f32 = 10.0;
 const TIMING_SPACING: f32 = 4.0;
 const BLUR_MIDPOINT: f32 = 12.0;
 const RENDERER_LABEL_WIDTH: f32 = 104.0;
+const PROPERTIES_SHARE: f32 = 45.0;
 const BAR_PADDING_HORIZONTAL: f32 = 8.0;
 const BAR_PADDING_VERTICAL: f32 = 6.0;
 const PIXEL_RATIOS: [(&str, Option<f32>); 5] = [
@@ -102,6 +103,7 @@ pub struct Summary {
     pub handles_back: bool,
     pub selection: String,
     pub bounds: String,
+    pub properties: Vec<(String, String)>,
 }
 
 #[derive(Clone, Default, PartialEq)]
@@ -249,7 +251,20 @@ pub fn build(state: &Rc<State>) -> Panel {
             let summary = summary.clone();
             move || summary.with(|summary| summary.selection.clone())
         });
-        let bounds_text = create_memo(move || summary.with(|summary| summary.bounds.clone()));
+        let bounds_text = create_memo({
+            let summary = summary.clone();
+            move || summary.with(|summary| summary.bounds.clone())
+        });
+        let properties = create_memo(move || summary.with(|summary| summary.properties.clone()));
+        let has_properties = create_memo(clone!(properties -> move || {
+            properties.with(|properties| !properties.is_empty())
+        }));
+        let properties_size = create_memo(clone!(has_properties -> move || {
+            match has_properties.get() {
+                true => ItemSize::Percent(PROPERTIES_SHARE),
+                false => ItemSize::Fixed(0.0),
+            }
+        }));
         let (select_state, expand_state, hover_state, reveal_state) =
             (state.clone(), state.clone(), state.clone(), state.clone());
         let selected =
@@ -316,35 +331,44 @@ pub fn build(state: &Rc<State>) -> Panel {
                         <Frame @sizing=ItemSize::Percent(100.0)>
                             <List spacing=0.0>
                                 <ShowKeepAlive condition={body_tree_visible}>
-                                    <Tree
-                                        @sizing=ItemSize::Percent(100.0)
-                                        @node_ref=&tree_ref
-                                        keys
-                                        item={move |key: Key| item(&item_entries, key)}
-                                        selected={selected}
-                                        ancestors={move |key: Key| ancestors(&lineage, key)}
-                                        padding=BODY_PADDING
-                                        focus_color={Some(THEME.accent)}
-                                        row_test_id={move |key: Key| key.test_id()}
-                                        reveal_test_id={"inspector.reveal".to_owned()}
-                                        on_select={move |key: Key| select_state.select_row(key)}
-                                        on_expand={move |(key, expanded): (Key, bool)| {
-                                            expand_state.set_expanded(key, expanded);
-                                        }}
-                                        on_reveal={move |key: Key| {
-                                            reveal_state.expand_ancestors(&ancestors(&selection, key));
-                                        }}
-                                        on_hover_change={move |(key, hovered): (Key, bool)| {
-                                            hover_state.hover(key.node(), hovered);
-                                        }}
-                                    >
-                                        {move |row: TreeRowFace<Key>| view! {
-                                            <TreeCells
-                                                row_key={row.key}
-                                                entries={row_entries.clone()}
-                                            />
-                                        }}
-                                    </Tree>
+                                    <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                                        <Tree
+                                            @sizing=ItemSize::Percent(100.0 - PROPERTIES_SHARE)
+                                            @node_ref=&tree_ref
+                                            keys
+                                            item={move |key: Key| item(&item_entries, key)}
+                                            selected={selected}
+                                            ancestors={move |key: Key| ancestors(&lineage, key)}
+                                            padding=BODY_PADDING
+                                            focus_color={Some(THEME.accent)}
+                                            row_test_id={move |key: Key| key.test_id()}
+                                            reveal_test_id={"inspector.reveal".to_owned()}
+                                            on_select={move |key: Key| select_state.select_row(key)}
+                                            on_expand={move |(key, expanded): (Key, bool)| {
+                                                expand_state.set_expanded(key, expanded);
+                                            }}
+                                            on_reveal={move |key: Key| {
+                                                reveal_state.expand_ancestors(&ancestors(&selection, key));
+                                            }}
+                                            on_hover_change={move |(key, hovered): (Key, bool)| {
+                                                hover_state.hover(key.node(), hovered);
+                                            }}
+                                        >
+                                            {move |row: TreeRowFace<Key>| view! {
+                                                <TreeCells
+                                                    row_key={row.key}
+                                                    entries={row_entries.clone()}
+                                                />
+                                            }}
+                                        </Tree>
+                                        <Frame
+                                            @sizing={properties_size}
+                                            @test_id={"inspector.properties"}
+                                            visible={has_properties}
+                                        >
+                                            <PropertiesSection properties />
+                                        </Frame>
+                                    </List>
                                 </ShowKeepAlive>
                                 <ShowKeepAlive condition={body_performance_visible}>
                                     <PerformancePanel
@@ -897,7 +921,7 @@ fn RendererSection(
             </Show>
             <ForEach keys={rows}>
                 {|(label, value): (&'static str, String)| view! {
-                    <RendererRow label value />
+                    <LabeledRow label={label.to_owned()} value />
                 }}
             </ForEach>
         </List>
@@ -905,10 +929,31 @@ fn RendererSection(
 }
 
 #[component]
-fn RendererRow(label: &'static str, value: String) -> NodeId {
+fn PropertiesSection(properties: Memo<Vec<(String, String)>>) -> NodeId {
+    view! {
+        <List spacing=0.0>
+            <Separator />
+            <Scroll @sizing=ItemSize::Percent(100.0) focus_color={Some(THEME.accent)}>
+                <Frame padding_horizontal=BODY_PADDING padding_vertical=BODY_PADDING>
+                    <List spacing=TIMING_SPACING>
+                        <Heading content="Properties" />
+                        <ForEach keys={properties}>
+                            {|(label, value): (String, String)| view! {
+                                <LabeledRow label value />
+                            }}
+                        </ForEach>
+                    </List>
+                </Frame>
+            </Scroll>
+        </List>
+    }
+}
+
+#[component]
+fn LabeledRow(label: String, value: String) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=TIMING_SPACING>
-            <Caption @sizing=ItemSize::Fixed(RENDERER_LABEL_WIDTH) content={label.to_owned()} />
+            <Caption @sizing=ItemSize::Fixed(RENDERER_LABEL_WIDTH) content={label} />
             <Caption
                 @sizing=ItemSize::Percent(100.0)
                 content={value}

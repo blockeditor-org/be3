@@ -449,6 +449,15 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
         (!detail.is_empty()).then_some(detail)
     }
 
+    fn properties(&self) -> Vec<(&'static str, String)> {
+        vec![
+            ("direction", format!("{:?}", self.direction)),
+            ("rows", self.metrics.count.to_string()),
+            ("realized", self.placed.len().to_string()),
+            ("estimated row length", self.metrics.estimated.to_string()),
+        ]
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }
