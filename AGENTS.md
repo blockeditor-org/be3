@@ -65,6 +65,9 @@ Design principles:
 - gui:
   - we use an icon library for icons. if one is not available, then do not use icons. do not use unicode for icons.
   - a scroll view reaches the edges of the area it fills; its padding goes inside it, around the scrolled content, so content is not cut off short of the edge and there is no padding right of the scrollbar / left of the scroll area.
+- build system (buck2):
+  - keep ./scripts/verify / ./scripts/ci to just one buck2 invocation. that way buck2 can run things in parallel whenever possible.
+  - anything that needs to run locally after a buck2 invocation should be written in rust, not bash. rust is a less footgun-prone language, and the rust code can be compiled remotely in parallel within that one buck2 invocation so it's basically free.
 
 In your handoff message:
 - If any, mention any small issues you encountered or small things you noticed that could make the code / application better.
