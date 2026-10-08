@@ -467,6 +467,12 @@ impl fmt::Debug for Lookup {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DockFullscreen {
+    pub tab: TabId,
+    pub area: Option<Rect>,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DockState {
     surfaces: Vec<Surface>,
@@ -476,6 +482,8 @@ pub struct DockState {
     recent: Vec<TabId>,
     next: u64,
     seeded: bool,
+    #[serde(skip)]
+    fullscreen: Option<DockFullscreen>,
     #[serde(skip)]
     lookup: Lookup,
 }
@@ -496,6 +504,7 @@ impl DockState {
             recent: Vec::new(),
             next: 0,
             seeded: false,
+            fullscreen: None,
             lookup: Lookup::default(),
         };
         let leaf = state.new_leaf(tabs.into_iter().map(Entry::Tab).collect());
@@ -777,6 +786,19 @@ impl DockState {
             leaf,
             index,
         })
+    }
+
+    pub fn fullscreen(&self) -> Option<DockFullscreen> {
+        self.fullscreen
+            .filter(|fullscreen| self.contains(fullscreen.tab))
+    }
+
+    pub fn set_fullscreen(&mut self, fullscreen: Option<DockFullscreen>) {
+        let fullscreen = fullscreen.filter(|fullscreen| self.contains(fullscreen.tab));
+        if let Some(fullscreen) = fullscreen {
+            self.show(fullscreen.tab);
+        }
+        self.fullscreen = fullscreen;
     }
 
     pub fn contains(&self, tab: TabId) -> bool {

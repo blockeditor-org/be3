@@ -21,5 +21,9 @@ fn leaving_fullscreen_returns_the_window_to_where_it_was_shown() {
         "the client is told the size of its place again"
     );
     assert!(!harness.client.received.fullscreen);
-    assert_eq!(harness.app.windows().fullscreen().get_untracked(), None);
+    assert_eq!(
+        harness.app.windows().list().get_untracked()[0].fullscreen,
+        None,
+        "the ui is told the window no longer wants the screen"
+    );
 }

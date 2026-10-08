@@ -2598,7 +2598,9 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
                 }
                 Ok(())
             }
-            LinuxMessage::WatchInputDevices | LinuxMessage::WatchDisplays => Ok(()),
+            LinuxMessage::WatchInputDevices
+            | LinuxMessage::WatchDisplays
+            | LinuxMessage::FullscreenWindow { .. } => Ok(()),
         },
         EditorMessage::Menu { entries, .. } => menu(entries),
         EditorMessage::MenuPick { id, .. } | EditorMessage::ChildMenuPick { id, .. } => string(id),

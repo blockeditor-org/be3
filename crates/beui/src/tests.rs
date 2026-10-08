@@ -1,5 +1,7 @@
 use super::*;
 
+mod a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane;
+mod a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names;
 mod a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there;
 mod a_back_gesture_slides_a_dialog_away_before_it_closes;
 mod a_back_handler_goes_back_while_enabled_without_moving_its_content;

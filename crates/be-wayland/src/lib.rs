@@ -10,8 +10,8 @@ mod windows;
 pub use compositor::{Compositor, CursorImage};
 pub use server::Server;
 pub use state::{KeyboardConfig, WindowId};
-pub use view::{FullscreenWindow, WindowView};
-pub use windows::{Fullscreen, Launch, WindowInfo, Windows};
+pub use view::WindowView;
+pub use windows::{Launch, WindowInfo, Windows};
 
 #[cfg(test)]
 mod test_client;

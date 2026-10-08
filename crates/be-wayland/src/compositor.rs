@@ -11,7 +11,7 @@ use smithay::wayland::compositor::with_states;
 use crate::render::{Gpu, Textures, WindowDraw};
 use crate::server::{Server, Watch};
 use crate::state::{KeyboardConfig, ServerEvent, WindowId};
-use crate::windows::{Command, Fullscreen, Launch, WindowInfo, Windows};
+use crate::windows::{Command, Launch, WindowInfo, Windows};
 
 const BUTTON_LEFT: u32 = 0x110;
 const BUTTON_RIGHT: u32 = 0x111;
@@ -43,6 +43,7 @@ pub struct Compositor {
     screens: Vec<Rect>,
     fullscreen: Option<(WindowId, Pos2)>,
     raise: Option<WindowId>,
+    relist: bool,
     logo: bool,
     swallowed: Vec<u32>,
 }
@@ -70,6 +71,7 @@ impl Compositor {
             screens: Vec::new(),
             fullscreen: None,
             raise: None,
+            relist: false,
             logo: false,
             swallowed: Vec::new(),
         }
@@ -107,26 +109,41 @@ impl Compositor {
         }
         self.server.state.set_fullscreen(id, fullscreen);
         self.windows.push(Command::Configure(id));
+        self.relist = true;
     }
 
-    fn place_fullscreen(&mut self, document: &mut Document) {
+    fn fullscreen_area(&self, id: WindowId) -> Option<Rect> {
+        let (shown, anchor) = self.fullscreen?;
+        if shown != id {
+            return None;
+        }
         let area = self.area;
-        let shown = self.fullscreen.and_then(|(id, anchor)| {
-            self.server.state.windows().contains(&id).then_some(())?;
-            let screen = self
-                .screens
+        Some(
+            self.screens
                 .iter()
                 .find(|screen| screen.contains(anchor))
-                .map_or(area, |screen| screen.intersect(area));
-            Some(Fullscreen { id, area: screen })
-        });
-        if shown.is_none() {
-            self.fullscreen = None;
+                .map_or(area, |screen| screen.intersect(area)),
+        )
+    }
+
+    fn publish(&mut self, document: &mut Document) {
+        for (id, fullscreen) in self.windows.take_fullscreen_requests() {
+            self.set_fullscreen(id, fullscreen);
         }
+        if let Some((id, _)) = self.fullscreen
+            && !self.server.state.windows().contains(&id)
+        {
+            self.fullscreen = None;
+            self.relist = true;
+        }
+        let list = (std::mem::take(&mut self.relist) || self.fullscreen.is_some())
+            .then(|| self.list());
         let raise = self.raise.take();
         let windows = self.windows.clone();
         with_reactive_scope(document, || {
-            windows.show_fullscreen(shown);
+            if let Some(list) = list {
+                windows.set_list(list);
+            }
             if let Some(id) = raise {
                 windows.raise(id);
             }
@@ -226,6 +243,7 @@ impl Compositor {
                     title: state.title(id).unwrap_or_default(),
                     app_id: state.app_id(id).unwrap_or_default(),
                     parent: state.parent(id),
+                    fullscreen: self.fullscreen_area(id),
                 })
             })
             .collect()
@@ -499,7 +517,7 @@ impl Compositor {
         self.server.state.set_scale(scale, size.into());
         self.area = rect;
         self.keyboard(context);
-        self.place_fullscreen(document);
+        self.publish(document);
     }
 
     pub fn after(&mut self, context: &Context, document: &mut Document) {

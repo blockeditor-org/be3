@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use beui::reactive::{ReadSignal, WriteSignal, create_signal};
-use beui::{CursorIcon, Drawing, NodeId, Rect, Vec2};
+use beui::{CursorIcon, Drawing, Rect, Vec2};
 
 use crate::state::WindowId;
 
@@ -14,12 +14,7 @@ pub struct WindowInfo {
     pub app_id: String,
     pub parent: Option<WindowId>,
     pub size: Vec2,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Fullscreen {
-    pub id: WindowId,
-    pub area: Rect,
+    pub fullscreen: Option<Rect>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -41,21 +36,7 @@ pub struct WindowSignals {
     set_drawing: WriteSignal<Option<Drawing>>,
     pub focused: ReadSignal<bool>,
     set_focused: WriteSignal<bool>,
-    pub(crate) node: ReadSignal<Option<NodeId>>,
-    set_node: WriteSignal<Option<NodeId>>,
     pub(crate) painted: Rc<Cell<bool>>,
-}
-
-impl WindowSignals {
-    pub(crate) fn shown_by(&self, node: Option<NodeId>) {
-        self.set_node.set(node);
-    }
-
-    pub(crate) fn unshown(&self, node: NodeId) {
-        if self.node.get_untracked() == Some(node) {
-            self.set_node.set(None);
-        }
-    }
 }
 
 #[derive(Clone, Copy, Default, PartialEq)]
@@ -68,14 +49,13 @@ struct Inner {
     windows: RefCell<HashMap<WindowId, WindowSignals>>,
     views: RefCell<HashMap<WindowId, View>>,
     commands: RefCell<Vec<Command>>,
+    fullscreen_requests: RefCell<Vec<(WindowId, bool)>>,
     focused: Cell<Option<WindowId>>,
     list: ReadSignal<Vec<WindowInfo>>,
     set_list: WriteSignal<Vec<WindowInfo>>,
     revision: Cell<u64>,
     cursor: ReadSignal<CursorIcon>,
     set_cursor: WriteSignal<CursorIcon>,
-    fullscreen: ReadSignal<Option<Fullscreen>>,
-    set_fullscreen: WriteSignal<Option<Fullscreen>>,
 }
 
 #[derive(Clone)]
@@ -85,19 +65,17 @@ impl Windows {
     pub fn new() -> Self {
         let (list, set_list) = create_signal(Vec::new());
         let (cursor, set_cursor) = create_signal(CursorIcon::Default);
-        let (fullscreen, set_fullscreen) = create_signal(None);
         Self(Rc::new(Inner {
             windows: RefCell::new(HashMap::new()),
             views: RefCell::new(HashMap::new()),
             commands: RefCell::new(Vec::new()),
+            fullscreen_requests: RefCell::new(Vec::new()),
             focused: Cell::new(None),
             list,
             set_list,
             revision: Cell::new(0),
             cursor,
             set_cursor,
-            fullscreen,
-            set_fullscreen,
         }))
     }
 
@@ -117,14 +95,15 @@ impl Windows {
         self.0.cursor.clone()
     }
 
-    pub fn fullscreen(&self) -> ReadSignal<Option<Fullscreen>> {
-        self.0.fullscreen.clone()
+    pub fn request_fullscreen(&self, id: WindowId, fullscreen: bool) {
+        self.0
+            .fullscreen_requests
+            .borrow_mut()
+            .push((id, fullscreen));
     }
 
-    pub(crate) fn show_fullscreen(&self, fullscreen: Option<Fullscreen>) {
-        if self.0.fullscreen.get_untracked() != fullscreen {
-            self.0.set_fullscreen.set(fullscreen);
-        }
+    pub(crate) fn take_fullscreen_requests(&self) -> Vec<(WindowId, bool)> {
+        std::mem::take(&mut *self.0.fullscreen_requests.borrow_mut())
     }
 
     pub(crate) fn raise(&self, id: WindowId) {
@@ -157,7 +136,6 @@ impl Windows {
     pub(crate) fn open(&self, id: WindowId) {
         let (drawing, set_drawing) = create_signal(None);
         let (focused, set_focused) = create_signal(true);
-        let (node, set_node) = create_signal(None);
         self.0.windows.borrow_mut().insert(
             id,
             WindowSignals {
@@ -165,8 +143,6 @@ impl Windows {
                 set_drawing,
                 focused,
                 set_focused,
-                node,
-                set_node,
                 painted: Rc::new(Cell::new(false)),
             },
         );
@@ -177,14 +153,6 @@ impl Windows {
         self.0.views.borrow_mut().remove(&id);
         if self.0.focused.get() == Some(id) {
             self.0.focused.set(None);
-        }
-        if self
-            .0
-            .fullscreen
-            .get_untracked()
-            .is_some_and(|fullscreen| fullscreen.id == id)
-        {
-            self.0.set_fullscreen.set(None);
         }
     }
 

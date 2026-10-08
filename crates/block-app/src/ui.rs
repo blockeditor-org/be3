@@ -7,14 +7,13 @@ mod workspace;
 use std::cell::RefCell;
 
 use be_protocol::WorkspaceRole;
-use beui::reactive::{Dynamic, Frame, Layers, List, Store, component, view};
+use beui::reactive::{Dynamic, Frame, List, Store, component, view};
 use beui::styled::use_theme;
 use beui::{ItemSize, NodeId};
 use block_plugin_api::HostPanel;
 use uuid::Uuid;
 
 use crate::app_state::{SavedAccount, ServerLocation};
-use crate::wayland::FullscreenSurface;
 
 pub(crate) use debug::{
     DebugCommand, DebugView, HostPanelSurface, Line, LineStyle, PerformanceRow, PluginsView,
@@ -265,55 +264,40 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
     let theme = use_theme();
     let screen = view.screen.clone();
     view! {
-        <Layers>
-            <Frame color={theme.background.clone()}>
-                <List spacing=0.0>
-                    <Dynamic value={screen}>
-                        {move |screen: Screen| {
-                            let view = view.clone();
-                            match screen {
-                                Screen::Error => view! {
-                                    <onboarding::ErrorScreen
-                                        @sizing=ItemSize::Percent(100.0)
-                                        view
-                                    />
-                                },
-                                Screen::Accounts => view! {
-                                    <onboarding::AccountsScreen
-                                        @sizing=ItemSize::Percent(100.0)
-                                        view
-                                    />
-                                },
-                                Screen::Workspaces => view! {
-                                    <onboarding::WorkspacesScreen
-                                        @sizing=ItemSize::Percent(100.0)
-                                        view
-                                    />
-                                },
-                                Screen::Recovery => view! {
-                                    <keys::RecoveryScreen @sizing=ItemSize::Percent(100.0) view />
-                                },
-                                Screen::Unlock => view! {
-                                    <keys::UnlockScreen @sizing=ItemSize::Percent(100.0) view />
-                                },
-                                Screen::Profiles => view! {
-                                    <onboarding::ProfilesScreen
-                                        @sizing=ItemSize::Percent(100.0)
-                                        view
-                                    />
-                                },
-                                Screen::Workspace => view! {
-                                    <workspace::WorkspaceScreen
-                                        @sizing=ItemSize::Percent(100.0)
-                                        view
-                                    />
-                                },
-                            }
-                        }}
-                    </Dynamic>
-                </List>
-            </Frame>
-            <FullscreenSurface />
-        </Layers>
+        <Frame color={theme.background.clone()}>
+            <List spacing=0.0>
+                <Dynamic value={screen}>
+                    {move |screen: Screen| {
+                        let view = view.clone();
+                        match screen {
+                            Screen::Error => view! {
+                                <onboarding::ErrorScreen @sizing=ItemSize::Percent(100.0) view />
+                            },
+                            Screen::Accounts => view! {
+                                <onboarding::AccountsScreen @sizing=ItemSize::Percent(100.0) view />
+                            },
+                            Screen::Workspaces => view! {
+                                <onboarding::WorkspacesScreen
+                                    @sizing=ItemSize::Percent(100.0)
+                                    view
+                                />
+                            },
+                            Screen::Recovery => view! {
+                                <keys::RecoveryScreen @sizing=ItemSize::Percent(100.0) view />
+                            },
+                            Screen::Unlock => view! {
+                                <keys::UnlockScreen @sizing=ItemSize::Percent(100.0) view />
+                            },
+                            Screen::Profiles => view! {
+                                <onboarding::ProfilesScreen @sizing=ItemSize::Percent(100.0) view />
+                            },
+                            Screen::Workspace => view! {
+                                <workspace::WorkspaceScreen @sizing=ItemSize::Percent(100.0) view />
+                            },
+                        }
+                    }}
+                </Dynamic>
+            </List>
+        </Frame>
     }
 }

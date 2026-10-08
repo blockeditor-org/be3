@@ -4,11 +4,11 @@ use std::rc::Rc;
 use std::sync::mpsc::{Receiver, TryRecvError};
 
 use be_wayland::programs::{DesktopEntry, Environment, IconThemes, load_icon};
-use be_wayland::{Compositor, FullscreenWindow, Launch, Server, WindowId, WindowView, Windows};
+use be_wayland::{Compositor, Launch, Server, WindowId, WindowView, Windows};
 use beui::reactive::{Frame, component, view};
 use beui::styled::LauncherItem;
 use beui::{Context, Document, NodeId, Rect, Setup};
-use block_plugin_api::{HostWindow, HostWindowId, Size};
+use block_plugin_api::{ChildRect, HostWindow, HostWindowId, Size};
 
 struct Running {
     compositor: Compositor,
@@ -131,6 +131,12 @@ pub(crate) fn listed() -> Vec<HostWindow> {
                 width: info.size.x,
                 height: info.size.y,
             },
+            fullscreen: info.fullscreen.map(|area| ChildRect {
+                x: area.min.x,
+                y: area.min.y,
+                width: area.width(),
+                height: area.height(),
+            }),
         })
         .collect()
 }
@@ -138,6 +144,13 @@ pub(crate) fn listed() -> Vec<HostWindow> {
 pub(crate) fn close(window: HostWindowId) {
     if let Some(windows) = windows() {
         windows.close(WindowId(window.0));
+    }
+}
+
+pub(crate) fn fullscreen(window: HostWindowId, fullscreen: bool) {
+    if let Some(windows) = windows() {
+        windows.request_fullscreen(WindowId(window.0), fullscreen);
+        crate::host::wake();
     }
 }
 
@@ -281,18 +294,6 @@ pub(crate) fn WindowSurface(window: HostWindowId) -> NodeId {
     match windows() {
         Some(windows) => view! {
             <WindowView windows id={WindowId(window.0)} />
-        },
-        None => view! {
-            <Frame />
-        },
-    }
-}
-
-#[component]
-pub(crate) fn FullscreenSurface() -> NodeId {
-    match windows() {
-        Some(windows) => view! {
-            <FullscreenWindow windows />
         },
         None => view! {
             <Frame />

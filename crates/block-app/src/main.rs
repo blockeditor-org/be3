@@ -1398,16 +1398,19 @@ impl BlockApp {
             self.windows_sent = Some((shell, wayland::revision()));
             wayland::listed()
         });
-        let Some(closed) = self.with_editor(shell, |editor| {
+        let Some((closed, fullscreen)) = self.with_editor(shell, |editor| {
             if let Some(windows) = windows {
                 editor.set_windows(windows);
             }
-            editor.take_closed_windows()
+            (editor.take_closed_windows(), editor.take_fullscreen_windows())
         }) else {
             return;
         };
         for window in closed {
             wayland::close(window);
+        }
+        for (window, on) in fullscreen {
+            wayland::fullscreen(window, on);
         }
         let reports: Vec<(Uuid, Option<editors::FocusReport>, Option<Vec<Uuid>>)> =
             self.editors.with(|open| {

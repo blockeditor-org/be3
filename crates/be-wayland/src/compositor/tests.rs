@@ -5,7 +5,6 @@ mod a_closed_window_leaves_the_list;
 mod a_dmabuf_window_samples_the_clients_pixels;
 mod a_drawn_window_is_listed_and_fitted_to_where_it_is_shown;
 mod a_fullscreen_window_covers_only_its_own_screen;
-mod a_fullscreen_window_keeps_the_pointer_from_what_it_covers;
 mod a_maximized_window_keeps_its_place_and_is_told_it_is_maximized;
 mod a_shown_dmabuf_is_released_once_a_newer_one_is_painted;
 mod a_window_asking_for_fullscreen_covers_the_screen;
@@ -13,16 +12,14 @@ mod keys_follow_the_focus_between_beui_and_a_window;
 mod leaving_fullscreen_returns_the_window_to_where_it_was_shown;
 mod super_f_toggles_fullscreen_on_the_focused_window;
 mod the_f_of_super_f_released_elsewhere_is_not_held_against_the_next;
+mod the_ui_can_make_a_window_fullscreen_and_take_it_back;
 
-use std::cell::RefCell;
-use std::rc::Rc;
-
-use beui::reactive::{ForEach, Frame, Interactive, Layers, List, build, create_signal, view};
+use beui::reactive::{ForEach, Frame, List, build, clone, create_memo, create_signal, view};
 use beui::styled::TextInput;
-use beui::{FrameOutput, NodeId, RawInput, ScrollGesture, pos2};
+use beui::{FrameOutput, NodeId, RawInput, pos2};
 
 use crate::test_client::{TestClient, TestWindow};
-use crate::view::{FullscreenWindow, WindowView};
+use crate::view::WindowView;
 
 const SCREEN: Vec2 = Vec2::new(1000.0, 700.0);
 const SHOWN: Vec2 = Vec2::new(400.0, 300.0);
@@ -33,51 +30,41 @@ struct Harness {
     context: Context,
     client: TestClient,
     output: Option<FrameOutput>,
-    under: Rc<RefCell<Under>>,
 }
 
-#[derive(Default)]
-struct Under {
-    hovered: bool,
-    scrolled: Vec2,
-}
-
-fn shown(windows: Windows, under: Rc<RefCell<Under>>) -> impl FnOnce() -> NodeId {
+fn shown(windows: Windows) -> impl FnOnce() -> NodeId {
     move || {
-        let hovered = under.clone();
         let (text, set_text) = create_signal(String::new());
-        let ids = beui::reactive::create_memo(clone_list(&windows));
-        let covering = windows.clone();
+        let ids = create_memo(clone_list(&windows));
         view! {
-            <Layers>
-                <List spacing=0.0>
-                    <TextInput
-                        @test_id={"test.input"}
-                        value={text}
-                        on_change={move |line: String| set_text.set(line)}
-                    />
-                    <ForEach keys={ids}>
-                        {move |id: WindowId| {
-                            let windows = windows.clone();
-                            view! {
-                                <Frame width={SHOWN.x} height={SHOWN.y}>
-                                    <WindowView windows id />
-                                </Frame>
-                            }
-                        }}
-                    </ForEach>
-                    <Frame height=100.0>
-                        <Interactive
-                            @test_id="test.under"
-                            on_hover_change={move |on: bool| hovered.borrow_mut().hovered = on}
-                            on_scroll={move |scroll: ScrollGesture| {
-                                under.borrow_mut().scrolled += scroll.delta;
-                            }}
-                        />
-                    </Frame>
-                </List>
-                <FullscreenWindow windows={covering} />
-            </Layers>
+            <List spacing=0.0>
+                <TextInput
+                    @test_id={"test.input"}
+                    value={text}
+                    on_change={move |line: String| set_text.set(line)}
+                />
+                <ForEach keys={ids}>
+                    {move |id: WindowId| {
+                        let windows = windows.clone();
+                        let list = windows.list();
+                        let size = create_memo(move || {
+                            list.with(|list| {
+                                list.iter()
+                                    .find(|info| info.id == id)
+                                    .and_then(|info| info.fullscreen)
+                                    .map_or(SHOWN, |area| area.size())
+                            })
+                        });
+                        let width = create_memo(clone!(size -> move || Some(size.get().x)));
+                        let height = create_memo(move || Some(size.get().y));
+                        view! {
+                            <Frame width height>
+                                <WindowView windows id />
+                            </Frame>
+                        }
+                    }}
+                </ForEach>
+            </List>
         }
     }
 }
@@ -100,11 +87,10 @@ impl Harness {
 
     fn started(gpu: Option<(wgpu::Device, wgpu::Queue)>) -> Self {
         let mut windows = None;
-        let under = Rc::new(RefCell::new(Under::default()));
         let document = build(|| {
             let store = Windows::new();
             windows = Some(store.clone());
-            shown(store, under.clone())()
+            shown(store)()
         });
         let mut app = Compositor::new(
             Server::headless().expect("a headless display starts"),
@@ -127,7 +113,6 @@ impl Harness {
             context,
             client,
             output: None,
-            under,
         }
     }
 

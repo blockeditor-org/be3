@@ -10,11 +10,13 @@ fn a_window_asking_for_fullscreen_covers_the_screen() {
     window.toplevel.as_ref().unwrap().set_fullscreen(None);
     harness.settle();
 
+    let listed = harness.app.windows().list().get_untracked();
     assert_eq!(
-        harness.window(id),
-        Rect::from_min_size(Pos2::ZERO, SCREEN),
-        "the window is shown over everything else, across the whole screen"
+        listed[0].fullscreen,
+        Some(Rect::from_min_size(Pos2::ZERO, SCREEN)),
+        "the ui is told the window wants the whole screen"
     );
+    assert_eq!(harness.window(id).size(), SCREEN);
     assert_eq!(
         harness.client.received.size,
         Some((SCREEN.x as i32, SCREEN.y as i32)),

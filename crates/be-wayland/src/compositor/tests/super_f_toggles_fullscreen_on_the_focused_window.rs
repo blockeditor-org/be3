@@ -34,7 +34,7 @@ fn super_f_toggles_fullscreen_on_the_focused_window() {
 
     super_f(&mut harness);
     assert!(harness.client.received.fullscreen);
-    assert_eq!(harness.window(id), Rect::from_min_size(Pos2::ZERO, SCREEN));
+    assert_eq!(harness.window(id).size(), SCREEN);
     assert_eq!(
         harness.client.received.keys,
         [(KEY_LEFTMETA, true), (KEY_LEFTMETA, false)],

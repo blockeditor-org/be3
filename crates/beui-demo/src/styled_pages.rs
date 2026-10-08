@@ -105,6 +105,9 @@ pub(crate) fn DockingPage() -> NodeId {
             <Sample title="State follows the tab" code={vec![EditCounter::SOURCE]}>
                 <EditCounter />
             </Sample>
+            <Sample title="Fullscreen" code={vec![FullscreenTab::SOURCE]}>
+                <FullscreenTab />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -141,6 +144,53 @@ fn EditCounter() -> NodeId {
                     wrap=true
                 />
             </Show>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn FullscreenTab() -> NodeId {
+    let control = use_dock_tab();
+    let shown = create_memo(clone!(control -> move || {
+        control.as_ref().is_some_and(|control| control.fullscreen())
+    }));
+    let label = create_memo(clone!(shown -> move || match shown.get() {
+        true => "Leave fullscreen".to_owned(),
+        false => "Show this tab fullscreen".to_owned(),
+    }));
+    let leaving = control.clone();
+    let escaping = shown.clone();
+    on_shortcut(move |press: beui::KeyPress| {
+        let leave = press.pressed && press.key == beui::Key::Escape && escaping.get_untracked();
+        if let Some(control) = leaving.as_ref().filter(|_| leave) {
+            control.leave_fullscreen();
+        }
+        leave
+    });
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal spacing=ROW_SPACING>
+                <Button
+                    @test_id="demo.fullscreen"
+                    label
+                    variant=ButtonVariant::Secondary
+                    on_click={move || {
+                        let Some(control) = control.as_ref() else {
+                            return;
+                        };
+                        match shown.get_untracked() {
+                            true => control.leave_fullscreen(),
+                            false => control.enter_fullscreen(None),
+                        }
+                    }}
+                />
+            </List>
+            <Caption
+                content="The tab covers the whole window, its bar and every pane around it. \
+                 Escape or the same button brings it back."
+                wrap=true
+            />
         </List>
     }
 }

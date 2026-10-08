@@ -976,6 +976,16 @@ pub(crate) fn take_focus_report(plugin_id: &str, instance: EditorInstanceId) -> 
     .flatten()
 }
 
+pub(crate) fn take_fullscreen_windows(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+) -> Vec<(block_plugin_api::HostWindowId, bool)> {
+    with(plugin_id, |runtime| {
+        runtime.instances.take_fullscreen_windows(instance)
+    })
+    .unwrap_or_default()
+}
+
 pub(crate) fn take_closed_windows(
     plugin_id: &str,
     instance: EditorInstanceId,

@@ -129,6 +129,7 @@ struct Instance {
     watches_displays: bool,
     reported_displays: Option<Vec<block_plugin_api::HostDisplay>>,
     closed_windows: Vec<block_plugin_api::HostWindowId>,
+    fullscreen_windows: Vec<(block_plugin_api::HostWindowId, bool)>,
     grabbed: bool,
     web_views: HashMap<WebViewId, WebViewHost>,
     presence_visible: Option<bool>,
@@ -309,6 +310,7 @@ impl Instance {
             watches_displays: false,
             reported_displays: None,
             closed_windows: Vec::new(),
+            fullscreen_windows: Vec::new(),
             grabbed: false,
             web_views: HashMap::new(),
             presence_visible: None,
@@ -2316,6 +2318,9 @@ impl Instances {
                 match message {
                     LinuxMessage::WatchInputDevices => entry.watches_input_devices = true,
                     LinuxMessage::WatchDisplays => entry.watches_displays = true,
+                    LinuxMessage::FullscreenWindow { window, fullscreen } => {
+                        entry.fullscreen_windows.push((window, fullscreen));
+                    }
                     LinuxMessage::Windows(_)
                     | LinuxMessage::InputDevices(_)
                     | LinuxMessage::Displays(_) => return false,
@@ -2912,6 +2917,16 @@ impl Instances {
         self.entries
             .get_mut(&instance)
             .map(|entry| std::mem::take(&mut entry.closed_windows))
+            .unwrap_or_default()
+    }
+
+    pub(super) fn take_fullscreen_windows(
+        &mut self,
+        instance: EditorInstanceId,
+    ) -> Vec<(block_plugin_api::HostWindowId, bool)> {
+        self.entries
+            .get_mut(&instance)
+            .map(|entry| std::mem::take(&mut entry.fullscreen_windows))
             .unwrap_or_default()
     }
 

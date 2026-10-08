@@ -4,6 +4,7 @@ use block_ui_test::DocumentTest;
 
 use crate::{DemoApp, PAGES, Page};
 
+mod a_docked_page_shown_fullscreen_covers_the_dock_until_escape;
 mod a_sample_carries_the_source_it_was_written_with;
 mod a_sample_shows_its_code_when_asked;
 mod every_demo_page_paints_as_accepted;
