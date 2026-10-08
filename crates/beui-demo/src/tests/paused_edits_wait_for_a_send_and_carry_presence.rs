@@ -5,8 +5,7 @@ use beui::Event;
 fn paused_edits_wait_for_a_send_and_carry_presence() {
     let mut test = demo(WIDE);
     open(&mut test, Page::Collaboration);
-    let switch = test.rect_of("demo.collaboration.pause");
-    test.click_at(pos2(switch.left() + 12.0, switch.center().y));
+    test.click("demo.collaboration.pause");
     test.frame(Vec::new());
 
     let left = test.rect_of("demo.collaboration.left");
@@ -18,15 +17,23 @@ fn paused_edits_wait_for_a_send_and_carry_presence() {
     test.frame(Vec::new());
     let root = test.document().root().expect("the demo built a root");
     assert_eq!(
-        showing(test.document(), root, "Send right to left (1)"),
+        showing(
+            test.document(),
+            root,
+            "In flight: 1 to the right, 1 to the left."
+        ),
         1,
         "the right side's edit waits while the network is paused"
     );
 
-    test.click("demo.collaboration.send_left");
+    test.click("demo.collaboration.one_left");
     test.frame(Vec::new());
     assert_eq!(
-        showing(test.document(), root, "Send right to left (0)"),
+        showing(
+            test.document(),
+            root,
+            "In flight: 2 to the right, 0 to the left."
+        ),
         1,
         "sending delivers the right side's edit"
     );

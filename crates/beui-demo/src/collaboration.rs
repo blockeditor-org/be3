@@ -172,6 +172,24 @@ impl Simulation {
         }
     }
 
+    pub fn step(&mut self, from: Side, now: Instant) {
+        let mut edited = false;
+        while let Some((message, _)) = self.queue(from).front() {
+            let edit = matches!(message, Message::Edit(..));
+            if edit && edited {
+                break;
+            }
+            edited |= edit;
+            let Some((message, _)) = self.queue_mut(from).pop_front() else {
+                break;
+            };
+            match from {
+                Side::Right => self.reach_owner(message, now),
+                Side::Left => self.reach_follower(message),
+            }
+        }
+    }
+
     fn queue(&self, from: Side) -> &VecDeque<(Message, Instant)> {
         match from {
             Side::Left => &self.down,

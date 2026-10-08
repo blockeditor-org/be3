@@ -3,19 +3,23 @@ use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
+use beui::icons::{
+    ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_LEFT, ICON_KEYBOARD_ARROW_RIGHT,
+    ICON_KEYBOARD_ARROW_UP, ICON_KEYBOARD_DOUBLE_ARROW_DOWN, ICON_KEYBOARD_DOUBLE_ARROW_LEFT,
+    ICON_KEYBOARD_DOUBLE_ARROW_RIGHT, ICON_KEYBOARD_DOUBLE_ARROW_UP, ICON_PAUSE, ICON_PLAY_ARROW,
+};
 use beui::reactive::{
-    Align, List, Memo, ReadSignal, Show, Timer, clone, create_effect, create_memo, create_signal,
+    Align, List, Memo, ReadSignal, Timer, clone, create_effect, create_memo, create_signal,
     create_timer, now, untrack, view,
 };
-use beui::styled::{Button, ButtonVariant, Caption, Slider, Stack, TextArea};
-use beui::unstyled::{RemoteTextCursor, TextAreaState};
+use beui::styled::{Caption, IconButton, Slider, TextArea, ToggleButton};
+use beui::unstyled::{self, RemoteTextCursor, TextAreaState, narrower_than};
 use beui::{Color32, Direction, ItemSize, NodeId};
 use beui_macros::{component, sample};
 use text_editor_core::{CursorPosition, EditorCommand, TextLanguage};
 
 use super::{Caret, Side, SideDocument, Simulation};
 use crate::sample::{Sample, ScrollPage};
-use crate::styled_pages::LabelledSwitch;
 use crate::{ROW_SPACING, SECTION_SPACING};
 
 const TEXT: &str = "# Shared notes\n\nType on both sides. Each side keeps its own copy and \
@@ -85,7 +89,7 @@ fn ConcurrentEditing() -> NodeId {
     let timer: Rc<RefCell<Option<Timer>>> = Rc::new(RefCell::new(None));
 
     let pump = Rc::new(
-        clone!(simulation left right paused latency flight set_flight same set_same seen set_seen published timer -> move |force: Option<Side>| {
+        clone!(simulation left right paused latency flight set_flight same set_same seen set_seen published timer -> move |force: Option<(Side, Amount)>| {
             let now = now();
             let delay = Duration::from_millis(latency.get_untracked() as u64);
             let held = paused.get_untracked();
@@ -105,7 +109,8 @@ fn ConcurrentEditing() -> NodeId {
                 }
                 published.set(sent);
                 match force {
-                    Some(from) => simulation.deliver(from, now, None),
+                    Some((from, Amount::One)) => simulation.step(from, now),
+                    Some((from, Amount::All)) => simulation.deliver(from, now, None),
                     None if !held => {
                         simulation.deliver(Side::Left, now, Some(delay));
                         simulation.deliver(Side::Right, now, Some(delay));
@@ -171,8 +176,13 @@ fn ConcurrentEditing() -> NodeId {
             "In flight: {right} to the right, {left} to the left."
         ),
     }));
+    let network = create_memo(clone!(paused -> move || match paused.get() {
+        true => ICON_PLAY_ARROW.to_owned(),
+        false => ICON_PAUSE.to_owned(),
+    }));
     let send: Send = pump.clone();
     let switched = paused.clone();
+    let narrow = narrower_than(COLUMNS_BREAKPOINT);
 
     view! {
         <List spacing=SECTION_SPACING>
@@ -184,10 +194,11 @@ fn ConcurrentEditing() -> NodeId {
                 wrap=true
             />
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING wrap=true>
-                <LabelledSwitch
+                <ToggleButton
                     @test_id="demo.collaboration.pause"
-                    label="Pause the network"
-                    on={switched.clone()}
+                    label="Network"
+                    glyph={network}
+                    pressed={switched.clone()}
                     on_change={move |on: bool| set_paused.set(on)}
                 />
                 <Caption content={latency_label} />
@@ -198,10 +209,7 @@ fn ConcurrentEditing() -> NodeId {
                 label="Latency"
                 on_change={move |value| set_latency.set(value)}
             />
-            <Show condition={paused}>
-                <SendButtons send={send.clone()} flight={flight.clone()} />
-            </Show>
-            <Stack spacing=ROW_SPACING breakpoint=COLUMNS_BREAKPOINT>
+            <unstyled::Stack spacing=ROW_SPACING narrow={narrow.clone()}>
                 <EditorPane
                     @sizing=ItemSize::Percent(50.0)
                     id="demo.collaboration.left"
@@ -209,6 +217,7 @@ fn ConcurrentEditing() -> NodeId {
                     state={left}
                     remote={left_remote}
                 />
+                <SendButtons send={send.clone()} flight={flight.clone()} paused narrow />
                 <EditorPane
                     @sizing=ItemSize::Percent(50.0)
                     id="demo.collaboration.right"
@@ -216,35 +225,101 @@ fn ConcurrentEditing() -> NodeId {
                     state={right}
                     remote={right_remote}
                 />
-            </Stack>
+            </unstyled::Stack>
             <Caption content={status} wrap=true />
         </List>
     }
 }
 
-type Send = Rc<dyn Fn(Option<Side>)>;
+#[derive(Clone, Copy)]
+enum Amount {
+    One,
+    All,
+}
+
+type Send = Rc<dyn Fn(Option<(Side, Amount)>)>;
 
 #[sample]
 #[component]
-fn SendButtons(send: Send, flight: ReadSignal<(usize, usize)>) -> NodeId {
-    let to_right =
-        create_memo(clone!(flight -> move || format!("Send left to right ({})", flight.get().0)));
-    let to_left = create_memo(move || format!("Send right to left ({})", flight.get().1));
-    let send_right = clone!(send -> move || send(Some(Side::Left)));
-    let send_left = move || send(Some(Side::Right));
+fn SendButtons(
+    send: Send,
+    flight: ReadSignal<(usize, usize)>,
+    paused: ReadSignal<bool>,
+    narrow: Memo<bool>,
+) -> NodeId {
+    let direction = create_memo(clone!(narrow -> move || match narrow.get() {
+        true => Direction::Horizontal,
+        false => Direction::Vertical,
+    }));
+    let arrows = |wide: [&'static str; 4], stacked: [&'static str; 4]| {
+        let narrow = narrow.clone();
+        (0..4)
+            .map(|index| {
+                create_memo(clone!(narrow -> move || match narrow.get() {
+                    true => stacked[index].to_owned(),
+                    false => wide[index].to_owned(),
+                }))
+            })
+            .collect::<Vec<_>>()
+    };
+    let glyphs = arrows(
+        [
+            ICON_KEYBOARD_DOUBLE_ARROW_RIGHT,
+            ICON_KEYBOARD_ARROW_RIGHT,
+            ICON_KEYBOARD_ARROW_LEFT,
+            ICON_KEYBOARD_DOUBLE_ARROW_LEFT,
+        ],
+        [
+            ICON_KEYBOARD_DOUBLE_ARROW_DOWN,
+            ICON_KEYBOARD_ARROW_DOWN,
+            ICON_KEYBOARD_ARROW_UP,
+            ICON_KEYBOARD_DOUBLE_ARROW_UP,
+        ],
+    );
+    let held = |from: Side| {
+        create_memo(clone!(paused flight -> move || {
+            let (right, left) = flight.get();
+            let waiting = match from {
+                Side::Left => right,
+                Side::Right => left,
+            };
+            !paused.get() || waiting == 0
+        }))
+    };
+    let (from_left, from_right) = (held(Side::Left), held(Side::Right));
+    let press = |from: Side, amount: Amount| {
+        let send = send.clone();
+        move || send(Some((from, amount)))
+    };
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING wrap=true>
-            <Button
-                @test_id="demo.collaboration.send_right"
-                label={to_right}
-                variant=ButtonVariant::Secondary
-                on_click={send_right}
+        <List direction align=Align::Center spacing=ROW_SPACING>
+            <IconButton
+                @test_id="demo.collaboration.all_right"
+                glyph={glyphs[0].clone()}
+                label="Send every edit from the left"
+                disabled={from_left.clone()}
+                on_click={press(Side::Left, Amount::All)}
             />
-            <Button
-                @test_id="demo.collaboration.send_left"
-                label={to_left}
-                variant=ButtonVariant::Secondary
-                on_click={send_left}
+            <IconButton
+                @test_id="demo.collaboration.one_right"
+                glyph={glyphs[1].clone()}
+                label="Send one edit from the left"
+                disabled={from_left.clone()}
+                on_click={press(Side::Left, Amount::One)}
+            />
+            <IconButton
+                @test_id="demo.collaboration.one_left"
+                glyph={glyphs[2].clone()}
+                label="Send one edit from the right"
+                disabled={from_right.clone()}
+                on_click={press(Side::Right, Amount::One)}
+            />
+            <IconButton
+                @test_id="demo.collaboration.all_left"
+                glyph={glyphs[3].clone()}
+                label="Send every edit from the right"
+                disabled={from_right.clone()}
+                on_click={press(Side::Right, Amount::All)}
             />
         </List>
     }

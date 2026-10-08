@@ -5,6 +5,7 @@ use text_editor_core::{Document, Position};
 
 use super::{Caret, Side, SideDocument, Simulation};
 
+mod a_step_sends_one_edit_at_a_time;
 mod carets_arrive_after_the_edits_they_point_into;
 mod edits_wait_for_the_latency_before_they_arrive;
 mod paused_typing_on_both_sides_converges_once_sent_both_ways;
