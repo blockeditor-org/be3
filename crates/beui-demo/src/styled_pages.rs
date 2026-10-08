@@ -51,6 +51,7 @@ const TREE_NODES: [(&str, usize); 9] = [
     ("README.md", 1),
     ("Cargo.toml", 1),
 ];
+const TOAST_AREA_HEIGHT: f32 = 220.0;
 const FRUITS: [&str; 6] = ["Apple", "Banana", "Cherry", "Date", "Grape", "Mango"];
 
 #[sample]
@@ -1165,6 +1166,9 @@ pub(crate) fn OverlaysPage() -> NodeId {
             >
                 <FullscreenButton />
             </Sample>
+            <Sample title="Toasts" code={vec![ToastArea::SOURCE]}>
+                <ToastArea />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -1444,6 +1448,61 @@ fn ActionsSheet() -> NodeId {
             />
             <Caption content={outcome} />
         </List>
+    }
+}
+
+#[sample]
+#[component]
+fn ToastArea() -> NodeId {
+    let theme = use_theme();
+    let area = beui::reactive::NodeRef::new();
+    let (toasts, set_toasts) = create_signal(vec![
+        Toast {
+            id: 1,
+            message: "Saved a copy of the workspace.".to_owned(),
+            danger: false,
+        },
+        Toast {
+            id: 2,
+            message: "Could not run firefox: the command was not found".to_owned(),
+            danger: true,
+        },
+    ]);
+    let (next, set_next) = create_signal(3);
+    let add = set_toasts.clone();
+    let dismiss = set_toasts.clone();
+    view! {
+        <Frame
+            @node_ref=&area
+            height=TOAST_AREA_HEIGHT
+            color={theme.surface.clone()}
+            radius=CARD_RADIUS
+            padding_horizontal=12.0
+            padding_vertical=12.0
+        >
+            <List spacing=0.0>
+                <List direction=Direction::Horizontal align=Align::Start spacing=8.0>
+                    <Button
+                        label="Show a toast"
+                        variant=ButtonVariant::Secondary
+                        on_click={move || {
+                            let id = next.get_untracked();
+                            set_next.set(id + 1);
+                            add.update(|toasts| toasts.push(Toast {
+                                id,
+                                message: format!("Toast {id}, gone in a few seconds."),
+                                danger: false,
+                            }));
+                        }}
+                    />
+                </List>
+                <Toasts
+                    anchor={area}
+                    toasts={toasts}
+                    on_dismiss={move |id: u64| dismiss.update(|toasts| toasts.retain(|toast| toast.id != id))}
+                />
+            </List>
+        </Frame>
     }
 }
 

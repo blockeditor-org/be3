@@ -36,10 +36,14 @@ pub(crate) fn start(setup: &Setup) {
         Ok(server) => server,
         Err(error) => {
             eprintln!("block-app: the Wayland server did not start: {error}");
+            crate::notices::report(format!(
+                "Programs cannot be run, since the Wayland server did not start: {error}"
+            ));
             return;
         }
     };
     let mut compositor = Compositor::new(server, windows);
+    compositor.on_failure(crate::notices::report);
     compositor.start(
         gpu.device.clone(),
         gpu.queue.clone(),
@@ -250,6 +254,7 @@ impl Programs {
             Ok(arguments) => arguments,
             Err(error) => {
                 eprintln!("block-app: {} did not start: {error}", entry.name);
+                crate::notices::report(format!("{} did not start: {error}", entry.name));
                 return false;
             }
         };

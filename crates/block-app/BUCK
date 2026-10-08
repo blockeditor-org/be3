@@ -19,7 +19,7 @@ commit = {
     })
 }
 
-app_srcs = glob(["src/**/*.rs", "src/**/*.wgsl", "assets/**/*"])
+app_srcs = glob(["src/**/*.rs", "src/**/*.wgsl", "src/**/*.desktop", "assets/**/*"])
 
 # On Android the app is this library, loaded by MainActivity under cargo's
 # name for it; on the web it is the module :web runs wasm-bindgen over.
@@ -249,6 +249,17 @@ command_alias(
         "$(location //buck/app:smoke.sh)",
         "$(location :app)/block-app",
         "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
+    ],
+)
+
+# The app with its plugins installed under /usr/local (or the prefix given after
+# `--`), with a wayland-sessions entry that runs it with --session, for a
+# display manager to offer on its login screen: guides/running_the_app.md.
+command_alias(
+    name = "install-session",
+    args = [
+        "$(location :app)/block-app",
+        "--install-session",
     ],
 )
 
