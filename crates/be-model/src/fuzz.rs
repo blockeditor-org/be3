@@ -112,6 +112,7 @@ impl Client {
     }
 
     fn edit(&mut self, input: &mut Input) {
+        crate::set_local_client(self.id as u64 + 1);
         let edit = match input.byte() % 6 {
             5 => match self.undo.pop() {
                 Some(step) => step.undo(),
@@ -160,6 +161,7 @@ impl Client {
                 object: *id,
                 place,
                 anchor,
+                client: crate::local_client(),
             }),
         }
     }

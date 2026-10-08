@@ -258,16 +258,19 @@ Done:
   everyone closes it. `Snapshot` carries the state as of the owner's last seal,
   and adopting state rebuilds a follower's view from `confirmed` and its pending
   edits.
-- Lists: `Value::List` holds `Items`, a `Sequence<ObjectId>` in which every
-  object sits at the position its id names (`client` is the id's low 64 bits,
-  `offset` 0), so changes keep addressing objects and anchoring to siblings by
-  id and editors are unchanged. A list has one slot per object: a removal
-  leaves a tombstone, an object that comes back to a list undeletes its slot
-  and moves it after its anchor, a move within a list keeps the slot, and a move
-  to another list leaves a tombstone behind. A list without tombstones adds
-  nothing to the session state; the removal records (`gone`) and `MoveIf` are
-  gone. Two ids with the same low 64 bits can't both be live in one list: the
-  second insert or move there is refused. `be_model::fuzz::lists` (a seeded
+- Lists: `Value::List` holds `Items`, a `Sequence<ObjectId>` with a map from
+  each id to its slot. Changes keep addressing objects and anchoring to
+  siblings by id, so editors are unchanged; an insert and a move carry the
+  client that made them (`be_model::local_client`, one per thread), and a new
+  slot takes that client's next offset in the list when the change applies,
+  which is the same on every replica because only that client allocates in its
+  run and its changes arrive in order. A loaded list sits on the loaded run, as
+  text does. A list has one slot per object: a removal leaves a tombstone, an
+  object that comes back to a list undeletes its slot and moves it after its
+  anchor, a move within a list keeps the slot, and a move to another list leaves
+  a tombstone behind. The session state carries a list's positions and the ids
+  of its tombstones only once it has moved or lost something; the removal
+  records (`gone`) and `MoveIf` are gone. `be_model::fuzz::lists` (a seeded
   test and the coverage-guided `//crates/be-model:fuzz-lists`) runs three
   clients inserting, removing, moving, undoing and reloading a board of columns
   and cards through a sequencer, and checks the tree's structure after every

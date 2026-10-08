@@ -336,12 +336,14 @@ values, and every algorithm is written once against that table:
   `Calendar::update`, which only writes the fields that changed.
 - **Live editing.** Edits address objects by id and anchor inserts to a sibling,
   so they mean the same thing whatever the sequencer put before them: there is
-  nothing to rebase. A list is a `Sequence` of ids (`Items`) in which every
-  object sits at a position derived from its own id, so a list has at most one
-  slot for an object: removing it leaves a tombstone there, an insert anchored
-  after a removed or moved-away object lands where it was, and an object that
-  comes back reuses its slot. A move within a list keeps the slot; a move to
-  another list leaves a tombstone behind. Tombstones and text positions live only
+  nothing to rebase. A list is a `Sequence` of ids (`Items`) that remembers each
+  object's slot in it. An insert, or a move into a list the object was never
+  in, takes the next offset of the client that made it (`local_client`, carried
+  in the change), so every replica gives it the same slot. Removing an object
+  leaves a tombstone, an insert anchored after a removed or moved-away object
+  lands where it was, and an object that comes back to a list reuses its slot.
+  A move within a list keeps the slot; a move to another list leaves a tombstone
+  behind. Tombstones and text positions live only
   in the session: they are never saved, the owner hands them to a joining
   follower in `Snapshot` and to reloading followers in `Sealed`
   (`LiveEdit::session_state`), and they go when the session ends. A `Snapshot` carries the state as of the

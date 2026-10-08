@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::items::ItemsState;
 use crate::{
     Anchor, Change, Items, Malformed, Model, Object, ObjectId, Objects, Place, Sequence, Touched,
     Value,
@@ -11,7 +12,7 @@ use sequence::State;
 #[derive(Default, Deserialize, Serialize)]
 struct Session {
     texts: BTreeMap<Place, State>,
-    lists: BTreeMap<Place, State>,
+    lists: BTreeMap<Place, ItemsState>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -236,8 +237,9 @@ impl Tree {
             Change::Insert {
                 place,
                 anchor,
+                client,
                 objects,
-            } => self.insert(*place, *anchor, objects),
+            } => self.insert(*place, *anchor, *client, objects),
             Change::Stamp {
                 object,
                 field,
@@ -259,7 +261,8 @@ impl Tree {
                 object,
                 place,
                 anchor,
-            } => self.relocate(*object, *place, *anchor),
+                client,
+            } => self.relocate(*object, *place, *anchor, *client),
         }
     }
 
@@ -427,6 +430,7 @@ impl Tree {
                     Change::Insert {
                         place,
                         anchor: self.anchor_of(*object, place),
+                        client: crate::local_client(),
                         objects: self.subtree(*object),
                     },
                     change.clone(),
@@ -436,7 +440,8 @@ impl Tree {
                 object,
                 place,
                 anchor,
-            } => self.inverse_move(*object, *place, *anchor),
+                client,
+            } => self.inverse_move(*object, *place, *anchor, *client),
         }
     }
 
@@ -445,6 +450,7 @@ impl Tree {
         object: ObjectId,
         place: Place,
         anchor: Anchor,
+        client: u64,
     ) -> Option<(Change, Change)> {
         let from = self.objects.get(&object)?.parent?;
         if !self.can_move(object, place) || anchor == Anchor::After(object) {
@@ -460,11 +466,13 @@ impl Tree {
                 object,
                 place: from,
                 anchor: self.anchor_of(object, from),
+                client,
             },
             Change::Move {
                 object,
                 place,
                 anchor: after.map_or(Anchor::Start, Anchor::Behind),
+                client,
             },
         ))
     }
@@ -585,7 +593,13 @@ impl Tree {
         }
     }
 
-    fn insert(&mut self, place: Place, anchor: Anchor, objects: &[(ObjectId, Object)]) -> bool {
+    fn insert(
+        &mut self,
+        place: Place,
+        anchor: Anchor,
+        client: u64,
+        objects: &[(ObjectId, Object)],
+    ) -> bool {
         let Some((top, _)) = objects.first() else {
             return false;
         };
@@ -612,7 +626,7 @@ impl Tree {
         }
         if !self
             .list_mut(place)
-            .is_some_and(|items| items.insert(*top, after))
+            .is_some_and(|items| items.insert(*top, client, after))
         {
             return false;
         }
@@ -649,7 +663,7 @@ impl Tree {
         true
     }
 
-    fn relocate(&mut self, object: ObjectId, place: Place, anchor: Anchor) -> bool {
+    fn relocate(&mut self, object: ObjectId, place: Place, anchor: Anchor, client: u64) -> bool {
         if !self.can_move(object, place) || anchor == Anchor::After(object) {
             return false;
         }
@@ -672,7 +686,7 @@ impl Tree {
             held.parent = Some(place);
         }
         self.list_mut(place)
-            .is_some_and(|items| items.insert(object, after))
+            .is_some_and(|items| items.insert(object, client, after))
     }
 
     pub(crate) fn children_by_place(&self) -> BTreeMap<Place, Vec<ObjectId>> {

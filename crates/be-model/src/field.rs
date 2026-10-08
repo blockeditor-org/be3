@@ -235,6 +235,7 @@ impl<M, T: Model> FieldRef<M, List<T>> {
         Change::Insert {
             place,
             anchor,
+            client: crate::local_client(),
             objects,
         }
     }
@@ -244,6 +245,7 @@ impl<M, T: Model> FieldRef<M, List<T>> {
             object,
             place: self.of(owner),
             anchor,
+            client: crate::local_client(),
         }
     }
 }
