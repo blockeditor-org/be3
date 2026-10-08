@@ -415,7 +415,6 @@ impl Document {
         self.arena.get_mut_as::<OverlayNode>(overlay).mode = mode;
         if self.arena.get_as::<OverlayNode>(overlay).open {
             self.close_overlay(overlay);
-            self.arena.get_mut_as::<OverlayNode>(overlay).open = false;
             self.open_overlay(overlay);
         }
     }
@@ -580,42 +579,44 @@ impl Document {
     }
 
     pub fn close_overlay(&mut self, overlay: NodeOf<OverlayNode>) {
-        if let Some(level) = self.overlay_stack.iter().position(|&id| id == overlay) {
-            self.close_overlay_at(level);
-            return;
-        }
-        if let Some(index) = self.passive_overlays.iter().position(|&id| id == overlay) {
-            self.passive_overlays.remove(index);
-            if self.contains(overlay) {
-                self.arena.get_mut_as::<OverlayNode>(overlay).open = false;
-                self.arena.invalidate_node(overlay);
-            }
-            self.call_overlay_dismiss(overlay);
-        }
+        self.end_overlay(overlay, false);
     }
 
-    pub fn close_topmost_overlay(&mut self) {
-        if !self.overlay_stack.is_empty() {
-            self.close_overlay_at(self.overlay_stack.len() - 1);
-        }
+    pub fn dismiss_overlay(&mut self, overlay: NodeOf<OverlayNode>) {
+        self.end_overlay(overlay, true);
     }
 
-    fn close_overlay_at(&mut self, level: usize) {
-        let Some(&closed) = self.overlay_stack.get(level) else {
+    fn end_overlay(&mut self, overlay: NodeOf<OverlayNode>, dismissed: bool) {
+        let open: Vec<NodeOf<OverlayNode>> = self
+            .overlay_stack
+            .iter()
+            .chain(self.passive_overlays.iter())
+            .copied()
+            .filter(|&id| id != overlay)
+            .collect();
+        if open.len() == self.overlay_stack.len() + self.passive_overlays.len() {
             return;
-        };
-        let above = self.overlay_stack.split_off(level + 1);
-        let nested = self.overlays_within(closed, &above);
-        let (nested, kept): (Vec<NodeOf<OverlayNode>>, Vec<NodeOf<OverlayNode>>) =
-            above.into_iter().partition(|id| nested.contains(id));
-        self.overlay_stack.pop();
-        self.overlay_stack.extend(kept);
-        for id in std::iter::once(closed).chain(nested) {
+        }
+        let nested = self.overlays_within(overlay, &open);
+        let closing = |id: &NodeOf<OverlayNode>| *id == overlay || nested.contains(id);
+        self.overlay_stack.retain(|id| !closing(id));
+        self.passive_overlays.retain(|id| !closing(id));
+        for (id, dismissed) in
+            std::iter::once((overlay, dismissed)).chain(nested.iter().map(|&id| (id, true)))
+        {
             if self.contains(id) {
                 self.arena.get_mut_as(id).open = false;
+                self.arena.invalidate_node(id);
             }
-            self.arena.invalidate_node(id);
-            self.call_overlay_dismiss(id);
+            if dismissed {
+                self.call_overlay_dismiss(id);
+            }
+        }
+    }
+
+    pub fn dismiss_topmost_overlay(&mut self) {
+        if let Some(&top) = self.overlay_stack.last() {
+            self.end_overlay(top, true);
         }
     }
 
@@ -700,7 +701,7 @@ impl Document {
             if !self.light_overlay_misses(top, pos) || self.on_overlay_trigger(top, pos) {
                 return;
             }
-            self.close_overlay_at(self.overlay_stack.len() - 1);
+            self.end_overlay(top, true);
         }
     }
 
@@ -725,7 +726,7 @@ impl Document {
             let scrim = self.arena.get_as::<OverlayNode>(overlay).scrim;
             self.capture_pointer(scrim);
             self.forward.swallow_press();
-            self.close_overlay_at(level);
+            self.end_overlay(overlay, true);
         }
     }
 }
