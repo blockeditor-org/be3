@@ -16,7 +16,8 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/ci` | what CI runs: `./scripts/verify`, and `--android DIR` the signed APKs, `--previews BASE OUT` the paint previews |
 | `./scripts/buck test //crates/...` | the tests alone; outside CI it prints only the failures and the compiler's errors, and `BE3_VERBOSE=1` prints everything |
 | `./scripts/buck test //crates/editors/checklist:test` | one editor's tests; add `-- --env UPDATE_SNAPSHOTS=1` to accept its paintings |
-| `./scripts/buck test //crates/editors/checklist:test -- --test-arg adding` | only the tests whose names contain `adding`; `--test-arg` passes its value to the test binary, and a bare argument after `--` is an error |
+| `./scripts/buck test //crates/editors/checklist:test -- --test-arg=adding` | only the tests whose names contain `adding`; `--test-arg` passes its value to the test binary, and a bare argument after `--` is an error |
+| `./scripts/test adding [--update]` | the tests whose names contain `adding`, in every crate that has one, with all their output; it finds each crate's `:test` and runs it with `BE3_VERBOSE=1` and `--nocapture` |
 | `./scripts/buck run //crates/block-app:app` | the app, with every plugin beside it |
 | `./scripts/buck run //crates/block-app:smoke` | the app for ten seconds in a virtual display |
 | `./scripts/buck build //crates/block-app:dist --out DIR` | a platform's release: app and `be-server` |
@@ -184,7 +185,9 @@ crates sit outside `crates/` because `build //crates/...`, `//:check` and
 clippy would fail on them, and the autofixes would delete the markers.
 
 Arguments after `--` go to the test executor: `--env NAME=VALUE` sets a
-variable, `--test-arg NAME` runs one test. buck2 runs a binary's tests on
+variable, `--test-arg=NAME` runs one test. Write it with `=`: the spaced
+`--test-arg NAME` takes every argument after it as its value, a second
+`--test-arg` included, and the test binary then fails on that. buck2 runs a binary's tests on
 threads, like `cargo test`, so tests that touch process-wide state must take
 turns.
 
