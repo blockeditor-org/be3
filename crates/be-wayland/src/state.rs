@@ -32,11 +32,12 @@ use smithay::delegate_shm;
 use smithay::delegate_viewporter;
 use smithay::delegate_xdg_shell;
 use smithay::desktop::{
-    PopupKind, PopupManager, Window, WindowSurfaceType, find_popup_root_surface,
+    PopupGrab, PopupKeyboardGrab, PopupKind, PopupManager, PopupPointerGrab, PopupUngrabStrategy,
+    Window, WindowSurfaceType, find_popup_root_surface,
 };
-use smithay::input::keyboard::{FilterResult, Keycode, XkbConfig};
+use smithay::input::keyboard::{FilterResult, KeyboardHandle, Keycode, XkbConfig};
 use smithay::input::pointer::{
-    AxisFrame, ButtonEvent, CursorImageStatus, MotionEvent, PointerHandle,
+    AxisFrame, ButtonEvent, CursorImageStatus, Focus, MotionEvent, PointerHandle,
 };
 use smithay::input::{Seat, SeatHandler, SeatState};
 use smithay::output::{Mode, Output, PhysicalProperties, Scale, Subpixel};
@@ -121,6 +122,7 @@ pub struct State {
     seat: Seat<State>,
     output: Output,
     popups: PopupManager,
+    popup_grab: Option<PopupGrab<State>>,
     windows: Vec<ClientWindow>,
     next_window: u64,
     events: Vec<ServerEvent>,
@@ -184,6 +186,7 @@ impl State {
             seat,
             output,
             popups: PopupManager::default(),
+            popup_grab: None,
             windows: Vec::new(),
             next_window: 1,
             events: Vec::new(),
@@ -330,6 +333,51 @@ impl State {
 
     pub fn cleanup(&mut self) {
         self.popups.cleanup();
+        self.settle_popup_grab();
+    }
+
+    fn settle_popup_grab(&mut self) {
+        let Some(grab) = self.popup_grab.clone() else {
+            return;
+        };
+        let keyboard = self.keyboard();
+        let serial = SERIAL_COUNTER.next_serial();
+        if !grab.has_ended() {
+            let current = grab.current_grab();
+            if keyboard.has_grab(grab.serial()) && keyboard.current_focus() != current {
+                keyboard.set_focus(self, current, serial);
+            }
+            return;
+        }
+        self.popup_grab = None;
+        self.release_popup_grab(&grab);
+        let focus = self
+            .keyboard_window
+            .and_then(|id| self.toplevel(id))
+            .map(|toplevel| toplevel.wl_surface().clone());
+        if keyboard.current_focus() != focus {
+            keyboard.set_focus(self, focus, serial);
+        }
+    }
+
+    fn release_popup_grab(&mut self, grab: &PopupGrab<State>) {
+        let pointer = self.pointer();
+        if pointer.has_grab(grab.serial()) {
+            let time = self.time();
+            pointer.unset_grab(self, SERIAL_COUNTER.next_serial(), time);
+        }
+        let keyboard = self.keyboard();
+        if keyboard.has_grab(grab.serial()) {
+            keyboard.unset_grab(self);
+        }
+    }
+
+    pub fn dismiss_popups(&mut self) {
+        let Some(mut grab) = self.popup_grab.take() else {
+            return;
+        };
+        grab.ungrab(PopupUngrabStrategy::All);
+        self.release_popup_grab(&grab);
     }
 
     pub fn take_events(&mut self) -> Vec<ServerEvent> {
@@ -498,6 +546,10 @@ impl State {
         self.seat.get_pointer().expect("the seat has a pointer")
     }
 
+    fn keyboard(&self) -> KeyboardHandle<Self> {
+        self.seat.get_keyboard().expect("the seat has a keyboard")
+    }
+
     pub fn pointer_window(&self) -> Option<WindowId> {
         self.pointer_window
     }
@@ -547,9 +599,6 @@ impl State {
 
     pub fn pointer_button(&mut self, button: u32, pressed: bool) {
         let pointer = self.pointer();
-        if pressed {
-            self.dismiss_popups_outside(&pointer);
-        }
         let serial = SERIAL_COUNTER.next_serial();
         let time = self.time();
         pointer.button(
@@ -566,27 +615,6 @@ impl State {
             },
         );
         pointer.frame(self);
-    }
-
-    fn dismiss_popups_outside(&mut self, pointer: &PointerHandle<Self>) {
-        let over = pointer.current_focus();
-        for window in &self.windows {
-            let Some(toplevel) = window.window.toplevel() else {
-                continue;
-            };
-            let popups: Vec<PopupKind> = PopupManager::popups_for_surface(toplevel.wl_surface())
-                .map(|(popup, _)| popup)
-                .collect();
-            let inside = popups
-                .iter()
-                .any(|popup| over.as_ref().is_some_and(|over| over == popup.wl_surface()));
-            if inside {
-                continue;
-            }
-            for popup in popups.iter().rev() {
-                let _ = PopupManager::dismiss_popup(toplevel.wl_surface(), popup);
-            }
-        }
     }
 
     pub fn pointer_axis(&mut self, delta: (f64, f64)) {
@@ -611,11 +639,12 @@ impl State {
         if id == self.keyboard_window {
             return;
         }
+        self.dismiss_popups();
         self.keyboard_window = id;
         let surface = id
             .and_then(|id| self.toplevel(id))
             .map(|toplevel| toplevel.wl_surface().clone());
-        let keyboard = self.seat.get_keyboard().expect("the seat has a keyboard");
+        let keyboard = self.keyboard();
         keyboard.set_focus(self, surface, SERIAL_COUNTER.next_serial());
     }
 
@@ -632,7 +661,7 @@ impl State {
     }
 
     pub fn key(&mut self, code: u32, pressed: bool) {
-        let keyboard = self.seat.get_keyboard().expect("the seat has a keyboard");
+        let keyboard = self.keyboard();
         let time = self.time();
         keyboard.input::<(), _>(
             self,
@@ -849,7 +878,35 @@ impl XdgShellHandler for State {
         surface.send_repositioned(token);
     }
 
-    fn grab(&mut self, _surface: PopupSurface, _seat: WlSeat, _serial: Serial) {}
+    fn grab(&mut self, surface: PopupSurface, _seat: WlSeat, serial: Serial) {
+        let popup = PopupKind::Xdg(surface);
+        let Ok(root) = find_popup_root_surface(&popup) else {
+            return;
+        };
+        if self.window_of_root(&root).is_none() {
+            let _ = PopupManager::dismiss_popup(&root, &popup);
+            return;
+        }
+        let seat = self.seat.clone();
+        let Ok(mut grab) = self.popups.grab_popup(root, popup, &seat, serial) else {
+            return;
+        };
+        let keyboard = self.keyboard();
+        let pointer = self.pointer();
+        let previous = grab.previous_serial().unwrap_or(serial);
+        let keyboard_taken = keyboard.is_grabbed()
+            && !(keyboard.has_grab(serial) || keyboard.has_grab(previous));
+        let pointer_taken =
+            pointer.is_grabbed() && !(pointer.has_grab(serial) || pointer.has_grab(previous));
+        if keyboard_taken || pointer_taken {
+            grab.ungrab(PopupUngrabStrategy::All);
+            return;
+        }
+        keyboard.set_focus(self, grab.current_grab(), serial);
+        keyboard.set_grab(self, PopupKeyboardGrab::new(&grab), serial);
+        pointer.set_grab(self, PopupPointerGrab::new(&grab), serial, Focus::Keep);
+        self.popup_grab = Some(grab);
+    }
 
     fn toplevel_destroyed(&mut self, surface: ToplevelSurface) {
         let Some(index) = self

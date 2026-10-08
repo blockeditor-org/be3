@@ -1,6 +1,8 @@
+mod a_click_on_another_client_dismisses_every_grabbed_popup;
 mod a_committed_buffer_becomes_a_layer_of_its_window;
 mod a_dmabuf_commit_waits_until_its_buffer_is_readable;
 mod a_kde_decoration_starts_server_side_and_acknowledges_requests;
+mod a_grabbing_popup_holds_the_keyboard_until_it_closes;
 mod a_keyboard_config_reaches_the_clients;
 mod a_popup_is_drawn_where_the_pointer_finds_it;
 mod a_title_reaches_the_ui;
@@ -10,6 +12,7 @@ mod configure_sends_the_panel_size;
 mod destroying_a_toplevel_closes_its_window;
 mod frame_callbacks_wait_for_send_frames;
 mod keys_reach_the_focused_window;
+mod pressing_the_menu_button_again_reaches_the_menubar_without_a_dismissal;
 mod the_pointer_enters_the_surface_under_it;
 use crate::state::ServerEvent;
 use crate::test_client::*;
