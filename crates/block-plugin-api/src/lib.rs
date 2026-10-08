@@ -1375,6 +1375,7 @@ pub enum BlockCommand {
         linked: bool,
     },
     AppMenu,
+    Launcher,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
