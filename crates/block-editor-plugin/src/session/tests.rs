@@ -6,7 +6,7 @@ use block_plugin_api::{
 
 fn accept(session: &mut ClientSession) {
     session.receive(Message::HelloAccepted(HelloAccepted {
-        version: PROTOCOL_VERSION,
+        fingerprint: PROTOCOL_FINGERPRINT,
         host_name: "test host".into(),
         surface: Some(SurfaceSpec {
             format: SurfaceFormat::Rgba8Unorm,

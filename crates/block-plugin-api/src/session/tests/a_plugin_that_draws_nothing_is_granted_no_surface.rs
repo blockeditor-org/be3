@@ -5,7 +5,7 @@ fn a_plugin_that_draws_nothing_is_granted_no_surface() {
     let mut session = session();
     session.start(0);
     let hello = Message::Hello(Hello {
-        version: PROTOCOL_VERSION,
+        fingerprint: PROTOCOL_FINGERPRINT,
         plugin: PluginIdentity {
             id: "demo".into(),
             name: "Plugin Demo".into(),

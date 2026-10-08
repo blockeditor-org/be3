@@ -1,6 +1,6 @@
 use super::*;
 use crate::headless::HeadlessPlugin;
-use block_plugin_api::{FontFace, HelloAccepted, PROTOCOL_VERSION, Theme};
+use block_plugin_api::{FontFace, HelloAccepted, PROTOCOL_FINGERPRINT, Theme};
 
 fn asked(plugin: &mut HeadlessPlugin) -> Vec<Vec<char>> {
     plugin
@@ -18,7 +18,7 @@ fn a_character_is_asked_for_once_and_only_after_the_hosts_fonts_arrive() {
     forget();
     let mut plugin = HeadlessPlugin::new("fonts", "Fonts", "1");
     plugin.receive(Message::HelloAccepted(HelloAccepted {
-        version: PROTOCOL_VERSION,
+        fingerprint: PROTOCOL_FINGERPRINT,
         host_name: "test host".into(),
         surface: None,
         theme: Theme { dark: true },

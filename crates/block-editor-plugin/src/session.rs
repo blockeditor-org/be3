@@ -1,5 +1,5 @@
 use block_plugin_api::{
-    Direction, EditorInstanceId, EditorMessage, ErrorCode, Hello, Message, PROTOCOL_VERSION,
+    Direction, EditorInstanceId, EditorMessage, ErrorCode, Hello, Message, PROTOCOL_FINGERPRINT,
     PluginIdentity, ProtocolError, ScreenId, SurfaceSpec, SurfaceSupport,
 };
 use std::collections::HashSet;
@@ -51,7 +51,7 @@ impl ClientSession {
 
     pub fn hello(&self) -> Message {
         Message::Hello(Hello {
-            version: PROTOCOL_VERSION,
+            fingerprint: PROTOCOL_FINGERPRINT,
             plugin: self.plugin.clone(),
             surface: match cfg!(target_arch = "wasm32") {
                 true => SurfaceSupport::Texture,
@@ -86,11 +86,10 @@ impl ClientSession {
         }
         match (self.state, message) {
             (State::AwaitingHello, Message::HelloAccepted(accepted)) => {
-                if accepted.version != PROTOCOL_VERSION {
-                    return Err(format!(
-                        "the host speaks protocol version {} and this plugin speaks {PROTOCOL_VERSION}",
-                        accepted.version
-                    ));
+                if accepted.fingerprint != PROTOCOL_FINGERPRINT {
+                    return Err(
+                        "the host was built against a different plugin protocol than this plugin; rebuild it alongside the app".into(),
+                    );
                 }
                 self.surface = accepted.surface;
                 self.state = State::Running;

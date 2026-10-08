@@ -10,7 +10,7 @@ use block_editor_beui::{
 };
 use block_plugin_api::{
     BarAction, BlockTypeDescriptor, Catalog, ChildId, ChildRect, EditorMessage, FrameChrome,
-    FrameReport, HelloAccepted, InputBatch, MenuEntry, Message, PROTOCOL_VERSION, ScreenId,
+    FrameReport, HelloAccepted, InputBatch, MenuEntry, Message, PROTOCOL_FINGERPRINT, ScreenId,
     ScreenRequest, ScreenSet, SurfaceFormat, SurfaceSpec, Theme, TopBar, ViewportMetrics,
 };
 use std::marker::PhantomData;
@@ -223,7 +223,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         let hello = test.plugin.hello();
         test.deliver(roundtrip(hello, "the plugin's hello"));
         test.deliver(Message::HelloAccepted(HelloAccepted {
-            version: PROTOCOL_VERSION,
+            fingerprint: PROTOCOL_FINGERPRINT,
             host_name: "block-ui-test".to_owned(),
             surface: Some(SurfaceSpec {
                 format: SurfaceFormat::Rgba8UnormSrgb,

@@ -12,16 +12,15 @@ The accepted handshake carries the theme the host is drawn in, which is what
 a plugin's own interface follows, so an editor looks the same as the app it is
 embedded in wherever it runs.
 
-The initial handshake advertises an inclusive supported-version range. Peers
-may communicate only after selecting one version in the intersection. A peer
-rejects an absent intersection with `UnsupportedVersion` and closes the
-session.
-
-Adding an optional capability or a message that cannot be sent before its
-capability is negotiated is compatible within a protocol version. Changing a
-message representation, ordering requirement, validation rule, or existing
-semantic requires incrementing `PROTOCOL_VERSION`. Unknown message variants
-are never silently ignored.
+There is no protocol version. `Hello` and `HelloAccepted` each carry
+`PROTOCOL_FINGERPRINT`, a hash of this crate's non-test sources that the build
+computes, so a host and a plugin talk only when they were built against the
+same sources of this crate. The host answers a plugin with a different
+fingerprint with `HelloRejected` and `DifferentProtocol` and closes the
+session, and a plugin fails a `HelloAccepted` whose fingerprint is not its own.
+Changing the protocol therefore needs no bookkeeping, and a plugin is
+rebuilt alongside the app that loads it. Unknown message variants are never
+silently ignored.
 
 Messages with request identifiers are answered with the same identifier by a
 response, `Acknowledged`, or `Error`. Lifecycle messages and input events are

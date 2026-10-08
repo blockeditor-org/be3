@@ -16,7 +16,7 @@ fn session() -> HostSession {
 
 fn hello() -> Message {
     Message::Hello(Hello {
-        version: PROTOCOL_VERSION,
+        fingerprint: PROTOCOL_FINGERPRINT,
         plugin: PluginIdentity {
             id: "demo".into(),
             name: "Plugin Demo".into(),
@@ -48,6 +48,7 @@ fn input(event: InputEvent) -> Message {
     })
 }
 
+mod a_plugin_built_against_another_protocol_is_turned_away;
 mod a_plugin_that_draws_nothing_is_granted_no_surface;
 mod a_superseded_request_is_forgotten;
 mod coalesced_zoom_gestures_multiply;

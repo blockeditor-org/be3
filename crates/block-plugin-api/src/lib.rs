@@ -15,7 +15,7 @@ pub use manifest::{
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 73;
+pub const PROTOCOL_FINGERPRINT: u64 = include!(env!("PROTOCOL_FINGERPRINT"));
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_TEXT_BYTES: usize = 64 * 1024 * 1024;
@@ -1753,14 +1753,14 @@ impl EditorMessage {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Hello {
-    pub version: u16,
+    pub fingerprint: u64,
     pub plugin: PluginIdentity,
     pub surface: SurfaceSupport,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HelloAccepted {
-    pub version: u16,
+    pub fingerprint: u64,
     pub host_name: String,
     pub surface: Option<SurfaceSpec>,
     pub theme: Theme,
@@ -2266,7 +2266,7 @@ pub struct ProtocolError {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ErrorCode {
-    UnsupportedVersion,
+    DifferentProtocol,
     InvalidMessage,
     InvalidState,
     Internal,
