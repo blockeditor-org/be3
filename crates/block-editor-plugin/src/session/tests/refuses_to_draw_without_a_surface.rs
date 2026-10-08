@@ -4,7 +4,6 @@ use super::*;
 fn refuses_to_draw_without_a_surface() {
     let mut session = ClientSession::new("be3.counter", "Counter", "1");
     session.receive(Message::HelloAccepted(HelloAccepted {
-        fingerprint: PROTOCOL_FINGERPRINT,
         host_name: "test host".into(),
         surface: None,
         theme: Theme { dark: true },

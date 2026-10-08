@@ -1,7 +1,6 @@
 use crate::{
-    DecodeError, ErrorCode, HelloAccepted, InputBatch, InputEvent, MAX_QUEUED_MESSAGES, Message,
-    PROTOCOL_FINGERPRINT, ProtocolError, REQUEST_TIMEOUT_MILLISECONDS, SurfaceSpec, SurfaceSupport,
-    Theme, decode_frame,
+    DecodeError, HelloAccepted, InputBatch, InputEvent, MAX_QUEUED_MESSAGES, Message,
+    REQUEST_TIMEOUT_MILLISECONDS, SurfaceSpec, SurfaceSupport, Theme, decode_frame,
 };
 use std::collections::{HashMap, VecDeque};
 
@@ -91,23 +90,12 @@ impl HostSession {
     pub fn receive(&mut self, message: Message, now_milliseconds: u64) {
         match (&self.state, message) {
             (SessionState::Starting, Message::Hello(hello)) => {
-                if hello.fingerprint != PROTOCOL_FINGERPRINT {
-                    let message = "the plugin was built against a different plugin protocol than the host; rebuild it alongside the app";
-                    self.queue.push_back(Message::HelloRejected(ProtocolError {
-                        request_id: None,
-                        code: ErrorCode::DifferentProtocol,
-                        message: message.into(),
-                    }));
-                    self.fail(SessionFailure::Protocol(message.into()));
-                    return;
-                }
                 let granted = match hello.surface {
                     SurfaceSupport::Texture => self.surface,
                     SurfaceSupport::None => None,
                 };
                 self.granted = granted;
                 self.queue.push_back(Message::HelloAccepted(HelloAccepted {
-                    fingerprint: PROTOCOL_FINGERPRINT,
                     host_name: self.host_name.clone(),
                     surface: granted,
                     theme: self.theme,

@@ -12,15 +12,9 @@ The accepted handshake carries the theme the host is drawn in, which is what
 a plugin's own interface follows, so an editor looks the same as the app it is
 embedded in wherever it runs.
 
-There is no protocol version. `Hello` and `HelloAccepted` each carry
-`PROTOCOL_FINGERPRINT`, a hash of this crate's non-test sources that the build
-computes, so a host and a plugin talk only when they were built against the
-same sources of this crate. The host answers a plugin with a different
-fingerprint with `HelloRejected` and `DifferentProtocol` and closes the
-session, and a plugin fails a `HelloAccepted` whose fingerprint is not its own.
-Changing the protocol therefore needs no bookkeeping, and a plugin is
-rebuilt alongside the app that loads it. Unknown message variants are never
-silently ignored.
+The protocol has no version and the handshake checks none: the app and its
+plugins are built together, so a change to a message needs no bookkeeping.
+Unknown message variants are never silently ignored.
 
 Messages with request identifiers are answered with the same identifier by a
 response, `Acknowledged`, or `Error`. Lifecycle messages and input events are

@@ -1,19 +1,6 @@
 load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test", "editor_packages")
 
-# A host and a plugin speak the same protocol when they were built from the same
-# sources of this crate, so the handshake compares a hash of them rather than a
-# version someone has to remember to bump. Its tests are left out, since they
-# do not change what goes over the wire.
-genrule(
-    name = "fingerprint",
-    cmd = "cat $SRCS | sha256sum | cut -c1-16 | sed 's/^/0x/' > $OUT",
-    out = "fingerprint.rs",
-    srcs = glob(["src/**/*.rs"], exclude = ["src/**/tests.rs", "src/**/tests/**"]),
-)
-
-fingerprint = {"PROTOCOL_FINGERPRINT": "$(location :fingerprint)"}
-
-cargo_library(env = fingerprint)
+cargo_library()
 
 # every_editor_manifest_parses reads each editor's manifest.json from
 # EDITOR_MANIFESTS, a directory of <editor>/manifest.json, so that the
@@ -24,5 +11,5 @@ filegroup(
 )
 
 cargo_test(
-    env = fingerprint | {"EDITOR_MANIFESTS": "$(location :editor_manifests)"},
+    env = {"EDITOR_MANIFESTS": "$(location :editor_manifests)"},
 )

@@ -1,6 +1,6 @@
 use block_plugin_api::{
-    Direction, EditorInstanceId, EditorMessage, ErrorCode, Hello, Message, PROTOCOL_FINGERPRINT,
-    PluginIdentity, ProtocolError, ScreenId, SurfaceSpec, SurfaceSupport,
+    Direction, EditorInstanceId, EditorMessage, ErrorCode, Hello, Message, PluginIdentity,
+    ProtocolError, ScreenId, SurfaceSpec, SurfaceSupport,
 };
 use std::collections::HashSet;
 
@@ -51,7 +51,6 @@ impl ClientSession {
 
     pub fn hello(&self) -> Message {
         Message::Hello(Hello {
-            fingerprint: PROTOCOL_FINGERPRINT,
             plugin: self.plugin.clone(),
             surface: match cfg!(target_arch = "wasm32") {
                 true => SurfaceSupport::Texture,
@@ -86,16 +85,10 @@ impl ClientSession {
         }
         match (self.state, message) {
             (State::AwaitingHello, Message::HelloAccepted(accepted)) => {
-                if accepted.fingerprint != PROTOCOL_FINGERPRINT {
-                    return Err(
-                        "the host was built against a different plugin protocol than this plugin; rebuild it alongside the app".into(),
-                    );
-                }
                 self.surface = accepted.surface;
                 self.state = State::Running;
                 Ok(Vec::new())
             }
-            (State::AwaitingHello, Message::HelloRejected(error)) => Err(error.message),
             (State::AwaitingHello, message) => Err(format!(
                 "the host sent {} before accepting this plugin",
                 name(&message)
@@ -180,7 +173,6 @@ fn name(message: &Message) -> &'static str {
     match message {
         Message::Hello(_) => "a hello",
         Message::HelloAccepted(_) => "an accepted hello",
-        Message::HelloRejected(_) => "a rejected hello",
         Message::Theme(_) => "a theme",
         Message::UtcOffset(_) => "a UTC offset",
         Message::Fonts(_) => "fonts",
