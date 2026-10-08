@@ -9,6 +9,7 @@ mod editors;
 mod host;
 mod input;
 mod keys;
+mod launcher;
 mod local_settings;
 mod panic_guard;
 mod performance;
@@ -331,7 +332,7 @@ struct BlockApp {
     pending_transfers: Vec<PendingTransfer>,
     pending_copies: Vec<PendingCopy>,
     about_open: bool,
-    run_program_open: bool,
+    launcher: launcher::Launcher,
     app_menu_open: bool,
     pending_destructive_action: Option<PendingDestructiveAction>,
     allow_close: bool,
@@ -511,7 +512,7 @@ impl BlockApp {
             pending_transfers: Vec::new(),
             pending_copies: Vec::new(),
             about_open: false,
-            run_program_open: false,
+            launcher: launcher::Launcher::default(),
             app_menu_open: false,
             pending_destructive_action: None,
             allow_close: false,
@@ -999,7 +1000,7 @@ impl BlockApp {
         self.dynamic_artifact_settings_open = None;
         self.pending_transfers.clear();
         self.about_open = false;
-        self.run_program_open = false;
+        self.launcher.show(false);
         self.app_menu_open = false;
         self.pending_destructive_action = None;
         self.allow_close = false;
@@ -1742,6 +1743,7 @@ impl BlockApp {
             BlockCommand::Redo if self.editor_access(id).can_edit() => be::redo(id),
             BlockCommand::Undo | BlockCommand::Redo => {}
             BlockCommand::AppMenu => self.app_menu_open = true,
+            BlockCommand::Launcher => self.launcher.show(true),
             BlockCommand::Unlink { container } => {
                 self.queue_copy(id, Uuid::from_bytes(container));
             }
@@ -1858,6 +1860,7 @@ impl BlockApp {
         }
         self.sync_ui_settings(context);
         self.sync_local_settings();
+        self.launcher.frame();
         self.sync_be_stack();
         self.poll_workspace_request();
         self.poll_reauth_request();
@@ -2059,11 +2062,9 @@ impl BlockApp {
                 }
             }
             UiCommand::About(open) => self.about_open = open,
-            UiCommand::RunProgram(open) => self.run_program_open = open,
-            UiCommand::Launch(command) => {
-                self.run_program_open = false;
-                wayland::launch(command);
-            }
+            UiCommand::Launcher(open) => self.launcher.show(open),
+            UiCommand::LaunchProgram(key) => self.launcher.launch(&key),
+            UiCommand::Launch(command) => self.launcher.run(command),
             UiCommand::AppMenu(open) => self.app_menu_open = open,
             UiCommand::SendInvite(email, role) => {
                 if let Some(workspace) = &self.workspace
@@ -2240,7 +2241,8 @@ impl BlockApp {
                 sent: self.invite_sent,
             }),
             about: self.about_open,
-            run_program: self.run_program_open,
+            launcher: self.launcher.open(),
+            programs: self.launcher.items(),
             app_menu: self.app_menu_open,
             discard: self.pending_destructive_action.as_ref().map(discard_view),
             presenting: self

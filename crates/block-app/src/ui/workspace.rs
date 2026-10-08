@@ -1,6 +1,6 @@
 use beui::icons::{
-    ICON_BUG_REPORT, ICON_CHECK, ICON_INFO, ICON_KEY, ICON_MANAGE_ACCOUNTS, ICON_PERSON_ADD,
-    ICON_POWER_SETTINGS_NEW, ICON_SWAP_HORIZ, ICON_SYNC, ICON_TERMINAL,
+    ICON_APPS, ICON_BUG_REPORT, ICON_CHECK, ICON_INFO, ICON_KEY, ICON_MANAGE_ACCOUNTS,
+    ICON_PERSON_ADD, ICON_POWER_SETTINGS_NEW, ICON_SWAP_HORIZ, ICON_SYNC,
 };
 use beui::reactive::{
     ForEach, Frame, ItemSize, List, Memo, Prop, Show, clone, component, create_memo,
@@ -120,10 +120,10 @@ fn AppMenu(status: Memo<StatusView>, open: Prop<bool>) -> NodeId {
                 />
                 <Show condition={runs_programs}>
                     <MenuItem
-                        row_test_id={"app.menu.run-program".to_owned()}
-                        label="Run a program"
-                        glyph={ICON_TERMINAL.to_owned()}
-                        on_click={|| pick(UiCommand::RunProgram(true))}
+                        row_test_id={"app.menu.programs".to_owned()}
+                        label="Programs"
+                        glyph={ICON_APPS.to_owned()}
+                        on_click={|| pick(UiCommand::Launcher(true))}
                     />
                 </Show>
                 <MenuItem
