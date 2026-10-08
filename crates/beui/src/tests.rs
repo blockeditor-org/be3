@@ -102,6 +102,11 @@ mod a_horizontal_scroll_lays_its_items_out_in_a_row;
 mod a_hovered_catcher_hears_where_the_pointer_is_while_another_holds_it;
 mod a_justified_row_places_its_leftover_space;
 mod a_keyed_view_rebuilds_only_when_its_key_changes;
+mod a_launcher_closed_by_a_click_outside_opens_again;
+mod a_launcher_closed_by_a_click_outside_within_one_frame_opens_again;
+mod a_launcher_closed_by_escape_opens_again;
+mod a_launcher_query_that_matches_nothing_runs_as_a_command_and_escape_closes;
+mod a_launcher_ranks_names_above_keywords_and_comments;
 mod a_layout_put_back_from_its_snapshot_keeps_the_tabs_where_they_were;
 mod a_light_overlay_occludes_only_its_content;
 mod a_list_in_a_scroll_lays_out_only_the_rows_near_the_view;
@@ -138,6 +143,7 @@ mod a_portal_shows_a_subtree_it_does_not_own;
 mod a_press_a_catcher_declines_focuses_the_catcher_beneath;
 mod a_press_and_release_in_one_frame_on_a_submenu_item_selects_it_once;
 mod a_press_inside_a_color_wheels_triangle_picks_saturation_and_value;
+mod a_press_that_dismisses_an_overlay_does_not_reach_the_catcher_beneath;
 mod a_pressed_forwarding_catcher_keeps_the_pointer_until_it_is_released;
 mod a_quick_flick_on_the_simulated_trackpad_moves_the_cursor_without_clicking;
 mod a_quick_tap_with_several_fingers_is_a_finger_tap;
@@ -527,6 +533,7 @@ mod the_inspector_shows_the_renderer_the_host_reports;
 mod the_inspector_swipes_back_as_far_as_its_slider_is_dragged;
 mod the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition;
 mod the_keyboard_opening_scrolls_the_focused_field_into_what_is_left;
+mod the_launcher_filters_as_it_is_typed_and_launches_with_enter;
 mod the_left_and_right_arrows_collapse_and_expand_an_inspector_row;
 mod the_menu_of_a_selectable_text_copies_what_is_selected;
 mod the_reveal_button_scrolls_the_inspector_tree_to_a_picked_row;
@@ -1765,4 +1772,59 @@ fn Rows(count: usize) -> DynamicSegment<ListChild> {
             }}
         </ForEach>
     }
+}
+
+use crate::styled::{Button, ButtonVariant, Launcher, LauncherItem};
+
+fn reopens_after(close: impl Fn(&mut Harness)) {
+    let (open, set_open) = create_signal(true);
+    let heard = Rc::new(RefCell::new(Vec::<String>::new()));
+    let (ran, closed) = (heard.clone(), heard.clone());
+    let closing = set_open.clone();
+    let reopening = set_open.clone();
+    let document = build({
+        let open = open.clone();
+        move || {
+            view! {
+                <List spacing=0.0>
+                    <Button
+                        label="Programs"
+                        variant=ButtonVariant::Secondary
+                        @test_id={"reopen"}
+                        on_click={move || reopening.set(true)}
+                    />
+                    <Launcher
+                        open={open}
+                        items={Rc::new(vec![LauncherItem {
+                            key: "files".to_owned(),
+                            title: "Files".to_owned(),
+                            ..LauncherItem::default()
+                        }])}
+                        on_launch={|_: String| {}}
+                        on_run={move |line: String| ran.borrow_mut().push(format!("run {line}"))}
+                        on_close={move || {
+                            closed.borrow_mut().push("close".to_owned());
+                            closing.set(false);
+                        }}
+                    />
+                </List>
+            }
+        }
+    });
+    let mut harness = Harness::sized(document, Vec2::new(1600.0, 1000.0));
+    harness.frame(Vec::new());
+    harness.frame(Vec::new());
+
+    close(&mut harness);
+    harness.frame(Vec::new());
+    assert_eq!(*heard.borrow(), ["close"]);
+
+    let button = harness.center(harness.find("reopen"));
+    harness.click(button);
+    harness.frame(Vec::new());
+    harness.frame(Vec::new());
+    harness.type_text("true");
+    harness.frame(Vec::new());
+    harness.key(Key::Enter, Modifiers::NONE);
+    assert_eq!(*heard.borrow(), ["close", "run true"]);
 }

@@ -52,9 +52,11 @@ puts each in front of the person.
 ## Wayland programs
 
 On Linux the app is a Wayland compositor. Its socket is `wayland-<n>` in `XDG_RUNTIME_DIR`,
-or `/tmp/be-wayland-<pid>` when that is unset, as it is under `:dev`. The app menu's "Run a
-program" starts a command with `WAYLAND_DISPLAY` pointing at it, and a program can also be
-started against it directly:
+or `/tmp/be-wayland-<pid>` when that is unset, as it is under `:dev`. The launcher lists the
+`.desktop` programs of the XDG data dirs and starts the one picked, or what was typed as a
+command, with `WAYLAND_DISPLAY` pointing at it. Tapping Super alone opens it, as do the app
+menu's "Programs" and the desktop bar's programs button; in its accessibility tree each
+program is a `ListBoxOption`. A program can also be started against the socket directly:
 
     WAYLAND_DISPLAY=/tmp/be-wayland-<the app's pid> foot
 

@@ -1,4 +1,6 @@
-use block_editor_beui::be_block::{BlockContent, InputSettingsContent, UiSettingsContent};
+use block_editor_beui::be_block::{
+    BlockContent, DisplaySettingsContent, InputSettingsContent, UiSettingsContent,
+};
 
 use block_editor_beui::be_block::SettingsContent;
 use block_editor_beui::{Editor, EditorHost};
@@ -7,6 +9,7 @@ use uuid::Uuid;
 
 use crate::app::SettingsApp;
 
+mod opening_display_settings_creates_the_block_once;
 mod opening_input_settings_creates_the_block_once;
 mod opening_ui_settings_creates_the_block_once;
 

@@ -4,10 +4,13 @@ mod be;
 mod block_label;
 mod compositor;
 mod debug;
+mod display;
 mod editors;
 mod host;
 mod input;
 mod keys;
+mod launcher;
+mod local_settings;
 mod notices;
 mod panic_guard;
 mod performance;
@@ -33,7 +36,7 @@ use std::{io, path::PathBuf};
 
 use accounts::{AccountError, Session};
 use app_state::{AppStateStore, SavedAccount, ServerLocation};
-use be_block::{BlockContent, InputSettingsContent, UiSettingsContent, WORKSPACE_EDITOR};
+use be_block::{BlockContent, DisplaySettings, InputSettings, UiSettingsContent, WORKSPACE_EDITOR};
 use be_graph::{Access, BlockParent};
 use be_protocol::{Workspace, WorkspaceInvitation, WorkspaceRole};
 use beui::Document;
@@ -44,6 +47,7 @@ use editors::{
     ArtifactSession, ArtifactStatus, EditorAction, EditorRegistry, PluginEditor, SidebarDragSource,
     plugin::PickSource,
 };
+use local_settings::SettingsSync;
 use root_settings::RootSettings;
 use surfaces::SurfaceId;
 use ui::{AccountForm, AppView, AppViewStore, ErrorAction, UiCommand};
@@ -221,7 +225,9 @@ impl beui::App for Shell {
         if let Some(problems) = setup.get::<beui_adapter_drm::Problems>() {
             problems.listen(notices::report);
         }
+        display::start(setup);
         self.app.input.boot(&self.app.app_state);
+        self.app.display.boot(&self.app.app_state);
         #[cfg(all(
             feature = "web-view",
             not(target_os = "android"),
@@ -325,7 +331,8 @@ struct BlockApp {
     focus_reports: HashMap<Uuid, editors::FocusReport>,
     artifact_watches: HashMap<Uuid, Vec<Uuid>>,
     ui_settings: Option<Uuid>,
-    input: input::InputSync,
+    input: SettingsSync<InputSettings>,
+    display: SettingsSync<DisplaySettings>,
     block_types: HashMap<Uuid, Uuid>,
     registry: Rc<EditorRegistry>,
     editors: compositor::Editors,
@@ -341,7 +348,7 @@ struct BlockApp {
     pending_transfers: Vec<PendingTransfer>,
     pending_copies: Vec<PendingCopy>,
     about_open: bool,
-    run_program_open: bool,
+    launcher: launcher::Launcher,
     app_menu_open: bool,
     pending_destructive_action: Option<PendingDestructiveAction>,
     allow_close: bool,
@@ -508,7 +515,8 @@ impl BlockApp {
             artifact_watches: HashMap::new(),
             next_pick: 0,
             ui_settings: None,
-            input: input::InputSync::default(),
+            input: SettingsSync::default(),
+            display: SettingsSync::default(),
             block_types: HashMap::new(),
             registry,
             editors,
@@ -520,7 +528,7 @@ impl BlockApp {
             pending_transfers: Vec::new(),
             pending_copies: Vec::new(),
             about_open: false,
-            run_program_open: false,
+            launcher: launcher::Launcher::default(),
             app_menu_open: false,
             pending_destructive_action: None,
             allow_close: false,
@@ -920,6 +928,7 @@ impl BlockApp {
         self.shell = None;
         self.ui_settings = None;
         self.input.set_block(None);
+        self.display.set_block(None);
         self.keys.cancel_pairing();
         self.workspace_key = match self.app_state.workspace_key(&self.account, workspace.id) {
             Ok(key) => key,
@@ -1007,7 +1016,7 @@ impl BlockApp {
         self.dynamic_artifact_settings_open = None;
         self.pending_transfers.clear();
         self.about_open = false;
-        self.run_program_open = false;
+        self.launcher.show(false);
         self.app_menu_open = false;
         self.pending_destructive_action = None;
         self.allow_close = false;
@@ -1025,6 +1034,7 @@ impl BlockApp {
         self.shell = None;
         self.ui_settings = None;
         self.input.set_block(None);
+        self.display.set_block(None);
         self.keys = keys::KeyState::default();
         self.workspace_key = None;
         self.account = account;
@@ -1749,6 +1759,7 @@ impl BlockApp {
             BlockCommand::Redo if self.editor_access(id).can_edit() => be::redo(id),
             BlockCommand::Undo | BlockCommand::Redo => {}
             BlockCommand::AppMenu => self.app_menu_open = true,
+            BlockCommand::Launcher => self.launcher.show(true),
             BlockCommand::Unlink { container } => {
                 self.queue_copy(id, Uuid::from_bytes(container));
             }
@@ -1864,7 +1875,8 @@ impl BlockApp {
             return;
         }
         self.sync_ui_settings(context);
-        self.sync_input_settings();
+        self.sync_local_settings();
+        self.launcher.frame();
         self.sync_be_stack();
         self.poll_workspace_request();
         self.poll_reauth_request();
@@ -1908,21 +1920,16 @@ impl BlockApp {
         });
     }
 
-    fn sync_input_settings(&mut self) {
-        if self.input.block().is_none() {
-            let block = self
-                .root_settings
-                .find()
-                .and_then(root_settings::settings)
-                .and_then(|settings| {
-                    settings.resolve(InputSettingsContent::CONTENT_TYPE, self.client_id)
-                });
-            if block.is_none() {
-                return;
+    fn sync_local_settings(&mut self) {
+        if self.input.block().is_none() || self.display.block().is_none() {
+            let settings = self.root_settings.find().and_then(root_settings::settings);
+            if let Some(settings) = settings {
+                self.input.resolve(&settings, self.client_id);
+                self.display.resolve(&settings, self.client_id);
             }
-            self.input.set_block(block);
         }
         self.input.sync(&self.app_state);
+        self.display.sync(&self.app_state);
     }
 
     fn sync_ui_settings(&mut self, context: &beui::Context) {
@@ -2071,11 +2078,9 @@ impl BlockApp {
                 }
             }
             UiCommand::About(open) => self.about_open = open,
-            UiCommand::RunProgram(open) => self.run_program_open = open,
-            UiCommand::Launch(command) => {
-                self.run_program_open = false;
-                wayland::launch(command);
-            }
+            UiCommand::Launcher(open) => self.launcher.show(open),
+            UiCommand::LaunchProgram(key) => self.launcher.launch(&key),
+            UiCommand::Launch(command) => self.launcher.run(command),
             UiCommand::AppMenu(open) => self.app_menu_open = open,
             UiCommand::DismissToast(id) => notices::dismiss(id),
             UiCommand::SendInvite(email, role) => {
@@ -2253,7 +2258,8 @@ impl BlockApp {
                 sent: self.invite_sent,
             }),
             about: self.about_open,
-            run_program: self.run_program_open,
+            launcher: self.launcher.open(),
+            programs: self.launcher.items(),
             app_menu: self.app_menu_open,
             discard: self.pending_destructive_action.as_ref().map(discard_view),
             presenting: self

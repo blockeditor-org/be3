@@ -84,7 +84,7 @@ impl Screen {
         gpu: &Gpu,
         frame: &Frame<'_>,
         target: &wgpu::Texture,
-    ) -> wgpu::SubmissionIndex {
+    ) -> wgpu::CommandBuffer {
         let device = gpu.device();
         let queue = gpu.queue();
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -114,7 +114,7 @@ impl Screen {
         let view = target.create_view(&wgpu::TextureViewDescriptor::default());
         self.paint_cursor(gpu, &mut encoder, &view, frame);
         self.cursor = false;
-        queue.submit([encoder.finish()])
+        encoder.finish()
     }
 
     fn paint_cursor(

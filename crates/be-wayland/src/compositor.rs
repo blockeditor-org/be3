@@ -12,7 +12,7 @@ use smithay::wayland::compositor::with_states;
 use crate::render::{Gpu, Textures, WindowDraw};
 use crate::server::{Server, Watch};
 use crate::state::{KeyboardConfig, ServerEvent, WindowId};
-use crate::windows::{Command, WindowInfo, Windows};
+use crate::windows::{Command, Launch, WindowInfo, Windows};
 
 const BUTTON_LEFT: u32 = 0x110;
 const BUTTON_RIGHT: u32 = 0x111;
@@ -76,11 +76,16 @@ impl Compositor {
             .map(|name| name.to_string_lossy().into_owned())
     }
 
-    fn launch(&mut self, line: &str) {
-        let mut process = Process::new("sh");
+    fn launch(&mut self, launch: &Launch) {
+        let Some((program, arguments)) = launch.arguments.split_first() else {
+            return;
+        };
+        let mut process = Process::new(program);
+        if let Some(dir) = &launch.working_dir {
+            process.current_dir(dir);
+        }
         process
-            .arg("-c")
-            .arg(line)
+            .args(arguments)
             .env("WAYLAND_DISPLAY", self.socket().unwrap_or_default())
             .env_remove("DISPLAY")
             .env("GDK_BACKEND", "wayland")
@@ -92,7 +97,7 @@ impl Compositor {
         let mut child = match process.spawn() {
             Ok(child) => child,
             Err(error) => {
-                self.fail(format!("Could not run {line}: {error}"));
+                self.fail(format!("Could not run {}: {error}", launch_name(launch)));
                 return;
             }
         };
@@ -100,7 +105,7 @@ impl Compositor {
         self.children.push(pid);
         let exited = self.exited.0.clone();
         let waker = self.waker.clone();
-        let line = line.to_owned();
+        let line = launch_name(launch);
         std::thread::spawn(move || {
             let status = child.wait().ok().and_then(|status| status.code());
             let _ = exited.send(Exit { pid, line, status });
@@ -296,6 +301,7 @@ impl Compositor {
                     let code = button_code(button);
                     if pressed {
                         let Some(id) = self.grab.or(self.windows.hovered()) else {
+                            self.server.state.dismiss_popups();
                             continue;
                         };
                         self.grab = Some(id);
@@ -362,7 +368,7 @@ impl Compositor {
                     self.server.state.configure(id, size.into(), activated);
                 }
                 Command::Close(id) => self.server.state.close(id),
-                Command::Launch(line) => self.launch(&line),
+                Command::Launch(launch) => self.launch(&launch),
             }
         }
         for id in self.windows.take_painted() {
@@ -458,6 +464,13 @@ struct Exit {
 impl Exit {
     fn problem(&self) -> Option<String> {
         launch_problem(&self.line, self.status)
+    }
+}
+
+fn launch_name(launch: &Launch) -> String {
+    match launch.arguments.as_slice() {
+        [shell, flag, line] if shell == "sh" && flag == "-c" => line.clone(),
+        arguments => arguments.join(" "),
     }
 }
 
