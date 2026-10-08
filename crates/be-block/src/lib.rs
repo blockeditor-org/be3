@@ -152,6 +152,11 @@ pub trait LiveEdit: BlockContent {
         Some(operation)
     }
 
+    fn absorb_operation(operation: &mut Self::Op, next: Self::Op) -> Option<Self::Op> {
+        let _ = operation;
+        Some(next)
+    }
+
     fn encode_operation(operation: &Self::Op) -> Vec<u8> {
         postcard::to_stdvec(operation).unwrap_or_default()
     }

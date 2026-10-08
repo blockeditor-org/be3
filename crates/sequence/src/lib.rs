@@ -84,6 +84,53 @@ pub enum SeqOp<T> {
     },
 }
 
+impl<T> SeqOp<T> {
+    pub fn absorb(&mut self, next: SeqOp<T>) -> Option<SeqOp<T>> {
+        match (self, next) {
+            (
+                SeqOp::Insert {
+                    client,
+                    start,
+                    items,
+                    ..
+                },
+                SeqOp::Insert {
+                    after: Some(after),
+                    client: next_client,
+                    start: next_start,
+                    items: next_items,
+                },
+            ) if next_client == *client
+                && next_start == *start + items.len() as u64
+                && after
+                    == (Pos {
+                        client: *client,
+                        offset: next_start - 1,
+                    }) =>
+            {
+                items.extend(next_items);
+                None
+            }
+            (SeqOp::Delete { spans }, SeqOp::Delete { spans: next }) => {
+                for span in next {
+                    match spans.iter_mut().find(|known| {
+                        known.client == span.client
+                            && (known.end() == span.start || span.end() == known.start)
+                    }) {
+                        Some(known) => {
+                            known.start = known.start.min(span.start);
+                            known.len += span.len;
+                        }
+                        None => spans.push(span),
+                    }
+                }
+                None
+            }
+            (_, next) => Some(next),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Splice {
     pub at: usize,

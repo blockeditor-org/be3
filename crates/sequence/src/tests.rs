@@ -18,6 +18,7 @@ mod session_state_round_trips_positions_and_tombstones;
 mod splices_report_visible_coordinates;
 mod the_saved_form_is_only_the_visible_items;
 mod two_people_checking_the_same_box_check_it_once;
+mod typing_and_deleting_absorb_into_one_operation;
 mod typing_extends_one_fragment;
 mod undoing_a_delete_brings_back_the_same_positions;
 mod undoing_a_move_puts_the_range_back;

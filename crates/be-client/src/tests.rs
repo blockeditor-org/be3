@@ -35,6 +35,7 @@ mod presence_reaches_late_joiners_and_leaves_with_its_client;
 mod references_declared_by_content_reach_the_graph;
 mod the_journal_says_how_each_peer_saw_its_content_change;
 mod two_peers_converge_through_the_session_owner;
+mod typing_behind_an_unconfirmed_edit_goes_out_as_one_edit;
 
 struct Harness {
     url: String,

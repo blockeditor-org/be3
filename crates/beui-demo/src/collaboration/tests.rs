@@ -1,13 +1,16 @@
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
-use text_editor_core::{Document, Position};
+use text_editor_core::{Core, Document, EditorCommand, MarkdownCommand, Position};
 
 use super::{Caret, Side, SideDocument, Simulation};
 
 mod a_step_sends_one_edit_at_a_time;
 mod carets_arrive_after_the_edits_they_point_into;
+mod checking_a_box_against_a_check_and_uncheck_keeps_it_checked;
+mod checking_a_box_on_both_sides_checks_it_once;
 mod edits_wait_for_the_latency_before_they_arrive;
+mod held_typing_merges_into_one_edit;
 mod paused_typing_on_both_sides_converges_once_sent_both_ways;
 
 fn simulated(text: &str) -> (Arc<RwLock<Simulation>>, SideDocument, SideDocument) {
@@ -31,4 +34,16 @@ fn send(simulation: &Arc<RwLock<Simulation>>, from: Side) {
         .write()
         .unwrap()
         .deliver(from, Instant::now(), None);
+}
+
+fn toggle(document: impl Into<Arc<SideDocument>>) {
+    let document: Arc<SideDocument> = document.into();
+    let position = {
+        let read = document.read().unwrap();
+        Position::at(&*read, 0)
+    };
+    let mut core = Core::new(document);
+    core.execute_command(EditorCommand::Markdown(MarkdownCommand::ToggleCheckbox(
+        position,
+    )));
 }

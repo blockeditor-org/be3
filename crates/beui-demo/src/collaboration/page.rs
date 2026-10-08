@@ -97,6 +97,7 @@ fn ConcurrentEditing() -> NodeId {
                 let mut simulation = simulation
                     .write()
                     .expect("the collaboration simulation was poisoned");
+                simulation.hold(held, now);
                 let mut sent = published.get();
                 for (side, state) in [(Side::Left, &left), (Side::Right, &right)] {
                     let current = caret(state);

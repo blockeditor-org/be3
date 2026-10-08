@@ -108,10 +108,13 @@ impl Peer {
     }
 }
 
+type Queue = VecDeque<(Message, Option<Instant>)>;
+
 pub(crate) struct Simulation {
     peers: [Peer; 2],
-    down: VecDeque<(Message, Instant)>,
-    up: VecDeque<(Message, Instant)>,
+    down: Queue,
+    up: Queue,
+    held: bool,
 }
 
 impl Simulation {
@@ -120,6 +123,7 @@ impl Simulation {
             peers: [Peer::new(text), Peer::new(text)],
             down: VecDeque::new(),
             up: VecDeque::new(),
+            held: false,
         }
     }
 
@@ -142,15 +146,54 @@ impl Simulation {
         std::mem::take(&mut self.peers[side.index()].external)
     }
 
+    pub fn hold(&mut self, held: bool, now: Instant) {
+        self.held = held;
+        if held {
+            return;
+        }
+        for (_, sent) in self.down.iter_mut().chain(self.up.iter_mut()) {
+            sent.get_or_insert(now);
+        }
+    }
+
     pub fn publish(&mut self, from: Side, caret: Caret, now: Instant) {
-        self.queue_mut(from).push_back((Message::Caret(caret), now));
+        let sent = self.sent(now);
+        let queue = self.queue_mut(from);
+        if sent.is_none() {
+            queue.retain(|(message, sent)| sent.is_some() || matches!(message, Message::Edit(..)));
+        }
+        queue.push_back((Message::Caret(caret), sent));
     }
 
     pub fn next_due(&self, latency: Duration) -> Option<Instant> {
         [&self.down, &self.up]
             .into_iter()
-            .filter_map(|queue| queue.front().map(|(_, sent)| *sent + latency))
+            .filter_map(|queue| queue.front().and_then(|(_, sent)| *sent))
+            .map(|sent| sent + latency)
             .min()
+    }
+
+    fn sent(&self, now: Instant) -> Option<Instant> {
+        (!self.held).then_some(now)
+    }
+
+    fn enqueue(&mut self, side: Side, op: SeqOp<u8>, now: Instant) -> bool {
+        let sent = self.sent(now);
+        let queue = match side {
+            Side::Left => &mut self.down,
+            Side::Right => &mut self.up,
+        };
+        let last = queue
+            .iter()
+            .rposition(|(message, sent)| sent.is_some() || matches!(message, Message::Edit(..)))
+            .filter(|_| sent.is_none());
+        let leftover = match last.and_then(|index| queue.get_mut(index)) {
+            Some((Message::Edit(author, last), None)) if *author == side => last.absorb(op),
+            _ => Some(op),
+        };
+        let absorbed = leftover.is_none();
+        queue.extend(leftover.map(|op| (Message::Edit(side, op), sent)));
+        absorbed
     }
 
     pub fn deliver(&mut self, from: Side, now: Instant, latency: Option<Duration>) {
@@ -158,7 +201,10 @@ impl Simulation {
             let due = self
                 .queue(from)
                 .front()
-                .is_some_and(|(_, sent)| latency.is_none_or(|latency| *sent + latency <= now));
+                .is_some_and(|(_, sent)| match latency {
+                    None => true,
+                    Some(latency) => sent.is_some_and(|sent| sent + latency <= now),
+                });
             if !due {
                 break;
             }
@@ -190,14 +236,14 @@ impl Simulation {
         }
     }
 
-    fn queue(&self, from: Side) -> &VecDeque<(Message, Instant)> {
+    fn queue(&self, from: Side) -> &Queue {
         match from {
             Side::Left => &self.down,
             Side::Right => &self.up,
         }
     }
 
-    fn queue_mut(&mut self, from: Side) -> &mut VecDeque<(Message, Instant)> {
+    fn queue_mut(&mut self, from: Side) -> &mut Queue {
         match from {
             Side::Left => &mut self.down,
             Side::Right => &mut self.up,
@@ -218,7 +264,8 @@ impl Simulation {
                     });
                 owner.external = true;
                 owner.bump(Some(change));
-                self.down.push_back((Message::Edit(author, op), now));
+                let sent = self.sent(now);
+                self.down.push_back((Message::Edit(author, op), sent));
             }
         }
     }
@@ -255,14 +302,18 @@ impl Simulation {
     fn submit(&mut self, side: Side, op: SeqOp<u8>, now: Instant) -> Option<TextChange> {
         let peer = &mut self.peers[side.index()];
         let splices = peer.visible.apply(&op)?;
-        match side {
-            Side::Left => {
-                peer.confirmed.apply(&op);
-                self.down.push_back((Message::Edit(Side::Left, op), now));
-            }
-            Side::Right => {
-                peer.pending.push_back(op.clone());
-                self.up.push_back((Message::Edit(Side::Right, op), now));
+        if side == Side::Left {
+            peer.confirmed.apply(&op);
+        }
+        let pending = (side == Side::Right).then(|| op.clone());
+        let absorbed = self.enqueue(side, op, now);
+        if let Some(op) = pending {
+            let pending = &mut self.peers[side.index()].pending;
+            match pending.back_mut().filter(|_| absorbed) {
+                Some(last) => {
+                    last.absorb(op);
+                }
+                None => pending.push_back(op),
             }
         }
         Some(changed(TextChange::NONE, &splices))
@@ -536,5 +587,15 @@ impl DocumentEdit for Transaction<'_> {
                 .insert(self.side.client(), index, insert.to_vec());
             self.run(op);
         }
+    }
+
+    fn replace_atomically(&mut self, index: usize, delete: usize, insert: &[u8]) {
+        let len = self.visible().len();
+        let index = index.min(len);
+        let delete = delete.min(len - index);
+        let op = self
+            .visible()
+            .replace(self.side.client(), index..index + delete, insert.to_vec());
+        self.run(op);
     }
 }

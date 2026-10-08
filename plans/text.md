@@ -72,7 +72,8 @@ are enough until profiling says otherwise.)
 - `Replace { spans, client, start, items }` is all-or-nothing: it applies only
   if every span is still visible, then hides them and inserts the items after
   the last of them. Two people checking the same markdown box produce `[x]`,
-  not `[xx]`. Typing over a selection stays a delete and an insert, so a
+  not `[xx]`; the editor asks for it with `DocumentEdit::replace_atomically`,
+  which toggling a checkbox uses. Typing over a selection stays a delete and an insert, so a
   collaborator's edit inside the selection does not drop what you typed.
 - `Swap { hide, show }` applies only if everything in `hide` is visible and
   everything in `show` hidden. It is the undo and redo of a replace.
@@ -127,6 +128,13 @@ so the editor plugin gets a whole snapshot instead of the edit. Measured on a
   the plugin, then every watcher reruns and the editor diffs the document.
   Over 10 ms per keystroke from a collaborator, whenever you have anything
   unconfirmed.
+
+A follower keeps at most one edit in flight. What it types before the owner
+confirms that edit waits in `Live::unsent`, where `LiveEdit::absorb_operation`
+folds it together (typing forward becomes one insert, backspacing one delete),
+and goes out as one edit when the confirmation arrives. That keeps the pending
+list, and so the rebuild, to one or two edits however slow the link is, and
+sends one message per round trip instead of one per keystroke.
 
 Fixes, best value first:
 

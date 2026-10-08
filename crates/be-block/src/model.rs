@@ -1,5 +1,5 @@
 use be_commit::MergeResult;
-use be_model::{Document, Edit, Model, Step, Touched};
+use be_model::{Change, Document, Edit, Model, Step, Touched};
 use uuid::Uuid;
 
 use crate::{BlockContent, ChildChange, ContentError, LiveEdit, Merge, Undo};
@@ -63,6 +63,30 @@ impl<R: Root> LiveEdit for Document<R> {
 
     fn child_operations(&self, change: ChildChange) -> Option<Vec<Self::Op>> {
         self.root().child_edit(change).map(|edit| vec![edit])
+    }
+
+    fn absorb_operation(operation: &mut Self::Op, next: Self::Op) -> Option<Self::Op> {
+        for change in next.0 {
+            let leftover = match (operation.0.last_mut(), change) {
+                (
+                    Some(Change::Text { object, field, op }),
+                    Change::Text {
+                        object: next_object,
+                        field: next_field,
+                        op: next_op,
+                    },
+                ) if *object == next_object && *field == next_field => {
+                    op.absorb(next_op).map(|op| Change::Text {
+                        object: next_object,
+                        field: next_field,
+                        op,
+                    })
+                }
+                (_, change) => Some(change),
+            };
+            operation.0.extend(leftover);
+        }
+        None
     }
 
     fn session_state(&self) -> Vec<u8> {

@@ -363,6 +363,18 @@ impl DocumentEdit for Transaction<'_> {
             self.run(op);
         }
     }
+
+    fn replace_atomically(&mut self, index: usize, delete: usize, insert: &[u8]) {
+        let len = self.state.text.len();
+        let index = index.min(len);
+        let delete = delete.min(len - index);
+        let client = self.state.client;
+        let op = self
+            .state
+            .text
+            .replace(client, index..index + delete, insert.to_vec());
+        self.run(op);
+    }
 }
 
 pub const fn block_language(language: TextLanguage) -> be_block::TextLanguage {

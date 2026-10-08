@@ -113,6 +113,8 @@ pub trait DocumentEdit {
     fn document(&self) -> &dyn DocumentRead;
 
     fn replace(&mut self, index: usize, delete: usize, insert: &[u8]);
+
+    fn replace_atomically(&mut self, index: usize, delete: usize, insert: &[u8]);
 }
 
 pub trait Document {
@@ -468,5 +470,16 @@ impl DocumentEdit for BufferEdit<'_> {
             let operation = self.state.text.insert(LOCAL, index, insert.to_vec());
             self.run(operation);
         }
+    }
+
+    fn replace_atomically(&mut self, index: usize, delete: usize, insert: &[u8]) {
+        let len = self.state.text.len();
+        let index = index.min(len);
+        let delete = delete.min(len - index);
+        let operation = self
+            .state
+            .text
+            .replace(LOCAL, index..index + delete, insert.to_vec());
+        self.run(operation);
     }
 }

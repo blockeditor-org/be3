@@ -1450,11 +1450,11 @@ impl Core {
         let state_position = Position::at(&document, marker.marker.start + 3);
         drop(document);
         drop(read);
-        self.apply_replacements(
-            vec![(state_position, 1, vec![state])],
-            UndoClassification::AlwaysSplit,
-            history_cursors,
-        );
+        self.prepare_history_group(UndoClassification::AlwaysSplit);
+        self.document.edit(history_cursors, &mut |transaction| {
+            let index = state_position.resolve(transaction.document());
+            transaction.replace_atomically(index, 1, &[state]);
+        });
     }
 
     fn insert_line(&mut self, direction: UDDirection) {
