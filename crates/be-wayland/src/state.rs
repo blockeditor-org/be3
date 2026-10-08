@@ -351,12 +351,17 @@ impl State {
         }
         self.popup_grab = None;
         self.release_popup_grab(&grab);
+        self.restore_keyboard_focus();
+    }
+
+    fn restore_keyboard_focus(&mut self) {
+        let keyboard = self.keyboard();
         let focus = self
             .keyboard_window
             .and_then(|id| self.toplevel(id))
             .map(|toplevel| toplevel.wl_surface().clone());
         if keyboard.current_focus() != focus {
-            keyboard.set_focus(self, focus, serial);
+            keyboard.set_focus(self, focus, SERIAL_COUNTER.next_serial());
         }
     }
 
@@ -378,6 +383,7 @@ impl State {
         };
         grab.ungrab(PopupUngrabStrategy::All);
         self.release_popup_grab(&grab);
+        self.restore_keyboard_focus();
     }
 
     pub fn take_events(&mut self) -> Vec<ServerEvent> {
@@ -883,7 +889,13 @@ impl XdgShellHandler for State {
         let Ok(root) = find_popup_root_surface(&popup) else {
             return;
         };
-        if self.window_of_root(&root).is_none() {
+        let keyboard = self.keyboard();
+        let pointer = self.pointer();
+        let owns = |focus: Option<WlSurface>| {
+            focus.is_some_and(|focus| focus.id().same_client_as(&root.id()))
+        };
+        let focused = owns(keyboard.current_focus()) || owns(pointer.current_focus());
+        if !focused || self.window_of_root(&root).is_none() {
             let _ = PopupManager::dismiss_popup(&root, &popup);
             return;
         }
@@ -891,8 +903,6 @@ impl XdgShellHandler for State {
         let Ok(mut grab) = self.popups.grab_popup(root, popup, &seat, serial) else {
             return;
         };
-        let keyboard = self.keyboard();
-        let pointer = self.pointer();
         let previous = grab.previous_serial().unwrap_or(serial);
         let keyboard_taken =
             keyboard.is_grabbed() && !(keyboard.has_grab(serial) || keyboard.has_grab(previous));

@@ -297,18 +297,21 @@ impl TestClient {
         }
         surface.commit();
         self.exchange(server);
-        let serial = self
-            .received
-            .configured
-            .take()
-            .expect("the popup's first commit is configured");
-        xdg_surface.ack_configure(serial);
+        let configured = self.received.configured.take();
         let window = TestWindow {
             surface,
             xdg_surface,
             toplevel: None,
             popup: Some(popup),
         };
+        let Some(serial) = configured else {
+            assert!(
+                grab.is_some(),
+                "a popup that does not grab is always configured"
+            );
+            return window;
+        };
+        window.xdg_surface.ack_configure(serial);
         self.attach(server, &window, size.0, size.1);
         window
     }
