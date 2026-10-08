@@ -40,6 +40,7 @@ type MonitorsListener = Rc<dyn Fn(&[Monitor])>;
 pub struct DisplayControl {
     pending: Rc<RefCell<Option<DisplayConfig>>>,
     blanked: Rc<Cell<Option<bool>>>,
+    woken: Rc<Cell<bool>>,
     monitors: Rc<RefCell<Vec<Monitor>>>,
     listener: Rc<RefCell<Option<MonitorsListener>>>,
     waker: Waker,
@@ -50,6 +51,7 @@ impl DisplayControl {
         Self {
             pending: Rc::default(),
             blanked: Rc::default(),
+            woken: Rc::default(),
             monitors: Rc::default(),
             listener: Rc::default(),
             waker,
@@ -68,6 +70,14 @@ impl DisplayControl {
 
     pub(crate) fn take_blanked(&self) -> Option<bool> {
         self.blanked.take()
+    }
+
+    pub fn take_woken(&self) -> bool {
+        self.woken.take()
+    }
+
+    pub(crate) fn woke(&self) {
+        self.woken.set(true);
     }
 
     pub fn on_monitors(&self, listener: impl Fn(&[Monitor]) + 'static) {

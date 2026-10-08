@@ -57,6 +57,14 @@ has run out; block-app hands it to `beui_adapter_drm::DisplayControl::set_blanke
 the outputs' CRTCs off and stops drawing to them until input wakes the session. In a window
 nothing is turned off.
 
+The input that wakes the screens reaches nothing: the adapter's `WakeGate` (`wake.rs`) drops it
+before beui, plugins or Wayland clients see it, along with all input for a grace period after
+it (`GRACE_USEC`, timed on libinput's event clock), and the release of every press it dropped,
+whenever that comes. Pointer motion it drops still moves the cursor. A release whose press was
+delivered before the screens went off is still delivered, so no key stays held. The adapter
+turns the screens on itself and reports the wake through `DisplayControl::take_woken`, which
+block-app hands to `Compositor::woke` so the idle count restarts.
+
 ## Wayland programs
 
 On Linux the app is a Wayland compositor. Its socket is `wayland-<n>` in `XDG_RUNTIME_DIR`,

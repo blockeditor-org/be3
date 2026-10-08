@@ -11,6 +11,7 @@ mod output;
 mod problems;
 mod runner;
 mod screen;
+mod wake;
 
 pub use display::{DisplayConfig, DisplayControl, DisplayMode, Monitor};
 pub use displays::Screens;

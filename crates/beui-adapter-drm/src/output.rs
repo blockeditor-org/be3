@@ -47,6 +47,7 @@ pub struct Output {
     frame: u64,
     blanked: bool,
     dark: bool,
+    darken_failed: bool,
 }
 
 pub fn connected(drm: &DrmDevice) -> Vec<(connector::Handle, connector::Info)> {
@@ -208,6 +209,7 @@ impl Output {
             frame: 0,
             blanked: false,
             dark: false,
+            darken_failed: false,
         })
     }
 
@@ -267,20 +269,25 @@ impl Output {
             self.darken();
         } else {
             self.dark = false;
+            self.darken_failed = false;
             self.screen.invalidate();
         }
     }
 
-    fn darken(&mut self) {
+    pub fn darken(&mut self) {
         if !self.blanked || self.dark || !matches!(self.state, State::Idle) {
             return;
         }
         match self.swapchain.surface().clear() {
             Ok(()) => self.dark = true,
-            Err(error) => eprintln!(
-                "beui: {} could not be turned off: {error}",
-                self.connector_name
-            ),
+            Err(error) if !self.darken_failed => {
+                self.darken_failed = true;
+                eprintln!(
+                    "beui: {} could not be turned off, so it is tried again: {error}",
+                    self.connector_name
+                );
+            }
+            Err(_) => {}
         }
     }
 

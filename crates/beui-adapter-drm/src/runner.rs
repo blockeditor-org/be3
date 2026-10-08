@@ -16,6 +16,7 @@ use beui_core::renderer::Loaded;
 use beui_core::runner::Runner;
 use smithay::backend::allocator::gbm::GbmDevice;
 use smithay::backend::drm::{DrmDevice, DrmDeviceFd, DrmEvent};
+use smithay::backend::input::Event as _;
 use smithay::backend::input::{
     AbsolutePositionEvent, Axis, ButtonState, InputEvent, KeyState, KeyboardKeyEvent,
     PointerAxisEvent, PointerButtonEvent, PointerMotionEvent, TouchEvent,
@@ -47,6 +48,7 @@ use crate::layout::{arrange, bounds, clamp, moved};
 use crate::output::{Output, connected, wait_for};
 use crate::problems::Problems;
 use crate::screen::FORMAT;
+use crate::wake::{Held, Input, WakeGate};
 
 const WHEEL_STEP: f64 = 15.0;
 const LONGEST_WAIT: Duration = Duration::from_secs(3600);
@@ -68,6 +70,7 @@ struct Session {
     display_config: DisplayConfig,
     modes_pending: bool,
     blanked: bool,
+    gate: WakeGate,
     runner: Runner,
     platform: Seat,
     displays: Rc<RefCell<Displays>>,
@@ -183,6 +186,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         display_config: DisplayConfig::default(),
         modes_pending: false,
         blanked: false,
+        gate: WakeGate::default(),
         runner,
         platform,
         displays,
@@ -310,6 +314,11 @@ impl Session {
             self.set_blanked(blanked);
         }
         self.runner.present();
+        if self.blanked {
+            for output in &mut self.displays.borrow_mut().outputs {
+                output.darken();
+            }
+        }
         self.watch_fences();
     }
 
@@ -339,6 +348,7 @@ impl Session {
             return;
         }
         self.blanked = blanked;
+        self.gate.set_blanked(blanked);
         for output in &mut self.displays.borrow_mut().outputs {
             output.set_blanked(blanked);
         }
@@ -567,12 +577,53 @@ impl Session {
     }
 
     fn point(&mut self, pointer: Pos2) {
-        {
-            let mut displays = self.displays.borrow_mut();
-            displays.pointer = pointer;
-            displays.moved_pointer();
-        }
+        self.place_pointer(pointer);
         self.push(Event::PointerMoved(pointer));
+    }
+
+    fn place_pointer(&mut self, pointer: Pos2) {
+        let mut displays = self.displays.borrow_mut();
+        displays.pointer = pointer;
+        displays.moved_pointer();
+    }
+
+    fn gated(&mut self, event: &InputEvent<LibinputInputBackend>) -> bool {
+        let Some((input, time)) = gate_input(event) else {
+            return true;
+        };
+        let pass = self.gate.pass(input, time);
+        if pass.woke {
+            self.set_blanked(false);
+            self.display_control.woke();
+            self.dirty = true;
+        }
+        if !pass.deliver {
+            match event {
+                InputEvent::PointerMotion { event } if !self.platform.locked => {
+                    let delta = vec2(event.delta_x() as f32, event.delta_y() as f32);
+                    self.place_pointer(moved(self.pointer(), delta, &self.rects()));
+                }
+                InputEvent::PointerMotionAbsolute { event } => {
+                    let position = self.absolute_position(event);
+                    self.place_pointer(position);
+                }
+                _ => {}
+            }
+        }
+        pass.deliver
+    }
+
+    fn absolute_position(
+        &self,
+        event: &<LibinputInputBackend as smithay::backend::input::InputBackend>::PointerMotionAbsoluteEvent,
+    ) -> Pos2 {
+        let area = bounds(&self.rects());
+        let position =
+            event.position_transformed((area.width() as i32, area.height() as i32).into());
+        clamp(
+            area.min + vec2(position.x as f32, position.y as f32),
+            &self.rects(),
+        )
     }
 
     fn pointer(&self) -> Pos2 {
@@ -622,6 +673,9 @@ impl Session {
     }
 
     fn input(&mut self, event: InputEvent<LibinputInputBackend>) {
+        if !self.gated(&event) {
+            return;
+        }
         match event {
             InputEvent::DeviceAdded { mut device } => {
                 configure_device(&mut device, &self.input);
@@ -645,13 +699,8 @@ impl Session {
                 self.point(moved(self.pointer(), delta, &self.rects()));
             }
             InputEvent::PointerMotionAbsolute { event } => {
-                let area = bounds(&self.rects());
-                let position =
-                    event.position_transformed((area.width() as i32, area.height() as i32).into());
-                self.point(clamp(
-                    area.min + vec2(position.x as f32, position.y as f32),
-                    &self.rects(),
-                ));
+                let position = self.absolute_position(&event);
+                self.point(position);
             }
             InputEvent::PointerButton { event } => {
                 let Some(button) = pointer_button(event.button_code()) else {
@@ -771,6 +820,45 @@ impl Session {
             self.handle.remove(token);
         }
     }
+}
+
+fn gate_input(event: &InputEvent<LibinputInputBackend>) -> Option<(Input, u64)> {
+    let pressed = |held, pressed| match pressed {
+        true => Input::Press(held),
+        false => Input::Release(held),
+    };
+    Some(match event {
+        InputEvent::Keyboard { event } => (
+            pressed(
+                Held::Key(event.key_code().raw()),
+                event.state() == KeyState::Pressed,
+            ),
+            event.time(),
+        ),
+        InputEvent::PointerButton { event } => (
+            pressed(
+                Held::Button(event.button_code()),
+                event.state() == ButtonState::Pressed,
+            ),
+            event.time(),
+        ),
+        InputEvent::PointerMotion { event } => (Input::Other, event.time()),
+        InputEvent::PointerMotionAbsolute { event } => (Input::Other, event.time()),
+        InputEvent::PointerAxis { event } => (Input::Other, event.time()),
+        InputEvent::TouchDown { event } => (Input::Press(touch_held(event.slot())), event.time()),
+        InputEvent::TouchMotion { event } => {
+            (Input::Continue(touch_held(event.slot())), event.time())
+        }
+        InputEvent::TouchUp { event } => (Input::Release(touch_held(event.slot())), event.time()),
+        InputEvent::TouchCancel { event } => {
+            (Input::Release(touch_held(event.slot())), event.time())
+        }
+        _ => return None,
+    })
+}
+
+fn touch_held(slot: smithay::backend::input::TouchSlot) -> Held {
+    Held::Touch(slot.into())
 }
 
 fn device_id(device: &InputDevice) -> DeviceId {

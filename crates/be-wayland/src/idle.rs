@@ -52,6 +52,7 @@ struct Notification {
 pub(crate) struct Idle {
     inhibitors: Vec<WlSurface>,
     inhibited: bool,
+    woken: bool,
     blank: Option<Countdown>,
     notifications: Vec<Notification>,
 }
@@ -65,6 +66,7 @@ impl Idle {
             inhibited: false,
             blank: None,
             notifications: Vec::new(),
+            woken: false,
         }
     }
 
@@ -73,6 +75,10 @@ impl Idle {
             return;
         }
         self.blank = after.map(|after| Countdown::new(after, true));
+    }
+
+    pub(crate) fn woke(&mut self) {
+        self.woken = true;
     }
 
     pub(crate) fn blanked(&self) -> bool {
@@ -85,6 +91,7 @@ impl Idle {
     }
 
     pub(crate) fn tick(&mut self, now: Instant, active: bool, inhibited: bool) -> Option<Instant> {
+        let active = active || std::mem::take(&mut self.woken);
         let changed = inhibited != self.inhibited;
         self.inhibited = inhibited;
         self.notifications

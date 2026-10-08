@@ -82,6 +82,13 @@ pub(crate) fn before(context: &Context, rect: Rect, document: &mut Document) {
         if let Some(screens) = &running.screens {
             running.compositor.set_screens(screens.rects());
         }
+        if running
+            .display
+            .as_ref()
+            .is_some_and(beui_adapter_drm::DisplayControl::take_woken)
+        {
+            running.compositor.woke();
+        }
         running.compositor.before(context, rect, document);
     });
 }

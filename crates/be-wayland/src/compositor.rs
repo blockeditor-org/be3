@@ -95,6 +95,10 @@ impl Compositor {
         self.server.state.idle.set_blank_after(after);
     }
 
+    pub fn woke(&mut self) {
+        self.server.state.idle.woke();
+    }
+
     pub fn idle(&self) -> bool {
         self.server.state.idle.blanked()
     }
