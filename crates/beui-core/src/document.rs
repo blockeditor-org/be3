@@ -16,7 +16,7 @@ use crate::file_picker::{FileFilter, FilePick, FilePickId};
 use crate::flash::FlashLog;
 use crate::font::{FontId, Galley, TextLayout};
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
-use crate::input::{Key, KeyPress};
+use crate::input::{Key, KeyPress, Modifiers};
 
 use crate::display::Display;
 use crate::interact::{self, Keys};
@@ -33,6 +33,14 @@ pub type Shortcut = dyn Fn(KeyPress) -> bool;
 type PickedCallback = Box<dyn FnOnce(FilePick)>;
 pub type FingerTap = dyn Fn(usize) -> bool;
 pub type UnhandledKey = dyn Fn(UnhandledKeyPress) -> bool;
+pub type GlobalKey = dyn Fn(GlobalKeyPress) -> bool;
+
+#[derive(Clone, Copy, Debug)]
+pub struct GlobalKeyPress {
+    pub press: KeyPress,
+    pub typing: bool,
+    pub in_app: bool,
+}
 
 #[derive(Clone, Debug)]
 pub struct UnhandledKeyPress {
@@ -76,6 +84,12 @@ pub struct Document {
     shortcuts: RefCell<Vec<Weak<Shortcut>>>,
     finger_taps: RefCell<Vec<Weak<FingerTap>>>,
     unhandled_keys: RefCell<Vec<Weak<UnhandledKey>>>,
+    global_keys: RefCell<Vec<Weak<GlobalKey>>>,
+    pub(crate) globally_held: Vec<Key>,
+    modifiers: (
+        ::reactive::ReadSignal<Modifiers>,
+        ::reactive::WriteSignal<Modifiers>,
+    ),
     pub touch_scroll_vertical: Option<NodeId>,
     pub touch_shift: crate::geometry::Vec2,
     pub touch_scroll_horizontal: Option<NodeId>,
@@ -278,6 +292,9 @@ impl Document {
             shortcuts: RefCell::new(Vec::new()),
             finger_taps: RefCell::new(Vec::new()),
             unhandled_keys: RefCell::new(Vec::new()),
+            global_keys: RefCell::new(Vec::new()),
+            globally_held: Vec::new(),
+            modifiers: ::reactive::create_signal(Modifiers::NONE),
             touch_scroll_vertical: None,
             touch_shift: crate::geometry::Vec2::ZERO,
             touch_scroll_horizontal: None,
@@ -475,6 +492,43 @@ impl Document {
             typing: self.focus_types(),
         };
         live.into_iter().any(|handler| handler(unhandled.clone()))
+    }
+
+    pub fn register_global_key(&self, handler: Weak<GlobalKey>) {
+        self.global_keys.borrow_mut().push(handler);
+    }
+
+    pub fn key_global(&self, global: GlobalKeyPress) -> bool {
+        let mut handlers = self.global_keys.borrow_mut();
+        handlers.retain(|handler| handler.strong_count() > 0);
+        let live: Vec<Rc<GlobalKey>> = handlers.iter().filter_map(Weak::upgrade).collect();
+        drop(handlers);
+        live.into_iter().any(|handler| handler(global))
+    }
+
+    pub fn offer_app_key(&mut self, press: KeyPress) -> bool {
+        let context = self.reactive_scope().context();
+        let _guard = crate::current::install(self);
+        context.run(|| {
+            crate::current::with_document(|document| {
+                document.set_modifiers(press.modifiers);
+                document.key_global(GlobalKeyPress {
+                    press,
+                    typing: true,
+                    in_app: true,
+                })
+            })
+        })
+    }
+
+    pub fn watch_modifiers(&self) -> ::reactive::ReadSignal<Modifiers> {
+        self.modifiers.0.clone()
+    }
+
+    pub fn set_modifiers(&self, modifiers: Modifiers) {
+        if self.modifiers.0.get_untracked() != modifiers {
+            self.modifiers.1.set(modifiers);
+        }
     }
 
     pub fn key_shortcut(&self, press: KeyPress) -> bool {

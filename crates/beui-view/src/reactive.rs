@@ -99,6 +99,16 @@ pub fn on_shortcut(shortcut: impl Fn(beui_core::input::KeyPress) -> bool + 'stat
     on_cleanup(move || drop(shortcut));
 }
 
+pub fn on_global_key(handler: impl Fn(beui_core::document::GlobalKeyPress) -> bool + 'static) {
+    let handler: Rc<beui_core::document::GlobalKey> = Rc::new(handler);
+    with_document(|document| document.register_global_key(Rc::downgrade(&handler)));
+    on_cleanup(move || drop(handler));
+}
+
+pub fn held_modifiers() -> ReadSignal<beui_core::input::Modifiers> {
+    with_document(|document| document.watch_modifiers())
+}
+
 pub fn on_finger_tap(tap: impl Fn(usize) -> bool + 'static) {
     let tap: Rc<beui_core::document::FingerTap> = Rc::new(tap);
     with_document(|document| document.register_finger_tap(Rc::downgrade(&tap)));

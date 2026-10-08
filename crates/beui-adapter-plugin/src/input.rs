@@ -127,8 +127,9 @@ impl Input {
             InputEvent::Modifiers(modifiers) => {
                 self.modifiers = Modifiers {
                     alt: modifiers.alt,
-                    ctrl: modifiers.control || modifiers.command,
+                    ctrl: modifiers.control,
                     shift: modifiers.shift,
+                    logo: modifiers.logo,
                 };
                 events.push(Event::Modifiers(self.modifiers));
             }
