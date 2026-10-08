@@ -33,7 +33,6 @@ Commands (builds run on the build server; see guides/buck2.md and guides/build_s
 Do:
 - Use commit messages of the form `type: message`, ending with a Co-Authored-By line naming your model.
 - When done, open a pull request on GitHub. Don't watch it, subscribe to it or check on it, and don't create routines or check-in timers.
-- If you don't need tests in your search results, consider `grep --exclude-dir="tests"`.
 - If you find yourself polling while waiting for a command to finish, run `./scripts/nopoll` in the foreground.
 - When updating GitHub Actions workflows, remember that the new version will run on old PRs that don't have main's new changes applied.
 
