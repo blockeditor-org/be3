@@ -1,4 +1,5 @@
 mod editors;
+mod intercept;
 mod region;
 
 use std::{

@@ -238,6 +238,23 @@ impl InputAdapter {
         }
     }
 
+    pub(super) fn intercepted(
+        &mut self,
+        press: Option<beui::KeyPress>,
+        modifiers: beui::Modifiers,
+    ) -> Vec<InputEvent> {
+        let mut output = Vec::new();
+        push_modifiers(&mut self.modifiers, modifiers, &mut output);
+        if let Some(press) = press {
+            output.push(InputEvent::InterceptedKey {
+                key: beui_plugin_input::protocol_key(press.key),
+                pressed: press.pressed,
+                repeat: press.repeat,
+            });
+        }
+        output
+    }
+
     pub(super) fn back(&self, gesture: beui::BackGesture) -> InputEvent {
         InputEvent::Back(beui_plugin_input::back_phase(gesture))
     }

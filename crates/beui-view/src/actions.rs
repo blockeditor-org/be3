@@ -3,11 +3,11 @@ use std::rc::{Rc, Weak};
 
 use beui_core::callback::NodeRef;
 use beui_core::document::{GlobalKey, GlobalKeyPress, UnhandledKey, UnhandledKeyPress};
-use beui_core::input::{Key, KeyPress};
+use beui_core::input::{Key, KeyChord, KeyPress, Modifiers};
 use beui_core::node::NodeId;
 use reactive::{
-    Memo, ReadSignal, WriteSignal, create_memo, create_signal, on_cleanup, provide_context,
-    untrack, use_context,
+    Memo, ReadSignal, WriteSignal, create_effect, create_memo, create_signal, on_cleanup,
+    provide_context, untrack, use_context,
 };
 
 use crate::reactive::{IntoProp, Prop, with_document};
@@ -86,6 +86,18 @@ impl Chord {
 
     fn typed(self) -> bool {
         !self.ctrl && !self.alt && !self.logo && !self.key.is_media()
+    }
+
+    pub fn key_chord(self) -> KeyChord {
+        KeyChord {
+            key: self.key,
+            modifiers: Modifiers {
+                alt: self.alt,
+                ctrl: self.ctrl,
+                shift: self.shift,
+                logo: self.logo,
+            },
+        }
     }
 }
 
@@ -470,6 +482,22 @@ impl Registry {
         run_matching(live, global.press, global.typing)
     }
 
+    fn intercepted(&self) -> Vec<KeyChord> {
+        let mut chords: Vec<KeyChord> = Vec::new();
+        for action in self.all() {
+            if !action.intercepts() || !action.0.enabled.get() {
+                continue;
+            }
+            for chord in action.shortcuts().iter().filter(|chord| !chord.typed()) {
+                let chord = chord.key_chord();
+                if !chords.contains(&chord) {
+                    chords.push(chord);
+                }
+            }
+        }
+        chords
+    }
+
     fn all(&self) -> Vec<Action> {
         let mut all: Vec<Action> = self.0.global.actions.borrow().clone();
         for scope in self.scopes() {
@@ -517,6 +545,23 @@ fn registry() -> Registry {
         });
         document.register_global_key(Rc::downgrade(&global));
         *registry.0.global_keys.borrow_mut() = Some(global);
+        let intercepted = document.intercepted_keys_writer();
+        let weak = Rc::downgrade(&registry.0);
+        let reported = RefCell::new(Vec::new());
+        document.reactive_scope().context().run(|| {
+            create_effect(move || {
+                let Some(registry) = weak.upgrade() else {
+                    return;
+                };
+                let registry = Registry(registry);
+                registry.0.version.get();
+                let chords = registry.intercepted();
+                if *reported.borrow() != chords {
+                    reported.replace(chords.clone());
+                    intercepted.set(chords);
+                }
+            });
+        });
         registry
     })
 }

@@ -1,3 +1,5 @@
+mod switch;
+
 use std::any::Any;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -20,8 +22,8 @@ use super::state::{
 };
 use super::{
     Dock, DockBarHandle, DockChromeHandle, DockConfig, DockGripHandle, DockMode, DockPreviewHandle,
-    DockSplitterHandle, DockStackHandle, DockState, DockSwitcherHandle, DockTabHandle, GroupId,
-    LeafId, SIDEBAR_WIDTH, SPLITTER_THICKNESS, TabId,
+    DockSplitterHandle, DockStackHandle, DockState, DockSwitchHandle, DockSwitcherHandle,
+    DockTabHandle, GroupId, LeafId, SIDEBAR_WIDTH, SPLITTER_THICKNESS, TabId,
 };
 use crate::menu_popup::MenuStyle;
 
@@ -615,6 +617,7 @@ pub fn Docking<K>(
     preview: Option<RenderFn<DockPreviewHandle>>,
     stack: Option<RenderFn<DockStackHandle>>,
     switcher: Option<RenderFn<DockSwitcherHandle>>,
+    switch: Option<RenderFn<DockSwitchHandle>>,
     children: Children<DockNode<K>>,
 ) -> NodeId
 where
@@ -737,6 +740,7 @@ where
                 preview,
                 stack,
                 switcher,
+                switch,
             }}
         />
     }

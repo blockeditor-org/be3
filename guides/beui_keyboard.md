@@ -15,7 +15,7 @@ The styled controls follow the keyboard conventions in the [W3C Authoring Practi
 | Select (dropdown) | Clicking or activating the trigger opens the popup and focuses its search box; typing filters the options by case-insensitive substring. Up/Down/Home/End on the closed trigger also open the popup and move the highlight in that direction. Up/Down move the highlighted option without moving the text caret; Home/End jump to the first/last visible option. Enter confirms the highlighted option and closes the popup. Escape or an outside click closes the popup without changing the selection and returns focus to the trigger. |
 | Tree views | One Tab stop, at the selected row or the first row. Up/Down move to the previous/next visible row and stop at the ends; Home/End reach the first/last row. Right expands a collapsed row and then moves to its first child; Left collapses an expanded row and then moves to its parent. Space or Enter selects a row, the same as clicking it, and leaves it open or closed; only Left, Right and the chevron expand or collapse. Typing searches case-insensitive prefixes over the visible rows. Selection follows the focused row. |
 | Pan and zoom areas | Tab focuses the area. Arrows pan by a step; `+` and `-` zoom around the middle of the viewport and `0` returns the scale to one. The area owns the keys it uses, so arrows pan it rather than scrolling whatever contains it. |
-| Dock | One Tab stop per tab bar, at the tab the pane is showing, walked like any other tab list; the bar scrolls the tab that takes focus into view. The bar between two panes is a Tab stop with a `Splitter` role that the arrows move. Ctrl+Tab and Ctrl+Shift+Tab walk the tabs of the pane the focus is in, wherever the focus is inside it. |
+| Dock | One Tab stop per tab bar, at the tab the pane is showing, walked like any other tab list; the bar scrolls the tab that takes focus into view. The bar between two panes is a Tab stop with a `Splitter` role that the arrows move. Ctrl+Tab and Ctrl+Shift+Tab walk the tabs of the pane the focus is in, wherever the focus is inside it. The switcher across every pane and window (`DockingLayout::begin_switch`) is bound to no key. |
 | Calendar | One Tab stop in the grid, at the focused day. Left/Right move a day and Up/Down a week, crossing into the next or previous month. Home/End reach the start/end of the week. Page Up/Down move a month and Shift+Page Up/Down a year, keeping the day within the month. Space or Enter picks the day. Days outside `min` and `max` are skipped. The title's month button switches to a grid of months, where the arrows move by a month and a row, Page Up/Down by a year, and Enter shows that month's days; its year button switches to a grid of twenty years, where the arrows move by a year and a row, Page Up/Down by twenty years, and Enter shows that year's months. |
 | Date and time fields | Each segment is a Tab stop and a spin button. Up/Down step it and wrap; Page Up/Down step by a larger amount; Home/End reach its first/last value. Left/Right move between segments and stop at the first and last. Alt+Down opens the calendar over the field with the focus kept in the segment. Digits type into the segment and move on once it is full or no further digit could fit; `-`, `/`, `:` and space move on too, and `a`/`p` set AM/PM. Backspace or Delete clears a segment, and Backspace on an empty one goes back a segment. The button beside the segments opens the calendar and time list; Escape closes them and returns the focus to it. |
 | Time lists | One Tab stop, at the selected time. Up/Down move a time, Page Up/Down an hour, Home/End the first/last. Laid out as a grid, Left/Right move a time, Up/Down a row and Page Up/Down four rows. Space or Enter picks the time. |
@@ -117,6 +117,19 @@ makes that offer with `Document::offer_app_key` before forwarding each press
 to the focused program; modifier presses always reach the program. A program
 that inhibits shortcuts (keyboard-shortcuts-inhibit) is a matter of the
 compositor not making the offer.
+
+A document that runs inside a host - a plugin's - intercepts the same way. Its
+enabled intercepting actions' chords (never one that types) are
+`Document::intercepted_keys`, which reach the runner as
+`FrameOutput::intercepted_keys` and `Platform::set_intercepted_keys`; a host
+offers the chords it was handed to its own global keys ahead of the focused app,
+and hands each press it takes, its repeats and its release back as an
+`Event::InterceptedKey`, which the document offers to `on_global_key` as a key
+from an app and which reaches nothing else. The host goes on sending the held
+modifiers until those of the chord are let go, so `held_modifiers()` sees Alt
+released while a Wayland program has the keyboard; that is how linux-desktop's
+Alt+Tab works over any window. block-app takes intercepted keys only from the
+shell's frame, and only chords with Ctrl, Alt or Super, or media keys.
 
 `styled::CommandPalette` lists the actions that are live where the focus was
 when it opened: typing filters them by every word, Up/Down/Page Up/Page Down
