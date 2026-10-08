@@ -1145,6 +1145,10 @@ carries the tab exactly as dragging it by its label does, and a secondary drag
 moves the split nearest the pointer along the pane's edges, or resizes a window
 from the edge or corner nearest the pointer (by thirds of the window). The tab's
 body claims those presses (`claim_modifiers`), so the content never sees them.
+A tab alone in a window is carried as that window: it is never a target for
+itself, and over the middle of an empty pane, or over nothing, it lands where
+it was held at the size it had, so a modifier drag over an empty desktop moves
+the window while the edges of that pane still split it.
 Holding Alt still floats a dropped tab unless Alt is the drag modifier. The
 code is `dock/modifier_drag.rs`; linux-desktop sets Super, and the demo's
 Docking page has a switch for Alt.

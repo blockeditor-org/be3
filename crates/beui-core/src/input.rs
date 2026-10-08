@@ -262,7 +262,9 @@ impl SecondaryDrag {
     }
 
     fn cancel(drag: &mut Option<Self>) {
-        if let Some(drag) = drag {
+        if let Some(drag) = drag
+            && !drag.ended
+        {
             drag.cancelled = true;
         }
     }

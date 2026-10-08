@@ -139,9 +139,7 @@ impl State {
 }
 
 pub(super) fn vacant_target(state: &DockState, target: Option<DockDrop>) -> bool {
-    target
-        .and_then(DockDrop::leaf)
-        .is_some_and(|leaf| state.entries(leaf).is_empty())
+    matches!(target, Some(DockDrop::Pane { leaf }) if state.entries(leaf).is_empty())
 }
 
 fn lone_window(state: &DockState, dragged: DockDragged) -> Option<SurfaceId> {

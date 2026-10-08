@@ -47,4 +47,19 @@ fn a_window_carried_by_its_content_over_an_empty_pane_moves_as_it_was_held() {
         Some(before.translate(vec2(80.0, 50.0))),
         "it moved with the pointer, keeping its size and where it was held"
     );
+
+    let held = harness.center(harness.find("content"));
+    drag_with(
+        &mut harness,
+        held,
+        pos2(30.0, WIDE_VIEWPORT.y / 2.0),
+        Modifiers::LOGO,
+    );
+    harness.frame(Vec::new());
+    let state = dock_state(harness.document(), dock);
+    assert!(
+        state.windows().is_empty(),
+        "carried to the edge of the empty pane, the window splits it and docks"
+    );
+    assert_eq!(state.leaves(state.main()).len(), 2);
 }
