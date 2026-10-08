@@ -41,6 +41,7 @@ pub(crate) struct Received {
     pub(crate) pointer_entered: Option<(f64, f64)>,
     pub(crate) pointer_surface: Option<wl_surface::WlSurface>,
     pub(crate) buttons: Vec<(u32, bool)>,
+    pub(crate) scrolled: f64,
     pub(crate) frames: usize,
     pub(crate) released: Vec<wl_buffer::WlBuffer>,
     pub(crate) xdg_decoration: Option<zxdg_toplevel_decoration_v1::Mode>,
@@ -444,6 +445,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Received {
             } => state
                 .buttons
                 .push((button, pressed == wl_pointer::ButtonState::Pressed)),
+            wl_pointer::Event::Axis { value, .. } => state.scrolled += value,
             _ => {}
         }
     }

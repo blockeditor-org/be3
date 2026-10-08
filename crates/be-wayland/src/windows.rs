@@ -16,18 +16,10 @@ pub struct WindowInfo {
     pub size: Vec2,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct Insets {
-    pub left: f32,
-    pub top: f32,
-    pub right: f32,
-    pub bottom: f32,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Fullscreen {
     pub id: WindowId,
-    pub insets: Insets,
+    pub area: Rect,
 }
 
 #[derive(Clone, Debug, PartialEq)]

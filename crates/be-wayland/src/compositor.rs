@@ -11,7 +11,7 @@ use smithay::wayland::compositor::with_states;
 use crate::render::{Gpu, Textures, WindowDraw};
 use crate::server::{Server, Watch};
 use crate::state::{KeyboardConfig, ServerEvent, WindowId};
-use crate::windows::{Command, Fullscreen, Insets, WindowInfo, Windows};
+use crate::windows::{Command, Fullscreen, WindowInfo, Windows};
 
 const BUTTON_LEFT: u32 = 0x110;
 const BUTTON_RIGHT: u32 = 0x111;
@@ -118,15 +118,7 @@ impl Compositor {
                 .iter()
                 .find(|screen| screen.contains(anchor))
                 .map_or(area, |screen| screen.intersect(area));
-            Some(Fullscreen {
-                id,
-                insets: Insets {
-                    left: screen.min.x - area.min.x,
-                    top: screen.min.y - area.min.y,
-                    right: area.max.x - screen.max.x,
-                    bottom: area.max.y - screen.max.y,
-                },
-            })
+            Some(Fullscreen { id, area: screen })
         });
         if shown.is_none() {
             self.fullscreen = None;

@@ -3,6 +3,8 @@ use super::*;
 mod a_closed_window_leaves_the_list;
 mod a_dmabuf_window_samples_the_clients_pixels;
 mod a_drawn_window_is_listed_and_fitted_to_where_it_is_shown;
+mod a_fullscreen_window_covers_only_its_own_screen;
+mod a_fullscreen_window_keeps_the_pointer_from_what_it_covers;
 mod a_maximized_window_keeps_its_place_and_is_told_it_is_maximized;
 mod a_shown_dmabuf_is_released_once_a_newer_one_is_painted;
 mod a_window_asking_for_fullscreen_covers_the_screen;
@@ -10,9 +12,12 @@ mod keys_follow_the_focus_between_beui_and_a_window;
 mod leaving_fullscreen_returns_the_window_to_where_it_was_shown;
 mod super_f_toggles_fullscreen_on_the_focused_window;
 
-use beui::reactive::{ForEach, Frame, Layers, List, build, create_signal, view};
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use beui::reactive::{ForEach, Frame, Interactive, Layers, List, build, create_signal, view};
 use beui::styled::TextInput;
-use beui::{FrameOutput, NodeId, RawInput, pos2};
+use beui::{FrameOutput, NodeId, RawInput, ScrollGesture, pos2};
 
 use crate::test_client::{TestClient, TestWindow};
 use crate::view::{FullscreenWindow, WindowView};
@@ -26,10 +31,18 @@ struct Harness {
     context: Context,
     client: TestClient,
     output: Option<FrameOutput>,
+    under: Rc<RefCell<Under>>,
 }
 
-fn shown(windows: Windows) -> impl FnOnce() -> NodeId {
+#[derive(Default)]
+struct Under {
+    hovered: bool,
+    scrolled: Vec2,
+}
+
+fn shown(windows: Windows, under: Rc<RefCell<Under>>) -> impl FnOnce() -> NodeId {
     move || {
+        let hovered = under.clone();
         let (text, set_text) = create_signal(String::new());
         let ids = beui::reactive::create_memo(clone_list(&windows));
         let covering = windows.clone();
@@ -51,6 +64,15 @@ fn shown(windows: Windows) -> impl FnOnce() -> NodeId {
                             }
                         }}
                     </ForEach>
+                    <Frame height=100.0>
+                        <Interactive
+                            @test_id="test.under"
+                            on_hover_change={move |on: bool| hovered.borrow_mut().hovered = on}
+                            on_scroll={move |scroll: ScrollGesture| {
+                                under.borrow_mut().scrolled += scroll.delta;
+                            }}
+                        />
+                    </Frame>
                 </List>
                 <FullscreenWindow windows={covering} />
             </Layers>
@@ -76,10 +98,11 @@ impl Harness {
 
     fn started(gpu: Option<(wgpu::Device, wgpu::Queue)>) -> Self {
         let mut windows = None;
+        let under = Rc::new(RefCell::new(Under::default()));
         let document = build(|| {
             let store = Windows::new();
             windows = Some(store.clone());
-            shown(store)()
+            shown(store, under.clone())()
         });
         let mut app = Compositor::new(
             Server::headless().expect("a headless display starts"),
@@ -102,6 +125,7 @@ impl Harness {
             context,
             client,
             output: None,
+            under,
         }
     }
 
