@@ -64,7 +64,9 @@ fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
     let over_bar = harness.center(harness.find("bar"));
 
     let entering = layout.clone();
-    with_reactive_scope(harness.document_mut(), move || entering.enter_fullscreen(&2, None));
+    with_reactive_scope(harness.document_mut(), move || {
+        entering.enter_fullscreen(&2, None)
+    });
     harness.settle();
     assert_eq!(layout.fullscreen(), Some(2));
     assert_eq!(
@@ -95,5 +97,8 @@ fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
         "leaving puts the tab back where it was"
     );
     harness.frame(vec![Event::PointerMoved(over_bar)]);
-    assert!(bar.borrow().hovered, "and what it covered hears the pointer again");
+    assert!(
+        bar.borrow().hovered,
+        "and what it covered hears the pointer again"
+    );
 }

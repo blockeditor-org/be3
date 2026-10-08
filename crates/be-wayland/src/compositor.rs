@@ -141,8 +141,8 @@ impl Compositor {
             self.fullscreen = None;
             self.relist = true;
         }
-        let list = (std::mem::take(&mut self.relist) || self.fullscreen.is_some())
-            .then(|| self.list());
+        let list =
+            (std::mem::take(&mut self.relist) || self.fullscreen.is_some()).then(|| self.list());
         let raise = self.raise.take();
         let windows = self.windows.clone();
         with_reactive_scope(document, || {
@@ -469,8 +469,16 @@ impl Compositor {
                         .windows
                         .rect(id)
                         .map(|rect| (rect.width().round() as i32, rect.height().round() as i32))
-                        .or_else(|| self.configured.get(&id).map(|configured| configured.size));
+                        .or_else(|| self.configured.get(&id).map(|configured| configured.size))
+                        .or_else(|| {
+                            self.fullscreen_area(id).map(|area| {
+                                (area.width().round() as i32, area.height().round() as i32)
+                            })
+                        });
                     let Some(size) = size.filter(|size| size.0 >= 1 && size.1 >= 1) else {
+                        self.server
+                            .state
+                            .configure_sized(id, None, focused == Some(id));
                         continue;
                     };
                     let configured = Configured {

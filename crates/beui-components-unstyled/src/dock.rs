@@ -47,8 +47,9 @@ pub use docking::{
     DockingLayout, DockingSnapshot,
 };
 pub use state::{
-    DockDrop, DockFullscreen, DockLayout, DockSplitter, DockState, DockTree, DockTreeEntry, Entry, GroupId, LeafId,
-    Side, SplitId, SurfaceId, TabId, TabPosition, Tree, layout_surface, layout_tree,
+    DockDrop, DockFullscreen, DockLayout, DockSplitter, DockState, DockTree, DockTreeEntry, Entry,
+    GroupId, LeafId, Side, SplitId, SurfaceId, TabId, TabPosition, Tree, layout_surface,
+    layout_tree,
 };
 use state::{FLOATING_SIZE, MIN_WINDOW_SIZE, fraction_moved};
 pub use state::{MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH};
@@ -182,8 +183,11 @@ impl DockTabControl {
     }
 
     pub fn fullscreen(&self) -> bool {
-        self.state
-            .with(|state| state.fullscreen().is_some_and(|shown| shown.tab == self.tab))
+        self.state.with(|state| {
+            state
+                .fullscreen()
+                .is_some_and(|shown| shown.tab == self.tab)
+        })
     }
 
     pub fn enter_fullscreen(&self, area: Option<Rect>) {
@@ -1148,16 +1152,8 @@ fn DockFullscreenView(dock: Handle) -> NodeId {
         <Portal node={panel} />
     });
     view! {
-        <Overlay
-            anchor
-            placement
-            mode=OverlayMode::Floating
-            traps_focus=false
-            open
-        >
-            <Frame @test_id="dock.fullscreen" width height>
-                {body}
-            </Frame>
+        <Overlay anchor placement mode=OverlayMode::Floating traps_focus=false open>
+            <Frame @test_id="dock.fullscreen" width height>{body}</Frame>
         </Overlay>
     }
 }

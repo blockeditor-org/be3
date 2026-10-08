@@ -35,6 +35,9 @@ fn a_docked_page_shown_fullscreen_covers_the_dock_until_escape() {
             .collect(),
     );
     test.frame(Vec::new());
-    assert!(!test.shows("dock.fullscreen"), "Escape brings the page back");
+    assert!(
+        !test.shows("dock.fullscreen"),
+        "Escape brings the page back"
+    );
     assert_eq!(test.rect_of("demo.fullscreen"), docked);
 }

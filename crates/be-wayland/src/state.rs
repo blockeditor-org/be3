@@ -528,6 +528,15 @@ impl State {
     }
 
     pub fn configure(&mut self, id: WindowId, size: Size<i32, Logical>, activated: bool) {
+        self.configure_sized(id, Some(size), activated);
+    }
+
+    pub fn configure_sized(
+        &mut self,
+        id: WindowId,
+        size: Option<Size<i32, Logical>>,
+        activated: bool,
+    ) {
         let Some(toplevel) = self.toplevel(id) else {
             return;
         };
@@ -535,8 +544,10 @@ impl State {
         toplevel.with_pending_state(|state| {
             set_state(state, xdg_toplevel::State::Fullscreen, fullscreen);
             set_state(state, xdg_toplevel::State::Maximized, maximized);
-            state.size = Some(size);
-            state.bounds = Some(size);
+            if let Some(size) = size {
+                state.size = Some(size);
+                state.bounds = Some(size);
+            }
             for tiled in [
                 xdg_toplevel::State::TiledLeft,
                 xdg_toplevel::State::TiledRight,

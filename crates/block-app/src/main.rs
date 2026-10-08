@@ -1418,7 +1418,10 @@ impl BlockApp {
             if let Some(windows) = windows {
                 editor.set_windows(windows);
             }
-            (editor.take_closed_windows(), editor.take_fullscreen_windows())
+            (
+                editor.take_closed_windows(),
+                editor.take_fullscreen_windows(),
+            )
         }) else {
             return;
         };

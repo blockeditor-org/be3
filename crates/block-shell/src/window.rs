@@ -1,4 +1,6 @@
-use block_editor_beui::beui::reactive::{Memo, clone, component, create_effect, create_memo, untrack, view};
+use block_editor_beui::beui::reactive::{
+    Memo, clone, component, create_effect, create_memo, untrack, view,
+};
 use block_editor_beui::beui::styled::WINDOW_CHROME;
 use block_editor_beui::beui::unstyled::{TabId, use_dock_tab};
 use block_editor_beui::beui::{NodeId, Rect, pos2, vec2};
