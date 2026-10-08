@@ -27,7 +27,7 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck run //crates/beui-demo:demo` | beui's demo in a window |
 | `./scripts/buck run //crates/beui:survey-example` | a crate example; every example is `<name>-example` |
 | `./scripts/buck run //crates/beui-web-demo:web-serve` | beui's demo in a browser, drawn with DOM elements, on http://127.0.0.1:8070 |
-| `./scripts/buck run //:fuzz` | every fuzz target, side by side, until it is stopped |
+| `./scripts/buck run //:fuzz` | every fuzz target, taking turns with every core (`BE3_FUZZ_SLICE` seconds each, 600 by default), until it is stopped |
 | `./scripts/buck run //crates/sequence:fuzz-sequence -- FILE` | one fuzz target; with an input file, runs it once |
 | `./scripts/buck run //:buckify` | regenerates `buck/cargo/crates.bzl` and `Cargo.lock` from the manifests |
 | `./scripts/buck run //:rust-project` | writes `rust-project.json` for rust-analyzer |

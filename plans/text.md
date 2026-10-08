@@ -219,7 +219,7 @@ the multi-chunk paths run constantly.
 
 A test feeds it seeded random bytes, and `crates/sequence/fuzz/sequence.rs` is
 a coverage-guided libFuzzer target over it, which `./scripts/buck run //:fuzz`
-runs with the others until it is stopped, keeping its corpus and crashes in
+runs in turn with the others until it is stopped, keeping its corpus and crashes in
 `target/fuzz/sequence/sequence`. A crash it finds becomes a test in
 `crates/sequence/src/tests`.
 
