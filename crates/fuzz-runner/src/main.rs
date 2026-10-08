@@ -6,6 +6,8 @@ use std::{env, fs};
 
 const USAGE: &str = "usage: fuzz-runner (--all | --list FILE) [LIBFUZZER-FLAG... | INPUT...]";
 
+const FUZZED: [i32; 4] = [0, 70, 71, 77];
+
 const SIGNALS: [libc::c_int; 3] = [libc::SIGINT, libc::SIGTERM, libc::SIGHUP];
 
 static GROUP: AtomicI32 = AtomicI32::new(0);
@@ -99,9 +101,13 @@ fn run(arguments: Vec<String>) -> Result<ExitCode, String> {
             }
             let waited = child.wait();
             GROUP.store(0, Ordering::SeqCst);
-            waited.map_err(|error| format!("could not wait for {}: {error}", target.id))?;
+            let status =
+                waited.map_err(|error| format!("could not wait for {}: {error}", target.id))?;
             if STOPPED.load(Ordering::SeqCst) {
                 return Ok(ExitCode::from(130));
+            }
+            if !status.code().is_some_and(|code| FUZZED.contains(&code)) {
+                return Err(format!("Fuzzing {} failed: {status}.", target.id));
             }
         }
         if turn.is_none() {
