@@ -70,16 +70,13 @@ pub(crate) fn place(source: &Path, prefix: &Path) -> io::Result<Installed> {
     }
     let same = std::fs::canonicalize(source).ok() == std::fs::canonicalize(&home).ok();
     if !same {
-        if home.exists() {
-            if !home.join(EXECUTABLE).is_file() {
-                return Err(io::Error::other(format!(
-                    "{} is in the way and is not an installed app",
-                    home.display()
-                )));
-            }
-            std::fs::remove_dir_all(&home)?;
+        if home.exists() && !home.join(EXECUTABLE).is_file() {
+            return Err(io::Error::other(format!(
+                "{} is in the way and is not an installed app",
+                home.display()
+            )));
         }
-        copy_tree(source, &home)?;
+        replace_tree(source, &home)?;
     }
     let installed = home.join(EXECUTABLE);
     std::fs::create_dir_all(prefix.join("bin"))?;
@@ -94,20 +91,71 @@ pub(crate) fn place(source: &Path, prefix: &Path) -> io::Result<Installed> {
     Ok(Installed { home, link, entry })
 }
 
+fn replace_tree(source: &Path, home: &Path) -> io::Result<()> {
+    let staged = home.with_extension("new");
+    let old = home.with_extension("old");
+    for leftover in [&staged, &old] {
+        if leftover.exists() {
+            std::fs::remove_dir_all(leftover)?;
+        }
+    }
+    if let Err(error) = copy_tree(source, &staged) {
+        let _ = std::fs::remove_dir_all(&staged);
+        return Err(error);
+    }
+    let kept = home.exists();
+    if kept {
+        std::fs::rename(home, &old)?;
+    }
+    if let Err(error) = std::fs::rename(&staged, home) {
+        if kept {
+            let _ = std::fs::rename(&old, home);
+        }
+        return Err(error);
+    }
+    if kept {
+        std::fs::remove_dir_all(&old)?;
+    }
+    Ok(())
+}
+
 pub(crate) fn session_entry(executable: &Path) -> String {
     let path = executable.display().to_string();
     ENTRY
         .lines()
         .map(|line| match line.split_once('=') {
             Some(("Exec", command)) => match command.strip_prefix(EXECUTABLE) {
-                Some(arguments) => format!("Exec={path}{arguments}"),
+                Some(arguments) => format!("Exec={}{arguments}", exec_argument(&path)),
                 None => line.to_owned(),
             },
-            Some(("TryExec", _)) => format!("TryExec={path}"),
+            Some(("TryExec", _)) => format!("TryExec={}", path.replace('\\', "\\\\")),
             _ => line.to_owned(),
         })
         .map(|line| line + "\n")
         .collect()
+}
+
+fn exec_argument(path: &str) -> String {
+    let plain = path
+        .chars()
+        .all(|character| character.is_ascii_alphanumeric() || "/._-+".contains(character));
+    if plain {
+        return path.to_owned();
+    }
+    let mut quoted = String::from("\"");
+    for character in path.chars() {
+        match character {
+            '"' | '`' | '$' => {
+                quoted.push_str("\\\\");
+                quoted.push(character);
+            }
+            '\\' => quoted.push_str("\\\\\\\\"),
+            '%' => quoted.push_str("%%"),
+            _ => quoted.push(character),
+        }
+    }
+    quoted.push('"');
+    quoted
 }
 
 fn copy_tree(from: &Path, to: &Path) -> io::Result<()> {

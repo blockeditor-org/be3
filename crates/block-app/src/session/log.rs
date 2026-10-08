@@ -1,6 +1,7 @@
-use std::fs::OpenOptions;
+use std::fs::{OpenOptions, Permissions};
 use std::io::Write;
 use std::os::fd::AsRawFd;
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -14,8 +15,13 @@ pub(crate) fn start_log() {
     };
     let path = directory.join(LOG);
     let opened = std::fs::create_dir_all(&directory).and_then(|()| {
+        std::fs::set_permissions(&directory, Permissions::from_mode(0o700))?;
         let _ = std::fs::rename(&path, directory.join(PREVIOUS_LOG));
-        OpenOptions::new().create(true).append(true).open(&path)
+        OpenOptions::new()
+            .create(true)
+            .append(true)
+            .mode(0o600)
+            .open(&path)
     });
     let mut file = match opened {
         Ok(file) => file,
