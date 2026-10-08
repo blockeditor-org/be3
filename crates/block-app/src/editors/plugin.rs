@@ -473,6 +473,16 @@ impl PluginEditor {
         }
     }
 
+    #[cfg(target_os = "linux")]
+    pub(crate) fn take_power_requests(&self) -> Vec<block_plugin_api::PowerAction> {
+        match &self.plugin {
+            Some(plugin) => {
+                crate::plugin_host::take_power_requests(&plugin.identity.id, self.instance)
+            }
+            None => Vec::new(),
+        }
+    }
+
     pub(crate) fn take_closed_windows(&self) -> Vec<block_plugin_api::HostWindowId> {
         match &self.plugin {
             Some(plugin) => {

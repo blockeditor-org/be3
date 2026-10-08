@@ -27,10 +27,10 @@ pub use block_plugin_api::{
     DataListing, EditorCapabilities, EditorInstanceId, EditorRegion, FetchResult, FileSave,
     FrameChrome, FrameSpec, HostDisplay, HostDisplayMode, HostInputDevice, HostPanel, HostReply,
     HostRequest, HostWindow, HostWindowId, InputEvent, InteractionMode, Key, MenuEntry, Modifiers,
-    Occluder, PointerButton, ResizeMode, ScreenPlacement, SettingsProgress, ShellDialog,
-    SurfaceRect, TemplateCategory, TemplateDescriptor, TopBar, TouchPhase, VersionBranch,
-    VersionChange, VersionChangeKind, VersionCommand, VersionCommit, VersionStatus, ViewChange,
-    WebViewCommand, WebViewEvent, WebViewId, WheelUnit,
+    Occluder, PointerButton, PowerAction, PowerAvailability, ResizeMode, ScreenPlacement,
+    SettingsProgress, ShellDialog, SurfaceRect, TemplateCategory, TemplateDescriptor, TopBar,
+    TouchPhase, VersionBranch, VersionChange, VersionChangeKind, VersionCommand, VersionCommit,
+    VersionStatus, ViewChange, WebViewCommand, WebViewEvent, WebViewId, WheelUnit,
 };
 pub use block_ui;
 pub use clock::{frame_time, utc_offset};

@@ -14,6 +14,7 @@ use block_editor_beui::beui::unstyled::MenuItem;
 use block_editor_beui::utc_offset;
 use block_shell::Workspace;
 
+use super::power::PowerMenu;
 use super::sessions::sessions;
 
 const BAR_PADDING: f32 = 6.0;
@@ -52,6 +53,7 @@ pub(crate) fn DesktopBar(workspace: Rc<Workspace>) -> NodeId {
     let theme = use_theme();
     let clock = wall_clock();
     let editor = workspace.editor().clone();
+    let power = editor.clone();
     let launching = editor.clone();
     let launcher = move || launching.host().show_launcher(launching.block_id());
     let menu = move || editor.host().show_app_menu(editor.block_id());
@@ -120,6 +122,7 @@ pub(crate) fn DesktopBar(workspace: Rc<Workspace>) -> NodeId {
                     />
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                     <Caption content={clock} @test_id={"desktop.clock"} />
+                    <PowerMenu editor={power} />
                 </List>
             </Frame>
         </List>

@@ -590,6 +590,13 @@ impl<A: BeuiApp> BeuiTest<A> {
             }));
     }
 
+    pub fn linux(&mut self, message: block_plugin_api::LinuxMessage) {
+        self.inbox.push(Message::Editor(EditorMessage::Linux {
+            instance: INSTANCE,
+            message,
+        }));
+    }
+
     pub fn reply(&mut self, request_id: u64, reply: HostReply) {
         self.inbox.push(Message::Editor(EditorMessage::Replied {
             instance: INSTANCE,
@@ -919,6 +926,16 @@ impl<A: BeuiApp> BeuiTest<A> {
             EditorMessage::BlockCommand {
                 block_id, command, ..
             } => Some((Uuid::from_bytes(*block_id), *command)),
+            _ => None,
+        })
+    }
+
+    pub fn take_power_requests(&mut self) -> Vec<block_plugin_api::PowerAction> {
+        self.take_where(|message| match message {
+            EditorMessage::Linux {
+                message: block_plugin_api::LinuxMessage::RequestPower(action),
+                ..
+            } => Some(*action),
             _ => None,
         })
     }

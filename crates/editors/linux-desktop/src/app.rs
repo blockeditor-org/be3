@@ -1,4 +1,5 @@
 mod bar;
+mod power;
 mod sessions;
 
 use std::rc::Rc;

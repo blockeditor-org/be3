@@ -9,13 +9,14 @@ mod session;
 pub use block_ids::BlockIdRole;
 pub use linux::{
     HostDisplay, HostDisplayMode, HostInputDevice, HostWindow, HostWindowId, LinuxMessage,
+    PowerAction, PowerAvailability,
 };
 pub use manifest::{
     EditorDocument, ManifestDocument, TemplateDocument, Templates, manifest_from_json,
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 72;
+pub const PROTOCOL_VERSION: u16 = 73;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_TEXT_BYTES: usize = 64 * 1024 * 1024;
@@ -2600,7 +2601,10 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             }
             LinuxMessage::WatchInputDevices
             | LinuxMessage::WatchDisplays
-            | LinuxMessage::FullscreenWindow { .. } => Ok(()),
+            | LinuxMessage::FullscreenWindow { .. }
+            | LinuxMessage::WatchPower
+            | LinuxMessage::Power(_)
+            | LinuxMessage::RequestPower(_) => Ok(()),
         },
         EditorMessage::Menu { entries, .. } => menu(entries),
         EditorMessage::MenuPick { id, .. } | EditorMessage::ChildMenuPick { id, .. } => string(id),

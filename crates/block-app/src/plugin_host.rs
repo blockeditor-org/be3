@@ -48,7 +48,7 @@ pub(crate) use runtime::{
     take_region_actions, unmount_region, unplace_region,
 };
 #[cfg(target_os = "linux")]
-pub(crate) use runtime::{set_displays, set_input_devices};
+pub(crate) use runtime::{set_displays, set_input_devices, set_power, take_power_requests};
 #[cfg(all(
     feature = "web-view",
     not(target_os = "android"),

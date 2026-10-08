@@ -42,6 +42,37 @@ pub struct HostDisplay {
     pub current: HostDisplayMode,
 }
 
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PowerAction {
+    Suspend,
+    Restart,
+    PowerOff,
+    LogOut,
+}
+
+impl PowerAction {
+    pub const ALL: [Self; 4] = [Self::Suspend, Self::Restart, Self::PowerOff, Self::LogOut];
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PowerAvailability {
+    pub suspend: bool,
+    pub restart: bool,
+    pub power_off: bool,
+    pub log_out: bool,
+}
+
+impl PowerAvailability {
+    pub fn allows(&self, action: PowerAction) -> bool {
+        match action {
+            PowerAction::Suspend => self.suspend,
+            PowerAction::Restart => self.restart,
+            PowerAction::PowerOff => self.power_off,
+            PowerAction::LogOut => self.log_out,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum LinuxMessage {
     Windows(Vec<HostWindow>),
@@ -53,15 +84,22 @@ pub enum LinuxMessage {
         window: HostWindowId,
         fullscreen: bool,
     },
+    WatchPower,
+    Power(PowerAvailability),
+    RequestPower(PowerAction),
 }
 
 impl LinuxMessage {
     pub fn direction(&self) -> Direction {
         match self {
-            Self::Windows(_) | Self::InputDevices(_) | Self::Displays(_) => Direction::ToPlugin,
-            Self::WatchInputDevices | Self::WatchDisplays | Self::FullscreenWindow { .. } => {
-                Direction::ToHost
+            Self::Windows(_) | Self::InputDevices(_) | Self::Displays(_) | Self::Power(_) => {
+                Direction::ToPlugin
             }
+            Self::WatchInputDevices
+            | Self::WatchDisplays
+            | Self::FullscreenWindow { .. }
+            | Self::WatchPower
+            | Self::RequestPower(_) => Direction::ToHost,
         }
     }
 }
