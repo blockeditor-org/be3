@@ -2,7 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
 use beui_core::callback::NodeRef;
-use beui_core::document::{UnhandledKey, UnhandledKeyPress};
+use beui_core::document::{GlobalKey, GlobalKeyPress, UnhandledKey, UnhandledKeyPress};
 use beui_core::input::{Key, KeyPress};
 use beui_core::node::NodeId;
 use reactive::{
@@ -148,6 +148,7 @@ struct ActionData {
     checked: Option<Prop<bool>>,
     menu: bool,
     global: bool,
+    intercepts: bool,
     run: Rc<dyn Fn()>,
 }
 
@@ -176,6 +177,7 @@ impl Action {
             checked: None,
             menu: false,
             global: false,
+            intercepts: false,
             run: Rc::new(run),
         }
     }
@@ -224,6 +226,10 @@ impl Action {
         self.0.global
     }
 
+    pub fn intercepts(&self) -> bool {
+        self.0.intercepts
+    }
+
     pub fn is_enabled(&self) -> bool {
         self.0.enabled.peek()
     }
@@ -246,6 +252,7 @@ pub struct ActionBuilder {
     checked: Option<Prop<bool>>,
     menu: bool,
     global: bool,
+    intercepts: bool,
     run: Rc<dyn Fn()>,
 }
 
@@ -280,6 +287,12 @@ impl ActionBuilder {
         self
     }
 
+    pub fn intercepts(mut self) -> Self {
+        self.global = true;
+        self.intercepts = true;
+        self
+    }
+
     fn into_action(self) -> Action {
         Action(Rc::new(ActionData {
             key: Cell::new(0),
@@ -291,6 +304,7 @@ impl ActionBuilder {
             checked: self.checked,
             menu: self.menu,
             global: self.global,
+            intercepts: self.intercepts,
             run: self.run,
         }))
     }
@@ -371,7 +385,7 @@ struct RegistryData {
     version: ReadSignal<u64>,
     set_version: WriteSignal<u64>,
     keys: RefCell<Option<Rc<UnhandledKey>>>,
-    global_keys: RefCell<Option<Rc<UnhandledKey>>>,
+    global_keys: RefCell<Option<Rc<GlobalKey>>>,
 }
 
 #[derive(Clone)]
@@ -444,15 +458,16 @@ impl Registry {
 
     fn key(&self, unhandled: &UnhandledKeyPress) -> bool {
         let actions = self.actions(&unhandled.focus_path);
-        run_matching(
-            actions.iter().filter(|action| !action.is_global()),
-            unhandled,
-        )
+        let local = actions.iter().filter(|action| !action.is_global());
+        run_matching(local, unhandled.press, unhandled.typing)
     }
 
-    fn global_key(&self, global: &UnhandledKeyPress) -> bool {
+    fn global_key(&self, global: GlobalKeyPress) -> bool {
         let actions = self.all();
-        run_matching(actions.iter().filter(|action| action.is_global()), global)
+        let live = actions
+            .iter()
+            .filter(|action| action.is_global() && (action.intercepts() || !global.in_app));
+        run_matching(live, global.press, global.typing)
     }
 
     fn all(&self) -> Vec<Action> {
@@ -467,13 +482,14 @@ impl Registry {
 
 fn run_matching<'a>(
     actions: impl Iterator<Item = &'a Action>,
-    unhandled: &UnhandledKeyPress,
+    press: KeyPress,
+    typing: bool,
 ) -> bool {
     for action in actions {
         let matched = action
             .shortcuts()
             .iter()
-            .any(|chord| chord.matches(unhandled.press) && !(unhandled.typing && chord.typed()));
+            .any(|chord| chord.matches(press) && !(typing && chord.typed()));
         if matched && untrack(|| action.run()) {
             return true;
         }
@@ -495,9 +511,9 @@ fn registry() -> Registry {
         document.register_unhandled_key(Rc::downgrade(&keys));
         *registry.0.keys.borrow_mut() = Some(keys);
         let weak = Rc::downgrade(&registry.0);
-        let global: Rc<UnhandledKey> = Rc::new(move |global: UnhandledKeyPress| {
+        let global: Rc<GlobalKey> = Rc::new(move |global: GlobalKeyPress| {
             weak.upgrade()
-                .is_some_and(|registry| Registry(registry).global_key(&global))
+                .is_some_and(|registry| Registry(registry).global_key(global))
         });
         document.register_global_key(Rc::downgrade(&global));
         *registry.0.global_keys.borrow_mut() = Some(global);

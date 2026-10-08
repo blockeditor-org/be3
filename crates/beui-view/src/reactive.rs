@@ -99,9 +99,8 @@ pub fn on_shortcut(shortcut: impl Fn(beui_core::input::KeyPress) -> bool + 'stat
     on_cleanup(move || drop(shortcut));
 }
 
-pub fn on_global_key(handler: impl Fn(beui_core::input::KeyPress) -> bool + 'static) {
-    let handler: Rc<beui_core::document::UnhandledKey> =
-        Rc::new(move |global: beui_core::document::UnhandledKeyPress| handler(global.press));
+pub fn on_global_key(handler: impl Fn(beui_core::document::GlobalKeyPress) -> bool + 'static) {
+    let handler: Rc<beui_core::document::GlobalKey> = Rc::new(handler);
     with_document(|document| document.register_global_key(Rc::downgrade(&handler)));
     on_cleanup(move || drop(handler));
 }

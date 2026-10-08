@@ -366,14 +366,14 @@ impl Compositor {
                     {
                         self.swallowed.remove(at);
                         if let Some(press) = press {
-                            document.offer_global_key(press, true);
+                            document.offer_app_key(press);
                         }
                         continue;
                     }
                     if target.is_none() {
                         continue;
                     }
-                    let taken = press.is_some_and(|press| document.offer_global_key(press, true));
+                    let taken = press.is_some_and(|press| document.offer_app_key(press));
                     if pressed && taken {
                         self.swallowed.push((code, press.map(|press| press.key)));
                         continue;
@@ -388,15 +388,12 @@ impl Compositor {
                 } if target.is_some()
                     && self.swallowed.iter().any(|(_, held)| *held == Some(key)) =>
                 {
-                    document.offer_global_key(
-                        KeyPress {
-                            key,
-                            pressed: true,
-                            repeat: true,
-                            modifiers,
-                        },
-                        true,
-                    );
+                    document.offer_app_key(KeyPress {
+                        key,
+                        pressed: true,
+                        repeat: true,
+                        modifiers,
+                    });
                 }
                 _ => {}
             }

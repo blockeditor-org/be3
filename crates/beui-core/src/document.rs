@@ -33,6 +33,14 @@ pub type Shortcut = dyn Fn(KeyPress) -> bool;
 type PickedCallback = Box<dyn FnOnce(FilePick)>;
 pub type FingerTap = dyn Fn(usize) -> bool;
 pub type UnhandledKey = dyn Fn(UnhandledKeyPress) -> bool;
+pub type GlobalKey = dyn Fn(GlobalKeyPress) -> bool;
+
+#[derive(Clone, Copy, Debug)]
+pub struct GlobalKeyPress {
+    pub press: KeyPress,
+    pub typing: bool,
+    pub in_app: bool,
+}
 
 #[derive(Clone, Debug)]
 pub struct UnhandledKeyPress {
@@ -76,7 +84,7 @@ pub struct Document {
     shortcuts: RefCell<Vec<Weak<Shortcut>>>,
     finger_taps: RefCell<Vec<Weak<FingerTap>>>,
     unhandled_keys: RefCell<Vec<Weak<UnhandledKey>>>,
-    global_keys: RefCell<Vec<Weak<UnhandledKey>>>,
+    global_keys: RefCell<Vec<Weak<GlobalKey>>>,
     pub(crate) globally_held: Vec<Key>,
     modifiers: (
         ::reactive::ReadSignal<Modifiers>,
@@ -486,33 +494,29 @@ impl Document {
         live.into_iter().any(|handler| handler(unhandled.clone()))
     }
 
-    pub fn register_global_key(&self, handler: Weak<UnhandledKey>) {
+    pub fn register_global_key(&self, handler: Weak<GlobalKey>) {
         self.global_keys.borrow_mut().push(handler);
     }
 
-    pub fn key_global(&self, press: KeyPress, typing: bool) -> bool {
+    pub fn key_global(&self, global: GlobalKeyPress) -> bool {
         let mut handlers = self.global_keys.borrow_mut();
         handlers.retain(|handler| handler.strong_count() > 0);
-        let live: Vec<Rc<UnhandledKey>> = handlers.iter().filter_map(Weak::upgrade).collect();
+        let live: Vec<Rc<GlobalKey>> = handlers.iter().filter_map(Weak::upgrade).collect();
         drop(handlers);
-        if live.is_empty() {
-            return false;
-        }
-        let global = UnhandledKeyPress {
-            press,
-            focus_path: self.focus_ancestry(),
-            typing,
-        };
-        live.into_iter().any(|handler| handler(global.clone()))
+        live.into_iter().any(|handler| handler(global))
     }
 
-    pub fn offer_global_key(&mut self, press: KeyPress, typing: bool) -> bool {
+    pub fn offer_app_key(&mut self, press: KeyPress) -> bool {
         let context = self.reactive_scope().context();
         let _guard = crate::current::install(self);
         context.run(|| {
             crate::current::with_document(|document| {
                 document.set_modifiers(press.modifiers);
-                document.key_global(press, typing)
+                document.key_global(GlobalKeyPress {
+                    press,
+                    typing: true,
+                    in_app: true,
+                })
             })
         })
     }

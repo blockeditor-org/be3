@@ -18,7 +18,7 @@ pub fn toggle_fullscreen_action(windows: &Windows) -> Action {
     })
     .glyph(icons::ICON_FULLSCREEN)
     .shortcut(Chord::logo(Key::F))
-    .global()
+    .intercepts()
     .register()
 }
 

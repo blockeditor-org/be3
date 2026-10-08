@@ -1057,29 +1057,38 @@ fn GlobalActions() -> NodeId {
     })
     .glyph(ICON_LOCK)
     .shortcut(Chord::logo(Key::L))
-    .global()
+    .intercepts()
     .register();
-    let keys = lock.shortcut_label().unwrap_or_default();
+    let opening = set_open.clone();
+    let palette = Action::new("demo.palette", "Command palette", move || opening.set(true))
+        .shortcut(Chord::logo(Key::P))
+        .global()
+        .register();
+    let lock_keys = lock.shortcut_label().unwrap_or_default();
+    let palette_keys = palette.shortcut_label().unwrap_or_default();
     let locked = create_memo(move || format!("Locked {} times", locks.get()));
-    let closing = set_open.clone();
     view! {
         <List spacing=SECTION_SPACING>
             <Paragraph
                 content="A global action answers its chord wherever the focus is, even in a text \
-                 field or under an open menu, and a desktop session runs it before a program's \
-                 window sees the keys. Super chords count like Ctrl and Alt."
+                 field or under an open menu; Super chords count like Ctrl and Alt. While a \
+                 program's window or a plugin editor has the focus, its keys are its own, unless \
+                 the action intercepts them."
             />
-            <Shortcut keys description="lock the screen, from anywhere" />
+            <Shortcut
+                keys={lock_keys}
+                description="lock the screen: intercepts, so it works over any program"
+            />
+            <Shortcut
+                keys={palette_keys}
+                description="open the palette: global, but a focused program keeps the keys"
+            />
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0 wrap=true>
                 <Button action={lock} variant=ButtonVariant::Primary />
-                <Button
-                    label="Command palette"
-                    variant=ButtonVariant::Secondary
-                    on_click={move || set_open.set(true)}
-                />
+                <Button action={palette} variant=ButtonVariant::Secondary />
             </List>
             <Caption content={locked} />
-            <CommandPalette open on_close={move || closing.set(false)} />
+            <CommandPalette open on_close={move || set_open.set(false)} />
         </List>
     }
 }

@@ -10,7 +10,7 @@ use crate::geometry::{Pos2, Rect, Vec2, vec2};
 use crate::input::{BackGesture, Event, ImeEvent, Key, KeyPress};
 use crate::painter::Painter;
 
-use crate::document::Document;
+use crate::document::{Document, GlobalKeyPress};
 use crate::node::{InteractInput, NodeId, NodeMap, Rects};
 
 pub const WHEEL_LATCH_TIMEOUT: Duration = Duration::from_millis(500);
@@ -429,24 +429,38 @@ pub fn interact(
 
 fn global_keys(doc: &mut Document, ctx: &Context) {
     let events = ctx.input(|input| input.events.clone());
+    if events
+        .iter()
+        .any(|event| matches!(event, Event::Focus(false)))
+    {
+        doc.globally_held.clear();
+    }
     if !events
         .iter()
         .any(|event| matches!(event, Event::Key { .. }))
     {
         return;
     }
-    let typing = doc.focus_types() || forward::takes_keys(doc);
+    let in_app = forward::takes_keys(doc);
+    let typing = in_app || doc.focus_types();
     let mut keep = Vec::with_capacity(events.len());
     for event in &events {
-        let Event::Key {
-            key,
-            pressed,
-            repeat,
-            modifiers,
-        } = *event
-        else {
-            keep.push(true);
-            continue;
+        let (key, pressed, repeat, modifiers) = match *event {
+            Event::Key {
+                key,
+                pressed,
+                repeat,
+                modifiers,
+            } => (key, pressed, repeat, modifiers),
+            Event::Focus(false) => {
+                doc.globally_held.clear();
+                keep.push(true);
+                continue;
+            }
+            _ => {
+                keep.push(true);
+                continue;
+            }
         };
         doc.set_modifiers(modifiers);
         let press = KeyPress {
@@ -455,8 +469,15 @@ fn global_keys(doc: &mut Document, ctx: &Context) {
             repeat,
             modifiers,
         };
+        if pressed && !repeat {
+            doc.globally_held.retain(|other| *other != key);
+        }
         let held = doc.globally_held.contains(&key);
-        let taken = doc.key_global(press, typing);
+        let taken = doc.key_global(GlobalKeyPress {
+            press,
+            typing,
+            in_app,
+        });
         ::reactive::settle(|| {});
         if pressed && taken && !held {
             doc.globally_held.push(key);

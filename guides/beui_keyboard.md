@@ -33,9 +33,12 @@ document over. That is how the dock's Ctrl+Tab reaches it from inside a text
 input.
 
 `on_global_key` goes further: it is offered every key press and release
-before anything else, including while a menu or dialog is open and, in a
-desktop session, while a Wayland program has the keyboard (see below). A
-press it answers `true` for, and that key's release, go nowhere else.
+before anything else, including while a menu or dialog is open. It is handed a
+`GlobalKeyPress`, whose `in_app` says the focus is in an app (a plugin editor's
+region, or a Wayland program in a desktop session) that would otherwise get
+the key. A handler takes such a key only when it means to intercept it from
+the app. A press it answers `true` for, and that key's release, go nowhere
+else.
 `held_modifiers()` is a signal of the modifiers held now, which changes on
 modifier presses alone. Shortcuts that are not chords, such as a hold-and-release
 switcher, are built from those two.
@@ -85,14 +88,22 @@ a letter into a field never switches a canvas tool. Actions are consulted only
 while no menu or dialog is open.
 
 An action built with `.global()` is consulted through `on_global_key` instead:
-before the focused control, wherever it was registered, while menus and
-dialogs are open, and while a plugin's region has the focus (which counts as a
-text field). The command palette lists global actions wherever it opens. In
-`block-app --session`, `be_wayland::Compositor` offers each key press to the
-document's global actions before forwarding it to the focused program, and a
-press one takes never reaches the program, nor does its release; modifier
-presses always do. That is how Super+F (`be_wayland::toggle_fullscreen_action`)
-reaches a program's window, and it is where compositor-wide shortcuts belong.
+before the focused control, wherever it was registered, and while menus and
+dialogs are open. The command palette lists global actions wherever it opens.
+A global action still leaves an app's keys alone: while a plugin editor or a
+Wayland program has the focus, the key goes to it and the action does not run.
+
+`.intercepts()` (which implies `.global()`) is the opt-in to take a key away
+from a focused app: the action is offered the press before the app, and a
+press it takes never reaches the app, nor does its release. Reserve it for
+shortcuts that must work over anything, such as Super+F
+(`be_wayland::toggle_fullscreen_action`) and the media keys. Inside an app only
+chords with Ctrl, Alt or Super, and media keys, are offered, since the app
+counts as a text field. In `block-app --session`, `be_wayland::Compositor`
+makes that offer with `Document::offer_app_key` before forwarding each press
+to the focused program; modifier presses always reach the program. A program
+that inhibits shortcuts (keyboard-shortcuts-inhibit) is a matter of the
+compositor not making the offer.
 
 `styled::CommandPalette` lists the actions that are live where the focus was
 when it opened: typing filters them by every word, Up/Down/Page Up/Page Down

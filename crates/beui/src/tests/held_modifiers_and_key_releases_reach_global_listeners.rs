@@ -1,5 +1,5 @@
 use super::*;
-use crate::KeyPress;
+use crate::GlobalKeyPress;
 use crate::reactive::{build, create_effect, held_modifiers, on_global_key, view};
 use crate::styled::TextInput;
 
@@ -9,8 +9,9 @@ fn held_modifiers_and_key_releases_reach_global_listeners() {
     let holds = Rc::new(RefCell::new(Vec::new()));
     let (keys, held) = (seen.clone(), holds.clone());
     let document = build(move || {
-        on_global_key(move |press: KeyPress| {
-            keys.borrow_mut().push((press.key, press.pressed));
+        on_global_key(move |global: GlobalKeyPress| {
+            keys.borrow_mut()
+                .push((global.press.key, global.press.pressed));
             false
         });
         let modifiers = held_modifiers();
