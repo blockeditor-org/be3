@@ -1,5 +1,11 @@
-load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+load("@root//buck/cargo:defs.bzl", "cargo_fuzz", "cargo_library", "cargo_test")
 
 cargo_library()
 
 cargo_test()
+
+cargo_fuzz(
+    name = "fuzz",
+    extra_features = ["fuzzing"],
+    root = "fuzz/sequence.rs",
+)

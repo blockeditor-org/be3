@@ -51,8 +51,9 @@ def _srcs(kwargs):
 def _rustc_flags(crate, kwargs):
     return dev_only(crate.get("profile_flags", [])) + kwargs.pop("rustc_flags", [])
 
-# The crate's library, named after the package.
-def cargo_library(name = None, extra_deps = [], env = {}, **kwargs):
+# The crate's library, named after the package. Another build of it, such as
+# one for a fuzz target, takes a name and extra_features.
+def cargo_library(name = None, extra_deps = [], extra_features = [], env = {}, **kwargs):
     crate = _crate()
     library = crate["library"]
     native.rust_library(
@@ -62,7 +63,7 @@ def cargo_library(name = None, extra_deps = [], env = {}, **kwargs):
         deps = _per_platform(crate, lambda entry: entry["deps"], extra_deps),
         edition = crate["edition"],
         env = _env(crate, library["crate"], env),
-        features = _per_platform(crate, lambda entry: entry["features"]),
+        features = _per_platform(crate, lambda entry: entry["features"], extra_features),
         proc_macro = library["proc_macro"],
         rustc_flags = _rustc_flags(crate, kwargs),
         srcs = _srcs(kwargs),
@@ -245,3 +246,60 @@ def editor_packages():
 # crates/tabletop-games/rules: what the games plugin stages as its data.
 def game_packages():
     return sorted([package for package in crates if package.startswith("crates/tabletop-games/rules/")])
+
+# rustc's sancov pass, which libFuzzer reads coverage and comparisons from, and
+# an optimised build that still checks for overflow and debug assertions, as
+# cargo-fuzz builds one.
+_FUZZ_FLAGS = [
+    "-Cpasses=sancov-module",
+    "-Cllvm-args=-sanitizer-coverage-level=4",
+    "-Cllvm-args=-sanitizer-coverage-inline-8bit-counters",
+    "-Cllvm-args=-sanitizer-coverage-pc-table",
+    "-Cllvm-args=-sanitizer-coverage-trace-compares",
+    "-Copt-level=3",
+    "-Cdebug-assertions=on",
+    "-Coverflow-checks=on",
+]
+
+# A coverage-guided fuzz target: root is a #![no_main] crate defining
+# LLVMFuzzerTestOneInput over the crate's library, which is built again with
+# extra_features and the coverage instrumentation, and linked with libFuzzer
+# (//buck/tools:libfuzzer) for its main. `./scripts/buck run :<name>` fuzzes
+# until it is stopped (buck/cargo/fuzz.sh), keeping what it finds in
+# target/fuzz/<crate>, or <crate>-<name> for a name other than fuzz, and
+# :<name>-test runs it briefly from a fixed seed, so a target that stops
+# building or running fails verify.
+def cargo_fuzz(name, root, extra_features = []):
+    crate = _crate()
+    library = crate["name"] + "-fuzzing"
+    corpus = crate["name"] if name == "fuzz" else crate["name"] + "-" + name
+    compatible = ["prelude//os:linux", "prelude//cpu:x86_64"]
+    cargo_library(
+        name = library,
+        extra_features = extra_features,
+        rustc_flags = _FUZZ_FLAGS,
+        target_compatible_with = compatible,
+        visibility = [],
+    )
+    native.rust_binary(
+        name = name + "-bin",
+        crate = name.replace("-", "_"),
+        crate_root = root,
+        deps = [":" + library, "root//buck/tools:libfuzzer"],
+        edition = crate["edition"],
+        rustc_flags = _FUZZ_FLAGS,
+        srcs = [root],
+        target_compatible_with = compatible,
+    )
+    native.command_alias(
+        name = name,
+        args = ["sh", "$(location root//buck/cargo:fuzz.sh)", "$(exe :{}-bin)".format(name), corpus],
+        target_compatible_with = compatible,
+    )
+    native.sh_test(
+        name = name + "-test",
+        args = ["-runs=20000", "-seed=1"],
+        target_compatible_with = compatible,
+        test = ":{}-bin".format(name),
+    )
+    test_run(name = name + "-test_run", target_compatible_with = compatible, test = ":{}-test".format(name))
