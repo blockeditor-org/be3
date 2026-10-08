@@ -217,11 +217,11 @@ invariants, and at the end every replica against the sequencer's state. It
 panics on any violation. Test and fuzzing builds use two fragments per chunk so
 the multi-chunk paths run constantly.
 
-A test feeds it seeded random bytes, and `crates/sequence:fuzz` is a
-coverage-guided libFuzzer target over it: `./scripts/buck run
-//crates/sequence:fuzz` fuzzes until it is stopped, keeping its corpus and
-crashes in `target/fuzz/sequence`, and given a crash file it replays it. A crash it
-finds becomes a test in `crates/sequence/src/tests`.
+A test feeds it seeded random bytes, and `crates/sequence/fuzz/sequence.rs` is
+a coverage-guided libFuzzer target over it, which `./scripts/buck run //:fuzz`
+runs with the others until it is stopped, keeping its corpus and crashes in
+`target/fuzz/sequence/sequence`. A crash it finds becomes a test in
+`crates/sequence/src/tests`.
 
 ## Status
 

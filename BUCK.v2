@@ -25,6 +25,7 @@ plugin_test_inputs(
 # so that each is one buck2 command.
 #
 #   ./scripts/buck run //:check
+#   ./scripts/buck run //:fuzz
 #   ./scripts/buck run //:buckify [-- --check]
 #   ./scripts/buck run //:lock-sysroot
 #   ./scripts/buck run //:rust-project
@@ -36,6 +37,17 @@ command_alias(
         "sh",
         "-c",
         "exec ./scripts/buck bxl //buck/dev/workspace.bxl:subtarget -- --subtarget check > /dev/null",
+    ],
+)
+
+# Every fuzz target at once, until it is stopped (buck/cargo/fuzz.sh).
+command_alias(
+    name = "fuzz",
+    args = [
+        "sh",
+        "-c",
+        'mkdir -p target/fuzz && ./scripts/buck bxl //buck/dev/fuzz.bxl:targets > target/fuzz/targets && exec sh buck/cargo/fuzz.sh target/fuzz/targets "$@"',
+        "sh",
     ],
 )
 

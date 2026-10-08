@@ -4,8 +4,4 @@ cargo_library()
 
 cargo_test()
 
-cargo_fuzz(
-    name = "fuzz",
-    extra_features = ["fuzzing"],
-    root = "fuzz/sequence.rs",
-)
+cargo_fuzz(extra_features = ["fuzzing"])

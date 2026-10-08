@@ -261,18 +261,17 @@ _FUZZ_FLAGS = [
     "-Coverflow-checks=on",
 ]
 
-# A coverage-guided fuzz target: root is a #![no_main] crate defining
-# LLVMFuzzerTestOneInput over the crate's library, which is built again with
-# extra_features and the coverage instrumentation, and linked with libFuzzer
-# (//buck/tools:libfuzzer) for its main. `./scripts/buck run :<name>` fuzzes
-# until it is stopped (buck/cargo/fuzz.sh), keeping what it finds in
-# target/fuzz/<crate>, or <crate>-<name> for a name other than fuzz, and
-# :<name>-test runs it briefly from a fixed seed, so a target that stops
-# building or running fails verify.
-def cargo_fuzz(name, root, extra_features = []):
+# Every file in a crate's fuzz/ is a coverage-guided fuzz target: a
+# #![no_main] crate defining LLVMFuzzerTestOneInput over the crate's library,
+# which is built again with extra_features and the coverage instrumentation, and
+# linked with libFuzzer (//buck/tools:libfuzzer) for its main. fuzz/NAME.rs is
+# :fuzz-NAME, which `./scripts/buck run` fuzzes until it is stopped, keeping
+# what it finds in target/fuzz/<crate>/NAME (buck/cargo/fuzz.sh); //:fuzz runs
+# every one at once. :fuzz-NAME-test runs it briefly from a fixed seed, so a
+# target that stops building or running fails verify.
+def cargo_fuzz(extra_features = []):
     crate = _crate()
     library = crate["name"] + "-fuzzing"
-    corpus = crate["name"] if name == "fuzz" else crate["name"] + "-" + name
     compatible = ["prelude//os:linux", "prelude//cpu:x86_64"]
     cargo_library(
         name = library,
@@ -281,25 +280,53 @@ def cargo_fuzz(name, root, extra_features = []):
         target_compatible_with = compatible,
         visibility = [],
     )
-    native.rust_binary(
-        name = name + "-bin",
-        crate = name.replace("-", "_"),
-        crate_root = root,
-        deps = [":" + library, "root//buck/tools:libfuzzer"],
-        edition = crate["edition"],
-        rustc_flags = _FUZZ_FLAGS,
-        srcs = [root],
-        target_compatible_with = compatible,
-    )
-    native.command_alias(
-        name = name,
-        args = ["sh", "$(location root//buck/cargo:fuzz.sh)", "$(exe :{}-bin)".format(name), corpus],
-        target_compatible_with = compatible,
-    )
-    native.sh_test(
-        name = name + "-test",
-        args = ["-runs=20000", "-seed=1"],
-        target_compatible_with = compatible,
-        test = ":{}-bin".format(name),
-    )
-    test_run(name = name + "-test_run", target_compatible_with = compatible, test = ":{}-test".format(name))
+    for root in native.glob(["fuzz/*.rs"]):
+        stem = root.removeprefix("fuzz/").removesuffix(".rs")
+        name = "fuzz-" + stem
+        native.rust_binary(
+            name = name + "-bin",
+            crate = stem.replace("-", "_"),
+            crate_root = root,
+            deps = [":" + library, "root//buck/tools:libfuzzer"],
+            edition = crate["edition"],
+            rustc_flags = _FUZZ_FLAGS,
+            srcs = [root],
+            target_compatible_with = compatible,
+        )
+        fuzz_target(
+            name = name,
+            binary = ":{}-bin".format(name),
+            id = crate["name"] + "/" + stem,
+            target_compatible_with = compatible,
+        )
+        native.sh_test(
+            name = name + "-test",
+            args = ["-runs=20000", "-seed=1"],
+            target_compatible_with = compatible,
+            test = ":{}-bin".format(name),
+        )
+        test_run(name = name + "-test_run", target_compatible_with = compatible, test = ":{}-test".format(name))
+
+# What //buck/dev/fuzz.bxl finds every fuzz target by.
+FuzzTargetInfo = provider(fields = {"binary": Artifact, "id": str})
+
+# A fuzz target's binary under the id its corpus is kept by, run through
+# buck/cargo/fuzz.sh, which reads them from a list of "id<TAB>binary" lines:
+# here the one, and for //:fuzz every one.
+def _fuzz_target_impl(ctx: AnalysisContext) -> list[Provider]:
+    binary = ctx.attrs.binary[DefaultInfo].default_outputs[0]
+    targets = ctx.actions.write("targets", [cmd_args(ctx.attrs.id, binary, delimiter = "\t")])
+    return [
+        DefaultInfo(default_output = targets, other_outputs = [binary]),
+        RunInfo(args = cmd_args("sh", ctx.attrs._script, targets, hidden = binary)),
+        FuzzTargetInfo(binary = binary, id = ctx.attrs.id),
+    ]
+
+fuzz_target = rule(
+    attrs = {
+        "binary": attrs.dep(providers = [RunInfo]),
+        "id": attrs.string(),
+        "_script": attrs.default_only(attrs.source(default = "root//buck/cargo:fuzz.sh")),
+    },
+    impl = _fuzz_target_impl,
+)
