@@ -5,6 +5,7 @@ mod a_closed_window_leaves_the_list;
 mod a_dmabuf_window_samples_the_clients_pixels;
 mod a_drawn_window_is_listed_and_fitted_to_where_it_is_shown;
 mod a_fullscreen_window_covers_only_its_own_screen;
+mod a_global_action_that_does_not_intercept_leaves_the_window_its_keys;
 mod a_maximized_window_keeps_its_place_and_is_told_it_is_maximized;
 mod a_program_that_is_not_found_is_reported;
 mod a_shown_dmabuf_is_released_once_a_newer_one_is_painted;
@@ -42,6 +43,13 @@ struct Harness {
 
 fn shown(windows: Windows) -> impl FnOnce() -> NodeId {
     move || {
+        crate::view::toggle_fullscreen_action(&windows);
+        beui::reactive::Action::new("test.global", "Global", || {
+            GLOBAL_RAN.with(|ran| ran.set(ran.get() + 1))
+        })
+        .shortcut(beui::reactive::Chord::logo(Key::G))
+        .global()
+        .register();
         let (text, set_text) = create_signal(String::new());
         let ids = create_memo(clone_list(&windows));
         view! {
@@ -221,6 +229,38 @@ impl Harness {
         ]);
         self.settle();
     }
+}
+
+const KEY_F: u32 = 33;
+const KEY_G: u32 = 34;
+const KEY_LEFTMETA: u32 = 125;
+
+thread_local! {
+    static GLOBAL_RAN: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+fn physical(code: u32, pressed: bool) -> Event {
+    Event::PhysicalKey { code, pressed }
+}
+
+fn super_key(pressed: bool) -> Vec<Event> {
+    let held = match pressed {
+        true => beui::Modifiers::LOGO,
+        false => beui::Modifiers::NONE,
+    };
+    vec![physical(KEY_LEFTMETA, pressed), Event::Modifiers(held)]
+}
+
+fn f_key(pressed: bool, modifiers: beui::Modifiers) -> Vec<Event> {
+    vec![
+        physical(KEY_F, pressed),
+        Event::Key {
+            key: Key::F,
+            pressed,
+            repeat: false,
+            modifiers,
+        },
+    ]
 }
 
 fn outside() -> Pos2 {

@@ -3,14 +3,16 @@
 # with its own data directory, loading the sysroot's libraries. Needs xvfb-run.
 #
 #   ./scripts/buck run //crates/block-app:smoke
+#   ./scripts/buck run //crates/block-app:smoke-desktop    the same with --desktop
 set -u
 app="$1"
 LD_LIBRARY_PATH="$2"
 export LD_LIBRARY_PATH
+shift 2
 command -v xvfb-run > /dev/null || { echo 'Install xvfb to run the smoke check.' >&2; exit 1; }
 data="$(mktemp -d)"
 trap 'rm -rf "$data"' EXIT
-XDG_DATA_HOME="$data" xvfb-run -a timeout --kill-after=5s 10s "$app"
+XDG_DATA_HOME="$data" xvfb-run -a timeout --kill-after=5s 10s "$app" "$@"
 status=$?
 case "$status" in
     124) echo 'Native startup smoke check passed.' ;;

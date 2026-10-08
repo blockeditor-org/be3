@@ -274,6 +274,10 @@ impl Output {
         }
     }
 
+    pub fn lit_while_blanked(&self) -> bool {
+        self.blanked && !self.dark
+    }
+
     pub fn darken(&mut self) {
         if !self.blanked || self.dark || !matches!(self.state, State::Idle) {
             return;

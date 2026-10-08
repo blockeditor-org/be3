@@ -18,7 +18,8 @@ pub use beui_core::context::{
 };
 pub use beui_core::damage::Region;
 pub use beui_core::document::{
-    Document, OverRepaint, Tools, detect_over_repaint, take_over_repaints, verify_paint,
+    Document, GlobalKeyPress, OverRepaint, Tools, detect_over_repaint, take_over_repaints,
+    verify_paint,
 };
 pub use beui_core::draw::{Quad, Quads, Turn, quads};
 pub use beui_core::drawing::Drawing;

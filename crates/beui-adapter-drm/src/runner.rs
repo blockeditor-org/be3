@@ -53,6 +53,7 @@ use crate::wake::{Held, Input, WakeGate};
 const WHEEL_STEP: f64 = 15.0;
 const LONGEST_WAIT: Duration = Duration::from_secs(3600);
 const BLANKED_FRAME: Duration = Duration::from_secs(1);
+const DARKEN_RETRY: Duration = Duration::from_secs(1);
 
 struct Session {
     seat: LibSeatSession,
@@ -78,6 +79,7 @@ struct Session {
     keyboard: Keyboard,
     repeat: Option<(u32, RegistrationToken)>,
     wakeup: Option<RegistrationToken>,
+    darken_retry: Option<RegistrationToken>,
     lost: Arc<AtomicBool>,
     problems: Problems,
 }
@@ -193,6 +195,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         dirty: true,
         repeat: None,
         wakeup: None,
+        darken_retry: None,
         lost,
         problems,
     };
@@ -315,9 +318,7 @@ impl Session {
         }
         self.runner.present();
         if self.blanked {
-            for output in &mut self.displays.borrow_mut().outputs {
-                output.darken();
-            }
+            self.darken();
         }
         self.watch_fences();
     }
@@ -353,6 +354,26 @@ impl Session {
             output.set_blanked(blanked);
         }
         self.dirty = true;
+    }
+
+    fn darken(&mut self) {
+        let lit = {
+            let mut displays = self.displays.borrow_mut();
+            for output in &mut displays.outputs {
+                output.darken();
+            }
+            displays.outputs.iter().any(Output::lit_while_blanked)
+        };
+        if lit && self.darken_retry.is_none() {
+            self.darken_retry = self
+                .handle
+                .insert_source(Timer::from_duration(DARKEN_RETRY), |_, _, session| {
+                    session.darken_retry = None;
+                    session.dirty = true;
+                    TimeoutAction::Drop
+                })
+                .ok();
+        }
     }
 
     fn watch_fences(&mut self) {

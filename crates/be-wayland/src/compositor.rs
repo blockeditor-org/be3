@@ -5,7 +5,9 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::Duration;
 
 use beui::reactive::with_reactive_scope;
-use beui::{Context, CursorIcon, Document, Event, PointerButton, Pos2, Rect, Vec2, Waker};
+use beui::{
+    Context, CursorIcon, Document, Event, Key, KeyPress, PointerButton, Pos2, Rect, Vec2, Waker,
+};
 use smithay::backend::renderer::utils::with_renderer_surface_state;
 use smithay::input::pointer::{CursorImageStatus, CursorImageSurfaceData};
 use smithay::wayland::compositor::with_states;
@@ -20,9 +22,6 @@ const BUTTON_RIGHT: u32 = 0x111;
 const BUTTON_MIDDLE: u32 = 0x112;
 const BUTTON_SIDE: u32 = 0x113;
 const BUTTON_EXTRA: u32 = 0x114;
-const KEY_F: u32 = 33;
-const KEY_LEFTMETA: u32 = 125;
-const KEY_RIGHTMETA: u32 = 126;
 
 pub struct CursorImage {
     pub texture: wgpu::Texture,
@@ -48,8 +47,7 @@ pub struct Compositor {
     fullscreen: Option<(WindowId, Pos2)>,
     raise: Option<WindowId>,
     relist: bool,
-    logo: bool,
-    swallowed: Vec<u32>,
+    swallowed: Vec<(u32, Option<Key>)>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -78,7 +76,6 @@ impl Compositor {
             fullscreen: None,
             raise: None,
             relist: false,
-            logo: false,
             swallowed: Vec::new(),
         }
     }
@@ -146,6 +143,12 @@ impl Compositor {
 
     fn publish(&mut self, document: &mut Document) {
         for (id, fullscreen) in self.windows.take_fullscreen_requests() {
+            self.set_fullscreen(id, fullscreen);
+        }
+        if self.windows.take_fullscreen_toggle()
+            && let Some(id) = self.windows.focused()
+        {
+            let fullscreen = !self.server.state.fullscreen(id);
             self.set_fullscreen(id, fullscreen);
         }
         if let Some((id, _)) = self.fullscreen
@@ -361,39 +364,52 @@ impl Compositor {
         ))
     }
 
-    fn keyboard(&mut self, context: &Context) {
+    fn keyboard(&mut self, context: &Context, document: &mut Document) {
         let target = self
             .windows
             .focused()
             .filter(|id| self.server.state.keyboard_window() == Some(*id));
-        let keys: Vec<(u32, bool)> = context.input(|input| {
-            input
-                .events
-                .iter()
-                .filter_map(|event| match event {
-                    Event::PhysicalKey { code, pressed } => Some((*code, *pressed)),
-                    _ => None,
-                })
-                .collect()
-        });
-        for (code, pressed) in keys {
-            if matches!(code, KEY_LEFTMETA | KEY_RIGHTMETA) {
-                self.logo = pressed;
+        let events = context.input(|input| input.events.clone());
+        for (index, event) in events.iter().enumerate() {
+            match *event {
+                Event::PhysicalKey { code, pressed } => {
+                    let press = key_of(&events[index + 1..]);
+                    if !pressed
+                        && let Some(at) = self.swallowed.iter().position(|(held, _)| *held == code)
+                    {
+                        self.swallowed.remove(at);
+                        if let Some(press) = press {
+                            document.offer_app_key(press);
+                        }
+                        continue;
+                    }
+                    if target.is_none() {
+                        continue;
+                    }
+                    let taken = press.is_some_and(|press| document.offer_app_key(press));
+                    if pressed && taken {
+                        self.swallowed.push((code, press.map(|press| press.key)));
+                        continue;
+                    }
+                    self.server.state.key(code, pressed);
+                }
+                Event::Key {
+                    key,
+                    pressed: true,
+                    repeat: true,
+                    modifiers,
+                } if target.is_some()
+                    && self.swallowed.iter().any(|(_, held)| *held == Some(key)) =>
+                {
+                    document.offer_app_key(KeyPress {
+                        key,
+                        pressed: true,
+                        repeat: true,
+                        modifiers,
+                    });
+                }
+                _ => {}
             }
-            if !pressed && self.swallowed.contains(&code) {
-                self.swallowed.retain(|swallowed| *swallowed != code);
-                continue;
-            }
-            let Some(id) = target else {
-                continue;
-            };
-            if pressed && self.logo && code == KEY_F {
-                self.swallowed.push(code);
-                let fullscreen = !self.server.state.fullscreen(id);
-                self.set_fullscreen(id, fullscreen);
-                continue;
-            }
-            self.server.state.key(code, pressed);
         }
         if target.is_none() {
             return;
@@ -577,7 +593,7 @@ impl Compositor {
         self.server.state.set_scale(scale, size.into());
         self.area = rect;
         self.watch_idle(context, document);
-        self.keyboard(context);
+        self.keyboard(context, document);
         self.publish(document);
     }
 
@@ -666,6 +682,26 @@ fn is_activity(event: &Event) -> bool {
             | Event::Touch { .. }
             | Event::Zoom(_)
     )
+}
+
+fn key_of(after: &[Event]) -> Option<KeyPress> {
+    after
+        .iter()
+        .take_while(|event| !matches!(event, Event::PhysicalKey { .. }))
+        .find_map(|event| match *event {
+            Event::Key {
+                key,
+                pressed,
+                repeat: false,
+                modifiers,
+            } => Some(KeyPress {
+                key,
+                pressed,
+                repeat: false,
+                modifiers,
+            }),
+            _ => None,
+        })
 }
 
 fn button_code(button: PointerButton) -> u32 {

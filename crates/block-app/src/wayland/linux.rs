@@ -25,7 +25,9 @@ thread_local! {
 }
 
 pub(crate) fn create() {
-    WINDOWS.with(|windows| *windows.borrow_mut() = Some(Windows::new()));
+    let windows = Windows::new();
+    be_wayland::toggle_fullscreen_action(&windows);
+    WINDOWS.with(|slot| *slot.borrow_mut() = Some(windows));
 }
 
 fn windows() -> Option<Windows> {
