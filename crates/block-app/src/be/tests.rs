@@ -212,14 +212,20 @@ fn text_of(shared: &Shared, block: Uuid) -> Option<String> {
     let held = shared.blocks.get(&block)?;
     be_block::TextContent::decode(&held.bytes)
         .ok()
-        .map(|text| text.text())
+        .map(|text| be_block::TextBlock::text(&text))
 }
 
-fn type_text(block: Uuid, at: u64, text: &str) {
-    operate(
-        block,
-        be_block::TextContent::encode_operation(&be_block::TextOp::insert(at, text)),
-    );
+const TYPIST: u64 = 1 << 63 | 7;
+
+fn type_text(block: Uuid, at: usize, text: &str) {
+    let held = content(block).expect("the text block is held");
+    let mut current = be_block::TextContent::decode(&held.bytes).expect("the text block decodes");
+    current
+        .adopt_session_state(&held.session)
+        .expect("the text block's session state decodes");
+    let edit = be_block::TextBlock::insert(&current, TYPIST, at, text.as_bytes())
+        .expect("there is somewhere to type");
+    operate(block, be_block::TextContent::encode_operation(&edit));
 }
 
 fn checkouts(shared: &Shared) -> Vec<Uuid> {
@@ -256,7 +262,7 @@ fn start_versioning(text: &str) -> Versioned {
         be_block::TextContent::CONTENT_TYPE,
         be_graph::BlockParent::Block(folder),
         be_block::BlockMetadata::named("Note"),
-        Some(be_block::TextContent::new(text).encode()),
+        Some(be_block::TextBlock::of(text).encode()),
     );
     create(
         repository,

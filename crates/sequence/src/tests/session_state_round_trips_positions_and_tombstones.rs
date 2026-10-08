@@ -7,7 +7,8 @@ fn session_state_round_trips_positions_and_tombstones() {
     let delete = sequence.delete(1..4).expect("there is something to delete");
     applied(&mut sequence, &delete);
 
-    let mut adopted = Sequence::from_state(sequence.state()).expect("the state is well formed");
+    let mut adopted = Sequence::from_state(sequence.state(), &sequence.items())
+        .expect("the state is well formed");
     assert_eq!(order(&adopted), order(&sequence));
     check(&adopted);
 
@@ -26,6 +27,10 @@ fn session_state_round_trips_positions_and_tombstones() {
     assert_eq!(text(&adopted), "aZYdef");
 
     let mut beyond = sequence.state();
-    beyond.buffers.insert(ALICE, b"X".to_vec());
-    assert!(Sequence::from_state(beyond).is_err());
+    beyond.next.insert(ALICE, 1);
+    assert!(Sequence::from_state(beyond, &sequence.items()).is_err());
+    assert!(
+        Sequence::from_state(sequence.state(), b"short").is_err(),
+        "a state for different visible text is refused"
+    );
 }

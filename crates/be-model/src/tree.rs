@@ -12,7 +12,7 @@ pub(crate) type Gone = BTreeMap<ObjectId, (Place, Anchor)>;
 #[derive(Default, Deserialize, Serialize)]
 struct Session {
     gone: Gone,
-    texts: BTreeMap<Place, State<u8>>,
+    texts: BTreeMap<Place, State>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -43,7 +43,7 @@ impl Tree {
     }
 
     pub(crate) fn session_state(&self) -> Vec<u8> {
-        let texts: BTreeMap<Place, State<u8>> = self
+        let texts: BTreeMap<Place, State> = self
             .texts()
             .filter(|(_, sequence)| !sequence.is_fresh())
             .map(|(place, sequence)| (place, sequence.state()))
@@ -65,11 +65,11 @@ impl Tree {
         };
         let mut adopted = Vec::new();
         for (place, state) in texts {
-            let sequence = Sequence::from_state(state).map_err(|_| Malformed)?;
-            match self.value(place.object, place.field) {
-                Some(Value::Text(held)) if *held == sequence => adopted.push((place, sequence)),
-                _ => return Err(Malformed),
-            }
+            let Some(Value::Text(held)) = self.value(place.object, place.field) else {
+                return Err(Malformed);
+            };
+            let sequence = Sequence::from_state(state, &held.items()).map_err(|_| Malformed)?;
+            adopted.push((place, sequence));
         }
         self.gone = gone;
         self.refresh_texts();

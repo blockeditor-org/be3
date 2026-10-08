@@ -32,6 +32,7 @@ pub enum SessionMessage {
     },
     Snapshot {
         head: Option<CommitId>,
+        sealed: u64,
         sequence: u64,
         ops: Vec<SessionOp>,
         state: Vec<u8>,
@@ -40,9 +41,6 @@ pub enum SessionMessage {
         head: CommitId,
         sequence: u64,
         reload: Option<Vec<u8>>,
-    },
-    Restarted {
-        sequence: u64,
     },
     Replaced {
         head: CommitId,

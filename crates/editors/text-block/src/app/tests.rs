@@ -1,8 +1,8 @@
 use beui::Key;
 use block_editor_beui::PeerPresence;
-use block_editor_beui::be_block::TextContent;
 use block_editor_beui::be_block::block_url::block_url;
 use block_editor_beui::be_block::presence::{PresenceColor, PresenceKind};
+use block_editor_beui::be_block::{TextBlock, TextContent};
 use block_editor_beui::{Editor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
@@ -13,6 +13,7 @@ use crate::presence::TextCursor;
 
 mod a_peers_caret_and_selection_are_drawn_in_their_color;
 mod a_phone_formats_from_a_bar_above_the_keyboard;
+mod a_rewrite_refused_while_read_only_leaves_the_text_as_it_was;
 mod a_tap_near_the_bottom_places_the_caret_while_the_format_bar_opens;
 mod classifies_markdown_image;
 mod clicking_into_the_text_shows_the_format_bar_without_a_keyboard_button;
@@ -36,13 +37,32 @@ fn editor(text: &str) -> BeuiTest<TextApp> {
     host.set_editable(true);
     let editor = Editor::new(host.clone(), block);
     let mut editor = BeuiTest::new(editor);
-    editor.hold(None, TextContent::from(text));
+    editor.hold(None, TextBlock::of(text));
     editor.run();
     editor
 }
 
 fn text(editor: &BeuiTest<TextApp>) -> String {
-    editor.content::<TextContent>(None).text()
+    TextBlock::text(&editor.content::<TextContent>(None))
+}
+
+const PEER: u64 = 2;
+
+fn peer_insert(editor: &mut BeuiTest<TextApp>, at: usize, typed: &str) {
+    let edit = TextBlock::insert(
+        &editor.content::<TextContent>(None),
+        PEER,
+        at,
+        typed.as_bytes(),
+    )
+    .expect("the peer has somewhere to type");
+    editor.edit::<TextContent>(None, &edit);
+}
+
+fn peer_delete(editor: &mut BeuiTest<TextApp>, range: std::ops::Range<usize>) {
+    let edit = TextBlock::delete(&editor.content::<TextContent>(None), range)
+        .expect("the peer has something to delete");
+    editor.edit::<TextContent>(None, &edit);
 }
 
 const BLOCK_ID: Uuid = Uuid::from_u128(0xe2b8_7b59_9c69_4d75_83fd_801b_2727_1388);

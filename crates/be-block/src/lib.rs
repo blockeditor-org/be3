@@ -75,7 +75,7 @@ pub use settings::{Settings, SettingsContent};
 pub use streamed::{
     HEADER_PREFIX_BYTES, Streamed, decode_streamed, encode_streamed, payload_start,
 };
-pub use text::{TextContent, TextHeader, TextIndentation, TextLanguage, TextOp};
+pub use text::{TextBlock, TextContent, TextIndentation, TextLanguage};
 pub use ui_settings::{UiSettings, UiSettingsContent, Zoom};
 pub use version_control::{
     Checkout, CheckoutConflict, CheckoutContent, ConflictKind, MAIN_BRANCH, Repository,
@@ -150,6 +150,11 @@ pub trait LiveEdit: BlockContent {
     fn rebase(operation: Self::Op, onto: &[Self::Op]) -> Option<Self::Op> {
         let _ = onto;
         Some(operation)
+    }
+
+    fn absorb_operation(operation: &mut Self::Op, next: Self::Op) -> Option<Self::Op> {
+        let _ = operation;
+        Some(next)
     }
 
     fn encode_operation(operation: &Self::Op) -> Vec<u8> {

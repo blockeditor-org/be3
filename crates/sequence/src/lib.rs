@@ -64,6 +64,7 @@ pub enum SeqOp<T> {
     },
     Undelete {
         spans: Vec<Span>,
+        items: Vec<T>,
     },
     Replace {
         spans: Vec<Span>,
@@ -74,12 +75,49 @@ pub enum SeqOp<T> {
     Swap {
         hide: Vec<Span>,
         show: Vec<Span>,
+        items: Vec<T>,
     },
     Move {
         first: Pos,
         last: Pos,
         after: Option<Pos>,
     },
+}
+
+impl<T> SeqOp<T> {
+    pub fn absorb(&mut self, next: SeqOp<T>) -> Option<SeqOp<T>> {
+        match (self, next) {
+            (
+                SeqOp::Insert {
+                    client,
+                    start,
+                    items,
+                    ..
+                },
+                SeqOp::Insert {
+                    after: Some(after),
+                    client: next_client,
+                    start: next_start,
+                    items: next_items,
+                },
+            ) if next_client == *client
+                && next_start == *start + items.len() as u64
+                && after
+                    == (Pos {
+                        client: *client,
+                        offset: next_start - 1,
+                    }) =>
+            {
+                items.extend(next_items);
+                None
+            }
+            (SeqOp::Delete { spans }, SeqOp::Delete { spans: next }) => {
+                spans.extend(next);
+                None
+            }
+            (_, next) => Some(next),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -122,26 +160,28 @@ struct Chunk {
 }
 
 #[derive(Deserialize, Serialize)]
-pub struct State<T> {
-    buffers: BTreeMap<u64, Vec<T>>,
+pub struct State {
+    next: BTreeMap<u64, u64>,
     fragments: Vec<Fragment>,
 }
 
 #[derive(Clone)]
 pub struct Sequence<T> {
-    buffers: BTreeMap<u64, Vec<T>>,
+    runs: BTreeMap<Pos, Vec<T>>,
+    next: BTreeMap<u64, u64>,
     chunks: Vec<Chunk>,
     index: BTreeMap<Pos, u32>,
     order: HashMap<u32, usize>,
     next_key: u32,
     visible: usize,
+    flat: Option<Vec<T>>,
 }
 
 type Location = (usize, usize);
 
 impl<T> Default for Sequence<T> {
     fn default() -> Self {
-        Self::build(BTreeMap::new(), Vec::new())
+        Self::build(BTreeMap::new(), BTreeMap::new(), Vec::new())
     }
 }
 
@@ -156,22 +196,71 @@ impl<T: Clone> Sequence<T> {
                 visible: true,
             }],
         };
-        Self::build(BTreeMap::from([(LOADED, items)]), fragments)
+        let next = BTreeMap::from([(LOADED, items.len() as u64)]);
+        let runs = BTreeMap::from([(
+            Pos {
+                client: LOADED,
+                offset: 0,
+            },
+            items,
+        )]);
+        Self::build(runs, next, fragments)
     }
 
     pub fn items(&self) -> Vec<T> {
         self.iter().cloned().collect()
     }
 
+    pub fn mirror(&mut self) {
+        self.flat = Some(self.items());
+    }
+
     pub fn refreshed(&self) -> Self {
         Self::from_items(self.items())
     }
 
-    pub fn state(&self) -> State<T> {
-        State {
-            buffers: self.buffers.clone(),
-            fragments: self.fragments().copied().collect(),
+    pub fn from_state(state: State, visible: &[T]) -> Result<Self, Malformed> {
+        let mut seen: BTreeMap<u64, Vec<(u64, u64)>> = BTreeMap::new();
+        let mut shown = 0usize;
+        for fragment in &state.fragments {
+            let next = state.next.get(&fragment.client).copied().unwrap_or(0);
+            let end = fragment.start.checked_add(fragment.len).ok_or(Malformed)?;
+            if fragment.len == 0 || end > next {
+                return Err(Malformed);
+            }
+            if fragment.visible {
+                shown = usize::try_from(fragment.len)
+                    .ok()
+                    .and_then(|len| shown.checked_add(len))
+                    .ok_or(Malformed)?;
+            }
+            seen.entry(fragment.client)
+                .or_default()
+                .push((fragment.start, end));
         }
+        if shown != visible.len() {
+            return Err(Malformed);
+        }
+        for ranges in seen.values_mut() {
+            ranges.sort_unstable();
+            if ranges.windows(2).any(|pair| pair[0].1 > pair[1].0) {
+                return Err(Malformed);
+            }
+        }
+        let shown: Vec<Fragment> = state
+            .fragments
+            .iter()
+            .filter(|fragment| fragment.visible)
+            .copied()
+            .collect();
+        let mut sequence = Self::build(BTreeMap::new(), state.next, state.fragments);
+        let mut rest = visible;
+        for fragment in shown {
+            let (taken, after) = rest.split_at(fragment.len as usize);
+            sequence.store(fragment.first(), taken);
+            rest = after;
+        }
+        Ok(sequence)
     }
 
     pub fn insert(&self, client: u64, index: usize, items: Vec<T>) -> Option<SeqOp<T>> {
@@ -201,14 +290,27 @@ impl<T: Clone> Sequence<T> {
 }
 
 impl<T> Sequence<T> {
-    fn build(buffers: BTreeMap<u64, Vec<T>>, fragments: Vec<Fragment>) -> Self {
+    pub fn state(&self) -> State {
+        State {
+            next: self.next.clone(),
+            fragments: self.fragments().copied().collect(),
+        }
+    }
+
+    fn build(
+        runs: BTreeMap<Pos, Vec<T>>,
+        next: BTreeMap<u64, u64>,
+        fragments: Vec<Fragment>,
+    ) -> Self {
         let mut sequence = Self {
-            buffers,
+            runs,
+            next,
             chunks: Vec::new(),
             index: BTreeMap::new(),
             order: HashMap::new(),
             next_key: 0,
             visible: 0,
+            flat: None,
         };
         let pieces: Vec<Vec<Fragment>> = match fragments.is_empty() {
             true => vec![Vec::new()],
@@ -230,27 +332,6 @@ impl<T> Sequence<T> {
         sequence
     }
 
-    pub fn from_state(state: State<T>) -> Result<Self, Malformed> {
-        let mut seen: BTreeMap<u64, Vec<(u64, u64)>> = BTreeMap::new();
-        for fragment in &state.fragments {
-            let held = state.buffers.get(&fragment.client).map_or(0, Vec::len) as u64;
-            let end = fragment.start.checked_add(fragment.len).ok_or(Malformed)?;
-            if fragment.len == 0 || end > held {
-                return Err(Malformed);
-            }
-            seen.entry(fragment.client)
-                .or_default()
-                .push((fragment.start, fragment.end()));
-        }
-        for ranges in seen.values_mut() {
-            ranges.sort_unstable();
-            if ranges.windows(2).any(|pair| pair[0].1 > pair[1].0) {
-                return Err(Malformed);
-            }
-        }
-        Ok(Self::build(state.buffers, state.fragments))
-    }
-
     pub fn len(&self) -> usize {
         self.visible
     }
@@ -265,7 +346,7 @@ impl<T> Sequence<T> {
 
     pub fn is_fresh(&self) -> bool {
         let mut fragments = self.fragments();
-        let loaded = self.buffers.get(&LOADED).map_or(0, Vec::len);
+        let loaded = self.next_offset(LOADED) as usize;
         let whole = match fragments.next() {
             None => loaded == 0,
             Some(fragment) => {
@@ -275,11 +356,35 @@ impl<T> Sequence<T> {
                     && fragment.visible
             }
         };
-        whole && fragments.next().is_none() && self.buffers.keys().all(|client| *client == LOADED)
+        whole && fragments.next().is_none() && self.next.keys().all(|client| *client == LOADED)
     }
 
     pub fn next_offset(&self, client: u64) -> u64 {
-        self.buffers.get(&client).map_or(0, Vec::len) as u64
+        self.next.get(&client).copied().unwrap_or(0)
+    }
+
+    pub fn mirrored(&self) -> Option<&[T]> {
+        self.flat.as_deref()
+    }
+
+    pub fn chunk(&self, index: usize) -> &[T] {
+        if let Some(flat) = &self.flat {
+            return flat.get(index..).unwrap_or_default();
+        }
+        let Some((ci, fi, inner)) = self.find_visible(index) else {
+            return &[];
+        };
+        &self.slice(self.chunks[ci].fragments[fi])[inner..]
+    }
+
+    pub fn place_of(&self, pos: Pos) -> Option<(usize, bool)> {
+        let (ci, fi) = self.locate(pos)?;
+        let fragment = self.chunks[ci].fragments[fi];
+        let before = self.visible_before(ci, fi);
+        Some(match fragment.visible {
+            true => (before + (pos.offset - fragment.start) as usize, true),
+            false => (before, false),
+        })
     }
 
     pub fn slices(&self) -> impl Iterator<Item = &[T]> {
@@ -367,7 +472,9 @@ impl<T> Sequence<T> {
                 items,
             } => !items.is_empty() && self.can_insert(*after, *client, *start),
             SeqOp::Delete { spans } => !self.parts(spans, true).is_empty(),
-            SeqOp::Undelete { spans } => !self.parts(spans, false).is_empty(),
+            SeqOp::Undelete { spans, items } => {
+                Self::carries(spans, items) && !self.parts(spans, false).is_empty()
+            }
             SeqOp::Replace {
                 spans,
                 client,
@@ -378,8 +485,9 @@ impl<T> Sequence<T> {
                     && self.all(spans, true)
                     && *start == self.next_offset(*client)
             }
-            SeqOp::Swap { hide, show } => {
+            SeqOp::Swap { hide, show, items } => {
                 !(hide.is_empty() && show.is_empty())
+                    && Self::carries(show, items)
                     && self.all(hide, true)
                     && self.all(show, false)
             }
@@ -410,27 +518,29 @@ impl<T> Sequence<T> {
                     SeqOp::Delete {
                         spans: spans.clone(),
                     },
-                    SeqOp::Undelete { spans },
+                    SeqOp::Undelete {
+                        spans,
+                        items: items.clone(),
+                    },
                 )
             }
             SeqOp::Delete { spans } => {
                 let spans = self.parts(spans, true);
+                let items = self.read(&spans)?;
                 (
                     SeqOp::Undelete {
                         spans: spans.clone(),
+                        items,
                     },
                     SeqOp::Delete { spans },
                 )
             }
-            SeqOp::Undelete { spans } => {
-                let spans = self.parts(spans, false);
-                (
-                    SeqOp::Delete {
-                        spans: spans.clone(),
-                    },
-                    SeqOp::Undelete { spans },
-                )
-            }
+            SeqOp::Undelete { spans, .. } => (
+                SeqOp::Delete {
+                    spans: self.parts(spans, false),
+                },
+                operation.clone(),
+            ),
             SeqOp::Replace {
                 spans,
                 client,
@@ -449,17 +559,20 @@ impl<T> Sequence<T> {
                     SeqOp::Swap {
                         hide: inserted.clone(),
                         show: spans.clone(),
+                        items: self.read(spans)?,
                     },
                     SeqOp::Swap {
                         hide: spans.clone(),
                         show: inserted,
+                        items: items.clone(),
                     },
                 )
             }
-            SeqOp::Swap { hide, show } => (
+            SeqOp::Swap { hide, show, .. } => (
                 SeqOp::Swap {
                     hide: show.clone(),
                     show: hide.clone(),
+                    items: self.read(hide)?,
                 },
                 operation.clone(),
             ),
@@ -491,7 +604,7 @@ impl<T> Sequence<T> {
                 items,
             } => self.add(*after, *client, *start, items, &mut splices)?,
             SeqOp::Delete { spans } => self.set_visible(spans, false, &mut splices),
-            SeqOp::Undelete { spans } => self.set_visible(spans, true, &mut splices),
+            SeqOp::Undelete { spans, items } => self.show(spans, items, &mut splices),
             SeqOp::Replace {
                 spans,
                 client,
@@ -504,9 +617,9 @@ impl<T> Sequence<T> {
                     self.add(after, *client, *start, items, &mut splices)?;
                 }
             }
-            SeqOp::Swap { hide, show } => {
+            SeqOp::Swap { hide, show, items } => {
                 self.set_visible(hide, false, &mut splices);
-                self.set_visible(show, true, &mut splices);
+                self.show(show, items, &mut splices);
             }
             SeqOp::Move { first, last, after } => {
                 self.relocate(*first, *last, *after, &mut splices)?;
@@ -535,10 +648,8 @@ impl<T> Sequence<T> {
             return;
         };
         if *start == self.next_offset(*client) {
-            self.buffers
-                .entry(*client)
-                .or_default()
-                .extend_from_slice(items);
+            self.next
+                .insert(*client, start.saturating_add(items.len() as u64));
         }
     }
 
@@ -561,10 +672,15 @@ impl<T> Sequence<T> {
         if !self.can_insert(after, client, start) {
             return None;
         }
-        self.buffers
-            .entry(client)
-            .or_default()
-            .extend_from_slice(items);
+        self.store(
+            Pos {
+                client,
+                offset: start,
+            },
+            items,
+        );
+        self.next
+            .insert(client, start.saturating_add(items.len() as u64));
         let fragment = Fragment {
             client,
             start,
@@ -580,7 +696,10 @@ impl<T> Sequence<T> {
         Some(())
     }
 
-    fn set_visible(&mut self, spans: &[Span], visible: bool, splices: &mut Vec<Splice>) {
+    fn set_visible(&mut self, spans: &[Span], visible: bool, splices: &mut Vec<Splice>)
+    where
+        T: Clone,
+    {
         for span in spans {
             let Some(starts) = self.isolate(*span) else {
                 continue;
@@ -607,6 +726,15 @@ impl<T> Sequence<T> {
                         inserted: 0,
                     },
                 });
+                if self.flat.is_some() {
+                    let items = self.slice(fragment).to_vec();
+                    if let Some(flat) = &mut self.flat {
+                        match visible {
+                            true => drop(flat.splice(at..at, items)),
+                            false => drop(flat.drain(at..at + len)),
+                        }
+                    }
+                }
                 self.chunks[ci].fragments[fi].visible = visible;
                 self.recount(ci);
             }
@@ -619,7 +747,10 @@ impl<T> Sequence<T> {
         last: Pos,
         after: Option<Pos>,
         splices: &mut Vec<Splice>,
-    ) -> Option<()> {
+    ) -> Option<()>
+    where
+        T: Clone,
+    {
         self.cut(first)?;
         self.cut_after(last)?;
         let (ci, fi) = self.locate(first)?;
@@ -646,6 +777,9 @@ impl<T> Sequence<T> {
         }
         self.prune();
         let count: usize = moved.iter().map(|fragment| fragment.visible_len()).sum();
+        if let Some(flat) = &mut self.flat {
+            flat.drain(at..at + count);
+        }
         let to = self.place(after, moved)?;
         if count > 0 {
             splices.push(Splice {
@@ -777,7 +911,10 @@ impl<T> Sequence<T> {
         )
     }
 
-    fn place(&mut self, after: Option<Pos>, fragments: Vec<Fragment>) -> Option<usize> {
+    fn place(&mut self, after: Option<Pos>, fragments: Vec<Fragment>) -> Option<usize>
+    where
+        T: Clone,
+    {
         let (ci, fi) = match after {
             None => (0, 0),
             Some(anchor) => {
@@ -787,6 +924,16 @@ impl<T> Sequence<T> {
             }
         };
         let at = self.visible_before(ci, fi);
+        if self.flat.is_some() {
+            let items: Vec<T> = fragments
+                .iter()
+                .filter(|fragment| fragment.visible)
+                .flat_map(|fragment| self.slice(*fragment).iter().cloned())
+                .collect();
+            if let Some(flat) = &mut self.flat {
+                flat.splice(at..at, items);
+            }
+        }
         if let [single] = fragments.as_slice()
             && fi > 0
         {
@@ -898,10 +1045,99 @@ impl<T> Sequence<T> {
     }
 
     fn slice(&self, fragment: Fragment) -> &[T] {
-        self.buffers
-            .get(&fragment.client)
-            .and_then(|buffer| buffer.get(fragment.start as usize..fragment.end() as usize))
+        let Some((first, run)) = self.runs.range(..=fragment.first()).next_back() else {
+            return &[];
+        };
+        if first.client != fragment.client {
+            return &[];
+        }
+        let offset = (fragment.start - first.offset) as usize;
+        run.get(offset..offset + fragment.len as usize)
             .unwrap_or_default()
+    }
+
+    fn store(&mut self, at: Pos, items: &[T])
+    where
+        T: Clone,
+    {
+        let start = match self.runs.range_mut(..=at).next_back() {
+            Some((first, run))
+                if first.client == at.client && at.offset - first.offset <= run.len() as u64 =>
+            {
+                let offset = (at.offset - first.offset) as usize;
+                let overlap = (run.len() - offset).min(items.len());
+                run[offset..offset + overlap].clone_from_slice(&items[..overlap]);
+                run.extend_from_slice(&items[overlap..]);
+                *first
+            }
+            _ => {
+                self.runs.insert(at, items.to_vec());
+                at
+            }
+        };
+        let Some(run) = self.runs.get(&start) else {
+            return;
+        };
+        let after = Pos {
+            client: start.client,
+            offset: start.offset + run.len() as u64,
+        };
+        if let Some(next) = self.runs.remove(&after)
+            && let Some(run) = self.runs.get_mut(&start)
+        {
+            run.extend(next);
+        }
+    }
+
+    fn read(&self, spans: &[Span]) -> Option<Vec<T>>
+    where
+        T: Clone,
+    {
+        let mut items = Vec::new();
+        for span in spans {
+            for (fragment, part) in self.walk(*span)? {
+                let content = self.slice(fragment);
+                let offset = (part.start - fragment.start) as usize;
+                items.extend_from_slice(content.get(offset..offset + part.len as usize)?);
+            }
+        }
+        Some(items)
+    }
+
+    fn show(&mut self, spans: &[Span], items: &[T], splices: &mut Vec<Splice>)
+    where
+        T: Clone,
+    {
+        let mut rest = items;
+        for span in spans {
+            let (carried, after) = rest.split_at((span.len as usize).min(rest.len()));
+            rest = after;
+            let Some(pieces) = self.walk(*span) else {
+                continue;
+            };
+            let mut offset = 0;
+            for (fragment, part) in pieces {
+                let len = part.len as usize;
+                if !fragment.visible {
+                    self.store(
+                        Pos {
+                            client: part.client,
+                            offset: part.start,
+                        },
+                        &carried[offset..offset + len],
+                    );
+                }
+                offset += len;
+            }
+            self.set_visible(std::slice::from_ref(span), true, splices);
+        }
+    }
+
+    fn carries(spans: &[Span], items: &[T]) -> bool {
+        spans
+            .iter()
+            .try_fold(0u64, |total, span| total.checked_add(span.len))
+            .is_some_and(|total| total == items.len() as u64)
     }
 
     fn recount(&mut self, ci: usize) {

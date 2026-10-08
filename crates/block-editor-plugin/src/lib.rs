@@ -34,7 +34,7 @@ pub use block_plugin_api::{
 };
 pub use block_ui;
 pub use clock::{frame_time, utc_offset};
-pub use content::ContentProjection;
+pub use content::{ContentProjection, Projected};
 pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};
 pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphCommand};
 pub use host::{

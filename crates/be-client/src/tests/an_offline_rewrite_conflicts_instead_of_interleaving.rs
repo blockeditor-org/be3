@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::TextContent;
+use be_block::{TextBlock, TextContent};
 use be_commit::MergeResult;
 
 #[tokio::test]
@@ -14,7 +14,7 @@ async fn an_offline_rewrite_conflicts_instead_of_interleaving() {
 
     let base: String = (0..20).map(|line| format!("line {line}\n")).collect();
     let shared = author
-        .save(block, &TextContent::from(base.as_str()), None)
+        .save(block, &TextBlock::of(base.as_str()), None)
         .await
         .unwrap()
         .published()
@@ -23,7 +23,7 @@ async fn an_offline_rewrite_conflicts_instead_of_interleaving() {
     let online = harness.shared(&author).await;
     let theirs = base.replace("line 7\n", "line seven, edited\n");
     online
-        .save(block, &TextContent::from(theirs.as_str()), Some(shared))
+        .save(block, &TextBlock::of(theirs.as_str()), Some(shared))
         .await
         .unwrap()
         .published()
@@ -32,7 +32,7 @@ async fn an_offline_rewrite_conflicts_instead_of_interleaving() {
     let offline = Arc::new(author);
     let retyped: String = (0..20).map(|line| format!("rewritten {line}\n")).collect();
     let rejected = offline
-        .save(block, &TextContent::from(retyped.as_str()), Some(shared))
+        .save(block, &TextBlock::of(retyped.as_str()), Some(shared))
         .await
         .unwrap();
     assert!(
@@ -44,7 +44,7 @@ async fn an_offline_rewrite_conflicts_instead_of_interleaving() {
         .commits()
         .write(
             TextContent::CONTENT_TYPE,
-            TextContent::from(retyped.as_str()).encode().as_slice(),
+            TextBlock::of(retyped.as_str()).encode().as_slice(),
             offline.account(),
             2_000,
             Some(shared),
@@ -68,7 +68,7 @@ async fn an_offline_rewrite_conflicts_instead_of_interleaving() {
     assert_eq!(recorded[0].ours, ours);
     assert_eq!(recorded[0].count, 1);
 
-    let merged = session.content().text();
+    let merged = session.content().to_text();
     assert!(merged.contains("<<<<<<< local"), "{merged}");
     assert!(merged.contains("rewritten 0"), "{merged}");
     assert!(merged.contains("line seven, edited"), "{merged}");
@@ -78,7 +78,7 @@ async fn an_offline_rewrite_conflicts_instead_of_interleaving() {
         .await
         .unwrap()
         .unwrap()
-        .text();
+        .to_text();
     assert_eq!(published, merged, "the merge was not published");
 
     harness.stop().await;

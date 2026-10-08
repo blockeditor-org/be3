@@ -1,187 +1,111 @@
-use std::sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use block_editor_beui::Waker;
+use block_editor_beui::be_block::be_model::{Change, Edit, ObjectId};
 use block_editor_beui::be_block::block_url::{BLOCK_URL_MAX_BYTES, parse_block_urls};
-use block_editor_beui::be_block::{self, TextContent, TextOp};
-use similar::{Algorithm, DiffOp, capture_diff_slices};
+use block_editor_beui::be_block::{self, TextBlock, TextContent};
 use text_editor_core::{
-    Anchor, AnchorTable, ChangeLog, CursorPosition, Document, DocumentEdit, DocumentRead,
-    TextChange, TextIndentation, TextLanguage,
+    ChangeLog, CursorPosition, Document, DocumentEdit, DocumentRead, Pos, Sequence, TextChange,
+    TextIndentation, TextLanguage, anchor_in, anchor_index_in, changed, deleted_anchor_index_in,
 };
 use uuid::Uuid;
 
 #[cfg(test)]
 mod tests;
 
-#[derive(Clone)]
-struct Replace {
-    left: Option<Anchor>,
-    right: Option<Anchor>,
-    before: Vec<u8>,
-    before_anchors: Vec<(usize, Anchor)>,
-    after: Vec<u8>,
-    after_anchors: Vec<(usize, Anchor)>,
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum History {
+    Undo,
+    Redo,
 }
 
-struct Group {
-    replaces: Vec<Replace>,
-    cursors: Vec<CursorPosition>,
-}
-
-#[derive(Default)]
 struct State {
-    bytes: Vec<u8>,
-    anchors: Mutex<AnchorTable>,
+    text: Sequence<u8>,
     language: TextLanguage,
     indentation: TextIndentation,
     revision: u64,
     changes: ChangeLog,
-    outgoing: Vec<TextOp>,
-    undo: Vec<Group>,
-    redo: Vec<Group>,
-    group_open: bool,
+    pending: TextChange,
+    outgoing: Vec<Edit>,
+    history: Option<History>,
     external: bool,
+    client: u64,
 }
 
 impl State {
-    fn anchors(&self) -> MutexGuard<'_, AnchorTable> {
-        self.anchors
-            .lock()
-            .expect("the text document's anchors were poisoned")
-    }
-
-    fn anchor(&self, index: usize) -> Option<Anchor> {
-        (index < self.bytes.len()).then(|| self.anchors().anchor(index))
-    }
-
     fn bump(&mut self, change: Option<TextChange>) {
         self.revision += 1;
         self.changes.record(self.revision, change);
     }
 
-    fn splice(&mut self, index: usize, delete: usize, bytes: &[u8]) -> Replace {
-        let left = index
-            .checked_sub(1)
-            .and_then(|previous| self.anchor(previous));
-        let right = self.anchor(index + delete);
-        let before: Vec<u8> = self
-            .bytes
-            .splice(index..index + delete, bytes.iter().copied())
-            .collect();
-        let before_anchors = self.anchors().splice(index, delete, bytes.len());
-        if delete > 0 {
-            self.outgoing
-                .push(TextOp::delete(index as u64, delete as u64));
-        }
-        if !bytes.is_empty() {
-            self.outgoing.push(TextOp::Insert {
-                at: index as u64,
-                bytes: bytes.to_vec(),
-            });
-        }
-        self.bump(Some(TextChange::replace(index, delete, bytes.len())));
-        Replace {
-            left,
-            right,
-            before,
-            before_anchors,
-            after: bytes.to_vec(),
-            after_anchors: Vec::new(),
-        }
+    fn adopt(&mut self, content: &TextContent) {
+        let header = header(content);
+        let settings = self.language != header.0 || self.indentation != header.1;
+        self.language = header.0;
+        self.indentation = header.1;
+        let mut text = TextBlock::body(content).cloned().unwrap_or_default();
+        text.mirror();
+        let change = difference(
+            self.text.mirrored().unwrap_or_default(),
+            text.mirrored().unwrap_or_default(),
+        );
+        self.text = text;
+        self.external = true;
+        self.bump((!settings).then_some(change));
     }
 
-    fn index_of(&self, anchor: Anchor) -> Option<usize> {
-        self.anchors().index(anchor)
-    }
-
-    fn step(&mut self, replace: &mut Replace, forward: bool) {
-        let (expected, wanted, restored) = match forward {
-            true => (&replace.before, &replace.after, &replace.after_anchors),
-            false => (&replace.after, &replace.before, &replace.before_anchors),
-        };
-        let start = match replace.left {
-            Some(left) => match self.index_of(left) {
-                Some(index) => index + 1,
-                None => return,
-            },
-            None => 0,
-        };
-        let end = match replace.right {
-            Some(right) => match self.index_of(right) {
-                Some(index) => index,
-                None => return,
-            },
-            None => self.bytes.len(),
-        };
-        if end < start || self.bytes[start..end] != expected[..] {
-            return;
-        }
-        let wanted = wanted.clone();
-        let restored = restored.clone();
-        let stepped = self.splice(start, end - start, &wanted);
-        self.anchors().restore(start, &restored);
-        match forward {
-            true => replace.before_anchors = stepped.before_anchors,
-            false => replace.after_anchors = stepped.before_anchors,
-        }
-    }
-
-    fn adopt(&mut self, content: &TextContent) -> bool {
-        let mut changed = false;
-        let mut settings = false;
-        let language = editor_language(content.language());
-        if self.language != language {
-            self.language = language;
-            settings = true;
-        }
-        let indentation = editor_indentation(content.indentation());
-        if self.indentation != indentation {
-            self.indentation = indentation;
-            settings = true;
-        }
-        changed |= settings;
-        let incoming = content.bytes();
-        let mut change = Some(TextChange::NONE);
-        if self.bytes != incoming {
-            let operations = capture_diff_slices(Algorithm::Myers, &self.bytes, incoming);
-            let unequal = |operation: &&DiffOp| !matches!(operation, DiffOp::Equal { .. });
-            if let (Some(first), Some(last)) = (
-                operations.iter().find(unequal),
-                operations.iter().rev().find(unequal),
-            ) {
-                change = Some(TextChange {
-                    start: first.old_range().start,
-                    old_end: last.old_range().end,
-                    new_end: last.new_range().end,
-                });
-            }
-            let kept: Vec<(usize, usize, usize)> = operations
-                .into_iter()
-                .filter_map(|operation| match operation {
-                    DiffOp::Equal {
-                        old_index,
-                        new_index,
-                        len,
-                    } => Some((old_index, new_index, len)),
-                    _ => None,
-                })
-                .collect();
-            self.anchors().remap(|index| {
-                let run = kept.partition_point(|(old, _, len)| old + len <= index);
-                match kept.get(run) {
-                    Some((old, new, _)) if *old <= index => Ok(new + (index - old)),
-                    Some((_, new, _)) => Err(*new),
-                    None => Err(incoming.len()),
+    fn apply(&mut self, edit: &Edit) -> bool {
+        let body = TextBlock::BODY.index();
+        let ops: Option<Vec<_>> = edit
+            .0
+            .iter()
+            .map(|change| match change {
+                Change::Text { object, field, op }
+                    if *object == ObjectId::ROOT && *field == body =>
+                {
+                    Some(op)
                 }
-            });
-            self.bytes = incoming.to_vec();
-            self.external = true;
-            changed = true;
+                _ => None,
+            })
+            .collect();
+        let Some(ops) = ops else {
+            return false;
+        };
+        let mut change = TextChange::NONE;
+        for op in ops {
+            if let Some(splices) = self.text.apply(op) {
+                change = changed(change, &splices);
+            }
         }
-        if changed {
-            self.bump(change.filter(|_| !settings));
-        }
-        changed
+        self.external = true;
+        self.bump(Some(change));
+        true
+    }
+}
+
+fn header(content: &TextContent) -> (TextLanguage, TextIndentation) {
+    (
+        editor_language(content.field(ObjectId::ROOT, TextBlock::LANGUAGE)),
+        editor_indentation(content.field(ObjectId::ROOT, TextBlock::INDENTATION)),
+    )
+}
+
+fn difference(old: &[u8], new: &[u8]) -> TextChange {
+    let prefix = old
+        .iter()
+        .zip(new)
+        .take_while(|(before, after)| before == after)
+        .count();
+    let suffix = old[prefix..]
+        .iter()
+        .rev()
+        .zip(new[prefix..].iter().rev())
+        .take_while(|(before, after)| before == after)
+        .count();
+    TextChange {
+        start: prefix,
+        old_end: old.len() - suffix,
+        new_end: new.len() - suffix,
     }
 }
 
@@ -192,8 +116,21 @@ pub struct BlockDocument {
 
 impl BlockDocument {
     pub fn new(waker: Waker) -> Self {
+        let mut text = Sequence::default();
+        text.mirror();
         Self {
-            state: RwLock::new(State::default()),
+            state: RwLock::new(State {
+                text,
+                language: TextLanguage::default(),
+                indentation: TextIndentation::default(),
+                revision: 0,
+                changes: ChangeLog::default(),
+                pending: TextChange::NONE,
+                outgoing: Vec::new(),
+                history: None,
+                external: false,
+                client: Uuid::new_v4().as_u64_pair().0 | 1 << 63,
+            }),
             waker,
         }
     }
@@ -210,12 +147,20 @@ impl BlockDocument {
             .expect("the text document lock was poisoned")
     }
 
-    pub fn adopt(&self, content: &TextContent) -> bool {
-        self.write_state().adopt(content)
+    pub fn adopt(&self, content: &TextContent) {
+        self.write_state().adopt(content);
     }
 
-    pub fn take_operations(&self) -> Vec<TextOp> {
+    pub fn apply(&self, edit: &Edit) -> bool {
+        self.write_state().apply(edit)
+    }
+
+    pub fn take_operations(&self) -> Vec<Edit> {
         std::mem::take(&mut self.write_state().outgoing)
+    }
+
+    pub fn take_history(&self) -> Option<History> {
+        self.write_state().history.take()
     }
 
     pub fn take_external_edit(&self) -> bool {
@@ -223,16 +168,25 @@ impl BlockDocument {
     }
 
     pub fn bytes(&self) -> Vec<u8> {
-        self.read_state().bytes.clone()
+        self.read_state().text.items()
     }
 
     pub fn reference_ranges(&self, reference: Uuid) -> Vec<std::ops::Range<usize>> {
         let length = reference.to_string().len();
-        parse_block_urls(&self.read_state().bytes)
+        let state = self.read_state();
+        parse_block_urls(state.text.mirrored().unwrap_or_default())
             .into_iter()
             .filter(|url| url.block == reference)
             .map(|url| url.range.end - length..url.range.end)
             .collect()
+    }
+
+    fn request(&self, history: History) -> Option<Vec<CursorPosition>> {
+        let mut state = self.write_state();
+        state.history = Some(history);
+        state.bump(Some(TextChange::NONE));
+        self.waker.wake();
+        None
     }
 }
 
@@ -266,7 +220,7 @@ impl Document for BlockDocument {
         state.bump(None);
         state
             .outgoing
-            .push(TextOp::SetLanguage(block_language(language)));
+            .push(TextBlock::set_language(block_language(language)));
         self.waker.wake();
     }
 
@@ -276,60 +230,35 @@ impl Document for BlockDocument {
         state.bump(None);
         state
             .outgoing
-            .push(TextOp::SetIndentation(block_indentation(indentation)));
+            .push(TextBlock::set_indentation(block_indentation(indentation)));
         self.waker.wake();
     }
 
-    fn edit(&self, cursors: Vec<CursorPosition>, edit: &mut dyn FnMut(&mut dyn DocumentEdit)) {
+    fn edit(&self, _cursors: Vec<CursorPosition>, edit: &mut dyn FnMut(&mut dyn DocumentEdit)) {
         let mut state = self.write_state();
-        let mut transaction = Edit {
+        let mut transaction = Transaction {
             state: &mut state,
-            replaces: Vec::new(),
+            changes: Vec::new(),
         };
         edit(&mut transaction);
-        let replaces = transaction.replaces;
-        if replaces.is_empty() {
+        let changes = transaction.changes;
+        if changes.is_empty() {
             return;
         }
-        state.redo.clear();
-        let open = state.group_open;
-        if open && let Some(group) = state.undo.last_mut() {
-            group.replaces.extend(replaces);
-        } else {
-            state.undo.push(Group { replaces, cursors });
-        }
-        state.group_open = true;
+        let change = std::mem::replace(&mut state.pending, TextChange::NONE);
+        state.bump(Some(change));
+        state.outgoing.push(Edit(changes));
         self.waker.wake();
     }
 
-    fn finish_history_group(&self) {
-        self.write_state().group_open = false;
-    }
+    fn finish_history_group(&self) {}
 
     fn undo(&self) -> Option<Vec<CursorPosition>> {
-        let mut state = self.write_state();
-        state.group_open = false;
-        let mut group = state.undo.pop()?;
-        for replace in group.replaces.iter_mut().rev() {
-            state.step(replace, false);
-        }
-        let cursors = group.cursors.clone();
-        state.redo.push(group);
-        self.waker.wake();
-        Some(cursors)
+        self.request(History::Undo)
     }
 
     fn redo(&self) -> Option<Vec<CursorPosition>> {
-        let mut state = self.write_state();
-        state.group_open = false;
-        let mut group = state.redo.pop()?;
-        for replace in &mut group.replaces {
-            state.step(replace, true);
-        }
-        let cursors = group.cursors.clone();
-        state.undo.push(group);
-        self.waker.wake();
-        Some(cursors)
+        self.request(History::Redo)
     }
 }
 
@@ -339,23 +268,23 @@ struct Read<'a> {
 
 impl DocumentRead for Read<'_> {
     fn len(&self) -> usize {
-        self.state.bytes.len()
+        self.state.text.len()
     }
 
     fn chunk(&self, index: usize) -> &[u8] {
-        self.state.bytes.get(index..).unwrap_or_default()
+        self.state.text.chunk(index)
     }
 
-    fn anchor(&self, index: usize) -> Option<Anchor> {
-        self.state.anchor(index)
+    fn anchor(&self, index: usize) -> Option<Pos> {
+        anchor_in(&self.state.text, index)
     }
 
-    fn anchor_index(&self, anchor: Anchor) -> Option<usize> {
-        self.state.index_of(anchor)
+    fn anchor_index(&self, anchor: Pos) -> Option<usize> {
+        anchor_index_in(&self.state.text, anchor)
     }
 
-    fn deleted_anchor_index(&self, anchor: Anchor) -> Option<usize> {
-        self.state.anchors().deleted_at(anchor)
+    fn deleted_anchor_index(&self, anchor: Pos) -> Option<usize> {
+        deleted_anchor_index_in(&self.state.text, anchor)
     }
 
     fn language(&self) -> TextLanguage {
@@ -367,30 +296,43 @@ impl DocumentRead for Read<'_> {
     }
 }
 
-struct Edit<'a> {
+struct Transaction<'a> {
     state: &'a mut State,
-    replaces: Vec<Replace>,
+    changes: Vec<Change>,
 }
 
-impl DocumentRead for Edit<'_> {
+impl Transaction<'_> {
+    fn run(&mut self, op: Option<text_editor_core::SeqOp<u8>>) {
+        let Some(op) = op else {
+            return;
+        };
+        let Some(splices) = self.state.text.apply(&op) else {
+            return;
+        };
+        self.state.pending = changed(self.state.pending, &splices);
+        self.changes.push(TextBlock::BODY.edit(ObjectId::ROOT, op));
+    }
+}
+
+impl DocumentRead for Transaction<'_> {
     fn len(&self) -> usize {
-        self.state.bytes.len()
+        self.state.text.len()
     }
 
     fn chunk(&self, index: usize) -> &[u8] {
-        self.state.bytes.get(index..).unwrap_or_default()
+        self.state.text.chunk(index)
     }
 
-    fn anchor(&self, index: usize) -> Option<Anchor> {
-        self.state.anchor(index)
+    fn anchor(&self, index: usize) -> Option<Pos> {
+        anchor_in(&self.state.text, index)
     }
 
-    fn anchor_index(&self, anchor: Anchor) -> Option<usize> {
-        self.state.index_of(anchor)
+    fn anchor_index(&self, anchor: Pos) -> Option<usize> {
+        anchor_index_in(&self.state.text, anchor)
     }
 
-    fn deleted_anchor_index(&self, anchor: Anchor) -> Option<usize> {
-        self.state.anchors().deleted_at(anchor)
+    fn deleted_anchor_index(&self, anchor: Pos) -> Option<usize> {
+        deleted_anchor_index_in(&self.state.text, anchor)
     }
 
     fn language(&self) -> TextLanguage {
@@ -402,19 +344,36 @@ impl DocumentRead for Edit<'_> {
     }
 }
 
-impl DocumentEdit for Edit<'_> {
+impl DocumentEdit for Transaction<'_> {
     fn document(&self) -> &dyn DocumentRead {
         self
     }
 
     fn replace(&mut self, index: usize, delete: usize, insert: &[u8]) {
-        let index = index.min(self.state.bytes.len());
-        let delete = delete.min(self.state.bytes.len() - index);
-        if delete == 0 && insert.is_empty() {
-            return;
+        let len = self.state.text.len();
+        let index = index.min(len);
+        let delete = delete.min(len - index);
+        if delete > 0 {
+            let op = self.state.text.delete(index..index + delete);
+            self.run(op);
         }
-        let replace = self.state.splice(index, delete, insert);
-        self.replaces.push(replace);
+        if !insert.is_empty() {
+            let client = self.state.client;
+            let op = self.state.text.insert(client, index, insert.to_vec());
+            self.run(op);
+        }
+    }
+
+    fn replace_atomically(&mut self, index: usize, delete: usize, insert: &[u8]) {
+        let len = self.state.text.len();
+        let index = index.min(len);
+        let delete = delete.min(len - index);
+        let client = self.state.client;
+        let op = self
+            .state
+            .text
+            .replace(client, index..index + delete, insert.to_vec());
+        self.run(op);
     }
 }
 

@@ -72,7 +72,8 @@ are enough until profiling says otherwise.)
 - `Replace { spans, client, start, items }` is all-or-nothing: it applies only
   if every span is still visible, then hides them and inserts the items after
   the last of them. Two people checking the same markdown box produce `[x]`,
-  not `[xx]`. Typing over a selection stays a delete and an insert, so a
+  not `[xx]`; the editor asks for it with `DocumentEdit::replace_atomically`,
+  which toggling a checkbox uses. Typing over a selection stays a delete and an insert, so a
   collaborator's edit inside the selection does not drop what you typed.
 - `Swap { hide, show }` applies only if everything in `hide` is visible and
   everything in `show` hidden. It is the undo and redo of a replace.
@@ -128,6 +129,15 @@ so the editor plugin gets a whole snapshot instead of the edit. Measured on a
   Over 10 ms per keystroke from a collaborator, whenever you have anything
   unconfirmed.
 
+A follower keeps at most one edit in flight. What it types before the owner
+confirms that edit waits in `Live::unsent`, where `LiveEdit::absorb_operation`
+folds it together (typing forward becomes one insert, backspacing one delete),
+and goes out as one edit when the confirmation arrives. Merging stops before the
+sum of the parts' encoded sizes would pass the relay limit, so a run of large
+pastes goes out in pieces the owner can relay. That keeps the pending
+list, and so the rebuild, to one or two edits however slow the link is, and
+sends one message per round trip instead of one per keystroke.
+
 Fixes, best value first:
 
 1. **Skip the rebuild when the incoming edit commutes with the pending ones.**
@@ -141,10 +151,9 @@ Fixes, best value first:
 2. **Rebuild once per poll, not once per incoming edit.** `apply_accepted` marks
    `visible` stale and `poll` rebuilds it once, turning a burst of N incoming
    edits into one rebuild.
-3. **Make the snapshot cheaper.** Leave the loaded buffer out of the session
-   state where the visible bytes already carry it (halves the snapshot), and
-   serialise `Sequence<u8>` as one byte string instead of element by element,
-   which should take most of the 6.5 ms decode away.
+3. **Make the snapshot cheaper.** Session state now carries positions but no
+   bytes (done). Serialising `Sequence<u8>` as one byte string instead of
+   element by element should take most of the 6.5 ms decode away.
 
 ## Indenting a whole file
 
@@ -189,7 +198,7 @@ Decided: text-editor-core depends on the `sequence` crate and works on
 `Sequence<u8>` directly, instead of staying generic and having the text block
 translate its anchors. `Sequence` lives in its own crate (serde only) so the
 editor and beui's text inputs can use it without the block stack; `be-model`
-wraps it as the `Text` field. When text migrates:
+wraps it as the `Text` field. Done, as follows:
 
 - `DocumentRead::anchor` and `anchor_index` take and return `Pos`; a cursor or
   selection is a position that survives other people's edits.
@@ -213,8 +222,11 @@ orders what they send, and clients catch up the way `Live` does, rebuilding from
 `confirmed` plus pending when someone else's edit lands under theirs. Every
 sequenced operation is checked against a naive reference model (order,
 tombstones, offsets, splices), every replica against the sequence's internal
-invariants, and at the end every replica against the sequencer's state. It
-panics on any violation. Test and fuzzing builds use two fragments per chunk so
+invariants, and at the end every replica against the sequencer's state. Clients
+type and backspace at a caret as well as at random places, and fold what they
+have not sent yet with `SeqOp::absorb`, as a `Live` follower does; each merged
+operation is checked against its parts applied one by one (positions, items and
+next offsets). It panics on any violation. Test and fuzzing builds use two fragments per chunk so
 the multi-chunk paths run constantly.
 
 A test feeds it seeded random bytes, and `crates/sequence/fuzz/sequence.rs` is
@@ -225,22 +237,39 @@ runs in turn with the others until it is stopped, keeping its corpus and crashes
 
 ## Status
 
-Done (in `be-model`, not used by any block yet):
+Done:
 
-- `Sequence<T>` with positions, fragments, chunks, the six operations, splices,
-  inverses for undo, and session state.
-- A `Text` field for model documents: saved as bytes, edited with
+- `Sequence<T>` in the `sequence` crate: positions, fragments, chunks, the six
+  operations, splices, inverses for undo, an optional mirror of the visible
+  items for editors, and session state that carries positions but no content.
+  Content is kept as runs of the bytes this peer has seen; the visible bytes
+  come from the receiver's own document when it adopts state, and an undelete
+  or swap carries the bytes it shows, so a deleted run never has to be shipped.
+- A `Text` field for model documents (`be-model`): saved as bytes, edited with
   `Change::Text`, undone through `Step` (bursts absorb), merged with line diff3,
-  and carried in `Document::session_state`. Objects inserted with a text field,
-  and documents produced by a merge, start from fresh positions so every peer
-  agrees on them.
-- Positions are `u64` and every number an operation brings is checked, so a
-  malformed operation or session state changes nothing instead of panicking or
-  wrapping. Adopting session state whose text differs from the document is
-  refused as malformed rather than silently changing the text.
+  and carried in `Document::session_state`.
+- The text block is `Document<TextBlock { language, indentation, body: Text }>`,
+  registered with history, so undo is the worker's. text-editor-core anchors
+  cursors to positions (`AnchorTable` is gone) and its `TextBuffer` is a
+  mirrored sequence with an undo stack of inverses. The text block keeps a
+  mirrored copy of the body, applies foreign edits to it from the projection's
+  log and reports their splices to the editor; after a rebuild it re-reads the
+  body and diffs only the common prefix and suffix. Peers' carets resolve,
+  because positions are shared.
+- `Live`: the quiet-minute restart is gone, so a session's positions last until
+  everyone closes it. `Snapshot` carries the state as of the owner's last seal,
+  and adopting state rebuilds a follower's view from `confirmed` and its pending
+  edits.
 
 Still to do:
 
+- Session ids in the protocol (who mints them: the server's registry or the
+  owner), refusal of other sessions' operations, the diff3 fallback, and the
+  8-hours-idle reset. Until then a session's positions only reset when everyone
+  closes the block.
+- A follower's replacement (an edit over 1 MiB) replays the owner's unsealed
+  operations onto the reloaded content: BE3-184. With text that can apply
+  position edits from the old content to the replacement.
 - `List` on `Sequence<ObjectId>`: moves inside a list keep positions, a move
   between lists is a delete plus an insert carrying the same `ObjectId`, and the
   removal records become tombstones. Range moves of several items come with it.
@@ -248,20 +277,12 @@ Still to do:
   delete and reinsert leaves the same id once as a tombstone and once live),
   and splits `Change::Insert` into a sequence insert of the top-level ids plus
   the object table.
-- Session ids in the protocol (who mints them: the server's registry or the
-  owner), refusal of other sessions' operations, the diff3 fallback, and the new
-  restart triggers.
-- `Live` adopts session state into both `confirmed` and `visible`. With text,
-  `visible` holds pending edits whose positions the owner's state lacks, so it
-  has to be rebuilt from `confirmed` plus the pending operations instead.
-- The text block as `Document<TextBlock { language, indentation, body: Text }>`,
-  and text-editor-core on the sequence (decided; see below).
-- Splices reported through `Touched` (or beside it) to editors: `Tree::apply`
-  drops what `Sequence::apply` returns today.
+- The first two reprojection fixes above (commuting fast path, one rebuild per
+  poll), and serialising `Sequence<u8>` as one byte string.
+- Splices reported through `Touched` for editors other than the text block.
 - A replace inserts after the last element of its last span as listed; it
   should insert after whichever replaced element is last in the document now,
   in case a move reordered them.
-- Reading a `Text` through `root()` or a field projection copies all its
-  bytes; the editor reads slices through `Document::text`.
-- The three reprojection fixes above.
-- The worker's undo history capped at 8 hours as well as 200 steps.
+- The worker's undo history capped at 8 hours as well as 200 steps. Editor
+  history groups (`finish_history_group`) are not passed to the worker, which
+  groups by time.

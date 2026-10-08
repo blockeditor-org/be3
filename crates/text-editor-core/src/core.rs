@@ -9,14 +9,14 @@ mod ime;
 pub use ime::{ImeCommand, ImeState};
 
 use crate::{
-    Highlighter, Language, SyntaxHighlight,
-    document::{Anchor, Document, DocumentRead, DocumentView, TextIndentation, TextLanguage},
+    Highlighter, Language, Pos, SyntaxHighlight,
+    document::{Document, DocumentRead, DocumentView, TextIndentation, TextLanguage},
 };
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct Position {
-    left: Option<Anchor>,
-    right: Option<Anchor>,
+    left: Option<Pos>,
+    right: Option<Pos>,
     fallback: usize,
     end: bool,
 }
@@ -29,7 +29,7 @@ impl Position {
         end: true,
     };
 
-    fn at(document: &dyn DocumentRead, index: usize) -> Self {
+    pub fn at(document: &dyn DocumentRead, index: usize) -> Self {
         if index >= document.len() {
             return Self::END;
         }
@@ -43,7 +43,7 @@ impl Position {
         }
     }
 
-    pub(crate) fn resolve(self, document: &dyn DocumentRead) -> usize {
+    pub fn resolve(self, document: &dyn DocumentRead) -> usize {
         if self.end {
             return document.len();
         }
@@ -1450,11 +1450,11 @@ impl Core {
         let state_position = Position::at(&document, marker.marker.start + 3);
         drop(document);
         drop(read);
-        self.apply_replacements(
-            vec![(state_position, 1, vec![state])],
-            UndoClassification::AlwaysSplit,
-            history_cursors,
-        );
+        self.prepare_history_group(UndoClassification::AlwaysSplit);
+        self.document.edit(history_cursors, &mut |transaction| {
+            let index = state_position.resolve(transaction.document());
+            transaction.replace_atomically(index, 1, &[state]);
+        });
     }
 
     fn insert_line(&mut self, direction: UDDirection) {
