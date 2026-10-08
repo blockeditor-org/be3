@@ -29,7 +29,7 @@ impl Position {
         end: true,
     };
 
-    fn at(document: &dyn DocumentRead, index: usize) -> Self {
+    pub fn at(document: &dyn DocumentRead, index: usize) -> Self {
         if index >= document.len() {
             return Self::END;
         }
@@ -43,7 +43,7 @@ impl Position {
         }
     }
 
-    pub(crate) fn resolve(self, document: &dyn DocumentRead) -> usize {
+    pub fn resolve(self, document: &dyn DocumentRead) -> usize {
         if self.end {
             return document.len();
         }

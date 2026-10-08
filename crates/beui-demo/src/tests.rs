@@ -8,6 +8,7 @@ mod a_sample_carries_the_source_it_was_written_with;
 mod a_sample_shows_its_code_when_asked;
 mod every_demo_page_paints_as_accepted;
 mod every_demo_page_paints_as_accepted_on_a_phone;
+mod paused_edits_wait_for_a_send_and_carry_presence;
 mod swiping_back_on_a_phone_shows_the_catalog_behind_the_page;
 mod the_code_of_a_sample_can_be_selected;
 mod the_demo_leaves_a_pane_saying_nothing_is_open;

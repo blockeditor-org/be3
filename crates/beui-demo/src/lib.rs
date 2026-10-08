@@ -37,6 +37,7 @@ use beui::{
     Color32, Context, Direction, Document, FontId, ItemSize, NodeId, Rect, TextAlign, unstyled,
 };
 use beui_macros::{component, sample};
+use collaboration::CollaborationPage;
 use sample::{Sample, ScrollPage};
 use std::sync::Arc;
 use styled_pages::{
@@ -52,6 +53,7 @@ use unstyled_pages::{
 };
 
 mod base_pages;
+mod collaboration;
 mod sample;
 mod styled_pages;
 mod unstyled_pages;
@@ -84,6 +86,7 @@ enum Page {
     Tree,
     Layout,
     Editor,
+    Collaboration,
     Canvas,
     Themes,
     Pressing,
@@ -101,7 +104,7 @@ enum Page {
     Colors,
 }
 
-const STYLED_PAGES: [Page; 15] = [
+const STYLED_PAGES: [Page; 16] = [
     Page::Docking,
     Page::Text,
     Page::Buttons,
@@ -115,6 +118,7 @@ const STYLED_PAGES: [Page; 15] = [
     Page::Tree,
     Page::Layout,
     Page::Editor,
+    Page::Collaboration,
     Page::Canvas,
     Page::Themes,
 ];
@@ -137,7 +141,7 @@ const BASE_PAGES: [Page; 6] = [
     Page::Layering,
 ];
 
-const PAGES: [Page; 27] = [
+const PAGES: [Page; 28] = [
     Page::Docking,
     Page::Text,
     Page::Buttons,
@@ -151,6 +155,7 @@ const PAGES: [Page; 27] = [
     Page::Tree,
     Page::Layout,
     Page::Editor,
+    Page::Collaboration,
     Page::Canvas,
     Page::Themes,
     Page::Pressing,
@@ -191,6 +196,7 @@ impl Page {
             Page::Tree => "Tree",
             Page::Layout => "Layout",
             Page::Editor => "Editor",
+            Page::Collaboration => "Collaboration",
             Page::Canvas => "Canvas",
             Page::Themes => "Themes",
             Page::Pressing => "Pressing",
@@ -223,6 +229,7 @@ impl Page {
             Page::Tree => ICON_ACCOUNT_TREE,
             Page::Layout => ICON_DASHBOARD,
             Page::Editor => ICON_NOTES,
+            Page::Collaboration => ICON_SHARE,
             Page::Canvas => ICON_DRAW,
             Page::Themes => ICON_CONTRAST,
             Page::Pressing => ICON_TOUCH_APP,
@@ -255,6 +262,7 @@ impl Page {
             Page::Tree => "An expandable, keyboard-driven tree",
             Page::Layout => "Cards, accordions, stacks, scrolls",
             Page::Editor => "A markdown text area",
+            Page::Collaboration => "Two editors over a simulated network",
             Page::Canvas => "A pannable, zoomable stage",
             Page::Themes => "The dark and e-ink themes",
             Page::Pressing => "Pressables, buttons, toggles and rows",
@@ -455,6 +463,9 @@ fn DemoShell() -> NodeId {
                                                 },
                                                 Page::Editor => view! {
                                                     <EditorPage />
+                                                },
+                                                Page::Collaboration => view! {
+                                                    <CollaborationPage />
                                                 },
                                                 Page::Canvas => view! {
                                                     <CanvasPage />
