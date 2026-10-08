@@ -17,6 +17,7 @@ mod the_demo_pages_scroll_rather_than_spilling_off_a_small_window;
 mod the_demo_paints_with_only_the_fonts_beui_carries;
 mod the_launcher_sample_narrows_its_programs_as_a_name_is_typed;
 mod the_overlay_sample_closes_on_escape_and_a_click_outside;
+mod the_runs_toggle_shows_where_each_side_typed_and_deleted;
 
 const TODAY: (i32, u8, u8) = (2026, 1, 15);
 const WIDE: Vec2 = Vec2::new(1100.0, 800.0);

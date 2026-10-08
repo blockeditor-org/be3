@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::ops::Range;
 
 use text_editor_core::{
-    MarkdownTableAlignment, SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize,
+    MarkdownTableAlignment, SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize, TextRun,
 };
 
 use beui_core::color::Color32;
@@ -19,6 +19,9 @@ pub const CODE_SIZE: f32 = 12.0;
 pub const CHECKBOX_WIDTH: f32 = 18.0;
 pub const INLINE_WIDGET_HEIGHT: f32 = 24.0;
 pub const INLINE_WIDGET_ICON_INSET: f32 = 13.0;
+pub const RUN_CHIP_HEIGHT: f32 = 16.0;
+pub const RUN_CHIP_PADDING: f32 = 4.0;
+pub const RUN_CHIP_SIZE: f32 = 10.0;
 pub const DOCUMENT_PADDING: Vec2 = Vec2::new(24.0, 16.0);
 pub const LINE_PADDING: (f32, f32) = (3.0, 4.0);
 
@@ -29,6 +32,7 @@ const NEWLINE_MARKER: &str = "\u{23ce}";
 const ELLIPSIS: &str = "...";
 const ELLIPSIS_SIZE: f32 = 12.0;
 const ELLIPSIS_GAP: f32 = 6.0;
+const DELETED_PREVIEW: usize = 48;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct TextWidget {
@@ -71,6 +75,7 @@ impl RowOptions {
 pub enum Inline {
     Checkbox { line_start: usize, checked: bool },
     Widget(usize),
+    Run,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -184,6 +189,7 @@ impl Row {
 pub struct RowInputs<'a> {
     pub snapshot: &'a Snapshot,
     pub widgets: &'a [TextWidget],
+    pub client_colors: &'a [(u64, Color32)],
     pub composition: Option<&'a Composition>,
     pub selection: &'a [Range<usize>],
     pub colors: &'a TextAreaColors,
@@ -355,6 +361,55 @@ impl Builder<'_> {
         }
     }
 
+    fn client_color(&self, client: u64) -> Option<Color32> {
+        self.inputs
+            .client_colors
+            .iter()
+            .find(|(named, _)| *named == client)
+            .map(|(_, color)| *color)
+    }
+
+    fn author_color(&self, index: usize) -> Option<Color32> {
+        if self.inputs.client_colors.is_empty() {
+            return None;
+        }
+        let runs = self.inputs.snapshot.runs.as_deref()?;
+        let before = runs.partition_point(|run| run.at <= index);
+        let run = runs[..before].iter().rev().find(|run| run.visible)?;
+        (run.at + run.len > index)
+            .then(|| self.client_color(run.pos.client))
+            .flatten()
+    }
+
+    fn runs(&mut self, runs: &[TextRun], at: usize, style: SpanStyle) {
+        let gutter = self.inputs.colors.gutter_text;
+        let first = runs.partition_point(|run| run.at < at);
+        for run in runs[first..].iter().take_while(|run| run.at == at) {
+            let color = self.client_color(run.pos.client).unwrap_or(gutter);
+            let mut label = format!("@{}+{}", run.pos.client, run.pos.offset);
+            if !run.visible && run.deleted.is_empty() {
+                label.push_str(&format!(" -{}", run.len));
+            }
+            let chip = SpanStyle::new(FontId::monospace(RUN_CHIP_SIZE), color);
+            self.inline(Inline::Run, at..at, chip, label);
+            if !run.visible && !run.deleted.is_empty() {
+                let struck = SpanStyle {
+                    color,
+                    strikethrough: true,
+                    underline: false,
+                    ..style
+                };
+                self.push(
+                    &deleted_preview(&run.deleted),
+                    at..at,
+                    false,
+                    struck,
+                    SpanKind::Text,
+                );
+            }
+        }
+    }
+
     fn inline(&mut self, inline: Inline, source: Range<usize>, style: SpanStyle, label: String) {
         let size = inline_size(inline, &label, style);
         let index = self.row.inline.len();
@@ -368,12 +423,34 @@ impl Builder<'_> {
     }
 }
 
+fn deleted_preview(deleted: &[u8]) -> String {
+    let text = String::from_utf8_lossy(deleted);
+    let mut preview: String = text
+        .chars()
+        .take(DELETED_PREVIEW)
+        .map(|character| match character {
+            '\n' => NEWLINE_MARKER.to_owned(),
+            other => other.to_string(),
+        })
+        .collect();
+    let shown: usize = text.chars().take(DELETED_PREVIEW).map(char::len_utf8).sum();
+    if shown < text.len() {
+        preview.push_str(&format!("{ELLIPSIS} +{} bytes", text.len() - shown));
+    }
+    preview
+}
+
 pub fn inline_size(inline: Inline, label: &str, style: SpanStyle) -> Vec2 {
     match inline {
         Inline::Checkbox { .. } => Vec2::splat(CHECKBOX_WIDTH),
         Inline::Widget(_) => Vec2::new(
             galley(label, style.font).map_or(0.0, |galley| galley.size().x),
             INLINE_WIDGET_HEIGHT,
+        ),
+        Inline::Run => Vec2::new(
+            galley(label, style.font).map_or(0.0, |galley| galley.size().x)
+                + RUN_CHIP_PADDING * 2.0,
+            RUN_CHIP_HEIGHT,
         ),
     }
 }
@@ -450,10 +527,16 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         .rposition(|byte| !matches!(*byte, b' ' | b'\t' | b'\r'))
         .map_or(start, |index| start + index + 1);
     let invisible = inputs.colors.syntax.scope(SynHlColorScope::Invisible);
+    let runs = match options.mask {
+        true => &[][..],
+        false => snapshot.runs_in(start, end),
+    };
+    let run_starts = |at: usize| runs.binary_search_by_key(&at, |run| run.at).is_ok();
     let mut index = start;
     while index < end {
         let base = builder.span_style(style_at(index));
         builder.spacers(index, base);
+        builder.runs(runs, index, base);
         let base = builder.span_style(style_at(index));
         let base = SpanStyle {
             underline: base.underline || composed(index),
@@ -528,6 +611,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
                     .iter()
                     .any(|widget| widget.range.start == stop)
                 || style_at(stop) != style
+                || run_starts(stop)
                 || (invisibles && invisible_marker(bytes[stop]).is_some())
             {
                 break;
@@ -538,10 +622,15 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
             stop += len;
         }
         let text = String::from_utf8_lossy(&bytes[index..stop]).into_owned();
+        let base = match builder.author_color(index) {
+            Some(color) => SpanStyle { color, ..base },
+            None => base,
+        };
         builder.push(&text, index..stop, true, base, SpanKind::Text);
         index = stop;
     }
     builder.spacers(end, body);
+    builder.runs(runs, end, builder.span_style(style_at(end)));
     if newline && invisibles {
         let color = match selected(end) {
             true => invisible,
@@ -673,6 +762,7 @@ pub fn table_spacers(inputs: &TableInputs) -> TableSpacers {
                     &RowInputs {
                         snapshot,
                         widgets: inputs.widgets,
+                        client_colors: &[],
                         composition: None,
                         selection: &[],
                         colors: inputs.colors,

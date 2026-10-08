@@ -71,6 +71,7 @@ const CARET_HANDLE_TAP_SLACK: f32 = 4.0;
 const CHECKBOX_RADIUS: u8 = 3;
 const CHECKBOX_OUTLINE: f32 = 1.5;
 const INLINE_WIDGET_RADIUS: u8 = 5;
+const RUN_CHIP_RADIUS: u8 = 3;
 const REMOTE_SELECTION_ALPHA: u8 = 70;
 const CODE_OUTSET: Vec2 = Vec2::new(3.0, -1.0);
 const CODE_RADIUS: f32 = 3.0;
@@ -123,6 +124,7 @@ struct Surface {
     visible: Memo<Vec<usize>>,
     tables: Memo<Rc<TableSpacers>>,
     widgets: Memo<Vec<TextWidget>>,
+    client_colors: Memo<Vec<(u64, Color32)>>,
     colors: Memo<TextAreaColors>,
     composition: Memo<Option<Composition>>,
     placeholder: Memo<String>,
@@ -763,6 +765,7 @@ fn select_at(cx: &Context, pos: Pos2, clicks: u32, extend: bool, syntax: bool) {
                 cx.state.set_selecting(false);
                 return;
             }
+            Inline::Run => {}
         }
     }
     let Some(target) = cx.hit(pos) else {
@@ -963,6 +966,8 @@ pub fn TextArea(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = BODY_SIZE)] font_size: Prop<f32>,
     #[prop(default = PADDING)] padding: Prop<Vec2>,
+    #[prop(default = false)] show_runs: Prop<bool>,
+    #[prop(default = Vec::new())] client_colors: Prop<Vec<(u64, Color32)>>,
     accessibility: Option<Prop<Node>>,
     frame: Option<Render<Child>>,
     block: Option<RenderFn<usize>>,
@@ -1008,6 +1013,11 @@ pub fn TextArea(
     let remote_cursors = create_memo(move || remote_cursors.get());
     let drop_caret = create_memo(move || drop_caret.get());
     let view_width = create_memo(clone!(placed -> move || placed.get().width()));
+    let client_colors = create_memo(move || client_colors.get());
+    create_effect(clone!(state -> move || {
+        let shown = show_runs.get();
+        untrack(|| state.set_show_runs(shown));
+    }));
 
     let role = match single_line {
         true => Role::TextInput,
@@ -1155,6 +1165,7 @@ pub fn TextArea(
         visible: visible.clone(),
         tables,
         widgets: widgets.clone(),
+        client_colors,
         colors: colors.clone(),
         composition,
         placeholder: placeholder.clone(),

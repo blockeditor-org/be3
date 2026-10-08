@@ -1,7 +1,7 @@
 use std::{
     collections::{BTreeMap, HashMap},
     fmt,
-    ops::Range,
+    ops::{Bound, Range},
 };
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer, ser::SerializeSeq};
@@ -125,6 +125,14 @@ pub struct Splice {
     pub at: usize,
     pub removed: usize,
     pub inserted: usize,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Run<'a, T> {
+    pub first: Pos,
+    pub len: u64,
+    pub visible: bool,
+    pub items: &'a [T],
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -412,6 +420,15 @@ impl<T> Sequence<T> {
         self.fragments()
             .filter(|fragment| fragment.visible)
             .map(|fragment| self.slice(*fragment))
+    }
+
+    pub fn runs(&self) -> impl Iterator<Item = Run<'_, T>> {
+        self.fragments().map(|fragment| Run {
+            first: fragment.first(),
+            len: fragment.len,
+            visible: fragment.visible,
+            items: self.slice(*fragment),
+        })
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &T> {
@@ -725,7 +742,7 @@ impl<T> Sequence<T> {
             let Some(starts) = self.isolate(*span) else {
                 continue;
             };
-            for start in starts {
+            for &start in &starts {
                 let Some((ci, fi)) = self.locate(start) else {
                     continue;
                 };
@@ -759,7 +776,53 @@ impl<T> Sequence<T> {
                 self.chunks[ci].fragments[fi].visible = visible;
                 self.recount(ci);
             }
+            for start in starts {
+                self.join(start);
+            }
+            if let Some(next) = self.next_first(span.last()) {
+                self.join(next);
+            }
         }
+    }
+
+    fn next_first(&self, pos: Pos) -> Option<Pos> {
+        let (ci, fi) = self.locate(pos)?;
+        match self.chunks[ci].fragments.get(fi + 1) {
+            Some(next) => Some(next.first()),
+            None => self
+                .chunks
+                .get(ci + 1)?
+                .fragments
+                .first()
+                .map(|next| next.first()),
+        }
+    }
+
+    fn join(&mut self, pos: Pos) {
+        let Some((ci, fi)) = self.locate(pos) else {
+            return;
+        };
+        let (pci, pfi) = match fi {
+            0 if ci == 0 => return,
+            0 => (ci - 1, self.chunks[ci - 1].fragments.len().wrapping_sub(1)),
+            _ => (ci, fi - 1),
+        };
+        let Some(&previous) = self.chunks[pci].fragments.get(pfi) else {
+            return;
+        };
+        let current = self.chunks[ci].fragments[fi];
+        if previous.client != current.client
+            || previous.visible != current.visible
+            || previous.end() != current.start
+        {
+            return;
+        }
+        self.chunks[pci].fragments[pfi].len += current.len;
+        self.chunks[ci].fragments.remove(fi);
+        self.index.remove(&current.first());
+        self.recount(pci);
+        self.recount(ci);
+        self.prune();
     }
 
     fn relocate(
@@ -1096,17 +1159,29 @@ impl<T> Sequence<T> {
                 at
             }
         };
-        let Some(run) = self.runs.get(&start) else {
-            return;
-        };
-        let after = Pos {
-            client: start.client,
-            offset: start.offset + run.len() as u64,
-        };
-        if let Some(next) = self.runs.remove(&after)
-            && let Some(run) = self.runs.get_mut(&start)
-        {
-            run.extend(next);
+        loop {
+            let Some(end) = self
+                .runs
+                .get(&start)
+                .map(|run| start.offset + run.len() as u64)
+            else {
+                return;
+            };
+            let Some((&first, _)) = self
+                .runs
+                .range((Bound::Excluded(start), Bound::Unbounded))
+                .next()
+                .filter(|(first, _)| first.client == start.client && first.offset <= end)
+            else {
+                return;
+            };
+            let Some(next) = self.runs.remove(&first) else {
+                return;
+            };
+            let skip = (end - first.offset) as usize;
+            if let Some(run) = self.runs.get_mut(&start) {
+                run.extend(next.into_iter().skip(skip));
+            }
         }
     }
 

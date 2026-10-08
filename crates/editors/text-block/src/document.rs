@@ -6,7 +6,8 @@ use block_editor_beui::be_block::block_url::{BLOCK_URL_MAX_BYTES, parse_block_ur
 use block_editor_beui::be_block::{self, TextBlock, TextContent};
 use text_editor_core::{
     ChangeLog, CursorPosition, Document, DocumentEdit, DocumentRead, Pos, Sequence, TextChange,
-    TextIndentation, TextLanguage, anchor_in, anchor_index_in, changed, deleted_anchor_index_in,
+    TextIndentation, TextLanguage, TextRun, anchor_in, anchor_index_in, changed,
+    deleted_anchor_index_in, runs_in,
 };
 use uuid::Uuid;
 
@@ -287,6 +288,10 @@ impl DocumentRead for Read<'_> {
         deleted_anchor_index_in(&self.state.text, anchor)
     }
 
+    fn runs(&self) -> Vec<TextRun> {
+        runs_in(&self.state.text)
+    }
+
     fn language(&self) -> TextLanguage {
         self.state.language
     }
@@ -333,6 +338,10 @@ impl DocumentRead for Transaction<'_> {
 
     fn deleted_anchor_index(&self, anchor: Pos) -> Option<usize> {
         deleted_anchor_index_in(&self.state.text, anchor)
+    }
+
+    fn runs(&self) -> Vec<TextRun> {
+        runs_in(&self.state.text)
     }
 
     fn language(&self) -> TextLanguage {

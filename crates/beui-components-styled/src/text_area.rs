@@ -11,6 +11,7 @@ use beui_components_unstyled::{
     Completer, RemoteTextCursor, TextAreaColors, TextAreaState, TextCheckbox, TextWidget,
 };
 use beui_core::base::ItemSize;
+use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::geometry::Pos2;
 use beui_core::input::KeyPress;
@@ -30,6 +31,8 @@ pub fn TextArea(
     #[prop(default = None)] drop_caret: Prop<Option<usize>>,
     #[prop(default = String::new())] placeholder: Prop<String>,
     #[prop(default = false)] password: Prop<bool>,
+    #[prop(default = false)] show_runs: Prop<bool>,
+    #[prop(default = Vec::new())] client_colors: Prop<Vec<(u64, Color32)>>,
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
     #[prop(default = true)] emoji: bool,
@@ -69,6 +72,8 @@ pub fn TextArea(
                         drop_caret
                         placeholder
                         password
+                        show_runs
+                        client_colors
                         on_widget_press={move |widget: usize| on_widget_press.call(widget)}
                         on_key_override={move |press: KeyPress| on_key_override.call(press)}
                         on_focus_change={move |focused: bool| on_focus_change.call(focused)}
