@@ -414,13 +414,8 @@ impl Document {
         }
         self.arena.get_mut_as::<OverlayNode>(overlay).mode = mode;
         if self.arena.get_as::<OverlayNode>(overlay).open {
-            self.overlay_stack.retain(|&id| id != overlay);
-            self.passive_overlays.retain(|&id| id != overlay);
-            match mode.stacked() {
-                true => self.overlay_stack.push(overlay),
-                false => self.passive_overlays.push(overlay),
-            }
-            self.arena.invalidate_node(overlay);
+            self.close_overlay(overlay);
+            self.open_overlay(overlay);
         }
     }
 
@@ -592,48 +587,36 @@ impl Document {
     }
 
     fn end_overlay(&mut self, overlay: NodeOf<OverlayNode>, dismissed: bool) {
-        if let Some(level) = self.overlay_stack.iter().position(|&id| id == overlay) {
-            self.close_overlay_at(level, dismissed);
+        let open: Vec<NodeOf<OverlayNode>> = self
+            .overlay_stack
+            .iter()
+            .chain(self.passive_overlays.iter())
+            .copied()
+            .filter(|&id| id != overlay)
+            .collect();
+        if open.len() == self.overlay_stack.len() + self.passive_overlays.len() {
             return;
         }
-        if let Some(index) = self.passive_overlays.iter().position(|&id| id == overlay) {
-            self.passive_overlays.remove(index);
-            if self.contains(overlay) {
-                self.arena.get_mut_as::<OverlayNode>(overlay).open = false;
-                self.arena.invalidate_node(overlay);
+        let nested = self.overlays_within(overlay, &open);
+        let closing = |id: &NodeOf<OverlayNode>| *id == overlay || nested.contains(id);
+        self.overlay_stack.retain(|id| !closing(id));
+        self.passive_overlays.retain(|id| !closing(id));
+        for (id, dismissed) in
+            std::iter::once((overlay, dismissed)).chain(nested.iter().map(|&id| (id, true)))
+        {
+            if self.contains(id) {
+                self.arena.get_mut_as(id).open = false;
+                self.arena.invalidate_node(id);
             }
             if dismissed {
-                self.call_overlay_dismiss(overlay);
+                self.call_overlay_dismiss(id);
             }
         }
     }
 
     pub fn dismiss_topmost_overlay(&mut self) {
-        if !self.overlay_stack.is_empty() {
-            self.close_overlay_at(self.overlay_stack.len() - 1, true);
-        }
-    }
-
-    fn close_overlay_at(&mut self, level: usize, dismissed: bool) {
-        let Some(&closed) = self.overlay_stack.get(level) else {
-            return;
-        };
-        let above = self.overlay_stack.split_off(level + 1);
-        let nested = self.overlays_within(closed, &above);
-        let (nested, kept): (Vec<NodeOf<OverlayNode>>, Vec<NodeOf<OverlayNode>>) =
-            above.into_iter().partition(|id| nested.contains(id));
-        self.overlay_stack.pop();
-        self.overlay_stack.extend(kept);
-        for (id, dismissed) in
-            std::iter::once((closed, dismissed)).chain(nested.into_iter().map(|id| (id, true)))
-        {
-            if self.contains(id) {
-                self.arena.get_mut_as(id).open = false;
-            }
-            self.arena.invalidate_node(id);
-            if dismissed {
-                self.call_overlay_dismiss(id);
-            }
+        if let Some(&top) = self.overlay_stack.last() {
+            self.end_overlay(top, true);
         }
     }
 
@@ -718,7 +701,7 @@ impl Document {
             if !self.light_overlay_misses(top, pos) || self.on_overlay_trigger(top, pos) {
                 return;
             }
-            self.close_overlay_at(self.overlay_stack.len() - 1, true);
+            self.end_overlay(top, true);
         }
     }
 
@@ -743,7 +726,7 @@ impl Document {
             let scrim = self.arena.get_as::<OverlayNode>(overlay).scrim;
             self.capture_pointer(scrim);
             self.forward.swallow_press();
-            self.close_overlay_at(level, true);
+            self.end_overlay(overlay, true);
         }
     }
 }
