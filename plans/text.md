@@ -132,7 +132,9 @@ so the editor plugin gets a whole snapshot instead of the edit. Measured on a
 A follower keeps at most one edit in flight. What it types before the owner
 confirms that edit waits in `Live::unsent`, where `LiveEdit::absorb_operation`
 folds it together (typing forward becomes one insert, backspacing one delete),
-and goes out as one edit when the confirmation arrives. That keeps the pending
+and goes out as one edit when the confirmation arrives. Merging stops before the
+sum of the parts' encoded sizes would pass the relay limit, so a run of large
+pastes goes out in pieces the owner can relay. That keeps the pending
 list, and so the rebuild, to one or two edits however slow the link is, and
 sends one message per round trip instead of one per keystroke.
 

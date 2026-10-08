@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     sync::Arc,
 };
 
@@ -46,7 +46,7 @@ pub struct Live<S: ObjectStore, C: LiveEdit> {
     role: Role,
     confirmed: C,
     visible: C,
-    unsent: Vec<C::Op>,
+    unsent: VecDeque<(C::Op, usize)>,
     base: Option<CommitId>,
     sealed: u64,
     sealed_state: Vec<u8>,
@@ -86,7 +86,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
             role,
             sealed_state: confirmed.session_state(),
             visible: confirmed.clone(),
-            unsent: Vec::new(),
+            unsent: VecDeque::new(),
             confirmed,
             base: head,
             sealed: 0,
@@ -263,11 +263,19 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 self.broadcast(&message).await
             }
             Role::Follower(follower) if follower.pending() > 0 || !self.unsent.is_empty() => {
-                let leftover = match self.unsent.last_mut() {
-                    Some(last) => C::absorb_operation(last, operation),
-                    None => Some(operation),
+                let size = payload.len();
+                let leftover = match self.unsent.back_mut() {
+                    Some((last, bound)) if *bound + size <= LARGEST_RELAYED_OPERATION => {
+                        let leftover = C::absorb_operation(last, operation);
+                        if leftover.is_none() {
+                            *bound += size;
+                        }
+                        leftover
+                    }
+                    _ => Some(operation),
                 };
-                self.unsent.extend(leftover);
+                self.unsent
+                    .extend(leftover.map(|operation| (operation, size)));
                 Ok(())
             }
             Role::Follower(follower) => {
@@ -501,7 +509,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 }
             }
         }
-        for operation in &self.unsent {
+        for (operation, _) in &self.unsent {
             visible.apply(operation);
         }
         self.replace_visible(visible);
@@ -511,27 +519,13 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
         let Role::Follower(follower) = &mut self.role else {
             return Ok(());
         };
-        if follower.pending() > 0 || self.unsent.is_empty() {
+        if follower.pending() > 0 {
             return Ok(());
         }
-        let mut unsent = std::mem::take(&mut self.unsent).into_iter();
-        let Some(mut batch) = unsent.next() else {
+        let Some((operation, _)) = self.unsent.pop_front() else {
             return Ok(());
         };
-        let mut payload = C::encode_operation(&batch);
-        for operation in unsent.by_ref() {
-            let mut merged = batch.clone();
-            let leftover = C::absorb_operation(&mut merged, operation.clone());
-            let merged_payload = C::encode_operation(&merged);
-            if leftover.is_some() || merged_payload.len() > LARGEST_RELAYED_OPERATION {
-                self.unsent.push(operation);
-                break;
-            }
-            batch = merged;
-            payload = merged_payload;
-        }
-        self.unsent.extend(unsent);
-        let message = follower.submit(payload);
+        let message = follower.submit(C::encode_operation(&operation));
         let owner = self.state.owner;
         self.send(owner, &message).await
     }
@@ -630,7 +624,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 accepted.push(op);
             }
         }
-        for operation in std::mem::take(&mut self.unsent) {
+        for (operation, _) in std::mem::take(&mut self.unsent) {
             let id = be_session::OpId {
                 client: self.client,
                 counter: sequencer.sequence() + 1,
