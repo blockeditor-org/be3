@@ -1,7 +1,27 @@
-use block_editor_beui::be_block::display_settings::DisplayMode;
+use block_editor_beui::be_block::display_settings::{DisplayMode, ScreenOff};
 use block_editor_beui::{HostDisplay, HostDisplayMode};
 
 pub(crate) type Size = (u32, u32);
+
+pub(crate) const SCREEN_OFF: [ScreenOff; 8] = [
+    ScreenOff::After { minutes: 1 },
+    ScreenOff::After { minutes: 2 },
+    ScreenOff::After { minutes: 5 },
+    ScreenOff::After { minutes: 10 },
+    ScreenOff::After { minutes: 15 },
+    ScreenOff::After { minutes: 30 },
+    ScreenOff::After { minutes: 60 },
+    ScreenOff::Never,
+];
+
+pub(crate) fn screen_off_label(screen_off: ScreenOff) -> String {
+    match screen_off {
+        ScreenOff::After { minutes: 1 } => "1 minute".to_owned(),
+        ScreenOff::After { minutes: 60 } => "1 hour".to_owned(),
+        ScreenOff::After { minutes } => format!("{minutes} minutes"),
+        ScreenOff::Never => "Never".to_owned(),
+    }
+}
 
 pub(crate) fn saved(mode: HostDisplayMode) -> DisplayMode {
     DisplayMode {

@@ -45,6 +45,9 @@ pub struct Output {
     fencing: bool,
     state: State,
     frame: u64,
+    blanked: bool,
+    dark: bool,
+    darken_failed: bool,
 }
 
 pub fn connected(drm: &DrmDevice) -> Vec<(connector::Handle, connector::Info)> {
@@ -204,6 +207,9 @@ impl Output {
             fencing,
             state: State::Idle,
             frame: 0,
+            blanked: false,
+            dark: false,
+            darken_failed: false,
         })
     }
 
@@ -251,7 +257,42 @@ impl Output {
     }
 
     pub fn wants_frame(&self) -> bool {
-        matches!(self.state, State::Idle) && self.screen.dirty()
+        !self.blanked && matches!(self.state, State::Idle) && self.screen.dirty()
+    }
+
+    pub fn set_blanked(&mut self, blanked: bool) {
+        if blanked == self.blanked {
+            return;
+        }
+        self.blanked = blanked;
+        if blanked {
+            self.darken();
+        } else {
+            self.dark = false;
+            self.darken_failed = false;
+            self.screen.invalidate();
+        }
+    }
+
+    pub fn lit_while_blanked(&self) -> bool {
+        self.blanked && !self.dark
+    }
+
+    pub fn darken(&mut self) {
+        if !self.blanked || self.dark || !matches!(self.state, State::Idle) {
+            return;
+        }
+        match self.swapchain.surface().clear() {
+            Ok(()) => self.dark = true,
+            Err(error) if !self.darken_failed => {
+                self.darken_failed = true;
+                eprintln!(
+                    "beui: {} could not be turned off, so it is tried again: {error}",
+                    self.connector_name
+                );
+            }
+            Err(_) => {}
+        }
     }
 
     pub fn reset(&mut self) {
@@ -260,12 +301,15 @@ impl Output {
         self.state = State::Idle;
         self.frame += 1;
         self.screen.invalidate();
+        self.dark = false;
+        self.darken();
     }
 
     pub fn flipped(&mut self) {
         let _ = self.swapchain.frame_submitted();
         if matches!(self.state, State::Flipping) {
             self.state = State::Idle;
+            self.darken();
         }
     }
 
@@ -289,6 +333,7 @@ impl Output {
             Err(error) => {
                 eprintln!("beui: the frame could not be shown: {error}");
                 self.state = State::Idle;
+                self.darken();
             }
         }
     }
