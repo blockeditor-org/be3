@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::settings::{ActivationCondition, Settings};
 use block_editor_beui::be_block::{
-    BlockContent, InputSettingsContent, SettingsContent, UiSettingsContent,
+    BlockContent, DisplaySettingsContent, InputSettingsContent, SettingsContent, UiSettingsContent,
 };
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::{
@@ -22,7 +22,8 @@ pub fn SettingsView(editor: Editor) -> NodeId {
     let blocked = create_memo(clone!(loaded read_only -> move || !loaded.get() || read_only.get()));
     let open_ui = opener::<UiSettingsContent>(&editor, &settings);
     let open_input = opener::<InputSettingsContent>(&editor, &settings);
-    let ui_blocked = blocked.clone();
+    let open_display = opener::<DisplaySettingsContent>(&editor, &settings);
+    let (ui_blocked, input_blocked) = (blocked.clone(), blocked.clone());
     let theme = use_theme();
     view! {
         <Frame color={theme.background.clone()} padding_horizontal=PADDING padding_vertical=PADDING>
@@ -40,9 +41,16 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                     <Button
                         label="Input settings"
                         variant=ButtonVariant::Secondary
-                        disabled={blocked}
+                        disabled={input_blocked}
                         @test_id={"settings.input-settings"}
                         on_click={open_input}
+                    />
+                    <Button
+                        label="Display settings"
+                        variant=ButtonVariant::Secondary
+                        disabled={blocked}
+                        @test_id={"settings.display-settings"}
+                        on_click={open_display}
                     />
                 </List>
             </List>
