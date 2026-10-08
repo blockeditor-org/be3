@@ -3,8 +3,7 @@ use beui::Event;
 
 #[test]
 fn paused_edits_wait_for_a_send_and_carry_presence() {
-    let mut test = demo(WIDE);
-    open(&mut test, Page::Collaboration);
+    let mut test = alone(WIDE, Page::Collaboration);
     test.click("demo.collaboration.pause");
     test.frame(Vec::new());
 
@@ -37,5 +36,5 @@ fn paused_edits_wait_for_a_send_and_carry_presence() {
         1,
         "sending delivers the right side's edit"
     );
-    test.snapshot_of("collaboration_paused", "demo.page.Collaboration");
+    test.snapshot("collaboration_paused");
 }
