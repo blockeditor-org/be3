@@ -8,7 +8,7 @@ use std::cell::RefCell;
 
 use be_protocol::WorkspaceRole;
 use beui::reactive::{Dynamic, Frame, List, NodeRef, Store, component, view};
-use beui::styled::{Toast, Toasts, use_theme};
+use beui::styled::{KeepChanges, Toast, Toasts, use_theme};
 use beui::{ItemSize, NodeId};
 use block_plugin_api::HostPanel;
 use uuid::Uuid;
@@ -206,6 +206,8 @@ pub(crate) struct AppView {
     pub(crate) presenting: bool,
     pub(crate) debug: DebugView,
     pub(crate) toasts: Vec<Toast>,
+    pub(crate) keep_display: bool,
+    pub(crate) screens: Vec<beui::Rect>,
 }
 
 #[derive(Clone, Debug)]
@@ -259,6 +261,8 @@ pub(crate) enum UiCommand {
     ApprovePairing(u64, String),
     DismissPairing(u64),
     DismissToast(u64),
+    KeepDisplay,
+    RevertDisplay,
 }
 
 #[component]
@@ -266,6 +270,8 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
     let theme = use_theme();
     let screen = view.screen.clone();
     let toasts = view.toasts.clone();
+    let keep_display = view.keep_display.clone();
+    let screens = view.screens.clone();
     let area = NodeRef::new();
     view! {
         <Frame @node_ref=&area color={theme.background.clone()}>
@@ -305,6 +311,14 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                     anchor={area.clone()}
                     toasts={toasts}
                     on_dismiss={move |id: u64| send(UiCommand::DismissToast(id))}
+                />
+                <KeepChanges
+                    open={keep_display}
+                    title="Keep these display settings?"
+                    screens={screens}
+                    id="display.keep"
+                    on_keep={|| send(UiCommand::KeepDisplay)}
+                    on_revert={|| send(UiCommand::RevertDisplay)}
                 />
             </List>
         </Frame>

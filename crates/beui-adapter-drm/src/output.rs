@@ -19,7 +19,7 @@ use crate::display::{DisplayConfig, DisplayMode, Monitor};
 use crate::gpu::{Gpu, Submitted};
 use crate::modes::{
     Candidate, Timing, choose, default_mode, identity, listed, monitor_id, monitor_name,
-    refresh_millihertz,
+    preferred_mode, refresh_millihertz,
 };
 
 type Swapchain = GbmBufferedSurface<GbmAllocator<DrmDeviceFd>, ()>;
@@ -219,12 +219,14 @@ impl Output {
 
     pub fn monitor(&self) -> Monitor {
         let default = default_mode(&self.candidates).unwrap_or(self.chosen);
+        let preferred = preferred_mode(&self.candidates).unwrap_or(default);
         Monitor {
             id: self.id.clone(),
             name: self.name.clone(),
             connector: self.connector_name.clone(),
             modes: listed(&self.candidates),
             default: self.candidates[default].mode,
+            preferred: self.candidates[preferred].mode,
             current: self.candidates[self.chosen].mode,
         }
     }

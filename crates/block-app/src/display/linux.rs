@@ -2,11 +2,14 @@ use std::cell::RefCell;
 
 use be_block::DisplaySettings;
 use be_block::display_settings::DisplayMode as SavedMode;
-use beui_adapter_drm::{DisplayConfig, DisplayControl, DisplayMode, Monitor};
+use beui_adapter_drm::{DisplayConfig, DisplayControl, DisplayMode, Monitor, Screens};
 use block_plugin_api::{HostDisplay, HostDisplayMode};
+
+use super::Screen;
 
 thread_local! {
     static CONTROL: RefCell<Option<DisplayControl>> = const { RefCell::new(None) };
+    static SCREENS: RefCell<Option<Screens>> = const { RefCell::new(None) };
 }
 
 pub(crate) fn start(setup: &beui::Setup) {
@@ -14,9 +17,23 @@ pub(crate) fn start(setup: &beui::Setup) {
     if let Some(control) = &control {
         control.on_monitors(|monitors| {
             crate::plugin_host::set_displays(monitors.iter().map(host_display).collect());
+            super::set_screens(monitors.iter().map(screen).collect());
+            crate::host::wake();
         });
     }
     CONTROL.with(|slot| *slot.borrow_mut() = control);
+    let screens = setup.get::<Screens>().cloned();
+    SCREENS.with(|slot| *slot.borrow_mut() = screens);
+}
+
+pub(crate) fn screens() -> Vec<beui::Rect> {
+    SCREENS.with(|screens| {
+        screens
+            .borrow()
+            .as_ref()
+            .map(Screens::rects)
+            .unwrap_or_default()
+    })
 }
 
 pub(crate) fn apply(settings: &DisplaySettings) {
@@ -43,6 +60,23 @@ fn seat_mode(mode: SavedMode) -> DisplayMode {
         width: mode.width,
         height: mode.height,
         refresh_millihertz: mode.refresh_millihertz,
+    }
+}
+
+fn saved_mode(mode: DisplayMode) -> SavedMode {
+    SavedMode {
+        width: mode.width,
+        height: mode.height,
+        refresh_millihertz: mode.refresh_millihertz,
+    }
+}
+
+fn screen(monitor: &Monitor) -> Screen {
+    Screen {
+        id: monitor.id.clone(),
+        modes: monitor.modes.iter().copied().map(saved_mode).collect(),
+        default: saved_mode(monitor.default),
+        preferred: saved_mode(monitor.preferred),
     }
 }
 

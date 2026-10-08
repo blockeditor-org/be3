@@ -17,6 +17,7 @@ pub struct Monitor {
     pub connector: String,
     pub modes: Vec<DisplayMode>,
     pub default: DisplayMode,
+    pub preferred: DisplayMode,
     pub current: DisplayMode,
 }
 

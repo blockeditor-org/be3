@@ -75,6 +75,13 @@ pub fn default_mode(candidates: &[Candidate]) -> Option<usize> {
         .map(|(index, _)| index)
 }
 
+pub fn preferred_mode(candidates: &[Candidate]) -> Option<usize> {
+    usable(candidates)
+        .find(|(_, candidate)| candidate.preferred)
+        .map(|(index, _)| index)
+        .or_else(|| default_mode(candidates))
+}
+
 pub fn choose(candidates: &[Candidate], wanted: Option<DisplayMode>) -> Option<usize> {
     wanted
         .and_then(|wanted| {

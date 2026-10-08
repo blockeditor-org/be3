@@ -700,7 +700,17 @@ only a Linux host can answer, such as those lists, travel as
 keeps a copy of the last settings of each kind it applied in `app_state` and
 applies that at startup; the block stays the source of truth. A kind of setting
 the app applies itself implements `local_settings::LocalSettings` and is kept by
-a `SettingsSync`. `be::hold` opens a
+a `SettingsSync`; its `apply` answers whether the settings may be saved now.
+Display settings may not until someone keeps them: a change that moves what a
+connected monitor shows, or a monitor started at a fastest rate other than its
+preferred mode that it was never kept at, opens the host's "Keep these display
+settings?" prompt (`styled::KeepChanges`, a card on every screen) in
+`display::guard`. Keep saves, storing a kept default as the monitor's mode;
+Revert, Escape or 15 seconds of the frame clock put back the earlier modes, or
+the preferred mode for an untried default, and `SettingsSync::commit` writes
+those edits into the block too, holding them until its content is loaded and reading
+the block with them on top until a revision holds them.
+`be::hold` opens a
 block for the app and keeps it open when the last editor showing it closes,
 because `be::close` leaves a held block alone. Nothing releases a held block
 before the stack stops, which is when the workspace changes.

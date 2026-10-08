@@ -63,6 +63,7 @@ pub fn Button(
     variant: ButtonVariant,
     #[prop(default = String::new())] glyph: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
+    #[prop(default = false)] focused: Prop<bool>,
     action: Option<Action>,
     on_click: ClickCallback,
 ) -> NodeId {
@@ -72,6 +73,7 @@ pub fn Button(
             glyph
             action
             disabled
+            focused
             on_click={move || on_click.call()}
             content={move |handle| view! {
                 <ButtonFace handle variant />

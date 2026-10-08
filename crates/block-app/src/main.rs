@@ -2113,6 +2113,8 @@ impl BlockApp {
             UiCommand::Launch(command) => self.launcher.run(command),
             UiCommand::AppMenu(open) => self.app_menu_open = open,
             UiCommand::DismissToast(id) => notices::dismiss(id),
+            UiCommand::KeepDisplay => self.display.commit(&self.app_state, display::keep()),
+            UiCommand::RevertDisplay => self.display.commit(&self.app_state, display::revert()),
             UiCommand::SendInvite(email, role) => {
                 if let Some(workspace) = &self.workspace
                     && !email.trim().is_empty()
@@ -2297,6 +2299,8 @@ impl BlockApp {
                 .with(|open| open.values().any(PluginEditor::presenting_now)),
             debug: debug::view(),
             toasts: notices::shown(),
+            keep_display: display::asking(),
+            screens: display::screens(),
         }
     }
 
