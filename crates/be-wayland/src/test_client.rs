@@ -23,6 +23,13 @@ use wayland_protocols::wp::linux_dmabuf::zv1::client::{
     zwp_linux_buffer_params_v1, zwp_linux_dmabuf_v1,
 };
 
+use wayland_protocols::ext::idle_notify::v1::client::{
+    ext_idle_notification_v1, ext_idle_notifier_v1,
+};
+use wayland_protocols::wp::idle_inhibit::zv1::client::{
+    zwp_idle_inhibit_manager_v1, zwp_idle_inhibitor_v1,
+};
+
 const ARGB8888: u32 = u32::from_le_bytes(*b"AR24");
 use crate::state::{ServerEvent, WindowId};
 
@@ -59,6 +66,7 @@ pub(crate) struct Received {
     pub(crate) kde_decoration: Option<org_kde_kwin_server_decoration::Mode>,
     pub(crate) ignores_pings: bool,
     pub(crate) pings: Vec<u32>,
+    pub(crate) idle: Vec<bool>,
 }
 
 pub(crate) struct TestClient {
@@ -211,6 +219,29 @@ impl TestClient {
             xdg_surface,
             toplevel: Some(toplevel),
             popup: None,
+        }
+    }
+
+    pub(crate) fn inhibit(
+        &self,
+        surface: &wl_surface::WlSurface,
+    ) -> zwp_idle_inhibitor_v1::ZwpIdleInhibitorV1 {
+        let manager: zwp_idle_inhibit_manager_v1::ZwpIdleInhibitManagerV1 =
+            self.bind("zwp_idle_inhibit_manager_v1", 1);
+        manager.create_inhibitor(surface, &self.handle, ())
+    }
+
+    pub(crate) fn idle_notification(
+        &self,
+        timeout_ms: u32,
+        input_only: bool,
+    ) -> ext_idle_notification_v1::ExtIdleNotificationV1 {
+        let notifier: ext_idle_notifier_v1::ExtIdleNotifierV1 =
+            self.bind("ext_idle_notifier_v1", 2);
+        let seat = self.seat.as_ref().unwrap();
+        match input_only {
+            true => notifier.get_input_idle_notification(timeout_ms, seat, &self.handle, ()),
+            false => notifier.get_idle_notification(timeout_ms, seat, &self.handle, ()),
         }
     }
 
@@ -645,6 +676,25 @@ impl Dispatch<org_kde_kwin_server_decoration::OrgKdeKwinServerDecoration, ()> fo
 
 wayland_client::delegate_noop!(Received: ignore zxdg_decoration_manager_v1::ZxdgDecorationManagerV1);
 wayland_client::delegate_noop!(Received: ignore wl_seat::WlSeat);
+wayland_client::delegate_noop!(Received: ignore zwp_idle_inhibit_manager_v1::ZwpIdleInhibitManagerV1);
+wayland_client::delegate_noop!(Received: ignore zwp_idle_inhibitor_v1::ZwpIdleInhibitorV1);
+wayland_client::delegate_noop!(Received: ignore ext_idle_notifier_v1::ExtIdleNotifierV1);
+impl Dispatch<ext_idle_notification_v1::ExtIdleNotificationV1, ()> for Received {
+    fn event(
+        received: &mut Self,
+        _notification: &ext_idle_notification_v1::ExtIdleNotificationV1,
+        event: ext_idle_notification_v1::Event,
+        _data: &(),
+        _connection: &Connection,
+        _handle: &QueueHandle<Self>,
+    ) {
+        match event {
+            ext_idle_notification_v1::Event::Idled => received.idle.push(true),
+            ext_idle_notification_v1::Event::Resumed => received.idle.push(false),
+            _ => {}
+        }
+    }
+}
 wayland_client::delegate_noop!(Received: ignore zwp_linux_dmabuf_v1::ZwpLinuxDmabufV1);
 wayland_client::delegate_noop!(Received: ignore zwp_linux_buffer_params_v1::ZwpLinuxBufferParamsV1);
 wayland_client::delegate_noop!(Received: ignore xdg_positioner::XdgPositioner);

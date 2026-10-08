@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::mpsc::{Receiver, TryRecvError};
+use std::time::Duration;
 
 use be_wayland::programs::{DesktopEntry, Environment, IconThemes, load_icon};
 use be_wayland::{Compositor, Launch, Server, WindowId, WindowView, Windows};
@@ -14,6 +15,8 @@ struct Running {
     compositor: Compositor,
     cursor: Option<beui_adapter_drm::SoftwareCursor>,
     screens: Option<beui_adapter_drm::Screens>,
+    display: Option<beui_adapter_drm::DisplayControl>,
+    blanked: bool,
 }
 
 thread_local! {
@@ -47,6 +50,7 @@ pub(crate) fn start(setup: &Setup) {
     };
     let mut compositor = Compositor::new(server, windows);
     compositor.on_failure(crate::notices::report);
+    compositor.set_blank_after(be_block::DisplaySettings::default().screen_off().after());
     compositor.start(
         gpu.device.clone(),
         gpu.queue.clone(),
@@ -55,11 +59,14 @@ pub(crate) fn start(setup: &Setup) {
     );
     let cursor = setup.get::<beui_adapter_drm::SoftwareCursor>().cloned();
     let screens = setup.get::<beui_adapter_drm::Screens>().cloned();
+    let display = setup.get::<beui_adapter_drm::DisplayControl>().cloned();
     RUNNING.with(|running| {
         *running.borrow_mut() = Some(Running {
             compositor,
             cursor,
             screens,
+            display,
+            blanked: false,
         });
     });
 }
@@ -77,6 +84,13 @@ pub(crate) fn before(context: &Context, rect: Rect, document: &mut Document) {
         if let Some(screens) = &running.screens {
             running.compositor.set_screens(screens.rects());
         }
+        if running
+            .display
+            .as_ref()
+            .is_some_and(beui_adapter_drm::DisplayControl::take_woken)
+        {
+            running.compositor.woke();
+        }
         running.compositor.before(context, rect, document);
     });
 }
@@ -84,6 +98,13 @@ pub(crate) fn before(context: &Context, rect: Rect, document: &mut Document) {
 pub(crate) fn after(context: &Context, document: &mut Document) {
     with(|running| {
         running.compositor.after(context, document);
+        let blanked = running.compositor.idle();
+        if let Some(display) = &running.display
+            && blanked != running.blanked
+        {
+            running.blanked = blanked;
+            display.set_blanked(blanked);
+        }
         if let Some(cursor) = &running.cursor {
             cursor.set(running.compositor.cursor_image().map(|image| {
                 beui_adapter_drm::CursorImage {
@@ -95,6 +116,10 @@ pub(crate) fn after(context: &Context, document: &mut Document) {
             }));
         }
     });
+}
+
+pub(crate) fn set_blank_after(after: Option<Duration>) {
+    with(|running| running.compositor.set_blank_after(after));
 }
 
 pub(crate) fn set_keyboard(keyboard: &be_wayland::KeyboardConfig) -> bool {

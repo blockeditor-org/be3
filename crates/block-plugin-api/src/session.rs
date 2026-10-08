@@ -1,7 +1,6 @@
 use crate::{
-    DecodeError, ErrorCode, HelloAccepted, InputBatch, InputEvent, MAX_QUEUED_MESSAGES, Message,
-    PROTOCOL_VERSION, ProtocolError, REQUEST_TIMEOUT_MILLISECONDS, SurfaceSpec, SurfaceSupport,
-    Theme, decode_frame,
+    DecodeError, HelloAccepted, InputBatch, InputEvent, MAX_QUEUED_MESSAGES, Message,
+    REQUEST_TIMEOUT_MILLISECONDS, SurfaceSpec, SurfaceSupport, Theme, decode_frame,
 };
 use std::collections::{HashMap, VecDeque};
 
@@ -91,25 +90,12 @@ impl HostSession {
     pub fn receive(&mut self, message: Message, now_milliseconds: u64) {
         match (&self.state, message) {
             (SessionState::Starting, Message::Hello(hello)) => {
-                if hello.version != PROTOCOL_VERSION {
-                    let error = ProtocolError {
-                        request_id: None,
-                        code: ErrorCode::UnsupportedVersion,
-                        message: "no compatible protocol version".into(),
-                    };
-                    self.queue.push_back(Message::HelloRejected(error));
-                    self.fail(SessionFailure::Protocol(
-                        "no compatible protocol version".into(),
-                    ));
-                    return;
-                }
                 let granted = match hello.surface {
                     SurfaceSupport::Texture => self.surface,
                     SurfaceSupport::None => None,
                 };
                 self.granted = granted;
                 self.queue.push_back(Message::HelloAccepted(HelloAccepted {
-                    version: PROTOCOL_VERSION,
                     host_name: self.host_name.clone(),
                     surface: granted,
                     theme: self.theme,

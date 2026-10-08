@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::process::{Command as Process, Stdio};
 use std::rc::Rc;
 use std::sync::mpsc::{Receiver, Sender, channel};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use beui::reactive::with_reactive_scope;
 use beui::{
@@ -89,6 +89,18 @@ impl Compositor {
 
     pub fn set_keyboard(&mut self, keyboard: &KeyboardConfig) -> bool {
         self.server.state.set_keyboard(keyboard)
+    }
+
+    pub fn set_blank_after(&mut self, after: Option<Duration>) {
+        self.server.state.idle.set_blank_after(after);
+    }
+
+    pub fn woke(&mut self) {
+        self.server.state.idle.woke();
+    }
+
+    pub fn idle(&self) -> bool {
+        self.server.state.idle.blanked()
     }
 
     pub fn set_screens(&mut self, screens: Vec<Rect>) {
@@ -641,8 +653,35 @@ impl Compositor {
         let size = (rect.width().round() as i32, rect.height().round() as i32);
         self.server.state.set_scale(scale, size.into());
         self.area = rect;
+        self.watch_idle(context, document);
         self.keyboard(context, document);
         self.publish(document);
+    }
+
+    fn watch_idle(&mut self, context: &Context, document: &mut Document) {
+        let now = context.now();
+        let active = context.input(|input| input.events.iter().any(is_activity));
+        let inhibited = self
+            .server
+            .state
+            .inhibiting_windows()
+            .into_iter()
+            .any(|id| self.shown(id));
+        if let Some(due) = self.server.state.idle.tick(now, active, inhibited) {
+            context.request_repaint_after(due.saturating_duration_since(now));
+        }
+        let idle = self.server.state.idle.blanked();
+        if self.windows.idle().get_untracked() != idle {
+            let windows = self.windows.clone();
+            with_reactive_scope(document, || windows.set_idle(idle));
+        }
+    }
+
+    fn shown(&self, id: WindowId) -> bool {
+        self.windows.rect(id).is_some_and(|rect| {
+            let visible = rect.intersect(self.area);
+            visible.width() > 0.0 && visible.height() > 0.0
+        })
     }
 
     pub fn after(&mut self, context: &Context, document: &mut Document) {
@@ -700,6 +739,21 @@ fn parent(pid: rustix::process::Pid) -> Option<rustix::process::Pid> {
     let (_, fields) = stat.rsplit_once(')')?;
     let parent = fields.split_whitespace().nth(1)?.parse().ok()?;
     rustix::process::Pid::from_raw(parent).filter(|parent| !parent.is_init())
+}
+
+fn is_activity(event: &Event) -> bool {
+    matches!(
+        event,
+        Event::Key { .. }
+            | Event::PointerButton { .. }
+            | Event::PointerMotion(_)
+            | Event::PointerMoved(_)
+            | Event::Scroll(_)
+            | Event::PhysicalKey { .. }
+            | Event::Text(_)
+            | Event::Touch { .. }
+            | Event::Zoom(_)
+    )
 }
 
 fn key_of(after: &[Event]) -> Option<KeyPress> {

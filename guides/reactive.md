@@ -603,7 +603,9 @@ that state on its own — a click moves focus, a scrim click dismisses an overla
 pair the prop with the matching callback and write the signal back:
 `on_focus_change` for `focused` and `on_dismiss` for `open`. Without the write
 back the signal goes stale and the next write of the value it already holds
-changes nothing.
+changes nothing. `on_dismiss` reports only the document closing the overlay,
+never the owner writing `open` false, so it can mean "cancel" without guarding
+against the owner's own close.
 
 A `Selector` is the natural source for `focused` in a list: keep one signal
 naming the row that should have focus and give each row `focused={selection
