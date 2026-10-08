@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+#
+# Runs the tests whose names contain NAME and prints everything they print,
+# whether they pass or fail. It finds the crates whose sources hold such a test
+# and runs each crate's :test, so a plugin's tests run as wasm, where they can
+# compare paintings, and everything else runs natively. --update accepts the
+# paintings they make. Naming a target runs that target's tests alone.
+#
+# Usage:
+#   ./scripts/test NAME [--update]
+#   ./scripts/test //crates/editors/checklist:test [NAME] [--update]
+
+set -euo pipefail
+
+source "$(dirname "${BASH_SOURCE[0]}")/internal/common.sh"
+cd "$repository"
+
+usage() {
+    echo "Usage: ./scripts/test NAME [--update]" >&2
+    echo "       ./scripts/test //crates/<crate>:test [NAME] [--update]" >&2
+    exit 1
+}
+
+name=''
+update=false
+targets=()
+for argument in "$@"; do
+    case "$argument" in
+        --update) update=true ;;
+        //*) targets+=("$argument") ;;
+        -*) usage ;;
+        *) [[ -z "$name" ]] || usage; name="$argument" ;;
+    esac
+done
+[[ -n "$name" || ${#targets[@]} -gt 0 ]] || usage
+
+if [[ ${#targets[@]} -eq 0 ]]; then
+    if [[ ! "$name" =~ ^[A-Za-z0-9_:]+$ ]]; then
+        echo "A test name is letters, digits, underscores and ::, not '$name'." >&2
+        exit 1
+    fi
+    word="${name##*::}"
+    crates=()
+    while IFS= read -r file; do
+        directory="$(dirname "$file")"
+        while [[ "$directory" != crates && ! -f "$directory/Cargo.toml" ]]; do
+            directory="$(dirname "$directory")"
+        done
+        [[ -f "$directory/Cargo.toml" ]] && crates+=("$directory")
+    done < <(grep -rlE --include='*.rs' "fn [A-Za-z0-9_]*${word}[A-Za-z0-9_]*[[:space:]]*[(<]" crates \
+        | xargs -r grep -lE '#\[(test|tokio::test)' || true)
+    if [[ ${#crates[@]} -eq 0 ]]; then
+        echo "No test in crates/ has a name containing '$word'." >&2
+        exit 1
+    fi
+    while IFS= read -r crate; do
+        if ! grep -qE '^(cargo_test|editor|plugin_tests)\(' "$crate/BUCK" 2> /dev/null; then
+            echo "$crate holds a test named like '$word' but has no :test target in its BUCK." >&2
+            exit 1
+        fi
+        targets+=("//$crate:test")
+    done < <(printf '%s\n' "${crates[@]}" | sort -u)
+fi
+
+arguments=(--test-arg=--nocapture)
+[[ -z "$name" ]] || arguments+=("--test-arg=$name")
+! $update || arguments+=(--env UPDATE_SNAPSHOTS=1)
+
+echo "Running ${targets[*]}" >&2
+BE3_VERBOSE=1 exec "$repository/scripts/buck" test "${targets[@]}" -- "${arguments[@]}"
