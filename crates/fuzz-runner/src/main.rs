@@ -107,6 +107,9 @@ fn run(arguments: Vec<String>) -> Result<ExitCode, String> {
                 return Ok(ExitCode::from(130));
             }
             if !status.code().is_some_and(|code| FUZZED.contains(&code)) {
+                unsafe {
+                    libc::kill(-group, libc::SIGTERM);
+                }
                 return Err(format!("Fuzzing {} failed: {status}.", target.id));
             }
         }
