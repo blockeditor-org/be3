@@ -20,7 +20,62 @@ pub(crate) struct SettingsSync<R> {
     block: Option<Uuid>,
     seen: Option<(Uuid, u64)>,
     applied: Option<R>,
+    outbox: Outbox,
+}
+
+#[derive(Default)]
+struct Outbox {
     unwritten: Vec<Edit>,
+    sent: Vec<Edit>,
+    sent_at: Option<u64>,
+}
+
+impl Outbox {
+    fn queue(&mut self, edits: Vec<Edit>) {
+        self.unwritten.extend(edits);
+    }
+
+    fn send(&mut self, revision: u64) -> Vec<Edit> {
+        if self.unwritten.is_empty() {
+            return Vec::new();
+        }
+        let edits = std::mem::take(&mut self.unwritten);
+        self.sent.extend(edits.iter().cloned());
+        self.sent_at = Some(revision);
+        edits
+    }
+
+    fn overlay<R: LocalSettings>(&mut self, revision: u64, content: R) -> (R, Vec<Edit>) {
+        if self.sent.is_empty() {
+            return (content, Vec::new());
+        }
+        let overlaid = edited(&content, &self.sent);
+        if overlaid == content {
+            self.sent.clear();
+            self.sent_at = None;
+            return (content, Vec::new());
+        }
+        let resend = match self.sent_at == Some(revision) {
+            true => Vec::new(),
+            false => {
+                self.sent_at = Some(revision);
+                self.sent.clone()
+            }
+        };
+        (overlaid, resend)
+    }
+
+    fn clear(&mut self) {
+        *self = Self::default();
+    }
+}
+
+fn edited<R: Root>(settings: &R, edits: &[Edit]) -> R {
+    let mut document = Document::new(settings);
+    for edit in edits {
+        document.apply(edit);
+    }
+    document.root()
 }
 
 impl<R> Default for SettingsSync<R> {
@@ -29,7 +84,7 @@ impl<R> Default for SettingsSync<R> {
             block: None,
             seen: None,
             applied: None,
-            unwritten: Vec::new(),
+            outbox: Outbox::default(),
         }
     }
 }
@@ -65,6 +120,9 @@ impl<R: LocalSettings> SettingsSync<R> {
     }
 
     pub(crate) fn set_block(&mut self, block: Option<Uuid>) {
+        if self.block.is_some() && self.block != block {
+            self.outbox.clear();
+        }
         self.block = block;
         self.seen = None;
     }
@@ -74,10 +132,10 @@ impl<R: LocalSettings> SettingsSync<R> {
             return;
         };
         be::hold(block, R::CONTENT_TYPE);
-        self.write(block);
         let Some(revision) = be::content_revision(block) else {
             return;
         };
+        Self::write(block, self.outbox.send(revision));
         if self.seen == Some((block, revision)) {
             return;
         }
@@ -87,7 +145,9 @@ impl<R: LocalSettings> SettingsSync<R> {
             return;
         };
         self.seen = Some((block, revision));
-        self.receive(store, content.root());
+        let (settings, resend) = self.outbox.overlay(revision, content.root());
+        Self::write(block, resend);
+        self.receive(store, settings);
     }
 
     fn receive(&mut self, store: &AppStateStore, settings: R) {
@@ -101,30 +161,21 @@ impl<R: LocalSettings> SettingsSync<R> {
     }
 
     pub(crate) fn commit(&mut self, store: &AppStateStore, edits: Vec<Edit>) {
-        let mut document = Document::new(&self.applied.clone().unwrap_or_default());
-        for edit in &edits {
-            document.apply(edit);
-        }
-        let settings = document.root();
+        let settings = edited(&self.applied.clone().unwrap_or_default(), &edits);
         self.save(store, &settings);
         self.applied = Some(settings);
-        self.unwritten.extend(edits);
-        if let Some(block) = self.block {
-            self.write(block);
+        self.outbox.queue(edits);
+        if let Some(block) = self.block
+            && let Some(revision) = be::content_revision(block)
+        {
+            Self::write(block, self.outbox.send(revision));
         }
     }
 
-    fn write(&mut self, block: Uuid) {
-        if self.unwritten.is_empty() {
-            return;
-        }
-        let Some(revision) = be::content_revision(block) else {
-            return;
-        };
-        for edit in self.unwritten.drain(..) {
+    fn write(block: Uuid, edits: Vec<Edit>) {
+        for edit in edits {
             be::operate(block, Document::<R>::encode_operation(&edit));
         }
-        self.seen = Some((block, revision));
     }
 
     fn save(&self, store: &AppStateStore, settings: &R) {

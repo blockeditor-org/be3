@@ -5,6 +5,7 @@ mod a_changed_mode_waits_to_be_kept;
 mod a_kept_default_is_not_asked_about_again;
 mod a_monitor_whose_default_is_its_preferred_mode_is_not_asked_about;
 mod an_untried_fastest_default_falls_back_to_the_preferred_mode;
+mod reverting_a_change_leaves_monitors_that_are_not_connected_alone;
 mod reverting_a_change_restores_the_mode_before_it;
 
 const MONITOR: &str = "DEL|U2723QE|1234";

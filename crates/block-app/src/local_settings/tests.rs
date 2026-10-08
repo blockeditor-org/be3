@@ -8,6 +8,7 @@ use crate::display::{self, Screen};
 
 mod a_display_mode_is_saved_only_once_it_is_kept;
 mod a_reverted_display_mode_is_never_saved;
+mod edits_written_to_the_block_cover_its_content_until_it_holds_them;
 
 const MONITOR: &str = "DEL|U2723QE|1234";
 const SLOW: DisplayMode = DisplayMode {

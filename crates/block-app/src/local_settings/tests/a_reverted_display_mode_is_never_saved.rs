@@ -14,7 +14,7 @@ fn a_reverted_display_mode_is_never_saved() {
     assert!(!display::asking());
     assert_eq!(store.saved(), Some(showing(SLOW)));
     assert_eq!(
-        sync.unwritten,
+        sync.outbox.unwritten,
         vec![DisplaySettings::set_mode(MONITOR, Some(SLOW))],
         "the block is put back once it can be written"
     );

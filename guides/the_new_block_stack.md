@@ -708,7 +708,8 @@ settings?" prompt (`styled::KeepChanges`, a card on every screen) in
 `display::guard`. Keep saves, storing a kept default as the monitor's mode;
 Revert, Escape or 15 seconds of the frame clock put back the earlier modes, or
 the preferred mode for an untried default, and `SettingsSync::commit` writes
-those edits into the block too, holding them until its content is loaded.
+those edits into the block too, holding them until its content is loaded and reading
+the block with them on top until a revision holds them.
 `be::hold` opens a
 block for the app and keeps it open when the last editor showing it closes,
 because `be::close` leaves a held block alone. Nothing releases a held block

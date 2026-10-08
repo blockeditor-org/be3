@@ -1,5 +1,3 @@
-use std::collections::BTreeSet;
-
 use be_block::DisplaySettings;
 use be_block::be_model::{Document, Edit};
 use be_block::display_settings::DisplayMode;
@@ -74,13 +72,10 @@ impl Guard {
     pub(crate) fn revert(&mut self) -> Vec<Edit> {
         let mut edits = Vec::new();
         if let Some(previous) = self.previous.take() {
-            let ids: BTreeSet<&String> = previous
-                .monitors
-                .keys()
-                .chain(self.applied.monitors.keys())
-                .collect();
-            let restored: Vec<Edit> = ids
-                .into_iter()
+            let restored: Vec<Edit> = self
+                .screens
+                .iter()
+                .map(|screen| &screen.id)
                 .filter(|id| previous.monitor(id) != self.applied.monitor(id))
                 .map(|id| DisplaySettings::set_mode(id, previous.mode(id)))
                 .collect();
