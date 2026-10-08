@@ -27,7 +27,8 @@ impl LocalSettings for InputSettings {
         store.set_input_settings(content)
     }
 
-    fn apply(&self) {
+    fn apply(&self) -> bool {
         apply(self);
+        true
     }
 }

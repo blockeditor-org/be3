@@ -1201,6 +1201,9 @@ pub(crate) fn OverlaysPage() -> NodeId {
             <Sample title="Dialog" code={vec![DiscardDialog::SOURCE]}>
                 <DiscardDialog />
             </Sample>
+            <Sample title="Keep changes" code={vec![KeepModeChange::SOURCE]}>
+                <KeepModeChange />
+            </Sample>
             <Sample title="Launcher" code={vec![ProgramLauncher::SOURCE, program::SOURCE]}>
                 <ProgramLauncher />
             </Sample>
@@ -1307,6 +1310,40 @@ fn DiscardDialog() -> NodeId {
                     </List>
                 </List>
             </Dialog>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn KeepModeChange() -> NodeId {
+    let (asking, set_asking) = create_signal(false);
+    let (outcome, set_outcome) = create_signal("Showing 1920 × 1080 at 60 Hz".to_owned());
+    let (kept, reverted) = (set_asking.clone(), set_asking.clone());
+    let (keeping, reverting) = (set_outcome.clone(), set_outcome);
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <Button
+                    @test_id={"demo.keep_changes.open"}
+                    label="Switch to 144 Hz"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || set_asking.set(true)}
+                />
+            </List>
+            <Caption content={outcome} @test_id={"demo.keep_changes.outcome"} />
+            <KeepChanges
+                open={asking}
+                title="Keep these display settings?"
+                on_keep={move || {
+                    keeping.set("Kept 1920 × 1080 at 144 Hz".to_owned());
+                    kept.set(false);
+                }}
+                on_revert={move || {
+                    reverting.set("Went back to 1920 × 1080 at 60 Hz".to_owned());
+                    reverted.set(false);
+                }}
+            />
         </List>
     }
 }

@@ -4,6 +4,7 @@ mod a_monitor_is_known_by_its_edid_or_else_its_connector;
 mod a_saved_mode_wins_while_the_monitor_offers_it;
 mod refresh_rates_keep_their_fractions;
 mod the_default_is_the_preferred_size_at_its_fastest_refresh;
+mod the_fallback_is_the_mode_the_monitor_prefers;
 
 fn mode(width: u32, height: u32, refresh_millihertz: u32) -> DisplayMode {
     DisplayMode {

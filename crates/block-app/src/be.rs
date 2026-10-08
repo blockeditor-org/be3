@@ -444,6 +444,10 @@ pub(crate) fn is_versioned(content_type: Uuid) -> bool {
         || content_type == <be_block::Repository as be_block::Root>::CONTENT_TYPE
 }
 
+pub(crate) fn operate(block: Uuid, operation: Vec<u8>) {
+    send(Command::Operate(block, None, operation));
+}
+
 pub(crate) fn operate_from(block: Uuid, origin: u64, operation: Vec<u8>) {
     send(Command::Operate(block, Some(origin), operation));
 }

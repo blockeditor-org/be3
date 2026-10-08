@@ -61,6 +61,11 @@ impl DocumentTest {
         self.output = Some(output);
     }
 
+    pub fn advance(&mut self, by: Duration) {
+        self.context.advance_clock(by);
+        self.frame(Vec::new());
+    }
+
     pub fn shows(&self, test_id: &str) -> bool {
         self.document
             .find_test_id(test_id)
