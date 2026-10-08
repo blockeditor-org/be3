@@ -8,6 +8,7 @@ use uuid::Uuid;
 mod field;
 mod grid;
 mod history;
+mod items;
 mod latest;
 mod merge;
 mod text;
@@ -17,6 +18,7 @@ pub use be_model_derive::Model;
 pub use field::{Count, Field, FieldRef, Item, List, Map, Register};
 pub use grid::{Bounds, Cell, Cells, Grid, Paint};
 pub use history::Step;
+pub use items::Items;
 pub use latest::{Latest, LatestMap, Stamp, Stamped};
 pub use sequence::{LOADED, Pos, SeqOp, Sequence, Span, Splice};
 pub use text::Text;
@@ -59,6 +61,7 @@ pub struct Place {
 pub enum Anchor {
     Start,
     After(ObjectId),
+    Behind(Pos),
     End,
 }
 
@@ -73,7 +76,7 @@ pub enum Touched {
 pub enum Value {
     Register(Vec<u8>),
     Count(i64),
-    List(Vec<ObjectId>),
+    List(Items),
     Map(BTreeMap<Vec<u8>, Vec<u8>>),
     Grid(Cells),
     Latest(BTreeMap<Vec<u8>, Stamped>),
@@ -157,12 +160,6 @@ pub enum Change {
     },
     Move {
         object: ObjectId,
-        place: Place,
-        anchor: Anchor,
-    },
-    MoveIf {
-        object: ObjectId,
-        expected: Place,
         place: Place,
         anchor: Anchor,
     },
@@ -289,7 +286,7 @@ impl<R: Model> Document<R> {
             .object(owner)
             .and_then(|held| held.fields.get(usize::from(field.index())))
         {
-            Some(Value::List(ids)) => ids.clone(),
+            Some(Value::List(ids)) => ids.ids(),
             _ => Vec::new(),
         }
     }
@@ -367,6 +364,9 @@ impl<R> fmt::Debug for Document<R> {
 }
 
 pub(crate) type Objects = BTreeMap<ObjectId, Object>;
+
+#[cfg(any(test, feature = "fuzzing"))]
+pub mod fuzz;
 
 #[cfg(test)]
 mod tests;

@@ -336,11 +336,15 @@ values, and every algorithm is written once against that table:
   `Calendar::update`, which only writes the fields that changed.
 - **Live editing.** Edits address objects by id and anchor inserts to a sibling,
   so they mean the same thing whatever the sequencer put before them: there is
-  nothing to rebase. The tree remembers where each removed or moved-away object
-  was, so an insert anchored after it lands where it was. That memory lives only
-  in the session: it is never saved, the owner hands it to a joining follower in
-  `Snapshot` and to reloading followers in `Sealed` (`LiveEdit::session_state`),
-  and it goes when the session ends. A `Snapshot` carries the state as of the
+  nothing to rebase. A list is a `Sequence` of ids (`Items`) in which every
+  object sits at a position derived from its own id, so a list has at most one
+  slot for an object: removing it leaves a tombstone there, an insert anchored
+  after a removed or moved-away object lands where it was, and an object that
+  comes back reuses its slot. A move within a list keeps the slot; a move to
+  another list leaves a tombstone behind. Tombstones and text positions live only
+  in the session: they are never saved, the owner hands them to a joining
+  follower in `Snapshot` and to reloading followers in `Sealed`
+  (`LiveEdit::session_state`), and they go when the session ends. A `Snapshot` carries the state as of the
   owner's last seal, because the follower opens the sealed head and applies the
   operations since onto it; adopting state rebuilds a follower's view from
   `confirmed` and its pending edits rather than adopting into it. Anything two peers may
@@ -362,9 +366,10 @@ values, and every algorithm is written once against that table:
   and the one that redoes it, both taken against the state before the edit. A
   register's undo is conditional (`Change::SetIf`, and `Change::PutIf` for a map
   key): it only puts the old value back if nobody has changed it since, which is how undo leaves other
-  people's edits alone. A move's undo (`Change::MoveIf`) only moves the object
-  back if it is still where the move put it. A removed object is put back with
-  everything under it, after the sibling it followed. `Change::RemoveIf` removes
+  people's edits alone. A move's undo puts the object back after what preceded
+  it, even if someone moved it since, and its redo moves it to where the move
+  put it. A removed object is put back with everything under it, in its old
+  slot. `Change::RemoveIf` removes
   an object only if it still holds what the remover expected, for cleanups like
   a database dropping a row it emptied. Consecutive sets of the same fields
   absorb into one step.

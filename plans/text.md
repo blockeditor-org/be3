@@ -11,7 +11,7 @@ bookkeeping.
 
 - **Saved form is the payload only.** A text field saves its bytes, a list saves
   its `ObjectId`s. Position ids, fragments and tombstones exist only in the live
-  session, like the removal records of #339. Partial reads and chunk
+  session. Partial reads and chunk
   deduplication keep working on plain bytes.
 - **Live edits address positions; offline merges address payloads.** Positions
   are never saved, so an offline merge cannot match them: text merges with line
@@ -91,9 +91,7 @@ Undo stays client-local and conditional. An insert's undo deletes its span, a
 delete's undo undeletes what it hid, a replace's undo swaps back, a move's undo
 moves the range back after the element that preceded it. Undoing a move is not
 conditional: it moves the range back even if someone moved it since, and redo
-moves it to where the move put it. Lists' `MoveIf` refuses instead today; they
-take the sequence's behaviour when they move onto it, and
-`undoing_a_move_leaves_a_card_someone_else_moved_since` changes. A burst of inserts (or
+moves it to where the move put it; lists do the same. A burst of inserts (or
 of deletes) into one field undoes as one step. History is capped at 200 steps
 and 8 hours. Revision history is the way back past that.
 
@@ -260,6 +258,20 @@ Done:
   everyone closes it. `Snapshot` carries the state as of the owner's last seal,
   and adopting state rebuilds a follower's view from `confirmed` and its pending
   edits.
+- Lists: `Value::List` holds `Items`, a `Sequence<ObjectId>` in which every
+  object sits at the position its id names (`client` is the id's low 64 bits,
+  `offset` 0), so changes keep addressing objects and anchoring to siblings by
+  id and editors are unchanged. A list has one slot per object: a removal
+  leaves a tombstone, an object that comes back to a list undeletes its slot
+  and moves it after its anchor, a move within a list keeps the slot, and a move
+  to another list leaves a tombstone behind. A list without tombstones adds
+  nothing to the session state; the removal records (`gone`) and `MoveIf` are
+  gone. Two ids with the same low 64 bits can't both be live in one list: the
+  second insert or move there is refused. `be_model::fuzz::lists` (a seeded
+  test and the coverage-guided `//crates/be-model:fuzz-lists`) runs three
+  clients inserting, removing, moving, undoing and reloading a board of columns
+  and cards through a sequencer, and checks the tree's structure after every
+  operation and that every replica, tombstones included, ends the same.
 
 Still to do:
 
@@ -270,13 +282,8 @@ Still to do:
 - A follower's replacement (an edit over 1 MiB) replays the owner's unsealed
   operations onto the reloaded content: BE3-184. With text that can apply
   position edits from the old content to the replacement.
-- `List` on `Sequence<ObjectId>`: moves inside a list keep positions, a move
-  between lists is a delete plus an insert carrying the same `ObjectId`, and the
-  removal records become tombstones. Range moves of several items come with it.
-  The list wrapper keeps a map from `ObjectId` to its live position (a
-  delete and reinsert leaves the same id once as a tombstone and once live),
-  and splits `Change::Insert` into a sequence insert of the top-level ids plus
-  the object table.
+- Range moves of several list items (`SeqOp::Move` already moves a range;
+  nothing builds one for a list yet).
 - The first two reprojection fixes above (commuting fast path, one rebuild per
   poll), and serialising `Sequence<u8>` as one byte string.
 - Splices reported through `Touched` for editors other than the text block.

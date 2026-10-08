@@ -2,7 +2,7 @@ use std::{collections::BTreeMap, marker::PhantomData, ops::Deref};
 
 use serde::{Serialize, de::DeserializeOwned};
 
-use crate::{Anchor, Change, Model, Object, ObjectId, Place, Tree, Value};
+use crate::{Anchor, Change, Items, Model, Object, ObjectId, Place, Tree, Value};
 
 pub trait Field: Sized {
     fn blank() -> Value;
@@ -130,7 +130,7 @@ impl<T> FromIterator<T> for List<T> {
 
 impl<T: Model> Field for List<T> {
     fn blank() -> Value {
-        Value::List(Vec::new())
+        Value::List(Items::default())
     }
 
     fn read(tree: &Tree, value: &Value) -> Self {

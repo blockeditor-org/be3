@@ -207,6 +207,37 @@ impl<T: Clone> Sequence<T> {
         Self::build(runs, next, fragments)
     }
 
+    pub fn from_placed(items: Vec<(Pos, T)>) -> Self {
+        let mut runs: BTreeMap<Pos, Vec<T>> = BTreeMap::new();
+        let mut next: BTreeMap<u64, u64> = BTreeMap::new();
+        let mut fragments: Vec<Fragment> = Vec::new();
+        for (pos, item) in items {
+            let Some(end) = pos.offset.checked_add(1) else {
+                continue;
+            };
+            if next.get(&pos.client).is_some_and(|seen| *seen > pos.offset) {
+                continue;
+            }
+            next.insert(pos.client, end);
+            match fragments.last_mut() {
+                Some(last) if last.client == pos.client && last.end() == pos.offset => {
+                    last.len += 1;
+                    runs.entry(last.first()).or_default().push(item);
+                }
+                _ => {
+                    fragments.push(Fragment {
+                        client: pos.client,
+                        start: pos.offset,
+                        len: 1,
+                        visible: true,
+                    });
+                    runs.insert(pos, vec![item]);
+                }
+            }
+        }
+        Self::build(runs, next, fragments)
+    }
+
     pub fn items(&self) -> Vec<T> {
         self.iter().cloned().collect()
     }
@@ -377,6 +408,27 @@ impl<T> Sequence<T> {
         &self.slice(self.chunks[ci].fragments[fi])[inner..]
     }
 
+    pub fn previous(&self, pos: Pos) -> Option<Option<Pos>> {
+        let (ci, fi) = self.locate(pos)?;
+        let fragment = self.chunks[ci].fragments[fi];
+        if pos.offset > fragment.start {
+            return Some(Some(Pos {
+                client: pos.client,
+                offset: pos.offset - 1,
+            }));
+        }
+        let before = self.chunks[..ci]
+            .iter()
+            .flat_map(|chunk| chunk.fragments.iter())
+            .chain(&self.chunks[ci].fragments[..fi])
+            .next_back()
+            .copied();
+        Some(before.map(|fragment| Pos {
+            client: fragment.client,
+            offset: fragment.end() - 1,
+        }))
+    }
+
     pub fn place_of(&self, pos: Pos) -> Option<(usize, bool)> {
         let (ci, fi) = self.locate(pos)?;
         let fragment = self.chunks[ci].fragments[fi];
@@ -395,6 +447,11 @@ impl<T> Sequence<T> {
 
     pub fn iter(&self) -> impl Iterator<Item = &T> {
         self.slices().flatten()
+    }
+
+    pub fn get(&self, index: usize) -> Option<&T> {
+        let (ci, fi, inner) = self.find_visible(index)?;
+        self.slice(self.chunks[ci].fragments[fi]).get(inner)
     }
 
     pub fn pos(&self, index: usize) -> Option<Pos> {

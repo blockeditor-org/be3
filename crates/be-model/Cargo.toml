@@ -13,5 +13,8 @@ sequence = { path = "../sequence" }
 serde = { version = "1", features = ["derive"] }
 uuid = { version = "1", features = ["serde", "v4"] }
 
+[features]
+fuzzing = []
+
 [lints]
 workspace = true
