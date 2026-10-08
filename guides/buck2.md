@@ -28,6 +28,8 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck run //crates/beui-demo:demo` | beui's demo in a window |
 | `./scripts/buck run //crates/beui:survey-example` | a crate example; every example is `<name>-example` |
 | `./scripts/buck run //crates/beui-web-demo:web-serve` | beui's demo in a browser, drawn with DOM elements, on http://127.0.0.1:8070 |
+| `./scripts/buck run //:fuzz` | every fuzz target, taking turns with every core (`BE3_FUZZ_SLICE` seconds each, 600 by default), until it is stopped |
+| `./scripts/buck run //crates/sequence:fuzz-sequence -- FILE` | one fuzz target; with an input file, runs it once |
 | `./scripts/buck run //:buckify` | regenerates `buck/cargo/crates.bzl` and `Cargo.lock` from the manifests |
 | `./scripts/buck run //:rust-project` | writes `rust-project.json` for rust-analyzer |
 | `./scripts/buck run //:lock-sysroot` | re-resolves `buck/sysroot/packages.bzl` |
@@ -148,6 +150,17 @@ rule attribute such as a test's `remote_execution = "disabled"`.
 **An editor**: `crates/editors/<name>/BUCK` is one `editor(name, module)` call
 from `buck/wasm/defs.bzl`, which makes the guest cdylib, its `:module`, its
 `:manifest` and its wasm `:test`. The app picks up every editor by itself.
+
+**A fuzz target**: a file `fuzz/<name>.rs` in a crate whose `BUCK` calls
+`cargo_fuzz()` (with `extra_features` for the library's features it needs),
+which is a `#![no_main]` crate defining `LLVMFuzzerTestOneInput` over the
+library (`crates/sequence/fuzz`). It becomes `:fuzz-<name>`, and `//:fuzz`
+finds it by itself (`buck/dev/fuzz.bxl`). It is built with rustc's sancov
+instrumentation and linked with LLVM's libFuzzer, on the stable compiler and
+without a sanitizer, for Linux x86_64 only, and `:fuzz-<name>-test` fuzzes for
+a moment from a fixed seed. Its corpus and crashes are kept in
+`target/fuzz/<crate>/<name>`, so it picks up where it was when it is started
+again.
 
 **A system library**: a line in `buck/sysroot/BUCK`, then
 `./scripts/buck run //:lock-sysroot`. A `-sys` crate finds it through the
