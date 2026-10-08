@@ -71,6 +71,7 @@ const CARET_HANDLE_TAP_SLACK: f32 = 4.0;
 const CHECKBOX_RADIUS: u8 = 3;
 const CHECKBOX_OUTLINE: f32 = 1.5;
 const INLINE_WIDGET_RADIUS: u8 = 5;
+const RUN_CHIP_RADIUS: u8 = 3;
 const REMOTE_SELECTION_ALPHA: u8 = 70;
 const CODE_OUTSET: Vec2 = Vec2::new(3.0, -1.0);
 const CODE_RADIUS: f32 = 3.0;
@@ -763,6 +764,7 @@ fn select_at(cx: &Context, pos: Pos2, clicks: u32, extend: bool, syntax: bool) {
                 cx.state.set_selecting(false);
                 return;
             }
+            Inline::Run => {}
         }
     }
     let Some(target) = cx.hit(pos) else {
@@ -963,6 +965,7 @@ pub fn TextArea(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = BODY_SIZE)] font_size: Prop<f32>,
     #[prop(default = PADDING)] padding: Prop<Vec2>,
+    #[prop(default = false)] show_runs: Prop<bool>,
     accessibility: Option<Prop<Node>>,
     frame: Option<Render<Child>>,
     block: Option<RenderFn<usize>>,
@@ -1008,6 +1011,10 @@ pub fn TextArea(
     let remote_cursors = create_memo(move || remote_cursors.get());
     let drop_caret = create_memo(move || drop_caret.get());
     let view_width = create_memo(clone!(placed -> move || placed.get().width()));
+    create_effect(clone!(state -> move || {
+        let shown = show_runs.get();
+        untrack(|| state.set_show_runs(shown));
+    }));
 
     let role = match single_line {
         true => Role::TextInput,

@@ -30,6 +30,7 @@ pub fn TextArea(
     #[prop(default = None)] drop_caret: Prop<Option<usize>>,
     #[prop(default = String::new())] placeholder: Prop<String>,
     #[prop(default = false)] password: Prop<bool>,
+    #[prop(default = false)] show_runs: Prop<bool>,
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
     #[prop(default = true)] emoji: bool,
@@ -69,6 +70,7 @@ pub fn TextArea(
                         drop_caret
                         placeholder
                         password
+                        show_runs
                         on_widget_press={move |widget: usize| on_widget_press.call(widget)}
                         on_key_override={move |press: KeyPress| on_key_override.call(press)}
                         on_focus_change={move |focused: bool| on_focus_change.call(focused)}

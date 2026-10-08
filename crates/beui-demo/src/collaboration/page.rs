@@ -81,6 +81,7 @@ fn ConcurrentEditing() -> NodeId {
     let left = editor(&simulation, Side::Left);
     let right = editor(&simulation, Side::Right);
     let (paused, set_paused) = create_signal(false);
+    let (runs, set_runs) = create_signal(false);
     let (latency, set_latency) = create_signal(START_LATENCY);
     let (flight, set_flight) = create_signal((0usize, 0usize));
     let (same, set_same) = create_signal(true);
@@ -183,6 +184,7 @@ fn ConcurrentEditing() -> NodeId {
     }));
     let send: Send = pump.clone();
     let switched = paused.clone();
+    let runs_pressed = runs.clone();
     let narrow = narrower_than(COLUMNS_BREAKPOINT);
 
     view! {
@@ -191,7 +193,8 @@ fn ConcurrentEditing() -> NodeId {
                 content="The left side orders every edit, as a session's owner does. The right \
                 side shows its own edits at once and holds them until the left has ordered \
                 them. Pause the network to type on both sides, then send each side's edits \
-                when you like."
+                when you like. Runs shows where each run of text starts, named by the client \
+                that typed it and its offset, with deleted runs struck through."
                 wrap=true
             />
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING wrap=true>
@@ -201,6 +204,12 @@ fn ConcurrentEditing() -> NodeId {
                     glyph={network}
                     pressed={switched.clone()}
                     on_change={move |on: bool| set_paused.set(on)}
+                />
+                <ToggleButton
+                    @test_id="demo.collaboration.runs"
+                    label="Runs"
+                    pressed={runs_pressed}
+                    on_change={move |on: bool| set_runs.set(on)}
                 />
                 <Caption content={latency_label} />
             </List>
@@ -217,6 +226,7 @@ fn ConcurrentEditing() -> NodeId {
                     title="Left, the owner"
                     state={left}
                     remote={left_remote}
+                    runs={runs.clone()}
                 />
                 <SendButtons send={send.clone()} flight={flight.clone()} paused narrow />
                 <EditorPane
@@ -225,6 +235,7 @@ fn ConcurrentEditing() -> NodeId {
                     title="Right, a follower"
                     state={right}
                     remote={right_remote}
+                    runs
                 />
             </unstyled::Stack>
             <Caption content={status} wrap=true />
@@ -333,6 +344,7 @@ fn EditorPane(
     title: &'static str,
     state: TextAreaState,
     remote: Memo<Vec<RemoteTextCursor>>,
+    runs: ReadSignal<bool>,
 ) -> NodeId {
     view! {
         <List spacing=ROW_SPACING>
@@ -342,6 +354,7 @@ fn EditorPane(
                 @sizing=ItemSize::Fixed(EDITOR_HEIGHT)
                 state={state}
                 remote_cursors={remote}
+                show_runs={runs}
             />
         </List>
     }

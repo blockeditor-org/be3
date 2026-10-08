@@ -23,13 +23,13 @@ use beui_view::reactive::{
 
 use super::rows::{
     BODY_SIZE, CHECKBOX_WIDTH, DOCUMENT_PADDING, INLINE_WIDGET_HEIGHT, INLINE_WIDGET_ICON_INSET,
-    Inline, InlineItem, LINE_PADDING, Row, RowInputs, RowOptions, build_row, galley, line_range,
-    rich_layout,
+    Inline, InlineItem, LINE_PADDING, RUN_CHIP_HEIGHT, RUN_CHIP_SIZE, Row, RowInputs, RowOptions,
+    build_row, galley, line_range, rich_layout,
 };
 use super::{
     CARET_WIDTH, CHECKBOX_OUTLINE, CHECKBOX_RADIUS, CODE_OUTSET, CODE_RADIUS, Context,
     GUTTER_ARROW_SIZE, GUTTER_PADDING_LEFT, GUTTER_PADDING_RIGHT, GUTTER_TEXT_SIZE, GeometryCell,
-    INLINE_WIDGET_RADIUS, REMOTE_SELECTION_ALPHA, RowEntry, TextCheckbox,
+    INLINE_WIDGET_RADIUS, REMOTE_SELECTION_ALPHA, RUN_CHIP_RADIUS, RowEntry, TextCheckbox,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -435,9 +435,12 @@ fn InlineView(cx: Context, model: Memo<Rc<Row>>, index: usize) -> NodeId {
     let checkbox = create_memo(
         clone!(item -> move || matches!(item.get().map(|item| item.inline), Some(Inline::Checkbox { .. }))),
     );
-    let widget = create_memo(clone!(checkbox -> move || !checkbox.get()));
-    let (checkbox_cx, widget_cx) = (cx.clone(), cx);
-    let (checkbox_item, widget_item) = (item.clone(), item);
+    let run = create_memo(
+        clone!(item -> move || matches!(item.get().map(|item| item.inline), Some(Inline::Run))),
+    );
+    let widget = create_memo(clone!(checkbox run -> move || !checkbox.get() && !run.get()));
+    let (checkbox_cx, widget_cx, run_cx) = (cx.clone(), cx.clone(), cx);
+    let (checkbox_item, widget_item, run_item) = (item.clone(), item.clone(), item);
     view! {
         <List spacing=0.0>
             <Show condition={checkbox}>
@@ -450,7 +453,36 @@ fn InlineView(cx: Context, model: Memo<Rc<Row>>, index: usize) -> NodeId {
                     <WidgetPill cx={widget_cx.clone()} item={widget_item.clone()} />
                 }}
             </Show>
+            <Show condition={run}>
+                {move || view! {
+                    <RunChip cx={run_cx.clone()} item={run_item.clone()} />
+                }}
+            </Show>
         </List>
+    }
+}
+
+#[component]
+fn RunChip(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
+    let fill = create_memo(clone!(cx -> move || cx.colors.get().widget));
+    let width =
+        create_memo(clone!(item -> move || Some(item.get().map_or(0.0, |item| item.size.x))));
+    let label =
+        create_memo(clone!(item -> move || item.get().map(|item| item.label).unwrap_or_default()));
+    let color = create_memo(
+        clone!(item -> move || item.get().map_or(Color32::WHITE, |item| item.style.color)),
+    );
+    view! {
+        <Frame width={width} height=RUN_CHIP_HEIGHT color={fill} radius=RUN_CHIP_RADIUS>
+            <Text
+                string={label}
+                font_size=RUN_CHIP_SIZE
+                color={color}
+                monospace=true
+                align=TextAlign::Center
+                vertical_align=TextAlign::Center
+            />
+        </Frame>
     }
 }
 

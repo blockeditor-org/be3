@@ -127,6 +127,14 @@ pub struct Splice {
     pub inserted: usize,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Run<'a, T> {
+    pub first: Pos,
+    pub len: u64,
+    pub visible: bool,
+    pub items: &'a [T],
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 struct Fragment {
     client: u64,
@@ -391,6 +399,15 @@ impl<T> Sequence<T> {
         self.fragments()
             .filter(|fragment| fragment.visible)
             .map(|fragment| self.slice(*fragment))
+    }
+
+    pub fn runs(&self) -> impl Iterator<Item = Run<'_, T>> {
+        self.fragments().map(|fragment| Run {
+            first: fragment.first(),
+            len: fragment.len,
+            visible: fragment.visible,
+            items: self.slice(*fragment),
+        })
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &T> {

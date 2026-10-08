@@ -4,8 +4,8 @@ use std::time::{Duration, Instant};
 
 use text_editor_core::{
     ChangeLog, CursorPosition, Document, DocumentEdit, DocumentRead, Pos, Position, SeqOp,
-    Sequence, TextChange, TextIndentation, TextLanguage, anchor_in, anchor_index_in, changed,
-    deleted_anchor_index_in,
+    Sequence, TextChange, TextIndentation, TextLanguage, TextRun, anchor_in, anchor_index_in,
+    changed, deleted_anchor_index_in, runs_in,
 };
 
 mod page;
@@ -498,6 +498,10 @@ impl DocumentRead for SideRead<'_> {
 
     fn deleted_anchor_index(&self, anchor: Pos) -> Option<usize> {
         deleted_anchor_index_in(&self.peer().visible, anchor)
+    }
+
+    fn runs(&self) -> Vec<TextRun> {
+        runs_in(&self.peer().visible)
     }
 
     fn language(&self) -> TextLanguage {

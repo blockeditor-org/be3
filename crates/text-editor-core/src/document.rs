@@ -59,6 +59,15 @@ impl TextIndentation {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TextRun {
+    pub at: usize,
+    pub pos: Pos,
+    pub len: usize,
+    pub visible: bool,
+    pub deleted: Vec<u8>,
+}
+
 pub trait DocumentRead {
     fn len(&self) -> usize;
 
@@ -70,6 +79,10 @@ pub trait DocumentRead {
 
     fn deleted_anchor_index(&self, _anchor: Pos) -> Option<usize> {
         None
+    }
+
+    fn runs(&self) -> Vec<TextRun> {
+        Vec::new()
     }
 
     fn language(&self) -> TextLanguage;
@@ -174,6 +187,10 @@ impl DocumentRead for DocumentView<'_> {
         self.read.deleted_anchor_index(anchor)
     }
 
+    fn runs(&self) -> Vec<TextRun> {
+        self.read.runs()
+    }
+
     fn language(&self) -> TextLanguage {
         self.read.language()
     }
@@ -199,6 +216,30 @@ pub fn deleted_anchor_index_in(sequence: &Sequence<u8>, anchor: Pos) -> Option<u
         (index, false) => Some(index),
         (_, true) => None,
     }
+}
+
+pub fn runs_in(sequence: &Sequence<u8>) -> Vec<TextRun> {
+    let mut at = 0;
+    sequence
+        .runs()
+        .map(|run| {
+            let len = run.len as usize;
+            let text_run = TextRun {
+                at,
+                pos: run.first,
+                len,
+                visible: run.visible,
+                deleted: match run.visible {
+                    true => Vec::new(),
+                    false => run.items.to_vec(),
+                },
+            };
+            if run.visible {
+                at += len;
+            }
+            text_run
+        })
+        .collect()
 }
 
 pub fn changed(change: TextChange, splices: &[Splice]) -> TextChange {
@@ -392,6 +433,10 @@ impl DocumentRead for BufferRead<'_> {
         deleted_anchor_index_in(&self.state.text, anchor)
     }
 
+    fn runs(&self) -> Vec<TextRun> {
+        runs_in(&self.state.text)
+    }
+
     fn language(&self) -> TextLanguage {
         self.state.language
     }
@@ -442,6 +487,10 @@ impl DocumentRead for BufferEdit<'_> {
 
     fn deleted_anchor_index(&self, anchor: Pos) -> Option<usize> {
         deleted_anchor_index_in(&self.state.text, anchor)
+    }
+
+    fn runs(&self) -> Vec<TextRun> {
+        runs_in(&self.state.text)
     }
 
     fn language(&self) -> TextLanguage {

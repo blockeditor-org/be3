@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::ops::Range;
 
 use text_editor_core::{
-    MarkdownTableAlignment, SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize,
+    MarkdownTableAlignment, SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize, TextRun,
 };
 
 use beui_core::color::Color32;
@@ -19,6 +19,9 @@ pub const CODE_SIZE: f32 = 12.0;
 pub const CHECKBOX_WIDTH: f32 = 18.0;
 pub const INLINE_WIDGET_HEIGHT: f32 = 24.0;
 pub const INLINE_WIDGET_ICON_INSET: f32 = 13.0;
+pub const RUN_CHIP_HEIGHT: f32 = 16.0;
+pub const RUN_CHIP_PADDING: f32 = 4.0;
+pub const RUN_CHIP_SIZE: f32 = 10.0;
 pub const DOCUMENT_PADDING: Vec2 = Vec2::new(24.0, 16.0);
 pub const LINE_PADDING: (f32, f32) = (3.0, 4.0);
 
@@ -71,6 +74,7 @@ impl RowOptions {
 pub enum Inline {
     Checkbox { line_start: usize, checked: bool },
     Widget(usize),
+    Run,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -355,6 +359,28 @@ impl Builder<'_> {
         }
     }
 
+    fn runs(&mut self, runs: &[TextRun], at: usize, style: SpanStyle) {
+        let colors = self.inputs.colors;
+        for run in runs.iter().filter(|run| run.at == at) {
+            let mut label = format!("@{}+{}", run.pos.client, run.pos.offset);
+            if !run.visible && run.deleted.is_empty() {
+                label.push_str(&format!(" -{}", run.len));
+            }
+            let chip = SpanStyle::new(FontId::monospace(RUN_CHIP_SIZE), colors.gutter_text);
+            self.inline(Inline::Run, at..at, chip, label);
+            if !run.visible && !run.deleted.is_empty() {
+                let text = String::from_utf8_lossy(&run.deleted).replace('\n', NEWLINE_MARKER);
+                let struck = SpanStyle {
+                    color: colors.gutter_text,
+                    strikethrough: true,
+                    underline: false,
+                    ..style
+                };
+                self.push(&text, at..at, false, struck, SpanKind::Text);
+            }
+        }
+    }
+
     fn inline(&mut self, inline: Inline, source: Range<usize>, style: SpanStyle, label: String) {
         let size = inline_size(inline, &label, style);
         let index = self.row.inline.len();
@@ -374,6 +400,11 @@ pub fn inline_size(inline: Inline, label: &str, style: SpanStyle) -> Vec2 {
         Inline::Widget(_) => Vec2::new(
             galley(label, style.font).map_or(0.0, |galley| galley.size().x),
             INLINE_WIDGET_HEIGHT,
+        ),
+        Inline::Run => Vec2::new(
+            galley(label, style.font).map_or(0.0, |galley| galley.size().x)
+                + RUN_CHIP_PADDING * 2.0,
+            RUN_CHIP_HEIGHT,
         ),
     }
 }
@@ -450,10 +481,16 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         .rposition(|byte| !matches!(*byte, b' ' | b'\t' | b'\r'))
         .map_or(start, |index| start + index + 1);
     let invisible = inputs.colors.syntax.scope(SynHlColorScope::Invisible);
+    let runs = match options.mask {
+        true => &[][..],
+        false => snapshot.runs_in(start, end),
+    };
+    let run_starts = |at: usize| runs.binary_search_by_key(&at, |run| run.at).is_ok();
     let mut index = start;
     while index < end {
         let base = builder.span_style(style_at(index));
         builder.spacers(index, base);
+        builder.runs(runs, index, base);
         let base = builder.span_style(style_at(index));
         let base = SpanStyle {
             underline: base.underline || composed(index),
@@ -528,6 +565,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
                     .iter()
                     .any(|widget| widget.range.start == stop)
                 || style_at(stop) != style
+                || run_starts(stop)
                 || (invisibles && invisible_marker(bytes[stop]).is_some())
             {
                 break;
@@ -542,6 +580,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         index = stop;
     }
     builder.spacers(end, body);
+    builder.runs(runs, end, builder.span_style(style_at(end)));
     if newline && invisibles {
         let color = match selected(end) {
             true => invisible,
