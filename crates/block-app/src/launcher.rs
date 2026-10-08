@@ -1,16 +1,15 @@
 use std::rc::Rc;
 
-use beui::Event;
 use beui::styled::LauncherItem;
+use beui::{Event, Modifiers};
 
 use crate::{host, wayland};
 
-const LEFT_SUPER: u32 = 125;
-const RIGHT_SUPER: u32 = 126;
 const ICON_POINTS: f32 = 32.0;
 
 #[derive(Default)]
 pub(crate) struct SuperTap {
+    held: Modifiers,
     armed: bool,
 }
 
@@ -18,17 +17,21 @@ impl SuperTap {
     pub(crate) fn feed(&mut self, events: &[Event]) -> bool {
         let mut tapped = false;
         for event in events {
-            match event {
-                Event::PhysicalKey {
-                    code: LEFT_SUPER | RIGHT_SUPER,
-                    pressed,
-                } => {
-                    tapped |= !pressed && self.armed;
-                    self.armed = *pressed;
+            match *event {
+                Event::Modifiers(modifiers) => {
+                    let was = std::mem::replace(&mut self.held, modifiers);
+                    if modifiers == Modifiers::LOGO && was == Modifiers::NONE {
+                        self.armed = true;
+                    } else if was == Modifiers::LOGO && modifiers == Modifiers::NONE {
+                        tapped |= std::mem::take(&mut self.armed);
+                    } else {
+                        self.armed = false;
+                    }
                 }
-                Event::PhysicalKey { pressed: true, .. }
+                Event::Key { pressed: true, .. }
                 | Event::PointerButton { pressed: true, .. }
-                | Event::Scroll(_) => self.armed = false,
+                | Event::Scroll(_)
+                | Event::Focus(false) => self.armed = false,
                 _ => {}
             }
         }
