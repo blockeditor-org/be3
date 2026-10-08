@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use crate::base::list::Direction;
 use crate::context::Context;
 use crate::geometry::{Pos2, Rect, Vec2, vec2};
-use crate::input::{BackGesture, Event, ImeEvent, Key, KeyPress, Modifiers};
+use crate::input::{BackGesture, Event, ImeEvent, Key, KeyPress, Modifiers, PointerButton};
 use crate::painter::Painter;
 
 use crate::document::{Document, GlobalKeyPress};
@@ -127,7 +127,7 @@ pub fn interact(
             catches_drag(element, Direction::Horizontal)
         });
     }
-    doc.claimed_now = false;
+    doc.claimed_now.clear();
     let mouse = !input.touch_started && !input.touch_active;
     let claimed = (input.pressed_this_frame && mouse)
         .then_some(input.pointer_pos)
@@ -136,7 +136,7 @@ pub fn interact(
     if let Some(claimant) = claimed {
         doc.capture_pointer(claimant);
         doc.press_claim = Some(claimant);
-        claim_press(doc, claimant);
+        claim_press(doc, claimant, PointerButton::Primary);
     } else if input.pressed_this_frame
         && let Some(pos) = input.pointer_pos
         && let Some(captor) = doc
@@ -152,7 +152,7 @@ pub fn interact(
         && let Some(claimant) = claimant(doc, rects, root, pos, input.modifiers)
     {
         doc.secondary_claim = Some(claimant);
-        claim_press(doc, claimant);
+        claim_press(doc, claimant, PointerButton::Secondary);
     }
     let wheel = match input.scroll {
         Vec2::ZERO => input.scroll_fling,
@@ -452,8 +452,8 @@ pub fn interact(
     }
 }
 
-fn claim_press(doc: &mut Document, claimant: NodeId) {
-    doc.claimed_now = true;
+fn claim_press(doc: &mut Document, claimant: NodeId, button: PointerButton) {
+    doc.claimed_now.push(button);
     match forward::wants_forward(doc.arena.get(claimant)) {
         true => doc.forward.claim_press(claimant),
         false => doc.forward.swallow_press(),

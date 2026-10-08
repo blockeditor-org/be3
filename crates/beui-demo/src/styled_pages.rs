@@ -103,7 +103,7 @@ pub(crate) fn DockingPage() -> NodeId {
                     />
                 </List>
             </Sample>
-            <Sample title="Drag by the content" code={vec![ContentDrag::SOURCE]}>
+            <Sample title="Moving windows by their content" code={vec![ContentDrag::SOURCE]}>
                 <ContentDrag />
             </Sample>
             <Sample title="Switching tabs" code={vec![switch_tabs_with_alt_q::SOURCE]}>
@@ -137,7 +137,7 @@ fn ContentDrag() -> NodeId {
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Switch
                     @test_id="demo.drag_modifier"
-                    label="Alt drags a tab by its content"
+                    label="Alt moves and resizes windows"
                     on
                     on_change={move |on: bool| {
                         if let Some(modifier) = modifier.as_ref() {
@@ -145,13 +145,14 @@ fn ContentDrag() -> NodeId {
                         }
                     }}
                 />
-                <Body content="Alt drags a tab by its content" />
+                <Body content="Alt moves and resizes windows" />
             </List>
             <Caption
                 content="A dock can be given a drag modifier, which is off unless asked for. \
-                 While it is held, dragging anywhere in a tab's content carries the tab as \
-                 dragging its label does, and dragging with the right button moves the nearest \
-                 split, or resizes a window from its nearest edge or corner. The Linux desktop \
+                 While it is held, dragging anywhere in a window, its bar and tabs included, \
+                 moves the whole window, and dragging with the right button resizes it from \
+                 its nearest edge or corner, or moves the split nearest the pointer in a docked \
+                 pane. Nothing in the dock or its tabs sees those presses. The Linux desktop \
                  uses Super."
                 wrap=true
             />

@@ -48,7 +48,7 @@ pub use docking::{
     DockEntry, DockGroup, DockKey, DockNode, DockPane, DockSplit, DockTab, DockWindow, Docking,
     DockingLayout, DockingSnapshot,
 };
-use modifier_drag::{ModifierDrag, vacant_target};
+use modifier_drag::{Resized, modifier_resize};
 pub use state::{
     DockDrop, DockFullscreen, DockLayout, DockSplitter, DockState, DockSwitch, DockTree,
     DockTreeEntry, Entry, GroupId, LeafId, Side, SplitId, SurfaceId, TabId, TabPosition, Tree,
@@ -318,7 +318,6 @@ struct State {
     menu: MenuStyle,
     home: Memo<Option<TabId>>,
     drag_modifier: Memo<Option<Modifiers>>,
-    grab: Cell<Option<Vec2>>,
     actions: ReadSignal<HashMap<TabId, NodeId>>,
     set_actions: WriteSignal<HashMap<TabId, NodeId>>,
     menus: ReadSignal<DockMenus>,
@@ -610,7 +609,7 @@ impl State {
             return;
         };
         let (target, highlight) = match point {
-            Some(point) => self.admitted(point.pos, self.floats(point.modifiers), drag.dragged),
+            Some(point) => self.admitted(point.pos, point.modifiers.alt, drag.dragged),
             None => (None, None),
         };
         drag.target = target;
@@ -623,7 +622,7 @@ impl State {
     }
 
     fn drop_at(&self, dragged: DockDragged, point: DragPoint) {
-        let (target, _) = self.admitted(point.pos, self.floats(point.modifiers), dragged);
+        let (target, _) = self.admitted(point.pos, point.modifiers.alt, dragged);
         let Some(target) = target else {
             return;
         };
@@ -659,12 +658,8 @@ impl State {
         dragged: DockDragged,
     ) -> (Option<DockDrop>, Option<Rect>) {
         let state = self.state.get_untracked();
-        let (carried, grab, size) = self.carried_window(&state, dragged);
         if !float {
             for surface in state.surfaces().into_iter().rev() {
-                if Some(surface) == carried {
-                    continue;
-                }
                 let Some(within) = self.surface_rect(surface) else {
                     continue;
                 };
@@ -674,18 +669,20 @@ impl State {
                 let split = state.window_rect(surface).is_none();
                 if let Some(found) =
                     self.resolve_in(&state, Tree::Surface(surface), pos, split, dragged)
-                    && !(carried.is_some() && vacant_target(&state, found.0))
                 {
                     return found;
                 }
             }
         }
         let dock = self.rect.get_untracked();
-        let origin = pos - dock.min.to_vec2() - grab;
-        let origin = self.clamped_origin(Rect::from_min_size(origin, size), dock.size());
+        let origin = pos - dock.min.to_vec2() - GRAB_OFFSET;
+        let origin = self.clamped_origin(Rect::from_min_size(origin, FLOATING_SIZE), dock.size());
         (
             Some(DockDrop::Window { pos: origin }),
-            Some(Rect::from_min_size(dock.min + origin.to_vec2(), size)),
+            Some(Rect::from_min_size(
+                dock.min + origin.to_vec2(),
+                FLOATING_SIZE,
+            )),
         )
     }
 
@@ -1054,7 +1051,6 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         menu,
         home: create_memo(move || home.get()),
         drag_modifier: create_memo(move || drag_modifier.get()),
-        grab: Cell::new(None),
         actions,
         set_actions,
         menus,
@@ -1646,10 +1642,17 @@ fn DockPanelView(dock: Handle, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeI
     let menu = dock.leaf_menu(Some(leaf));
     let built = dock.clone();
     let pressed = dock.clone();
+    let claimed = dock.drag_modifier.clone();
+    let resized = modifier_resize(&dock, Resized::Docked);
     view! {
         <Interactive
             claims_touch=false
+            claim_modifiers={claimed}
+            on_secondary_drag={resized}
             on_press={move |press: PointerPress| {
+                if pressed.modifier_held(press.modifiers) {
+                    return;
+                }
                 let hosted = pressed.state.with_untracked(|state| state.active_entry(leaf));
                 let inside = hosted
                     .and_then(Entry::group)
@@ -1791,7 +1794,7 @@ fn DockTabBody(dock: Handle, leaf: LeafId) -> NodeId {
         set_panel.set(tab.map(|tab| dock.panel(tab)));
     }));
     let vacant = create_memo(clone!(shown -> move || shown.get().is_none()));
-    let occupied = create_memo(clone!(shown -> move || shown.get().is_some()));
+    let occupied = create_memo(move || shown.get().is_some());
     let empty = dock.empty.clone();
     view! {
         <List spacing=0.0>
@@ -1799,13 +1802,7 @@ fn DockTabBody(dock: Handle, leaf: LeafId) -> NodeId {
                 {empty.call(leaf)} @sizing=ItemSize::Percent(100.0)
             </Show>
             <Show condition={occupied}>
-                <ModifierDrag
-                    dock={dock.clone()}
-                    leaf
-                    shown={shown.clone()}
-                    panel={panel.clone()}
-                    @sizing=ItemSize::Percent(100.0)
-                />
+                <Portal node={panel.clone()} @sizing=ItemSize::Percent(100.0) />
             </Show>
         </List>
     }
@@ -2391,6 +2388,8 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
     let moved = dock.clone();
     let (held, stretched, released) = (band.clone(), band.clone(), band);
     let set_stretch = set_overshoot;
+    let claimed = dock.drag_modifier.clone();
+    let resized = modifier_resize(&dock, Resized::Window(surface));
     view! {
         <Overlay
             @node_ref=&overlay
@@ -2408,17 +2407,21 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                 captor.surface_rect(surface).is_some_and(|window| window.contains(pos))
                                     && captor.over_window_bar(surface, pos)
                             }}
+                            claim_modifiers={claimed}
+                            on_secondary_drag={resized}
                             on_press={move |press: PointerPress| {
-                                let bar = pressed.over_window_bar(surface, press.pos);
+                                let carried = pressed.modifier_held(press.modifiers);
+                                let bar = carried || pressed.over_window_bar(surface, press.pos);
                                 start.set(bar.then(|| {
                                     let window = bar_rect.get_untracked();
                                     let dimensions = pressed.rect.get_untracked().size();
                                     let stretched = held.borrow_mut().grab(dimensions);
                                     (window.translate(stretched), press.pos)
                                 }));
-                                let titled = pressed
-                                    .pane_rect(Tree::Surface(surface))
-                                    .is_some_and(|pane| !pane.contains(press.pos));
+                                let titled = carried
+                                    || pressed
+                                        .pane_rect(Tree::Surface(surface))
+                                        .is_some_and(|pane| !pane.contains(press.pos));
                                 pressed.edit(|state| {
                                     let inside = state
                                         .focused_leaf()

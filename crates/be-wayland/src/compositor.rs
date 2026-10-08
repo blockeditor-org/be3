@@ -476,7 +476,6 @@ impl Compositor {
 
     fn pointer(&mut self, context: &Context, document: &Document) {
         let now = context.now();
-        let claimed = document.press_claimed();
         let events = context.input(|input| input.events.clone());
         for event in events {
             match event {
@@ -494,7 +493,7 @@ impl Compositor {
                 } => {
                     self.move_pointer(pos);
                     let code = button_code(button);
-                    if pressed && claimed && !self.held.contains(&code) {
+                    if pressed && document.press_claimed(button) && !self.held.contains(&code) {
                         continue;
                     }
                     if pressed {
