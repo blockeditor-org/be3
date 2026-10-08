@@ -28,6 +28,26 @@ What the launcher passes the app is available to any native run:
   server on it, as the desktop: the shell is linux-desktop instead of workspace-ui, on a
   profile of its own. Ctrl+Alt+Backspace quits and Ctrl+Alt+F<n> switches terminals.
   `BEUI_SCALE` sets its scale.
+- `--install-session [PREFIX]` (Linux): see below.
+
+## The desktop session
+
+    ./scripts/buck run //crates/block-app:install-session [-- PREFIX]
+
+installs the app with its plugins in `PREFIX/lib/block-app` (`/usr/local` by default, asking
+sudo when it needs root), links `PREFIX/bin/block-app` to it and writes
+`PREFIX/share/wayland-sessions/block-app.desktop` (from `src/session/block-app.desktop`),
+which runs it with `--session`. GDM and SDDM then offer Block on the login screen's session
+menu, where it can be picked and remembered as the default; an SDDM older than 0.20 reads only
+`/usr/share/wayland-sessions`, so give it `/usr`. Running it again replaces the install.
+
+In session mode stdout and stderr, and so every `eprintln!`, every panic with its backtrace
+and the output of every program the app starts, go to `$XDG_STATE_HOME/block/session.log`
+(`~/.local/state/block/session.log`); the previous session's is kept beside it as
+`session.previous.log`. Problems a person should see at once also show as toasts in the
+corner of the screen: `beui_adapter_drm::Problems` carries the display and input ones,
+`be_wayland::Compositor::on_failure` a program that could not be run, and `notices::report`
+puts each in front of the person.
 
 ## Wayland programs
 

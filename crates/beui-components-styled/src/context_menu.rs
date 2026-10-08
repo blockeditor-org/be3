@@ -4,9 +4,13 @@ use crate::action_row::ActionRowFace;
 use crate::border::Separator;
 use crate::sheet::ModalSheet;
 use crate::text::IconSized;
-use crate::theme::{BORDER_WIDTH, FONT_BODY, FONT_SMALL, RADIUS, ThemeStore, use_theme};
+use crate::theme::{
+    BORDER_WIDTH, FONT_BODY, FONT_SMALL, RADIUS, SCROLL_FADE, ThemeStore, use_theme,
+};
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{MenuItem, MenuRowHandle, MenuSheetHandle, MenuStyle};
+use beui_components_unstyled::{
+    MenuItem, MenuRowHandle, MenuSheetHandle, MenuStyle, ScrollbarStyle,
+};
 use beui_core::base::TextAlign;
 use beui_core::color::Color32;
 use beui_core::geometry::Pos2;
@@ -237,10 +241,16 @@ fn MenuPanel(children: Child) -> NodeId {
             outline_width=BORDER_WIDTH
             radius=RADIUS
             outline_visible=true
-            padding_horizontal=MENU_PADDING
-            padding_vertical=MENU_PADDING
         >
-            {children}
+            <unstyled::Scroll
+                fit=true
+                tab_stop=false
+                scrollbar={ScrollbarStyle::default().fading(SCROLL_FADE)}
+            >
+                <Frame padding_horizontal=MENU_PADDING padding_vertical=MENU_PADDING>
+                    {children}
+                </Frame>
+            </unstyled::Scroll>
         </Frame>
     }
 }

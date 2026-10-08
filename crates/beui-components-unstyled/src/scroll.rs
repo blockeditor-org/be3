@@ -12,7 +12,7 @@ use super::rubber_band::{
 use beui_core::base::Sides;
 use beui_core::base::offset::OffsetNode;
 use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
-use beui_core::base::{Direction, ItemSize, ScrollPosition};
+use beui_core::base::{Direction, ItemSize, ScrollPosition, Sizing};
 use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::geometry::Pos2;
@@ -401,6 +401,8 @@ impl Motion {
 #[component]
 fn Scrolling(
     direction: Prop<Direction>,
+    fit: bool,
+    tab_stop: bool,
     focus_color: Prop<Color32>,
     scrollbar: ScrollbarStyle,
     marker: Render<Memo<Direction>>,
@@ -448,6 +450,7 @@ fn Scrolling(
         <List direction={across} spacing={scrollbar.spacing()}>
             <Interactive
                 focusable=true
+                tab_stop
                 @sizing=ItemSize::Percent(100.0)
                 on_focus_change={move |focused: bool| set_focused.set(focused)}
                 on_key={move |press: KeyPress| keyed.key(press)}
@@ -472,7 +475,7 @@ fn Scrolling(
                     outline_visible={focus_ring(focused)}
                 >
                     <List direction={content_axis} spacing=0.0>
-                        {node} @sizing=ItemSize::Percent(100.0)
+                        {node} @sizing={content_sizing(fit)}
                         <ShowKeepAlive condition={marked.clone()}>
                             <Overlay
                                 anchor
@@ -497,6 +500,8 @@ pub fn Scroll(
     #[prop(default = 0.0)] offset: Prop<f32>,
     #[prop(default = None)] reveal: Prop<Option<usize>>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
+    #[prop(default = false)] fit: bool,
+    #[prop(default = true)] tab_stop: bool,
     #[prop(default = Color32::TRANSPARENT)] focus_color: Prop<Color32>,
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
     marker: Option<Render<Memo<Direction>>>,
@@ -522,6 +527,8 @@ pub fn Scroll(
     let scroll = view! {
         <Scrolling
             direction
+            fit
+            tab_stop
             focus_color
             scrollbar
             marker
@@ -533,6 +540,7 @@ pub fn Scroll(
                         <Offset
                             offset
                             direction={content_direction}
+                            fit
                             on_change={move |position: ScrollPosition| {
                                 set_faded.set(Some(position));
                                 report.call(position);
@@ -560,6 +568,13 @@ pub fn Scroll(
         });
     });
     scroll
+}
+
+fn content_sizing(fit: bool) -> Sizing {
+    match fit {
+        true => ItemSize::Intrinsic.shrink(1.0),
+        false => ItemSize::Percent(100.0).into(),
+    }
 }
 
 fn fade_edges(direction: Direction, position: Option<ScrollPosition>, fade: f32) -> Sides {

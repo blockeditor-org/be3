@@ -1,6 +1,7 @@
 use std::cell::RefCell;
-use std::process::{Child, Command as Process, Stdio};
+use std::process::{Command as Process, Stdio};
 use std::rc::Rc;
+use std::sync::mpsc::{Receiver, Sender, channel};
 
 use beui::reactive::with_reactive_scope;
 use beui::{Context, CursorIcon, Document, Event, PointerButton, Pos2, Rect, Vec2, Waker};
@@ -35,7 +36,9 @@ pub struct Compositor {
     textures: Rc<RefCell<Textures>>,
     watch: Option<Watch>,
     waker: Option<Waker>,
-    children: Vec<Child>,
+    children: Vec<rustix::process::Pid>,
+    exited: (Sender<Exit>, Receiver<Exit>),
+    on_failure: Option<Box<dyn Fn(String)>>,
     grab: Option<WindowId>,
     held: Vec<u32>,
     configured: std::collections::HashMap<WindowId, Configured>,
@@ -64,6 +67,8 @@ impl Compositor {
             watch: None,
             waker: None,
             children: Vec::new(),
+            exited: channel(),
+            on_failure: None,
             grab: None,
             held: Vec::new(),
             configured: std::collections::HashMap::new(),
@@ -178,9 +183,44 @@ impl Compositor {
             .env("MOZ_ENABLE_WAYLAND", "1")
             .env("ELECTRON_OZONE_PLATFORM_HINT", "wayland")
             .stdin(Stdio::null());
-        match process.spawn() {
-            Ok(child) => self.children.push(child),
-            Err(error) => eprintln!("be-wayland: could not run {program}: {error}"),
+        let mut child = match process.spawn() {
+            Ok(child) => child,
+            Err(error) => {
+                self.fail(format!("Could not run {}: {error}", launch_name(launch)));
+                return;
+            }
+        };
+        let pid = rustix::process::Pid::from_child(&child);
+        self.children.push(pid);
+        let exited = self.exited.0.clone();
+        let waker = self.waker.clone();
+        let line = launch_name(launch);
+        std::thread::spawn(move || {
+            let status = child.wait().ok().and_then(|status| status.code());
+            let _ = exited.send(Exit { pid, line, status });
+            if let Some(waker) = waker {
+                waker.wake();
+            }
+        });
+    }
+
+    pub fn on_failure(&mut self, report: impl Fn(String) + 'static) {
+        self.on_failure = Some(Box::new(report));
+    }
+
+    fn fail(&self, problem: String) {
+        eprintln!("be-wayland: {problem}");
+        if let Some(report) = &self.on_failure {
+            report(problem);
+        }
+    }
+
+    fn reap(&mut self) {
+        while let Ok(exit) = self.exited.1.try_recv() {
+            self.children.retain(|pid| *pid != exit.pid);
+            if let Some(problem) = exit.problem() {
+                self.fail(problem);
+            }
         }
     }
 
@@ -460,8 +500,7 @@ impl Compositor {
         };
         let windows = self.windows.clone();
         with_reactive_scope(document, || windows.set_cursor(cursor));
-        self.children
-            .retain_mut(|child| matches!(child.try_wait(), Ok(None)));
+        self.reap();
     }
 }
 
@@ -530,9 +569,39 @@ impl Compositor {
     }
 
     pub fn exiting(&mut self) {
-        for child in &mut self.children {
-            let _ = child.kill();
+        self.reap();
+        for pid in &self.children {
+            let _ = rustix::process::kill_process(*pid, rustix::process::Signal::KILL);
         }
+    }
+}
+
+struct Exit {
+    pid: rustix::process::Pid,
+    line: String,
+    status: Option<i32>,
+}
+
+impl Exit {
+    fn problem(&self) -> Option<String> {
+        launch_problem(&self.line, self.status)
+    }
+}
+
+fn launch_name(launch: &Launch) -> String {
+    match launch.arguments.as_slice() {
+        [shell, flag, line] if shell == "sh" && flag == "-c" => line.clone(),
+        arguments => arguments.join(" "),
+    }
+}
+
+pub(crate) fn launch_problem(line: &str, status: Option<i32>) -> Option<String> {
+    match status {
+        Some(127) => Some(format!("Could not run {line}: the command was not found")),
+        Some(126) => Some(format!(
+            "Could not run {line}: the command could not be started"
+        )),
+        _ => None,
     }
 }
 

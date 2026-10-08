@@ -7,8 +7,8 @@ mod workspace;
 use std::cell::RefCell;
 
 use be_protocol::WorkspaceRole;
-use beui::reactive::{Dynamic, Frame, List, Store, component, view};
-use beui::styled::use_theme;
+use beui::reactive::{Dynamic, Frame, List, NodeRef, Store, component, view};
+use beui::styled::{Toast, Toasts, use_theme};
 use beui::{ItemSize, NodeId};
 use block_plugin_api::HostPanel;
 use uuid::Uuid;
@@ -205,6 +205,7 @@ pub(crate) struct AppView {
     pub(crate) discard: Option<DiscardView>,
     pub(crate) presenting: bool,
     pub(crate) debug: DebugView,
+    pub(crate) toasts: Vec<Toast>,
 }
 
 #[derive(Clone, Debug)]
@@ -257,14 +258,17 @@ pub(crate) enum UiCommand {
     CancelPairing,
     ApprovePairing(u64, String),
     DismissPairing(u64),
+    DismissToast(u64),
 }
 
 #[component]
 pub(crate) fn Root(view: AppViewStore) -> NodeId {
     let theme = use_theme();
     let screen = view.screen.clone();
+    let toasts = view.toasts.clone();
+    let area = NodeRef::new();
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame @node_ref=&area color={theme.background.clone()}>
             <List spacing=0.0>
                 <Dynamic value={screen}>
                     {move |screen: Screen| {
@@ -297,6 +301,11 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                         }
                     }}
                 </Dynamic>
+                <Toasts
+                    anchor={area.clone()}
+                    toasts={toasts}
+                    on_dismiss={move |id: u64| send(UiCommand::DismissToast(id))}
+                />
             </List>
         </Frame>
     }
