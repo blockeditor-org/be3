@@ -68,6 +68,12 @@ impl Server {
         }
         self.state.release_blockers();
         let _ = self.display.dispatch_clients(&mut self.state);
+        for client in self.state.take_disconnected() {
+            let _ = self
+                .display
+                .backend()
+                .dispatch_single_client(&mut self.state, client);
+        }
         self.state.release_blockers();
         self.state.cleanup();
         self.flush();

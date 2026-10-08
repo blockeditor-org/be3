@@ -13,6 +13,7 @@ pub struct HostWindow {
     pub parent: Option<HostWindowId>,
     pub size: Size,
     pub fullscreen: Option<ChildRect>,
+    pub responding: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

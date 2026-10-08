@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::process::{Command as Process, Stdio};
 use std::rc::Rc;
 use std::sync::mpsc::{Receiver, Sender, channel};
+use std::time::Instant;
 
 use beui::reactive::with_reactive_scope;
 use beui::{Context, CursorIcon, Document, Event, PointerButton, Pos2, Rect, Vec2, Waker};
@@ -22,6 +23,7 @@ const BUTTON_EXTRA: u32 = 0x114;
 const KEY_F: u32 = 33;
 const KEY_LEFTMETA: u32 = 125;
 const KEY_RIGHTMETA: u32 = 126;
+const MAX_ANCESTORS: usize = 32;
 
 pub struct CursorImage {
     pub texture: wgpu::Texture,
@@ -49,6 +51,7 @@ pub struct Compositor {
     relist: bool,
     logo: bool,
     swallowed: Vec<u32>,
+    forced: bool,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -79,6 +82,7 @@ impl Compositor {
             relist: false,
             logo: false,
             swallowed: Vec::new(),
+            forced: false,
         }
     }
 
@@ -224,8 +228,9 @@ impl Compositor {
         }
     }
 
-    fn receive(&mut self, document: &mut Document) {
+    fn receive(&mut self, context: &Context, document: &mut Document) {
         self.server.dispatch();
+        self.watch_pings(context);
         let events = self.server.state.take_events();
         for surface in self.server.state.take_committed() {
             self.textures.borrow_mut().upload(&surface);
@@ -271,6 +276,45 @@ impl Compositor {
         }
     }
 
+    fn watch_pings(&mut self, context: &Context) {
+        let now = context.now();
+        if let Some(due) = self.server.state.check_pings(now) {
+            context.request_repaint_after(due.saturating_duration_since(now));
+        }
+    }
+
+    fn force_close(&mut self, id: WindowId) {
+        let pid = self
+            .server
+            .state
+            .client_pid(id)
+            .and_then(rustix::process::Pid::from_raw);
+        if let Some(pid) = pid {
+            self.end_launched(pid);
+        }
+        self.server.state.disconnect(id);
+        self.forced = true;
+    }
+
+    fn end_launched(&self, pid: rustix::process::Pid) -> bool {
+        self.launched(pid)
+            && rustix::process::kill_process(pid, rustix::process::Signal::KILL).is_ok()
+    }
+
+    fn launched(&self, pid: rustix::process::Pid) -> bool {
+        let mut pid = pid;
+        for _ in 0..MAX_ANCESTORS {
+            if self.children.contains(&pid) {
+                return true;
+            }
+            match parent(pid) {
+                Some(parent) => pid = parent,
+                None => return false,
+            }
+        }
+        false
+    }
+
     fn list(&self) -> Vec<WindowInfo> {
         let state = &self.server.state;
         state
@@ -284,6 +328,7 @@ impl Compositor {
                     app_id: state.app_id(id).unwrap_or_default(),
                     parent: state.parent(id),
                     fullscreen: self.fullscreen_area(id),
+                    responding: state.responding(id),
                 })
             })
             .collect()
@@ -349,6 +394,7 @@ impl Compositor {
     }
 
     fn keyboard(&mut self, context: &Context) {
+        let now = context.now();
         let target = self
             .windows
             .focused()
@@ -380,6 +426,9 @@ impl Compositor {
                 self.set_fullscreen(id, fullscreen);
                 continue;
             }
+            if pressed {
+                self.server.state.ping(id, now);
+            }
             self.server.state.key(code, pressed);
         }
         if target.is_none() {
@@ -394,6 +443,7 @@ impl Compositor {
     }
 
     fn pointer(&mut self, context: &Context) {
+        let now = context.now();
         let events = context.input(|input| input.events.clone());
         for event in events {
             match event {
@@ -417,6 +467,7 @@ impl Compositor {
                             continue;
                         };
                         self.grab = Some(id);
+                        self.server.state.ping(id, now);
                         if !self.held.contains(&code) {
                             self.held.push(code);
                         }
@@ -453,11 +504,14 @@ impl Compositor {
         self.server.state.pointer_motion(local);
     }
 
-    fn apply(&mut self, document: &mut Document) {
+    fn apply(&mut self, now: Instant, document: &mut Document) {
         let focused = self.windows.focused();
         if self.server.state.keyboard_window() != focused {
             let previous = self.server.state.keyboard_window();
             self.server.state.focus_keyboard(focused);
+            if let Some(id) = focused {
+                self.server.state.ping(id, now);
+            }
             for id in previous.into_iter().chain(focused) {
                 self.windows.push(Command::Configure(id));
             }
@@ -494,7 +548,11 @@ impl Compositor {
                         .state
                         .configure(id, size.into(), configured.activated);
                 }
-                Command::Close(id) => self.server.state.close(id),
+                Command::Close(id) if self.server.state.responding(id) => {
+                    self.server.state.close(id);
+                    self.server.state.ping(id, now);
+                }
+                Command::Close(id) => self.force_close(id),
                 Command::Launch(launch) => self.launch(&launch),
             }
         }
@@ -558,7 +616,7 @@ impl Compositor {
 
 impl Compositor {
     pub fn before(&mut self, context: &Context, rect: Rect, document: &mut Document) {
-        self.receive(document);
+        self.receive(context, document);
         let scale = context.pixels_per_point().ceil().max(1.0) as i32;
         let size = (rect.width().round() as i32, rect.height().round() as i32);
         self.server.state.set_scale(scale, size.into());
@@ -569,8 +627,12 @@ impl Compositor {
 
     pub fn after(&mut self, context: &Context, document: &mut Document) {
         self.pointer(context);
-        self.apply(document);
+        self.apply(context.now(), document);
         self.server.flush();
+        self.watch_pings(context);
+        if std::mem::take(&mut self.forced) {
+            context.request_repaint();
+        }
         if let Some(watch) = &self.watch {
             watch.resume();
         }
@@ -611,6 +673,13 @@ pub(crate) fn launch_problem(line: &str, status: Option<i32>) -> Option<String> 
         )),
         _ => None,
     }
+}
+
+fn parent(pid: rustix::process::Pid) -> Option<rustix::process::Pid> {
+    let stat = std::fs::read_to_string(format!("/proc/{}/stat", pid.as_raw_nonzero())).ok()?;
+    let (_, fields) = stat.rsplit_once(')')?;
+    let parent = fields.split_whitespace().nth(1)?.parse().ok()?;
+    rustix::process::Pid::from_raw(parent).filter(|parent| !parent.is_init())
 }
 
 fn button_code(button: PointerButton) -> u32 {

@@ -64,6 +64,13 @@ Each window opens as a tab of the workspace. `weston-simple-shm` (from the `west
 and `foot` are small clients to try it with. `foot --fullscreen` starts one fullscreen, and Super+F toggles fullscreen on the focused
 window.
 
+The compositor pings a window's client when it is clicked, typed into, focused or asked to
+close, and a client that has not answered within `PING_TIMEOUT` (be-wayland's `state.rs`) is listed as
+not responding: its window is dimmed and its tab offers Wait and Force close. Closing a window
+that is not responding forces it: the compositor kills the process if it launched it (or one
+of its descendants) and disconnects the client either way. `kill -STOP` on a client's pid
+freezes it to try this, and `kill -CONT` brings it back.
+
 ## Seeing what is on screen
 
 `cat $TREE` is the accessibility tree as text, rewritten whenever it changes, one node per
