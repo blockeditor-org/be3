@@ -34,7 +34,8 @@ What the launcher passes the app is available to any native run:
 - `--desktop` (Linux): the desktop shell, linux-desktop on its own profile as under
   `--session`, in a normal window, with programs opening as windows inside it as they do in
   any windowed run. What needs the displays and input devices themselves, such as display
-  modes and pointer settings, is absent, since `beui-adapter-drm` is not running.
+  modes, pointer settings and the power menu, is absent, since `beui-adapter-drm` is not
+  running: the power actions start only when the DRM seat provides its `DisplayControl`.
   `./scripts/buck run //crates/block-app:smoke-desktop` is its launch check.
 - `--install-session [PREFIX]` (Linux): see below.
 

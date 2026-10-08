@@ -10,6 +10,10 @@ pub(crate) use log::start_log;
 use logind::{Logind, LogindEvent};
 use power::{LogindCall, Power, SessionControl};
 
+pub(crate) fn owns_a_seat(setup: &beui::Setup) -> bool {
+    setup.get::<beui_adapter_drm::DisplayControl>().is_some()
+}
+
 pub(crate) struct DesktopSession {
     logind: Logind,
     power: Power,
@@ -25,7 +29,7 @@ impl DesktopSession {
         }
     }
 
-    pub(crate) fn frame(&mut self, context: &beui::Context, requests: Vec<PowerAction>) {
+    pub(crate) fn frame(&mut self, context: &beui::Context, request: Option<PowerAction>) {
         let now = crate::host::now();
         let mut control = Live {
             logind: &self.logind,
@@ -38,10 +42,7 @@ impl DesktopSession {
                 LogindEvent::PrepareForSleep(starting) => prepare_for_sleep(starting),
             }
         }
-        let mut wait = None;
-        for action in requests {
-            wait = self.power.request(action, now, &mut control).or(wait);
-        }
+        let wait = request.and_then(|action| self.power.request(action, now, &mut control));
         if let Some(wait) = self.power.frame(now, &mut control).or(wait) {
             crate::host::request_repaint_after(wait);
         }

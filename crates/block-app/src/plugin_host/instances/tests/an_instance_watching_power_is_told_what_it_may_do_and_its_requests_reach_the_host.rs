@@ -39,15 +39,34 @@ fn an_instance_watching_power_is_told_what_it_may_do_and_its_requests_reach_the_
     );
     assert!(power_sent(&instances.next_screens(PASS).opened).is_empty());
 
-    assert!(instances.editor_message(EditorMessage::Linux {
-        instance: INSTANCE,
-        message: LinuxMessage::RequestPower(PowerAction::PowerOff),
-    }));
-    assert_eq!(
-        instances.take_power_requests(INSTANCE),
-        vec![PowerAction::PowerOff]
+    assert!(
+        !instances.editor_message(EditorMessage::Linux {
+            instance: INSTANCE,
+            message: LinuxMessage::RequestPower(PowerAction::Restart),
+        }),
+        "what the host does not allow is refused"
     );
-    assert!(instances.take_power_requests(INSTANCE).is_empty());
+    assert_eq!(instances.take_power_request(INSTANCE), None);
+    for _ in 0..3 {
+        assert!(instances.editor_message(EditorMessage::Linux {
+            instance: INSTANCE,
+            message: LinuxMessage::RequestPower(PowerAction::PowerOff),
+        }));
+    }
+    assert_eq!(
+        instances.take_power_request(INSTANCE),
+        Some(PowerAction::PowerOff),
+        "repeated requests are held as one"
+    );
+    assert_eq!(instances.take_power_request(INSTANCE), None);
+    instances.set_power(PowerAvailability::default());
+    assert!(
+        !instances.editor_message(EditorMessage::Linux {
+            instance: INSTANCE,
+            message: LinuxMessage::RequestPower(PowerAction::PowerOff),
+        }),
+        "a host with no power actions, such as a windowed desktop, refuses every request"
+    );
     assert!(
         !instances.editor_message(EditorMessage::Linux {
             instance: INSTANCE,

@@ -228,6 +228,10 @@ impl beui::App for Shell {
         if let Some(problems) = setup.get::<beui_adapter_drm::Problems>() {
             problems.listen(notices::report);
         }
+        #[cfg(target_os = "linux")]
+        if self.app.desktop.is_none() && session::owns_a_seat(setup) {
+            self.app.desktop = Some(session::DesktopSession::start());
+        }
         display::start(setup);
         self.app.input.boot(&self.app.app_state);
         self.app.display.boot(&self.app.app_state);
@@ -555,20 +559,16 @@ impl BlockApp {
     #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
     fn run_as_desktop(&mut self) {
         self.root_settings = RootSettings::new(be_block::LINUX_DESKTOP_EDITOR);
-        #[cfg(target_os = "linux")]
-        {
-            self.desktop = Some(session::DesktopSession::start());
-        }
     }
 
     #[cfg(target_os = "linux")]
     fn run_desktop_session(&mut self, context: &beui::Context) {
-        let requests = self
+        let request = self
             .shell
-            .and_then(|shell| self.with_editor(shell, |editor| editor.take_power_requests()))
-            .unwrap_or_default();
+            .and_then(|shell| self.with_editor(shell, |editor| editor.take_power_request()))
+            .flatten();
         if let Some(desktop) = &mut self.desktop {
-            desktop.frame(context, requests);
+            desktop.frame(context, request);
         }
     }
 

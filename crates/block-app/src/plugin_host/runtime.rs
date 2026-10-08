@@ -992,14 +992,14 @@ pub(crate) fn set_power(power: block_plugin_api::PowerAvailability) {
 }
 
 #[cfg(target_os = "linux")]
-pub(crate) fn take_power_requests(
+pub(crate) fn take_power_request(
     plugin_id: &str,
     instance: EditorInstanceId,
-) -> Vec<block_plugin_api::PowerAction> {
+) -> Option<block_plugin_api::PowerAction> {
     with(plugin_id, |runtime| {
-        runtime.instances.take_power_requests(instance)
+        runtime.instances.take_power_request(instance)
     })
-    .unwrap_or_default()
+    .flatten()
 }
 
 pub(crate) fn take_focus_report(plugin_id: &str, instance: EditorInstanceId) -> Option<Focus> {

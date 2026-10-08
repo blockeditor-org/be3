@@ -131,7 +131,7 @@ struct Instance {
     reported_displays: Option<Vec<block_plugin_api::HostDisplay>>,
     watches_power: bool,
     reported_power: Option<block_plugin_api::PowerAvailability>,
-    power_requests: Vec<block_plugin_api::PowerAction>,
+    power_request: Option<block_plugin_api::PowerAction>,
     closed_windows: Vec<block_plugin_api::HostWindowId>,
     fullscreen_windows: Vec<(block_plugin_api::HostWindowId, bool)>,
     grabbed: bool,
@@ -315,7 +315,7 @@ impl Instance {
             reported_displays: None,
             watches_power: false,
             reported_power: None,
-            power_requests: Vec::new(),
+            power_request: None,
             closed_windows: Vec::new(),
             fullscreen_windows: Vec::new(),
             grabbed: false,
@@ -2335,14 +2335,17 @@ impl Instances {
                     LinuxMessage::WatchInputDevices => entry.watches_input_devices = true,
                     LinuxMessage::WatchDisplays => entry.watches_displays = true,
                     LinuxMessage::WatchPower => entry.watches_power = true,
-                    LinuxMessage::RequestPower(action) => entry.power_requests.push(action),
+                    LinuxMessage::RequestPower(action) if self.power.allows(action) => {
+                        entry.power_request = Some(action);
+                    }
                     LinuxMessage::FullscreenWindow { window, fullscreen } => {
                         entry.fullscreen_windows.push((window, fullscreen));
                     }
                     LinuxMessage::Windows(_)
                     | LinuxMessage::InputDevices(_)
                     | LinuxMessage::Displays(_)
-                    | LinuxMessage::Power(_) => return false,
+                    | LinuxMessage::Power(_)
+                    | LinuxMessage::RequestPower(_) => return false,
                 }
                 true
             }
@@ -3035,14 +3038,11 @@ impl Instances {
     }
 
     #[cfg(target_os = "linux")]
-    pub(super) fn take_power_requests(
+    pub(super) fn take_power_request(
         &mut self,
         instance: EditorInstanceId,
-    ) -> Vec<block_plugin_api::PowerAction> {
-        self.entries
-            .get_mut(&instance)
-            .map(|entry| std::mem::take(&mut entry.power_requests))
-            .unwrap_or_default()
+    ) -> Option<block_plugin_api::PowerAction> {
+        self.entries.get_mut(&instance)?.power_request.take()
     }
 
     pub(super) fn set_displays(&mut self, displays: Vec<block_plugin_api::HostDisplay>) -> bool {
