@@ -146,8 +146,10 @@ pub fn identity(edid: &[u8]) -> Option<Identity> {
 
 pub fn monitor_id(identity: Option<&Identity>, connector: &str) -> String {
     match identity {
-        Some(identity) => format!("{}|{}|{}", identity.make, identity.model, identity.serial),
-        None => connector.to_owned(),
+        Some(identity) if !identity.serial.is_empty() => {
+            format!("{}|{}|{}", identity.make, identity.model, identity.serial)
+        }
+        _ => connector.to_owned(),
     }
 }
 

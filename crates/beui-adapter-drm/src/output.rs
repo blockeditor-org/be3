@@ -105,6 +105,17 @@ fn size_of(mode: &Mode) -> (u32, u32) {
 #[derive(Debug)]
 struct SyncFile(OwnedFd);
 
+pub fn wait_for(fence: &OwnedFd) -> Result<(), Interrupted> {
+    let mut polled = [PollFd::new(fence, PollFlags::IN)];
+    loop {
+        match poll(&mut polled, None) {
+            Ok(_) => return Ok(()),
+            Err(rustix::io::Errno::INTR) => continue,
+            Err(_) => return Err(Interrupted),
+        }
+    }
+}
+
 impl Fence for SyncFile {
     fn is_signaled(&self) -> bool {
         let mut polled = [PollFd::new(&self.0, PollFlags::IN)];
@@ -116,14 +127,7 @@ impl Fence for SyncFile {
     }
 
     fn wait(&self) -> Result<(), Interrupted> {
-        let mut polled = [PollFd::new(&self.0, PollFlags::IN)];
-        loop {
-            match poll(&mut polled, None) {
-                Ok(_) => return Ok(()),
-                Err(rustix::io::Errno::INTR) => continue,
-                Err(_) => return Err(Interrupted),
-            }
-        }
+        wait_for(&self.0)
     }
 
     fn is_exportable(&self) -> bool {

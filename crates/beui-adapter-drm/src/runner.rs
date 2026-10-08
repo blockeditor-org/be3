@@ -44,7 +44,7 @@ use crate::gpu::{Gpu, SoftwareCursor};
 use crate::input::{DeviceId, InputConfig, InputControl, PointerConfig, PointerDevice};
 use crate::keyboard::Keyboard;
 use crate::layout::{arrange, bounds, clamp, moved};
-use crate::output::{Output, connected};
+use crate::output::{Output, connected, wait_for};
 use crate::screen::FORMAT;
 
 const WHEEL_STEP: f64 = 15.0;
@@ -332,6 +332,7 @@ impl Session {
             })
             .collect();
         for (crtc, frame, fence) in fences {
+            let spare = fence.try_clone();
             let watched = self.handle.insert_source(
                 Generic::new(fence, Interest::READ, Mode::OneShot),
                 move |_, _, session| {
@@ -340,7 +341,12 @@ impl Session {
                 },
             );
             if let Err(error) = watched {
-                eprintln!("beui: a frame's fence could not be watched: {error}");
+                eprintln!(
+                    "beui: a frame's fence could not be watched, so it is waited for: {error}"
+                );
+                if let Ok(spare) = spare {
+                    let _ = wait_for(&spare);
+                }
                 self.drawn(crtc, frame);
             }
         }

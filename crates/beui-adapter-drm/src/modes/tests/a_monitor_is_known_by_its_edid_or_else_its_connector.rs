@@ -43,6 +43,14 @@ fn a_monitor_is_known_by_its_edid_or_else_its_connector() {
     assert_eq!(monitor_id(Some(&bare), "DP-1"), "DEL|A0C3|4242");
     assert_eq!(monitor_name(Some(&bare), "DP-1"), "DEL A0C3");
 
+    let unnumbered = identity(&edid(Some("DELL AW2524H"), None, 0)).unwrap();
+    assert_eq!(
+        monitor_id(Some(&unnumbered), "DP-2"),
+        "DP-2",
+        "two monitors alike but for an unknown serial are told apart by connector"
+    );
+    assert_eq!(monitor_name(Some(&unnumbered), "DP-2"), "DELL AW2524H");
+
     assert_eq!(identity(&[0; 128]), None);
     assert_eq!(identity(&HEADER), None);
     assert_eq!(monitor_id(None, "HDMI-A-1"), "HDMI-A-1");
