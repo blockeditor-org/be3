@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
 
-use beui::{Color32, FrameOutput, GlyphImage, Image, Quad, Rect};
+use beui::{Color32, FrameOutput, GlyphImage, Image, Quad, Vec2};
 use paint_snapshot::{
     Content, Frame, Glyph, Primitive, RoundedRect, Snapshot, Texture, TextureKey, Triangle, Turn,
     Vertex,
@@ -9,27 +9,12 @@ use paint_snapshot::{
 
 pub(crate) fn capture(
     output: &FrameOutput,
-    region: Rect,
+    size: Vec2,
     pixels_per_point: f32,
     background: Color32,
 ) -> Result<Snapshot, String> {
-    let origin = [region.min.x, region.min.y];
-    let points = |values: [f32; 4]| {
-        [
-            values[0] / pixels_per_point - origin[0],
-            values[1] / pixels_per_point - origin[1],
-            values[2] / pixels_per_point - origin[0],
-            values[3] / pixels_per_point - origin[1],
-        ]
-    };
-    let turn_of = |turn: beui::Turn| {
-        let turn = turned(turn, pixels_per_point);
-        Turn {
-            pivot: [turn.pivot[0] - origin[0], turn.pivot[1] - origin[1]],
-            angle: turn.angle,
-        }
-    };
-    let size = region.size();
+    let points = |values: [f32; 4]| values.map(|value| value / pixels_per_point);
+    let turn_of = |turn: beui::Turn| turned(turn, pixels_per_point);
     let mut textures = BTreeMap::new();
     let mut primitives = Vec::new();
     for quad in beui::quads(output, pixels_per_point).list {

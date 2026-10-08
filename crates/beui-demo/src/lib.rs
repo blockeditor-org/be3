@@ -307,6 +307,35 @@ impl DemoApp {
     }
 }
 
+#[cfg(test)]
+impl DemoApp {
+    fn alone(today: Date, page: Page) -> Self {
+        Self {
+            document: build(move || {
+                provide_context(Today(today));
+                view! {
+                    <Container>
+                        {move |_| view! {
+                            <LonePage page />
+                        }}
+                    </Container>
+                }
+            }),
+        }
+    }
+}
+
+#[cfg(test)]
+#[component]
+fn LonePage(page: Page) -> NodeId {
+    let theme = use_theme();
+    view! {
+        <Frame color={theme.background.clone()}>
+            <PageView page />
+        </Frame>
+    }
+}
+
 impl beui::App for DemoApp {
     fn update(&mut self, context: &Context, rect: Rect) {
         self.document.show(context, rect);
@@ -415,89 +444,9 @@ fn DemoShell() -> NodeId {
                                         icon={page.icon()}
                                         on_close={move || pages.close(page)}
                                     >
-                                        <Container @test_id={format!("demo.page.{}", page.title())}>
-                                            {move |_| match page {
-                                                Page::Docking => view! {
-                                                    <DockingPage />
-                                                },
-                                                Page::Text => view! {
-                                                    <TextPage />
-                                                },
-                                                Page::Buttons => view! {
-                                                    <ButtonsPage />
-                                                },
-                                                Page::Inputs => view! {
-                                                    <InputsPage />
-                                                },
-                                                Page::Choices => view! {
-                                                    <ChoicesPage />
-                                                },
-                                                Page::Pickers => view! {
-                                                    <PickersPage />
-                                                },
-                                                Page::Colors => view! {
-                                                    <ColorsPage />
-                                                },
-                                                Page::Menus => view! {
-                                                    <MenusPage />
-                                                },
-                                                Page::Overlays => view! {
-                                                    <OverlaysPage />
-                                                },
-                                                Page::Rows => view! {
-                                                    <RowsPage />
-                                                },
-                                                Page::Tree => view! {
-                                                    <TreePage />
-                                                },
-                                                Page::Layout => view! {
-                                                    <LayoutPage />
-                                                },
-                                                Page::Editor => view! {
-                                                    <EditorPage />
-                                                },
-                                                Page::Canvas => view! {
-                                                    <CanvasPage />
-                                                },
-                                                Page::Themes => view! {
-                                                    <ThemesPage />
-                                                },
-                                                Page::Pressing => view! {
-                                                    <PressingPage />
-                                                },
-                                                Page::Values => view! {
-                                                    <ValuesPage />
-                                                },
-                                                Page::Selecting => view! {
-                                                    <SelectingPage />
-                                                },
-                                                Page::Popups => view! {
-                                                    <PopupsPage />
-                                                },
-                                                Page::Dragging => view! {
-                                                    <DraggingPage />
-                                                },
-                                                Page::Scrolling => view! {
-                                                    <ScrollingPage />
-                                                },
-                                                Page::Frames => view! {
-                                                    <FramesPage />
-                                                },
-                                                Page::TextNodes => view! {
-                                                    <TextNodesPage />
-                                                },
-                                                Page::Lists => view! {
-                                                    <ListsPage />
-                                                },
-                                                Page::ControlFlow => view! {
-                                                    <ControlFlowPage />
-                                                },
-                                                Page::Interaction => view! {
-                                                    <InteractionPage />
-                                                },
-                                                Page::Layering => view! {
-                                                    <LayeringPage />
-                                                },
+                                        <Container>
+                                            {move |_| view! {
+                                                <PageView page />
                                             }}
                                         </Container>
                                     </DockTab>
@@ -508,6 +457,93 @@ fn DemoShell() -> NodeId {
                 </Docking>
             </List>
         </Frame>
+    }
+}
+
+#[component]
+fn PageView(page: Page) -> NodeId {
+    match page {
+        Page::Docking => view! {
+            <DockingPage />
+        },
+        Page::Text => view! {
+            <TextPage />
+        },
+        Page::Buttons => view! {
+            <ButtonsPage />
+        },
+        Page::Inputs => view! {
+            <InputsPage />
+        },
+        Page::Choices => view! {
+            <ChoicesPage />
+        },
+        Page::Pickers => view! {
+            <PickersPage />
+        },
+        Page::Colors => view! {
+            <ColorsPage />
+        },
+        Page::Menus => view! {
+            <MenusPage />
+        },
+        Page::Overlays => view! {
+            <OverlaysPage />
+        },
+        Page::Rows => view! {
+            <RowsPage />
+        },
+        Page::Tree => view! {
+            <TreePage />
+        },
+        Page::Layout => view! {
+            <LayoutPage />
+        },
+        Page::Editor => view! {
+            <EditorPage />
+        },
+        Page::Canvas => view! {
+            <CanvasPage />
+        },
+        Page::Themes => view! {
+            <ThemesPage />
+        },
+        Page::Pressing => view! {
+            <PressingPage />
+        },
+        Page::Values => view! {
+            <ValuesPage />
+        },
+        Page::Selecting => view! {
+            <SelectingPage />
+        },
+        Page::Popups => view! {
+            <PopupsPage />
+        },
+        Page::Dragging => view! {
+            <DraggingPage />
+        },
+        Page::Scrolling => view! {
+            <ScrollingPage />
+        },
+        Page::Frames => view! {
+            <FramesPage />
+        },
+        Page::TextNodes => view! {
+            <TextNodesPage />
+        },
+        Page::Lists => view! {
+            <ListsPage />
+        },
+        Page::ControlFlow => view! {
+            <ControlFlowPage />
+        },
+        Page::Interaction => view! {
+            <InteractionPage />
+        },
+        Page::Layering => view! {
+            <LayeringPage />
+        },
     }
 }
 

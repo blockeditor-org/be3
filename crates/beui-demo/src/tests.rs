@@ -27,6 +27,14 @@ fn demo(size: Vec2) -> DocumentTest {
     DocumentTest::new(DemoApp::on(Date::new(year, month, day)).document, size)
 }
 
+fn alone(size: Vec2, page: Page) -> DocumentTest {
+    let (year, month, day) = TODAY;
+    DocumentTest::new(
+        DemoApp::alone(Date::new(year, month, day), page).document,
+        size,
+    )
+}
+
 fn open(test: &mut DocumentTest, page: Page) {
     let row = format!("demo.catalog.{}", page.title());
     if !test.shows(&row) && test.document().find_test_id("dock.back").is_some() {
@@ -47,13 +55,16 @@ fn open(test: &mut DocumentTest, page: Page) {
 
 fn paint_every_page(size: Vec2, suffix: &str) {
     for page in PAGES {
-        let mut test = demo(size);
-        open(&mut test, page);
         let name = format!("{}{suffix}", page.title().to_lowercase().replace(' ', "_"));
-        match page {
-            Page::Docking => test.snapshot(&name),
-            _ => test.snapshot_of(&name, &format!("demo.page.{}", page.title())),
-        }
+        let mut test = match page {
+            Page::Docking => {
+                let mut test = demo(size);
+                open(&mut test, page);
+                test
+            }
+            _ => alone(size, page),
+        };
+        test.snapshot(&name);
     }
 }
 
