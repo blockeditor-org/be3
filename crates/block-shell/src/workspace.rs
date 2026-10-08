@@ -968,7 +968,7 @@ pub fn BlockTab(workspace: Rc<Workspace>, tab: TabId) -> DockEntry<TabId> {
 #[component]
 pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<TabId> {
     let windows = workspace.windows.clone();
-    let title = create_memo(move || {
+    let name = create_memo(move || {
         windows.with(|windows| {
             windows
                 .iter()
@@ -976,6 +976,19 @@ pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<Ta
                 .map_or_else(|| "Window".to_owned(), window_title)
         })
     });
+    let listed = workspace.windows.clone();
+    let responding = create_memo(move || {
+        listed.with(|windows| {
+            windows
+                .iter()
+                .find(|listed| listed.id == window)
+                .is_none_or(|listed| listed.responding)
+        })
+    });
+    let title = create_memo(clone!(name responding -> move || match responding.get() {
+        true => name.get(),
+        false => format!("{} (not responding)", name.get()),
+    }));
     let listed = workspace.windows.clone();
     let fullscreen = create_memo(move || {
         listed.with(|windows| {
@@ -998,7 +1011,13 @@ pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<Ta
             icon=ICON_WEB_ASSET
             on_close={move || closing.close(window_tab(window))}
         >
-            <WindowPanel editor={editor.clone()} window fullscreen={fullscreen.clone()} />
+            <WindowPanel
+                editor={editor.clone()}
+                window
+                fullscreen={fullscreen.clone()}
+                name={name.clone()}
+                responding={responding.clone()}
+            />
         </DockTab>
     }
 }

@@ -15,6 +15,7 @@ pub struct WindowInfo {
     pub parent: Option<WindowId>,
     pub size: Vec2,
     pub fullscreen: Option<Rect>,
+    pub responding: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]

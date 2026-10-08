@@ -64,6 +64,8 @@ pub(crate) struct Received {
     pub(crate) xdg_decoration: Option<zxdg_toplevel_decoration_v1::Mode>,
     pub(crate) kde_default_decoration: Option<org_kde_kwin_server_decoration_manager::Mode>,
     pub(crate) kde_decoration: Option<org_kde_kwin_server_decoration::Mode>,
+    pub(crate) ignores_pings: bool,
+    pub(crate) pings: Vec<u32>,
     pub(crate) idle: Vec<bool>,
 }
 
@@ -244,12 +246,32 @@ impl TestClient {
     }
 
     pub(crate) fn flush(&mut self) {
+        if self.disconnected() {
+            return;
+        }
         self.connection.flush().expect("the client flushes");
     }
 
+    pub(crate) fn disconnected(&self) -> bool {
+        self.connection.protocol_error().is_some()
+    }
+
+    pub(crate) fn pong(&mut self) {
+        let base = self.wm_base.as_ref().unwrap();
+        for serial in self.received.pings.drain(..) {
+            base.pong(serial);
+        }
+    }
+
     pub(crate) fn receive(&mut self) {
+        if self.disconnected() {
+            return;
+        }
         if let Some(guard) = self.queue.prepare_read() {
             let _ = guard.read();
+        }
+        if self.disconnected() {
+            return;
         }
         self.queue
             .dispatch_pending(&mut self.received)
@@ -420,7 +442,7 @@ impl Dispatch<wl_registry::WlRegistry, ()> for Received {
 
 impl Dispatch<xdg_wm_base::XdgWmBase, ()> for Received {
     fn event(
-        _: &mut Self,
+        state: &mut Self,
         base: &xdg_wm_base::XdgWmBase,
         event: xdg_wm_base::Event,
         _: &(),
@@ -428,7 +450,10 @@ impl Dispatch<xdg_wm_base::XdgWmBase, ()> for Received {
         _: &QueueHandle<Self>,
     ) {
         if let xdg_wm_base::Event::Ping { serial } = event {
-            base.pong(serial);
+            state.pings.push(serial);
+            if !state.ignores_pings {
+                base.pong(serial);
+            }
         }
     }
 }

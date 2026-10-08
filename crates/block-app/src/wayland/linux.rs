@@ -168,6 +168,7 @@ pub(crate) fn listed() -> Vec<HostWindow> {
                 width: area.width(),
                 height: area.height(),
             }),
+            responding: info.responding,
         })
         .collect()
 }

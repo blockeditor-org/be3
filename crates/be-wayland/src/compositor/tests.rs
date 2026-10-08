@@ -7,13 +7,16 @@ mod a_drawn_window_is_listed_and_fitted_to_where_it_is_shown;
 mod a_fullscreen_window_covers_only_its_own_screen;
 mod a_global_action_that_does_not_intercept_leaves_the_window_its_keys;
 mod a_maximized_window_keeps_its_place_and_is_told_it_is_maximized;
+mod a_process_the_compositor_launched_can_be_ended;
 mod a_program_that_is_not_found_is_reported;
 mod a_shown_dmabuf_is_released_once_a_newer_one_is_painted;
 mod a_shown_window_that_inhibits_idle_keeps_the_session_awake;
 mod a_wake_from_the_host_counts_as_activity;
 mod a_window_asking_for_fullscreen_before_it_is_shown_is_answered;
 mod a_window_asking_for_fullscreen_covers_the_screen;
+mod a_window_that_stops_answering_pings_is_not_responding_until_it_answers;
 mod an_inhibitor_on_a_window_that_is_not_shown_does_not_keep_the_session_awake;
+mod closing_a_window_that_is_not_responding_disconnects_its_client;
 mod idle_notifications_tell_clients_when_the_user_idles_and_resumes;
 mod keys_follow_the_focus_between_beui_and_a_window;
 mod leaving_fullscreen_returns_the_window_to_where_it_was_shown;
@@ -228,6 +231,17 @@ impl Harness {
             },
         ]);
         self.settle();
+    }
+
+    fn responding(&self, id: WindowId) -> bool {
+        self.app
+            .windows()
+            .list()
+            .get_untracked()
+            .iter()
+            .find(|info| info.id == id)
+            .expect("the window is listed")
+            .responding
     }
 }
 

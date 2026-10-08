@@ -60,6 +60,8 @@ use smithay::wayland::selection::SelectionHandler;
 use smithay::wayland::selection::data_device::{
     ClientDndGrabHandler, DataDeviceHandler, DataDeviceState, ServerDndGrabHandler,
 };
+use smithay::wayland::shell::PingError;
+use smithay::wayland::shell::xdg::ShellClient;
 use smithay::wayland::shell::xdg::{
     PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState,
     XdgToplevelSurfaceData,
@@ -69,6 +71,13 @@ use smithay::wayland::viewporter::ViewporterState;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct WindowId(pub u64);
+
+pub const PING_TIMEOUT: Duration = Duration::from_secs(3);
+
+struct Ping {
+    client: ClientId,
+    sent: Instant,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ServerEvent {
@@ -137,6 +146,9 @@ pub struct State {
     size: Size<i32, Logical>,
     pointer_window: Option<WindowId>,
     keyboard_window: Option<WindowId>,
+    pings: Vec<Ping>,
+    unresponsive: Vec<ClientId>,
+    disconnected: Vec<ClientId>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -203,6 +215,9 @@ impl State {
             size: Size::from((1280, 800)),
             pointer_window: None,
             keyboard_window: None,
+            pings: Vec::new(),
+            unresponsive: Vec::new(),
+            disconnected: Vec::new(),
         };
         state.set_output(state.size, state.scale);
         state
@@ -603,6 +618,99 @@ impl State {
         }
     }
 
+    fn client(&self, id: WindowId) -> Option<Client> {
+        self.toplevel(id)?.wl_surface().client()
+    }
+
+    fn client_windows(&self, client: &ClientId) -> Vec<WindowId> {
+        self.windows
+            .iter()
+            .filter(|window| {
+                window
+                    .window
+                    .toplevel()
+                    .and_then(|toplevel| toplevel.wl_surface().client())
+                    .is_some_and(|owner| owner.id() == *client)
+            })
+            .map(|window| window.id)
+            .collect()
+    }
+
+    pub fn ping(&mut self, id: WindowId, now: Instant) {
+        let (Some(toplevel), Some(client)) = (self.toplevel(id), self.client(id)) else {
+            return;
+        };
+        let client = client.id();
+        if self.pings.iter().any(|ping| ping.client == client) {
+            return;
+        }
+        match toplevel.client().send_ping(SERIAL_COUNTER.next_serial()) {
+            Ok(()) | Err(PingError::PingAlreadyPending(_)) => {
+                self.pings.push(Ping { client, sent: now });
+            }
+            Err(_) => {}
+        }
+    }
+
+    pub fn check_pings(&mut self, now: Instant) -> Option<Instant> {
+        let live: Vec<ClientId> = self
+            .windows()
+            .into_iter()
+            .filter_map(|id| Some(self.client(id)?.id()))
+            .collect();
+        self.pings.retain(|ping| live.contains(&ping.client));
+        self.unresponsive.retain(|client| live.contains(client));
+        let mut due = None;
+        let mut late = Vec::new();
+        for ping in &self.pings {
+            if self.unresponsive.contains(&ping.client) {
+                continue;
+            }
+            let deadline = ping.sent + PING_TIMEOUT;
+            if deadline <= now {
+                late.push(ping.client.clone());
+            } else {
+                due = Some(due.map_or(deadline, |due: Instant| due.min(deadline)));
+            }
+        }
+        if !late.is_empty() {
+            due = Some(now);
+        }
+        for client in late {
+            self.changed_client(&client);
+            self.unresponsive.push(client);
+        }
+        due
+    }
+
+    fn changed_client(&mut self, client: &ClientId) {
+        for id in self.client_windows(client) {
+            self.events.push(ServerEvent::Changed(id));
+        }
+    }
+
+    pub fn responding(&self, id: WindowId) -> bool {
+        self.client(id)
+            .is_none_or(|client| !self.unresponsive.contains(&client.id()))
+    }
+
+    pub fn client_pid(&self, id: WindowId) -> Option<i32> {
+        let client = self.client(id)?;
+        Some(client.get_credentials(&self.handle).ok()?.pid)
+    }
+
+    pub fn disconnect(&mut self, id: WindowId) {
+        let (Some(toplevel), Some(client)) = (self.toplevel(id), self.client(id)) else {
+            return;
+        };
+        let _ = toplevel.client().unresponsive();
+        self.disconnected.push(client.id());
+    }
+
+    pub fn take_disconnected(&mut self) -> Vec<ClientId> {
+        std::mem::take(&mut self.disconnected)
+    }
+
     pub fn layers(&self, id: WindowId) -> Vec<Layer> {
         let Some(window) = self.find(id) else {
             return Vec::new();
@@ -952,6 +1060,25 @@ impl ShmHandler for State {
 impl XdgShellHandler for State {
     fn xdg_shell_state(&mut self) -> &mut XdgShellState {
         &mut self.xdg_shell
+    }
+
+    fn client_pong(&mut self, shell: ShellClient) {
+        let clients: Vec<ClientId> = self
+            .windows
+            .iter()
+            .filter_map(|window| {
+                let toplevel = window.window.toplevel()?;
+                (toplevel.client() == shell).then(|| toplevel.wl_surface().client())?
+            })
+            .map(|client| client.id())
+            .collect();
+        for client in clients {
+            self.pings.retain(|ping| ping.client != client);
+            if let Some(index) = self.unresponsive.iter().position(|held| *held == client) {
+                self.unresponsive.remove(index);
+                self.changed_client(&client);
+            }
+        }
     }
 
     fn new_toplevel(&mut self, surface: ToplevelSurface) {
