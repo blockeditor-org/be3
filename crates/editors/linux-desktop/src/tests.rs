@@ -11,6 +11,7 @@ use crate::app::LinuxDesktopApp;
 mod a_block_shown_on_the_desktop_opens_in_its_own_window;
 mod a_session_chosen_from_the_menu_opens_in_a_window_and_closing_it_keeps_the_session;
 mod the_desktop_starts_with_nothing_open_but_its_bar;
+mod the_programs_button_asks_the_host_for_its_launcher;
 
 const MAX_TAB: u64 = 64;
 const SHOWN_TYPE: Uuid = Uuid::from_u128(0x7368_6f77_6e2d_7479_7065_2d74_6573_7431);

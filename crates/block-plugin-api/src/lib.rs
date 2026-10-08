@@ -7,13 +7,15 @@ mod linux;
 mod manifest;
 mod session;
 pub use block_ids::BlockIdRole;
-pub use linux::{HostInputDevice, HostWindow, HostWindowId, LinuxMessage};
+pub use linux::{
+    HostDisplay, HostDisplayMode, HostInputDevice, HostWindow, HostWindowId, LinuxMessage,
+};
 pub use manifest::{
     EditorDocument, ManifestDocument, TemplateDocument, Templates, manifest_from_json,
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 71;
+pub const PROTOCOL_VERSION: u16 = 72;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_TEXT_BYTES: usize = 64 * 1024 * 1024;
@@ -1375,6 +1377,7 @@ pub enum BlockCommand {
         linked: bool,
     },
     AppMenu,
+    Launcher,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -2585,7 +2588,17 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
                 }
                 Ok(())
             }
-            LinuxMessage::WatchInputDevices => Ok(()),
+            LinuxMessage::Displays(displays) => {
+                collection(displays.len())?;
+                for display in displays {
+                    string(&display.id)?;
+                    string(&display.name)?;
+                    string(&display.connector)?;
+                    collection(display.modes.len())?;
+                }
+                Ok(())
+            }
+            LinuxMessage::WatchInputDevices | LinuxMessage::WatchDisplays => Ok(()),
         },
         EditorMessage::Menu { entries, .. } => menu(entries),
         EditorMessage::MenuPick { id, .. } | EditorMessage::ChildMenuPick { id, .. } => string(id),

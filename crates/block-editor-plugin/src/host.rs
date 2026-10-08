@@ -12,9 +12,9 @@ use block_plugin_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand,
     BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect,
     ChildStatus, ClipboardImage, DataListing, EditorRegion, FetchResult, FilePick, FileSave,
-    HostInputDevice, HostPanel, HostReply, HostRequest, HostWindow, HostWindowId, MenuEntry,
-    Occluder, PerformanceMeasurement, ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent,
-    WebViewId,
+    HostDisplay, HostInputDevice, HostPanel, HostReply, HostRequest, HostWindow, HostWindowId,
+    MenuEntry, Occluder, PerformanceMeasurement, ShellDialog, Size, ViewChange, WebViewCommand,
+    WebViewEvent, WebViewId,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;
@@ -358,10 +358,11 @@ pub enum Pushed {
     Version,
     Windows,
     InputDevices,
+    Displays,
 }
 
 impl Pushed {
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 13] = [
         Self::Replies,
         Self::Peers,
         Self::Histories,
@@ -374,6 +375,7 @@ impl Pushed {
         Self::Version,
         Self::Windows,
         Self::InputDevices,
+        Self::Displays,
     ];
 }
 
@@ -385,6 +387,9 @@ pub struct EditorHost {
     input_devices: Rc<RefCell<Vec<HostInputDevice>>>,
     watching_input_devices: Rc<Cell<bool>>,
     reported_input_device_watch: Rc<Cell<bool>>,
+    displays: Rc<RefCell<Vec<HostDisplay>>>,
+    watching_displays: Rc<Cell<bool>>,
+    reported_display_watch: Rc<Cell<bool>>,
     closed_windows: Rc<RefCell<Vec<HostWindowId>>>,
     pick_requests: Rc<RefCell<Vec<PickRequest>>>,
     dialog_requests: Rc<RefCell<Vec<(Uuid, ShellDialog)>>>,
@@ -593,6 +598,27 @@ impl EditorHost {
         self.push(Pushed::InputDevices);
     }
 
+    pub fn displays(&self) -> Vec<HostDisplay> {
+        self.watching_displays.set(true);
+        self.displays.borrow().clone()
+    }
+
+    pub fn set_displays(&self, displays: Vec<HostDisplay>) {
+        if *self.displays.borrow() == displays {
+            return;
+        }
+        *self.displays.borrow_mut() = displays;
+        self.push(Pushed::Displays);
+    }
+
+    pub(crate) fn take_display_watch(&self) -> bool {
+        let wanted = self.watching_displays.get() && !self.reported_display_watch.get();
+        if wanted {
+            self.reported_display_watch.set(true);
+        }
+        wanted
+    }
+
     pub(crate) fn take_input_device_watch(&self) -> bool {
         let wanted = self.watching_input_devices.get() && !self.reported_input_device_watch.get();
         if wanted {
@@ -762,6 +788,12 @@ impl EditorHost {
         self.block_commands
             .borrow_mut()
             .push((block_id, BlockCommand::AppMenu));
+    }
+
+    pub fn show_launcher(&self, block_id: Uuid) {
+        self.block_commands
+            .borrow_mut()
+            .push((block_id, BlockCommand::Launcher));
     }
 
     pub fn rename_block(&self, block_id: Uuid) {

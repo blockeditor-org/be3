@@ -195,7 +195,8 @@ impl EditorSession {
         match message {
             LinuxMessage::Windows(windows) => self.host.set_windows(windows),
             LinuxMessage::InputDevices(devices) => self.host.set_input_devices(devices),
-            LinuxMessage::WatchInputDevices => {}
+            LinuxMessage::Displays(displays) => self.host.set_displays(displays),
+            LinuxMessage::WatchInputDevices | LinuxMessage::WatchDisplays => {}
         }
     }
 
@@ -689,6 +690,12 @@ impl EditorSession {
             messages.push(Message::Editor(EditorMessage::Linux {
                 instance,
                 message: LinuxMessage::WatchInputDevices,
+            }));
+        }
+        if self.host.take_display_watch() {
+            messages.push(Message::Editor(EditorMessage::Linux {
+                instance,
+                message: LinuxMessage::WatchDisplays,
             }));
         }
         if let Some(blocks) = self.host.take_history_watch() {

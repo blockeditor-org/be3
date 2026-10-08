@@ -707,6 +707,7 @@ impl Document {
         if !inside_any {
             let scrim = self.arena.get_as::<OverlayNode>(overlay).scrim;
             self.capture_pointer(scrim);
+            self.forward.swallow_press();
             self.close_overlay_at(level);
         }
     }

@@ -26,7 +26,13 @@ pub struct Fullscreen {
 pub(crate) enum Command {
     Configure(WindowId),
     Close(WindowId),
-    Launch(String),
+    Launch(Launch),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Launch {
+    pub arguments: Vec<String>,
+    pub working_dir: Option<String>,
 }
 
 #[derive(Clone)]
@@ -132,7 +138,14 @@ impl Windows {
     }
 
     pub fn launch(&self, line: String) {
-        self.push(Command::Launch(line));
+        self.run(Launch {
+            arguments: vec!["sh".to_owned(), "-c".to_owned(), line],
+            working_dir: None,
+        });
+    }
+
+    pub fn run(&self, launch: Launch) {
+        self.push(Command::Launch(launch));
     }
 
     pub(crate) fn set_cursor(&self, cursor: CursorIcon) {

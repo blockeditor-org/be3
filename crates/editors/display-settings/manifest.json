@@ -1,0 +1,16 @@
+{
+  "id": "be3.display-settings",
+  "name": "Display Settings",
+  "version": "0.1.0",
+  "editors": [
+    {
+      "block_type": "64697370-6c61-792d-7365-7474696e6773",
+      "display_name": "Display Settings",
+      "icon": "",
+      "regions": [
+        "Frame"
+      ]
+    }
+  ],
+  "entry_point": "display_settings.wasm"
+}
