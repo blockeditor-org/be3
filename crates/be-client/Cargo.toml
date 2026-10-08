@@ -36,7 +36,6 @@ web-sys = { version = "0.3", features = [
 ] }
 
 [dev-dependencies]
-be-model = { path = "../be-model" }
 be-server = { path = "../be-server" }
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "time"] }
 

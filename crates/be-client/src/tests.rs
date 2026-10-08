@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use super::*;
 
+mod a_follower_keeps_its_unconfirmed_typing_through_a_reload;
 mod a_follower_replaces_an_image_and_the_owner_takes_it;
 mod a_follower_stops_saving_after_a_message_it_cannot_read;
 mod a_follower_takes_over_and_keeps_editing_without_a_merge;
@@ -17,7 +18,7 @@ mod a_follower_that_takes_over_keeps_what_it_typed_before_its_first_save;
 mod a_follower_typing_while_the_owner_types_keeps_both_runs_whole;
 mod a_large_image_streams_without_downloading_all_of_it;
 mod a_late_joiner_places_an_insert_after_an_item_removed_before_it_joined;
-mod a_quiet_session_restarts_and_its_followers_forget_its_removals;
+mod a_late_joiner_to_edited_text_types_where_it_sees_the_caret;
 mod a_second_follower_keeps_following_after_the_owner_leaves;
 mod a_stale_save_is_rejected_with_the_head_to_merge_against;
 mod an_edit_too_large_to_relay_is_saved_as_a_commit;
@@ -183,38 +184,26 @@ fn checklist_texts(live: &Live<MemoryStore, be_block::ChecklistContent>) -> Vec<
         .collect()
 }
 
-#[derive(Clone, Debug, Default, be_model::Model, PartialEq)]
-struct Notes {
-    body: be_model::Text,
+trait Texted {
+    fn to_text(&self) -> String;
 }
 
-impl be_block::Root for Notes {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x2f0e_5a8c_49d1_4b7e_9a63_d1c4_0b8e_7f15);
+impl Texted for be_block::TextContent {
+    fn to_text(&self) -> String {
+        be_block::TextBlock::text(self)
+    }
 }
 
-type NotesContent = be_model::Document<Notes>;
-
-fn notes(body: &str) -> NotesContent {
-    be_model::Document::new(&Notes {
-        body: be_model::Text::from(body),
-    })
+async fn type_at(live: &mut Live<MemoryStore, be_block::TextContent>, at: usize, typed: &str) {
+    let edit = be_block::TextBlock::insert(live.content(), live.client(), at, typed.as_bytes())
+        .expect("there is somewhere to type");
+    live.edit(edit).await.unwrap();
 }
 
-fn body_of(live: &Live<MemoryStore, NotesContent>) -> String {
-    live.content().root().body.to_str_lossy().into_owned()
-}
-
-async fn type_into(live: &mut Live<MemoryStore, NotesContent>, index: usize, typed: &str) {
-    let body = live
-        .content()
-        .text(be_model::ObjectId::ROOT, Notes::BODY)
-        .expect("the note has a body");
-    let op = body
-        .insert(live.client(), index, typed.as_bytes().to_vec())
-        .expect("there is something to type");
-    live.edit(Notes::BODY.edit(be_model::ObjectId::ROOT, op).into())
-        .await
-        .unwrap();
+async fn erase(live: &mut Live<MemoryStore, be_block::TextContent>, range: std::ops::Range<usize>) {
+    let edit =
+        be_block::TextBlock::delete(live.content(), range).expect("there is something to erase");
+    live.edit(edit).await.unwrap();
 }
 
 const PATIENCE: Duration = Duration::from_secs(20);

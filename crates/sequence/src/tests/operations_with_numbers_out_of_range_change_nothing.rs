@@ -18,6 +18,7 @@ fn operations_with_numbers_out_of_range_change_nothing() {
         },
         SeqOp::Undelete {
             spans: vec![wrapping],
+            items: vec![b'x'; 2],
         },
         SeqOp::Replace {
             spans: vec![wrapping],
@@ -28,6 +29,7 @@ fn operations_with_numbers_out_of_range_change_nothing() {
         SeqOp::Swap {
             hide: vec![wrapping],
             show: Vec::new(),
+            items: Vec::new(),
         },
         SeqOp::Insert {
             after: Some(nowhere),
@@ -62,5 +64,5 @@ fn operations_with_numbers_out_of_range_change_nothing() {
         len: 2,
         visible: false,
     });
-    assert!(Sequence::from_state(wrapped).is_err());
+    assert!(Sequence::from_state(wrapped, &sequence.items()).is_err());
 }

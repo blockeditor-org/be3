@@ -204,7 +204,6 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
-                    "//crates/be-model:be-model",
                     "//crates/be-server:be-server",
                 ],
                 "test_features": [],
@@ -226,7 +225,6 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
-                    "//crates/be-model:be-model",
                     "//crates/be-server:be-server",
                 ],
                 "test_features": [],
@@ -248,7 +246,6 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
-                    "//crates/be-model:be-model",
                     "//crates/be-server:be-server",
                 ],
                 "test_features": [],
@@ -270,7 +267,6 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
-                    "//crates/be-model:be-model",
                     "//crates/be-server:be-server",
                 ],
                 "test_features": [],
@@ -292,7 +288,6 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
-                    "//crates/be-model:be-model",
                     "//crates/be-server:be-server",
                 ],
                 "test_features": [],
@@ -337,7 +332,6 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
-                    "//crates/be-model:be-model",
                     "//crates/be-server:be-server",
                 ],
                 "test_features": [],
@@ -359,7 +353,6 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
-                    "//crates/be-model:be-model",
                     "//crates/be-server:be-server",
                 ],
                 "test_features": [],
@@ -11057,6 +11050,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:similar-3.1.1",
@@ -11065,7 +11059,6 @@ crates = {
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
                     "//third-party/rust:unicode-segmentation-1.13.3",
-                    "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
                 "features": [],
@@ -11075,6 +11068,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:similar-3.1.1",
@@ -11083,7 +11077,6 @@ crates = {
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
                     "//third-party/rust:unicode-segmentation-1.13.3",
-                    "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
                 "features": [],
@@ -11093,6 +11086,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:similar-3.1.1",
@@ -11101,7 +11095,6 @@ crates = {
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
                     "//third-party/rust:unicode-segmentation-1.13.3",
-                    "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
                 "features": [],
@@ -11111,6 +11104,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:similar-3.1.1",
@@ -11119,7 +11113,6 @@ crates = {
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
                     "//third-party/rust:unicode-segmentation-1.13.3",
-                    "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
                 "features": [],
@@ -11129,6 +11122,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:similar-3.1.1",
@@ -11137,7 +11131,6 @@ crates = {
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
                     "//third-party/rust:unicode-segmentation-1.13.3",
-                    "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
                 "features": [],
@@ -11147,6 +11140,7 @@ crates = {
             "wasi": {
                 "binaries": {},
                 "deps": [
+                    "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:similar-3.1.1",
@@ -11155,7 +11149,6 @@ crates = {
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
                     "//third-party/rust:unicode-segmentation-1.13.3",
-                    "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
                 "features": [],
@@ -11165,6 +11158,7 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
+                    "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:similar-3.1.1",
@@ -11173,7 +11167,6 @@ crates = {
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
                     "//third-party/rust:unicode-segmentation-1.13.3",
-                    "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
                 "features": [],
@@ -11183,6 +11176,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:similar-3.1.1",
@@ -11191,7 +11185,6 @@ crates = {
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
                     "//third-party/rust:unicode-segmentation-1.13.3",
-                    "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
                 "features": [],
@@ -11201,6 +11194,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:similar-3.1.1",
@@ -11209,7 +11203,6 @@ crates = {
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
                     "//third-party/rust:unicode-segmentation-1.13.3",
-                    "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
                 "features": [],

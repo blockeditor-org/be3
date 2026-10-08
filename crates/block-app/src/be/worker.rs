@@ -19,7 +19,6 @@ use super::version::{Context, Versions};
 use super::{Config, Content, platform};
 
 const SEAL_INTERVAL: Duration = Duration::from_millis(750);
-const QUIET_SESSION: Duration = Duration::from_secs(60);
 const RECONNECT_DELAY: Duration = Duration::from_secs(2);
 const EDIT_BURST: Duration = Duration::from_millis(750);
 const HISTORY_STEPS: usize = 200;
@@ -237,10 +236,6 @@ pub(super) trait Session {
 
     fn seal(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>>;
 
-    fn activity(&self) -> Option<u64>;
-
-    fn restart(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>>;
-
     fn replace(&mut self, bytes: Vec<u8>) -> LocalBoxFuture<'_, Result<(), ClientError>>;
 
     fn show(
@@ -385,14 +380,6 @@ where
 
     fn seal(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
         Box::pin(async move { seal(&mut self.live).await })
-    }
-
-    fn activity(&self) -> Option<u64> {
-        self.live.activity()
-    }
-
-    fn restart(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
-        Box::pin(async move { self.live.restart().await.map(|_| ()) })
     }
 
     fn replace(&mut self, bytes: Vec<u8>) -> LocalBoxFuture<'_, Result<(), ClientError>> {
@@ -573,14 +560,6 @@ where
 
     fn seal(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
         Box::pin(async move { seal(&mut self.live).await })
-    }
-
-    fn activity(&self) -> Option<u64> {
-        self.live.activity()
-    }
-
-    fn restart(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
-        Box::pin(async move { self.live.restart().await.map(|_| ()) })
     }
 
     fn replace(&mut self, bytes: Vec<u8>) -> LocalBoxFuture<'_, Result<(), ClientError>> {
@@ -785,14 +764,9 @@ async fn connected<S: Fn() -> Result<Store, String>>(
     changed.notify_all();
     crate::host::wake();
     let mut unsealed_since: Option<Instant> = None;
-    let mut quiet: HashMap<Uuid, (u64, Instant)> = HashMap::new();
     let mut flushes = Vec::new();
     loop {
-        let deadline = unsealed_since
-            .map(|since| since + SEAL_INTERVAL)
-            .into_iter()
-            .chain(quiet.values().map(|(_, since)| *since + QUIET_SESSION))
-            .min();
+        let deadline = unsealed_since.map(|since| since + SEAL_INTERVAL);
         let woken = match deadline {
             Some(deadline) => {
                 let remaining = deadline.saturating_duration_since(Instant::now());
@@ -858,7 +832,6 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                 if due {
                     seal_all(&mut sessions, shared).await;
                 }
-                restart_quiet(&mut sessions, &mut quiet, shared).await;
                 due
             }
         };
@@ -869,17 +842,6 @@ async fn connected<S: Fn() -> Result<Store, String>>(
             true => unsealed_since.or_else(|| Some(Instant::now())),
             false => None,
         };
-        quiet = sessions
-            .iter()
-            .filter_map(|(block, session)| {
-                let activity = session.activity()?;
-                let since = match quiet.get(block) {
-                    Some((held, since)) if *held == activity => *since,
-                    _ => Instant::now(),
-                };
-                Some((*block, (activity, since)))
-            })
-            .collect();
         let mut moved = publish(&mut sessions, shared);
         let before = version_revisions(shared);
         versions
@@ -1358,25 +1320,6 @@ pub(super) fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
         metadata: metadata.unwrap_or_default(),
         head: summary.head,
         version: summary.version,
-    }
-}
-
-async fn restart_quiet(
-    sessions: &mut HashMap<Uuid, Box<dyn Session>>,
-    quiet: &mut HashMap<Uuid, (u64, Instant)>,
-    shared: &Arc<Mutex<Shared>>,
-) {
-    for (block, (_, since)) in quiet.iter_mut() {
-        if since.elapsed() < QUIET_SESSION {
-            continue;
-        }
-        *since = Instant::now();
-        let Some(session) = sessions.get_mut(block) else {
-            continue;
-        };
-        if let Err(error) = session.restart().await {
-            record(shared, error);
-        }
     }
 }
 

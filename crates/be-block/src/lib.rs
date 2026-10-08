@@ -75,7 +75,7 @@ pub use settings::{Settings, SettingsContent};
 pub use streamed::{
     HEADER_PREFIX_BYTES, Streamed, decode_streamed, encode_streamed, payload_start,
 };
-pub use text::{TextContent, TextHeader, TextIndentation, TextLanguage, TextOp};
+pub use text::{TextBlock, TextContent, TextIndentation, TextLanguage};
 pub use ui_settings::{UiSettings, UiSettingsContent, Zoom};
 pub use version_control::{
     Checkout, CheckoutConflict, CheckoutContent, ConflictKind, MAIN_BRANCH, Repository,

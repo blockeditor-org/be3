@@ -2,14 +2,14 @@ use super::*;
 
 #[test]
 fn inserts_at_one_place_from_two_peers_keep_each_peers_text_whole() {
-    let base = "hello world";
-    let theirs = [TextOp::insert(5, " there"), TextOp::insert(11, ",")];
-    let ours = TextContent::rebase(TextOp::insert(5, " again"), &theirs).unwrap();
+    let base = TextBlock::of("hello world");
+    let mut theirs = base.clone();
+    let there = TextBlock::insert(&theirs, 2, 5, b" there").expect("the insert lands");
+    theirs.apply(&there);
+    let comma = TextBlock::insert(&theirs, 2, 11, b",").expect("the insert lands");
+    let again = TextBlock::insert(&base, 1, 5, b" again").expect("the insert lands");
 
-    let text = applied(base, &[theirs[0].clone(), theirs[1].clone(), ours]);
+    let text = TextBlock::text(&edited(&base, [there, comma, again]));
 
-    assert!(
-        text == "hello there, again world" || text == "hello again there, world",
-        "each insert stays in one piece: {text}"
-    );
+    assert_eq!(text, "hello again there, world");
 }

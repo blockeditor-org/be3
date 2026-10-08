@@ -15,6 +15,11 @@ pub trait Root: Model + Send + Sync + 'static {
         Vec::new()
     }
 
+    fn references_in(&self, workspace: Uuid) -> Vec<Uuid> {
+        let _ = workspace;
+        self.references()
+    }
+
     fn child_edit(&self, change: ChildChange) -> Option<Edit> {
         let _ = change;
         None
@@ -38,6 +43,10 @@ impl<R: Root> BlockContent for Document<R> {
 
     fn references(&self) -> Vec<Uuid> {
         self.root().references()
+    }
+
+    fn references_in(&self, workspace: Uuid) -> Vec<Uuid> {
+        self.root().references_in(workspace)
     }
 }
 

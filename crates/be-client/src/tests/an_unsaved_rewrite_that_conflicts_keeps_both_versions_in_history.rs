@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{TextContent, TextOp};
+use be_block::{TextBlock, TextContent};
 
 #[tokio::test]
 async fn an_unsaved_rewrite_that_conflicts_keeps_both_versions_in_history() {
@@ -12,7 +12,7 @@ async fn an_unsaved_rewrite_that_conflicts_keeps_both_versions_in_history() {
         .unwrap();
     let base: String = (0..20).map(|line| format!("line {line}\n")).collect();
     let shared = phone
-        .save(block, &TextContent::from(base.as_str()), None)
+        .save(block, &TextBlock::of(base.as_str()), None)
         .await
         .unwrap()
         .published()
@@ -23,19 +23,12 @@ async fn an_unsaved_rewrite_that_conflicts_keeps_both_versions_in_history() {
         .await
         .unwrap();
     let retyped: String = (0..20).map(|line| format!("rewritten {line}\n")).collect();
-    on_phone
-        .edit(TextOp::delete(0, base.len() as u64))
-        .await
-        .unwrap();
-    on_phone.edit(TextOp::insert(0, &retyped)).await.unwrap();
+    erase(&mut on_phone, 0..base.len()).await;
+    type_at(&mut on_phone, 0, &retyped).await;
 
     let theirs_text = base.replace("line 7\n", "line seven, edited\n");
     let theirs = laptop
-        .save(
-            block,
-            &TextContent::from(theirs_text.as_str()),
-            Some(shared),
-        )
+        .save(block, &TextBlock::of(theirs_text.as_str()), Some(shared))
         .await
         .unwrap()
         .published()
@@ -57,7 +50,7 @@ async fn an_unsaved_rewrite_that_conflicts_keeps_both_versions_in_history() {
             .open_commit::<TextContent>(ours)
             .await
             .unwrap()
-            .text(),
+            .to_text(),
         retyped,
         "the unsaved side of the conflict was not kept"
     );

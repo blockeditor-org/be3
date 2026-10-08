@@ -9,14 +9,14 @@ mod ime;
 pub use ime::{ImeCommand, ImeState};
 
 use crate::{
-    Highlighter, Language, SyntaxHighlight,
-    document::{Anchor, Document, DocumentRead, DocumentView, TextIndentation, TextLanguage},
+    Highlighter, Language, Pos, SyntaxHighlight,
+    document::{Document, DocumentRead, DocumentView, TextIndentation, TextLanguage},
 };
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct Position {
-    left: Option<Anchor>,
-    right: Option<Anchor>,
+    left: Option<Pos>,
+    right: Option<Pos>,
     fallback: usize,
     end: bool,
 }

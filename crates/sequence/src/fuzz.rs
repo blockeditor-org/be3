@@ -35,7 +35,7 @@ pub fn sequence(data: &[u8]) {
                 sequenced(&mut authority, &mut reference, &mut log, 0, op);
             }
             _ => {
-                let adopted = Sequence::from_state(authority.state())
+                let adopted = Sequence::from_state(authority.state(), &authority.items())
                     .expect("a sequence's own state is well formed");
                 assert_eq!(order(&adopted), order(&authority));
                 check(&adopted);
@@ -71,7 +71,7 @@ fn sequenced(
     let before = authority.items();
     let splices = authority.apply(&op);
     assert_eq!(splices.is_some(), reference.apply(&op), "{op:?}");
-    assert_eq!(order(authority), reference.order, "{op:?}");
+    assert_eq!(order(authority), reference.view(), "{op:?}");
     for (client, next) in &reference.next {
         assert_eq!(authority.next_offset(*client), *next, "{op:?}");
     }
@@ -110,10 +110,12 @@ struct Client {
 
 impl Client {
     fn new(id: u64, authority: &Sequence<u8>) -> Self {
+        let mut visible = authority.clone();
+        visible.mirror();
         Self {
             id,
             confirmed: authority.clone(),
-            visible: authority.clone(),
+            visible,
             pending: VecDeque::new(),
             sent: 0,
             seen: 0,
@@ -185,6 +187,7 @@ impl Client {
         self.seen = log.len();
         if rebuild {
             self.visible = self.confirmed.clone();
+            self.visible.mirror();
             for op in &self.pending {
                 self.visible.apply(op);
             }
@@ -244,25 +247,46 @@ fn garbage(input: &mut Input, authority: &Sequence<u8>) -> SeqOp<u8> {
         1 => SeqOp::Delete {
             spans: spans(input),
         },
-        2 => SeqOp::Undelete {
-            spans: spans(input),
-        },
+        2 => {
+            let spans = spans(input);
+            SeqOp::Undelete {
+                items: carried(input, &spans),
+                spans,
+            }
+        }
         3 => SeqOp::Replace {
             spans: spans(input),
             client,
             start,
             items: input.items(LONGEST_INSERT),
         },
-        4 => SeqOp::Swap {
-            hide: spans(input),
-            show: spans(input),
-        },
+        4 => {
+            let hide = spans(input);
+            let show = spans(input);
+            SeqOp::Swap {
+                items: carried(input, &show),
+                hide,
+                show,
+            }
+        }
         _ => SeqOp::Move {
             first: pos(input),
             last: pos(input),
             after: (!input.byte().is_multiple_of(4)).then(|| pos(input)),
         },
     }
+}
+
+fn carried(input: &mut Input, spans: &[Span]) -> Vec<u8> {
+    let total = spans
+        .iter()
+        .try_fold(0u64, |total, span| total.checked_add(span.len))
+        .filter(|total| *total <= 64);
+    let len = match (total, input.byte() % 8) {
+        (Some(total), 0..=6) => total as usize,
+        _ => input.below(8),
+    };
+    (0..len).map(|_| input.byte()).collect()
 }
 
 struct Input<'a>(&'a [u8]);
@@ -312,11 +336,38 @@ pub(crate) fn check(sequence: &Sequence<u8>) {
         assert!(chunk.fragments.len() <= 2 * CHUNK);
         for fragment in &chunk.fragments {
             assert!(fragment.len > 0);
+            if fragment.visible {
+                assert_eq!(sequence.slice(*fragment).len() as u64, fragment.len);
+            }
             assert_eq!(sequence.index.get(&fragment.first()), Some(&chunk.key));
             assert!(seen.insert(fragment.first(), fragment.len).is_none());
         }
     }
     assert_eq!(sequence.index.len(), seen.len());
+    for ((first, run), (next, _)) in sequence.runs.iter().zip(sequence.runs.iter().skip(1)) {
+        assert!(
+            first.client != next.client || first.offset + run.len() as u64 != next.offset,
+            "contiguous runs were not joined"
+        );
+    }
+    let items = sequence.items();
+    if let Some(flat) = sequence.mirrored() {
+        assert_eq!(flat, items);
+    }
+    let mut visible = 0;
+    for (at, (pos, item)) in order(sequence).into_iter().enumerate() {
+        let shown = item.is_some();
+        if at % 5 == 0 {
+            assert_eq!(sequence.place_of(pos), Some((visible, shown)));
+        }
+        if shown && at % 5 == 0 {
+            let chunk = sequence.chunk(visible);
+            assert!(!chunk.is_empty());
+            assert_eq!(chunk, &items[visible..visible + chunk.len()]);
+        }
+        visible += usize::from(shown);
+    }
+    assert!(sequence.chunk(items.len()).is_empty());
     assert_eq!(
         sequence.len(),
         sequence
@@ -327,13 +378,17 @@ pub(crate) fn check(sequence: &Sequence<u8>) {
     );
 }
 
-pub(crate) fn order(sequence: &Sequence<u8>) -> Vec<(Pos, u8, bool)> {
+pub(crate) fn order(sequence: &Sequence<u8>) -> Vec<(Pos, Option<u8>)> {
     sequence
         .fragments()
         .flat_map(|fragment| {
             sequence
                 .slice(*fragment)
                 .iter()
+                .copied()
+                .map(Some)
+                .chain(std::iter::repeat(None))
+                .take(fragment.len as usize)
                 .enumerate()
                 .map(|(at, item)| {
                     (
@@ -341,8 +396,7 @@ pub(crate) fn order(sequence: &Sequence<u8>) -> Vec<(Pos, u8, bool)> {
                             client: fragment.client,
                             offset: fragment.start + at as u64,
                         },
-                        *item,
-                        fragment.visible,
+                        item.filter(|_| fragment.visible),
                     )
                 })
                 .collect::<Vec<_>>()
@@ -382,6 +436,41 @@ impl Reference {
 
     fn at(&self, pos: Pos) -> Option<usize> {
         self.indices.get(&pos).copied()
+    }
+
+    fn view(&self) -> Vec<(Pos, Option<u8>)> {
+        self.order
+            .iter()
+            .map(|(pos, item, visible)| (*pos, visible.then_some(*item)))
+            .collect()
+    }
+
+    fn carries(spans: &[Span], items: &[u8]) -> bool {
+        spans
+            .iter()
+            .try_fold(0u64, |total, span| total.checked_add(span.len))
+            .is_some_and(|total| total == items.len() as u64)
+    }
+
+    fn show(&mut self, spans: &[Span], items: &[u8]) -> bool {
+        let mut changed = false;
+        let mut rest = items;
+        for span in spans {
+            let (carried, after) = rest.split_at((span.len as usize).min(rest.len()));
+            rest = after;
+            for (index, item) in self
+                .positions(*span)
+                .unwrap_or_default()
+                .into_iter()
+                .zip(carried)
+            {
+                if !self.order[index].2 {
+                    self.order[index] = (self.order[index].0, *item, true);
+                    changed = true;
+                }
+            }
+        }
+        changed
     }
 
     fn reindex(&mut self) {
@@ -473,7 +562,9 @@ impl Reference {
                 items,
             } => self.add(*after, *client, *start, items),
             SeqOp::Delete { spans } => self.set(spans, false),
-            SeqOp::Undelete { spans } => self.set(spans, true),
+            SeqOp::Undelete { spans, items } => {
+                Self::carries(spans, items) && self.show(spans, items)
+            }
             SeqOp::Replace {
                 spans,
                 client,
@@ -498,15 +589,16 @@ impl Reference {
                 }
                 true
             }
-            SeqOp::Swap { hide, show } => {
+            SeqOp::Swap { hide, show, items } => {
                 if (hide.is_empty() && show.is_empty())
+                    || !Self::carries(show, items)
                     || !self.all(hide, true)
                     || !self.all(show, false)
                 {
                     return false;
                 }
                 self.set(hide, false);
-                self.set(show, true);
+                self.show(show, items);
                 true
             }
             SeqOp::Move { first, last, after } => {

@@ -644,7 +644,6 @@ dependencies = [
  "be-block",
  "be-commit",
  "be-graph",
- "be-model",
  "be-protocol",
  "be-server",
  "be-session",
@@ -6688,6 +6687,7 @@ name = "text-editor-core"
 version = "0.1.0"
 dependencies = [
  "memchr",
+ "sequence",
  "serde",
  "similar",
  "tree-sitter",
@@ -6695,7 +6695,6 @@ dependencies = [
  "tree-sitter-rust",
  "tree-sitter-zig",
  "unicode-segmentation",
- "uuid",
 ]
 
 [[package]]

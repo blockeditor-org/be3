@@ -41,9 +41,6 @@ pub enum SessionMessage {
         sequence: u64,
         reload: Option<Vec<u8>>,
     },
-    Restarted {
-        sequence: u64,
-    },
     Replaced {
         head: CommitId,
     },
