@@ -2,6 +2,8 @@
 
 mod clipboard;
 mod file_picker;
+#[cfg(test)]
+mod tests;
 
 pub use winit;
 
@@ -45,6 +47,7 @@ const TOUCH_CURSOR_STROKE: f32 = 1.0;
 const TOUCH_CURSOR_SAMPLES: u16 = 4;
 #[cfg(target_os = "linux")]
 const EVDEV_BACK: u32 = 158;
+const XKB_AUDIO_MIC_MUTE: u32 = 0x1008_ffb2;
 
 enum UserEvent {
     AccessKit(AccessKitEvent),
@@ -816,6 +819,9 @@ fn logical_key(logical: &winit::keyboard::Key) -> Logical {
                 (Some(c), None) => character_key(c),
                 _ => None,
             }
+        }
+        Winit::Unidentified(winit::keyboard::NativeKey::Xkb(XKB_AUDIO_MIC_MUTE)) => {
+            Some(Key::MicMute)
         }
         Winit::Unidentified(_) | Winit::Dead(_) => None,
     };

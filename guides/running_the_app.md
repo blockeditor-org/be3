@@ -82,7 +82,32 @@ seconds before the session ends or logind is asked to restart or power off) and
 signal. Every D-Bus conversation runs on one thread, `src/dbus.rs`: `dbus::spawn` runs a
 future there and `dbus::system()` is the shared system bus connection. A task hands what it
 learns back through `host::waking_channel`, which wakes the event loop, so nothing on the UI
-thread waits on the bus.
+thread waits on the bus. `dbus::session()` is the session bus connection.
+
+## Media and hardware keys
+
+Under `--session` and `--desktop`, `src/media.rs` binds the volume, mute, mic mute, brightness
+and media transport keys (`BINDINGS`, the one place that says which key does what) as
+intercepting global actions, so they work while a program or plugin has the focus, and a held
+key repeats. Each key goes to a backend behind a trait, all three running as tasks on the D-Bus
+thread:
+- `media/audio.rs`: volume in 5% steps up to 100%, mute and mic mute on the default sink and
+  source, over the PulseAudio protocol (the `pulseaudio` crate's protocol layer, pure Rust),
+  which pipewire-pulse serves on `$XDG_RUNTIME_DIR/pulse/native`. It subscribes to the server's
+  sink, source and server events and reports every change.
+- `media/backlight.rs`: brightness in 5% steps through logind's `Session.SetBrightness` on
+  `/sys/class/backlight`'s device (firmware before platform before raw).
+- `media/players.rs`: play/pause, next, previous and stop to the MPRIS player that most
+  recently started playing, or the first one listed, on the session bus.
+
+`MediaModel` (`media::model()`) holds what the backends report: the default sink's and source's
+volume and mute, and the brightness, as signals. A volume, mute or brightness key also shows
+`beui::styled::LevelOsd`, an icon and a level bar on every screen that fades out after 1.5
+seconds. A desktop the window is nested in usually takes these keys first; to try them under
+`:dev -- --desktop`, run
+`pipewire`, `wireplumber` and `pipewire-pulse` with `XDG_RUNTIME_DIR` and
+`DBUS_SESSION_BUS_ADDRESS` set for the app, and press them with `xdotool key --window $WINDOW
+XF86AudioRaiseVolume` (or `XF86AudioMicMute`, `XF86AudioPlay`, ...).
 
 ## Wayland programs
 

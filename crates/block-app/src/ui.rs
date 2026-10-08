@@ -14,6 +14,7 @@ use block_plugin_api::HostPanel;
 use uuid::Uuid;
 
 use crate::app_state::{SavedAccount, ServerLocation};
+use crate::media::Osd;
 
 pub(crate) use debug::{
     DebugCommand, DebugView, HostPanelSurface, Line, LineStyle, PerformanceRow, PluginsView,
@@ -312,6 +313,7 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                     toasts={toasts}
                     on_dismiss={move |id: u64| send(UiCommand::DismissToast(id))}
                 />
+                <Osd anchor={area.clone()} screens={screens.clone()} />
                 <KeepChanges
                     open={keep_display}
                     title="Keep these display settings?"

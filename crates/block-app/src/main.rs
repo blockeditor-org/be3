@@ -13,6 +13,7 @@ mod input;
 mod keys;
 mod launcher;
 mod local_settings;
+mod media;
 mod notices;
 mod panic_guard;
 mod performance;
@@ -194,9 +195,11 @@ struct Shell {
 impl Shell {
     fn new(app: BlockApp) -> Self {
         let mut view = None;
+        let desktop = app.root_settings.shell() == be_block::LINUX_DESKTOP_EDITOR;
         let mut document = beui::reactive::build(|| {
             compositor::install();
             wayland::create();
+            media::install(desktop);
             surfaces::create_handles();
             let store = AppViewStore::new(AppView::default());
             view = Some(store.clone());
@@ -264,6 +267,7 @@ impl beui::App for Shell {
         let store = self.view.clone();
         beui::reactive::with_reactive_scope(&mut self.document, move || {
             compositor::notify();
+            media::frame();
             store.set(view);
         });
         #[cfg(target_arch = "wasm32")]
