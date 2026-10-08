@@ -882,6 +882,7 @@ dependencies = [
  "beui",
  "beui-core",
  "bytemuck",
+ "rustix 1.1.4",
  "smithay",
  "wgpu",
 ]
@@ -2441,6 +2442,16 @@ dependencies = [
  "block2 0.6.2",
  "libc",
  "objc2 0.6.4",
+]
+
+[[package]]
+name = "display_settings"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "block-editor-beui",
+ "block-ui-test",
+ "uuid",
 ]
 
 [[package]]

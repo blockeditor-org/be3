@@ -1,7 +1,8 @@
 use std::cell::RefCell;
+use std::os::fd::OwnedFd;
 use std::rc::Rc;
 
-use be_dmabuf::Vulkan;
+use be_dmabuf::{SyncFiles, Vulkan};
 use beui::Vec2;
 use bytemuck::{Pod, Zeroable};
 
@@ -34,7 +35,13 @@ pub struct Sprite {
     opaque: bool,
 }
 
+pub enum Submitted {
+    Fence(Option<OwnedFd>),
+    Index(wgpu::SubmissionIndex),
+}
+
 pub struct Gpu {
+    sync: RefCell<Option<SyncFiles>>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     vulkan: Option<Vulkan>,
@@ -118,7 +125,12 @@ impl Gpu {
             ..Default::default()
         });
         let vulkan = Vulkan::of(&device);
+        let sync = vulkan.as_ref().and_then(Vulkan::sync_files);
+        if sync.is_none() {
+            eprintln!("beui: the GPU cannot export fences, so each frame is waited for");
+        }
         Self {
+            sync: RefCell::new(sync),
             device,
             queue,
             vulkan,
@@ -138,6 +150,21 @@ impl Gpu {
 
     pub fn vulkan(&self) -> Option<&Vulkan> {
         self.vulkan.as_ref()
+    }
+
+    pub fn submit(&self, commands: wgpu::CommandBuffer) -> Submitted {
+        let mut sync = self.sync.borrow_mut();
+        let Some(files) = sync.as_ref() else {
+            return Submitted::Index(self.queue.submit([commands]));
+        };
+        match files.submit(&self.queue, commands) {
+            Ok(fence) => Submitted::Fence(fence),
+            Err(error) => {
+                eprintln!("beui: {error}, so each frame is waited for from now on");
+                *sync = None;
+                Submitted::Index(self.queue.submit([]))
+            }
+        }
     }
 
     pub fn rgba(&self, width: u32, height: u32, pixels: &[u8]) -> Sprite {

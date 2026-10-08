@@ -4,11 +4,13 @@ mod be;
 mod block_label;
 mod compositor;
 mod debug;
+mod display;
 mod editors;
 mod host;
 mod input;
 mod keys;
 mod launcher;
+mod local_settings;
 mod panic_guard;
 mod performance;
 mod platform;
@@ -31,7 +33,7 @@ use std::{io, path::PathBuf};
 
 use accounts::{AccountError, Session};
 use app_state::{AppStateStore, SavedAccount, ServerLocation};
-use be_block::{BlockContent, InputSettingsContent, UiSettingsContent, WORKSPACE_EDITOR};
+use be_block::{BlockContent, DisplaySettings, InputSettings, UiSettingsContent, WORKSPACE_EDITOR};
 use be_graph::{Access, BlockParent};
 use be_protocol::{Workspace, WorkspaceInvitation, WorkspaceRole};
 use beui::Document;
@@ -42,6 +44,7 @@ use editors::{
     ArtifactSession, ArtifactStatus, EditorAction, EditorRegistry, PluginEditor, SidebarDragSource,
     plugin::PickSource,
 };
+use local_settings::SettingsSync;
 use root_settings::RootSettings;
 use surfaces::SurfaceId;
 use ui::{AccountForm, AppView, AppViewStore, ErrorAction, UiCommand};
@@ -206,7 +209,9 @@ impl beui::App for Shell {
         plugin_host::install(setup);
         wayland::start(setup);
         input::start(setup);
+        display::start(setup);
         self.app.input.boot(&self.app.app_state);
+        self.app.display.boot(&self.app.app_state);
         #[cfg(all(
             feature = "web-view",
             not(target_os = "android"),
@@ -310,7 +315,8 @@ struct BlockApp {
     focus_reports: HashMap<Uuid, editors::FocusReport>,
     artifact_watches: HashMap<Uuid, Vec<Uuid>>,
     ui_settings: Option<Uuid>,
-    input: input::InputSync,
+    input: SettingsSync<InputSettings>,
+    display: SettingsSync<DisplaySettings>,
     block_types: HashMap<Uuid, Uuid>,
     registry: Rc<EditorRegistry>,
     editors: compositor::Editors,
@@ -493,7 +499,8 @@ impl BlockApp {
             artifact_watches: HashMap::new(),
             next_pick: 0,
             ui_settings: None,
-            input: input::InputSync::default(),
+            input: SettingsSync::default(),
+            display: SettingsSync::default(),
             block_types: HashMap::new(),
             registry,
             editors,
@@ -905,6 +912,7 @@ impl BlockApp {
         self.shell = None;
         self.ui_settings = None;
         self.input.set_block(None);
+        self.display.set_block(None);
         self.keys.cancel_pairing();
         self.workspace_key = match self.app_state.workspace_key(&self.account, workspace.id) {
             Ok(key) => key,
@@ -1010,6 +1018,7 @@ impl BlockApp {
         self.shell = None;
         self.ui_settings = None;
         self.input.set_block(None);
+        self.display.set_block(None);
         self.keys = keys::KeyState::default();
         self.workspace_key = None;
         self.account = account;
@@ -1850,7 +1859,7 @@ impl BlockApp {
             return;
         }
         self.sync_ui_settings(context);
-        self.sync_input_settings();
+        self.sync_local_settings();
         self.launcher.frame();
         self.sync_be_stack();
         self.poll_workspace_request();
@@ -1895,21 +1904,16 @@ impl BlockApp {
         });
     }
 
-    fn sync_input_settings(&mut self) {
-        if self.input.block().is_none() {
-            let block = self
-                .root_settings
-                .find()
-                .and_then(root_settings::settings)
-                .and_then(|settings| {
-                    settings.resolve(InputSettingsContent::CONTENT_TYPE, self.client_id)
-                });
-            if block.is_none() {
-                return;
+    fn sync_local_settings(&mut self) {
+        if self.input.block().is_none() || self.display.block().is_none() {
+            let settings = self.root_settings.find().and_then(root_settings::settings);
+            if let Some(settings) = settings {
+                self.input.resolve(&settings, self.client_id);
+                self.display.resolve(&settings, self.client_id);
             }
-            self.input.set_block(block);
         }
         self.input.sync(&self.app_state);
+        self.display.sync(&self.app_state);
     }
 
     fn sync_ui_settings(&mut self, context: &beui::Context) {

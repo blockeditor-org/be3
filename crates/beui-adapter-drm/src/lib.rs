@@ -1,14 +1,17 @@
 mod arrow;
+mod display;
 mod displays;
 mod gpu;
 mod input;
 mod keyboard;
 mod keys;
 mod layout;
+mod modes;
 mod output;
 mod runner;
 mod screen;
 
+pub use display::{DisplayConfig, DisplayControl, DisplayMode, Monitor};
 pub use gpu::{CursorImage, SoftwareCursor};
 pub use input::{DeviceId, InputConfig, InputControl, PointerConfig, PointerDevice};
 pub use runner::run;

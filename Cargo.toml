@@ -61,6 +61,7 @@ members = [
     "crates/editors/counter",
     "crates/editors/database",
     "crates/editors/deterministic-game",
+    "crates/editors/display-settings",
     "crates/editors/file-tree",
     "crates/editors/image-block",
     "crates/editors/infinite-canvas",
