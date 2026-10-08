@@ -465,6 +465,7 @@ impl TextAreaState {
             let inputs = RowInputs {
                 snapshot: &snapshot,
                 widgets,
+                client_colors: &[],
                 composition: None,
                 selection: &[],
                 colors: &colors,

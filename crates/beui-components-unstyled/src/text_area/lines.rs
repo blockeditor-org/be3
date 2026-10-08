@@ -215,6 +215,7 @@ fn row_model(cx: &Context, line: usize) -> Memo<Rc<Row>> {
         let starts = cx.starts.get();
         let tables = cx.tables.get();
         let widgets = cx.widgets.get();
+        let client_colors = cx.client_colors.get();
         let colors = cx.colors.get();
         let composition = cx.composition.get();
         let placeholder = cx.placeholder.get();
@@ -242,6 +243,7 @@ fn row_model(cx: &Context, line: usize) -> Memo<Rc<Row>> {
                 &RowInputs {
                     snapshot,
                     widgets: &widgets,
+                    client_colors: &client_colors,
                     composition: composition.as_ref(),
                     selection: &selection,
                     colors: &colors,

@@ -19,8 +19,10 @@ fn the_runs_toggle_shows_where_each_side_typed_and_deleted() {
     let left = test.rect_of("demo.collaboration.left");
     test.click_at(pos2(left.right() - 8.0, left.top() + 150.0));
     test.frame(vec![Event::Text(", left was here".to_owned())]);
-    for event in key(Key::Backspace) {
-        test.frame(vec![event]);
+    for _ in 0..3 {
+        for event in key(Key::Backspace) {
+            test.frame(vec![event]);
+        }
     }
     let right = test.rect_of("demo.collaboration.right");
     test.click_at(pos2(right.right() - 8.0, right.top() + 30.0));

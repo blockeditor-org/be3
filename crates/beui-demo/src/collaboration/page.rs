@@ -194,7 +194,8 @@ fn ConcurrentEditing() -> NodeId {
                 side shows its own edits at once and holds them until the left has ordered \
                 them. Pause the network to type on both sides, then send each side's edits \
                 when you like. Runs shows where each run of text starts, named by the client \
-                that typed it and its offset, with deleted runs struck through."
+                that typed it and its offset, in that side's color, with deleted runs struck \
+                through."
                 wrap=true
             />
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING wrap=true>
@@ -355,6 +356,10 @@ fn EditorPane(
                 state={state}
                 remote_cursors={remote}
                 show_runs={runs}
+                client_colors={vec![
+                    (Side::Left.client(), LEFT_COLOR),
+                    (Side::Right.client(), RIGHT_COLOR),
+                ]}
             />
         </List>
     }

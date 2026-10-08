@@ -29,7 +29,7 @@ impl Side {
         }
     }
 
-    const fn client(self) -> u64 {
+    pub(crate) const fn client(self) -> u64 {
         match self {
             Side::Left => 1,
             Side::Right => 2,

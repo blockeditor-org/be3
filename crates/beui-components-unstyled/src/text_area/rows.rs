@@ -32,6 +32,7 @@ const NEWLINE_MARKER: &str = "\u{23ce}";
 const ELLIPSIS: &str = "...";
 const ELLIPSIS_SIZE: f32 = 12.0;
 const ELLIPSIS_GAP: f32 = 6.0;
+const DELETED_PREVIEW: usize = 48;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct TextWidget {
@@ -188,6 +189,7 @@ impl Row {
 pub struct RowInputs<'a> {
     pub snapshot: &'a Snapshot,
     pub widgets: &'a [TextWidget],
+    pub client_colors: &'a [(u64, Color32)],
     pub composition: Option<&'a Composition>,
     pub selection: &'a [Range<usize>],
     pub colors: &'a TextAreaColors,
@@ -359,24 +361,51 @@ impl Builder<'_> {
         }
     }
 
+    fn client_color(&self, client: u64) -> Option<Color32> {
+        self.inputs
+            .client_colors
+            .iter()
+            .find(|(named, _)| *named == client)
+            .map(|(_, color)| *color)
+    }
+
+    fn author_color(&self, index: usize) -> Option<Color32> {
+        if self.inputs.client_colors.is_empty() {
+            return None;
+        }
+        let runs = self.inputs.snapshot.runs.as_deref()?;
+        let before = runs.partition_point(|run| run.at <= index);
+        let run = runs[..before].iter().rev().find(|run| run.visible)?;
+        (run.at + run.len > index)
+            .then(|| self.client_color(run.pos.client))
+            .flatten()
+    }
+
     fn runs(&mut self, runs: &[TextRun], at: usize, style: SpanStyle) {
-        let colors = self.inputs.colors;
-        for run in runs.iter().filter(|run| run.at == at) {
+        let gutter = self.inputs.colors.gutter_text;
+        let first = runs.partition_point(|run| run.at < at);
+        for run in runs[first..].iter().take_while(|run| run.at == at) {
+            let color = self.client_color(run.pos.client).unwrap_or(gutter);
             let mut label = format!("@{}+{}", run.pos.client, run.pos.offset);
             if !run.visible && run.deleted.is_empty() {
                 label.push_str(&format!(" -{}", run.len));
             }
-            let chip = SpanStyle::new(FontId::monospace(RUN_CHIP_SIZE), colors.gutter_text);
+            let chip = SpanStyle::new(FontId::monospace(RUN_CHIP_SIZE), color);
             self.inline(Inline::Run, at..at, chip, label);
             if !run.visible && !run.deleted.is_empty() {
-                let text = String::from_utf8_lossy(&run.deleted).replace('\n', NEWLINE_MARKER);
                 let struck = SpanStyle {
-                    color: colors.gutter_text,
+                    color,
                     strikethrough: true,
                     underline: false,
                     ..style
                 };
-                self.push(&text, at..at, false, struck, SpanKind::Text);
+                self.push(
+                    &deleted_preview(&run.deleted),
+                    at..at,
+                    false,
+                    struck,
+                    SpanKind::Text,
+                );
             }
         }
     }
@@ -392,6 +421,23 @@ impl Builder<'_> {
         });
         self.push(OBJECT, source, false, style, SpanKind::Inline(index));
     }
+}
+
+fn deleted_preview(deleted: &[u8]) -> String {
+    let text = String::from_utf8_lossy(deleted);
+    let mut preview: String = text
+        .chars()
+        .take(DELETED_PREVIEW)
+        .map(|character| match character {
+            '\n' => NEWLINE_MARKER.to_owned(),
+            other => other.to_string(),
+        })
+        .collect();
+    let shown: usize = text.chars().take(DELETED_PREVIEW).map(char::len_utf8).sum();
+    if shown < text.len() {
+        preview.push_str(&format!("{ELLIPSIS} +{} bytes", text.len() - shown));
+    }
+    preview
 }
 
 pub fn inline_size(inline: Inline, label: &str, style: SpanStyle) -> Vec2 {
@@ -576,6 +622,10 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
             stop += len;
         }
         let text = String::from_utf8_lossy(&bytes[index..stop]).into_owned();
+        let base = match builder.author_color(index) {
+            Some(color) => SpanStyle { color, ..base },
+            None => base,
+        };
         builder.push(&text, index..stop, true, base, SpanKind::Text);
         index = stop;
     }
@@ -712,6 +762,7 @@ pub fn table_spacers(inputs: &TableInputs) -> TableSpacers {
                     &RowInputs {
                         snapshot,
                         widgets: inputs.widgets,
+                        client_colors: &[],
                         composition: None,
                         selection: &[],
                         colors: inputs.colors,
