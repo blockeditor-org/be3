@@ -17,7 +17,7 @@ use crate::{
     image::{ImageContent, ImageHeader},
     logic_game::LogicGameContent,
     logic_grid::{LogicGridContent, LogicGridOperation},
-    text::{TextContent, TextLanguage, TextOp},
+    text::{TextBlock, TextContent, TextLanguage},
     ui_settings::{UiSettings, UiSettingsContent},
 };
 use be_model::ObjectId;
@@ -96,7 +96,6 @@ mod solutions_and_quiz_answers_made_on_both_sides_merge_to_both;
 mod streamed_content_separates_its_header_from_its_payload;
 mod text_edited_in_different_paragraphs_merges_cleanly;
 mod text_merges_line_by_line_and_marks_real_conflicts;
-mod text_operations_rebase_onto_concurrent_edits;
 mod text_typed_inside_a_range_someone_deletes_at_once_survives;
 mod the_same_range_deleted_by_two_peers_at_once_is_deleted_once;
 mod the_same_solution_inserted_by_two_peers_at_once_is_listed_once;
@@ -129,14 +128,6 @@ fn header(name: &str) -> ImageHeader {
 
 fn image(name: &str, payload: &[u8]) -> ImageContent {
     ImageContent::new(header(name), payload.to_vec())
-}
-
-fn applied(start: &str, operations: &[TextOp]) -> String {
-    let mut content = TextContent::from(start);
-    for operation in operations {
-        content.apply(operation);
-    }
-    content.text()
 }
 
 fn edited<C: LiveEdit + Clone>(start: &C, edits: impl IntoIterator<Item = C::Op>) -> C {

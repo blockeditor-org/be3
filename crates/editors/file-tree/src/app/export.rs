@@ -94,7 +94,8 @@ fn file_of(editor: &Editor, export: &Export) -> Option<SavedFile> {
         }
         kind if kind == TextContent::CONTENT_TYPE => {
             read::<TextContent>(editor, export.id, |text| {
-                let (extension, mime_type) = match text.language() {
+                let text = text.root();
+                let (extension, mime_type) = match text.language {
                     TextLanguage::Markdown => ("md", "text/markdown"),
                     TextLanguage::PlainText => ("txt", "text/plain"),
                     TextLanguage::Rust => ("rs", "text/x-rust"),
@@ -103,7 +104,7 @@ fn file_of(editor: &Editor, export: &Export) -> Option<SavedFile> {
                 SavedFile {
                     name: named(extension),
                     mime_type: mime_type.to_owned(),
-                    data: text.bytes().to_vec(),
+                    data: text.body.bytes().to_vec(),
                 }
             })
         }

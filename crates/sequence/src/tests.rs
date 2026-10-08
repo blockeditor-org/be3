@@ -4,6 +4,7 @@ use super::{
 };
 
 mod a_delete_leaves_text_inserted_inside_it_at_the_same_time;
+mod a_merged_delete_still_lands_beside_positions_a_refused_insert_left_unknown;
 mod a_move_into_itself_or_with_its_ends_out_of_order_changes_nothing;
 mod a_move_takes_text_inserted_inside_it_along;
 mod a_refused_replace_still_uses_up_its_offsets;
@@ -18,6 +19,7 @@ mod session_state_round_trips_positions_and_tombstones;
 mod splices_report_visible_coordinates;
 mod the_saved_form_is_only_the_visible_items;
 mod two_people_checking_the_same_box_check_it_once;
+mod typing_and_deleting_absorb_into_one_operation;
 mod typing_extends_one_fragment;
 mod undoing_a_delete_brings_back_the_same_positions;
 mod undoing_a_move_puts_the_range_back;

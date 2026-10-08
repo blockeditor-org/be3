@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn a_large_buffer_only_anchors_the_positions_in_use() {
+fn positions_in_a_large_buffer_resolve_back_to_their_index() {
     let text: String = (0..20_000).map(|line| format!("line {line}\n")).collect();
     let buffer = TextBuffer::new(&text);
     let read = buffer.read().unwrap();

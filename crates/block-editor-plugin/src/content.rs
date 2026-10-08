@@ -49,6 +49,12 @@ impl<C> Watchers<C> {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum Projected<Op> {
+    Applied(Op),
+    Rebuilt,
+}
+
 pub struct ContentProjection<C: LiveEdit> {
     host: EditorHost,
     block: Option<uuid::Uuid>,
@@ -66,6 +72,7 @@ pub struct ContentProjection<C: LiveEdit> {
     announce: WriteSignal<u64>,
     loaded_signals: RefCell<Vec<WriteSignal<bool>>>,
     due: RefCell<Option<Rc<dyn Fn()>>>,
+    projected: RefCell<Option<Vec<Projected<C::Op>>>>,
 }
 
 impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
@@ -88,6 +95,26 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
             announce,
             loaded_signals: RefCell::new(Vec::new()),
             due: RefCell::new(None),
+            projected: RefCell::new(None),
+        }
+    }
+
+    pub fn record(&self) {
+        self.projected.borrow_mut().get_or_insert_with(Vec::new);
+    }
+
+    pub fn take_projected(&self) -> Vec<Projected<C::Op>> {
+        self.adopt_lazily();
+        self.projected
+            .borrow_mut()
+            .as_mut()
+            .map(std::mem::take)
+            .unwrap_or_default()
+    }
+
+    fn log(&self, projected: Projected<C::Op>) {
+        if let Some(log) = self.projected.borrow_mut().as_mut() {
+            log.push(projected);
         }
     }
 
@@ -285,6 +312,7 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
                                 .borrow_mut()
                                 .apply_touching(&operation, &mut self.touched.borrow_mut());
                             self.revision.set(self.revision.get() + 1);
+                            self.log(Projected::Applied(operation));
                         } else {
                             rebuild = true;
                         }
@@ -303,6 +331,7 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
             visible.apply(operation);
         }
         *self.visible.borrow_mut() = visible;
+        self.log(Projected::Rebuilt);
         self.touched.borrow_mut().push(Touched::Everything);
         self.revision.set(self.revision.get() + 1);
     }

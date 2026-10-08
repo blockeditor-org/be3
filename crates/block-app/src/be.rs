@@ -251,7 +251,7 @@ const KINDS: &[Kind] = &[
     kind::<be_block::PdfContent>(),
     kind_with_history::<be_block::PixelArtContent>(),
     kind_with_history::<be_block::PresentationContent>(),
-    kind::<be_block::TextContent>(),
+    kind_with_history::<be_block::TextContent>(),
     kind_with_history::<be_block::VideoContent>(),
     kind::<be_block::UiSettingsContent>(),
     kind::<be_block::BrowserTabContent>(),

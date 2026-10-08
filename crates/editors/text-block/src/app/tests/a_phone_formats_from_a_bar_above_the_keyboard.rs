@@ -1,5 +1,5 @@
 use beui::Vec2;
-use block_editor_beui::be_block::TextContent;
+use block_editor_beui::be_block::TextBlock;
 use block_editor_beui::{Editor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
@@ -15,7 +15,7 @@ fn a_phone_formats_from_a_bar_above_the_keyboard() {
     let mut editor = BeuiTest::<TextApp>::new(editor)
         .with_size(Vec2::new(390.0, 760.0))
         .on_phone();
-    editor.hold(None, TextContent::from("word"));
+    editor.hold(None, TextBlock::of("word"));
     editor.run();
 
     assert!(!editor.shown("text.format.bold"));
