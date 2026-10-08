@@ -13,6 +13,7 @@ use crate::presence::TextCursor;
 
 mod a_peers_caret_and_selection_are_drawn_in_their_color;
 mod a_phone_formats_from_a_bar_above_the_keyboard;
+mod a_rewrite_refused_while_read_only_leaves_the_text_as_it_was;
 mod a_tap_near_the_bottom_places_the_caret_while_the_format_bar_opens;
 mod classifies_markdown_image;
 mod clicking_into_the_text_shows_the_format_bar_without_a_keyboard_button;

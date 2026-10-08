@@ -32,6 +32,7 @@ pub enum SessionMessage {
     },
     Snapshot {
         head: Option<CommitId>,
+        sealed: u64,
         sequence: u64,
         ops: Vec<SessionOp>,
         state: Vec<u8>,

@@ -143,6 +143,7 @@ impl State {
     pub fn pump(&self) {
         let operations = self.document.take_operations();
         let own = !operations.is_empty();
+        let refused = own && !self.host().editable();
         for operation in operations {
             self.content.operate(operation);
         }
@@ -157,6 +158,7 @@ impl State {
         let projected = self.content.take_projected();
         let first = !self.adopted.replace(true);
         let mut whole = first
+            || refused
             || (own
                 && projected
                     .iter()

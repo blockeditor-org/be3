@@ -395,14 +395,16 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 }
                 let message = SessionMessage::Snapshot {
                     head: sequencer.head(),
+                    sealed: self.sealed,
                     sequence: sequencer.sequence(),
-                    ops: sequencer.since(since),
+                    ops: sequencer.since(since.min(self.sealed)),
                     state: self.sealed_state.clone(),
                 };
                 self.send(Some(from), &message).await
             }
             SessionMessage::Snapshot {
                 head,
+                sealed,
                 sequence,
                 ops,
                 state,
@@ -411,8 +413,8 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                     return Ok(());
                 };
                 self.catching_up = false;
-                let sealed = sequence.saturating_sub(ops.len() as u64);
-                if head != self.base || follower.applied() <= sealed {
+                let applied = follower.applied();
+                if head != self.base || applied < sealed {
                     self.confirmed = match head {
                         Some(head) => self.peer.open_commit::<C>(head).await?,
                         None => C::default(),
@@ -435,7 +437,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 let Role::Follower(follower) = &mut self.role else {
                     return Ok(());
                 };
-                if ops.is_empty() {
+                if ops.iter().all(|op| op.sequence <= applied) {
                     let resubmit = follower.resynchronize(sequence);
                     let owner = self.state.owner;
                     for message in resubmit {
