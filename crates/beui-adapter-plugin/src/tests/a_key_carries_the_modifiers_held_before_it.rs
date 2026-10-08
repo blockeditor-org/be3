@@ -13,7 +13,7 @@ fn a_key_carries_the_modifiers_held_before_it() {
         &context,
         &whole,
         &InputEvent::Modifiers(Modifiers {
-            command: true,
+            control: true,
             ..Modifiers::default()
         }),
     );
