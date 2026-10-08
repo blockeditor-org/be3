@@ -4,7 +4,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use block_editor_beui::be_block::WORKSPACE_EDITOR;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::datetime::{HourCycle, Time};
-use block_editor_beui::beui::icons::{ICON_APPS, ICON_WORKSPACES};
+use block_editor_beui::beui::icons::{ICON_APPS, ICON_MENU, ICON_WORKSPACES};
 use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, ReadSignal, Spacer, clone, component,
     create_memo, create_signal, create_timer, now, view,
@@ -52,6 +52,8 @@ pub(crate) fn DesktopBar(workspace: Rc<Workspace>) -> NodeId {
     let theme = use_theme();
     let clock = wall_clock();
     let editor = workspace.editor().clone();
+    let launching = editor.clone();
+    let launcher = move || launching.host().show_launcher(launching.block_id());
     let menu = move || editor.host().show_app_menu(editor.block_id());
     let listed = sessions(&workspace);
     let keys = create_memo(clone!(listed -> move || {
@@ -79,10 +81,16 @@ pub(crate) fn DesktopBar(workspace: Rc<Workspace>) -> NodeId {
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                     <IconButton
-                        glyph={ICON_APPS.to_owned()}
+                        glyph={ICON_MENU.to_owned()}
                         label="Menu"
                         @test_id={"desktop.menu"}
                         on_click={menu}
+                    />
+                    <IconButton
+                        glyph={ICON_APPS.to_owned()}
+                        label="Programs"
+                        @test_id={"desktop.launcher"}
+                        on_click={launcher}
                     />
                     <MenuButton
                         label="Sessions"

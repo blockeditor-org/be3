@@ -385,6 +385,27 @@ impl<T> Sequence<T> {
         &self.slice(self.chunks[ci].fragments[fi])[inner..]
     }
 
+    pub fn previous(&self, pos: Pos) -> Option<Option<Pos>> {
+        let (ci, fi) = self.locate(pos)?;
+        let fragment = self.chunks[ci].fragments[fi];
+        if pos.offset > fragment.start {
+            return Some(Some(Pos {
+                client: pos.client,
+                offset: pos.offset - 1,
+            }));
+        }
+        let before = self.chunks[..ci]
+            .iter()
+            .flat_map(|chunk| chunk.fragments.iter())
+            .chain(&self.chunks[ci].fragments[..fi])
+            .next_back()
+            .copied();
+        Some(before.map(|fragment| Pos {
+            client: fragment.client,
+            offset: fragment.end() - 1,
+        }))
+    }
+
     pub fn place_of(&self, pos: Pos) -> Option<(usize, bool)> {
         let (ci, fi) = self.locate(pos)?;
         let fragment = self.chunks[ci].fragments[fi];

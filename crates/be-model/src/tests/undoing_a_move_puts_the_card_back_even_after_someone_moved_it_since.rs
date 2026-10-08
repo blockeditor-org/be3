@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn undoing_a_move_leaves_a_card_someone_else_moved_since() {
+fn undoing_a_move_puts_the_card_back_even_after_someone_moved_it_since() {
     let mut document = board();
     let (todo, done, write) = ids(&document);
 
@@ -14,6 +14,6 @@ fn undoing_a_move_leaves_a_card_someone_else_moved_since() {
 
     assert_eq!(
         columns(&document),
-        owned(&[("Todo", &["review", "write"]), ("Done", &[])])
+        owned(&[("Todo", &["write", "review"]), ("Done", &[])])
     );
 }

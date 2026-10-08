@@ -52,6 +52,7 @@ struct Host {
     runtimes: HashMap<String, Runtime>,
     focus: Focus,
     input_devices: Vec<block_plugin_api::HostInputDevice>,
+    displays: Vec<block_plugin_api::HostDisplay>,
     grabbed: bool,
 }
 
@@ -65,6 +66,7 @@ impl Host {
             runtimes: HashMap::new(),
             focus: Focus::default(),
             input_devices: Vec::new(),
+            displays: Vec::new(),
             grabbed: false,
         }
     }
@@ -78,12 +80,14 @@ impl Host {
         };
         let focus = self.focus.clone();
         let devices = &self.input_devices;
+        let displays = &self.displays;
         let runtime = self
             .runtimes
             .entry(plugin.identity.id.clone())
             .or_insert_with(|| {
                 let mut runtime = Runtime::new(plugin, surface);
                 runtime.instances.set_input_devices(devices.clone());
+                runtime.instances.set_displays(displays.clone());
                 runtime
             });
         runtime.instances.set_focus(focus);
@@ -939,6 +943,24 @@ pub(crate) fn set_input_devices(devices: Vec<block_plugin_api::HostInputDevice>)
         host.input_devices = devices.clone();
         for (plugin_id, runtime) in &mut host.runtimes {
             if runtime.instances.set_input_devices(devices.clone()) {
+                runtime.pacing.needed = true;
+                mark(plugin_id);
+            }
+        }
+    });
+    host::request_repaint();
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn set_displays(displays: Vec<block_plugin_api::HostDisplay>) {
+    HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        if host.displays == displays {
+            return;
+        }
+        host.displays = displays.clone();
+        for (plugin_id, runtime) in &mut host.runtimes {
+            if runtime.instances.set_displays(displays.clone()) {
                 runtime.pacing.needed = true;
                 mark(plugin_id);
             }

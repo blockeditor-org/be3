@@ -146,6 +146,8 @@ impl PartialEq for Image {
     }
 }
 
+impl Eq for Image {}
+
 impl std::fmt::Debug for Image {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter

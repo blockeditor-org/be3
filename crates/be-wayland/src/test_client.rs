@@ -26,6 +26,13 @@ use wayland_protocols::wp::linux_dmabuf::zv1::client::{
 const ARGB8888: u32 = u32::from_le_bytes(*b"AR24");
 use crate::state::{ServerEvent, WindowId};
 
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum Seen {
+    Button(wl_surface::WlSurface, bool),
+    Key(wl_surface::WlSurface, u32),
+    PopupDone(xdg_popup::XdgPopup),
+}
+
 #[derive(Default)]
 pub(crate) struct Received {
     pub(crate) globals: Vec<(u32, String, u32)>,
@@ -33,6 +40,9 @@ pub(crate) struct Received {
     pub(crate) size: Option<(i32, i32)>,
     pub(crate) activated: bool,
     pub(crate) keyboard_entered: bool,
+    pub(crate) keyboard_surface: Option<wl_surface::WlSurface>,
+    pub(crate) serial: Option<u32>,
+    pub(crate) seen: Vec<Seen>,
     pub(crate) keys: Vec<(u32, bool)>,
     pub(crate) keymaps: usize,
     pub(crate) repeat: Option<(i32, i32)>,
@@ -62,7 +72,20 @@ pub(crate) struct TestWindow {
     pub(crate) surface: wl_surface::WlSurface,
     pub(crate) xdg_surface: xdg_surface::XdgSurface,
     pub(crate) toplevel: Option<xdg_toplevel::XdgToplevel>,
-    pub(crate) _popup: Option<xdg_popup::XdgPopup>,
+    pub(crate) popup: Option<xdg_popup::XdgPopup>,
+}
+
+impl TestWindow {
+    pub(crate) fn destroy(&self) {
+        if let Some(popup) = &self.popup {
+            popup.destroy();
+        }
+        if let Some(toplevel) = &self.toplevel {
+            toplevel.destroy();
+        }
+        self.xdg_surface.destroy();
+        self.surface.destroy();
+    }
 }
 
 pub(crate) fn server() -> Server {
@@ -159,7 +182,7 @@ impl TestClient {
                 surface,
                 xdg_surface,
                 toplevel: Some(toplevel),
-                _popup: None,
+                popup: None,
             },
             id,
         )
@@ -182,7 +205,7 @@ impl TestClient {
             surface,
             xdg_surface,
             toplevel: Some(toplevel),
-            _popup: None,
+            popup: None,
         }
     }
 
@@ -230,6 +253,31 @@ impl TestClient {
         anchor: (i32, i32),
         size: (i32, i32),
     ) -> TestWindow {
+        self.popup_grabbing(server, parent, anchor, size, None)
+    }
+
+    pub(crate) fn grabbing_popup(
+        &mut self,
+        server: &mut Server,
+        parent: &TestWindow,
+        anchor: (i32, i32),
+        size: (i32, i32),
+    ) -> TestWindow {
+        let serial = self
+            .received
+            .serial
+            .expect("a grab is taken with the serial of an input event");
+        self.popup_grabbing(server, parent, anchor, size, Some(serial))
+    }
+
+    fn popup_grabbing(
+        &mut self,
+        server: &mut Server,
+        parent: &TestWindow,
+        anchor: (i32, i32),
+        size: (i32, i32),
+        grab: Option<u32>,
+    ) -> TestWindow {
         let surface = self
             .compositor
             .as_ref()
@@ -244,20 +292,26 @@ impl TestClient {
         positioner.set_gravity(xdg_positioner::Gravity::BottomRight);
         let popup = xdg_surface.get_popup(Some(&parent.xdg_surface), &positioner, &self.handle, ());
         positioner.destroy();
+        if let Some(serial) = grab {
+            popup.grab(self.seat.as_ref().unwrap(), serial);
+        }
         surface.commit();
         self.exchange(server);
-        let serial = self
-            .received
-            .configured
-            .take()
-            .expect("the popup's first commit is configured");
-        xdg_surface.ack_configure(serial);
+        let configured = self.received.configured.take();
         let window = TestWindow {
             surface,
             xdg_surface,
             toplevel: None,
-            _popup: Some(popup),
+            popup: Some(popup),
         };
+        let Some(serial) = configured else {
+            assert!(
+                grab.is_some(),
+                "a popup that does not grab is always configured"
+            );
+            return window;
+        };
+        window.xdg_surface.ack_configure(serial);
         self.attach(server, &window, size.0, size.1);
         window
     }
@@ -396,15 +450,29 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Received {
         _: &QueueHandle<Self>,
     ) {
         match event {
-            wl_keyboard::Event::Enter { .. } => state.keyboard_entered = true,
-            wl_keyboard::Event::Leave { .. } => state.keyboard_entered = false,
+            wl_keyboard::Event::Enter { surface, .. } => {
+                state.keyboard_entered = true;
+                state.keyboard_surface = Some(surface);
+            }
+            wl_keyboard::Event::Leave { .. } => {
+                state.keyboard_entered = false;
+                state.keyboard_surface = None;
+            }
             wl_keyboard::Event::Key {
                 key,
                 state: WEnum::Value(pressed),
+                serial,
                 ..
-            } => state
-                .keys
-                .push((key, pressed == wl_keyboard::KeyState::Pressed)),
+            } => {
+                let pressed = pressed == wl_keyboard::KeyState::Pressed;
+                state.keys.push((key, pressed));
+                if pressed {
+                    state.serial = Some(serial);
+                    if let Some(surface) = state.keyboard_surface.clone() {
+                        state.seen.push(Seen::Key(surface, key));
+                    }
+                }
+            }
             wl_keyboard::Event::Keymap { .. } => state.keymaps += 1,
             wl_keyboard::Event::RepeatInfo { rate, delay } => state.repeat = Some((rate, delay)),
             _ => {}
@@ -431,13 +499,22 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Received {
                 state.pointer_entered = Some((surface_x, surface_y));
                 state.pointer_surface = Some(surface);
             }
+            wl_pointer::Event::Leave { .. } => state.pointer_surface = None,
             wl_pointer::Event::Button {
                 button,
                 state: WEnum::Value(pressed),
+                serial,
                 ..
-            } => state
-                .buttons
-                .push((button, pressed == wl_pointer::ButtonState::Pressed)),
+            } => {
+                let pressed = pressed == wl_pointer::ButtonState::Pressed;
+                state.buttons.push((button, pressed));
+                if pressed {
+                    state.serial = Some(serial);
+                }
+                if let Some(surface) = state.pointer_surface.clone() {
+                    state.seen.push(Seen::Button(surface, pressed));
+                }
+            }
             _ => {}
         }
     }
@@ -538,6 +615,19 @@ wayland_client::delegate_noop!(Received: ignore wl_seat::WlSeat);
 wayland_client::delegate_noop!(Received: ignore zwp_linux_dmabuf_v1::ZwpLinuxDmabufV1);
 wayland_client::delegate_noop!(Received: ignore zwp_linux_buffer_params_v1::ZwpLinuxBufferParamsV1);
 wayland_client::delegate_noop!(Received: ignore xdg_positioner::XdgPositioner);
-wayland_client::delegate_noop!(Received: ignore xdg_popup::XdgPopup);
+impl Dispatch<xdg_popup::XdgPopup, ()> for Received {
+    fn event(
+        state: &mut Self,
+        popup: &xdg_popup::XdgPopup,
+        event: xdg_popup::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let xdg_popup::Event::PopupDone = event {
+            state.seen.push(Seen::PopupDone(popup.clone()));
+        }
+    }
+}
 
 pub(crate) use be_dmabuf::testing::{pattern, read, vulkan_device};

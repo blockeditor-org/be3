@@ -14,6 +14,7 @@ use crate::{
         DatabaseSchemaContent,
     },
     database_view::{DatabaseView, DatabaseViewContent},
+    display_settings::{DisplaySettings, DisplaySettingsContent},
     image::{ImageContent, ImageHeader},
     input_settings::{InputSettings, InputSettingsContent},
     logic_game::LogicGameContent,
@@ -48,6 +49,7 @@ mod a_folder_lists_each_block_once_and_follows_its_children;
 mod a_language_changed_on_both_sides_counts_a_conflict;
 mod a_logic_grid_edit_keeps_its_wires_normalized_and_follows_its_children;
 mod a_map_keeps_its_points_in_bounds_and_follows_its_children;
+mod a_monitor_back_at_its_default_mode_is_forgotten;
 mod a_pixel_painted_outside_the_other_sides_crop_counts_as_a_conflict;
 mod a_presentation_moves_slides_by_index_and_follows_its_children;
 mod a_repository_moves_and_drops_branches;

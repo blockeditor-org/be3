@@ -46,6 +46,10 @@ impl AppStateStore {
             CREATE TABLE IF NOT EXISTS input_settings (
                 id      INTEGER PRIMARY KEY CHECK (id = 0),
                 content BLOB NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS display_settings (
+                id      INTEGER PRIMARY KEY CHECK (id = 0),
+                content BLOB NOT NULL
             );",
         )?;
         Ok(Self { connection })
@@ -250,6 +254,23 @@ impl AppStateStore {
     pub fn set_input_settings(&self, content: &[u8]) -> Result<(), AppStateError> {
         self.connection.execute(
             "INSERT INTO input_settings (id, content) VALUES (0, ?1)
+             ON CONFLICT(id) DO UPDATE SET content = excluded.content",
+            params![content],
+        )?;
+        Ok(())
+    }
+
+    pub fn display_settings(&self) -> Result<Option<Vec<u8>>, AppStateError> {
+        let content = self
+            .connection
+            .query_row("SELECT content FROM display_settings", [], |row| row.get(0))
+            .optional()?;
+        Ok(content)
+    }
+
+    pub fn set_display_settings(&self, content: &[u8]) -> Result<(), AppStateError> {
+        self.connection.execute(
+            "INSERT INTO display_settings (id, content) VALUES (0, ?1)
              ON CONFLICT(id) DO UPDATE SET content = excluded.content",
             params![content],
         )?;
