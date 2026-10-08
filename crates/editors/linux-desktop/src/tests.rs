@@ -9,8 +9,10 @@ use uuid::Uuid;
 use crate::app::LinuxDesktopApp;
 
 mod a_block_shown_on_the_desktop_opens_in_its_own_window;
+mod a_calendar_the_desktop_no_longer_holds_is_replaced;
 mod a_session_chosen_from_the_menu_opens_in_a_window_and_closing_it_keeps_the_session;
 mod clicking_the_clock_opens_the_desktops_calendar_and_clicking_away_closes_it;
+mod the_calendar_popup_fits_a_narrow_screen;
 mod the_desktop_starts_with_nothing_open_but_its_bar;
 mod the_programs_button_asks_the_host_for_its_launcher;
 
