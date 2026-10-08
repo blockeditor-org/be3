@@ -300,8 +300,12 @@ impl Compositor {
     }
 
     fn end_launched(&self, pid: rustix::process::Pid) -> bool {
+        let Ok(process) = rustix::process::pidfd_open(pid, rustix::process::PidfdFlags::empty())
+        else {
+            return false;
+        };
         self.launched(pid)
-            && rustix::process::kill_process(pid, rustix::process::Signal::KILL).is_ok()
+            && rustix::process::pidfd_send_signal(&process, rustix::process::Signal::KILL).is_ok()
     }
 
     fn launched(&self, pid: rustix::process::Pid) -> bool {
