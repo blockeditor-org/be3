@@ -8,7 +8,7 @@ mod windows;
 
 pub use compositor::{Compositor, CursorImage};
 pub use server::Server;
-pub use state::WindowId;
+pub use state::{KeyboardConfig, WindowId};
 pub use view::WindowView;
 pub use windows::{WindowInfo, Windows};
 

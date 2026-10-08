@@ -13,9 +13,9 @@ fn host_window_messages_round_trip() {
         },
     };
     for message in [
-        Message::Editor(EditorMessage::Windows {
+        Message::Editor(EditorMessage::Linux {
             instance: EditorInstanceId(3),
-            windows: vec![window.clone()],
+            message: LinuxMessage::Windows(vec![window.clone()]),
         }),
         Message::Editor(EditorMessage::CloseWindow {
             instance: EditorInstanceId(3),

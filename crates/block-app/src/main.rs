@@ -6,6 +6,7 @@ mod compositor;
 mod debug;
 mod editors;
 mod host;
+mod input;
 mod keys;
 mod panic_guard;
 mod performance;
@@ -29,7 +30,7 @@ use std::{io, path::PathBuf};
 
 use accounts::{AccountError, Session};
 use app_state::{AppStateStore, SavedAccount, ServerLocation};
-use be_block::{BlockContent, UiSettingsContent, WORKSPACE_EDITOR};
+use be_block::{BlockContent, InputSettingsContent, UiSettingsContent, WORKSPACE_EDITOR};
 use be_graph::{Access, BlockParent};
 use be_protocol::{Workspace, WorkspaceInvitation, WorkspaceRole};
 use beui::Document;
@@ -203,6 +204,8 @@ impl beui::App for Shell {
         host::install_waker(setup.waker.clone());
         plugin_host::install(setup);
         wayland::start(setup);
+        input::start(setup);
+        self.app.input.boot(&self.app.app_state);
         #[cfg(all(
             feature = "web-view",
             not(target_os = "android"),
@@ -306,6 +309,7 @@ struct BlockApp {
     focus_reports: HashMap<Uuid, editors::FocusReport>,
     artifact_watches: HashMap<Uuid, Vec<Uuid>>,
     ui_settings: Option<Uuid>,
+    input: input::InputSync,
     block_types: HashMap<Uuid, Uuid>,
     registry: Rc<EditorRegistry>,
     editors: compositor::Editors,
@@ -488,6 +492,7 @@ impl BlockApp {
             artifact_watches: HashMap::new(),
             next_pick: 0,
             ui_settings: None,
+            input: input::InputSync::default(),
             block_types: HashMap::new(),
             registry,
             editors,
@@ -898,6 +903,7 @@ impl BlockApp {
         self.choosing_profile = false;
         self.shell = None;
         self.ui_settings = None;
+        self.input.set_block(None);
         self.keys.cancel_pairing();
         self.workspace_key = match self.app_state.workspace_key(&self.account, workspace.id) {
             Ok(key) => key,
@@ -1002,6 +1008,7 @@ impl BlockApp {
         self.choosing_profile = false;
         self.shell = None;
         self.ui_settings = None;
+        self.input.set_block(None);
         self.keys = keys::KeyState::default();
         self.workspace_key = None;
         self.account = account;
@@ -1841,6 +1848,7 @@ impl BlockApp {
             return;
         }
         self.sync_ui_settings(context);
+        self.sync_input_settings();
         self.sync_be_stack();
         self.poll_workspace_request();
         self.poll_reauth_request();
@@ -1882,6 +1890,23 @@ impl BlockApp {
             #[cfg(not(target_arch = "wasm32"))]
             data_dir: self.data_dir.join("be-objects"),
         });
+    }
+
+    fn sync_input_settings(&mut self) {
+        if self.input.block().is_none() {
+            let block = self
+                .root_settings
+                .find()
+                .and_then(root_settings::settings)
+                .and_then(|settings| {
+                    settings.resolve(InputSettingsContent::CONTENT_TYPE, self.client_id)
+                });
+            if block.is_none() {
+                return;
+            }
+            self.input.set_block(block);
+        }
+        self.input.sync(&self.app_state);
     }
 
     fn sync_ui_settings(&mut self, context: &beui::Context) {

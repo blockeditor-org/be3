@@ -10,7 +10,7 @@ use smithay::wayland::compositor::with_states;
 
 use crate::render::{Gpu, Textures, WindowDraw};
 use crate::server::{Server, Watch};
-use crate::state::{ServerEvent, WindowId};
+use crate::state::{KeyboardConfig, ServerEvent, WindowId};
 use crate::windows::{Command, WindowInfo, Windows};
 
 const BUTTON_LEFT: u32 = 0x110;
@@ -55,6 +55,10 @@ impl Compositor {
 
     pub fn server(&mut self) -> &mut Server {
         &mut self.server
+    }
+
+    pub fn set_keyboard(&mut self, keyboard: &KeyboardConfig) -> bool {
+        self.server.state.set_keyboard(keyboard)
     }
 
     pub fn windows(&self) -> Windows {

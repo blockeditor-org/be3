@@ -15,6 +15,7 @@ use crate::{
     },
     database_view::{DatabaseView, DatabaseViewContent},
     image::{ImageContent, ImageHeader},
+    input_settings::{InputSettings, InputSettingsContent},
     logic_game::LogicGameContent,
     logic_grid::{LogicGridContent, LogicGridOperation},
     text::{TextBlock, TextContent, TextLanguage},
@@ -81,6 +82,7 @@ mod deleting_or_replacing_a_linked_block_rewrites_the_cells_that_link_it;
 mod entities_brought_forward_on_both_sides_merge_to_both_moves;
 mod enum_options_added_on_both_sides_merge_to_both;
 mod file_contents_check_what_they_hold_and_round_trip;
+mod input_settings_keep_their_values_in_bounds;
 mod inserts_at_one_place_from_two_peers_keep_each_peers_text_whole;
 mod items_added_by_two_peers_at_once_are_both_kept;
 mod logic_game_solutions_keep_their_order_per_challenge;
@@ -89,6 +91,7 @@ mod moves_played_on_both_sides_merge_to_both;
 mod pages_opened_on_both_sides_are_both_kept_in_history;
 mod pixel_art_fills_resizes_and_keeps_a_paint_made_during_a_resize;
 mod resetting_a_ray_traced_scene_clears_pixels_and_entities;
+mod setting_every_pointer_replaces_what_each_device_overrode;
 mod settings_resolve_per_client_and_follow_their_children;
 mod slides_moved_by_two_peers_at_once_both_move;
 mod slides_moved_on_both_sides_merge_to_both_moves;

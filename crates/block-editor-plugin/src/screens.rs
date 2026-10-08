@@ -464,9 +464,9 @@ impl Screens {
                     session.show_panel(*panel);
                 }
             }
-            Message::Editor(EditorMessage::Windows { instance, windows }) => {
+            Message::Editor(EditorMessage::Linux { instance, message }) => {
                 if let Some(session) = self.sessions.get(instance) {
-                    session.set_windows(windows.clone());
+                    session.linux_message(message.clone());
                 }
             }
             Message::Editor(EditorMessage::MenuPick { instance, id }) => {

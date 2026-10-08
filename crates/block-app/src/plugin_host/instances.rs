@@ -5,9 +5,9 @@ use block_plugin_api::{
     ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId, ChildMode,
     ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, CursorIcon, DataListing,
     EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick, FileSave, FrameReport,
-    FrameSpec, HostPanel, HostReply, HostRequest, Message, Occluder, PerformanceMeasurement,
-    RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenSet, Size,
-    ViewChange, WatchedContent, WebViewId,
+    FrameSpec, HostPanel, HostReply, HostRequest, LinuxMessage, Message, Occluder,
+    PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
+    ScreenSet, Size, ViewChange, WatchedContent, WebViewId,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -48,6 +48,7 @@ pub(super) struct Instances {
     graph_seen: Option<u64>,
     pasted: HashSet<EditorInstanceId>,
     audio_changes: AudioChanges,
+    input_devices: Vec<block_plugin_api::HostInputDevice>,
 }
 
 struct AudioChanges {
@@ -122,6 +123,8 @@ struct Instance {
     reported_presenting: bool,
     windows: Option<Vec<block_plugin_api::HostWindow>>,
     reported_windows: Option<Vec<block_plugin_api::HostWindow>>,
+    watches_input_devices: bool,
+    reported_input_devices: Option<Vec<block_plugin_api::HostInputDevice>>,
     closed_windows: Vec<block_plugin_api::HostWindowId>,
     grabbed: bool,
     web_views: HashMap<WebViewId, WebViewHost>,
@@ -298,6 +301,8 @@ impl Instance {
             reported_presenting: false,
             windows: None,
             reported_windows: None,
+            watches_input_devices: false,
+            reported_input_devices: None,
             closed_windows: Vec::new(),
             grabbed: false,
             web_views: HashMap::new(),
@@ -1122,6 +1127,7 @@ impl Instances {
             entry.reported_view = None;
             entry.reported_presenting = false;
             entry.reported_windows = None;
+            entry.reported_input_devices = None;
             entry.reported_history = None;
             entry.reported_artifacts.clear();
             entry.reported_size = None;
@@ -1146,6 +1152,7 @@ impl Instances {
         let mut instances: Vec<_> = self.entries.keys().copied().collect();
         instances.sort_by_key(|instance| instance.0);
         let focus = self.focus.clone();
+        let input_devices = self.input_devices.clone();
         let graph = crate::be::graph_revision();
         let graph_moved = self.graph_seen.replace(graph) != Some(graph);
         let mut opened = Vec::new();
@@ -1276,11 +1283,20 @@ impl Instances {
                     presenting: entry.presenting,
                 }));
             }
+            if entry.watches_input_devices
+                && entry.reported_input_devices.as_ref() != Some(&input_devices)
+            {
+                entry.reported_input_devices = Some(input_devices.clone());
+                opened.push(Message::Editor(EditorMessage::Linux {
+                    instance,
+                    message: LinuxMessage::InputDevices(input_devices.clone()),
+                }));
+            }
             if entry.windows.is_some() && entry.windows != entry.reported_windows {
                 entry.reported_windows = entry.windows.clone();
-                opened.push(Message::Editor(EditorMessage::Windows {
+                opened.push(Message::Editor(EditorMessage::Linux {
                     instance,
-                    windows: entry.windows.clone().unwrap_or_default(),
+                    message: LinuxMessage::Windows(entry.windows.clone().unwrap_or_default()),
                 }));
             }
             if entry.view != entry.reported_view {
@@ -2279,6 +2295,16 @@ impl Instances {
                 entry.closed_windows.push(window);
                 true
             }
+            EditorMessage::Linux { instance, message } => {
+                let Some(entry) = self.entries.get_mut(&instance) else {
+                    return false;
+                };
+                match message {
+                    LinuxMessage::WatchInputDevices => entry.watches_input_devices = true,
+                    LinuxMessage::Windows(_) | LinuxMessage::InputDevices(_) => return false,
+                }
+                true
+            }
             EditorMessage::SetAccess {
                 block_id,
                 account,
@@ -2940,6 +2966,16 @@ impl Instances {
             instance,
             states,
         })]
+    }
+
+    pub(super) fn set_input_devices(
+        &mut self,
+        devices: Vec<block_plugin_api::HostInputDevice>,
+    ) -> bool {
+        self.input_devices = devices;
+        self.entries
+            .values()
+            .any(|entry| entry.watches_input_devices)
     }
 
     pub(super) fn set_focus(&mut self, focus: Focus) -> bool {

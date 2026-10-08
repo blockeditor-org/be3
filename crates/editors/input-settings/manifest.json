@@ -1,0 +1,16 @@
+{
+  "id": "be3.input-settings",
+  "name": "Input Settings",
+  "version": "0.1.0",
+  "editors": [
+    {
+      "block_type": "696e7075-742d-7365-7474-696e67732d31",
+      "display_name": "Input Settings",
+      "icon": "",
+      "regions": [
+        "Frame"
+      ]
+    }
+  ],
+  "entry_point": "input_settings.wasm"
+}

@@ -12,8 +12,9 @@ use block_plugin_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand,
     BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect,
     ChildStatus, ClipboardImage, DataListing, EditorRegion, FetchResult, FilePick, FileSave,
-    HostPanel, HostReply, HostRequest, HostWindow, HostWindowId, MenuEntry, Occluder,
-    PerformanceMeasurement, ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent, WebViewId,
+    HostInputDevice, HostPanel, HostReply, HostRequest, HostWindow, HostWindowId, MenuEntry,
+    Occluder, PerformanceMeasurement, ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent,
+    WebViewId,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;
@@ -356,10 +357,11 @@ pub enum Pushed {
     Shows,
     Version,
     Windows,
+    InputDevices,
 }
 
 impl Pushed {
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 12] = [
         Self::Replies,
         Self::Peers,
         Self::Histories,
@@ -371,6 +373,7 @@ impl Pushed {
         Self::Shows,
         Self::Version,
         Self::Windows,
+        Self::InputDevices,
     ];
 }
 
@@ -379,6 +382,9 @@ pub struct EditorHost {
     waker: Waker,
     shown_panels: Rc<RefCell<Vec<HostPanel>>>,
     windows: Rc<RefCell<Vec<HostWindow>>>,
+    input_devices: Rc<RefCell<Vec<HostInputDevice>>>,
+    watching_input_devices: Rc<Cell<bool>>,
+    reported_input_device_watch: Rc<Cell<bool>>,
     closed_windows: Rc<RefCell<Vec<HostWindowId>>>,
     pick_requests: Rc<RefCell<Vec<PickRequest>>>,
     dialog_requests: Rc<RefCell<Vec<(Uuid, ShellDialog)>>>,
@@ -572,6 +578,27 @@ impl EditorHost {
         }
         *self.windows.borrow_mut() = windows;
         self.push(Pushed::Windows);
+    }
+
+    pub fn input_devices(&self) -> Vec<HostInputDevice> {
+        self.watching_input_devices.set(true);
+        self.input_devices.borrow().clone()
+    }
+
+    pub fn set_input_devices(&self, devices: Vec<HostInputDevice>) {
+        if *self.input_devices.borrow() == devices {
+            return;
+        }
+        *self.input_devices.borrow_mut() = devices;
+        self.push(Pushed::InputDevices);
+    }
+
+    pub(crate) fn take_input_device_watch(&self) -> bool {
+        let wanted = self.watching_input_devices.get() && !self.reported_input_device_watch.get();
+        if wanted {
+            self.reported_input_device_watch.set(true);
+        }
+        wanted
     }
 
     pub fn close_window(&self, window: HostWindowId) {

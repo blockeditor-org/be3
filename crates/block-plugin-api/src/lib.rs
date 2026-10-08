@@ -3,15 +3,17 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 mod block_ids;
+mod linux;
 mod manifest;
 mod session;
 pub use block_ids::BlockIdRole;
+pub use linux::{HostInputDevice, HostWindow, HostWindowId, LinuxMessage};
 pub use manifest::{
     EditorDocument, ManifestDocument, TemplateDocument, Templates, manifest_from_json,
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 70;
+pub const PROTOCOL_VERSION: u16 = 71;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_TEXT_BYTES: usize = 64 * 1024 * 1024;
@@ -201,18 +203,6 @@ pub struct ChildRect {
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WebViewId(pub u32);
-
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct HostWindowId(pub u64);
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct HostWindow {
-    pub id: HostWindowId,
-    pub title: String,
-    pub app_id: String,
-    pub parent: Option<HostWindowId>,
-    pub size: Size,
-}
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ChildContent {
@@ -792,14 +782,14 @@ pub enum EditorMessage {
         panel: HostPanel,
     },
 
-    Windows {
-        instance: EditorInstanceId,
-        windows: Vec<HostWindow>,
-    },
-
     CloseWindow {
         instance: EditorInstanceId,
         window: HostWindowId,
+    },
+
+    Linux {
+        instance: EditorInstanceId,
+        message: LinuxMessage,
     },
 
     ShowDialog {
@@ -1117,8 +1107,8 @@ impl EditorMessage {
             | Self::OpenBlock { instance, .. }
             | Self::ShowBlock { instance, .. }
             | Self::ShowPanel { instance, .. }
-            | Self::Windows { instance, .. }
             | Self::CloseWindow { instance, .. }
+            | Self::Linux { instance, .. }
             | Self::ShowDialog { instance, .. }
             | Self::SetAccess { instance, .. }
             | Self::Focused { instance, .. }
@@ -1688,7 +1678,6 @@ impl EditorMessage {
             | Self::FocusChanged { .. }
             | Self::ShowBlock { .. }
             | Self::ShowPanel { .. }
-            | Self::Windows { .. }
             | Self::ShowDialog { .. }
             | Self::DragOver { .. }
             | Self::DragLeft { .. }
@@ -1723,7 +1712,6 @@ impl EditorMessage {
             | Self::Menu { .. }
             | Self::CommitChild { .. }
             | Self::SetAccess { .. }
-            | Self::CloseWindow { .. }
             | Self::PickAnswered { .. }
             | Self::ChildMenuPick { .. }
             | Self::GrabCursor { .. }
@@ -1753,7 +1741,9 @@ impl EditorMessage {
             | Self::VersionControl { .. }
             | Self::CreateBlock { .. }
             | Self::SetParent { .. }
+            | Self::CloseWindow { .. }
             | Self::SetName { .. } => Direction::ToHost,
+            Self::Linux { message, .. } => message.direction(),
         }
     }
 }
@@ -2579,14 +2569,24 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             Ok(())
         }
         EditorMessage::CopyText { text: value, .. } => text(value),
-        EditorMessage::Windows { windows, .. } => {
-            collection(windows.len())?;
-            for window in windows {
-                string(&window.title)?;
-                string(&window.app_id)?;
+        EditorMessage::Linux { message, .. } => match message {
+            LinuxMessage::Windows(windows) => {
+                collection(windows.len())?;
+                for window in windows {
+                    string(&window.title)?;
+                    string(&window.app_id)?;
+                }
+                Ok(())
             }
-            Ok(())
-        }
+            LinuxMessage::InputDevices(devices) => {
+                collection(devices.len())?;
+                for device in devices {
+                    string(&device.name)?;
+                }
+                Ok(())
+            }
+            LinuxMessage::WatchInputDevices => Ok(()),
+        },
         EditorMessage::Menu { entries, .. } => menu(entries),
         EditorMessage::MenuPick { id, .. } | EditorMessage::ChildMenuPick { id, .. } => string(id),
         EditorMessage::WebViewCommand { command, .. } => match command {

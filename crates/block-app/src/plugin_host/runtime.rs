@@ -51,6 +51,7 @@ struct Host {
     over_budget: u64,
     runtimes: HashMap<String, Runtime>,
     focus: Focus,
+    input_devices: Vec<block_plugin_api::HostInputDevice>,
     grabbed: bool,
 }
 
@@ -63,6 +64,7 @@ impl Host {
             over_budget: 0,
             runtimes: HashMap::new(),
             focus: Focus::default(),
+            input_devices: Vec::new(),
             grabbed: false,
         }
     }
@@ -75,10 +77,15 @@ impl Host {
             return Err(CROWDED.to_owned());
         };
         let focus = self.focus.clone();
+        let devices = &self.input_devices;
         let runtime = self
             .runtimes
             .entry(plugin.identity.id.clone())
-            .or_insert_with(|| Runtime::new(plugin, surface));
+            .or_insert_with(|| {
+                let mut runtime = Runtime::new(plugin, surface);
+                runtime.instances.set_input_devices(devices.clone());
+                runtime
+            });
         runtime.instances.set_focus(focus);
         runtime.begin_pass(host::pass());
         Ok(runtime)
@@ -920,6 +927,24 @@ pub(crate) fn set_focus(block: Option<(Uuid, Uuid)>, via: Vec<Uuid>) {
             }
         }
     });
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn set_input_devices(devices: Vec<block_plugin_api::HostInputDevice>) {
+    HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        if host.input_devices == devices {
+            return;
+        }
+        host.input_devices = devices.clone();
+        for (plugin_id, runtime) in &mut host.runtimes {
+            if runtime.instances.set_input_devices(devices.clone()) {
+                runtime.pacing.needed = true;
+                mark(plugin_id);
+            }
+        }
+    });
+    host::request_repaint();
 }
 
 pub(crate) fn take_focus_report(plugin_id: &str, instance: EditorInstanceId) -> Option<Focus> {

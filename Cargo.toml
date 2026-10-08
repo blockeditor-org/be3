@@ -64,6 +64,7 @@ members = [
     "crates/editors/file-tree",
     "crates/editors/image-block",
     "crates/editors/infinite-canvas",
+    "crates/editors/input-settings",
     "crates/editors/linux-desktop",
     "crates/editors/logic-grid",
     "crates/editors/map",
