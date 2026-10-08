@@ -19,6 +19,7 @@ use super::version::{Context, Versions};
 use super::{Config, Content, platform};
 
 const SEAL_INTERVAL: Duration = Duration::from_millis(750);
+const QUIET_SESSION: Duration = Duration::from_secs(60);
 const RECONNECT_DELAY: Duration = Duration::from_secs(2);
 const EDIT_BURST: Duration = Duration::from_millis(750);
 const HISTORY_STEPS: usize = 200;
@@ -216,6 +217,8 @@ pub(super) trait Session {
 
     fn bytes(&self) -> Vec<u8>;
 
+    fn session_state(&self) -> Vec<u8>;
+
     fn head(&self) -> Option<CommitId>;
 
     fn is_clean(&self) -> bool;
@@ -233,6 +236,10 @@ pub(super) trait Session {
     fn poll(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>>;
 
     fn seal(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>>;
+
+    fn activity(&self) -> Option<u64>;
+
+    fn restart(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>>;
 
     fn replace(&mut self, bytes: Vec<u8>) -> LocalBoxFuture<'_, Result<(), ClientError>>;
 
@@ -329,6 +336,10 @@ where
         self.live.content().encode()
     }
 
+    fn session_state(&self) -> Vec<u8> {
+        self.live.content().session_state()
+    }
+
     fn head(&self) -> Option<CommitId> {
         self.live.head()
     }
@@ -374,6 +385,14 @@ where
 
     fn seal(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
         Box::pin(async move { seal(&mut self.live).await })
+    }
+
+    fn activity(&self) -> Option<u64> {
+        self.live.activity()
+    }
+
+    fn restart(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
+        Box::pin(async move { self.live.restart().await.map(|_| ()) })
     }
 
     fn replace(&mut self, bytes: Vec<u8>) -> LocalBoxFuture<'_, Result<(), ClientError>> {
@@ -508,6 +527,10 @@ where
         self.live.content().encode()
     }
 
+    fn session_state(&self) -> Vec<u8> {
+        self.live.content().session_state()
+    }
+
     fn head(&self) -> Option<CommitId> {
         self.live.head()
     }
@@ -550,6 +573,14 @@ where
 
     fn seal(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
         Box::pin(async move { seal(&mut self.live).await })
+    }
+
+    fn activity(&self) -> Option<u64> {
+        self.live.activity()
+    }
+
+    fn restart(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
+        Box::pin(async move { self.live.restart().await.map(|_| ()) })
     }
 
     fn replace(&mut self, bytes: Vec<u8>) -> LocalBoxFuture<'_, Result<(), ClientError>> {
@@ -604,7 +635,7 @@ where
 
 pub(crate) enum Logged {
     Operation { bytes: Vec<u8>, origin: Option<u64> },
-    Replaced,
+    Replaced { acknowledged: HashMap<u64, u64> },
 }
 
 fn drain<C>(live: &mut Live<Store, C>, log: &mut Vec<Logged>, origin: Option<u64>)
@@ -621,9 +652,30 @@ where
                 bytes: C::encode_operation(&operation),
                 origin: None,
             }),
-            Journaled::Replaced => {
-                log.clear();
-                log.push(Logged::Replaced);
+            Journaled::Replaced { edits } => {
+                let mut acknowledged = HashMap::new();
+                for logged in log.drain(..) {
+                    match logged {
+                        Logged::Operation {
+                            origin: Some(origin),
+                            ..
+                        } => *acknowledged.entry(origin).or_default() += 1,
+                        Logged::Operation { origin: None, .. } => {}
+                        Logged::Replaced {
+                            acknowledged: earlier,
+                        } => {
+                            for (origin, count) in earlier {
+                                *acknowledged.entry(origin).or_default() += count;
+                            }
+                        }
+                    }
+                }
+                if let Some(origin) = origin
+                    && edits > 0
+                {
+                    *acknowledged.entry(origin).or_default() += edits;
+                }
+                log.push(Logged::Replaced { acknowledged });
             }
         }
     }
@@ -733,11 +785,17 @@ async fn connected<S: Fn() -> Result<Store, String>>(
     changed.notify_all();
     crate::host::wake();
     let mut unsealed_since: Option<Instant> = None;
+    let mut quiet: HashMap<Uuid, (u64, Instant)> = HashMap::new();
     let mut flushes = Vec::new();
     loop {
-        let woken = match unsealed_since {
-            Some(since) => {
-                let remaining = SEAL_INTERVAL.saturating_sub(since.elapsed());
+        let deadline = unsealed_since
+            .map(|since| since + SEAL_INTERVAL)
+            .into_iter()
+            .chain(quiet.values().map(|(_, since)| *since + QUIET_SESSION))
+            .min();
+        let woken = match deadline {
+            Some(deadline) => {
+                let remaining = deadline.saturating_duration_since(Instant::now());
                 let waited = std::pin::pin!(wait(commands, &mut events, &mut gone));
                 let timer = std::pin::pin!(platform::sleep(remaining));
                 match select(waited, timer).await {
@@ -796,8 +854,12 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                 false
             }
             Woken::Deadline => {
-                seal_all(&mut sessions, shared).await;
-                true
+                let due = unsealed_since.is_some_and(|since| since.elapsed() >= SEAL_INTERVAL);
+                if due {
+                    seal_all(&mut sessions, shared).await;
+                }
+                restart_quiet(&mut sessions, &mut quiet, shared).await;
+                due
             }
         };
         if sealed {
@@ -807,6 +869,17 @@ async fn connected<S: Fn() -> Result<Store, String>>(
             true => unsealed_since.or_else(|| Some(Instant::now())),
             false => None,
         };
+        quiet = sessions
+            .iter()
+            .filter_map(|(block, session)| {
+                let activity = session.activity()?;
+                let since = match quiet.get(block) {
+                    Some((held, since)) if *held == activity => *since,
+                    _ => Instant::now(),
+                };
+                Some((*block, (activity, since)))
+            })
+            .collect();
         let mut moved = publish(&mut sessions, shared);
         let before = version_revisions(shared);
         versions
@@ -1288,6 +1361,25 @@ pub(super) fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
     }
 }
 
+async fn restart_quiet(
+    sessions: &mut HashMap<Uuid, Box<dyn Session>>,
+    quiet: &mut HashMap<Uuid, (u64, Instant)>,
+    shared: &Arc<Mutex<Shared>>,
+) {
+    for (block, (_, since)) in quiet.iter_mut() {
+        if since.elapsed() < QUIET_SESSION {
+            continue;
+        }
+        *since = Instant::now();
+        let Some(session) = sessions.get_mut(block) else {
+            continue;
+        };
+        if let Err(error) = session.restart().await {
+            record(shared, error);
+        }
+    }
+}
+
 async fn seal_all(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Shared>>) {
     for session in sessions.values_mut() {
         if let Err(error) = session.seal().await {
@@ -1331,7 +1423,11 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
         let Some(content) = held.blocks.get_mut(block) else {
             held.blocks.insert(
                 *block,
-                Content::new(session.content_type(), session.bytes()),
+                Content::new(
+                    session.content_type(),
+                    session.bytes(),
+                    session.session_state(),
+                ),
             );
             held.touch(*block);
             changed = true;
@@ -1344,6 +1440,7 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
             content.record(entry);
         }
         content.bytes = session.bytes();
+        content.session = session.session_state();
         held.touch(*block);
         changed = true;
     }

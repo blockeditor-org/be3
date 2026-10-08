@@ -13,6 +13,8 @@ trait Held: Any {
 
     fn encode(&self) -> Vec<u8>;
 
+    fn session_state(&self) -> Vec<u8>;
+
     fn content_type(&self) -> Uuid;
 
     fn references(&self, workspace: Uuid) -> Vec<Uuid>;
@@ -29,6 +31,10 @@ impl<C: LiveEdit> Held for C {
 
     fn encode(&self) -> Vec<u8> {
         BlockContent::encode(self)
+    }
+
+    fn session_state(&self) -> Vec<u8> {
+        LiveEdit::session_state(self)
     }
 
     fn content_type(&self) -> Uuid {
@@ -73,6 +79,13 @@ impl Stored {
         match self {
             Self::Typed(held) => held.encode(),
             Self::Written { bytes, .. } => bytes.clone(),
+        }
+    }
+
+    fn session_state(&self) -> Vec<u8> {
+        match self {
+            Self::Typed(held) => held.session_state(),
+            Self::Written { .. } => Vec::new(),
         }
     }
 
@@ -161,6 +174,7 @@ impl Block {
                 block_id: block.into_bytes(),
                 content_type: self.content.content_type().into_bytes(),
                 bytes: self.content.bytes(),
+                session: self.content.session_state(),
                 applied: self.taken,
             },
         };

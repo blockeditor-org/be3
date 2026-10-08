@@ -57,7 +57,8 @@ component has nothing for `component_state`, `component_accessibility`,
 `component_size`, `component_rect` or `component_placed` to watch, so calling any of them in its body
 panics when it is built, and `@test_id` and `@node_ref` on its tag do not compile,
 because they only take a component whose output implements `BuildsNode`.
-`unstyled::MenuItem` is one: a menu item is a label, a disabled flag and its
+`unstyled::MenuItem` is one: a menu item is a label, an icon, a detail, a
+disabled and a danger flag, a separator above it, an `on_click` and its
 own submenu items, so a menu is written as tags and each row follows
 the signals its tag was given, and `unstyled::ChoiceOption` is the same for the
 options of a tab bar, a listbox, a radio group and a select. Declare the type
@@ -481,12 +482,19 @@ gutter, scrolled sideways to keep the caret in view, where Enter submits and
 Tab leaves; `frame` wraps the field in the caller's chrome inside the area's
 own focus and pointer handling. `TextInput` is that single-line mode over a
 plain-text buffer it owns, driven by a `value` and reporting `on_change`, so a
-fix to how text is edited lands in both. `MenuButton` is the button that opens a menu under itself, which is
-what a toolbar reaches for where `Select` would imply the choice sticks - or,
-when a finger opened it, the same items as rows in a sheet, so one button
-serves a mouse and a touch (`IconMenuButton` is the same with an icon button's face);
-`ContextMenu` is the same menu on a secondary press, and it also takes an
-`open_at` point so a touch gesture can raise it where the finger was. A finger
+fix to how text is edited lands in both. A menu is never asked for as a dropdown
+or as a sheet: every menu opens as a dropdown when a mouse opened it and as the
+same items in a `ModalSheet` when a finger did, so the two show the same
+features. A `MenuStyle` carries both looks (the styled `menu_style()`), and an
+unstyled one without a sheet stays a dropdown. `MenuButton` is the button that
+opens a menu under itself, which is what a toolbar reaches for where `Select`
+would imply the choice sticks (`IconMenuButton` is the same with an icon
+button's face); `ContextMenu` is the same menu on a secondary press, and it
+also takes an `open_at` point so a touch gesture can raise it where the finger
+was, or `open_at_pointer` to open where the last pointer was, reading
+`Document::last_pointer` to know whether that was a finger, for a menu something
+else asks for (the app menu a plugin's button opens). A text selection's menu
+sets `selection` and stays beside the selection under a finger too. A finger
 held still for the long-press delay (`Context::set_long_press_delay`, which a
 test sets to zero rather than waiting) is a secondary press where it rests, so
 every context menu opens on tap-and-hold; the press the finger began is
@@ -853,8 +861,14 @@ completes, or hands every phase of the gesture to `on_gesture` if it has one,
 and moves nothing. The motion lives above it. `unstyled::BackSlide` wraps a
 page: held, the page follows the finger across a good share of the screen;
 let go, it carries on off the edge before `on_back` runs and the next page
-slides in behind it, and a cancelled gesture eases it back. A back with no
-gesture before it (a key) goes back at once. `styled::Dialog` and
+slides in behind it, and a cancelled gesture eases it back. Given `behind`, a
+function that builds the page back goes to, it builds that page under the
+moving one for as long as the gesture lasts, shaded and coming in from the
+side, so `on_back` swaps in what was already showing and nothing slides in
+afterwards; the page that moves needs an opaque background, and a page that
+must keep its state (a scroll position) is built once and handed to a `Portal`
+in both places. The stacked dock shows its home tab behind the tab it leaves
+this way. A back with no gesture before it (a key) goes back at once. `styled::Dialog` and
 `Fullscreen` slide away the same way and fade their scrim, and a `Sheet`
 sinks with the gesture and slides on down from where it was. The document
 reports whether anything would take back through
@@ -901,8 +915,7 @@ chevron, the indent beside it and the name to mean three different things. The
 handle carries `select`, `toggle` and `hover` for the face to call from
 wherever it decides they belong. The arrow keys, Home, End and typing move the
 keyboard between rows without selecting them, and Enter or Space selects the
-row it is on; `selection_follows_focus` makes every move select, as the beui
-inspector does. `toggle` puts the keyboard on its row too.
+row it is on. `toggle` puts the keyboard on its row too.
 
 `styled::Tree` is the face that split was made for, and the one app code
 reaches for. It draws the indent, a chevron that is a button of its own -
@@ -1518,6 +1531,14 @@ what an app that reads input or places surfaces outside `Document::show` needs:
 `Context::screen_scale` and `Context::screen_input` give it the scale and the
 frame's input in document points, the way block-app's host reads them for its
 plugin surfaces.
+
+### Back gesture
+
+The Sim tab's Back gesture slider plays Android's back gesture into the
+document, so a `BackSlide` can be tried without a phone: dragging it starts the
+gesture and follows it, reaching the end goes back, and letting go before then
+cancels. It calls `Document::back` directly, the way the Android runner's events
+do, so it reaches the document even while the inspector holds the keyboard.
 
 ### Filters
 

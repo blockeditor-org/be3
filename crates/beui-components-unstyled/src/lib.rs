@@ -22,6 +22,7 @@ pub mod floating;
 pub mod list_row;
 pub mod menu;
 pub mod menu_button;
+pub mod menu_popup;
 pub mod number_input;
 pub mod pan_zoom;
 pub mod picture;
@@ -69,7 +70,7 @@ pub use command_palette::{
     command_palette_search, command_palette_shown,
 };
 pub use container::{Container, ContainerSize, container_size, narrower_than, shorter_than};
-pub use context_menu::{ContextMenu, MenuStyle, context_menu_menu, context_menu_overlay};
+pub use context_menu::{ContextMenu, context_menu_menu, context_menu_overlay};
 pub use date_time_field::{
     DateDraft, DateSegment, DateSegmentHandle, DateTimeField, DateTimeParts, date_time_field_text,
     date_time_field_value,
@@ -98,7 +99,8 @@ pub use menu::{
     MenuItem, MenuRowHandle, menu_list_len, menu_list_root_focusable, menu_list_row_button,
     menu_list_row_submenu_content,
 };
-pub use menu_button::{MenuButton, MenuButtonHandle, MenuSheet, MenuSheetHandle};
+pub use menu_button::{MenuButton, MenuButtonHandle};
+pub use menu_popup::{MenuSheetHandle, MenuStyle};
 pub use number_input::{
     NumberDrag, NumberFaceHandle, NumberFieldHandle, NumberInput, number_input_face,
     number_input_field,
@@ -124,8 +126,8 @@ pub use stack::Stack;
 pub use text_area::text_area_handles;
 pub use text_area::{
     Completer, Completion, CompletionMenu, CompletionRowHandle, RemoteTextCursor, SyntaxColors,
-    TextArea, TextAreaColors, TextAreaLayout, TextAreaState, TextWidget, emoji_completer,
-    search_emoji, text_area_index_at, text_area_shown, text_area_state,
+    TextArea, TextAreaColors, TextAreaLayout, TextAreaState, TextCheckbox, TextWidget,
+    emoji_completer, search_emoji, text_area_index_at, text_area_shown, text_area_state,
 };
 pub use text_input::text_input_handles;
 pub use text_input::{

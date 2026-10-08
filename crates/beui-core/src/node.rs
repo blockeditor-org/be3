@@ -79,6 +79,7 @@ impl NodeId {
 #[derive(Clone, Copy)]
 pub struct InteractInput {
     pub pointer_pos: Option<Pos2>,
+    pub press_pos: Option<Pos2>,
     pub pointer_down: bool,
     pub pressed_this_frame: bool,
     pub released_this_frame: bool,
@@ -187,6 +188,10 @@ pub trait Element: Any {
 
     fn detail(&self) -> Option<String> {
         None
+    }
+
+    fn properties(&self) -> Vec<(&'static str, String)> {
+        Vec::new()
     }
 
     fn as_any(&self) -> &dyn Any;

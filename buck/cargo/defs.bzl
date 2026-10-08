@@ -51,8 +51,9 @@ def _srcs(kwargs):
 def _rustc_flags(crate, kwargs):
     return dev_only(crate.get("profile_flags", [])) + kwargs.pop("rustc_flags", [])
 
-# The crate's library, named after the package.
-def cargo_library(name = None, extra_deps = [], env = {}, **kwargs):
+# The crate's library, named after the package. Another build of it, such as
+# one for a fuzz target, takes a name and extra_features.
+def cargo_library(name = None, extra_deps = [], extra_features = [], env = {}, **kwargs):
     crate = _crate()
     library = crate["library"]
     native.rust_library(
@@ -62,7 +63,7 @@ def cargo_library(name = None, extra_deps = [], env = {}, **kwargs):
         deps = _per_platform(crate, lambda entry: entry["deps"], extra_deps),
         edition = crate["edition"],
         env = _env(crate, library["crate"], env),
-        features = _per_platform(crate, lambda entry: entry["features"]),
+        features = _per_platform(crate, lambda entry: entry["features"], extra_features),
         proc_macro = library["proc_macro"],
         rustc_flags = _rustc_flags(crate, kwargs),
         srcs = _srcs(kwargs),
@@ -245,3 +246,87 @@ def editor_packages():
 # crates/tabletop-games/rules: what the games plugin stages as its data.
 def game_packages():
     return sorted([package for package in crates if package.startswith("crates/tabletop-games/rules/")])
+
+# rustc's sancov pass, which libFuzzer reads coverage and comparisons from, and
+# an optimised build that still checks for overflow and debug assertions, as
+# cargo-fuzz builds one.
+_FUZZ_FLAGS = [
+    "-Cpasses=sancov-module",
+    "-Cllvm-args=-sanitizer-coverage-level=4",
+    "-Cllvm-args=-sanitizer-coverage-inline-8bit-counters",
+    "-Cllvm-args=-sanitizer-coverage-pc-table",
+    "-Cllvm-args=-sanitizer-coverage-trace-compares",
+    "-Copt-level=3",
+    "-Cdebug-assertions=on",
+    "-Coverflow-checks=on",
+]
+
+# Every file in a crate's fuzz/ is a coverage-guided fuzz target: a
+# #![no_main] crate defining LLVMFuzzerTestOneInput over the crate's library,
+# which is built again with extra_features and the coverage instrumentation, and
+# linked with libFuzzer (//buck/tools:libfuzzer) for its main. fuzz/NAME.rs is
+# :fuzz-NAME, which `./scripts/buck run` fuzzes until it is stopped, keeping
+# what it finds in target/fuzz/<crate>/NAME (crates/fuzz-runner); //:fuzz runs
+# every one, taking turns. :fuzz-NAME-test runs it briefly from a fixed seed, so a
+# target that stops building or running fails verify.
+def cargo_fuzz(extra_features = []):
+    crate = _crate()
+    library = crate["name"] + "-fuzzing"
+    compatible = ["prelude//os:linux", "prelude//cpu:x86_64"]
+    cargo_library(
+        name = library,
+        extra_features = extra_features,
+        rustc_flags = _FUZZ_FLAGS,
+        target_compatible_with = compatible,
+        visibility = [],
+    )
+    for root in native.glob(["fuzz/*.rs"]):
+        stem = root.removeprefix("fuzz/").removesuffix(".rs")
+        name = "fuzz-" + stem
+        native.rust_binary(
+            name = name + "-bin",
+            crate = stem.replace("-", "_"),
+            crate_root = root,
+            deps = [":" + library, "root//buck/tools:libfuzzer"],
+            edition = crate["edition"],
+            rustc_flags = _FUZZ_FLAGS,
+            srcs = [root],
+            target_compatible_with = compatible,
+        )
+        fuzz_target(
+            name = name,
+            binary = ":{}-bin".format(name),
+            id = crate["name"] + "/" + stem,
+            target_compatible_with = compatible,
+        )
+        native.sh_test(
+            name = name + "-test",
+            args = ["-runs=20000", "-seed=1"],
+            target_compatible_with = compatible,
+            test = ":{}-bin".format(name),
+        )
+        test_run(name = name + "-test_run", target_compatible_with = compatible, test = ":{}-test".format(name))
+
+# What //buck/dev/fuzz.bxl finds every fuzz target by.
+FuzzTargetInfo = provider(fields = {"binary": Artifact, "id": str})
+
+# A fuzz target's binary under the id its corpus is kept by, run here by
+# crates/fuzz-runner, which reads them from a list of "id<TAB>binary" lines:
+# here the one, and for //:fuzz every one.
+def _fuzz_target_impl(ctx: AnalysisContext) -> list[Provider]:
+    binary = ctx.attrs.binary[DefaultInfo].default_outputs[0]
+    targets = ctx.actions.write("targets", [cmd_args(ctx.attrs.id, binary, delimiter = "\t")])
+    return [
+        DefaultInfo(default_output = targets, other_outputs = [binary]),
+        RunInfo(args = cmd_args(ctx.attrs._runner[RunInfo], "--list", targets, hidden = binary)),
+        FuzzTargetInfo(binary = binary, id = ctx.attrs.id),
+    ]
+
+fuzz_target = rule(
+    attrs = {
+        "binary": attrs.dep(providers = [RunInfo]),
+        "id": attrs.string(),
+        "_runner": attrs.default_only(attrs.dep(default = "root//crates/fuzz-runner:fuzz-runner-bin", providers = [RunInfo])),
+    },
+    impl = _fuzz_target_impl,
+)

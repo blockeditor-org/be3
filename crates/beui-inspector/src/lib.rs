@@ -16,7 +16,7 @@ use beui_core::context::{Context, RendererChoices};
 use beui_core::filter::{ColorVision, Filter};
 use beui_core::flash;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
-use beui_core::input::{CursorIcon, Event, Key as InputKey};
+use beui_core::input::{BackGesture, CursorIcon, Event, Key as InputKey};
 use beui_core::interact::Keys;
 use beui_core::painter::Painter;
 
@@ -84,6 +84,7 @@ pub struct State {
     pub contrast_reduction: Cell<f32>,
     pub color_vision: Cell<ColorVision>,
     commands: RefCell<Vec<Command>>,
+    back_gestures: RefCell<Vec<BackGesture>>,
     pub theme: Cell<Theme>,
     requested_theme: Cell<Option<Theme>>,
     requested_renderer: Cell<Option<usize>>,
@@ -116,6 +117,7 @@ impl State {
             contrast_reduction: Cell::new(0.0),
             color_vision: Cell::new(ColorVision::Typical),
             commands: RefCell::new(Vec::new()),
+            back_gestures: RefCell::new(Vec::new()),
             theme: Cell::new(theme),
             requested_theme: Cell::new(None),
             requested_renderer: Cell::new(None),
@@ -232,6 +234,15 @@ impl State {
         std::mem::take(&mut self.commands.borrow_mut())
     }
 
+    fn simulate_back(&self, gesture: BackGesture) {
+        self.back_gestures.borrow_mut().push(gesture);
+        self.touch();
+    }
+
+    fn take_back_gestures(&self) -> Vec<BackGesture> {
+        std::mem::take(&mut self.back_gestures.borrow_mut())
+    }
+
     fn choose_theme(&self, theme: Theme) {
         self.theme.set(theme);
         self.requested_theme.set(Some(theme));
@@ -265,10 +276,18 @@ impl State {
     }
 
     fn toggle_picking(&self) {
-        self.picking.set(!self.picking.get());
         if self.picking.get() {
-            self.app_shown.set(true);
+            self.stop_picking();
+            return;
         }
+        self.picking.set(true);
+        self.app_shown.set(true);
+        self.touch();
+    }
+
+    fn stop_picking(&self) {
+        self.picking.set(false);
+        self.hovered.set(None);
         self.touch();
     }
 
@@ -462,6 +481,18 @@ impl Inspector {
 
     pub fn focused_row(&self) -> Option<Key> {
         beui_components_styled::tree_focused::<Key>(&self.document, self.tree.get())
+    }
+
+    pub fn highlighted(&self) -> Option<NodeId> {
+        self.state.hovered.get().or_else(|| {
+            let tree = self.tree_node()?;
+            self.document
+                .watch_focus_visible()
+                .get_untracked()
+                .then(|| beui_components_styled::tree_focused::<Key>(&self.document, tree))
+                .flatten()
+                .map(Key::node)
+        })
     }
 
     pub fn panel_width(&self, ctx: &Context, rect: Rect) -> f32 {
@@ -885,10 +916,14 @@ impl Inspector {
             native_pixel_ratio: native_pixel_ratio_label(ctx.native_pixels_per_point()),
             picking: self.state.picking.get(),
             responsive: self.state.screen_simulation.get().is_some(),
+            handles_back: target.handles_back(),
             selection,
             bounds: selected
                 .and_then(|id| target.node_rect(id))
                 .map(bounds_label)
+                .unwrap_or_default(),
+            properties: selected
+                .map(|id| tree::properties(target, id))
                 .unwrap_or_default(),
         }
     }
@@ -953,8 +988,7 @@ impl Inspector {
             return;
         }
         if ctx.input(|input| input.events.iter().any(cancelled)) {
-            self.state.picking.set(false);
-            self.state.touch();
+            self.state.stop_picking();
             return;
         }
 
@@ -971,8 +1005,7 @@ impl Inspector {
         };
         self.state.hovered.set(Some(id));
         if ctx.input(|input| input.pointer.primary_pressed()) {
-            self.state.picking.set(false);
-            self.state.hovered.set(None);
+            self.state.stop_picking();
             self.state.app_shown.set(false);
             self.state.select(id);
         }
@@ -1005,13 +1038,8 @@ impl Inspector {
             let painted = ctx.measure_paint(|| {
                 let painter = ctx.painter().with_clip_rect(content.scaled(local));
                 flashes(&painter, target, screen);
-                let hovered = self.state.hovered.get();
-                let selected = self.state.selected.get();
-                if let Some(id) = selected.filter(|id| Some(*id) != hovered) {
-                    overlay::highlight(&painter, target, id, false, screen);
-                }
-                if let Some(id) = hovered {
-                    overlay::highlight(&painter, target, id, true, screen);
+                if let Some(id) = self.highlighted() {
+                    overlay::highlight(&painter, target, id, screen);
                 }
                 if self.grip {
                     let panel = panel.scaled(local);
@@ -1218,6 +1246,13 @@ impl Tools for InspectorTools {
             Some(inspector) => inspector.keys(),
             None => Keys::All,
         };
+        if let Some(inspector) = &self.inspector {
+            for gesture in inspector.state.take_back_gestures() {
+                with_reactive_scope(document, || {
+                    with_document(|document| document.back(gesture))
+                });
+            }
+        }
         if layout.app_visible {
             document.show_screen(ctx, layout.content, !intercepted, keys);
         } else {

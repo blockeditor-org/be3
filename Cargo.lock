@@ -644,6 +644,7 @@ dependencies = [
  "be-block",
  "be-commit",
  "be-graph",
+ "be-model",
  "be-protocol",
  "be-server",
  "be-session",
@@ -730,6 +731,7 @@ dependencies = [
  "be-commit",
  "be-model-derive",
  "postcard",
+ "sequence",
  "serde",
  "uuid",
 ]
@@ -2968,6 +2970,13 @@ dependencies = [
  "memchr",
  "pin-project-lite",
  "slab",
+]
+
+[[package]]
+name = "fuzz-runner"
+version = "0.1.0"
+dependencies = [
+ "libc",
 ]
 
 [[package]]
@@ -6058,6 +6067,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "sequence"
+version = "0.1.0"
+dependencies = [
+ "postcard",
+ "serde",
+]
+
+[[package]]
 name = "serde"
 version = "1.0.228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6702,6 +6719,7 @@ dependencies = [
  "block-editor-beui",
  "block-ui-test",
  "serde",
+ "serde_json",
  "similar",
  "text-editor-core",
  "uuid",
@@ -7372,6 +7390,10 @@ name = "vcpkg"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
+
+[[package]]
+name = "verify"
+version = "0.1.0"
 
 [[package]]
 name = "version-compare"

@@ -1,0 +1,19 @@
+# Every fuzz target under //crates (cargo_fuzz in buck/cargo/defs.bzl), built,
+# as "id<TAB>binary" lines, which is what //:fuzz runs them from.
+#
+#   buck2 bxl //buck/dev/fuzz.bxl:targets
+
+load("@root//buck/cargo:defs.bzl", "FuzzTargetInfo")
+
+def _impl(ctx: bxl.Context):
+    infos = []
+    for target in ctx.cquery().kind("^fuzz_target$", ctx.cquery().eval("//crates/...")):
+        infos.append(ctx.analysis(target).providers()[FuzzTargetInfo])
+    paths = ctx.output.ensure_multiple([info.binary for info in infos])
+    for info, path in zip(infos, paths):
+        ctx.output.print(info.id, path.abs_path(), sep = "\t")
+
+targets = bxl_main(
+    cli_args = {},
+    impl = _impl,
+)
