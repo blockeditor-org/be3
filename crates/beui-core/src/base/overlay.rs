@@ -32,7 +32,7 @@ impl Default for OverlayAnchor {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Placement {
     At,
     Over(u16),
@@ -47,7 +47,7 @@ pub enum Placement {
     InsideBottomEnd,
 }
 
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
 pub enum OverlayMode {
     #[default]
     Modal,
@@ -275,6 +275,23 @@ impl Element for OverlayNode {
 
     fn detail(&self) -> Option<String> {
         Some(if self.open { "open" } else { "closed" }.to_owned())
+    }
+
+    fn properties(&self) -> Vec<(&'static str, String)> {
+        vec![
+            ("open", self.open.to_string()),
+            ("mode", format!("{:?}", self.mode)),
+            ("placement", format!("{:?}", self.placement)),
+            (
+                "anchor",
+                match &self.anchor {
+                    OverlayAnchor::Node(_) => "node".to_owned(),
+                    OverlayAnchor::Point(point) => format!("{}, {}", point.x, point.y),
+                },
+            ),
+            ("traps focus", self.traps_focus.to_string()),
+            ("light dismiss", self.light.to_string()),
+        ]
     }
 
     fn as_any(&self) -> &dyn Any {
