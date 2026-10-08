@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use block_editor_beui::be_block::display_settings::ScreenOff;
 use block_editor_beui::be_block::{DisplaySettings, DisplaySettingsContent};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_RESET_SETTINGS;
@@ -14,7 +15,8 @@ use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::{ContentProjection, Editor, HostDisplay, HostDisplayMode};
 
 use super::modes::{
-    Size, effective, mode_label, rate_label, rates, saved, size_label, size_of, sizes,
+    SCREEN_OFF, Size, effective, mode_label, rate_label, rates, saved, screen_off_label,
+    size_label, size_of, sizes,
 };
 
 const PADDING: f32 = 20.0;
@@ -50,6 +52,11 @@ pub fn DisplaySettingsView(editor: Editor) -> NodeId {
                                 <Caption content="No display is connected to this session." />
                             </Show>
                         </List>
+                        <ScreenOffSection
+                            settings={settings.clone()}
+                            root={root.clone()}
+                            read_only={read_only.clone()}
+                        />
                         <ForEach keys={ids}>
                             {move |id: String| {
                                 let (settings, root) = (settings.clone(), root.clone());
@@ -184,6 +191,41 @@ fn DisplaySection(
                     let mode = index.and_then(|index| picked_rate.with_untracked(|rates| rates.get(index).copied()));
                     if mode.is_some() {
                         rated(mode);
+                    }
+                }}
+            />
+        </List>
+    }
+}
+
+#[component]
+fn ScreenOffSection(
+    settings: Settings,
+    root: ReadSignal<DisplaySettings>,
+    read_only: Memo<bool>,
+) -> NodeId {
+    let selected = create_memo(move || {
+        let chosen = root.get().screen_off();
+        SCREEN_OFF.iter().position(|offered| *offered == chosen)
+    });
+    view! {
+        <List spacing=ROW_SPACING>
+            <Caption content="Turn off screens after" />
+            <Select
+                options={view! {
+                    <ForEach keys={SCREEN_OFF.to_vec()}>
+                        {|screen_off: ScreenOff| view! {
+                            <ChoiceOption label={screen_off_label(screen_off)} />
+                        }}
+                    </ForEach>
+                }}
+                selected={selected}
+                label="Turn off screens after"
+                disabled={read_only}
+                @test_id={"display-settings.screen-off"}
+                on_change={move |index: Option<usize>| {
+                    if let Some(screen_off) = index.and_then(|index| SCREEN_OFF.get(index)) {
+                        settings.operate(DisplaySettings::set_screen_off(Some(*screen_off)));
                     }
                 }}
             />

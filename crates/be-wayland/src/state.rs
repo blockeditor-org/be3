@@ -23,6 +23,7 @@ use smithay::wayland::drm_syncobj::{
 };
 
 use crate::decoration::{Decorations, server_side};
+use crate::idle::Idle;
 use crate::server::{Waiter, readable};
 use smithay::delegate_cursor_shape;
 use smithay::delegate_data_device;
@@ -116,6 +117,7 @@ pub struct State {
     dmabuf_check: Option<DmabufCheck>,
     syncobj: Option<DrmSyncobjState>,
     decorations: Decorations,
+    pub(crate) idle: Idle,
     start: Instant,
     compositor: CompositorState,
     xdg_shell: XdgShellState,
@@ -153,6 +155,7 @@ impl State {
         let shm = ShmState::new::<Self>(handle, Vec::new());
         let data_device = DataDeviceState::new::<Self>(handle);
         let decorations = Decorations::new(handle);
+        let idle = Idle::new(handle);
         CursorShapeManagerState::new::<Self>(handle);
         ViewporterState::new::<Self>(handle);
         OutputManagerState::new_with_xdg_output::<Self>(handle);
@@ -179,6 +182,7 @@ impl State {
             dmabuf_check: None,
             syncobj: None,
             decorations,
+            idle,
             handle: handle.clone(),
             start: Instant::now(),
             compositor,
@@ -466,6 +470,27 @@ impl State {
                 .toplevel()
                 .is_some_and(|toplevel| toplevel.wl_surface() == root)
         })
+    }
+
+    pub fn inhibiting_windows(&mut self) -> Vec<WindowId> {
+        let surfaces = self.idle.inhibitors().to_vec();
+        surfaces
+            .iter()
+            .filter_map(|surface| Some(self.window_of_root(&self.root_of(surface))?.id))
+            .collect()
+    }
+
+    fn root_of(&self, surface: &WlSurface) -> WlSurface {
+        let mut root = surface.clone();
+        while let Some(parent) = get_parent(&root) {
+            root = parent;
+        }
+        if let Some(popup) = self.popups.find_popup(&root)
+            && let Ok(toplevel) = find_popup_root_surface(&popup)
+        {
+            root = toplevel;
+        }
+        root
     }
 
     fn toplevel(&self, id: WindowId) -> Option<ToplevelSurface> {
@@ -909,15 +934,7 @@ impl CompositorHandler for State {
             let _ = popup.send_configure();
         }
         self.committed.push(surface.clone());
-        let mut root = surface.clone();
-        while let Some(parent) = get_parent(&root) {
-            root = parent;
-        }
-        if let Some(popup) = self.popups.find_popup(&root)
-            && let Ok(toplevel) = find_popup_root_surface(&popup)
-        {
-            root = toplevel;
-        }
+        let root = self.root_of(surface);
         self.committed_window(&root);
     }
 }

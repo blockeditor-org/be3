@@ -112,10 +112,7 @@ Time in the editor is the harness's own clock, not the wall clock: every frame t
 paints is one frame interval later, and the host hands the plugin that time with each frame,
 which is what its frame clock (`timer::now()`) reads. An animation therefore lands on the same
 frame on any machine, a frame captured part way through one paints the same everywhere, and
-waiting for a delay the editor asked for costs no real time. The wall clock (`SystemTime::now()`)
-is pinned too: on the test's main thread it always reads 2026-01-01 09:30 UTC, so an editor
-that shows the date or time should read it once and move it on by the frame clock, as the
-desktop bar's clock does. advance(by) moves the clock on and
+waiting for a delay the editor asked for costs no real time. advance(by) moves the clock on and
 paints a frame, for a timer that is longer than an animation:
 
     editor.advance(Duration::from_secs(60));
@@ -128,6 +125,11 @@ snapshot or record() of something that animates in.
 
 Wait for the work rather than for a number of frames: a few more run() calls is the same
 race with a wider margin, which is how one of these hid.
+
+The date and the time of day come from the harness too: an editor reads them from
+`block_editor_beui::wall_clock()` (and `utc_offset()` for local time), never
+`SystemTime::now()`, and the harness pins that clock to one fixed moment plus its frame clock, so
+a clock or a calendar paints the same on every run.
 
 An editor whose manifest claims pan_and_zoom draws into a view the host owns, so its test
 calls in_viewport() on the harness. The harness then does what the host does around the main

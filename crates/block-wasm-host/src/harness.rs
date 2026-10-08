@@ -6,7 +6,7 @@ use std::{
 
 use wasmtime::{Linker, Module, Store, Trap, TypedFunc, WasmBacktrace};
 use wasmtime_wasi::p2::pipe::MemoryOutputPipe;
-use wasmtime_wasi::{FsPerms, HostWallClock, I32Exit, WasiCtxBuilder, p1};
+use wasmtime_wasi::{FsPerms, I32Exit, WasiCtxBuilder, p1};
 
 use crate::{
     Host, gpu, precompile::test_module, shared_memory, state::State, stderr::Tee, threads,
@@ -19,19 +19,6 @@ const CARRIED: [&str; 2] = ["--ignored", "--include-ignored"];
 const PANICKED: &str = " panicked at ";
 const ABORT: &str = "abort";
 const BACKTRACE_NOTE: &str = "note: run with `RUST_BACKTRACE=1`";
-const TEST_WALL_CLOCK: Duration = Duration::from_secs(1_767_259_800);
-
-struct FixedWallClock;
-
-impl HostWallClock for FixedWallClock {
-    fn resolution(&self) -> Duration {
-        Duration::from_nanos(1)
-    }
-
-    fn now(&self) -> Duration {
-        TEST_WALL_CLOCK
-    }
-}
 
 impl Host {
     pub fn run_tests(
@@ -139,7 +126,6 @@ impl Host {
             .inherit_stdio()
             .stderr(stderr.clone())
             .inherit_env()
-            .wall_clock(FixedWallClock)
             .args(arguments)
             .preopened_dir(root, directory, FsPerms::ReadWrite)
             .map_err(|error| {

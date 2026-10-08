@@ -146,10 +146,9 @@ pub fn Popover(
                 light=true
                 trigger={trigger_ref.clone()}
                 open={open.clone()}
-                on_dismiss={clone!(open set_open -> move || {
-                    let was_open = open.get_untracked();
+                on_dismiss={clone!(set_open -> move || {
                     set_open.set(false);
-                    if was_open && refocus_trigger.get_untracked() {
+                    if refocus_trigger.get_untracked() {
                         set_refocus.set(true);
                     }
                 })}

@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use be_model::{Document, Edit, Map, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -11,6 +13,23 @@ pub struct DisplayMode {
     pub refresh_millihertz: u32,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub enum ScreenOff {
+    After { minutes: u32 },
+    Never,
+}
+
+impl ScreenOff {
+    pub const DEFAULT: Self = Self::After { minutes: 10 };
+
+    pub fn after(self) -> Option<Duration> {
+        match self {
+            Self::After { minutes } => Some(Duration::from_secs(u64::from(minutes.max(1)) * 60)),
+            Self::Never => None,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct MonitorSettings {
     pub mode: Option<DisplayMode>,
@@ -19,6 +38,7 @@ pub struct MonitorSettings {
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct DisplaySettings {
     pub monitors: Map<String, MonitorSettings>,
+    pub screen_off: Option<ScreenOff>,
 }
 
 impl DisplaySettings {
@@ -28,6 +48,14 @@ impl DisplaySettings {
 
     pub fn mode(&self, id: &str) -> Option<DisplayMode> {
         self.monitor(id).mode
+    }
+
+    pub fn screen_off(&self) -> ScreenOff {
+        self.screen_off.unwrap_or(ScreenOff::DEFAULT)
+    }
+
+    pub fn set_screen_off(screen_off: Option<ScreenOff>) -> Edit {
+        Self::SCREEN_OFF.set(ObjectId::ROOT, &screen_off).into()
     }
 
     pub fn set_mode(id: &str, mode: Option<DisplayMode>) -> Edit {

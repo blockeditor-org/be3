@@ -177,7 +177,7 @@ impl Document {
 
     fn invoke_back(&mut self, target: NodeId) {
         if let Some(overlay) = self.arena.kind_of::<OverlayNode>(target) {
-            self.close_overlay(overlay);
+            self.dismiss_overlay(overlay);
             return;
         }
         let Some(handler) = self.arena.kind_of::<BackNode>(target) else {

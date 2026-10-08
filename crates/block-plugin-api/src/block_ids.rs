@@ -41,7 +41,6 @@ impl Message {
             }
             Self::Hello(_)
             | Self::HelloAccepted(_)
-            | Self::HelloRejected(_)
             | Self::Theme(_)
             | Self::UtcOffset(_)
             | Self::Fonts(_)
