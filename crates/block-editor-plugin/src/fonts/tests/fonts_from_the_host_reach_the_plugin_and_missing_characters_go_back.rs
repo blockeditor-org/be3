@@ -1,6 +1,6 @@
 use super::*;
 use crate::headless::HeadlessPlugin;
-use block_plugin_api::{FontFace, HelloAccepted, PROTOCOL_VERSION, Theme};
+use block_plugin_api::{FontFace, HelloAccepted, Theme};
 use std::cell::Cell;
 
 #[test]
@@ -8,7 +8,6 @@ fn fonts_from_the_host_reach_the_plugin_and_missing_characters_go_back() {
     forget();
     let mut plugin = HeadlessPlugin::new("fonts", "Fonts", "1");
     plugin.receive(Message::HelloAccepted(HelloAccepted {
-        version: PROTOCOL_VERSION,
         host_name: "test host".into(),
         surface: None,
         theme: Theme { dark: true },

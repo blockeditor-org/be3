@@ -194,7 +194,6 @@ pub fn Launcher(
     let (query, set_query) = create_signal(String::new());
     let (searching, set_searching) = create_signal(false);
     let (highlighted, set_highlighted) = create_signal(None::<Row>);
-    let dismissing = open.clone();
     create_effect(clone!(open set_query set_searching -> move || {
         let opened = open.get();
         untrack(|| {
@@ -255,11 +254,7 @@ pub fn Launcher(
             placement=Placement::Center
             scrim=SCRIM
             open
-            on_dismiss={move || {
-                if dismissing.peek() {
-                    on_close.call();
-                }
-            }}
+            on_dismiss={move || on_close.call()}
         >
             <Frame padding_horizontal=MARGIN padding_vertical=MARGIN>
                 <Frame

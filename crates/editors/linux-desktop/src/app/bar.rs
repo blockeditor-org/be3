@@ -1,5 +1,5 @@
 use std::rc::Rc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use block_editor_beui::be_block::WORKSPACE_EDITOR;
 use block_editor_beui::beui::NodeId;
@@ -9,11 +9,13 @@ use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, ReadSignal, Spacer, clone, component,
     create_memo, create_signal, create_timer, now, view,
 };
-use block_editor_beui::beui::styled::{Caption, IconButton, MenuButton, Separator, use_theme};
-use block_editor_beui::beui::unstyled::MenuItem;
+use block_editor_beui::beui::styled::{IconButton, MenuButton, Separator, use_theme};
+use block_editor_beui::beui::unstyled::{MenuItem, PopoverHandle};
 use block_editor_beui::utc_offset;
 use block_shell::Workspace;
 
+use super::calendar::{CALENDAR_WIDTH, DesktopCalendar};
+use super::popup::BarPopup;
 use super::sessions::sessions;
 
 const BAR_PADDING: f32 = 6.0;
@@ -28,9 +30,7 @@ fn local_minutes(unix: Duration) -> u32 {
 }
 
 fn wall_clock() -> ReadSignal<String> {
-    let started = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default();
+    let started = block_editor_beui::wall_clock();
     let anchor = now();
     let unix = move || started + now().saturating_duration_since(anchor);
     let shown = move || Time::from_minutes(local_minutes(unix())).format(HourCycle::H24);
@@ -52,6 +52,7 @@ pub(crate) fn DesktopBar(workspace: Rc<Workspace>) -> NodeId {
     let theme = use_theme();
     let clock = wall_clock();
     let editor = workspace.editor().clone();
+    let dated = editor.clone();
     let launching = editor.clone();
     let launcher = move || launching.host().show_launcher(launching.block_id());
     let menu = move || editor.host().show_app_menu(editor.block_id());
@@ -119,7 +120,11 @@ pub(crate) fn DesktopBar(workspace: Rc<Workspace>) -> NodeId {
                         on_select={chose}
                     />
                     <Spacer @sizing=ItemSize::Percent(100.0) />
-                    <Caption content={clock} @test_id={"desktop.clock"} />
+                    <BarPopup label={clock} width=CALENDAR_WIDTH @test_id={"desktop.clock"}>
+                        {move |_: PopoverHandle| view! {
+                            <DesktopCalendar editor={dated.clone()} />
+                        }}
+                    </BarPopup>
                 </List>
             </Frame>
         </List>

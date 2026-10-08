@@ -3,7 +3,6 @@ use std::collections::HashSet;
 
 fn hello() -> Message {
     Message::Hello(Hello {
-        version: PROTOCOL_VERSION,
         plugin: PluginIdentity {
             id: "demo".into(),
             name: "Plugin Demo".into(),

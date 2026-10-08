@@ -42,6 +42,7 @@ pub(crate) fn apply(settings: &DisplaySettings) {
             control.set(config(settings));
         }
     });
+    crate::wayland::set_blank_after(settings.screen_off().after());
 }
 
 fn config(settings: &DisplaySettings) -> DisplayConfig {

@@ -1,6 +1,6 @@
 use beui_macros::{component, view};
 
-use crate::dialog::close_overlay;
+use crate::dialog::dismiss_overlay;
 use beui_components_unstyled::BackSlide;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
@@ -28,7 +28,7 @@ pub fn Fullscreen(open: Prop<bool>, on_dismiss: ClickCallback, children: Child) 
         >
             <BackSlide
                 enters=false
-                on_back={move || close_overlay(&closing)}
+                on_back={move || dismiss_overlay(&closing)}
                 on_presence={move |presence: f32| set_presence.set(presence)}
             >
                 {children}
