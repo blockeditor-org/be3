@@ -12,6 +12,8 @@ account on its embedded server with a workspace called Dev open, so there is no 
 workspace to make first. Its data lives in `~/.cache/be3/dev/data` and survives restarts,
 so running the command again restarts the app on the same workspace, which is how to pick
 up a rebuild. `-- --fresh` deletes the data first, and `-- --stop` stops the app and Xvfb.
+`-- --desktop` runs the desktop shell instead of the workspace (see `--desktop` below); it
+combines with `--fresh`.
 `BLOCK_DEV_DIR` and `BLOCK_DEV_DISPLAY` move the directory and the display, for running two
 at once.
 
@@ -28,6 +30,11 @@ What the launcher passes the app is available to any native run:
   server on it, as the desktop: the shell is linux-desktop instead of workspace-ui, on a
   profile of its own. Ctrl+Alt+Backspace quits and Ctrl+Alt+F<n> switches terminals.
   `BEUI_SCALE` sets its scale.
+- `--desktop` (Linux): the desktop shell, linux-desktop on its own profile as under
+  `--session`, in a normal window, with programs opening as windows inside it as they do in
+  any windowed run. What needs the displays and input devices themselves, such as display
+  modes and pointer settings, is absent, since `beui-adapter-drm` is not running.
+  `./scripts/buck run //crates/block-app:smoke-desktop` is its launch check.
 - `--install-session [PREFIX]` (Linux): see below.
 
 ## The desktop session
