@@ -394,7 +394,7 @@ pub fn interact(
                 }
             }
             Key::Escape if pressed && !doc.overlay_stack.is_empty() => {
-                doc.close_topmost_overlay();
+                doc.dismiss_topmost_overlay();
             }
             Key::Escape if pressed => doc.cancel_focus_activation(),
             Key::BrowserBack if pressed => doc.back(BackGesture::Invoked),

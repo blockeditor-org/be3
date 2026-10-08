@@ -414,9 +414,13 @@ impl Document {
         }
         self.arena.get_mut_as::<OverlayNode>(overlay).mode = mode;
         if self.arena.get_as::<OverlayNode>(overlay).open {
-            self.close_overlay(overlay);
-            self.arena.get_mut_as::<OverlayNode>(overlay).open = false;
-            self.open_overlay(overlay);
+            self.overlay_stack.retain(|&id| id != overlay);
+            self.passive_overlays.retain(|&id| id != overlay);
+            match mode.stacked() {
+                true => self.overlay_stack.push(overlay),
+                false => self.passive_overlays.push(overlay),
+            }
+            self.arena.invalidate_node(overlay);
         }
     }
 
@@ -580,8 +584,16 @@ impl Document {
     }
 
     pub fn close_overlay(&mut self, overlay: NodeOf<OverlayNode>) {
+        self.end_overlay(overlay, false);
+    }
+
+    pub fn dismiss_overlay(&mut self, overlay: NodeOf<OverlayNode>) {
+        self.end_overlay(overlay, true);
+    }
+
+    fn end_overlay(&mut self, overlay: NodeOf<OverlayNode>, dismissed: bool) {
         if let Some(level) = self.overlay_stack.iter().position(|&id| id == overlay) {
-            self.close_overlay_at(level);
+            self.close_overlay_at(level, dismissed);
             return;
         }
         if let Some(index) = self.passive_overlays.iter().position(|&id| id == overlay) {
@@ -590,17 +602,19 @@ impl Document {
                 self.arena.get_mut_as::<OverlayNode>(overlay).open = false;
                 self.arena.invalidate_node(overlay);
             }
-            self.call_overlay_dismiss(overlay);
+            if dismissed {
+                self.call_overlay_dismiss(overlay);
+            }
         }
     }
 
-    pub fn close_topmost_overlay(&mut self) {
+    pub fn dismiss_topmost_overlay(&mut self) {
         if !self.overlay_stack.is_empty() {
-            self.close_overlay_at(self.overlay_stack.len() - 1);
+            self.close_overlay_at(self.overlay_stack.len() - 1, true);
         }
     }
 
-    fn close_overlay_at(&mut self, level: usize) {
+    fn close_overlay_at(&mut self, level: usize, dismissed: bool) {
         let Some(&closed) = self.overlay_stack.get(level) else {
             return;
         };
@@ -610,12 +624,16 @@ impl Document {
             above.into_iter().partition(|id| nested.contains(id));
         self.overlay_stack.pop();
         self.overlay_stack.extend(kept);
-        for id in std::iter::once(closed).chain(nested) {
+        for (id, dismissed) in
+            std::iter::once((closed, dismissed)).chain(nested.into_iter().map(|id| (id, true)))
+        {
             if self.contains(id) {
                 self.arena.get_mut_as(id).open = false;
             }
             self.arena.invalidate_node(id);
-            self.call_overlay_dismiss(id);
+            if dismissed {
+                self.call_overlay_dismiss(id);
+            }
         }
     }
 
@@ -700,7 +718,7 @@ impl Document {
             if !self.light_overlay_misses(top, pos) || self.on_overlay_trigger(top, pos) {
                 return;
             }
-            self.close_overlay_at(self.overlay_stack.len() - 1);
+            self.close_overlay_at(self.overlay_stack.len() - 1, true);
         }
     }
 
@@ -725,7 +743,7 @@ impl Document {
             let scrim = self.arena.get_as::<OverlayNode>(overlay).scrim;
             self.capture_pointer(scrim);
             self.forward.swallow_press();
-            self.close_overlay_at(level);
+            self.close_overlay_at(level, true);
         }
     }
 }

@@ -853,6 +853,14 @@ and a press there closes it and still lands): it goes on the overlay stack, so i
 nothing else, it can trap focus, Escape closes the topmost one, and a press
 outside it dismisses it.
 
+`on_dismiss` runs only when the user closes an overlay, or beui does on their
+behalf: Escape, a press outside it, a light one's press elsewhere, back
+(`Document::dismiss_overlay`), and an overlay closed because one it is nested
+in closed, whoever closed that. Its owner writing `open` false
+(`Document::close_overlay`) runs nothing, so a prompt whose dismiss means
+"cancel" needs no guard against its own Keep button. A menu's item selection
+closes it through the menu's own `on_dismiss`/`on_close`.
+
 Back - Android's back gesture, or the Back key or mouse button - goes to the
 most recently made enabled `BackHandler` inside the topmost modal overlay, or,
 with no modal open, outside every overlay; with no such handler it closes the
