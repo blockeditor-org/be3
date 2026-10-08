@@ -13,6 +13,7 @@ const EXECUTABLE: &[&str] = &[
 
 struct Options {
     manifest: PathBuf,
+    build_failed: bool,
     check: bool,
     lint: bool,
     plugin_tests: bool,
@@ -27,8 +28,7 @@ struct Run {
 }
 
 fn main() -> ExitCode {
-    let mut failed = false;
-    let options = match parse(std::env::args().skip(1), &mut failed) {
+    let options = match parse(std::env::args().skip(1)) {
         Ok(options) => options,
         Err(message) => {
             eprintln!("{message}\n{USAGE}");
@@ -53,9 +53,9 @@ fn main() -> ExitCode {
         })
         .collect();
     let mut run = Run {
+        failed: options.build_failed,
         options,
         built,
-        failed,
     };
     run.verify();
     println!();
@@ -67,13 +67,11 @@ fn main() -> ExitCode {
     ExitCode::SUCCESS
 }
 
-fn parse(
-    mut arguments: impl Iterator<Item = String>,
-    failed: &mut bool,
-) -> Result<Options, String> {
+fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Options, String> {
     let manifest = arguments.next().ok_or("no manifest")?.into();
     let mut options = Options {
         manifest,
+        build_failed: false,
         check: false,
         lint: false,
         plugin_tests: false,
@@ -83,7 +81,7 @@ fn parse(
     while let Some(argument) = arguments.next() {
         let mut value = || arguments.next().ok_or(format!("{argument} needs a value"));
         match argument.as_str() {
-            "--build-failed" => *failed = true,
+            "--build-failed" => options.build_failed = true,
             "--check" => options.check = true,
             "--lint" => options.lint = true,
             "--tests" => {}
@@ -211,19 +209,27 @@ impl Run {
         let fixes = self.built("fix");
         let mut changed = Vec::new();
         let mut deleted = BTreeSet::new();
+        let mut stale = BTreeSet::new();
         let mut findings = BTreeMap::new();
         for fix in &fixes {
             let root = fix.join("changed");
+            let original = fix.join("original");
             for path in files_under(&root) {
-                changed.push((root.join(&path), path));
+                if read_the_same(&original.join(&path), Path::new(&path)) {
+                    changed.push((root.join(&path), path));
+                } else {
+                    stale.insert(path);
+                }
             }
             if let Ok(listed) = fs::read_to_string(fix.join("deleted")) {
-                deleted.extend(
-                    listed
-                        .lines()
-                        .filter(|line| !line.is_empty())
-                        .map(str::to_owned),
-                );
+                for path in listed.lines().filter(|line| !line.is_empty()) {
+                    let gone = !Path::new(path).exists();
+                    if gone || read_the_same(&original.join(path), Path::new(path)) {
+                        deleted.insert(path.to_owned());
+                    } else {
+                        stale.insert(path.to_owned());
+                    }
+                }
             }
             if let Ok(entries) = fs::read_dir(fix.join("findings")) {
                 for entry in entries.flatten() {
@@ -232,6 +238,15 @@ impl Run {
                         .or_insert_with(|| entry.path());
                 }
             }
+        }
+        if !stale.is_empty() {
+            println!(
+                "These files changed after the fixes read them, so their fixes were left out; run ./scripts/verify again:"
+            );
+            for path in &stale {
+                println!("  {path}");
+            }
+            self.failed = true;
         }
         if !changed.is_empty() || !deleted.is_empty() {
             if self.options.check {
@@ -284,10 +299,30 @@ impl Run {
     fn paintings(&mut self) {
         let expected = self.expected("paintings");
         let directories = self.built("paintings");
-        let changed: Vec<PathBuf> = directories
-            .iter()
-            .flat_map(|directory| paint_files(&directory.join("changed")))
-            .collect();
+        let mut changed = Vec::new();
+        let mut stale = Vec::new();
+        for directory in &directories {
+            for painting in paint_files(&directory.join("changed")) {
+                let name = painting.file_name().unwrap_or_default();
+                let compared = fs::read(directory.join("used").join(name)).unwrap_or_default();
+                let accepted = fs::read(Path::new("snapshots").join(name)).unwrap_or_default();
+                if compared == accepted {
+                    changed.push(painting);
+                } else {
+                    stale.push(painting);
+                }
+            }
+        }
+        if !stale.is_empty() {
+            println!(
+                "These paintings changed after their tests compared them, so they were left as they are; run ./scripts/verify again:"
+            );
+            for painting in &stale {
+                let name = painting.file_name().unwrap_or_default().to_string_lossy();
+                println!("  snapshots/{name}");
+            }
+            self.failed = true;
+        }
         if !changed.is_empty() {
             if self.options.check {
                 println!(
@@ -313,7 +348,7 @@ impl Run {
                 self.failed = true;
             }
         }
-        if expected == 0 || directories.len() != expected {
+        if expected == 0 || directories.len() != expected || self.options.build_failed {
             return;
         }
         let used: BTreeSet<_> = directories
@@ -451,6 +486,10 @@ fn git_bytes(arguments: &[&str]) -> Option<Vec<u8>> {
         .output()
         .ok()?;
     output.status.success().then_some(output.stdout)
+}
+
+fn read_the_same(original: &Path, path: &Path) -> bool {
+    fs::read(original).ok() == fs::read(path).ok()
 }
 
 fn create_parent(path: &Path) -> io::Result<()> {
