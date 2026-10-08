@@ -721,7 +721,7 @@ impl<T> Sequence<T> {
             let Some(starts) = self.isolate(*span) else {
                 continue;
             };
-            for start in starts {
+            for &start in &starts {
                 let Some((ci, fi)) = self.locate(start) else {
                     continue;
                 };
@@ -755,7 +755,61 @@ impl<T> Sequence<T> {
                 self.chunks[ci].fragments[fi].visible = visible;
                 self.recount(ci);
             }
+            for start in starts {
+                self.join(start);
+            }
+            if let Some(next) = self.next_first(span.last()) {
+                self.join(next);
+            }
         }
+    }
+
+    fn next_first(&self, pos: Pos) -> Option<Pos> {
+        let (ci, fi) = self.locate(pos)?;
+        match self.chunks[ci].fragments.get(fi + 1) {
+            Some(next) => Some(next.first()),
+            None => self
+                .chunks
+                .get(ci + 1)?
+                .fragments
+                .first()
+                .map(|next| next.first()),
+        }
+    }
+
+    fn join(&mut self, pos: Pos) {
+        let Some((ci, fi)) = self.locate(pos) else {
+            return;
+        };
+        let (pci, pfi) = match fi {
+            0 if ci == 0 => return,
+            0 => (ci - 1, self.chunks[ci - 1].fragments.len().wrapping_sub(1)),
+            _ => (ci, fi - 1),
+        };
+        let Some(&previous) = self.chunks[pci].fragments.get(pfi) else {
+            return;
+        };
+        let current = self.chunks[ci].fragments[fi];
+        if previous.client != current.client
+            || previous.visible != current.visible
+            || previous.end() != current.start
+        {
+            return;
+        }
+        let joined = Fragment {
+            len: previous.len + current.len,
+            ..previous
+        };
+        let held = |fragment| !self.slice(fragment).is_empty();
+        if held(previous) != held(current) || held(previous) != held(joined) {
+            return;
+        }
+        self.chunks[pci].fragments[pfi] = joined;
+        self.chunks[ci].fragments.remove(fi);
+        self.index.remove(&current.first());
+        self.recount(pci);
+        self.recount(ci);
+        self.prune();
     }
 
     fn relocate(
