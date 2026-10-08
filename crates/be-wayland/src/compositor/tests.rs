@@ -3,8 +3,8 @@ use super::*;
 mod a_closed_window_leaves_the_list;
 mod a_dmabuf_window_samples_the_clients_pixels;
 mod a_drawn_window_is_listed_and_fitted_to_where_it_is_shown;
-mod a_shown_dmabuf_is_released_once_a_newer_one_is_painted;
 mod a_maximized_window_keeps_its_place_and_is_told_it_is_maximized;
+mod a_shown_dmabuf_is_released_once_a_newer_one_is_painted;
 mod a_window_asking_for_fullscreen_covers_the_screen;
 mod keys_follow_the_focus_between_beui_and_a_window;
 mod leaving_fullscreen_returns_the_window_to_where_it_was_shown;
@@ -35,24 +35,24 @@ fn shown(windows: Windows) -> impl FnOnce() -> NodeId {
         let covering = windows.clone();
         view! {
             <Layers>
-            <List spacing=0.0>
-                <TextInput
-                    @test_id={"test.input"}
-                    value={text}
-                    on_change={move |line: String| set_text.set(line)}
-                />
-                <ForEach keys={ids}>
-                    {move |id: WindowId| {
-                        let windows = windows.clone();
-                        view! {
-                            <Frame width={SHOWN.x} height={SHOWN.y}>
-                                <WindowView windows id />
-                            </Frame>
-                        }
-                    }}
-                </ForEach>
-            </List>
-            <FullscreenWindow windows={covering} />
+                <List spacing=0.0>
+                    <TextInput
+                        @test_id={"test.input"}
+                        value={text}
+                        on_change={move |line: String| set_text.set(line)}
+                    />
+                    <ForEach keys={ids}>
+                        {move |id: WindowId| {
+                            let windows = windows.clone();
+                            view! {
+                                <Frame width={SHOWN.x} height={SHOWN.y}>
+                                    <WindowView windows id />
+                                </Frame>
+                            }
+                        }}
+                    </ForEach>
+                </List>
+                <FullscreenWindow windows={covering} />
             </Layers>
         }
     }

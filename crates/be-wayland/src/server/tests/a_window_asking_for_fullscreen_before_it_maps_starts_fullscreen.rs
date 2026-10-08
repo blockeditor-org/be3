@@ -10,11 +10,12 @@ fn a_window_asking_for_fullscreen_before_it_maps_starts_fullscreen() {
         .as_ref()
         .unwrap()
         .create_surface(&client.handle, ());
-    let xdg_surface = client
-        .wm_base
-        .as_ref()
-        .unwrap()
-        .get_xdg_surface(&surface, &client.handle, ());
+    let xdg_surface =
+        client
+            .wm_base
+            .as_ref()
+            .unwrap()
+            .get_xdg_surface(&surface, &client.handle, ());
     let toplevel = xdg_surface.get_toplevel(&client.handle, ());
     toplevel.set_fullscreen(None);
     surface.commit();

@@ -454,7 +454,9 @@ impl State {
             return;
         }
         window.fullscreen = fullscreen;
-        surface.with_pending_state(|state| set_state(state, xdg_toplevel::State::Fullscreen, fullscreen));
+        surface.with_pending_state(|state| {
+            set_state(state, xdg_toplevel::State::Fullscreen, fullscreen)
+        });
         self.events.push(ServerEvent::Fullscreen(id, fullscreen));
     }
 
@@ -463,7 +465,9 @@ impl State {
             return;
         };
         window.maximized = maximized;
-        surface.with_pending_state(|state| set_state(state, xdg_toplevel::State::Maximized, maximized));
+        surface.with_pending_state(|state| {
+            set_state(state, xdg_toplevel::State::Maximized, maximized)
+        });
         if surface.is_initial_configure_sent() {
             surface.send_configure();
         }

@@ -264,42 +264,54 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
     let screen = view.screen.clone();
     view! {
         <Layers>
-        <Frame color={theme.background.clone()}>
-            <List spacing=0.0>
-                <Dynamic value={screen}>
-                    {move |screen: Screen| {
-                        let view = view.clone();
-                        match screen {
-                            Screen::Error => view! {
-                                <onboarding::ErrorScreen @sizing=ItemSize::Percent(100.0) view />
-                            },
-                            Screen::Accounts => view! {
-                                <onboarding::AccountsScreen @sizing=ItemSize::Percent(100.0) view />
-                            },
-                            Screen::Workspaces => view! {
-                                <onboarding::WorkspacesScreen
-                                    @sizing=ItemSize::Percent(100.0)
-                                    view
-                                />
-                            },
-                            Screen::Recovery => view! {
-                                <keys::RecoveryScreen @sizing=ItemSize::Percent(100.0) view />
-                            },
-                            Screen::Unlock => view! {
-                                <keys::UnlockScreen @sizing=ItemSize::Percent(100.0) view />
-                            },
-                            Screen::Profiles => view! {
-                                <onboarding::ProfilesScreen @sizing=ItemSize::Percent(100.0) view />
-                            },
-                            Screen::Workspace => view! {
-                                <workspace::WorkspaceScreen @sizing=ItemSize::Percent(100.0) view />
-                            },
-                        }
-                    }}
-                </Dynamic>
-            </List>
-        </Frame>
-        <FullscreenSurface />
+            <Frame color={theme.background.clone()}>
+                <List spacing=0.0>
+                    <Dynamic value={screen}>
+                        {move |screen: Screen| {
+                            let view = view.clone();
+                            match screen {
+                                Screen::Error => view! {
+                                    <onboarding::ErrorScreen
+                                        @sizing=ItemSize::Percent(100.0)
+                                        view
+                                    />
+                                },
+                                Screen::Accounts => view! {
+                                    <onboarding::AccountsScreen
+                                        @sizing=ItemSize::Percent(100.0)
+                                        view
+                                    />
+                                },
+                                Screen::Workspaces => view! {
+                                    <onboarding::WorkspacesScreen
+                                        @sizing=ItemSize::Percent(100.0)
+                                        view
+                                    />
+                                },
+                                Screen::Recovery => view! {
+                                    <keys::RecoveryScreen @sizing=ItemSize::Percent(100.0) view />
+                                },
+                                Screen::Unlock => view! {
+                                    <keys::UnlockScreen @sizing=ItemSize::Percent(100.0) view />
+                                },
+                                Screen::Profiles => view! {
+                                    <onboarding::ProfilesScreen
+                                        @sizing=ItemSize::Percent(100.0)
+                                        view
+                                    />
+                                },
+                                Screen::Workspace => view! {
+                                    <workspace::WorkspaceScreen
+                                        @sizing=ItemSize::Percent(100.0)
+                                        view
+                                    />
+                                },
+                            }
+                        }}
+                    </Dynamic>
+                </List>
+            </Frame>
+            <FullscreenSurface />
         </Layers>
     }
 }

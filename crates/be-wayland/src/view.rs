@@ -26,7 +26,9 @@ pub fn WindowView(windows: Windows, id: WindowId) -> NodeId {
     });
     let fullscreen = windows.fullscreen();
     let node = create_memo(move || {
-        let away = fullscreen.get().is_some_and(|fullscreen| fullscreen.id == id);
+        let away = fullscreen
+            .get()
+            .is_some_and(|fullscreen| fullscreen.id == id);
         (!away).then_some(content)
     });
     view! {
