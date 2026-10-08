@@ -50,6 +50,7 @@ pub(super) struct Instances {
     audio_changes: AudioChanges,
     input_devices: Vec<block_plugin_api::HostInputDevice>,
     displays: Vec<block_plugin_api::HostDisplay>,
+    power: block_plugin_api::PowerAvailability,
 }
 
 struct AudioChanges {
@@ -128,6 +129,9 @@ struct Instance {
     reported_input_devices: Option<Vec<block_plugin_api::HostInputDevice>>,
     watches_displays: bool,
     reported_displays: Option<Vec<block_plugin_api::HostDisplay>>,
+    watches_power: bool,
+    reported_power: Option<block_plugin_api::PowerAvailability>,
+    power_request: Option<block_plugin_api::PowerAction>,
     closed_windows: Vec<block_plugin_api::HostWindowId>,
     fullscreen_windows: Vec<(block_plugin_api::HostWindowId, bool)>,
     grabbed: bool,
@@ -309,6 +313,9 @@ impl Instance {
             reported_input_devices: None,
             watches_displays: false,
             reported_displays: None,
+            watches_power: false,
+            reported_power: None,
+            power_request: None,
             closed_windows: Vec::new(),
             fullscreen_windows: Vec::new(),
             grabbed: false,
@@ -1136,6 +1143,7 @@ impl Instances {
             entry.reported_windows = None;
             entry.reported_input_devices = None;
             entry.reported_displays = None;
+            entry.reported_power = None;
             entry.reported_history = None;
             entry.reported_artifacts.clear();
             entry.reported_size = None;
@@ -1162,6 +1170,7 @@ impl Instances {
         let focus = self.focus.clone();
         let input_devices = self.input_devices.clone();
         let displays = self.displays.clone();
+        let power = self.power;
         let graph = crate::be::graph_revision();
         let graph_moved = self.graph_seen.replace(graph) != Some(graph);
         let mut opened = Vec::new();
@@ -1306,6 +1315,13 @@ impl Instances {
                 opened.push(Message::Editor(EditorMessage::Linux {
                     instance,
                     message: LinuxMessage::Displays(displays.clone()),
+                }));
+            }
+            if entry.watches_power && entry.reported_power != Some(power) {
+                entry.reported_power = Some(power);
+                opened.push(Message::Editor(EditorMessage::Linux {
+                    instance,
+                    message: LinuxMessage::Power(power),
                 }));
             }
             if entry.windows.is_some() && entry.windows != entry.reported_windows {
@@ -2318,12 +2334,18 @@ impl Instances {
                 match message {
                     LinuxMessage::WatchInputDevices => entry.watches_input_devices = true,
                     LinuxMessage::WatchDisplays => entry.watches_displays = true,
+                    LinuxMessage::WatchPower => entry.watches_power = true,
+                    LinuxMessage::RequestPower(action) if self.power.allows(action) => {
+                        entry.power_request = Some(action);
+                    }
                     LinuxMessage::FullscreenWindow { window, fullscreen } => {
                         entry.fullscreen_windows.push((window, fullscreen));
                     }
                     LinuxMessage::Windows(_)
                     | LinuxMessage::InputDevices(_)
-                    | LinuxMessage::Displays(_) => return false,
+                    | LinuxMessage::Displays(_)
+                    | LinuxMessage::Power(_)
+                    | LinuxMessage::RequestPower(_) => return false,
                 }
                 true
             }
@@ -3008,6 +3030,19 @@ impl Instances {
         self.entries
             .values()
             .any(|entry| entry.watches_input_devices)
+    }
+
+    pub(super) fn set_power(&mut self, power: block_plugin_api::PowerAvailability) -> bool {
+        self.power = power;
+        self.entries.values().any(|entry| entry.watches_power)
+    }
+
+    #[cfg(target_os = "linux")]
+    pub(super) fn take_power_request(
+        &mut self,
+        instance: EditorInstanceId,
+    ) -> Option<block_plugin_api::PowerAction> {
+        self.entries.get_mut(&instance)?.power_request.take()
     }
 
     pub(super) fn set_displays(&mut self, displays: Vec<block_plugin_api::HostDisplay>) -> bool {

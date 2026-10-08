@@ -196,9 +196,12 @@ impl EditorSession {
             LinuxMessage::Windows(windows) => self.host.set_windows(windows),
             LinuxMessage::InputDevices(devices) => self.host.set_input_devices(devices),
             LinuxMessage::Displays(displays) => self.host.set_displays(displays),
+            LinuxMessage::Power(power) => self.host.set_power(power),
             LinuxMessage::WatchInputDevices
             | LinuxMessage::WatchDisplays
-            | LinuxMessage::FullscreenWindow { .. } => {}
+            | LinuxMessage::FullscreenWindow { .. }
+            | LinuxMessage::WatchPower
+            | LinuxMessage::RequestPower(_) => {}
         }
     }
 
@@ -593,6 +596,12 @@ impl EditorSession {
                 message: LinuxMessage::FullscreenWindow { window, fullscreen },
             }));
         }
+        for action in self.host.take_power_requests() {
+            messages.push(Message::Editor(EditorMessage::Linux {
+                instance,
+                message: LinuxMessage::RequestPower(action),
+            }));
+        }
         for window in self.host.take_closed_windows() {
             messages.push(Message::Editor(EditorMessage::CloseWindow {
                 instance,
@@ -698,6 +707,12 @@ impl EditorSession {
             messages.push(Message::Editor(EditorMessage::Linux {
                 instance,
                 message: LinuxMessage::WatchInputDevices,
+            }));
+        }
+        if self.host.take_power_watch() {
+            messages.push(Message::Editor(EditorMessage::Linux {
+                instance,
+                message: LinuxMessage::WatchPower,
             }));
         }
         if self.host.take_display_watch() {

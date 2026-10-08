@@ -1,6 +1,7 @@
 mod bar;
 mod calendar;
 mod popup;
+mod power;
 mod sessions;
 
 use std::rc::Rc;

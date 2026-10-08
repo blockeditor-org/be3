@@ -28,12 +28,14 @@ What the launcher passes the app is available to any native run:
 - `--session` (Linux): run on the displays and input devices themselves through
   `beui-adapter-drm` instead of in a window, from a virtual terminal with no other display
   server on it, as the desktop: the shell is linux-desktop instead of workspace-ui, on a
-  profile of its own. Ctrl+Alt+Backspace quits and Ctrl+Alt+F<n> switches terminals.
+  profile of its own. The bar's power menu logs out (see below), Ctrl+Alt+Backspace quits at
+  once and Ctrl+Alt+F<n> switches terminals.
   `BEUI_SCALE` sets its scale.
 - `--desktop` (Linux): the desktop shell, linux-desktop on its own profile as under
   `--session`, in a normal window, with programs opening as windows inside it as they do in
   any windowed run. What needs the displays and input devices themselves, such as display
-  modes and pointer settings, is absent, since `beui-adapter-drm` is not running.
+  modes, pointer settings and the power menu, is absent, since `beui-adapter-drm` is not
+  running: the power actions start only when the DRM seat provides its `DisplayControl`.
   `./scripts/buck run //crates/block-app:smoke-desktop` is its launch check.
 - `--install-session [PREFIX]` (Linux): see below.
 
@@ -71,6 +73,16 @@ whenever that comes. Pointer motion it drops still moves the cursor. A release w
 delivered before the screens went off is still delivered, so no key stays held. The adapter
 turns the screens on itself and reports the wake through `DisplayControl::take_woken`, which
 block-app hands to `Compositor::woke` so the idle count restarts.
+
+The desktop bar's power button suspends, restarts, powers off or logs out. linux-desktop
+asks for what it may offer with `LinuxMessage::WatchPower` and sends `RequestPower`;
+`src/session/power.rs` decides what happens (programs are asked to close, and are given five
+seconds before the session ends or logind is asked to restart or power off) and
+`src/session/logind.rs` talks to `org.freedesktop.login1`, including its `PrepareForSleep`
+signal. Every D-Bus conversation runs on one thread, `src/dbus.rs`: `dbus::spawn` runs a
+future there and `dbus::system()` is the shared system bus connection. A task hands what it
+learns back through `host::waking_channel`, which wakes the event loop, so nothing on the UI
+thread waits on the bus.
 
 ## Wayland programs
 

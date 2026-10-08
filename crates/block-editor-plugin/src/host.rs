@@ -13,8 +13,8 @@ use block_plugin_api::{
     BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect,
     ChildStatus, ClipboardImage, DataListing, EditorRegion, FetchResult, FilePick, FileSave,
     HostDisplay, HostInputDevice, HostPanel, HostReply, HostRequest, HostWindow, HostWindowId,
-    MenuEntry, Occluder, PerformanceMeasurement, ShellDialog, Size, ViewChange, WebViewCommand,
-    WebViewEvent, WebViewId,
+    MenuEntry, Occluder, PerformanceMeasurement, PowerAction, PowerAvailability, ShellDialog, Size,
+    ViewChange, WebViewCommand, WebViewEvent, WebViewId,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;
@@ -359,10 +359,11 @@ pub enum Pushed {
     Windows,
     InputDevices,
     Displays,
+    Power,
 }
 
 impl Pushed {
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 14] = [
         Self::Replies,
         Self::Peers,
         Self::Histories,
@@ -376,6 +377,7 @@ impl Pushed {
         Self::Windows,
         Self::InputDevices,
         Self::Displays,
+        Self::Power,
     ];
 }
 
@@ -390,6 +392,10 @@ pub struct EditorHost {
     displays: Rc<RefCell<Vec<HostDisplay>>>,
     watching_displays: Rc<Cell<bool>>,
     reported_display_watch: Rc<Cell<bool>>,
+    power: Rc<Cell<PowerAvailability>>,
+    watching_power: Rc<Cell<bool>>,
+    reported_power_watch: Rc<Cell<bool>>,
+    power_requests: Rc<RefCell<Vec<PowerAction>>>,
     closed_windows: Rc<RefCell<Vec<HostWindowId>>>,
     fullscreen_windows: Rc<RefCell<Vec<(HostWindowId, bool)>>>,
     pick_requests: Rc<RefCell<Vec<PickRequest>>>,
@@ -618,6 +624,36 @@ impl EditorHost {
             self.reported_display_watch.set(true);
         }
         wanted
+    }
+
+    pub fn power(&self) -> PowerAvailability {
+        self.watching_power.set(true);
+        self.power.get()
+    }
+
+    pub fn set_power(&self, power: PowerAvailability) {
+        if self.power.get() == power {
+            return;
+        }
+        self.power.set(power);
+        self.push(Pushed::Power);
+    }
+
+    pub(crate) fn take_power_watch(&self) -> bool {
+        let wanted = self.watching_power.get() && !self.reported_power_watch.get();
+        if wanted {
+            self.reported_power_watch.set(true);
+        }
+        wanted
+    }
+
+    pub fn request_power(&self, action: PowerAction) {
+        self.power_requests.borrow_mut().push(action);
+        self.changed();
+    }
+
+    pub(crate) fn take_power_requests(&self) -> Vec<PowerAction> {
+        std::mem::take(&mut self.power_requests.borrow_mut())
     }
 
     pub(crate) fn take_input_device_watch(&self) -> bool {

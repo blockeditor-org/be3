@@ -53,6 +53,7 @@ struct Host {
     focus: Focus,
     input_devices: Vec<block_plugin_api::HostInputDevice>,
     displays: Vec<block_plugin_api::HostDisplay>,
+    power: block_plugin_api::PowerAvailability,
     grabbed: bool,
 }
 
@@ -67,6 +68,7 @@ impl Host {
             focus: Focus::default(),
             input_devices: Vec::new(),
             displays: Vec::new(),
+            power: block_plugin_api::PowerAvailability::default(),
             grabbed: false,
         }
     }
@@ -81,6 +83,7 @@ impl Host {
         let focus = self.focus.clone();
         let devices = &self.input_devices;
         let displays = &self.displays;
+        let power = self.power;
         let runtime = self
             .runtimes
             .entry(plugin.identity.id.clone())
@@ -88,6 +91,7 @@ impl Host {
                 let mut runtime = Runtime::new(plugin, surface);
                 runtime.instances.set_input_devices(devices.clone());
                 runtime.instances.set_displays(displays.clone());
+                runtime.instances.set_power(power);
                 runtime
             });
         runtime.instances.set_focus(focus);
@@ -967,6 +971,35 @@ pub(crate) fn set_displays(displays: Vec<block_plugin_api::HostDisplay>) {
         }
     });
     host::request_repaint();
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn set_power(power: block_plugin_api::PowerAvailability) {
+    HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        if host.power == power {
+            return;
+        }
+        host.power = power;
+        for (plugin_id, runtime) in &mut host.runtimes {
+            if runtime.instances.set_power(power) {
+                runtime.pacing.needed = true;
+                mark(plugin_id);
+            }
+        }
+    });
+    host::request_repaint();
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn take_power_request(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+) -> Option<block_plugin_api::PowerAction> {
+    with(plugin_id, |runtime| {
+        runtime.instances.take_power_request(instance)
+    })
+    .flatten()
 }
 
 pub(crate) fn take_focus_report(plugin_id: &str, instance: EditorInstanceId) -> Option<Focus> {

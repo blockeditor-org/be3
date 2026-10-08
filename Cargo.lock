@@ -1189,6 +1189,8 @@ version = "0.1.0"
 dependencies = [
  "arboard",
  "ashpd",
+ "async-executor",
+ "async-lock",
  "be-block",
  "be-client",
  "be-commit",
@@ -1232,6 +1234,7 @@ dependencies = [
  "windows-sys 0.59.0",
  "winit",
  "wry",
+ "zbus",
  "zip",
 ]
 

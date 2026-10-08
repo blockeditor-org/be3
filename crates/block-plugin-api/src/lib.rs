@@ -9,6 +9,7 @@ mod session;
 pub use block_ids::BlockIdRole;
 pub use linux::{
     HostDisplay, HostDisplayMode, HostInputDevice, HostWindow, HostWindowId, LinuxMessage,
+    PowerAction, PowerAvailability,
 };
 pub use manifest::{
     EditorDocument, ManifestDocument, TemplateDocument, Templates, manifest_from_json,
@@ -2613,7 +2614,10 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             }
             LinuxMessage::WatchInputDevices
             | LinuxMessage::WatchDisplays
-            | LinuxMessage::FullscreenWindow { .. } => Ok(()),
+            | LinuxMessage::FullscreenWindow { .. }
+            | LinuxMessage::WatchPower
+            | LinuxMessage::Power(_)
+            | LinuxMessage::RequestPower(_) => Ok(()),
         },
         EditorMessage::Menu { entries, .. } => menu(entries),
         EditorMessage::MenuPick { id, .. } | EditorMessage::ChildMenuPick { id, .. } => string(id),

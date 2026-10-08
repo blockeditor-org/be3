@@ -16,6 +16,7 @@ use block_shell::Workspace;
 
 use super::calendar::{CALENDAR_WIDTH, DesktopCalendar};
 use super::popup::BarPopup;
+use super::power::PowerMenu;
 use super::sessions::sessions;
 
 const BAR_PADDING: f32 = 6.0;
@@ -52,6 +53,7 @@ pub(crate) fn DesktopBar(workspace: Rc<Workspace>) -> NodeId {
     let theme = use_theme();
     let clock = wall_clock();
     let editor = workspace.editor().clone();
+    let power = editor.clone();
     let dated = editor.clone();
     let launching = editor.clone();
     let launcher = move || launching.host().show_launcher(launching.block_id());
@@ -125,6 +127,7 @@ pub(crate) fn DesktopBar(workspace: Rc<Workspace>) -> NodeId {
                             <DesktopCalendar editor={dated.clone()} />
                         }}
                     </BarPopup>
+                    <PowerMenu editor={power} />
                 </List>
             </Frame>
         </List>

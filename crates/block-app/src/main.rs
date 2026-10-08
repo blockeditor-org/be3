@@ -3,6 +3,8 @@ mod app_state;
 mod be;
 mod block_label;
 mod compositor;
+#[cfg(target_os = "linux")]
+mod dbus;
 mod debug;
 mod display;
 mod editors;
@@ -226,6 +228,10 @@ impl beui::App for Shell {
         if let Some(problems) = setup.get::<beui_adapter_drm::Problems>() {
             problems.listen(notices::report);
         }
+        #[cfg(target_os = "linux")]
+        if self.app.desktop.is_none() && session::owns_a_seat(setup) {
+            self.app.desktop = Some(session::DesktopSession::start());
+        }
         display::start(setup);
         self.app.input.boot(&self.app.app_state);
         self.app.display.boot(&self.app.app_state);
@@ -363,6 +369,8 @@ struct BlockApp {
     dev_workspace: bool,
     keys: keys::KeyState,
     workspace_key: Option<[u8; 32]>,
+    #[cfg(target_os = "linux")]
+    desktop: Option<session::DesktopSession>,
 }
 
 type Account = SavedAccount;
@@ -543,12 +551,25 @@ impl BlockApp {
             dev_workspace: false,
             keys: keys::KeyState::default(),
             workspace_key: None,
+            #[cfg(target_os = "linux")]
+            desktop: None,
         })
     }
 
     #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
     fn run_as_desktop(&mut self) {
         self.root_settings = RootSettings::new(be_block::LINUX_DESKTOP_EDITOR);
+    }
+
+    #[cfg(target_os = "linux")]
+    fn run_desktop_session(&mut self, context: &beui::Context) {
+        let request = self
+            .shell
+            .and_then(|shell| self.with_editor(shell, |editor| editor.take_power_request()))
+            .flatten();
+        if let Some(desktop) = &mut self.desktop {
+            desktop.frame(context, request);
+        }
     }
 
     #[cfg(not(target_os = "android"))]
@@ -1896,6 +1917,8 @@ impl BlockApp {
         self.process_pending_copies();
         debug::poll();
         self.show_shell();
+        #[cfg(target_os = "linux")]
+        self.run_desktop_session(context);
         self.poll_artifacts();
         plugin_host::flush();
         performance::end_frame();

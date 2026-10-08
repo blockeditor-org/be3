@@ -114,10 +114,13 @@ rfd = "0.15"
 # displays and input devices themselves rather than in a window.
 [target.'cfg(target_os = "linux")'.dependencies]
 ashpd = { version = "0.11", default-features = false, features = ["async-std"] }
+async-executor = "1"
+async-lock = "3"
 be-dmabuf = { path = "../be-dmabuf" }
 be-wayland = { path = "../be-wayland" }
 beui-adapter-drm = { path = "../beui-adapter-drm" }
 pollster = "0.4"
+zbus = { version = "5", default-features = false, features = ["async-io"] }
 
 [target.'cfg(all(unix, not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]
 libc = "0.2"
