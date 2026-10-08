@@ -15,7 +15,6 @@ pub use manifest::{
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 73;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_TEXT_BYTES: usize = 64 * 1024 * 1024;
@@ -1588,7 +1587,6 @@ pub struct AudioStatus {
 pub enum Message {
     Hello(Hello),
     HelloAccepted(HelloAccepted),
-    HelloRejected(ProtocolError),
     Theme(Theme),
     UtcOffset(i32),
     Fonts(Fonts),
@@ -1617,7 +1615,6 @@ impl Message {
             self,
             Self::Hello(_)
                 | Self::HelloAccepted(_)
-                | Self::HelloRejected(_)
                 | Self::Acknowledged { .. }
                 | Self::Error(_)
                 | Self::Shutdown
@@ -1637,7 +1634,6 @@ impl Message {
     pub fn direction(&self) -> Direction {
         match self {
             Self::HelloAccepted(_)
-            | Self::HelloRejected(_)
             | Self::Theme(_)
             | Self::UtcOffset(_)
             | Self::Fonts(_)
@@ -1753,14 +1749,12 @@ impl EditorMessage {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Hello {
-    pub version: u16,
     pub plugin: PluginIdentity,
     pub surface: SurfaceSupport,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HelloAccepted {
-    pub version: u16,
     pub host_name: String,
     pub surface: Option<SurfaceSpec>,
     pub theme: Theme,
@@ -2266,7 +2260,6 @@ pub struct ProtocolError {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ErrorCode {
-    UnsupportedVersion,
     InvalidMessage,
     InvalidState,
     Internal,
@@ -2325,7 +2318,7 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
             strings([&value.plugin.id, &value.plugin.name, &value.plugin.version])
         }
         Message::HelloAccepted(value) => string(&value.host_name),
-        Message::HelloRejected(value) | Message::Error(value) => string(&value.message),
+        Message::Error(value) => string(&value.message),
         Message::Input(value) => {
             collection(value.events.len())?;
             for event in &value.events {
