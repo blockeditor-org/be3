@@ -170,6 +170,23 @@ fn resolve_rect(
             content_size,
         );
     }
+    let mut content_size = content_size.min(viewport.size());
+    if placement == Placement::BelowStart {
+        let below = viewport.bottom() - anchor_rect.bottom();
+        let above = anchor_rect.top() - viewport.top();
+        if content_size.y > below && content_size.y > above && below.max(above) > 0.0 {
+            content_size.y = below.max(above);
+            let top = match below >= above {
+                true => anchor_rect.bottom(),
+                false => anchor_rect.top() - content_size.y,
+            };
+            let left = anchor_rect
+                .left()
+                .min(viewport.right() - content_size.x)
+                .max(viewport.left());
+            return Rect::from_min_size(pos2(left, top), content_size);
+        }
+    }
     let mut origin = match placement {
         Placement::BelowStart => pos2(anchor_rect.left(), anchor_rect.bottom()),
         Placement::RightStart => pos2(anchor_rect.right(), anchor_rect.top()),
