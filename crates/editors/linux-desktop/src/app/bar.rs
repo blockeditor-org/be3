@@ -14,9 +14,9 @@ use block_editor_beui::beui::unstyled::{MenuItem, PopoverHandle};
 use block_editor_beui::utc_offset;
 use block_shell::Workspace;
 
-use super::power::PowerMenu;
 use super::calendar::{CALENDAR_WIDTH, DesktopCalendar};
 use super::popup::BarPopup;
+use super::power::PowerMenu;
 use super::sessions::sessions;
 
 const BAR_PADDING: f32 = 6.0;
