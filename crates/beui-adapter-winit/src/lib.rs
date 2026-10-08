@@ -98,6 +98,7 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
         load: Some(load),
         surface: None,
         modifiers: Modifiers::NONE,
+        reported_modifiers: Modifiers::NONE,
         pointer: Pos2::ZERO,
         emulated_touch: false,
         held_buttons: 0,
@@ -133,6 +134,7 @@ struct Runner {
     load: Option<Load>,
     surface: Option<Surface>,
     modifiers: Modifiers,
+    reported_modifiers: Modifiers,
     pointer: Pos2,
     emulated_touch: bool,
     held_buttons: u8,
@@ -237,7 +239,15 @@ impl Runner {
     }
 
     fn push(&mut self, event: Event) {
+        self.report_modifiers();
         self.runner.push(event);
+    }
+
+    fn report_modifiers(&mut self) {
+        if self.modifiers != self.reported_modifiers {
+            self.reported_modifiers = self.modifiers;
+            self.runner.push(Event::Modifiers(self.modifiers));
+        }
     }
 
     fn context(&self) -> &Context {
@@ -294,6 +304,7 @@ impl Runner {
     }
 
     fn redraw(&mut self, event_loop: &ActiveEventLoop) {
+        self.report_modifiers();
         if !std::mem::take(&mut self.prepared) || self.runner.has_events() {
             self.update(event_loop);
         }
@@ -318,6 +329,7 @@ impl Runner {
 
 impl ApplicationHandler<UserEvent> for Runner {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        self.report_modifiers();
         if (self.runner.has_events()
             || self
                 .next_update
@@ -476,7 +488,6 @@ impl ApplicationHandler<UserEvent> for Runner {
                     shift: state.shift_key(),
                     logo: !command && state.super_key(),
                 };
-                self.push(Event::Modifiers(self.modifiers));
             }
             WindowEvent::CursorMoved { position, .. } => {
                 self.pointer = self.logical(position);
@@ -565,6 +576,7 @@ impl ApplicationHandler<UserEvent> for Runner {
                 self.push(Event::Zoom(1.0 + delta as f32));
             }
             WindowEvent::KeyboardInput { event, .. } => {
+                self.report_modifiers();
                 let pressed = event.state == ElementState::Pressed;
                 #[cfg(target_os = "linux")]
                 if !event.repeat {
