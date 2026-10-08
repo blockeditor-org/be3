@@ -3,12 +3,14 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::{
     Frame, Memo, batch, clone, component, create_effect, create_memo, create_signal, untrack, view,
 };
+use block_editor_beui::beui::unstyled::container_size;
 use block_editor_beui::{BlockQuery, ChildBlock, ChildMode, ChildTarget, Editor};
 use uuid::Uuid;
 
 pub(crate) const CALENDAR_STATE: &str = "desktop.calendar";
 pub(crate) const CALENDAR_WIDTH: f32 = 640.0;
-const HEIGHT: f32 = 480.0;
+const HEIGHT: f32 = 600.0;
+const SCREEN_SHARE: f32 = 0.8;
 
 #[component]
 pub(crate) fn DesktopCalendar(editor: Editor) -> NodeId {
@@ -18,8 +20,16 @@ pub(crate) fn DesktopCalendar(editor: Editor) -> NodeId {
             .get()
             .map(|id| ChildTarget::new(id, Calendar::CONTENT_TYPE))
     });
+    let screen = container_size();
+    let height = create_memo(move || {
+        let room = screen
+            .as_ref()
+            .map(|screen| screen.get().y * SCREEN_SHARE)
+            .filter(|room| *room > 0.0);
+        Some(room.map_or(HEIGHT, |room| room.min(HEIGHT)))
+    });
     view! {
-        <Frame max_width=CALENDAR_WIDTH max_height=HEIGHT @test_id={"desktop.calendar"}>
+        <Frame max_width=CALENDAR_WIDTH height={height} @test_id={"desktop.calendar"}>
             <ChildBlock editor={editor} block={target} mode=ChildMode::Live own_frame=true />
         </Frame>
     }
