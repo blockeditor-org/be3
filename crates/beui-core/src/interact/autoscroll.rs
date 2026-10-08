@@ -46,7 +46,7 @@ pub fn track(
         match event {
             Event::Key {
                 key, pressed: true, ..
-            } => {
+            } if !key.is_modifier() => {
                 ended = true;
                 swallows_escape |= key == Key::Escape;
             }

@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use beui::styled::LauncherItem;
-use beui::{Event, Modifiers};
+use beui::{Event, Key};
 
 use crate::{host, wayland};
 
@@ -9,7 +9,6 @@ const ICON_POINTS: f32 = 32.0;
 
 #[derive(Default)]
 pub(crate) struct SuperTap {
-    held: Modifiers,
     armed: bool,
 }
 
@@ -18,14 +17,16 @@ impl SuperTap {
         let mut tapped = false;
         for event in events {
             match *event {
-                Event::Modifiers(modifiers) => {
-                    let was = std::mem::replace(&mut self.held, modifiers);
-                    if modifiers == Modifiers::LOGO && was == Modifiers::NONE {
-                        self.armed = true;
-                    } else if was == Modifiers::LOGO && modifiers == Modifiers::NONE {
+                Event::Key {
+                    key: Key::Logo,
+                    pressed,
+                    repeat,
+                    modifiers,
+                } => {
+                    if !pressed {
                         tapped |= std::mem::take(&mut self.armed);
-                    } else {
-                        self.armed = false;
+                    } else if !repeat {
+                        self.armed = !modifiers.alt && !modifiers.ctrl && !modifiers.shift;
                     }
                 }
                 Event::Key { pressed: true, .. }

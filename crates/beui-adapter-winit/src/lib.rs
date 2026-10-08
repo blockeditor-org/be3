@@ -589,7 +589,7 @@ impl ApplicationHandler<UserEvent> for Runner {
                 {
                     self.push(Event::Text(text));
                 }
-                if let Some(key) = named {
+                if let Some(key) = named.filter(|key| !(event.repeat && key.is_modifier())) {
                     self.push(Event::Key {
                         key,
                         pressed,
@@ -880,6 +880,11 @@ fn named_key(named: NamedKey) -> Option<Key> {
         NamedKey::MediaTrackNext => Key::MediaNext,
         NamedKey::MediaTrackPrevious => Key::MediaPrevious,
         NamedKey::MediaStop => Key::MediaStop,
+        NamedKey::Shift => Key::Shift,
+        NamedKey::Control => Key::Ctrl,
+        NamedKey::Alt => Key::Alt,
+        NamedKey::Super if cfg!(target_os = "macos") => Key::Ctrl,
+        NamedKey::Super => Key::Logo,
         _ => return None,
     };
     Some(key)

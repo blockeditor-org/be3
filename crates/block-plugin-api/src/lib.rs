@@ -2092,10 +2092,14 @@ pub enum Key {
     MediaNext,
     MediaPrevious,
     MediaStop,
+    Shift,
+    Control,
+    Alt,
+    Logo,
 }
 
 impl Key {
-    pub const ALL: [Self; 118] = [
+    pub const ALL: [Self; 122] = [
         Self::ArrowDown,
         Self::ArrowLeft,
         Self::ArrowRight,
@@ -2214,6 +2218,10 @@ impl Key {
         Self::MediaNext,
         Self::MediaPrevious,
         Self::MediaStop,
+        Self::Shift,
+        Self::Control,
+        Self::Alt,
+        Self::Logo,
     ];
 }
 

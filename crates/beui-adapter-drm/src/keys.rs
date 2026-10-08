@@ -50,6 +50,12 @@ pub fn key(keysym: u32) -> Option<Key> {
         keysyms::KEY_XF86AudioNext => Key::MediaNext,
         keysyms::KEY_XF86AudioPrev => Key::MediaPrevious,
         keysyms::KEY_XF86AudioStop => Key::MediaStop,
+        keysyms::KEY_Shift_L | keysyms::KEY_Shift_R => Key::Shift,
+        keysyms::KEY_Control_L | keysyms::KEY_Control_R => Key::Ctrl,
+        keysyms::KEY_Alt_L | keysyms::KEY_Alt_R | keysyms::KEY_Meta_L | keysyms::KEY_Meta_R => {
+            Key::Alt
+        }
+        keysyms::KEY_Super_L | keysyms::KEY_Super_R => Key::Logo,
         keysyms::KEY_F1..=keysyms::KEY_F24 => FUNCTION[(keysym - keysyms::KEY_F1) as usize],
         _ => letter(keysym)?,
     };

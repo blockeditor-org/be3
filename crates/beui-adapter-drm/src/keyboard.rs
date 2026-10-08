@@ -75,12 +75,14 @@ impl Keyboard {
                 repeat: false,
                 modifiers: held,
             });
-            repeated.push(Event::Key {
-                key,
-                pressed: true,
-                repeat: true,
-                modifiers: held,
-            });
+            if !key.is_modifier() {
+                repeated.push(Event::Key {
+                    key,
+                    pressed: true,
+                    repeat: true,
+                    modifiers: held,
+                });
+            }
         }
         if pressed && !held.command() && !text.is_empty() && !text.chars().any(char::is_control) {
             out.events.push(Event::Text(text.clone()));

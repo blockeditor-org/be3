@@ -343,7 +343,7 @@ pub fn interact(
             }
             Event::Text(_) | Event::Key { .. } | Event::Ime(_) if keys.ignored() => continue,
             Event::Text(_) | Event::Key { .. } | Event::Ime(_) if forwarded_keys => continue,
-            Event::Key { .. } if keys.claimed(&event) => {
+            Event::Key { key, .. } if key.is_modifier() || keys.claimed(&event) => {
                 continue;
             }
             Event::Text(text) => {
