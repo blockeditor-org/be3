@@ -196,7 +196,9 @@ impl EditorSession {
             LinuxMessage::Windows(windows) => self.host.set_windows(windows),
             LinuxMessage::InputDevices(devices) => self.host.set_input_devices(devices),
             LinuxMessage::Displays(displays) => self.host.set_displays(displays),
-            LinuxMessage::WatchInputDevices | LinuxMessage::WatchDisplays => {}
+            LinuxMessage::WatchInputDevices
+            | LinuxMessage::WatchDisplays
+            | LinuxMessage::FullscreenWindow { .. } => {}
         }
     }
 
@@ -583,6 +585,12 @@ impl EditorSession {
                 instance,
                 pick,
                 answer,
+            }));
+        }
+        for (window, fullscreen) in self.host.take_fullscreen_windows() {
+            messages.push(Message::Editor(EditorMessage::Linux {
+                instance,
+                message: LinuxMessage::FullscreenWindow { window, fullscreen },
             }));
         }
         for window in self.host.take_closed_windows() {

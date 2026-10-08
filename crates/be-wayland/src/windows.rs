@@ -14,6 +14,7 @@ pub struct WindowInfo {
     pub app_id: String,
     pub parent: Option<WindowId>,
     pub size: Vec2,
+    pub fullscreen: Option<Rect>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -48,6 +49,7 @@ struct Inner {
     windows: RefCell<HashMap<WindowId, WindowSignals>>,
     views: RefCell<HashMap<WindowId, View>>,
     commands: RefCell<Vec<Command>>,
+    fullscreen_requests: RefCell<Vec<(WindowId, bool)>>,
     focused: Cell<Option<WindowId>>,
     list: ReadSignal<Vec<WindowInfo>>,
     set_list: WriteSignal<Vec<WindowInfo>>,
@@ -67,6 +69,7 @@ impl Windows {
             windows: RefCell::new(HashMap::new()),
             views: RefCell::new(HashMap::new()),
             commands: RefCell::new(Vec::new()),
+            fullscreen_requests: RefCell::new(Vec::new()),
             focused: Cell::new(None),
             list,
             set_list,
@@ -90,6 +93,23 @@ impl Windows {
 
     pub fn cursor(&self) -> ReadSignal<CursorIcon> {
         self.0.cursor.clone()
+    }
+
+    pub fn request_fullscreen(&self, id: WindowId, fullscreen: bool) {
+        self.0
+            .fullscreen_requests
+            .borrow_mut()
+            .push((id, fullscreen));
+    }
+
+    pub(crate) fn take_fullscreen_requests(&self) -> Vec<(WindowId, bool)> {
+        std::mem::take(&mut *self.0.fullscreen_requests.borrow_mut())
+    }
+
+    pub(crate) fn raise(&self, id: WindowId) {
+        if let Some(signals) = self.signals(id) {
+            signals.set_focused.set(true);
+        }
     }
 
     pub fn close(&self, id: WindowId) {

@@ -391,6 +391,7 @@ pub struct EditorHost {
     watching_displays: Rc<Cell<bool>>,
     reported_display_watch: Rc<Cell<bool>>,
     closed_windows: Rc<RefCell<Vec<HostWindowId>>>,
+    fullscreen_windows: Rc<RefCell<Vec<(HostWindowId, bool)>>>,
     pick_requests: Rc<RefCell<Vec<PickRequest>>>,
     dialog_requests: Rc<RefCell<Vec<(Uuid, ShellDialog)>>>,
     access_changes: Rc<RefCell<Vec<(Uuid, Uuid, AccessLevel)>>>,
@@ -634,6 +635,17 @@ impl EditorHost {
 
     pub(crate) fn take_closed_windows(&self) -> Vec<HostWindowId> {
         std::mem::take(&mut self.closed_windows.borrow_mut())
+    }
+
+    pub fn fullscreen_window(&self, window: HostWindowId, fullscreen: bool) {
+        self.fullscreen_windows
+            .borrow_mut()
+            .push((window, fullscreen));
+        self.changed();
+    }
+
+    pub(crate) fn take_fullscreen_windows(&self) -> Vec<(HostWindowId, bool)> {
+        std::mem::take(&mut self.fullscreen_windows.borrow_mut())
     }
 
     pub fn show_block(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>) {

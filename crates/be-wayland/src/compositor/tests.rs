@@ -4,11 +4,19 @@ mod a_click_on_beui_dismisses_a_grabbed_popup;
 mod a_closed_window_leaves_the_list;
 mod a_dmabuf_window_samples_the_clients_pixels;
 mod a_drawn_window_is_listed_and_fitted_to_where_it_is_shown;
+mod a_fullscreen_window_covers_only_its_own_screen;
+mod a_maximized_window_keeps_its_place_and_is_told_it_is_maximized;
 mod a_program_that_is_not_found_is_reported;
 mod a_shown_dmabuf_is_released_once_a_newer_one_is_painted;
+mod a_window_asking_for_fullscreen_before_it_is_shown_is_answered;
+mod a_window_asking_for_fullscreen_covers_the_screen;
 mod keys_follow_the_focus_between_beui_and_a_window;
+mod leaving_fullscreen_returns_the_window_to_where_it_was_shown;
+mod super_f_toggles_fullscreen_on_the_focused_window;
+mod the_f_of_super_f_released_elsewhere_is_not_held_against_the_next;
+mod the_ui_can_make_a_window_fullscreen_and_take_it_back;
 
-use beui::reactive::{ForEach, Frame, List, build, create_signal, view};
+use beui::reactive::{ForEach, Frame, List, build, clone, create_memo, create_signal, view};
 use beui::styled::TextInput;
 use beui::{FrameOutput, NodeId, RawInput, pos2};
 
@@ -29,7 +37,7 @@ struct Harness {
 fn shown(windows: Windows) -> impl FnOnce() -> NodeId {
     move || {
         let (text, set_text) = create_signal(String::new());
-        let ids = beui::reactive::create_memo(clone_list(&windows));
+        let ids = create_memo(clone_list(&windows));
         view! {
             <List spacing=0.0>
                 <TextInput
@@ -40,8 +48,19 @@ fn shown(windows: Windows) -> impl FnOnce() -> NodeId {
                 <ForEach keys={ids}>
                     {move |id: WindowId| {
                         let windows = windows.clone();
+                        let list = windows.list();
+                        let size = create_memo(move || {
+                            list.with(|list| {
+                                list.iter()
+                                    .find(|info| info.id == id)
+                                    .and_then(|info| info.fullscreen)
+                                    .map_or(SHOWN, |area| area.size())
+                            })
+                        });
+                        let width = create_memo(clone!(size -> move || Some(size.get().x)));
+                        let height = create_memo(move || Some(size.get().y));
                         view! {
-                            <Frame width={SHOWN.x} height={SHOWN.y}>
+                            <Frame width height>
                                 <WindowView windows id />
                             </Frame>
                         }
@@ -143,6 +162,17 @@ impl Harness {
         self.client.attach_unsent(&window, width, height);
         self.settle();
         (window, id)
+    }
+
+    fn window(&self, id: WindowId) -> Rect {
+        self.rect(&format!("wayland.window.{}", id.0))
+    }
+
+    fn acknowledge(&mut self, window: &TestWindow) {
+        if let Some(serial) = self.client.received.configured.take() {
+            window.xdg_surface.ack_configure(serial);
+        }
+        self.settle();
     }
 
     fn rect(&self, test_id: &str) -> Rect {

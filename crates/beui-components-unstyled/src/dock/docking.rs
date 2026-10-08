@@ -15,7 +15,9 @@ use beui_view::reactive::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::state::{DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow};
+use super::state::{
+    DockFullscreen, DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow,
+};
 use super::{
     Dock, DockBarHandle, DockChromeHandle, DockConfig, DockGripHandle, DockMode, DockPreviewHandle,
     DockSplitterHandle, DockStackHandle, DockState, DockSwitcherHandle, DockTabHandle, GroupId,
@@ -367,6 +369,22 @@ impl<K: DockKey> DockingLayout<K> {
         self.edit(|state| state.show(tab));
     }
 
+    pub fn fullscreen(&self) -> Option<K> {
+        let tab = self.inner.state.with(DockState::fullscreen)?.tab;
+        self.key_of(tab)
+    }
+
+    pub fn enter_fullscreen(&self, key: &K, area: Option<Rect>) {
+        let Some(tab) = self.tab_of(key) else {
+            return;
+        };
+        self.edit(|state| state.set_fullscreen(Some(DockFullscreen { tab, area })));
+    }
+
+    pub fn leave_fullscreen(&self) {
+        self.edit(|state| state.set_fullscreen(None));
+    }
+
     fn edit(&self, change: impl FnOnce(&mut DockState)) {
         let current = self.inner.state.get_untracked();
         let mut next = current.clone();
@@ -588,6 +606,7 @@ pub fn Docking<K>(
     #[prop(default = 0.0)] inset: Prop<f32>,
     tab: RenderFn<DockTabHandle>,
     frame: Option<RenderFn<NodeId>>,
+    fullscreen: Option<RenderFn<NodeId>>,
     chrome: Option<RenderFn<DockChromeHandle>>,
     bar: Option<RenderFn<DockBarHandle>>,
     splitter: Option<RenderFn<DockSplitterHandle>>,
@@ -709,6 +728,7 @@ where
                 tab,
                 content,
                 empty,
+                fullscreen,
                 chrome,
                 bar,
                 splitter,

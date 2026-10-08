@@ -61,7 +61,8 @@ program is a `ListBoxOption`. A program can also be started against the socket d
     WAYLAND_DISPLAY=/tmp/be-wayland-<the app's pid> foot
 
 Each window opens as a tab of the workspace. `weston-simple-shm` (from the `weston` package)
-and `foot` are small clients to try it with.
+and `foot` are small clients to try it with. `foot --fullscreen` starts one fullscreen, and Super+F toggles fullscreen on the focused
+window.
 
 ## Seeing what is on screen
 

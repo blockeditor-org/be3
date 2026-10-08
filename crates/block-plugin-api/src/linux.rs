@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{Direction, Size};
+use crate::{ChildRect, Direction, Size};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct HostWindowId(pub u64);
@@ -12,6 +12,7 @@ pub struct HostWindow {
     pub app_id: String,
     pub parent: Option<HostWindowId>,
     pub size: Size,
+    pub fullscreen: Option<ChildRect>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -48,13 +49,19 @@ pub enum LinuxMessage {
     InputDevices(Vec<HostInputDevice>),
     WatchDisplays,
     Displays(Vec<HostDisplay>),
+    FullscreenWindow {
+        window: HostWindowId,
+        fullscreen: bool,
+    },
 }
 
 impl LinuxMessage {
     pub fn direction(&self) -> Direction {
         match self {
             Self::Windows(_) | Self::InputDevices(_) | Self::Displays(_) => Direction::ToPlugin,
-            Self::WatchInputDevices | Self::WatchDisplays => Direction::ToHost,
+            Self::WatchInputDevices | Self::WatchDisplays | Self::FullscreenWindow { .. } => {
+                Direction::ToHost
+            }
         }
     }
 }

@@ -28,6 +28,8 @@ pub(crate) fn listed() -> Vec<HostWindow> {
 
 pub(crate) fn close(_window: HostWindowId) {}
 
+pub(crate) fn fullscreen(_window: HostWindowId, _fullscreen: bool) {}
+
 pub(crate) fn launch(_command: String) -> bool {
     false
 }

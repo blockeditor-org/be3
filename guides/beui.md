@@ -1118,6 +1118,18 @@ the tab is hidden behind another, dragged to another pane, or floated into a
 window. A panel no pane is showing is laid out by nobody, so it costs nothing
 and a screen reader does not read it. Closing the tab is what removes it.
 
+One tab at a time can be fullscreen: `DockState::set_fullscreen` with a
+`DockFullscreen` naming the tab and an area (a rect in document coordinates, or
+`None` for the whole document), `DockingLayout::enter_fullscreen` and
+`leave_fullscreen` from outside, or the `DockTabControl` that `use_dock_tab()`
+hands the tab's own content. The panel moves into a floating overlay over that
+area, wrapped in Docking's `fullscreen` render prop (styled: the theme's
+background), so it covers the tab bars, the other panes and anything else in the
+document there, and nothing under it hears the pointer, while the rest of the
+document stays live. Leaving puts the panel back in its pane without rebuilding
+it. The dock binds no key to leave: whoever enters fullscreen offers the way out,
+as the demo's Escape does. Fullscreen is not part of the saved layout.
+
 ### Spinners
 
 `styled::Spinner` is an indeterminate progress bar. It animates only while it is

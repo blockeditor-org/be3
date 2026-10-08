@@ -62,6 +62,7 @@ where
         DockMode::Stacked => 0.0,
     }));
     let theme = use_theme();
+    let backdrop = theme.background.clone();
     let fill = create_memo(clone!(mode -> move || match mode.get() {
         DockMode::Tiled => Color32::TRANSPARENT,
         DockMode::Stacked => theme.background.get(),
@@ -78,6 +79,9 @@ where
             children
             frame={move |body: NodeId| view! {
                 <Frame color={fill.clone()}>{body}</Frame>
+            }}
+            fullscreen={move |body: NodeId| view! {
+                <Frame color={backdrop.clone()}>{body}</Frame>
             }}
             stack={move |handle: DockStackHandle| view! {
                 <DockStackBar handle />

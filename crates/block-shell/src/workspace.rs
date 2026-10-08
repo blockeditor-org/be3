@@ -6,7 +6,6 @@ use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_WEB_ASSET;
 use block_editor_beui::beui::reactive::{
     Frame, ItemSize, List, Memo, ReadSignal, Spacer, WriteSignal, batch, clone, component,
@@ -16,6 +15,7 @@ use block_editor_beui::beui::styled::{Caption, use_theme};
 use block_editor_beui::beui::unstyled::{
     DockEntry, DockNode, DockPane, DockTab, DockWindow, DockingLayout, TabId,
 };
+use block_editor_beui::beui::{NodeId, Rect, pos2, vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
     AccessLevel, BlockFilter, BlockPick, ChildState, Editor, EditorHost, FocusedBlock, HostPanel,
@@ -976,6 +976,19 @@ pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<Ta
                 .map_or_else(|| "Window".to_owned(), window_title)
         })
     });
+    let listed = workspace.windows.clone();
+    let fullscreen = create_memo(move || {
+        listed.with(|windows| {
+            let area = windows
+                .iter()
+                .find(|listed| listed.id == window)?
+                .fullscreen?;
+            Some(Rect::from_min_size(
+                pos2(area.x, area.y),
+                vec2(area.width, area.height),
+            ))
+        })
+    });
     let closing = Rc::clone(&workspace);
     let editor = workspace.editor().clone();
     view! {
@@ -985,7 +998,7 @@ pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<Ta
             icon=ICON_WEB_ASSET
             on_close={move || closing.close(window_tab(window))}
         >
-            <WindowPanel editor={editor.clone()} window />
+            <WindowPanel editor={editor.clone()} window fullscreen={fullscreen.clone()} />
         </DockTab>
     }
 }

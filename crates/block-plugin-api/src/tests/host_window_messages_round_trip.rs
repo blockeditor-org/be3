@@ -11,6 +11,7 @@ fn host_window_messages_round_trip() {
             width: 640.0,
             height: 480.0,
         },
+        fullscreen: None,
     };
     for message in [
         Message::Editor(EditorMessage::Linux {
