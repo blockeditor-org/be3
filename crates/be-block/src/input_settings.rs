@@ -145,28 +145,19 @@ impl InputSettings {
 
     pub fn set_keyboard_layout(layout: Option<&str>) -> Edit {
         Self::KEYBOARD_LAYOUT
-            .set(
-                ObjectId::ROOT,
-                &layout.map(|layout| layout.trim().to_owned()),
-            )
+            .set(ObjectId::ROOT, &keyboard_name(layout))
             .into()
     }
 
     pub fn set_keyboard_variant(variant: Option<&str>) -> Edit {
         Self::KEYBOARD_VARIANT
-            .set(
-                ObjectId::ROOT,
-                &variant.map(|variant| variant.trim().to_owned()),
-            )
+            .set(ObjectId::ROOT, &keyboard_name(variant))
             .into()
     }
 
     pub fn set_keyboard_options(options: Option<&str>) -> Edit {
         Self::KEYBOARD_OPTIONS
-            .set(
-                ObjectId::ROOT,
-                &options.map(|options| options.trim().to_owned()),
-            )
+            .set(ObjectId::ROOT, &keyboard_name(options))
             .into()
     }
 
@@ -200,6 +191,12 @@ impl InputSettings {
         let stored = (pointer != PointerSettings::default()).then_some(&pointer);
         Self::POINTERS.put(ObjectId::ROOT, device, stored)
     }
+}
+
+fn keyboard_name(name: Option<&str>) -> Option<String> {
+    name.map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(str::to_owned)
 }
 
 impl Root for InputSettings {

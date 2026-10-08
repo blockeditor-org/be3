@@ -94,7 +94,13 @@ impl AppStateStore {
     }
 
     pub fn clear(&self) -> Result<(), AppStateError> {
-        for key in [ACCOUNTS_KEY, ACTIVE_KEY, CLIENT_ID_KEY, WORKSPACE_KEYS_KEY] {
+        for key in [
+            ACCOUNTS_KEY,
+            ACTIVE_KEY,
+            CLIENT_ID_KEY,
+            INPUT_SETTINGS_KEY,
+            WORKSPACE_KEYS_KEY,
+        ] {
             self.storage
                 .remove_item(key)
                 .map_err(|_| AppStateError::from(format!("failed to clear {key}")))?;

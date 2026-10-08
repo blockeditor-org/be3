@@ -40,12 +40,14 @@ fn input_settings_keep_their_values_in_bounds() {
         &settings,
         [
             InputSettings::set_keyboard_layout(None),
+            InputSettings::set_keyboard_variant(Some("  ")),
             InputSettings::set_repeat_delay(None),
             root.set_device_pointer(&mouse, PointerSetting::Speed(None)),
         ],
     );
     let root = settings.root();
     assert_eq!(root.keyboard_layout, None);
+    assert_eq!(root.keyboard_variant, None, "a cleared name is no setting");
     assert_eq!(root.repeat_delay(), 600);
     assert!(
         root.pointers.is_empty(),

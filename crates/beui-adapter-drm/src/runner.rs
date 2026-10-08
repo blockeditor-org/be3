@@ -420,17 +420,22 @@ impl Session {
         self.displays.borrow().pointer
     }
 
-    fn configure(&mut self, config: InputConfig) {
+    fn configure(&mut self, mut config: InputConfig) {
         if config == self.input {
             return;
         }
         if !config.same_keymap(&self.input) {
             match Keyboard::new(&config) {
                 Some(keyboard) => self.keyboard = keyboard,
-                None => eprintln!(
-                    "beui: the keymap {:?} ({:?}, {:?}) could not be compiled, so the last one stays",
-                    config.layout, config.variant, config.options
-                ),
+                None => {
+                    eprintln!(
+                        "beui: the keymap {:?} ({:?}, {:?}) could not be compiled, so the last one stays",
+                        config.layout, config.variant, config.options
+                    );
+                    config.layout.clone_from(&self.input.layout);
+                    config.variant.clone_from(&self.input.variant);
+                    config.options.clone_from(&self.input.options);
+                }
             }
         }
         self.stop_repeat();

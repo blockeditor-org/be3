@@ -76,7 +76,7 @@ impl InputConfig {
     }
 }
 
-type DevicesListener = Box<dyn Fn(&[PointerDevice])>;
+type DevicesListener = Rc<dyn Fn(&[PointerDevice])>;
 
 #[derive(Clone)]
 pub struct InputControl {
@@ -103,7 +103,7 @@ impl InputControl {
 
     pub fn on_devices(&self, listener: impl Fn(&[PointerDevice]) + 'static) {
         listener(&self.devices.borrow());
-        *self.listener.borrow_mut() = Some(Box::new(listener));
+        *self.listener.borrow_mut() = Some(Rc::new(listener));
     }
 
     pub(crate) fn take(&self) -> Option<InputConfig> {
@@ -114,9 +114,10 @@ impl InputControl {
         if *self.devices.borrow() == devices {
             return;
         }
-        *self.devices.borrow_mut() = devices;
-        if let Some(listener) = self.listener.borrow().as_ref() {
-            listener(&self.devices.borrow());
+        *self.devices.borrow_mut() = devices.clone();
+        let listener = self.listener.borrow().clone();
+        if let Some(listener) = listener {
+            listener(&devices);
         }
     }
 }

@@ -461,6 +461,7 @@ fn SwitchSetting(
                 on={on}
                 indeterminate={mixed}
                 label={label}
+                disabled={read_only.clone()}
                 @test_id={format!("input-settings.{id}")}
                 on_change={move |on: bool| switched.call(Some(on))}
             />
