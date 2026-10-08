@@ -8,7 +8,8 @@
 # buck2 unchanged, except that tests may run on the workers, on anything but
 # Linux x86_64 `run` builds for this machine unless it names
 # --target-platforms, and a command that fails with an infrastructure error is
-# tried once more.
+# tried once more. A program `run` starts gets RUST_BACKTRACE=1 unless the
+# environment already sets it.
 #
 # Usage:
 #   ./scripts/buck build //crates/...
@@ -119,6 +120,7 @@ if [[ "$command" == 'run' ]]; then
         retrying "$buck2" run --command-args-file "$repository/target/run-command-args" "$@"
         set -- run "$@"
     fi
+    export RUST_BACKTRACE="${RUST_BACKTRACE:-1}"
     exec "$buck2" "$@"
 fi
 
