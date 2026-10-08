@@ -8,11 +8,14 @@ mod editors;
 mod host;
 mod input;
 mod keys;
+mod notices;
 mod panic_guard;
 mod performance;
 mod platform;
 mod plugin_host;
 mod root_settings;
+#[cfg(target_os = "linux")]
+mod session;
 mod shell_route;
 mod surfaces;
 mod ui;
@@ -68,15 +71,24 @@ fn storage_dir() -> Option<PathBuf> {
 
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 pub fn run() -> Result<(), Box<dyn Error>> {
+    let arguments: Vec<String> = std::env::args().skip(1).collect();
+    #[cfg(target_os = "linux")]
+    if arguments.first().map(String::as_str) == Some("--install-session") {
+        return session::install(arguments.get(1).map(String::as_str));
+    }
+    let session =
+        cfg!(target_os = "linux") && arguments.iter().any(|argument| argument == "--session");
+    #[cfg(target_os = "linux")]
+    if session {
+        session::start_log();
+    }
     panic_guard::install();
     let mut app = BlockApp::new(None).map_err(|error| error.to_string())?;
     let mut options = run_options();
-    let mut session = false;
-    for argument in std::env::args().skip(1) {
+    for argument in arguments {
         if argument == "--dev-workspace" {
             app.open_dev_workspace(None);
-        } else if argument == "--session" && cfg!(target_os = "linux") {
-            session = true;
+        } else if argument == "--session" && session {
             app.run_as_desktop();
         } else if let Some(path) = argument.strip_prefix("--accessibility-tree=") {
             options.accessibility_dump = Some(PathBuf::from(path));
@@ -205,6 +217,10 @@ impl beui::App for Shell {
         plugin_host::install(setup);
         wayland::start(setup);
         input::start(setup);
+        #[cfg(target_os = "linux")]
+        if let Some(problems) = setup.get::<beui_adapter_drm::Problems>() {
+            problems.listen(notices::report);
+        }
         self.app.input.boot(&self.app.app_state);
         #[cfg(all(
             feature = "web-view",
@@ -2061,6 +2077,7 @@ impl BlockApp {
                 wayland::launch(command);
             }
             UiCommand::AppMenu(open) => self.app_menu_open = open,
+            UiCommand::DismissToast(id) => notices::dismiss(id),
             UiCommand::SendInvite(email, role) => {
                 if let Some(workspace) = &self.workspace
                     && !email.trim().is_empty()
@@ -2243,6 +2260,7 @@ impl BlockApp {
                 .editors
                 .with(|open| open.values().any(PluginEditor::presenting_now)),
             debug: debug::view(),
+            toasts: notices::shown(),
         }
     }
 

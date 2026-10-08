@@ -26,7 +26,7 @@ use beui::styled::{
     ListRow, Listbox, MenuButton, ModalSheet, NumberInput, OklchColorWheel, Paragraph, Popover,
     Progress, RadioGroup, ResponsiveTabs, Scroll, Select, SelectableText, Separator, Shortcut,
     Slider, Spinner, SplitButton, Stack, Switch, Tabs, TextArea, TextInput, Theme, ThemeProvider,
-    Title, ToggleButton, Tooltip, Tree, TreeRowFace, use_theme,
+    Title, Toast, Toasts, ToggleButton, Tooltip, Tree, TreeRowFace, use_theme,
 };
 use beui::unstyled::{
     ChoiceOption, Container, DateTimeParts, DockMode, DockPane, DockSplit, DockTab, DockingLayout,

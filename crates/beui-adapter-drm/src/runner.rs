@@ -41,6 +41,7 @@ use crate::input::{DeviceId, InputConfig, InputControl, PointerConfig, PointerDe
 use crate::keyboard::Keyboard;
 use crate::layout::{arrange, bounds, clamp, moved};
 use crate::output::{Output, connected};
+use crate::problems::Problems;
 use crate::screen::FORMAT;
 
 const WHEEL_STEP: f64 = 15.0;
@@ -65,6 +66,7 @@ struct Session {
     repeat: Option<(u32, RegistrationToken)>,
     wakeup: Option<RegistrationToken>,
     lost: Arc<AtomicBool>,
+    problems: Problems,
 }
 
 struct Seat {
@@ -107,7 +109,9 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
     let gbm = GbmDevice::new(fd)?;
     handle.insert_source(drm_events, |event, _, session| match event {
         DrmEvent::VBlank(crtc) => session.flipped(crtc),
-        DrmEvent::Error(error) => eprintln!("beui: the display device failed: {error}"),
+        DrmEvent::Error(error) => session
+            .problems
+            .report(format!("The display device failed: {error}")),
     })?;
     let udev = UdevBackend::new(&name)?;
     handle.insert_source(udev, |event, _, session| session.udev(event))?;
@@ -135,6 +139,8 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
     let mut runner = Runner::new(launch);
     let mut setup = Setup::new(waker);
     setup.provide(control.clone());
+    let problems = Problems::default();
+    setup.provide(problems.clone());
     runner.start(
         vec![Loaded {
             renderer: Box::new(DisplayRenderer(Rc::clone(&displays))),
@@ -168,6 +174,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         repeat: None,
         wakeup: None,
         lost,
+        problems,
     };
     session.scan();
     if session.displays.borrow().outputs.is_empty() {
@@ -345,7 +352,9 @@ impl Session {
             let taken: Vec<_> = displays.outputs.iter().map(|output| output.crtc).collect();
             match Output::new(&mut self.drm, &self.gbm, &gpu, handle, &info, &taken) {
                 Ok(output) => displays.outputs.push(output),
-                Err(error) => eprintln!("beui: a display was skipped: {error}"),
+                Err(error) => self
+                    .problems
+                    .report(format!("A display could not be used: {error}")),
             }
         }
         let sizes: Vec<_> = displays
@@ -380,10 +389,13 @@ impl Session {
             }
             SessionEvent::ActivateSession => {
                 if self.libinput.resume().is_err() {
-                    eprintln!("beui: the input devices could not be reopened");
+                    self.problems
+                        .report("The input devices could not be reopened.".to_owned());
                 }
                 if let Err(error) = self.drm.activate(false) {
-                    eprintln!("beui: the display device could not be reclaimed: {error}");
+                    self.problems.report(format!(
+                        "The display device could not be taken back: {error}"
+                    ));
                 }
                 for output in &mut self.displays.borrow_mut().outputs {
                     output.reset();
@@ -428,10 +440,10 @@ impl Session {
             match Keyboard::new(&config) {
                 Some(keyboard) => self.keyboard = keyboard,
                 None => {
-                    eprintln!(
-                        "beui: the keymap {:?} ({:?}, {:?}) could not be compiled, so the last one stays",
+                    self.problems.report(format!(
+                        "The keyboard layout {:?} ({:?}, {:?}) could not be compiled, so the last one stays.",
                         config.layout, config.variant, config.options
-                    );
+                    ));
                     config.layout.clone_from(&self.input.layout);
                     config.variant.clone_from(&self.input.variant);
                     config.options.clone_from(&self.input.options);
@@ -572,7 +584,9 @@ impl Session {
         }
         if let Some(terminal) = translated.terminal {
             if let Err(error) = self.seat.change_vt(terminal) {
-                eprintln!("beui: could not switch to terminal {terminal}: {error:?}");
+                self.problems.report(format!(
+                    "Could not switch to terminal {terminal}: {error:?}"
+                ));
             }
             return;
         }

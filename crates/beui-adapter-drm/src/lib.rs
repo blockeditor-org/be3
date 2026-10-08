@@ -6,11 +6,13 @@ mod keyboard;
 mod keys;
 mod layout;
 mod output;
+mod problems;
 mod runner;
 mod screen;
 
 pub use gpu::{CursorImage, SoftwareCursor};
 pub use input::{DeviceId, InputConfig, InputControl, PointerConfig, PointerDevice};
+pub use problems::Problems;
 pub use runner::run;
 
 use beui::{Adapter, Launch};
