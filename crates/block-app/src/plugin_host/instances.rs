@@ -49,6 +49,7 @@ pub(super) struct Instances {
     pasted: HashSet<EditorInstanceId>,
     audio_changes: AudioChanges,
     input_devices: Vec<block_plugin_api::HostInputDevice>,
+    displays: Vec<block_plugin_api::HostDisplay>,
 }
 
 struct AudioChanges {
@@ -125,6 +126,8 @@ struct Instance {
     reported_windows: Option<Vec<block_plugin_api::HostWindow>>,
     watches_input_devices: bool,
     reported_input_devices: Option<Vec<block_plugin_api::HostInputDevice>>,
+    watches_displays: bool,
+    reported_displays: Option<Vec<block_plugin_api::HostDisplay>>,
     closed_windows: Vec<block_plugin_api::HostWindowId>,
     grabbed: bool,
     web_views: HashMap<WebViewId, WebViewHost>,
@@ -303,6 +306,8 @@ impl Instance {
             reported_windows: None,
             watches_input_devices: false,
             reported_input_devices: None,
+            watches_displays: false,
+            reported_displays: None,
             closed_windows: Vec::new(),
             grabbed: false,
             web_views: HashMap::new(),
@@ -1128,6 +1133,7 @@ impl Instances {
             entry.reported_presenting = false;
             entry.reported_windows = None;
             entry.reported_input_devices = None;
+            entry.reported_displays = None;
             entry.reported_history = None;
             entry.reported_artifacts.clear();
             entry.reported_size = None;
@@ -1153,6 +1159,7 @@ impl Instances {
         instances.sort_by_key(|instance| instance.0);
         let focus = self.focus.clone();
         let input_devices = self.input_devices.clone();
+        let displays = self.displays.clone();
         let graph = crate::be::graph_revision();
         let graph_moved = self.graph_seen.replace(graph) != Some(graph);
         let mut opened = Vec::new();
@@ -1290,6 +1297,13 @@ impl Instances {
                 opened.push(Message::Editor(EditorMessage::Linux {
                     instance,
                     message: LinuxMessage::InputDevices(input_devices.clone()),
+                }));
+            }
+            if entry.watches_displays && entry.reported_displays.as_ref() != Some(&displays) {
+                entry.reported_displays = Some(displays.clone());
+                opened.push(Message::Editor(EditorMessage::Linux {
+                    instance,
+                    message: LinuxMessage::Displays(displays.clone()),
                 }));
             }
             if entry.windows.is_some() && entry.windows != entry.reported_windows {
@@ -2301,7 +2315,10 @@ impl Instances {
                 };
                 match message {
                     LinuxMessage::WatchInputDevices => entry.watches_input_devices = true,
-                    LinuxMessage::Windows(_) | LinuxMessage::InputDevices(_) => return false,
+                    LinuxMessage::WatchDisplays => entry.watches_displays = true,
+                    LinuxMessage::Windows(_)
+                    | LinuxMessage::InputDevices(_)
+                    | LinuxMessage::Displays(_) => return false,
                 }
                 true
             }
@@ -2976,6 +2993,11 @@ impl Instances {
         self.entries
             .values()
             .any(|entry| entry.watches_input_devices)
+    }
+
+    pub(super) fn set_displays(&mut self, displays: Vec<block_plugin_api::HostDisplay>) -> bool {
+        self.displays = displays;
+        self.entries.values().any(|entry| entry.watches_displays)
     }
 
     pub(super) fn set_focus(&mut self, focus: Focus) -> bool {

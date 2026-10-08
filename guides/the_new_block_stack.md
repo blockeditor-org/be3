@@ -684,15 +684,23 @@ into the copy's id before anything opens the copy.
 
 The app can read a block itself, not only through an editor: the zoom in
 `sync_ui_settings` comes from the UI settings block's content, and
-`sync_input_settings` hands the input settings block (keymap, key repeat, and
+`sync_local_settings` hands the input settings block (keymap, key repeat, and
 pointer settings for every pointer with per-device overrides) to the `--session`
 seat through `beui_adapter_drm::InputControl` and to the nested Wayland clients'
-keyboard. Every setting is an `Option`, and an unset one means the default:
+keyboard, and the display settings block (a mode per monitor, keyed by the
+monitor's EDID make, model and serial, or by its connector when it has no EDID)
+to the seat's outputs through `beui_adapter_drm::DisplayControl`, which switches
+mode live. Every setting is an `Option`, and an unset one means the default:
 libinput's own for a pointer setting, which the seat reports per device and an
-editor reads with `Editor::input_devices`. Messages only a Linux host can answer,
-such as that device list, travel as `EditorMessage::Linux`. Because the seat runs before anyone signs in, the
-app keeps a copy of the last input settings it applied in `app_state` and
-applies that at startup; the block stays the source of truth. `be::hold` opens a
+editor reads with `Editor::input_devices`, and for a monitor its preferred
+resolution at the fastest refresh rate it offers there, which the seat reports
+with the monitor's modes and an editor reads with `Editor::displays`. Messages
+only a Linux host can answer, such as those lists, travel as
+`EditorMessage::Linux`. Because the seat runs before anyone signs in, the app
+keeps a copy of the last settings of each kind it applied in `app_state` and
+applies that at startup; the block stays the source of truth. A kind of setting
+the app applies itself implements `local_settings::LocalSettings` and is kept by
+a `SettingsSync`. `be::hold` opens a
 block for the app and keeps it open when the last editor showing it closes,
 because `be::close` leaves a held block alone. Nothing releases a held block
 before the stack stops, which is when the workspace changes.

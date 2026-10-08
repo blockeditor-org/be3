@@ -24,9 +24,12 @@ use smithay::backend::libinput::{LibinputInputBackend, LibinputSessionInterface}
 use smithay::backend::session::libseat::LibSeatSession;
 use smithay::backend::session::{Event as SessionEvent, Session as _};
 use smithay::backend::udev::{UdevBackend, UdevEvent, all_gpus, primary_gpu};
+use smithay::reexports::calloop::generic::Generic;
 use smithay::reexports::calloop::ping::make_ping;
 use smithay::reexports::calloop::timer::{TimeoutAction, Timer};
-use smithay::reexports::calloop::{EventLoop, LoopHandle, LoopSignal, RegistrationToken};
+use smithay::reexports::calloop::{
+    EventLoop, Interest, LoopHandle, LoopSignal, Mode, PostAction, RegistrationToken,
+};
 use smithay::reexports::drm;
 use smithay::reexports::drm::control::Device as ControlDevice;
 use smithay::reexports::input::{Device as InputDevice, Libinput};
@@ -35,12 +38,13 @@ use smithay::utils::DeviceFd;
 
 use be_dmabuf::{adapter_for, open_device};
 
+use crate::display::{DisplayConfig, DisplayControl};
 use crate::displays::{DisplayRenderer, Displays};
 use crate::gpu::{Gpu, SoftwareCursor};
 use crate::input::{DeviceId, InputConfig, InputControl, PointerConfig, PointerDevice};
 use crate::keyboard::Keyboard;
 use crate::layout::{arrange, bounds, clamp, moved};
-use crate::output::{Output, connected};
+use crate::output::{Output, connected, wait_for};
 use crate::screen::FORMAT;
 
 const WHEEL_STEP: f64 = 15.0;
@@ -57,6 +61,9 @@ struct Session {
     devices: Vec<InputDevice>,
     input: InputConfig,
     control: InputControl,
+    display_control: DisplayControl,
+    display_config: DisplayConfig,
+    modes_pending: bool,
     runner: Runner,
     platform: Seat,
     displays: Rc<RefCell<Displays>>,
@@ -123,6 +130,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
     handle.insert_source(pinged, |_, _, session| session.dirty = true)?;
     let waker = Waker::new(move || ping.ping());
     let control = InputControl::new(waker.clone());
+    let display_control = DisplayControl::new(waker.clone());
 
     let lost = Arc::new(AtomicBool::new(false));
     let (device, queue) = open_gpu(node, &lost)?;
@@ -135,6 +143,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
     let mut runner = Runner::new(launch);
     let mut setup = Setup::new(waker);
     setup.provide(control.clone());
+    setup.provide(display_control.clone());
     runner.start(
         vec![Loaded {
             renderer: Box::new(DisplayRenderer(Rc::clone(&displays))),
@@ -161,6 +170,9 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         keyboard: Keyboard::new(&input).ok_or("the keymap could not be compiled")?,
         input,
         control,
+        display_control,
+        display_config: DisplayConfig::default(),
+        modes_pending: false,
         runner,
         platform,
         displays,
@@ -169,6 +181,9 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         wakeup: None,
         lost,
     };
+    if let Some(config) = session.display_control.take() {
+        session.display_config = config;
+    }
     session.scan();
     if session.displays.borrow().outputs.is_empty() {
         return Err("no display is connected".into());
@@ -267,13 +282,96 @@ impl Session {
         if let Some(config) = self.control.take() {
             self.configure(config);
         }
+        if let Some(config) = self.display_control.take() {
+            self.display_config = config;
+            self.modes_pending = true;
+        }
         if !self.active {
             return;
+        }
+        if self.modes_pending {
+            self.apply_modes();
         }
         if self.dirty || self.runner.has_events() {
             self.update();
         }
         self.runner.present();
+        self.watch_fences();
+    }
+
+    fn apply_modes(&mut self) {
+        let mut changed = false;
+        let mut waiting = false;
+        {
+            let mut displays = self.displays.borrow_mut();
+            let displays = &mut *displays;
+            for output in &mut displays.outputs {
+                if output.drawing() {
+                    waiting = true;
+                    continue;
+                }
+                let wanted = self.display_config.mode(output.id());
+                changed |= output.set_mode(&displays.gpu, wanted);
+            }
+        }
+        self.modes_pending = waiting;
+        if changed {
+            self.relayout();
+        }
+    }
+
+    fn watch_fences(&mut self) {
+        let fences: Vec<_> = self
+            .displays
+            .borrow_mut()
+            .outputs
+            .iter_mut()
+            .filter_map(|output| {
+                let (frame, fence) = output.take_fence()?;
+                Some((output.crtc, frame, fence))
+            })
+            .collect();
+        for (crtc, frame, fence) in fences {
+            let spare = fence.try_clone();
+            let watched = self.handle.insert_source(
+                Generic::new(fence, Interest::READ, Mode::OneShot),
+                move |_, _, session| {
+                    session.drawn(crtc, frame);
+                    Ok(PostAction::Remove)
+                },
+            );
+            if let Err(error) = watched {
+                eprintln!(
+                    "beui: a frame's fence could not be watched, so it is waited for: {error}"
+                );
+                if let Ok(spare) = spare {
+                    let _ = wait_for(&spare);
+                }
+                self.drawn(crtc, frame);
+            }
+        }
+    }
+
+    fn drawn(&mut self, crtc: smithay::reexports::drm::control::crtc::Handle, frame: u64) {
+        let mut displays = self.displays.borrow_mut();
+        if let Some(output) = displays
+            .outputs
+            .iter_mut()
+            .find(|output| output.crtc == crtc)
+        {
+            output.drawn(frame);
+        }
+    }
+
+    fn report_monitors(&self) {
+        let monitors = self
+            .displays
+            .borrow()
+            .outputs
+            .iter()
+            .map(Output::monitor)
+            .collect();
+        self.display_control.set_monitors(monitors);
     }
 
     fn rects(&self) -> Vec<beui::Rect> {
@@ -326,8 +424,8 @@ impl Session {
 
     fn scan(&mut self) {
         let connectors = connected(&self.drm);
-        let mut displays = self.displays.borrow_mut();
-        let displays = &mut *displays;
+        let mut guard = self.displays.borrow_mut();
+        let displays = &mut *guard;
         displays.outputs.retain(|output| {
             connectors
                 .iter()
@@ -343,11 +441,26 @@ impl Session {
                 continue;
             }
             let taken: Vec<_> = displays.outputs.iter().map(|output| output.crtc).collect();
-            match Output::new(&mut self.drm, &self.gbm, &gpu, handle, &info, &taken) {
+            match Output::new(
+                &mut self.drm,
+                &self.gbm,
+                &gpu,
+                handle,
+                &info,
+                &taken,
+                &self.display_config,
+            ) {
                 Ok(output) => displays.outputs.push(output),
                 Err(error) => eprintln!("beui: a display was skipped: {error}"),
             }
         }
+        drop(guard);
+        self.relayout();
+    }
+
+    fn relayout(&mut self) {
+        let mut guard = self.displays.borrow_mut();
+        let displays = &mut *guard;
         let sizes: Vec<_> = displays
             .outputs
             .iter()
@@ -363,6 +476,8 @@ impl Session {
         }
         displays.pointer = clamp(displays.pointer, &displays.rects());
         self.dirty = true;
+        drop(guard);
+        self.report_monitors();
     }
 
     fn recover(&mut self) {

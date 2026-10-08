@@ -1,13 +1,14 @@
-use be_block::{BlockContent, InputSettings, InputSettingsContent};
-use uuid::Uuid;
+use be_block::InputSettings;
 
-use crate::app_state::AppStateStore;
-use crate::be;
+use crate::app_state::{AppStateError, AppStateStore};
+use crate::local_settings::LocalSettings;
 
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(target_os = "linux")]
-pub(crate) use linux::{apply, start};
+use linux::apply;
+#[cfg(target_os = "linux")]
+pub(crate) use linux::start;
 
 #[cfg(not(target_os = "linux"))]
 pub(crate) fn start(_setup: &beui::Setup) {}
@@ -15,66 +16,18 @@ pub(crate) fn start(_setup: &beui::Setup) {}
 #[cfg(not(target_os = "linux"))]
 fn apply(_settings: &InputSettings) {}
 
-#[derive(Default)]
-pub(crate) struct InputSync {
-    block: Option<Uuid>,
-    seen: Option<(Uuid, u64)>,
-    applied: Option<InputSettings>,
-}
+impl LocalSettings for InputSettings {
+    const NAME: &'static str = "input settings";
 
-impl InputSync {
-    pub(crate) fn boot(&mut self, store: &AppStateStore) {
-        match store.input_settings() {
-            Ok(Some(content)) => match InputSettingsContent::decode(&content) {
-                Ok(content) => {
-                    let settings = content.root();
-                    apply(&settings);
-                    self.applied = Some(settings);
-                }
-                Err(error) => {
-                    eprintln!("block-app: the saved input settings are unreadable: {error}")
-                }
-            },
-            Ok(None) => {}
-            Err(error) => eprintln!("block-app: the saved input settings were not read: {error}"),
-        }
+    fn load(store: &AppStateStore) -> Result<Option<Vec<u8>>, AppStateError> {
+        store.input_settings()
     }
 
-    pub(crate) fn block(&self) -> Option<Uuid> {
-        self.block
+    fn save(store: &AppStateStore, content: &[u8]) -> Result<(), AppStateError> {
+        store.set_input_settings(content)
     }
 
-    pub(crate) fn set_block(&mut self, block: Option<Uuid>) {
-        self.block = block;
-        self.seen = None;
-    }
-
-    pub(crate) fn sync(&mut self, store: &AppStateStore) {
-        let Some(block) = self.block else {
-            return;
-        };
-        be::hold(block, InputSettingsContent::CONTENT_TYPE);
-        let Some(revision) = be::content_revision(block) else {
-            return;
-        };
-        if self.seen == Some((block, revision)) {
-            return;
-        }
-        let Some(content) = be::content(block)
-            .and_then(|content| InputSettingsContent::decode(&content.bytes).ok())
-        else {
-            return;
-        };
-        self.seen = Some((block, revision));
-        let settings = content.root();
-        if self.applied.as_ref() == Some(&settings) {
-            return;
-        }
-        apply(&settings);
-        if let Err(error) = store.set_input_settings(&InputSettingsContent::new(&settings).encode())
-        {
-            eprintln!("block-app: the input settings were not saved on this device: {error}");
-        }
-        self.applied = Some(settings);
+    fn apply(&self) {
+        apply(self);
     }
 }
