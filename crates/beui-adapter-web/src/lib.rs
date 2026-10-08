@@ -457,11 +457,19 @@ fn client(event: &web_sys::MouseEvent, axis: &str) -> Option<f64> {
     js_sys::Reflect::get(event, &axis.into()).ok()?.as_f64()
 }
 
+thread_local! {
+    static APPLE: bool = web_sys::window()
+        .and_then(|window| window.navigator().platform().ok())
+        .is_some_and(|platform| platform.starts_with("Mac") || platform.starts_with("iP"));
+}
+
 fn modifiers_of(alt: bool, ctrl: bool, meta: bool, shift: bool) -> Modifiers {
+    let command = APPLE.with(|apple| *apple);
     let modifiers = Modifiers {
         alt,
-        ctrl: ctrl || meta,
+        ctrl: ctrl || (command && meta),
         shift,
+        logo: !command && meta,
     };
     let changed = INPUT.with(|input| input.modifiers.replace(modifiers) != modifiers);
     if changed {
@@ -657,8 +665,9 @@ fn listen(
             });
         }
         let clipboard = modifiers.ctrl && matches!(key, Some(Key::C | Key::V | Key::X));
-        let printable = event.key().chars().count() == 1 && !modifiers.ctrl && !modifiers.alt;
-        if key.is_some() && !clipboard && !printable {
+        let printable = event.key().chars().count() == 1 && !modifiers.command();
+        let media = key.is_some_and(Key::is_media);
+        if key.is_some() && !clipboard && !printable && !media {
             event.prevent_default();
         }
     })?;
@@ -923,6 +932,13 @@ fn key(code: &str) -> Option<Key> {
         "F22" => Key::F22,
         "F23" => Key::F23,
         "F24" => Key::F24,
+        "AudioVolumeUp" => Key::VolumeUp,
+        "AudioVolumeDown" => Key::VolumeDown,
+        "AudioVolumeMute" => Key::VolumeMute,
+        "MediaPlayPause" => Key::MediaPlayPause,
+        "MediaTrackNext" => Key::MediaNext,
+        "MediaTrackPrevious" => Key::MediaPrevious,
+        "MediaStop" => Key::MediaStop,
         _ => return None,
     };
     Some(key)

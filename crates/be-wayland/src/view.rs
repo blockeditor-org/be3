@@ -1,15 +1,28 @@
 use std::rc::Rc;
+use std::time::Duration;
 
 use beui::reactive::{
-    Drawing, Frame, Interactive, Layers, Prop, clone, component, component_rect, create_effect,
-    create_memo, draw_gpu, on_cleanup, view,
+    Action, Chord, Drawing, Frame, Interactive, Layers, Prop, clone, component, component_rect,
+    create_effect, create_memo, draw_gpu, on_cleanup, try_with_document, view,
 };
-use beui::{Color32, NodeId};
+use beui::{Color32, Key, NodeId, icons};
 
 use crate::state::WindowId;
 use crate::windows::Windows;
 
 const FROZEN_DIM: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 140);
+
+pub fn toggle_fullscreen_action(windows: &Windows) -> Action {
+    let windows = windows.clone();
+    Action::new("wayland.fullscreen", "Toggle fullscreen", move || {
+        windows.toggle_fullscreen();
+        try_with_document(|document| document.request_repaint_after(Duration::ZERO));
+    })
+    .glyph(icons::ICON_FULLSCREEN)
+    .shortcut(Chord::logo(Key::F))
+    .intercepts()
+    .register()
+}
 
 #[component]
 pub fn WindowView(windows: Windows, id: WindowId) -> NodeId {

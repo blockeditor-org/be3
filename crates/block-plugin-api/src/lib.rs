@@ -15,7 +15,7 @@ pub use manifest::{
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 72;
+pub const PROTOCOL_VERSION: u16 = 74;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_TEXT_BYTES: usize = 64 * 1024 * 1024;
@@ -2087,10 +2087,20 @@ pub enum Key {
     F34,
     F35,
     BrowserBack,
+    VolumeUp,
+    VolumeDown,
+    VolumeMute,
+    MicMute,
+    BrightnessUp,
+    BrightnessDown,
+    MediaPlayPause,
+    MediaNext,
+    MediaPrevious,
+    MediaStop,
 }
 
 impl Key {
-    pub const ALL: [Self; 108] = [
+    pub const ALL: [Self; 118] = [
         Self::ArrowDown,
         Self::ArrowLeft,
         Self::ArrowRight,
@@ -2199,6 +2209,16 @@ impl Key {
         Self::F34,
         Self::F35,
         Self::BrowserBack,
+        Self::VolumeUp,
+        Self::VolumeDown,
+        Self::VolumeMute,
+        Self::MicMute,
+        Self::BrightnessUp,
+        Self::BrightnessDown,
+        Self::MediaPlayPause,
+        Self::MediaNext,
+        Self::MediaPrevious,
+        Self::MediaStop,
     ];
 }
 
@@ -2207,7 +2227,7 @@ pub struct Modifiers {
     pub alt: bool,
     pub control: bool,
     pub shift: bool,
-    pub command: bool,
+    pub logo: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

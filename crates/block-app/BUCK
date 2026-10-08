@@ -241,16 +241,21 @@ export_file(
     visibility = ["//crates/be-launcher:"],
 )
 
-# The native startup smoke check: the app for ten seconds in a virtual display.
-command_alias(
-    name = "smoke",
-    args = [
-        "sh",
-        "$(location //buck/app:smoke.sh)",
-        "$(location :app)/block-app",
-        "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
-    ],
-)
+# The native startup smoke check: the app for ten seconds in a virtual display,
+# and :smoke-desktop the same with the desktop shell in its window.
+[
+    command_alias(
+        name = name,
+        args = [
+            "sh",
+            "$(location //buck/app:smoke.sh)",
+            "$(location :app)/block-app",
+            "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
+        ]
+        + flags,
+    )
+    for name, flags in [("smoke", []), ("smoke-desktop", ["--desktop"])]
+]
 
 # The app with its plugins installed under /usr/local (or the prefix given after
 # `--`), with a wayland-sessions entry that runs it with --session, for a

@@ -10,7 +10,7 @@ use crate::geometry::{Pos2, Rect, Vec2, vec2};
 use crate::input::{BackGesture, Event, ImeEvent, Key, KeyPress};
 use crate::painter::Painter;
 
-use crate::document::Document;
+use crate::document::{Document, GlobalKeyPress};
 use crate::node::{InteractInput, NodeId, NodeMap, Rects};
 
 pub const WHEEL_LATCH_TIMEOUT: Duration = Duration::from_millis(500);
@@ -307,6 +307,9 @@ pub fn interact(
     }
 
     doc.validate_focus();
+    if !keys.ignored() {
+        global_keys(doc, ctx);
+    }
     forward::route(doc, ctx, rects, root, pointer, keys);
     let forwarded_keys = forward::takes_keys(doc);
     if ctx.pointer_locked() && pointer && !keys.ignored() && !forwarded_keys {
@@ -320,6 +323,9 @@ pub fn interact(
     for event in ctx.input(|input| input.events.clone()) {
         ::reactive::settle(|| {});
         doc.validate_focus();
+        if let Event::Modifiers(modifiers) | Event::Key { modifiers, .. } = &event {
+            doc.set_modifiers(*modifiers);
+        }
         let (key, pressed, repeat, modifiers) = match event {
             Event::Key {
                 key: Key::Escape, ..
@@ -419,6 +425,73 @@ pub fn interact(
     if !input.pointer_down {
         doc.pointer_capture = None;
     }
+}
+
+fn global_keys(doc: &mut Document, ctx: &Context) {
+    let events = ctx.input(|input| input.events.clone());
+    if events
+        .iter()
+        .any(|event| matches!(event, Event::Focus(false)))
+    {
+        doc.globally_held.clear();
+    }
+    if !events
+        .iter()
+        .any(|event| matches!(event, Event::Key { .. }))
+    {
+        return;
+    }
+    let in_app = forward::takes_keys(doc);
+    let typing = in_app || doc.focus_types();
+    let mut keep = Vec::with_capacity(events.len());
+    for event in &events {
+        let (key, pressed, repeat, modifiers) = match *event {
+            Event::Key {
+                key,
+                pressed,
+                repeat,
+                modifiers,
+            } => (key, pressed, repeat, modifiers),
+            Event::Focus(false) => {
+                doc.globally_held.clear();
+                keep.push(true);
+                continue;
+            }
+            _ => {
+                keep.push(true);
+                continue;
+            }
+        };
+        doc.set_modifiers(modifiers);
+        let press = KeyPress {
+            key,
+            pressed,
+            repeat,
+            modifiers,
+        };
+        if pressed && !repeat {
+            doc.globally_held.retain(|other| *other != key);
+        }
+        let held = doc.globally_held.contains(&key);
+        let taken = doc.key_global(GlobalKeyPress {
+            press,
+            typing,
+            in_app,
+        });
+        ::reactive::settle(|| {});
+        if pressed && taken && !held {
+            doc.globally_held.push(key);
+        }
+        if !pressed && held {
+            doc.globally_held.retain(|other| *other != key);
+        }
+        keep.push(!(taken || held));
+    }
+    if keep.iter().all(|keep| *keep) {
+        return;
+    }
+    let mut kept = keep.into_iter();
+    ctx.retain_events(|_| kept.next().unwrap_or(true));
 }
 
 fn without_pointer(input: InteractInput) -> InteractInput {
