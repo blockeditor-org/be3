@@ -656,7 +656,7 @@ fn listen(
             event.shift_key(),
         );
         let key = key(&event.code());
-        if let Some(key) = key {
+        if let Some(key) = key.filter(|key| !(event.repeat() && key.is_modifier())) {
             push(Event::Key {
                 key,
                 pressed: true,
@@ -666,8 +666,8 @@ fn listen(
         }
         let clipboard = modifiers.ctrl && matches!(key, Some(Key::C | Key::V | Key::X));
         let printable = event.key().chars().count() == 1 && !modifiers.command();
-        let media = key.is_some_and(Key::is_media);
-        if key.is_some() && !clipboard && !printable && !media {
+        let passes = key.is_some_and(|key| key.is_media() || key.is_modifier());
+        if key.is_some() && !clipboard && !printable && !passes {
             event.prevent_default();
         }
     })?;
@@ -939,6 +939,11 @@ fn key(code: &str) -> Option<Key> {
         "MediaTrackNext" => Key::MediaNext,
         "MediaTrackPrevious" => Key::MediaPrevious,
         "MediaStop" => Key::MediaStop,
+        "ShiftLeft" | "ShiftRight" => Key::Shift,
+        "ControlLeft" | "ControlRight" => Key::Ctrl,
+        "AltLeft" | "AltRight" => Key::Alt,
+        "MetaLeft" | "MetaRight" if APPLE.with(|apple| *apple) => Key::Ctrl,
+        "MetaLeft" | "MetaRight" => Key::Logo,
         _ => return None,
     };
     Some(key)

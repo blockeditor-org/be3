@@ -15,7 +15,7 @@ pub use manifest::{
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 73;
+pub const PROTOCOL_VERSION: u16 = 74;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_TEXT_BYTES: usize = 64 * 1024 * 1024;
@@ -2097,10 +2097,14 @@ pub enum Key {
     MediaNext,
     MediaPrevious,
     MediaStop,
+    Shift,
+    Control,
+    Alt,
+    Logo,
 }
 
 impl Key {
-    pub const ALL: [Self; 118] = [
+    pub const ALL: [Self; 122] = [
         Self::ArrowDown,
         Self::ArrowLeft,
         Self::ArrowRight,
@@ -2219,6 +2223,10 @@ impl Key {
         Self::MediaNext,
         Self::MediaPrevious,
         Self::MediaStop,
+        Self::Shift,
+        Self::Control,
+        Self::Alt,
+        Self::Logo,
     ];
 }
 

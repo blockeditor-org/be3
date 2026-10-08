@@ -43,6 +43,18 @@ else.
 modifier presses alone. Shortcuts that are not chords, such as a hold-and-release
 switcher, are built from those two.
 
+The modifier keys themselves arrive as `Key::Shift`, `Key::Ctrl`, `Key::Alt` and
+`Key::Logo` presses and releases (`Key::is_modifier`), alongside the
+`Event::Modifiers` they cause. They reach `on_global_key` and forwarded regions
+(plugins and Wayland programs), but not the focused control's `on_key`, shortcuts or
+actions, which read the state from `KeyPress::modifiers` or `held_modifiers()`; nor
+do they show the focus ring or end autoscroll, and the runners drop their repeats.
+Something that reacts to the modifier key rather
+than to the state, such as tapping Super alone (block-app's `SuperTap`), reads
+the key events: the runners do not agree on whether `Event::Modifiers` comes
+before or after the key's own event, and winit on X11 can report a modifier
+state that reverts before the key arrives.
+
 `Modifiers` and `Chord` have `logo` for the Super (Windows) key. The runners
 report Super as `logo`, except on macOS, where Command acts as Ctrl and Super
 is never reported. `Key` also has the volume, mic mute, brightness and media

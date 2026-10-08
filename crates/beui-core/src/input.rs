@@ -112,9 +112,17 @@ pub enum Key {
     MediaNext,
     MediaPrevious,
     MediaStop,
+    Shift,
+    Ctrl,
+    Alt,
+    Logo,
 }
 
 impl Key {
+    pub const fn is_modifier(self) -> bool {
+        matches!(self, Self::Shift | Self::Ctrl | Self::Alt | Self::Logo)
+    }
+
     pub const fn is_media(self) -> bool {
         matches!(
             self,
