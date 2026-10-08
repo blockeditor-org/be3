@@ -10,8 +10,8 @@ use smithay::wayland::compositor::with_states;
 
 use crate::render::{Gpu, Textures, WindowDraw};
 use crate::server::{Server, Watch};
-use crate::state::{ServerEvent, WindowId};
-use crate::windows::{Command, WindowInfo, Windows};
+use crate::state::{KeyboardConfig, ServerEvent, WindowId};
+use crate::windows::{Command, Launch, WindowInfo, Windows};
 
 const BUTTON_LEFT: u32 = 0x110;
 const BUTTON_RIGHT: u32 = 0x111;
@@ -57,6 +57,10 @@ impl Compositor {
         &mut self.server
     }
 
+    pub fn set_keyboard(&mut self, keyboard: &KeyboardConfig) -> bool {
+        self.server.state.set_keyboard(keyboard)
+    }
+
     pub fn windows(&self) -> Windows {
         self.windows.clone()
     }
@@ -67,11 +71,16 @@ impl Compositor {
             .map(|name| name.to_string_lossy().into_owned())
     }
 
-    fn launch(&mut self, line: &str) {
-        let mut process = Process::new("sh");
+    fn launch(&mut self, launch: &Launch) {
+        let Some((program, arguments)) = launch.arguments.split_first() else {
+            return;
+        };
+        let mut process = Process::new(program);
+        if let Some(dir) = &launch.working_dir {
+            process.current_dir(dir);
+        }
         process
-            .arg("-c")
-            .arg(line)
+            .args(arguments)
             .env("WAYLAND_DISPLAY", self.socket().unwrap_or_default())
             .env_remove("DISPLAY")
             .env("GDK_BACKEND", "wayland")
@@ -82,7 +91,7 @@ impl Compositor {
             .stdin(Stdio::null());
         match process.spawn() {
             Ok(child) => self.children.push(child),
-            Err(error) => eprintln!("be-wayland: could not run {line}: {error}"),
+            Err(error) => eprintln!("be-wayland: could not run {program}: {error}"),
         }
     }
 
@@ -318,7 +327,7 @@ impl Compositor {
                     self.server.state.configure(id, size.into(), activated);
                 }
                 Command::Close(id) => self.server.state.close(id),
-                Command::Launch(line) => self.launch(&line),
+                Command::Launch(launch) => self.launch(&launch),
             }
         }
         for id in self.windows.take_painted() {
@@ -337,6 +346,17 @@ impl Compositor {
 }
 
 impl Compositor {
+    pub fn replace_gpu(
+        &mut self,
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+        format: wgpu::TextureFormat,
+    ) {
+        self.textures
+            .borrow_mut()
+            .set_gpu(Gpu::new(device, queue, format));
+    }
+
     pub fn start(
         &mut self,
         device: wgpu::Device,

@@ -4,9 +4,13 @@ mod be;
 mod block_label;
 mod compositor;
 mod debug;
+mod display;
 mod editors;
 mod host;
+mod input;
 mod keys;
+mod launcher;
+mod local_settings;
 mod panic_guard;
 mod performance;
 mod platform;
@@ -29,7 +33,7 @@ use std::{io, path::PathBuf};
 
 use accounts::{AccountError, Session};
 use app_state::{AppStateStore, SavedAccount, ServerLocation};
-use be_block::{BlockContent, UiSettingsContent, WORKSPACE_EDITOR};
+use be_block::{BlockContent, DisplaySettings, InputSettings, UiSettingsContent, WORKSPACE_EDITOR};
 use be_graph::{Access, BlockParent};
 use be_protocol::{Workspace, WorkspaceInvitation, WorkspaceRole};
 use beui::Document;
@@ -40,6 +44,7 @@ use editors::{
     ArtifactSession, ArtifactStatus, EditorAction, EditorRegistry, PluginEditor, SidebarDragSource,
     plugin::PickSource,
 };
+use local_settings::SettingsSync;
 use root_settings::RootSettings;
 use surfaces::SurfaceId;
 use ui::{AccountForm, AppView, AppViewStore, ErrorAction, UiCommand};
@@ -203,6 +208,10 @@ impl beui::App for Shell {
         host::install_waker(setup.waker.clone());
         plugin_host::install(setup);
         wayland::start(setup);
+        input::start(setup);
+        display::start(setup);
+        self.app.input.boot(&self.app.app_state);
+        self.app.display.boot(&self.app.app_state);
         #[cfg(all(
             feature = "web-view",
             not(target_os = "android"),
@@ -211,6 +220,11 @@ impl beui::App for Shell {
         if let Some(window) = setup.get::<std::sync::Arc<beui::winit::window::Window>>() {
             plugin_host::install_web_view(window.clone());
         }
+    }
+
+    fn renderer_replaced(&mut self, setup: &beui::Setup) {
+        plugin_host::replace_gpu(setup);
+        wayland::replace_gpu(setup);
     }
 
     fn update(&mut self, context: &beui::Context, rect: beui::Rect) {
@@ -293,6 +307,7 @@ struct BlockApp {
     account: Account,
     root_settings: RootSettings,
     choosing_profile: bool,
+    every_profile_type: bool,
     shell: Option<Uuid>,
     windows_sent: Option<(Uuid, u64)>,
     forwarded_picks: HashMap<u64, (PickSource, u64)>,
@@ -300,6 +315,8 @@ struct BlockApp {
     focus_reports: HashMap<Uuid, editors::FocusReport>,
     artifact_watches: HashMap<Uuid, Vec<Uuid>>,
     ui_settings: Option<Uuid>,
+    input: SettingsSync<InputSettings>,
+    display: SettingsSync<DisplaySettings>,
     block_types: HashMap<Uuid, Uuid>,
     registry: Rc<EditorRegistry>,
     editors: compositor::Editors,
@@ -315,10 +332,9 @@ struct BlockApp {
     pending_transfers: Vec<PendingTransfer>,
     pending_copies: Vec<PendingCopy>,
     about_open: bool,
-    run_program_open: bool,
+    launcher: launcher::Launcher,
     app_menu_open: bool,
     pending_destructive_action: Option<PendingDestructiveAction>,
-    scheduled_account_switch: Option<Account>,
     allow_close: bool,
     #[cfg(not(target_arch = "wasm32"))]
     data_dir: PathBuf,
@@ -364,7 +380,6 @@ struct ReauthState {
 
 #[derive(Clone)]
 enum PendingDestructiveAction {
-    Switch(Account),
     ChooseWorkspace,
     Close,
 }
@@ -476,6 +491,7 @@ impl BlockApp {
             account,
             root_settings: RootSettings::new(WORKSPACE_EDITOR),
             choosing_profile: false,
+            every_profile_type: false,
             shell: None,
             windows_sent: None,
             forwarded_picks: HashMap::new(),
@@ -483,6 +499,8 @@ impl BlockApp {
             artifact_watches: HashMap::new(),
             next_pick: 0,
             ui_settings: None,
+            input: SettingsSync::default(),
+            display: SettingsSync::default(),
             block_types: HashMap::new(),
             registry,
             editors,
@@ -494,10 +512,9 @@ impl BlockApp {
             pending_transfers: Vec::new(),
             pending_copies: Vec::new(),
             about_open: false,
-            run_program_open: false,
+            launcher: launcher::Launcher::default(),
             app_menu_open: false,
             pending_destructive_action: None,
-            scheduled_account_switch: None,
             allow_close: false,
             #[cfg(not(target_arch = "wasm32"))]
             data_dir: PathBuf::new(),
@@ -894,6 +911,8 @@ impl BlockApp {
         self.choosing_profile = false;
         self.shell = None;
         self.ui_settings = None;
+        self.input.set_block(None);
+        self.display.set_block(None);
         self.keys.cancel_pairing();
         self.workspace_key = match self.app_state.workspace_key(&self.account, workspace.id) {
             Ok(key) => key,
@@ -962,17 +981,6 @@ impl BlockApp {
         self.poll_workspace_request();
     }
 
-    fn request_account_switch(&mut self, account: Account) {
-        if account == self.account {
-            return;
-        }
-        if be::status().unsealed == 0 {
-            self.scheduled_account_switch = Some(account);
-        } else {
-            self.pending_destructive_action = Some(PendingDestructiveAction::Switch(account));
-        }
-    }
-
     fn switch_account(&mut self, account: Account) {
         let server_url = match &account.server {
             ServerLocation::Local => self.local_server_url.clone(),
@@ -992,10 +1000,9 @@ impl BlockApp {
         self.dynamic_artifact_settings_open = None;
         self.pending_transfers.clear();
         self.about_open = false;
-        self.run_program_open = false;
+        self.launcher.show(false);
         self.app_menu_open = false;
         self.pending_destructive_action = None;
-        self.scheduled_account_switch = None;
         self.allow_close = false;
         self.workspace = None;
         self.workspaces.clear();
@@ -1010,6 +1017,8 @@ impl BlockApp {
         self.choosing_profile = false;
         self.shell = None;
         self.ui_settings = None;
+        self.input.set_block(None);
+        self.display.set_block(None);
         self.keys = keys::KeyState::default();
         self.workspace_key = None;
         self.account = account;
@@ -1035,9 +1044,6 @@ impl BlockApp {
             return;
         };
         match action {
-            PendingDestructiveAction::Switch(account) => {
-                self.scheduled_account_switch = Some(account);
-            }
             PendingDestructiveAction::ChooseWorkspace => {
                 self.scheduled_workspace_list = true;
             }
@@ -1289,7 +1295,7 @@ impl BlockApp {
             }
             self.block_types.remove(&previous);
         }
-        let shell_editor = self.root_settings.shell();
+        let shell_editor = self.root_settings.profile_editor(id)?;
         self.block_types.insert(id, shell_editor);
         if !self.editors.with(|open| open.contains_key(&id)) {
             let editor = self.registry.open(id, shell_editor).viewed_by(Some(id));
@@ -1737,6 +1743,7 @@ impl BlockApp {
             BlockCommand::Redo if self.editor_access(id).can_edit() => be::redo(id),
             BlockCommand::Undo | BlockCommand::Redo => {}
             BlockCommand::AppMenu => self.app_menu_open = true,
+            BlockCommand::Launcher => self.launcher.show(true),
             BlockCommand::Unlink { container } => {
                 self.queue_copy(id, Uuid::from_bytes(container));
             }
@@ -1833,9 +1840,6 @@ impl BlockApp {
             let _ = self.app_state.set_last_workspace(&account, None);
             self.switch_account(account);
         }
-        if let Some(account) = self.scheduled_account_switch.take() {
-            self.switch_account(account);
-        }
         self.poll_keys();
         if self.workspace.is_none() {
             be::stop();
@@ -1855,6 +1859,8 @@ impl BlockApp {
             return;
         }
         self.sync_ui_settings(context);
+        self.sync_local_settings();
+        self.launcher.frame();
         self.sync_be_stack();
         self.poll_workspace_request();
         self.poll_reauth_request();
@@ -1898,6 +1904,18 @@ impl BlockApp {
         });
     }
 
+    fn sync_local_settings(&mut self) {
+        if self.input.block().is_none() || self.display.block().is_none() {
+            let settings = self.root_settings.find().and_then(root_settings::settings);
+            if let Some(settings) = settings {
+                self.input.resolve(&settings, self.client_id);
+                self.display.resolve(&settings, self.client_id);
+            }
+        }
+        self.input.sync(&self.app_state);
+        self.display.sync(&self.app_state);
+    }
+
     fn sync_ui_settings(&mut self, context: &beui::Context) {
         if self.ui_settings.is_none() {
             let Some(root_settings) = self.root_settings.find() else {
@@ -1937,6 +1955,11 @@ impl BlockApp {
                 None => {}
             },
             UiCommand::Exit => std::process::exit(1),
+            UiCommand::CloseApp => {
+                if self.close_requested() {
+                    context.close_window();
+                }
+            }
             UiCommand::OpenAccount(key) => {
                 if let Some(account) = self.account_by_key(&key) {
                     self.open_account(account, false);
@@ -1997,10 +2020,11 @@ impl BlockApp {
                 self.root_settings.use_profile(self.client_id, profile);
                 self.choosing_profile = false;
             }
-            UiCommand::OpenNewProfile => {
-                self.root_settings.new_profile(self.client_id);
+            UiCommand::OpenNewProfile(editor) => {
+                self.root_settings.new_profile(self.client_id, editor);
                 self.choosing_profile = false;
             }
+            UiCommand::EveryProfileType(every) => self.every_profile_type = every,
             UiCommand::RespondInvitation(id, accept) => {
                 self.begin_workspace_request(WorkspaceOperation::Respond(id, accept));
             }
@@ -2027,10 +2051,6 @@ impl BlockApp {
                 self.close_reauth();
             }
             UiCommand::ReauthClose => self.close_reauth(),
-            UiCommand::SwitchProfile(profile) => {
-                self.root_settings.use_profile(self.client_id, profile);
-            }
-            UiCommand::NewProfile => self.root_settings.new_profile(self.client_id),
             UiCommand::OpenInspector => self.inspector_requested = Some(true),
             UiCommand::InviteMember => self.invite_open = true,
             UiCommand::SwitchWorkspace => {
@@ -2041,17 +2061,10 @@ impl BlockApp {
                         Some(PendingDestructiveAction::ChooseWorkspace);
                 }
             }
-            UiCommand::SwitchTo(key) => {
-                if let Some(account) = self.account_by_key(&key) {
-                    self.request_account_switch(account);
-                }
-            }
             UiCommand::About(open) => self.about_open = open,
-            UiCommand::RunProgram(open) => self.run_program_open = open,
-            UiCommand::Launch(command) => {
-                self.run_program_open = false;
-                wayland::launch(command);
-            }
+            UiCommand::Launcher(open) => self.launcher.show(open),
+            UiCommand::LaunchProgram(key) => self.launcher.launch(&key),
+            UiCommand::Launch(command) => self.launcher.run(command),
             UiCommand::AppMenu(open) => self.app_menu_open = open,
             UiCommand::SendInvite(email, role) => {
                 if let Some(workspace) = &self.workspace
@@ -2136,7 +2149,7 @@ impl BlockApp {
                 pending: self.pending_error_action,
                 unsaved: be::status().unsealed,
             },
-            accounts: accounts.clone(),
+            accounts,
             account_error: self.account_error.clone(),
             add_account: ui::AddAccountView {
                 open: self.add_account_open,
@@ -2203,14 +2216,22 @@ impl BlockApp {
                 changes_saved,
                 workspace: workspace_name.clone(),
                 signed_in_as: format!("Signed in as {}", self.account.name),
-                accounts,
                 profiles: self
                     .root_settings
-                    .profiles(self.client_id)
+                    .profiles(self.client_id, self.every_profile_type)
                     .into_iter()
-                    .map(|(id, name, current)| ui::ProfileRow { id, name, current })
+                    .map(|profile| ui::ProfileRow {
+                        id: profile.id,
+                        name: profile.name,
+                        kind: (profile.editor != self.root_settings.shell())
+                            .then(|| root_settings::session_type_name(profile.editor).to_owned()),
+                        current: profile.current,
+                    })
                     .collect(),
                 profiles_loaded: self.root_settings.loaded(),
+                every_profile_type: self.every_profile_type,
+                session_type: self.root_settings.shell(),
+                can_close: !cfg!(target_arch = "wasm32"),
                 runs_programs: wayland::running(),
             },
             invite: self.invite_open.then(|| ui::InviteView {
@@ -2220,7 +2241,8 @@ impl BlockApp {
                 sent: self.invite_sent,
             }),
             about: self.about_open,
-            run_program: self.run_program_open,
+            launcher: self.launcher.open(),
+            programs: self.launcher.items(),
             app_menu: self.app_menu_open,
             discard: self.pending_destructive_action.as_ref().map(discard_view),
             presenting: self
@@ -2288,13 +2310,6 @@ impl BlockApp {
 
 fn discard_view(action: &PendingDestructiveAction) -> ui::DiscardView {
     let (message, button) = match action {
-        PendingDestructiveAction::Switch(account) => (
-            format!(
-                "Switching to {} will discard changes that have not reached the server.",
-                account.name
-            ),
-            "Discard and switch",
-        ),
         PendingDestructiveAction::ChooseWorkspace => (
             "Switching workspaces will discard changes that have not reached the server."
                 .to_owned(),

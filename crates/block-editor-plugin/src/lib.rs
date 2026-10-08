@@ -25,16 +25,16 @@ pub use block_plugin_api::{
     BlockFilter, BlockLocation, BlockPick, Catalog, ChildContent, ChildId, ChildLayer, ChildMode,
     ChildPlacement, ChildStatus, ClipboardImage, ConflictSide, CreationProgress, CursorIcon,
     DataListing, EditorCapabilities, EditorInstanceId, EditorRegion, FetchResult, FileSave,
-    FrameChrome, FrameSpec, HostPanel, HostReply, HostRequest, HostWindow, HostWindowId,
-    InputEvent, InteractionMode, Key, MenuEntry, Modifiers, Occluder, PointerButton, ResizeMode,
-    ScreenPlacement, SettingsProgress, ShellDialog, SurfaceRect, TemplateCategory,
-    TemplateDescriptor, TopBar, TouchPhase, VersionBranch, VersionChange, VersionChangeKind,
-    VersionCommand, VersionCommit, VersionStatus, ViewChange, WebViewCommand, WebViewEvent,
-    WebViewId, WheelUnit,
+    FrameChrome, FrameSpec, HostDisplay, HostDisplayMode, HostInputDevice, HostPanel, HostReply,
+    HostRequest, HostWindow, HostWindowId, InputEvent, InteractionMode, Key, MenuEntry, Modifiers,
+    Occluder, PointerButton, ResizeMode, ScreenPlacement, SettingsProgress, ShellDialog,
+    SurfaceRect, TemplateCategory, TemplateDescriptor, TopBar, TouchPhase, VersionBranch,
+    VersionChange, VersionChangeKind, VersionCommand, VersionCommit, VersionStatus, ViewChange,
+    WebViewCommand, WebViewEvent, WebViewId, WheelUnit,
 };
 pub use block_ui;
 pub use clock::{frame_time, utc_offset};
-pub use content::ContentProjection;
+pub use content::{ContentProjection, Projected};
 pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};
 pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphCommand};
 pub use host::{

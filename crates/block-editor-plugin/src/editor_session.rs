@@ -2,9 +2,9 @@ use be_block::presence::{PresenceKind, UserActive, pick_free_color};
 use block_plugin_api::{
     ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildRect,
     ChildStatus, CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion,
-    FrameChrome, FrameReport, HostPanel, HostReply, ImeArea, InputEvent, MAX_CHILDREN,
-    MAX_COLLECTION_ITEMS, MenuEntry, Message, Occluder, RegionSize, ScreenPlacement, ScreenRequest,
-    Size, ViewChange, ViewportMetrics, WebViewEvent, WebViewId,
+    FrameChrome, FrameReport, HostPanel, HostReply, ImeArea, InputEvent, LinuxMessage,
+    MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Message, Occluder, RegionSize, ScreenPlacement,
+    ScreenRequest, Size, ViewChange, ViewportMetrics, WebViewEvent, WebViewId,
 };
 use block_ui::BlockCatalog;
 use geometry::{Rect, Vec2, pos2, vec2};
@@ -17,7 +17,10 @@ use uuid::Uuid;
 #[cfg(target_arch = "wasm32")]
 use crate::plugin::PaintTarget;
 use crate::plugin::{Frame, Instance, Region};
-use crate::{EditorHost, Waker, host::BlockDrag};
+use crate::{
+    EditorHost, Waker,
+    host::{BlockDrag, HostContent},
+};
 
 pub type Open = fn(EditorHost) -> Box<dyn Instance>;
 
@@ -153,18 +156,10 @@ impl EditorSession {
         self.host.set_editable(editable);
     }
 
-    pub(crate) fn set_block_content(
-        &self,
-        block: Uuid,
-        content_type: Uuid,
-        bytes: Vec<u8>,
-        applied: u64,
-    ) {
+    pub(crate) fn set_block_content(&self, block: Uuid, content: HostContent) {
         match self.own_block == Some(block) {
-            true => self.host.set_block_content(content_type, bytes, applied),
-            false => self
-                .host
-                .set_content_of(block, content_type, bytes, applied),
+            true => self.host.set_block_content(content),
+            false => self.host.set_content_of(block, content),
         }
     }
 
@@ -196,8 +191,13 @@ impl EditorSession {
         self.host.show_panel(panel);
     }
 
-    pub(crate) fn set_windows(&self, windows: Vec<block_plugin_api::HostWindow>) {
-        self.host.set_windows(windows);
+    pub(crate) fn linux_message(&self, message: LinuxMessage) {
+        match message {
+            LinuxMessage::Windows(windows) => self.host.set_windows(windows),
+            LinuxMessage::InputDevices(devices) => self.host.set_input_devices(devices),
+            LinuxMessage::Displays(displays) => self.host.set_displays(displays),
+            LinuxMessage::WatchInputDevices | LinuxMessage::WatchDisplays => {}
+        }
     }
 
     pub(crate) fn show_block(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>) {
@@ -684,6 +684,18 @@ impl EditorSession {
             messages.push(Message::Editor(EditorMessage::WatchArtifacts {
                 instance,
                 blocks: blocks.into_iter().map(Uuid::into_bytes).collect(),
+            }));
+        }
+        if self.host.take_input_device_watch() {
+            messages.push(Message::Editor(EditorMessage::Linux {
+                instance,
+                message: LinuxMessage::WatchInputDevices,
+            }));
+        }
+        if self.host.take_display_watch() {
+            messages.push(Message::Editor(EditorMessage::Linux {
+                instance,
+                message: LinuxMessage::WatchDisplays,
             }));
         }
         if let Some(blocks) = self.host.take_history_watch() {

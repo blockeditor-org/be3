@@ -138,83 +138,133 @@ pub(crate) fn PhoneFiles(
         picker.open_placed(&editor, parent, excluded);
     });
     let rising = clone!(level set_level -> move || set_level.set(level.get_untracked().up()));
-    let rows_editor = editor.clone();
     let menu = clone!(editor -> move || editor.host().show_app_menu(editor.block_id()));
-    let rows_tree = Rc::clone(&tree);
-    let rows_level = set_level.clone();
-    let rows_tools = RowTools {
+    let shelf = Shelf {
         editor: editor.clone(),
         tree: Rc::clone(&tree),
-        picker: Rc::clone(&picker),
-        exporter,
-        inspect,
         set_level: set_level.clone(),
+        tools: RowTools {
+            editor: editor.clone(),
+            tree: Rc::clone(&tree),
+            picker: Rc::clone(&picker),
+            exporter,
+            inspect,
+            set_level: set_level.clone(),
+        },
     };
-    let recents_editor = editor.clone();
     let header_level = level.clone();
     let header_set = set_level.clone();
+    let page_color = use_theme().background;
+    let parent = clone!(level shelf menu page_color -> move || {
+        let (above, _) = create_signal(level.get_untracked().up());
+        let (unsearched, unsearch) = create_signal(String::new());
+        let at_top = create_memo(clone!(above -> move || above.get() == Level::Root));
+        let (color, folder, set_level, on_menu) = (
+            page_color.clone(),
+            shelf.clone(),
+            shelf.set_level.clone(),
+            menu.clone(),
+        );
+        view! {
+            <Frame color radius=0>
+                <List spacing=0.0>
+                    <Header
+                        level={above.clone()}
+                        set_level
+                        query={unsearched}
+                        set_query={unsearch}
+                        on_menu
+                    />
+                    <Folder
+                        @sizing=ItemSize::Percent(100.0)
+                        shelf={folder}
+                        level={above}
+                        at_root={at_top}
+                    />
+                </List>
+            </Frame>
+        }
+    });
     view! {
-        <BackSlide enabled={nested} on_back={rising}>
-            <List spacing=0.0>
-                <Header
-                    level={header_level}
-                    set_level={header_set}
-                    query
-                    set_query
-                    on_menu={menu}
-                />
-                <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&page}>
-                    <List spacing=0.0>
-                        <Show condition={searching}>
-                            <SearchSoon @sizing=ItemSize::Percent(100.0) />
-                        </Show>
-                        <Show condition={browsing}>
-                            {move || clone!(at_root level recents_editor rows_tools rows_editor rows_level rows_tree -> view! {
-                                <Scroll @sizing=ItemSize::Percent(100.0)>
-                                    <Frame padding_horizontal=PADDING padding_vertical=PADDING>
-                                        <List spacing=ROW_SPACING>
-                                            <Show condition={at_root}>
-                                                <Recents editor={recents_editor.clone()} />
-                                            </Show>
-                                            <Dynamic value={level}>
-                                                {move |level: Level| {
-                                                    let editor = rows_editor.clone();
-                                                    let tree = Rc::clone(&rows_tree);
-                                                    let set_level = rows_level.clone();
-                                                    let tools = rows_tools.clone();
-                                                    view! {
-                                                        <LevelRows
-                                                            @sizing=ItemSize::Intrinsic
-                                                            editor
-                                                            tree
-                                                            level
-                                                            set_level
-                                                            tools
-                                                        />
-                                                    }
-                                                }}
-                                            </Dynamic>
-                                            <Frame height=DOCK_ROOM />
-                                        </List>
-                                    </Frame>
-                                </Scroll>
-                            })}
-                        </Show>
-                    </List>
-                </Frame>
-                <Floating anchor={page} edge=Edge::BottomEnd open={can_create}>
-                    <Frame padding_horizontal=NEW_MARGIN padding_vertical=NEW_MARGIN>
-                        <Button
-                            @test_id={"file-tree.new"}
-                            label="New"
-                            glyph={ICON_ADD.to_owned()}
-                            variant=ButtonVariant::Primary
-                            on_click={creating}
-                        />
+        <BackSlide enabled={nested} on_back={rising} behind={parent}>
+            <Frame color={page_color} radius=0>
+                <List spacing=0.0>
+                    <Header
+                        level={header_level}
+                        set_level={header_set}
+                        query
+                        set_query
+                        on_menu={menu}
+                    />
+                    <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&page}>
+                        <List spacing=0.0>
+                            <Show condition={searching}>
+                                <SearchSoon @sizing=ItemSize::Percent(100.0) />
+                            </Show>
+                            <Show condition={browsing}>
+                                {move || clone!(shelf level at_root -> view! {
+                                    <Folder @sizing=ItemSize::Percent(100.0) shelf level at_root />
+                                })}
+                            </Show>
+                        </List>
                     </Frame>
-                </Floating>
-            </List>
+                    <Floating anchor={page} edge=Edge::BottomEnd open={can_create}>
+                        <Frame padding_horizontal=NEW_MARGIN padding_vertical=NEW_MARGIN>
+                            <Button
+                                @test_id={"file-tree.new"}
+                                label="New"
+                                glyph={ICON_ADD.to_owned()}
+                                variant=ButtonVariant::Primary
+                                on_click={creating}
+                            />
+                        </Frame>
+                    </Floating>
+                </List>
+            </Frame>
         </BackSlide>
+    }
+}
+
+#[derive(Clone)]
+struct Shelf {
+    editor: Editor,
+    tree: Rc<FileTree>,
+    set_level: WriteSignal<Level>,
+    tools: RowTools,
+}
+
+#[component]
+fn Folder(shelf: Shelf, level: ReadSignal<Level>, at_root: Memo<bool>) -> NodeId {
+    let recents_editor = shelf.editor.clone();
+    view! {
+        <Scroll>
+            <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                <List spacing=ROW_SPACING>
+                    <Show condition={at_root}>
+                        <Recents editor={recents_editor.clone()} />
+                    </Show>
+                    <Dynamic value={level}>
+                        {move |level: Level| {
+                            let editor = shelf.editor.clone();
+                            let tree = Rc::clone(&shelf.tree);
+                            let set_level = shelf.set_level.clone();
+                            let tools = shelf.tools.clone();
+                            view! {
+                                <LevelRows
+                                    @sizing=ItemSize::Intrinsic
+                                    editor
+                                    tree
+                                    level
+                                    set_level
+                                    tools
+                                />
+                            }
+                        }}
+                    </Dynamic>
+                    <Frame height=DOCK_ROOM />
+                </List>
+            </Frame>
+        </Scroll>
     }
 }
 

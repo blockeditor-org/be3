@@ -130,7 +130,8 @@ impl EditorMessage {
                     | BlockCommand::Artifact { .. }
                     | BlockCommand::SimulateAccess { .. }
                     | BlockCommand::CloseEditor
-                    | BlockCommand::AppMenu => {}
+                    | BlockCommand::AppMenu
+                    | BlockCommand::Launcher => {}
                 }
             }
             Self::PickRequested { filter, parent, .. } => {
@@ -258,8 +259,8 @@ impl EditorMessage {
             | Self::GrabCursor { .. }
             | Self::WebViewCommand { .. }
             | Self::ShowPanel { .. }
-            | Self::Windows { .. }
             | Self::CloseWindow { .. }
+            | Self::Linux { .. }
             | Self::WebViewEvent { .. }
             | Self::OpenCreation { .. }
             | Self::CreationReady { .. }

@@ -216,6 +216,8 @@ pub(super) trait Session {
 
     fn bytes(&self) -> Vec<u8>;
 
+    fn session_state(&self) -> Vec<u8>;
+
     fn head(&self) -> Option<CommitId>;
 
     fn is_clean(&self) -> bool;
@@ -327,6 +329,10 @@ where
 
     fn bytes(&self) -> Vec<u8> {
         self.live.content().encode()
+    }
+
+    fn session_state(&self) -> Vec<u8> {
+        self.live.content().session_state()
     }
 
     fn head(&self) -> Option<CommitId> {
@@ -506,6 +512,10 @@ where
 
     fn bytes(&self) -> Vec<u8> {
         self.live.content().encode()
+    }
+
+    fn session_state(&self) -> Vec<u8> {
+        self.live.content().session_state()
     }
 
     fn head(&self) -> Option<CommitId> {
@@ -756,9 +766,10 @@ async fn connected<S: Fn() -> Result<Store, String>>(
     let mut unsealed_since: Option<Instant> = None;
     let mut flushes = Vec::new();
     loop {
-        let woken = match unsealed_since {
-            Some(since) => {
-                let remaining = SEAL_INTERVAL.saturating_sub(since.elapsed());
+        let deadline = unsealed_since.map(|since| since + SEAL_INTERVAL);
+        let woken = match deadline {
+            Some(deadline) => {
+                let remaining = deadline.saturating_duration_since(Instant::now());
                 let waited = std::pin::pin!(wait(commands, &mut events, &mut gone));
                 let timer = std::pin::pin!(platform::sleep(remaining));
                 match select(waited, timer).await {
@@ -817,8 +828,11 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                 false
             }
             Woken::Deadline => {
-                seal_all(&mut sessions, shared).await;
-                true
+                let due = unsealed_since.is_some_and(|since| since.elapsed() >= SEAL_INTERVAL);
+                if due {
+                    seal_all(&mut sessions, shared).await;
+                }
+                due
             }
         };
         if sealed {
@@ -1352,7 +1366,11 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
         let Some(content) = held.blocks.get_mut(block) else {
             held.blocks.insert(
                 *block,
-                Content::new(session.content_type(), session.bytes()),
+                Content::new(
+                    session.content_type(),
+                    session.bytes(),
+                    session.session_state(),
+                ),
             );
             held.touch(*block);
             changed = true;
@@ -1365,6 +1383,7 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
             content.record(entry);
         }
         content.bytes = session.bytes();
+        content.session = session.session_state();
         held.touch(*block);
         changed = true;
     }

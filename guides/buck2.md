@@ -16,7 +16,8 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/ci` | what CI runs: `./scripts/verify`, and `--android DIR` the signed APKs, `--previews BASE OUT` the paint previews |
 | `./scripts/buck test //crates/...` | the tests alone; outside CI it prints only the failures and the compiler's errors, and `BE3_VERBOSE=1` prints everything |
 | `./scripts/buck test //crates/editors/checklist:test` | one editor's tests; add `-- --env UPDATE_SNAPSHOTS=1` to accept its paintings |
-| `./scripts/buck test //crates/editors/checklist:test -- --test-arg adding` | only the tests whose names contain `adding`; `--test-arg` passes its value to the test binary, and a bare argument after `--` is an error |
+| `./scripts/buck test //crates/editors/checklist:test -- --test-arg=adding` | only the tests whose names contain `adding`; `--test-arg` passes its value to the test binary, and a bare argument after `--` is an error |
+| `./scripts/test adding [--update]` | the tests whose names contain `adding`, in every crate that has one, with all their output; it finds each crate's `:test` and runs it with `BE3_VERBOSE=1` and `--nocapture` |
 | `./scripts/buck run //crates/block-app:app` | the app, with every plugin beside it |
 | `./scripts/buck run //crates/block-app:smoke` | the app for ten seconds in a virtual display |
 | `./scripts/buck build //crates/block-app:dist --out DIR` | a platform's release: app and `be-server` |
@@ -27,6 +28,8 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck run //crates/beui-demo:demo` | beui's demo in a window |
 | `./scripts/buck run //crates/beui:survey-example` | a crate example; every example is `<name>-example` |
 | `./scripts/buck run //crates/beui-web-demo:web-serve` | beui's demo in a browser, drawn with DOM elements, on http://127.0.0.1:8070 |
+| `./scripts/buck run //:fuzz` | every fuzz target, taking turns with every core (`BE3_FUZZ_SLICE` seconds each, 600 by default), until it is stopped |
+| `./scripts/buck run //crates/sequence:fuzz-sequence -- FILE` | one fuzz target; with an input file, runs it once |
 | `./scripts/buck run //:buckify` | regenerates `buck/cargo/crates.bzl` and `Cargo.lock` from the manifests |
 | `./scripts/buck run //:rust-project` | writes `rust-project.json` for rust-analyzer |
 | `./scripts/buck run //:lock-sysroot` | re-resolves `buck/sysroot/packages.bzl` |
@@ -148,6 +151,17 @@ rule attribute such as a test's `remote_execution = "disabled"`.
 from `buck/wasm/defs.bzl`, which makes the guest cdylib, its `:module`, its
 `:manifest` and its wasm `:test`. The app picks up every editor by itself.
 
+**A fuzz target**: a file `fuzz/<name>.rs` in a crate whose `BUCK` calls
+`cargo_fuzz()` (with `extra_features` for the library's features it needs),
+which is a `#![no_main]` crate defining `LLVMFuzzerTestOneInput` over the
+library (`crates/sequence/fuzz`). It becomes `:fuzz-<name>`, and `//:fuzz`
+finds it by itself (`buck/dev/fuzz.bxl`). It is built with rustc's sancov
+instrumentation and linked with LLVM's libFuzzer, on the stable compiler and
+without a sanitizer, for Linux x86_64 only, and `:fuzz-<name>-test` fuzzes for
+a moment from a fixed seed. Its corpus and crashes are kept in
+`target/fuzz/<crate>/<name>`, so it picks up where it was when it is started
+again.
+
 **A system library**: a line in `buck/sysroot/BUCK`, then
 `./scripts/buck run //:lock-sysroot`. A `-sys` crate finds it through the
 fixup `_PKG_CONFIG`, which answers its build script's pkg-config from the
@@ -184,7 +198,9 @@ crates sit outside `crates/` because `build //crates/...`, `//:check` and
 clippy would fail on them, and the autofixes would delete the markers.
 
 Arguments after `--` go to the test executor: `--env NAME=VALUE` sets a
-variable, `--test-arg NAME` runs one test. buck2 runs a binary's tests on
+variable, `--test-arg=NAME` runs one test. Write it with `=`: the spaced
+`--test-arg NAME` takes every argument after it as its value, a second
+`--test-arg` included, and the test binary then fails on that. buck2 runs a binary's tests on
 threads, like `cargo test`, so tests that touch process-wide state must take
 turns.
 
@@ -275,13 +291,16 @@ extension ships: the toolchain's panics on this workspace.
 - **Downloads.** Every `http_archive` has `size_bytes` as well as `sha256`;
   without it buck2 sends a HEAD request per download on every new daemon.
 - **`./scripts/verify`** is one `buck2 bxl` of `buck/dev/verify.bxl`, which
-  builds everything with `--keep-going` and prints what the script reads
-  after: the generated files, the paintings, and each crate's fixes. The
-  autofixes are actions (`buck/dev/fix.sh`), one a crate: clippy's
-  machine-applicable suggestions from every target's `[clippy.json]`, then
-  fix-rust-source, then rustfmt, on a copy of the crate's sources, output as
-  the files that changed. The script copies them into the checkout. A fix that
-  makes another possible shows up on the next run.
+  builds everything with `--keep-going` and prints what is read after: the
+  generated files, the paintings, each crate's fixes, and `crates/verify`,
+  built for this machine, which the script then runs to read the rest and
+  write it into the checkout. Anything after the build belongs in
+  `crates/verify` rather than in bash, so it works the same on Linux, macOS
+  and Git Bash on Windows. The autofixes are actions (`buck/dev/fix.sh`), one
+  a crate: clippy's machine-applicable suggestions from every target's
+  `[clippy.json]`, then fix-rust-source, then rustfmt, on a copy of the
+  crate's sources, output as the files that changed. A fix that makes another
+  possible shows up on the next run.
 - **Clippy** reads every target's `[clippy.json]` in the configurations
   `//crates/...` resolves to, and, like `//:check`, in `windows_x86_64` and
   `macos_arm64` for the desktop programs' first-party dependencies

@@ -15,6 +15,8 @@ const SWATCH_HEIGHT: f32 = 28.0;
 const LARGE_ICON: f32 = 28.0;
 const SPINNER_WIDTH: f32 = 120.0;
 const DIALOG_WIDTH: f32 = 380.0;
+const LAUNCHER_ICON_PIXELS: u32 = 64;
+const LAUNCHER_ICON_BORDER: u32 = 6;
 const ROW_COUNT: usize = 10_000;
 const ROWS_HEIGHT: f32 = 360.0;
 const ROW_HEIGHT: f32 = 34.0;
@@ -546,6 +548,38 @@ fn LockedControls() -> NodeId {
     }
 }
 
+#[sample]
+#[component]
+fn LightSwitches() -> NodeId {
+    let (kitchen, set_kitchen) = create_signal(true);
+    let (hall, set_hall) = create_signal(false);
+    let every = create_memo(clone!(kitchen hall -> move || kitchen.get() && hall.get()));
+    let mixed = create_memo(clone!(kitchen hall -> move || kitchen.get() != hall.get()));
+    let (set_every_kitchen, set_every_hall) = (set_kitchen.clone(), set_hall.clone());
+    view! {
+        <List spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <Switch
+                    label="Every light"
+                    on={every}
+                    indeterminate={mixed}
+                    on_change={move |on: bool| {
+                        set_every_kitchen.set(on);
+                        set_every_hall.set(on);
+                    }}
+                />
+                <Body content="Every light" />
+            </List>
+            <LabelledSwitch
+                label="Kitchen"
+                on={kitchen}
+                on_change={move |on| set_kitchen.set(on)}
+            />
+            <LabelledSwitch label="Hall" on={hall} on_change={move |on| set_hall.set(on)} />
+        </List>
+    }
+}
+
 #[component]
 pub(crate) fn ChoicesPage() -> NodeId {
     view! {
@@ -558,6 +592,9 @@ pub(crate) fn ChoicesPage() -> NodeId {
             </Sample>
             <Sample title="Select" code={vec![FruitSelect::SOURCE]}>
                 <FruitSelect />
+            </Sample>
+            <Sample title="Switches with a mixed state" code={vec![LightSwitches::SOURCE]}>
+                <LightSwitches />
             </Sample>
             <Sample title="Tabs" code={vec![ScaleTabs::SOURCE]}>
                 <ScaleTabs />
@@ -1113,6 +1150,9 @@ pub(crate) fn OverlaysPage() -> NodeId {
             <Sample title="Dialog" code={vec![DiscardDialog::SOURCE]}>
                 <DiscardDialog />
             </Sample>
+            <Sample title="Launcher" code={vec![ProgramLauncher::SOURCE, program::SOURCE]}>
+                <ProgramLauncher />
+            </Sample>
             <Sample title="Menu as a sheet" code={vec![ActionsSheet::SOURCE]}>
                 <ActionsSheet />
             </Sample>
@@ -1213,6 +1253,111 @@ fn DiscardDialog() -> NodeId {
                     </List>
                 </List>
             </Dialog>
+        </List>
+    }
+}
+
+#[sample]
+fn program(
+    key: &str,
+    title: &str,
+    detail: &str,
+    terms: &[&str],
+    color: Option<Color32>,
+) -> LauncherItem {
+    let side = LAUNCHER_ICON_PIXELS;
+    let image = color.map(|color| {
+        let pixels = (0..side * side)
+            .flat_map(|at| {
+                let (x, y) = (at % side, at / side);
+                let edge = x.min(y).min(side - 1 - x).min(side - 1 - y);
+                match edge < LAUNCHER_ICON_BORDER {
+                    true => [255, 255, 255, 255],
+                    false => color.to_array(),
+                }
+            })
+            .collect();
+        Image::from_rgba(side, side, pixels)
+    });
+    LauncherItem {
+        key: key.to_owned(),
+        title: title.to_owned(),
+        detail: detail.to_owned(),
+        terms: terms.iter().map(|term| (*term).to_owned()).collect(),
+        image,
+    }
+}
+
+#[sample]
+#[component]
+fn ProgramLauncher() -> NodeId {
+    let (launcher, set_launcher) = create_signal(false);
+    let (outcome, set_outcome) = create_signal("Nothing launched".to_owned());
+    let items = Rc::new(vec![
+        program(
+            "calculator",
+            "Calculator",
+            "Perform calculations",
+            &["math"],
+            Some(Color32::from_rgb(52, 120, 246)),
+        ),
+        program(
+            "files",
+            "Files",
+            "Access and organize files",
+            &["folder", "manager"],
+            Some(Color32::from_rgb(245, 166, 35)),
+        ),
+        program(
+            "firefox",
+            "Firefox",
+            "Browse the web",
+            &["internet", "browser"],
+            Some(Color32::from_rgb(230, 80, 40)),
+        ),
+        program(
+            "terminal",
+            "Terminal",
+            "Use the command line",
+            &["shell", "prompt"],
+            None,
+        ),
+        program(
+            "text",
+            "Text Editor",
+            "Edit text files",
+            &["notepad"],
+            Some(Color32::from_rgb(90, 180, 110)),
+        ),
+    ]);
+    let (showing, closing, launching) = (set_launcher.clone(), set_launcher.clone(), set_launcher);
+    let ran = set_outcome.clone();
+    let shut = closing.clone();
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <Button
+                    @test_id={"demo.launcher.open"}
+                    label="Open the launcher"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || showing.set(true)}
+                />
+            </List>
+            <Caption content={outcome} />
+            <Launcher
+                open={launcher}
+                items
+                placeholder="Search programs"
+                on_launch={move |key: String| {
+                    set_outcome.set(format!("Launched {key}"));
+                    launching.set(false);
+                }}
+                on_run={move |line: String| {
+                    ran.set(format!("Ran {line}"));
+                    shut.set(false);
+                }}
+                on_close={move || closing.set(false)}
+            />
         </List>
     }
 }

@@ -124,21 +124,13 @@ impl DocumentTest {
     }
 
     pub fn snapshot(&mut self, name: &str) {
-        self.snapshot_region(name, Rect::from_min_size(Pos2::ZERO, self.size));
-    }
-
-    pub fn snapshot_of(&mut self, name: &str, test_id: &str) {
-        let region = self.rect_of(test_id);
-        self.snapshot_region(name, region);
-    }
-
-    fn snapshot_region(&mut self, name: &str, region: Rect) {
         let output = self
             .output
             .as_ref()
             .expect("the document has not drawn a frame yet");
-        let painting = capture::capture(output, region, output.pixels_per_point(), Color32::BLACK)
-            .expect("the painting could not be rendered");
+        let painting =
+            capture::capture(output, self.size, output.pixels_per_point(), Color32::BLACK)
+                .expect("the painting could not be rendered");
         snapshot::assert_snapshot(name, &painting);
     }
 }

@@ -9,12 +9,17 @@ use uuid::Uuid;
 
 use super::*;
 
+mod a_follower_keeps_its_unconfirmed_typing_through_a_reload;
 mod a_follower_replaces_an_image_and_the_owner_takes_it;
 mod a_follower_stops_saving_after_a_message_it_cannot_read;
 mod a_follower_takes_over_and_keeps_editing_without_a_merge;
+mod a_follower_that_falls_behind_after_following_keeps_what_it_had;
 mod a_follower_that_falls_behind_catches_up;
 mod a_follower_that_takes_over_keeps_what_it_typed_before_its_first_save;
+mod a_follower_typing_while_the_owner_types_keeps_both_runs_whole;
 mod a_large_image_streams_without_downloading_all_of_it;
+mod a_late_joiner_places_an_insert_after_an_item_removed_before_it_joined;
+mod a_late_joiner_to_edited_text_types_where_it_sees_the_caret;
 mod a_second_follower_keeps_following_after_the_owner_leaves;
 mod a_stale_save_is_rejected_with_the_head_to_merge_against;
 mod an_edit_too_large_to_relay_is_saved_as_a_commit;
@@ -25,12 +30,14 @@ mod an_offline_rewrite_conflicts_instead_of_interleaving;
 mod an_unsaved_edit_survives_a_publish_from_outside_the_session;
 mod an_unsaved_rewrite_that_conflicts_keeps_both_versions_in_history;
 mod history_is_thinned_but_the_head_and_bookmarks_survive;
+mod large_pastes_behind_an_unconfirmed_edit_go_out_in_relayable_pieces;
 mod metadata_is_sealed_on_the_server_and_opened_by_members;
 mod metadata_that_does_not_decode_is_an_error_rather_than_blank;
 mod presence_reaches_late_joiners_and_leaves_with_its_client;
 mod references_declared_by_content_reach_the_graph;
 mod the_journal_says_how_each_peer_saw_its_content_change;
 mod two_peers_converge_through_the_session_owner;
+mod typing_behind_an_unconfirmed_edit_goes_out_as_one_edit;
 
 struct Harness {
     url: String,
@@ -169,6 +176,37 @@ impl BlockContent for Link {
     fn references(&self) -> Vec<Uuid> {
         self.targets.clone()
     }
+}
+
+fn checklist_texts(live: &Live<MemoryStore, be_block::ChecklistContent>) -> Vec<String> {
+    live.content()
+        .root()
+        .items
+        .iter()
+        .map(|item| item.text.clone())
+        .collect()
+}
+
+trait Texted {
+    fn to_text(&self) -> String;
+}
+
+impl Texted for be_block::TextContent {
+    fn to_text(&self) -> String {
+        be_block::TextBlock::text(self)
+    }
+}
+
+async fn type_at(live: &mut Live<MemoryStore, be_block::TextContent>, at: usize, typed: &str) {
+    let edit = be_block::TextBlock::insert(live.content(), live.client(), at, typed.as_bytes())
+        .expect("there is somewhere to type");
+    live.edit(edit).await.unwrap();
+}
+
+async fn erase(live: &mut Live<MemoryStore, be_block::TextContent>, range: std::ops::Range<usize>) {
+    let edit =
+        be_block::TextBlock::delete(live.content(), range).expect("there is something to erase");
+    live.edit(edit).await.unwrap();
 }
 
 const PATIENCE: Duration = Duration::from_secs(20);

@@ -225,6 +225,31 @@ llvm_tree(
     visibility = ["//third-party/rust/..."],
 )
 
+# libFuzzer from the same LLVM, which a coverage-guided fuzz target links for
+# its main: it reads the coverage rustc's sancov pass compiles into the code
+# under test (crates/sequence's :fuzz). Its own package, so the tree above and
+# everything compiled with it are unchanged.
+http_file(
+    name = "libclang-rt-20-dev.deb",
+    sha256 = "d8cfcefaa68296dd3a438c820dfa94bd0920357a94b7e61607592f1696b167b1",
+    size_bytes = 4085912,
+    urls = ["https://launchpad.net/ubuntu/+archive/primary/+files/libclang-rt-20-dev_{}_amd64.deb".format(llvm_version)],
+)
+
+genrule(
+    name = "libfuzzer.a",
+    cmd = "dpkg-deb -x $(location :libclang-rt-20-dev.deb) $TMP/rt && cp $TMP/rt/usr/lib/llvm-20/lib/clang/20/lib/linux/libclang_rt.fuzzer-x86_64.a $OUT",
+    out = "libfuzzer.a",
+)
+
+prebuilt_cxx_library(
+    name = "libfuzzer",
+    exported_linker_flags = ["-lstdc++"],
+    static_lib = ":libfuzzer.a",
+    target_compatible_with = ["prelude//os:linux", "prelude//cpu:x86_64"],
+    visibility = ["PUBLIC"],
+)
+
 # What buck/toolchains/BUCK names.
 command_alias(
     name = "rustc",

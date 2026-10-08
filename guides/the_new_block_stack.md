@@ -214,12 +214,13 @@ since: the calendar undoes a rename without moving an event another peer
 rescheduled.
 
 `Streamed` types encode as `[u32 header length][header][payload]`, which is what
-lets a reader take the header and then a byte range. `TextContent` and every
-`Blob` (below) are streamed.
+lets a reader take the header and then a byte range. Every `Blob` (below) is
+streamed.
 
 `references_in` is `references` for one workspace, and it is what the peer
-calls when it records a commit's references. Text uses it: a block URL names its
-workspace, and a URL pasted from another workspace is a link, not a reference.
+calls when it records a commit's references (`Root::references_in` for a
+document). Text uses it: a block URL names its workspace, and a URL pasted from
+another workspace is a link, not a reference.
 The URL format itself lives in `be_block::block_url`.
 
 ### be-client
@@ -294,7 +295,7 @@ impl Root for Calendar {
 pub type CalendarContent = Document<Calendar>;
 ```
 
-A field is one of seven things. A `Count` is a counter whose concurrent changes
+A field is one of eight things. A `Count` is a counter whose concurrent changes
 add up. A `Grid<T>` is a dense block of fixed-size cells addressed by
 coordinates, for pixel data: its bounds are part of its value, so a resize moves
 the bounds and keeps every cell at its coordinates, `paint` sets cells and
@@ -306,6 +307,13 @@ both keep theirs, which is how a database row holds a cell per schema field.
 and a merge keeps the later stamp per key, so they never conflict and never
 undo. `next(time, origin)` stamps a write past the one it replaces, so a client
 with a slow clock still overwrites what it last read. View state uses them.
+A `Text` is bytes edited in place: it saves only its bytes, and a live session
+gives every byte a position (`Sequence`, in the `sequence` crate) that edits anchor to,
+so concurrent typing and deleting never need rebasing. Positions and tombstones
+are session state (positions only: the receiver fills the visible bytes in from
+its own copy, and an undelete carries the bytes it brings back), and an offline
+merge is a line diff3. The text block is `Document<TextBlock>`, its body a
+`Text` (see `plans/text.md`).
 Anything else that is `Serialize + DeserializeOwned + Clone + PartialEq +
 Default` is a register: it is set as a whole, and setting it on both sides of an
 offline merge is a conflict. `Root` names the content type and, optionally, the
@@ -328,8 +336,20 @@ values, and every algorithm is written once against that table:
   `Calendar::update`, which only writes the fields that changed.
 - **Live editing.** Edits address objects by id and anchor inserts to a sibling,
   so they mean the same thing whatever the sequencer put before them: there is
-  nothing to rebase. The tree remembers where each removed or moved-away object
-  was, so an insert anchored after it lands where it was. Anything two peers may
+  nothing to rebase. A list is a `Sequence` of ids (`Items`) that remembers each
+  object's slot in it. An insert, or a move into a list the object was never
+  in, takes the next offset of the client that made it (`local_client`, carried
+  in the change), so every replica gives it the same slot. Removing an object
+  leaves a tombstone, an insert anchored after a removed or moved-away object
+  lands where it was, and an object that comes back to a list reuses its slot.
+  A move within a list keeps the slot; a move to another list leaves a tombstone
+  behind. Tombstones and text positions live only
+  in the session: they are never saved, the owner hands them to a joining
+  follower in `Snapshot` and to reloading followers in `Sealed`
+  (`LiveEdit::session_state`), and they go when the session ends. A `Snapshot` carries the state as of the
+  owner's last seal, because the follower opens the sealed head and applies the
+  operations since onto it; adopting state rebuilds a follower's view from
+  `confirmed` and its pending edits rather than adopting into it. Anything two peers may
   create at once for the same purpose (a database row past the end, a canvas
   component for a schema, a logic game solution) takes an id derived from what
   it is for, so the second insert is refused and its edits land on the first.
@@ -348,9 +368,10 @@ values, and every algorithm is written once against that table:
   and the one that redoes it, both taken against the state before the edit. A
   register's undo is conditional (`Change::SetIf`, and `Change::PutIf` for a map
   key): it only puts the old value back if nobody has changed it since, which is how undo leaves other
-  people's edits alone. A move's undo (`Change::MoveIf`) only moves the object
-  back if it is still where the move put it. A removed object is put back with
-  everything under it, after the sibling it followed. `Change::RemoveIf` removes
+  people's edits alone. A move's undo puts the object back after what preceded
+  it, even if someone moved it since, and its redo moves it to where the move
+  put it. A removed object is put back with everything under it, in its old
+  slot. `Change::RemoveIf` removes
   an object only if it still holds what the remover expected, for cleanups like
   a database dropping a row it emptied. Consecutive sets of the same fields
   absorb into one step.
@@ -367,8 +388,8 @@ values, and every algorithm is written once against that table:
 built this way: the counter, the checklist, the calendar, the browser
 tab, the UI settings, the three database types, the presentation, the hotbar,
 the deterministic game, the map, the video, the logic game, the logic grid,
-compiled logic, the infinite canvas and pixel art. Text implements the
-traits by hand, which remains possible for content that does not fit. The browser tab shows a register holding an
+compiled logic, the infinite canvas, pixel art and text. Implementing the
+traits by hand remains possible for content that does not fit. The browser tab shows a register holding an
 `Option<ObjectId>`: its current page is an object in its history, not an index,
 so a push and a navigation made at the same time still agree on which page is
 current. The video shows what identity buys a tree: a clip attached to another
@@ -662,7 +683,24 @@ worker copies what the source's session shows, or its head when it is not open,
 into the copy's id before anything opens the copy.
 
 The app can read a block itself, not only through an editor: the zoom in
-`sync_ui_settings` comes from the UI settings block's content. `be::hold` opens a
+`sync_ui_settings` comes from the UI settings block's content, and
+`sync_local_settings` hands the input settings block (keymap, key repeat, and
+pointer settings for every pointer with per-device overrides) to the `--session`
+seat through `beui_adapter_drm::InputControl` and to the nested Wayland clients'
+keyboard, and the display settings block (a mode per monitor, keyed by the
+monitor's EDID make, model and serial, or by its connector when it has no EDID)
+to the seat's outputs through `beui_adapter_drm::DisplayControl`, which switches
+mode live. Every setting is an `Option`, and an unset one means the default:
+libinput's own for a pointer setting, which the seat reports per device and an
+editor reads with `Editor::input_devices`, and for a monitor its preferred
+resolution at the fastest refresh rate it offers there, which the seat reports
+with the monitor's modes and an editor reads with `Editor::displays`. Messages
+only a Linux host can answer, such as those lists, travel as
+`EditorMessage::Linux`. Because the seat runs before anyone signs in, the app
+keeps a copy of the last settings of each kind it applied in `app_state` and
+applies that at startup; the block stays the source of truth. A kind of setting
+the app applies itself implements `local_settings::LocalSettings` and is kept by
+a `SettingsSync`. `be::hold` opens a
 block for the app and keeps it open when the last editor showing it closes,
 because `be::close` leaves a held block alone. Nothing releases a held block
 before the stack stops, which is when the workspace changes.

@@ -13,7 +13,7 @@ use uuid::Uuid;
 use crate::{
     Waker,
     editor_session::{EditorSession, Open},
-    host::BlockDrag,
+    host::{BlockDrag, HostContent},
 };
 
 pub(crate) type Opener = Open;
@@ -245,6 +245,7 @@ impl Screens {
                 block_id,
                 content_type,
                 bytes,
+                session: state,
                 applied,
             }) => {
                 let Some(session) = self.sessions.get(instance) else {
@@ -252,9 +253,12 @@ impl Screens {
                 };
                 session.set_block_content(
                     Uuid::from_bytes(*block_id),
-                    Uuid::from_bytes(*content_type),
-                    bytes.clone(),
-                    *applied,
+                    HostContent {
+                        content_type: Uuid::from_bytes(*content_type),
+                        bytes: bytes.clone(),
+                        session: state.clone(),
+                        applied: *applied,
+                    },
                 );
             }
             Message::Editor(EditorMessage::Blocks {
@@ -460,9 +464,9 @@ impl Screens {
                     session.show_panel(*panel);
                 }
             }
-            Message::Editor(EditorMessage::Windows { instance, windows }) => {
+            Message::Editor(EditorMessage::Linux { instance, message }) => {
                 if let Some(session) = self.sessions.get(instance) {
-                    session.set_windows(windows.clone());
+                    session.linux_message(message.clone());
                 }
             }
             Message::Editor(EditorMessage::MenuPick { instance, id }) => {

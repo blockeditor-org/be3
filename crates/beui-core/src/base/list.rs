@@ -504,10 +504,21 @@ impl Element for ListNode {
     }
 
     fn kind(&self) -> &'static str {
-        match self.direction {
-            Direction::Horizontal => "row",
-            Direction::Vertical => "column",
-        }
+        "list"
+    }
+
+    fn detail(&self) -> Option<String> {
+        (self.direction == Direction::Horizontal).then(|| "horizontal".to_owned())
+    }
+
+    fn properties(&self) -> Vec<(&'static str, String)> {
+        vec![
+            ("direction", format!("{:?}", self.direction)),
+            ("spacing", self.spacing.to_string()),
+            ("align", format!("{:?}", self.align)),
+            ("justify", format!("{:?}", self.justify)),
+            ("wrap", self.wrap.to_string()),
+        ]
     }
 
     fn as_any(&self) -> &dyn Any {

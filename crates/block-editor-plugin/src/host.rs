@@ -12,8 +12,9 @@ use block_plugin_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand,
     BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect,
     ChildStatus, ClipboardImage, DataListing, EditorRegion, FetchResult, FilePick, FileSave,
-    HostPanel, HostReply, HostRequest, HostWindow, HostWindowId, MenuEntry, Occluder,
-    PerformanceMeasurement, ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent, WebViewId,
+    HostDisplay, HostInputDevice, HostPanel, HostReply, HostRequest, HostWindow, HostWindowId,
+    MenuEntry, Occluder, PerformanceMeasurement, ShellDialog, Size, ViewChange, WebViewCommand,
+    WebViewEvent, WebViewId,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;
@@ -32,7 +33,19 @@ pub struct BlockDrag {
 pub struct HostContent {
     pub content_type: Uuid,
     pub bytes: Vec<u8>,
+    pub session: Vec<u8>,
     pub applied: u64,
+}
+
+impl HostContent {
+    pub fn of<C: be_block::LiveEdit>(content: &C) -> Self {
+        Self {
+            content_type: C::CONTENT_TYPE,
+            bytes: content.encode(),
+            session: content.session_state(),
+            applied: 0,
+        }
+    }
 }
 
 type ContentOperation = (Option<Uuid>, Vec<u8>);
@@ -344,10 +357,12 @@ pub enum Pushed {
     Shows,
     Version,
     Windows,
+    InputDevices,
+    Displays,
 }
 
 impl Pushed {
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 13] = [
         Self::Replies,
         Self::Peers,
         Self::Histories,
@@ -359,6 +374,8 @@ impl Pushed {
         Self::Shows,
         Self::Version,
         Self::Windows,
+        Self::InputDevices,
+        Self::Displays,
     ];
 }
 
@@ -367,6 +384,12 @@ pub struct EditorHost {
     waker: Waker,
     shown_panels: Rc<RefCell<Vec<HostPanel>>>,
     windows: Rc<RefCell<Vec<HostWindow>>>,
+    input_devices: Rc<RefCell<Vec<HostInputDevice>>>,
+    watching_input_devices: Rc<Cell<bool>>,
+    reported_input_device_watch: Rc<Cell<bool>>,
+    displays: Rc<RefCell<Vec<HostDisplay>>>,
+    watching_displays: Rc<Cell<bool>>,
+    reported_display_watch: Rc<Cell<bool>>,
     closed_windows: Rc<RefCell<Vec<HostWindowId>>>,
     pick_requests: Rc<RefCell<Vec<PickRequest>>>,
     dialog_requests: Rc<RefCell<Vec<(Uuid, ShellDialog)>>>,
@@ -562,6 +585,48 @@ impl EditorHost {
         self.push(Pushed::Windows);
     }
 
+    pub fn input_devices(&self) -> Vec<HostInputDevice> {
+        self.watching_input_devices.set(true);
+        self.input_devices.borrow().clone()
+    }
+
+    pub fn set_input_devices(&self, devices: Vec<HostInputDevice>) {
+        if *self.input_devices.borrow() == devices {
+            return;
+        }
+        *self.input_devices.borrow_mut() = devices;
+        self.push(Pushed::InputDevices);
+    }
+
+    pub fn displays(&self) -> Vec<HostDisplay> {
+        self.watching_displays.set(true);
+        self.displays.borrow().clone()
+    }
+
+    pub fn set_displays(&self, displays: Vec<HostDisplay>) {
+        if *self.displays.borrow() == displays {
+            return;
+        }
+        *self.displays.borrow_mut() = displays;
+        self.push(Pushed::Displays);
+    }
+
+    pub(crate) fn take_display_watch(&self) -> bool {
+        let wanted = self.watching_displays.get() && !self.reported_display_watch.get();
+        if wanted {
+            self.reported_display_watch.set(true);
+        }
+        wanted
+    }
+
+    pub(crate) fn take_input_device_watch(&self) -> bool {
+        let wanted = self.watching_input_devices.get() && !self.reported_input_device_watch.get();
+        if wanted {
+            self.reported_input_device_watch.set(true);
+        }
+        wanted
+    }
+
     pub fn close_window(&self, window: HostWindowId) {
         self.closed_windows.borrow_mut().push(window);
         self.changed();
@@ -725,6 +790,12 @@ impl EditorHost {
             .push((block_id, BlockCommand::AppMenu));
     }
 
+    pub fn show_launcher(&self, block_id: Uuid) {
+        self.block_commands
+            .borrow_mut()
+            .push((block_id, BlockCommand::Launcher));
+    }
+
     pub fn rename_block(&self, block_id: Uuid) {
         self.block_commands
             .borrow_mut()
@@ -824,26 +895,12 @@ impl EditorHost {
         self.block_type.set(Some(block_type));
     }
 
-    pub fn set_block_content(&self, content_type: Uuid, bytes: Vec<u8>, applied: u64) {
-        self.update_content(
-            None,
-            ContentUpdate::Snapshot(HostContent {
-                content_type,
-                bytes,
-                applied,
-            }),
-        );
+    pub fn set_block_content(&self, content: HostContent) {
+        self.update_content(None, ContentUpdate::Snapshot(content));
     }
 
-    pub fn set_content_of(&self, block: Uuid, content_type: Uuid, bytes: Vec<u8>, applied: u64) {
-        self.update_content(
-            Some(block),
-            ContentUpdate::Snapshot(HostContent {
-                content_type,
-                bytes,
-                applied,
-            }),
-        );
+    pub fn set_content_of(&self, block: Uuid, content: HostContent) {
+        self.update_content(Some(block), ContentUpdate::Snapshot(content));
     }
 
     pub fn push_content_operations(&self, operations: Vec<(Vec<u8>, bool)>) {

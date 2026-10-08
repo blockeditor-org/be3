@@ -1,9 +1,10 @@
 use crate::{
     Anchor, Bounds, Change, Count, Document, Edit, Grid, Latest, LatestMap, List, Map, Model,
-    ObjectId, Paint, Stamp, Touched,
+    ObjectId, Paint, SeqOp, Stamp, Text, Touched,
 };
 
 mod a_burst_of_sets_to_one_field_undoes_as_one_step;
+mod a_burst_of_typing_undoes_as_one_step;
 mod a_card_cannot_be_moved_after_itself_or_into_something_that_is_not_a_list;
 mod a_card_edited_after_a_move_is_edited_where_it_went;
 mod a_card_inserted_after_one_someone_removed_at_once_lands_where_that_one_was;
@@ -20,14 +21,20 @@ mod a_grid_grown_the_same_way_on_both_sides_keeps_both_paints;
 mod a_grid_reshaped_differently_on_each_side_conflicts_and_keeps_ours;
 mod a_key_removed_on_one_side_and_changed_on_the_other_stays_removed;
 mod a_later_stamp_wins_whichever_order_the_writes_arrive_in;
+mod a_line_inserted_with_text_starts_from_fresh_positions;
 mod a_move_that_changes_nothing_has_no_step;
 mod a_node_cannot_move_inside_itself;
 mod a_paint_the_other_side_cropped_away_counts_as_a_conflict;
+mod a_reloaded_document_that_adopts_removals_places_an_insert_after_a_removed_card;
 mod a_reshape_keeps_every_cell_at_its_coordinates;
+mod a_text_field_saves_its_bytes_and_reloads_with_fresh_positions;
+mod adopting_session_state_carries_text_positions_to_a_reloaded_document;
+mod adopting_session_state_for_different_text_is_refused;
 mod an_edit_that_changes_nothing_has_no_step;
 mod an_edit_touches_its_field_and_what_holds_it;
 mod an_insert_into_a_removed_column_changes_nothing;
 mod an_insert_reusing_an_id_already_in_the_document_is_refused;
+mod an_insert_whose_subtree_lists_an_object_twice_or_itself_is_refused;
 mod both_sides_setting_a_field_to_the_same_value_merge_without_a_conflict;
 mod cards_inserted_at_the_same_place_on_both_sides_merge_to_both_in_that_place;
 mod cards_inserted_at_the_start_and_the_end_at_once_keep_their_ends;
@@ -47,18 +54,22 @@ mod one_field_set_on_both_sides_conflicts_and_keeps_ours;
 mod one_step_undoes_every_change_an_edit_made;
 mod painting_outside_a_grid_or_with_the_wrong_cell_size_changes_nothing;
 mod puts_to_different_keys_at_once_both_land;
+mod random_edits_from_several_clients_converge_on_one_tree;
 mod redo_leaves_a_field_someone_else_changed_after_the_undo;
+mod removals_are_kept_in_memory_and_never_saved;
 mod removing_a_column_while_the_other_side_moves_a_card_out_of_it_keeps_only_that_card;
 mod removing_touches_the_list_and_everything_that_was_inside;
 mod reorders_of_different_cards_on_each_side_merge_to_both;
 mod setting_a_field_of_a_removed_card_changes_nothing;
 mod strokes_into_different_grids_undo_separately;
+mod text_changed_on_different_lines_on_each_side_merges_cleanly;
+mod text_changed_on_the_same_line_on_each_side_conflicts_with_markers;
 mod the_same_value_put_under_a_key_on_both_sides_merges_without_a_conflict;
 mod two_inserts_after_the_same_card_at_once_both_land_after_it;
 mod undo_leaves_a_field_someone_else_changed_since;
 mod undo_of_map_entries_restores_only_what_nobody_changed_since;
 mod undo_puts_a_removed_column_back_with_its_cards;
-mod undoing_a_move_leaves_a_card_someone_else_moved_since;
+mod undoing_a_move_puts_the_card_back_even_after_someone_moved_it_since;
 mod undoing_a_move_puts_the_card_back_where_it_was;
 mod undoing_a_put_of_a_new_key_removes_it_unless_someone_changed_it_since;
 mod undoing_a_removal_puts_the_card_back_after_its_neighbour_was_removed_since;
@@ -250,4 +261,55 @@ fn stamp(time: u64, origin: u128) -> Stamp {
         time,
         origin: uuid::Uuid::from_u128(origin),
     }
+}
+
+const ALICE: u64 = 1;
+
+#[derive(Clone, Debug, Default, Model, PartialEq)]
+struct Note {
+    body: Text,
+    lines: List<Line>,
+}
+
+#[derive(Clone, Debug, Default, Model, PartialEq)]
+struct Line {
+    words: Text,
+}
+
+fn note(body: &str) -> Document<Note> {
+    Document::new(&Note {
+        body: Text::from(body),
+        lines: [Line {
+            words: Text::from("first"),
+        }]
+        .into_iter()
+        .collect(),
+    })
+}
+
+fn body(document: &Document<Note>) -> String {
+    document.root().body.to_str_lossy().into_owned()
+}
+
+fn body_edit(
+    document: &Document<Note>,
+    build: impl FnOnce(&crate::Sequence<u8>) -> Option<SeqOp<u8>>,
+) -> Edit {
+    let sequence = document
+        .text(ObjectId::ROOT, Note::BODY)
+        .expect("the note has a body");
+    Note::BODY
+        .edit(
+            ObjectId::ROOT,
+            build(sequence).expect("the edit changes something"),
+        )
+        .into()
+}
+
+fn typed_into(document: &mut Document<Note>, index: usize, typed: &str) -> Edit {
+    let edit = body_edit(document, |body| {
+        body.insert(ALICE, index, typed.as_bytes().to_vec())
+    });
+    document.apply(&edit);
+    edit
 }

@@ -24,6 +24,14 @@ pub struct Routing {
     captor: Option<NodeId>,
     buttons: u8,
     touches: HashMap<(u64, u64), NodeId>,
+    swallowed: bool,
+}
+
+impl Routing {
+    pub(crate) fn swallow_press(&mut self) {
+        self.swallowed = true;
+        self.captor = None;
+    }
 }
 
 pub fn wants_forward(element: &dyn Element) -> bool {
@@ -162,6 +170,11 @@ pub(super) fn route(
         false => None,
     };
     let hovered = position.and_then(|pos| at(doc, pos));
+    let swallowed = routing.swallowed;
+    let pressed_at = |doc: &Document, pos: Pos2| match swallowed {
+        true => None,
+        false => at(doc, pos),
+    };
     let mut routed: Vec<(NodeId, Vec<Event>)> = Vec::new();
     let mut deliver = |to: Option<NodeId>, event: &Event| {
         let Some(to) = to else {
@@ -174,7 +187,9 @@ pub(super) fn route(
     };
     for event in &events {
         match event {
-            Event::PointerMoved(pos) => deliver(routing.captor.or_else(|| at(doc, *pos)), event),
+            Event::PointerMoved(pos) => {
+                deliver(routing.captor.or_else(|| pressed_at(doc, *pos)), event)
+            }
             Event::PointerGone => deliver(routing.captor.or(routing.hovered), event),
             Event::PointerButton {
                 pos,
@@ -182,7 +197,7 @@ pub(super) fn route(
                 pressed,
                 ..
             } => {
-                let to = routing.captor.or_else(|| at(doc, *pos));
+                let to = routing.captor.or_else(|| pressed_at(doc, *pos));
                 deliver(to, event);
                 match (pressed, to) {
                     (true, Some(to)) => {
@@ -202,7 +217,7 @@ pub(super) fn route(
                 let finger = (id.device, id.finger);
                 let to = match phase {
                     TouchPhase::Start => {
-                        let to = at(doc, *pos);
+                        let to = pressed_at(doc, *pos);
                         if let Some(to) = to {
                             routing.touches.insert(finger, to);
                         }
@@ -240,6 +255,9 @@ pub(super) fn route(
         if !down {
             routing.buttons &= !button_mask(button);
         }
+    }
+    if held.iter().all(|(down, _)| !down) {
+        routing.swallowed = false;
     }
     if routing.buttons == 0 {
         routing.captor = None;

@@ -1,15 +1,14 @@
 use super::*;
-use block_plugin_api::{HostWindow, HostWindowId, Size};
+use block_plugin_api::{HostWindow, HostWindowId, LinuxMessage, Size};
 
 fn windows_sent(messages: &[Message]) -> Vec<Vec<HostWindow>> {
     messages
         .iter()
         .filter_map(|message| match message {
-            Message::Editor(EditorMessage::Windows { instance, windows })
-                if *instance == INSTANCE =>
-            {
-                Some(windows.clone())
-            }
+            Message::Editor(EditorMessage::Linux {
+                instance,
+                message: LinuxMessage::Windows(windows),
+            }) if *instance == INSTANCE => Some(windows.clone()),
             _ => None,
         })
         .collect()

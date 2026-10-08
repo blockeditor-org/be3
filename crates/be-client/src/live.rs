@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     sync::Arc,
 };
 
@@ -46,8 +46,10 @@ pub struct Live<S: ObjectStore, C: LiveEdit> {
     role: Role,
     confirmed: C,
     visible: C,
+    unsent: VecDeque<(C::Op, usize)>,
     base: Option<CommitId>,
     sealed: u64,
+    sealed_state: Vec<u8>,
     reload: bool,
     catching_up: bool,
     events: Receiver<ServerMessage>,
@@ -82,7 +84,9 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
             client,
             state,
             role,
+            sealed_state: confirmed.session_state(),
             visible: confirmed.clone(),
+            unsent: VecDeque::new(),
             confirmed,
             base: head,
             sealed: 0,
@@ -136,7 +140,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
     pub fn is_clean(&self) -> bool {
         match &self.role {
             Role::Owner(sequencer) => sequencer.is_clean(),
-            Role::Follower(follower) => follower.pending() == 0,
+            Role::Follower(follower) => follower.pending() == 0 && self.unsent.is_empty(),
         }
     }
 
@@ -258,6 +262,22 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 let message = SessionMessage::Accepted { op };
                 self.broadcast(&message).await
             }
+            Role::Follower(follower) if follower.pending() > 0 || !self.unsent.is_empty() => {
+                let size = payload.len();
+                let leftover = match self.unsent.back_mut() {
+                    Some((last, bound)) if *bound + size <= LARGEST_RELAYED_OPERATION => {
+                        let leftover = C::absorb_operation(last, operation);
+                        if leftover.is_none() {
+                            *bound += size;
+                        }
+                        leftover
+                    }
+                    _ => Some(operation),
+                };
+                self.unsent
+                    .extend(leftover.map(|operation| (operation, size)));
+                Ok(())
+            }
             Role::Follower(follower) => {
                 let message = follower.submit(payload);
                 let owner = self.state.owner;
@@ -311,6 +331,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
         match event {
             ServerMessage::SessionChanged { block, state } if block == self.block => {
                 self.adopt(state).await?;
+                self.flush().await?;
                 Ok(1)
             }
             ServerMessage::HeadChanged { block, head, .. } if block == self.block => {
@@ -330,6 +351,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                     return Ok(0);
                 };
                 self.receive(from, message).await?;
+                self.flush().await?;
                 Ok(1)
             }
             _ => Ok(0),
@@ -381,29 +403,40 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 }
                 let message = SessionMessage::Snapshot {
                     head: sequencer.head(),
+                    sealed: self.sealed,
                     sequence: sequencer.sequence(),
-                    ops: sequencer.since(since),
+                    ops: sequencer.since(since.min(self.sealed)),
+                    state: self.sealed_state.clone(),
                 };
                 self.send(Some(from), &message).await
             }
             SessionMessage::Snapshot {
                 head,
+                sealed,
                 sequence,
                 ops,
+                state,
             } => {
-                let Role::Follower(_) = &self.role else {
+                let Role::Follower(follower) = &self.role else {
                     return Ok(());
                 };
                 self.catching_up = false;
-                let sealed = sequence.saturating_sub(ops.len() as u64);
-                if head != self.base
-                    && let Some(head) = head
-                {
-                    self.confirmed = self.peer.open_commit::<C>(head).await?;
-                    self.base = Some(head);
+                let applied = follower.applied();
+                if head != self.base || applied < sealed {
+                    self.confirmed = match head {
+                        Some(head) => self.peer.open_commit::<C>(head).await?,
+                        None => C::default(),
+                    };
+                    self.base = head;
+                    if self.confirmed.adopt_session_state(&state).is_err() {
+                        self.unreadable_message();
+                        return Ok(());
+                    }
+                    self.sealed_state = state;
                     if let Role::Follower(follower) = &mut self.role {
                         follower.set_applied(sealed);
                     }
+                    self.rebuild_visible();
                 }
                 self.sealed = sealed;
                 for op in &ops {
@@ -412,7 +445,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 let Role::Follower(follower) = &mut self.role else {
                     return Ok(());
                 };
-                if ops.is_empty() {
+                if ops.iter().all(|op| op.sequence <= applied) {
                     let resubmit = follower.resynchronize(sequence);
                     let owner = self.state.owner;
                     for message in resubmit {
@@ -441,17 +474,24 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 let Role::Follower(follower) = &self.role else {
                     return Ok(());
                 };
-                if !reload && follower.applied() != sequence {
+                if reload.is_none() && follower.applied() != sequence {
                     let catchup = follower.catchup();
                     let owner = self.state.owner;
                     return self.send(owner, &catchup).await;
                 }
-                if reload {
-                    self.confirmed = self.peer.open_commit::<C>(head).await?;
-                    if let Role::Follower(follower) = &mut self.role {
-                        follower.set_applied(sequence);
+                match reload {
+                    Some(state) => {
+                        self.confirmed = self.peer.open_commit::<C>(head).await?;
+                        if self.confirmed.adopt_session_state(&state).is_err() {
+                            self.unreadable_message();
+                        }
+                        self.sealed_state = state;
+                        if let Role::Follower(follower) = &mut self.role {
+                            follower.set_applied(sequence);
+                        }
+                        self.rebuild_visible();
                     }
-                    self.rebuild_visible();
+                    None => self.sealed_state = self.confirmed.session_state(),
                 }
                 self.base = Some(head);
                 self.sealed = sequence;
@@ -469,7 +509,25 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 }
             }
         }
+        for (operation, _) in &self.unsent {
+            visible.apply(operation);
+        }
         self.replace_visible(visible);
+    }
+
+    async fn flush(&mut self) -> Result<(), ClientError> {
+        let Role::Follower(follower) = &mut self.role else {
+            return Ok(());
+        };
+        if follower.pending() > 0 {
+            return Ok(());
+        }
+        let Some((operation, _)) = self.unsent.pop_front() else {
+            return Ok(());
+        };
+        let message = follower.submit(C::encode_operation(&operation));
+        let owner = self.state.owner;
+        self.send(owner, &message).await
     }
 
     fn apply_accepted(&mut self, op: &SessionOp) {
@@ -498,7 +556,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
             follower.accepted(op);
             return;
         }
-        if !follower.is_mine(op.id) && follower.pending() == 0 {
+        if !follower.is_mine(op.id) && follower.pending() == 0 && self.unsent.is_empty() {
             follower.accepted(op);
             self.visible.apply(&operation);
             self.journal(Journaled::Applied(operation));
@@ -566,6 +624,16 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 accepted.push(op);
             }
         }
+        for (operation, _) in std::mem::take(&mut self.unsent) {
+            let id = be_session::OpId {
+                client: self.client,
+                counter: sequencer.sequence() + 1,
+            };
+            if let Some(op) = sequencer.accept(id, C::encode_operation(&operation)) {
+                self.confirmed.apply(&operation);
+                accepted.push(op);
+            }
+        }
         self.role = Role::Owner(sequencer);
         self.replace_visible(self.confirmed.clone());
         for op in accepted {
@@ -596,6 +664,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                         self.reload = true;
                         self.settle_at(head).await?;
                     } else {
+                        self.unsent.clear();
                         self.replace_visible(content);
                         let owner = self.state.owner;
                         self.send(owner, &SessionMessage::Replaced { head }).await?;
@@ -658,7 +727,8 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
         sequencer.sealed(head);
         let sequence = sequencer.sequence();
         self.sealed = sequence;
-        let reload = std::mem::take(&mut self.reload);
+        self.sealed_state = self.confirmed.session_state();
+        let reload = std::mem::take(&mut self.reload).then(|| self.sealed_state.clone());
         self.broadcast(&SessionMessage::Sealed {
             head,
             sequence,

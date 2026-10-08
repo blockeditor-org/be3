@@ -1,0 +1,10 @@
+[package]
+name = "verify"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

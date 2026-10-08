@@ -265,6 +265,20 @@ impl Element for OffsetNode {
         (self.direction == Direction::Horizontal).then(|| "horizontal".to_string())
     }
 
+    fn properties(&self) -> Vec<(&'static str, String)> {
+        let mut properties = vec![
+            ("direction", format!("{:?}", self.direction)),
+            ("offset", self.offset.to_string()),
+            ("overscroll", self.overscroll.to_string()),
+            ("fits", self.fits.to_string()),
+        ];
+        if let Some(position) = self.position {
+            properties.push(("content", position.content.to_string()));
+            properties.push(("viewport", position.viewport.to_string()));
+        }
+        properties
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }

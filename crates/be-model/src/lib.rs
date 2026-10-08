@@ -1,6 +1,6 @@
 extern crate self as be_model;
 
-use std::{collections::BTreeMap, fmt, marker::PhantomData};
+use std::{cell, collections::BTreeMap, fmt, marker::PhantomData};
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -8,16 +8,34 @@ use uuid::Uuid;
 mod field;
 mod grid;
 mod history;
+mod items;
 mod latest;
 mod merge;
+mod text;
 mod tree;
 
 pub use be_model_derive::Model;
 pub use field::{Count, Field, FieldRef, Item, List, Map, Register};
 pub use grid::{Bounds, Cell, Cells, Grid, Paint};
 pub use history::Step;
+pub use items::Items;
 pub use latest::{Latest, LatestMap, Stamp, Stamped};
+pub use sequence::{LOADED, Pos, SeqOp, Sequence, Span, Splice};
+pub use text::Text;
 pub use tree::Tree;
+
+thread_local! {
+    static CLIENT: cell::Cell<u64> = cell::Cell::new(Uuid::new_v4().as_u64_pair().0 | 1 << 63);
+}
+
+pub fn local_client() -> u64 {
+    CLIENT.with(cell::Cell::get)
+}
+
+#[cfg(any(test, feature = "fuzzing"))]
+pub fn set_local_client(client: u64) {
+    CLIENT.with(|held| held.set(client));
+}
 
 #[derive(
     Clone, Copy, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize,
@@ -56,6 +74,7 @@ pub struct Place {
 pub enum Anchor {
     Start,
     After(ObjectId),
+    Behind(Pos),
     End,
 }
 
@@ -70,10 +89,11 @@ pub enum Touched {
 pub enum Value {
     Register(Vec<u8>),
     Count(i64),
-    List(Vec<ObjectId>),
+    List(Items),
     Map(BTreeMap<Vec<u8>, Vec<u8>>),
     Grid(Cells),
     Latest(BTreeMap<Vec<u8>, Stamped>),
+    Text(Sequence<u8>),
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -117,6 +137,7 @@ pub enum Change {
     Insert {
         place: Place,
         anchor: Anchor,
+        client: u64,
         objects: Vec<(ObjectId, Object)>,
     },
     Put {
@@ -155,18 +176,18 @@ pub enum Change {
         object: ObjectId,
         place: Place,
         anchor: Anchor,
-    },
-    MoveIf {
-        object: ObjectId,
-        expected: Place,
-        place: Place,
-        anchor: Anchor,
+        client: u64,
     },
     Stamp {
         object: ObjectId,
         field: u16,
         key: Vec<u8>,
         stamped: Stamped,
+    },
+    Text {
+        object: ObjectId,
+        field: u16,
+        op: SeqOp<u8>,
     },
 }
 
@@ -280,7 +301,7 @@ impl<R: Model> Document<R> {
             .object(owner)
             .and_then(|held| held.fields.get(usize::from(field.index())))
         {
-            Some(Value::List(ids)) => ids.clone(),
+            Some(Value::List(ids)) => ids.ids(),
             _ => Vec::new(),
         }
     }
@@ -297,6 +318,26 @@ impl<R: Model> Document<R> {
         let mut tree = Tree::decode(bytes)?;
         R::upgrade(&mut tree, ObjectId::ROOT);
         Ok(Self::from_tree(tree))
+    }
+
+    pub fn text<M>(&self, object: ObjectId, field: FieldRef<M, Text>) -> Option<&Sequence<u8>> {
+        match self
+            .tree
+            .object(object)?
+            .fields
+            .get(usize::from(field.index()))?
+        {
+            Value::Text(sequence) => Some(sequence),
+            _ => None,
+        }
+    }
+
+    pub fn session_state(&self) -> Vec<u8> {
+        self.tree.session_state()
+    }
+
+    pub fn adopt_session_state(&mut self, bytes: &[u8]) -> Result<(), Malformed> {
+        self.tree.adopt_session_state(bytes)
     }
 
     pub fn merge(base: &Self, ours: &Self, theirs: &Self) -> (Self, usize) {
@@ -338,6 +379,9 @@ impl<R> fmt::Debug for Document<R> {
 }
 
 pub(crate) type Objects = BTreeMap<ObjectId, Object>;
+
+#[cfg(any(test, feature = "fuzzing"))]
+pub mod fuzz;
 
 #[cfg(test)]
 mod tests;

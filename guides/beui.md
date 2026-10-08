@@ -230,7 +230,7 @@ direction:
 | `beui-renderer-wgpu` | the wgpu renderer, its shaders and filters, and presenting to a surface |
 | `beui-renderer-dom` | the DOM renderer: the display tree as nested absolutely positioned elements |
 | `beui-adapter-winit`, `beui-adapter-android`, `beui-adapter-web` | each platform's `Adapter` and `Platform`: its event loop, window or view, input, IME, clipboard, file picker and accessibility adapter |
-| `beui-adapter-drm` | Linux's displays and input devices through DRM/KMS and libinput: an `Adapter`, `Platform` and `Renderer` whose screens each keep a retained frame and are drawn when their display flips; callers run it with `beui::run_on` |
+| `beui-adapter-drm` | Linux's displays and input devices through DRM/KMS and libinput: an `Adapter`, `Platform` and `Renderer` whose screens each keep a retained frame and are drawn when their display flips, handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers run it with `beui::run_on` |
 | `beui-adapter-plugin` | the `Adapter`, `Platform` and `Renderer` for one region of a block editor plugin, which the plugin framework drives frame by frame (guides/adding_a_plugin_editor.md); it depends on the plugin framework, so the facade does not offer it |
 
 Core cannot see the crates above it, so the few places it used to reach up are
@@ -660,7 +660,11 @@ the thumb it would paint, drags the thumb with the pointer, pages by a viewport
 towards a press on the track either side of it, and hands its content a
 `ScrollbarHandle` of `hovered` and `dragging` so the styled bar can paint those
 states. `thumb_start` and `thumb_length` are the same fractions both layers
-work in, so what is painted and what is pressed cannot drift apart. A press on
+work in, so what is painted and what is pressed cannot drift apart. The styled
+bar paints its track inset by `SCROLLBAR_INSET` from the scroll's outer edge and
+from both ends, so it does not touch the separators around a panel; the inset at
+the ends sits outside the unstyled bar, keeping those fractions measured over
+the track that is painted. A press on
 the bar rests whatever momentum a fling left, so the content stops where it is
 put.
 
@@ -857,8 +861,14 @@ completes, or hands every phase of the gesture to `on_gesture` if it has one,
 and moves nothing. The motion lives above it. `unstyled::BackSlide` wraps a
 page: held, the page follows the finger across a good share of the screen;
 let go, it carries on off the edge before `on_back` runs and the next page
-slides in behind it, and a cancelled gesture eases it back. A back with no
-gesture before it (a key) goes back at once. `styled::Dialog` and
+slides in behind it, and a cancelled gesture eases it back. Given `behind`, a
+function that builds the page back goes to, it builds that page under the
+moving one for as long as the gesture lasts, shaded and coming in from the
+side, so `on_back` swaps in what was already showing and nothing slides in
+afterwards; the page that moves needs an opaque background, and a page that
+must keep its state (a scroll position) is built once and handed to a `Portal`
+in both places. The stacked dock shows its home tab behind the tab it leaves
+this way. A back with no gesture before it (a key) goes back at once. `styled::Dialog` and
 `Fullscreen` slide away the same way and fade their scrim, and a `Sheet`
 sinks with the gesture and slides on down from where it was. The document
 reports whether anything would take back through
@@ -905,8 +915,7 @@ chevron, the indent beside it and the name to mean three different things. The
 handle carries `select`, `toggle` and `hover` for the face to call from
 wherever it decides they belong. The arrow keys, Home, End and typing move the
 keyboard between rows without selecting them, and Enter or Space selects the
-row it is on; `selection_follows_focus` makes every move select, as the beui
-inspector does. `toggle` puts the keyboard on its row too.
+row it is on. `toggle` puts the keyboard on its row too.
 
 `styled::Tree` is the face that split was made for, and the one app code
 reaches for. It draws the indent, a chevron that is a button of its own -
@@ -1523,6 +1532,14 @@ what an app that reads input or places surfaces outside `Document::show` needs:
 frame's input in document points, the way block-app's host reads them for its
 plugin surfaces.
 
+### Back gesture
+
+The Sim tab's Back gesture slider plays Android's back gesture into the
+document, so a `BackSlide` can be tried without a phone: dragging it starts the
+gesture and follows it, reaching the end goes back, and letting go before then
+cancels. It calls `Document::back` directly, the way the Android runner's events
+do, so it reaches the document even while the inspector holds the keyboard.
+
 ### Filters
 
 The Sim tab's Filters section puts a blur, a contrast reduction, and the
@@ -2067,6 +2084,8 @@ damaged whole either: the frame reports it as `FrameOutput::moved`, and a host
 that keeps its last frame, as `beui::run` does, copies that region by the
 scroll with `Renderer::shift` and repaints only what the copy cannot supply -
 the rows it exposes, and whatever else changed or does not move with the rows.
+Only one region is copied per frame: when several moved at once - a scroll and
+its scrollbar's thumb - the largest is copied and the rest are repainted.
 `FrameOutput::repaint` covers the moved region for hosts that do not copy.
 
 Pointer input only visits a node when the pointer lies within the rects of it
