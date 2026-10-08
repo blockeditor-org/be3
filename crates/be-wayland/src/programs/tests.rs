@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use super::*;
 
 mod a_desktop_entry_reads_its_localized_name_and_its_lists;
+mod a_symlinked_folder_is_not_followed_but_a_symlinked_entry_is_read;
 mod a_terminal_program_runs_inside_a_terminal_emulator;
 mod an_entry_is_hidden_by_its_flags_and_the_desktops_it_names;
 mod an_entry_whose_try_exec_is_missing_is_left_out;

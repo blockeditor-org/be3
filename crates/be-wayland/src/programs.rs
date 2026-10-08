@@ -156,7 +156,7 @@ fn collect(root: &Path, dir: &Path, found: &mut Vec<(String, PathBuf)>) {
     };
     for entry in entries.flatten() {
         let path = entry.path();
-        if path.is_dir() {
+        if entry.file_type().is_ok_and(|kind| kind.is_dir()) {
             collect(root, &path, found);
             continue;
         }
