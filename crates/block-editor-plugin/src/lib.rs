@@ -44,7 +44,7 @@ pub use host::{
     PerformanceReporter, PickRequest, PickedBlock, PickedFile, Pushed, SavedFile, SeededContent,
     ShowRequest, ShownPresence, Waker,
 };
-pub use plugin::{Frame, Ime, Instance, Plugin, Region};
+pub use plugin::{Claim, Frame, Ime, Instance, Plugin, Region};
 #[cfg(target_arch = "wasm32")]
 pub use plugin::{PaintTarget, SurfaceGpu, surface_gpu};
 #[cfg(target_arch = "wasm32")]

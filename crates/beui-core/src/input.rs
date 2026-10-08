@@ -179,6 +179,17 @@ impl Modifiers {
         shift: true,
         ..Self::NONE
     };
+
+    pub const fn holds(self, held: Self) -> bool {
+        (self.alt || !held.alt)
+            && (self.ctrl || !held.ctrl)
+            && (self.shift || !held.shift)
+            && (self.logo || !held.logo)
+    }
+
+    pub const fn any(self) -> bool {
+        self.alt || self.ctrl || self.shift || self.logo
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

@@ -103,6 +103,9 @@ pub(crate) fn DockingPage() -> NodeId {
                     />
                 </List>
             </Sample>
+            <Sample title="Drag by the content" code={vec![ContentDrag::SOURCE]}>
+                <ContentDrag />
+            </Sample>
             <Sample title="State follows the tab" code={vec![EditCounter::SOURCE]}>
                 <EditCounter />
             </Sample>
@@ -110,6 +113,40 @@ pub(crate) fn DockingPage() -> NodeId {
                 <FullscreenTab />
             </Sample>
         </ScrollPage>
+    }
+}
+
+#[sample]
+#[component]
+fn ContentDrag() -> NodeId {
+    let modifier = use_context::<DragModifier>();
+    let on = create_memo(clone!(modifier -> move || {
+        modifier.as_ref().is_some_and(|modifier| modifier.held.get().is_some())
+    }));
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <Switch
+                    @test_id="demo.drag_modifier"
+                    label="Alt drags a tab by its content"
+                    on
+                    on_change={move |on: bool| {
+                        if let Some(modifier) = modifier.as_ref() {
+                            modifier.set.set(on.then_some(Modifiers::ALT));
+                        }
+                    }}
+                />
+                <Body content="Alt drags a tab by its content" />
+            </List>
+            <Caption
+                content="A dock can be given a drag modifier, which is off unless asked for. \
+                 While it is held, dragging anywhere in a tab's content carries the tab as \
+                 dragging its label does, and dragging with the right button moves the nearest \
+                 split, or resizes a window from its nearest edge or corner. The Linux desktop \
+                 uses Super."
+                wrap=true
+            />
+        </List>
     }
 }
 

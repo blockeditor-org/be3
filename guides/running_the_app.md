@@ -97,7 +97,9 @@ program is a `ListBoxOption`. A program can also be started against the socket d
 
 Each window opens as a tab of the workspace. `weston-simple-shm` (from the `weston` package)
 and `foot` are small clients to try it with. `foot --fullscreen` starts one fullscreen, and Super+F toggles fullscreen on the focused
-window.
+window. Under `--session` and `--desktop`, Super+drag anywhere on a window carries its tab as
+dragging the tab does (dock it, split beside another or float it), and Super+right-drag
+resizes the split beside it, or a floating window from its nearest edge or corner.
 
 The compositor pings a window's client when it is clicked, typed into, focused or asked to
 close, and a client that has not answered within `PING_TIMEOUT` (be-wayland's `state.rs`) is listed as

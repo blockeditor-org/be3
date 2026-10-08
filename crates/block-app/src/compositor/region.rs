@@ -259,6 +259,9 @@ pub(crate) fn PluginRegion(
                     })
             })
     });
+    let claims = clone!(state passive -> move |(position, held): (Pos2, beui::Modifiers)| {
+        !passive.peek() && state.with_untracked(|view| view.claims(position, held))
+    });
     let below = Rc::clone(&child_view);
     let above = child_view;
     view! {
@@ -279,6 +282,7 @@ pub(crate) fn PluginRegion(
                     ime_text={ime_text}
                     on_forward={forward}
                     forward_at={takes}
+                    claim_at={claims}
                 >
                     <Embed slot={slot} punch=false @node_ref={&anchor}>
                         <Drawing draw={base} />

@@ -149,6 +149,7 @@ mod a_popover_panel_stops_at_its_max_width_rather_than_spanning_the_window;
 mod a_portal_shows_a_subtree_it_does_not_own;
 mod a_press_a_catcher_declines_focuses_the_catcher_beneath;
 mod a_press_and_release_in_one_frame_on_a_submenu_item_selects_it_once;
+mod a_press_claimed_by_its_modifiers_goes_to_the_claimant_and_not_the_catcher_beneath;
 mod a_press_inside_a_color_wheels_triangle_picks_saturation_and_value;
 mod a_press_that_dismisses_an_overlay_does_not_reach_the_catcher_beneath;
 mod a_pressed_forwarding_catcher_keeps_the_pointer_until_it_is_released;
@@ -176,6 +177,8 @@ mod a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it;
 mod a_second_finger_cancels_the_press_the_first_began;
 mod a_second_finger_dragged_beside_a_held_one_is_a_secondary_drag_not_a_pinch;
 mod a_second_swipe_during_a_fling_keeps_scrolling;
+mod a_secondary_drag_with_the_dock_drag_modifier_moves_the_nearest_split;
+mod a_secondary_drag_with_the_dock_drag_modifier_resizes_a_window_from_its_nearest_corner;
 mod a_select_following_its_prop_does_not_report_a_change;
 mod a_selected_radio_option_marks_its_ring_with_the_accent_colour;
 mod a_selection_across_text_with_spans_is_painted;
@@ -237,6 +240,7 @@ mod a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate;
 mod a_virtual_list_scrolled_out_of_view_releases_its_rows;
 mod a_virtual_scroll_only_builds_the_items_in_view;
 mod a_virtual_scroll_row_can_build_reactive_content_during_dispatch;
+mod a_window_carried_by_its_content_over_an_empty_pane_moves_as_it_was_held;
 mod a_window_dragged_far_away_keeps_its_grip_in_the_dock;
 mod a_window_larger_than_the_dock_is_drawn_no_larger_than_it;
 mod a_window_released_past_the_edge_of_the_dock_springs_back_and_comes_to_rest;
@@ -347,6 +351,7 @@ mod dragging_a_window_by_its_bar_moves_it;
 mod dragging_a_window_past_the_edge_of_the_dock_stretches_it_and_springs_back;
 mod dragging_across_texts_selects_them_and_ctrl_c_copies_the_selection;
 mod dragging_again_during_overscroll_continues_from_the_band;
+mod dragging_dock_content_with_the_drag_modifier_carries_its_tab;
 mod dragging_onto_a_drop_target_hands_it_the_payload;
 mod dragging_the_bar_between_two_panes_moves_the_boundary;
 mod dragging_the_edge_of_a_windows_sidebar_resizes_it_without_moving_the_window;
@@ -588,6 +593,7 @@ mod view_attributes_can_be_written_without_braces;
 mod view_attributes_can_pun_a_bare_name_as_its_own_value;
 mod view_children_can_pick_fixed_and_percent_sizing;
 mod what_on_laid_out_changes_is_laid_out_before_the_frame_is_painted;
+mod without_a_drag_modifier_a_modified_drag_reaches_the_dock_content;
 mod wrapped_rows_wrap_long_text_and_grow_percent_children;
 mod zooming_a_pan_zoom_stops_at_its_scale_limits;
 mod zooming_into_the_simulated_screen_follows_the_pointer;
@@ -1559,6 +1565,89 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
         }
     });
     (document, dock.get())
+}
+
+pub(crate) struct SplitDock {
+    pub(crate) document: Document,
+    pub(crate) dock: NodeId,
+    pub(crate) presses: Rc<Cell<u32>>,
+}
+
+pub(crate) fn split_dock(drag_modifier: Option<Modifiers>) -> SplitDock {
+    let dock = NodeRef::new();
+    let built = dock.clone();
+    let presses = Rc::new(Cell::new(0));
+    let pressed = Rc::clone(&presses);
+    let document = build(move || {
+        let layout = unstyled::DockingLayout::new();
+        let (first, second, third) = (Rc::clone(&pressed), Rc::clone(&pressed), pressed);
+        view! {
+            <styled::Docking @node_ref=&built layout drag_modifier>
+                <unstyled::DockSplit id="split">
+                    <unstyled::DockPane id="left">
+                        <CountingTab id=1 presses={first} />
+                    </unstyled::DockPane>
+                    <unstyled::DockPane id="right">
+                        <CountingTab id=2 presses={second} />
+                        <CountingTab id=3 presses={third} />
+                    </unstyled::DockPane>
+                </unstyled::DockSplit>
+            </styled::Docking>
+        }
+    });
+    SplitDock {
+        document,
+        dock: dock.get(),
+        presses,
+    }
+}
+
+#[component]
+fn CountingTab(id: u64, presses: Rc<Cell<u32>>) -> unstyled::DockEntry<u64> {
+    view! {
+        <unstyled::DockTab id title={format!("Tab {id}")}>
+            <CountingPanel id presses={Rc::clone(&presses)} />
+        </unstyled::DockTab>
+    }
+}
+
+use crate::reactive::Interactive;
+
+#[component]
+fn CountingPanel(id: u64, presses: Rc<Cell<u32>>) -> NodeId {
+    let secondary = Rc::clone(&presses);
+    view! {
+        <Interactive
+            on_press={move |_: crate::input::PointerPress| presses.set(presses.get() + 1)}
+            on_secondary_press={move |_: crate::input::PointerPress| {
+                secondary.set(secondary.get() + 1)
+            }}
+        >
+            <Frame @test_id={format!("content.{id}")} />
+        </Interactive>
+    }
+}
+
+pub(crate) fn secondary_drag_with(
+    harness: &mut Harness,
+    from: Pos2,
+    to: Pos2,
+    modifiers: Modifiers,
+) {
+    harness.frame(vec![Event::PointerMoved(from), Event::Modifiers(modifiers)]);
+    harness.frame(vec![Event::PointerButton {
+        pos: from,
+        button: PointerButton::Secondary,
+        pressed: true,
+        modifiers,
+    }]);
+    harness.frame(vec![Event::PointerMoved(to)]);
+    harness.frame(vec![Event::PointerButton {
+        pos: to,
+        button: PointerButton::Secondary,
+        pressed: false,
+        modifiers,
+    }]);
 }
 
 pub(crate) fn floated_window(harness: &mut Harness, dock: NodeId) -> unstyled::SurfaceId {

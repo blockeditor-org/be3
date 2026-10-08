@@ -915,6 +915,19 @@ row that is itself a button, a close cross on a tab - asks `unstyled::Button`
 for `capture_presses` instead. The captured press reaches that button and
 nothing else, so the row it sits in does not open as well.
 
+A press made with modifiers held can be claimed from everything inside a
+region, which is how a window manager takes Super+drag from the windows it
+holds. An `Interactive` given `claim_modifiers` takes every primary or secondary
+press in its rectangle while all of those modifiers are held, and `claim_at`
+decides the same per point. The claim is searched for from the top of the tree
+down, before `capture_presses`, so the outermost claimant wins; the press, its
+drag and its release reach the claimant alone, none of its descendants, and no
+forwarding catcher under it unless the claimant is that catcher.
+`Document::press_claims` lists the `claim_modifiers` rectangles laid out this
+frame, which a plugin reports to its host, and `Document::press_claimed` says a
+press of this frame or one still held was claimed, which is how the Wayland
+compositor keeps it from a program.
+
 `unstyled::Tree` makes the same split the other way round. A row is a tab stop
 with the tree's keyboard and its `TreeItem` accessibility, and nothing more:
 where a pointer has to land to select it is the face's business, because a
@@ -1125,6 +1138,16 @@ the panel keeps its nodes, its scroll position, its caret and its state when
 the tab is hidden behind another, dragged to another pane, or floated into a
 window. A panel no pane is showing is laid out by nobody, so it costs nothing
 and a screen reader does not read it. Closing the tab is what removes it.
+
+`drag_modifier` (none unless asked for) lets the content move the dock around
+it. While those modifiers are held, a primary drag anywhere in a tab's content
+carries the tab exactly as dragging it by its label does, and a secondary drag
+moves the split nearest the pointer along the pane's edges, or resizes a window
+from the edge or corner nearest the pointer (by thirds of the window). The tab's
+body claims those presses (`claim_modifiers`), so the content never sees them.
+Holding Alt still floats a dropped tab unless Alt is the drag modifier. The
+code is `dock/modifier_drag.rs`; linux-desktop sets Super, and the demo's
+Docking page has a switch for Alt.
 
 One tab at a time can be fullscreen: `DockState::set_fullscreen` with a
 `DockFullscreen` naming the tab and an area (a rect in document coordinates, or
