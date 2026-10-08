@@ -100,9 +100,3 @@ export_file(
     name = "update.sh",
     visibility = ["PUBLIC"],
 )
-
-# What cargo_fuzz's run command is (defs.bzl).
-export_file(
-    name = "fuzz.sh",
-    visibility = ["PUBLIC"],
-)

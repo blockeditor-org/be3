@@ -1,0 +1,6 @@
+load("@root//buck/cargo:defs.bzl", "cargo_binary")
+
+# What runs a fuzz target here once buck2 has built it, and every one for
+# //:fuzz (cargo_fuzz in buck/cargo/defs.bzl).
+
+cargo_binary()

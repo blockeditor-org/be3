@@ -2973,6 +2973,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "fuzz-runner"
+version = "0.1.0"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "game-api"
 version = "0.1.0"
 dependencies = [

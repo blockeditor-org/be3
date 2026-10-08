@@ -95,6 +95,7 @@ members = [
     "crates/paint-snapshot",
     "crates/plugin-test-runner",
     "crates/fix-rust-source",
+    "crates/fuzz-runner",
     "crates/buck-tools",
     "crates/verify",
     "crates/wasi-threads",

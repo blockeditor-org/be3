@@ -40,15 +40,10 @@ command_alias(
     ],
 )
 
-# Every fuzz target at once, until it is stopped (buck/cargo/fuzz.sh).
+# Every fuzz target, taking turns, until it is stopped (crates/fuzz-runner).
 command_alias(
     name = "fuzz",
-    args = [
-        "sh",
-        "-c",
-        'mkdir -p target/fuzz && ./scripts/buck bxl //buck/dev/fuzz.bxl:targets > target/fuzz/targets && exec sh buck/cargo/fuzz.sh target/fuzz/targets "$@"',
-        "sh",
-    ],
+    args = ["$(location //crates/fuzz-runner:fuzz-runner-bin)", "--all"],
 )
 
 command_alias(
