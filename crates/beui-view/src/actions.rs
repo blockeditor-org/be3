@@ -2,7 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
 use beui_core::callback::NodeRef;
-use beui_core::document::{UnhandledKey, UnhandledKeyPress};
+use beui_core::document::{GlobalKey, GlobalKeyPress, UnhandledKey, UnhandledKeyPress};
 use beui_core::input::{Key, KeyPress};
 use beui_core::node::NodeId;
 use reactive::{
@@ -18,6 +18,7 @@ pub struct Chord {
     pub ctrl: bool,
     pub shift: bool,
     pub alt: bool,
+    pub logo: bool,
 }
 
 impl Chord {
@@ -27,6 +28,14 @@ impl Chord {
             ctrl: false,
             shift: false,
             alt: false,
+            logo: false,
+        }
+    }
+
+    pub const fn logo(key: Key) -> Self {
+        Self {
+            logo: true,
+            ..Self::key(key)
         }
     }
 
@@ -54,10 +63,14 @@ impl Chord {
             && press.modifiers.ctrl == self.ctrl
             && press.modifiers.shift == self.shift
             && press.modifiers.alt == self.alt
+            && press.modifiers.logo == self.logo
     }
 
     pub fn label(self) -> String {
         let mut parts = Vec::new();
+        if self.logo {
+            parts.push("Super".to_owned());
+        }
         if self.ctrl {
             parts.push("Ctrl".to_owned());
         }
@@ -72,7 +85,7 @@ impl Chord {
     }
 
     fn typed(self) -> bool {
-        !self.ctrl && !self.alt
+        !self.ctrl && !self.alt && !self.logo && !self.key.is_media()
     }
 }
 
@@ -106,6 +119,16 @@ fn key_label(key: Key) -> String {
         Key::PageDown => "Page Down",
         Key::PageUp => "Page Up",
         Key::BrowserBack => "Back",
+        Key::VolumeUp => "Volume Up",
+        Key::VolumeDown => "Volume Down",
+        Key::VolumeMute => "Mute",
+        Key::MicMute => "Mic Mute",
+        Key::BrightnessUp => "Brightness Up",
+        Key::BrightnessDown => "Brightness Down",
+        Key::MediaPlayPause => "Play/Pause",
+        Key::MediaNext => "Next Track",
+        Key::MediaPrevious => "Previous Track",
+        Key::MediaStop => "Stop",
         _ => return format!("{key:?}"),
     };
     symbol.to_owned()
@@ -124,6 +147,8 @@ struct ActionData {
     enabled: Prop<bool>,
     checked: Option<Prop<bool>>,
     menu: bool,
+    global: bool,
+    intercepts: bool,
     run: Rc<dyn Fn()>,
 }
 
@@ -151,6 +176,8 @@ impl Action {
             enabled: Prop::Static(true),
             checked: None,
             menu: false,
+            global: false,
+            intercepts: false,
             run: Rc::new(run),
         }
     }
@@ -195,6 +222,14 @@ impl Action {
         self.0.menu
     }
 
+    pub fn is_global(&self) -> bool {
+        self.0.global
+    }
+
+    pub fn intercepts(&self) -> bool {
+        self.0.intercepts
+    }
+
     pub fn is_enabled(&self) -> bool {
         self.0.enabled.peek()
     }
@@ -216,6 +251,8 @@ pub struct ActionBuilder {
     enabled: Prop<bool>,
     checked: Option<Prop<bool>>,
     menu: bool,
+    global: bool,
+    intercepts: bool,
     run: Rc<dyn Fn()>,
 }
 
@@ -245,6 +282,17 @@ impl ActionBuilder {
         self
     }
 
+    pub fn global(mut self) -> Self {
+        self.global = true;
+        self
+    }
+
+    pub fn intercepts(mut self) -> Self {
+        self.global = true;
+        self.intercepts = true;
+        self
+    }
+
     fn into_action(self) -> Action {
         Action(Rc::new(ActionData {
             key: Cell::new(0),
@@ -255,6 +303,8 @@ impl ActionBuilder {
             enabled: self.enabled,
             checked: self.checked,
             menu: self.menu,
+            global: self.global,
+            intercepts: self.intercepts,
             run: self.run,
         }))
     }
@@ -335,6 +385,7 @@ struct RegistryData {
     version: ReadSignal<u64>,
     set_version: WriteSignal<u64>,
     keys: RefCell<Option<Rc<UnhandledKey>>>,
+    global_keys: RefCell<Option<Rc<GlobalKey>>>,
 }
 
 #[derive(Clone)]
@@ -353,6 +404,7 @@ impl Registry {
             version,
             set_version,
             keys: RefCell::new(None),
+            global_keys: RefCell::new(None),
         }))
     }
 
@@ -391,26 +443,31 @@ impl Registry {
 
     fn actions(&self, focus_path: &[NodeId]) -> Vec<Action> {
         let mut listed: Vec<Action> = Vec::new();
-        for scope in self.active(focus_path) {
-            for action in scope.actions.borrow().iter() {
-                if !listed.iter().any(|seen| seen.id() == action.id()) {
-                    listed.push(action.clone());
-                }
+        let scoped = self
+            .active(focus_path)
+            .into_iter()
+            .flat_map(|scope| scope.actions.borrow().clone());
+        let global = self.all().into_iter().filter(Action::is_global);
+        for action in scoped.chain(global) {
+            if !listed.iter().any(|seen| seen.id() == action.id()) {
+                listed.push(action);
             }
         }
         listed
     }
 
     fn key(&self, unhandled: &UnhandledKeyPress) -> bool {
-        for action in self.actions(&unhandled.focus_path) {
-            let matched = action.shortcuts().iter().any(|chord| {
-                chord.matches(unhandled.press) && !(unhandled.typing && chord.typed())
-            });
-            if matched && untrack(|| action.run()) {
-                return true;
-            }
-        }
-        false
+        let actions = self.actions(&unhandled.focus_path);
+        let local = actions.iter().filter(|action| !action.is_global());
+        run_matching(local, unhandled.press, unhandled.typing)
+    }
+
+    fn global_key(&self, global: GlobalKeyPress) -> bool {
+        let actions = self.all();
+        let live = actions
+            .iter()
+            .filter(|action| action.is_global() && (action.intercepts() || !global.in_app));
+        run_matching(live, global.press, global.typing)
     }
 
     fn all(&self) -> Vec<Action> {
@@ -421,6 +478,23 @@ impl Registry {
         all.sort_by_key(Action::key);
         all
     }
+}
+
+fn run_matching<'a>(
+    actions: impl Iterator<Item = &'a Action>,
+    press: KeyPress,
+    typing: bool,
+) -> bool {
+    for action in actions {
+        let matched = action
+            .shortcuts()
+            .iter()
+            .any(|chord| chord.matches(press) && !(typing && chord.typed()));
+        if matched && untrack(|| action.run()) {
+            return true;
+        }
+    }
+    false
 }
 
 fn registry() -> Registry {
@@ -436,6 +510,13 @@ fn registry() -> Registry {
         });
         document.register_unhandled_key(Rc::downgrade(&keys));
         *registry.0.keys.borrow_mut() = Some(keys);
+        let weak = Rc::downgrade(&registry.0);
+        let global: Rc<GlobalKey> = Rc::new(move |global: GlobalKeyPress| {
+            weak.upgrade()
+                .is_some_and(|registry| Registry(registry).global_key(global))
+        });
+        document.register_global_key(Rc::downgrade(&global));
+        *registry.0.global_keys.borrow_mut() = Some(global);
         registry
     })
 }

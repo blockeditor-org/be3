@@ -9,7 +9,7 @@ The styled controls follow the keyboard conventions in the [W3C Authoring Practi
 | Radio groups | One Tab stop, at the selected option or the first option when unselected. Arrows wrap and select; Space selects without clearing an existing selection. Home/End select the first/last option. |
 | Single-select listboxes | One Tab stop. Up/Down select the previous/next option and stop at the ends. Home/End select the first/last option. Typing searches case-insensitive prefixes; repeated letters cycle matches. The search resets after one second or when focus leaves. |
 | Sliders | Right/Up increase and Left/Down decrease by 5% of the track. Home/End select minimum/maximum. Page Up/Down adjust by 20% of the track. Values remain within the range, which is `min` to `max` and defaults to 0 to 1. A curved `scale` keeps the steps even along the track, so they are small where the track is fine and large where it is coarse. |
-| Text inputs | Left/Right, Home/End, Shift-selection, Ctrl/Alt word navigation and deletion, Ctrl+A, Ctrl+C/X, Ctrl+Z, Ctrl+Shift+Z/Ctrl+Y, and Enter to submit. Up and Down move to the start and the end of the text, as they would on the one line of a multiline area. Space inserts text. Paste replaces the selection. A secondary click opens the Copy, Cut, Paste and Select All menu that a touch tap on the selection or the caret handle opens. The desktop runner maps Command to Ctrl on macOS. A multiline text area takes Tab and Shift+Tab to indent; Escape then Tab or Shift+Tab moves the focus out of it instead. It registers Find (Ctrl+F), Find and replace (Ctrl+H), the next and previous match (Ctrl+G, Ctrl+Shift+G), Duplicate the line (Ctrl+Shift+D), Select the next occurrence (Ctrl+D) and folding (Ctrl+Shift+[) as actions, which answer while the focus is in it. |
+| Text inputs | Left/Right, Home/End, Shift-selection, Ctrl/Alt word navigation and deletion, Ctrl+A, Ctrl+C/X, Ctrl+Z, Ctrl+Shift+Z/Ctrl+Y, and Enter to submit. Up and Down move to the start and the end of the text, as they would on the one line of a multiline area. Space inserts text. Paste replaces the selection. A secondary click opens the Copy, Cut, Paste and Select All menu that a touch tap on the selection or the caret handle opens. The desktop runner maps Command to Ctrl on macOS; Super chords type nothing. A multiline text area takes Tab and Shift+Tab to indent; Escape then Tab or Shift+Tab moves the focus out of it instead. It registers Find (Ctrl+F), Find and replace (Ctrl+H), the next and previous match (Ctrl+G, Ctrl+Shift+G), Duplicate the line (Ctrl+Shift+D), Select the next occurrence (Ctrl+D) and folding (Ctrl+Shift+[) as actions, which answer while the focus is in it. |
 | Selectable text | `<SelectableText>` makes the plain text nodes under it selectable together: a mouse drag selects from one text to another in tree order, Shift+click extends the selection, and a click clears it. Ctrl+C copies the selection, joining texts on one line with a space and lines with a line break; Ctrl+A selects everything under it. A secondary click opens a Copy and Select All menu. It is not a Tab stop, and the keys also reach it from a focused control inside it. |
 | Scroll areas | Tab focuses the area. Up/Down scroll by a line; Page Up/Down and Space/Shift+Space scroll by a page; Home/End reach the endpoints. Tabbing to a child or navigating a choice scrolls it into view. Unused Up/Down, Home/End, and Page keys on child controls scroll the nearest containing area. Virtual lists can be paged before tabbing into their realized controls. |
 | Select (dropdown) | Clicking or activating the trigger opens the popup and focuses its search box; typing filters the options by case-insensitive substring. Up/Down/Home/End on the closed trigger also open the popup and move the highlight in that direction. Up/Down move the highlighted option without moving the text caret; Home/End jump to the first/last visible option. Enter confirms the highlighted option and closes the popup. Escape or an outside click closes the popup without changing the selection and returns focus to the trigger. |
@@ -31,8 +31,23 @@ registered with `on_shortcut`, which is offered every key press before the
 focused control sees it, and answers `true` for the ones it takes. Shortcuts
 are consulted only while no menu or dialog is open, since those take the
 document over. That is how the dock's Ctrl+Tab reaches it from inside a text
-input, and it is the only way a component can claim a key before the focused
-control does.
+input.
+
+`on_global_key` goes further: it is offered every key press and release
+before anything else, including while a menu or dialog is open. It is handed a
+`GlobalKeyPress`, whose `in_app` says the focus is in an app (a plugin editor's
+region, or a Wayland program in a desktop session) that would otherwise get
+the key. A handler takes such a key only when it means to intercept it from
+the app. A press it answers `true` for, and that key's release, go nowhere
+else.
+`held_modifiers()` is a signal of the modifiers held now, which changes on
+modifier presses alone. Shortcuts that are not chords, such as a hold-and-release
+switcher, are built from those two.
+
+`Modifiers` and `Chord` have `logo` for the Super (Windows) key. The runners
+report Super as `logo`, except on macOS, where Command acts as Ctrl and Super
+is never reported. `Key` also has the volume, mic mute, brightness and media
+transport keys, mapped wherever the platform reports them.
 
 Tab and Shift+Tab traverse visible controls in tree order and wrap within the document. Hidden panels and collapsed content are excluded. Changing a selection programmatically updates the group's Tab stop and moves focus with the selection when the group already contains focus. Programmatic changes do not pull focus from other controls. Empty groups have no Tab stop, and invalid selection updates are ignored.
 
@@ -68,10 +83,28 @@ the node, so an action registered under it - an editor's, or a text area's -
 only answers while the focus is there. A key press the focused control does not
 handle (its `on_key` answers `false`) goes to the live actions, innermost scope
 first, and the first enabled one with a matching `Chord` runs. With nothing
-focused, every scope is live. A chord without Ctrl or Alt does not reach actions
-while the focus is in a text field, so typing a letter into a field never
-switches a canvas tool. Actions are consulted only while no menu or dialog is
-open.
+focused, every scope is live. A chord without Ctrl, Alt or Super (and not on a
+media key) does not reach actions while the focus is in a text field, so typing
+a letter into a field never switches a canvas tool. Actions are consulted only
+while no menu or dialog is open.
+
+An action built with `.global()` is consulted through `on_global_key` instead:
+before the focused control, wherever it was registered, and while menus and
+dialogs are open. The command palette lists global actions wherever it opens.
+A global action still leaves an app's keys alone: while a plugin editor or a
+Wayland program has the focus, the key goes to it and the action does not run.
+
+`.intercepts()` (which implies `.global()`) is the opt-in to take a key away
+from a focused app: the action is offered the press before the app, and a
+press it takes never reaches the app, nor does its release. Reserve it for
+shortcuts that must work over anything, such as Super+F
+(`be_wayland::toggle_fullscreen_action`) and the media keys. Inside an app only
+chords with Ctrl, Alt or Super, and media keys, are offered, since the app
+counts as a text field. In `block-app --session`, `be_wayland::Compositor`
+makes that offer with `Document::offer_app_key` before forwarding each press
+to the focused program; modifier presses always reach the program. A program
+that inhibits shortcuts (keyboard-shortcuts-inhibit) is a matter of the
+compositor not making the offer.
 
 `styled::CommandPalette` lists the actions that are live where the focus was
 when it opened: typing filters them by every word, Up/Down/Page Up/Page Down

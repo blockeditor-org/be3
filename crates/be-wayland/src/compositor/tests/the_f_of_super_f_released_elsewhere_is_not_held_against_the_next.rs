@@ -1,12 +1,5 @@
 use super::*;
 
-const KEY_F: u32 = 33;
-const KEY_LEFTMETA: u32 = 125;
-
-fn key(code: u32, pressed: bool) -> Event {
-    Event::PhysicalKey { code, pressed }
-}
-
 #[test]
 fn the_f_of_super_f_released_elsewhere_is_not_held_against_the_next() {
     let mut harness = Harness::new();
@@ -18,12 +11,12 @@ fn the_f_of_super_f_released_elsewhere_is_not_held_against_the_next() {
     harness.acknowledge(&window);
     harness.click(&shown);
 
-    harness.frame(vec![key(KEY_LEFTMETA, true), key(KEY_F, true)]);
-    harness.frame(vec![key(KEY_LEFTMETA, false)]);
+    harness.frame([super_key(true), f_key(true, beui::Modifiers::LOGO)].concat());
+    harness.frame(super_key(false));
     harness.settle();
     assert!(!harness.client.received.fullscreen);
     harness.click("test.input");
-    harness.frame(vec![key(KEY_F, false)]);
+    harness.frame(f_key(false, beui::Modifiers::NONE));
     harness.settle();
 
     harness.click(&shown);

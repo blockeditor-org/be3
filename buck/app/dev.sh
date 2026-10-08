@@ -6,6 +6,7 @@
 #   ./scripts/buck run //crates/block-app:dev              start, or restart
 #   ./scripts/buck run //crates/block-app:dev -- --fresh   start with no data
 #   ./scripts/buck run //crates/block-app:dev -- --stop    stop it
+#   ./scripts/buck run //crates/block-app:dev -- --desktop the desktop shell
 set -u
 app="$1"
 LD_LIBRARY_PATH="$2"
@@ -13,11 +14,13 @@ export LD_LIBRARY_PATH
 shift 2
 fresh=false
 stop=false
+desktop=
 for argument in "$@"; do
     case "$argument" in
         --fresh) fresh=true ;;
         --stop) stop=true ;;
-        *) echo "Unknown argument $argument; expected --fresh or --stop." >&2; exit 1 ;;
+        --desktop) desktop=--desktop ;;
+        *) echo "Unknown argument $argument; expected --fresh, --stop or --desktop." >&2; exit 1 ;;
     esac
 done
 
@@ -61,7 +64,7 @@ fi
 
 tree="$dir/accessibility.txt"
 rm -f "$tree"
-XDG_DATA_HOME="$dir/data" setsid "$app" --dev-workspace "--accessibility-tree=$tree" \
+XDG_DATA_HOME="$dir/data" setsid "$app" --dev-workspace $desktop "--accessibility-tree=$tree" \
     > "$dir/app.log" 2>&1 < /dev/null &
 pid=$!
 echo "$pid" > "$dir/app.pid"
