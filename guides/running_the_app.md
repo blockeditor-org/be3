@@ -58,15 +58,21 @@ corner of the screen: `beui_adapter_drm::Problems` carries the display and input
 `be_wayland::Compositor::on_failure` a program that could not be run, and `notices::report`
 puts each in front of the person.
 
-The desktop bar's power button suspends, restarts, powers off or logs out. linux-desktop
-asks for what it may offer with `LinuxMessage::WatchPower` and sends `RequestPower`;
-`src/session/power.rs` decides what happens (programs are asked to close, and are given five
-seconds before the session ends or logind is asked to restart or power off) and
-`src/session/logind.rs` talks to `org.freedesktop.login1`, including its `PrepareForSleep`
-signal. Every D-Bus conversation runs on one thread, `src/dbus.rs`: `dbus::spawn` runs a
-future there and `dbus::system()` is the shared system bus connection. A task hands what it
-learns back through `host::waking_channel`, which wakes the event loop, so nothing on the UI
-thread waits on the bus.
+The screens turn off after the display settings' "Turn off screens after" (ten minutes by
+default). `be_wayland::Compositor` counts the idle time on the frame clock from the input events
+it sees, held back while a window that is shown has a `zwp_idle_inhibitor_v1`, and answers
+`ext_idle_notifier_v1` for idle daemons the same way. `Windows::idle()` is true once the time
+has run out; block-app hands it to `beui_adapter_drm::DisplayControl::set_blanked`, which turns
+the outputs' CRTCs off and stops drawing to them until input wakes the session. In a window
+nothing is turned off.
+
+The input that wakes the screens reaches nothing: the adapter's `WakeGate` (`wake.rs`) drops it
+before beui, plugins or Wayland clients see it, along with all input for a grace period after
+it (`GRACE_USEC`, timed on libinput's event clock), and the release of every press it dropped,
+whenever that comes. Pointer motion it drops still moves the cursor. A release whose press was
+delivered before the screens went off is still delivered, so no key stays held. The adapter
+turns the screens on itself and reports the wake through `DisplayControl::take_woken`, which
+block-app hands to `Compositor::woke` so the idle count restarts.
 
 ## Wayland programs
 
