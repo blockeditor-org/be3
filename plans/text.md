@@ -220,8 +220,11 @@ orders what they send, and clients catch up the way `Live` does, rebuilding from
 `confirmed` plus pending when someone else's edit lands under theirs. Every
 sequenced operation is checked against a naive reference model (order,
 tombstones, offsets, splices), every replica against the sequence's internal
-invariants, and at the end every replica against the sequencer's state. It
-panics on any violation. Test and fuzzing builds use two fragments per chunk so
+invariants, and at the end every replica against the sequencer's state. Clients
+type and backspace at a caret as well as at random places, and fold what they
+have not sent yet with `SeqOp::absorb`, as a `Live` follower does; each merged
+operation is checked against its parts applied one by one (positions, items and
+next offsets). It panics on any violation. Test and fuzzing builds use two fragments per chunk so
 the multi-chunk paths run constantly.
 
 A test feeds it seeded random bytes, and `crates/sequence/fuzz/sequence.rs` is

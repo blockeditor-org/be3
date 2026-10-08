@@ -19,13 +19,14 @@ pub fn sequence(data: &[u8]) {
         match input.byte() % 10 {
             0..=4 => clients[client].edit(&mut input),
             5 | 6 => {
-                if let Some(op) = clients[client].send() {
-                    sequenced(
+                if let Some((op, parts)) = clients[client].send() {
+                    merged(
                         &mut authority,
                         &mut reference,
                         &mut log,
                         clients[client].id,
                         op,
+                        &parts,
                     );
                 }
             }
@@ -44,8 +45,15 @@ pub fn sequence(data: &[u8]) {
         }
     }
     for client in &mut clients {
-        while let Some(op) = client.send() {
-            sequenced(&mut authority, &mut reference, &mut log, client.id, op);
+        while let Some((op, parts)) = client.send() {
+            merged(
+                &mut authority,
+                &mut reference,
+                &mut log,
+                client.id,
+                op,
+                &parts,
+            );
         }
     }
     for client in &mut clients {
@@ -53,6 +61,29 @@ pub fn sequence(data: &[u8]) {
         assert!(client.pending.is_empty());
         assert_eq!(order(&client.confirmed), order(&authority));
         assert_eq!(order(&client.visible), order(&authority));
+    }
+}
+
+fn merged(
+    authority: &mut Sequence<u8>,
+    reference: &mut Reference,
+    log: &mut Vec<(u64, SeqOp<u8>)>,
+    author: u64,
+    op: SeqOp<u8>,
+    parts: &[SeqOp<u8>],
+) {
+    let mut separate = authority.clone();
+    for part in parts {
+        separate.apply(part);
+    }
+    sequenced(authority, reference, log, author, op);
+    assert_eq!(order(&separate), order(authority), "{parts:?}");
+    for client in 0..=CLIENTS {
+        assert_eq!(
+            separate.next_offset(client),
+            authority.next_offset(client),
+            "{parts:?}"
+        );
     }
 }
 
@@ -103,9 +134,11 @@ struct Client {
     confirmed: Sequence<u8>,
     visible: Sequence<u8>,
     pending: VecDeque<SeqOp<u8>>,
+    parts: VecDeque<Vec<SeqOp<u8>>>,
     sent: usize,
     seen: usize,
     undo: Vec<SeqOp<u8>>,
+    caret: usize,
 }
 
 impl Client {
@@ -117,9 +150,11 @@ impl Client {
             confirmed: authority.clone(),
             visible,
             pending: VecDeque::new(),
+            parts: VecDeque::new(),
             sent: 0,
             seen: 0,
             undo: Vec::new(),
+            caret: 0,
         }
     }
 
@@ -127,15 +162,69 @@ impl Client {
         let len = self.visible.len();
         let from = input.below(len + 1);
         let to = (from + input.below(8)).min(len);
-        let op = match input.byte() % 7 {
-            0 | 1 => self
-                .visible
-                .insert(self.id, from, input.items(LONGEST_INSERT)),
-            2 => self.visible.delete(from..to),
+        let caret = self.caret.min(len);
+        let kind = input.byte() % 9;
+        let (op, caret) = match kind {
+            0 | 1 => {
+                let items = input.items(LONGEST_INSERT);
+                let after = from + items.len();
+                (self.visible.insert(self.id, from, items), after)
+            }
+            2 => (self.visible.delete(from..to), from),
+            7 => {
+                let items = input.items(LONGEST_INSERT);
+                let after = caret + items.len();
+                (self.visible.insert(self.id, caret, items), after)
+            }
+            8 => {
+                let back = caret.saturating_sub(1);
+                (self.visible.delete(back..caret), back)
+            }
+            _ => (self.unpositioned(input, kind, from..to, len), caret),
+        };
+        self.caret = caret;
+        let Some(op) = op else {
+            return;
+        };
+        if let Some((back, _)) = self.visible.inverse(&op) {
+            self.undo.push(back);
+        }
+        let before = self.visible.items();
+        if let Some(splices) = self.visible.apply(&op) {
+            replayed(&before, &splices, &self.visible.items());
+        }
+        check(&self.visible);
+        let part = op.clone();
+        let unsent = self.pending.len() > self.sent && input.byte().is_multiple_of(2);
+        let leftover = match self.pending.back_mut().filter(|_| unsent) {
+            Some(last) => last.absorb(op.clone()),
+            None => Some(op),
+        };
+        match leftover {
+            Some(op) => {
+                self.pending.push_back(op);
+                self.parts.push_back(vec![part]);
+            }
+            None => {
+                if let Some(parts) = self.parts.back_mut() {
+                    parts.push(part);
+                }
+            }
+        }
+    }
+
+    fn unpositioned(
+        &mut self,
+        input: &mut Input,
+        kind: u8,
+        range: std::ops::Range<usize>,
+        len: usize,
+    ) -> Option<SeqOp<u8>> {
+        match kind {
             3 => self
                 .visible
-                .replace(self.id, from..to, input.items(LONGEST_INSERT)),
-            4 => self.visible.move_range(from..to, input.below(len + 1)),
+                .replace(self.id, range, input.items(LONGEST_INSERT)),
+            4 => self.visible.move_range(range, input.below(len + 1)),
             5 => self.undo.pop(),
             _ => {
                 let everything = order(&self.visible);
@@ -149,25 +238,14 @@ impl Client {
                     items,
                 })
             }
-        };
-        let Some(op) = op else {
-            return;
-        };
-        if let Some((back, _)) = self.visible.inverse(&op) {
-            self.undo.push(back);
         }
-        let before = self.visible.items();
-        if let Some(splices) = self.visible.apply(&op) {
-            replayed(&before, &splices, &self.visible.items());
-        }
-        check(&self.visible);
-        self.pending.push_back(op);
     }
 
-    fn send(&mut self) -> Option<SeqOp<u8>> {
+    fn send(&mut self) -> Option<(SeqOp<u8>, Vec<SeqOp<u8>>)> {
         let op = self.pending.get(self.sent)?.clone();
+        let parts = self.parts.get(self.sent)?.clone();
         self.sent += 1;
-        Some(op)
+        Some((op, parts))
     }
 
     fn catch_up(&mut self, log: &[(u64, SeqOp<u8>)]) {
@@ -176,6 +254,7 @@ impl Client {
             self.confirmed.apply(op);
             if *author == self.id {
                 let mine = self.pending.pop_front();
+                self.parts.pop_front();
                 assert_eq!(mine.as_ref(), Some(op));
                 self.sent -= 1;
             } else if self.pending.is_empty() && !rebuild {

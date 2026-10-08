@@ -112,18 +112,7 @@ impl<T> SeqOp<T> {
                 None
             }
             (SeqOp::Delete { spans }, SeqOp::Delete { spans: next }) => {
-                for span in next {
-                    match spans.iter_mut().find(|known| {
-                        known.client == span.client
-                            && (known.end() == span.start || span.end() == known.start)
-                    }) {
-                        Some(known) => {
-                            known.start = known.start.min(span.start);
-                            known.len += span.len;
-                        }
-                        None => spans.push(span),
-                    }
-                }
+                spans.extend(next);
                 None
             }
             (_, next) => Some(next),
