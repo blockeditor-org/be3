@@ -209,6 +209,7 @@ impl Run {
         let fixes = self.built("fix");
         let mut changed = Vec::new();
         let mut deleted = BTreeSet::new();
+        let mut originals = BTreeSet::new();
         let mut stale = BTreeSet::new();
         let mut findings = BTreeMap::new();
         for fix in &fixes {
@@ -217,6 +218,7 @@ impl Run {
             for path in files_under(&root) {
                 if read_the_same(&original.join(&path), Path::new(&path)) {
                     changed.push((root.join(&path), path));
+                    originals.insert(original.clone());
                 } else {
                     stale.insert(path);
                 }
@@ -226,6 +228,7 @@ impl Run {
                     let gone = !Path::new(path).exists();
                     if gone || read_the_same(&original.join(path), Path::new(path)) {
                         deleted.insert(path.to_owned());
+                        originals.insert(original.clone());
                     } else {
                         stale.insert(path.to_owned());
                     }
@@ -281,6 +284,12 @@ impl Run {
                         }
                     }
                 }
+                println!(
+                    "Until the next ./scripts/verify, the files as they were before these fixes are under:"
+                );
+                for original in &originals {
+                    println!("  {}", original.display());
+                }
             }
         }
         if !findings.is_empty() {
@@ -307,7 +316,7 @@ impl Run {
                 let compared = fs::read(directory.join("used").join(name)).unwrap_or_default();
                 let accepted = fs::read(Path::new("snapshots").join(name)).unwrap_or_default();
                 if compared == accepted {
-                    changed.push(painting);
+                    changed.push((painting, directory.join("used")));
                 } else {
                     stale.push(painting);
                 }
@@ -331,7 +340,7 @@ impl Run {
             } else {
                 println!("Accepting the paintings that changed:");
             }
-            for painting in &changed {
+            for (painting, _) in &changed {
                 let name = painting.file_name().unwrap_or_default().to_string_lossy();
                 let mut why = painting.as_os_str().to_owned();
                 why.push(".why");
@@ -346,6 +355,14 @@ impl Run {
             }
             if self.options.check {
                 self.failed = true;
+            } else {
+                println!(
+                    "Until the next ./scripts/verify, the paintings as they were before are under these, empty where there was none:"
+                );
+                let previous: BTreeSet<&PathBuf> = changed.iter().map(|(_, used)| used).collect();
+                for used in previous {
+                    println!("  {}", used.display());
+                }
             }
         }
         if expected == 0 || directories.len() != expected || self.options.build_failed {
