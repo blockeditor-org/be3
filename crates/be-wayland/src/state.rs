@@ -894,8 +894,8 @@ impl XdgShellHandler for State {
         let keyboard = self.keyboard();
         let pointer = self.pointer();
         let previous = grab.previous_serial().unwrap_or(serial);
-        let keyboard_taken = keyboard.is_grabbed()
-            && !(keyboard.has_grab(serial) || keyboard.has_grab(previous));
+        let keyboard_taken =
+            keyboard.is_grabbed() && !(keyboard.has_grab(serial) || keyboard.has_grab(previous));
         let pointer_taken =
             pointer.is_grabbed() && !(pointer.has_grab(serial) || pointer.has_grab(previous));
         if keyboard_taken || pointer_taken {

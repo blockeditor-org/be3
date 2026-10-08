@@ -39,7 +39,9 @@ fn a_click_on_another_client_dismisses_every_grabbed_popup() {
     );
     client.received.seen.clear();
 
-    server.state.pointer_motion(Some((other_id, (5.0, 5.0).into())));
+    server
+        .state
+        .pointer_motion(Some((other_id, (5.0, 5.0).into())));
     server.state.pointer_button(BUTTON_LEFT, true);
     server.state.pointer_button(BUTTON_LEFT, false);
     client.exchange(&mut server);
