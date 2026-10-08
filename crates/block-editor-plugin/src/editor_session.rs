@@ -200,6 +200,7 @@ impl EditorSession {
             LinuxMessage::WatchInputDevices
             | LinuxMessage::WatchDisplays
             | LinuxMessage::FullscreenWindow { .. }
+            | LinuxMessage::FocusWindow(_)
             | LinuxMessage::WatchPower
             | LinuxMessage::RequestPower(_) => {}
         }
@@ -596,6 +597,12 @@ impl EditorSession {
                 message: LinuxMessage::FullscreenWindow { window, fullscreen },
             }));
         }
+        for window in self.host.take_focused_windows() {
+            messages.push(Message::Editor(EditorMessage::Linux {
+                instance,
+                message: LinuxMessage::FocusWindow(window),
+            }));
+        }
         for action in self.host.take_power_requests() {
             messages.push(Message::Editor(EditorMessage::Linux {
                 instance,
@@ -983,6 +990,7 @@ impl EditorSession {
                     })
                     .collect(),
                 handles_back: frame.handles_back,
+                intercepted_keys: frame.intercepted_keys.clone(),
             });
         }
         frame

@@ -524,7 +524,7 @@ fn global_keys(doc: &mut Document, ctx: &Context) {
     }
     if !events
         .iter()
-        .any(|event| matches!(event, Event::Key { .. }))
+        .any(|event| matches!(event, Event::Key { .. } | Event::InterceptedKey(_)))
     {
         return;
     }
@@ -542,6 +542,17 @@ fn global_keys(doc: &mut Document, ctx: &Context) {
             Event::Focus(false) => {
                 doc.globally_held.clear();
                 keep.push(true);
+                continue;
+            }
+            Event::InterceptedKey(press) => {
+                doc.set_modifiers(press.modifiers);
+                doc.key_global(GlobalKeyPress {
+                    press,
+                    typing: true,
+                    in_app: true,
+                });
+                ::reactive::settle(|| {});
+                keep.push(false);
                 continue;
             }
             _ => {

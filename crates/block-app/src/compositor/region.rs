@@ -67,6 +67,7 @@ pub(crate) fn PluginRegion(
 ) -> NodeId {
     let instance = editor.instance;
     let plugin_id = editor.plugin_id().to_owned();
+    let block = editor.role.block().map(|block| block.id);
     plugin_host::mount_region(RegionSlot {
         plugin: &editor.plugin,
         block_types: &editor.block_types,
@@ -207,6 +208,17 @@ pub(crate) fn PluginRegion(
         state.with(|view| view.cursor.unwrap_or(CursorIcon::Default))
     }));
     let handles_back = create_memo(clone!(state -> move || state.with(|view| view.handles_back)));
+    let intercepted = create_memo(clone!(state -> move || {
+        state.with(|view| view.intercepted_keys.clone())
+    }));
+    let shell = super::shell();
+    super::intercept::intercept_keys(
+        plugin_id.clone(),
+        instance,
+        region,
+        intercepted,
+        move || region == EditorRegion::Frame && block.is_some() && shell.get_untracked() == block,
+    );
     let anchor = NodeRef::new();
     let ime = create_memo(clone!(state -> move || state.with(|view| view.ime.is_some())));
     let ime_cursor = create_memo(clone!(state anchor -> move || {

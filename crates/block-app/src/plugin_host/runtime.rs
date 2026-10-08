@@ -1009,6 +1009,16 @@ pub(crate) fn take_focus_report(plugin_id: &str, instance: EditorInstanceId) -> 
     .flatten()
 }
 
+pub(crate) fn take_focused_windows(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+) -> Vec<block_plugin_api::HostWindowId> {
+    with(plugin_id, |runtime| {
+        runtime.instances.take_focused_windows(instance)
+    })
+    .unwrap_or_default()
+}
+
 pub(crate) fn take_fullscreen_windows(
     plugin_id: &str,
     instance: EditorInstanceId,
@@ -1496,6 +1506,23 @@ pub(crate) fn back_region(
     host::request_repaint();
 }
 
+pub(crate) fn intercept_region(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+    press: Option<beui::KeyPress>,
+    modifiers: beui::Modifiers,
+) {
+    with(plugin_id, |runtime| {
+        let messages = runtime
+            .instances
+            .intercepted(instance, region, press, modifiers);
+        runtime.pacing.needed |= !messages.is_empty();
+        runtime.send(messages);
+    });
+    host::request_repaint();
+}
+
 #[derive(Clone, PartialEq)]
 pub(crate) struct RegionView {
     pub(crate) error: Option<(String, bool)>,
@@ -1513,6 +1540,7 @@ pub(crate) struct RegionView {
     pub(crate) cursor: Option<beui::CursorIcon>,
     pub(crate) ime: Option<beui::ImeArea>,
     pub(crate) handles_back: bool,
+    pub(crate) intercepted_keys: Vec<beui::KeyChord>,
     pub(crate) grabbed: bool,
 }
 
@@ -1534,6 +1562,7 @@ impl RegionView {
             cursor: None,
             ime: None,
             handles_back: false,
+            intercepted_keys: Vec::new(),
             grabbed: false,
         }
     }
@@ -1653,6 +1682,11 @@ pub(crate) fn region_view(
                     .collect()
             })
             .unwrap_or_default();
+        let intercepted_keys = report
+            .iter()
+            .flat_map(|report| &report.intercepted_keys)
+            .filter_map(|chord| beui_plugin_input::beui_chord(*chord))
+            .collect();
         let base: Vec<Rect> = match floating_rects.is_empty() {
             true => vec![visible],
             false => super::pieces::subtract(visible, &floating_rects),
@@ -1692,6 +1726,7 @@ pub(crate) fn region_view(
             },
             ime: runtime.instances.ime(instance, region, rect),
             handles_back,
+            intercepted_keys,
             grabbed: runtime.instances.grabbing(),
         }
     })

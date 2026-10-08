@@ -52,6 +52,7 @@ struct Inner {
     commands: RefCell<Vec<Command>>,
     fullscreen_requests: RefCell<Vec<(WindowId, bool)>>,
     toggle_fullscreen: Cell<bool>,
+    activate: Cell<Option<WindowId>>,
     focused: Cell<Option<WindowId>>,
     list: ReadSignal<Vec<WindowInfo>>,
     set_list: WriteSignal<Vec<WindowInfo>>,
@@ -76,6 +77,7 @@ impl Windows {
             commands: RefCell::new(Vec::new()),
             fullscreen_requests: RefCell::new(Vec::new()),
             toggle_fullscreen: Cell::new(false),
+            activate: Cell::new(None),
             focused: Cell::new(None),
             list,
             set_list,
@@ -128,6 +130,14 @@ impl Windows {
 
     pub(crate) fn take_fullscreen_requests(&self) -> Vec<(WindowId, bool)> {
         std::mem::take(&mut *self.0.fullscreen_requests.borrow_mut())
+    }
+
+    pub fn activate(&self, id: WindowId) {
+        self.0.activate.set(Some(id));
+    }
+
+    pub(crate) fn take_activation(&self) -> Option<WindowId> {
+        self.0.activate.take()
     }
 
     pub(crate) fn raise(&self, id: WindowId) {
@@ -253,10 +263,14 @@ impl Windows {
         {
             signals.set_focused.set(focused);
         }
+        let was = self.0.focused.get();
         if focused {
             self.0.focused.set(Some(id));
-        } else if self.0.focused.get() == Some(id) {
+        } else if was == Some(id) {
             self.0.focused.set(None);
+        }
+        if self.0.focused.get() != was {
+            self.0.revision.set(self.0.revision.get() + 1);
         }
         self.push(Command::Configure(id));
     }

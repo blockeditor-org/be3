@@ -3,6 +3,7 @@ mod calendar;
 mod popup;
 mod power;
 mod sessions;
+mod switcher;
 
 use std::rc::Rc;
 
@@ -57,6 +58,7 @@ fn DesktopBody(workspace: Rc<Workspace>) -> NodeId {
     let surface = NodeRef::new();
     workspace.editor().content(&surface);
     let layout = workspace.layout();
+    switcher::bind_window_switcher(&layout);
     let failure = workspace.error();
     let failed = create_memo(clone!(failure -> move || failure.get().is_some()));
     let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));

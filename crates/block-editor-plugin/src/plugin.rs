@@ -2,7 +2,7 @@ use std::time::Duration;
 
 #[cfg(target_arch = "wasm32")]
 use block_plugin_api::SurfaceRect;
-use block_plugin_api::{CursorIcon, EditorRegion, FrameChrome, FrameSpec, InputEvent};
+use block_plugin_api::{CursorIcon, EditorRegion, FrameChrome, FrameSpec, InputEvent, KeyChord};
 use geometry::{Rect, Vec2};
 use uuid::Uuid;
 
@@ -84,6 +84,7 @@ pub struct Frame {
     pub claims: Vec<Claim>,
     pub ime: Option<Ime>,
     pub handles_back: bool,
+    pub intercepted_keys: Vec<KeyChord>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

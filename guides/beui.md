@@ -1061,6 +1061,22 @@ order is part of the state, so it is saved with the layout), and
 shown last when the focused pane is empty. The workspace stacks its dock on a
 phone.
 
+The dock's switcher walks `recent_tabs` across every pane and window, the way
+Alt+Tab walks a desktop's windows. `DockingLayout::begin_switch(backwards)`
+chooses the tab shown before the current one (or, backwards, the one shown
+longest ago), `step_switch` moves the choice along and wraps, `commit_switch`
+shows the chosen tab (activating it in its pane and raising its window) and
+`cancel_switch` leaves everything as it was; `switching` and `switch_choice`
+read it back, and `DockState` has the same calls and `switch()`. While a switch
+lasts, the dock opens an overlay in the middle of the document listing the
+tabs, each with its icon and title and the chosen one highlighted, drawn by the
+`switch` render prop (`DockSwitchHandle`, a row per tab whose `pick` commits
+that tab); nothing is shown until the switch is committed. A switch is not part
+of the saved layout. The dock binds no key to it: whoever binds it decides the
+keys, usually a chord that begins or steps the switch while a modifier is held,
+`held_modifiers()` letting go of that modifier to commit, and Escape to cancel,
+as linux-desktop does with Alt+Tab and the demo with Alt+Q.
+
 Each surface - the main one and one per window - lays its tree out over the
 rectangle it was given, so panes and the bars between them are canvas items at
 computed rectangles rather than nested boxes. `layout_surface` is that

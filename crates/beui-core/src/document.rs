@@ -16,7 +16,7 @@ use crate::file_picker::{FileFilter, FilePick, FilePickId};
 use crate::flash::FlashLog;
 use crate::font::{FontId, Galley, TextLayout};
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
-use crate::input::{Key, KeyPress, Modifiers};
+use crate::input::{Key, KeyChord, KeyPress, Modifiers};
 
 use crate::display::Display;
 use crate::interact::{self, Keys};
@@ -89,6 +89,10 @@ pub struct Document {
     modifiers: (
         ::reactive::ReadSignal<Modifiers>,
         ::reactive::WriteSignal<Modifiers>,
+    ),
+    intercepted_keys: (
+        ::reactive::ReadSignal<Vec<KeyChord>>,
+        ::reactive::WriteSignal<Vec<KeyChord>>,
     ),
     pub touch_scroll_vertical: Option<NodeId>,
     pub touch_shift: crate::geometry::Vec2,
@@ -299,6 +303,7 @@ impl Document {
             global_keys: RefCell::new(Vec::new()),
             globally_held: Vec::new(),
             modifiers: ::reactive::create_signal(Modifiers::NONE),
+            intercepted_keys: ::reactive::create_signal(Vec::new()),
             touch_scroll_vertical: None,
             touch_shift: crate::geometry::Vec2::ZERO,
             touch_scroll_horizontal: None,
@@ -531,6 +536,14 @@ impl Document {
 
     pub fn watch_modifiers(&self) -> ::reactive::ReadSignal<Modifiers> {
         self.modifiers.0.clone()
+    }
+
+    pub fn intercepted_keys_writer(&self) -> ::reactive::WriteSignal<Vec<KeyChord>> {
+        self.intercepted_keys.1.clone()
+    }
+
+    pub fn intercepted_keys(&self) -> Vec<KeyChord> {
+        self.intercepted_keys.0.get_untracked()
     }
 
     pub fn set_modifiers(&self, modifiers: Modifiers) {
@@ -1072,6 +1085,9 @@ impl Document {
         if self.handles_back() {
             ctx.handle_back();
         }
+        self.intercepted_keys
+            .0
+            .with_untracked(|chords| ctx.intercept_keys(chords));
 
         if let Some(text) = self.copied_text.take() {
             ctx.copy_text(text);

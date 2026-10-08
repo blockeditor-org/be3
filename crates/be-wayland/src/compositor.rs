@@ -162,7 +162,7 @@ impl Compositor {
         }
         let list =
             (std::mem::take(&mut self.relist) || self.fullscreen.is_some()).then(|| self.list());
-        let raise = self.raise.take();
+        let raise = self.raise.take().or_else(|| self.windows.take_activation());
         let windows = self.windows.clone();
         with_reactive_scope(document, || {
             if let Some(list) = list {

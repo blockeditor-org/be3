@@ -11,7 +11,7 @@ use crate::app::{App, SafeArea, Setup, Waker, next_batch, safe_rect};
 use crate::context::{Context, FrameOutput};
 use crate::file_picker::FilePickRequest;
 use crate::geometry::Vec2;
-use crate::input::{CursorIcon, Event, ImeArea, RawInput};
+use crate::input::{CursorIcon, Event, ImeArea, KeyChord, RawInput};
 use crate::renderer::{Loaded, Renderers};
 
 pub struct RunOptions {
@@ -63,6 +63,8 @@ pub trait Platform {
 
     fn set_handles_back(&mut self, _handles: bool) {}
 
+    fn set_intercepted_keys(&mut self, _chords: &[KeyChord]) {}
+
     fn show_ime(&mut self, _ime: Option<&ImeArea>) {}
 
     fn publish_accessibility(&mut self, _tree: &mut dyn FnMut() -> TreeUpdate) {}
@@ -89,6 +91,7 @@ struct Shown {
     pointer_locked: bool,
     fullscreen: bool,
     handles_back: bool,
+    intercepted_keys: Vec<KeyChord>,
 }
 
 pub struct Runner {
@@ -263,6 +266,10 @@ impl Runner {
         if output.handles_back != shown.handles_back {
             shown.handles_back = output.handles_back;
             platform.set_handles_back(output.handles_back);
+        }
+        if output.intercepted_keys != shown.intercepted_keys {
+            shown.intercepted_keys.clone_from(&output.intercepted_keys);
+            platform.set_intercepted_keys(&output.intercepted_keys);
         }
 
         let pending = renderers.prepare(&output, scale, self.app.clear_color());

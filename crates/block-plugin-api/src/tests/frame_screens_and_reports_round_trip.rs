@@ -55,6 +55,13 @@ fn frame_screens_and_reports_round_trip() {
             },
         }],
         handles_back: true,
+        intercepted_keys: vec![KeyChord {
+            key: Key::Tab,
+            modifiers: Modifiers {
+                alt: true,
+                ..Modifiers::default()
+            },
+        }],
     }]);
     assert_eq!(
         decode_frame(&encode_frame(&frames).unwrap()).unwrap(),

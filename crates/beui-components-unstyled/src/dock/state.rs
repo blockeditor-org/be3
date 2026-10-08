@@ -8,8 +8,10 @@ use beui_core::geometry::{Pos2, Rect, Vec2};
 use serde::{Deserialize, Serialize};
 
 mod spec;
+mod switch;
 
 pub use spec::{DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow};
+pub use switch::DockSwitch;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct TabId(u64);
@@ -485,6 +487,8 @@ pub struct DockState {
     #[serde(skip)]
     fullscreen: Option<DockFullscreen>,
     #[serde(skip)]
+    switch: Option<DockSwitch>,
+    #[serde(skip)]
     lookup: Lookup,
 }
 
@@ -505,6 +509,7 @@ impl DockState {
             next: 0,
             seeded: false,
             fullscreen: None,
+            switch: None,
             lookup: Lookup::default(),
         };
         let leaf = state.new_leaf(tabs.into_iter().map(Entry::Tab).collect());

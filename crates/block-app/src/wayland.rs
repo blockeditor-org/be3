@@ -5,11 +5,11 @@ mod unsupported;
 
 #[cfg(target_os = "linux")]
 pub(crate) use linux::{
-    Programs, WindowSurface, after, before, close, create, exiting, fullscreen, launch, listed,
-    replace_gpu, revision, running, set_blank_after, set_keyboard, start,
+    Programs, WindowSurface, after, before, close, create, exiting, focus, fullscreen, launch,
+    listed, replace_gpu, revision, running, set_blank_after, set_keyboard, start,
 };
 #[cfg(not(target_os = "linux"))]
 pub(crate) use unsupported::{
-    Programs, WindowSurface, after, before, close, create, exiting, fullscreen, launch, listed,
-    replace_gpu, revision, running, start,
+    Programs, WindowSurface, after, before, close, create, exiting, focus, fullscreen, launch,
+    listed, replace_gpu, revision, running, start,
 };
