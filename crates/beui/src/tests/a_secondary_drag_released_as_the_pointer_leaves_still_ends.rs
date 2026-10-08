@@ -12,7 +12,9 @@ fn a_secondary_drag_released_as_the_pointer_leaves_still_ends() {
         let drags = Rc::clone(&drags);
         move || {
             view! {
-                <Interactive on_secondary_drag={move |drag: SecondaryDrag| drags.borrow_mut().push(drag)}>
+                <Interactive
+                    on_secondary_drag={move |drag: SecondaryDrag| drags.borrow_mut().push(drag)}
+                >
                     <Frame />
                 </Interactive>
             }
