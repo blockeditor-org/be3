@@ -49,6 +49,8 @@ use crate::problems::Problems;
 use crate::screen::FORMAT;
 
 const WHEEL_STEP: f64 = 15.0;
+const LONGEST_WAIT: Duration = Duration::from_secs(3600);
+const BLANKED_FRAME: Duration = Duration::from_secs(1);
 
 struct Session {
     seat: LibSeatSession,
@@ -65,6 +67,7 @@ struct Session {
     display_control: DisplayControl,
     display_config: DisplayConfig,
     modes_pending: bool,
+    blanked: bool,
     runner: Runner,
     platform: Seat,
     displays: Rc<RefCell<Displays>>,
@@ -179,6 +182,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         display_control,
         display_config: DisplayConfig::default(),
         modes_pending: false,
+        blanked: false,
         runner,
         platform,
         displays,
@@ -302,6 +306,9 @@ impl Session {
         if self.dirty || self.runner.has_events() {
             self.update();
         }
+        if let Some(blanked) = self.display_control.take_blanked() {
+            self.set_blanked(blanked);
+        }
         self.runner.present();
         self.watch_fences();
     }
@@ -325,6 +332,17 @@ impl Session {
         if changed {
             self.relayout();
         }
+    }
+
+    fn set_blanked(&mut self, blanked: bool) {
+        if blanked == self.blanked {
+            return;
+        }
+        self.blanked = blanked;
+        for output in &mut self.displays.borrow_mut().outputs {
+            output.set_blanked(blanked);
+        }
+        self.dirty = true;
     }
 
     fn watch_fences(&mut self) {
@@ -397,24 +415,35 @@ impl Session {
         if frame.close_requested && self.runner.close_requested() {
             self.signal.stop();
         }
-        self.dirty = frame.deferred || frame.repaint;
-        self.schedule(frame.repaint_after);
+        match self.blanked {
+            false => {
+                self.dirty = frame.deferred || frame.repaint;
+                self.schedule(frame.repaint_after);
+            }
+            true => {
+                self.dirty = frame.deferred;
+                self.schedule(frame.repaint_after.max(BLANKED_FRAME));
+            }
+        }
     }
 
     fn schedule(&mut self, after: Duration) {
         if let Some(token) = self.wakeup.take() {
             self.handle.remove(token);
         }
-        if after >= Duration::from_secs(3600) {
+        if after == Duration::MAX {
             return;
         }
         self.wakeup = self
             .handle
-            .insert_source(Timer::from_duration(after), |_, _, session| {
-                session.wakeup = None;
-                session.dirty = true;
-                TimeoutAction::Drop
-            })
+            .insert_source(
+                Timer::from_duration(after.min(LONGEST_WAIT)),
+                |_, _, session| {
+                    session.wakeup = None;
+                    session.dirty = true;
+                    TimeoutAction::Drop
+                },
+            )
             .ok();
     }
 
@@ -457,7 +486,10 @@ impl Session {
                 &taken,
                 &self.display_config,
             ) {
-                Ok(output) => displays.outputs.push(output),
+                Ok(mut output) => {
+                    output.set_blanked(self.blanked);
+                    displays.outputs.push(output);
+                }
                 Err(error) => self
                     .problems
                     .report(format!("A display could not be used: {error}")),

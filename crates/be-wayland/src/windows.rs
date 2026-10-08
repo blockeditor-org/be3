@@ -56,6 +56,8 @@ struct Inner {
     revision: Cell<u64>,
     cursor: ReadSignal<CursorIcon>,
     set_cursor: WriteSignal<CursorIcon>,
+    idle: ReadSignal<bool>,
+    set_idle: WriteSignal<bool>,
 }
 
 #[derive(Clone)]
@@ -65,6 +67,7 @@ impl Windows {
     pub fn new() -> Self {
         let (list, set_list) = create_signal(Vec::new());
         let (cursor, set_cursor) = create_signal(CursorIcon::Default);
+        let (idle, set_idle) = create_signal(false);
         Self(Rc::new(Inner {
             windows: RefCell::new(HashMap::new()),
             views: RefCell::new(HashMap::new()),
@@ -76,6 +79,8 @@ impl Windows {
             revision: Cell::new(0),
             cursor,
             set_cursor,
+            idle,
+            set_idle,
         }))
     }
 
@@ -93,6 +98,14 @@ impl Windows {
 
     pub fn cursor(&self) -> ReadSignal<CursorIcon> {
         self.0.cursor.clone()
+    }
+
+    pub fn idle(&self) -> ReadSignal<bool> {
+        self.0.idle.clone()
+    }
+
+    pub(crate) fn set_idle(&self, idle: bool) {
+        self.0.set_idle.set(idle);
     }
 
     pub fn request_fullscreen(&self, id: WindowId, fullscreen: bool) {

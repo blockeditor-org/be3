@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::DisplaySettingsContent;
-use block_editor_beui::be_block::display_settings::DisplayMode;
+use block_editor_beui::be_block::display_settings::{DisplayMode, ScreenOff};
 use block_editor_beui::beui::Key;
 use block_editor_beui::{Editor, EditorHost, HostDisplay, HostDisplayMode};
 use block_ui_test::BeuiTest;
@@ -9,12 +9,14 @@ use crate::app::DisplaySettingsApp;
 
 mod choosing_a_refresh_rate_stores_the_mode;
 mod choosing_a_resolution_uses_its_fastest_refresh_rate;
+mod choosing_never_keeps_the_screens_on;
 mod resetting_a_display_returns_it_to_its_default;
 
 const MONITOR: &str = "DEL|DELL AW2524H|7XQ2B34";
 const RESOLUTION: &str = "display-settings.DP-1.resolution";
 const REFRESH: &str = "display-settings.DP-1.refresh";
 const RESET: &str = "display-settings.DP-1.reset";
+const SCREEN_OFF: &str = "display-settings.screen-off";
 
 fn editor(displays: Vec<HostDisplay>) -> BeuiTest<DisplaySettingsApp> {
     let host = EditorHost::default();

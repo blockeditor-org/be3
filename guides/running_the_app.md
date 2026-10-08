@@ -49,6 +49,14 @@ corner of the screen: `beui_adapter_drm::Problems` carries the display and input
 `be_wayland::Compositor::on_failure` a program that could not be run, and `notices::report`
 puts each in front of the person.
 
+The screens turn off after the display settings' "Turn off screens after" (ten minutes by
+default). `be_wayland::Compositor` counts the idle time on the frame clock from the input events
+it sees, held back while a window that is shown has a `zwp_idle_inhibitor_v1`, and answers
+`ext_idle_notifier_v1` for idle daemons the same way. `Windows::idle()` is true once the time
+has run out; block-app hands it to `beui_adapter_drm::DisplayControl::set_blanked`, which turns
+the outputs' CRTCs off and stops drawing to them until input wakes the session. In a window
+nothing is turned off.
+
 ## Wayland programs
 
 On Linux the app is a Wayland compositor. Its socket is `wayland-<n>` in `XDG_RUNTIME_DIR`,
