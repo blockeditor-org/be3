@@ -102,6 +102,34 @@ pub enum Key {
     F22,
     F23,
     F24,
+    VolumeUp,
+    VolumeDown,
+    VolumeMute,
+    MicMute,
+    BrightnessUp,
+    BrightnessDown,
+    MediaPlayPause,
+    MediaNext,
+    MediaPrevious,
+    MediaStop,
+}
+
+impl Key {
+    pub const fn is_media(self) -> bool {
+        matches!(
+            self,
+            Self::VolumeUp
+                | Self::VolumeDown
+                | Self::VolumeMute
+                | Self::MicMute
+                | Self::BrightnessUp
+                | Self::BrightnessDown
+                | Self::MediaPlayPause
+                | Self::MediaNext
+                | Self::MediaPrevious
+                | Self::MediaStop
+        )
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
@@ -109,6 +137,7 @@ pub struct Modifiers {
     pub alt: bool,
     pub ctrl: bool,
     pub shift: bool,
+    pub logo: bool,
 }
 
 impl Modifiers {
@@ -116,7 +145,17 @@ impl Modifiers {
         alt: false,
         ctrl: false,
         shift: false,
+        logo: false,
     };
+
+    pub const LOGO: Self = Self {
+        logo: true,
+        ..Self::NONE
+    };
+
+    pub const fn command(self) -> bool {
+        self.ctrl || self.alt || self.logo
+    }
 
     pub const ALT: Self = Self {
         alt: true,
