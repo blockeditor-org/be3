@@ -31,6 +31,7 @@ const MINIMUM_ZOOM: f32 = 1.0 / 64.0;
 const MAXIMUM_ZOOM: f32 = 32.0;
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 const SCREEN: ScreenId = ScreenId(1);
+const WALL_CLOCK: std::time::Duration = std::time::Duration::from_secs(1_772_444_460);
 
 pub struct BeuiTest<A: BeuiApp> {
     plugin: HeadlessPlugin,
@@ -129,6 +130,7 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     fn open(kind: Kind, adopted: Adopted, data: Vec<u8>) -> Self {
         beui::verify_paint(true);
+        block_editor_beui::pin_wall_clock(Some(WALL_CLOCK));
         let host = match &adopted {
             Adopted::Editor(editor, _) | Adopted::Preview(editor) => editor.host().clone(),
             Adopted::Creation(creation) => creation.host().clone(),

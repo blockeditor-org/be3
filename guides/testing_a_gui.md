@@ -126,6 +126,11 @@ snapshot or record() of something that animates in.
 Wait for the work rather than for a number of frames: a few more run() calls is the same
 race with a wider margin, which is how one of these hid.
 
+The date and the time of day come from the harness too: an editor reads them from
+`block_editor_beui::wall_clock()` (and `utc_offset()` for local time), never
+`SystemTime::now()`, and the harness pins that clock to one fixed moment plus its frame clock, so
+a clock or a calendar paints the same on every run.
+
 An editor whose manifest claims pan_and_zoom draws into a view the host owns, so its test
 calls in_viewport() on the harness. The harness then does what the host does around the main
 region: it holds a zoom and an offset, hands the editor a view over the content band the
