@@ -304,6 +304,10 @@ impl Compositor {
             if matches!(code, KEY_LEFTMETA | KEY_RIGHTMETA) {
                 self.logo = pressed;
             }
+            if !pressed && self.swallowed.contains(&code) {
+                self.swallowed.retain(|swallowed| *swallowed != code);
+                continue;
+            }
             let Some(id) = target else {
                 continue;
             };
@@ -311,10 +315,6 @@ impl Compositor {
                 self.swallowed.push(code);
                 let fullscreen = !self.server.state.fullscreen(id);
                 self.set_fullscreen(id, fullscreen);
-                continue;
-            }
-            if !pressed && self.swallowed.contains(&code) {
-                self.swallowed.retain(|swallowed| *swallowed != code);
                 continue;
             }
             self.server.state.key(code, pressed);

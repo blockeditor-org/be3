@@ -11,6 +11,7 @@ mod a_window_asking_for_fullscreen_covers_the_screen;
 mod keys_follow_the_focus_between_beui_and_a_window;
 mod leaving_fullscreen_returns_the_window_to_where_it_was_shown;
 mod super_f_toggles_fullscreen_on_the_focused_window;
+mod the_f_of_super_f_released_elsewhere_is_not_held_against_the_next;
 
 use std::cell::RefCell;
 use std::rc::Rc;
