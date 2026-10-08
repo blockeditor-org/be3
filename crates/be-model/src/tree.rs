@@ -765,10 +765,24 @@ fn conditional_entry(
 
 fn whole(inside: &Objects, top: ObjectId) -> bool {
     inside.iter().all(|(id, object)| {
-        let listed = object.fields.iter().all(|value| match value {
-            Value::List(items) => items.iter().all(|child| inside.contains_key(child)),
-            _ => true,
-        });
+        let listed = object
+            .fields
+            .iter()
+            .enumerate()
+            .all(|(index, value)| match value {
+                Value::List(items) => {
+                    let place = u16::try_from(index)
+                        .ok()
+                        .map(|field| Place { object: *id, field });
+                    items.iter().all(|child| {
+                        *child != top
+                            && inside
+                                .get(child)
+                                .is_some_and(|held| held.parent.is_some() && held.parent == place)
+                    })
+                }
+                _ => true,
+            });
         let held = *id == top
             || object.parent.is_some_and(|parent| {
                 inside
