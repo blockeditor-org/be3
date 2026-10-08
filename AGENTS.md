@@ -34,7 +34,6 @@ Verification:
 Do:
 - Use commit message format `type: message`. Include Co-Authored-By: (model name).
 - When done, create a pull request on github for the change. Do not watch the pull request and do not check in on its status.
-- Visual changes and features come with a painting that demonstrates them (see guides/testing_a_gui.md). If an existing painting already shows the change, that's enough; otherwise add one.
 - In your handoff message, mention any small issues you encountered or small things you noticed that could make the code / application better.
 - If you don't need tests in your search results, consider `grep --exclude-dir="tests"`
 - If you find yourself polling waiting for a command to finish, run `./scripts/nopoll` in the foreground
@@ -44,30 +43,30 @@ Do not:
 - Do not create routines. Do not subscribe to PRs. Do not set check-in timers.
 
 Design principles:
-- do not edit this list.
-- if it seems like a request requires violating one of these, confirm using the question tool.
-- general:
-  - when making changes to serialization formats or network requests, do not consider backwards compatibility with existing clients or data. te project is still early, and it is fine to ask the user to delete all their data. the crash handler in block-app will offer this automatically.
-  - we should never be sleeping in a test. if we need to wait for something, we need to find a way to wait for it without sleeping.
-  - guides and markdown files are for agents to read to help them understand the codebase and implement features. not every tiny change deserves a mention in a guide. when adding something to a guide, consider if a summary written from scratch would include the feature. if it wouldn't, don't add it to the guide. information that is only helpful to humans also doesn't belong in a guide. that can go in a PR description and/or handoff message.
-  - every agent immediately, automatically reads AGENTS.md when it starts up. do not duplicate information that is already in AGENTS.md in other files.
-  - do not edit any file named 'README.md'. if one is out of date, you may say so in your handoff message.
-  - everything in the repo is in scope for editing for any task. for example, if you find a bug or missing feature in beui, fix it at the source rather than working around it. if you find a guide out of date or inaccurate, update it.
+- Do not edit this list.
+- If a request seems to require violating one of these, confirm with the user using AskUserQuestion before going ahead.
+- General:
+  - Don't keep backward compatibility in serialization formats or network requests. The project is early, and users can delete their data; block-app's crash handler offers this automatically.
+  - Treat everything in the repo as in scope for any task. Fix bugs and missing features at their source (in beui, for example) rather than working around them, and update any guide you find out of date.
+  - Do not edit files named README.md.
+  - Write guides for agents. Add something to a guide only if a summary of that area written from scratch would include it. Put notes that only help humans in the PR description, the handoff message, or both.
+  - Don't repeat in other files what AGENTS.md already says; every agent reads it at startup.
+- Testing:
+  - Don't sleep in tests. Wait on an explicit signal, and read time from the frame clock (`ctx.now()` or `timer::now()`), never `Instant::now()`, so tests can advance time instead.
+  - Add a painting that demonstrates each visual change or feature (see guides/testing_a_gui.md). If an existing painting already shows the change, that's enough.
 - beui:
-  - beui is a retained-mode ui that you interact with using a solidjs-like reactive framework.
-  - beui layout is O(n) or better on the number of nodes in the tree.
-  - beui is a reactive framework; we should push changes, not poll for changes.
-  - code that reads the time uses the frame clock (`ctx.now()` or `timer::now()`), not `Instant::now()`, so tests can advance it without sleeping.
-  - new components added to beui should also be added in beui-demo
-- block-app plugins:
-  - the plugin protocol is framework-independent. we theoretically could use it with different GUI frameworks without modifying the plugin protocol.
-  - the plugin protocol passes textures without them leaving the GPU.
-- gui:
-  - we use an icon library for icons. if one is not available, then do not use icons. do not use unicode for icons.
-  - a scroll view reaches the edges of the area it fills; its padding goes inside it, around the scrolled content, so content is not cut off short of the edge and there is no padding right of the scrollbar / left of the scroll area.
-- build system (buck2):
-  - keep ./scripts/verify / ./scripts/ci to just one buck2 invocation. that way buck2 can run things in parallel whenever possible.
-  - anything that needs to run locally after a buck2 invocation should be written in rust, not bash. rust is a less footgun-prone language, and the rust code can be compiled remotely in parallel within that one buck2 invocation so it's basically free.
+  - beui is retained-mode and fine-grained reactive, like SolidJS. It is not like React or an immediate-mode UI: a component runs once, and changes reach the UI through signals. Use that reactivity rather than working around it: push changes, never poll for them, and don't rebuild trees to update them.
+  - Keep a full layout from scratch O(n) in the number of nodes. Incremental relayout may do less, but don't add anything that makes a full layout worse than linear.
+  - Add new beui components to beui-demo too.
+- Plugins:
+  - Keep the plugin protocol independent of any GUI framework: no beui-specific types or ideas in it. Any framework that can render offscreen and run in wasm (egui, for example) should be able to use it unchanged.
+  - Pass textures through the plugin protocol without them leaving the GPU.
+- GUI:
+  - Use icons from the icon library in `beui_core::icons`. Where no icon fits or the library isn't usable, use no icon. Never use emoji or other Unicode symbols as icons.
+  - Make a scroll view fill its area edge to edge, and put padding inside it, around the content: `scroll(padding(content))`, not `padding(scroll(content))`.
+- Build system (buck2):
+  - Keep `./scripts/verify` and `./scripts/ci` to exactly one buck2 invocation each, so buck2 can run everything in parallel.
+  - Write anything that runs locally after that invocation in Rust, not shell. Rust has fewer footguns, and it compiles remotely inside the same invocation at almost no cost.
 
 In your handoff message:
 - If any, mention any small issues you encountered or small things you noticed that could make the code / application better.
