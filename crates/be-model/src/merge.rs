@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use be_commit::{merge::join_lines, merge_lines, merge_slices, render_conflicts};
 
-use crate::{Object, ObjectId, Objects, Place, Sequence, Tree, Value};
+use crate::{Items, Object, ObjectId, Objects, Place, Sequence, Tree, Value};
 
 pub(crate) fn merge3(base: &Tree, ours: &Tree, theirs: &Tree) -> (Tree, usize) {
     let mut conflicts = 0;
@@ -71,7 +71,7 @@ pub(crate) fn merge3(base: &Tree, ours: &Tree, theirs: &Tree) -> (Tree, usize) {
     restore_ancestors(&mut kept, [ours, theirs, base], &mut conflicts);
     let mut merged = Tree::from_objects(kept);
     rebuild_lists(&mut merged, base, ours, theirs, &mut conflicts);
-    merged.refresh_texts();
+    merged.refresh_sequences();
     (merged, conflicts)
 }
 
@@ -206,7 +206,7 @@ fn blank_like(object: &Object) -> Object {
             .map(|value| match value {
                 Value::Register(_) => Value::Register(Vec::new()),
                 Value::Count(_) => Value::Count(0),
-                Value::List(_) => Value::List(Vec::new()),
+                Value::List(_) => Value::List(Items::default()),
                 Value::Map(_) => Value::Map(BTreeMap::new()),
                 Value::Grid(cells) => Value::Grid(cells.emptied()),
                 Value::Latest(_) => Value::Latest(BTreeMap::new()),
