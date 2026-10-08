@@ -42,22 +42,20 @@ pub fn KeepChanges(
 ) -> NodeId {
     let deadline: Rc<Cell<Option<Instant>>> = Rc::new(Cell::new(None));
     let (left, set_left) = create_signal(timeout);
-    let settle = Rc::new(clone!(deadline -> move || deadline.take().is_some()));
     let expire = on_revert.clone();
-    let ticking = create_timer(clone!(deadline settle set_left -> move || {
+    let ticking = create_timer(clone!(deadline set_left -> move || {
         let due = deadline.get()?;
         let remaining = due.saturating_duration_since(now());
         set_left.set(remaining);
         if remaining.is_zero() {
-            if settle() {
-                expire.call();
-            }
+            deadline.set(None);
+            expire.call();
             return None;
         }
         Some(until_next_second(remaining))
     }));
     let open = create_memo(move || open.get());
-    create_effect(clone!(open deadline -> move || {
+    create_effect(clone!(open deadline ticking -> move || {
         let opened = open.get();
         untrack(|| match opened {
             true => {
@@ -78,16 +76,18 @@ pub fn KeepChanges(
             seconds => format!("Reverting in {seconds} seconds."),
         }
     });
-    let keep = Rc::new(clone!(settle -> move || {
-        if settle() {
-            on_keep.call();
-        }
+    let stop = Rc::new(move || {
+        deadline.set(None);
+        ticking.stop();
+    });
+    let keep = Rc::new(clone!(stop -> move || {
+        stop();
+        on_keep.call();
     }));
-    let revert = Rc::new(clone!(settle -> move || {
-        if settle() {
-            on_revert.call();
-        }
-    }));
+    let revert = Rc::new(move || {
+        stop();
+        on_revert.call();
+    });
     let dismiss = revert.clone();
     let screens = create_memo(move || screens.get());
     let places = create_memo(clone!(screens -> move || {
