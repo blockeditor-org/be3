@@ -13,6 +13,7 @@ fn host_window_messages_round_trip() {
         },
         fullscreen: None,
         responding: true,
+        focused: false,
     };
     for message in [
         Message::Editor(EditorMessage::Linux {

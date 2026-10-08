@@ -464,6 +464,15 @@ impl PluginEditor {
         })
     }
 
+    pub(crate) fn take_focused_windows(&self) -> Vec<block_plugin_api::HostWindowId> {
+        match &self.plugin {
+            Some(plugin) => {
+                crate::plugin_host::take_focused_windows(&plugin.identity.id, self.instance)
+            }
+            None => Vec::new(),
+        }
+    }
+
     pub(crate) fn take_fullscreen_windows(&self) -> Vec<(block_plugin_api::HostWindowId, bool)> {
         match &self.plugin {
             Some(plugin) => {

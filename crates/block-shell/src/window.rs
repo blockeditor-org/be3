@@ -1,3 +1,5 @@
+use std::cell::Cell;
+
 use block_editor_beui::beui::reactive::{
     Align, ClickCallback, Direction, Frame, Layers, List, Memo, NodeRef, clone, component,
     create_effect, create_memo, create_signal, untrack, view,
@@ -46,8 +48,23 @@ pub(crate) fn WindowPanel(
     fullscreen: Memo<Option<Rect>>,
     name: Memo<String>,
     responding: Memo<bool>,
+    focused: Memo<bool>,
 ) -> NodeId {
     if let Some(tab) = use_dock_tab() {
+        create_effect(clone!(tab focused -> move || {
+            if focused.get() {
+                untrack(|| tab.show());
+            }
+        }));
+        let shown = create_memo(clone!(tab -> move || tab.focused()));
+        let host = editor.host().clone();
+        let settled = Cell::new(false);
+        create_effect(clone!(focused -> move || {
+            let shown = shown.get();
+            if settled.replace(true) && shown && !focused.get_untracked() {
+                host.focus_window(window);
+            }
+        }));
         create_effect(clone!(tab fullscreen -> move || match fullscreen.get() {
             Some(area) => tab.enter_fullscreen(Some(area)),
             None => untrack(|| tab.leave_fullscreen()),

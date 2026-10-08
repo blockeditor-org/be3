@@ -189,6 +189,18 @@ pub struct KeyPress {
     pub modifiers: Modifiers,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct KeyChord {
+    pub key: Key,
+    pub modifiers: Modifiers,
+}
+
+impl KeyChord {
+    pub fn matches(self, press: KeyPress) -> bool {
+        press.key == self.key && press.modifiers == self.modifiers
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct PointerPress {
     pub pos: Pos2,
@@ -331,6 +343,7 @@ pub enum Event {
     FileHoverCancelled,
     FileDropped(DroppedFile),
     Back(BackGesture),
+    InterceptedKey(KeyPress),
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]

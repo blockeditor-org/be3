@@ -30,6 +30,8 @@ pub(crate) fn close(_window: HostWindowId) {}
 
 pub(crate) fn fullscreen(_window: HostWindowId, _fullscreen: bool) {}
 
+pub(crate) fn focus(_window: HostWindowId) {}
+
 pub(crate) fn launch(_command: String) -> bool {
     false
 }

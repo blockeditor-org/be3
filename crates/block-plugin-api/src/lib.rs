@@ -93,6 +93,13 @@ pub struct FrameReport {
     pub painted: Vec<ChildRect>,
     pub floating: Vec<ChildRect>,
     pub handles_back: bool,
+    pub intercepted_keys: Vec<KeyChord>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KeyChord {
+    pub key: Key,
+    pub modifiers: Modifiers,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1901,6 +1908,11 @@ pub enum InputEvent {
     Modifiers(Modifiers),
     Focus(bool),
     Back(BackPhase),
+    InterceptedKey {
+        key: Key,
+        pressed: bool,
+        repeat: bool,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -2350,6 +2362,7 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
             for report in value {
                 collection(report.painted.len())?;
                 collection(report.floating.len())?;
+                collection(report.intercepted_keys.len())?;
             }
             Ok(())
         }
@@ -2623,6 +2636,7 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             LinuxMessage::WatchInputDevices
             | LinuxMessage::WatchDisplays
             | LinuxMessage::FullscreenWindow { .. }
+            | LinuxMessage::FocusWindow(_)
             | LinuxMessage::WatchPower
             | LinuxMessage::Power(_)
             | LinuxMessage::RequestPower(_) => Ok(()),

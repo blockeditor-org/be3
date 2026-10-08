@@ -14,9 +14,9 @@ use beui::icons::{
 use beui::reactive::{
     Action, Align, Callback, Canvas, CanvasItem, CanvasView, Child, Children, Chord, ClickCallback,
     ForEach, Frame, Func, Justify, List, ListChild, Memo, Prop, ReadSignal, Selector, Show, Spacer,
-    SpanStyle, Text, TextSpan, VirtualList, WriteSignal, batch, build, clone, create_memo,
-    create_selector, create_signal, focus_ring, on_shortcut, provide_context, use_context, view,
-    with_document,
+    SpanStyle, Text, TextSpan, VirtualList, WriteSignal, batch, build, clone, create_effect,
+    create_memo, create_selector, create_signal, focus_ring, held_modifiers, on_shortcut,
+    provide_context, untrack, use_context, view, with_document,
 };
 use beui::styled::DocumentTheme;
 use beui::styled::theme::{CARD_RADIUS, FONT_SMALL, NARROW_WIDTH, RADIUS};
@@ -411,6 +411,58 @@ impl Pages {
 }
 
 #[sample]
+fn switch_tabs_with_alt_q(layout: &DockingLayout<TabId>) {
+    let modifiers = held_modifiers();
+    let next = Chord::key(Key::Q).alt();
+    for (id, label, backwards, chord) in [
+        (
+            "demo.switch.next",
+            "Switch to the tab shown before",
+            false,
+            next,
+        ),
+        (
+            "demo.switch.previous",
+            "Switch to the tab shown longest ago",
+            true,
+            next.shift(),
+        ),
+    ] {
+        let switching = layout.clone();
+        let held = modifiers.clone();
+        Action::new(id, label, move || {
+            match switching.switching() {
+                true => switching.step_switch(backwards),
+                false => switching.begin_switch(backwards),
+            }
+            if !held.get_untracked().alt {
+                switching.commit_switch();
+            }
+        })
+        .glyph(ICON_FLIP_TO_FRONT)
+        .shortcut(chord)
+        .global()
+        .register();
+    }
+    let open = create_memo(clone!(layout -> move || layout.switching()));
+    let cancelling = layout.clone();
+    Action::new("demo.switch.cancel", "Stop switching tabs", move || {
+        cancelling.cancel_switch();
+    })
+    .shortcut(Chord::key(Key::Escape).alt())
+    .shortcut(Chord::key(Key::Escape).alt().shift())
+    .enabled(open)
+    .global()
+    .register();
+    let committing = layout.clone();
+    create_effect(move || {
+        if !modifiers.get().alt && untrack(|| committing.switching()) {
+            untrack(|| committing.commit_switch());
+        }
+    });
+}
+
+#[sample]
 #[component]
 fn DemoShell() -> NodeId {
     let theme = use_theme();
@@ -425,6 +477,7 @@ fn DemoShell() -> NodeId {
     }));
     let active = create_selector(clone!(pages -> move || pages.active()));
     let layout = pages.layout.clone();
+    switch_tabs_with_alt_q(&layout);
     let open = pages.open.clone();
     let catalog = pages.clone();
     let toolbar = pages.clone();
