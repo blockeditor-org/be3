@@ -11,13 +11,16 @@ use smithay::wayland::compositor::with_states;
 use crate::render::{Gpu, Textures, WindowDraw};
 use crate::server::{Server, Watch};
 use crate::state::{KeyboardConfig, ServerEvent, WindowId};
-use crate::windows::{Command, WindowInfo, Windows};
+use crate::windows::{Command, Fullscreen, Insets, WindowInfo, Windows};
 
 const BUTTON_LEFT: u32 = 0x110;
 const BUTTON_RIGHT: u32 = 0x111;
 const BUTTON_MIDDLE: u32 = 0x112;
 const BUTTON_SIDE: u32 = 0x113;
 const BUTTON_EXTRA: u32 = 0x114;
+const KEY_F: u32 = 33;
+const KEY_LEFTMETA: u32 = 125;
+const KEY_RIGHTMETA: u32 = 126;
 
 pub struct CursorImage {
     pub texture: wgpu::Texture,
@@ -35,7 +38,20 @@ pub struct Compositor {
     children: Vec<Child>,
     grab: Option<WindowId>,
     held: Vec<u32>,
-    configured: std::collections::HashMap<WindowId, ((i32, i32), bool)>,
+    configured: std::collections::HashMap<WindowId, Configured>,
+    area: Rect,
+    screens: Vec<Rect>,
+    fullscreen: Option<(WindowId, Pos2)>,
+    raise: Option<WindowId>,
+    logo: bool,
+    swallowed: Vec<u32>,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+struct Configured {
+    size: (i32, i32),
+    activated: bool,
+    fullscreen: bool,
 }
 
 impl Compositor {
@@ -50,6 +66,12 @@ impl Compositor {
             grab: None,
             held: Vec::new(),
             configured: std::collections::HashMap::new(),
+            area: Rect::ZERO,
+            screens: Vec::new(),
+            fullscreen: None,
+            raise: None,
+            logo: false,
+            swallowed: Vec::new(),
         }
     }
 
@@ -59,6 +81,64 @@ impl Compositor {
 
     pub fn set_keyboard(&mut self, keyboard: &KeyboardConfig) -> bool {
         self.server.state.set_keyboard(keyboard)
+    }
+
+    pub fn set_screens(&mut self, screens: Vec<Rect>) {
+        self.screens = screens;
+    }
+
+    pub fn set_fullscreen(&mut self, id: WindowId, fullscreen: bool) {
+        let current = self.fullscreen.map(|(id, _)| id);
+        if fullscreen {
+            if let Some(previous) = current.filter(|previous| *previous != id) {
+                self.server.state.set_fullscreen(previous, false);
+                self.windows.push(Command::Configure(previous));
+            }
+            if current != Some(id) {
+                let anchor = self
+                    .windows
+                    .rect(id)
+                    .map_or(self.area.center(), |rect| rect.center());
+                self.fullscreen = Some((id, anchor));
+            }
+            self.raise = Some(id);
+        } else if current == Some(id) {
+            self.fullscreen = None;
+        }
+        self.server.state.set_fullscreen(id, fullscreen);
+        self.windows.push(Command::Configure(id));
+    }
+
+    fn place_fullscreen(&mut self, document: &mut Document) {
+        let area = self.area;
+        let shown = self.fullscreen.and_then(|(id, anchor)| {
+            self.server.state.windows().contains(&id).then_some(())?;
+            let screen = self
+                .screens
+                .iter()
+                .find(|screen| screen.contains(anchor))
+                .map_or(area, |screen| screen.intersect(area));
+            Some(Fullscreen {
+                id,
+                insets: Insets {
+                    left: screen.min.x - area.min.x,
+                    top: screen.min.y - area.min.y,
+                    right: area.max.x - screen.max.x,
+                    bottom: area.max.y - screen.max.y,
+                },
+            })
+        });
+        if shown.is_none() {
+            self.fullscreen = None;
+        }
+        let raise = self.raise.take();
+        let windows = self.windows.clone();
+        with_reactive_scope(document, || {
+            windows.show_fullscreen(shown);
+            if let Some(id) = raise {
+                windows.raise(id);
+            }
+        });
     }
 
     pub fn windows(&self) -> Windows {
@@ -99,6 +179,7 @@ impl Compositor {
         self.textures.borrow_mut().prune();
         let mut redraw = Vec::new();
         let mut changed = false;
+        let mut fullscreen = Vec::new();
         let windows = self.windows.clone();
         with_reactive_scope(document, || {
             for event in events {
@@ -109,6 +190,7 @@ impl Compositor {
                         changed = true;
                     }
                     ServerEvent::Titled(..) | ServerEvent::Changed(_) => changed = true,
+                    ServerEvent::Fullscreen(id, on) => fullscreen.push((id, on)),
                     ServerEvent::Committed(id) => {
                         if !windows.listed(id) {
                             changed = true;
@@ -120,6 +202,9 @@ impl Compositor {
                 }
             }
         });
+        for (id, on) in fullscreen {
+            self.set_fullscreen(id, on);
+        }
         let open = self.server.state.windows();
         self.configured.retain(|id, _| open.contains(id));
         if changed {
@@ -209,12 +294,10 @@ impl Compositor {
     }
 
     fn keyboard(&mut self, context: &Context) {
-        let Some(id) = self.windows.focused() else {
-            return;
-        };
-        if self.server.state.keyboard_window() != Some(id) {
-            return;
-        }
+        let target = self
+            .windows
+            .focused()
+            .filter(|id| self.server.state.keyboard_window() == Some(*id));
         let keys: Vec<(u32, bool)> = context.input(|input| {
             input
                 .events
@@ -226,7 +309,26 @@ impl Compositor {
                 .collect()
         });
         for (code, pressed) in keys {
+            if matches!(code, KEY_LEFTMETA | KEY_RIGHTMETA) {
+                self.logo = pressed;
+            }
+            let Some(id) = target else {
+                continue;
+            };
+            if pressed && self.logo && code == KEY_F {
+                self.swallowed.push(code);
+                let fullscreen = !self.server.state.fullscreen(id);
+                self.set_fullscreen(id, fullscreen);
+                continue;
+            }
+            if !pressed && self.swallowed.contains(&code) {
+                self.swallowed.retain(|swallowed| *swallowed != code);
+                continue;
+            }
             self.server.state.key(code, pressed);
+        }
+        if target.is_none() {
+            return;
         }
         context.retain_events(|event| {
             !matches!(
@@ -307,19 +409,26 @@ impl Compositor {
         for command in self.windows.take_commands() {
             match command {
                 Command::Configure(id) => {
-                    let Some(rect) = self.windows.rect(id) else {
+                    let size = self
+                        .windows
+                        .rect(id)
+                        .map(|rect| (rect.width().round() as i32, rect.height().round() as i32))
+                        .or_else(|| self.configured.get(&id).map(|configured| configured.size));
+                    let Some(size) = size.filter(|size| size.0 >= 1 && size.1 >= 1) else {
                         continue;
                     };
-                    let size = (rect.width().round() as i32, rect.height().round() as i32);
-                    if size.0 < 1 || size.1 < 1 {
+                    let configured = Configured {
+                        size,
+                        activated: focused == Some(id),
+                        fullscreen: self.server.state.fullscreen(id),
+                    };
+                    if self.configured.get(&id) == Some(&configured) {
                         continue;
                     }
-                    let activated = focused == Some(id);
-                    if self.configured.get(&id) == Some(&(size, activated)) {
-                        continue;
-                    }
-                    self.configured.insert(id, (size, activated));
-                    self.server.state.configure(id, size.into(), activated);
+                    self.configured.insert(id, configured);
+                    self.server
+                        .state
+                        .configure(id, size.into(), configured.activated);
                 }
                 Command::Close(id) => self.server.state.close(id),
                 Command::Launch(line) => self.launch(&line),
@@ -390,7 +499,9 @@ impl Compositor {
         let scale = context.pixels_per_point().ceil().max(1.0) as i32;
         let size = (rect.width().round() as i32, rect.height().round() as i32);
         self.server.state.set_scale(scale, size.into());
+        self.area = rect;
         self.keyboard(context);
+        self.place_fullscreen(document);
     }
 
     pub fn after(&mut self, context: &Context, document: &mut Document) {

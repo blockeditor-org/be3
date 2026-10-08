@@ -7,13 +7,14 @@ mod workspace;
 use std::cell::RefCell;
 
 use be_protocol::WorkspaceRole;
-use beui::reactive::{Dynamic, Frame, List, Store, component, view};
+use beui::reactive::{Dynamic, Frame, Layers, List, Store, component, view};
 use beui::styled::use_theme;
 use beui::{ItemSize, NodeId};
 use block_plugin_api::HostPanel;
 use uuid::Uuid;
 
 use crate::app_state::{SavedAccount, ServerLocation};
+use crate::wayland::FullscreenSurface;
 
 pub(crate) use debug::{
     DebugCommand, DebugView, HostPanelSurface, Line, LineStyle, PerformanceRow, PluginsView,
@@ -262,6 +263,7 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
     let theme = use_theme();
     let screen = view.screen.clone();
     view! {
+        <Layers>
         <Frame color={theme.background.clone()}>
             <List spacing=0.0>
                 <Dynamic value={screen}>
@@ -297,5 +299,7 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                 </Dynamic>
             </List>
         </Frame>
+        <FullscreenSurface />
+        </Layers>
     }
 }

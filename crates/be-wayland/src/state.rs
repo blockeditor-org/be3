@@ -75,6 +75,7 @@ pub enum ServerEvent {
     Titled(WindowId, String),
     Changed(WindowId),
     Committed(WindowId),
+    Fullscreen(WindowId, bool),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -89,6 +90,8 @@ struct ClientWindow {
     id: WindowId,
     window: Window,
     title: String,
+    fullscreen: bool,
+    maximized: bool,
 }
 
 #[derive(Default)]
@@ -419,11 +422,61 @@ impl State {
         Some(self.toplevel(id)?.wl_surface().clone())
     }
 
+    pub fn fullscreen(&self, id: WindowId) -> bool {
+        self.find(id).is_some_and(|window| window.fullscreen)
+    }
+
+    pub fn set_fullscreen(&mut self, id: WindowId, fullscreen: bool) {
+        if let Some(window) = self.windows.iter_mut().find(|window| window.id == id) {
+            window.fullscreen = fullscreen;
+        }
+    }
+
+    pub fn maximized(&self, id: WindowId) -> bool {
+        self.find(id).is_some_and(|window| window.maximized)
+    }
+
+    fn window_of(&mut self, surface: &ToplevelSurface) -> Option<&mut ClientWindow> {
+        self.windows
+            .iter_mut()
+            .find(|window| window.window.toplevel() == Some(surface))
+    }
+
+    fn request_fullscreen(&mut self, surface: &ToplevelSurface, fullscreen: bool) {
+        let Some(window) = self.window_of(surface) else {
+            return;
+        };
+        let id = window.id;
+        if window.fullscreen == fullscreen {
+            if surface.is_initial_configure_sent() {
+                surface.send_configure();
+            }
+            return;
+        }
+        window.fullscreen = fullscreen;
+        surface.with_pending_state(|state| set_state(state, xdg_toplevel::State::Fullscreen, fullscreen));
+        self.events.push(ServerEvent::Fullscreen(id, fullscreen));
+    }
+
+    fn request_maximized(&mut self, surface: &ToplevelSurface, maximized: bool) {
+        let Some(window) = self.window_of(surface) else {
+            return;
+        };
+        window.maximized = maximized;
+        surface.with_pending_state(|state| set_state(state, xdg_toplevel::State::Maximized, maximized));
+        if surface.is_initial_configure_sent() {
+            surface.send_configure();
+        }
+    }
+
     pub fn configure(&mut self, id: WindowId, size: Size<i32, Logical>, activated: bool) {
         let Some(toplevel) = self.toplevel(id) else {
             return;
         };
+        let (fullscreen, maximized) = (self.fullscreen(id), self.maximized(id));
         toplevel.with_pending_state(|state| {
+            set_state(state, xdg_toplevel::State::Fullscreen, fullscreen);
+            set_state(state, xdg_toplevel::State::Maximized, maximized);
             state.size = Some(size);
             state.bounds = Some(size);
             for tiled in [
@@ -434,11 +487,7 @@ impl State {
             ] {
                 state.states.set(tiled);
             }
-            if activated {
-                state.states.set(xdg_toplevel::State::Activated);
-            } else {
-                state.states.unset(xdg_toplevel::State::Activated);
-            }
+            set_state(state, xdg_toplevel::State::Activated, activated);
         });
         if toplevel.is_initial_configure_sent() {
             toplevel.send_pending_configure();
@@ -655,6 +704,8 @@ impl State {
             id,
             window: Window::new_wayland_window(toplevel),
             title: String::new(),
+            fullscreen: false,
+            maximized: false,
         });
         self.events.push(ServerEvent::Opened(id));
     }
@@ -679,6 +730,18 @@ impl State {
         if !self.events.contains(&ServerEvent::Committed(id)) {
             self.events.push(ServerEvent::Committed(id));
         }
+    }
+}
+
+fn set_state(
+    state: &mut smithay::wayland::shell::xdg::ToplevelState,
+    which: xdg_toplevel::State,
+    on: bool,
+) {
+    if on {
+        state.states.set(which);
+    } else {
+        state.states.unset(which);
     }
 }
 
@@ -901,6 +964,26 @@ impl XdgShellHandler for State {
 
     fn parent_changed(&mut self, surface: ToplevelSurface) {
         self.app_id_changed(surface);
+    }
+
+    fn fullscreen_request(
+        &mut self,
+        surface: ToplevelSurface,
+        _output: Option<smithay::reexports::wayland_server::protocol::wl_output::WlOutput>,
+    ) {
+        self.request_fullscreen(&surface, true);
+    }
+
+    fn unfullscreen_request(&mut self, surface: ToplevelSurface) {
+        self.request_fullscreen(&surface, false);
+    }
+
+    fn maximize_request(&mut self, surface: ToplevelSurface) {
+        self.request_maximized(&surface, true);
+    }
+
+    fn unmaximize_request(&mut self, surface: ToplevelSurface) {
+        self.request_maximized(&surface, false);
     }
 }
 

@@ -39,3 +39,10 @@ pub(crate) fn WindowSurface(window: HostWindowId) -> NodeId {
         <Frame />
     }
 }
+
+#[component]
+pub(crate) fn FullscreenSurface() -> NodeId {
+    view! {
+        <Frame />
+    }
+}

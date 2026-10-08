@@ -32,6 +32,8 @@ pub(crate) struct Received {
     pub(crate) configured: Option<u32>,
     pub(crate) size: Option<(i32, i32)>,
     pub(crate) activated: bool,
+    pub(crate) fullscreen: bool,
+    pub(crate) maximized: bool,
     pub(crate) keyboard_entered: bool,
     pub(crate) keys: Vec<(u32, bool)>,
     pub(crate) keymaps: usize,
@@ -376,12 +378,16 @@ impl Dispatch<xdg_toplevel::XdgToplevel, ()> for Received {
         } = event
         {
             state.size = Some((width, height));
-            state.activated = states
+            let states: Vec<u32> = states
                 .as_chunks::<4>()
                 .0
                 .iter()
-                .map(|chunk| u32::from_ne_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
-                .any(|value| value == xdg_toplevel::State::Activated as u32);
+                .map(|chunk| u32::from_ne_bytes(*chunk))
+                .collect();
+            let has = |which: xdg_toplevel::State| states.contains(&(which as u32));
+            state.activated = has(xdg_toplevel::State::Activated);
+            state.fullscreen = has(xdg_toplevel::State::Fullscreen);
+            state.maximized = has(xdg_toplevel::State::Maximized);
         }
     }
 }

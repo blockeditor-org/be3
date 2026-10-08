@@ -9,6 +9,7 @@ mod output;
 mod runner;
 mod screen;
 
+pub use displays::Screens;
 pub use gpu::{CursorImage, SoftwareCursor};
 pub use input::{DeviceId, InputConfig, InputControl, PointerConfig, PointerDevice};
 pub use runner::run;

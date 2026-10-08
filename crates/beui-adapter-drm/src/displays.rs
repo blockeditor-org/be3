@@ -105,6 +105,18 @@ impl Displays {
     }
 }
 
+#[derive(Clone)]
+pub struct Screens(Rc<RefCell<Displays>>);
+
+impl Screens {
+    pub fn rects(&self) -> Vec<Rect> {
+        self.0
+            .try_borrow()
+            .map(|displays| displays.rects())
+            .unwrap_or_default()
+    }
+}
+
 pub struct DisplayRenderer(pub Rc<RefCell<Displays>>);
 
 impl Renderer for DisplayRenderer {
@@ -126,6 +138,7 @@ impl Renderer for DisplayRenderer {
             format: FORMAT,
         });
         setup.provide(displays.cursor.clone());
+        setup.provide(Screens(self.0.clone()));
     }
 
     fn resize(&mut self, _width: u32, _height: u32) {}

@@ -4,14 +4,18 @@ mod a_closed_window_leaves_the_list;
 mod a_dmabuf_window_samples_the_clients_pixels;
 mod a_drawn_window_is_listed_and_fitted_to_where_it_is_shown;
 mod a_shown_dmabuf_is_released_once_a_newer_one_is_painted;
+mod a_maximized_window_keeps_its_place_and_is_told_it_is_maximized;
+mod a_window_asking_for_fullscreen_covers_the_screen;
 mod keys_follow_the_focus_between_beui_and_a_window;
+mod leaving_fullscreen_returns_the_window_to_where_it_was_shown;
+mod super_f_toggles_fullscreen_on_the_focused_window;
 
-use beui::reactive::{ForEach, Frame, List, build, create_signal, view};
+use beui::reactive::{ForEach, Frame, Layers, List, build, create_signal, view};
 use beui::styled::TextInput;
 use beui::{FrameOutput, NodeId, RawInput, pos2};
 
 use crate::test_client::{TestClient, TestWindow};
-use crate::view::WindowView;
+use crate::view::{FullscreenWindow, WindowView};
 
 const SCREEN: Vec2 = Vec2::new(1000.0, 700.0);
 const SHOWN: Vec2 = Vec2::new(400.0, 300.0);
@@ -28,7 +32,9 @@ fn shown(windows: Windows) -> impl FnOnce() -> NodeId {
     move || {
         let (text, set_text) = create_signal(String::new());
         let ids = beui::reactive::create_memo(clone_list(&windows));
+        let covering = windows.clone();
         view! {
+            <Layers>
             <List spacing=0.0>
                 <TextInput
                     @test_id={"test.input"}
@@ -46,6 +52,8 @@ fn shown(windows: Windows) -> impl FnOnce() -> NodeId {
                     }}
                 </ForEach>
             </List>
+            <FullscreenWindow windows={covering} />
+            </Layers>
         }
     }
 }
@@ -141,6 +149,17 @@ impl Harness {
         self.client.attach_unsent(&window, width, height);
         self.settle();
         (window, id)
+    }
+
+    fn window(&self, id: WindowId) -> Rect {
+        self.rect(&format!("wayland.window.{}", id.0))
+    }
+
+    fn acknowledge(&mut self, window: &TestWindow) {
+        if let Some(serial) = self.client.received.configured.take() {
+            window.xdg_surface.ack_configure(serial);
+        }
+        self.settle();
     }
 
     fn rect(&self, test_id: &str) -> Rect {
