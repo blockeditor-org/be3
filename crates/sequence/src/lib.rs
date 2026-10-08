@@ -1,7 +1,7 @@
 use std::{
     collections::{BTreeMap, HashMap},
     fmt,
-    ops::Range,
+    ops::{Bound, Range},
 };
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer, ser::SerializeSeq};
@@ -817,15 +817,7 @@ impl<T> Sequence<T> {
         {
             return;
         }
-        let joined = Fragment {
-            len: previous.len + current.len,
-            ..previous
-        };
-        let held = |fragment| !self.slice(fragment).is_empty();
-        if held(previous) != held(current) || held(previous) != held(joined) {
-            return;
-        }
-        self.chunks[pci].fragments[pfi] = joined;
+        self.chunks[pci].fragments[pfi].len += current.len;
         self.chunks[ci].fragments.remove(fi);
         self.index.remove(&current.first());
         self.recount(pci);
@@ -1167,17 +1159,29 @@ impl<T> Sequence<T> {
                 at
             }
         };
-        let Some(run) = self.runs.get(&start) else {
-            return;
-        };
-        let after = Pos {
-            client: start.client,
-            offset: start.offset + run.len() as u64,
-        };
-        if let Some(next) = self.runs.remove(&after)
-            && let Some(run) = self.runs.get_mut(&start)
-        {
-            run.extend(next);
+        loop {
+            let Some(end) = self
+                .runs
+                .get(&start)
+                .map(|run| start.offset + run.len() as u64)
+            else {
+                return;
+            };
+            let Some((&first, _)) = self
+                .runs
+                .range((Bound::Excluded(start), Bound::Unbounded))
+                .next()
+                .filter(|(first, _)| first.client == start.client && first.offset <= end)
+            else {
+                return;
+            };
+            let Some(next) = self.runs.remove(&first) else {
+                return;
+            };
+            let skip = (end - first.offset) as usize;
+            if let Some(run) = self.runs.get_mut(&start) {
+                run.extend(next.into_iter().skip(skip));
+            }
         }
     }
 
