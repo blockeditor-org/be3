@@ -2,10 +2,11 @@ use super::*;
 
 #[test]
 fn text_typed_inside_a_range_someone_deletes_at_once_survives() {
-    let base = "hello brave new world";
-    let theirs = TextOp::insert(8, "XY");
-    let ours = TextContent::rebase(TextOp::delete(6, 10), std::slice::from_ref(&theirs))
-        .expect("part of the delete is left");
+    let base = TextBlock::of("hello brave new world");
+    let typed = TextBlock::insert(&base, 2, 8, b"XY").expect("the insert lands");
+    let deleted = TextBlock::delete(&base, 6..16).expect("there is something to delete");
 
-    assert_eq!(applied(base, &[theirs, ours]), "hello XYworld");
+    let text = TextBlock::text(&edited(&base, [typed, deleted]));
+
+    assert_eq!(text, "hello XYworld");
 }

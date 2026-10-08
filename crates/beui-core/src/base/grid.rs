@@ -243,6 +243,19 @@ impl Element for GridNode {
         "grid"
     }
 
+    fn properties(&self) -> Vec<(&'static str, String)> {
+        let columns: Vec<String> = self
+            .columns
+            .iter()
+            .map(|track| format!("{track:?}"))
+            .collect();
+        vec![
+            ("columns", columns.join(" ")),
+            ("column spacing", self.column_spacing.to_string()),
+            ("row spacing", self.row_spacing.to_string()),
+        ]
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }

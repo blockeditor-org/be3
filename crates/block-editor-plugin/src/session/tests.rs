@@ -63,6 +63,7 @@ fn content(instance: EditorInstanceId) -> Message {
         block_id: [1; 16],
         content_type: [7; 16],
         bytes: vec![0; 8],
+        session: Vec::new(),
         applied: 0,
     })
 }

@@ -33,7 +33,19 @@ pub struct BlockDrag {
 pub struct HostContent {
     pub content_type: Uuid,
     pub bytes: Vec<u8>,
+    pub session: Vec<u8>,
     pub applied: u64,
+}
+
+impl HostContent {
+    pub fn of<C: be_block::LiveEdit>(content: &C) -> Self {
+        Self {
+            content_type: C::CONTENT_TYPE,
+            bytes: content.encode(),
+            session: content.session_state(),
+            applied: 0,
+        }
+    }
 }
 
 type ContentOperation = (Option<Uuid>, Vec<u8>);
@@ -851,26 +863,12 @@ impl EditorHost {
         self.block_type.set(Some(block_type));
     }
 
-    pub fn set_block_content(&self, content_type: Uuid, bytes: Vec<u8>, applied: u64) {
-        self.update_content(
-            None,
-            ContentUpdate::Snapshot(HostContent {
-                content_type,
-                bytes,
-                applied,
-            }),
-        );
+    pub fn set_block_content(&self, content: HostContent) {
+        self.update_content(None, ContentUpdate::Snapshot(content));
     }
 
-    pub fn set_content_of(&self, block: Uuid, content_type: Uuid, bytes: Vec<u8>, applied: u64) {
-        self.update_content(
-            Some(block),
-            ContentUpdate::Snapshot(HostContent {
-                content_type,
-                bytes,
-                applied,
-            }),
-        );
+    pub fn set_content_of(&self, block: Uuid, content: HostContent) {
+        self.update_content(Some(block), ContentUpdate::Snapshot(content));
     }
 
     pub fn push_content_operations(&self, operations: Vec<(Vec<u8>, bool)>) {

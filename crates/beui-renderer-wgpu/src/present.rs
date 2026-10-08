@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::Renderer;
 use crate::Repaint;
@@ -30,18 +31,27 @@ pub struct Gpu {
     pub queue: wgpu::Queue,
     pub format: wgpu::TextureFormat,
     pub renderer: Renderer,
+    open_device: Option<OpenDevice>,
+    lost: Arc<AtomicBool>,
 }
 
-pub async fn create_gpu(
-    instance: wgpu::Instance,
-    probe: &wgpu::Surface<'_>,
-    open_device: Option<OpenDevice>,
-) -> Result<Gpu, Box<dyn Error>> {
+struct Opened {
+    adapter: wgpu::Adapter,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    lost: Arc<AtomicBool>,
+}
+
+async fn open(
+    instance: &wgpu::Instance,
+    probe: Option<&wgpu::Surface<'_>>,
+    open_device: Option<&OpenDevice>,
+) -> Result<Opened, Box<dyn Error>> {
     let adapter = instance
         .request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
             force_fallback_adapter: false,
-            compatible_surface: Some(probe),
+            compatible_surface: probe,
         })
         .await?;
     let descriptor = wgpu::DeviceDescriptor {
@@ -57,21 +67,88 @@ pub async fn create_gpu(
         Some(opened) => opened,
         None => adapter.request_device(&descriptor).await?,
     };
-    let capabilities = probe.get_capabilities(&adapter);
-    let format =
-        surface_format(&capabilities.formats).ok_or("the adapter does not support this surface")?;
-    let renderer = Renderer::new(&device, format);
-    Ok(Gpu {
-        instance,
+    let lost = Arc::new(AtomicBool::new(false));
+    let flag = lost.clone();
+    device.set_device_lost_callback(move |reason, message| {
+        if reason != wgpu::DeviceLostReason::Destroyed {
+            eprintln!("beui: the GPU was lost: {message}");
+        }
+        flag.store(true, Ordering::SeqCst);
+    });
+    let flag = lost.clone();
+    device.on_uncaptured_error(Arc::new(move |error| {
+        if !flag.load(Ordering::SeqCst) {
+            panic!("wgpu error: {error}");
+        }
+    }));
+    Ok(Opened {
         adapter,
         device,
         queue,
-        format,
-        renderer,
+        lost,
     })
 }
 
+pub async fn create_gpu(
+    instance: wgpu::Instance,
+    probe: &wgpu::Surface<'_>,
+    open_device: Option<OpenDevice>,
+) -> Result<Gpu, Box<dyn Error>> {
+    let opened = open(&instance, Some(probe), open_device.as_ref()).await?;
+    let capabilities = probe.get_capabilities(&opened.adapter);
+    let format =
+        surface_format(&capabilities.formats).ok_or("the adapter does not support this surface")?;
+    Ok(Gpu::assemble(instance, opened, format, open_device))
+}
+
+#[cfg(test)]
+pub(crate) async fn create_offscreen_gpu(
+    format: wgpu::TextureFormat,
+) -> Result<Gpu, Box<dyn Error>> {
+    let instance = wgpu::Instance::default();
+    let opened = open(&instance, None, None).await?;
+    Ok(Gpu::assemble(instance, opened, format, None))
+}
+
 impl Gpu {
+    fn assemble(
+        instance: wgpu::Instance,
+        opened: Opened,
+        format: wgpu::TextureFormat,
+        open_device: Option<OpenDevice>,
+    ) -> Self {
+        Self {
+            renderer: Renderer::new(&opened.device, format),
+            instance,
+            adapter: opened.adapter,
+            device: opened.device,
+            queue: opened.queue,
+            format,
+            open_device,
+            lost: opened.lost,
+        }
+    }
+
+    pub fn lost(&self) -> bool {
+        self.lost.load(Ordering::SeqCst)
+    }
+
+    pub async fn reopen(
+        &mut self,
+        probe: Option<&wgpu::Surface<'_>>,
+    ) -> Result<(), Box<dyn Error>> {
+        let opened = open(&self.instance, probe, self.open_device.as_ref()).await?;
+        let format = match probe {
+            Some(probe) => surface_format(&probe.get_capabilities(&opened.adapter).formats)
+                .ok_or("the adapter does not support this surface")?,
+            None => self.format,
+        };
+        let instance = self.instance.clone();
+        let open_device = self.open_device.take();
+        *self = Self::assemble(instance, opened, format, open_device);
+        Ok(())
+    }
+
     pub fn info(&self) -> RendererInfo {
         renderer_info(&self.adapter.get_info(), self.format)
     }
@@ -134,6 +211,10 @@ impl Target {
             moved: None,
             retained: None,
         }
+    }
+
+    pub fn size(&self) -> (u32, u32) {
+        (self.config.width, self.config.height)
     }
 
     pub fn attached(&self) -> bool {
@@ -277,6 +358,9 @@ impl Target {
     }
 
     pub fn present(&mut self, gpu: &mut Gpu, background: Color32) -> Presented {
+        if gpu.lost() {
+            return Presented::Again;
+        }
         if self.config.width == 0 || self.config.height == 0 {
             return Presented::Done;
         }
@@ -349,6 +433,9 @@ impl Target {
         }
         gpu.queue.submit(Some(encoder.finish()));
         frame.present();
-        Presented::Done
+        match gpu.lost() {
+            true => Presented::Again,
+            false => Presented::Done,
+        }
     }
 }

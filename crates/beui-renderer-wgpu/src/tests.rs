@@ -14,6 +14,7 @@ mod a_fill_with_fractional_bounds_lands_on_whole_pixels;
 mod a_filled_rectangle_covers_its_bounds;
 mod a_filter_leaves_the_painting_outside_its_region_alone;
 mod a_frame_paints_its_outline_over_its_fill;
+mod a_gpu_lost_mid_frame_is_reopened_and_paints_again;
 mod a_layer_painted_above_a_filter_keeps_its_own_colours;
 mod a_punch_clears_what_it_covers;
 mod a_rect_rounds_each_corner_by_its_own_radius;
@@ -124,6 +125,10 @@ impl Target {
             trace: wgpu::Trace::Off,
         }))
         .expect("the adapter did not provide a device");
+        Self::on(device, queue, format)
+    }
+
+    pub fn on(device: wgpu::Device, queue: wgpu::Queue, format: wgpu::TextureFormat) -> Self {
         let renderer = Renderer::new(&device, format);
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("beui test target"),

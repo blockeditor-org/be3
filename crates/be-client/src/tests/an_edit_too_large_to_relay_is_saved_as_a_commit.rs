@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{TextContent, TextOp};
+use be_block::{TextBlock, TextContent};
 
 #[tokio::test]
 async fn an_edit_too_large_to_relay_is_saved_as_a_commit() {
@@ -11,7 +11,7 @@ async fn an_edit_too_large_to_relay_is_saved_as_a_commit() {
         .await
         .unwrap();
     first
-        .save(block, &TextContent::from("start\n"), None)
+        .save(block, &TextBlock::of("start\n"), None)
         .await
         .unwrap();
     let owner_peer = Arc::new(first);
@@ -24,7 +24,13 @@ async fn an_edit_too_large_to_relay_is_saved_as_a_commit() {
         .unwrap();
 
     let pasted = "a line of pasted text\n".repeat(500_000);
-    owner.edit(TextOp::insert(6, &pasted)).await.unwrap();
+    owner.take_journal();
+    type_at(&mut owner, 6, &pasted).await;
+    assert_eq!(
+        owner.take_journal(),
+        [crate::Journaled::Replaced { edits: 1 }],
+        "the replacement lost count of the edit it was saved for"
+    );
     assert!(
         !owner_peer.connection().is_closed(),
         "relaying the large edit broke the connection"
@@ -33,16 +39,16 @@ async fn an_edit_too_large_to_relay_is_saved_as_a_commit() {
     until(
         &mut [&mut owner, &mut follower],
         "shared the large edit",
-        |sessions| sessions[1].content().text().len() == expected.len(),
+        |sessions| sessions[1].content().to_text().len() == expected.len(),
     )
     .await;
-    assert_eq!(follower.content().text(), expected);
+    assert_eq!(follower.content().to_text(), expected);
 
-    owner.edit(TextOp::insert(0, "> ")).await.unwrap();
+    type_at(&mut owner, 0, "> ").await;
     until(
         &mut [&mut owner, &mut follower],
         "shared a small edit after it",
-        |sessions| sessions[1].content().text().starts_with("> start"),
+        |sessions| sessions[1].content().to_text().starts_with("> start"),
     )
     .await;
     let saved = owner_peer
@@ -51,7 +57,7 @@ async fn an_edit_too_large_to_relay_is_saved_as_a_commit() {
         .unwrap()
         .unwrap();
     assert!(
-        saved.text().contains(&pasted),
+        saved.to_text().contains(&pasted),
         "the large edit never reached the server"
     );
 

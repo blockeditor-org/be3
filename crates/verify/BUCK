@@ -1,0 +1,7 @@
+load("@root//buck/cargo:defs.bzl", "cargo_binary")
+
+# What ./scripts/verify and ./scripts/ci run once buck/dev/verify.bxl has built
+# everything: it writes what the build made into the checkout, built for the
+# machine that runs it in the same buck2 command.
+
+cargo_binary()

@@ -188,12 +188,14 @@ impl ContentLink {
             crate::be::Update::Snapshot {
                 content_type,
                 bytes,
+                session,
                 applied,
             } => EditorMessage::Content {
                 instance,
                 block_id,
                 content_type: content_type.into_bytes(),
                 bytes,
+                session,
                 applied,
             },
             crate::be::Update::Operations(operations) => EditorMessage::ContentOperations {
@@ -1126,6 +1128,16 @@ impl Instances {
             entry.reported_presenting = false;
             entry.reported_windows = None;
             entry.reported_input_devices = None;
+            entry.reported_history = None;
+            entry.reported_artifacts.clear();
+            entry.reported_size = None;
+            entry.sent_blocks.clear();
+            entry.blocks_seen = None;
+            entry.version_sent = None;
+            for link in entry.content.iter_mut().chain(entry.watched.values_mut()) {
+                link.sent = None;
+                link.peers_sent = None;
+            }
             entry.stale = true;
         }
         self.epoch += 1;
@@ -1215,6 +1227,15 @@ impl Instances {
                         })
                     }
                 });
+                let mut statuses: Vec<_> = entry
+                    .screens
+                    .values()
+                    .flat_map(|screen| screen.reported_statuses.values().cloned())
+                    .collect();
+                statuses.sort_by_key(|status| status.child.0);
+                if !statuses.is_empty() {
+                    opened.push(Message::ChildStatuses(statuses));
+                }
             }
             opened.append(&mut entry.deferred);
             let stale = std::mem::take(&mut entry.stale);

@@ -136,6 +136,8 @@ pub struct Textures {
 impl Textures {
     pub fn set_gpu(&mut self, gpu: Gpu) {
         self.gpu = Some(Rc::new(gpu));
+        self.surfaces.clear();
+        self.dmabufs.clear();
     }
 
     pub fn gpu(&self) -> Option<Rc<Gpu>> {

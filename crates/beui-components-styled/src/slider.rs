@@ -30,6 +30,7 @@ pub fn Slider(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     on_change: Callback<f32>,
+    on_drag_change: Callback<bool>,
 ) -> NodeId {
     view! {
         <unstyled::Slider
@@ -41,6 +42,7 @@ pub fn Slider(
             disabled
             label
             on_change={move |value| on_change.call(value)}
+            on_drag_change={move |dragging| on_drag_change.call(dragging)}
         >
             {move |handle: SliderHandle| {
                 view! {

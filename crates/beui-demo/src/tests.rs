@@ -8,6 +8,8 @@ mod a_sample_carries_the_source_it_was_written_with;
 mod a_sample_shows_its_code_when_asked;
 mod every_demo_page_paints_as_accepted;
 mod every_demo_page_paints_as_accepted_on_a_phone;
+mod paused_edits_wait_for_a_send_and_carry_presence;
+mod swiping_back_on_a_phone_shows_the_catalog_behind_the_page;
 mod the_code_of_a_sample_can_be_selected;
 mod the_demo_leaves_a_pane_saying_nothing_is_open;
 mod the_demo_opens_every_page_from_its_catalog;
@@ -24,6 +26,14 @@ const CATALOG_X: f32 = 40.0;
 fn demo(size: Vec2) -> DocumentTest {
     let (year, month, day) = TODAY;
     DocumentTest::new(DemoApp::on(Date::new(year, month, day)).document, size)
+}
+
+fn alone(size: Vec2, page: Page) -> DocumentTest {
+    let (year, month, day) = TODAY;
+    DocumentTest::new(
+        DemoApp::alone(Date::new(year, month, day), page).document,
+        size,
+    )
 }
 
 fn open(test: &mut DocumentTest, page: Page) {
@@ -46,13 +56,16 @@ fn open(test: &mut DocumentTest, page: Page) {
 
 fn paint_every_page(size: Vec2, suffix: &str) {
     for page in PAGES {
-        let mut test = demo(size);
-        open(&mut test, page);
         let name = format!("{}{suffix}", page.title().to_lowercase().replace(' ', "_"));
-        match page {
-            Page::Docking => test.snapshot(&name),
-            _ => test.snapshot_of(&name, &format!("demo.page.{}", page.title())),
-        }
+        let mut test = match page {
+            Page::Docking => {
+                let mut test = demo(size);
+                open(&mut test, page);
+                test
+            }
+            _ => alone(size, page),
+        };
+        test.snapshot(&name);
     }
 }
 

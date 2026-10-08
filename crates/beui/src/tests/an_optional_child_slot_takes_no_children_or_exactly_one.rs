@@ -17,5 +17,5 @@ fn an_optional_child_slot_takes_no_children_or_exactly_one() {
 
     harness.toggle_inspector();
 
-    assert_eq!(harness.tree(), ["column", "  frame", "  frame", "    text"]);
+    assert_eq!(harness.tree(), ["list", "  frame", "  frame", "    text"]);
 }

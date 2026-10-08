@@ -61,6 +61,7 @@ pub struct Document {
     tools: Option<Box<dyn Tools>>,
     inspector_requested: bool,
     screen_pointer: Option<Pos2>,
+    pub last_pointer: Option<crate::input::PointerSample>,
     placement: Option<(Rect, Option<Placement>)>,
     pub portal_holders: std::collections::HashMap<NodeId, NodeOf<crate::base::portal::PortalNode>>,
     pub overlay_stack: Vec<NodeOf<crate::base::overlay::OverlayNode>>,
@@ -262,6 +263,7 @@ impl Document {
             tools: None,
             inspector_requested: false,
             screen_pointer: None,
+            last_pointer: None,
             placement: None,
             portal_holders: std::collections::HashMap::new(),
             overlay_stack: Vec::new(),
@@ -585,6 +587,18 @@ impl Document {
 
     pub fn node_detail(&self, id: NodeId) -> Option<String> {
         self.arena.get(id).detail()
+    }
+
+    pub fn node_properties(&self, id: NodeId) -> Vec<(&'static str, String)> {
+        self.arena.get(id).properties()
+    }
+
+    pub fn node_parent(&self, id: NodeId) -> Option<NodeId> {
+        self.arena.parent(id)
+    }
+
+    pub fn node_test_ids(&self, id: NodeId) -> &[String] {
+        self.node_test_ids.get(&id).map_or(&[], Vec::as_slice)
     }
 
     pub fn node_rect(&self, id: impl Into<NodeId>) -> Option<Rect> {
@@ -1154,13 +1168,22 @@ impl Document {
         region: Region,
         viewport: Rect,
     ) -> (Region, Option<Moved>) {
-        let [only] = moves.as_slice() else {
-            let mut region = region;
-            for moved in &moves {
-                region.add(moved.viewport.intersect(viewport));
-            }
+        let shown_area = |moved: &paint::Move| {
+            let visible = moved.viewport.intersect(viewport);
+            visible.width().max(0.0) * visible.height().max(0.0)
+        };
+        let Some(largest) = (0..moves.len())
+            .max_by(|a, b| shown_area(&moves[*a]).total_cmp(&shown_area(&moves[*b])))
+        else {
             return (region, None);
         };
+        let mut region = region;
+        for (index, moved) in moves.iter().enumerate() {
+            if index != largest {
+                region.add(moved.viewport.intersect(viewport));
+            }
+        }
+        let only = &moves[largest];
         let visible = only.viewport.intersect(viewport);
         let rooted = self.paint_cache.borrow().rooted();
         let (fixed, inner) =

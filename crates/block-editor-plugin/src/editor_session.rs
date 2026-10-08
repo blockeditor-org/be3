@@ -17,7 +17,10 @@ use uuid::Uuid;
 #[cfg(target_arch = "wasm32")]
 use crate::plugin::PaintTarget;
 use crate::plugin::{Frame, Instance, Region};
-use crate::{EditorHost, Waker, host::BlockDrag};
+use crate::{
+    EditorHost, Waker,
+    host::{BlockDrag, HostContent},
+};
 
 pub type Open = fn(EditorHost) -> Box<dyn Instance>;
 
@@ -153,18 +156,10 @@ impl EditorSession {
         self.host.set_editable(editable);
     }
 
-    pub(crate) fn set_block_content(
-        &self,
-        block: Uuid,
-        content_type: Uuid,
-        bytes: Vec<u8>,
-        applied: u64,
-    ) {
+    pub(crate) fn set_block_content(&self, block: Uuid, content: HostContent) {
         match self.own_block == Some(block) {
-            true => self.host.set_block_content(content_type, bytes, applied),
-            false => self
-                .host
-                .set_content_of(block, content_type, bytes, applied),
+            true => self.host.set_block_content(content),
+            false => self.host.set_content_of(block, content),
         }
     }
 

@@ -10,7 +10,7 @@ use beui_components_unstyled::{Toggle, ToggleHandle};
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Callback, Direction, Frame, ItemSize, List, Prop, Text, clone, create_memo,
+    Align, Callback, Direction, Frame, ItemSize, List, Prop, Show, Text, clone, create_memo,
 };
 
 const BOX_SIZE: f32 = 18.0;
@@ -21,13 +21,24 @@ const FOCUS_RING_OFFSET: f32 = 4.0;
 
 #[component]
 pub fn Checkbox(
-    label: Prop<String>,
+    #[prop(default = String::new())] label: Prop<String>,
     checked: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
+    #[prop(default = false)] capture_presses: Prop<bool>,
+    #[prop(default = true)] tab_stop: Prop<bool>,
+    #[prop(default = true)] press_focus: Prop<bool>,
     on_change: Callback<bool>,
 ) -> NodeId {
     view! {
-        <Toggle checked label disabled on_change={move |checked| on_change.call(checked)}>
+        <Toggle
+            checked
+            label
+            disabled
+            capture_presses
+            tab_stop
+            press_focus
+            on_change={move |checked| on_change.call(checked)}
+        >
             {move |handle: ToggleHandle| {
                 view! {
                     <CheckboxFace handle />
@@ -54,6 +65,7 @@ fn CheckboxFace(handle: ToggleHandle) -> NodeId {
     let border_visible = create_memo(clone!(checked -> move || !checked.get()));
     let box_border = theme.border.clone();
     let mark_color = theme.on_accent.clone();
+    let labeled = create_memo(clone!(label -> move || !label.get().is_empty()));
     let label_color = create_memo(clone!(theme disabled -> move || match disabled.get() {
         true => theme.text_muted.get(),
         false => theme.text.get(),
@@ -81,13 +93,17 @@ fn CheckboxFace(handle: ToggleHandle) -> NodeId {
                         radius=MARK_RADIUS
                     />
                 </Frame>
-                <Text
-                    @sizing=ItemSize::Percent(100.0)
-                    string={label}
-                    font_size=FONT_BODY
-                    color={label_color}
-                    align=TextAlign::Start
-                />
+                <Show condition={labeled}>
+                    {move || clone!(label label_color -> view! {
+                        <Text
+                            @sizing=ItemSize::Percent(100.0)
+                            string={label}
+                            font_size=FONT_BODY
+                            color={label_color}
+                            align=TextAlign::Start
+                        />
+                    })}
+                </Show>
             </List>
         </FocusRing>
     }

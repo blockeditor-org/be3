@@ -13,7 +13,7 @@ pub use manifest::{
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 69;
+pub const PROTOCOL_VERSION: u16 = 71;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_TEXT_BYTES: usize = 64 * 1024 * 1024;
@@ -666,6 +666,8 @@ pub enum EditorMessage {
         content_type: [u8; 16],
         #[serde(with = "serde_bytes")]
         bytes: Vec<u8>,
+        #[serde(with = "serde_bytes")]
+        session: Vec<u8>,
         applied: u64,
     },
     ContentOperations {

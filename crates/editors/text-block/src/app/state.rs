@@ -10,11 +10,13 @@ use block_editor_beui::BlockQuery;
 use block_editor_beui::be_block::presence::pick_free_color;
 use block_editor_beui::be_block::{ImageContent, TextContent};
 use block_editor_beui::{BlockList, Blocks};
-use block_editor_beui::{ChildState, ContentProjection, Editor, EditorHost, ImagePaster};
+use block_editor_beui::{
+    ChildState, ContentProjection, Editor, EditorHost, ImagePaster, Projected,
+};
 use text_editor_core::{EditorCommand, TextLanguage};
 use uuid::Uuid;
 
-use crate::document::{BlockDocument, inside_block_url};
+use crate::document::{BlockDocument, History, inside_block_url};
 use crate::presence::TextCursor;
 
 use super::embeds::{ResolvedEmbed, image_embed_directive, resolve_embeds};
@@ -32,7 +34,7 @@ pub(crate) struct State {
     pub client: Blocks,
     pub block_id: Uuid,
     content: Rc<ContentProjection<TextContent>>,
-    adopted: Cell<Option<u64>>,
+    adopted: Cell<bool>,
     pub document: Arc<BlockDocument>,
     pub workspace_id: Uuid,
     pub text: TextAreaState,
@@ -72,6 +74,7 @@ impl State {
         let client = editor.blocks();
         let block_id = editor.block_id();
         let content = editor.block_content::<TextContent>();
+        content.record();
         let document = Arc::new(BlockDocument::new(editor.host().waker()));
         let text = TextAreaState::new(Arc::clone(&document) as Arc<dyn text_editor_core::Document>);
         text.core_mut().config.inside_atomic_unit = inside_block_url;
@@ -91,7 +94,7 @@ impl State {
             client,
             block_id,
             content,
-            adopted: Cell::new(None),
+            adopted: Cell::new(false),
             document,
             text,
             dependencies,
@@ -139,25 +142,42 @@ impl State {
 
     pub fn pump(&self) {
         let operations = self.document.take_operations();
-        let count = operations.len() as u64;
-        let before = self.content.revision();
+        let own = !operations.is_empty();
+        let refused = own && !self.host().editable();
         for operation in operations {
             self.content.operate(operation);
         }
-        let revision = self.content.revision();
-        if revision.is_none() || revision == self.adopted.get() {
+        match self.document.take_history() {
+            Some(History::Undo) => self.host().undo(self.block_id),
+            Some(History::Redo) => self.host().redo(self.block_id),
+            None => {}
+        }
+        if self.content.revision().is_none() {
             return;
         }
-        if count > 0
-            && before.is_some()
-            && before == self.adopted.get()
-            && revision == before.map(|before| before + count)
-        {
-            self.adopted.set(revision);
-            return;
+        let projected = self.content.take_projected();
+        let first = !self.adopted.replace(true);
+        let mut whole = first
+            || refused
+            || (own
+                && projected
+                    .iter()
+                    .any(|projected| matches!(projected, Projected::Applied(_))));
+        if !whole {
+            for projected in &projected {
+                let applied = match projected {
+                    Projected::Applied(edit) => self.document.apply(edit),
+                    Projected::Rebuilt => false,
+                };
+                if !applied {
+                    whole = true;
+                    break;
+                }
+            }
         }
-        let first = self.adopted.replace(revision).is_none();
-        self.content.read(|content| self.document.adopt(content));
+        if whole {
+            self.content.read(|content| self.document.adopt(content));
+        }
         if self.document.take_external_edit() {
             self.text.external_edit();
         } else {

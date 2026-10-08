@@ -10,7 +10,7 @@ fn the_inspector_follows_nodes_added_to_the_document() {
     let mut harness = Harness::new(document);
 
     harness.toggle_inspector();
-    assert_eq!(harness.tree(), ["column", "  text"]);
+    assert_eq!(harness.tree(), ["list", "  text"]);
 
     let second = harness.document.create_text("Second", 14.0, Color32::WHITE);
     harness
@@ -18,10 +18,10 @@ fn the_inspector_follows_nodes_added_to_the_document() {
         .append_child(column, second.id(), ItemSize::Intrinsic);
     harness.frame(Vec::new());
 
-    assert_eq!(harness.tree(), ["column", "  text", "  text"]);
+    assert_eq!(harness.tree(), ["list", "  text", "  text"]);
 
     harness.document.remove_child(column, first.id());
     harness.frame(Vec::new());
 
-    assert_eq!(harness.tree(), ["column", "  text"]);
+    assert_eq!(harness.tree(), ["list", "  text"]);
 }

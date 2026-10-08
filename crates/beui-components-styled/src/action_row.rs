@@ -3,6 +3,7 @@ use beui_macros::{component, view};
 use crate::text::Icon;
 use crate::theme::{FOCUS_RING_WIDTH, FONT_BODY, FONT_SMALL, RADIUS, use_theme};
 use beui_components_unstyled as unstyled;
+use beui_core::icons::ICON_CHEVRON_RIGHT;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Action, Align, ClickCallback, Direction, Frame, ItemSize, List, Prop, ReadSignal, Show, Text,
@@ -57,10 +58,12 @@ pub(crate) fn ActionRowFace(
     glyph: Prop<String>,
     detail: Prop<String>,
     disabled: Prop<bool>,
-    danger: bool,
+    danger: Prop<bool>,
+    #[prop(default = false)] submenu: Prop<bool>,
 ) -> NodeId {
     let theme = use_theme();
     let off = create_memo(move || disabled.get());
+    let danger = create_memo(move || danger.get());
     let fill = create_memo(clone!(theme off -> move || {
         match (off.get(), active.get(), hovered.get()) {
             (true, _, _) => beui_core::color::Color32::TRANSPARENT,
@@ -69,15 +72,15 @@ pub(crate) fn ActionRowFace(
             (false, false, false) => beui_core::color::Color32::TRANSPARENT,
         }
     }));
-    let text_color = create_memo(clone!(theme off -> move || {
-        match (off.get(), danger) {
+    let text_color = create_memo(clone!(theme off danger -> move || {
+        match (off.get(), danger.get()) {
             (true, _) => theme.text_muted.get(),
             (false, true) => theme.danger.get(),
             (false, false) => theme.text.get(),
         }
     }));
     let icon_color = create_memo(clone!(theme off -> move || {
-        match (off.get(), danger) {
+        match (off.get(), danger.get()) {
             (false, true) => theme.danger.get(),
             _ => theme.text_muted.get(),
         }
@@ -85,6 +88,7 @@ pub(crate) fn ActionRowFace(
     let glyph = create_memo(move || glyph.get());
     let has_glyph = create_memo(clone!(glyph -> move || !glyph.get().is_empty()));
     let detail = create_memo(move || detail.get());
+    let chevron_color = theme.text_muted.clone();
     let has_detail = create_memo(clone!(detail -> move || !detail.get().is_empty()));
     view! {
         <Frame
@@ -111,6 +115,9 @@ pub(crate) fn ActionRowFace(
                         />
                     </Show>
                 </List>
+                <Show condition={submenu}>
+                    <Icon glyph={ICON_CHEVRON_RIGHT.to_owned()} color={chevron_color.clone()} />
+                </Show>
             </List>
         </Frame>
     }
