@@ -2087,10 +2087,20 @@ pub enum Key {
     F34,
     F35,
     BrowserBack,
+    VolumeUp,
+    VolumeDown,
+    VolumeMute,
+    MicMute,
+    BrightnessUp,
+    BrightnessDown,
+    MediaPlayPause,
+    MediaNext,
+    MediaPrevious,
+    MediaStop,
 }
 
 impl Key {
-    pub const ALL: [Self; 108] = [
+    pub const ALL: [Self; 118] = [
         Self::ArrowDown,
         Self::ArrowLeft,
         Self::ArrowRight,
@@ -2199,6 +2209,16 @@ impl Key {
         Self::F34,
         Self::F35,
         Self::BrowserBack,
+        Self::VolumeUp,
+        Self::VolumeDown,
+        Self::VolumeMute,
+        Self::MicMute,
+        Self::BrightnessUp,
+        Self::BrightnessDown,
+        Self::MediaPlayPause,
+        Self::MediaNext,
+        Self::MediaPrevious,
+        Self::MediaStop,
     ];
 }
 
@@ -2207,7 +2227,7 @@ pub struct Modifiers {
     pub alt: bool,
     pub control: bool,
     pub shift: bool,
-    pub command: bool,
+    pub logo: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

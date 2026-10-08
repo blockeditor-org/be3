@@ -36,6 +36,7 @@ struct Harness {
 
 fn shown(windows: Windows) -> impl FnOnce() -> NodeId {
     move || {
+        crate::view::toggle_fullscreen_action(&windows);
         let (text, set_text) = create_signal(String::new());
         let ids = create_memo(clone_list(&windows));
         view! {
@@ -215,6 +216,33 @@ impl Harness {
         ]);
         self.settle();
     }
+}
+
+const KEY_F: u32 = 33;
+const KEY_LEFTMETA: u32 = 125;
+
+fn physical(code: u32, pressed: bool) -> Event {
+    Event::PhysicalKey { code, pressed }
+}
+
+fn super_key(pressed: bool) -> Vec<Event> {
+    let held = match pressed {
+        true => beui::Modifiers::LOGO,
+        false => beui::Modifiers::NONE,
+    };
+    vec![physical(KEY_LEFTMETA, pressed), Event::Modifiers(held)]
+}
+
+fn f_key(pressed: bool, modifiers: beui::Modifiers) -> Vec<Event> {
+    vec![
+        physical(KEY_F, pressed),
+        Event::Key {
+            key: Key::F,
+            pressed,
+            repeat: false,
+            modifiers,
+        },
+    ]
 }
 
 fn outside() -> Pos2 {

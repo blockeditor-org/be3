@@ -1040,7 +1040,47 @@ pub(crate) fn MenusPage() -> NodeId {
             <Sample title="Split buttons" code={vec![RunButtons::SOURCE]}>
                 <RunButtons />
             </Sample>
+            <Sample title="Global actions" code={vec![GlobalActions::SOURCE]}>
+                <GlobalActions />
+            </Sample>
         </ScrollPage>
+    }
+}
+
+#[sample]
+#[component]
+fn GlobalActions() -> NodeId {
+    let (locks, set_locks) = create_signal(0);
+    let (open, set_open) = create_signal(false);
+    let lock = Action::new("demo.lock", "Lock the screen", move || {
+        set_locks.update(|locks| *locks += 1)
+    })
+    .glyph(ICON_LOCK)
+    .shortcut(Chord::logo(Key::L))
+    .global()
+    .register();
+    let keys = lock.shortcut_label().unwrap_or_default();
+    let locked = create_memo(move || format!("Locked {} times", locks.get()));
+    let closing = set_open.clone();
+    view! {
+        <List spacing=SECTION_SPACING>
+            <Paragraph
+                content="A global action answers its chord wherever the focus is, even in a text \
+                 field or under an open menu, and a desktop session runs it before a program's \
+                 window sees the keys. Super chords count like Ctrl and Alt."
+            />
+            <Shortcut keys description="lock the screen, from anywhere" />
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0 wrap=true>
+                <Button action={lock} variant=ButtonVariant::Primary />
+                <Button
+                    label="Command palette"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || set_open.set(true)}
+                />
+            </List>
+            <Caption content={locked} />
+            <CommandPalette open on_close={move || closing.set(false)} />
+        </List>
     }
 }
 

@@ -54,8 +54,9 @@ impl Keyboard {
         );
         let modifiers = Modifiers {
             alt: self.active(xkb::MOD_NAME_ALT),
-            ctrl: self.active(xkb::MOD_NAME_CTRL) || self.active(xkb::MOD_NAME_LOGO),
+            ctrl: self.active(xkb::MOD_NAME_CTRL),
             shift: self.active(xkb::MOD_NAME_SHIFT),
+            logo: self.active(xkb::MOD_NAME_LOGO),
         };
         if modifiers != self.modifiers {
             self.modifiers = modifiers;
@@ -81,12 +82,7 @@ impl Keyboard {
                 modifiers: held,
             });
         }
-        if pressed
-            && !held.ctrl
-            && !held.alt
-            && !text.is_empty()
-            && !text.chars().any(char::is_control)
-        {
+        if pressed && !held.command() && !text.is_empty() && !text.chars().any(char::is_control) {
             out.events.push(Event::Text(text.clone()));
             repeated.push(Event::Text(text));
         }
