@@ -1,7 +1,7 @@
 use block_plugin_api::{
     EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FrameChrome, FrameSpec,
-    HelloAccepted, Message, PROTOCOL_VERSION, ScreenId, ScreenRequest, ScreenSet, ViewportMetrics,
-    decode_frame, encode_frame,
+    HelloAccepted, Message, ScreenId, ScreenRequest, ScreenSet, ViewportMetrics, decode_frame,
+    encode_frame,
 };
 use block_wasm_host::{Host, Plugin};
 
@@ -132,7 +132,6 @@ fn check(outcome: Result<(), String>) {
 
 fn hello_accepted() -> Message {
     Message::HelloAccepted(HelloAccepted {
-        version: PROTOCOL_VERSION,
         host_name: "instantiate".to_owned(),
         surface: Some(block_plugin_api::SurfaceSpec {
             format: block_plugin_api::SurfaceFormat::Rgba8Unorm,

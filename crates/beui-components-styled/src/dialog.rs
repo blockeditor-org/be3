@@ -43,7 +43,7 @@ pub fn Dialog(
         >
             <BackSlide
                 enters=false
-                on_back={move || close_overlay(&closing)}
+                on_back={move || dismiss_overlay(&closing)}
                 on_presence={move |presence: f32| set_presence.set(presence)}
             >
                 <DialogSurface width={width} title={title}>{children}</DialogSurface>
@@ -52,13 +52,13 @@ pub fn Dialog(
     }
 }
 
-pub(crate) fn close_overlay(overlay: &NodeRef) {
+pub(crate) fn dismiss_overlay(overlay: &NodeRef) {
     let Some(id) = overlay.try_get() else {
         return;
     };
     with_document(|document| {
         if let Some(overlay) = document.arena.kind_of::<OverlayNode>(id) {
-            document.close_overlay(overlay);
+            document.dismiss_overlay(overlay);
         }
     });
 }

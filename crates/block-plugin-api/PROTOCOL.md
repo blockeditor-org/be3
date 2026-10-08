@@ -12,16 +12,9 @@ The accepted handshake carries the theme the host is drawn in, which is what
 a plugin's own interface follows, so an editor looks the same as the app it is
 embedded in wherever it runs.
 
-The initial handshake advertises an inclusive supported-version range. Peers
-may communicate only after selecting one version in the intersection. A peer
-rejects an absent intersection with `UnsupportedVersion` and closes the
-session.
-
-Adding an optional capability or a message that cannot be sent before its
-capability is negotiated is compatible within a protocol version. Changing a
-message representation, ordering requirement, validation rule, or existing
-semantic requires incrementing `PROTOCOL_VERSION`. Unknown message variants
-are never silently ignored.
+The protocol has no version and the handshake checks none: the app and its
+plugins are built together, so a change to a message needs no bookkeeping.
+Unknown message variants are never silently ignored.
 
 Messages with request identifiers are answered with the same identifier by a
 response, `Acknowledged`, or `Error`. Lifecycle messages and input events are

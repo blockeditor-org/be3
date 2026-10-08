@@ -405,7 +405,7 @@ fn dismiss(state: &State) {
 
 fn confirm(state: &State, index: usize) {
     apply_selection(state, Some(index));
-    state.set_open.set(false);
+    dismiss(state);
 }
 
 fn apply_selection(state: &State, selected: Option<usize>) {

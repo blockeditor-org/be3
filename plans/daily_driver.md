@@ -69,9 +69,6 @@ positional.
   - `merge_fields` drops trailing fields that only the other side has
     (`merge.rs:149-182`). Keep them.
 - **Wire protocol.**
-  - Send `PROTOCOL_VERSION` (`be-protocol/src/lib.rs:9`, never read today)
-    in `Login`, `Register` and `Authenticate`. Refuse a mismatch with a clear
-    "update the app" error.
   - When a frame does not decode, reply with its request id.
 - **SQLite.**
   - The server (`be-server/src/schema.rs`) and the client
