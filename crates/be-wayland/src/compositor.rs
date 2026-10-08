@@ -261,6 +261,7 @@ impl Compositor {
                     let code = button_code(button);
                     if pressed {
                         let Some(id) = self.grab.or(self.windows.hovered()) else {
+                            self.server.state.dismiss_popups();
                             continue;
                         };
                         self.grab = Some(id);
