@@ -141,6 +141,7 @@ fn LockCard(
     let failed = create_memo(clone!(error -> move || error.get().is_some()));
     let checking = create_memo(clone!(error busy -> move || busy.get() && error.get().is_none()));
     let reason = create_memo(move || error.get().unwrap_or_default());
+    let slots = create_memo(clone!(actions -> move || (0..actions.with(Vec::len)).collect::<Vec<usize>>()));
     let error_id = format!("{id}.error");
     let action_id = id.clone();
     view! {
@@ -189,23 +190,21 @@ fn LockCard(
                         </Show>
                     </List>
                     <List direction=Direction::Horizontal spacing=ACTION_SPACING>
-                        <ForEach keys={actions.clone()}>
-                            {move |action: LockAction| {
+                        <ForEach keys={slots}>
+                            {move |index: usize| {
                                 let chose = on_action.clone();
-                                let listed = actions.clone();
-                                let key = action.clone();
-                                let index = listed.with_untracked(|listed| listed.iter().position(|known| *known == key));
+                                let glyph = create_memo(clone!(actions -> move || {
+                                    actions.with(|actions| actions.get(index).map(|action| action.glyph.clone()).unwrap_or_default())
+                                }));
+                                let label = create_memo(clone!(actions -> move || {
+                                    actions.with(|actions| actions.get(index).map(|action| action.label.clone()).unwrap_or_default())
+                                }));
                                 view! {
                                     <IconButton
-                                        glyph={action.glyph}
-                                        label={action.label}
-                                        @test_id={format!("{action_id}.action.{}", index.unwrap_or_default())}
-                                        on_click={move || {
-                                            let index = listed.with_untracked(|listed| listed.iter().position(|known| *known == key));
-                                            if let Some(index) = index {
-                                                chose.call(index);
-                                            }
-                                        }}
+                                        glyph
+                                        label
+                                        @test_id={format!("{action_id}.action.{index}")}
+                                        on_click={move || chose.call(index)}
                                     />
                                 }
                             }}

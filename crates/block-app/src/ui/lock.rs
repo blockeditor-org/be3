@@ -1,7 +1,9 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use beui::datetime::{DateTime, HourCycle};
-use beui::icons::{ICON_BEDTIME, ICON_LOCK, ICON_POWER_SETTINGS_NEW, ICON_RESTART_ALT};
+use beui::icons::{
+    ICON_BEDTIME, ICON_LOCK, ICON_LOGOUT, ICON_POWER_SETTINGS_NEW, ICON_RESTART_ALT,
+};
 use beui::reactive::{
     Action, Chord, ReadSignal, clone, component, create_memo, create_signal, create_timer, now,
     view,
@@ -20,7 +22,8 @@ fn action(power: PowerAction) -> LockAction {
         PowerAction::Lock => ("Lock", ICON_LOCK),
         PowerAction::Suspend => ("Suspend", ICON_BEDTIME),
         PowerAction::Restart => ("Restart", ICON_RESTART_ALT),
-        PowerAction::PowerOff | PowerAction::LogOut => ("Power off", ICON_POWER_SETTINGS_NEW),
+        PowerAction::PowerOff => ("Power off", ICON_POWER_SETTINGS_NEW),
+        PowerAction::LogOut => ("Log out", ICON_LOGOUT),
     };
     LockAction {
         label: label.to_owned(),

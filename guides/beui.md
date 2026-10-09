@@ -886,10 +886,10 @@ activity's `setBackHandled`, and when nothing takes it the system's own back
 
 A modal overlay with `locks` set is a lock screen (`styled::LockScreen`): nothing the user
 does dismisses it, an overlay opened outside it while it is open goes beneath it, passive overlays
-outside it paint beneath it, the focus cannot leave it, and `Document::locked` is true, while which
-`on_global_key` handlers, global actions and `offer_app_key` hear nothing but media keys
-(`Key::is_media`). Only its owner
-writing `open` false closes it.
+outside it paint beneath it, the focus cannot leave it (not even to nothing, through Escape or a
+click on its scrim), and `Document::locked` is true. While it is, `on_global_key` handlers, global
+actions and `offer_app_key` hear nothing but media keys (`Key::is_media`). Only its owner writing
+`open` false closes it.
 
 A **passive** one takes no input at all. It is painted above everything and is
 not on the stack, so the document underneath goes on answering the pointer and

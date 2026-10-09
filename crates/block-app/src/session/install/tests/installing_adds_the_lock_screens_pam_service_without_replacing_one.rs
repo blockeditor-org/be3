@@ -10,8 +10,18 @@ fn installing_adds_the_lock_screens_pam_service_without_replacing_one() {
     );
 
     std::fs::create_dir_all(&dir).unwrap();
+    assert_eq!(
+        crate::session::pam::service_in(&dir),
+        crate::session::pam::FALLBACK_SERVICE,
+        "without its own service the lock checks with login's"
+    );
     let service = dir.join("block-app");
     assert_eq!(place_pam(&dir).unwrap(), Some(service.clone()));
+    assert_eq!(
+        crate::session::pam::service_in(&dir),
+        crate::session::pam::SERVICE,
+        "the service the installer places is the one the lock uses"
+    );
     assert_eq!(
         std::fs::read_to_string(&service).unwrap(),
         "auth include login\n"

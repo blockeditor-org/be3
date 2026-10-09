@@ -4,7 +4,8 @@ use std::path::Path;
 use super::lock::Verdict;
 
 pub(crate) const SERVICE: &str = "block-app";
-const FALLBACK_SERVICE: &str = "login";
+pub(crate) const FALLBACK_SERVICE: &str = "login";
+pub(crate) const DIR: &str = "/etc/pam.d";
 const LIBRARY: &CStr = c"libpam.so.0";
 
 const PAM_SUCCESS: c_int = 0;
@@ -121,10 +122,11 @@ impl Drop for Answers {
 }
 
 pub(crate) fn service() -> &'static str {
-    let installed = ["/etc/pam.d", "/usr/lib/pam.d", "/usr/local/etc/pam.d"]
-        .iter()
-        .any(|dir| Path::new(dir).join(SERVICE).is_file());
-    match installed {
+    service_in(Path::new(DIR))
+}
+
+pub(crate) fn service_in(dir: &Path) -> &'static str {
+    match dir.join(SERVICE).is_file() {
         true => SERVICE,
         false => FALLBACK_SERVICE,
     }

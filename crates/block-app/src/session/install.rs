@@ -5,7 +5,7 @@ use std::process::Command;
 
 const ENTRY: &str = include_str!("block-app.desktop");
 const PAM: &str = include_str!("block-app.pam");
-const PAM_DIR: &str = "/etc/pam.d";
+const PAM_DIR: &str = super::pam::DIR;
 const EXECUTABLE: &str = "block-app";
 const DEFAULT_PREFIX: &str = "/usr/local";
 
