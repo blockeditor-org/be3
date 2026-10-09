@@ -1,5 +1,6 @@
 mod bar;
 mod calendar;
+mod notifications;
 mod popup;
 mod power;
 mod sessions;

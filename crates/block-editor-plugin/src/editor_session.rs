@@ -197,12 +197,18 @@ impl EditorSession {
             LinuxMessage::InputDevices(devices) => self.host.set_input_devices(devices),
             LinuxMessage::Displays(displays) => self.host.set_displays(displays),
             LinuxMessage::Power(power) => self.host.set_power(power),
+            LinuxMessage::Notifications(notifications) => {
+                self.host.set_notifications(notifications)
+            }
             LinuxMessage::WatchInputDevices
             | LinuxMessage::WatchDisplays
             | LinuxMessage::FullscreenWindow { .. }
             | LinuxMessage::FocusWindow(_)
             | LinuxMessage::WatchPower
-            | LinuxMessage::RequestPower(_) => {}
+            | LinuxMessage::RequestPower(_)
+            | LinuxMessage::WatchNotifications
+            | LinuxMessage::InvokeNotification { .. }
+            | LinuxMessage::DismissNotifications(_) => {}
         }
     }
 
@@ -609,6 +615,9 @@ impl EditorSession {
                 message: LinuxMessage::RequestPower(action),
             }));
         }
+        for message in self.host.take_notification_requests() {
+            messages.push(Message::Editor(EditorMessage::Linux { instance, message }));
+        }
         for window in self.host.take_closed_windows() {
             messages.push(Message::Editor(EditorMessage::CloseWindow {
                 instance,
@@ -720,6 +729,12 @@ impl EditorSession {
             messages.push(Message::Editor(EditorMessage::Linux {
                 instance,
                 message: LinuxMessage::WatchPower,
+            }));
+        }
+        if self.host.take_notification_watch() {
+            messages.push(Message::Editor(EditorMessage::Linux {
+                instance,
+                message: LinuxMessage::WatchNotifications,
             }));
         }
         if self.host.take_display_watch() {

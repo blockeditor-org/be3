@@ -15,6 +15,7 @@ use block_editor_beui::utc_offset;
 use block_shell::Workspace;
 
 use super::calendar::{CALENDAR_WIDTH, DesktopCalendar};
+use super::notifications::NotificationsButton;
 use super::popup::BarPopup;
 use super::power::PowerMenu;
 use super::sessions::sessions;
@@ -24,7 +25,7 @@ const BAR_SPACING: f32 = 8.0;
 const SECONDS_PER_MINUTE: u64 = 60;
 const SECONDS_PER_DAY: i64 = 24 * 60 * 60;
 
-fn local_minutes(unix: Duration) -> u32 {
+pub(crate) fn local_minutes(unix: Duration) -> u32 {
     let seconds = i64::try_from(unix.as_secs()).unwrap_or(0) + i64::from(utc_offset());
     let minutes = seconds.rem_euclid(SECONDS_PER_DAY) / 60;
     u32::try_from(minutes).unwrap_or(0)
@@ -54,6 +55,7 @@ pub(crate) fn DesktopBar(workspace: Rc<Workspace>) -> NodeId {
     let clock = wall_clock();
     let editor = workspace.editor().clone();
     let power = editor.clone();
+    let notified = editor.clone();
     let dated = editor.clone();
     let launching = editor.clone();
     let launcher = move || launching.host().show_launcher(launching.block_id());
@@ -122,6 +124,7 @@ pub(crate) fn DesktopBar(workspace: Rc<Workspace>) -> NodeId {
                         on_select={chose}
                     />
                     <Spacer @sizing=ItemSize::Percent(100.0) />
+                    <NotificationsButton editor={notified} />
                     <BarPopup label={clock} width=CALENDAR_WIDTH @test_id={"desktop.clock"}>
                         {move |_: PopoverHandle| view! {
                             <DesktopCalendar editor={dated.clone()} />
