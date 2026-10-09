@@ -8,7 +8,9 @@ load(":workspace.bxl", "rust_targets")
 # (--host, a platform in buck/platforms), which reads the rest afterwards. It
 # prints what that reads, "kind<TAB>path" a line; with --keep-going it prints
 # them all even when some fail to build, and crates/verify reads what was
-# built.
+# built. A path whose action failed can still hold an earlier run's output, so
+# crates/verify writes a fix or a painting only where the checkout still holds
+# what it was made from.
 #
 #   ./scripts/buck bxl --keep-going //buck/dev/verify.bxl:main -- --host linux_x86_64 --lint true --tests true
 

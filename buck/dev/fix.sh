@@ -4,7 +4,10 @@
 # copy of SOURCES, fixed, compared with SOURCES. OUT/changed holds every file
 # the fixes changed or added, at its path in the repository, and OUT/deleted
 # names every file they removed, one a line; ./scripts/verify copies the one
-# into the checkout and deletes the other.
+# into the checkout and deletes the other. OUT/original holds each of those
+# files as the fixes read it, and ./scripts/verify touches only the files that
+# still read the same: an output left behind by an earlier run, when this one
+# could not run, is not this checkout's fix.
 #
 # rust fixes one crate's Rust files: clippy's machine-applicable suggestions
 # from each CLIPPY_JSON, then fix-rust-source, then rustfmt. The findings clippy
@@ -26,7 +29,7 @@ absolute() {
 kind="$1" out="$(absolute "$2")" sources="$(absolute "$3")"
 shift 3
 tree="$(mktemp -d)"
-mkdir -p "$out/changed" "$out/findings"
+mkdir -p "$out/changed" "$out/findings" "$out/original"
 : > "$out/deleted"
 cp -RL "$sources/." "$tree/"
 chmod -R u+w "$tree"
@@ -48,11 +51,18 @@ case "$kind" in
         ;;
 esac
 (cd "$sources" && find . -type f) | while IFS= read -r path; do
-    [ -f "$tree/$path" ] || echo "${path#./}" >> "$out/deleted"
+    [ -f "$tree/$path" ] && continue
+    echo "${path#./}" >> "$out/deleted"
+    mkdir -p "$(dirname "$out/original/$path")"
+    cp "$sources/$path" "$out/original/$path"
 done
 (cd "$tree" && find . -type f) | while IFS= read -r path; do
     cmp -s "$sources/$path" "$tree/$path" && continue
     mkdir -p "$(dirname "$out/changed/$path")"
     cp "$tree/$path" "$out/changed/$path"
+    if [ -f "$sources/$path" ]; then
+        mkdir -p "$(dirname "$out/original/$path")"
+        cp "$sources/$path" "$out/original/$path"
+    fi
 done
 rm -rf "$tree"
