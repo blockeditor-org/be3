@@ -60,7 +60,13 @@ fn main() -> ExitCode {
     run.verify();
     println!();
     if run.failed {
-        println!("Verification failed.");
+        if run.options.build_failed {
+            println!(
+                "Verification failed: something did not build or a test failed, and buck2 says what above."
+            );
+        } else {
+            println!("Verification failed.");
+        }
         return ExitCode::FAILURE;
     }
     println!("All checks passed.");
@@ -108,6 +114,7 @@ impl Run {
         }
         if self.options.plugin_tests {
             self.paintings();
+            self.unpainted();
         }
         if let Some(directory) = self.options.android.clone() {
             self.android(&directory);
@@ -416,6 +423,29 @@ impl Run {
         }
     }
 
+    fn unpainted(&mut self) {
+        let missing: Vec<String> = named_paintings(Path::new("crates"))
+            .into_iter()
+            .filter(|name| !Path::new("snapshots").join(name).exists())
+            .collect();
+        if missing.is_empty() {
+            return;
+        }
+        if self.options.build_failed {
+            println!(
+                "A test names each of these paintings but none was written, most likely because the test failed before it painted (its failure is above):"
+            );
+        } else {
+            println!(
+                "A test names each of these paintings but none was written: the test passed without reaching its snapshot:"
+            );
+        }
+        for name in &missing {
+            println!("  snapshots/{name}");
+        }
+        self.failed = true;
+    }
+
     fn android(&mut self, directory: &Path) {
         if fs::create_dir_all(directory).is_err() {
             self.failed = true;
@@ -513,6 +543,62 @@ fn git_bytes(arguments: &[&str]) -> Option<Vec<u8>> {
         .output()
         .ok()?;
     output.status.success().then_some(output.stdout)
+}
+
+fn named_paintings(crates: &Path) -> BTreeSet<String> {
+    let mut names = BTreeSet::new();
+    let mut pending = vec![crates.to_path_buf()];
+    while let Some(directory) = pending.pop() {
+        let Ok(entries) = fs::read_dir(&directory) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            if entry.file_type().is_ok_and(|kind| kind.is_dir())
+                && !entry.file_name().to_string_lossy().starts_with('.')
+            {
+                pending.push(entry.path());
+            }
+        }
+        let paints = fs::read_to_string(directory.join("BUCK")).is_ok_and(|build| {
+            build
+                .lines()
+                .any(|line| line.starts_with("editor(") || line.starts_with("plugin_tests("))
+        });
+        let Some(name) = directory.file_name().map(|name| name.to_string_lossy()) else {
+            continue;
+        };
+        if !paints {
+            continue;
+        }
+        for file in files_under(&directory.join("src")) {
+            if !file.ends_with(".rs") {
+                continue;
+            }
+            let Ok(source) = fs::read_to_string(directory.join("src").join(&file)) else {
+                continue;
+            };
+            for painting in literal_snapshots(&source) {
+                names.insert(format!("{name}.{painting}.paint"));
+            }
+        }
+    }
+    names
+}
+
+fn literal_snapshots(source: &str) -> Vec<&str> {
+    source
+        .split(".snapshot(")
+        .skip(1)
+        .filter_map(|rest| {
+            let rest = rest.trim_start().strip_prefix('"')?;
+            let name = &rest[..rest.find('"')?];
+            let plain = !name.is_empty()
+                && name
+                    .chars()
+                    .all(|character| character.is_ascii_alphanumeric() || "_-.".contains(character));
+            plain.then_some(name)
+        })
+        .collect()
 }
 
 fn read_the_same(original: &Path, path: &Path) -> bool {
