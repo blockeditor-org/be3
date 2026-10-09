@@ -9,7 +9,8 @@ mod session;
 pub use block_ids::BlockIdRole;
 pub use linux::{
     HostDisplay, HostDisplayMode, HostInputDevice, HostNotification, HostNotificationAction,
-    HostWindow, HostWindowId, LinuxMessage, MediaLevel, MediaLevels, MediaRequest, PlayerCommand, PowerAction, PowerAvailability,
+    HostWindow, HostWindowId, LinuxMessage, MediaLevel, MediaLevels, MediaRequest, PlayerCommand,
+    PowerAction, PowerAvailability,
 };
 pub use manifest::{
     EditorDocument, ManifestDocument, TemplateDocument, Templates, manifest_from_json,
