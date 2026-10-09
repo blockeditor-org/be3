@@ -84,6 +84,12 @@ impl Frame {
     }
 }
 
+struct Exited;
+
+impl App for Exited {
+    fn update(&mut self, _context: &Context, _rect: crate::geometry::Rect) {}
+}
+
 #[derive(Default)]
 struct Shown {
     cursor_icon: CursorIcon,
@@ -186,6 +192,7 @@ impl Runner {
         if !self.exited {
             self.exited = true;
             self.app.exiting();
+            self.app = Box::new(Exited);
         }
     }
 
@@ -199,6 +206,9 @@ impl Runner {
         pixels_per_point: f32,
         safe_area: SafeArea,
     ) -> Option<Frame> {
+        if self.exited {
+            return None;
+        }
         let renderers = self.renderers.as_mut()?;
         match renderers.recover() {
             Ok(false) => {}

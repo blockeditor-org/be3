@@ -647,6 +647,18 @@ pub(crate) fn install(setup: &beui::Setup) {
     });
 }
 
+pub(crate) fn exiting() {
+    let runtimes = HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        host.availability = Availability::missing();
+        std::mem::take(&mut host.runtimes)
+    });
+    for (_, mut runtime) in runtimes {
+        runtime.stop();
+    }
+    presenter::stop();
+}
+
 pub(crate) fn replace_gpu(setup: &beui::Setup) {
     install(setup);
     HOST.with(|host| {

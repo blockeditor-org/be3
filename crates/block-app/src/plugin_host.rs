@@ -65,6 +65,15 @@ pub(crate) fn cache_in(directory: std::path::PathBuf) {
     wasm::cache_in(directory);
 }
 
+pub(crate) fn exiting() {
+    runtime::exiting();
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        surface::stop();
+        wasm::wait_for_workers(std::time::Duration::from_secs(2));
+    }
+}
+
 pub(crate) const MAX_LIVE_CHILDREN: usize = 16;
 
 #[derive(Clone, Debug, PartialEq)]

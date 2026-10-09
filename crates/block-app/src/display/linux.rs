@@ -26,6 +26,12 @@ pub(crate) fn start(setup: &beui::Setup) {
     SCREENS.with(|slot| *slot.borrow_mut() = screens);
 }
 
+pub(crate) fn stop() {
+    let control = CONTROL.with(|slot| slot.borrow_mut().take());
+    let screens = SCREENS.with(|slot| slot.borrow_mut().take());
+    drop((control, screens));
+}
+
 pub(crate) fn screens() -> Vec<beui::Rect> {
     SCREENS.with(|screens| {
         screens

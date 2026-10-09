@@ -298,6 +298,8 @@ impl beui::App for Shell {
 
     fn exiting(&mut self) {
         wayland::exiting();
+        plugin_host::exiting();
+        display::stop();
         be::flush();
         be::stop();
     }

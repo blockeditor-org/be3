@@ -210,8 +210,10 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         let mut displays = session.displays.borrow_mut();
         displays.pointer = displays.outputs[0].screen.rect.center();
     }
-    event_loop.run(None, &mut session, Session::idle)?;
-    session.runner.exit();
+    let ran = event_loop.run(None, &mut session, Session::idle);
+    session.end();
+    drop(event_loop);
+    ran?;
     Ok(())
 }
 
@@ -293,6 +295,28 @@ fn open_gpu(node: u64, lost: &Arc<AtomicBool>) -> Result<(wgpu::Device, wgpu::Qu
 }
 
 impl Session {
+    fn end(mut self) {
+        self.runner.exit();
+        let Session {
+            runner,
+            platform,
+            displays,
+            devices,
+            libinput,
+            gbm,
+            drm,
+            ..
+        } = self;
+        drop(runner);
+        drop(platform);
+        drop(displays);
+        drop(devices);
+        libinput.suspend();
+        drop(libinput);
+        drop(gbm);
+        drop(drm);
+    }
+
     fn idle(&mut self) {
         if self.lost.swap(false, Ordering::SeqCst) {
             self.recover();
