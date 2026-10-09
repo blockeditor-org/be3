@@ -8,8 +8,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use beui::{
-    CursorIcon, Event, FilePickRequest, Launch, Platform, PointerButton, Pos2, Setup, TouchId,
-    TouchPhase, Waker, vec2,
+    CursorIcon, Event, FilePickRequest, Launch, Modifiers, Platform, PointerButton, Pos2, Setup,
+    TouchId, TouchPhase, Waker, vec2,
 };
 use beui_core::app::SafeArea;
 use beui_core::renderer::Loaded;
@@ -33,6 +33,7 @@ use smithay::reexports::calloop::{
 };
 use smithay::reexports::drm;
 use smithay::reexports::drm::control::Device as ControlDevice;
+use smithay::reexports::drm::control::{connector, crtc};
 use smithay::reexports::input::{Device as InputDevice, Libinput};
 use smithay::reexports::rustix::fs::OFlags;
 use smithay::utils::DeviceFd;
@@ -47,6 +48,7 @@ use crate::keyboard::Keyboard;
 use crate::layout::{arrange, bounds, clamp, moved};
 use crate::output::{Output, connected, wait_for};
 use crate::problems::Problems;
+use crate::recovery::{Card, Recovery};
 use crate::screen::FORMAT;
 use crate::wake::{Held, Input, WakeGate};
 
@@ -57,7 +59,8 @@ const DARKEN_RETRY: Duration = Duration::from_secs(1);
 
 struct Session {
     seat: LibSeatSession,
-    active: bool,
+    recovery: Recovery<connector::Handle>,
+    built: u64,
     handle: LoopHandle<'static, Session>,
     signal: LoopSignal,
     drm: DrmDevice,
@@ -173,7 +176,8 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
     };
     let mut session = Session {
         seat,
-        active: true,
+        recovery: Recovery::default(),
+        built: 0,
         handle: handle.clone(),
         signal: event_loop.get_signal(),
         drm,
@@ -304,7 +308,7 @@ impl Session {
             self.display_config = config;
             self.modes_pending = true;
         }
-        if !self.active {
+        if !self.recovery.active() {
             return;
         }
         if self.modes_pending {
@@ -321,6 +325,26 @@ impl Session {
             self.darken();
         }
         self.watch_fences();
+        self.check_failures();
+    }
+
+    fn with_recovery(&mut self, step: impl FnOnce(&mut Recovery<connector::Handle>, &mut Self)) {
+        let mut recovery = std::mem::take(&mut self.recovery);
+        step(&mut recovery, self);
+        self.recovery = recovery;
+    }
+
+    fn check_failures(&mut self) {
+        let failures: Vec<_> = self
+            .displays
+            .borrow_mut()
+            .outputs
+            .iter_mut()
+            .filter_map(|output| Some((output.connector, output.take_failure()?)))
+            .collect();
+        for (connector, problem) in failures {
+            self.with_recovery(|recovery, session| recovery.failed(session, connector, problem));
+        }
     }
 
     fn apply_modes(&mut self) {
@@ -383,16 +407,17 @@ impl Session {
             .outputs
             .iter_mut()
             .filter_map(|output| {
-                let (frame, fence) = output.take_fence()?;
-                Some((output.crtc, frame, fence))
+                let (generation, frame, fence) = output.take_fence()?;
+                Some((output.crtc, generation, frame, fence))
             })
             .collect();
-        for (crtc, frame, fence) in fences {
+        for (crtc, generation, frame, fence) in fences {
             let spare = fence.try_clone();
             let watched = self.handle.insert_source(
                 Generic::new(fence, Interest::READ, Mode::OneShot),
                 move |_, _, session| {
-                    session.drawn(crtc, frame);
+                    session.drawn(crtc, generation, frame);
+                    session.check_failures();
                     Ok(PostAction::Remove)
                 },
             );
@@ -403,19 +428,19 @@ impl Session {
                 if let Ok(spare) = spare {
                     let _ = wait_for(&spare);
                 }
-                self.drawn(crtc, frame);
+                self.drawn(crtc, generation, frame);
             }
         }
     }
 
-    fn drawn(&mut self, crtc: smithay::reexports::drm::control::crtc::Handle, frame: u64) {
+    fn drawn(&mut self, crtc: crtc::Handle, generation: u64, frame: u64) {
         let mut displays = self.displays.borrow_mut();
         if let Some(output) = displays
             .outputs
             .iter_mut()
             .find(|output| output.crtc == crtc)
         {
-            output.drawn(frame);
+            output.drawn(generation, frame);
         }
     }
 
@@ -478,15 +503,18 @@ impl Session {
             .ok();
     }
 
-    fn flipped(&mut self, crtc: smithay::reexports::drm::control::crtc::Handle) {
-        let mut displays = self.displays.borrow_mut();
-        if let Some(output) = displays
+    fn flipped(&mut self, crtc: crtc::Handle) {
+        let shown = self
+            .displays
+            .borrow_mut()
             .outputs
             .iter_mut()
             .find(|output| output.crtc == crtc)
-        {
-            output.flipped();
+            .and_then(|output| output.flipped().then_some(output.connector));
+        if let Some(connector) = shown {
+            self.recovery.shown(connector);
         }
+        self.check_failures();
     }
 
     fn scan(&mut self) {
@@ -508,6 +536,7 @@ impl Session {
                 continue;
             }
             let taken: Vec<_> = displays.outputs.iter().map(|output| output.crtc).collect();
+            self.built += 1;
             match Output::new(
                 &mut self.drm,
                 &self.gbm,
@@ -516,6 +545,7 @@ impl Session {
                 &info,
                 &taken,
                 &self.display_config,
+                self.built,
             ) {
                 Ok(mut output) => {
                     output.set_blanked(self.blanked);
@@ -560,26 +590,10 @@ impl Session {
     fn seat_event(&mut self, event: SessionEvent) {
         match event {
             SessionEvent::PauseSession => {
-                self.active = false;
-                self.libinput.suspend();
-                self.drm.pause();
-                self.stop_repeat();
+                self.with_recovery(|recovery, session| recovery.pause(session))
             }
             SessionEvent::ActivateSession => {
-                if self.libinput.resume().is_err() {
-                    self.problems
-                        .report("The input devices could not be reopened.".to_owned());
-                }
-                if let Err(error) = self.drm.activate(false) {
-                    self.problems.report(format!(
-                        "The display device could not be taken back: {error}"
-                    ));
-                }
-                for output in &mut self.displays.borrow_mut().outputs {
-                    output.reset();
-                }
-                self.active = true;
-                self.scan();
+                self.with_recovery(|recovery, session| recovery.activate(session));
             }
         }
     }
@@ -588,7 +602,7 @@ impl Session {
         if let UdevEvent::Changed { device_id } = event
             && device_id == self.node
         {
-            self.scan();
+            self.with_recovery(|recovery, session| recovery.changed(session));
         }
     }
 
@@ -840,6 +854,65 @@ impl Session {
         if let Some((_, token)) = self.repeat.take() {
             self.handle.remove(token);
         }
+    }
+}
+
+impl Card for Session {
+    type Output = connector::Handle;
+
+    fn suspend(&mut self) {
+        self.libinput.suspend();
+        self.drm.pause();
+        self.stop_repeat();
+    }
+
+    fn release(&mut self, output: Option<connector::Handle>) {
+        self.displays
+            .borrow_mut()
+            .outputs
+            .retain(|known| output.is_some_and(|released| released != known.connector));
+    }
+
+    fn take_back(&mut self) {
+        if self.libinput.resume().is_err() {
+            self.problems
+                .report("The input devices could not be reopened.".to_owned());
+        }
+        if let Err(error) = self.drm.activate(true) {
+            self.problems.report(format!(
+                "The display device could not be taken back: {error}"
+            ));
+        }
+        if let Some(keyboard) = Keyboard::new(&self.input) {
+            if self.keyboard.modifiers() != Modifiers::NONE {
+                self.push(Event::Modifiers(Modifiers::NONE));
+            }
+            self.keyboard = keyboard;
+        }
+        if self.blanked {
+            self.set_blanked(false);
+            self.display_control.woke();
+        }
+        self.dirty = true;
+    }
+
+    fn rescan(&mut self) {
+        self.scan();
+    }
+
+    fn stall(&mut self, output: connector::Handle) {
+        let mut displays = self.displays.borrow_mut();
+        if let Some(output) = displays
+            .outputs
+            .iter_mut()
+            .find(|known| known.connector == output)
+        {
+            output.stall();
+        }
+    }
+
+    fn report(&mut self, problem: String) {
+        self.problems.report(problem);
     }
 }
 

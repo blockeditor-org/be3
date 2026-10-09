@@ -9,6 +9,7 @@ mod layout;
 mod modes;
 mod output;
 mod problems;
+mod recovery;
 mod runner;
 mod screen;
 mod wake;
