@@ -9,6 +9,7 @@ use crate::Root;
 const MAX_NAME_BYTES: usize = 128;
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum TextLanguage {
     #[default]
     Markdown,
@@ -18,9 +19,17 @@ pub enum TextLanguage {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum TextIndentation {
     Tabs,
-    Spaces { width: u8 },
+    Spaces {
+        #[serde(default = "two")]
+        width: u8,
+    },
+}
+
+fn two() -> u8 {
+    2
 }
 
 impl Default for TextIndentation {
@@ -41,6 +50,7 @@ impl TextIndentation {
 }
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
+#[model(kind = "text")]
 pub struct TextBlock {
     pub language: TextLanguage,
     pub indentation: TextIndentation,
