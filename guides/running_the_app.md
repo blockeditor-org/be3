@@ -137,8 +137,8 @@ linux-desktop binds the volume, mute, mic mute, brightness and media transport k
 (`BINDINGS` in its `app/media.rs`, the one place that says which key does what) as
 intercepting actions, so the host hands them to the shell even while a program has the keyboard,
 and a held key repeats. Each key sends a `MediaRequest` (`LinuxMessage::RequestMedia`), and
-a volume, mute or brightness key shows `beui::styled::LevelOsd`, an icon and a level bar that
-fades out after 1.5 seconds, with the levels the host reports (`editor.media()`, from
+a volume, mute or brightness key shows `beui::styled::LevelOsd`, an icon and a level bar on
+every monitor that fades out after 1.5 seconds, with the levels the host reports (`editor.media()`, from
 `LinuxMessage::Media`).
 
 block-app does what a plugin cannot: `src/media.rs` starts its backends once a plugin watches
@@ -168,7 +168,7 @@ lock-session`) and before every suspend: `DesktopSession` holds a logind `delay`
 sleep and lets it go once the lock screen has been drawn twice (`src/session/sleep.rs`), taking it
 again on waking. `src/session/lock.rs` is the state machine, `src/session.rs`'s `ScreenLock` runs
 it, and `src/ui/lock.rs` shows it as `styled::LockScreen`, a card on every screen of
-`display::screens()` over an opaque scrim. logind's `Unlock` is not obeyed: only a password unlocks.
+the document (`use_screens()`) over an opaque scrim. logind's `Unlock` is not obeyed: only a password unlocks.
 
 The password is checked by PAM on a thread of its own, with the service `block-app` when
 `/etc/pam.d/block-app` exists (`--install-session` writes it, as `auth include login`, unless one is
