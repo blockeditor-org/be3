@@ -13,6 +13,8 @@ mod input;
 mod keys;
 mod launcher;
 mod local_settings;
+#[cfg(target_os = "linux")]
+mod media;
 mod notices;
 #[cfg(target_os = "linux")]
 mod notifications;
@@ -374,6 +376,8 @@ struct BlockApp {
     #[cfg(target_os = "linux")]
     desktop: Option<session::DesktopSession>,
     #[cfg(target_os = "linux")]
+    media: Option<media::Media>,
+    #[cfg(target_os = "linux")]
     notifications: Option<notifications::Notifications>,
 }
 
@@ -558,6 +562,8 @@ impl BlockApp {
             #[cfg(target_os = "linux")]
             desktop: None,
             #[cfg(target_os = "linux")]
+            media: None,
+            #[cfg(target_os = "linux")]
             notifications: None,
         })
     }
@@ -623,6 +629,27 @@ impl BlockApp {
             .flatten();
         if let Some(desktop) = &mut self.desktop {
             desktop.frame(context, request);
+        }
+        self.run_media();
+    }
+
+    #[cfg(target_os = "linux")]
+    fn run_media(&mut self) {
+        let requests = self
+            .shell
+            .and_then(|shell| self.with_editor(shell, |editor| editor.take_media_requests()))
+            .unwrap_or_default();
+        if self.media.is_none() && (!requests.is_empty() || plugin_host::watches_media()) {
+            self.media = Some(media::Media::start());
+        }
+        let Some(media) = &mut self.media else {
+            return;
+        };
+        for request in requests {
+            media.request(request);
+        }
+        if let Some(levels) = media.frame() {
+            plugin_host::set_media(levels);
         }
     }
 

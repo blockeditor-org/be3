@@ -9,7 +9,8 @@ use beui::icons::{
     ICON_INPUT, ICON_LAYERS, ICON_LINK, ICON_LIST, ICON_LOCK, ICON_MAIL, ICON_MENU, ICON_MOUSE,
     ICON_NOTES, ICON_OPEN_IN_NEW, ICON_PALETTE, ICON_PLAY_ARROW, ICON_RADIO_BUTTON_CHECKED,
     ICON_SHARE, ICON_SMART_BUTTON, ICON_STAR, ICON_SWAP_VERT, ICON_TEXT_FIELDS, ICON_TITLE,
-    ICON_TOGGLE_ON, ICON_TOUCH_APP, ICON_TUNE, ICON_VIEW_COLUMN, ICON_VIEW_QUILT, ICON_WIDGETS,
+    ICON_TOGGLE_ON, ICON_TOUCH_APP, ICON_TUNE, ICON_VIEW_COLUMN, ICON_VIEW_QUILT, ICON_VOLUME_DOWN,
+    ICON_VOLUME_OFF, ICON_VOLUME_UP, ICON_WIDGETS,
 };
 use beui::reactive::{
     Action, Align, Callback, Canvas, CanvasItem, CanvasView, Child, Children, Chord, ClickCallback,
@@ -24,11 +25,11 @@ use beui::styled::{
     Accordion, ActionRow, Body, Bordered, Button, ButtonVariant, Calendar, Caption, Card, Checkbox,
     Chip, Code, ColorInput, ColorPicker, ColorWheel, CommandPalette, ContextMenu, DateTimeField,
     Dialog, Display, Docking, FocusRing, Fullscreen, Heading, Icon, IconButton, IconButtonSize,
-    IconSized, KeepChanges, Launcher, LauncherItem, Link, ListRow, Listbox, MenuButton, ModalSheet,
-    NumberInput, OklchColorWheel, Paragraph, Popover, Progress, RadioGroup, ResponsiveTabs, Scroll,
-    Select, SelectableText, Separator, Shortcut, Slider, Spinner, SplitButton, Stack, Switch, Tabs,
-    TextArea, TextInput, Theme, ThemeProvider, Title, Toast, ToastAction, Toasts, ToggleButton,
-    Tooltip, Tree, TreeRowFace, use_theme,
+    IconSized, KeepChanges, Launcher, LauncherItem, LevelOsd, Link, ListRow, Listbox, MenuButton,
+    ModalSheet, NumberInput, OklchColorWheel, OsdLevel, Paragraph, Popover, Progress, RadioGroup,
+    ResponsiveTabs, Scroll, Select, SelectableText, Separator, Shortcut, Slider, Spinner,
+    SplitButton, Stack, Switch, Tabs, TextArea, TextInput, Theme, ThemeProvider, Title, Toast,
+    ToastAction, Toasts, ToggleButton, Tooltip, Tree, TreeRowFace, use_theme,
 };
 use beui::unstyled::{
     ChoiceOption, Container, DateTimeParts, DockMode, DockPane, DockSplit, DockTab, DockingLayout,

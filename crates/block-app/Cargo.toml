@@ -60,7 +60,7 @@ beui = { path = "../beui", default-features = false, features = ["render"] }
 block-plugin-api = { path = "../block-plugin-api" }
 beui-plugin-input = { path = "../beui-plugin-input" }
 bytemuck = { version = "1.24.0", features = ["derive"] }
-futures-util = "0.3"
+futures-util = { version = "0.3", features = ["io"] }
 image = { version = "0.25", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "pnm", "tga", "tiff", "webp"] }
 reactive = { path = "../reactive" }
 serde = { version = "1", features = ["derive"] }
@@ -115,11 +115,15 @@ rfd = "0.15"
 [target.'cfg(target_os = "linux")'.dependencies]
 ashpd = { version = "0.11", default-features = false, features = ["async-std"] }
 async-executor = "1"
+async-io = "2"
 async-lock = "3"
 be-dmabuf = { path = "../be-dmabuf" }
 be-wayland = { path = "../be-wayland" }
 beui-adapter-drm = { path = "../beui-adapter-drm" }
 pollster = "0.4"
+# The PulseAudio protocol, which pipewire-pulse serves, in pure Rust: the volume
+# keys set the default sink's and source's volume and mute through it.
+pulseaudio = "0.3"
 zbus = { version = "5", default-features = false, features = ["async-io"] }
 
 [target.'cfg(all(unix, not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]
