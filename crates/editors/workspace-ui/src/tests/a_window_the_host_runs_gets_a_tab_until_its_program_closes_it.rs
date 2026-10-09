@@ -4,7 +4,9 @@ use super::*;
 fn a_window_the_host_runs_gets_a_tab_until_its_program_closes_it() {
     let (mut fixture, _) = editor();
 
-    fixture.host.set_host_value::<HostWindows>(&vec![window(7, "Terminal", None)]);
+    fixture
+        .host
+        .set_host_value::<HostWindows>(&vec![window(7, "Terminal", None)]);
     fixture.settle();
 
     assert_eq!(

@@ -26,7 +26,8 @@ fn host_window_messages_round_trip() {
     ] {
         host_action_round_trips(action);
     }
-    for message in [Message::Children(ChildPlacements {
+    {
+        let message = Message::Children(ChildPlacements {
             instance: EditorInstanceId(3),
             region: EditorRegion::Frame,
             generation: 2,
@@ -59,8 +60,7 @@ fn host_window_messages_round_trip() {
                 opacity: 1.0,
             }],
             occluders: Vec::new(),
-        }),
-    ] {
+        });
         assert_eq!(
             decode_frame(&encode_frame(&message).unwrap()).unwrap(),
             message

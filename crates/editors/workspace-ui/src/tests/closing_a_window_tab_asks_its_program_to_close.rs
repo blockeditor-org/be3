@@ -3,7 +3,9 @@ use super::*;
 #[test]
 fn closing_a_window_tab_asks_its_program_to_close() {
     let (mut fixture, _) = editor();
-    fixture.host.set_host_value::<HostWindows>(&vec![window(3, "Terminal", None)]);
+    fixture
+        .host
+        .set_host_value::<HostWindows>(&vec![window(3, "Terminal", None)]);
     fixture.settle();
 
     let tab = (1u64 << 41) + 3;

@@ -9,9 +9,9 @@ use std::{
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     ArtifactDescription, BlockPick, EditorInstanceId, EditorMessage, EditorRegion, FrameSpec,
-    HostAction, HostPanel, HostSession, HostValue, MAX_QUEUED_MESSAGES, Message, PluginManifest, PresentedFrame,
-    ScreenDamage, ScreenId, ScreenLayout, ScreenRequest, SessionState, SurfaceFormat, SurfaceSpec,
-    Theme, ViewChange, decode_host, encode_host,
+    HostAction, HostPanel, HostSession, HostValue, MAX_QUEUED_MESSAGES, Message, PluginManifest,
+    PresentedFrame, ScreenDamage, ScreenId, ScreenLayout, ScreenRequest, SessionState,
+    SurfaceFormat, SurfaceSpec, Theme, ViewChange, decode_host, encode_host,
 };
 use uuid::Uuid;
 
@@ -988,7 +988,7 @@ pub(crate) fn take_actions<A: HostAction>() -> Vec<A> {
     HOST.with(|host| {
         let mut host = host.borrow_mut();
         let mut runtimes: Vec<_> = host.runtimes.iter_mut().collect();
-        runtimes.sort_by(|(left, _), (right, _)| left.cmp(right));
+        runtimes.sort_by_key(|(left, _)| *left);
         runtimes
             .into_iter()
             .flat_map(|(_, runtime)| runtime.instances.take_host_actions(A::KEY))

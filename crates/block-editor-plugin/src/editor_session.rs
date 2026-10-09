@@ -2,9 +2,9 @@ use be_block::presence::{PresenceKind, UserActive, pick_free_color};
 use block_plugin_api::{
     ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildRect,
     ChildStatus, CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion,
-    FrameChrome, FrameReport, HostPanel, HostReply, ImeArea, InputEvent,
-    MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Message, Occluder, RegionSize, ScreenPlacement,
-    ScreenRequest, Size, ViewChange, ViewportMetrics, WebViewEvent, WebViewId,
+    FrameChrome, FrameReport, HostPanel, HostReply, ImeArea, InputEvent, MAX_CHILDREN,
+    MAX_COLLECTION_ITEMS, MenuEntry, Message, Occluder, RegionSize, ScreenPlacement, ScreenRequest,
+    Size, ViewChange, ViewportMetrics, WebViewEvent, WebViewId,
 };
 use block_ui::BlockCatalog;
 use geometry::{Rect, Vec2, pos2, vec2};
@@ -683,7 +683,10 @@ impl EditorSession {
             }));
         }
         for key in self.host.take_host_watches() {
-            messages.push(Message::Editor(EditorMessage::WatchHostValue { instance, key }));
+            messages.push(Message::Editor(EditorMessage::WatchHostValue {
+                instance,
+                key,
+            }));
         }
         if let Some(blocks) = self.host.take_history_watch() {
             messages.push(Message::Editor(EditorMessage::WatchHistory {

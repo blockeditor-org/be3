@@ -3,7 +3,9 @@ use super::*;
 #[test]
 fn a_window_the_host_makes_fullscreen_covers_the_workspace_until_it_leaves() {
     let (mut fixture, _) = editor();
-    fixture.host.set_host_value::<HostWindows>(&vec![window(3, "Player", None)]);
+    fixture
+        .host
+        .set_host_value::<HostWindows>(&vec![window(3, "Player", None)]);
     fixture.settle();
     let docked = placed_windows(&fixture)[0].1;
 
@@ -15,7 +17,9 @@ fn a_window_the_host_makes_fullscreen_covers_the_workspace_until_it_leaves() {
     };
     let mut fullscreen = window(3, "Player", None);
     fullscreen.fullscreen = Some(screen);
-    fixture.host.set_host_value::<HostWindows>(&vec![fullscreen]);
+    fixture
+        .host
+        .set_host_value::<HostWindows>(&vec![fullscreen]);
     fixture.settle();
     assert_eq!(
         placed_windows(&fixture),
@@ -37,7 +41,9 @@ fn a_window_the_host_makes_fullscreen_covers_the_workspace_until_it_leaves() {
         "a fullscreen the host asked for is not asked for back"
     );
 
-    fixture.host.set_host_value::<HostWindows>(&vec![window(3, "Player", None)]);
+    fixture
+        .host
+        .set_host_value::<HostWindows>(&vec![window(3, "Player", None)]);
     fixture.settle();
     assert_eq!(
         placed_windows(&fixture),

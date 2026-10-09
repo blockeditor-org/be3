@@ -119,12 +119,10 @@ fn next_screens(instances: &mut Instances) -> NextScreens {
 }
 
 mod a_block_is_named_after_its_content_until_someone_names_it;
-mod a_host_value_reaches_an_instance_watching_it_again_after_a_restart;
-mod a_shell_only_host_value_reaches_only_the_shell;
-mod host_actions_reach_the_host_only_from_the_shell;
 mod a_click_outside_a_frame_child_hands_the_frame_back;
 mod a_database_view_given_content_references_its_database;
 mod a_frame_takeover_keeps_the_last_painting_where_it_was;
+mod a_host_value_reaches_an_instance_watching_it_again_after_a_restart;
 mod a_key_intercepted_for_a_plugin_reaches_it_with_its_modifiers;
 mod a_message_waits_for_the_instance_it_names_to_be_opened;
 mod a_plugin_is_told_when_the_pointer_leaves_it;
@@ -132,6 +130,7 @@ mod a_plugin_reaches_only_the_hosts_its_manifest_names;
 mod a_plugin_seeds_only_blocks_it_holds;
 mod a_restarted_plugin_hears_its_childrens_statuses_again;
 mod a_restarted_plugin_is_sent_its_content_and_blocks_again;
+mod a_shell_only_host_value_reaches_only_the_shell;
 mod after_the_first_snapshot_an_editor_is_sent_operations;
 mod an_editor_can_read_and_edit_a_block_it_watches;
 mod an_editor_is_only_sent_messages_its_plugin_session_accepts;
@@ -142,5 +141,6 @@ mod an_instance_watching_a_blocks_history_is_told_when_it_changes;
 #[cfg(target_os = "linux")]
 #[cfg(target_os = "linux")]
 mod clearing_a_name_names_the_block_after_its_content_at_once;
+mod host_actions_reach_the_host_only_from_the_shell;
 mod input_is_withheld_from_screens_the_plugin_no_longer_has;
 mod the_view_a_screen_is_given_carries_the_scale_it_is_shown_at;

@@ -5,9 +5,9 @@ use block_plugin_api::{
     ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId, ChildMode,
     ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, CursorIcon, DataListing,
     EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick, FileSave, FrameReport,
-    FrameSpec, HostPanel, HostReply, HostRequest, Message, Occluder,
-    PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
-    ScreenSet, Size, ViewChange, WatchedContent, WebViewId,
+    FrameSpec, HostPanel, HostReply, HostRequest, Message, Occluder, PerformanceMeasurement,
+    RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenSet, Size,
+    ViewChange, WatchedContent, WebViewId,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -2956,9 +2956,11 @@ impl Instances {
     }
 
     pub(super) fn watches_host_value(&self, key: &str) -> bool {
-        self.entries
-            .iter()
-            .any(|(instance, entry)| entry.host_values.watches(key, self.shell == Some(*instance)))
+        self.entries.iter().any(|(instance, entry)| {
+            entry
+                .host_values
+                .watches(key, self.shell == Some(*instance))
+        })
     }
 
     pub(super) fn take_host_actions(&mut self, key: &str) -> Vec<Vec<u8>> {

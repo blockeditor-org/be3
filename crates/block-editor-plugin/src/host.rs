@@ -13,8 +13,8 @@ use block_plugin_api::{
     BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect,
     ChildStatus, ClipboardImage, DataListing, EditorRegion, FetchResult, FilePick, FileSave,
     HostAction, HostPanel, HostReply, HostRequest, HostValue, HostWindowId, MenuEntry, Occluder,
-    PerformanceMeasurement, ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent,
-    WebViewId, decode_host, encode_host,
+    PerformanceMeasurement, ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent, WebViewId,
+    decode_host, encode_host,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;

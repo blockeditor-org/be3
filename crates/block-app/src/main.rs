@@ -1617,7 +1617,10 @@ impl BlockApp {
             return;
         };
         compositor::set_shell(Some(shell));
-        if self.with_editor(shell, |editor| editor.claim_shell()).is_none() {
+        if self
+            .with_editor(shell, |editor| editor.claim_shell())
+            .is_none()
+        {
             return;
         }
         if Some(wayland::revision()) != self.windows_sent {

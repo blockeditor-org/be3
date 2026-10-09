@@ -4,8 +4,8 @@ use block_editor_beui::be_block::{
 };
 use block_editor_beui::beui::{Document, Key, KeyChord, Modifiers, NodeId, Rect};
 use block_editor_beui::{
-    BlockInfo, BlockParent, ChildContent, Editor, EditorHost, HostWindow, HostWindowId, HostWindows,
-    Media, MediaLevel, MediaLevels, MediaRequest, PlayerCommand, Power, PowerAction,
+    BlockInfo, BlockParent, ChildContent, Editor, EditorHost, HostWindow, HostWindowId,
+    HostWindows, Media, MediaLevel, MediaLevels, MediaRequest, PlayerCommand, Power, PowerAction,
     PowerAvailability, WindowAction,
 };
 use block_plugin_api::Size;

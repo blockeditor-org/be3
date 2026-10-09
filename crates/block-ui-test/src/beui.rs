@@ -601,9 +601,9 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn watches<T: block_plugin_api::HostValue>(&self) -> bool {
-        self.sent.iter().any(|message| {
-            matches!(message, EditorMessage::WatchHostValue { key, .. } if key == T::KEY)
-        })
+        self.sent.iter().any(
+            |message| matches!(message, EditorMessage::WatchHostValue { key, .. } if key == T::KEY),
+        )
     }
 
     pub fn reply(&mut self, request_id: u64, reply: HostReply) {

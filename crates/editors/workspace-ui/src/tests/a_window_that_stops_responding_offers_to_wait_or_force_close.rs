@@ -17,14 +17,18 @@ fn force_closed(fixture: &Fixture) -> bool {
 #[test]
 fn a_window_that_stops_responding_offers_to_wait_or_force_close() {
     let (mut fixture, _) = editor();
-    fixture.host.set_host_value::<HostWindows>(&vec![window(3, "Terminal", None)]);
+    fixture
+        .host
+        .set_host_value::<HostWindows>(&vec![window(3, "Terminal", None)]);
     fixture.settle();
     assert!(
         fixture.test.occluders().is_empty(),
         "a responding window is left alone"
     );
 
-    fixture.host.set_host_value::<HostWindows>(&vec![frozen(3, "Terminal")]);
+    fixture
+        .host
+        .set_host_value::<HostWindows>(&vec![frozen(3, "Terminal")]);
     fixture.settle();
     assert!(
         fixture.says("Terminal (not responding)"),
@@ -46,13 +50,17 @@ fn a_window_that_stops_responding_offers_to_wait_or_force_close() {
     );
     assert!(!force_closed(&fixture));
 
-    fixture.host.set_host_value::<HostWindows>(&vec![window(3, "Terminal", None)]);
+    fixture
+        .host
+        .set_host_value::<HostWindows>(&vec![window(3, "Terminal", None)]);
     fixture.settle();
     assert!(
         !fixture.says("Terminal (not responding)"),
         "an answer clears it"
     );
-    fixture.host.set_host_value::<HostWindows>(&vec![frozen(3, "Terminal")]);
+    fixture
+        .host
+        .set_host_value::<HostWindows>(&vec![frozen(3, "Terminal")]);
     fixture.settle();
     assert!(
         !fixture.test.occluders().is_empty(),

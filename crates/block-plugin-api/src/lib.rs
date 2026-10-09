@@ -2635,9 +2635,7 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             key, value: bytes, ..
         }
         | EditorMessage::HostAction {
-            key,
-            action: bytes,
-            ..
+            key, action: bytes, ..
         } => {
             string(key)?;
             blob(bytes)

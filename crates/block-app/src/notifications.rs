@@ -7,7 +7,9 @@ use std::sync::mpsc::Receiver;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use beui::styled::{Toast, ToastAction};
-use block_plugin_api::{HostNotification, HostNotificationAction, NotificationAction, Notifications as Listed};
+use block_plugin_api::{
+    HostNotification, HostNotificationAction, NotificationAction, Notifications as Listed,
+};
 use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 
 use center::{Center, CloseReason, DEFAULT_ACTION, Urgency};
