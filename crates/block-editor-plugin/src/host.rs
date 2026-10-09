@@ -12,10 +12,9 @@ use block_plugin_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand,
     BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect,
     ChildStatus, ClipboardImage, DataListing, EditorRegion, FetchResult, FilePick, FileSave,
-    HostDisplay, HostInputDevice, HostNotification, HostPanel, HostReply, HostRequest, HostWindow,
-    HostWindowId, LinuxMessage, MediaLevels, MediaRequest, MenuEntry, Occluder,
-    PerformanceMeasurement, PowerAction, PowerAvailability, ShellDialog, Size, ViewChange,
-    WebViewCommand, WebViewEvent, WebViewId,
+    HostAction, HostPanel, HostReply, HostRequest, HostValue, HostWindowId, MenuEntry, Occluder,
+    PerformanceMeasurement, ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent, WebViewId,
+    decode_host, encode_host,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;
@@ -357,16 +356,11 @@ pub enum Pushed {
     WebView,
     Shows,
     Version,
-    Windows,
-    InputDevices,
-    Displays,
-    Power,
-    Media,
-    Notifications,
+    HostValues,
 }
 
 impl Pushed {
-    pub const ALL: [Self; 16] = [
+    pub const ALL: [Self; 11] = [
         Self::Replies,
         Self::Peers,
         Self::Histories,
@@ -377,41 +371,23 @@ impl Pushed {
         Self::WebView,
         Self::Shows,
         Self::Version,
-        Self::Windows,
-        Self::InputDevices,
-        Self::Displays,
-        Self::Power,
-        Self::Media,
-        Self::Notifications,
+        Self::HostValues,
     ];
+}
+
+#[derive(Default)]
+struct HostValues {
+    values: HashMap<String, Vec<u8>>,
+    watched: HashSet<String>,
+    unreported: Vec<String>,
+    actions: Vec<(String, Vec<u8>)>,
 }
 
 #[derive(Clone, Default)]
 pub struct EditorHost {
     waker: Waker,
     shown_panels: Rc<RefCell<Vec<HostPanel>>>,
-    windows: Rc<RefCell<Vec<HostWindow>>>,
-    input_devices: Rc<RefCell<Vec<HostInputDevice>>>,
-    watching_input_devices: Rc<Cell<bool>>,
-    reported_input_device_watch: Rc<Cell<bool>>,
-    displays: Rc<RefCell<Vec<HostDisplay>>>,
-    watching_displays: Rc<Cell<bool>>,
-    reported_display_watch: Rc<Cell<bool>>,
-    power: Rc<Cell<PowerAvailability>>,
-    watching_power: Rc<Cell<bool>>,
-    reported_power_watch: Rc<Cell<bool>>,
-    power_requests: Rc<RefCell<Vec<PowerAction>>>,
-    media: Rc<Cell<MediaLevels>>,
-    watching_media: Rc<Cell<bool>>,
-    reported_media_watch: Rc<Cell<bool>>,
-    media_requests: Rc<RefCell<Vec<MediaRequest>>>,
-    notifications: Rc<RefCell<Vec<HostNotification>>>,
-    watching_notifications: Rc<Cell<bool>>,
-    reported_notification_watch: Rc<Cell<bool>>,
-    notification_requests: Rc<RefCell<Vec<LinuxMessage>>>,
-    closed_windows: Rc<RefCell<Vec<HostWindowId>>>,
-    fullscreen_windows: Rc<RefCell<Vec<(HostWindowId, bool)>>>,
-    focused_windows: Rc<RefCell<Vec<HostWindowId>>>,
+    host_values: Rc<RefCell<HostValues>>,
     pick_requests: Rc<RefCell<Vec<PickRequest>>>,
     dialog_requests: Rc<RefCell<Vec<(Uuid, ShellDialog)>>>,
     access_changes: Rc<RefCell<Vec<(Uuid, Uuid, AccessLevel)>>>,
@@ -594,189 +570,47 @@ impl EditorHost {
         self.push(Pushed::Shows);
     }
 
-    pub fn windows(&self) -> Vec<HostWindow> {
-        self.windows.borrow().clone()
+    pub fn host_value<T: HostValue>(&self) -> T::Value {
+        let mut values = self.host_values.borrow_mut();
+        if !values.watched.contains(T::KEY) {
+            values.watched.insert(T::KEY.to_owned());
+            values.unreported.push(T::KEY.to_owned());
+        }
+        values
+            .values
+            .get(T::KEY)
+            .and_then(|bytes| decode_host(bytes))
+            .unwrap_or_default()
     }
 
-    pub fn set_windows(&self, windows: Vec<HostWindow>) {
-        if *self.windows.borrow() == windows {
+    pub fn set_host_value<T: HostValue>(&self, value: &T::Value) {
+        self.receive_host_value(T::KEY.to_owned(), encode_host(value));
+    }
+
+    pub(crate) fn receive_host_value(&self, key: String, bytes: Vec<u8>) {
+        let mut values = self.host_values.borrow_mut();
+        if values.values.get(&key) == Some(&bytes) {
             return;
         }
-        *self.windows.borrow_mut() = windows;
-        self.push(Pushed::Windows);
+        values.values.insert(key, bytes);
+        drop(values);
+        self.push(Pushed::HostValues);
     }
 
-    pub fn input_devices(&self) -> Vec<HostInputDevice> {
-        self.watching_input_devices.set(true);
-        self.input_devices.borrow().clone()
+    pub(crate) fn take_host_watches(&self) -> Vec<String> {
+        std::mem::take(&mut self.host_values.borrow_mut().unreported)
     }
 
-    pub fn set_input_devices(&self, devices: Vec<HostInputDevice>) {
-        if *self.input_devices.borrow() == devices {
-            return;
-        }
-        *self.input_devices.borrow_mut() = devices;
-        self.push(Pushed::InputDevices);
-    }
-
-    pub fn displays(&self) -> Vec<HostDisplay> {
-        self.watching_displays.set(true);
-        self.displays.borrow().clone()
-    }
-
-    pub fn set_displays(&self, displays: Vec<HostDisplay>) {
-        if *self.displays.borrow() == displays {
-            return;
-        }
-        *self.displays.borrow_mut() = displays;
-        self.push(Pushed::Displays);
-    }
-
-    pub(crate) fn take_display_watch(&self) -> bool {
-        let wanted = self.watching_displays.get() && !self.reported_display_watch.get();
-        if wanted {
-            self.reported_display_watch.set(true);
-        }
-        wanted
-    }
-
-    pub fn power(&self) -> PowerAvailability {
-        self.watching_power.set(true);
-        self.power.get()
-    }
-
-    pub fn set_power(&self, power: PowerAvailability) {
-        if self.power.get() == power {
-            return;
-        }
-        self.power.set(power);
-        self.push(Pushed::Power);
-    }
-
-    pub(crate) fn take_power_watch(&self) -> bool {
-        let wanted = self.watching_power.get() && !self.reported_power_watch.get();
-        if wanted {
-            self.reported_power_watch.set(true);
-        }
-        wanted
-    }
-
-    pub fn request_power(&self, action: PowerAction) {
-        self.power_requests.borrow_mut().push(action);
-        self.changed();
-    }
-
-    pub(crate) fn take_power_requests(&self) -> Vec<PowerAction> {
-        std::mem::take(&mut self.power_requests.borrow_mut())
-    }
-
-    pub fn media(&self) -> MediaLevels {
-        self.watching_media.set(true);
-        self.media.get()
-    }
-
-    pub fn set_media(&self, media: MediaLevels) {
-        if self.media.get() == media {
-            return;
-        }
-        self.media.set(media);
-        self.push(Pushed::Media);
-    }
-
-    pub(crate) fn take_media_watch(&self) -> bool {
-        let wanted = self.watching_media.get() && !self.reported_media_watch.get();
-        if wanted {
-            self.reported_media_watch.set(true);
-        }
-        wanted
-    }
-
-    pub fn request_media(&self, request: MediaRequest) {
-        self.media_requests.borrow_mut().push(request);
-        self.changed();
-    }
-
-    pub(crate) fn take_media_requests(&self) -> Vec<MediaRequest> {
-        std::mem::take(&mut self.media_requests.borrow_mut())
-    }
-
-    pub fn notifications(&self) -> Vec<HostNotification> {
-        self.watching_notifications.set(true);
-        self.notifications.borrow().clone()
-    }
-
-    pub fn set_notifications(&self, notifications: Vec<HostNotification>) {
-        if *self.notifications.borrow() == notifications {
-            return;
-        }
-        *self.notifications.borrow_mut() = notifications;
-        self.push(Pushed::Notifications);
-    }
-
-    pub(crate) fn take_notification_watch(&self) -> bool {
-        let wanted = self.watching_notifications.get() && !self.reported_notification_watch.get();
-        if wanted {
-            self.reported_notification_watch.set(true);
-        }
-        wanted
-    }
-
-    pub fn invoke_notification(&self, id: u32, action: String) {
-        self.notification_requests
+    pub fn act<A: HostAction>(&self, action: A) {
+        self.host_values
             .borrow_mut()
-            .push(LinuxMessage::InvokeNotification { id, action });
+            .actions
+            .push((A::KEY.to_owned(), encode_host(&action)));
         self.changed();
     }
 
-    pub fn dismiss_notifications(&self, ids: Vec<u32>) {
-        if ids.is_empty() {
-            return;
-        }
-        self.notification_requests
-            .borrow_mut()
-            .push(LinuxMessage::DismissNotifications(ids));
-        self.changed();
-    }
-
-    pub(crate) fn take_notification_requests(&self) -> Vec<LinuxMessage> {
-        std::mem::take(&mut self.notification_requests.borrow_mut())
-    }
-
-    pub(crate) fn take_input_device_watch(&self) -> bool {
-        let wanted = self.watching_input_devices.get() && !self.reported_input_device_watch.get();
-        if wanted {
-            self.reported_input_device_watch.set(true);
-        }
-        wanted
-    }
-
-    pub fn close_window(&self, window: HostWindowId) {
-        self.closed_windows.borrow_mut().push(window);
-        self.changed();
-    }
-
-    pub(crate) fn take_closed_windows(&self) -> Vec<HostWindowId> {
-        std::mem::take(&mut self.closed_windows.borrow_mut())
-    }
-
-    pub fn fullscreen_window(&self, window: HostWindowId, fullscreen: bool) {
-        self.fullscreen_windows
-            .borrow_mut()
-            .push((window, fullscreen));
-        self.changed();
-    }
-
-    pub(crate) fn take_fullscreen_windows(&self) -> Vec<(HostWindowId, bool)> {
-        std::mem::take(&mut self.fullscreen_windows.borrow_mut())
-    }
-
-    pub fn focus_window(&self, window: HostWindowId) {
-        self.focused_windows.borrow_mut().push(window);
-        self.changed();
-    }
-
-    pub(crate) fn take_focused_windows(&self) -> Vec<HostWindowId> {
-        std::mem::take(&mut self.focused_windows.borrow_mut())
+    pub(crate) fn take_host_actions(&self) -> Vec<(String, Vec<u8>)> {
+        std::mem::take(&mut self.host_values.borrow_mut().actions)
     }
 
     pub fn show_block(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>) {

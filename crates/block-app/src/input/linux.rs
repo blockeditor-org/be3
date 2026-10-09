@@ -15,7 +15,9 @@ pub(crate) fn start(setup: &beui::Setup) {
     let control = setup.get::<InputControl>().cloned();
     if let Some(control) = &control {
         control.on_devices(|devices| {
-            crate::plugin_host::set_input_devices(devices.iter().map(host_device).collect());
+            crate::plugin_host::publish::<block_plugin_api::InputDevices>(
+                &devices.iter().map(host_device).collect(),
+            );
         });
     }
     CONTROL.with(|slot| *slot.borrow_mut() = control);

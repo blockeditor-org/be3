@@ -19,7 +19,7 @@ use block_editor_beui::beui::{NodeId, Rect, pos2, vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
     AccessLevel, BlockFilter, BlockPick, ChildState, Editor, EditorHost, FocusedBlock, HostPanel,
-    HostWindow, HostWindowId, PickedBlock, Pushed, ShellDialog,
+    HostWindow, HostWindowId, HostWindows, PickedBlock, Pushed, ShellDialog, WindowAction,
 };
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
@@ -105,7 +105,7 @@ impl Workspace {
         let (dialog, set_dialog) = create_signal(None);
         let (share, set_share) = create_signal(None);
         let (panels, set_panels) = create_signal(Vec::new());
-        let windows = editor.windows();
+        let windows = editor.host_value::<HostWindows>();
         let workspace = Rc::new(Self {
             editor,
             with_files,
@@ -734,7 +734,7 @@ impl Workspace {
 
     fn close(&self, tab: TabId) {
         if let Some(window) = tab_window(tab) {
-            self.host().close_window(window);
+            self.host().act(WindowAction::Close(window));
             return;
         }
         if let Some(panel) = tab_panel(tab) {

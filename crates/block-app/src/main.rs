@@ -349,7 +349,7 @@ struct BlockApp {
     choosing_profile: bool,
     every_profile_type: bool,
     shell: Option<Uuid>,
-    windows_sent: Option<(Uuid, u64)>,
+    windows_sent: Option<u64>,
     forwarded_picks: HashMap<u64, (PickSource, u64)>,
     next_pick: u64,
     focus_reports: HashMap<Uuid, editors::FocusReport>,
@@ -606,10 +606,7 @@ impl BlockApp {
         if self.notifications.is_none() {
             return;
         }
-        let asked = self
-            .shell
-            .and_then(|shell| self.with_editor(shell, |editor| editor.take_notification_requests()))
-            .unwrap_or_default();
+        let asked = plugin_host::take_actions::<block_plugin_api::NotificationAction>();
         if let Some(notifications) = &mut self.notifications {
             notifications.frame(asked);
         }
@@ -656,11 +653,12 @@ impl BlockApp {
 
     #[cfg(target_os = "linux")]
     fn take_power_request(&mut self) {
-        let request = self
-            .shell
-            .and_then(|shell| self.with_editor(shell, |editor| editor.take_power_request()))
-            .flatten();
-        if let Some(action) = request {
+        let request = plugin_host::take_actions::<block_plugin_api::PowerAction>().pop();
+        if let Some(action) = request
+            && self
+                .published_power
+                .is_some_and(|power| power.allows(action))
+        {
             self.request_power(action, session::Trigger::Menu);
         }
         self.run_media();
@@ -709,7 +707,7 @@ impl BlockApp {
         availability.lock = !locked;
         if self.published_power != Some(availability) {
             self.published_power = Some(availability);
-            plugin_host::set_power(availability);
+            plugin_host::publish::<block_plugin_api::Power>(&availability);
         }
     }
 
@@ -743,11 +741,10 @@ impl BlockApp {
 
     #[cfg(target_os = "linux")]
     fn run_media(&mut self) {
-        let requests = self
-            .shell
-            .and_then(|shell| self.with_editor(shell, |editor| editor.take_media_requests()))
-            .unwrap_or_default();
-        if self.media.is_none() && (!requests.is_empty() || plugin_host::watches_media()) {
+        let requests = plugin_host::take_actions::<block_plugin_api::MediaRequest>();
+        if self.media.is_none()
+            && (!requests.is_empty() || plugin_host::watched::<block_plugin_api::Media>())
+        {
             self.media = Some(media::Media::start());
         }
         let Some(media) = &mut self.media else {
@@ -757,7 +754,7 @@ impl BlockApp {
             media.request(request);
         }
         if let Some(levels) = media.frame() {
-            plugin_host::set_media(levels);
+            plugin_host::publish::<block_plugin_api::Media>(&levels);
         }
     }
 
@@ -1533,7 +1530,6 @@ impl BlockApp {
                 eprintln!("the shell editor does not accept {missing:?} requests");
             }
             self.editors.with(|open| open.insert(id, editor));
-            self.windows_sent = None;
         }
         self.shell = Some(id);
         Some(id)
@@ -1621,30 +1617,24 @@ impl BlockApp {
             return;
         };
         compositor::set_shell(Some(shell));
-        let windows = (Some((shell, wayland::revision())) != self.windows_sent).then(|| {
-            self.windows_sent = Some((shell, wayland::revision()));
-            wayland::listed()
-        });
-        let Some((closed, fullscreen, focused)) = self.with_editor(shell, |editor| {
-            if let Some(windows) = windows {
-                editor.set_windows(windows);
-            }
-            (
-                editor.take_closed_windows(),
-                editor.take_fullscreen_windows(),
-                editor.take_focused_windows(),
-            )
-        }) else {
+        if self
+            .with_editor(shell, |editor| editor.claim_shell())
+            .is_none()
+        {
             return;
-        };
-        for window in focused {
-            wayland::focus(window);
         }
-        for window in closed {
-            wayland::close(window);
+        if Some(wayland::revision()) != self.windows_sent {
+            self.windows_sent = Some(wayland::revision());
+            plugin_host::publish::<block_plugin_api::HostWindows>(&wayland::listed());
         }
-        for (window, on) in fullscreen {
-            wayland::fullscreen(window, on);
+        for action in plugin_host::take_actions::<block_plugin_api::WindowAction>() {
+            match action {
+                block_plugin_api::WindowAction::Focus(window) => wayland::focus(window),
+                block_plugin_api::WindowAction::Close(window) => wayland::close(window),
+                block_plugin_api::WindowAction::Fullscreen { window, fullscreen } => {
+                    wayland::fullscreen(window, fullscreen);
+                }
+            }
         }
         let reports: Vec<(Uuid, Option<editors::FocusReport>, Option<Vec<Uuid>>)> =
             self.editors.with(|open| {
