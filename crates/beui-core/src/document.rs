@@ -494,9 +494,9 @@ impl Document {
     }
 
     pub fn screen_named(&self, id: &str) -> Option<Screen> {
-        self.screens.0.with_untracked(|screens| {
-            screens.iter().find(|screen| screen.id == id).cloned()
-        })
+        self.screens
+            .0
+            .with_untracked(|screens| screens.iter().find(|screen| screen.id == id).cloned())
     }
 
     pub fn watch_focus_visible(&self) -> ::reactive::ReadSignal<bool> {
@@ -1085,10 +1085,7 @@ impl Document {
             .offered_screens
             .take()
             .unwrap_or_else(|| vec![Screen::window(rect)]);
-        let rescreened = self
-            .screens
-            .0
-            .with_untracked(|shown| *shown != screens);
+        let rescreened = self.screens.0.with_untracked(|shown| *shown != screens);
         if rescreened {
             self.arena.invalidate();
             *self.rescreened.borrow_mut() = Some(screens);

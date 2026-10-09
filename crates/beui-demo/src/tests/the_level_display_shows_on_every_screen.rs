@@ -1,7 +1,7 @@
-use beui::{Rect, Screen};
 use beui::icons::ICON_VOLUME_OFF;
 use beui::reactive::{Frame, build, view};
 use beui::styled::{LevelOsd, OsdLevel, use_theme};
+use beui::{Rect, Screen};
 
 use super::*;
 

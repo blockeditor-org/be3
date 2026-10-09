@@ -9,8 +9,8 @@ use crate::text_input::TextInput;
 use crate::theme::use_theme;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::geometry::Rect;
-use beui_core::screens::bounds;
 use beui_core::node::NodeId;
+use beui_core::screens::bounds;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Align, Callback, Direction, ForEach, Frame, IntoChild, Layer, Layers, List, Memo, Prop, Show,
@@ -74,45 +74,45 @@ pub fn LockScreen(
             locks=true
         >
             <Frame width={width} height={height}>
-            <Layers>
-                <ForEach keys={places}>
-                    {move |index: usize| {
-                        let place = create_memo(clone!(screens bounds -> move || {
-                            let origin = bounds.get().min.to_vec2();
-                            screens.with(|screens| {
-                                screens
-                                    .get(index)
-                                    .map_or(Rect::ZERO, |screen| screen.rect.translate(-origin))
-                            })
-                        }));
-                        let focused = create_memo(clone!(open busy -> move || {
-                            index == 0 && open.get() && !busy.get()
-                        }));
-                        let submit = submit.clone();
-                        let action = on_action.clone();
-                        let changed = set_password.clone();
-                        let card = view! {
-                            <LockCard
-                                place={place}
-                                time={time.clone()}
-                                date={date.clone()}
-                                user={user.clone()}
-                                error={error.clone()}
-                                busy={busy.clone()}
-                                actions={actions.clone()}
-                                password={password.clone()}
-                                focused={focused}
-                                id={format!("{}.{index}", id)}
-                                on_change={move |typed: String| changed.set(typed)}
-                                on_submit={move |typed: String| submit(typed)}
-                                on_action={move |chosen: usize| action.call(chosen)}
-                            />
-                        };
-                        let layer: Layer = card.into_child();
-                        layer
-                    }}
-                </ForEach>
-            </Layers>
+                <Layers>
+                    <ForEach keys={places}>
+                        {move |index: usize| {
+                            let place = create_memo(clone!(screens bounds -> move || {
+                                let origin = bounds.get().min.to_vec2();
+                                screens.with(|screens| {
+                                    screens
+                                        .get(index)
+                                        .map_or(Rect::ZERO, |screen| screen.rect.translate(-origin))
+                                })
+                            }));
+                            let focused = create_memo(clone!(open busy -> move || {
+                                index == 0 && open.get() && !busy.get()
+                            }));
+                            let submit = submit.clone();
+                            let action = on_action.clone();
+                            let changed = set_password.clone();
+                            let card = view! {
+                                <LockCard
+                                    place={place}
+                                    time={time.clone()}
+                                    date={date.clone()}
+                                    user={user.clone()}
+                                    error={error.clone()}
+                                    busy={busy.clone()}
+                                    actions={actions.clone()}
+                                    password={password.clone()}
+                                    focused={focused}
+                                    id={format!("{}.{index}", id)}
+                                    on_change={move |typed: String| changed.set(typed)}
+                                    on_submit={move |typed: String| submit(typed)}
+                                    on_action={move |chosen: usize| action.call(chosen)}
+                                />
+                            };
+                            let layer: Layer = card.into_child();
+                            layer
+                        }}
+                    </ForEach>
+                </Layers>
             </Frame>
         </Overlay>
     }

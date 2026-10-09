@@ -11,8 +11,8 @@ use beui_core::app::{App, SafeArea, Setup, Waker};
 use beui_core::context::{Context, FrameOutput};
 use beui_core::geometry::Rect;
 use beui_core::renderer::Loaded;
-use beui_core::screens::Screen;
 use beui_core::runner::{Adapter, Launch, RunOptions, Runner, Running};
+use beui_core::screens::Screen;
 use block_editor_plugin::{EditorHost, Frame, InputEvent, Region};
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect};

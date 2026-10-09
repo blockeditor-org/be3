@@ -27,7 +27,10 @@ fn a_dialog_opens_on_the_screen_it_was_asked_for_from() {
                         width=320.0
                         on_dismiss={move || closing.set(false)}
                     >
-                        <Paragraph content="Shown on the screen it was asked for from." @test_id={"test.body"} />
+                        <Paragraph
+                            content="Shown on the screen it was asked for from."
+                            @test_id={"test.body"}
+                        />
                     </Dialog>
                 </List>
             </Frame>

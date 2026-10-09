@@ -1,6 +1,6 @@
-use beui::{Rect, Screen};
 use beui::reactive::{Frame, build, view};
 use beui::styled::{KeepChanges, use_theme};
+use beui::{Rect, Screen};
 
 use super::*;
 

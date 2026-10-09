@@ -1,7 +1,7 @@
-use beui::{Rect, Screen};
 use beui::icons::ICON_BEDTIME;
 use beui::reactive::{Frame, build, view};
 use beui::styled::{LockAction, LockScreen, use_theme};
+use beui::{Rect, Screen};
 
 use super::*;
 

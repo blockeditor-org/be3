@@ -52,9 +52,9 @@ pub fn at(screens: &[Screen], pos: Pos2) -> Option<&Screen> {
         .iter()
         .find(|screen| screen.rect.contains(pos))
         .or_else(|| {
-            screens.iter().min_by(|a, b| {
-                distance(a.rect, pos).total_cmp(&distance(b.rect, pos))
-            })
+            screens
+                .iter()
+                .min_by(|a, b| distance(a.rect, pos).total_cmp(&distance(b.rect, pos)))
         })
 }
 

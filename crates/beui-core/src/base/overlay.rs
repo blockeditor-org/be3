@@ -118,7 +118,9 @@ impl OverlayNode {
         let screen = match (self.placement, &self.anchor) {
             (Placement::Fill | Placement::At | Placement::Around, _) => None,
             (Placement::Center | Placement::FillScreen, _) => opened(),
-            (_, OverlayAnchor::Node(_)) => anchored.map_or_else(opened, |rect| doc.screen_under(rect)),
+            (_, OverlayAnchor::Node(_)) => {
+                anchored.map_or_else(opened, |rect| doc.screen_under(rect))
+            }
             (_, OverlayAnchor::Point(pos)) => doc.screen_at(*pos),
         };
         screen.map_or(viewport, |screen| screen.rect)

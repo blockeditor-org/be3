@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use beui::{
-    Color32, CursorIcon, FrameOutput, GpuSetup, Pos2, Rect, RendererInfo, Repainting, Screen, Setup,
-    Vec2, vec2,
+    Color32, CursorIcon, FrameOutput, GpuSetup, Pos2, Rect, RendererInfo, Repainting, Screen,
+    Setup, Vec2, vec2,
 };
 use beui_core::renderer::Renderer;
 
