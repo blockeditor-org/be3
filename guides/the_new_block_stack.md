@@ -317,9 +317,62 @@ merge is a line diff3. The text block is `Document<TextBlock>`, its body a
 Anything else that is `Serialize + DeserializeOwned + Clone + PartialEq +
 Default` is a register: it is set as a whole, and setting it on both sides of an
 offline merge is a conflict. `Root` names the content type and, optionally, the
-block's name and the blocks it references. Fields are stored by position, so a
-new field goes at the end of its struct: `Document::from_bytes` fills in the
-fields an older document lacks.
+block's name and the blocks it references.
+
+### The stored form
+
+`Document::to_bytes` writes CBOR (`ciborium`) that names everything and holds
+nothing a live session needs: no positions, tombstones or op history. It is
+`{"format": N, "root": object}`, and an object is a map of its properties by
+field name plus `$kind` (the struct's kind: `#[model(kind = "canvas.entity")]`,
+or its name in snake case) and, for an object in a `List`, `$id` (its `ObjectId`
+as a UUID, tag 37, so offline merges match objects across commits; a repeated id
+is given a fresh one on load). A register is its serde form in CBOR (structs as
+maps by field name, enum variants by name), a `Text` is bytes (any bytes, not
+only UTF-8), a `List` is an array of objects, and a `Map` an array of
+`[key, value]` pairs. The same CBOR is what registers hold in memory and what
+`set` sends, so a value read back is byte-for-byte what was saved.
+
+The format is meant to change without migrations:
+
+- **Adding is free.** A new field, a new field inside a register's struct, a
+  new enum variant or a new kind needs nothing: a missing property reads as its
+  default. Give every struct a register holds `#[serde(default)]` (and every
+  field of an enum's struct variant `#[serde(default)]`), or a document saved
+  before a field was added loses the whole register;
+  `Kind::registers_accept_missing_fields` lists the ones that would.
+- **Unknown data is kept.** Properties a build does not know are kept on their
+  object (`Object::kept`), merged key by key, and written back, so an older
+  build never drops what a newer one wrote. A register whose bytes this build
+  cannot decode reads as its default but keeps its bytes until it is set.
+- **Renames.** `#[model(rename = "...")]` keeps a field's stored name when the
+  Rust name changes, `#[model(alias = "old")]` reads an old name as well, and
+  `#[model(from_old("old", convert))]` reads an old name through
+  `fn convert(Old) -> New`, for a field whose meaning changed. Old names are
+  read, never written.
+- **Critical fields.** `#[critical]` on a field means an older build must not
+  edit an object it cannot read fully. A critical field set to something other
+  than its default is saved inside tag `CRITICAL`; a build that does not know
+  the field locks that object (`Document::is_locked`): its fields, and lists,
+  refuse edits, though it can still be moved or removed whole. Everything else
+  in the document stays editable.
+- **Reshapes.** A change that moves data between objects bumps the root's
+  `#[model(format = N, migrate = path)]`; `migrate(old_format, &mut root)`
+  rewrites the stored root before it is read. A build refuses a format newer
+  than its own.
+- **Block references.** A block id stored as `BlockRef` (or a `Uuid` field
+  with `#[serde(with = "be_model::references::block_ref")]`, `::option` for an
+  `Option`) is saved under tag `BLOCK_REF`, and `Document::block_refs` finds
+  every one, including those inside properties this build does not know. The
+  content's references are those plus `Root::references`.
+
+Freezing a version: `be_model::schema::freeze(&document)` returns Rust source
+holding the type's registry (`Kind::describe`: every kind, property, shape,
+register default and old name) and the document's bytes. Keep it as a module
+of the block's tests, and test it with `schema::check_frozen::<Root>(REGISTRY,
+DOCUMENT)`, which fails when a frozen property is gone or retyped, a register
+default changed, the document no longer loads, or anything in it is no longer
+understood.
 
 `be-model` stores a document as a table of objects with ids, not as a tree of
 values, and every algorithm is written once against that table:
