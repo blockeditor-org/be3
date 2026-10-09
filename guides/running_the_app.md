@@ -108,8 +108,11 @@ prints its address; `notify-send` is in the `libnotify-bin` package), and run th
 every client with `DBUS_SESSION_BUS_ADDRESS` set to it:
 
     DBUS_SESSION_BUS_ADDRESS=ADDRESS ./scripts/buck run //crates/block-app:dev -- --desktop
-    DBUS_SESSION_BUS_ADDRESS=ADDRESS notify-send --action=default=Open --action=reply=Reply Mail 'Lunch at noon?'
     DBUS_SESSION_BUS_ADDRESS=ADDRESS gdbus monitor --session -d org.freedesktop.Notifications
+    DBUS_SESSION_BUS_ADDRESS=ADDRESS notify-send --action=default=Open --action=reply=Reply Mail 'Lunch at noon?'
+
+Start the monitor (in the background, or another shell) before `notify-send`, so it sees the
+signals.
 
 `notify-send` with an action waits, and prints the action taken, until the notification
 closes. `dbus-run-session` does not suit `:dev`, since its bus goes away when the launcher

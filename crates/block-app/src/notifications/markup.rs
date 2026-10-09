@@ -9,7 +9,8 @@ pub(crate) fn plain(markup: &str) -> String {
                 .chars()
                 .next()
                 .is_some_and(|c| c.is_ascii_alphabetic() || c == '/');
-            match rest.find('>').filter(|_| opens) {
+            let end = rest[1..].find(['<', '>']).map(|end| end + 1);
+            match end.filter(|end| opens && rest[*end..].starts_with('>')) {
                 Some(end) => {
                     out.push_str(&tag_text(&rest[1..end]));
                     rest = &rest[end + 1..];
@@ -62,7 +63,7 @@ fn attribute(tag: &str, name: &str) -> Option<String> {
 }
 
 fn entity(text: &str) -> Option<(char, usize)> {
-    let end = text.find(';').filter(|end| *end <= 10)?;
+    let end = text.bytes().take(11).position(|byte| byte == b';')?;
     let name = &text[1..end];
     let decoded = match name {
         "amp" => '&',

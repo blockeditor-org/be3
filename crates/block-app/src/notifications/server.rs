@@ -21,6 +21,7 @@ const MAX_NAME: usize = 256;
 const MAX_SUMMARY: usize = 1024;
 const MAX_BODY: usize = 8 * 1024;
 const MAX_ACTIONS: usize = 8;
+const MARKUP_BOUND: usize = 4 * MAX_BODY;
 const CAPABILITIES: [&str; 5] = [
     "actions",
     "body",
@@ -119,7 +120,7 @@ impl Server {
             app_name: markup::clip(&app_name, MAX_NAME),
             replaces_id,
             summary: markup::clip(summary, MAX_SUMMARY),
-            body: markup::clip(&markup::plain(body), MAX_BODY),
+            body: markup::clip(&markup::plain(&markup::clip(body, MARKUP_BOUND)), MAX_BODY),
             actions: actions
                 .as_chunks::<2>()
                 .0
@@ -213,9 +214,16 @@ pub(crate) async fn run(requests: WakingSender<Request>, mut signals: UnboundedR
         requests,
         looks: OnceLock::new(),
     };
-    if let Err(error) = connection.object_server().at(PATH, server).await {
-        eprintln!("block-app: notifications cannot be served: {error}");
-        return;
+    match connection.object_server().at(PATH, server).await {
+        Ok(true) => {}
+        Ok(false) => {
+            eprintln!("block-app: notifications are already served on this connection");
+            return;
+        }
+        Err(error) => {
+            eprintln!("block-app: notifications cannot be served: {error}");
+            return;
+        }
     }
     match connection
         .request_name_with_flags(NAME, RequestNameFlags::DoNotQueue.into())
@@ -251,4 +259,6 @@ pub(crate) async fn run(requests: WakingSender<Request>, mut signals: UnboundedR
             eprintln!("block-app: a notification signal was not sent: {error}");
         }
     }
+    let _ = connection.object_server().remove::<Server, _>(PATH).await;
+    let _ = connection.release_name(NAME).await;
 }
