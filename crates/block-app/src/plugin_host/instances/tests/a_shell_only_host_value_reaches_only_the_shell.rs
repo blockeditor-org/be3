@@ -1,6 +1,6 @@
 use super::*;
 
-use block_plugin_api::{HostWindow, HostWindowId, HostWindows, Size};
+use block_plugin_api::{HostValue, HostWindow, HostWindowId, HostWindows, Size};
 
 #[test]
 fn a_shell_only_host_value_reaches_only_the_shell() {

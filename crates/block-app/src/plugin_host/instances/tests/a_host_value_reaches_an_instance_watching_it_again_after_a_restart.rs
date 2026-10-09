@@ -1,6 +1,6 @@
 use super::*;
 
-use block_plugin_api::{Displays, HostDisplay, HostDisplayMode};
+use block_plugin_api::{Displays, HostDisplay, HostDisplayMode, HostValue};
 
 fn monitor(width: u32) -> HostDisplay {
     let mode = HostDisplayMode {
