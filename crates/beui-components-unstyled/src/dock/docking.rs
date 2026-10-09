@@ -8,6 +8,7 @@ use std::rc::Rc;
 
 use beui_core::base::Direction;
 use beui_core::geometry::Rect;
+use beui_core::input::Modifiers;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::reactive::{
@@ -602,6 +603,7 @@ pub fn Docking<K>(
     #[prop(default = DockMode::Tiled)] mode: Prop<DockMode>,
     #[prop(default = None)] home: Prop<Option<K>>,
     #[prop(default = None)] focus: Prop<Option<K>>,
+    #[prop(default = None)] drag_modifier: Prop<Option<Modifiers>>,
     #[prop(default = MenuStyle::default())] menu: MenuStyle,
     #[prop(default = SPLITTER_THICKNESS)] splitter_thickness: f32,
     #[prop(default = 0.0)] group_inset: f32,
@@ -725,6 +727,7 @@ where
                 menu,
                 mode,
                 home: home.into_prop(),
+                drag_modifier,
                 splitter_thickness,
                 group_inset,
                 inset,

@@ -81,9 +81,16 @@ pub struct Frame {
     pub content: Option<Rect>,
     pub painted: Vec<Rect>,
     pub floating: Vec<Rect>,
+    pub claims: Vec<Claim>,
     pub ime: Option<Ime>,
     pub handles_back: bool,
     pub intercepted_keys: Vec<KeyChord>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Claim {
+    pub modifiers: block_plugin_api::Modifiers,
+    pub rect: Rect,
 }
 
 #[derive(Clone, Debug, PartialEq)]

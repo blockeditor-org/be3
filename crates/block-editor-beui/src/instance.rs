@@ -46,6 +46,7 @@ struct Shown {
     content: Option<beui::Rect>,
     painted: Vec<beui::Rect>,
     floating: Vec<beui::Rect>,
+    claims: Vec<(beui::Modifiers, beui::Rect)>,
     exit: bool,
 }
 
@@ -205,6 +206,7 @@ impl<A: BeuiApp> Views<A> {
         shown.exit = chrome.exit().get() || beui_frame::escaped(context);
         shown.painted = vec![rect];
         shown.floating = chrome.document().overlay_rects();
+        shown.claims = chrome.document().press_claims();
     }
 
     fn build_chrome(&mut self) {
@@ -442,6 +444,19 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         frame.content = shown.content.map(to_region);
         frame.painted = shown.painted.into_iter().map(to_region).collect();
         frame.floating = shown.floating.into_iter().map(to_region).collect();
+        frame.claims = shown
+            .claims
+            .into_iter()
+            .map(|(held, rect)| block_editor_plugin::Claim {
+                modifiers: block_plugin_api::Modifiers {
+                    alt: held.alt,
+                    control: held.ctrl,
+                    shift: held.shift,
+                    logo: held.logo,
+                },
+                rect: to_region(rect),
+            })
+            .collect();
         let locked = self.surfaces.values().any(PluginSurface::pointer_locked);
         self.host.grab_cursor(locked);
         if self.zones_pending() {

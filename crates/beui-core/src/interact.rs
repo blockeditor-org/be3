@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use crate::base::list::Direction;
 use crate::context::Context;
 use crate::geometry::{Pos2, Rect, Vec2, vec2};
-use crate::input::{BackGesture, Event, ImeEvent, Key, KeyPress};
+use crate::input::{BackGesture, Event, ImeEvent, Key, KeyPress, Modifiers, PointerButton};
 use crate::painter::Painter;
 
 use crate::document::{Document, GlobalKeyPress};
@@ -127,7 +127,17 @@ pub fn interact(
             catches_drag(element, Direction::Horizontal)
         });
     }
-    if input.pressed_this_frame
+    doc.claimed_now.clear();
+    let mouse = !input.touch_started && !input.touch_active;
+    let claimed = (input.pressed_this_frame && mouse)
+        .then_some(input.pointer_pos)
+        .flatten()
+        .and_then(|pos| claimant(doc, rects, root, pos, input.modifiers));
+    if let Some(claimant) = claimed {
+        doc.capture_pointer(claimant);
+        doc.press_claim = Some(claimant);
+        claim_press(doc, claimant, PointerButton::Primary);
+    } else if input.pressed_this_frame
         && let Some(pos) = input.pointer_pos
         && let Some(captor) = doc
             .pointer_layers(root)
@@ -135,6 +145,14 @@ pub fn interact(
             .find_map(|layer| captor(doc, rects, layer, pos))
     {
         doc.capture_pointer(captor);
+    }
+    if input.secondary_pressed_this_frame
+        && mouse
+        && let Some(pos) = input.pointer_pos
+        && let Some(claimant) = claimant(doc, rects, root, pos, input.modifiers)
+    {
+        doc.secondary_claim = Some(claimant);
+        claim_press(doc, claimant, PointerButton::Secondary);
     }
     let wheel = match input.scroll {
         Vec2::ZERO => input.scroll_fling,
@@ -192,15 +210,7 @@ pub fn interact(
         .is_some_and(|pos| doc.floating_covers(pos));
     let under = match covered {
         false => input,
-        true => InteractInput {
-            pointer_pos: None,
-            press_pos: None,
-            secondary_drag: None,
-            zoom_pos: None,
-            wheel_target: None,
-            zoom_target: None,
-            ..input
-        },
+        true => hidden_pointer(input),
     };
     let engaged_before = doc.engaged.clone();
     let reach = Reach::new(doc, rects, &input);
@@ -265,15 +275,7 @@ pub fn interact(
     for (content, shadowed) in floating.into_iter().zip(shadowed) {
         let above = match shadowed || modal {
             false => input,
-            true => InteractInput {
-                pointer_pos: None,
-                press_pos: None,
-                secondary_drag: None,
-                zoom_pos: None,
-                wheel_target: None,
-                zoom_target: None,
-                ..input
-            },
+            true => hidden_pointer(input),
         };
         interact_node(
             doc,
@@ -424,7 +426,88 @@ pub fn interact(
     }
     if !input.pointer_down {
         doc.pointer_capture = None;
+        doc.press_claim = None;
     }
+    if input
+        .secondary_drag
+        .is_none_or(|drag| drag.ended || drag.cancelled)
+    {
+        doc.secondary_claim = None;
+    }
+}
+
+fn hidden_pointer(input: InteractInput) -> InteractInput {
+    InteractInput {
+        pointer_pos: None,
+        press_pos: None,
+        secondary_drag: input.secondary_drag.filter(|drag| !drag.started),
+        zoom_pos: None,
+        wheel_target: None,
+        zoom_target: None,
+        ..input
+    }
+}
+
+fn claim_press(doc: &mut Document, claimant: NodeId, button: PointerButton) {
+    doc.claimed_now.push(button);
+    match forward::wants_forward(doc.arena.get(claimant)) {
+        true => doc.forward.claim_press(claimant),
+        false => doc.forward.swallow_press(),
+    }
+}
+
+fn claimant(
+    doc: &Document,
+    rects: &Rects,
+    root: NodeId,
+    pos: Pos2,
+    held: Modifiers,
+) -> Option<NodeId> {
+    if !held.any() {
+        return None;
+    }
+    let modal = !doc.overlay_stack.is_empty();
+    for layer in doc.pointer_layers(root) {
+        if let Some(found) = claiming(doc, rects, layer, pos, held) {
+            return Some(found);
+        }
+        if modal {
+            return None;
+        }
+        let covers = layer != root
+            && doc
+                .arena
+                .kind_of::<crate::base::overlay::OverlayNode>(layer)
+                .and_then(|overlay| doc.overlay_content(overlay))
+                .and_then(|content| rects.visible(&content))
+                .is_some_and(|rect| rect.contains_half_open(pos));
+        if covers {
+            return None;
+        }
+    }
+    None
+}
+
+fn claiming(
+    doc: &Document,
+    rects: &Rects,
+    id: NodeId,
+    pos: Pos2,
+    held: Modifiers,
+) -> Option<NodeId> {
+    let rect = rects.visible(&id)?;
+    let node = doc.arena.get(id);
+    if node
+        .as_any()
+        .downcast_ref::<crate::base::interactive::InteractiveNode>()
+        .is_some_and(|catcher| catcher.claims(pos, rect, held))
+    {
+        return Some(id);
+    }
+    node.children()
+        .into_iter()
+        .rev()
+        .find_map(|child| claiming(doc, rects, child, pos, held))
 }
 
 fn global_keys(doc: &mut Document, ctx: &Context) {

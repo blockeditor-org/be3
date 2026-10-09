@@ -100,6 +100,10 @@ pub struct Document {
     pub wheel_latch: Option<(NodeId, Instant, Option<crate::geometry::Pos2>)>,
     pub autoscroll: Option<crate::interact::autoscroll::Autoscroll>,
     pub pointer_capture: Option<NodeId>,
+    pub press_claim: Option<NodeId>,
+    pub secondary_claim: Option<NodeId>,
+    pub(crate) press_claimants: HashSet<NodeId>,
+    pub(crate) claimed_now: Vec<crate::input::PointerButton>,
     pub forward: crate::interact::forward::Routing,
     pub drags: Rc<crate::drag_board::Board>,
     paste_requested: bool,
@@ -306,6 +310,10 @@ impl Document {
             wheel_latch: None,
             autoscroll: None,
             pointer_capture: None,
+            press_claim: None,
+            secondary_claim: None,
+            press_claimants: HashSet::new(),
+            claimed_now: Vec::new(),
             forward: Default::default(),
             drags: Rc::default(),
             paste_requested: false,
@@ -889,6 +897,7 @@ impl Document {
         self.component_names.remove(&id);
         self.placed_children.remove(&id);
         self.placed_pass.remove(&id);
+        self.press_claimants.remove(&id);
         self.reached_pass.remove(&id);
         self.scroll_shifts.remove(&id);
         self.accessibility.remove(&id);

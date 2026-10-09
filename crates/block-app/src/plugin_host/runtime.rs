@@ -1532,6 +1532,7 @@ pub(crate) struct RegionView {
     pub(crate) base: Vec<Piece>,
     pub(crate) floating: Vec<Piece>,
     pub(crate) floating_rects: Vec<Rect>,
+    pub(crate) claims: Vec<(beui::Modifiers, Rect)>,
     pub(crate) held: Option<Rect>,
     pub(crate) drawn: Option<(u32, u32)>,
     pub(crate) children: Vec<HostChild>,
@@ -1553,6 +1554,7 @@ impl RegionView {
             base: Vec::new(),
             floating: Vec::new(),
             floating_rects: Vec::new(),
+            claims: Vec::new(),
             held: None,
             drawn: None,
             children: Vec::new(),
@@ -1571,6 +1573,12 @@ impl RegionView {
             loading: true,
             ..Self::failed(String::new(), false)
         }
+    }
+
+    pub(crate) fn claims(&self, position: Pos2, held: beui::Modifiers) -> bool {
+        self.claims.iter().any(|(claimed, rect)| {
+            claimed.any() && held.holds(*claimed) && rect.contains_half_open(position)
+        })
     }
 
     pub(crate) fn takes(&self, local: Pos2) -> bool {
@@ -1653,6 +1661,27 @@ pub(crate) fn region_view(
                 .unwrap_or_default(),
         };
         let handles_back = report.is_some_and(|report| report.handles_back);
+        let claims = report
+            .map(|report| {
+                report
+                    .claims
+                    .iter()
+                    .map(|claim| {
+                        let held = beui::Modifiers {
+                            alt: claim.modifiers.alt,
+                            ctrl: claim.modifiers.control,
+                            shift: claim.modifiers.shift,
+                            logo: claim.modifiers.logo,
+                        };
+                        let at = Rect::from_min_size(
+                            pos2(claim.rect.x, claim.rect.y) + rect.min.to_vec2(),
+                            vec2(claim.rect.width, claim.rect.height),
+                        );
+                        (held, at.intersect(visible))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         let intercepted_keys = report
             .iter()
             .flat_map(|report| &report.intercepted_keys)
@@ -1684,6 +1713,7 @@ pub(crate) fn region_view(
             base,
             floating,
             floating_rects,
+            claims,
             held: held.map(|held| held.rect),
             drawn: held.map(|held| held.drawn),
             children,

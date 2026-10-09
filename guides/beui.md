@@ -922,6 +922,21 @@ row that is itself a button, a close cross on a tab - asks `unstyled::Button`
 for `capture_presses` instead. The captured press reaches that button and
 nothing else, so the row it sits in does not open as well.
 
+A press made with modifiers held can be claimed from everything inside a
+region, which is how a window manager takes Super+drag from the windows it
+holds. An `Interactive` given `claim_modifiers` takes every primary or secondary
+press in its rectangle while all of those modifiers are held, and `claim_at`
+decides the same per point. The claim is searched for from the top of the tree
+down, before `capture_presses`, so the outermost claimant wins; the press, its
+drag and its release reach the claimant alone, none of its descendants, and no
+forwarding catcher under it unless the claimant is that catcher.
+`Document::press_claims` lists the `claim_modifiers` rectangles laid out this
+frame, which a plugin reports to its host, and `Document::press_claimed(button)` says a
+press of this frame or one still held was claimed, which is how the Wayland
+compositor keeps it from a program. A secondary drag stays with the node that
+took it while the pointer crosses a floating window above that node; only the
+start of one is hidden from what a floating window covers.
+
 `unstyled::Tree` makes the same split the other way round. A row is a tab stop
 with the tree's keyboard and its `TreeItem` accessibility, and nothing more:
 where a pointer has to land to select it is the face's business, because a
@@ -1148,6 +1163,18 @@ the panel keeps its nodes, its scroll position, its caret and its state when
 the tab is hidden behind another, dragged to another pane, or floated into a
 window. A panel no pane is showing is laid out by nobody, so it costs nothing
 and a screen reader does not read it. Closing the tab is what removes it.
+
+`drag_modifier` (none unless asked for) makes the dock a window manager while
+those modifiers are held. A primary drag anywhere in a floating window - its
+content, its bar or its tabs - moves the whole window, as dragging its bar does;
+a secondary drag resizes it from the edge or corner nearest the pointer (by
+thirds of the window). On a docked pane a secondary drag moves the split nearest
+the pointer, and a primary drag does nothing: it is swallowed rather than handed
+to the content, since a press made with the modifier is never meant for it.
+Each window and each docked pane claims those presses (`claim_modifiers`), so
+neither the tabs nor the content see them. The code is
+`dock/modifier_drag.rs`; linux-desktop sets Super, and the demo's Docking page
+has a switch for Alt.
 
 One tab at a time can be fullscreen: `DockState::set_fullscreen` with a
 `DockFullscreen` naming the tab and an area (a rect in document coordinates, or

@@ -8,6 +8,7 @@ mod a_fullscreen_window_covers_only_its_own_screen;
 mod a_global_action_that_does_not_intercept_leaves_the_window_its_keys;
 mod a_locked_session_gives_no_window_the_keyboard_or_the_pointer;
 mod a_maximized_window_keeps_its_place_and_is_told_it_is_maximized;
+mod a_press_the_ui_claims_with_super_never_reaches_the_window;
 mod a_process_the_compositor_launched_can_be_ended;
 mod a_program_that_is_not_found_is_reported;
 mod a_shown_dmabuf_is_released_once_a_newer_one_is_painted;
@@ -28,7 +29,9 @@ mod the_lock_time_runs_on_its_own_and_ignores_inhibitors_once_locked;
 mod the_session_idles_after_the_blank_time_and_wakes_on_input;
 mod the_ui_can_make_a_window_fullscreen_and_take_it_back;
 
-use beui::reactive::{ForEach, Frame, List, build, clone, create_memo, create_signal, view};
+use beui::reactive::{
+    ForEach, Frame, Interactive, List, build, clone, create_memo, create_signal, view,
+};
 use beui::styled::TextInput;
 use beui::{FrameOutput, NodeId, RawInput, pos2};
 
@@ -58,34 +61,44 @@ fn shown(windows: Windows) -> impl FnOnce() -> NodeId {
         let (text, set_text) = create_signal(String::new());
         let ids = create_memo(clone_list(&windows));
         view! {
-            <List spacing=0.0>
-                <TextInput
-                    @test_id={"test.input"}
-                    value={text}
-                    on_change={move |line: String| set_text.set(line)}
-                />
-                <ForEach keys={ids}>
-                    {move |id: WindowId| {
-                        let windows = windows.clone();
-                        let list = windows.list();
-                        let size = create_memo(move || {
-                            list.with(|list| {
-                                list.iter()
-                                    .find(|info| info.id == id)
-                                    .and_then(|info| info.fullscreen)
-                                    .map_or(SHOWN, |area| area.size())
-                            })
-                        });
-                        let width = create_memo(clone!(size -> move || Some(size.get().x)));
-                        let height = create_memo(move || Some(size.get().y));
-                        view! {
-                            <Frame width height>
-                                <WindowView windows id />
-                            </Frame>
-                        }
-                    }}
-                </ForEach>
-            </List>
+            <Interactive
+                claim_modifiers={Some(beui::Modifiers::LOGO)}
+                claims_touch=false
+                on_press={|press: beui::PointerPress| {
+                    if press.modifiers.logo {
+                        CLAIMED.with(|claimed| claimed.set(claimed.get() + 1));
+                    }
+                }}
+            >
+                <List spacing=0.0>
+                    <TextInput
+                        @test_id={"test.input"}
+                        value={text}
+                        on_change={move |line: String| set_text.set(line)}
+                    />
+                    <ForEach keys={ids}>
+                        {move |id: WindowId| {
+                            let windows = windows.clone();
+                            let list = windows.list();
+                            let size = create_memo(move || {
+                                list.with(|list| {
+                                    list.iter()
+                                        .find(|info| info.id == id)
+                                        .and_then(|info| info.fullscreen)
+                                        .map_or(SHOWN, |area| area.size())
+                                })
+                            });
+                            let width = create_memo(clone!(size -> move || Some(size.get().x)));
+                            let height = create_memo(move || Some(size.get().y));
+                            view! {
+                                <Frame width height>
+                                    <WindowView windows id />
+                                </Frame>
+                            }
+                        }}
+                    </ForEach>
+                </List>
+            </Interactive>
         }
     }
 }
@@ -253,6 +266,7 @@ const KEY_LEFTMETA: u32 = 125;
 
 thread_local! {
     static GLOBAL_RAN: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+    static CLAIMED: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }
 
 fn physical(code: u32, pressed: bool) -> Event {

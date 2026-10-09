@@ -516,7 +516,7 @@ impl Compositor {
         });
     }
 
-    fn pointer(&mut self, context: &Context) {
+    fn pointer(&mut self, context: &Context, document: &Document) {
         if self.locked {
             return;
         }
@@ -538,6 +538,9 @@ impl Compositor {
                 } => {
                     self.move_pointer(pos);
                     let code = button_code(button);
+                    if pressed && document.press_claimed(button) && !self.held.contains(&code) {
+                        continue;
+                    }
                     if pressed {
                         let Some(id) = self.grab.or(self.windows.hovered()) else {
                             self.server.state.dismiss_popups();
@@ -731,7 +734,7 @@ impl Compositor {
     }
 
     pub fn after(&mut self, context: &Context, document: &mut Document) {
-        self.pointer(context);
+        self.pointer(context, document);
         self.apply(context.now(), document);
         self.server.flush();
         self.watch_pings(context);
