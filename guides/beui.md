@@ -1507,7 +1507,15 @@ focused field into what is left, through every scroll it sits in.
   how work finishing elsewhere is pushed to the ui instead of polled for.
 - `close_requested` is asked when the window is closed, and can refuse by
   returning `false` (to ask about unsaved work first, then call
-  `Context::close_window`). `exiting` runs once on the way out.
+  `Context::close_window`). `exiting` runs once on the way out, and the runner
+  drops the app right after it, while the GPU device and the adapter's displays
+  are still there; no frame runs after it. Whatever the app keeps in a
+  `thread_local!` must be taken out in `exiting`: the main thread's
+  thread-locals are dropped only by `exit()` after `main` returns, in no set
+  order, after the GPU and the rest of the runner are gone, and dropping GPU or
+  reactive state there aborts or crashes the process (block-app's
+  `Shell::exiting` takes down the Wayland compositor, the plugin runtimes and
+  their worker threads, and the screens this way).
 
 From inside a frame the app can also ask the window for things through the
 `Context`: `set_fullscreen`, `set_ime_area` for an input it draws itself,

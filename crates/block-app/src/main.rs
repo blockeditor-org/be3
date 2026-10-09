@@ -300,6 +300,14 @@ impl beui::App for Shell {
 
     fn exiting(&mut self) {
         wayland::exiting();
+        plugin_host::exiting();
+        display::stop();
+        #[cfg(target_os = "linux")]
+        {
+            self.app.media = None;
+            self.app.notifications = None;
+            self.app.desktop = None;
+        }
         be::flush();
         be::stop();
     }

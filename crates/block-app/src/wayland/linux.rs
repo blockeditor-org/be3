@@ -139,6 +139,10 @@ pub(crate) fn replace_gpu(setup: &Setup) {
 
 pub(crate) fn exiting() {
     with(|running| running.compositor.exiting());
+    let running = RUNNING.with(|running| running.borrow_mut().take());
+    drop(running);
+    let windows = WINDOWS.with(|windows| windows.borrow_mut().take());
+    drop(windows);
 }
 
 pub(crate) fn revision() -> u64 {
@@ -341,3 +345,6 @@ pub(crate) fn WindowSurface(window: HostWindowId) -> NodeId {
         },
     }
 }
+
+#[cfg(test)]
+mod tests;
