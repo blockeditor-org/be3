@@ -52,6 +52,14 @@ fn host_actions_reach_the_host_only_from_the_shell() {
     );
 
     while act(&mut instances, &MediaRequest::ToggleMute) {}
+    assert!(
+        act(&mut instances, &WindowAction::Focus(HostWindowId(4))),
+        "a full queue of one kind of action leaves room for the others"
+    );
+    assert_eq!(
+        take_actions::<WindowAction>(&mut instances),
+        vec![WindowAction::Focus(HostWindowId(4))]
+    );
     assert_eq!(
         take_actions::<MediaRequest>(&mut instances).len(),
         crate::plugin_host::host_values::MAX_ACTIONS,
