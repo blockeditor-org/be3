@@ -3,6 +3,7 @@ use super::*;
 mod a_click_on_beui_dismisses_a_grabbed_popup;
 mod a_closed_window_leaves_the_list;
 mod a_dmabuf_window_samples_the_clients_pixels;
+mod a_drag_begun_on_the_ui_over_a_window_never_reaches_the_window;
 mod a_drawn_window_is_listed_and_fitted_to_where_it_is_shown;
 mod a_fullscreen_window_covers_only_its_own_screen;
 mod a_global_action_that_does_not_intercept_leaves_the_window_its_keys;
@@ -30,10 +31,11 @@ mod the_session_idles_after_the_blank_time_and_wakes_on_input;
 mod the_ui_can_make_a_window_fullscreen_and_take_it_back;
 
 use beui::reactive::{
-    ForEach, Frame, Interactive, List, build, clone, create_memo, create_signal, view,
+    ForEach, Frame, Interactive, List, Overlay, OverlayAnchor, Placement, WriteSignal, build,
+    clone, component, create_memo, create_signal, view, with_reactive_scope,
 };
 use beui::styled::TextInput;
-use beui::{FrameOutput, NodeId, RawInput, pos2};
+use beui::{FrameOutput, Key, NodeId, RawInput, pos2};
 
 use crate::test_client::{TestClient, TestWindow};
 use crate::view::WindowView;
@@ -49,8 +51,9 @@ struct Harness {
     output: Option<FrameOutput>,
 }
 
-fn shown(windows: Windows) -> impl FnOnce() -> NodeId {
-    move || {
+#[component]
+fn Shown(windows: Windows) -> NodeId {
+    {
         crate::view::toggle_fullscreen_action(&windows);
         beui::reactive::Action::new("test.global", "Global", || {
             GLOBAL_RAN.with(|ran| ran.set(ran.get() + 1))
@@ -59,6 +62,8 @@ fn shown(windows: Windows) -> impl FnOnce() -> NodeId {
         .global()
         .register();
         let (text, set_text) = create_signal(String::new());
+        let (locked, set_locked) = create_signal(false);
+        LOCK.with(|lock| *lock.borrow_mut() = Some(set_locked));
         let ids = create_memo(clone_list(&windows));
         view! {
             <Interactive
@@ -97,6 +102,14 @@ fn shown(windows: Windows) -> impl FnOnce() -> NodeId {
                             }
                         }}
                     </ForEach>
+                    <Overlay
+                        anchor=OverlayAnchor::Point(Pos2::ZERO)
+                        placement=Placement::Fill
+                        locks=true
+                        open={locked}
+                    >
+                        <TextInput @test_id={"test.lock"} value="" />
+                    </Overlay>
                 </List>
             </Interactive>
         }
@@ -120,11 +133,22 @@ impl Harness {
     }
 
     fn started(gpu: Option<(wgpu::Device, wgpu::Queue)>) -> Self {
+        Self::showing(gpu, |windows| {
+            view! {
+                <Shown windows />
+            }
+        })
+    }
+
+    fn showing(
+        gpu: Option<(wgpu::Device, wgpu::Queue)>,
+        view: impl FnOnce(Windows) -> NodeId,
+    ) -> Self {
         let mut windows = None;
         let document = build(|| {
             let store = Windows::new();
             windows = Some(store.clone());
-            shown(store)()
+            view(store)
         });
         let mut app = Compositor::new(
             Server::headless().expect("a headless display starts"),
@@ -162,6 +186,15 @@ impl Harness {
         });
         self.output = Some(output);
         self.client.receive();
+    }
+
+    fn lock(&mut self, locked: bool) {
+        let set = LOCK
+            .with(|lock| lock.borrow().clone())
+            .expect("the harness has a lock");
+        with_reactive_scope(&mut self.document, move || set.set(locked));
+        self.app.set_locked(locked);
+        self.settle();
     }
 
     fn settle(&mut self) {
@@ -265,6 +298,7 @@ const KEY_G: u32 = 34;
 const KEY_LEFTMETA: u32 = 125;
 
 thread_local! {
+    static LOCK: std::cell::RefCell<Option<WriteSignal<bool>>> = const { std::cell::RefCell::new(None) };
     static GLOBAL_RAN: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
     static CLAIMED: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }

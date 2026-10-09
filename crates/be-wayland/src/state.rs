@@ -145,6 +145,7 @@ pub struct State {
     scale: i32,
     size: Size<i32, Logical>,
     pointer_window: Option<WindowId>,
+    buttons: Vec<u32>,
     keyboard_window: Option<WindowId>,
     pings: Vec<Ping>,
     unresponsive: Vec<ClientId>,
@@ -214,6 +215,7 @@ impl State {
             scale: 1,
             size: Size::from((1280, 800)),
             pointer_window: None,
+            buttons: Vec::new(),
             keyboard_window: None,
             pings: Vec::new(),
             unresponsive: Vec::new(),
@@ -801,6 +803,10 @@ impl State {
     }
 
     pub fn pointer_button(&mut self, button: u32, pressed: bool) {
+        self.buttons.retain(|held| *held != button);
+        if pressed {
+            self.buttons.push(button);
+        }
         let pointer = self.pointer();
         let serial = SERIAL_COUNTER.next_serial();
         let time = self.time();
@@ -818,6 +824,16 @@ impl State {
             },
         );
         pointer.frame(self);
+    }
+
+    pub fn buttons_held(&self) -> bool {
+        !self.buttons.is_empty()
+    }
+
+    pub fn release_buttons(&mut self) {
+        for button in self.buttons.clone() {
+            self.pointer_button(button, false);
+        }
     }
 
     pub fn pointer_axis(&mut self, delta: (f64, f64)) {

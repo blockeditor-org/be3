@@ -59,8 +59,8 @@ corner of the screen: `beui_adapter_drm::Problems` carries the display and input
 puts each in front of the person.
 
 The screens turn off after the display settings' "Turn off screens after" (ten minutes by
-default). `be_wayland::Compositor` counts the idle time on the frame clock from the input events
-it sees, held back while a window that is shown has a `zwp_idle_inhibitor_v1`, and answers
+default). `be_wayland::Compositor` counts the idle time on the frame clock from the frames that
+carried input (`Document::input_frames`), held back while a window that is shown has a `zwp_idle_inhibitor_v1`, and answers
 `ext_idle_notifier_v1` for idle daemons the same way. `Windows::idle()` is true once the time
 has run out; block-app hands it to `beui_adapter_drm::DisplayControl::set_blanked`, which turns
 the outputs' CRTCs off and stops drawing to them until input wakes the session. In a window
@@ -179,11 +179,13 @@ earlier attempt - leaves the screen locked; only `Verdict::Accepted` for the att
 unlocks it. Under `:dev` the app runs as the VM's user, so that user needs a password
 (`passwd`) for the lock to be tried.
 
-While it is locked, three things keep input from everything behind it: the lock is a beui
+While it is locked, two things keep input from everything behind it: the lock is a beui
 `Overlay` with `locks` set, which nothing dismisses, which stays above every other overlay and keeps
-the focus, and while it is open `Document::key_global` hears only media keys (no other global action, no plugin's
-intercepted chord, no Alt+Tab); `be_wayland::Compositor::set_locked` takes the keyboard and pointer
-from every window and forwards no input; and the launcher and app menu are closed. Screens still
+the focus and the pointer, and while it is open `Document::key_global` hears only media keys (no other global action, no plugin's
+intercepted chord, no Alt+Tab); and the launcher and app menu are closed. Windows need nothing
+of their own for it: each is a forwarding catcher like a plugin's region, so with the focus and the
+pointer held by the lock none is forwarded anything. `be_wayland::Compositor::set_locked` only lets
+go of the buttons and popups a window held. Screens still
 turn off while locked, and idle inhibitors from the windows behind it are ignored. Media keys
 still reach linux-desktop's intercepting media actions (through `compositor/intercept.rs`'s
 `on_global_key`), so volume and playback work over the lock. Notification toasts are left out of
@@ -209,6 +211,13 @@ or moves the split beside a docked one. In the desktop shell Alt+Tab, with Alt h
 windows from the one used last (Alt+Shift+Tab the other way); letting go of Alt focuses and
 raises the chosen one and Alt+Escape stays where it was. To drive it, hold Alt across the
 presses: `xdotool keydown alt key Tab key Tab keyup alt`.
+
+Each window is a `be_wayland::WindowView`, a forwarding catcher like a plugin's region (see
+guides/beui_keyboard.md, One input path): beui decides which window a press, motion, scroll or key
+goes to, and `Compositor::after` turns what each window was forwarded into `wl_pointer` and
+`wl_keyboard` events, keys by their scan codes (`Event::PhysicalKey`). Where the shell draws over a
+window (a floating window's tab, say) the window takes nothing (`occluders`, from the region's
+occlusion), and a press keeps going to the window or plugin it began on until it is let go.
 
 The compositor pings a window's client when it is clicked, typed into, focused or asked to
 close, and a client that has not answered within `PING_TIMEOUT` (be-wayland's `state.rs`) is listed as

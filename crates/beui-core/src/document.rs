@@ -40,6 +40,8 @@ pub struct GlobalKeyPress {
     pub press: KeyPress,
     pub typing: bool,
     pub in_app: bool,
+    pub held: bool,
+    pub tap: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -85,7 +87,9 @@ pub struct Document {
     finger_taps: RefCell<Vec<Weak<FingerTap>>>,
     unhandled_keys: RefCell<Vec<Weak<UnhandledKey>>>,
     global_keys: RefCell<Vec<Weak<GlobalKey>>>,
-    pub(crate) globally_held: Vec<Key>,
+    pub(crate) globally_held: Vec<(Key, Option<Rc<GlobalKey>>)>,
+    pub(crate) tapping: Option<Key>,
+    input_frames: u64,
     modifiers: (
         ::reactive::ReadSignal<Modifiers>,
         ::reactive::WriteSignal<Modifiers>,
@@ -103,7 +107,6 @@ pub struct Document {
     pub press_claim: Option<NodeId>,
     pub secondary_claim: Option<NodeId>,
     pub(crate) press_claimants: HashSet<NodeId>,
-    pub(crate) claimed_now: Vec<crate::input::PointerButton>,
     pub forward: crate::interact::forward::Routing,
     pub drags: Rc<crate::drag_board::Board>,
     paste_requested: bool,
@@ -302,6 +305,8 @@ impl Document {
             unhandled_keys: RefCell::new(Vec::new()),
             global_keys: RefCell::new(Vec::new()),
             globally_held: Vec::new(),
+            tapping: None,
+            input_frames: 0,
             modifiers: ::reactive::create_signal(Modifiers::NONE),
             intercepted_keys: ::reactive::create_signal(Vec::new()),
             touch_scroll_vertical: None,
@@ -313,7 +318,6 @@ impl Document {
             press_claim: None,
             secondary_claim: None,
             press_claimants: HashSet::new(),
-            claimed_now: Vec::new(),
             forward: Default::default(),
             drags: Rc::default(),
             paste_requested: false,
@@ -512,29 +516,26 @@ impl Document {
     }
 
     pub fn key_global(&self, global: GlobalKeyPress) -> bool {
+        self.global_taker(global).is_some()
+    }
+
+    pub(crate) fn global_taker(&self, global: GlobalKeyPress) -> Option<Rc<GlobalKey>> {
         if self.locked() && !global.press.key.is_media() {
-            return false;
+            return None;
         }
         let mut handlers = self.global_keys.borrow_mut();
         handlers.retain(|handler| handler.strong_count() > 0);
         let live: Vec<Rc<GlobalKey>> = handlers.iter().filter_map(Weak::upgrade).collect();
         drop(handlers);
-        live.into_iter().any(|handler| handler(global))
+        live.into_iter().find(|handler| handler(global))
     }
 
-    pub fn offer_app_key(&mut self, press: KeyPress) -> bool {
-        let context = self.reactive_scope().context();
-        let _guard = crate::current::install(self);
-        context.run(|| {
-            crate::current::with_document(|document| {
-                document.set_modifiers(press.modifiers);
-                document.key_global(GlobalKeyPress {
-                    press,
-                    typing: true,
-                    in_app: true,
-                })
-            })
-        })
+    pub fn input_frames(&self) -> u64 {
+        self.input_frames
+    }
+
+    pub(crate) fn note_input(&mut self) {
+        self.input_frames += 1;
     }
 
     pub fn watch_modifiers(&self) -> ::reactive::ReadSignal<Modifiers> {

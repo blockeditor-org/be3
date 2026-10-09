@@ -1,13 +1,14 @@
 use be_protocol::WorkspaceRole;
-use beui::NodeId;
+use beui::icons::ICON_APPS;
 use beui::reactive::{
-    Align, Direction, Frame, List, Show, clone, component, create_effect, create_memo,
-    create_signal, untrack, view,
+    Action, Align, Chord, Direction, Frame, List, Show, clone, component, create_effect,
+    create_memo, create_signal, untrack, view,
 };
 use beui::styled::{
     Button, ButtonVariant, Caption, Code, Dialog, Launcher, Paragraph, Spinner, Tabs, TextInput,
 };
 use beui::unstyled::ChoiceOption;
+use beui::{Key, NodeId};
 
 use super::onboarding::ErrorText;
 
@@ -54,6 +55,15 @@ fn AboutDialog(view: AppViewStore) -> NodeId {
 #[component]
 fn ProgramLauncher(view: AppViewStore) -> NodeId {
     let open = view.launcher.clone();
+    Action::new(
+        "launcher.toggle",
+        "Programs",
+        clone!(open -> move || send(UiCommand::Launcher(!open.get_untracked()))),
+    )
+    .glyph(ICON_APPS)
+    .shortcut(Chord::tap(Key::Logo))
+    .intercepts()
+    .register();
     let programs = view.programs.clone();
     view! {
         <Launcher

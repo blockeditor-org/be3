@@ -94,13 +94,18 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
         globals.get() > before,
         "media keys still reach global actions while locked"
     );
-    let offered = harness.document_mut().offer_app_key(KeyPress {
-        key: Key::Tab,
+    let before = globals.get();
+    harness.frame(vec![Event::InterceptedKey(KeyPress {
+        key: Key::K,
         pressed: true,
         repeat: false,
-        modifiers: Modifiers::ALT,
-    });
-    assert!(!offered, "a key from an app is not taken while locked");
+        modifiers: Modifiers::CTRL,
+    })]);
+    assert_eq!(
+        globals.get(),
+        before,
+        "a key intercepted for a plugin is not heard while locked"
+    );
 
     set(&mut harness, &set_menu, true);
     assert!(harness.document().is_overlay_open(popup.id()));

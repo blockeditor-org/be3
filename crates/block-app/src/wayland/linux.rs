@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use be_wayland::programs::{DesktopEntry, Environment, IconThemes, load_icon};
 use be_wayland::{Compositor, Launch, Server, WindowId, WindowView, Windows};
-use beui::reactive::{Frame, component, view};
+use beui::reactive::{Frame, component, create_memo, view};
 use beui::styled::LauncherItem;
 use beui::{Context, Document, NodeId, Rect, Setup};
 use block_plugin_api::{ChildRect, HostWindow, HostWindowId, Size};
@@ -359,9 +359,16 @@ impl Programs {
 
 #[component]
 pub(crate) fn WindowSurface(window: HostWindowId) -> NodeId {
+    let occluders = crate::compositor::region::occlusion();
+    let occluders = create_memo(move || {
+        occluders
+            .as_ref()
+            .map(|occluders| occluders.get())
+            .unwrap_or_default()
+    });
     match windows() {
         Some(windows) => view! {
-            <WindowView windows id={WindowId(window.0)} />
+            <WindowView windows id={WindowId(window.0)} occluders />
         },
         None => view! {
             <Frame />

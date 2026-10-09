@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use beui::reactive::with_reactive_scope;
 use beui::{
-    Context, CursorIcon, Document, Event, Key, KeyPress, PointerButton, Pos2, Rect, Vec2, Waker,
+    Context, CursorIcon, Document, Event, ForwardedInput, PointerButton, Pos2, Rect, Vec2, Waker,
 };
 use smithay::backend::renderer::utils::with_renderer_surface_state;
 use smithay::input::pointer::{CursorImageStatus, CursorImageSurfaceData};
@@ -40,15 +40,13 @@ pub struct Compositor {
     children: Vec<rustix::process::Pid>,
     exited: (Sender<Exit>, Receiver<Exit>),
     on_failure: Option<Box<dyn Fn(String)>>,
-    grab: Option<WindowId>,
-    held: Vec<u32>,
     configured: std::collections::HashMap<WindowId, Configured>,
     area: Rect,
     screens: Vec<Rect>,
     fullscreen: Option<(WindowId, Pos2)>,
     raise: Option<WindowId>,
     relist: bool,
-    swallowed: Vec<(u32, Option<Key>)>,
+    input_frames: u64,
     forced: bool,
     locked: bool,
 }
@@ -71,15 +69,13 @@ impl Compositor {
             children: Vec::new(),
             exited: channel(),
             on_failure: None,
-            grab: None,
-            held: Vec::new(),
             configured: std::collections::HashMap::new(),
             area: Rect::ZERO,
             screens: Vec::new(),
             fullscreen: None,
             raise: None,
             relist: false,
-            swallowed: Vec::new(),
+            input_frames: 0,
             forced: false,
             locked: false,
         }
@@ -114,17 +110,9 @@ impl Compositor {
             return;
         }
         self.server.state.dismiss_popups();
-        for code in std::mem::take(&mut self.held) {
-            self.server.state.pointer_button(code, false);
-        }
-        self.grab = None;
+        self.server.state.release_buttons();
         if self.server.state.pointer_window().is_some() {
             self.server.state.pointer_motion(None);
-        }
-        self.swallowed.clear();
-        if let Some(previous) = self.server.state.keyboard_window() {
-            self.server.state.focus_keyboard(None);
-            self.windows.push(Command::Configure(previous));
         }
         self.server.flush();
     }
@@ -451,151 +439,74 @@ impl Compositor {
         ))
     }
 
-    fn keyboard(&mut self, context: &Context, document: &mut Document) {
-        if self.locked {
-            return;
-        }
-        let now = context.now();
-        let target = self
-            .windows
-            .focused()
-            .filter(|id| self.server.state.keyboard_window() == Some(*id));
-        let events = context.input(|input| input.events.clone());
-        for (index, event) in events.iter().enumerate() {
-            match *event {
-                Event::PhysicalKey { code, pressed } => {
-                    let press = key_of(&events[index + 1..]);
-                    if !pressed
-                        && let Some(at) = self.swallowed.iter().position(|(held, _)| *held == code)
-                    {
-                        self.swallowed.remove(at);
-                        if let Some(press) = press {
-                            document.offer_app_key(press);
-                        }
-                        continue;
-                    }
-                    if target.is_none() {
-                        continue;
-                    }
-                    let taken = press.is_some_and(|press| document.offer_app_key(press));
-                    if pressed && taken {
-                        self.swallowed.push((code, press.map(|press| press.key)));
-                        continue;
-                    }
-                    if pressed && let Some(id) = target {
-                        self.server.state.ping(id, now);
-                    }
-                    self.server.state.key(code, pressed);
-                }
-                Event::Key {
-                    key,
-                    pressed: true,
-                    repeat: true,
-                    modifiers,
-                } if target.is_some()
-                    && self.swallowed.iter().any(|(_, held)| *held == Some(key)) =>
-                {
-                    document.offer_app_key(KeyPress {
-                        key,
-                        pressed: true,
-                        repeat: true,
-                        modifiers,
-                    });
-                }
-                _ => {}
+    fn input(&mut self, now: Instant) {
+        for (id, input) in self.windows.take_input() {
+            if self.server.state.windows().contains(&id) {
+                self.deliver(id, &input, now);
             }
         }
-        if target.is_none() {
-            return;
-        }
-        context.retain_events(|event| {
-            !matches!(
-                event,
-                Event::Key { .. } | Event::Text(_) | Event::Ime(_) | Event::PhysicalKey { .. }
-            )
-        });
     }
 
-    fn pointer(&mut self, context: &Context, document: &Document) {
-        if self.locked {
-            return;
-        }
-        let now = context.now();
-        let events = context.input(|input| input.events.clone());
-        for event in events {
-            match event {
-                Event::PointerMoved(position) => self.move_pointer(position),
-                Event::PointerGone if self.grab.is_none() => {
-                    if self.server.state.pointer_window().is_some() {
-                        self.server.state.pointer_motion(None);
+    fn deliver(&mut self, id: WindowId, input: &ForwardedInput, now: Instant) {
+        let state = &mut self.server.state;
+        let at = |pos: Pos2| {
+            let local = pos - input.rect.min;
+            Some((id, (f64::from(local.x), f64::from(local.y)).into()))
+        };
+        for event in &input.events {
+            match *event {
+                Event::PhysicalKey { code, pressed } if state.keyboard_window() == Some(id) => {
+                    if pressed {
+                        state.ping(id, now);
                     }
+                    state.key(code, pressed);
                 }
+                Event::PointerMoved(pos) => state.pointer_motion(at(pos)),
                 Event::PointerButton {
                     pos,
                     button,
                     pressed,
                     ..
                 } => {
-                    self.move_pointer(pos);
-                    let code = button_code(button);
-                    if pressed && document.press_claimed(button) && !self.held.contains(&code) {
-                        continue;
-                    }
+                    state.pointer_motion(at(pos));
                     if pressed {
-                        let Some(id) = self.grab.or(self.windows.hovered()) else {
-                            self.server.state.dismiss_popups();
-                            continue;
-                        };
-                        self.grab = Some(id);
-                        self.server.state.ping(id, now);
-                        if !self.held.contains(&code) {
-                            self.held.push(code);
-                        }
-                        self.server.state.pointer_button(code, true);
-                    } else if self.held.contains(&code) {
-                        self.held.retain(|held| *held != code);
-                        self.server.state.pointer_button(code, false);
-                        if self.held.is_empty() {
-                            self.grab = None;
-                            self.move_pointer(pos);
-                        }
+                        state.ping(id, now);
                     }
+                    state.pointer_button(button_code(button), pressed);
                 }
-                Event::Scroll(delta) if self.grab.or(self.windows.hovered()).is_some() => {
-                    self.server
-                        .state
-                        .pointer_axis((-f64::from(delta.x), -f64::from(delta.y)));
+                Event::Scroll(delta) => {
+                    if state.pointer_window() != Some(id)
+                        && let Some(pos) = input.pointer
+                    {
+                        state.pointer_motion(at(pos));
+                    }
+                    state.pointer_axis((-f64::from(delta.x), -f64::from(delta.y)));
                 }
                 _ => {}
             }
         }
+        if !input.hovered && !state.buttons_held() && state.pointer_window() == Some(id) {
+            state.pointer_motion(None);
+        }
     }
 
-    fn move_pointer(&mut self, position: Pos2) {
-        let target = self.grab.or(self.windows.hovered());
-        let local = target.and_then(|id| {
-            let rect = self.windows.rect(id)?;
-            let local = position - rect.min;
-            Some((id, (f64::from(local.x), f64::from(local.y)).into()))
-        });
-        if local.is_none() && self.server.state.pointer_window().is_none() {
+    fn focus(&mut self, now: Instant) {
+        let focused = self.windows.focused();
+        if self.server.state.keyboard_window() == focused {
             return;
         }
-        self.server.state.pointer_motion(local);
+        let previous = self.server.state.keyboard_window();
+        self.server.state.focus_keyboard(focused);
+        if let Some(id) = focused {
+            self.server.state.ping(id, now);
+        }
+        for id in previous.into_iter().chain(focused) {
+            self.windows.push(Command::Configure(id));
+        }
     }
 
     fn apply(&mut self, now: Instant, document: &mut Document) {
-        let focused = self.windows.focused().filter(|_| !self.locked);
-        if self.server.state.keyboard_window() != focused {
-            let previous = self.server.state.keyboard_window();
-            self.server.state.focus_keyboard(focused);
-            if let Some(id) = focused {
-                self.server.state.ping(id, now);
-            }
-            for id in previous.into_iter().chain(focused) {
-                self.windows.push(Command::Configure(id));
-            }
-        }
+        let focused = self.server.state.keyboard_window();
         for command in self.windows.take_commands() {
             match command {
                 Command::Configure(id) => {
@@ -701,14 +612,13 @@ impl Compositor {
         let size = (rect.width().round() as i32, rect.height().round() as i32);
         self.server.state.set_scale(scale, size.into());
         self.area = rect;
-        self.watch_idle(context, document);
-        self.keyboard(context, document);
         self.publish(document);
     }
 
     fn watch_idle(&mut self, context: &Context, document: &mut Document) {
         let now = context.now();
-        let active = context.input(|input| input.events.iter().any(is_activity));
+        let active = document.input_frames() != self.input_frames;
+        self.input_frames = document.input_frames();
         let inhibited = !self.locked
             && self
                 .server
@@ -734,8 +644,11 @@ impl Compositor {
     }
 
     pub fn after(&mut self, context: &Context, document: &mut Document) {
-        self.pointer(context, document);
-        self.apply(context.now(), document);
+        let now = context.now();
+        self.watch_idle(context, document);
+        self.focus(now);
+        self.input(now);
+        self.apply(now, document);
         self.server.flush();
         self.watch_pings(context);
         if std::mem::take(&mut self.forced) {
@@ -788,41 +701,6 @@ fn parent(pid: rustix::process::Pid) -> Option<rustix::process::Pid> {
     let (_, fields) = stat.rsplit_once(')')?;
     let parent = fields.split_whitespace().nth(1)?.parse().ok()?;
     rustix::process::Pid::from_raw(parent).filter(|parent| !parent.is_init())
-}
-
-fn is_activity(event: &Event) -> bool {
-    matches!(
-        event,
-        Event::Key { .. }
-            | Event::PointerButton { .. }
-            | Event::PointerMotion(_)
-            | Event::PointerMoved(_)
-            | Event::Scroll(_)
-            | Event::PhysicalKey { .. }
-            | Event::Text(_)
-            | Event::Touch { .. }
-            | Event::Zoom(_)
-    )
-}
-
-fn key_of(after: &[Event]) -> Option<KeyPress> {
-    after
-        .iter()
-        .take_while(|event| !matches!(event, Event::PhysicalKey { .. }))
-        .find_map(|event| match *event {
-            Event::Key {
-                key,
-                pressed,
-                repeat: false,
-                modifiers,
-            } => Some(KeyPress {
-                key,
-                pressed,
-                repeat: false,
-                modifiers,
-            }),
-            _ => None,
-        })
 }
 
 fn button_code(button: PointerButton) -> u32 {
