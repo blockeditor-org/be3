@@ -122,6 +122,14 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
         "hunter2",
         "the lock's own field takes the keys"
     );
+    harness.key(Key::Escape, Modifiers::NONE);
+    harness.click(pos2(VIEWPORT.x - 5.0, VIEWPORT.y - 5.0));
+    harness.type_text("!");
+    assert_eq!(
+        *typed.borrow(),
+        "hunter2!",
+        "neither Escape nor a click on the scrim takes the focus from the lock's field"
+    );
 
     set(&mut harness, &set_locked, false);
     assert!(!harness.document().locked());

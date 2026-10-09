@@ -354,10 +354,16 @@ impl Document {
         if new_focus == self.focused {
             return;
         }
-        if let (Some(new), Some(lock)) = (new_focus, self.lock())
-            && !self.is_within(new, lock.id())
-        {
-            return;
+        if let Some(lock) = self.lock() {
+            let leaves = match new_focus {
+                Some(new) => !self.is_within(new, lock.id()),
+                None => self.focused.is_some_and(|old| {
+                    self.is_within(old, lock.id()) && self.focusables().contains(&old)
+                }),
+            };
+            if leaves {
+                return;
+            }
         }
         let old = self.focused;
         self.composed.clear();
