@@ -44,7 +44,10 @@ pub struct Output {
     connector_name: String,
     fencing: bool,
     state: State,
+    generation: u64,
     frame: u64,
+    failure: Option<String>,
+    stalled: bool,
     blanked: bool,
     dark: bool,
     darken_failed: bool,
@@ -151,6 +154,7 @@ impl Output {
         info: &connector::Info,
         taken: &[crtc::Handle],
         config: &DisplayConfig,
+        generation: u64,
     ) -> Result<Self, String> {
         let connector_name = info.to_string();
         let identity = edid(drm, connector).as_deref().and_then(identity);
@@ -206,7 +210,10 @@ impl Output {
             connector_name,
             fencing,
             state: State::Idle,
+            generation,
             frame: 0,
+            failure: None,
+            stalled: false,
             blanked: false,
             dark: false,
             darken_failed: false,
@@ -259,7 +266,7 @@ impl Output {
     }
 
     pub fn wants_frame(&self) -> bool {
-        !self.blanked && matches!(self.state, State::Idle) && self.screen.dirty()
+        !self.blanked && !self.stalled && matches!(self.state, State::Idle) && self.screen.dirty()
     }
 
     pub fn set_blanked(&mut self, blanked: bool) {
@@ -297,33 +304,42 @@ impl Output {
         }
     }
 
-    pub fn reset(&mut self) {
-        self.swapchain.reset_buffers();
-        self.targets.clear();
-        self.state = State::Idle;
-        self.frame += 1;
-        self.screen.invalidate();
-        self.dark = false;
-        self.darken();
-    }
-
-    pub fn flipped(&mut self) {
-        let _ = self.swapchain.frame_submitted();
-        if matches!(self.state, State::Flipping) {
-            self.state = State::Idle;
-            self.darken();
+    pub fn fail(&mut self, error: impl std::fmt::Display) {
+        if self.failure.is_none() {
+            self.failure = Some(format!(
+                "{} could not show a frame: {error}",
+                self.connector_name
+            ));
         }
     }
 
-    pub fn take_fence(&mut self) -> Option<(u64, OwnedFd)> {
+    pub fn take_failure(&mut self) -> Option<String> {
+        self.failure.take()
+    }
+
+    pub fn stall(&mut self) {
+        self.stalled = true;
+    }
+
+    pub fn flipped(&mut self) -> bool {
+        let _ = self.swapchain.frame_submitted();
+        if !matches!(self.state, State::Flipping) {
+            return false;
+        }
+        self.state = State::Idle;
+        self.darken();
+        true
+    }
+
+    pub fn take_fence(&mut self) -> Option<(u64, u64, OwnedFd)> {
         match &mut self.state {
-            State::Drawing(fence) => Some((self.frame, fence.take()?)),
+            State::Drawing(fence) => Some((self.generation, self.frame, fence.take()?)),
             _ => None,
         }
     }
 
-    pub fn drawn(&mut self, frame: u64) {
-        if frame != self.frame || !self.drawing() {
+    pub fn drawn(&mut self, generation: u64, frame: u64) {
+        if generation != self.generation || frame != self.frame || !self.drawing() {
             return;
         }
         self.queue(None);
@@ -333,8 +349,8 @@ impl Output {
         match self.swapchain.queue_buffer(sync, None, ()) {
             Ok(()) => self.state = State::Flipping,
             Err(error) => {
-                eprintln!("beui: the frame could not be shown: {error}");
                 self.state = State::Idle;
+                self.fail(error);
                 self.darken();
             }
         }

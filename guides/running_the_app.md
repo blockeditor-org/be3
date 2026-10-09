@@ -74,6 +74,17 @@ delivered before the screens went off is still delivered, so no key stays held. 
 turns the screens on itself and reports the wake through `DisplayControl::take_woken`, which
 block-app hands to `Compositor::woke` so the idle count restarts.
 
+Switching terminals hands the seat to whatever runs there, whose DRM master reprograms the
+CRTCs, connectors and planes as it likes, so nothing the adapter cached about them survives.
+`recovery.rs` decides what happens: when the seat comes back every output (surface,
+swapchain, framebuffers, pending flips and fence watches) is dropped while the device is still
+paused, the device is reset to everything off, and outputs are built again for whatever is
+connected now, with the modes the display settings chose, so each one's first frame is a full
+modeset rather than a page flip. Coming back also wakes the screens and starts the keyboard's
+modifiers over. A frame that cannot be shown sets its output up again once; if that fails too
+the output stops drawing and the problem is reported once through `Problems`, until the seat
+comes back or a display is plugged in or out.
+
 The desktop bar's power button locks, suspends, restarts, powers off or logs out. linux-desktop
 asks for what it may offer with `LinuxMessage::WatchPower` and sends `RequestPower`;
 `src/session/power.rs` decides what happens (programs are asked to close, and are given five
