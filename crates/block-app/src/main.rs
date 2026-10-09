@@ -2226,7 +2226,11 @@ impl BlockApp {
             }
             #[cfg(target_os = "linux")]
             UiCommand::LockPower(action) => {
-                if self.screen_lock.as_ref().is_some_and(session::ScreenLock::locked) {
+                if self
+                    .screen_lock
+                    .as_ref()
+                    .is_some_and(session::ScreenLock::locked)
+                {
                     self.request_power(action, session::Trigger::Menu);
                 }
             }

@@ -15,7 +15,10 @@ fn a_locked_session_gives_no_window_the_keyboard_or_the_pointer() {
     harness.key(KEY_A);
     assert!(harness.client.received.keyboard_entered);
     assert!(harness.client.received.pointer_surface.is_some());
-    assert_eq!(harness.client.received.keys, [(KEY_A, true), (KEY_A, false)]);
+    assert_eq!(
+        harness.client.received.keys,
+        [(KEY_A, true), (KEY_A, false)]
+    );
 
     harness.app.set_locked(true);
     harness.settle();

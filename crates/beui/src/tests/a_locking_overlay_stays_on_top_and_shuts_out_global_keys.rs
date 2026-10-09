@@ -112,11 +112,18 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
         "nothing outside the lock can take the focus"
     );
     harness.type_text("hunter2");
-    assert_eq!(*typed.borrow(), "hunter2", "the lock's own field takes the keys");
+    assert_eq!(
+        *typed.borrow(),
+        "hunter2",
+        "the lock's own field takes the keys"
+    );
 
     set(&mut harness, &set_locked, false);
     assert!(!harness.document().locked());
     let before = globals.get();
     harness.key(Key::K, Modifiers::CTRL);
-    assert!(globals.get() > before, "global keys are heard once unlocked");
+    assert!(
+        globals.get() > before,
+        "global keys are heard once unlocked"
+    );
 }

@@ -3,7 +3,11 @@ use super::*;
 #[test]
 fn installing_adds_the_lock_screens_pam_service_without_replacing_one() {
     let dir = std::env::temp_dir().join(format!("block-app-pam-{}", uuid::Uuid::new_v4()));
-    assert_eq!(place_pam(&dir).unwrap(), None, "no PAM directory, no service");
+    assert_eq!(
+        place_pam(&dir).unwrap(),
+        None,
+        "no PAM directory, no service"
+    );
 
     std::fs::create_dir_all(&dir).unwrap();
     let service = dir.join("block-app");

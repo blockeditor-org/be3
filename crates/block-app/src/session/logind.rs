@@ -188,7 +188,12 @@ async fn inhibit(manager: &Proxy<'_>) -> Option<OwnedFd> {
     let asked = manager
         .call::<_, _, OwnedFd>(
             "Inhibit",
-            &("sleep", "Block", "Lock the screen before suspending", "delay"),
+            &(
+                "sleep",
+                "Block",
+                "Lock the screen before suspending",
+                "delay",
+            ),
         )
         .await;
     match asked {

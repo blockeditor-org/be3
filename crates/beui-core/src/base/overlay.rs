@@ -484,10 +484,9 @@ impl Document {
     }
 
     pub(crate) fn lock(&self) -> Option<NodeOf<OverlayNode>> {
-        self.overlay_stack
-            .iter()
-            .copied()
-            .find(|overlay| self.contains(*overlay) && self.arena.get_as::<OverlayNode>(*overlay).locks)
+        self.overlay_stack.iter().copied().find(|overlay| {
+            self.contains(*overlay) && self.arena.get_as::<OverlayNode>(*overlay).locks
+        })
     }
 
     pub fn locked(&self) -> bool {

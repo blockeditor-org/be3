@@ -109,16 +109,14 @@ impl Idle {
         self.inhibited = inhibited;
         self.notifications
             .retain(|notification| notification.resource.is_alive());
-        let countdowns = self
-            .blank
-            .iter_mut()
-            .chain(self.lock.iter_mut())
-            .map(|countdown| (countdown, None))
-            .chain(
-            self.notifications
+        let countdowns =
+            self.blank
                 .iter_mut()
-                .map(|notification| (&mut notification.countdown, Some(&notification.resource))),
-        );
+                .chain(self.lock.iter_mut())
+                .map(|countdown| (countdown, None))
+                .chain(self.notifications.iter_mut().map(|notification| {
+                    (&mut notification.countdown, Some(&notification.resource))
+                }));
         let mut next: Option<Instant> = None;
         for (countdown, resource) in countdowns {
             let resume = active || (changed && countdown.inhibitable);

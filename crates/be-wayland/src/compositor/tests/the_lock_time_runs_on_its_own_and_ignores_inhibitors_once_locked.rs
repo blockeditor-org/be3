@@ -25,7 +25,10 @@ fn the_lock_time_runs_on_its_own_and_ignores_inhibitors_once_locked() {
     harness.settle();
     harness.context.advance_clock(BLANK * 2);
     harness.frame(Vec::new());
-    assert!(!harness.app.lock_due(), "a shown inhibitor holds the lock off");
+    assert!(
+        !harness.app.lock_due(),
+        "a shown inhibitor holds the lock off"
+    );
     assert!(!harness.app.idle());
 
     harness.app.set_locked(true);

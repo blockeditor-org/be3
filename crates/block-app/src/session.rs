@@ -14,9 +14,9 @@ use block_plugin_api::{PowerAction, PowerAvailability};
 
 use crate::host::{WakingSender, waking_channel};
 pub(crate) use install::install;
+use lock::{Authenticate, Lock, Verdict};
 pub(crate) use lock::{LockState, Password, Trigger};
 pub(crate) use log::start_log;
-use lock::{Authenticate, Lock, Verdict};
 use logind::{Logind, LogindEvent};
 use power::{LogindCall, Power, SessionControl};
 use sleep::{Inhibit, SleepGuard};
@@ -39,7 +39,9 @@ impl ScreenLock {
     pub(crate) fn start() -> Self {
         let user = pam::user();
         if user.is_none() {
-            eprintln!("block-app: this user has no account entry, so the screen cannot be unlocked");
+            eprintln!(
+                "block-app: this user has no account entry, so the screen cannot be unlocked"
+            );
         }
         let shown = user
             .as_ref()
@@ -65,7 +67,10 @@ impl ScreenLock {
     }
 
     pub(crate) fn submit(&mut self, password: Password) {
-        if let Some(wait) = self.lock.submit(password, crate::host::now(), &mut self.pam) {
+        if let Some(wait) = self
+            .lock
+            .submit(password, crate::host::now(), &mut self.pam)
+        {
             crate::host::request_repaint_after(until_next_second(wait));
         }
     }

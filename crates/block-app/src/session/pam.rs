@@ -152,8 +152,14 @@ pub(crate) fn authenticate(service: &str, user: &str, password: &str) -> Verdict
         data: std::ptr::from_mut::<Answers>(&mut answers).cast(),
     };
     let mut handle = std::ptr::null_mut();
-    let started =
-        unsafe { (library.start)(service.as_ptr(), user_name.as_ptr(), &conversation, &mut handle) };
+    let started = unsafe {
+        (library.start)(
+            service.as_ptr(),
+            user_name.as_ptr(),
+            &conversation,
+            &mut handle,
+        )
+    };
     if started != PAM_SUCCESS || handle.is_null() {
         return Verdict::Failed(format!("PAM did not start ({started})"));
     }

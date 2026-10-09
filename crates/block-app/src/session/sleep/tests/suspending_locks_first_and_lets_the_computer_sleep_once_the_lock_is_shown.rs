@@ -10,7 +10,10 @@ fn suspending_locks_first_and_lets_the_computer_sleep_once_the_lock_is_shown() {
     guard.hold(&mut inhibitor);
     assert_eq!(inhibitor.taken, 1, "the session holds one delay inhibitor");
     guard.shown(&mut inhibitor);
-    assert_eq!(inhibitor.released, 0, "showing the lock alone releases nothing");
+    assert_eq!(
+        inhibitor.released, 0,
+        "showing the lock alone releases nothing"
+    );
 
     guard.prepare(true, &mut lock, &mut inhibitor);
     assert!(lock.locked(), "the screen locks before the computer sleeps");

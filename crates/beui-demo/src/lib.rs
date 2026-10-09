@@ -7,10 +7,10 @@ use beui::icons::{
     ICON_CONTENT_COPY, ICON_CONTENT_PASTE, ICON_CONTRAST, ICON_CROP_SQUARE, ICON_DASHBOARD,
     ICON_DELETE, ICON_DRAG_INDICATOR, ICON_DRAW, ICON_EDIT, ICON_FLIP_TO_FRONT, ICON_GRID_VIEW,
     ICON_INPUT, ICON_LAYERS, ICON_LINK, ICON_LIST, ICON_LOCK, ICON_MAIL, ICON_MENU, ICON_MOUSE,
-    ICON_POWER_SETTINGS_NEW,
-    ICON_NOTES, ICON_OPEN_IN_NEW, ICON_PALETTE, ICON_PLAY_ARROW, ICON_RADIO_BUTTON_CHECKED,
-    ICON_SHARE, ICON_SMART_BUTTON, ICON_STAR, ICON_SWAP_VERT, ICON_TEXT_FIELDS, ICON_TITLE,
-    ICON_TOGGLE_ON, ICON_TOUCH_APP, ICON_TUNE, ICON_VIEW_COLUMN, ICON_VIEW_QUILT, ICON_WIDGETS,
+    ICON_NOTES, ICON_OPEN_IN_NEW, ICON_PALETTE, ICON_PLAY_ARROW, ICON_POWER_SETTINGS_NEW,
+    ICON_RADIO_BUTTON_CHECKED, ICON_SHARE, ICON_SMART_BUTTON, ICON_STAR, ICON_SWAP_VERT,
+    ICON_TEXT_FIELDS, ICON_TITLE, ICON_TOGGLE_ON, ICON_TOUCH_APP, ICON_TUNE, ICON_VIEW_COLUMN,
+    ICON_VIEW_QUILT, ICON_WIDGETS,
 };
 use beui::reactive::{
     Action, Align, Callback, Canvas, CanvasItem, CanvasView, Child, Children, Chord, ClickCallback,
@@ -26,11 +26,10 @@ use beui::styled::{
     Chip, Code, ColorInput, ColorPicker, ColorWheel, CommandPalette, ContextMenu, DateTimeField,
     Dialog, Display, Docking, FocusRing, Fullscreen, Heading, Icon, IconButton, IconButtonSize,
     IconSized, KeepChanges, Launcher, LauncherItem, Link, ListRow, Listbox, LockAction, LockScreen,
-    MenuButton, ModalSheet,
-    NumberInput, OklchColorWheel, Paragraph, Popover, Progress, RadioGroup, ResponsiveTabs, Scroll,
-    Select, SelectableText, Separator, Shortcut, Slider, Spinner, SplitButton, Stack, Switch, Tabs,
-    TextArea, TextInput, Theme, ThemeProvider, Title, Toast, Toasts, ToggleButton, Tooltip, Tree,
-    TreeRowFace, use_theme,
+    MenuButton, ModalSheet, NumberInput, OklchColorWheel, Paragraph, Popover, Progress, RadioGroup,
+    ResponsiveTabs, Scroll, Select, SelectableText, Separator, Shortcut, Slider, Spinner,
+    SplitButton, Stack, Switch, Tabs, TextArea, TextInput, Theme, ThemeProvider, Title, Toast,
+    Toasts, ToggleButton, Tooltip, Tree, TreeRowFace, use_theme,
 };
 use beui::unstyled::{
     ChoiceOption, Container, DateTimeParts, DockMode, DockPane, DockSplit, DockTab, DockingLayout,

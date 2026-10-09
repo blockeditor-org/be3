@@ -34,7 +34,10 @@ pub(crate) fn install(prefix: Option<&str>) -> Result<(), Box<dyn Error>> {
             );
             match place_pam(Path::new(PAM_DIR)) {
                 Ok(Some(service)) => {
-                    println!("Added {}, which the lock screen checks passwords with.", service.display());
+                    println!(
+                        "Added {}, which the lock screen checks passwords with.",
+                        service.display()
+                    );
                 }
                 Ok(None) => {}
                 Err(error) => println!(
