@@ -50,8 +50,8 @@ pub(crate) use runtime::{
 };
 #[cfg(target_os = "linux")]
 pub(crate) use runtime::{
-    set_displays, set_input_devices, set_media, set_power, take_media_requests, take_power_request,
-    watches_media,
+    set_displays, set_input_devices, set_media, set_notifications, set_power,
+    take_media_requests, take_notification_requests, take_power_request, watches_media,
 };
 #[cfg(all(
     feature = "web-view",

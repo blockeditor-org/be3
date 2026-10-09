@@ -99,7 +99,7 @@ pub use text_area::emoji::emoji_menu;
 pub use text_area::{TextArea, text_area_surface};
 pub use text_input::{TextInput, text_input_value};
 pub use theme::{DocumentTheme, Theme, ThemeProvider, ThemeStore, use_theme};
-pub use toast::{TOAST_DURATION, Toast, Toasts};
+pub use toast::{TOAST_DURATION, Toast, ToastAction, Toasts};
 pub use tooltip::Tooltip;
 pub use tree::{Tree, TreeRowFace, tree_focused, tree_row_node, tree_rows};
 

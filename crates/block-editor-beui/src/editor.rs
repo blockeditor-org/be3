@@ -11,9 +11,9 @@ use beui::reactive::{
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
     BarAction, ChildContent, ChildId, ChildLayer, ChildMode, CreationProgress, EditorCapabilities,
-    HostDisplay, HostInputDevice, HostPanel, HostWindow, HostWindowId, InteractionMode,
-    MediaLevels, MediaRequest, MenuEntry, PowerAction, PowerAvailability, ResizeMode,
-    SettingsProgress, TopBar, ViewChange, WebViewId,
+    HostDisplay, HostInputDevice, HostNotification, HostPanel, HostWindow, HostWindowId,
+    InteractionMode, MediaLevels, MediaRequest, MenuEntry, PowerAction, PowerAvailability, ResizeMode, SettingsProgress,
+    TopBar, ViewChange, WebViewId,
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;
@@ -711,6 +711,23 @@ impl Editor {
 
     pub fn request_media(&self, request: MediaRequest) {
         self.0.host.request_media(request);
+    }
+
+    pub fn notifications(&self) -> Memo<Vec<HostNotification>> {
+        let host = self.0.host.clone();
+        let revision = self.pushed(Pushed::Notifications);
+        create_memo(move || {
+            revision.get();
+            host.notifications()
+        })
+    }
+
+    pub fn invoke_notification(&self, id: u32, action: String) {
+        self.0.host.invoke_notification(id, action);
+    }
+
+    pub fn dismiss_notifications(&self, ids: Vec<u32>) {
+        self.0.host.dismiss_notifications(ids);
     }
 
     pub fn input_devices(&self) -> Memo<Vec<HostInputDevice>> {

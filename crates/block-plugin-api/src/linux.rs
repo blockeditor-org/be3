@@ -110,6 +110,33 @@ pub enum MediaRequest {
     Player(PlayerCommand),
 }
 
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HostNotificationAction {
+    pub key: String,
+    pub label: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HostNotification {
+    pub id: u32,
+    pub app_name: String,
+    pub summary: String,
+    pub body: String,
+    pub received: u64,
+    pub critical: bool,
+    pub actions: Vec<HostNotificationAction>,
+}
+
+impl HostNotification {
+    pub const DEFAULT_ACTION: &str = "default";
+
+    pub fn has_default_action(&self) -> bool {
+        self.actions
+            .iter()
+            .any(|action| action.key == Self::DEFAULT_ACTION)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum LinuxMessage {
     Windows(Vec<HostWindow>),
@@ -128,6 +155,13 @@ pub enum LinuxMessage {
     WatchMedia,
     Media(MediaLevels),
     RequestMedia(MediaRequest),
+    WatchNotifications,
+    Notifications(Vec<HostNotification>),
+    InvokeNotification {
+        id: u32,
+        action: String,
+    },
+    DismissNotifications(Vec<u32>),
 }
 
 impl LinuxMessage {
@@ -137,7 +171,8 @@ impl LinuxMessage {
             | Self::InputDevices(_)
             | Self::Displays(_)
             | Self::Power(_)
-            | Self::Media(_) => Direction::ToPlugin,
+            | Self::Media(_)
+            | Self::Notifications(_) => Direction::ToPlugin,
             Self::WatchInputDevices
             | Self::WatchDisplays
             | Self::FullscreenWindow { .. }
@@ -145,7 +180,10 @@ impl LinuxMessage {
             | Self::WatchPower
             | Self::RequestPower(_)
             | Self::WatchMedia
-            | Self::RequestMedia(_) => Direction::ToHost,
+            | Self::RequestMedia(_)
+            | Self::WatchNotifications
+            | Self::InvokeNotification { .. }
+            | Self::DismissNotifications(_) => Direction::ToHost,
         }
     }
 }

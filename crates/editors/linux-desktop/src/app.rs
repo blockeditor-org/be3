@@ -1,6 +1,7 @@
 mod bar;
 mod calendar;
 pub(crate) mod media;
+mod notifications;
 mod popup;
 mod power;
 mod sessions;

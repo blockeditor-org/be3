@@ -109,6 +109,7 @@ mod manifest_validation;
 mod media_messages_round_trip;
 mod menus_and_their_picks_round_trip;
 mod multiplexed_messages_round_trip;
+mod notification_messages_round_trip;
 mod open_block_request_round_trips;
 mod open_messages_round_trip;
 mod performance_messages_round_trip;
