@@ -12,8 +12,8 @@ use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
     BarAction, ChildContent, ChildId, ChildLayer, ChildMode, CreationProgress, EditorCapabilities,
     HostDisplay, HostInputDevice, HostNotification, HostPanel, HostWindow, HostWindowId,
-    InteractionMode, MenuEntry, PowerAction, PowerAvailability, ResizeMode, SettingsProgress,
-    TopBar, ViewChange, WebViewId,
+    InteractionMode, MediaLevels, MediaRequest, MenuEntry, PowerAction, PowerAvailability,
+    ResizeMode, SettingsProgress, TopBar, ViewChange, WebViewId,
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;
@@ -698,6 +698,19 @@ impl Editor {
 
     pub fn request_power(&self, action: PowerAction) {
         self.0.host.request_power(action);
+    }
+
+    pub fn media(&self) -> Memo<MediaLevels> {
+        let host = self.0.host.clone();
+        let revision = self.pushed(Pushed::Media);
+        create_memo(move || {
+            revision.get();
+            host.media()
+        })
+    }
+
+    pub fn request_media(&self, request: MediaRequest) {
+        self.0.host.request_media(request);
     }
 
     pub fn notifications(&self) -> Memo<Vec<HostNotification>> {

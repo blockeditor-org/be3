@@ -9,7 +9,8 @@ mod session;
 pub use block_ids::BlockIdRole;
 pub use linux::{
     HostDisplay, HostDisplayMode, HostInputDevice, HostNotification, HostNotificationAction,
-    HostWindow, HostWindowId, LinuxMessage, PowerAction, PowerAvailability,
+    HostWindow, HostWindowId, LinuxMessage, MediaLevel, MediaLevels, MediaRequest, PlayerCommand,
+    PowerAction, PowerAvailability,
 };
 pub use manifest::{
     EditorDocument, ManifestDocument, TemplateDocument, Templates, manifest_from_json,
@@ -2648,6 +2649,9 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             | LinuxMessage::WatchPower
             | LinuxMessage::Power(_)
             | LinuxMessage::RequestPower(_)
+            | LinuxMessage::WatchMedia
+            | LinuxMessage::Media(_)
+            | LinuxMessage::RequestMedia(_)
             | LinuxMessage::WatchNotifications => Ok(()),
             LinuxMessage::Notifications(notifications) => {
                 collection(notifications.len())?;

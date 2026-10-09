@@ -120,6 +120,34 @@ signals.
 closes. `dbus-run-session` does not suit `:dev`, since its bus goes away when the launcher
 returns.
 
+## Media and hardware keys
+
+linux-desktop binds the volume, mute, mic mute, brightness and media transport keys
+(`BINDINGS` in its `app/media.rs`, the one place that says which key does what) as
+intercepting actions, so the host hands them to the shell even while a program has the keyboard,
+and a held key repeats. Each key sends a `MediaRequest` (`LinuxMessage::RequestMedia`), and
+a volume, mute or brightness key shows `beui::styled::LevelOsd`, an icon and a level bar that
+fades out after 1.5 seconds, with the levels the host reports (`editor.media()`, from
+`LinuxMessage::Media`).
+
+block-app does what a plugin cannot: `src/media.rs` starts its backends once a plugin watches
+the levels or the shell asks for something, carries out the shell's requests only, and reports
+the levels back. The backends run as tasks on the D-Bus thread:
+- `media/audio.rs`: volume steps up to 100%, set volume, mute and mic mute on the default sink
+  and source, over the PulseAudio protocol (the `pulseaudio` crate's protocol layer, pure Rust),
+  which pipewire-pulse serves on `$XDG_RUNTIME_DIR/pulse/native`. It subscribes to the server's
+  sink, source and server events and reports every change.
+- `media/backlight.rs`: brightness steps through logind's `Session.SetBrightness` on
+  `/sys/class/backlight`'s device (firmware before platform before raw).
+- `media/players.rs`: play/pause, next, previous and stop to the MPRIS player that most
+  recently started playing, or the first one listed, on the session bus.
+
+A desktop the window is nested in usually takes these keys first; to try them under
+`:dev -- --desktop`, run `pipewire`, `wireplumber` and `pipewire-pulse` with `XDG_RUNTIME_DIR`
+and `DBUS_SESSION_BUS_ADDRESS` set for the app, and press them with
+`xdotool key --window $WINDOW XF86AudioRaiseVolume` (or `XF86AudioMicMute`, `XF86AudioPlay`,
+...).
+
 ## Wayland programs
 
 On Linux the app is a Wayland compositor. Its socket is `wayland-<n>` in `XDG_RUNTIME_DIR`,
