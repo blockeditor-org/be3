@@ -29,6 +29,7 @@ use crate::{
     plugin_host::web_view::WebViewHost,
 };
 
+const MAX_MEDIA_REQUESTS: usize = 64;
 const REFUSED: &str = "this plugin's manifest does not allow it to reach";
 
 #[derive(Default)]
@@ -51,6 +52,7 @@ pub(super) struct Instances {
     input_devices: Vec<block_plugin_api::HostInputDevice>,
     displays: Vec<block_plugin_api::HostDisplay>,
     power: block_plugin_api::PowerAvailability,
+    media: block_plugin_api::MediaLevels,
     notifications: Arc<Vec<block_plugin_api::HostNotification>>,
 }
 
@@ -135,6 +137,9 @@ struct Instance {
     watches_power: bool,
     reported_power: Option<block_plugin_api::PowerAvailability>,
     power_request: Option<block_plugin_api::PowerAction>,
+    watches_media: bool,
+    reported_media: Option<block_plugin_api::MediaLevels>,
+    media_requests: Vec<block_plugin_api::MediaRequest>,
     watches_notifications: bool,
     reported_notifications: Option<Arc<Vec<block_plugin_api::HostNotification>>>,
     notification_requests: Vec<LinuxMessage>,
@@ -323,6 +328,9 @@ impl Instance {
             watches_power: false,
             reported_power: None,
             power_request: None,
+            watches_media: false,
+            reported_media: None,
+            media_requests: Vec::new(),
             watches_notifications: false,
             reported_notifications: None,
             notification_requests: Vec::new(),
@@ -1181,6 +1189,7 @@ impl Instances {
             entry.reported_input_devices = None;
             entry.reported_displays = None;
             entry.reported_power = None;
+            entry.reported_media = None;
             entry.reported_notifications = None;
             entry.reported_history = None;
             entry.reported_artifacts.clear();
@@ -1209,6 +1218,7 @@ impl Instances {
         let input_devices = self.input_devices.clone();
         let displays = self.displays.clone();
         let power = self.power;
+        let media = self.media;
         let notifications = Arc::clone(&self.notifications);
         let graph = crate::be::graph_revision();
         let graph_moved = self.graph_seen.replace(graph) != Some(graph);
@@ -1361,6 +1371,13 @@ impl Instances {
                 opened.push(Message::Editor(EditorMessage::Linux {
                     instance,
                     message: LinuxMessage::Power(power),
+                }));
+            }
+            if entry.watches_media && entry.reported_media != Some(media) {
+                entry.reported_media = Some(media);
+                opened.push(Message::Editor(EditorMessage::Linux {
+                    instance,
+                    message: LinuxMessage::Media(media),
                 }));
             }
             if entry.watches_notifications
@@ -2389,6 +2406,13 @@ impl Instances {
                     LinuxMessage::RequestPower(action) if self.power.allows(action) => {
                         entry.power_request = Some(action);
                     }
+                    LinuxMessage::WatchMedia => entry.watches_media = true,
+                    LinuxMessage::RequestMedia(_)
+                        if entry.media_requests.len() >= MAX_MEDIA_REQUESTS =>
+                    {
+                        return false;
+                    }
+                    LinuxMessage::RequestMedia(request) => entry.media_requests.push(request),
                     LinuxMessage::FullscreenWindow { window, fullscreen } => {
                         entry.fullscreen_windows.push((window, fullscreen));
                     }
@@ -2407,6 +2431,7 @@ impl Instances {
                     | LinuxMessage::Displays(_)
                     | LinuxMessage::Power(_)
                     | LinuxMessage::RequestPower(_)
+                    | LinuxMessage::Media(_)
                     | LinuxMessage::Notifications(_)
                     | LinuxMessage::InvokeNotification { .. }
                     | LinuxMessage::DismissNotifications(_) => return false,
@@ -3117,6 +3142,27 @@ impl Instances {
         instance: EditorInstanceId,
     ) -> Option<block_plugin_api::PowerAction> {
         self.entries.get_mut(&instance)?.power_request.take()
+    }
+
+    pub(super) fn set_media(&mut self, media: block_plugin_api::MediaLevels) -> bool {
+        self.media = media;
+        self.entries.values().any(|entry| entry.watches_media)
+    }
+
+    #[cfg(target_os = "linux")]
+    pub(super) fn watches_media(&self) -> bool {
+        self.entries.values().any(|entry| entry.watches_media)
+    }
+
+    #[cfg(target_os = "linux")]
+    pub(super) fn take_media_requests(
+        &mut self,
+        instance: EditorInstanceId,
+    ) -> Vec<block_plugin_api::MediaRequest> {
+        self.entries
+            .get_mut(&instance)
+            .map(|entry| std::mem::take(&mut entry.media_requests))
+            .unwrap_or_default()
     }
 
     pub(super) fn set_notifications(

@@ -98,6 +98,8 @@ mod an_instance_watching_a_blocks_history_is_told_when_it_changes;
 mod an_instance_watching_displays_is_told_what_is_connected;
 mod an_instance_watching_input_devices_is_told_what_is_connected;
 #[cfg(target_os = "linux")]
+mod an_instance_watching_media_is_told_the_levels_and_its_requests_reach_the_host;
+#[cfg(target_os = "linux")]
 mod an_instance_watching_notifications_is_told_of_them_and_its_requests_reach_the_host;
 #[cfg(target_os = "linux")]
 mod an_instance_watching_power_is_told_what_it_may_do_and_its_requests_reach_the_host;
