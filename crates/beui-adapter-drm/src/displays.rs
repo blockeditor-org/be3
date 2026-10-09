@@ -99,7 +99,7 @@ impl Displays {
                 },
             );
             if let Err(error) = drawn {
-                eprintln!("beui: an output could not be drawn: {error}");
+                output.fail(error);
             }
         }
     }
