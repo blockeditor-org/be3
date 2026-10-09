@@ -23,7 +23,7 @@ Commands (builds run on the build server; see guides/buck2.md and guides/build_s
 - `./scripts/buck run //:check`: fast compile check of every first-party target, native and wasm. Use this instead of cargo, which no longer builds the workspace.
 - `./scripts/verify`: the full check. It applies autofixes, accepts new and changed snapshots, and runs every lint and test. Use a 10-minute timeout. CI runs the same thing on pull requests and pushes what it changes.
   - Write code however is natural and let its autofixes tidy it; don't do these by hand. It formats code (including `view!` bodies), applies fixable clippy lints, deletes comments and doc comments, splits tests into one per file, and renames `foo/mod.rs` to `foo.rs`.
-- `./scripts/test NAME`: runs the tests whose names contain NAME and prints all their output, passing or failing. It finds their crates and runs each the way its tests need, natively or as wasm. `--update` accepts the paintings they make.
+- `./scripts/test NAME`: runs the tests whose full names (module path and function, such as `media::tests::plays::plays`) contain NAME, so NAME may also be a module path like `media::tests`, and prints all their output, passing or failing. It finds their crates and runs each the way its tests need, natively or as wasm. `--update` accepts the paintings they make.
 - `./scripts/buck run //crates/block-app:app`: build and run the native app.
 - `./scripts/buck run //crates/block-app:dev`: run the app in a virtual display, signed in with a workspace open, to drive with xdotool (guides/running_the_app.md).
 - `./scripts/buck run //crates/block-app:smoke`: a bounded launch test; run it for changes that could affect native startup.

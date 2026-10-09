@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #
-# Runs the tests whose names contain NAME and prints everything they print,
+# Runs the tests whose full names (module path, then function, as the test
+# binary filters them) contain NAME and prints everything they print,
 # whether they pass or fail. It finds the crates whose sources hold such a test
 # and runs each crate's :test, so a plugin's tests run as wasm, where they can
 # compare paintings, and everything else runs natively. --update accepts the
@@ -39,27 +40,31 @@ if [[ ${#targets[@]} -eq 0 ]]; then
         echo "A test name is letters, digits, underscores and ::, not '$name'." >&2
         exit 1
     fi
-    word="${name##*::}"
+    # A test's name is its module path and its function, the way the test
+    # binary filters it: crates/block-app/src/media/tests/plays.rs holds
+    # media::tests::plays::plays. Every function in a file with a test in it is
+    # named so, and NAME picks the crates where one of those names contains it.
     crates=()
-    while IFS= read -r file; do
-        directory="$(dirname "$file")"
-        while [[ "$directory" != crates && ! -f "$directory/Cargo.toml" ]]; do
-            directory="$(dirname "$directory")"
-        done
-        [[ -f "$directory/Cargo.toml" ]] && crates+=("$directory")
-    done < <(grep -rlE --include='*.rs' "fn [A-Za-z0-9_]*${word}[A-Za-z0-9_]*[[:space:]]*[(<]" crates \
-        | xargs -r grep -lE '#\[(test|tokio::test)' || true)
+    while IFS= read -r crate; do
+        crates+=("$crate")
+    done < <(grep -rlE --include='*.rs' '#\[(test|tokio::test)' crates \
+        | xargs -r grep -oHE 'fn [A-Za-z0-9_]+' \
+        | awk -v name="$name" -f "$internal/test-names.awk" \
+        | sort -u)
     if [[ ${#crates[@]} -eq 0 ]]; then
-        echo "No test in crates/ has a name containing '$word'." >&2
+        echo "No test in crates/ has a name containing '$name'." >&2
+        echo "A test's name is its module path and its function, such as media::tests::plays::plays for" >&2
+        echo "crates/block-app/src/media/tests/plays.rs; NAME may be any part of one." >&2
         exit 1
     fi
     while IFS= read -r crate; do
         if ! grep -qE '^(cargo_test|editor|plugin_tests)\(' "$crate/BUCK" 2> /dev/null; then
-            echo "$crate holds a test named like '$word' but has no :test target in its BUCK." >&2
-            exit 1
+            echo "Skipping $crate: it holds a test whose name contains '$name' but has no :test target in its BUCK." >&2
+            continue
         fi
         targets+=("//$crate:test")
-    done < <(printf '%s\n' "${crates[@]}" | sort -u)
+    done < <(printf '%s\n' "${crates[@]}")
+    [[ ${#targets[@]} -gt 0 ]] || exit 1
 fi
 
 arguments=(--test-arg=--nocapture)

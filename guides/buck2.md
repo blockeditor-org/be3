@@ -17,7 +17,7 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck test //crates/...` | the tests alone; outside CI it prints only the failures and the compiler's errors, and `BE3_VERBOSE=1` prints everything |
 | `./scripts/buck test //crates/editors/checklist:test` | one editor's tests; add `-- --env UPDATE_SNAPSHOTS=1` to accept its paintings |
 | `./scripts/buck test //crates/editors/checklist:test -- --test-arg=adding` | only the tests whose names contain `adding`; `--test-arg` passes its value to the test binary, and a bare argument after `--` is an error |
-| `./scripts/test adding [--update]` | the tests whose names contain `adding`, in every crate that has one, with all their output; it finds each crate's `:test` and runs it with `BE3_VERBOSE=1` and `--nocapture` |
+| `./scripts/test adding [--update]` | the tests whose full names, module path included, contain `adding` (or `media::tests`), in every crate that has one, with all their output; it finds each crate's `:test` and runs it with `BE3_VERBOSE=1` and `--nocapture` |
 | `./scripts/buck run //crates/block-app:app` | the app, with every plugin beside it |
 | `./scripts/buck run //crates/block-app:smoke` | the app for ten seconds in a virtual display; `:smoke-desktop` with `--desktop` |
 | `./scripts/buck build //crates/block-app:dist --out DIR` | a platform's release: app and `be-server` |
@@ -62,9 +62,9 @@ these in front of the pinned buck2:
   comes from).
 - **An HTTPS proxy.** buck2's remote execution client dials the server's hosts
   directly and never reads `HTTPS_PROXY`. When it is set, `./scripts/buck` builds
-  `scripts/internal/re-relay` with Go (1.24 or newer), leaves one running on
-  `127.0.0.1:18980` for the executor and one on `127.0.0.1:18981` for the
-  storage, and points buck2 at them in the same `.buckconfig.local`; each relay sends
+  `scripts/internal/re-relay` with Go (1.24 or newer), leaves one running for the executor and one for the storage, on two
+  ports of `127.0.0.1` picked from the checkout's path, so that two checkouts on
+  one machine almost never share one, and points buck2 at them in the same `.buckconfig.local`; each relay sends
   its calls on through the proxy, over HTTP/1.1 if that is all the proxy
   speaks. Their errors go to `target/re-relay.log`. A `.buckconfig.local` a
   person wrote is left alone, and the relays are not used then.
@@ -76,9 +76,9 @@ these in front of the pinned buck2:
   it, and a Windows checkout has none, so no file a build reads may have one:
   Windows would miss every cache entry Linux wrote. Scripts are run with `sh`,
   and `./scripts/verify`'s lint clears the bit from anything outside `scripts/`.
-- **One retry.** buck2 exits with 2 for an infrastructure error, such as a
+- **Retries.** buck2 exits with 2 for an infrastructure error, such as a
   connection to the build server resetting partway through a download, which buck2 does not retry itself.
-  The wrapper runs such a command once more; the actions are cached by then.
+  The wrapper runs such a command again, three times in all (`BE3_BUCK_ATTEMPTS`); the finished actions are cached by then.
   For `run` it builds first (`run --command-args-file`; Windows refuses
   `--emit-shell`) and retries that, since the program's own exit status is
   run's.
