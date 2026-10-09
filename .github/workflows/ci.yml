@@ -23,18 +23,22 @@ permissions:
   contents: read
 
 env:
-  # The token for Namespace's remote execution (guides/build_server.md), which
-  # runs every buck2 action. A pull request from a fork sees an empty value,
-  # and ./scripts/buck says so rather than building.
+  # The build server that runs every buck2 action (guides/build_server.md):
+  # the repository variable BE3_BUILD_SERVER, or Namespace when it is unset.
+  # Namespace's token is the secret BE3_NAMESPACE_TOKEN, and any other
+  # server's key the secret BE3_BUILD_SERVER_KEY. A pull request from a fork
+  # sees empty secrets, and ./scripts/buck says so rather than building.
+  BE3_BUILD_SERVER: ${{ vars.BE3_BUILD_SERVER || 'namespace' }}
   BE3_NAMESPACE_TOKEN: ${{ secrets.BE3_NAMESPACE_TOKEN }}
+  BE3_BUILD_SERVER_KEY: ${{ secrets.BE3_BUILD_SERVER_KEY }}
 
 # One job does the work: ci is ./scripts/ci, which verifies, builds
 # the Android app and launcher, and on a pull request renders the paint
 # previews, and uploads what each of those produced. It is also the gate: ci is
 # the one check the ruleset on main requires, on the pull request and on the
 # merge group GitHub's merge queue builds from it. It runs the pull
-# request's code, so it holds no credentials beyond Namespace's token and the
-# Android keystore, both of which a build can already read.
+# request's code, so it holds no credentials beyond the build server's key and
+# the Android keystore, both of which a build can already read.
 # The jobs after it each run nothing from the pull request and hold the one
 # credential they write with: autofix pushes the fixes, publish-summary
 # comments with the summary, publish-android puts the Android build where the
@@ -65,8 +69,8 @@ jobs:
   # request that each run edits rather than adding to, which also counts the
   # lines the pull request adds and removes outside its tests. The paintings
   # compared are the ones committed on the head, so a painting the autofix job
-  # accepts shows up in the run its commit starts. A fork's run has no Namespace
-  # token to build with and no token to comment with, so it has no previews.
+  # accepts shows up in the run its commit starts. A fork's run has no build
+  # server key to build with and no token to comment with, so it has no previews.
   ci:
     name: ci
     runs-on: ubuntu-24.04

@@ -46,7 +46,7 @@ sqlite_materializer_state = true
 # with the header that authenticates to them, into .buckconfig.local
 # (configure_build_server in scripts/internal/common.sh). The address is a bare
 # host:port (buck2 rejects grpcs:// and https://), http_headers uses a colon,
-# and there is no instance name.
+# and only Hermetiq has an instance name.
 
 # What buck2 does not watch or read as part of the workspace: git's own
 # directory, whose every fetch would otherwise be a file change, and the
