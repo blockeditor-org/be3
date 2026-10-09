@@ -14,6 +14,7 @@ pub fn Overlay(
     #[prop(default = false)] light: Prop<bool>,
     trigger: Option<NodeRef>,
     #[prop(default = OverlayMode::Modal)] mode: Prop<OverlayMode>,
+    #[prop(default = false)] locks: Prop<bool>,
     open: Prop<bool>,
     on_dismiss: ClickCallback,
     children: Option<Child>,
@@ -46,6 +47,9 @@ pub fn Overlay(
         with_document(|document| document.set_overlay_light(overlay, light.get()))
     });
     create_effect(move || with_document(|document| document.set_overlay_mode(overlay, mode.get())));
+    create_effect(move || {
+        with_document(|document| document.set_overlay_locks(overlay, locks.get()))
+    });
     create_effect(move || {
         let open = open.get();
         with_document(|document| match open {

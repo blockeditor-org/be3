@@ -46,6 +46,7 @@ pub struct HostDisplay {
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PowerAction {
+    Lock,
     Suspend,
     Restart,
     PowerOff,
@@ -53,11 +54,18 @@ pub enum PowerAction {
 }
 
 impl PowerAction {
-    pub const ALL: [Self; 4] = [Self::Suspend, Self::Restart, Self::PowerOff, Self::LogOut];
+    pub const ALL: [Self; 5] = [
+        Self::Lock,
+        Self::Suspend,
+        Self::Restart,
+        Self::PowerOff,
+        Self::LogOut,
+    ];
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PowerAvailability {
+    pub lock: bool,
     pub suspend: bool,
     pub restart: bool,
     pub power_off: bool,
@@ -67,6 +75,7 @@ pub struct PowerAvailability {
 impl PowerAvailability {
     pub fn allows(&self, action: PowerAction) -> bool {
         match action {
+            PowerAction::Lock => self.lock,
             PowerAction::Suspend => self.suspend,
             PowerAction::Restart => self.restart,
             PowerAction::PowerOff => self.power_off,

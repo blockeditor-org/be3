@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const ENTRY: &str = include_str!("block-app.desktop");
+const PAM: &str = include_str!("block-app.pam");
+const PAM_DIR: &str = super::pam::DIR;
 const EXECUTABLE: &str = "block-app";
 const DEFAULT_PREFIX: &str = "/usr/local";
 
@@ -30,6 +32,18 @@ pub(crate) fn install(prefix: Option<&str>) -> Result<(), Box<dyn Error>> {
                 installed.link.display(),
                 installed.entry.display()
             );
+            match place_pam(Path::new(PAM_DIR)) {
+                Ok(Some(service)) => {
+                    println!(
+                        "Added {}, which the lock screen checks passwords with.",
+                        service.display()
+                    );
+                }
+                Ok(None) => {}
+                Err(error) => println!(
+                    "Could not add the lock screen's PAM service to {PAM_DIR} ({error}), so it checks passwords with the login service."
+                ),
+            }
             println!("Log out and pick Block from the session menu on the login screen.");
             Ok(())
         }
@@ -89,6 +103,15 @@ pub(crate) fn place(source: &Path, prefix: &Path) -> io::Result<Installed> {
     }
     std::fs::write(&entry, session_entry(&installed))?;
     Ok(Installed { home, link, entry })
+}
+
+pub(crate) fn place_pam(dir: &Path) -> io::Result<Option<PathBuf>> {
+    let service = dir.join(super::pam::SERVICE);
+    if !dir.is_dir() || service.exists() {
+        return Ok(None);
+    }
+    std::fs::write(&service, PAM)?;
+    Ok(Some(service))
 }
 
 fn replace_tree(source: &Path, home: &Path) -> io::Result<()> {

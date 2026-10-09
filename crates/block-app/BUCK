@@ -19,7 +19,7 @@ commit = {
     })
 }
 
-app_srcs = glob(["src/**/*.rs", "src/**/*.wgsl", "src/**/*.desktop", "assets/**/*"])
+app_srcs = glob(["src/**/*.rs", "src/**/*.wgsl", "src/**/*.desktop", "src/**/*.pam", "assets/**/*"])
 
 # On Android the app is this library, loaded by MainActivity under cargo's
 # name for it; on the web it is the module :web runs wasm-bindgen over.

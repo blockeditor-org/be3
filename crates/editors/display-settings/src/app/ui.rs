@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use block_editor_beui::be_block::display_settings::ScreenOff;
+use block_editor_beui::be_block::display_settings::{LockAfter, ScreenOff};
 use block_editor_beui::be_block::{DisplaySettings, DisplaySettingsContent};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_RESET_SETTINGS;
@@ -15,8 +15,8 @@ use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::{ContentProjection, Editor, HostDisplay, HostDisplayMode};
 
 use super::modes::{
-    SCREEN_OFF, Size, effective, mode_label, rate_label, rates, saved, screen_off_label,
-    size_label, size_of, sizes,
+    LOCK_AFTER, SCREEN_OFF, Size, effective, lock_after_label, mode_label, rate_label, rates,
+    saved, screen_off_label, size_label, size_of, sizes,
 };
 
 const PADDING: f32 = 20.0;
@@ -204,10 +204,16 @@ fn ScreenOffSection(
     root: ReadSignal<DisplaySettings>,
     read_only: Memo<bool>,
 ) -> NodeId {
-    let selected = create_memo(move || {
+    let selected = create_memo(clone!(root -> move || {
         let chosen = root.get().screen_off();
         SCREEN_OFF.iter().position(|offered| *offered == chosen)
+    }));
+    let locks = create_memo(move || {
+        let chosen = root.get().lock_after();
+        LOCK_AFTER.iter().position(|offered| *offered == chosen)
     });
+    let locking = settings.clone();
+    let lock_off = read_only.clone();
     view! {
         <List spacing=ROW_SPACING>
             <Caption content="Turn off screens after" />
@@ -226,6 +232,25 @@ fn ScreenOffSection(
                 on_change={move |index: Option<usize>| {
                     if let Some(screen_off) = index.and_then(|index| SCREEN_OFF.get(index)) {
                         settings.operate(DisplaySettings::set_screen_off(Some(*screen_off)));
+                    }
+                }}
+            />
+            <Caption content="Lock the screen after" />
+            <Select
+                options={view! {
+                    <ForEach keys={LOCK_AFTER.to_vec()}>
+                        {|lock_after: LockAfter| view! {
+                            <ChoiceOption label={lock_after_label(lock_after)} />
+                        }}
+                    </ForEach>
+                }}
+                selected={locks}
+                label="Lock the screen after"
+                disabled={lock_off}
+                @test_id={"display-settings.lock-after"}
+                on_change={move |index: Option<usize>| {
+                    if let Some(lock_after) = index.and_then(|index| LOCK_AFTER.get(index)) {
+                        locking.operate(DisplaySettings::set_lock_after(Some(*lock_after)));
                     }
                 }}
             />

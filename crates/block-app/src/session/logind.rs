@@ -6,6 +6,7 @@ use futures_util::{StreamExt, pin_mut};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use zbus::Proxy;
 use zbus::proxy::SignalStream;
+use zbus::zvariant::{OwnedFd, OwnedObjectPath};
 
 use super::power::{LogindAbilities, LogindCall};
 use crate::host::{WakingSender, waking_channel};
@@ -13,34 +14,44 @@ use crate::host::{WakingSender, waking_channel};
 const DESTINATION: &str = "org.freedesktop.login1";
 const PATH: &str = "/org/freedesktop/login1";
 const MANAGER: &str = "org.freedesktop.login1.Manager";
+const SESSION: &str = "org.freedesktop.login1.Session";
 
 #[derive(Debug)]
 pub(crate) enum LogindEvent {
     Abilities(LogindAbilities),
     Called(LogindCall, Result<(), String>),
     PrepareForSleep(bool),
+    Lock,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum Request {
+    Call(LogindCall),
+    Inhibit,
+    Release,
+    LockedHint(bool),
 }
 
 pub(crate) struct Logind {
-    calls: UnboundedSender<LogindCall>,
+    requests: UnboundedSender<Request>,
     sender: WakingSender<LogindEvent>,
     events: Receiver<LogindEvent>,
 }
 
 impl Logind {
     pub(crate) fn connect() -> Self {
-        let (calls, requested) = unbounded_channel();
+        let (requests, requested) = unbounded_channel();
         let (sender, events) = waking_channel();
         crate::dbus::spawn(run(requested, sender.clone()));
         Self {
-            calls,
+            requests,
             sender,
             events,
         }
     }
 
     pub(crate) fn call(&self, call: LogindCall) {
-        if self.calls.send(call).is_err() {
+        if self.requests.send(Request::Call(call)).is_err() {
             let _ = self.sender.send(LogindEvent::Called(
                 call,
                 Err("logind is not reachable".to_owned()),
@@ -48,12 +59,30 @@ impl Logind {
         }
     }
 
+    pub(crate) fn inhibit_sleep(&self) {
+        let _ = self.requests.send(Request::Inhibit);
+    }
+
+    pub(crate) fn release_sleep(&self) {
+        let _ = self.requests.send(Request::Release);
+    }
+
+    pub(crate) fn set_locked_hint(&self, locked: bool) {
+        let _ = self.requests.send(Request::LockedHint(locked));
+    }
+
     pub(crate) fn events(&self) -> Vec<LogindEvent> {
         self.events.try_iter().collect()
     }
 }
 
-async fn run(mut requested: UnboundedReceiver<LogindCall>, events: WakingSender<LogindEvent>) {
+enum Next {
+    Request(Option<Request>),
+    Sleep(Option<bool>),
+    Lock(Option<()>),
+}
+
+async fn run(mut requested: UnboundedReceiver<Request>, events: WakingSender<LogindEvent>) {
     let Some(connection) = crate::dbus::system().await else {
         return;
     };
@@ -77,29 +106,101 @@ async fn run(mut requested: UnboundedReceiver<LogindCall>, events: WakingSender<
             None
         }
     };
+    let session = own_session(&manager).await;
+    let mut locks = match &session {
+        Some(session) => match session.receive_signal("Lock").await {
+            Ok(locks) => Some(locks),
+            Err(error) => {
+                eprintln!("block-app: logind's Lock cannot be watched: {error}");
+                None
+            }
+        },
+        None => None,
+    };
+    let mut inhibitor: Option<OwnedFd> = None;
     loop {
         let next = {
-            let call = requested.recv();
+            let request = requested.recv();
             let sleep = next_sleep(&mut sleeps);
-            pin_mut!(call, sleep);
-            match select(call, sleep).await {
-                Either::Left((call, _)) => Either::Left(call),
-                Either::Right((sleep, _)) => Either::Right(sleep),
+            let lock = next_signal(&mut locks);
+            pin_mut!(request, sleep, lock);
+            match select(request, select(sleep, lock)).await {
+                Either::Left((request, _)) => Next::Request(request),
+                Either::Right((Either::Left((sleep, _)), _)) => Next::Sleep(sleep),
+                Either::Right((Either::Right((lock, _)), _)) => Next::Lock(lock),
             }
         };
         match next {
-            Either::Left(Some(call)) => {
+            Next::Request(Some(Request::Call(call))) => {
                 let result = manager
                     .call::<_, _, ()>(call.method(), &(false,))
                     .await
                     .map_err(|error| error.to_string());
                 let _ = events.send(LogindEvent::Called(call, result));
             }
-            Either::Left(None) => return,
-            Either::Right(Some(starting)) => {
+            Next::Request(Some(Request::Inhibit)) => {
+                if inhibitor.is_none() {
+                    inhibitor = inhibit(&manager).await;
+                }
+            }
+            Next::Request(Some(Request::Release)) => inhibitor = None,
+            Next::Request(Some(Request::LockedHint(locked))) => {
+                if let Some(session) = &session
+                    && let Err(error) = session.call::<_, _, ()>("SetLockedHint", &(locked,)).await
+                {
+                    eprintln!("block-app: logind did not take the locked hint: {error}");
+                }
+            }
+            Next::Request(None) => return,
+            Next::Sleep(Some(starting)) => {
                 let _ = events.send(LogindEvent::PrepareForSleep(starting));
             }
-            Either::Right(None) => sleeps = None,
+            Next::Sleep(None) => sleeps = None,
+            Next::Lock(Some(())) => {
+                let _ = events.send(LogindEvent::Lock);
+            }
+            Next::Lock(None) => locks = None,
+        }
+    }
+}
+
+async fn own_session<'a>(manager: &Proxy<'a>) -> Option<Proxy<'a>> {
+    let path = match manager
+        .call::<_, _, OwnedObjectPath>("GetSessionByPID", &(std::process::id(),))
+        .await
+    {
+        Ok(path) => path,
+        Err(error) => {
+            eprintln!("block-app: this process is in no logind session: {error}");
+            return None;
+        }
+    };
+    match Proxy::new(manager.connection(), DESTINATION, path, SESSION).await {
+        Ok(session) => Some(session),
+        Err(error) => {
+            eprintln!("block-app: logind's session is not reachable: {error}");
+            None
+        }
+    }
+}
+
+async fn inhibit(manager: &Proxy<'_>) -> Option<OwnedFd> {
+    let asked = manager
+        .call::<_, _, OwnedFd>(
+            "Inhibit",
+            &(
+                "sleep",
+                "Block",
+                "Lock the screen before suspending",
+                "delay",
+            ),
+        )
+        .await;
+    match asked {
+        Ok(inhibitor) => Some(inhibitor),
+        Err(error) => {
+            eprintln!("block-app: logind did not let the screen lock before suspending: {error}");
+            None
         }
     }
 }
@@ -127,4 +228,11 @@ async fn next_sleep(sleeps: &mut Option<SignalStream<'_>>) -> Option<bool> {
             }
         }
     }
+}
+
+async fn next_signal(signals: &mut Option<SignalStream<'_>>) -> Option<()> {
+    let Some(stream) = signals else {
+        return pending().await;
+    };
+    stream.next().await.map(|_| ())
 }

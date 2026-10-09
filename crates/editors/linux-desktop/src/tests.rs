@@ -29,12 +29,14 @@ mod the_desktop_starts_with_nothing_open_but_its_bar;
 mod the_media_keys_ask_the_host_even_from_a_program_with_the_keyboard;
 mod the_notifications_button_lists_what_arrived_and_answers_it;
 mod the_power_menu_asks_before_ending_the_session;
+mod the_power_menu_locks_the_screen_without_asking;
 mod the_power_menu_offers_only_what_the_host_allows;
 mod the_programs_button_asks_the_host_for_its_launcher;
 
 const MAX_TAB: u64 = 64;
 const WINDOW_TABS: u64 = 1 << 41;
 const EVERYTHING: PowerAvailability = PowerAvailability {
+    lock: true,
     suspend: true,
     restart: true,
     power_off: true,

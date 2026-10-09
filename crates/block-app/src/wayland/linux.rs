@@ -17,6 +17,8 @@ struct Running {
     screens: Option<beui_adapter_drm::Screens>,
     display: Option<beui_adapter_drm::DisplayControl>,
     blanked: bool,
+    lock_due: bool,
+    lock_noticed: bool,
 }
 
 thread_local! {
@@ -50,7 +52,9 @@ pub(crate) fn start(setup: &Setup) {
     };
     let mut compositor = Compositor::new(server, windows);
     compositor.on_failure(crate::notices::report);
-    compositor.set_blank_after(be_block::DisplaySettings::default().screen_off().after());
+    let defaults = be_block::DisplaySettings::default();
+    compositor.set_blank_after(defaults.screen_off().after());
+    compositor.set_lock_after(defaults.lock_time());
     compositor.start(
         gpu.device.clone(),
         gpu.queue.clone(),
@@ -67,6 +71,8 @@ pub(crate) fn start(setup: &Setup) {
             screens,
             display,
             blanked: false,
+            lock_due: false,
+            lock_noticed: false,
         });
     });
 }
@@ -98,6 +104,11 @@ pub(crate) fn before(context: &Context, rect: Rect, document: &mut Document) {
 pub(crate) fn after(context: &Context, document: &mut Document) {
     with(|running| {
         running.compositor.after(context, document);
+        let due = running.compositor.lock_due();
+        if due && !running.lock_due {
+            running.lock_noticed = true;
+        }
+        running.lock_due = due;
         let blanked = running.compositor.idle();
         if let Some(display) = &running.display
             && blanked != running.blanked
@@ -120,6 +131,18 @@ pub(crate) fn after(context: &Context, document: &mut Document) {
 
 pub(crate) fn set_blank_after(after: Option<Duration>) {
     with(|running| running.compositor.set_blank_after(after));
+}
+
+pub(crate) fn set_lock_after(after: Option<Duration>) {
+    with(|running| running.compositor.set_lock_after(after));
+}
+
+pub(crate) fn take_lock_due() -> bool {
+    with(|running| std::mem::take(&mut running.lock_noticed)).unwrap_or(false)
+}
+
+pub(crate) fn set_locked(locked: bool) {
+    with(|running| running.compositor.set_locked(locked));
 }
 
 pub(crate) fn set_keyboard(keyboard: &be_wayland::KeyboardConfig) -> bool {

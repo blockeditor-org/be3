@@ -1,6 +1,7 @@
 mod debug;
 mod dialogs;
 mod keys;
+mod lock;
 mod onboarding;
 mod workspace;
 
@@ -183,6 +184,16 @@ pub(crate) struct DiscardView {
     pub(crate) button: String,
 }
 
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct LockView {
+    pub(crate) available: bool,
+    pub(crate) locked: bool,
+    pub(crate) busy: bool,
+    pub(crate) error: Option<String>,
+    pub(crate) user: String,
+    pub(crate) power: Vec<block_plugin_api::PowerAction>,
+}
+
 #[derive(Clone, Default, PartialEq, Store)]
 pub(crate) struct AppView {
     pub(crate) screen: Screen,
@@ -208,6 +219,7 @@ pub(crate) struct AppView {
     pub(crate) toasts: Vec<Toast>,
     pub(crate) keep_display: bool,
     pub(crate) screens: Vec<beui::Rect>,
+    pub(crate) lock: LockView,
 }
 
 #[derive(Clone, Debug)]
@@ -265,6 +277,11 @@ pub(crate) enum UiCommand {
     ActivateToast(u64),
     KeepDisplay,
     RevertDisplay,
+    LockScreen,
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    Unlock(crate::password::Password),
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    LockPower(block_plugin_api::PowerAction),
 }
 
 #[component]
@@ -274,6 +291,7 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
     let toasts = view.toasts.clone();
     let keep_display = view.keep_display.clone();
     let screens = view.screens.clone();
+    let locking = view.clone();
     let area = NodeRef::new();
     view! {
         <Frame @node_ref=&area color={theme.background.clone()}>
@@ -324,6 +342,7 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                     on_keep={|| send(UiCommand::KeepDisplay)}
                     on_revert={|| send(UiCommand::RevertDisplay)}
                 />
+                <lock::SessionLock view={locking} />
             </List>
         </Frame>
     }

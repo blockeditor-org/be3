@@ -30,6 +30,25 @@ impl ScreenOff {
     }
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub enum LockAfter {
+    WithScreens,
+    After { minutes: u32 },
+    Never,
+}
+
+impl LockAfter {
+    pub const DEFAULT: Self = Self::WithScreens;
+
+    pub fn after(self, screen_off: ScreenOff) -> Option<Duration> {
+        match self {
+            Self::WithScreens => screen_off.after(),
+            Self::After { minutes } => ScreenOff::After { minutes }.after(),
+            Self::Never => None,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct MonitorSettings {
     pub mode: Option<DisplayMode>,
@@ -39,6 +58,7 @@ pub struct MonitorSettings {
 pub struct DisplaySettings {
     pub monitors: Map<String, MonitorSettings>,
     pub screen_off: Option<ScreenOff>,
+    pub lock_after: Option<LockAfter>,
 }
 
 impl DisplaySettings {
@@ -52,6 +72,18 @@ impl DisplaySettings {
 
     pub fn screen_off(&self) -> ScreenOff {
         self.screen_off.unwrap_or(ScreenOff::DEFAULT)
+    }
+
+    pub fn lock_after(&self) -> LockAfter {
+        self.lock_after.unwrap_or(LockAfter::DEFAULT)
+    }
+
+    pub fn lock_time(&self) -> Option<Duration> {
+        self.lock_after().after(self.screen_off())
+    }
+
+    pub fn set_lock_after(lock_after: Option<LockAfter>) -> Edit {
+        Self::LOCK_AFTER.set(ObjectId::ROOT, &lock_after).into()
     }
 
     pub fn set_screen_off(screen_off: Option<ScreenOff>) -> Edit {

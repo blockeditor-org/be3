@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::display_settings::{DisplayMode, ScreenOff};
+use block_editor_beui::be_block::display_settings::{DisplayMode, LockAfter, ScreenOff};
 use block_editor_beui::{HostDisplay, HostDisplayMode};
 
 pub(crate) type Size = (u32, u32);
@@ -13,6 +13,26 @@ pub(crate) const SCREEN_OFF: [ScreenOff; 8] = [
     ScreenOff::After { minutes: 60 },
     ScreenOff::Never,
 ];
+
+pub(crate) const LOCK_AFTER: [LockAfter; 9] = [
+    LockAfter::WithScreens,
+    LockAfter::After { minutes: 1 },
+    LockAfter::After { minutes: 2 },
+    LockAfter::After { minutes: 5 },
+    LockAfter::After { minutes: 10 },
+    LockAfter::After { minutes: 15 },
+    LockAfter::After { minutes: 30 },
+    LockAfter::After { minutes: 60 },
+    LockAfter::Never,
+];
+
+pub(crate) fn lock_after_label(lock_after: LockAfter) -> String {
+    match lock_after {
+        LockAfter::WithScreens => "When the screens turn off".to_owned(),
+        LockAfter::After { minutes } => screen_off_label(ScreenOff::After { minutes }),
+        LockAfter::Never => "Never".to_owned(),
+    }
+}
 
 pub(crate) fn screen_off_label(screen_off: ScreenOff) -> String {
     match screen_off {

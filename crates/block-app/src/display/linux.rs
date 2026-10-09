@@ -49,6 +49,7 @@ pub(crate) fn apply(settings: &DisplaySettings) {
         }
     });
     crate::wayland::set_blank_after(settings.screen_off().after());
+    crate::wayland::set_lock_after(settings.lock_time());
 }
 
 fn config(settings: &DisplaySettings) -> DisplayConfig {

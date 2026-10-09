@@ -1,6 +1,6 @@
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
-    ICON_BEDTIME, ICON_LOGOUT, ICON_POWER_SETTINGS_NEW, ICON_RESTART_ALT,
+    ICON_BEDTIME, ICON_LOCK, ICON_LOGOUT, ICON_POWER_SETTINGS_NEW, ICON_RESTART_ALT,
 };
 use block_editor_beui::beui::reactive::{
     Align, Direction, Justify, List, Memo, clone, component, create_memo, create_signal, view,
@@ -14,6 +14,7 @@ const BUTTON_SPACING: f32 = 8.0;
 
 fn label(action: PowerAction) -> &'static str {
     match action {
+        PowerAction::Lock => "Lock",
         PowerAction::Suspend => "Suspend",
         PowerAction::Restart => "Restart",
         PowerAction::PowerOff => "Power off",
@@ -23,6 +24,7 @@ fn label(action: PowerAction) -> &'static str {
 
 fn glyph(action: PowerAction) -> &'static str {
     match action {
+        PowerAction::Lock => ICON_LOCK,
         PowerAction::Suspend => ICON_BEDTIME,
         PowerAction::Restart => ICON_RESTART_ALT,
         PowerAction::PowerOff => ICON_POWER_SETTINGS_NEW,
@@ -32,6 +34,7 @@ fn glyph(action: PowerAction) -> &'static str {
 
 fn key(action: PowerAction) -> &'static str {
     match action {
+        PowerAction::Lock => "lock",
         PowerAction::Suspend => "suspend",
         PowerAction::Restart => "restart",
         PowerAction::PowerOff => "power-off",
@@ -45,6 +48,7 @@ fn question(action: PowerAction) -> String {
 
 fn consequence(action: PowerAction) -> &'static str {
     match action {
+        PowerAction::Lock => "The screen locks until your password is entered.",
         PowerAction::Suspend => "The computer goes to sleep.",
         PowerAction::Restart => "Every program is asked to close, then the computer restarts.",
         PowerAction::PowerOff => "Every program is asked to close, then the computer turns off.",
@@ -83,7 +87,7 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
             return;
         }
         match action {
-            PowerAction::Suspend => requesting.request_power(action),
+            PowerAction::Lock | PowerAction::Suspend => requesting.request_power(action),
             _ => {
                 set_confirming.set(action);
                 set_open.set(true);
@@ -109,6 +113,7 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
                 arrow=false
                 @test_id={"desktop.power"}
                 items={view! {
+                    <PowerItem action=PowerAction::Lock available={available.clone()} />
                     <PowerItem action=PowerAction::Suspend available={available.clone()} />
                     <PowerItem action=PowerAction::Restart available={available.clone()} />
                     <PowerItem action=PowerAction::PowerOff available={available.clone()} />

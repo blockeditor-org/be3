@@ -19,6 +19,7 @@ mod notices;
 #[cfg(target_os = "linux")]
 mod notifications;
 mod panic_guard;
+mod password;
 mod performance;
 mod platform;
 mod plugin_host;
@@ -277,6 +278,10 @@ impl beui::App for Shell {
             self.document.theme().background,
         );
         self.document.show(context, rect);
+        #[cfg(target_os = "linux")]
+        if let Some(lock) = &mut self.app.screen_lock {
+            lock.note_drawn(self.document.locked());
+        }
         wayland::after(context, &mut self.document);
         let commands = ui::take_commands();
         if !commands.is_empty() {
@@ -383,6 +388,10 @@ struct BlockApp {
     workspace_key: Option<[u8; 32]>,
     #[cfg(target_os = "linux")]
     desktop: Option<session::DesktopSession>,
+    #[cfg(target_os = "linux")]
+    screen_lock: Option<session::ScreenLock>,
+    #[cfg(target_os = "linux")]
+    published_power: Option<block_plugin_api::PowerAvailability>,
     #[cfg(target_os = "linux")]
     media: Option<media::Media>,
     #[cfg(target_os = "linux")]
@@ -570,6 +579,10 @@ impl BlockApp {
             #[cfg(target_os = "linux")]
             desktop: None,
             #[cfg(target_os = "linux")]
+            screen_lock: None,
+            #[cfg(target_os = "linux")]
+            published_power: None,
+            #[cfg(target_os = "linux")]
             media: None,
             #[cfg(target_os = "linux")]
             notifications: None,
@@ -580,8 +593,11 @@ impl BlockApp {
     fn run_as_desktop(&mut self) {
         self.root_settings = RootSettings::new(be_block::LINUX_DESKTOP_EDITOR);
         #[cfg(target_os = "linux")]
-        if self.notifications.is_none() {
-            self.notifications = Some(notifications::Notifications::start());
+        {
+            self.screen_lock = Some(session::ScreenLock::start());
+            if self.notifications.is_none() {
+                self.notifications = Some(notifications::Notifications::start());
+            }
         }
     }
 
@@ -604,9 +620,16 @@ impl BlockApp {
         let mut toasts = notices::shown();
         #[cfg(target_os = "linux")]
         if let Some(notifications) = &self.notifications {
-            toasts.extend(notifications.toasts());
+            toasts.extend(notifications.toasts(self.locked()));
         }
         toasts
+    }
+
+    #[cfg(target_os = "linux")]
+    fn locked(&self) -> bool {
+        self.screen_lock
+            .as_ref()
+            .is_some_and(session::ScreenLock::locked)
     }
 
     fn dismiss_toast(&mut self, id: u64) {
@@ -623,22 +646,99 @@ impl BlockApp {
     #[cfg_attr(not(target_os = "linux"), allow(unused_variables))]
     fn act_on_toast(&mut self, id: u64, action: Option<String>) {
         #[cfg(target_os = "linux")]
-        if let Some(notifications) = &mut self.notifications {
+        if !self.locked()
+            && let Some(notifications) = &mut self.notifications
+        {
             let action = action.unwrap_or_else(|| notifications::activate_action().to_owned());
             notifications.invoke_toast(id, &action);
         }
     }
 
     #[cfg(target_os = "linux")]
-    fn run_desktop_session(&mut self, context: &beui::Context) {
+    fn take_power_request(&mut self) {
         let request = self
             .shell
             .and_then(|shell| self.with_editor(shell, |editor| editor.take_power_request()))
             .flatten();
-        if let Some(desktop) = &mut self.desktop {
-            desktop.frame(context, request);
+        if let Some(action) = request {
+            self.request_power(action, session::Trigger::Menu);
         }
         self.run_media();
+    }
+
+    #[cfg(target_os = "linux")]
+    fn request_power(&mut self, action: block_plugin_api::PowerAction, trigger: session::Trigger) {
+        match action {
+            block_plugin_api::PowerAction::Lock => {
+                if let Some(lock) = &mut self.screen_lock {
+                    lock.lock(trigger);
+                }
+            }
+            action => {
+                if let Some(desktop) = &mut self.desktop {
+                    desktop.request(action);
+                    host::request_repaint();
+                }
+            }
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn run_session(&mut self, context: &beui::Context) {
+        let Some(lock) = &mut self.screen_lock else {
+            return;
+        };
+        lock.frame();
+        if wayland::take_lock_due() {
+            lock.lock(session::Trigger::Idle);
+        }
+        if let Some(desktop) = &mut self.desktop {
+            desktop.frame(context, lock);
+        }
+        let locked = lock.locked();
+        wayland::set_locked(locked);
+        if locked {
+            self.launcher.show(false);
+            self.app_menu_open = false;
+        }
+        let mut availability = self
+            .desktop
+            .as_ref()
+            .map(session::DesktopSession::availability)
+            .unwrap_or_default();
+        availability.lock = !locked;
+        if self.published_power != Some(availability) {
+            self.published_power = Some(availability);
+            plugin_host::set_power(availability);
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn lock_view(&self) -> ui::LockView {
+        let Some(lock) = &self.screen_lock else {
+            return ui::LockView::default();
+        };
+        let state = lock.state();
+        let offered = self
+            .desktop
+            .as_ref()
+            .map(session::DesktopSession::availability)
+            .unwrap_or_default();
+        ui::LockView {
+            available: true,
+            locked: state.locked,
+            busy: state.busy,
+            error: state.error,
+            user: lock.user().to_owned(),
+            power: [
+                block_plugin_api::PowerAction::Suspend,
+                block_plugin_api::PowerAction::Restart,
+                block_plugin_api::PowerAction::PowerOff,
+            ]
+            .into_iter()
+            .filter(|action| offered.allows(*action))
+            .collect(),
+        }
     }
 
     #[cfg(target_os = "linux")]
@@ -1943,17 +2043,18 @@ impl BlockApp {
         {
             self.crashed(report);
         }
-        if self.error.is_some() {
-            return;
+        if self.error.is_none() {
+            let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                self.run_frame(context);
+            }));
+            if caught.is_err() {
+                self.crashed(
+                    panic_guard::take().unwrap_or_else(|| "The app stopped responding.".into()),
+                );
+            }
         }
-        let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            self.run_frame(context);
-        }));
-        if caught.is_err() {
-            self.crashed(
-                panic_guard::take().unwrap_or_else(|| "The app stopped responding.".into()),
-            );
-        }
+        #[cfg(target_os = "linux")]
+        self.run_session(context);
     }
 
     fn crashed(&mut self, report: String) {
@@ -2013,7 +2114,7 @@ impl BlockApp {
         debug::poll();
         self.show_shell();
         #[cfg(target_os = "linux")]
-        self.run_desktop_session(context);
+        self.take_power_request();
         self.poll_artifacts();
         plugin_host::flush();
         performance::end_frame();
@@ -2212,6 +2313,30 @@ impl BlockApp {
             UiCommand::ActivateToast(id) => self.act_on_toast(id, None),
             UiCommand::KeepDisplay => self.display.commit(&self.app_state, display::keep()),
             UiCommand::RevertDisplay => self.display.commit(&self.app_state, display::revert()),
+            #[cfg(target_os = "linux")]
+            UiCommand::LockScreen => {
+                if let Some(lock) = &mut self.screen_lock {
+                    lock.lock(session::Trigger::Shortcut);
+                }
+            }
+            #[cfg(target_os = "linux")]
+            UiCommand::Unlock(password) => {
+                if let Some(lock) = &mut self.screen_lock {
+                    lock.submit(password);
+                }
+            }
+            #[cfg(target_os = "linux")]
+            UiCommand::LockPower(action) => {
+                if self
+                    .screen_lock
+                    .as_ref()
+                    .is_some_and(session::ScreenLock::locked)
+                {
+                    self.request_power(action, session::Trigger::Menu);
+                }
+            }
+            #[cfg(not(target_os = "linux"))]
+            UiCommand::LockScreen | UiCommand::Unlock(_) | UiCommand::LockPower(_) => {}
             UiCommand::SendInvite(email, role) => {
                 if let Some(workspace) = &self.workspace
                     && !email.trim().is_empty()
@@ -2398,6 +2523,10 @@ impl BlockApp {
             toasts: self.toasts(),
             keep_display: display::asking(),
             screens: display::screens(),
+            #[cfg(target_os = "linux")]
+            lock: self.lock_view(),
+            #[cfg(not(target_os = "linux"))]
+            lock: ui::LockView::default(),
         }
     }
 

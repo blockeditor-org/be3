@@ -54,6 +54,7 @@ pub(crate) struct Idle {
     inhibited: bool,
     woken: bool,
     blank: Option<Countdown>,
+    lock: Option<Countdown>,
     notifications: Vec<Notification>,
 }
 
@@ -65,6 +66,7 @@ impl Idle {
             inhibitors: Vec::new(),
             inhibited: false,
             blank: None,
+            lock: None,
             notifications: Vec::new(),
             woken: false,
         }
@@ -75,6 +77,17 @@ impl Idle {
             return;
         }
         self.blank = after.map(|after| Countdown::new(after, true));
+    }
+
+    pub(crate) fn set_lock_after(&mut self, after: Option<Duration>) {
+        if self.lock.map(|lock| lock.timeout) == after {
+            return;
+        }
+        self.lock = after.map(|after| Countdown::new(after, true));
+    }
+
+    pub(crate) fn lock_due(&self) -> bool {
+        self.lock.is_some_and(|lock| lock.idle)
     }
 
     pub(crate) fn woke(&mut self) {
@@ -96,11 +109,14 @@ impl Idle {
         self.inhibited = inhibited;
         self.notifications
             .retain(|notification| notification.resource.is_alive());
-        let countdowns = self.blank.iter_mut().map(|blank| (blank, None)).chain(
-            self.notifications
+        let countdowns =
+            self.blank
                 .iter_mut()
-                .map(|notification| (&mut notification.countdown, Some(&notification.resource))),
-        );
+                .chain(self.lock.iter_mut())
+                .map(|countdown| (countdown, None))
+                .chain(self.notifications.iter_mut().map(|notification| {
+                    (&mut notification.countdown, Some(&notification.resource))
+                }));
         let mut next: Option<Instant> = None;
         for (countdown, resource) in countdowns {
             let resume = active || (changed && countdown.inhibitable);

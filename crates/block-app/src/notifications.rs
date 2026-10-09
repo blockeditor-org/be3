@@ -74,26 +74,8 @@ impl Notifications {
         }
     }
 
-    pub(crate) fn toasts(&self) -> impl Iterator<Item = Toast> + '_ {
-        self.center.toasts().map(|kept| Toast {
-            id: TOAST_IDS + u64::from(kept.id),
-            title: kept.incoming.summary.clone(),
-            message: kept.incoming.body.clone(),
-            danger: kept.incoming.urgency == Urgency::Critical && kept.incoming.image.is_none(),
-            image: kept.incoming.image.clone(),
-            actions: kept
-                .incoming
-                .actions
-                .iter()
-                .filter(|action| action.key != DEFAULT_ACTION)
-                .map(|action| ToastAction {
-                    key: action.key.clone(),
-                    label: action.label.clone(),
-                })
-                .collect(),
-            activates: kept.has_default_action(),
-            sticky: true,
-        })
+    pub(crate) fn toasts(&self, locked: bool) -> Vec<Toast> {
+        toasts(&self.center, locked)
     }
 
     pub(crate) fn owns_toast(toast: u64) -> bool {
@@ -148,3 +130,34 @@ fn unix_seconds() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map_or(0, |since| since.as_secs())
 }
+
+fn toasts(center: &Center, locked: bool) -> Vec<Toast> {
+    if locked {
+        return Vec::new();
+    }
+    center
+        .toasts()
+        .map(|kept| Toast {
+            id: TOAST_IDS + u64::from(kept.id),
+            title: kept.incoming.summary.clone(),
+            message: kept.incoming.body.clone(),
+            danger: kept.incoming.urgency == Urgency::Critical && kept.incoming.image.is_none(),
+            image: kept.incoming.image.clone(),
+            actions: kept
+                .incoming
+                .actions
+                .iter()
+                .filter(|action| action.key != DEFAULT_ACTION)
+                .map(|action| ToastAction {
+                    key: action.key.clone(),
+                    label: action.label.clone(),
+                })
+                .collect(),
+            activates: kept.has_default_action(),
+            sticky: true,
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests;
