@@ -52,6 +52,7 @@ const TREE_NODES: [(&str, usize); 9] = [
     ("Cargo.toml", 1),
 ];
 const TOAST_AREA_HEIGHT: f32 = 380.0;
+const OSD_AREA_HEIGHT: f32 = 200.0;
 const FRUITS: [&str; 6] = ["Apple", "Banana", "Cherry", "Date", "Grape", "Mango"];
 
 #[sample]
@@ -1303,6 +1304,9 @@ pub(crate) fn OverlaysPage() -> NodeId {
             <Sample title="Launcher" code={vec![ProgramLauncher::SOURCE, program::SOURCE]}>
                 <ProgramLauncher />
             </Sample>
+            <Sample title="Level display" code={vec![VolumeDisplay::SOURCE]}>
+                <VolumeDisplay />
+            </Sample>
             <Sample title="Menu as a sheet" code={vec![ActionsSheet::SOURCE]}>
                 <ActionsSheet />
             </Sample>
@@ -1735,6 +1739,73 @@ fn message_toast(id: u64) -> Toast {
         activates: true,
         sticky: true,
         ..Toast::default()
+    }
+}
+
+#[sample]
+#[component]
+fn VolumeDisplay() -> NodeId {
+    let theme = use_theme();
+    let area = beui::reactive::NodeRef::new();
+    let (volume, set_volume) = create_signal(0.4_f32);
+    let (muted, set_muted) = create_signal(false);
+    let (shown, set_shown) = create_signal(0_u64);
+    let level = create_memo(move || {
+        let (volume, muted) = (volume.get(), muted.get());
+        let glyph = match volume {
+            _ if muted || volume == 0.0 => ICON_VOLUME_OFF,
+            volume if volume < 0.5 => ICON_VOLUME_DOWN,
+            _ => ICON_VOLUME_UP,
+        };
+        Some(OsdLevel {
+            glyph: glyph.to_owned(),
+            label: "Volume".to_owned(),
+            level: volume,
+            muted,
+        })
+    });
+    let show = set_shown.clone();
+    let step = move |by: f32| {
+        set_volume.update(|volume| *volume = (*volume + by).clamp(0.0, 1.0));
+        set_shown.update(|shown| *shown += 1);
+    };
+    let (down, up) = (step.clone(), step);
+    view! {
+        <Frame
+            @node_ref=&area
+            height=OSD_AREA_HEIGHT
+            color={theme.surface.clone()}
+            radius=CARD_RADIUS
+            padding_horizontal=12.0
+            padding_vertical=12.0
+        >
+            <List spacing=0.0>
+                <List direction=Direction::Horizontal align=Align::Start spacing=8.0>
+                    <Button
+                        @test_id={"demo.osd.down"}
+                        label="Volume down"
+                        variant=ButtonVariant::Secondary
+                        on_click={move || down(-0.05)}
+                    />
+                    <Button
+                        @test_id={"demo.osd.up"}
+                        label="Volume up"
+                        variant=ButtonVariant::Secondary
+                        on_click={move || up(0.05)}
+                    />
+                    <Button
+                        @test_id={"demo.osd.mute"}
+                        label="Mute"
+                        variant=ButtonVariant::Secondary
+                        on_click={move || {
+                            set_muted.update(|muted| *muted = !*muted);
+                            show.update(|shown| *shown += 1);
+                        }}
+                    />
+                </List>
+                <LevelOsd anchor={area} level={level} shown={shown} id="demo.osd" />
+            </List>
+        </Frame>
     }
 }
 

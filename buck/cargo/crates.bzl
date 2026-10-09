@@ -5520,6 +5520,7 @@ crates = {
                         "//third-party/rust:arboard-3.6.1",
                         "//third-party/rust:ashpd-0.11.1",
                         "//third-party/rust:async-executor-1.14.0",
+                        "//third-party/rust:async-io-2.6.0",
                         "//third-party/rust:async-lock-3.4.2",
                         "//third-party/rust:bytemuck-1.25.0",
                         "//third-party/rust:directories-next-2.0.0",
@@ -5527,6 +5528,7 @@ crates = {
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:libc-0.2.186",
                         "//third-party/rust:pollster-0.4.0",
+                        "//third-party/rust:pulseaudio-0.3.1",
                         "//third-party/rust:rodio-0.20.1",
                         "//third-party/rust:rusqlite-0.32.1",
                         "//third-party/rust:serde-1.0.228",
@@ -5562,6 +5564,7 @@ crates = {
                     "//third-party/rust:arboard-3.6.1",
                     "//third-party/rust:ashpd-0.11.1",
                     "//third-party/rust:async-executor-1.14.0",
+                    "//third-party/rust:async-io-2.6.0",
                     "//third-party/rust:async-lock-3.4.2",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:directories-next-2.0.0",
@@ -5569,6 +5572,7 @@ crates = {
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:libc-0.2.186",
                     "//third-party/rust:pollster-0.4.0",
+                    "//third-party/rust:pulseaudio-0.3.1",
                     "//third-party/rust:rodio-0.20.1",
                     "//third-party/rust:rusqlite-0.32.1",
                     "//third-party/rust:serde-1.0.228",
@@ -5620,6 +5624,7 @@ crates = {
                         "//third-party/rust:arboard-3.6.1",
                         "//third-party/rust:ashpd-0.11.1",
                         "//third-party/rust:async-executor-1.14.0",
+                        "//third-party/rust:async-io-2.6.0",
                         "//third-party/rust:async-lock-3.4.2",
                         "//third-party/rust:bytemuck-1.25.0",
                         "//third-party/rust:directories-next-2.0.0",
@@ -5627,6 +5632,7 @@ crates = {
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:libc-0.2.186",
                         "//third-party/rust:pollster-0.4.0",
+                        "//third-party/rust:pulseaudio-0.3.1",
                         "//third-party/rust:rodio-0.20.1",
                         "//third-party/rust:rusqlite-0.32.1",
                         "//third-party/rust:serde-1.0.228",
@@ -5662,6 +5668,7 @@ crates = {
                     "//third-party/rust:arboard-3.6.1",
                     "//third-party/rust:ashpd-0.11.1",
                     "//third-party/rust:async-executor-1.14.0",
+                    "//third-party/rust:async-io-2.6.0",
                     "//third-party/rust:async-lock-3.4.2",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:directories-next-2.0.0",
@@ -5669,6 +5676,7 @@ crates = {
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:libc-0.2.186",
                     "//third-party/rust:pollster-0.4.0",
+                    "//third-party/rust:pulseaudio-0.3.1",
                     "//third-party/rust:rodio-0.20.1",
                     "//third-party/rust:rusqlite-0.32.1",
                     "//third-party/rust:serde-1.0.228",
@@ -22433,6 +22441,40 @@ third_party = {
         "size_bytes": 24795,
         "version": "1.0.1",
     },
+    "enum-primitive-derive-0.3.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Doug Goldstein <cardoe@cardoe.com>",
+            "CARGO_PKG_DESCRIPTION": "enum_primitive implementation using procedural macros to have a custom derive",
+            "CARGO_PKG_HOMEPAGE": "https://gitlab.com/cardoe/enum-primitive-derive",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://gitlab.com/cardoe/enum-primitive-derive.git",
+            "CARGO_PKG_RUST_VERSION": "1.56",
+        },
+        "library": {
+            "crate": "enum_primitive_derive",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": True,
+        },
+        "name": "enum-primitive-derive",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                    ":quote-1.0.45",
+                    ":syn-2.0.117",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "ba7795da175654fe16979af73f81f26a8ea27638d8d9823d317016888a63dc4c",
+        "size_bytes": 4664,
+        "version": "0.3.0",
+    },
     "enumflags2-0.7.12": {
         "build_script": None,
         "env": {
@@ -24135,20 +24177,38 @@ third_party = {
                 "deps": [
                     ":futures-channel-0.3.32",
                     ":futures-core-0.3.32",
+                    ":futures-executor-0.3.32",
                     ":futures-io-0.3.33",
                     ":futures-sink-0.3.32",
                     ":futures-task-0.3.32",
                     ":futures-util-0.3.32",
+                ],
+                "features": [
+                    "alloc",
+                    "async-await",
+                    "default",
+                    "executor",
+                    "futures-executor",
+                    "std",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
                     ":futures-channel-0.3.32",
                     ":futures-core-0.3.32",
+                    ":futures-executor-0.3.32",
                     ":futures-io-0.3.33",
                     ":futures-sink-0.3.32",
                     ":futures-task-0.3.32",
                     ":futures-util-0.3.32",
+                ],
+                "features": [
+                    "alloc",
+                    "async-await",
+                    "default",
+                    "executor",
+                    "futures-executor",
+                    "std",
                 ],
             },
             "macos-arm64": {
@@ -24465,7 +24525,11 @@ third_party = {
         },
         "name": "futures-io",
         "platforms": {
-            "android-arm64": {},
+            "android-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
             "linux-arm64": {
                 "features": [
                     "default",
@@ -24478,10 +24542,31 @@ third_party = {
                     "std",
                 ],
             },
-            "macos-arm64": {},
-            "macos-x86_64": {},
-            "windows-arm64": {},
-            "windows-x86_64": {},
+            "macos-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "wasi": {
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
@@ -24604,8 +24689,18 @@ third_party = {
         "name": "futures-sink",
         "platforms": {
             "android-arm64": {},
-            "linux-arm64": {},
-            "linux-x86_64": {},
+            "linux-arm64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
             "macos-arm64": {},
             "macos-x86_64": {},
             "windows-arm64": {},
@@ -24725,27 +24820,6 @@ third_party = {
             "android-arm64": {
                 "deps": [
                     ":futures-core-0.3.32",
-                    ":futures-macro-0.3.32",
-                    ":futures-sink-0.3.32",
-                    ":futures-task-0.3.32",
-                    ":pin-project-lite-0.2.17",
-                    ":slab-0.4.12",
-                ],
-                "features": [
-                    "alloc",
-                    "async-await",
-                    "async-await-macro",
-                    "default",
-                    "futures-macro",
-                    "futures-sink",
-                    "sink",
-                    "slab",
-                    "std",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":futures-core-0.3.32",
                     ":futures-io-0.3.33",
                     ":futures-macro-0.3.32",
                     ":futures-sink-0.3.32",
@@ -24769,8 +24843,9 @@ third_party = {
                     "std",
                 ],
             },
-            "linux-x86_64": {
+            "linux-arm64": {
                 "deps": [
+                    ":futures-channel-0.3.32",
                     ":futures-core-0.3.32",
                     ":futures-io-0.3.33",
                     ":futures-macro-0.3.32",
@@ -24784,7 +24859,38 @@ third_party = {
                     "alloc",
                     "async-await",
                     "async-await-macro",
+                    "channel",
                     "default",
+                    "futures-channel",
+                    "futures-io",
+                    "futures-macro",
+                    "futures-sink",
+                    "io",
+                    "memchr",
+                    "sink",
+                    "slab",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":futures-channel-0.3.32",
+                    ":futures-core-0.3.32",
+                    ":futures-io-0.3.33",
+                    ":futures-macro-0.3.32",
+                    ":futures-sink-0.3.32",
+                    ":futures-task-0.3.32",
+                    ":memchr-2.8.1",
+                    ":pin-project-lite-0.2.17",
+                    ":slab-0.4.12",
+                ],
+                "features": [
+                    "alloc",
+                    "async-await",
+                    "async-await-macro",
+                    "channel",
+                    "default",
+                    "futures-channel",
                     "futures-io",
                     "futures-macro",
                     "futures-sink",
@@ -24798,9 +24904,11 @@ third_party = {
             "macos-arm64": {
                 "deps": [
                     ":futures-core-0.3.32",
+                    ":futures-io-0.3.33",
                     ":futures-macro-0.3.32",
                     ":futures-sink-0.3.32",
                     ":futures-task-0.3.32",
+                    ":memchr-2.8.1",
                     ":pin-project-lite-0.2.17",
                     ":slab-0.4.12",
                 ],
@@ -24809,8 +24917,11 @@ third_party = {
                     "async-await",
                     "async-await-macro",
                     "default",
+                    "futures-io",
                     "futures-macro",
                     "futures-sink",
+                    "io",
+                    "memchr",
                     "sink",
                     "slab",
                     "std",
@@ -24819,9 +24930,11 @@ third_party = {
             "macos-x86_64": {
                 "deps": [
                     ":futures-core-0.3.32",
+                    ":futures-io-0.3.33",
                     ":futures-macro-0.3.32",
                     ":futures-sink-0.3.32",
                     ":futures-task-0.3.32",
+                    ":memchr-2.8.1",
                     ":pin-project-lite-0.2.17",
                     ":slab-0.4.12",
                 ],
@@ -24830,8 +24943,11 @@ third_party = {
                     "async-await",
                     "async-await-macro",
                     "default",
+                    "futures-io",
                     "futures-macro",
                     "futures-sink",
+                    "io",
+                    "memchr",
                     "sink",
                     "slab",
                     "std",
@@ -24840,8 +24956,10 @@ third_party = {
             "wasi": {
                 "deps": [
                     ":futures-core-0.3.32",
+                    ":futures-io-0.3.33",
                     ":futures-macro-0.3.32",
                     ":futures-task-0.3.32",
+                    ":memchr-2.8.1",
                     ":pin-project-lite-0.2.17",
                     ":slab-0.4.12",
                 ],
@@ -24850,7 +24968,10 @@ third_party = {
                     "async-await",
                     "async-await-macro",
                     "default",
+                    "futures-io",
                     "futures-macro",
+                    "io",
+                    "memchr",
                     "slab",
                     "std",
                 ],
@@ -24884,9 +25005,11 @@ third_party = {
             "windows-arm64": {
                 "deps": [
                     ":futures-core-0.3.32",
+                    ":futures-io-0.3.33",
                     ":futures-macro-0.3.32",
                     ":futures-sink-0.3.32",
                     ":futures-task-0.3.32",
+                    ":memchr-2.8.1",
                     ":pin-project-lite-0.2.17",
                     ":slab-0.4.12",
                 ],
@@ -24895,8 +25018,11 @@ third_party = {
                     "async-await",
                     "async-await-macro",
                     "default",
+                    "futures-io",
                     "futures-macro",
                     "futures-sink",
+                    "io",
+                    "memchr",
                     "sink",
                     "slab",
                     "std",
@@ -24905,9 +25031,11 @@ third_party = {
             "windows-x86_64": {
                 "deps": [
                     ":futures-core-0.3.32",
+                    ":futures-io-0.3.33",
                     ":futures-macro-0.3.32",
                     ":futures-sink-0.3.32",
                     ":futures-task-0.3.32",
+                    ":memchr-2.8.1",
                     ":pin-project-lite-0.2.17",
                     ":slab-0.4.12",
                 ],
@@ -24916,8 +25044,11 @@ third_party = {
                     "async-await",
                     "async-await-macro",
                     "default",
+                    "futures-io",
                     "futures-macro",
                     "futures-sink",
+                    "io",
+                    "memchr",
                     "sink",
                     "slab",
                     "std",
@@ -33614,8 +33745,11 @@ third_party = {
             "linux-arm64": {
                 "deps": [
                     ":libc-0.2.186",
+                    ":log-0.4.31",
                 ],
                 "features": [
+                    "default",
+                    "log",
                     "net",
                     "os-ext",
                     "os-poll",
@@ -33624,8 +33758,11 @@ third_party = {
             "linux-x86_64": {
                 "deps": [
                     ":libc-0.2.186",
+                    ":log-0.4.31",
                 ],
                 "features": [
+                    "default",
+                    "log",
                     "net",
                     "os-ext",
                     "os-poll",
@@ -39069,6 +39206,55 @@ third_party = {
         "sha256": "c7e69fa1c4a555946f82e7894a7df88b0e9ee03b4266829b4811467c616ce51d",
         "size_bytes": 2345,
         "version": "48.0.1",
+    },
+    "pulseaudio-0.3.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Colin Marc <hi@colinmarc.com>",
+            "CARGO_PKG_DESCRIPTION": "A native rust implementation of the PulseAudio protocol.",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/colinmarc/pulseaudio-rs",
+        },
+        "library": {
+            "crate": "pulseaudio",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "pulseaudio",
+        "platforms": {
+            "linux-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":byteorder-1.5.0",
+                    ":enum-primitive-derive-0.3.0",
+                    ":futures-0.3.32",
+                    ":log-0.4.31",
+                    ":mio-1.2.1",
+                    ":num-traits-0.2.19",
+                    ":thiserror-1.0.69",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":byteorder-1.5.0",
+                    ":enum-primitive-derive-0.3.0",
+                    ":futures-0.3.32",
+                    ":log-0.4.31",
+                    ":mio-1.2.1",
+                    ":num-traits-0.2.19",
+                    ":thiserror-1.0.69",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "d70623bd7967a9ca4c2ae0e807fc380b291f98480fc037042305ec643a4d3373",
+        "size_bytes": 781833,
+        "version": "0.3.1",
     },
     "pxfm-0.1.29": {
         "build_script": None,

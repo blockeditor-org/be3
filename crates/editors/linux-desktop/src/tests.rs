@@ -1,26 +1,32 @@
 use block_editor_beui::be_block::{
-    EditorView, LINUX_DESKTOP_EDITOR, Root, Settings, SettingsContent, WORKSPACE_EDITOR,
+    EditorView, EditorViewContent, LINUX_DESKTOP_EDITOR, Root, Settings, SettingsContent,
+    WORKSPACE_EDITOR,
 };
 use block_editor_beui::beui::{Document, Key, KeyChord, Modifiers, NodeId, Rect};
 use block_editor_beui::{
-    BlockInfo, BlockParent, ChildContent, Editor, EditorHost, HostWindow, HostWindowId,
-    PowerAction, PowerAvailability,
+    BlockInfo, BlockParent, ChildContent, Editor, EditorHost, HostWindow, HostWindowId, MediaLevel,
+    MediaLevels, MediaRequest, PlayerCommand, PowerAction, PowerAvailability,
 };
 use block_plugin_api::{EditorMessage, LinuxMessage, Size};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
 use crate::app::LinuxDesktopApp;
+use crate::app::media::{BINDINGS, BRIGHTNESS_STEP, VOLUME_STEP};
 
 mod a_block_shown_on_the_desktop_opens_in_its_own_window;
 mod a_calendar_the_desktop_no_longer_holds_is_replaced;
+mod a_first_desktop_with_no_sessions_offers_a_new_one;
+mod a_held_volume_key_keeps_turning_the_volume;
 mod a_session_chosen_from_the_menu_opens_in_a_window_and_closing_it_keeps_the_session;
+mod a_volume_key_shows_the_level_the_host_reports_until_it_fades;
 mod a_window_the_host_focuses_leads_the_window_switcher;
 mod alt_tab_switches_to_the_window_two_back_once_alt_is_let_go;
 mod clicking_the_clock_opens_the_desktops_calendar_and_clicking_away_closes_it;
 mod escape_leaves_the_window_switcher_without_switching;
 mod the_calendar_popup_fits_a_narrow_screen;
 mod the_desktop_starts_with_nothing_open_but_its_bar;
+mod the_media_keys_ask_the_host_even_from_a_program_with_the_keyboard;
 mod the_notifications_button_lists_what_arrived_and_answers_it;
 mod the_power_menu_asks_before_ending_the_session;
 mod the_power_menu_offers_only_what_the_host_allows;
