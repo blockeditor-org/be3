@@ -20,6 +20,7 @@ fn region(rect: Rect, pixels: [u32; 2]) -> Region {
         pixels,
         age: 0,
         spec: FrameSpec::default(),
+        monitors: Vec::new(),
     }
 }
 

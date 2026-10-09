@@ -8,8 +8,8 @@ use std::{
 
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
-    ArtifactDescription, BlockPick, EditorInstanceId, EditorMessage, EditorRegion, FrameSpec,
-    HostPanel, HostSession, MAX_QUEUED_MESSAGES, Message, PluginManifest, PresentedFrame,
+    ArtifactDescription, BlockPick, ChildRect, EditorInstanceId, EditorMessage, EditorRegion, FrameSpec,
+    HostPanel, HostSession, MAX_QUEUED_MESSAGES, Message, Monitor, PluginManifest, PresentedFrame,
     ScreenDamage, ScreenId, ScreenLayout, ScreenRequest, SessionState, SurfaceFormat, SurfaceSpec,
     Theme, ViewChange,
 };
@@ -1521,10 +1521,11 @@ pub(crate) fn unplace_region(plugin_id: &str, instance: EditorInstanceId, region
     host::request_repaint();
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct RegionPlacement {
     pub(crate) rect: Rect,
     pub(crate) clip: Rect,
+    pub(crate) screens: Vec<beui::Screen>,
 }
 
 pub(crate) fn place_region(
@@ -1540,7 +1541,11 @@ pub(crate) fn place_region(
             return;
         }
         runtime.placed = host::pass();
-        let RegionPlacement { rect, clip } = placement;
+        let RegionPlacement {
+            rect,
+            clip,
+            screens,
+        } = placement;
         let scale_factor = host::pixels_per_point();
         let size = match region {
             EditorRegion::Preview => preview_size(rect.size(), scale_factor),
@@ -1550,9 +1555,16 @@ pub(crate) fn place_region(
         let visible = cropped
             .as_ref()
             .map_or(Rect::ZERO, |(_, source)| scale_rect(*source, size));
-        runtime
-            .instances
-            .place_mounted(instance, region, frame, size, visible, scale_factor);
+        let monitors = region_monitors(&screens, rect, size);
+        runtime.instances.place_mounted(
+            instance,
+            region,
+            frame,
+            size,
+            visible,
+            scale_factor,
+            monitors,
+        );
         if let Some(view) = view {
             runtime.instances.set_view(instance, view);
         }
@@ -1568,6 +1580,30 @@ pub(crate) fn place_region(
         mark(plugin_id);
     });
     host::request_repaint();
+}
+
+fn region_monitors(screens: &[beui::Screen], rect: Rect, size: Vec2) -> Vec<Monitor> {
+    if rect.width() <= 0.0 || rect.height() <= 0.0 {
+        return Vec::new();
+    }
+    let scale = vec2(size.x / rect.width(), size.y / rect.height());
+    screens
+        .iter()
+        .filter(|screen| screen.rect.intersects(rect))
+        .map(|screen| {
+            let shown = screen.rect.translate(-rect.min.to_vec2());
+            Monitor {
+                id: screen.id.clone(),
+                name: screen.name.clone(),
+                rect: ChildRect {
+                    x: shown.min.x * scale.x,
+                    y: shown.min.y * scale.y,
+                    width: shown.width() * scale.x,
+                    height: shown.height() * scale.y,
+                },
+            }
+        })
+        .collect()
 }
 
 pub(crate) fn forward_region(

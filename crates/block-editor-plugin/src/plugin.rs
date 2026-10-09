@@ -65,6 +65,14 @@ pub struct Region {
     pub pixels: [u32; 2],
     pub age: u32,
     pub spec: FrameSpec,
+    pub monitors: Vec<RegionMonitor>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct RegionMonitor {
+    pub id: String,
+    pub name: String,
+    pub rect: Rect,
 }
 
 impl Region {

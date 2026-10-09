@@ -5,7 +5,7 @@ use block_plugin_api::{
     ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId, ChildMode,
     ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, CursorIcon, DataListing,
     EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick, FileSave, FrameReport,
-    FrameSpec, HostPanel, HostReply, HostRequest, LinuxMessage, Message, Occluder,
+    FrameSpec, HostPanel, HostReply, HostRequest, LinuxMessage, Message, Monitor, Occluder,
     PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
     ScreenSet, Size, ViewChange, WatchedContent, WebViewId,
 };
@@ -504,7 +504,7 @@ struct Screen {
 impl Screen {
     fn unplace(&mut self) {
         self.placement = None;
-        self.request.metrics = viewport_metrics(Vec2::ZERO, Rect::ZERO, 1.0);
+        self.request.metrics = viewport_metrics(Vec2::ZERO, Rect::ZERO, 1.0, Vec::new());
     }
 }
 
@@ -717,7 +717,7 @@ impl Instances {
                     screen: ScreenId(*next_screen),
                     instance,
                     region,
-                    metrics: viewport_metrics(size, visible, scale_factor),
+                    metrics: viewport_metrics(size, visible, scale_factor, Vec::new()),
                     frame: frame.clone(),
                 },
                 last_seen: pass,
@@ -736,8 +736,8 @@ impl Instances {
                 frame_revoked: HashSet::new(),
             }
         });
-        let metrics = viewport_metrics(size, visible, scale_factor);
-        screen.request.metrics = metrics;
+        let monitors = std::mem::take(&mut screen.request.metrics.monitors);
+        screen.request.metrics = viewport_metrics(size, visible, scale_factor, monitors);
         screen.request.frame = frame;
         screen.last_seen = pass;
         screen.request.screen
@@ -799,11 +799,12 @@ impl Instances {
         size: Vec2,
         visible: Rect,
         scale_factor: f32,
+        monitors: Vec<Monitor>,
     ) {
         let Some(screen) = self.screen_mut(instance, region) else {
             return;
         };
-        let metrics = viewport_metrics(size, visible, scale_factor);
+        let metrics = viewport_metrics(size, visible, scale_factor, monitors);
         if screen.request.metrics != metrics || screen.request.frame != frame {
             screen.request.metrics = metrics;
             screen.request.frame = frame;
