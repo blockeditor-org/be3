@@ -42,12 +42,18 @@ impl<R: Root> BlockContent for Document<R> {
     }
 
     fn references(&self) -> Vec<Uuid> {
-        self.root().references()
+        joined(self.root().references(), self.block_refs())
     }
 
     fn references_in(&self, workspace: Uuid) -> Vec<Uuid> {
-        self.root().references_in(workspace)
+        joined(self.root().references_in(workspace), self.block_refs())
     }
+}
+
+fn joined(mut references: Vec<Uuid>, more: Vec<Uuid>) -> Vec<Uuid> {
+    let mut seen: std::collections::HashSet<Uuid> = references.iter().copied().collect();
+    references.extend(more.into_iter().filter(|id| seen.insert(*id)));
+    references
 }
 
 impl<R: Root> LiveEdit for Document<R> {
