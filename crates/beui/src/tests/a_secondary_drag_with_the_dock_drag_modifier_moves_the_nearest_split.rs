@@ -34,12 +34,7 @@ fn a_secondary_drag_with_the_dock_drag_modifier_moves_the_nearest_split() {
     );
 
     let tab = harness.center(dock_tab(harness.document(), dock, "Tab 1"));
-    secondary_drag_with(
-        &mut harness,
-        tab,
-        tab - vec2(60.0, 0.0),
-        Modifiers::LOGO,
-    );
+    secondary_drag_with(&mut harness, tab, tab - vec2(60.0, 0.0), Modifiers::LOGO);
     harness.frame(Vec::new());
     let moved = harness.rect(harness.find("content.1"));
     assert!(

@@ -97,8 +97,13 @@ impl State {
                 area,
                 start,
             } => {
-                let fraction =
-                    fraction_moved(area, direction, self.thickness, start, direction.main(moved));
+                let fraction = fraction_moved(
+                    area,
+                    direction,
+                    self.thickness,
+                    start,
+                    direction.main(moved),
+                );
                 self.edit(|state| state.set_split_fraction(split, fraction));
             }
             Resize::Window {

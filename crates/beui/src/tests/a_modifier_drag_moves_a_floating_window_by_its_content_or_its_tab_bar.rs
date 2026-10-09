@@ -10,7 +10,12 @@ fn a_modifier_drag_moves_a_floating_window_by_its_content_or_its_tab_bar() {
         let layout = unstyled::DockingLayout::new();
         view! {
             <styled::Docking @node_ref=&built layout drag_modifier={Some(Modifiers::LOGO)}>
-                <unstyled::DockPane id="desktop" empty={|| view! { <Frame /> }} />
+                <unstyled::DockPane
+                    id="desktop"
+                    empty={|| view! {
+                        <Frame />
+                    }}
+                />
                 <unstyled::DockWindow
                     id="window"
                     rect={Rect::from_min_size(pos2(100.0, 80.0), vec2(360.0, 240.0))}
