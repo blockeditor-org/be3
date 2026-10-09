@@ -306,7 +306,10 @@ impl Output {
 
     pub fn fail(&mut self, error: impl std::fmt::Display) {
         if self.failure.is_none() {
-            self.failure = Some(format!("{} could not show a frame: {error}", self.connector_name));
+            self.failure = Some(format!(
+                "{} could not show a frame: {error}",
+                self.connector_name
+            ));
         }
     }
 

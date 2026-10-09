@@ -1,18 +1,3 @@
-// What the session does when the seat is taken away and given back, and when
-// a frame cannot be shown.
-//
-// While another terminal holds the seat, its DRM master (a display manager,
-// say) reprograms the hardware: CRTCs, connectors, planes and modes. Nothing
-// cached about the displays survives that, so taking the seat back drops every
-// output (its surface, swapchain, framebuffers and pending flips) before the
-// device is reset to a known state, then builds outputs again for whatever is
-// connected now. Their first frame is then a full modeset, not a page flip.
-//
-// A frame that still cannot be shown sets its output up again once, which
-// modesets it from scratch. If that fails too, the output stops drawing and
-// the problem is reported once, until the seat comes back or a display is
-// plugged in or out.
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Streak {
     Rebuilt,

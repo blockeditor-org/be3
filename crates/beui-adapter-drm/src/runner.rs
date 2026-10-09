@@ -9,8 +9,7 @@ use std::time::Duration;
 
 use beui::{
     CursorIcon, Event, FilePickRequest, Launch, Modifiers, Platform, PointerButton, Pos2, Setup,
-    TouchId,
-    TouchPhase, Waker, vec2,
+    TouchId, TouchPhase, Waker, vec2,
 };
 use beui_core::app::SafeArea;
 use beui_core::renderer::Loaded;
@@ -590,7 +589,9 @@ impl Session {
 
     fn seat_event(&mut self, event: SessionEvent) {
         match event {
-            SessionEvent::PauseSession => self.with_recovery(|recovery, session| recovery.pause(session)),
+            SessionEvent::PauseSession => {
+                self.with_recovery(|recovery, session| recovery.pause(session))
+            }
             SessionEvent::ActivateSession => {
                 self.with_recovery(|recovery, session| recovery.activate(session));
             }

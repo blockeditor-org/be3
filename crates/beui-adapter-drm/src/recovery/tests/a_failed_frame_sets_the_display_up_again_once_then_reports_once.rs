@@ -20,7 +20,11 @@ fn a_failed_frame_sets_the_display_up_again_once_then_reports_once() {
     );
 
     recovery.failed(&mut card, 1, FLIP_FAILED.to_owned());
-    assert_eq!(card.take(), [Call::Stall(1)], "and does not tell them again");
+    assert_eq!(
+        card.take(),
+        [Call::Stall(1)],
+        "and does not tell them again"
+    );
 
     recovery.pause(&mut card);
     recovery.activate(&mut card);

@@ -11,7 +11,11 @@ fn taking_the_seat_back_rebuilds_every_display_from_scratch() {
     assert_eq!(card.take(), [Call::Suspend]);
 
     recovery.pause(&mut card);
-    assert_eq!(card.take(), [], "a second pause has nothing left to suspend");
+    assert_eq!(
+        card.take(),
+        [],
+        "a second pause has nothing left to suspend"
+    );
 
     recovery.activate(&mut card);
     assert!(recovery.active());
