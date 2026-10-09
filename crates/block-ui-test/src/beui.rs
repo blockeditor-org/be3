@@ -931,6 +931,18 @@ impl<A: BeuiApp> BeuiTest<A> {
         })
     }
 
+    pub fn take_notification_requests(&mut self) -> Vec<block_plugin_api::LinuxMessage> {
+        self.take_where(|message| match message {
+            EditorMessage::Linux {
+                message:
+                    message @ (block_plugin_api::LinuxMessage::InvokeNotification { .. }
+                    | block_plugin_api::LinuxMessage::DismissNotifications(_)),
+                ..
+            } => Some(message.clone()),
+            _ => None,
+        })
+    }
+
     pub fn take_power_requests(&mut self) -> Vec<block_plugin_api::PowerAction> {
         self.take_where(|message| match message {
             EditorMessage::Linux {

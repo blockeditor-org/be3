@@ -7,6 +7,7 @@ fn a_toast_goes_away_when_dismissed_or_when_its_time_is_up() {
         id,
         message: format!("Toast {id}"),
         danger: id == 1,
+        ..Toast::default()
     };
     let document = build(move || {
         let area = NodeRef::new();

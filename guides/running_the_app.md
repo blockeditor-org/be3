@@ -82,7 +82,35 @@ seconds before the session ends or logind is asked to restart or power off) and
 signal. Every D-Bus conversation runs on one thread, `src/dbus.rs`: `dbus::spawn` runs a
 future there and `dbus::system()` is the shared system bus connection. A task hands what it
 learns back through `host::waking_channel`, which wakes the event loop, so nothing on the UI
-thread waits on the bus.
+thread waits on the bus. `dbus::session()` is the shared session bus connection.
+
+## Notifications
+
+The desktop shell (`--session` and `--desktop`) serves `org.freedesktop.Notifications` on the
+session bus from `src/notifications/server.rs`, asking for the name without replacing an owner,
+so under another desktop that already runs a notification daemon it logs that and serves
+nothing. The D-Bus side reads the hints and loads the picture (image-data, image-path, the
+app icon through be-wayland's `IconThemes`, then the desktop entry's icon) and hands each
+`Notify` to the UI thread, which answers with its id. `notifications/center.rs` holds what
+happens to them, and is where to test it: ids and `replaces_id`, the toast's timeout (-1 is
+five seconds, 0 and critical urgency never), actions, `resident` and `transient`, and the
+reason every `NotificationClosed` carries. A toast whose time is up only hides: the
+notification stays until it is dismissed, an action is taken or its program closes it, which
+is the `persistence` capability, except a transient one, which closes as expired.
+
+Each shows as one of the host's toasts (`beui::styled::Toasts`, with a title, picture and
+action buttons; clicking the body is the `default` action). The desktop bar's bell lists
+them, newest first: linux-desktop watches them with `LinuxMessage::WatchNotifications` and
+answers with `InvokeNotification` and `DismissNotifications`.
+
+To try it, run the dev app on a session bus of its own and send some:
+
+    dbus-run-session -- ./scripts/buck run //crates/block-app:dev -- --desktop
+    notify-send --action=default=Open --action=reply=Reply Mail 'Lunch at noon?'
+    notify-send --urgency=critical Battery 'Five percent left'
+
+`notify-send` and `gdbus` must run inside the same `dbus-run-session` (for example from a
+shell it started) to reach that bus.
 
 ## Wayland programs
 

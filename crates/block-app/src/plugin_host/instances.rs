@@ -51,7 +51,10 @@ pub(super) struct Instances {
     input_devices: Vec<block_plugin_api::HostInputDevice>,
     displays: Vec<block_plugin_api::HostDisplay>,
     power: block_plugin_api::PowerAvailability,
+    notifications: Arc<Vec<block_plugin_api::HostNotification>>,
 }
+
+const MAX_NOTIFICATION_REQUESTS: usize = 64;
 
 struct AudioChanges {
     sender: host::WakingSender<EditorInstanceId>,
@@ -132,6 +135,9 @@ struct Instance {
     watches_power: bool,
     reported_power: Option<block_plugin_api::PowerAvailability>,
     power_request: Option<block_plugin_api::PowerAction>,
+    watches_notifications: bool,
+    reported_notifications: Option<Arc<Vec<block_plugin_api::HostNotification>>>,
+    notification_requests: Vec<LinuxMessage>,
     closed_windows: Vec<block_plugin_api::HostWindowId>,
     fullscreen_windows: Vec<(block_plugin_api::HostWindowId, bool)>,
     grabbed: bool,
@@ -316,6 +322,9 @@ impl Instance {
             watches_power: false,
             reported_power: None,
             power_request: None,
+            watches_notifications: false,
+            reported_notifications: None,
+            notification_requests: Vec::new(),
             closed_windows: Vec::new(),
             fullscreen_windows: Vec::new(),
             grabbed: false,
@@ -1144,6 +1153,7 @@ impl Instances {
             entry.reported_input_devices = None;
             entry.reported_displays = None;
             entry.reported_power = None;
+            entry.reported_notifications = None;
             entry.reported_history = None;
             entry.reported_artifacts.clear();
             entry.reported_size = None;
@@ -1171,6 +1181,7 @@ impl Instances {
         let input_devices = self.input_devices.clone();
         let displays = self.displays.clone();
         let power = self.power;
+        let notifications = Arc::clone(&self.notifications);
         let graph = crate::be::graph_revision();
         let graph_moved = self.graph_seen.replace(graph) != Some(graph);
         let mut opened = Vec::new();
@@ -1322,6 +1333,18 @@ impl Instances {
                 opened.push(Message::Editor(EditorMessage::Linux {
                     instance,
                     message: LinuxMessage::Power(power),
+                }));
+            }
+            if entry.watches_notifications
+                && entry
+                    .reported_notifications
+                    .as_ref()
+                    .is_none_or(|reported| !Arc::ptr_eq(reported, &notifications))
+            {
+                entry.reported_notifications = Some(Arc::clone(&notifications));
+                opened.push(Message::Editor(EditorMessage::Linux {
+                    instance,
+                    message: LinuxMessage::Notifications(notifications.to_vec()),
                 }));
             }
             if entry.windows.is_some() && entry.windows != entry.reported_windows {
@@ -2341,11 +2364,21 @@ impl Instances {
                     LinuxMessage::FullscreenWindow { window, fullscreen } => {
                         entry.fullscreen_windows.push((window, fullscreen));
                     }
+                    LinuxMessage::WatchNotifications => entry.watches_notifications = true,
+                    message @ (LinuxMessage::InvokeNotification { .. }
+                    | LinuxMessage::DismissNotifications(_))
+                        if entry.notification_requests.len() < MAX_NOTIFICATION_REQUESTS =>
+                    {
+                        entry.notification_requests.push(message);
+                    }
                     LinuxMessage::Windows(_)
                     | LinuxMessage::InputDevices(_)
                     | LinuxMessage::Displays(_)
                     | LinuxMessage::Power(_)
-                    | LinuxMessage::RequestPower(_) => return false,
+                    | LinuxMessage::RequestPower(_)
+                    | LinuxMessage::Notifications(_)
+                    | LinuxMessage::InvokeNotification { .. }
+                    | LinuxMessage::DismissNotifications(_) => return false,
                 }
                 true
             }
@@ -3043,6 +3076,27 @@ impl Instances {
         instance: EditorInstanceId,
     ) -> Option<block_plugin_api::PowerAction> {
         self.entries.get_mut(&instance)?.power_request.take()
+    }
+
+    pub(super) fn set_notifications(
+        &mut self,
+        notifications: Arc<Vec<block_plugin_api::HostNotification>>,
+    ) -> bool {
+        self.notifications = notifications;
+        self.entries
+            .values()
+            .any(|entry| entry.watches_notifications)
+    }
+
+    #[cfg(target_os = "linux")]
+    pub(super) fn take_notification_requests(
+        &mut self,
+        instance: EditorInstanceId,
+    ) -> Vec<LinuxMessage> {
+        self.entries
+            .get_mut(&instance)
+            .map(|entry| std::mem::take(&mut entry.notification_requests))
+            .unwrap_or_default()
     }
 
     pub(super) fn set_displays(&mut self, displays: Vec<block_plugin_api::HostDisplay>) -> bool {

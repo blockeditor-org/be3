@@ -13,7 +13,8 @@ use block_plugin_api::{
     BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect,
     ChildStatus, ClipboardImage, DataListing, EditorRegion, FetchResult, FilePick, FileSave,
     HostDisplay, HostInputDevice, HostPanel, HostReply, HostRequest, HostWindow, HostWindowId,
-    MenuEntry, Occluder, PerformanceMeasurement, PowerAction, PowerAvailability, ShellDialog, Size,
+    HostNotification, LinuxMessage, MenuEntry, Occluder, PerformanceMeasurement, PowerAction,
+    PowerAvailability, ShellDialog, Size,
     ViewChange, WebViewCommand, WebViewEvent, WebViewId,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
@@ -360,10 +361,11 @@ pub enum Pushed {
     InputDevices,
     Displays,
     Power,
+    Notifications,
 }
 
 impl Pushed {
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 15] = [
         Self::Replies,
         Self::Peers,
         Self::Histories,
@@ -378,6 +380,7 @@ impl Pushed {
         Self::InputDevices,
         Self::Displays,
         Self::Power,
+        Self::Notifications,
     ];
 }
 
@@ -396,6 +399,10 @@ pub struct EditorHost {
     watching_power: Rc<Cell<bool>>,
     reported_power_watch: Rc<Cell<bool>>,
     power_requests: Rc<RefCell<Vec<PowerAction>>>,
+    notifications: Rc<RefCell<Vec<HostNotification>>>,
+    watching_notifications: Rc<Cell<bool>>,
+    reported_notification_watch: Rc<Cell<bool>>,
+    notification_requests: Rc<RefCell<Vec<LinuxMessage>>>,
     closed_windows: Rc<RefCell<Vec<HostWindowId>>>,
     fullscreen_windows: Rc<RefCell<Vec<(HostWindowId, bool)>>>,
     pick_requests: Rc<RefCell<Vec<PickRequest>>>,
@@ -654,6 +661,49 @@ impl EditorHost {
 
     pub(crate) fn take_power_requests(&self) -> Vec<PowerAction> {
         std::mem::take(&mut self.power_requests.borrow_mut())
+    }
+
+    pub fn notifications(&self) -> Vec<HostNotification> {
+        self.watching_notifications.set(true);
+        self.notifications.borrow().clone()
+    }
+
+    pub fn set_notifications(&self, notifications: Vec<HostNotification>) {
+        if *self.notifications.borrow() == notifications {
+            return;
+        }
+        *self.notifications.borrow_mut() = notifications;
+        self.push(Pushed::Notifications);
+    }
+
+    pub(crate) fn take_notification_watch(&self) -> bool {
+        let wanted =
+            self.watching_notifications.get() && !self.reported_notification_watch.get();
+        if wanted {
+            self.reported_notification_watch.set(true);
+        }
+        wanted
+    }
+
+    pub fn invoke_notification(&self, id: u32, action: String) {
+        self.notification_requests
+            .borrow_mut()
+            .push(LinuxMessage::InvokeNotification { id, action });
+        self.changed();
+    }
+
+    pub fn dismiss_notifications(&self, ids: Vec<u32>) {
+        if ids.is_empty() {
+            return;
+        }
+        self.notification_requests
+            .borrow_mut()
+            .push(LinuxMessage::DismissNotifications(ids));
+        self.changed();
+    }
+
+    pub(crate) fn take_notification_requests(&self) -> Vec<LinuxMessage> {
+        std::mem::take(&mut self.notification_requests.borrow_mut())
     }
 
     pub(crate) fn take_input_device_watch(&self) -> bool {

@@ -74,6 +74,33 @@ impl PowerAvailability {
     }
 }
 
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HostNotificationAction {
+    pub key: String,
+    pub label: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HostNotification {
+    pub id: u32,
+    pub app_name: String,
+    pub summary: String,
+    pub body: String,
+    pub received: u64,
+    pub critical: bool,
+    pub actions: Vec<HostNotificationAction>,
+}
+
+impl HostNotification {
+    pub const DEFAULT_ACTION: &str = "default";
+
+    pub fn has_default_action(&self) -> bool {
+        self.actions
+            .iter()
+            .any(|action| action.key == Self::DEFAULT_ACTION)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum LinuxMessage {
     Windows(Vec<HostWindow>),
@@ -88,19 +115,28 @@ pub enum LinuxMessage {
     WatchPower,
     Power(PowerAvailability),
     RequestPower(PowerAction),
+    WatchNotifications,
+    Notifications(Vec<HostNotification>),
+    InvokeNotification { id: u32, action: String },
+    DismissNotifications(Vec<u32>),
 }
 
 impl LinuxMessage {
     pub fn direction(&self) -> Direction {
         match self {
-            Self::Windows(_) | Self::InputDevices(_) | Self::Displays(_) | Self::Power(_) => {
-                Direction::ToPlugin
-            }
+            Self::Windows(_)
+            | Self::InputDevices(_)
+            | Self::Displays(_)
+            | Self::Power(_)
+            | Self::Notifications(_) => Direction::ToPlugin,
             Self::WatchInputDevices
             | Self::WatchDisplays
             | Self::FullscreenWindow { .. }
             | Self::WatchPower
-            | Self::RequestPower(_) => Direction::ToHost,
+            | Self::RequestPower(_)
+            | Self::WatchNotifications
+            | Self::InvokeNotification { .. }
+            | Self::DismissNotifications(_) => Direction::ToHost,
         }
     }
 }

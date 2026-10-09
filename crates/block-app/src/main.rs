@@ -14,6 +14,8 @@ mod keys;
 mod launcher;
 mod local_settings;
 mod notices;
+#[cfg(target_os = "linux")]
+mod notifications;
 mod panic_guard;
 mod performance;
 mod platform;
@@ -371,6 +373,8 @@ struct BlockApp {
     workspace_key: Option<[u8; 32]>,
     #[cfg(target_os = "linux")]
     desktop: Option<session::DesktopSession>,
+    #[cfg(target_os = "linux")]
+    notifications: Option<notifications::Notifications>,
 }
 
 type Account = SavedAccount;
@@ -553,12 +557,62 @@ impl BlockApp {
             workspace_key: None,
             #[cfg(target_os = "linux")]
             desktop: None,
+            #[cfg(target_os = "linux")]
+            notifications: None,
         })
     }
 
     #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
     fn run_as_desktop(&mut self) {
         self.root_settings = RootSettings::new(be_block::LINUX_DESKTOP_EDITOR);
+        #[cfg(target_os = "linux")]
+        if self.notifications.is_none() {
+            self.notifications = Some(notifications::Notifications::start());
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn run_notifications(&mut self) {
+        if self.notifications.is_none() {
+            return;
+        }
+        let asked = self
+            .shell
+            .and_then(|shell| self.with_editor(shell, |editor| editor.take_notification_requests()))
+            .unwrap_or_default();
+        if let Some(notifications) = &mut self.notifications {
+            notifications.frame(asked);
+        }
+    }
+
+    fn toasts(&self) -> Vec<beui::styled::Toast> {
+        #[allow(unused_mut)]
+        let mut toasts = notices::shown();
+        #[cfg(target_os = "linux")]
+        if let Some(notifications) = &self.notifications {
+            toasts.extend(notifications.toasts());
+        }
+        toasts
+    }
+
+    fn dismiss_toast(&mut self, id: u64) {
+        #[cfg(target_os = "linux")]
+        if notifications::Notifications::owns_toast(id) {
+            if let Some(notifications) = &mut self.notifications {
+                notifications.dismiss_toast(id);
+            }
+            return;
+        }
+        notices::dismiss(id);
+    }
+
+    #[cfg_attr(not(target_os = "linux"), allow(unused_variables))]
+    fn act_on_toast(&mut self, id: u64, action: Option<String>) {
+        #[cfg(target_os = "linux")]
+        if let Some(notifications) = &mut self.notifications {
+            let action = action.unwrap_or_else(|| notifications::activate_action().to_owned());
+            notifications.invoke_toast(id, &action);
+        }
     }
 
     #[cfg(target_os = "linux")]
@@ -1871,6 +1925,8 @@ impl BlockApp {
     fn run_frame(&mut self, context: &beui::Context) {
         performance::begin_frame();
         plugin_host::poll();
+        #[cfg(target_os = "linux")]
+        self.run_notifications();
         if !self.signed_in {
             be::stop();
             self.poll_account_request();
@@ -2112,7 +2168,9 @@ impl BlockApp {
             UiCommand::LaunchProgram(key) => self.launcher.launch(&key),
             UiCommand::Launch(command) => self.launcher.run(command),
             UiCommand::AppMenu(open) => self.app_menu_open = open,
-            UiCommand::DismissToast(id) => notices::dismiss(id),
+            UiCommand::DismissToast(id) => self.dismiss_toast(id),
+            UiCommand::ToastAction(id, action) => self.act_on_toast(id, Some(action)),
+            UiCommand::ActivateToast(id) => self.act_on_toast(id, None),
             UiCommand::KeepDisplay => self.display.commit(&self.app_state, display::keep()),
             UiCommand::RevertDisplay => self.display.commit(&self.app_state, display::revert()),
             UiCommand::SendInvite(email, role) => {
@@ -2298,7 +2356,7 @@ impl BlockApp {
                 .editors
                 .with(|open| open.values().any(PluginEditor::presenting_now)),
             debug: debug::view(),
-            toasts: notices::shown(),
+            toasts: self.toasts(),
             keep_display: display::asking(),
             screens: display::screens(),
         }

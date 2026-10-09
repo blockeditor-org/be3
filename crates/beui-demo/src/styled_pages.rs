@@ -51,7 +51,7 @@ const TREE_NODES: [(&str, usize); 9] = [
     ("README.md", 1),
     ("Cargo.toml", 1),
 ];
-const TOAST_AREA_HEIGHT: f32 = 220.0;
+const TOAST_AREA_HEIGHT: f32 = 380.0;
 const FRUITS: [&str; 6] = ["Apple", "Banana", "Cherry", "Date", "Grape", "Mango"];
 
 #[sample]
@@ -1597,16 +1597,25 @@ fn ToastArea() -> NodeId {
             id: 1,
             message: "Saved a copy of the workspace.".to_owned(),
             danger: false,
+            ..Toast::default()
         },
         Toast {
             id: 2,
             message: "Could not run firefox: the command was not found".to_owned(),
             danger: true,
+            ..Toast::default()
         },
+        message_toast(3),
     ]);
-    let (next, set_next) = create_signal(3);
+    let (next, set_next) = create_signal(4);
+    let (chosen, set_chosen) = create_signal(String::new());
     let add = set_toasts.clone();
+    let notify = set_toasts.clone();
     let dismiss = set_toasts.clone();
+    let act = set_toasts.clone();
+    let open = set_toasts.clone();
+    let (counted, set_counted) = (next.clone(), set_next.clone());
+    let opened = set_chosen.clone();
     view! {
         <Frame
             @node_ref=&area
@@ -1628,17 +1637,57 @@ fn ToastArea() -> NodeId {
                                 id,
                                 message: format!("Toast {id}, gone in a few seconds."),
                                 danger: false,
+                                ..Toast::default()
                             }));
                         }}
                     />
+                    <Button
+                        label="Show a message"
+                        variant=ButtonVariant::Secondary
+                        on_click={move || {
+                            let id = counted.get_untracked();
+                            set_counted.set(id + 1);
+                            notify.update(|toasts| toasts.push(message_toast(id)));
+                        }}
+                    />
+                    <Text string={chosen} font_size=14.0 color={theme.text_muted.clone()} />
                 </List>
                 <Toasts
                     anchor={area}
                     toasts={toasts}
                     on_dismiss={move |id: u64| dismiss.update(|toasts| toasts.retain(|toast| toast.id != id))}
+                    on_action={move |(id, key): (u64, String)| {
+                        set_chosen.set(format!("Chose {key} on message {id}"));
+                        act.update(|toasts| toasts.retain(|toast| toast.id != id));
+                    }}
+                    on_activate={move |id: u64| {
+                        opened.set(format!("Opened message {id}"));
+                        open.update(|toasts| toasts.retain(|toast| toast.id != id));
+                    }}
                 />
             </List>
         </Frame>
+    }
+}
+
+fn message_toast(id: u64) -> Toast {
+    Toast {
+        id,
+        title: "Mia Chen".to_owned(),
+        message: "Lunch at noon? The new place on Bridge Street has a table free.".to_owned(),
+        actions: vec![
+            ToastAction {
+                key: "reply".to_owned(),
+                label: "Reply".to_owned(),
+            },
+            ToastAction {
+                key: "read".to_owned(),
+                label: "Mark as read".to_owned(),
+            },
+        ],
+        activates: true,
+        sticky: true,
+        ..Toast::default()
     }
 }
 
