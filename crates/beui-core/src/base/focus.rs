@@ -354,6 +354,11 @@ impl Document {
         if new_focus == self.focused {
             return;
         }
+        if let (Some(new), Some(lock)) = (new_focus, self.lock())
+            && !self.is_within(new, lock.id())
+        {
+            return;
+        }
         let old = self.focused;
         self.composed.clear();
         self.cancel_focus_activation();

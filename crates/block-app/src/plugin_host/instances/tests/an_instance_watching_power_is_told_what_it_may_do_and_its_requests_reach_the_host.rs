@@ -18,6 +18,7 @@ fn power_sent(messages: &[Message]) -> Vec<PowerAvailability> {
 #[test]
 fn an_instance_watching_power_is_told_what_it_may_do_and_its_requests_reach_the_host() {
     let power = PowerAvailability {
+        lock: false,
         suspend: true,
         restart: false,
         power_off: true,

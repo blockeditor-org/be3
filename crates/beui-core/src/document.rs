@@ -504,6 +504,9 @@ impl Document {
     }
 
     pub fn key_global(&self, global: GlobalKeyPress) -> bool {
+        if self.locked() {
+            return false;
+        }
         let mut handlers = self.global_keys.borrow_mut();
         handlers.retain(|handler| handler.strong_count() > 0);
         let live: Vec<Rc<GlobalKey>> = handlers.iter().filter_map(Weak::upgrade).collect();

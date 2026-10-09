@@ -22,12 +22,14 @@ mod escape_leaves_the_window_switcher_without_switching;
 mod the_calendar_popup_fits_a_narrow_screen;
 mod the_desktop_starts_with_nothing_open_but_its_bar;
 mod the_power_menu_asks_before_ending_the_session;
+mod the_power_menu_locks_the_screen_without_asking;
 mod the_power_menu_offers_only_what_the_host_allows;
 mod the_programs_button_asks_the_host_for_its_launcher;
 
 const MAX_TAB: u64 = 64;
 const WINDOW_TABS: u64 = 1 << 41;
 const EVERYTHING: PowerAvailability = PowerAvailability {
+    lock: true,
     suspend: true,
     restart: true,
     power_off: true,

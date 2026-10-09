@@ -73,6 +73,7 @@ pub struct OverlayNode {
     light: bool,
     trigger: Option<NodeRef>,
     mode: OverlayMode,
+    locks: bool,
     on_dismiss: Option<ClickHandler>,
 }
 
@@ -95,6 +96,7 @@ impl OverlayNode {
             light: false,
             trigger: None,
             mode: OverlayMode::Modal,
+            locks: false,
             on_dismiss: None,
         }
     }
@@ -308,6 +310,7 @@ impl Element for OverlayNode {
             ),
             ("traps focus", self.traps_focus.to_string()),
             ("light dismiss", self.light.to_string()),
+            ("locks", self.locks.to_string()),
         ]
     }
 
@@ -435,16 +438,73 @@ impl Document {
 
     pub fn overlays_bottom_up(&self) -> Vec<NodeOf<OverlayNode>> {
         let floating = self.floating_overlays();
-        let passive = self
+        let passive: Vec<NodeOf<OverlayNode>> = self
             .passive_overlays
             .iter()
-            .filter(|overlay| !floating.contains(overlay));
+            .filter(|overlay| !floating.contains(overlay))
+            .copied()
+            .collect();
+        let Some(lock) = self.lock() else {
+            return floating
+                .iter()
+                .chain(self.overlay_stack.iter())
+                .chain(passive.iter())
+                .copied()
+                .collect();
+        };
+        let at = self
+            .overlay_stack
+            .iter()
+            .position(|overlay| *overlay == lock)
+            .unwrap_or(self.overlay_stack.len());
+        let inside = self.overlays_within(lock, &passive);
+        let outside: Vec<_> = passive
+            .into_iter()
+            .filter(|overlay| !inside.contains(overlay))
+            .collect();
         floating
             .iter()
-            .chain(self.overlay_stack.iter())
-            .chain(passive)
+            .chain(self.overlay_stack[..at].iter())
+            .chain(outside.iter())
+            .chain(self.overlay_stack[at..].iter())
+            .chain(inside.iter())
             .copied()
             .collect()
+    }
+
+    pub fn set_overlay_locks(&mut self, overlay: NodeOf<OverlayNode>, locks: bool) {
+        if self.arena.get_as::<OverlayNode>(overlay).locks == locks {
+            return;
+        }
+        self.arena.touch_mut_as::<OverlayNode>(overlay).locks = locks;
+        if self.arena.get_as::<OverlayNode>(overlay).open {
+            self.close_overlay(overlay);
+            self.open_overlay(overlay);
+        }
+    }
+
+    pub(crate) fn lock(&self) -> Option<NodeOf<OverlayNode>> {
+        self.overlay_stack
+            .iter()
+            .copied()
+            .find(|overlay| self.contains(*overlay) && self.arena.get_as::<OverlayNode>(*overlay).locks)
+    }
+
+    pub fn locked(&self) -> bool {
+        self.lock().is_some()
+    }
+
+    pub(crate) fn is_within(&self, node: NodeId, ancestor: NodeId) -> bool {
+        let mut pending = vec![ancestor];
+        while let Some(id) = pending.pop() {
+            if id == node {
+                return true;
+            }
+            if self.contains(id) {
+                pending.extend(self.arena.get(id).children());
+            }
+        }
+        false
     }
 
     pub fn pointer_layers(&self, root: NodeId) -> Vec<NodeId> {
@@ -571,8 +631,15 @@ impl Document {
             return;
         }
         self.arena.get_mut_as::<OverlayNode>(overlay).open = true;
+        let below_lock = self
+            .lock()
+            .filter(|lock| !self.is_within(overlay.id(), lock.id()))
+            .and_then(|lock| self.overlay_stack.iter().position(|open| *open == lock));
         match self.arena.get_as::<OverlayNode>(overlay).mode.stacked() {
-            true => self.overlay_stack.push(overlay),
+            true => match below_lock {
+                Some(at) => self.overlay_stack.insert(at, overlay),
+                None => self.overlay_stack.push(overlay),
+            },
             false => self.passive_overlays.push(overlay),
         }
         self.arena.invalidate_node(overlay);
@@ -587,6 +654,9 @@ impl Document {
     }
 
     fn end_overlay(&mut self, overlay: NodeOf<OverlayNode>, dismissed: bool) {
+        if dismissed && self.contains(overlay) && self.arena.get_as::<OverlayNode>(overlay).locks {
+            return;
+        }
         let open: Vec<NodeOf<OverlayNode>> = self
             .overlay_stack
             .iter()
@@ -597,7 +667,10 @@ impl Document {
         if open.len() == self.overlay_stack.len() + self.passive_overlays.len() {
             return;
         }
-        let nested = self.overlays_within(overlay, &open);
+        let mut nested = self.overlays_within(overlay, &open);
+        if dismissed {
+            nested.retain(|id| !self.arena.get_as::<OverlayNode>(*id).locks);
+        }
         let closing = |id: &NodeOf<OverlayNode>| *id == overlay || nested.contains(id);
         self.overlay_stack.retain(|id| !closing(id));
         self.passive_overlays.retain(|id| !closing(id));
@@ -698,7 +771,10 @@ impl Document {
 
     pub fn dismiss_light_overlays(&mut self, pos: Pos2) {
         while let Some(&top) = self.overlay_stack.last() {
-            if !self.light_overlay_misses(top, pos) || self.on_overlay_trigger(top, pos) {
+            if !self.light_overlay_misses(top, pos)
+                || self.on_overlay_trigger(top, pos)
+                || self.arena.get_as::<OverlayNode>(top).locks
+            {
                 return;
             }
             self.end_overlay(top, true);

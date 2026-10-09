@@ -50,6 +50,7 @@ pub struct Compositor {
     relist: bool,
     swallowed: Vec<(u32, Option<Key>)>,
     forced: bool,
+    locked: bool,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -80,6 +81,7 @@ impl Compositor {
             relist: false,
             swallowed: Vec::new(),
             forced: false,
+            locked: false,
         }
     }
 
@@ -93,6 +95,42 @@ impl Compositor {
 
     pub fn set_blank_after(&mut self, after: Option<Duration>) {
         self.server.state.idle.set_blank_after(after);
+    }
+
+    pub fn set_lock_after(&mut self, after: Option<Duration>) {
+        self.server.state.idle.set_lock_after(after);
+    }
+
+    pub fn lock_due(&self) -> bool {
+        self.server.state.idle.lock_due()
+    }
+
+    pub fn set_locked(&mut self, locked: bool) {
+        if self.locked == locked {
+            return;
+        }
+        self.locked = locked;
+        if !locked {
+            return;
+        }
+        self.server.state.dismiss_popups();
+        for code in std::mem::take(&mut self.held) {
+            self.server.state.pointer_button(code, false);
+        }
+        self.grab = None;
+        if self.server.state.pointer_window().is_some() {
+            self.server.state.pointer_motion(None);
+        }
+        self.swallowed.clear();
+        if let Some(previous) = self.server.state.keyboard_window() {
+            self.server.state.focus_keyboard(None);
+            self.windows.push(Command::Configure(previous));
+        }
+        self.server.flush();
+    }
+
+    pub fn locked(&self) -> bool {
+        self.locked
     }
 
     pub fn woke(&mut self) {
@@ -163,6 +201,7 @@ impl Compositor {
         let list =
             (std::mem::take(&mut self.relist) || self.fullscreen.is_some()).then(|| self.list());
         let raise = self.raise.take().or_else(|| self.windows.take_activation());
+        let raise = raise.filter(|_| !self.locked);
         let windows = self.windows.clone();
         with_reactive_scope(document, || {
             if let Some(list) = list {
@@ -413,6 +452,9 @@ impl Compositor {
     }
 
     fn keyboard(&mut self, context: &Context, document: &mut Document) {
+        if self.locked {
+            return;
+        }
         let now = context.now();
         let target = self
             .windows
@@ -475,6 +517,9 @@ impl Compositor {
     }
 
     fn pointer(&mut self, context: &Context) {
+        if self.locked {
+            return;
+        }
         let now = context.now();
         let events = context.input(|input| input.events.clone());
         for event in events {
@@ -537,7 +582,7 @@ impl Compositor {
     }
 
     fn apply(&mut self, now: Instant, document: &mut Document) {
-        let focused = self.windows.focused();
+        let focused = self.windows.focused().filter(|_| !self.locked);
         if self.server.state.keyboard_window() != focused {
             let previous = self.server.state.keyboard_window();
             self.server.state.focus_keyboard(focused);
@@ -661,12 +706,13 @@ impl Compositor {
     fn watch_idle(&mut self, context: &Context, document: &mut Document) {
         let now = context.now();
         let active = context.input(|input| input.events.iter().any(is_activity));
-        let inhibited = self
-            .server
-            .state
-            .inhibiting_windows()
-            .into_iter()
-            .any(|id| self.shown(id));
+        let inhibited = !self.locked
+            && self
+                .server
+                .state
+                .inhibiting_windows()
+                .into_iter()
+                .any(|id| self.shown(id));
         if let Some(due) = self.server.state.idle.tick(now, active, inhibited) {
             context.request_repaint_after(due.saturating_duration_since(now));
         }

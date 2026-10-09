@@ -3,6 +3,7 @@ use super::*;
 #[test]
 fn power_messages_round_trip() {
     let available = PowerAvailability {
+        lock: true,
         suspend: true,
         restart: true,
         power_off: false,

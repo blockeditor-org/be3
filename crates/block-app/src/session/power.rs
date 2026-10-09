@@ -61,6 +61,7 @@ impl Power {
     pub(crate) fn availability(&self) -> PowerAvailability {
         let idle = self.ending.is_none();
         PowerAvailability {
+            lock: false,
             suspend: idle && self.abilities.suspend,
             restart: idle && self.abilities.reboot,
             power_off: idle && self.abilities.power_off,
@@ -109,7 +110,7 @@ impl Power {
         let call = match ending.action {
             PowerAction::Restart => LogindCall::Reboot,
             PowerAction::PowerOff => LogindCall::PowerOff,
-            PowerAction::LogOut | PowerAction::Suspend => {
+            PowerAction::LogOut | PowerAction::Suspend | PowerAction::Lock => {
                 self.ending = None;
                 control.exit();
                 return None;

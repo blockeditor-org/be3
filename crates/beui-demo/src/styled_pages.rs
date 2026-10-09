@@ -1262,6 +1262,9 @@ pub(crate) fn OverlaysPage() -> NodeId {
             <Sample title="Keep changes" code={vec![KeepModeChange::SOURCE]}>
                 <KeepModeChange />
             </Sample>
+            <Sample title="Lock screen" code={vec![ScreenLock::SOURCE]}>
+                <ScreenLock />
+            </Sample>
             <Sample title="Launcher" code={vec![ProgramLauncher::SOURCE, program::SOURCE]}>
                 <ProgramLauncher />
             </Sample>
@@ -1400,6 +1403,47 @@ fn KeepModeChange() -> NodeId {
                 on_revert={move || {
                     reverting.set("Went back to 1920 × 1080 at 60 Hz".to_owned());
                     reverted.set(false);
+                }}
+            />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn ScreenLock() -> NodeId {
+    let (locked, set_locked) = create_signal(false);
+    let (error, set_error) = create_signal(None::<String>);
+    let (unlocking, failing) = (set_locked.clone(), set_error.clone());
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <Button
+                    @test_id={"demo.lock.open"}
+                    label="Lock"
+                    glyph={ICON_LOCK.to_owned()}
+                    variant=ButtonVariant::Secondary
+                    on_click={move || {
+                        set_error.set(None);
+                        set_locked.set(true);
+                    }}
+                />
+            </List>
+            <Caption content="The password is beui." />
+            <LockScreen
+                open={locked}
+                time="09:41"
+                date="Thursday, 8 October"
+                user="Ada Lovelace"
+                error={error}
+                actions={vec![LockAction {
+                    label: "Power off".to_owned(),
+                    glyph: ICON_POWER_SETTINGS_NEW.to_owned(),
+                }]}
+                id="demo.lock"
+                on_submit={move |typed: String| match typed == "beui" {
+                    true => unlocking.set(false),
+                    false => failing.set(Some("That password is not right.".to_owned())),
                 }}
             />
         </List>
