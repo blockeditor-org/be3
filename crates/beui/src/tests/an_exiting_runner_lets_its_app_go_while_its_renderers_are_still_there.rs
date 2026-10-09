@@ -30,6 +30,7 @@ impl Renderer for Screen {
     }
 
     fn present(&mut self, _background: Color32) -> bool {
+        self.0.borrow_mut().push("presented");
         false
     }
 }
@@ -88,9 +89,18 @@ fn an_exiting_runner_lets_its_app_go_while_its_renderers_are_still_there() {
     runner
         .frame(&mut Nowhere, 1.0, SafeArea::default())
         .expect("a loaded runner draws");
+    runner.present();
 
     runner.exit();
-    assert_eq!(log.take(), ["updated", "exiting", "app dropped"]);
+    assert_eq!(
+        log.take(),
+        ["updated", "presented", "exiting", "app dropped"]
+    );
+    runner.present();
+    assert!(
+        log.take().is_empty(),
+        "an exited runner presents nothing more"
+    );
     assert!(
         runner
             .frame(&mut Nowhere, 1.0, SafeArea::default())

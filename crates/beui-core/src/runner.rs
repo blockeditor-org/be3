@@ -295,6 +295,9 @@ impl Runner {
     }
 
     pub fn present(&mut self) -> bool {
+        if self.exited {
+            return false;
+        }
         let background = self.app.clear_color();
         self.renderers
             .as_mut()
