@@ -141,7 +141,8 @@ fn LockCard(
     let failed = create_memo(clone!(error -> move || error.get().is_some()));
     let checking = create_memo(clone!(error busy -> move || busy.get() && error.get().is_none()));
     let reason = create_memo(move || error.get().unwrap_or_default());
-    let slots = create_memo(clone!(actions -> move || (0..actions.with(Vec::len)).collect::<Vec<usize>>()));
+    let slots =
+        create_memo(clone!(actions -> move || (0..actions.with(Vec::len)).collect::<Vec<usize>>()));
     let error_id = format!("{id}.error");
     let action_id = id.clone();
     view! {
