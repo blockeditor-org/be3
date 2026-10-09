@@ -926,7 +926,9 @@ forwarding catcher under it unless the claimant is that catcher.
 `Document::press_claims` lists the `claim_modifiers` rectangles laid out this
 frame, which a plugin reports to its host, and `Document::press_claimed(button)` says a
 press of this frame or one still held was claimed, which is how the Wayland
-compositor keeps it from a program.
+compositor keeps it from a program. A secondary drag stays with the node that
+took it while the pointer crosses a floating window above that node; only the
+start of one is hidden from what a floating window covers.
 
 `unstyled::Tree` makes the same split the other way round. A row is a tab stop
 with the tree's keyboard and its `TreeItem` accessibility, and nothing more:

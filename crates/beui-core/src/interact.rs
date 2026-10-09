@@ -210,15 +210,7 @@ pub fn interact(
         .is_some_and(|pos| doc.floating_covers(pos));
     let under = match covered {
         false => input,
-        true => InteractInput {
-            pointer_pos: None,
-            press_pos: None,
-            secondary_drag: None,
-            zoom_pos: None,
-            wheel_target: None,
-            zoom_target: None,
-            ..input
-        },
+        true => hidden_pointer(input),
     };
     let engaged_before = doc.engaged.clone();
     let reach = Reach::new(doc, rects, &input);
@@ -283,15 +275,7 @@ pub fn interact(
     for (content, shadowed) in floating.into_iter().zip(shadowed) {
         let above = match shadowed || modal {
             false => input,
-            true => InteractInput {
-                pointer_pos: None,
-                press_pos: None,
-                secondary_drag: None,
-                zoom_pos: None,
-                wheel_target: None,
-                zoom_target: None,
-                ..input
-            },
+            true => hidden_pointer(input),
         };
         interact_node(
             doc,
@@ -449,6 +433,18 @@ pub fn interact(
         .is_none_or(|drag| drag.ended || drag.cancelled)
     {
         doc.secondary_claim = None;
+    }
+}
+
+fn hidden_pointer(input: InteractInput) -> InteractInput {
+    InteractInput {
+        pointer_pos: None,
+        press_pos: None,
+        secondary_drag: input.secondary_drag.filter(|drag| !drag.started),
+        zoom_pos: None,
+        wheel_target: None,
+        zoom_target: None,
+        ..input
     }
 }
 
