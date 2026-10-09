@@ -37,6 +37,47 @@ In an agent's cloud session the proxy adds the key to requests for
 `blocks.pfg.pw` and `buildserver.pfg.pw`, and `BE3_BUILD_SERVER_KEY` is a
 placeholder; there is no key for BuildBuddy there.
 
+## When a build hangs or keeps failing
+
+The servers fail in different ways:
+
+- **Namespace** is the fastest, but now and then never finishes a build: an
+  action sits at `[re_execute]` or queued for hours while nothing else moves.
+  It does not recover on its own, so stop the command rather than wait.
+- **`buildserver.pfg.pw` and `blocks.pfg.pw`** always finish, but queue
+  actions when many builds share them, and are slower than Namespace then.
+
+To move off a server that hangs or keeps failing, run the command again with
+another one, for that command or, exported, for the rest of the session:
+
+```
+BE3_BUILD_SERVER=buildserver.pfg.pw ./scripts/verify
+```
+
+`./scripts/buck` rewrites `.buckconfig.local` and restarts the buck2 daemon on
+every change of server. The servers share no cache, so the first build on a
+server rebuilds everything it has not built before, which is most of the
+workspace for a server that has not built this branch; switching pays off for
+a build that is stuck, not for one that is merely slow.
+
+Behind an HTTPS proxy, as in an agent's cloud session, buck2 reaches the
+server through `scripts/internal/re-relay`, whose errors are in
+`target/re-relay.log`:
+
+- **`unexpected EOF`, `context canceled`, a connection reset**: a call dropped
+  on the way. buck2 fails the command with an infrastructure error (exit status
+  2), and `./scripts/buck` tries such a command three times in all
+  (`BE3_BUCK_ATTEMPTS`), each time finding what finished cached. A command that
+  fails every time is a server that is down or overloaded: switch.
+- **`the proxy answered 401 Unauthorized`**: the proxy has no key for the host
+  (`credentials missing`) or refused the one it has (`invalid token`). For
+  Namespace, `BE3_NAMESPACE_TOKEN` or the token file is wrong or revoked; for
+  the others, the session has no key for that server. Switch to a server the
+  session has a key for.
+
+Each checkout has relays of its own (guides/buck2.md), so two checkouts on one
+machine can build on different servers at once.
+
 ## Namespace
 
 Namespace's remote execution
