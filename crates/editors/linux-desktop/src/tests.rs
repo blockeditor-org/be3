@@ -1,5 +1,6 @@
 use block_editor_beui::be_block::{
-    EditorView, EditorViewContent, LINUX_DESKTOP_EDITOR, Root, Settings, SettingsContent, WORKSPACE_EDITOR,
+    EditorView, EditorViewContent, LINUX_DESKTOP_EDITOR, Root, Settings, SettingsContent,
+    WORKSPACE_EDITOR,
 };
 use block_editor_beui::beui::{Document, Key, KeyChord, Modifiers, NodeId, Rect};
 use block_editor_beui::{

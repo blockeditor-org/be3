@@ -8,11 +8,20 @@ fn a_first_desktop_with_no_sessions_offers_a_new_one() {
     fixture.test.click("desktop.sessions");
     fixture.settle();
     assert!(
-        fixture.test.document().find_test_id("desktop.sessions.new").is_some(),
+        fixture
+            .test
+            .document()
+            .find_test_id("desktop.sessions.new")
+            .is_some(),
         "the menu opens with a way to start a session"
     );
-    assert!(!fixture.says("Desktop"), "the desktop itself is not offered");
-    fixture.test.snapshot("the_sessions_menu_on_a_first_desktop");
+    assert!(
+        !fixture.says("Desktop"),
+        "the desktop itself is not offered"
+    );
+    fixture
+        .test
+        .snapshot("the_sessions_menu_on_a_first_desktop");
 
     fixture.test.click("desktop.sessions.new");
     fixture.settle();
@@ -21,7 +30,11 @@ fn a_first_desktop_with_no_sessions_offers_a_new_one() {
         panic!("the new session opens, and only it: {placed:?}");
     };
     assert_eq!(view, Some(profile), "the session is its own view");
-    let info = fixture.test.store().block(profile).expect("the session exists");
+    let info = fixture
+        .test
+        .store()
+        .block(profile)
+        .expect("the session exists");
     assert_eq!(info.parent, BlockParent::Block(fixture.settings));
     assert_eq!(info.name.as_deref(), Some("Session 1"));
     let settings: SettingsContent = fixture.test.content(Some(fixture.settings));
