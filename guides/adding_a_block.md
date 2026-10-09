@@ -81,9 +81,9 @@ Override `Root::references` only for references the content does not hold as ids
 ```rust
 fn references(&self) -> Vec<Uuid> {
     let mut seen = HashSet::new();
-    self.slides
-        .iter()
-        .filter_map(|slide| slide.block)
+    block_url::parse_block_urls(&self.body)
+        .into_iter()
+        .map(|url| url.block)
         .filter(|block| seen.insert(*block))
         .collect()
 }

@@ -98,7 +98,11 @@ impl Cells {
         }
         let size = size?;
         let bytes = bytes?;
-        (bytes.len() == bounds.area() * usize::from(size)).then_some(Self {
+        let expected = usize::try_from(bounds.width)
+            .ok()?
+            .checked_mul(usize::try_from(bounds.height).ok()?)?
+            .checked_mul(usize::from(size))?;
+        (bytes.len() == expected).then_some(Self {
             size,
             bounds,
             bytes,
