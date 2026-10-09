@@ -96,6 +96,9 @@ if [ -z "$ours" ] && ! answers; then
         if ! kill -0 "$xvfb" 2> /dev/null || [ "$waited" -ge 300 ]; then
             echo "The virtual display $display did not start. Xvfb said, in $dir/xvfb.log:" >&2
             grep -v -e '^> ' -e 'xkbcomp' -e '^$' "$dir/xvfb.log" | tail -n 8 >&2
+            if kill "$xvfb" 2> /dev/null; then
+                while kill -0 "$xvfb" 2> /dev/null; do sleep 0.1; done
+            fi
             rm -f "$dir/xvfb.pid"
             exit 1
         fi

@@ -63,8 +63,8 @@ these in front of the pinned buck2:
 - **An HTTPS proxy.** buck2's remote execution client dials the server's hosts
   directly and never reads `HTTPS_PROXY`. When it is set, `./scripts/buck` builds
   `scripts/internal/re-relay` with Go (1.24 or newer), leaves one running for the executor and one for the storage, on two
-  ports of `127.0.0.1` picked from the checkout's path so that two checkouts on
-  one machine never share one, and points buck2 at them in the same `.buckconfig.local`; each relay sends
+  ports of `127.0.0.1` picked from the checkout's path, so that two checkouts on
+  one machine almost never share one, and points buck2 at them in the same `.buckconfig.local`; each relay sends
   its calls on through the proxy, over HTTP/1.1 if that is all the proxy
   speaks. Their errors go to `target/re-relay.log`. A `.buckconfig.local` a
   person wrote is left alone, and the relays are not used then.

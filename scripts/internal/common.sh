@@ -392,10 +392,11 @@ write_if_changed() {
 # the hosts even when the relays' addresses are all buck2 reads from it, so
 # that a change of host behind a relay is a change to the file too.
 #
-# Each checkout has relays of its own, on two ports picked from its path: a
-# relay serves one host, and a checkout that asks for another replaces it,
-# which cut off every other checkout's calls through it, mid-download, and sent
-# the rest to the wrong server.
+# Each checkout has relays of its own, on a pair of 2000 picked from its path,
+# and shares them only when two paths pick the same pair. A relay serves one
+# host, and a checkout that asks for another replaces it, which cut off every
+# other checkout's calls through it, mid-download, and sent the rest to the
+# wrong server.
 re_relay_port="$((20000 + $(printf '%s' "$repository" | cksum | cut -d ' ' -f 1) % 2000 * 2))"
 re_relay_engine_address="127.0.0.1:$re_relay_port"
 re_relay_storage_address="127.0.0.1:$((re_relay_port + 1))"

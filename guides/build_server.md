@@ -75,8 +75,9 @@ server through `scripts/internal/re-relay`, whose errors are in
   the others, the session has no key for that server. Switch to a server the
   session has a key for.
 
-Each checkout has relays of its own (guides/buck2.md), so two checkouts on one
-machine can build on different servers at once.
+Each checkout has relays of its own, on ports picked from its path
+(guides/buck2.md), so two checkouts on one machine can build on different
+servers at once.
 
 ## Namespace
 
