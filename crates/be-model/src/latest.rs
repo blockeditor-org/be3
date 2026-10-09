@@ -3,8 +3,8 @@ use std::{collections::BTreeMap, marker::PhantomData, ops::Deref};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
-use crate::field::encode;
-use crate::{Change, Field, FieldRef, Object, ObjectId, Tree, Value};
+use crate::stored::{decode, encode};
+use crate::{Change, Field, FieldRef, Object, ObjectId, Shape, Tree, Value};
 
 #[derive(
     Clone, Copy, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize,
@@ -84,6 +84,10 @@ impl<T: Serialize + DeserializeOwned + Default> Field for Latest<T> {
         Value::Latest(BTreeMap::new())
     }
 
+    fn shape() -> Shape {
+        Shape::Latest
+    }
+
     fn read(_tree: &Tree, value: &Value) -> Self {
         let Value::Latest(entries) = value else {
             return Self {
@@ -96,7 +100,7 @@ impl<T: Serialize + DeserializeOwned + Default> Field for Latest<T> {
             stamp: held.map(|held| held.stamp).unwrap_or_default(),
             value: held
                 .and_then(|held| held.value.as_deref())
-                .and_then(|bytes| postcard::from_bytes(bytes).ok())
+                .and_then(decode)
                 .unwrap_or_default(),
         }
     }
@@ -172,21 +176,21 @@ impl<K: Serialize + DeserializeOwned + Ord + Clone, V: Serialize + DeserializeOw
         Value::Latest(BTreeMap::new())
     }
 
+    fn shape() -> Shape {
+        Shape::Latest
+    }
+
     fn read(_tree: &Tree, value: &Value) -> Self {
         let Value::Latest(held) = value else {
             return Self::default();
         };
         let mut map = Self::default();
         for (key, stamped) in held {
-            let Ok(key) = postcard::from_bytes::<K>(key) else {
+            let Some(key) = decode::<K>(key) else {
                 continue;
             };
             map.stamps.insert(key.clone(), stamped.stamp);
-            if let Some(value) = stamped
-                .value
-                .as_deref()
-                .and_then(|bytes| postcard::from_bytes(bytes).ok())
-            {
+            if let Some(value) = stamped.value.as_deref().and_then(decode) {
                 map.entries.insert(key, value);
             }
         }

@@ -66,7 +66,10 @@ fn canvas_children_are_removed_repointed_or_merged() {
             .edit_for(&InfiniteCanvasOperation::Add { entity });
         content.apply(&edit);
     }
-    assert_eq!(content.root().references(), [shown, old, new, linked]);
+    assert_eq!(
+        crate::BlockContent::references(&content),
+        [shown, old, new, linked]
+    );
 
     child(&mut content, ChildChange::Replace { old, new });
     let entities = content.root().entities();

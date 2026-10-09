@@ -1,6 +1,8 @@
 use std::{borrow::Cow, ops::Deref};
 
-use crate::{Change, FieldRef, Object, ObjectId, SeqOp, Sequence, Tree, Value, field::Field};
+use crate::{
+    Change, FieldRef, Object, ObjectId, SeqOp, Sequence, Shape, Tree, Value, field::Field,
+};
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Text {
@@ -40,6 +42,10 @@ impl Deref for Text {
 impl Field for Text {
     fn blank() -> Value {
         Value::Text(Sequence::default())
+    }
+
+    fn shape() -> Shape {
+        Shape::Text
     }
 
     fn read(_tree: &Tree, value: &Value) -> Self {

@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use be_commit::{merge::join_lines, merge_lines, merge_slices, render_conflicts};
 
-use crate::{Items, Object, ObjectId, Objects, Place, Sequence, Tree, Value};
+use crate::{Items, Kept, Object, ObjectId, Objects, Place, Sequence, Tree, Value};
 
 pub(crate) fn merge3(base: &Tree, ours: &Tree, theirs: &Tree) -> (Tree, usize) {
     let mut conflicts = 0;
@@ -105,6 +105,7 @@ fn removed_or_moved<'a>(
 
 fn same_content(before: &Object, after: &Object) -> bool {
     before.parent == after.parent
+        && before.kept == after.kept
         && before.fields.len() == after.fields.len()
         && before
             .fields
@@ -180,7 +181,25 @@ fn merge_fields(base: &Object, ours: &Object, theirs: &Object, conflicts: &mut u
             }
         })
         .collect();
-    Object { parent, fields }
+    let kept = Kept {
+        kind: pick(
+            &base.kept.kind,
+            &ours.kept.kind,
+            &theirs.kept.kind,
+            conflicts,
+        ),
+        properties: merge_entries(
+            &base.kept.properties,
+            &ours.kept.properties,
+            &theirs.kept.properties,
+            conflicts,
+        ),
+    };
+    Object {
+        parent,
+        fields,
+        kept,
+    }
 }
 
 fn merge_text(
@@ -213,16 +232,17 @@ fn blank_like(object: &Object) -> Object {
                 Value::Text(_) => Value::Text(Sequence::default()),
             })
             .collect(),
+        kept: Kept::default(),
     }
 }
 
-fn merge_entries(
-    base: &BTreeMap<Vec<u8>, Vec<u8>>,
-    ours: &BTreeMap<Vec<u8>, Vec<u8>>,
-    theirs: &BTreeMap<Vec<u8>, Vec<u8>>,
+fn merge_entries<K: Clone + Ord>(
+    base: &BTreeMap<K, Vec<u8>>,
+    ours: &BTreeMap<K, Vec<u8>>,
+    theirs: &BTreeMap<K, Vec<u8>>,
     conflicts: &mut usize,
-) -> BTreeMap<Vec<u8>, Vec<u8>> {
-    let keys: BTreeSet<&Vec<u8>> = base
+) -> BTreeMap<K, Vec<u8>> {
+    let keys: BTreeSet<&K> = base
         .keys()
         .chain(ours.keys())
         .chain(theirs.keys())
