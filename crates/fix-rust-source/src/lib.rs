@@ -722,7 +722,13 @@ fn use_leaves(import: &ast::Use) -> Vec<String> {
 fn collect_use_leaves(tree: &ast::UseTree, prefix: &str, leaves: &mut Vec<String>) {
     let path = tree
         .path()
-        .map(|path| path.syntax().text().to_string().split_whitespace().collect::<String>())
+        .map(|path| {
+            path.syntax()
+                .text()
+                .to_string()
+                .split_whitespace()
+                .collect::<String>()
+        })
         .unwrap_or_default();
     let joined = match (prefix.is_empty(), path.is_empty()) {
         (_, true) => prefix.to_owned(),

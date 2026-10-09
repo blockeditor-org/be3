@@ -593,9 +593,9 @@ fn literal_snapshots(source: &str) -> Vec<&str> {
             let rest = rest.trim_start().strip_prefix('"')?;
             let name = &rest[..rest.find('"')?];
             let plain = !name.is_empty()
-                && name
-                    .chars()
-                    .all(|character| character.is_ascii_alphanumeric() || "_-.".contains(character));
+                && name.chars().all(|character| {
+                    character.is_ascii_alphanumeric() || "_-.".contains(character)
+                });
             plain.then_some(name)
         })
         .collect()
