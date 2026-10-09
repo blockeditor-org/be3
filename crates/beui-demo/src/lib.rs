@@ -27,8 +27,8 @@ use beui::styled::{
     IconSized, KeepChanges, Launcher, LauncherItem, Link, ListRow, Listbox, MenuButton, ModalSheet,
     NumberInput, OklchColorWheel, Paragraph, Popover, Progress, RadioGroup, ResponsiveTabs, Scroll,
     Select, SelectableText, Separator, Shortcut, Slider, Spinner, SplitButton, Stack, Switch, Tabs,
-    TextArea, TextInput, Theme, ThemeProvider, Title, Toast, ToastAction, Toasts, ToggleButton, Tooltip, Tree,
-    TreeRowFace, use_theme,
+    TextArea, TextInput, Theme, ThemeProvider, Title, Toast, ToastAction, Toasts, ToggleButton,
+    Tooltip, Tree, TreeRowFace, use_theme,
 };
 use beui::unstyled::{
     ChoiceOption, Container, DateTimeParts, DockMode, DockPane, DockSplit, DockTab, DockingLayout,

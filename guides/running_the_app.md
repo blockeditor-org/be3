@@ -103,14 +103,17 @@ action buttons; clicking the body is the `default` action). The desktop bar's be
 them, newest first: linux-desktop watches them with `LinuxMessage::WatchNotifications` and
 answers with `InvokeNotification` and `DismissNotifications`.
 
-To try it, run the dev app on a session bus of its own and send some:
+To try it, start a session bus of its own (`dbus-daemon --session --fork --print-address`
+prints its address; `notify-send` is in the `libnotify-bin` package), and run the dev app and
+every client with `DBUS_SESSION_BUS_ADDRESS` set to it:
 
-    dbus-run-session -- ./scripts/buck run //crates/block-app:dev -- --desktop
-    notify-send --action=default=Open --action=reply=Reply Mail 'Lunch at noon?'
-    notify-send --urgency=critical Battery 'Five percent left'
+    DBUS_SESSION_BUS_ADDRESS=ADDRESS ./scripts/buck run //crates/block-app:dev -- --desktop
+    DBUS_SESSION_BUS_ADDRESS=ADDRESS notify-send --action=default=Open --action=reply=Reply Mail 'Lunch at noon?'
+    DBUS_SESSION_BUS_ADDRESS=ADDRESS gdbus monitor --session -d org.freedesktop.Notifications
 
-`notify-send` and `gdbus` must run inside the same `dbus-run-session` (for example from a
-shell it started) to reach that bus.
+`notify-send` with an action waits, and prints the action taken, until the notification
+closes. `dbus-run-session` does not suit `:dev`, since its bus goes away when the launcher
+returns.
 
 ## Wayland programs
 

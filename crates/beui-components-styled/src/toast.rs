@@ -205,10 +205,14 @@ fn ToastCard(
                     />
                 </List>
                 <Show condition={acted}>
-                    <ToastActions id actions={actions.clone()} on_action={{
-                        let acting = on_action.clone();
-                        move |chosen: (u64, String)| acting.call(chosen)
-                    }} />
+                    <ToastActions
+                        id
+                        actions={actions.clone()}
+                        on_action={{
+                            let acting = on_action.clone();
+                            move |chosen: (u64, String)| acting.call(chosen)
+                        }}
+                    />
                 </Show>
             </List>
         </Frame>

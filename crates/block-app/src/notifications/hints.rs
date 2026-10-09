@@ -101,7 +101,11 @@ pub(crate) fn image_data(value: &Value<'_>) -> Option<Image> {
         for column in 0..width {
             let at = row * rowstride + column * channels;
             pixels.extend_from_slice(&bytes[at..at + 3]);
-            pixels.push(if channels == 4 { bytes[at + 3] } else { u8::MAX });
+            pixels.push(if channels == 4 {
+                bytes[at + 3]
+            } else {
+                u8::MAX
+            });
         }
     }
     Some(Image::from_rgba(

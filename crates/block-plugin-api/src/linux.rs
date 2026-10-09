@@ -119,7 +119,10 @@ pub enum LinuxMessage {
     RequestPower(PowerAction),
     WatchNotifications,
     Notifications(Vec<HostNotification>),
-    InvokeNotification { id: u32, action: String },
+    InvokeNotification {
+        id: u32,
+        action: String,
+    },
     DismissNotifications(Vec<u32>),
 }
 

@@ -21,7 +21,13 @@ const MAX_NAME: usize = 256;
 const MAX_SUMMARY: usize = 1024;
 const MAX_BODY: usize = 8 * 1024;
 const MAX_ACTIONS: usize = 8;
-const CAPABILITIES: [&str; 5] = ["actions", "body", "body-markup", "icon-static", "persistence"];
+const CAPABILITIES: [&str; 5] = [
+    "actions",
+    "body",
+    "body-markup",
+    "icon-static",
+    "persistence",
+];
 
 pub(crate) enum Request {
     Notify(Box<Incoming>, oneshot::Sender<u32>),
@@ -115,7 +121,9 @@ impl Server {
             summary: markup::clip(summary, MAX_SUMMARY),
             body: markup::clip(&markup::plain(body), MAX_BODY),
             actions: actions
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .take(MAX_ACTIONS)
                 .map(|pair| Action {
                     key: markup::clip(&pair[0], MAX_NAME),

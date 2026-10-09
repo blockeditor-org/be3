@@ -53,7 +53,10 @@ fn a_toast_hides_when_its_time_is_up_and_the_notification_stays_listed() {
     );
     assert_eq!(center.frame(seconds(2)), Some(seconds(3)));
     assert_eq!(toasted(&center), vec![usual, never, critical, transient]);
-    assert!(center.take_signals().is_empty(), "a hidden toast is not closed");
+    assert!(
+        center.take_signals().is_empty(),
+        "a hidden toast is not closed"
+    );
 
     assert_eq!(center.frame(DEFAULT_TIMEOUT), None);
     assert_eq!(

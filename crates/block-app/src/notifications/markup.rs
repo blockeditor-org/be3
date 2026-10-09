@@ -46,7 +46,9 @@ fn tag_text(tag: &str) -> String {
         .to_ascii_lowercase();
     match name.as_str() {
         "br" => "\n".to_owned(),
-        "img" => attribute(tag, "alt").map(|alt| plain(&alt)).unwrap_or_default(),
+        "img" => attribute(tag, "alt")
+            .map(|alt| plain(&alt))
+            .unwrap_or_default(),
         _ => String::new(),
     }
 }

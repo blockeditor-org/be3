@@ -4,13 +4,12 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::datetime::{HourCycle, Time};
 use block_editor_beui::beui::icons::{ICON_CLOSE, ICON_NOTIFICATIONS, ICON_NOTIFICATIONS_ACTIVE};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, Text, clone,
-    component, create_memo, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, Text, clone, component,
+    create_memo, view,
 };
 use block_editor_beui::beui::styled::theme::{FONT_BODY, FONT_SMALL};
 use block_editor_beui::beui::styled::{
-    Button, ButtonVariant, Caption, Heading, IconButton, IconButtonSize, ListRow, Scroll,
-    use_theme,
+    Button, ButtonVariant, Caption, Heading, IconButton, IconButtonSize, ListRow, Scroll, use_theme,
 };
 use block_editor_beui::beui::unstyled::PopoverHandle;
 use block_editor_beui::{Editor, HostNotification};
@@ -121,19 +120,21 @@ fn NotificationRows(
 }
 
 #[component]
-fn NotificationRow(editor: Editor, notification: HostNotification, popover: PopoverHandle) -> NodeId {
+fn NotificationRow(
+    editor: Editor,
+    notification: HostNotification,
+    popover: PopoverHandle,
+) -> NodeId {
     let theme = use_theme();
     let id = notification.id;
     let activates = notification.has_default_action();
     let dismissing = editor.clone();
-    let activate = move || {
-        match activates {
-            true => {
-                editor.invoke_notification(id, HostNotification::DEFAULT_ACTION.to_owned());
-                popover.close.call(());
-            }
-            false => editor.dismiss_notifications(vec![id]),
+    let activate = move || match activates {
+        true => {
+            editor.invoke_notification(id, HostNotification::DEFAULT_ACTION.to_owned());
+            popover.close.call(());
         }
+        false => editor.dismiss_notifications(vec![id]),
     };
     let source = match notification.app_name.is_empty() {
         true => received_at(notification.received),
