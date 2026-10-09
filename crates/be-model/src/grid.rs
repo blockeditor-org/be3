@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Change, FieldRef, Object, ObjectId, Tree, Value, field::Field};
+use crate::{Change, FieldRef, Object, ObjectId, Shape, Stored, Tree, Value, field::Field};
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub struct Bounds {
@@ -67,6 +67,42 @@ impl Cells {
 
     pub fn bounds(&self) -> Bounds {
         self.bounds
+    }
+
+    pub(crate) fn to_stored(&self) -> Stored {
+        Stored::Map(vec![
+            (Stored::from("cell_size"), Stored::from(self.size)),
+            (Stored::from("left"), Stored::from(self.bounds.left)),
+            (Stored::from("top"), Stored::from(self.bounds.top)),
+            (Stored::from("width"), Stored::from(self.bounds.width)),
+            (Stored::from("height"), Stored::from(self.bounds.height)),
+            (Stored::from("cells"), Stored::Bytes(self.bytes.clone())),
+        ])
+    }
+
+    pub(crate) fn from_stored(value: Stored) -> Option<Self> {
+        let mut size = None;
+        let mut bounds = Bounds::default();
+        let mut bytes = None;
+        for (key, value) in value.into_map().ok()? {
+            let integer = value.as_integer().map(i128::from);
+            match key.as_text()? {
+                "cell_size" => size = u8::try_from(integer?).ok(),
+                "left" => bounds.left = i32::try_from(integer?).ok()?,
+                "top" => bounds.top = i32::try_from(integer?).ok()?,
+                "width" => bounds.width = u32::try_from(integer?).ok()?,
+                "height" => bounds.height = u32::try_from(integer?).ok()?,
+                "cells" => bytes = value.into_bytes().ok(),
+                _ => {}
+            }
+        }
+        let size = size?;
+        let bytes = bytes?;
+        (bytes.len() == bounds.area() * usize::from(size)).then_some(Self {
+            size,
+            bounds,
+            bytes,
+        })
     }
 
     pub(crate) fn emptied(&self) -> Self {
@@ -288,6 +324,10 @@ impl<T: Cell> Grid<T> {
 impl<T: Cell> Field for Grid<T> {
     fn blank() -> Value {
         Value::Grid(Cells::blank(T::SIZE, Bounds::default()))
+    }
+
+    fn shape() -> Shape {
+        Shape::Grid
     }
 
     fn read(_tree: &Tree, value: &Value) -> Self {

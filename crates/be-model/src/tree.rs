@@ -35,7 +35,7 @@ impl Tree {
         }
     }
 
-    pub(crate) fn objects(&self) -> &Objects {
+    pub fn objects(&self) -> &Objects {
         &self.objects
     }
 
@@ -107,21 +107,6 @@ impl Tree {
         }
     }
 
-    pub fn upgrade(&mut self, id: ObjectId, blank: Vec<Value>) {
-        let Some(object) = self.objects.get_mut(&id) else {
-            return;
-        };
-        for (index, value) in blank.into_iter().enumerate() {
-            match object.fields.get_mut(index) {
-                Some(held) if std::mem::discriminant(&*held) != std::mem::discriminant(&value) => {
-                    *held = value;
-                }
-                Some(_) => {}
-                None => object.fields.push(value),
-            }
-        }
-    }
-
     pub(crate) fn list_ids(&self, place: Place) -> Vec<ObjectId> {
         self.list(place).map(Items::ids).unwrap_or_default()
     }
@@ -146,19 +131,34 @@ impl Tree {
         fields
     }
 
-    pub(crate) fn encode(&self) -> Vec<u8> {
-        postcard::to_stdvec(self).unwrap_or_default()
-    }
-
-    pub(crate) fn decode(bytes: &[u8]) -> Result<Self, Malformed> {
-        let tree: Self = postcard::from_bytes(bytes).map_err(|_| Malformed)?;
-        if !tree.objects.contains_key(&ObjectId::ROOT) {
-            return Err(Malformed);
+    fn permits(&self, change: &Change) -> bool {
+        let locked = |id: &ObjectId| self.objects.get(id).is_some_and(Object::is_locked);
+        let parent_locked = |id: &ObjectId| {
+            self.objects
+                .get(id)
+                .and_then(|held| held.parent)
+                .is_some_and(|parent| locked(&parent.object))
+        };
+        match change {
+            Change::Set { object, .. }
+            | Change::SetIf { object, .. }
+            | Change::Add { object, .. }
+            | Change::Put { object, .. }
+            | Change::PutIf { object, .. }
+            | Change::Paint { object, .. }
+            | Change::Reshape { object, .. }
+            | Change::Stamp { object, .. }
+            | Change::Text { object, .. } => !locked(object),
+            Change::Insert { place, .. } => !locked(&place.object),
+            Change::Remove { object } | Change::RemoveIf { object, .. } => !parent_locked(object),
+            Change::Move { object, place, .. } => !parent_locked(object) && !locked(&place.object),
         }
-        Ok(tree)
     }
 
     pub(crate) fn apply(&mut self, change: &Change) -> bool {
+        if !self.permits(change) {
+            return false;
+        }
         match change {
             Change::Set {
                 object,
@@ -267,6 +267,9 @@ impl Tree {
     }
 
     pub(crate) fn inverse(&self, change: &Change) -> Option<(Change, Change)> {
+        if !self.permits(change) {
+            return None;
+        }
         match change {
             Change::Set {
                 object,

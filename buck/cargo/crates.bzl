@@ -1127,6 +1127,7 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-model-derive:be-model-derive",
                     "//crates/sequence:sequence",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -1142,6 +1143,7 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-model-derive:be-model-derive",
                     "//crates/sequence:sequence",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -1157,6 +1159,7 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-model-derive:be-model-derive",
                     "//crates/sequence:sequence",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -1172,6 +1175,7 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-model-derive:be-model-derive",
                     "//crates/sequence:sequence",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -1187,6 +1191,7 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-model-derive:be-model-derive",
                     "//crates/sequence:sequence",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -1202,6 +1207,7 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-model-derive:be-model-derive",
                     "//crates/sequence:sequence",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -1217,6 +1223,7 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-model-derive:be-model-derive",
                     "//crates/sequence:sequence",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -1232,6 +1239,7 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-model-derive:be-model-derive",
                     "//crates/sequence:sequence",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -1247,6 +1255,7 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-model-derive:be-model-derive",
                     "//crates/sequence:sequence",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -1274,6 +1283,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
                 ],
@@ -1285,6 +1295,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
                 ],
@@ -1296,6 +1307,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
                 ],
@@ -1307,6 +1319,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
                 ],
@@ -1318,6 +1331,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
                 ],
@@ -1329,6 +1343,7 @@ crates = {
             "wasi": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
                 ],
@@ -1340,6 +1355,7 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
                 ],
@@ -1351,6 +1367,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
                 ],
@@ -1362,6 +1379,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
                 ],
@@ -17204,6 +17222,294 @@ third_party = {
         "sha256": "10cd79432192d1c0f4e1a0fef9527696cc039165d729fb41b3f4f4f354c2dc35",
         "size_bytes": 68485,
         "version": "0.10.1",
+    },
+    "ciborium-0.2.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Nathaniel McCallum <npmccallum@profian.com>",
+            "CARGO_PKG_DESCRIPTION": "serde implementation of CBOR using ciborium-basic",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/enarx/ciborium",
+            "CARGO_PKG_LICENSE": "Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/enarx/ciborium",
+            "CARGO_PKG_RUST_VERSION": "1.58",
+        },
+        "library": {
+            "crate": "ciborium",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "ciborium",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":ciborium-ll-0.2.2",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":ciborium-ll-0.2.2",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":ciborium-ll-0.2.2",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":ciborium-ll-0.2.2",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":ciborium-ll-0.2.2",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":ciborium-ll-0.2.2",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":ciborium-ll-0.2.2",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":ciborium-ll-0.2.2",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":ciborium-ll-0.2.2",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "42e69ffd6f0917f5c029256a24d0161db17cea3997d185db0d35926308770f0e",
+        "size_bytes": 35611,
+        "version": "0.2.2",
+    },
+    "ciborium-io-0.2.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Nathaniel McCallum <npmccallum@profian.com>",
+            "CARGO_PKG_DESCRIPTION": "Simplified Read/Write traits for no_std usage",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/enarx/ciborium",
+            "CARGO_PKG_LICENSE": "Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/enarx/ciborium",
+            "CARGO_PKG_RUST_VERSION": "1.58",
+        },
+        "library": {
+            "crate": "ciborium_io",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "ciborium-io",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "05afea1e0a06c9be33d539b876f1ce3692f4afea2cb41f740e7743225ed1c757",
+        "size_bytes": 6697,
+        "version": "0.2.2",
+    },
+    "ciborium-ll-0.2.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Nathaniel McCallum <npmccallum@profian.com>",
+            "CARGO_PKG_DESCRIPTION": "Low-level CBOR codec primitives",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/enarx/ciborium",
+            "CARGO_PKG_LICENSE": "Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/enarx/ciborium",
+            "CARGO_PKG_RUST_VERSION": "1.58",
+        },
+        "library": {
+            "crate": "ciborium_ll",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "ciborium-ll",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":half-2.7.1",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":half-2.7.1",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":half-2.7.1",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":half-2.7.1",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":half-2.7.1",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":half-2.7.1",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":half-2.7.1",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":half-2.7.1",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":half-2.7.1",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "57663b653d948a338bfb3eeba9bb2fd5fcfaecb9e199e87e1eda4d9e8b240fd9",
+        "size_bytes": 14695,
+        "version": "0.2.2",
     },
     "cipher-0.4.4": {
         "build_script": None,
