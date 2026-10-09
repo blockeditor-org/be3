@@ -3,14 +3,16 @@
 Every buck2 action runs on a remote execution server. `BE3_BUILD_SERVER` picks
 which, or else the one saved in `~/.config/be3/build-server`. Without either,
 at a terminal, `./scripts/buck` asks which and saves the answer there (delete
-it to be asked again); anything else builds on Namespace.
+it to be asked again); anything else builds on Namespace. CI builds on the one the repository
+variable `BE3_BUILD_SERVER` names, or on Namespace when it is unset.
 
 | `BE3_BUILD_SERVER` | Server | Key |
 |---|---|---|
-| `namespace` (the default, and CI's) | Namespace's remote execution | Namespace's token (below) |
+| `namespace` (the default) | Namespace's remote execution | Namespace's token (below) |
 | `blocks.pfg.pw` | our own NativeLink server | `authorization: Bearer KEY` |
 | `buildserver.pfg.pw` | our own NativeLink server, 8 cores | `authorization: Bearer KEY` |
 | `buildbuddy` | BuildBuddy's `remote.buildbuddy.io` | `x-buildbuddy-api-key: KEY` |
+| `hermetiq` | Hermetiq's Buildbarn, `lb.bb.cloud-grpc.hermetiq.io` | `x-hermetiq-m2m-access-token: KEY` |
 | `local` | a NativeLink server of your own, at `host:port` | none, and no TLS |
 
 `local`'s address, such as `127.0.0.1:50052`, is `BE3_BUILD_SERVER_ADDRESS`,
@@ -32,10 +34,13 @@ A server other than Namespace and `local` takes its key from:
 where `SERVER` is the value of `BE3_BUILD_SERVER`. Without one, at a terminal,
 `./scripts/buck` asks for it and saves it to the last; Namespace's token is
 asked for and saved the same way, to `~/.config/be3/namespace-token.json`.
+In CI the key is the repository secret `BE3_BUILD_SERVER_KEY`, for whichever
+server the variable names.
 
 In an agent's cloud session the proxy adds the key to requests for
 `blocks.pfg.pw` and `buildserver.pfg.pw`, and `BE3_BUILD_SERVER_KEY` is a
-placeholder; there is no key for BuildBuddy there.
+placeholder; there is no key for BuildBuddy there. For Hermetiq, the
+environment's variables set `BE3_BUILD_SERVER` and `BE3_BUILD_SERVER_KEY`.
 
 ## Namespace
 
@@ -113,6 +118,31 @@ nsc base-image optimize --image_ref nscr.io/WORKSPACE/be3-worker@sha256:DIGEST
   it back: `library_path_test` in `buck/cargo/defs.bzl`, which `cargo_test`
   makes for a test whose `env` names `LD_LIBRARY_PATH`, and `plugin_test_run`
   in `buck/wasm/defs.bzl`.
+
+## Hermetiq
+
+Hermetiq Cloud (https://dashboard.hermetiq.io) runs Buildbarn for the
+project `be3`, under the instance name `a207c47a-c8c8-4028-94ea-917522d340eb`
+(`static_build_server_instance` in `scripts/internal/common.sh`). The
+Hermetiq MCP server answers questions about its builds, workers and cache.
+
+### The key
+
+Hermetiq's dashboard hands out a Bazel credential helper (the quickstart's
+bash download), a script that answers with the `x-hermetiq-m2m-access-token`
+header. Its key is either that token or the whole script, starting `#!`: in
+`BE3_BUILD_SERVER_KEY`, or saved as `.build-server-key.hermetiq` or
+`~/.config/be3/build-server-key.hermetiq`. `./scripts/buck` runs a script with
+`get` for the token, keeps the answer in `target/hermetiq/` for half an hour,
+and asks again after an infrastructure error, in case the token expired.
+
+### Its workers
+
+Buildbarn picks no image per action. Its scheduler sends an action to the pool
+whose platform properties equal, exactly, the ones the action asks for, so
+`worker_properties` asks Hermetiq for `env` and `pool` rather than
+`container-image`: the pool `worker-ubuntu24-04`, which runs
+`catthehacker/ubuntu:act-24.04`.
 
 ## CI's Android keystore
 

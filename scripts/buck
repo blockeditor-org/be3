@@ -49,7 +49,7 @@ retrying() {
     if [[ $status -eq 2 ]]; then
         [[ -z "$first" ]] || rm -f "$first"
         echo 'buck2 failed with an infrastructure error; trying once more.' >&2
-        namespace_recheck=true
+        build_server_recheck=true
         configure_build_server "$buck2"
         status=0
         "$@" || status=$?

@@ -353,7 +353,7 @@ write_if_changed() {
 # BE3_BUILD_SERVER picks the server, or else the one a person at a terminal
 # picked the first time and that is saved in ~/.config/be3/build-server:
 # namespace, which is the default and CI's, or one of our own, blocks.pfg.pw
-# and buildserver.pfg.pw, or buildbuddy, or local, a NativeLink server a
+# and buildserver.pfg.pw, or buildbuddy, or hermetiq, or local, a NativeLink server a
 # person runs themselves, reached at its host:port without TLS or a key. Each
 # has its own key and its own cache. The file also names the server under
 # [be3] build_server, since the workers' image is not the same on all of them
@@ -378,7 +378,8 @@ write_if_changed() {
 # checkout or ~/.config/be3/build-server-key.SERVER. With none of them, a
 # person at a terminal is asked for it, and it is saved under ~/.config/be3 for
 # every checkout; anything else - a pipe, CI, an agent's shell - is told what
-# to set instead.
+# to set instead. Hermetiq's key may also be the credential helper its
+# dashboard hands out, which is run for the token it answers with.
 #
 # buck2's remote execution client never reads HTTPS_PROXY. Where the machine's
 # way out is an HTTPS proxy, buck2 is pointed at scripts/internal/re-relay
@@ -396,9 +397,10 @@ re_relay_storage_address='127.0.0.1:18981'
 namespace_directory="$repository/target/namespace"
 namespace_cluster_key='buildserver'
 
-# Whether to look at the executor even when nsc was asked moments ago: after a
-# command failed with an infrastructure error, the cluster may have gone.
-namespace_recheck=false
+# Whether to look at the executor even when nsc was asked moments ago, and to
+# ask Hermetiq's credential helper for a new token: after a command failed with
+# an infrastructure error, the cluster may have gone or the token expired.
+build_server_recheck=false
 
 # The token file nsc is given, or nothing when there is none.
 namespace_token_file() {
@@ -427,7 +429,7 @@ namespace_token_file() {
 }
 
 # The servers BE3_BUILD_SERVER can name, in the order a person is offered them.
-build_servers=(namespace blocks.pfg.pw buildserver.pfg.pw buildbuddy local)
+build_servers=(namespace blocks.pfg.pw buildserver.pfg.pw buildbuddy hermetiq local)
 
 # Where the server a person picked is saved: its name, and for local the
 # address of its NativeLink on the next line.
@@ -449,7 +451,7 @@ build_server() {
     fi
     server="${server:-namespace}"
     case "$server" in
-        namespace | blocks.pfg.pw | buildserver.pfg.pw | buildbuddy | local) echo "$server" ;;
+        namespace | blocks.pfg.pw | buildserver.pfg.pw | buildbuddy | hermetiq | local) echo "$server" ;;
         *)
             echo "The build server is $server, which is none of ${build_servers[*]}." >&2
             echo "BE3_BUILD_SERVER or $saved picks it." >&2
@@ -472,6 +474,7 @@ ask_for_build_server() {
             blocks.pfg.pw) echo "  $index) blocks.pfg.pw: our own NativeLink server" >&2 ;;
             buildserver.pfg.pw) echo "  $index) buildserver.pfg.pw: our own NativeLink server, 8 cores" >&2 ;;
             buildbuddy) echo "  $index) buildbuddy: BuildBuddy's remote.buildbuddy.io" >&2 ;;
+            hermetiq) echo "  $index) hermetiq: Hermetiq's Buildbarn" >&2 ;;
             local) echo "  $index) local: a NativeLink server of your own, without TLS or a key" >&2 ;;
         esac
         index=$((index + 1))
@@ -560,7 +563,8 @@ ask_for_build_server_key() {
     printf '%s\n' "$key"
 }
 
-# The key for one of the servers other than Namespace.
+# The key for one of the servers other than Namespace, as it was given: a
+# credential helper keeps its lines, and anything else loses its whitespace.
 build_server_key() {
     local server="$1" name="build-server-key.$1" file key
     local saved="${XDG_CONFIG_HOME:-$HOME/.config}/be3/$name"
@@ -570,8 +574,12 @@ build_server_key() {
     fi
     for file in "$repository/.$name" "$saved"; do
         if [[ -f "$file" ]]; then
-            tr -d '[:space:]' < "$file"
-            echo ''
+            if [[ "$(head -c 2 "$file")" == '#!' ]]; then
+                cat "$file"
+            else
+                tr -d '[:space:]' < "$file"
+                echo ''
+            fi
             return 0
         fi
     done
@@ -587,11 +595,12 @@ build_server_key() {
     return 1
 }
 
-# The host and the header for one of the servers other than Namespace, which
-# serve the executor and the storage from the same host.
+# The host, the header and the instance name for one of the servers other than
+# Namespace, which serve the executor and the storage from the same host.
 static_build_server_host() {
     case "$1" in
         buildbuddy) echo 'remote.buildbuddy.io' ;;
+        hermetiq) echo 'lb.bb.cloud-grpc.hermetiq.io' ;;
         *) echo "$1" ;;
     esac
 }
@@ -599,8 +608,52 @@ static_build_server_host() {
 static_build_server_header() {
     case "$1" in
         buildbuddy) echo "x-buildbuddy-api-key:$2" ;;
+        hermetiq) echo "x-hermetiq-m2m-access-token:$2" ;;
         *) echo "authorization:Bearer $2" ;;
     esac
+}
+
+static_build_server_instance() {
+    case "$1" in
+        hermetiq) echo 'a207c47a-c8c8-4028-94ea-917522d340eb' ;;
+    esac
+}
+
+# Hermetiq's token, from its key: the token itself, or the credential helper
+# Hermetiq's dashboard hands out, a script that answers Bazel's credential
+# helper protocol with the token as a header. The helper's answer is kept in
+# target/hermetiq/ for half an hour, since buck2's daemon is restarted whenever
+# the header changes, and asked again sooner after an infrastructure error.
+hermetiq_token() {
+    local key="$1" directory="$repository/target/hermetiq" hash now token
+    if [[ "$key" != '#!'* ]]; then
+        printf '%s\n' "$key" | tr -d '[:space:]'
+        echo ''
+        return 0
+    fi
+    mkdir -p "$directory"
+    hash="$(printf '%s' "$key" | cksum | cut -d ' ' -f 1)"
+    now="$(date +%s)"
+    if [[ -f "$directory/token" ]] && ! $build_server_recheck &&
+        [[ "$(sed -n 1p "$directory/token")" == "$hash" ]] &&
+        [[ $((now - $(sed -n 2p "$directory/token"))) -lt 1800 ]]; then
+        sed -n 3p "$directory/token"
+        return 0
+    fi
+    (umask 077 && printf '%s\n' "$key" > "$directory/credential-helper.sh")
+    token="$(printf '{"uri":"https://%s"}' "$(static_build_server_host hermetiq)" |
+        bash "$directory/credential-helper.sh" get 2> "$directory/credential-helper.log" |
+        tr -d '\r\n' |
+        sed -n 's/.*"x-hermetiq-m2m-access-token" *: *\[ *"\([^"]*\)".*/\1/p')" || true
+    rm -f "$directory/credential-helper.sh"
+    if [[ -z "$token" ]]; then
+        cat "$directory/credential-helper.log" >&2
+        echo "Hermetiq's credential helper did not answer with an x-hermetiq-m2m-access-token" >&2
+        echo 'header (guides/build_server.md).' >&2
+        return 1
+    fi
+    (umask 077 && printf '%s\n%s\n%s\n' "$hash" "$now" "$token" > "$directory/token")
+    printf '%s\n' "$token"
 }
 
 # A value from the configuration nsc wrote: a host without its scheme or port,
@@ -654,7 +707,7 @@ refresh_namespace_cluster() {
         [[ "$(sed -n 2p "$stamp")" == "$token_hash" ]]; then
         age=$((now - $(sed -n 1p "$stamp")))
     fi
-    if [[ $age -lt 600 ]] && ! $namespace_recheck; then
+    if [[ $age -lt 600 ]] && ! $build_server_recheck; then
         return 0
     fi
     if [[ $age -lt 10800 ]] && namespace_answers; then
@@ -689,7 +742,7 @@ configure_build_server() {
         echo 'server it names.' >&2
         return 0
     fi
-    local server engine storage header key proxy="${HTTPS_PROXY:-${https_proxy:-}}"
+    local server engine storage header key instance='' proxy="${HTTPS_PROXY:-${https_proxy:-}}"
     server="$(build_server)" || exit 1
     local engine_address storage_address tls=true
     if [[ "$server" == 'local' ]]; then
@@ -707,9 +760,15 @@ configure_build_server() {
         header="$(namespace_header)"
     else
         key="$(build_server_key "$server")" || exit 1
+        if [[ "$server" == 'hermetiq' ]]; then
+            key="$(hermetiq_token "$key")" || exit 1
+        else
+            key="$(printf '%s' "$key" | tr -d '[:space:]')"
+        fi
         engine="$(static_build_server_host "$server")"
         storage="$engine"
         header="$(static_build_server_header "$server" "$key")"
+        instance="$(static_build_server_instance "$server")"
     fi
     if [[ "$server" != 'local' ]]; then
         engine_address="$engine:443"
@@ -747,6 +806,9 @@ configure_build_server() {
             echo "engine_address = $engine_address"
             if [[ -n "$header" ]]; then
                 echo "http_headers = $header"
+            fi
+            if [[ -n "$instance" ]]; then
+                echo "instance_name = $instance"
             fi
             echo "tls = $tls"
             echo '[be3]'
