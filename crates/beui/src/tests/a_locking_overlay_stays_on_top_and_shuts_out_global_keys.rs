@@ -89,6 +89,11 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
     harness.key(Key::K, Modifiers::CTRL);
     harness.key(Key::L, Modifiers::LOGO);
     assert_eq!(globals.get(), before, "no global key is heard while locked");
+    harness.key(Key::VolumeUp, Modifiers::NONE);
+    assert!(
+        globals.get() > before,
+        "media keys still reach global actions while locked"
+    );
     let offered = harness.document_mut().offer_app_key(KeyPress {
         key: Key::Tab,
         pressed: true,

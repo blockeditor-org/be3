@@ -106,7 +106,7 @@ unlocks it. Under `:dev` the app runs as the VM's user, so that user needs a pas
 
 While it is locked, three things keep input from everything behind it: the lock is a beui
 `Overlay` with `locks` set, which nothing dismisses, which stays above every other overlay and keeps
-the focus, and while which `Document::key_global` hears nothing (no global action, no plugin's
+the focus, and while which `Document::key_global` hears only media keys (no other global action, no plugin's
 intercepted chord, no Alt+Tab); `be_wayland::Compositor::set_locked` takes the keyboard and pointer
 from every window and forwards no input; and the launcher and app menu are closed. Screens still
 turn off while locked, and idle inhibitors from the windows behind it are ignored.

@@ -504,7 +504,7 @@ impl Document {
     }
 
     pub fn key_global(&self, global: GlobalKeyPress) -> bool {
-        if self.locked() {
+        if self.locked() && !global.press.key.is_media() {
             return false;
         }
         let mut handlers = self.global_keys.borrow_mut();
