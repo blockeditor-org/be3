@@ -37,8 +37,8 @@ use beui::unstyled::{
     SyntaxColors, TabId, TextAreaState, TreeItem, dock_actions, narrower_than, use_dock_tab,
 };
 use beui::{
-    Color32, Context, Direction, Document, FontId, Image, ItemSize, Key, NodeId, Rect, TextAlign,
-    unstyled,
+    Color32, Context, Direction, Document, FontId, Image, ItemSize, Key, Modifiers, NodeId, Rect,
+    TextAlign, unstyled,
 };
 use beui_macros::{component, sample};
 use collaboration::CollaborationPage;
@@ -360,6 +360,12 @@ impl beui::App for DemoApp {
 }
 
 #[derive(Clone)]
+struct DragModifier {
+    held: ReadSignal<Option<Modifiers>>,
+    set: WriteSignal<Option<Modifiers>>,
+}
+
+#[derive(Clone)]
 struct Pages {
     layout: DockingLayout<TabId>,
     open: ReadSignal<Vec<Page>>,
@@ -482,6 +488,11 @@ fn DemoShell() -> NodeId {
     let open = pages.open.clone();
     let catalog = pages.clone();
     let toolbar = pages.clone();
+    let (drag_modifier, set_drag_modifier) = create_signal(None);
+    provide_context(DragModifier {
+        held: drag_modifier.clone(),
+        set: set_drag_modifier,
+    });
     view! {
         <Frame color={theme.background.clone()}>
             <List spacing=0.0>
@@ -489,7 +500,7 @@ fn DemoShell() -> NodeId {
                     <DemoToolbar pages=toolbar mobile set_mobile />
                 </Frame>
                 <Separator />
-                <Docking @sizing=ItemSize::Percent(100.0) layout mode home=CATALOG>
+                <Docking @sizing=ItemSize::Percent(100.0) layout mode home=CATALOG drag_modifier>
                     <DockSplit id="shell" fraction={1.0 - PAGE_SHARE}>
                         <DockPane id="catalog">
                             <DockTab id=CATALOG title="Components" icon=ICON_WIDGETS>

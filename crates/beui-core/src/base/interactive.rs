@@ -4,8 +4,8 @@ use crate::base::focus::Focus;
 use crate::base::list::Direction;
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::{
-    AutoscrollGesture, CursorIcon, DragGesture, PointerPress, ScrollGesture, SecondaryDrag,
-    ZoomGesture,
+    AutoscrollGesture, CursorIcon, DragGesture, Modifiers, PointerPress, ScrollGesture,
+    SecondaryDrag, ZoomGesture,
 };
 use crate::painter::Painter;
 
@@ -54,6 +54,8 @@ pub struct InteractiveNode {
     pub intercept_at: Callback<Pos2, bool>,
     pub on_forward: Callback<crate::interact::forward::ForwardedInput>,
     pub forward_at: Callback<Pos2, bool>,
+    pub claim_modifiers: Option<Modifiers>,
+    pub claim_at: Callback<(Pos2, Modifiers), bool>,
 }
 
 impl Default for InteractiveNode {
@@ -113,7 +115,16 @@ impl InteractiveNode {
             intercept_at: Callback::empty(),
             on_forward: Callback::empty(),
             forward_at: Callback::empty(),
+            claim_modifiers: None,
+            claim_at: Callback::empty(),
         }
+    }
+
+    pub fn claims(&self, pos: Pos2, rect: Rect, held: Modifiers) -> bool {
+        let whole = self.claim_modifiers.is_some_and(|claimed| {
+            claimed.any() && held.holds(claimed) && rect.contains_half_open(pos)
+        });
+        whole || (!self.claim_at.is_empty() && self.claim_at.call((pos, held)))
     }
 
     pub fn takes_presses(&self) -> bool {
@@ -368,8 +379,10 @@ impl Element for InteractiveNode {
             self.on_press.call(press);
             self.report_active();
         }
+        let secondary_yielded = doc.secondary_claim.is_some_and(|claimant| claimant != id);
         if contains_pointer
             && input.secondary_pressed_this_frame
+            && !secondary_yielded
             && let Some(pos) = input.pointer_pos
         {
             let press = self.press(input, rect, pos);
@@ -445,7 +458,9 @@ impl Element for InteractiveNode {
         }
         self.middle_click(input, contains_pointer);
         self.pan_drag(input, id, contains_pointer);
-        self.secondary_drag(input, rect);
+        if !secondary_yielded {
+            self.secondary_drag(input, rect);
+        }
         if input.wheel_target == Some(id)
             && (input.scroll != Vec2::ZERO || input.scroll_fling != Vec2::ZERO)
             && let Some(pos) = input.pointer_pos
@@ -659,6 +674,48 @@ impl Document {
         if self.arena.get_as::<InteractiveNode>(id).claims_touch != claims_touch {
             self.arena.get_mut_as::<InteractiveNode>(id).claims_touch = claims_touch;
         }
+    }
+
+    pub fn set_interactive_claim_modifiers(
+        &mut self,
+        id: NodeOf<InteractiveNode>,
+        claimed: Option<Modifiers>,
+    ) {
+        if self.arena.get_as::<InteractiveNode>(id).claim_modifiers == claimed {
+            return;
+        }
+        self.arena.get_mut_as::<InteractiveNode>(id).claim_modifiers = claimed;
+        match claimed {
+            Some(_) => self.press_claimants.insert(id.id()),
+            None => self.press_claimants.remove(&id.id()),
+        };
+    }
+
+    pub fn press_claims(&self) -> Vec<(Modifiers, Rect)> {
+        self.press_claimants
+            .iter()
+            .filter(|id| self.arena.contains(**id))
+            .filter_map(|id| {
+                let claimed = self
+                    .arena
+                    .get(*id)
+                    .as_any()
+                    .downcast_ref::<InteractiveNode>()?
+                    .claim_modifiers?;
+                let rect = self.rects.visible(id)?;
+                (claimed.any() && rect.is_positive()).then_some((claimed, rect))
+            })
+            .collect()
+    }
+
+    pub fn press_claimed(&self, button: crate::input::PointerButton) -> bool {
+        use crate::input::PointerButton;
+        self.claimed_now.contains(&button)
+            || match button {
+                PointerButton::Primary => self.press_claim.is_some(),
+                PointerButton::Secondary => self.secondary_claim.is_some(),
+                _ => false,
+            }
     }
 
     pub fn set_interactive_repeat_drag(&mut self, id: NodeOf<InteractiveNode>, repeat_drag: bool) {

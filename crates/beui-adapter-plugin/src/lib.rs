@@ -149,6 +149,7 @@ impl PluginSurface {
             content: None,
             painted: Vec::new(),
             floating: Vec::new(),
+            claims: Vec::new(),
             ime: self
                 .platform
                 .ime

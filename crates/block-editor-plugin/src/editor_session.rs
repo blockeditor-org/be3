@@ -996,6 +996,14 @@ impl EditorSession {
                 content: reported(reported_content),
                 painted: frame.painted.iter().map(|rect| reported(*rect)).collect(),
                 floating: frame.floating.iter().map(|rect| reported(*rect)).collect(),
+                claims: frame
+                    .claims
+                    .iter()
+                    .map(|claim| block_plugin_api::PressClaim {
+                        modifiers: claim.modifiers,
+                        rect: reported(claim.rect),
+                    })
+                    .collect(),
                 handles_back: frame.handles_back,
                 intercepted_keys: frame.intercepted_keys.clone(),
             });

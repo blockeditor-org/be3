@@ -16,7 +16,7 @@ use block_editor_beui::beui::styled::{Docking, use_theme};
 use block_editor_beui::beui::unstyled::{
     Container, DockNode, DockPane, DockWindow, TabId, container_size,
 };
-use block_editor_beui::beui::{NodeId, Rect, Vec2, pos2, vec2};
+use block_editor_beui::beui::{Modifiers, NodeId, Rect, Vec2, pos2, vec2};
 use block_editor_beui::{HostPanel, HostWindowId};
 use block_shell::{
     BlockTab, DialogWindow, Failure, PanelWindow, PickerDialogs, Workspace, WorkspaceDialogs,
@@ -81,7 +81,11 @@ fn DesktopBody(workspace: Rc<Workspace>) -> NodeId {
         <Frame @node_ref={&surface} color={theme.background.clone()}>
             <List spacing=0.0>
                 <Failure failed={failed} reason={reason} />
-                <Docking @sizing=ItemSize::Percent(100.0) layout>
+                <Docking
+                    @sizing=ItemSize::Percent(100.0)
+                    layout
+                    drag_modifier={Some(Modifiers::LOGO)}
+                >
                     <ForEach keys={block_tabs}>
                         {move |tab: TabId| view! {
                             <BlockWindow workspace={Rc::clone(&blocks)} tab />

@@ -119,7 +119,45 @@ pub(crate) fn DockingPage() -> NodeId {
             <Sample title="Fullscreen" code={vec![FullscreenTab::SOURCE]}>
                 <FullscreenTab />
             </Sample>
+            <Sample title="Moving windows by their content" code={vec![ContentDrag::SOURCE]}>
+                <ContentDrag />
+            </Sample>
         </ScrollPage>
+    }
+}
+
+#[sample]
+#[component]
+fn ContentDrag() -> NodeId {
+    let modifier = use_context::<DragModifier>();
+    let on = create_memo(clone!(modifier -> move || {
+        modifier.as_ref().is_some_and(|modifier| modifier.held.get().is_some())
+    }));
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <Switch
+                    @test_id="demo.drag_modifier"
+                    label="Alt moves and resizes windows"
+                    on
+                    on_change={move |on: bool| {
+                        if let Some(modifier) = modifier.as_ref() {
+                            modifier.set.set(on.then_some(Modifiers::ALT));
+                        }
+                    }}
+                />
+                <Body content="Alt moves and resizes windows" />
+            </List>
+            <Caption
+                content="A dock can be given a drag modifier, which is off unless asked for. \
+                 While it is held, dragging anywhere in a window, its bar and tabs included, \
+                 moves the whole window, and dragging with the right button resizes it from \
+                 its nearest edge or corner, or moves the split nearest the pointer in a docked \
+                 pane. Nothing in the dock or its tabs sees those presses. The Linux desktop \
+                 uses Super."
+                wrap=true
+            />
+        </List>
     }
 }
 
