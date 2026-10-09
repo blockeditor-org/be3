@@ -79,4 +79,17 @@ fn a_centred_dialog_opens_on_the_screen_it_was_opened_from() {
         "a dialog opened from the left screen opens there: {shown:?}"
     );
     assert!((shown.center().x - left.center().x).abs() < 2.0);
+
+    with_reactive_scope(harness.document_mut(), {
+        let set_open = set_open.clone();
+        move || set_open.set(false)
+    });
+    harness.frame(vec![Event::PointerMoved(right.center())]);
+    with_reactive_scope(harness.document_mut(), move || set_open.set(true));
+    harness.frame(Vec::new());
+    let shown = harness.rect(body.get());
+    assert!(
+        right.contains_rect(shown),
+        "a dialog opened after the pointer moved on follows the pointer, not the earlier press: {shown:?}"
+    );
 }

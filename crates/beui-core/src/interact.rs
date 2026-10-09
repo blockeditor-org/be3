@@ -71,10 +71,17 @@ pub fn interact(
             || input.pointer.secondary_pressed()
             || input.touch.started()
     });
-    if pointer
-        && pressed
-        && let Some(pos) = ctx.input(|input| input.pointer.press_pos)
-    {
+    let moved = ctx.input(|input| {
+        input
+            .events
+            .iter()
+            .any(|event| matches!(event, Event::PointerMoved(_)))
+    });
+    let acted_at = match pressed {
+        true => ctx.input(|input| input.pointer.press_pos),
+        false => raw_pointer.filter(|_| moved),
+    };
+    if pointer && let Some(pos) = acted_at {
         doc.acted = Acted::Pointer(pos + doc.touch_shift);
     } else if !keys.ignored()
         && ctx.input(|input| {

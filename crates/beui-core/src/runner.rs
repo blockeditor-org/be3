@@ -110,6 +110,7 @@ pub struct Runner {
     accessibility: Option<AccessibilityDump>,
     shown: Shown,
     output: Option<FrameOutput>,
+    reports_screens: bool,
     exited: bool,
 }
 
@@ -139,6 +140,7 @@ impl Runner {
             accessibility,
             shown: Shown::default(),
             output: None,
+            reports_screens: false,
             exited: false,
         }
     }
@@ -231,13 +233,20 @@ impl Runner {
         self.context.set_pixels_per_point(pixels_per_point);
         let scale = self.context.pixels_per_point();
         let screen = physical / scale;
-        if let Some(screens) = renderers.screens() {
-            self.context.set_screens(
-                screens
-                    .iter()
-                    .map(|screen| screen.scaled(scale.recip()))
-                    .collect(),
-            );
+        match renderers.screens() {
+            Some(screens) => {
+                self.context.set_screens(
+                    screens
+                        .iter()
+                        .map(|screen| screen.scaled(scale.recip()))
+                        .collect(),
+                );
+                self.reports_screens = true;
+            }
+            None if std::mem::take(&mut self.reports_screens) => {
+                self.context.set_screens(Vec::new());
+            }
+            None => {}
         }
         let raw = RawInput {
             events: next_batch(&mut self.events),

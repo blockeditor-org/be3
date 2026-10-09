@@ -988,8 +988,8 @@ in. Nothing else should keep its own list of monitors.
 
 Overlays place themselves on one screen rather than across the box around all
 of them. A `Center` or `FillScreen` overlay is on the screen it opened on: its
-trigger's, else the one a press opened it from, else the focused node's, else
-the pointer's, else the first. One anchored to a node is kept on the screen
+trigger's, else where the pointer was last pressed or moved unless a key was
+pressed since, else the focused node's, else the pointer's, else the first. One anchored to a node is kept on the screen
 most of that node is on, and one anchored to a point on that point's screen.
 `Fill`, `At` and `Around` use the whole document, so something meant for every
 screen - `styled::KeepChanges`, `styled::LockScreen`, `styled::LevelOsd` - lays
