@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::{
-    EditorView, LINUX_DESKTOP_EDITOR, Root, Settings, SettingsContent, WORKSPACE_EDITOR,
+    EditorView, EditorViewContent, LINUX_DESKTOP_EDITOR, Root, Settings, SettingsContent, WORKSPACE_EDITOR,
 };
 use block_editor_beui::beui::{Document, Key, KeyChord, Modifiers, NodeId, Rect};
 use block_editor_beui::{
@@ -14,6 +14,7 @@ use crate::app::LinuxDesktopApp;
 
 mod a_block_shown_on_the_desktop_opens_in_its_own_window;
 mod a_calendar_the_desktop_no_longer_holds_is_replaced;
+mod a_first_desktop_with_no_sessions_offers_a_new_one;
 mod a_session_chosen_from_the_menu_opens_in_a_window_and_closing_it_keeps_the_session;
 mod a_window_the_host_focuses_leads_the_window_switcher;
 mod alt_tab_switches_to_the_window_two_back_once_alt_is_let_go;

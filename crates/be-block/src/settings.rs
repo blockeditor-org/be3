@@ -45,9 +45,17 @@ impl Settings {
     }
 
     pub fn add_profile(shell: Uuid, client: Uuid, profile: Uuid) -> Edit {
-        std::iter::once(Self::PROFILES.put(ObjectId::ROOT, &profile, Some(&())))
+        Self::list_profile(profile)
+            .0
+            .into_iter()
             .chain(Self::use_profile(shell, client, profile).0)
             .collect()
+    }
+
+    pub fn list_profile(profile: Uuid) -> Edit {
+        Self::PROFILES
+            .put(ObjectId::ROOT, &profile, Some(&()))
+            .into()
     }
 
     pub fn use_profile(shell: Uuid, client: Uuid, profile: Uuid) -> Edit {
