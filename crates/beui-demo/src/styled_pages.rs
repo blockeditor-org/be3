@@ -103,9 +103,6 @@ pub(crate) fn DockingPage() -> NodeId {
                     />
                 </List>
             </Sample>
-            <Sample title="Moving windows by their content" code={vec![ContentDrag::SOURCE]}>
-                <ContentDrag />
-            </Sample>
             <Sample title="Switching tabs" code={vec![switch_tabs_with_alt_q::SOURCE]}>
                 <Paragraph
                     content="Hold Alt and press Q to switch between the tabs you looked at last, \
@@ -120,6 +117,9 @@ pub(crate) fn DockingPage() -> NodeId {
             </Sample>
             <Sample title="Fullscreen" code={vec![FullscreenTab::SOURCE]}>
                 <FullscreenTab />
+            </Sample>
+            <Sample title="Moving windows by their content" code={vec![ContentDrag::SOURCE]}>
+                <ContentDrag />
             </Sample>
         </ScrollPage>
     }
