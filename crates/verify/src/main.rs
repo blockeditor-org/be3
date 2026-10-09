@@ -211,12 +211,16 @@ impl Run {
         let mut deleted = BTreeSet::new();
         let mut originals = BTreeSet::new();
         let mut stale = BTreeSet::new();
+        let mut added = BTreeSet::new();
         let mut findings = BTreeMap::new();
         for fix in &fixes {
             let root = fix.join("changed");
             let original = fix.join("original");
             for path in files_under(&root) {
                 if read_the_same(&original.join(&path), Path::new(&path)) {
+                    if !original.join(&path).exists() {
+                        added.insert(path.clone());
+                    }
                     changed.push((root.join(&path), path));
                     originals.insert(original.clone());
                 } else {
@@ -289,6 +293,12 @@ impl Run {
                 );
                 for original in &originals {
                     println!("  {}", original.display());
+                }
+                if !added.is_empty() || !deleted.is_empty() {
+                    println!(
+                        "These fixes moved code between files, and the build and the tests ran on the files as they were before, so they are unchecked; run ./scripts/verify again to check them."
+                    );
+                    self.failed = true;
                 }
             }
         }

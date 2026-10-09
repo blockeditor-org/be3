@@ -18,6 +18,7 @@ mod fix_repository_enforces_rust_layout;
 mod fix_repository_formats_views;
 mod fix_repository_ignores_sources_outside_crates;
 mod fix_repository_keeps_multiline_attributes_with_their_test_modules;
+mod fix_repository_merges_imports_without_repeating_them;
 mod fix_repository_removes_test_path_attributes;
 mod fix_repository_reports_beui_rule_breaks;
 mod fix_repository_skips_hidden_directories;
