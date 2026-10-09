@@ -133,6 +133,7 @@ fn window(id: u64, title: &str, parent: Option<u64>) -> block_editor_beui::HostW
         },
         fullscreen: None,
         responding: true,
+        focused: false,
     }
 }
 

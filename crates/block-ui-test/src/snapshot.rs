@@ -63,7 +63,8 @@ fn record_use(accepted: &Path) {
     let Some(used) = std::env::var_os("USED_PAINTINGS") else {
         return;
     };
-    write(&PathBuf::from(used).join(file_name(accepted)), &[]);
+    let compared = std::fs::read(accepted).unwrap_or_default();
+    write(&PathBuf::from(used).join(file_name(accepted)), &compared);
 }
 
 #[cfg(not(target_arch = "wasm32"))]

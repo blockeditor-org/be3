@@ -169,6 +169,7 @@ pub(crate) fn listed() -> Vec<HostWindow> {
                 height: area.height(),
             }),
             responding: info.responding,
+            focused: windows.focused() == Some(info.id),
         })
         .collect()
 }
@@ -182,6 +183,13 @@ pub(crate) fn close(window: HostWindowId) {
 pub(crate) fn fullscreen(window: HostWindowId, fullscreen: bool) {
     if let Some(windows) = windows() {
         windows.request_fullscreen(WindowId(window.0), fullscreen);
+        crate::host::wake();
+    }
+}
+
+pub(crate) fn focus(window: HostWindowId) {
+    if let Some(windows) = windows() {
+        windows.activate(WindowId(window.0));
         crate::host::wake();
     }
 }

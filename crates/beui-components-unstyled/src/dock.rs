@@ -1,5 +1,6 @@
 mod docking;
 pub mod state;
+mod switch;
 #[cfg(test)]
 mod tests;
 
@@ -47,12 +48,14 @@ pub use docking::{
     DockingLayout, DockingSnapshot,
 };
 pub use state::{
-    DockDrop, DockFullscreen, DockLayout, DockSplitter, DockState, DockTree, DockTreeEntry, Entry,
-    GroupId, LeafId, Side, SplitId, SurfaceId, TabId, TabPosition, Tree, layout_surface,
-    layout_tree,
+    DockDrop, DockFullscreen, DockLayout, DockSplitter, DockState, DockSwitch, DockTree,
+    DockTreeEntry, Entry, GroupId, LeafId, Side, SplitId, SurfaceId, TabId, TabPosition, Tree,
+    layout_surface, layout_tree,
 };
 use state::{FLOATING_SIZE, MIN_WINDOW_SIZE, fraction_moved};
 pub use state::{MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH};
+use switch::DockSwitchView;
+pub use switch::{DockSwitchHandle, DockSwitchRowHandle};
 
 pub const SPLITTER_THICKNESS: f32 = 6.0;
 const EDGE_ZONE: f32 = 0.22;
@@ -207,6 +210,17 @@ impl DockTabControl {
             });
         }
     }
+
+    pub fn focused(&self) -> bool {
+        self.state
+            .with(|state| state.focused_tab() == Some(self.tab))
+    }
+
+    pub fn show(&self) {
+        if let Some(dock) = self.dock.upgrade() {
+            dock.show(self.tab);
+        }
+    }
 }
 
 pub fn use_dock_tab() -> Option<DockTabControl> {
@@ -325,6 +339,7 @@ struct State {
     preview: RenderFn<DockPreviewHandle>,
     stack: Option<RenderFn<DockStackHandle>>,
     switcher: Option<RenderFn<DockSwitcherHandle>>,
+    switch: Option<RenderFn<DockSwitchHandle>>,
 }
 
 type Handle = Rc<State>;
@@ -976,6 +991,7 @@ pub(crate) struct DockConfig {
     pub(crate) preview: Option<RenderFn<DockPreviewHandle>>,
     pub(crate) stack: Option<RenderFn<DockStackHandle>>,
     pub(crate) switcher: Option<RenderFn<DockSwitcherHandle>>,
+    pub(crate) switch: Option<RenderFn<DockSwitchHandle>>,
 }
 
 #[component]
@@ -1006,6 +1022,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         preview,
         stack,
         switcher,
+        switch,
     } = config;
     let (current, set_current) = create_signal(state.peek());
     let (actions, set_actions) = create_signal(HashMap::new());
@@ -1034,6 +1051,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         set_menu,
         stack,
         switcher,
+        switch,
         thickness: splitter_thickness,
         group_inset,
         rect: component_rect(),
@@ -1101,6 +1119,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
     on_cleanup(clone!(dock -> move || dock.keep_panels(&[])));
     let mode = create_memo(move || mode.get());
     let fullscreen_dock = dock.clone();
+    let switch_dock = dock.clone();
     view! {
         <List spacing=0.0>
             <Frame
@@ -1125,6 +1144,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 </List>
             </Frame>
             <DockFullscreenView dock={fullscreen_dock} />
+            <DockSwitchView dock={switch_dock} />
         </List>
     }
 }

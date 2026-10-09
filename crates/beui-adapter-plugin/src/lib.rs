@@ -160,6 +160,7 @@ impl PluginSurface {
                     keyboard: area.keyboard,
                 }),
             handles_back: self.platform.handles_back,
+            intercepted_keys: self.platform.intercepted_keys.clone(),
         }
     }
 

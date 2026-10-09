@@ -97,6 +97,14 @@ impl Input {
             Event::Ime(ime) => output.push(InputEvent::Ime(beui_plugin_input::protocol_ime(&ime))),
             Event::Focus(focused) => output.push(InputEvent::Focus(focused)),
             Event::Back(gesture) => output.push(InputEvent::Back(back_phase(gesture))),
+            Event::InterceptedKey(press) => {
+                self.modifiers(press.modifiers, output);
+                output.push(InputEvent::InterceptedKey {
+                    key: protocol_key(press.key),
+                    pressed: press.pressed,
+                    repeat: press.repeat,
+                });
+            }
             _ => {}
         }
     }

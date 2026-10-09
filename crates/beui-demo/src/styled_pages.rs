@@ -103,6 +103,15 @@ pub(crate) fn DockingPage() -> NodeId {
                     />
                 </List>
             </Sample>
+            <Sample title="Switching tabs" code={vec![switch_tabs_with_alt_q::SOURCE]}>
+                <Paragraph
+                    content="Hold Alt and press Q to switch between the tabs you looked at last, \
+                     in every pane and window: each Q moves one further back, Shift+Q one \
+                     forward, letting go of Alt shows the one chosen, and Escape with Alt still \
+                     held keeps the tab you were on. The dock binds no key to this itself; the demo binds Alt+Q \
+                     where a desktop binds Alt+Tab."
+                />
+            </Sample>
             <Sample title="State follows the tab" code={vec![EditCounter::SOURCE]}>
                 <EditCounter />
             </Sample>

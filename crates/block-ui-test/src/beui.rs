@@ -1,5 +1,6 @@
 use beui::{
-    Color32, Document, Event, Key, Modifiers, PointerButton, Pos2, Rect, TouchId, TouchPhase, Vec2,
+    Color32, Document, Event, Key, KeyChord, KeyPress, Modifiers, PointerButton, Pos2, Rect,
+    TouchId, TouchPhase, Vec2,
 };
 use block_editor_beui::be_block::LiveEdit;
 use block_editor_beui::headless::{Adopted, HeadlessPlugin};
@@ -1047,6 +1048,34 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.report
             .as_ref()
             .is_some_and(|report| report.handles_back)
+    }
+
+    pub fn intercepted_keys(&self) -> Vec<KeyChord> {
+        self.report
+            .iter()
+            .flat_map(|report| &report.intercepted_keys)
+            .filter_map(|chord| beui_plugin_input::beui_chord(*chord))
+            .collect()
+    }
+
+    pub fn app_key(&mut self, modifiers: Modifiers, key: Key) -> bool {
+        let chord = KeyChord { key, modifiers };
+        if !self.intercepted_keys().contains(&chord) {
+            return false;
+        }
+        for pressed in [true, false] {
+            self.push(Event::InterceptedKey(KeyPress {
+                key,
+                pressed,
+                repeat: false,
+                modifiers,
+            }));
+        }
+        true
+    }
+
+    pub fn hold_modifiers(&mut self, modifiers: Modifiers) {
+        self.push(Event::Modifiers(modifiers));
     }
 
     pub fn hover_at(&mut self, pos: Pos2) {

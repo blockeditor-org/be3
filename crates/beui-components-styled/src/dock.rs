@@ -1,4 +1,5 @@
 mod stack;
+mod switch;
 
 use beui_macros::{component, view};
 
@@ -11,8 +12,8 @@ use crate::theme::{CARD_RADIUS, FOCUS_RING_WIDTH, FONT_BODY, RADIUS, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     DockBarHandle, DockChromeHandle, DockDragged, DockGripHandle, DockKey, DockMode, DockNode,
-    DockPreviewHandle, DockSplitterHandle, DockStackHandle, DockSwitcherHandle, DockTabHandle,
-    DockingLayout, Entry, MenuItem,
+    DockPreviewHandle, DockSplitterHandle, DockStackHandle, DockSwitchHandle, DockSwitcherHandle,
+    DockTabHandle, DockingLayout, Entry, MenuItem,
 };
 use beui_core::base::{Align, Direction, ItemSize, Justify};
 use beui_core::color::Color32;
@@ -23,6 +24,7 @@ use beui_view::reactive::{
     ReadSignal, Show, Text, clone, create_memo, focus_ring,
 };
 use stack::{DockStackBar, DockSwitcher};
+use switch::DockSwitchPanel;
 
 const TAB_PADDING_HORIZONTAL: f32 = 10.0;
 const TAB_HEIGHT: f32 = 33.0;
@@ -88,6 +90,9 @@ where
             }}
             switcher={move |handle: DockSwitcherHandle| view! {
                 <DockSwitcher handle />
+            }}
+            switch={move |handle: DockSwitchHandle| view! {
+                <DockSwitchPanel handle />
             }}
             tab={move |handle: DockTabHandle| view! {
                 <DockTabFace handle />

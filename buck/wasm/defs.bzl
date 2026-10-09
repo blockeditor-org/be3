@@ -245,9 +245,10 @@ wasi_test = rule(
 # The plugin tests as an action, which is how ./scripts/verify runs them: on a worker,
 # and answered from the cache when nothing they read has changed, which a test
 # never is. They read the accepted paintings from snapshots/ and accept every
-# painting, writing the ones that changed or are new to changed/ and naming the
-# ones they compared in used/; ./scripts/verify copies changed/ into snapshots/, or
-# under --check fails on it. They draw through lavapipe, as the renderer's tests
+# painting, writing the ones that changed or are new to changed/ and each
+# accepted painting they compared, as they read it, to used/ (empty when there
+# was none); ./scripts/verify copies into snapshots/ the paintings in changed/
+# whose accepted painting still reads the same, or under --check fails on them. They draw through lavapipe, as the renderer's tests
 # do, with LD_LIBRARY_PATH carried as BE3_LD_LIBRARY_PATH for the same reason
 # (library_path_test in buck/cargo/defs.bzl).
 def _plugin_test_run_impl(ctx: AnalysisContext) -> list[Provider]:

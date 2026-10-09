@@ -28,6 +28,7 @@ fn the_windows_the_host_runs_reach_an_instance_again_after_a_restart() {
         },
         fullscreen: None,
         responding: true,
+        focused: false,
     }];
     instances.next_screens(PASS);
 

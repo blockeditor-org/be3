@@ -1,11 +1,12 @@
 use block_editor_beui::be_block::{
     EditorView, LINUX_DESKTOP_EDITOR, Root, Settings, SettingsContent, WORKSPACE_EDITOR,
 };
-use block_editor_beui::beui::{Document, NodeId, Rect};
+use block_editor_beui::beui::{Document, Key, KeyChord, Modifiers, NodeId, Rect};
 use block_editor_beui::{
-    BlockInfo, BlockParent, ChildContent, Editor, EditorHost, PowerAction, PowerAvailability,
+    BlockInfo, BlockParent, ChildContent, Editor, EditorHost, HostWindow, HostWindowId,
+    PowerAction, PowerAvailability,
 };
-use block_plugin_api::LinuxMessage;
+use block_plugin_api::{EditorMessage, LinuxMessage, Size};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -14,7 +15,10 @@ use crate::app::LinuxDesktopApp;
 mod a_block_shown_on_the_desktop_opens_in_its_own_window;
 mod a_calendar_the_desktop_no_longer_holds_is_replaced;
 mod a_session_chosen_from_the_menu_opens_in_a_window_and_closing_it_keeps_the_session;
+mod a_window_the_host_focuses_leads_the_window_switcher;
+mod alt_tab_switches_to_the_window_two_back_once_alt_is_let_go;
 mod clicking_the_clock_opens_the_desktops_calendar_and_clicking_away_closes_it;
+mod escape_leaves_the_window_switcher_without_switching;
 mod the_calendar_popup_fits_a_narrow_screen;
 mod the_desktop_starts_with_nothing_open_but_its_bar;
 mod the_notifications_button_lists_what_arrived_and_answers_it;
@@ -23,6 +27,7 @@ mod the_power_menu_offers_only_what_the_host_allows;
 mod the_programs_button_asks_the_host_for_its_launcher;
 
 const MAX_TAB: u64 = 64;
+const WINDOW_TABS: u64 = 1 << 41;
 const EVERYTHING: PowerAvailability = PowerAvailability {
     suspend: true,
     restart: true,
@@ -82,6 +87,35 @@ impl Fixture {
         }
         self.test.hold(Some(self.settings), settings);
         (self, profiles)
+    }
+
+    fn with_windows(ids: &[u64]) -> Self {
+        let mut fixture = Self::new();
+        fixture.settle();
+        for focused in std::iter::once(None).chain(ids.iter().copied().map(Some)) {
+            let windows = ids
+                .iter()
+                .map(|id| host_window(*id, focused == Some(*id)))
+                .collect();
+            fixture.test.linux(LinuxMessage::Windows(windows));
+            fixture.settle();
+        }
+        fixture.test.take_sent();
+        fixture
+    }
+
+    fn focused_windows(&self) -> Vec<HostWindowId> {
+        self.test
+            .sent()
+            .iter()
+            .filter_map(|message| match message {
+                EditorMessage::Linux {
+                    message: LinuxMessage::FocusWindow(window),
+                    ..
+                } => Some(*window),
+                _ => None,
+            })
+            .collect()
     }
 
     fn allow_power(&mut self, power: PowerAvailability) {
@@ -153,6 +187,26 @@ impl Fixture {
         self.test.click_at(cross.center());
         self.settle();
     }
+}
+
+fn host_window(id: u64, focused: bool) -> HostWindow {
+    HostWindow {
+        id: HostWindowId(id),
+        title: format!("Program {id}"),
+        app_id: "test".to_owned(),
+        parent: None,
+        size: Size {
+            width: 320.0,
+            height: 200.0,
+        },
+        fullscreen: None,
+        responding: true,
+        focused,
+    }
+}
+
+fn window_tab(id: u64) -> u64 {
+    WINDOW_TABS + id
 }
 
 fn text_within(document: &Document, id: NodeId, words: &str) -> Option<NodeId> {

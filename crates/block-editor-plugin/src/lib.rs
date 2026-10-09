@@ -25,12 +25,13 @@ pub use block_plugin_api::{
     BlockFilter, BlockLocation, BlockPick, Catalog, ChildContent, ChildId, ChildLayer, ChildMode,
     ChildPlacement, ChildStatus, ClipboardImage, ConflictSide, CreationProgress, CursorIcon,
     DataListing, EditorCapabilities, EditorInstanceId, EditorRegion, FetchResult, FileSave,
-    FrameChrome, FrameSpec, HostDisplay, HostDisplayMode, HostInputDevice, HostNotification, HostNotificationAction, HostPanel, HostReply,
-    HostRequest, HostWindow, HostWindowId, InputEvent, InteractionMode, Key, MenuEntry, Modifiers,
-    Occluder, PointerButton, PowerAction, PowerAvailability, ResizeMode, ScreenPlacement,
-    SettingsProgress, ShellDialog, SurfaceRect, TemplateCategory, TemplateDescriptor, TopBar,
-    TouchPhase, VersionBranch, VersionChange, VersionChangeKind, VersionCommand, VersionCommit,
-    VersionStatus, ViewChange, WebViewCommand, WebViewEvent, WebViewId, WheelUnit,
+    FrameChrome, FrameSpec, HostDisplay, HostDisplayMode, HostInputDevice, HostNotification,
+    HostNotificationAction, HostPanel, HostReply, HostRequest, HostWindow, HostWindowId, InputEvent,
+    InteractionMode, Key, KeyChord, MenuEntry, Modifiers, Occluder, PointerButton, PowerAction,
+    PowerAvailability, ResizeMode, ScreenPlacement, SettingsProgress, ShellDialog, SurfaceRect,
+    TemplateCategory, TemplateDescriptor, TopBar, TouchPhase, VersionBranch, VersionChange,
+    VersionChangeKind, VersionCommand, VersionCommit, VersionStatus, ViewChange, WebViewCommand,
+    WebViewEvent, WebViewId, WheelUnit,
 };
 pub use block_ui;
 pub use clock::{frame_time, pin_wall_clock, utc_offset, wall_clock};
