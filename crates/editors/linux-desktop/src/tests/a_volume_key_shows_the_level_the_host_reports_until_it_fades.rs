@@ -31,7 +31,10 @@ fn a_volume_key_shows_the_level_the_host_reports_until_it_fades() {
         brightness: None,
     }));
     fixture.settle();
-    assert!(!fixture.test.shown("desktop.osd.0"), "nothing shows unasked");
+    assert!(
+        !fixture.test.shown("desktop.osd.0"),
+        "nothing shows unasked"
+    );
 
     assert!(fixture.test.app_key(Modifiers::NONE, Key::VolumeUp));
     fixture.settle();

@@ -79,7 +79,9 @@ impl Media {
                 }
             }
             MediaRequest::SetVolume(level) if level.is_finite() => {
-                backends.audio.request(AudioRequest::Set(level.clamp(0.0, 1.0)));
+                backends
+                    .audio
+                    .request(AudioRequest::Set(level.clamp(0.0, 1.0)));
             }
             MediaRequest::SetVolume(_) => {}
             MediaRequest::ToggleMute => backends.audio.request(AudioRequest::ToggleMute),

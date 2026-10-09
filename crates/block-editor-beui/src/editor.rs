@@ -11,8 +11,9 @@ use beui::reactive::{
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
     BarAction, ChildContent, ChildId, ChildLayer, ChildMode, CreationProgress, EditorCapabilities,
-    HostDisplay, HostInputDevice, HostPanel, HostWindow, HostWindowId, InteractionMode, MenuEntry,
-    MediaLevels, MediaRequest, PowerAction, PowerAvailability, ResizeMode, SettingsProgress, TopBar, ViewChange, WebViewId,
+    HostDisplay, HostInputDevice, HostPanel, HostWindow, HostWindowId, InteractionMode,
+    MediaLevels, MediaRequest, MenuEntry, PowerAction, PowerAvailability, ResizeMode,
+    SettingsProgress, TopBar, ViewChange, WebViewId,
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;

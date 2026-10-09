@@ -44,7 +44,10 @@ fn an_instance_watching_media_is_told_the_levels_and_its_requests_reach_the_host
         message: LinuxMessage::WatchMedia,
     }));
     assert!(instances.watches_media());
-    assert_eq!(media_sent(&instances.next_screens(PASS).opened), vec![levels]);
+    assert_eq!(
+        media_sent(&instances.next_screens(PASS).opened),
+        vec![levels]
+    );
     assert!(media_sent(&instances.next_screens(PASS).opened).is_empty());
     let muted = MediaLevels {
         output: Some(MediaLevel {
@@ -54,7 +57,10 @@ fn an_instance_watching_media_is_told_the_levels_and_its_requests_reach_the_host
         ..levels
     };
     assert!(instances.set_media(muted));
-    assert_eq!(media_sent(&instances.next_screens(PASS).opened), vec![muted]);
+    assert_eq!(
+        media_sent(&instances.next_screens(PASS).opened),
+        vec![muted]
+    );
 
     let asked = [
         MediaRequest::StepVolume(0.05),

@@ -3,7 +3,11 @@ use super::*;
 #[test]
 fn the_levels_are_reported_once_they_change() {
     let (mut media, _recorder, events) = recorded();
-    assert_eq!(media.frame(), None, "nothing is reported before a backend speaks");
+    assert_eq!(
+        media.frame(),
+        None,
+        "nothing is reported before a backend speaks"
+    );
 
     let output = Some(MediaLevel {
         level: 0.4,
@@ -31,5 +35,9 @@ fn the_levels_are_reported_once_they_change() {
             input: None,
         })
         .unwrap();
-    assert_eq!(media.frame(), None, "levels that did not change are not sent again");
+    assert_eq!(
+        media.frame(),
+        None,
+        "levels that did not change are not sent again"
+    );
 }

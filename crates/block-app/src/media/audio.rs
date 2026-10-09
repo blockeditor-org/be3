@@ -56,7 +56,10 @@ pub(super) fn stepped(channels: &[u32], by: f32) -> Vec<u32> {
 
 pub(super) fn set(channels: &[u32], level: f32) -> Vec<u32> {
     let norm = Volume::NORM.as_u32();
-    scaled(channels, (level.clamp(0.0, 1.0) * norm as f32).round() as u32)
+    scaled(
+        channels,
+        (level.clamp(0.0, 1.0) * norm as f32).round() as u32,
+    )
 }
 
 fn scaled(channels: &[u32], target: u32) -> Vec<u32> {
