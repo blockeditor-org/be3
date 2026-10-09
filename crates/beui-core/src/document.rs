@@ -27,6 +27,7 @@ use crate::painter::{Entry, Painter, PainterState, Shape};
 use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
 use crate::pixel_grid::PixelGrid;
 use crate::screen_simulation::{self, Placement};
+use crate::screens::Screen;
 use crate::sight::Sight;
 
 pub type Shortcut = dyn Fn(KeyPress) -> bool;
@@ -57,6 +58,14 @@ pub trait Tools: Any {
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum Acted {
+    #[default]
+    Nothing,
+    Pointer(Pos2),
+    Keys,
+}
+
 pub struct Document {
     pub arena: Arena,
     pub root: Option<NodeId>,
@@ -70,6 +79,7 @@ pub struct Document {
     inspector_requested: bool,
     screen_pointer: Option<Pos2>,
     pub last_pointer: Option<crate::input::PointerSample>,
+    pub acted: Acted,
     placement: Option<(Rect, Option<Placement>)>,
     pub portal_holders: std::collections::HashMap<NodeId, NodeOf<crate::base::portal::PortalNode>>,
     pub overlay_stack: Vec<NodeOf<crate::base::overlay::OverlayNode>>,
@@ -80,6 +90,12 @@ pub struct Document {
     scale: (::reactive::ReadSignal<f32>, ::reactive::WriteSignal<f32>),
     attached: (::reactive::ReadSignal<u64>, ::reactive::WriteSignal<u64>),
     focus_visible: (::reactive::ReadSignal<bool>, ::reactive::WriteSignal<bool>),
+    screens: (
+        ::reactive::ReadSignal<Vec<Screen>>,
+        ::reactive::WriteSignal<Vec<Screen>>,
+    ),
+    offered_screens: Option<Vec<Screen>>,
+    rescreened: RefCell<Option<Vec<Screen>>>,
     reattached: Cell<bool>,
     shortcuts: RefCell<Vec<Weak<Shortcut>>>,
     finger_taps: RefCell<Vec<Weak<FingerTap>>>,
@@ -286,6 +302,7 @@ impl Document {
             inspector_requested: false,
             screen_pointer: None,
             last_pointer: None,
+            acted: Acted::Nothing,
             placement: None,
             portal_holders: std::collections::HashMap::new(),
             overlay_stack: Vec::new(),
@@ -296,6 +313,9 @@ impl Document {
             scale: ::reactive::create_signal(1.0),
             attached: ::reactive::create_signal(0),
             focus_visible: ::reactive::create_signal(false),
+            screens: ::reactive::create_signal(Vec::new()),
+            offered_screens: None,
+            rescreened: RefCell::new(None),
             reattached: Cell::new(false),
             shortcuts: RefCell::new(Vec::new()),
             finger_taps: RefCell::new(Vec::new()),
@@ -453,6 +473,32 @@ impl Document {
         self.scale.0.clone()
     }
 
+    pub fn watch_screens(&self) -> ::reactive::ReadSignal<Vec<Screen>> {
+        self.screens.0.clone()
+    }
+
+    pub fn screens(&self) -> Vec<Screen> {
+        self.screens.0.get_untracked()
+    }
+
+    pub fn screen_at(&self, pos: Pos2) -> Option<Screen> {
+        self.screens
+            .0
+            .with_untracked(|screens| crate::screens::at(screens, pos).cloned())
+    }
+
+    pub fn screen_under(&self, rect: Rect) -> Option<Screen> {
+        self.screens
+            .0
+            .with_untracked(|screens| crate::screens::under(screens, rect).cloned())
+    }
+
+    pub fn screen_named(&self, id: &str) -> Option<Screen> {
+        self.screens.0.with_untracked(|screens| {
+            screens.iter().find(|screen| screen.id == id).cloned()
+        })
+    }
+
     pub fn watch_focus_visible(&self) -> ::reactive::ReadSignal<bool> {
         self.focus_visible.0.clone()
     }
@@ -567,6 +613,10 @@ impl Document {
         let scale = self.pixels_per_point();
         if self.scale.0.get_untracked() != scale {
             self.scale.1.set(scale);
+        }
+        let rescreened = self.rescreened.borrow_mut().take();
+        if let Some(screens) = rescreened {
+            self.screens.1.set(screens);
         }
         if self.reattached.replace(false) {
             self.attached.1.update(|attached| *attached += 1);
@@ -981,6 +1031,10 @@ impl Document {
             ctx.request_repaint();
         }
         ctx.set_screen_scale(placement.map_or(1.0, |placement| placement.scale));
+        self.offered_screens = match placement {
+            Some(placement) => Some(vec![Screen::window(placement.screen)]),
+            None => Some(crate::screens::shown_in(&ctx.screens(), rect)),
+        };
         match placement {
             Some(placement) => {
                 let shown = placement.shown();
@@ -1027,6 +1081,18 @@ impl Document {
             });
         let refonted =
             std::mem::replace(&mut self.fonts_generation, fonts_generation) != fonts_generation;
+        let screens = self
+            .offered_screens
+            .take()
+            .unwrap_or_else(|| vec![Screen::window(rect)]);
+        let rescreened = self
+            .screens
+            .0
+            .with_untracked(|shown| *shown != screens);
+        if rescreened {
+            self.arena.invalidate();
+            *self.rescreened.borrow_mut() = Some(screens);
+        }
         if refonted
             || self
                 .viewport

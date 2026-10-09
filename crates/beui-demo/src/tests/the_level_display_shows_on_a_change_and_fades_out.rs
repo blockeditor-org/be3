@@ -1,16 +1,14 @@
 use std::time::Duration;
 
-use beui::Rect;
 use beui::icons::ICON_VOLUME_UP;
-use beui::reactive::{Frame, List, NodeRef, build, create_signal, view};
+use beui::reactive::{Frame, List, build, create_signal, view};
 use beui::styled::{Button, ButtonVariant, LevelOsd, OSD_DURATION, OsdLevel, use_theme};
 
 use super::*;
 
-fn level_display(screens: Vec<Rect>) -> DocumentTest {
+fn level_display() -> DocumentTest {
     let document = build(move || {
         let theme = use_theme();
-        let area = NodeRef::new();
         let (shown, set_shown) = create_signal(0_u64);
         let level = Some(OsdLevel {
             glyph: ICON_VOLUME_UP.to_owned(),
@@ -19,7 +17,7 @@ fn level_display(screens: Vec<Rect>) -> DocumentTest {
             muted: false,
         });
         view! {
-            <Frame @node_ref=&area color={theme.background.clone()}>
+            <Frame color={theme.background.clone()}>
                 <List spacing=0.0>
                     <Button
                         @test_id={"test.show"}
@@ -27,7 +25,7 @@ fn level_display(screens: Vec<Rect>) -> DocumentTest {
                         variant=ButtonVariant::Secondary
                         on_click={move || set_shown.update(|shown| *shown += 1)}
                     />
-                    <LevelOsd anchor={area.clone()} level={level} shown={shown} screens={screens} />
+                    <LevelOsd level={level} shown={shown} />
                 </List>
             </Frame>
         }
@@ -37,7 +35,7 @@ fn level_display(screens: Vec<Rect>) -> DocumentTest {
 
 #[test]
 fn the_level_display_shows_on_a_change_and_fades_out() {
-    let mut test = level_display(Vec::new());
+    let mut test = level_display();
     test.frame(Vec::new());
     assert!(!test.shows("level-osd.0"), "nothing shows before a change");
 

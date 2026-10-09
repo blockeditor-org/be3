@@ -58,7 +58,6 @@ fn wall_clock() -> ReadSignal<DateTime> {
 #[component]
 pub(crate) fn SessionLock(view: AppViewStore) -> NodeId {
     let lock = view.lock.clone();
-    let screens = view.screens.clone();
     let available = create_memo(clone!(lock -> move || lock.get().available && !lock.get().locked));
     Action::new("session.lock", "Lock the screen", || {
         send(UiCommand::LockScreen);
@@ -95,7 +94,6 @@ pub(crate) fn SessionLock(view: AppViewStore) -> NodeId {
             user
             error
             busy
-            screens
             actions
             id="session.lock"
             on_submit={|typed: String| send(UiCommand::Unlock(Password::new(typed)))}

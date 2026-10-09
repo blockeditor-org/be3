@@ -218,7 +218,6 @@ pub(crate) struct AppView {
     pub(crate) debug: DebugView,
     pub(crate) toasts: Vec<Toast>,
     pub(crate) keep_display: bool,
-    pub(crate) screens: Vec<beui::Rect>,
     pub(crate) lock: LockView,
 }
 
@@ -290,7 +289,6 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
     let screen = view.screen.clone();
     let toasts = view.toasts.clone();
     let keep_display = view.keep_display.clone();
-    let screens = view.screens.clone();
     let locking = view.clone();
     let area = NodeRef::new();
     view! {
@@ -337,7 +335,6 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                 <KeepChanges
                     open={keep_display}
                     title="Keep these display settings?"
-                    screens={screens}
                     id="display.keep"
                     on_keep={|| send(UiCommand::KeepDisplay)}
                     on_revert={|| send(UiCommand::RevertDisplay)}

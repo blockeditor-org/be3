@@ -61,6 +61,11 @@ impl DocumentTest {
         self.output = Some(output);
     }
 
+    pub fn set_screens(&mut self, screens: Vec<beui::Screen>) {
+        self.context.set_screens(screens);
+        self.frame(Vec::new());
+    }
+
     pub fn advance(&mut self, by: Duration) {
         self.context.advance_clock(by);
         self.frame(Vec::new());

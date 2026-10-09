@@ -66,6 +66,7 @@ fn region_screen(
             pixel_width,
             pixel_height,
             scale_factor,
+            monitors: Vec::new(),
         },
     }
 }

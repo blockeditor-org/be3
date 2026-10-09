@@ -13,8 +13,8 @@ use beui_core::geometry::{Rect, pos2};
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    Align, Direction, ForEach, Frame, List, Memo, NodeRef, Prop, ReadSignal, clone,
-    component_accessibility, create_effect, create_memo, create_signal, create_timer, now, untrack,
+    Align, Direction, ForEach, Frame, List, Memo, Prop, ReadSignal, clone, component_accessibility,
+    create_effect, create_memo, create_signal, create_timer, now, untrack, use_screens,
 };
 
 pub const OSD_DURATION: Duration = Duration::from_millis(1500);
@@ -42,10 +42,8 @@ pub struct OsdLevel {
 
 #[component]
 pub fn LevelOsd(
-    anchor: NodeRef,
     level: Prop<Option<OsdLevel>>,
     shown: Prop<u64>,
-    #[prop(default = Vec::new())] screens: Prop<Vec<Rect>>,
     #[prop(default = OSD_DURATION)] duration: Duration,
     #[prop(default = "level-osd".to_owned())] id: String,
 ) -> NodeId {
@@ -81,36 +79,29 @@ pub fn LevelOsd(
     let open = create_memo(clone!(opacity level -> move || {
         opacity.get() > 0.0 && level.with(Option::is_some)
     }));
-    let screens = create_memo(move || screens.get());
+    let screens = use_screens();
     let places = create_memo(clone!(screens -> move || {
-        let count = screens.with(Vec::len).max(1);
-        (0..count).collect::<Vec<usize>>()
+        (0..screens.with(Vec::len)).collect::<Vec<usize>>()
     }));
     view! {
         <List spacing=0.0>
             <ForEach keys={places}>
                 {move |index: usize| {
-                    let place = create_memo(clone!(screens -> move || {
-                        screens.with(|screens| screens.get(index).copied())
-                    }));
-                    let pinned = anchor.clone();
-                    let anchored = create_memo(clone!(place -> move || match place.get() {
-                        Some(screen) => OverlayAnchor::Point(pos2(
+                    let anchored = create_memo(clone!(screens -> move || {
+                        let screen = screens.with(|screens| {
+                            screens.get(index).map_or(Rect::ZERO, |screen| screen.rect)
+                        });
+                        OverlayAnchor::Point(pos2(
                             screen.center().x,
                             screen.top() + screen.height() * SCREEN_HEIGHT_FRACTION,
-                        )),
-                        None => OverlayAnchor::Node(pinned.clone()),
+                        ))
                     }));
-                    let placement = create_memo(move || match place.get() {
-                        Some(_) => Placement::Around,
-                        None => Placement::InsideBottom,
-                    });
                     let (open, level, opacity) = (open.clone(), level.clone(), opacity.clone());
                     let id = format!("{id}.{index}");
                     view! {
                         <Overlay
                             anchor={anchored}
-                            placement={placement}
+                            placement=Placement::Around
                             mode=OverlayMode::Passive
                             traps_focus=false
                             open={open}

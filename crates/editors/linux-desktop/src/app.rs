@@ -111,7 +111,7 @@ fn DesktopBody(workspace: Rc<Workspace>) -> NodeId {
                 <DesktopBar workspace={bar} />
                 <PickerDialogs workspace={pickers} />
                 <WorkspaceDialogs workspace={shell_dialogs} />
-                <MediaKeys editor anchor={surface.clone()} />
+                <MediaKeys editor />
             </List>
         </Frame>
     }

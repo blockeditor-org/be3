@@ -1863,6 +1863,14 @@ pub struct ViewportMetrics {
     pub pixel_width: u32,
     pub pixel_height: u32,
     pub scale_factor: f32,
+    pub monitors: Vec<Monitor>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Monitor {
+    pub id: String,
+    pub name: String,
+    pub rect: ChildRect,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

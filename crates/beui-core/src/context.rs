@@ -18,6 +18,7 @@ use crate::node::NodeId;
 use crate::paint::{Item, Recorded};
 use crate::painter::{Entry, Painter, Shape};
 use crate::screen_simulation::ScreenSimulation;
+use crate::screens::Screen;
 
 #[derive(Clone)]
 pub struct Context {
@@ -58,6 +59,7 @@ struct Inner {
     simulated_pixels_per_point: Cell<Option<f32>>,
     screen_simulation: Cell<Option<ScreenSimulation>>,
     screen_scale: Cell<f32>,
+    screens: RefCell<Vec<Screen>>,
     zoom: Cell<f32>,
     repaint: Cell<bool>,
     repaint_after: Cell<Duration>,
@@ -250,6 +252,7 @@ impl Context {
                 simulated_pixels_per_point: Cell::new(None),
                 screen_simulation: Cell::new(None),
                 screen_scale: Cell::new(1.0),
+                screens: RefCell::new(Vec::new()),
                 zoom: Cell::new(1.0),
                 repaint: Cell::new(false),
                 repaint_after: Cell::new(Duration::MAX),
@@ -864,6 +867,17 @@ impl Context {
 
     pub fn set_screen_scale(&self, scale: f32) {
         self.inner.screen_scale.set(scale);
+    }
+
+    pub fn screens(&self) -> Vec<Screen> {
+        self.inner.screens.borrow().clone()
+    }
+
+    pub fn set_screens(&self, screens: Vec<Screen>) {
+        if *self.inner.screens.borrow() != screens {
+            *self.inner.screens.borrow_mut() = screens;
+            self.request_repaint();
+        }
     }
 
     pub fn screen_input<R>(&self, reader: impl FnOnce(&InputState) -> R) -> R {

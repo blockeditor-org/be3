@@ -87,6 +87,10 @@ pub fn pixels_per_point() -> ReadSignal<f32> {
     with_document(|document| document.watch_pixels_per_point())
 }
 
+pub fn use_screens() -> ReadSignal<Vec<beui_core::screens::Screen>> {
+    with_document(|document| document.watch_screens())
+}
+
 pub fn focus_ring(focused: impl IntoProp<bool>) -> Memo<bool> {
     let focused = focused.into_prop();
     let visible = with_document(|document| document.watch_focus_visible());

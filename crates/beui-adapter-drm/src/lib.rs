@@ -15,7 +15,6 @@ mod screen;
 mod wake;
 
 pub use display::{DisplayConfig, DisplayControl, DisplayMode, Monitor};
-pub use displays::Screens;
 pub use gpu::{CursorImage, SoftwareCursor};
 pub use input::{DeviceId, InputConfig, InputControl, PointerConfig, PointerDevice};
 pub use problems::Problems;

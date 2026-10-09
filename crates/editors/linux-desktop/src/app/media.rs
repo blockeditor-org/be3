@@ -4,7 +4,7 @@ use block_editor_beui::beui::icons::{
     ICON_VOLUME_UP,
 };
 use block_editor_beui::beui::reactive::{
-    Action, Chord, NodeRef, component, create_memo, create_signal, view,
+    Action, Chord, component, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{LevelOsd, OsdLevel};
 use block_editor_beui::beui::{Key, NodeId};
@@ -155,7 +155,7 @@ fn osd_level(shown: Shown, levels: MediaLevels) -> Option<OsdLevel> {
 }
 
 #[component]
-pub(super) fn MediaKeys(editor: Editor, anchor: NodeRef) -> NodeId {
+pub(super) fn MediaKeys(editor: Editor) -> NodeId {
     let levels = editor.media();
     let (shown, set_shown) = create_signal(None);
     let (shows, set_shows) = create_signal(0_u64);
@@ -177,6 +177,6 @@ pub(super) fn MediaKeys(editor: Editor, anchor: NodeRef) -> NodeId {
     }
     let level = create_memo(move || osd_level(shown.get()?, levels.get()));
     view! {
-        <LevelOsd anchor level={level} shown={shows} id="desktop.osd" />
+        <LevelOsd level={level} shown={shows} id="desktop.osd" />
     }
 }

@@ -8,12 +8,13 @@ use crate::text::{Body, Caption, Display, Title};
 use crate::text_input::TextInput;
 use crate::theme::use_theme;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::geometry::{Pos2, Rect};
+use beui_core::geometry::Rect;
+use beui_core::screens::bounds;
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Align, Callback, Direction, ForEach, Frame, IntoChild, Layer, Layers, List, Memo, Prop, Show,
-    clone, component_accessibility, create_memo, create_signal,
+    clone, component_accessibility, create_memo, create_signal, use_screens,
 };
 
 const FIELD_WIDTH: f32 = 280.0;
@@ -35,7 +36,6 @@ pub fn LockScreen(
     user: Prop<String>,
     #[prop(default = None)] error: Prop<Option<String>>,
     #[prop(default = false)] busy: Prop<bool>,
-    #[prop(default = Vec::new())] screens: Prop<Vec<Rect>>,
     #[prop(default = Vec::new())] actions: Prop<Vec<LockAction>>,
     #[prop(default = "lock".to_owned())] id: String,
     on_submit: Callback<String>,
@@ -49,11 +49,14 @@ pub fn LockScreen(
     let error = create_memo(move || error.get());
     let busy = create_memo(move || busy.get());
     let actions = create_memo(move || actions.get());
-    let screens = create_memo(move || screens.get());
+    let screens = use_screens();
+    let bounds = create_memo(clone!(screens -> move || screens.with(|screens| bounds(screens))));
     let places = create_memo(clone!(screens -> move || {
-        let count = screens.with(Vec::len).max(1);
-        (0..count).collect::<Vec<usize>>()
+        (0..screens.with(Vec::len)).collect::<Vec<usize>>()
     }));
+    let anchor = create_memo(clone!(bounds -> move || OverlayAnchor::Point(bounds.get().min)));
+    let width = create_memo(clone!(bounds -> move || Some(bounds.get().width())));
+    let height = create_memo(clone!(bounds -> move || Some(bounds.get().height())));
     let (password, set_password) = create_signal(String::new());
     let submit = Rc::new(clone!(busy set_password -> move |typed: String| {
         if busy.get_untracked() || typed.is_empty() {
@@ -64,17 +67,23 @@ pub fn LockScreen(
     }));
     view! {
         <Overlay
-            anchor=OverlayAnchor::Point(Pos2::ZERO)
+            anchor={anchor}
             open={open.clone()}
-            placement=Placement::Fill
+            placement=Placement::At
             scrim={theme.background.clone()}
             locks=true
         >
+            <Frame width={width} height={height}>
             <Layers>
                 <ForEach keys={places}>
                     {move |index: usize| {
-                        let place = create_memo(clone!(screens -> move || {
-                            screens.with(|screens| screens.get(index).copied())
+                        let place = create_memo(clone!(screens bounds -> move || {
+                            let origin = bounds.get().min.to_vec2();
+                            screens.with(|screens| {
+                                screens
+                                    .get(index)
+                                    .map_or(Rect::ZERO, |screen| screen.rect.translate(-origin))
+                            })
                         }));
                         let focused = create_memo(clone!(open busy -> move || {
                             index == 0 && open.get() && !busy.get()
@@ -104,13 +113,14 @@ pub fn LockScreen(
                     }}
                 </ForEach>
             </Layers>
+            </Frame>
         </Overlay>
     }
 }
 
 #[component]
 fn LockCard(
-    place: Memo<Option<Rect>>,
+    place: Memo<Rect>,
     time: Memo<String>,
     date: Memo<String>,
     user: Memo<String>,
@@ -125,14 +135,10 @@ fn LockCard(
     on_action: Callback<usize>,
 ) -> NodeId {
     let theme = use_theme();
-    let left = create_memo(clone!(place -> move || place.get().map(|rect| rect.left())));
-    let top = create_memo(clone!(place -> move || place.get().map(|rect| rect.top())));
-    let width = create_memo(clone!(place -> move || place.get().map(|rect| rect.width())));
-    let height = create_memo(clone!(place -> move || place.get().map(|rect| rect.height())));
-    let placed = create_memo(clone!(place -> move || match place.get() {
-        Some(_) => Align::Start,
-        None => Align::Center,
-    }));
+    let left = create_memo(clone!(place -> move || Some(place.get().left())));
+    let top = create_memo(clone!(place -> move || Some(place.get().top())));
+    let width = create_memo(clone!(place -> move || Some(place.get().width())));
+    let height = create_memo(clone!(place -> move || Some(place.get().height())));
     component_accessibility(create_memo(|| {
         let mut node = Node::new(Role::Dialog);
         node.set_label("Locked");
@@ -149,8 +155,8 @@ fn LockCard(
         <Frame
             padding_left={left}
             padding_top={top}
-            align_horizontal={placed.clone()}
-            align_vertical={placed}
+            align_horizontal=Align::Start
+            align_vertical=Align::Start
         >
             <Frame
                 width={width}

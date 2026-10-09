@@ -1,4 +1,4 @@
-use beui::Rect;
+use beui::{Rect, Screen};
 use beui::icons::ICON_BEDTIME;
 use beui::reactive::{Frame, build, view};
 use beui::styled::{LockAction, LockScreen, use_theme};
@@ -18,7 +18,6 @@ fn the_lock_screen_shows_on_every_screen() {
                     time="09:41"
                     date="Thursday, 8 October"
                     user="Ada Lovelace"
-                    screens={vec![left, right]}
                     actions={vec![LockAction {
                         label: "Suspend".to_owned(),
                         glyph: ICON_BEDTIME.to_owned(),
@@ -28,7 +27,10 @@ fn the_lock_screen_shows_on_every_screen() {
         }
     });
     let mut test = DocumentTest::new(document, Vec2::new(1100.0, 480.0));
-    test.frame(Vec::new());
+    test.set_screens(vec![
+        Screen::new("left", "Left", left),
+        Screen::new("right", "Right", right),
+    ]);
     assert!(left.contains(test.rect_of("lock.0").center()));
     assert!(right.contains(test.rect_of("lock.1").center()));
     assert!(test.shows("lock.0.password"));

@@ -14,7 +14,6 @@ use block_plugin_api::{ChildRect, HostWindow, HostWindowId, Size};
 struct Running {
     compositor: Compositor,
     cursor: Option<beui_adapter_drm::SoftwareCursor>,
-    screens: Option<beui_adapter_drm::Screens>,
     display: Option<beui_adapter_drm::DisplayControl>,
     blanked: bool,
     lock_due: bool,
@@ -62,13 +61,11 @@ pub(crate) fn start(setup: &Setup) {
         setup.waker.clone(),
     );
     let cursor = setup.get::<beui_adapter_drm::SoftwareCursor>().cloned();
-    let screens = setup.get::<beui_adapter_drm::Screens>().cloned();
     let display = setup.get::<beui_adapter_drm::DisplayControl>().cloned();
     RUNNING.with(|running| {
         *running.borrow_mut() = Some(Running {
             compositor,
             cursor,
-            screens,
             display,
             blanked: false,
             lock_due: false,
@@ -87,9 +84,13 @@ pub(crate) fn running() -> bool {
 
 pub(crate) fn before(context: &Context, rect: Rect, document: &mut Document) {
     with(|running| {
-        if let Some(screens) = &running.screens {
-            running.compositor.set_screens(screens.rects());
-        }
+        running.compositor.set_screens(
+            document
+                .screens()
+                .into_iter()
+                .map(|screen| screen.rect)
+                .collect(),
+        );
         if running
             .display
             .as_ref()

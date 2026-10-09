@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use beui::{
-    Color32, CursorIcon, FrameOutput, GpuSetup, Pos2, Rect, RendererInfo, Repainting, Setup, Vec2,
-    vec2,
+    Color32, CursorIcon, FrameOutput, GpuSetup, Pos2, Rect, RendererInfo, Repainting, Screen, Setup,
+    Vec2, vec2,
 };
 use beui_core::renderer::Renderer;
 
@@ -105,18 +105,6 @@ impl Displays {
     }
 }
 
-#[derive(Clone)]
-pub struct Screens(Rc<RefCell<Displays>>);
-
-impl Screens {
-    pub fn rects(&self) -> Vec<Rect> {
-        self.0
-            .try_borrow()
-            .map(|displays| displays.rects())
-            .unwrap_or_default()
-    }
-}
-
 pub struct DisplayRenderer(pub Rc<RefCell<Displays>>);
 
 impl Renderer for DisplayRenderer {
@@ -138,7 +126,6 @@ impl Renderer for DisplayRenderer {
             format: FORMAT,
         });
         setup.provide(displays.cursor.clone());
-        setup.provide(Screens(self.0.clone()));
     }
 
     fn resize(&mut self, _width: u32, _height: u32) {}
@@ -149,6 +136,20 @@ impl Renderer for DisplayRenderer {
             return None;
         }
         Some(bounds(&displays.rects()).max.to_vec2() * displays.scale)
+    }
+
+    fn screens(&self) -> Option<Vec<Screen>> {
+        let displays = self.0.borrow();
+        Some(
+            displays
+                .outputs
+                .iter()
+                .map(|output| {
+                    Screen::new(output.id(), output.name(), output.screen.rect)
+                        .scaled(displays.scale)
+                })
+                .collect(),
+        )
     }
 
     fn prepare(&mut self, output: &FrameOutput, scale: f32, background: Color32) -> bool {

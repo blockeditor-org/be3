@@ -1167,7 +1167,7 @@ fn DockFullscreenView(dock: Handle) -> NodeId {
     let area = create_memo(move || fullscreen.get().and_then(|shown| shown.area));
     let placement = create_memo(clone!(area -> move || match area.get() {
         Some(_) => Placement::At,
-        None => Placement::Fill,
+        None => Placement::FillScreen,
     }));
     let anchor = create_memo(clone!(area -> move || {
         OverlayAnchor::Point(area.get().map_or(Pos2::ZERO, |area| area.min))

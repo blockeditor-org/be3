@@ -231,6 +231,14 @@ impl Runner {
         self.context.set_pixels_per_point(pixels_per_point);
         let scale = self.context.pixels_per_point();
         let screen = physical / scale;
+        if let Some(screens) = renderers.screens() {
+            self.context.set_screens(
+                screens
+                    .iter()
+                    .map(|screen| screen.scaled(scale.recip()))
+                    .collect(),
+            );
+        }
         let raw = RawInput {
             events: next_batch(&mut self.events),
         };

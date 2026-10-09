@@ -11,7 +11,7 @@ use crate::base::frame::FrameNode;
 use crate::base::interactive::InteractiveNode;
 use crate::callback::{Callback, NodeRef};
 use crate::current::with_document;
-use crate::document::Document;
+use crate::document::{Acted, Document};
 use crate::node::{ClickHandler, Element, InteractInput, NodeId, NodeOf, Rects};
 
 #[derive(Clone, PartialEq)]
@@ -41,6 +41,7 @@ pub enum Placement {
     RightStart,
     Center,
     Fill,
+    FillScreen,
     InsideTop,
     InsideTopEnd,
     InsideBottom,
@@ -72,6 +73,7 @@ pub struct OverlayNode {
     traps_focus: bool,
     light: bool,
     trigger: Option<NodeRef>,
+    screen: Option<String>,
     mode: OverlayMode,
     locks: bool,
     on_dismiss: Option<ClickHandler>,
@@ -95,6 +97,7 @@ impl OverlayNode {
             traps_focus: true,
             light: false,
             trigger: None,
+            screen: None,
             mode: OverlayMode::Modal,
             locks: false,
             on_dismiss: None,
@@ -103,6 +106,22 @@ impl OverlayNode {
 
     pub fn is_open(&self) -> bool {
         self.open
+    }
+
+    fn area(&self, doc: &Document, viewport: Rect, anchored: Option<Rect>) -> Rect {
+        let opened = || {
+            self.screen
+                .as_deref()
+                .and_then(|id| doc.screen_named(id))
+                .or_else(|| doc.screens().into_iter().next())
+        };
+        let screen = match (self.placement, &self.anchor) {
+            (Placement::Fill | Placement::At | Placement::Around, _) => None,
+            (Placement::Center | Placement::FillScreen, _) => opened(),
+            (_, OverlayAnchor::Node(_)) => anchored.map_or_else(opened, |rect| doc.screen_under(rect)),
+            (_, OverlayAnchor::Point(pos)) => doc.screen_at(*pos),
+        };
+        screen.map_or(viewport, |screen| screen.rect)
     }
 }
 
@@ -128,7 +147,7 @@ fn resolve_rect(
     if placement == Placement::Around {
         return Rect::from_center_size(anchor_rect.center(), content_size);
     }
-    if placement == Placement::Fill {
+    if let Placement::Fill | Placement::FillScreen = placement {
         return viewport;
     }
     if placement == Placement::Center {
@@ -197,6 +216,7 @@ fn resolve_rect(
         | Placement::Around
         | Placement::Center
         | Placement::Fill
+        | Placement::FillScreen
         | Placement::InsideTop
         | Placement::InsideTopEnd
         | Placement::InsideBottom
@@ -236,17 +256,18 @@ impl Element for OverlayNode {
         let painter = &painter.ctx().painter();
         let viewport = doc.viewport_rect();
         crate::layout::layout(doc, painter, self.scrim, viewport, out);
-        let content_size = crate::layout::measure(doc, painter, content, viewport.size());
         let anchored = match &self.anchor {
             OverlayAnchor::Node(node) => node.try_get().and_then(|id| out.get(&id)),
             OverlayAnchor::Point(_) => None,
         };
         self.anchored = anchored;
+        let area = self.area(doc, viewport, anchored);
+        let content_size = crate::layout::measure(doc, painter, content, area.size());
         let anchor_rect = match &self.anchor {
-            OverlayAnchor::Node(_) => anchored.unwrap_or(viewport),
+            OverlayAnchor::Node(_) => anchored.unwrap_or(area),
             OverlayAnchor::Point(pos) => Rect::from_min_size(*pos, Vec2::ZERO),
         };
-        let rect = resolve_rect(viewport, anchor_rect, self.placement, content_size);
+        let rect = resolve_rect(area, anchor_rect, self.placement, content_size);
         crate::layout::layout(doc, painter, content, rect, out);
     }
 
@@ -629,7 +650,10 @@ impl Document {
         if self.arena.get_as::<OverlayNode>(overlay).open {
             return;
         }
-        self.arena.get_mut_as::<OverlayNode>(overlay).open = true;
+        let screen = self.opening_screen(overlay);
+        let node = self.arena.get_mut_as::<OverlayNode>(overlay);
+        node.open = true;
+        node.screen = screen;
         let below_lock = self
             .lock()
             .filter(|lock| !self.is_within(overlay.id(), lock.id()))
@@ -642,6 +666,28 @@ impl Document {
             false => self.passive_overlays.push(overlay),
         }
         self.arena.invalidate_node(overlay);
+    }
+
+    fn opening_screen(&self, overlay: NodeOf<OverlayNode>) -> Option<String> {
+        let rect_of = |node: Option<NodeId>| node.and_then(|node| self.node_rect(node));
+        let trigger = self
+            .arena
+            .get_as::<OverlayNode>(overlay)
+            .trigger
+            .as_ref()
+            .and_then(NodeRef::try_get);
+        let pressed = match self.acted {
+            Acted::Pointer(pos) => Some(Rect::from_min_size(pos, Vec2::ZERO)),
+            Acted::Keys | Acted::Nothing => None,
+        };
+        let pointer = self
+            .last_pointer
+            .map(|sample| Rect::from_min_size(sample.pos, Vec2::ZERO));
+        let rect = rect_of(trigger)
+            .or(pressed)
+            .or_else(|| rect_of(self.focused))
+            .or(pointer)?;
+        Some(self.screen_under(rect)?.id)
     }
 
     pub fn close_overlay(&mut self, overlay: NodeOf<OverlayNode>) {

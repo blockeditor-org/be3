@@ -2,14 +2,13 @@ use std::cell::RefCell;
 
 use be_block::DisplaySettings;
 use be_block::display_settings::DisplayMode as SavedMode;
-use beui_adapter_drm::{DisplayConfig, DisplayControl, DisplayMode, Monitor, Screens};
+use beui_adapter_drm::{DisplayConfig, DisplayControl, DisplayMode, Monitor};
 use block_plugin_api::{HostDisplay, HostDisplayMode};
 
 use super::Screen;
 
 thread_local! {
     static CONTROL: RefCell<Option<DisplayControl>> = const { RefCell::new(None) };
-    static SCREENS: RefCell<Option<Screens>> = const { RefCell::new(None) };
 }
 
 pub(crate) fn start(setup: &beui::Setup) {
@@ -22,24 +21,11 @@ pub(crate) fn start(setup: &beui::Setup) {
         });
     }
     CONTROL.with(|slot| *slot.borrow_mut() = control);
-    let screens = setup.get::<Screens>().cloned();
-    SCREENS.with(|slot| *slot.borrow_mut() = screens);
 }
 
 pub(crate) fn stop() {
     let control = CONTROL.with(|slot| slot.borrow_mut().take());
-    let screens = SCREENS.with(|slot| slot.borrow_mut().take());
-    drop((control, screens));
-}
-
-pub(crate) fn screens() -> Vec<beui::Rect> {
-    SCREENS.with(|screens| {
-        screens
-            .borrow()
-            .as_ref()
-            .map(Screens::rects)
-            .unwrap_or_default()
-    })
+    drop(control);
 }
 
 pub(crate) fn apply(settings: &DisplaySettings) {
