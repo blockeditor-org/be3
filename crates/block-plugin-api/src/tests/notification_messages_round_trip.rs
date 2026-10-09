@@ -21,33 +21,10 @@ fn notification_messages_round_trip() {
         ],
     };
     assert!(notification.has_default_action());
-    let messages = [
-        (LinuxMessage::WatchNotifications, Direction::ToHost),
-        (
-            LinuxMessage::Notifications(vec![notification]),
-            Direction::ToPlugin,
-        ),
-        (
-            LinuxMessage::InvokeNotification {
-                id: 7,
-                action: "reply".into(),
-            },
-            Direction::ToHost,
-        ),
-        (
-            LinuxMessage::DismissNotifications(vec![7, 8]),
-            Direction::ToHost,
-        ),
-    ];
-    for (message, direction) in messages {
-        assert_eq!(message.direction(), direction);
-        let message = Message::Editor(EditorMessage::Linux {
-            instance: EditorInstanceId(4),
-            message,
-        });
-        assert_eq!(
-            decode_frame(&encode_frame(&message).unwrap()).unwrap(),
-            message
-        );
-    }
+    host_value_round_trips::<Notifications>(vec![notification]);
+    host_action_round_trips(NotificationAction::Invoke {
+        id: 7,
+        action: "reply".into(),
+    });
+    host_action_round_trips(NotificationAction::Dismiss(vec![7, 8]));
 }

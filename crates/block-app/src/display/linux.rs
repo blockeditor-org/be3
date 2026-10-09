@@ -16,7 +16,9 @@ pub(crate) fn start(setup: &beui::Setup) {
     let control = setup.get::<DisplayControl>().cloned();
     if let Some(control) = &control {
         control.on_monitors(|monitors| {
-            crate::plugin_host::set_displays(monitors.iter().map(host_display).collect());
+            crate::plugin_host::publish::<block_plugin_api::Displays>(
+                &monitors.iter().map(host_display).collect(),
+            );
             super::set_screens(monitors.iter().map(screen).collect());
             crate::host::wake();
         });

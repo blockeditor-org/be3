@@ -464,9 +464,13 @@ impl Screens {
                     session.show_panel(*panel);
                 }
             }
-            Message::Editor(EditorMessage::Linux { instance, message }) => {
+            Message::Editor(EditorMessage::HostValue {
+                instance,
+                key,
+                value,
+            }) => {
                 if let Some(session) = self.sessions.get(instance) {
-                    session.linux_message(message.clone());
+                    session.host_value(key.clone(), value.clone());
                 }
             }
             Message::Editor(EditorMessage::MenuPick { instance, id }) => {

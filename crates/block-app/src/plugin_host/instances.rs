@@ -5,7 +5,7 @@ use block_plugin_api::{
     ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId, ChildMode,
     ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, CursorIcon, DataListing,
     EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick, FileSave, FrameReport,
-    FrameSpec, HostPanel, HostReply, HostRequest, LinuxMessage, Message, Occluder,
+    FrameSpec, HostPanel, HostReply, HostRequest, Message, Occluder,
     PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
     ScreenSet, Size, ViewChange, WatchedContent, WebViewId,
 };
@@ -19,6 +19,7 @@ use super::{
     BlockPickRequest, ChildCommit, EditorBlock, HostChild, HostChildStatus, InstanceRole,
     MAX_LIVE_CHILDREN,
     audio::AudioPlayer,
+    host_values::{Published, Watched},
     input::{BlockDragEvent, FileDropEvent, InputAdapter, viewport_metrics},
     pieces,
 };
@@ -29,7 +30,6 @@ use crate::{
     plugin_host::web_view::WebViewHost,
 };
 
-const MAX_MEDIA_REQUESTS: usize = 64;
 const REFUSED: &str = "this plugin's manifest does not allow it to reach";
 
 #[derive(Default)]
@@ -49,14 +49,9 @@ pub(super) struct Instances {
     graph_seen: Option<u64>,
     pasted: HashSet<EditorInstanceId>,
     audio_changes: AudioChanges,
-    input_devices: Vec<block_plugin_api::HostInputDevice>,
-    displays: Vec<block_plugin_api::HostDisplay>,
-    power: block_plugin_api::PowerAvailability,
-    media: block_plugin_api::MediaLevels,
-    notifications: Arc<Vec<block_plugin_api::HostNotification>>,
+    published: Published,
+    shell: Option<EditorInstanceId>,
 }
-
-const MAX_NOTIFICATION_REQUESTS: usize = 64;
 
 struct AudioChanges {
     sender: host::WakingSender<EditorInstanceId>,
@@ -128,24 +123,7 @@ struct Instance {
     child_menu_picks: Vec<(ChildId, String)>,
     presenting: bool,
     reported_presenting: bool,
-    windows: Option<Vec<block_plugin_api::HostWindow>>,
-    reported_windows: Option<Vec<block_plugin_api::HostWindow>>,
-    watches_input_devices: bool,
-    reported_input_devices: Option<Vec<block_plugin_api::HostInputDevice>>,
-    watches_displays: bool,
-    reported_displays: Option<Vec<block_plugin_api::HostDisplay>>,
-    watches_power: bool,
-    reported_power: Option<block_plugin_api::PowerAvailability>,
-    power_request: Option<block_plugin_api::PowerAction>,
-    watches_media: bool,
-    reported_media: Option<block_plugin_api::MediaLevels>,
-    media_requests: Vec<block_plugin_api::MediaRequest>,
-    watches_notifications: bool,
-    reported_notifications: Option<Arc<Vec<block_plugin_api::HostNotification>>>,
-    notification_requests: Vec<LinuxMessage>,
-    closed_windows: Vec<block_plugin_api::HostWindowId>,
-    fullscreen_windows: Vec<(block_plugin_api::HostWindowId, bool)>,
-    focused_windows: Vec<block_plugin_api::HostWindowId>,
+    host_values: Watched,
     grabbed: bool,
     web_views: HashMap<WebViewId, WebViewHost>,
     presence_visible: Option<bool>,
@@ -319,24 +297,7 @@ impl Instance {
             child_menu_picks: Vec::new(),
             presenting: false,
             reported_presenting: false,
-            windows: None,
-            reported_windows: None,
-            watches_input_devices: false,
-            reported_input_devices: None,
-            watches_displays: false,
-            reported_displays: None,
-            watches_power: false,
-            reported_power: None,
-            power_request: None,
-            watches_media: false,
-            reported_media: None,
-            media_requests: Vec::new(),
-            watches_notifications: false,
-            reported_notifications: None,
-            notification_requests: Vec::new(),
-            closed_windows: Vec::new(),
-            fullscreen_windows: Vec::new(),
-            focused_windows: Vec::new(),
+            host_values: Watched::default(),
             grabbed: false,
             web_views: HashMap::new(),
             presence_visible: None,
@@ -999,19 +960,6 @@ impl Instances {
             .is_some_and(|entry| entry.presenting)
     }
 
-    pub(super) fn set_windows(
-        &mut self,
-        instance: EditorInstanceId,
-        windows: Vec<block_plugin_api::HostWindow>,
-    ) -> bool {
-        let Some(entry) = self.entries.get_mut(&instance) else {
-            return false;
-        };
-        let changed = entry.windows.as_ref() != Some(&windows);
-        entry.windows = Some(windows);
-        changed
-    }
-
     pub(super) fn set_presenting(&mut self, instance: EditorInstanceId, presenting: bool) -> bool {
         let Some(entry) = self.entries.get_mut(&instance) else {
             return false;
@@ -1185,12 +1133,7 @@ impl Instances {
             entry.reported_editable = None;
             entry.reported_view = None;
             entry.reported_presenting = false;
-            entry.reported_windows = None;
-            entry.reported_input_devices = None;
-            entry.reported_displays = None;
-            entry.reported_power = None;
-            entry.reported_media = None;
-            entry.reported_notifications = None;
+            entry.host_values.forget_reported();
             entry.reported_history = None;
             entry.reported_artifacts.clear();
             entry.reported_size = None;
@@ -1215,11 +1158,6 @@ impl Instances {
         let mut instances: Vec<_> = self.entries.keys().copied().collect();
         instances.sort_by_key(|instance| instance.0);
         let focus = self.focus.clone();
-        let input_devices = self.input_devices.clone();
-        let displays = self.displays.clone();
-        let power = self.power;
-        let media = self.media;
-        let notifications = Arc::clone(&self.notifications);
         let graph = crate::be::graph_revision();
         let graph_moved = self.graph_seen.replace(graph) != Some(graph);
         let mut opened = Vec::new();
@@ -1350,55 +1288,12 @@ impl Instances {
                     presenting: entry.presenting,
                 }));
             }
-            if entry.watches_input_devices
-                && entry.reported_input_devices.as_ref() != Some(&input_devices)
-            {
-                entry.reported_input_devices = Some(input_devices.clone());
-                opened.push(Message::Editor(EditorMessage::Linux {
-                    instance,
-                    message: LinuxMessage::InputDevices(input_devices.clone()),
-                }));
-            }
-            if entry.watches_displays && entry.reported_displays.as_ref() != Some(&displays) {
-                entry.reported_displays = Some(displays.clone());
-                opened.push(Message::Editor(EditorMessage::Linux {
-                    instance,
-                    message: LinuxMessage::Displays(displays.clone()),
-                }));
-            }
-            if entry.watches_power && entry.reported_power != Some(power) {
-                entry.reported_power = Some(power);
-                opened.push(Message::Editor(EditorMessage::Linux {
-                    instance,
-                    message: LinuxMessage::Power(power),
-                }));
-            }
-            if entry.watches_media && entry.reported_media != Some(media) {
-                entry.reported_media = Some(media);
-                opened.push(Message::Editor(EditorMessage::Linux {
-                    instance,
-                    message: LinuxMessage::Media(media),
-                }));
-            }
-            if entry.watches_notifications
-                && entry
-                    .reported_notifications
-                    .as_ref()
-                    .is_none_or(|reported| !Arc::ptr_eq(reported, &notifications))
-            {
-                entry.reported_notifications = Some(Arc::clone(&notifications));
-                opened.push(Message::Editor(EditorMessage::Linux {
-                    instance,
-                    message: LinuxMessage::Notifications(notifications.to_vec()),
-                }));
-            }
-            if entry.windows.is_some() && entry.windows != entry.reported_windows {
-                entry.reported_windows = entry.windows.clone();
-                opened.push(Message::Editor(EditorMessage::Linux {
-                    instance,
-                    message: LinuxMessage::Windows(entry.windows.clone().unwrap_or_default()),
-                }));
-            }
+            entry.host_values.report(
+                instance,
+                self.shell == Some(instance),
+                &self.published,
+                &mut opened,
+            );
             if entry.view != entry.reported_view {
                 entry.reported_view = entry.view;
                 if let Some(view) = entry.view {
@@ -2388,55 +2283,19 @@ impl Instances {
                 entry.pick_answers.push((pick, answer));
                 true
             }
-            EditorMessage::CloseWindow { instance, window } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                entry.closed_windows.push(window);
-                true
-            }
-            EditorMessage::Linux { instance, message } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                match message {
-                    LinuxMessage::WatchInputDevices => entry.watches_input_devices = true,
-                    LinuxMessage::WatchDisplays => entry.watches_displays = true,
-                    LinuxMessage::WatchPower => entry.watches_power = true,
-                    LinuxMessage::RequestPower(action) if self.power.allows(action) => {
-                        entry.power_request = Some(action);
-                    }
-                    LinuxMessage::WatchMedia => entry.watches_media = true,
-                    LinuxMessage::RequestMedia(_)
-                        if entry.media_requests.len() >= MAX_MEDIA_REQUESTS =>
-                    {
-                        return false;
-                    }
-                    LinuxMessage::RequestMedia(request) => entry.media_requests.push(request),
-                    LinuxMessage::FullscreenWindow { window, fullscreen } => {
-                        entry.fullscreen_windows.push((window, fullscreen));
-                    }
-                    LinuxMessage::WatchNotifications => entry.watches_notifications = true,
-                    message @ (LinuxMessage::InvokeNotification { .. }
-                    | LinuxMessage::DismissNotifications(_))
-                        if entry.notification_requests.len() < MAX_NOTIFICATION_REQUESTS =>
-                    {
-                        entry.notification_requests.push(message);
-                    }
-                    LinuxMessage::FocusWindow(window) => {
-                        entry.focused_windows.push(window);
-                    }
-                    LinuxMessage::Windows(_)
-                    | LinuxMessage::InputDevices(_)
-                    | LinuxMessage::Displays(_)
-                    | LinuxMessage::Power(_)
-                    | LinuxMessage::RequestPower(_)
-                    | LinuxMessage::Media(_)
-                    | LinuxMessage::Notifications(_)
-                    | LinuxMessage::InvokeNotification { .. }
-                    | LinuxMessage::DismissNotifications(_) => return false,
-                }
-                true
+            EditorMessage::WatchHostValue { instance, key } => self
+                .entries
+                .get_mut(&instance)
+                .is_some_and(|entry| entry.host_values.watch(key)),
+            EditorMessage::HostAction {
+                instance,
+                key,
+                action,
+            } => {
+                let shell = self.shell == Some(instance);
+                self.entries
+                    .get_mut(&instance)
+                    .is_some_and(|entry| entry.host_values.act(key, action, shell))
             }
             EditorMessage::SetAccess {
                 block_id,
@@ -3021,36 +2880,6 @@ impl Instances {
         }
     }
 
-    pub(super) fn take_closed_windows(
-        &mut self,
-        instance: EditorInstanceId,
-    ) -> Vec<block_plugin_api::HostWindowId> {
-        self.entries
-            .get_mut(&instance)
-            .map(|entry| std::mem::take(&mut entry.closed_windows))
-            .unwrap_or_default()
-    }
-
-    pub(super) fn take_focused_windows(
-        &mut self,
-        instance: EditorInstanceId,
-    ) -> Vec<block_plugin_api::HostWindowId> {
-        self.entries
-            .get_mut(&instance)
-            .map(|entry| std::mem::take(&mut entry.focused_windows))
-            .unwrap_or_default()
-    }
-
-    pub(super) fn take_fullscreen_windows(
-        &mut self,
-        instance: EditorInstanceId,
-    ) -> Vec<(block_plugin_api::HostWindowId, bool)> {
-        self.entries
-            .get_mut(&instance)
-            .map(|entry| std::mem::take(&mut entry.fullscreen_windows))
-            .unwrap_or_default()
-    }
-
     pub(super) fn take_artifact_watch(&mut self, instance: EditorInstanceId) -> Option<Vec<Uuid>> {
         self.entries.get_mut(&instance)?.artifact_watch.take()
     }
@@ -3121,74 +2950,37 @@ impl Instances {
         })]
     }
 
-    pub(super) fn set_input_devices(
-        &mut self,
-        devices: Vec<block_plugin_api::HostInputDevice>,
-    ) -> bool {
-        self.input_devices = devices;
+    pub(super) fn set_host_value(&mut self, key: &str, value: Arc<Vec<u8>>) -> bool {
+        self.published.insert(key.to_owned(), value);
+        self.watches_host_value(key)
+    }
+
+    pub(super) fn watches_host_value(&self, key: &str) -> bool {
         self.entries
-            .values()
-            .any(|entry| entry.watches_input_devices)
+            .iter()
+            .any(|(instance, entry)| entry.host_values.watches(key, self.shell == Some(*instance)))
     }
 
-    pub(super) fn set_power(&mut self, power: block_plugin_api::PowerAvailability) -> bool {
-        self.power = power;
-        self.entries.values().any(|entry| entry.watches_power)
+    pub(super) fn take_host_actions(&mut self, key: &str) -> Vec<Vec<u8>> {
+        let mut instances: Vec<_> = self.entries.keys().copied().collect();
+        instances.sort_by_key(|instance| instance.0);
+        instances
+            .into_iter()
+            .flat_map(|instance| {
+                self.entries
+                    .get_mut(&instance)
+                    .map(|entry| entry.host_values.take_actions(key))
+                    .unwrap_or_default()
+            })
+            .collect()
     }
 
-    #[cfg(target_os = "linux")]
-    pub(super) fn take_power_request(
-        &mut self,
-        instance: EditorInstanceId,
-    ) -> Option<block_plugin_api::PowerAction> {
-        self.entries.get_mut(&instance)?.power_request.take()
-    }
-
-    pub(super) fn set_media(&mut self, media: block_plugin_api::MediaLevels) -> bool {
-        self.media = media;
-        self.entries.values().any(|entry| entry.watches_media)
-    }
-
-    #[cfg(target_os = "linux")]
-    pub(super) fn watches_media(&self) -> bool {
-        self.entries.values().any(|entry| entry.watches_media)
-    }
-
-    #[cfg(target_os = "linux")]
-    pub(super) fn take_media_requests(
-        &mut self,
-        instance: EditorInstanceId,
-    ) -> Vec<block_plugin_api::MediaRequest> {
-        self.entries
-            .get_mut(&instance)
-            .map(|entry| std::mem::take(&mut entry.media_requests))
-            .unwrap_or_default()
-    }
-
-    pub(super) fn set_notifications(
-        &mut self,
-        notifications: Arc<Vec<block_plugin_api::HostNotification>>,
-    ) -> bool {
-        self.notifications = notifications;
-        self.entries
-            .values()
-            .any(|entry| entry.watches_notifications)
-    }
-
-    #[cfg(target_os = "linux")]
-    pub(super) fn take_notification_requests(
-        &mut self,
-        instance: EditorInstanceId,
-    ) -> Vec<LinuxMessage> {
-        self.entries
-            .get_mut(&instance)
-            .map(|entry| std::mem::take(&mut entry.notification_requests))
-            .unwrap_or_default()
-    }
-
-    pub(super) fn set_displays(&mut self, displays: Vec<block_plugin_api::HostDisplay>) -> bool {
-        self.displays = displays;
-        self.entries.values().any(|entry| entry.watches_displays)
+    pub(super) fn set_shell(&mut self, shell: Option<EditorInstanceId>) -> bool {
+        if self.shell == shell {
+            return false;
+        }
+        self.shell = shell;
+        true
     }
 
     pub(super) fn set_focus(&mut self, focus: Focus) -> bool {

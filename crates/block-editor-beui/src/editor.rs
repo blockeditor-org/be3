@@ -11,9 +11,7 @@ use beui::reactive::{
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
     BarAction, ChildContent, ChildId, ChildLayer, ChildMode, CreationProgress, EditorCapabilities,
-    HostDisplay, HostInputDevice, HostNotification, HostPanel, HostWindow, HostWindowId,
-    InteractionMode, MediaLevels, MediaRequest, MenuEntry, PowerAction, PowerAvailability,
-    ResizeMode, SettingsProgress, TopBar, ViewChange, WebViewId,
+    HostAction, HostPanel, HostValue, HostWindowId, InteractionMode, MenuEntry, ResizeMode, SettingsProgress, TopBar, ViewChange, WebViewId,
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;
@@ -669,74 +667,17 @@ impl Editor {
         self.0.host.take_panel_requests()
     }
 
-    pub fn windows(&self) -> Memo<Vec<HostWindow>> {
+    pub fn host_value<T: HostValue>(&self) -> Memo<T::Value> {
         let host = self.0.host.clone();
-        let revision = self.pushed(Pushed::Windows);
+        let revision = self.pushed(Pushed::HostValues);
         create_memo(move || {
             revision.get();
-            host.windows()
+            host.host_value::<T>()
         })
     }
 
-    pub fn displays(&self) -> Memo<Vec<HostDisplay>> {
-        let host = self.0.host.clone();
-        let revision = self.pushed(Pushed::Displays);
-        create_memo(move || {
-            revision.get();
-            host.displays()
-        })
-    }
-
-    pub fn power(&self) -> Memo<PowerAvailability> {
-        let host = self.0.host.clone();
-        let revision = self.pushed(Pushed::Power);
-        create_memo(move || {
-            revision.get();
-            host.power()
-        })
-    }
-
-    pub fn request_power(&self, action: PowerAction) {
-        self.0.host.request_power(action);
-    }
-
-    pub fn media(&self) -> Memo<MediaLevels> {
-        let host = self.0.host.clone();
-        let revision = self.pushed(Pushed::Media);
-        create_memo(move || {
-            revision.get();
-            host.media()
-        })
-    }
-
-    pub fn request_media(&self, request: MediaRequest) {
-        self.0.host.request_media(request);
-    }
-
-    pub fn notifications(&self) -> Memo<Vec<HostNotification>> {
-        let host = self.0.host.clone();
-        let revision = self.pushed(Pushed::Notifications);
-        create_memo(move || {
-            revision.get();
-            host.notifications()
-        })
-    }
-
-    pub fn invoke_notification(&self, id: u32, action: String) {
-        self.0.host.invoke_notification(id, action);
-    }
-
-    pub fn dismiss_notifications(&self, ids: Vec<u32>) {
-        self.0.host.dismiss_notifications(ids);
-    }
-
-    pub fn input_devices(&self) -> Memo<Vec<HostInputDevice>> {
-        let host = self.0.host.clone();
-        let revision = self.pushed(Pushed::InputDevices);
-        create_memo(move || {
-            revision.get();
-            host.input_devices()
-        })
+    pub fn act<A: HostAction>(&self, action: A) {
+        self.0.host.act(action);
     }
 
     pub fn web_view_events(&self) -> ReadSignal<u64> {

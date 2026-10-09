@@ -592,11 +592,18 @@ impl<A: BeuiApp> BeuiTest<A> {
             }));
     }
 
-    pub fn linux(&mut self, message: block_plugin_api::LinuxMessage) {
-        self.inbox.push(Message::Editor(EditorMessage::Linux {
+    pub fn set_host_value<T: block_plugin_api::HostValue>(&mut self, value: &T::Value) {
+        self.inbox.push(Message::Editor(EditorMessage::HostValue {
             instance: INSTANCE,
-            message,
+            key: T::KEY.to_owned(),
+            value: block_plugin_api::encode_host(value),
         }));
+    }
+
+    pub fn watches<T: block_plugin_api::HostValue>(&self) -> bool {
+        self.sent.iter().any(|message| {
+            matches!(message, EditorMessage::WatchHostValue { key, .. } if key == T::KEY)
+        })
     }
 
     pub fn reply(&mut self, request_id: u64, reply: HostReply) {
@@ -932,36 +939,12 @@ impl<A: BeuiApp> BeuiTest<A> {
         })
     }
 
-    pub fn take_notification_requests(&mut self) -> Vec<block_plugin_api::LinuxMessage> {
-        self.take_where(|message| match message {
-            EditorMessage::Linux {
-                message:
-                    message @ (block_plugin_api::LinuxMessage::InvokeNotification { .. }
-                    | block_plugin_api::LinuxMessage::DismissNotifications(_)),
-                ..
-            } => Some(message.clone()),
-            _ => None,
-        })
+    pub fn actions<Act: block_plugin_api::HostAction>(&self) -> Vec<Act> {
+        self.sent.iter().filter_map(host_action::<Act>).collect()
     }
 
-    pub fn take_power_requests(&mut self) -> Vec<block_plugin_api::PowerAction> {
-        self.take_where(|message| match message {
-            EditorMessage::Linux {
-                message: block_plugin_api::LinuxMessage::RequestPower(action),
-                ..
-            } => Some(*action),
-            _ => None,
-        })
-    }
-
-    pub fn take_media_requests(&mut self) -> Vec<block_plugin_api::MediaRequest> {
-        self.take_where(|message| match message {
-            EditorMessage::Linux {
-                message: block_plugin_api::LinuxMessage::RequestMedia(request),
-                ..
-            } => Some(*request),
-            _ => None,
-        })
+    pub fn take_actions<Act: block_plugin_api::HostAction>(&mut self) -> Vec<Act> {
+        self.take_where(host_action::<Act>)
     }
 
     pub fn take_version_commands(&mut self) -> Vec<(Uuid, block_editor_beui::VersionCommand)> {
@@ -1385,5 +1368,14 @@ impl Viewport {
                 ViewChange::Fit | ViewChange::ResumeAutoFit => self.fitting = true,
             }
         }
+    }
+}
+
+fn host_action<A: block_plugin_api::HostAction>(message: &EditorMessage) -> Option<A> {
+    match message {
+        EditorMessage::HostAction { key, action, .. } if key == A::KEY => {
+            block_plugin_api::decode_host(action)
+        }
+        _ => None,
     }
 }

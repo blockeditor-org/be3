@@ -15,16 +15,18 @@ fn host_window_messages_round_trip() {
         responding: true,
         focused: false,
     };
-    for message in [
-        Message::Editor(EditorMessage::Linux {
-            instance: EditorInstanceId(3),
-            message: LinuxMessage::Windows(vec![window.clone()]),
-        }),
-        Message::Editor(EditorMessage::CloseWindow {
-            instance: EditorInstanceId(3),
+    host_value_round_trips::<HostWindows>(vec![window.clone()]);
+    for action in [
+        WindowAction::Focus(window.id),
+        WindowAction::Fullscreen {
             window: window.id,
-        }),
-        Message::Children(ChildPlacements {
+            fullscreen: true,
+        },
+        WindowAction::Close(window.id),
+    ] {
+        host_action_round_trips(action);
+    }
+    for message in [Message::Children(ChildPlacements {
             instance: EditorInstanceId(3),
             region: EditorRegion::Frame,
             generation: 2,

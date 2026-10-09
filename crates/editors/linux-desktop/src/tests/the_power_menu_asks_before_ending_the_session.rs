@@ -20,7 +20,7 @@ fn the_power_menu_asks_before_ending_the_session() {
             "{item} asks first"
         );
         assert!(
-            fixture.test.take_power_requests().is_empty(),
+            fixture.test.take_actions::<PowerAction>().is_empty(),
             "nothing happens before {item} is confirmed"
         );
         if action == PowerAction::PowerOff {
@@ -31,7 +31,7 @@ fn the_power_menu_asks_before_ending_the_session() {
         fixture.settle();
         fixture.test.settle();
         assert!(
-            fixture.test.take_power_requests().is_empty(),
+            fixture.test.take_actions::<PowerAction>().is_empty(),
             "cancelling does nothing"
         );
 
@@ -43,6 +43,6 @@ fn the_power_menu_asks_before_ending_the_session() {
         fixture.test.click("desktop.power.confirm");
         fixture.settle();
         fixture.test.settle();
-        assert_eq!(fixture.test.take_power_requests(), vec![action]);
+        assert_eq!(fixture.test.take_actions::<PowerAction>(), vec![action]);
     }
 }

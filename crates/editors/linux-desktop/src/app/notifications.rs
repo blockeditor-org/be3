@@ -12,7 +12,7 @@ use block_editor_beui::beui::styled::{
     Button, ButtonVariant, Caption, Heading, IconButton, IconButtonSize, ListRow, Scroll, use_theme,
 };
 use block_editor_beui::beui::unstyled::PopoverHandle;
-use block_editor_beui::{Editor, HostNotification};
+use block_editor_beui::{Editor, HostNotification, NotificationAction, Notifications};
 
 use super::bar::local_minutes;
 use super::popup::BarPopup;
@@ -29,7 +29,7 @@ fn received_at(received: u64) -> String {
 
 #[component]
 pub(crate) fn NotificationsButton(editor: Editor) -> NodeId {
-    let notifications = editor.notifications();
+    let notifications = editor.host_value::<Notifications>();
     let glyph = create_memo(clone!(notifications -> move || {
         match notifications.with(Vec::is_empty) {
             true => ICON_NOTIFICATIONS.to_owned(),
@@ -59,15 +59,18 @@ pub(crate) fn NotificationsButton(editor: Editor) -> NodeId {
 
 #[component]
 fn NotificationList(editor: Editor, popover: PopoverHandle) -> NodeId {
-    let notifications = editor.notifications();
+    let notifications = editor.host_value::<Notifications>();
     let empty = create_memo(clone!(notifications -> move || notifications.with(Vec::is_empty)));
     let unclearable = empty.clone();
     let some = create_memo(clone!(empty -> move || !empty.get()));
     let clearing = editor.clone();
     let cleared = notifications.clone();
     let clear = move || {
-        let ids = cleared.with_untracked(|listed| listed.iter().map(|shown| shown.id).collect());
-        clearing.dismiss_notifications(ids);
+        let ids: Vec<u32> =
+            cleared.with_untracked(|listed| listed.iter().map(|shown| shown.id).collect());
+        if !ids.is_empty() {
+            clearing.act(NotificationAction::Dismiss(ids));
+        }
     };
     view! {
         <List spacing=SPACING @test_id={"desktop.notifications.list"}>
@@ -131,10 +134,13 @@ fn NotificationRow(
     let dismissing = editor.clone();
     let activate = move || match activates {
         true => {
-            editor.invoke_notification(id, HostNotification::DEFAULT_ACTION.to_owned());
+            editor.act(NotificationAction::Invoke {
+                id,
+                action: HostNotification::DEFAULT_ACTION.to_owned(),
+            });
             popover.close.call(());
         }
-        false => editor.dismiss_notifications(vec![id]),
+        false => editor.act(NotificationAction::Dismiss(vec![id])),
     };
     let source = match notification.app_name.is_empty() {
         true => received_at(notification.received),
@@ -184,7 +190,7 @@ fn NotificationRow(
                 variant=ButtonVariant::Ghost
                 size=IconButtonSize::Compact
                 @test_id={format!("desktop.notifications.{id}.dismiss")}
-                on_click={move || dismissing.dismiss_notifications(vec![id])}
+                on_click={move || dismissing.act(NotificationAction::Dismiss(vec![id]))}
             />
         </List>
     }

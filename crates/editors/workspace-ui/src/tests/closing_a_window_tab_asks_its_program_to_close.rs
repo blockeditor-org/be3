@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn closing_a_window_tab_asks_its_program_to_close() {
     let (mut fixture, _) = editor();
-    fixture.host.set_windows(vec![window(3, "Terminal", None)]);
+    fixture.host.set_host_value::<HostWindows>(&vec![window(3, "Terminal", None)]);
     fixture.settle();
 
     let tab = (1u64 << 41) + 3;
@@ -11,13 +11,10 @@ fn closing_a_window_tab_asks_its_program_to_close() {
     fixture.settle();
 
     assert!(
-        fixture.test.sent().iter().any(|message| matches!(
-            message,
-            block_plugin_api::EditorMessage::CloseWindow {
-                window: block_editor_beui::HostWindowId(3),
-                ..
-            }
-        )),
+        fixture
+            .test
+            .actions::<WindowAction>()
+            .contains(&WindowAction::Close(block_editor_beui::HostWindowId(3))),
         "the host is asked to close the window"
     );
     assert_eq!(
@@ -29,7 +26,7 @@ fn closing_a_window_tab_asks_its_program_to_close() {
         "the tab stays while its program decides"
     );
 
-    fixture.host.set_windows(Vec::new());
+    fixture.host.set_host_value::<HostWindows>(&Vec::new());
     fixture.settle();
 
     assert!(
