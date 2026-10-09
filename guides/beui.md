@@ -1822,8 +1822,14 @@ walk settles after every node and blames the node that left something queued.
 ### Update a document from outside its events
 
 Component callbacks run with their `Document` installed, so signal writes from
-clicks and key events need no special handling. A host-driven update happens
-outside that context and must enter the document's reactive scope:
+clicks and key events need no special handling. A signal may also be written
+from anywhere else on the thread - the host's frame code, a callback the host
+makes between frames - with no document installed. The effects that belong to
+a document wait for it, and run the next time it is entered, which `show` does
+at the start of every frame; `beui::reactive::zone_pending(document.zone())`
+says whether any are waiting. A host that writes between frames asks for a
+frame as it would for any other change. To have the effects run at once,
+enter the document's reactive scope:
 
 ```rust
 use beui::reactive::{WriteSignal, with_reactive_scope};

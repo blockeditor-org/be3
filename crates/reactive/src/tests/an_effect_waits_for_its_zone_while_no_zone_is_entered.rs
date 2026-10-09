@@ -1,8 +1,8 @@
 use super::*;
-use crate::enter_zone;
+use crate::{enter_zone, zone_pending};
 
 #[test]
-fn effects_of_every_zone_run_when_no_zone_is_entered() {
+fn an_effect_waits_for_its_zone_while_no_zone_is_entered() {
     let seen = Rc::new(Cell::new(0));
     let (count, set_count) = create_signal(0);
     let scope = Scope::new();
@@ -15,6 +15,9 @@ fn effects_of_every_zone_run_when_no_zone_is_entered() {
     }
 
     set_count.set(5);
+    assert_eq!(seen.get(), 0);
+    assert!(zone_pending(3));
 
+    let _zone = enter_zone(3);
     assert_eq!(seen.get(), 5);
 }
