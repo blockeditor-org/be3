@@ -59,7 +59,11 @@ impl Watched {
     }
 
     pub(super) fn act(&mut self, key: String, action: Vec<u8>, shell: bool) -> bool {
-        let queued = self.actions.iter().filter(|(listed, _)| *listed == key).count();
+        let queued = self
+            .actions
+            .iter()
+            .filter(|(listed, _)| *listed == key)
+            .count();
         if !allowed(ACTIONS, &key, shell) || queued >= MAX_ACTIONS {
             return false;
         }
