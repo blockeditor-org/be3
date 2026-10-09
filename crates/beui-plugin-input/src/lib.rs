@@ -1,6 +1,6 @@
 use block_plugin_api::{
-    BackEdge, BackPhase, CursorIcon, FilePick, ImeInput, ImeText, Key, Modifiers, PointerButton,
-    TouchPhase,
+    BackEdge, BackPhase, CursorIcon, FilePick, ImeInput, ImeText, Key, KeyChord, Modifiers,
+    PointerButton, TouchPhase,
 };
 
 pub fn protocol_modifiers(modifiers: beui::Modifiers) -> Modifiers {
@@ -10,6 +10,29 @@ pub fn protocol_modifiers(modifiers: beui::Modifiers) -> Modifiers {
         shift: modifiers.shift,
         logo: modifiers.logo,
     }
+}
+
+pub fn beui_modifiers(modifiers: Modifiers) -> beui::Modifiers {
+    beui::Modifiers {
+        alt: modifiers.alt,
+        ctrl: modifiers.control,
+        shift: modifiers.shift,
+        logo: modifiers.logo,
+    }
+}
+
+pub fn protocol_chord(chord: beui::KeyChord) -> KeyChord {
+    KeyChord {
+        key: protocol_key(chord.key),
+        modifiers: protocol_modifiers(chord.modifiers),
+    }
+}
+
+pub fn beui_chord(chord: KeyChord) -> Option<beui::KeyChord> {
+    Some(beui::KeyChord {
+        key: beui_key(chord.key)?,
+        modifiers: beui_modifiers(chord.modifiers),
+    })
 }
 
 pub fn pointer_button(button: beui::PointerButton) -> PointerButton {

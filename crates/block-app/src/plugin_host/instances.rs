@@ -134,6 +134,7 @@ struct Instance {
     power_request: Option<block_plugin_api::PowerAction>,
     closed_windows: Vec<block_plugin_api::HostWindowId>,
     fullscreen_windows: Vec<(block_plugin_api::HostWindowId, bool)>,
+    focused_windows: Vec<block_plugin_api::HostWindowId>,
     grabbed: bool,
     web_views: HashMap<WebViewId, WebViewHost>,
     presence_visible: Option<bool>,
@@ -318,6 +319,7 @@ impl Instance {
             power_request: None,
             closed_windows: Vec::new(),
             fullscreen_windows: Vec::new(),
+            focused_windows: Vec::new(),
             grabbed: false,
             web_views: HashMap::new(),
             presence_visible: None,
@@ -832,6 +834,32 @@ impl Instances {
         vec![Message::Input(block_plugin_api::InputBatch {
             screen: screen.request.screen,
             events: vec![screen.input.back(gesture)],
+        })]
+    }
+
+    pub(super) fn intercepted(
+        &mut self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+        press: Option<beui::KeyPress>,
+        modifiers: beui::Modifiers,
+    ) -> Vec<Message> {
+        let announced = &self.announced;
+        let Some(screen) = self
+            .entries
+            .get_mut(&instance)
+            .and_then(|entry| entry.screens.get_mut(&region))
+            .filter(|screen| announced.contains(&screen.request.screen))
+        else {
+            return Vec::new();
+        };
+        let events = screen.input.intercepted(press, modifiers);
+        if events.is_empty() {
+            return Vec::new();
+        }
+        vec![Message::Input(block_plugin_api::InputBatch {
+            screen: screen.request.screen,
+            events,
         })]
     }
 
@@ -2341,6 +2369,9 @@ impl Instances {
                     LinuxMessage::FullscreenWindow { window, fullscreen } => {
                         entry.fullscreen_windows.push((window, fullscreen));
                     }
+                    LinuxMessage::FocusWindow(window) => {
+                        entry.focused_windows.push(window);
+                    }
                     LinuxMessage::Windows(_)
                     | LinuxMessage::InputDevices(_)
                     | LinuxMessage::Displays(_)
@@ -2939,6 +2970,16 @@ impl Instances {
         self.entries
             .get_mut(&instance)
             .map(|entry| std::mem::take(&mut entry.closed_windows))
+            .unwrap_or_default()
+    }
+
+    pub(super) fn take_focused_windows(
+        &mut self,
+        instance: EditorInstanceId,
+    ) -> Vec<block_plugin_api::HostWindowId> {
+        self.entries
+            .get_mut(&instance)
+            .map(|entry| std::mem::take(&mut entry.focused_windows))
             .unwrap_or_default()
     }
 

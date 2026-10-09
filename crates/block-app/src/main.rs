@@ -1440,17 +1440,21 @@ impl BlockApp {
             self.windows_sent = Some((shell, wayland::revision()));
             wayland::listed()
         });
-        let Some((closed, fullscreen)) = self.with_editor(shell, |editor| {
+        let Some((closed, fullscreen, focused)) = self.with_editor(shell, |editor| {
             if let Some(windows) = windows {
                 editor.set_windows(windows);
             }
             (
                 editor.take_closed_windows(),
                 editor.take_fullscreen_windows(),
+                editor.take_focused_windows(),
             )
         }) else {
             return;
         };
+        for window in focused {
+            wayland::focus(window);
+        }
         for window in closed {
             wayland::close(window);
         }

@@ -14,6 +14,7 @@ pub struct HostWindow {
     pub size: Size,
     pub fullscreen: Option<ChildRect>,
     pub responding: bool,
+    pub focused: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -85,6 +86,7 @@ pub enum LinuxMessage {
         window: HostWindowId,
         fullscreen: bool,
     },
+    FocusWindow(HostWindowId),
     WatchPower,
     Power(PowerAvailability),
     RequestPower(PowerAction),
@@ -99,6 +101,7 @@ impl LinuxMessage {
             Self::WatchInputDevices
             | Self::WatchDisplays
             | Self::FullscreenWindow { .. }
+            | Self::FocusWindow(_)
             | Self::WatchPower
             | Self::RequestPower(_) => Direction::ToHost,
         }

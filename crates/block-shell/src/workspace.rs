@@ -1002,6 +1002,14 @@ pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<Ta
             ))
         })
     });
+    let listed = workspace.windows.clone();
+    let focused = create_memo(move || {
+        listed.with(|windows| {
+            windows
+                .iter()
+                .any(|listed| listed.id == window && listed.focused)
+        })
+    });
     let closing = Rc::clone(&workspace);
     let editor = workspace.editor().clone();
     view! {
@@ -1017,6 +1025,7 @@ pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<Ta
                 fullscreen={fullscreen.clone()}
                 name={name.clone()}
                 responding={responding.clone()}
+                focused={focused.clone()}
             />
         </DockTab>
     }

@@ -1,6 +1,6 @@
 use beui_core::context::Context;
 use beui_core::file_picker::{FilePickId, FilePickRequest};
-use beui_core::input::{CursorIcon, ImeArea};
+use beui_core::input::{CursorIcon, ImeArea, KeyChord};
 use beui_core::runner::Platform;
 use block_editor_plugin::EditorHost;
 
@@ -10,6 +10,7 @@ pub(crate) struct HostPlatform {
     pub(crate) cursor: block_plugin_api::CursorIcon,
     pub(crate) ime: Option<ImeArea>,
     pub(crate) handles_back: bool,
+    pub(crate) intercepted_keys: Vec<block_plugin_api::KeyChord>,
     pub(crate) locked: bool,
 }
 
@@ -21,6 +22,7 @@ impl HostPlatform {
             cursor: block_plugin_api::CursorIcon::Default,
             ime: None,
             handles_back: false,
+            intercepted_keys: Vec::new(),
             locked: false,
         }
     }
@@ -66,6 +68,13 @@ impl Platform for HostPlatform {
 
     fn set_handles_back(&mut self, handles: bool) {
         self.handles_back = handles;
+    }
+
+    fn set_intercepted_keys(&mut self, chords: &[KeyChord]) {
+        self.intercepted_keys = chords
+            .iter()
+            .map(|chord| beui_plugin_input::protocol_chord(*chord))
+            .collect();
     }
 
     fn show_ime(&mut self, ime: Option<&ImeArea>) {

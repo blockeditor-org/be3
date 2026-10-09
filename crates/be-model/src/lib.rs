@@ -11,6 +11,9 @@ mod history;
 mod items;
 mod latest;
 mod merge;
+pub mod references;
+pub mod schema;
+mod stored;
 mod text;
 mod tree;
 
@@ -20,7 +23,10 @@ pub use grid::{Bounds, Cell, Cells, Grid, Paint};
 pub use history::Step;
 pub use items::Items;
 pub use latest::{Latest, LatestMap, Stamp, Stamped};
+pub use references::BlockRef;
+pub use schema::{Kind, Property, Shape};
 pub use sequence::{LOADED, Pos, SeqOp, Sequence, Span, Splice};
+pub use stored::{BLOB_REF, BLOCK_REF, CRITICAL, Stored};
 pub use text::Text;
 pub use tree::Tree;
 
@@ -96,15 +102,40 @@ pub enum Value {
     Text(Sequence<u8>),
 }
 
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Kept {
+    kind: Option<String>,
+    properties: BTreeMap<String, Vec<u8>>,
+}
+
+impl Kept {
+    pub fn kind(&self) -> Option<&str> {
+        self.kind.as_deref()
+    }
+
+    pub fn properties(&self) -> &BTreeMap<String, Vec<u8>> {
+        &self.properties
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.kind.is_none() && self.properties.is_empty()
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Object {
     parent: Option<Place>,
     fields: Vec<Value>,
+    kept: Kept,
 }
 
 impl Object {
     pub fn new(parent: Option<Place>, fields: Vec<Value>) -> Self {
-        Self { parent, fields }
+        Self {
+            parent,
+            fields,
+            kept: Kept::default(),
+        }
     }
 
     pub fn parent(&self) -> Option<Place> {
@@ -113,6 +144,19 @@ impl Object {
 
     pub fn fields(&self) -> &[Value] {
         &self.fields
+    }
+
+    pub fn kept(&self) -> &Kept {
+        &self.kept
+    }
+
+    pub fn is_locked(&self) -> bool {
+        self.kept.kind.is_some()
+            || self
+                .kept
+                .properties
+                .values()
+                .any(|bytes| stored::is_critical(bytes))
     }
 }
 
@@ -226,7 +270,7 @@ pub trait Model: Sized {
 
     fn write(&self, id: ObjectId, parent: Option<Place>, out: &mut Vec<(ObjectId, Object)>);
 
-    fn upgrade(tree: &mut Tree, id: ObjectId);
+    fn kind() -> Kind;
 }
 
 #[derive(Debug)]
@@ -311,13 +355,23 @@ impl<R: Model> Document<R> {
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
-        self.tree.encode()
+        stored::save(&self.tree, &R::kind())
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Malformed> {
-        let mut tree = Tree::decode(bytes)?;
-        R::upgrade(&mut tree, ObjectId::ROOT);
-        Ok(Self::from_tree(tree))
+        stored::load(bytes, &R::kind()).map(Self::from_tree)
+    }
+
+    pub fn to_stored(&self) -> Stored {
+        stored::document(&self.tree, &R::kind())
+    }
+
+    pub fn is_locked(&self, id: ObjectId) -> bool {
+        self.tree.object(id).is_some_and(Object::is_locked)
+    }
+
+    pub fn block_refs(&self) -> Vec<Uuid> {
+        references::collect(&self.tree, &R::kind())
     }
 
     pub fn text<M>(&self, object: ObjectId, field: FieldRef<M, Text>) -> Option<&Sequence<u8>> {
@@ -378,7 +432,7 @@ impl<R> fmt::Debug for Document<R> {
     }
 }
 
-pub(crate) type Objects = BTreeMap<ObjectId, Object>;
+pub type Objects = BTreeMap<ObjectId, Object>;
 
 #[cfg(any(test, feature = "fuzzing"))]
 pub mod fuzz;
