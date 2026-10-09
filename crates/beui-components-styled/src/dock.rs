@@ -18,6 +18,7 @@ use beui_components_unstyled::{
 use beui_core::base::{Align, Direction, ItemSize, Justify};
 use beui_core::color::Color32;
 use beui_core::icons::{ICON_CLOSE, ICON_DRAG_INDICATOR, ICON_MORE_VERT, ICON_TAB_GROUP};
+use beui_core::input::Modifiers;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Action, Children, ClickCallback, DynamicSegment, ForEach, Frame, List, ListChild, Memo, Prop,
@@ -53,6 +54,7 @@ pub fn Docking<K>(
     #[prop(default = DockMode::Tiled)] mode: Prop<DockMode>,
     #[prop(default = None)] home: Prop<Option<K>>,
     #[prop(default = None)] focus: Prop<Option<K>>,
+    #[prop(default = None)] drag_modifier: Prop<Option<Modifiers>>,
     children: Children<DockNode<K>>,
 ) -> NodeId
 where
@@ -75,6 +77,7 @@ where
             mode
             home
             focus
+            drag_modifier
             inset={padding}
             group_inset=GROUP_INSET
             menu={menu_style()}

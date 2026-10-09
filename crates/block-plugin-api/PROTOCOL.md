@@ -338,6 +338,16 @@ floating rectangles, so a menu opened by an editor underneath still falls over
 the frame above it. The two passes are cut into disjoint rectangles, so no
 pixel is blended twice.
 
+A frame report may also carry press claims: a set of modifiers and a
+rectangle. While every one of those modifiers is held, a pointer press inside
+the rectangle belongs to the instance itself, not to the children placed
+under it there: the host delivers that press, its drag and its release to the
+instance, and none of it to the child (another editor, or a program's
+window). A window manager written as a plugin claims the windows it places
+this way, so a drag with the modifier held moves or resizes the window rather
+than reaching the program inside it. The claims of an editor nested in another
+yield to the claims of the editor around it.
+
 An instance whose chrome is only reserved keeps the bands exactly where they
 were and paints nothing in them, so selecting or leaving a child moves neither
 its content nor the view it holds. The instance that draws the chrome also

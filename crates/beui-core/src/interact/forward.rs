@@ -25,12 +25,17 @@ pub struct Routing {
     buttons: u8,
     touches: HashMap<(u64, u64), NodeId>,
     swallowed: bool,
+    claimed: Option<NodeId>,
 }
 
 impl Routing {
     pub(crate) fn swallow_press(&mut self) {
         self.swallowed = true;
         self.captor = None;
+    }
+
+    pub(crate) fn claim_press(&mut self, sink: NodeId) {
+        self.claimed = Some(sink);
     }
 }
 
@@ -197,7 +202,8 @@ pub(super) fn route(
                 pressed,
                 ..
             } => {
-                let to = routing.captor.or_else(|| pressed_at(doc, *pos));
+                let claimed = routing.claimed.filter(|_| *pressed);
+                let to = routing.captor.or(claimed).or_else(|| pressed_at(doc, *pos));
                 deliver(to, event);
                 match (pressed, to) {
                     (true, Some(to)) => {
@@ -244,6 +250,7 @@ pub(super) fn route(
             Event::Focus(true) | Event::Back(_) | Event::InterceptedKey(_) => {}
         }
     }
+    routing.claimed = None;
     let held = ctx.input(|input| {
         [
             (input.pointer.primary_down, PointerButton::Primary),
