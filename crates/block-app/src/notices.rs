@@ -26,6 +26,7 @@ pub(crate) fn report(message: String) {
             id,
             message,
             danger: true,
+            ..Toast::default()
         });
     });
     crate::host::wake();

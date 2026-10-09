@@ -8,7 +8,8 @@ mod manifest;
 mod session;
 pub use block_ids::BlockIdRole;
 pub use linux::{
-    HostDisplay, HostDisplayMode, HostInputDevice, HostWindow, HostWindowId, LinuxMessage,
+    HostDisplay, HostDisplayMode, HostInputDevice, HostNotification, HostNotificationAction,
+    HostWindow, HostWindowId, LinuxMessage, MediaLevel, MediaLevels, MediaRequest, PlayerCommand,
     PowerAction, PowerAvailability,
 };
 pub use manifest::{
@@ -2647,7 +2648,27 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             | LinuxMessage::FocusWindow(_)
             | LinuxMessage::WatchPower
             | LinuxMessage::Power(_)
-            | LinuxMessage::RequestPower(_) => Ok(()),
+            | LinuxMessage::RequestPower(_)
+            | LinuxMessage::WatchMedia
+            | LinuxMessage::Media(_)
+            | LinuxMessage::RequestMedia(_)
+            | LinuxMessage::WatchNotifications => Ok(()),
+            LinuxMessage::Notifications(notifications) => {
+                collection(notifications.len())?;
+                for notification in notifications {
+                    string(&notification.app_name)?;
+                    string(&notification.summary)?;
+                    string(&notification.body)?;
+                    collection(notification.actions.len())?;
+                    for action in &notification.actions {
+                        string(&action.key)?;
+                        string(&action.label)?;
+                    }
+                }
+                Ok(())
+            }
+            LinuxMessage::InvokeNotification { action, .. } => string(action),
+            LinuxMessage::DismissNotifications(ids) => collection(ids.len()),
         },
         EditorMessage::Menu { entries, .. } => menu(entries),
         EditorMessage::MenuPick { id, .. } | EditorMessage::ChildMenuPick { id, .. } => string(id),

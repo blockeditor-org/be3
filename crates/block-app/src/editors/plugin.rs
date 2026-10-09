@@ -483,9 +483,29 @@ impl PluginEditor {
     }
 
     #[cfg(target_os = "linux")]
+    pub(crate) fn take_notification_requests(&self) -> Vec<block_plugin_api::LinuxMessage> {
+        match &self.plugin {
+            Some(plugin) => {
+                crate::plugin_host::take_notification_requests(&plugin.identity.id, self.instance)
+            }
+            None => Vec::new(),
+        }
+    }
+
+    #[cfg(target_os = "linux")]
     pub(crate) fn take_power_request(&self) -> Option<block_plugin_api::PowerAction> {
         let plugin = self.plugin.as_ref()?;
         crate::plugin_host::take_power_request(&plugin.identity.id, self.instance)
+    }
+
+    #[cfg(target_os = "linux")]
+    pub(crate) fn take_media_requests(&self) -> Vec<block_plugin_api::MediaRequest> {
+        match &self.plugin {
+            Some(plugin) => {
+                crate::plugin_host::take_media_requests(&plugin.identity.id, self.instance)
+            }
+            None => Vec::new(),
+        }
     }
 
     pub(crate) fn take_closed_windows(&self) -> Vec<block_plugin_api::HostWindowId> {

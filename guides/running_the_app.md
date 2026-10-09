@@ -82,7 +82,69 @@ seconds before the session ends or logind is asked to restart or power off) and
 signal. Every D-Bus conversation runs on one thread, `src/dbus.rs`: `dbus::spawn` runs a
 future there and `dbus::system()` is the shared system bus connection. A task hands what it
 learns back through `host::waking_channel`, which wakes the event loop, so nothing on the UI
-thread waits on the bus.
+thread waits on the bus. `dbus::session()` is the shared session bus connection.
+
+## Notifications
+
+The desktop shell (`--session` and `--desktop`) serves `org.freedesktop.Notifications` on the
+session bus from `src/notifications/server.rs`, asking for the name without replacing an owner,
+so under another desktop that already runs a notification daemon it logs that and serves
+nothing. The D-Bus side reads the hints and loads the picture (image-data, image-path, the
+app icon through be-wayland's `IconThemes`, then the desktop entry's icon) and hands each
+`Notify` to the UI thread, which answers with its id. `notifications/center.rs` holds what
+happens to them, and is where to test it: ids and `replaces_id`, the toast's timeout (-1 is
+five seconds, 0 and critical urgency never), actions, `resident` and `transient`, and the
+reason every `NotificationClosed` carries. A toast whose time is up only hides: the
+notification stays until it is dismissed, an action is taken or its program closes it, which
+is the `persistence` capability, except a transient one, which closes as expired.
+
+Each shows as one of the host's toasts (`beui::styled::Toasts`, with a title, picture and
+action buttons; clicking the body is the `default` action). The desktop bar's bell lists
+them, newest first: linux-desktop watches them with `LinuxMessage::WatchNotifications` and
+answers with `InvokeNotification` and `DismissNotifications`.
+
+To try it, start a session bus of its own (`dbus-daemon --session --fork --print-address`
+prints its address; `notify-send` is in the `libnotify-bin` package), and run the dev app and
+every client with `DBUS_SESSION_BUS_ADDRESS` set to it:
+
+    DBUS_SESSION_BUS_ADDRESS=ADDRESS ./scripts/buck run //crates/block-app:dev -- --desktop
+    DBUS_SESSION_BUS_ADDRESS=ADDRESS gdbus monitor --session -d org.freedesktop.Notifications
+    DBUS_SESSION_BUS_ADDRESS=ADDRESS notify-send --action=default=Open --action=reply=Reply Mail 'Lunch at noon?'
+
+Start the monitor (in the background, or another shell) before `notify-send`, so it sees the
+signals.
+
+`notify-send` with an action waits, and prints the action taken, until the notification
+closes. `dbus-run-session` does not suit `:dev`, since its bus goes away when the launcher
+returns.
+
+## Media and hardware keys
+
+linux-desktop binds the volume, mute, mic mute, brightness and media transport keys
+(`BINDINGS` in its `app/media.rs`, the one place that says which key does what) as
+intercepting actions, so the host hands them to the shell even while a program has the keyboard,
+and a held key repeats. Each key sends a `MediaRequest` (`LinuxMessage::RequestMedia`), and
+a volume, mute or brightness key shows `beui::styled::LevelOsd`, an icon and a level bar that
+fades out after 1.5 seconds, with the levels the host reports (`editor.media()`, from
+`LinuxMessage::Media`).
+
+block-app does what a plugin cannot: `src/media.rs` starts its backends once a plugin watches
+the levels or the shell asks for something, carries out the shell's requests only, and reports
+the levels back. The backends run as tasks on the D-Bus thread:
+- `media/audio.rs`: volume steps up to 100%, set volume, mute and mic mute on the default sink
+  and source, over the PulseAudio protocol (the `pulseaudio` crate's protocol layer, pure Rust),
+  which pipewire-pulse serves on `$XDG_RUNTIME_DIR/pulse/native`. It subscribes to the server's
+  sink, source and server events and reports every change.
+- `media/backlight.rs`: brightness steps through logind's `Session.SetBrightness` on
+  `/sys/class/backlight`'s device (firmware before platform before raw).
+- `media/players.rs`: play/pause, next, previous and stop to the MPRIS player that most
+  recently started playing, or the first one listed, on the session bus.
+
+A desktop the window is nested in usually takes these keys first; to try them under
+`:dev -- --desktop`, run `pipewire`, `wireplumber` and `pipewire-pulse` with `XDG_RUNTIME_DIR`
+and `DBUS_SESSION_BUS_ADDRESS` set for the app, and press them with
+`xdotool key --window $WINDOW XF86AudioRaiseVolume` (or `XF86AudioMicMute`, `XF86AudioPlay`,
+...).
 
 ## The lock screen
 
@@ -109,7 +171,10 @@ While it is locked, three things keep input from everything behind it: the lock 
 the focus, and while it is open `Document::key_global` hears only media keys (no other global action, no plugin's
 intercepted chord, no Alt+Tab); `be_wayland::Compositor::set_locked` takes the keyboard and pointer
 from every window and forwards no input; and the launcher and app menu are closed. Screens still
-turn off while locked, and idle inhibitors from the windows behind it are ignored.
+turn off while locked, and idle inhibitors from the windows behind it are ignored. Media keys
+still reach linux-desktop's intercepting media actions (through `compositor/intercept.rs`'s
+`on_global_key`), so volume and playback work over the lock. Notification toasts are left out of
+the host's toasts and can't be acted on while locked; they show again once it is unlocked.
 `ext-session-lock-v1` (external lockers such as swaylock) is not implemented.
 
 ## Wayland programs

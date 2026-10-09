@@ -54,6 +54,8 @@ struct Host {
     input_devices: Vec<block_plugin_api::HostInputDevice>,
     displays: Vec<block_plugin_api::HostDisplay>,
     power: block_plugin_api::PowerAvailability,
+    media: block_plugin_api::MediaLevels,
+    notifications: std::sync::Arc<Vec<block_plugin_api::HostNotification>>,
     grabbed: bool,
 }
 
@@ -69,6 +71,8 @@ impl Host {
             input_devices: Vec::new(),
             displays: Vec::new(),
             power: block_plugin_api::PowerAvailability::default(),
+            media: block_plugin_api::MediaLevels::default(),
+            notifications: std::sync::Arc::default(),
             grabbed: false,
         }
     }
@@ -84,6 +88,8 @@ impl Host {
         let devices = &self.input_devices;
         let displays = &self.displays;
         let power = self.power;
+        let media = self.media;
+        let notifications = &self.notifications;
         let runtime = self
             .runtimes
             .entry(plugin.identity.id.clone())
@@ -92,6 +98,10 @@ impl Host {
                 runtime.instances.set_input_devices(devices.clone());
                 runtime.instances.set_displays(displays.clone());
                 runtime.instances.set_power(power);
+                runtime.instances.set_media(media);
+                runtime
+                    .instances
+                    .set_notifications(std::sync::Arc::clone(notifications));
                 runtime
             });
         runtime.instances.set_focus(focus);
@@ -989,6 +999,78 @@ pub(crate) fn set_power(power: block_plugin_api::PowerAvailability) {
         }
     });
     host::request_repaint();
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn set_media(media: block_plugin_api::MediaLevels) {
+    HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        if host.media == media {
+            return;
+        }
+        host.media = media;
+        for (plugin_id, runtime) in &mut host.runtimes {
+            if runtime.instances.set_media(media) {
+                runtime.pacing.needed = true;
+                mark(plugin_id);
+            }
+        }
+    });
+    host::request_repaint();
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn watches_media() -> bool {
+    HOST.with(|host| {
+        host.borrow()
+            .runtimes
+            .values()
+            .any(|runtime| runtime.instances.watches_media())
+    })
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn take_media_requests(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+) -> Vec<block_plugin_api::MediaRequest> {
+    with(plugin_id, |runtime| {
+        runtime.instances.take_media_requests(instance)
+    })
+    .unwrap_or_default()
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn set_notifications(notifications: Vec<block_plugin_api::HostNotification>) {
+    HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        if *host.notifications == notifications {
+            return;
+        }
+        let notifications = std::sync::Arc::new(notifications);
+        host.notifications = std::sync::Arc::clone(&notifications);
+        for (plugin_id, runtime) in &mut host.runtimes {
+            if runtime
+                .instances
+                .set_notifications(std::sync::Arc::clone(&notifications))
+            {
+                runtime.pacing.needed = true;
+                mark(plugin_id);
+            }
+        }
+    });
+    host::request_repaint();
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn take_notification_requests(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+) -> Vec<block_plugin_api::LinuxMessage> {
+    with(plugin_id, |runtime| {
+        runtime.instances.take_notification_requests(instance)
+    })
+    .unwrap_or_default()
 }
 
 #[cfg(target_os = "linux")]

@@ -1,5 +1,7 @@
 mod bar;
 mod calendar;
+pub(crate) mod media;
+mod notifications;
 mod popup;
 mod power;
 mod sessions;
@@ -22,6 +24,7 @@ use block_shell::{
 };
 
 use bar::DesktopBar;
+use media::MediaKeys;
 
 const WINDOW_ORIGIN: f32 = 48.0;
 const WINDOW_CASCADE: f32 = 32.0;
@@ -73,6 +76,7 @@ fn DesktopBody(workspace: Rc<Workspace>) -> NodeId {
     let bar = Rc::clone(&workspace);
     let pickers = Rc::clone(&workspace);
     let shell_dialogs = Rc::clone(&workspace);
+    let editor = workspace.editor().clone();
     let theme = use_theme();
     view! {
         <Frame @node_ref={&surface} color={theme.background.clone()}>
@@ -107,6 +111,7 @@ fn DesktopBody(workspace: Rc<Workspace>) -> NodeId {
                 <DesktopBar workspace={bar} />
                 <PickerDialogs workspace={pickers} />
                 <WorkspaceDialogs workspace={shell_dialogs} />
+                <MediaKeys editor anchor={surface.clone()} />
             </List>
         </Frame>
     }

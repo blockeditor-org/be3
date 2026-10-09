@@ -1,10 +1,9 @@
 use std::rc::Rc;
 use std::time::Duration;
 
-use block_editor_beui::be_block::WORKSPACE_EDITOR;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::datetime::{HourCycle, Time};
-use block_editor_beui::beui::icons::{ICON_APPS, ICON_MENU, ICON_WORKSPACES};
+use block_editor_beui::beui::icons::{ICON_ADD, ICON_APPS, ICON_MENU, ICON_WORKSPACES};
 use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, ReadSignal, Spacer, clone, component,
     create_memo, create_signal, create_timer, now, view,
@@ -15,16 +14,17 @@ use block_editor_beui::utc_offset;
 use block_shell::Workspace;
 
 use super::calendar::{CALENDAR_WIDTH, DesktopCalendar};
+use super::notifications::NotificationsButton;
 use super::popup::BarPopup;
 use super::power::PowerMenu;
-use super::sessions::sessions;
+use super::sessions::Sessions;
 
 const BAR_PADDING: f32 = 6.0;
 const BAR_SPACING: f32 = 8.0;
 const SECONDS_PER_MINUTE: u64 = 60;
 const SECONDS_PER_DAY: i64 = 24 * 60 * 60;
 
-fn local_minutes(unix: Duration) -> u32 {
+pub(crate) fn local_minutes(unix: Duration) -> u32 {
     let seconds = i64::try_from(unix.as_secs()).unwrap_or(0) + i64::from(utc_offset());
     let minutes = seconds.rem_euclid(SECONDS_PER_DAY) / 60;
     u32::try_from(minutes).unwrap_or(0)
@@ -54,23 +54,27 @@ pub(crate) fn DesktopBar(workspace: Rc<Workspace>) -> NodeId {
     let clock = wall_clock();
     let editor = workspace.editor().clone();
     let power = editor.clone();
+    let notified = editor.clone();
     let dated = editor.clone();
     let launching = editor.clone();
     let launcher = move || launching.host().show_launcher(launching.block_id());
     let menu = move || editor.host().show_app_menu(editor.block_id());
-    let listed = sessions(&workspace);
+    let sessions = Sessions::new(&workspace);
+    let listed = sessions.listed.clone();
     let keys = create_memo(clone!(listed -> move || {
         listed.with(|sessions| sessions.iter().map(|session| session.profile).collect::<Vec<_>>())
     }));
     let named = listed.clone();
-    let empty = create_memo(clone!(listed -> move || listed.with(Vec::is_empty)));
-    let opening = Rc::clone(&workspace);
+    let settings = sessions.settings.clone();
+    let unready = create_memo(move || settings.get().is_none());
+    let listing = create_memo(clone!(listed -> move || !listed.with(Vec::is_empty)));
+    let creating = sessions.clone();
     let chose = move |path: Vec<usize>| {
         let chosen = path
             .first()
             .and_then(|index| listed.with_untracked(|sessions| sessions.get(*index).cloned()));
         if let Some(session) = chosen {
-            opening.open_block(session.profile, WORKSPACE_EDITOR);
+            sessions.open(session.profile);
         }
     };
     view! {
@@ -98,7 +102,7 @@ pub(crate) fn DesktopBar(workspace: Rc<Workspace>) -> NodeId {
                     <MenuButton
                         label="Sessions"
                         glyph={ICON_WORKSPACES.to_owned()}
-                        disabled={empty}
+                        disabled={unready}
                         @test_id={"desktop.sessions"}
                         items={view! {
                             <ForEach keys={keys}>
@@ -118,10 +122,18 @@ pub(crate) fn DesktopBar(workspace: Rc<Workspace>) -> NodeId {
                                     }
                                 }}
                             </ForEach>
+                            <MenuItem
+                                row_test_id={"desktop.sessions.new".to_owned()}
+                                label="New session"
+                                glyph={ICON_ADD.to_owned()}
+                                separated={listing}
+                                on_click={move || creating.create()}
+                            />
                         }}
                         on_select={chose}
                     />
                     <Spacer @sizing=ItemSize::Percent(100.0) />
+                    <NotificationsButton editor={notified} />
                     <BarPopup label={clock} width=CALENDAR_WIDTH @test_id={"desktop.clock"}>
                         {move |_: PopoverHandle| view! {
                             <DesktopCalendar editor={dated.clone()} />
