@@ -884,6 +884,12 @@ reports whether anything would take back through
 activity's `setBackHandled`, and when nothing takes it the system's own back
 (to the home screen) plays instead.
 
+A modal overlay with `locks` set is a lock screen (`styled::LockScreen`): nothing the user
+does dismisses it, an overlay opened outside it while it is open goes beneath it, passive overlays
+outside it paint beneath it, the focus cannot leave it, and `Document::locked` is true, while which
+`on_global_key` handlers, global actions and `offer_app_key` hear nothing. Only its owner
+writing `open` false closes it.
+
 A **passive** one takes no input at all. It is painted above everything and is
 not on the stack, so the document underneath goes on answering the pointer and
 the keyboard as if it were not there. A tooltip is passive: hovering the thing

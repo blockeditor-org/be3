@@ -276,7 +276,9 @@ pub(crate) enum UiCommand {
     KeepDisplay,
     RevertDisplay,
     LockScreen,
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     Unlock(crate::password::Password),
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     LockPower(block_plugin_api::PowerAction),
 }
 

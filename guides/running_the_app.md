@@ -74,7 +74,7 @@ delivered before the screens went off is still delivered, so no key stays held. 
 turns the screens on itself and reports the wake through `DisplayControl::take_woken`, which
 block-app hands to `Compositor::woke` so the idle count restarts.
 
-The desktop bar's power button suspends, restarts, powers off or logs out. linux-desktop
+The desktop bar's power button locks, suspends, restarts, powers off or logs out. linux-desktop
 asks for what it may offer with `LinuxMessage::WatchPower` and sends `RequestPower`;
 `src/session/power.rs` decides what happens (programs are asked to close, and are given five
 seconds before the session ends or logind is asked to restart or power off) and
@@ -83,6 +83,34 @@ signal. Every D-Bus conversation runs on one thread, `src/dbus.rs`: `dbus::spawn
 future there and `dbus::system()` is the shared system bus connection. A task hands what it
 learns back through `host::waking_channel`, which wakes the event loop, so nothing on the UI
 thread waits on the bus.
+
+## The lock screen
+
+In the desktop shell (`--session` and `--desktop`) the screen locks on Super+L, the bar's power
+menu's Lock, idling for the display settings' "Lock the screen after" (by default when the screens
+turn off), and, under `--session`, logind's `Lock` for the app's own session (`loginctl
+lock-session`) and before every suspend: `DesktopSession` holds a logind `delay` inhibitor for
+sleep and lets it go once the lock screen has been drawn twice (`src/session/sleep.rs`), taking it
+again on waking. `src/session/lock.rs` is the state machine, `src/session.rs`'s `ScreenLock` runs
+it, and `src/ui/lock.rs` shows it as `styled::LockScreen`, a card on every screen of
+`display::screens()` over an opaque scrim. logind's `Unlock` is not obeyed: only a password unlocks.
+
+The password is checked by PAM on a thread of its own, with the service `block-app` when
+`/etc/pam.d/block-app` exists (`--install-session` writes it, as `auth include login`, unless one is
+there) and `login` otherwise. libpam is opened with `dlopen` when a password is checked, so the app
+does not link it. After three wrong passwords each attempt waits, from five seconds doubling up to
+a minute. Anything that goes wrong - no libpam, a PAM error, a check that panics, an answer to an
+earlier attempt - leaves the screen locked; only `Verdict::Accepted` for the attempt in flight
+unlocks it. Under `:dev` the app runs as the VM's user, so that user needs a password
+(`passwd`) for the lock to be tried.
+
+While it is locked, three things keep input from everything behind it: the lock is a beui
+`Overlay` with `locks` set, which nothing dismisses, which stays above every other overlay and keeps
+the focus, and while which `Document::key_global` hears nothing (no global action, no plugin's
+intercepted chord, no Alt+Tab); `be_wayland::Compositor::set_locked` takes the keyboard and pointer
+from every window and forwards no input; and the launcher and app menu are closed. Screens still
+turn off while locked, and idle inhibitors from the windows behind it are ignored.
+`ext-session-lock-v1` (external lockers such as swaylock) is not implemented.
 
 ## Wayland programs
 
