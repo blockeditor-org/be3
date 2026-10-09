@@ -7,7 +7,9 @@ use zbus::message::Type;
 use zbus::zvariant::OwnedValue;
 use zbus::{Connection, MatchRule, Message, MessageStream};
 
-use super::{PlayerRequest, Players};
+use block_plugin_api::PlayerCommand;
+
+use super::Players;
 
 const PREFIX: &str = "org.mpris.MediaPlayer2.";
 const PATH: &str = "/org/mpris/MediaPlayer2";
@@ -17,7 +19,7 @@ const BUS: &str = "org.freedesktop.DBus";
 const BUS_PATH: &str = "/org/freedesktop/DBus";
 
 pub(crate) struct Mpris {
-    requests: UnboundedSender<PlayerRequest>,
+    requests: UnboundedSender<PlayerCommand>,
 }
 
 impl Mpris {
@@ -29,7 +31,7 @@ impl Mpris {
 }
 
 impl Players for Mpris {
-    fn request(&self, request: PlayerRequest) {
+    fn request(&self, request: PlayerCommand) {
         let _ = self.requests.send(request);
     }
 }
@@ -67,7 +69,7 @@ impl Tracker {
     }
 }
 
-async fn run(mut requested: UnboundedReceiver<PlayerRequest>) {
+async fn run(mut requested: UnboundedReceiver<PlayerCommand>) {
     let Some(connection) = crate::dbus::session().await else {
         return;
     };
@@ -137,7 +139,7 @@ async fn list(connection: &Connection, tracker: &mut Tracker) -> zbus::Result<()
         .body()
         .deserialize()?;
     for name in names.iter().filter(|name| name.starts_with(PREFIX)) {
-        let owner: String = connection
+        let owner = connection
             .call_method(
                 Some(BUS),
                 BUS_PATH,
@@ -145,9 +147,11 @@ async fn list(connection: &Connection, tracker: &mut Tracker) -> zbus::Result<()
                 "GetNameOwner",
                 &(name.as_str(),),
             )
-            .await?
-            .body()
-            .deserialize()?;
+            .await
+            .and_then(|reply| reply.body().deserialize::<String>());
+        let Ok(owner) = owner else {
+            continue;
+        };
         tracker.appeared(name, &owner);
         let status = connection
             .call_method(
@@ -204,14 +208,23 @@ fn observe(tracker: &mut Tracker, message: &Message) {
     }
 }
 
-async fn send(connection: &Connection, tracker: &Tracker, request: PlayerRequest) {
+async fn send(connection: &Connection, tracker: &Tracker, request: PlayerCommand) {
     let Some(player) = tracker.target() else {
         return;
     };
     let sent = connection
-        .call_method(Some(player), PATH, Some(PLAYER), request.method(), &())
+        .call_method(Some(player), PATH, Some(PLAYER), method(request), &())
         .await;
     if let Err(error) = sent {
         eprintln!("block-app: the media player did not take {request:?}: {error}");
+    }
+}
+
+fn method(command: PlayerCommand) -> &'static str {
+    match command {
+        PlayerCommand::PlayPause => "PlayPause",
+        PlayerCommand::Next => "Next",
+        PlayerCommand::Previous => "Previous",
+        PlayerCommand::Stop => "Stop",
     }
 }

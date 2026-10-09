@@ -98,6 +98,8 @@ mod an_instance_watching_a_blocks_history_is_told_when_it_changes;
 mod an_instance_watching_displays_is_told_what_is_connected;
 mod an_instance_watching_input_devices_is_told_what_is_connected;
 #[cfg(target_os = "linux")]
+mod an_instance_watching_media_is_told_the_levels_and_its_requests_reach_the_host;
+#[cfg(target_os = "linux")]
 mod an_instance_watching_power_is_told_what_it_may_do_and_its_requests_reach_the_host;
 mod clearing_a_name_names_the_block_after_its_content_at_once;
 mod input_is_withheld_from_screens_the_plugin_no_longer_has;

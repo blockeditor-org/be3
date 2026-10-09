@@ -4,15 +4,18 @@ use block_editor_beui::be_block::{
 use block_editor_beui::beui::{Document, Key, KeyChord, Modifiers, NodeId, Rect};
 use block_editor_beui::{
     BlockInfo, BlockParent, ChildContent, Editor, EditorHost, HostWindow, HostWindowId,
-    PowerAction, PowerAvailability,
+    MediaLevel, MediaLevels, MediaRequest, PlayerCommand, PowerAction, PowerAvailability,
 };
 use block_plugin_api::{EditorMessage, LinuxMessage, Size};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
 use crate::app::LinuxDesktopApp;
+use crate::app::media::{BINDINGS, BRIGHTNESS_STEP, VOLUME_STEP};
 
 mod a_block_shown_on_the_desktop_opens_in_its_own_window;
+mod a_held_volume_key_keeps_turning_the_volume;
+mod a_volume_key_shows_the_level_the_host_reports_until_it_fades;
 mod a_calendar_the_desktop_no_longer_holds_is_replaced;
 mod a_session_chosen_from_the_menu_opens_in_a_window_and_closing_it_keeps_the_session;
 mod a_window_the_host_focuses_leads_the_window_switcher;
@@ -21,6 +24,7 @@ mod clicking_the_clock_opens_the_desktops_calendar_and_clicking_away_closes_it;
 mod escape_leaves_the_window_switcher_without_switching;
 mod the_calendar_popup_fits_a_narrow_screen;
 mod the_desktop_starts_with_nothing_open_but_its_bar;
+mod the_media_keys_ask_the_host_even_from_a_program_with_the_keyboard;
 mod the_power_menu_asks_before_ending_the_session;
 mod the_power_menu_offers_only_what_the_host_allows;
 mod the_programs_button_asks_the_host_for_its_launcher;

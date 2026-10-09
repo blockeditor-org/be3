@@ -13,6 +13,7 @@ mod input;
 mod keys;
 mod launcher;
 mod local_settings;
+#[cfg(target_os = "linux")]
 mod media;
 mod notices;
 mod panic_guard;
@@ -195,11 +196,9 @@ struct Shell {
 impl Shell {
     fn new(app: BlockApp) -> Self {
         let mut view = None;
-        let desktop = app.root_settings.shell() == be_block::LINUX_DESKTOP_EDITOR;
         let mut document = beui::reactive::build(|| {
             compositor::install();
             wayland::create();
-            media::install(desktop);
             surfaces::create_handles();
             let store = AppViewStore::new(AppView::default());
             view = Some(store.clone());
@@ -267,7 +266,6 @@ impl beui::App for Shell {
         let store = self.view.clone();
         beui::reactive::with_reactive_scope(&mut self.document, move || {
             compositor::notify();
-            media::frame();
             store.set(view);
         });
         #[cfg(target_arch = "wasm32")]
@@ -375,6 +373,8 @@ struct BlockApp {
     workspace_key: Option<[u8; 32]>,
     #[cfg(target_os = "linux")]
     desktop: Option<session::DesktopSession>,
+    #[cfg(target_os = "linux")]
+    media: Option<media::Media>,
 }
 
 type Account = SavedAccount;
@@ -557,6 +557,8 @@ impl BlockApp {
             workspace_key: None,
             #[cfg(target_os = "linux")]
             desktop: None,
+            #[cfg(target_os = "linux")]
+            media: None,
         })
     }
 
@@ -573,6 +575,27 @@ impl BlockApp {
             .flatten();
         if let Some(desktop) = &mut self.desktop {
             desktop.frame(context, request);
+        }
+        self.run_media();
+    }
+
+    #[cfg(target_os = "linux")]
+    fn run_media(&mut self) {
+        let requests = self
+            .shell
+            .and_then(|shell| self.with_editor(shell, |editor| editor.take_media_requests()))
+            .unwrap_or_default();
+        if self.media.is_none() && (!requests.is_empty() || plugin_host::watches_media()) {
+            self.media = Some(media::Media::start());
+        }
+        let Some(media) = &mut self.media else {
+            return;
+        };
+        for request in requests {
+            media.request(request);
+        }
+        if let Some(levels) = media.frame() {
+            plugin_host::set_media(levels);
         }
     }
 

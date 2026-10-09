@@ -942,6 +942,16 @@ impl<A: BeuiApp> BeuiTest<A> {
         })
     }
 
+    pub fn take_media_requests(&mut self) -> Vec<block_plugin_api::MediaRequest> {
+        self.take_where(|message| match message {
+            EditorMessage::Linux {
+                message: block_plugin_api::LinuxMessage::RequestMedia(request),
+                ..
+            } => Some(*request),
+            _ => None,
+        })
+    }
+
     pub fn take_version_commands(&mut self) -> Vec<(Uuid, block_editor_beui::VersionCommand)> {
         self.take_where(|message| match message {
             EditorMessage::VersionControl {
@@ -1047,15 +1057,22 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn app_key(&mut self, modifiers: Modifiers, key: Key) -> bool {
+        self.hold_app_key(modifiers, key, 0)
+    }
+
+    pub fn hold_app_key(&mut self, modifiers: Modifiers, key: Key, repeats: usize) -> bool {
         let chord = KeyChord { key, modifiers };
         if !self.intercepted_keys().contains(&chord) {
             return false;
         }
-        for pressed in [true, false] {
+        let presses = std::iter::once((true, false))
+            .chain(std::iter::repeat_n((true, true), repeats))
+            .chain(std::iter::once((false, false)));
+        for (pressed, repeat) in presses {
             self.push(Event::InterceptedKey(KeyPress {
                 key,
                 pressed,
-                repeat: false,
+                repeat,
                 modifiers,
             }));
         }

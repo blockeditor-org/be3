@@ -54,6 +54,7 @@ struct Host {
     input_devices: Vec<block_plugin_api::HostInputDevice>,
     displays: Vec<block_plugin_api::HostDisplay>,
     power: block_plugin_api::PowerAvailability,
+    media: block_plugin_api::MediaLevels,
     grabbed: bool,
 }
 
@@ -69,6 +70,7 @@ impl Host {
             input_devices: Vec::new(),
             displays: Vec::new(),
             power: block_plugin_api::PowerAvailability::default(),
+            media: block_plugin_api::MediaLevels::default(),
             grabbed: false,
         }
     }
@@ -84,6 +86,7 @@ impl Host {
         let devices = &self.input_devices;
         let displays = &self.displays;
         let power = self.power;
+        let media = self.media;
         let runtime = self
             .runtimes
             .entry(plugin.identity.id.clone())
@@ -92,6 +95,7 @@ impl Host {
                 runtime.instances.set_input_devices(devices.clone());
                 runtime.instances.set_displays(displays.clone());
                 runtime.instances.set_power(power);
+                runtime.instances.set_media(media);
                 runtime
             });
         runtime.instances.set_focus(focus);
@@ -989,6 +993,45 @@ pub(crate) fn set_power(power: block_plugin_api::PowerAvailability) {
         }
     });
     host::request_repaint();
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn set_media(media: block_plugin_api::MediaLevels) {
+    HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        if host.media == media {
+            return;
+        }
+        host.media = media;
+        for (plugin_id, runtime) in &mut host.runtimes {
+            if runtime.instances.set_media(media) {
+                runtime.pacing.needed = true;
+                mark(plugin_id);
+            }
+        }
+    });
+    host::request_repaint();
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn watches_media() -> bool {
+    HOST.with(|host| {
+        host.borrow()
+            .runtimes
+            .values()
+            .any(|runtime| runtime.instances.watches_media())
+    })
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn take_media_requests(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+) -> Vec<block_plugin_api::MediaRequest> {
+    with(plugin_id, |runtime| {
+        runtime.instances.take_media_requests(instance)
+    })
+    .unwrap_or_default()
 }
 
 #[cfg(target_os = "linux")]

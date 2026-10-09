@@ -75,6 +75,41 @@ impl PowerAvailability {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct MediaLevel {
+    pub level: f32,
+    pub muted: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct MediaLevels {
+    pub output: Option<MediaLevel>,
+    pub input: Option<MediaLevel>,
+    pub brightness: Option<f32>,
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PlayerCommand {
+    PlayPause,
+    Next,
+    Previous,
+    Stop,
+}
+
+impl PlayerCommand {
+    pub const ALL: [Self; 4] = [Self::PlayPause, Self::Next, Self::Previous, Self::Stop];
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub enum MediaRequest {
+    StepVolume(f32),
+    SetVolume(f32),
+    ToggleMute,
+    ToggleMicMute,
+    StepBrightness(f32),
+    Player(PlayerCommand),
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum LinuxMessage {
     Windows(Vec<HostWindow>),
@@ -90,20 +125,27 @@ pub enum LinuxMessage {
     WatchPower,
     Power(PowerAvailability),
     RequestPower(PowerAction),
+    WatchMedia,
+    Media(MediaLevels),
+    RequestMedia(MediaRequest),
 }
 
 impl LinuxMessage {
     pub fn direction(&self) -> Direction {
         match self {
-            Self::Windows(_) | Self::InputDevices(_) | Self::Displays(_) | Self::Power(_) => {
-                Direction::ToPlugin
-            }
+            Self::Windows(_)
+            | Self::InputDevices(_)
+            | Self::Displays(_)
+            | Self::Power(_)
+            | Self::Media(_) => Direction::ToPlugin,
             Self::WatchInputDevices
             | Self::WatchDisplays
             | Self::FullscreenWindow { .. }
             | Self::FocusWindow(_)
             | Self::WatchPower
-            | Self::RequestPower(_) => Direction::ToHost,
+            | Self::RequestPower(_)
+            | Self::WatchMedia
+            | Self::RequestMedia(_) => Direction::ToHost,
         }
     }
 }

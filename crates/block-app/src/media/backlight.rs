@@ -77,6 +77,11 @@ pub(super) fn stepped(brightness: u32, max: u32, by: f32) -> u32 {
 
 async fn run(mut steps: UnboundedReceiver<f32>, events: WakingSender<MediaEvent>) {
     let mut session = None;
+    if let Some(device) = find(Path::new(DEVICES)) {
+        let _ = events.send(MediaEvent::Brightness(
+            device.brightness as f32 / device.max as f32,
+        ));
+    }
     while let Some(by) = steps.recv().await {
         let Some(device) = find(Path::new(DEVICES)) else {
             eprintln!("block-app: there is no backlight in {DEVICES} to brighten or dim");

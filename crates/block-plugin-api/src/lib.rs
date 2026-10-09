@@ -9,7 +9,7 @@ mod session;
 pub use block_ids::BlockIdRole;
 pub use linux::{
     HostDisplay, HostDisplayMode, HostInputDevice, HostWindow, HostWindowId, LinuxMessage,
-    PowerAction, PowerAvailability,
+    MediaLevel, MediaLevels, MediaRequest, PlayerCommand, PowerAction, PowerAvailability,
 };
 pub use manifest::{
     EditorDocument, ManifestDocument, TemplateDocument, Templates, manifest_from_json,
@@ -2639,7 +2639,10 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             | LinuxMessage::FocusWindow(_)
             | LinuxMessage::WatchPower
             | LinuxMessage::Power(_)
-            | LinuxMessage::RequestPower(_) => Ok(()),
+            | LinuxMessage::RequestPower(_)
+            | LinuxMessage::WatchMedia
+            | LinuxMessage::Media(_)
+            | LinuxMessage::RequestMedia(_) => Ok(()),
         },
         EditorMessage::Menu { entries, .. } => menu(entries),
         EditorMessage::MenuPick { id, .. } | EditorMessage::ChildMenuPick { id, .. } => string(id),

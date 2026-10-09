@@ -15,7 +15,9 @@ use pulseaudio::protocol::{
 };
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
-use super::{Audio, AudioLevels, AudioRequest, Level, MediaEvent};
+use block_plugin_api::MediaLevel;
+
+use super::{Audio, AudioRequest, MediaEvent};
 use crate::host::WakingSender;
 
 const LONGEST_FRAME: usize = 16 << 20;
@@ -49,6 +51,16 @@ pub(super) fn stepped(channels: &[u32], by: f32) -> Vec<u32> {
         true => loudest.saturating_add(step).min(norm),
         false => loudest.saturating_sub(step),
     };
+    scaled(channels, target)
+}
+
+pub(super) fn set(channels: &[u32], level: f32) -> Vec<u32> {
+    let norm = Volume::NORM.as_u32();
+    scaled(channels, (level.clamp(0.0, 1.0) * norm as f32).round() as u32)
+}
+
+fn scaled(channels: &[u32], target: u32) -> Vec<u32> {
+    let loudest = channels.iter().copied().max().unwrap_or_default();
     match loudest {
         0 => vec![target; channels.len()],
         _ => channels
@@ -58,10 +70,10 @@ pub(super) fn stepped(channels: &[u32], by: f32) -> Vec<u32> {
     }
 }
 
-pub(super) fn level(channels: &[u32], muted: bool) -> Level {
+pub(super) fn level(channels: &[u32], muted: bool) -> MediaLevel {
     let loudest = channels.iter().copied().max().unwrap_or_default();
-    Level {
-        volume: loudest as f32 / Volume::NORM.as_u32() as f32,
+    MediaLevel {
+        level: loudest as f32 / Volume::NORM.as_u32() as f32,
         muted,
     }
 }
@@ -83,7 +95,10 @@ async fn run(mut requested: UnboundedReceiver<AudioRequest>, events: WakingSende
             },
             Err(error) => eprintln!("block-app: PulseAudio is not reachable: {error}"),
         }
-        let _ = events.send(MediaEvent::Audio(AudioLevels::default()));
+        let _ = events.send(MediaEvent::Audio {
+            output: None,
+            input: None,
+        });
         match requested.recv().await {
             Some(request) => {
                 pending = Some(request);
@@ -198,13 +213,17 @@ impl Connection {
 
     async fn handle(&mut self, request: AudioRequest) -> Result<(), String> {
         match request {
-            AudioRequest::Volume(by) => {
+            AudioRequest::Step(_) | AudioRequest::Set(_) => {
                 let Some(sink) = self.sink().await? else {
                     return Ok(());
                 };
                 let channels: Vec<u32> =
                     sink.cvolume.channels().iter().map(Volume::as_u32).collect();
-                let target = stepped(&channels, by);
+                let (target, louder) = match request {
+                    AudioRequest::Set(level) => (set(&channels, level), level > 0.0),
+                    AudioRequest::Step(by) => (stepped(&channels, by), by > 0.0),
+                    AudioRequest::ToggleMute | AudioRequest::ToggleMicMute => return Ok(()),
+                };
                 if target != channels {
                     let mut volume = ChannelVolume::empty();
                     for channel in target {
@@ -218,7 +237,7 @@ impl Connection {
                     .await?
                     .map_err(|error| format!("the volume was not set: {error:?}"))?;
                 }
-                if by > 0.0 && sink.muted {
+                if louder && sink.muted {
                     self.mute_sink(sink.index, false).await?;
                 }
             }
@@ -267,7 +286,7 @@ impl Connection {
                 .collect();
             level(&channels, source.muted)
         });
-        let _ = events.send(MediaEvent::Audio(AudioLevels { output, input }));
+        let _ = events.send(MediaEvent::Audio { output, input });
         Ok(())
     }
 

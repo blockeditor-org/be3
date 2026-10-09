@@ -112,6 +112,7 @@ mod open_block_request_round_trips;
 mod open_messages_round_trip;
 mod performance_messages_round_trip;
 mod pick_block_messages_round_trip;
+mod media_messages_round_trip;
 mod power_messages_round_trip;
 mod presence_messages_round_trip;
 mod present_messages_round_trip;

@@ -1,5 +1,5 @@
 use super::*;
-use audio::{level, stepped};
+use audio::{level, set, stepped};
 
 const FULL: u32 = 0x10000;
 const STEP: u32 = 3277;
@@ -37,9 +37,20 @@ fn volume_steps_stop_at_full_and_at_silence() {
     );
     assert_eq!(
         level(&[FULL / 2, FULL / 4], true),
-        Level {
-            volume: 0.5,
+        MediaLevel {
+            level: 0.5,
             muted: true,
         }
+    );
+    assert_eq!(set(&[0, 0], 0.5), vec![FULL / 2, FULL / 2]);
+    assert_eq!(
+        set(&[FULL / 4, FULL / 2], 1.0),
+        vec![FULL / 2, FULL],
+        "setting the volume keeps the balance"
+    );
+    assert_eq!(
+        set(&[FULL / 2], 1.5),
+        vec![FULL],
+        "the volume is set no louder than full"
     );
 }
