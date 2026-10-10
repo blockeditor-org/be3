@@ -77,9 +77,7 @@ fn proxy_for(host: &str) -> Option<String> {
                 .map(|entry| entry.trim().trim_start_matches('.').to_owned())
                 .collect::<Vec<_>>()
         })
-        .any(|entry| {
-            !entry.is_empty() && (host == entry || host.ends_with(&format!(".{entry}")))
-        });
+        .any(|entry| !entry.is_empty() && (host == entry || host.ends_with(&format!(".{entry}"))));
     let local = matches!(host, "localhost" | "127.0.0.1" | "::1" | "[::1]");
     (!bypassed && !local).then_some(proxy)
 }

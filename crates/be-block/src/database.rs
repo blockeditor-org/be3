@@ -17,7 +17,9 @@ pub struct DatabaseColor {
     pub alpha: u8,
 }
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(
+    Clone, Copy, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize,
+)]
 #[serde(default)]
 pub struct RowRef {
     #[serde(with = "be_model::references::block_ref")]
@@ -226,9 +228,7 @@ impl Root for Database {
             ChildChange::Replace { old, new } => (old, Some(new)),
         };
         let replaced = |value: &DatabaseValue| match value {
-            DatabaseValue::Block(block) if *block == old => {
-                Some(new.map(DatabaseValue::Block))
-            }
+            DatabaseValue::Block(block) if *block == old => Some(new.map(DatabaseValue::Block)),
             DatabaseValue::Relation(link) if link.database == old => Some(new.map(|database| {
                 DatabaseValue::Relation(RowRef {
                     database,

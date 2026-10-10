@@ -17,7 +17,11 @@ async fn an_edited_page_keeps_what_someone_else_changed_meanwhile() {
     let base = made.body.clone().unwrap();
 
     tracker
-        .update(&made.id, &[], Body::Replace("one\ntwo\nthree\nfour\n".into()))
+        .update(
+            &made.id,
+            &[],
+            Body::Replace("one\ntwo\nthree\nfour\n".into()),
+        )
         .await
         .unwrap();
     let clean = tracker

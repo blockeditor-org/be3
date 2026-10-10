@@ -1,4 +1,5 @@
 pub mod cli;
+pub mod csv;
 pub mod session;
 pub mod tracker;
 

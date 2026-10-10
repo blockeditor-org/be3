@@ -165,6 +165,15 @@ postcard frames.
   checks run off the database lock, a few at a time, and an email with five
   failed sign-ins in a row is locked out for a time that doubles with each
   further failure.
+  A connection whose websocket upgrade carries `Authorization: Bearer TOKEN`
+  starts signed in, so a proxy can hold the token, and `WhoAmI` says as whom
+  without echoing it. An administrator's `CreateAgent` makes an agent: an
+  editor account with no password, its workspace key sealed to a recovery key
+  the caller made for it, and a token, all answered once (guides/tracker.md).
+- An object is served only to a member who can view a block that holds it, by
+  a commit (`commit_objects`) or by `HoldObjects`; anything else reads as
+  missing. A merge commit holds its extra parents' objects, so a `stash` that
+  was never a head stays readable.
 - The graph is cached per workspace in memory and dropped on any error so it
   reloads from the database rather than drifting.
 

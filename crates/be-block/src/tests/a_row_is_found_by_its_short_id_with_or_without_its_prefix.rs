@@ -16,7 +16,10 @@ fn a_row_is_found_by_its_short_id_with_or_without_its_prefix() {
     assert_eq!(code.len(), "BE-".len() + 6);
     assert_ne!(code, database.short_id(first));
     assert_eq!(database.find_short_id(&code), Some(second));
-    assert_eq!(database.find_short_id(&code[3..].to_lowercase()), Some(second));
+    assert_eq!(
+        database.find_short_id(&code[3..].to_lowercase()),
+        Some(second)
+    );
     assert_eq!(database.find_short_id("BE-"), None);
     assert_eq!(database.title(second, Some(title)), "Two");
     assert_eq!(database.title(first, None), database.short_id(first));

@@ -50,7 +50,9 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
     let agent = Tracker::new(connect(&settings).await.unwrap());
     let seen = agent.databases().await.unwrap();
     assert_eq!(
-        seen.iter().map(|database| database.name.as_str()).collect::<Vec<_>>(),
+        seen.iter()
+            .map(|database| database.name.as_str())
+            .collect::<Vec<_>>(),
         ["Issues"]
     );
     assert!(seen.iter().all(|database| database.id != private));

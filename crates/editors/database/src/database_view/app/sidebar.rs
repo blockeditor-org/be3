@@ -4,7 +4,8 @@ use block_editor_beui::be_block::database_view::{DatabaseView, DatabaseViewKind}
 use block_editor_beui::be_block::{BlockContent, DatabaseSchemaContent};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
-    ICON_DESCRIPTION, ICON_DESELECT, ICON_GRID_ON, ICON_SCATTER_PLOT, ICON_SCHEMA, ICON_VIEW_KANBAN, ICON_VIEW_LIST,
+    ICON_DESCRIPTION, ICON_DESELECT, ICON_GRID_ON, ICON_SCATTER_PLOT, ICON_SCHEMA,
+    ICON_VIEW_KANBAN, ICON_VIEW_LIST,
 };
 use block_editor_beui::beui::reactive::{
     Align, Callback, Direction, ForEach, ItemSize, List, Memo, Show, Spacer, clone, component,

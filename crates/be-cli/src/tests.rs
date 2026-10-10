@@ -14,6 +14,8 @@ use uuid::Uuid;
 use crate::cli::{self, Command, Invocation};
 use crate::tracker::{Body, Condition, Filter, Tracker};
 
+mod a_csv_export_is_imported_as_rows_with_pages;
+mod a_pull_request_moves_the_rows_it_names;
 mod an_agent_reads_and_writes_the_rows_shared_with_it;
 mod an_edited_page_keeps_what_someone_else_changed_meanwhile;
 mod arguments_parse_into_commands;

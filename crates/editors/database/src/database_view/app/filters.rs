@@ -7,8 +7,7 @@ use block_editor_beui::be_block::database_view::{DatabaseView, FilterCondition, 
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_DELETE, ICON_FILTER_LIST};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, ItemSize, List, Show, Spacer, clone, component, create_memo,
-    view,
+    Align, Direction, ForEach, ItemSize, List, Show, Spacer, clone, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::{
     Button, ButtonVariant, Caption, Heading, IconButton, Select, TextInput,
@@ -109,7 +108,8 @@ fn FilterRow(data: Data, id: ObjectId) -> NodeId {
         }
     });
     let remove = clone!(data -> move || data.operate_view(DatabaseView::remove_filter(id)));
-    let value_fields = create_memo(clone!(field -> move || field.get().into_iter().collect::<Vec<_>>()));
+    let value_fields =
+        create_memo(clone!(field -> move || field.get().into_iter().collect::<Vec<_>>()));
     let values = create_memo(clone!(filter -> move || {
         let filter = filter.get();
         match (filter.field, filter.condition) {

@@ -9,8 +9,8 @@ use beui::styled::{
     Body, Button, ButtonVariant, Caption, Code, Dialog, IconButton, Paragraph, Spinner, Tabs,
     TextInput,
 };
-use uuid::Uuid;
 use beui::unstyled::ChoiceOption;
+use uuid::Uuid;
 
 use super::onboarding::ErrorText;
 
@@ -49,12 +49,7 @@ fn AgentsDialog(view: AppViewStore) -> NodeId {
     let agents = view.agents.clone();
     let open = create_memo(move || agents.get().is_some());
     view! {
-        <Dialog
-            open={open}
-            title="Agents"
-            width=460.0
-            on_dismiss={|| send(UiCommand::CloseAgents)}
-        >
+        <Dialog open={open} title="Agents" width=460.0 on_dismiss={|| send(UiCommand::CloseAgents)}>
             <AgentsPanel view />
         </Dialog>
     }
@@ -64,7 +59,8 @@ fn AgentsDialog(view: AppViewStore) -> NodeId {
 fn AgentsPanel(view: AppViewStore) -> NodeId {
     let agents = view.agents.clone();
     let shown = create_memo(clone!(agents -> move || agents.get().unwrap_or_default()));
-    let workspace = create_memo(clone!(shown -> move || format!("Workspace: {}", shown.get().workspace)));
+    let workspace =
+        create_memo(clone!(shown -> move || format!("Workspace: {}", shown.get().workspace)));
     let busy = create_memo(clone!(shown -> move || shown.get().busy));
     let error = create_memo(clone!(shown -> move || shown.get().error));
     let created = create_memo(clone!(shown -> move || shown.get().created));
@@ -80,7 +76,8 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
             untrack(|| set_name.set(String::new()));
         }
     }));
-    let cannot = create_memo(clone!(name busy -> move || busy.get() || name.get().trim().is_empty()));
+    let cannot =
+        create_memo(clone!(name busy -> move || busy.get() || name.get().trim().is_empty()));
     view! {
         <Frame>
             <List spacing=8.0>

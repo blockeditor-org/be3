@@ -1,11 +1,11 @@
 use std::rc::Rc;
 
+use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::be_block::database::DatabaseContent;
 use block_editor_beui::be_block::database_schema::{
     DatabaseBlockOptions, DatabaseField, DatabaseFieldType, DatabaseNumberOptions,
     DatabaseNumberScale, DatabaseRelationOptions, DatabaseSchema, DatabaseSchemaContent,
 };
-use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_DELETE};
 use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, clone, component,

@@ -634,14 +634,11 @@ fn row_titles(editor: &crate::Editor, database: Uuid) -> ReadSignal<Vec<(RowRef,
     let (titles, set_titles) = create_signal(Vec::new());
     let editor = editor.clone();
     create_effect(move || {
-        let title_field = match schema_id.get() {
-            Some(schema) => Some(
-                editor
-                    .content_of::<DatabaseSchemaContent>(schema)
-                    .project(|schema| schema.root().title_field()),
-            ),
-            None => None,
-        };
+        let title_field = schema_id.get().map(|schema| {
+            editor
+                .content_of::<DatabaseSchemaContent>(schema)
+                .project(|schema| schema.root().title_field())
+        });
         let content = content.clone();
         let set_titles = set_titles.clone();
         create_effect(move || {

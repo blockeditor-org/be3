@@ -58,8 +58,14 @@ fn a_database_follows_the_pages_and_databases_its_rows_link_to() {
     let cleared = edited(
         &content,
         [
-            content.root().child_edit(ChildChange::Delete(projects)).unwrap(),
-            content.root().child_edit(ChildChange::Delete(page)).unwrap(),
+            content
+                .root()
+                .child_edit(ChildChange::Delete(projects))
+                .unwrap(),
+            content
+                .root()
+                .child_edit(ChildChange::Delete(page))
+                .unwrap(),
         ],
     );
     let row = cleared.root();

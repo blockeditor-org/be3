@@ -3,10 +3,9 @@ use super::*;
 #[test]
 fn arguments_parse_into_commands() {
     let parse = |text: &str| {
-        cli::parse(
-            text.split(' ').map(str::to_owned).collect(),
-            || Ok("from stdin".to_owned()),
-        )
+        cli::parse(text.split(' ').map(str::to_owned).collect(), || {
+            Ok("from stdin".to_owned())
+        })
     };
 
     assert_eq!(

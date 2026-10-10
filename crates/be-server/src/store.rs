@@ -606,7 +606,11 @@ impl ServerStore {
         )?;
         transaction.execute(
             "INSERT INTO agents (account_id, workspace_id, created_by) VALUES (?1, ?2, ?3)",
-            params![account.to_string(), workspace.to_string(), caller.to_string()],
+            params![
+                account.to_string(),
+                workspace.to_string(),
+                caller.to_string()
+            ],
         )?;
         transaction.execute(
             "INSERT INTO memberships (workspace_id, account_id, role) VALUES (?1, ?2, ?3)",

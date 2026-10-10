@@ -44,13 +44,19 @@ async fn rows_are_added_filtered_changed_and_given_pages() {
     .unwrap();
     assert_eq!(
         open,
-        format!("{}\tFix the login\t[Status: To do; Project: Launch]", made.id)
+        format!(
+            "{}\tFix the login\t[Status: To do; Project: Launch]",
+            made.id
+        )
     );
 
     let changed = tracker
         .update(
             &made.id.to_lowercase(),
-            &[("Status".into(), "Done".into()), ("Project".into(), String::new())],
+            &[
+                ("Status".into(), "Done".into()),
+                ("Project".into(), String::new()),
+            ],
             Body::Append("Fixed by retrying.".into()),
         )
         .await

@@ -14,8 +14,7 @@ fn a_relation_cell_shows_the_title_of_the_row_it_links_to() {
     let mut schema = DatabaseSchemaContent::default();
     let (name, add_name) = DatabaseSchema::add_field("Name", DatabaseFieldType::String);
     schema.apply(&add_name);
-    let (launch, add_launch) =
-        Database::add_row([(name, DatabaseValue::String("Launch".into()))]);
+    let (launch, add_launch) = Database::add_row([(name, DatabaseValue::String("Launch".into()))]);
     let mut listed = DatabaseContent::new(&Database::with_schema(projects_schema));
     listed.apply(&add_launch);
     fixture.harness.hold(Some(projects), listed);

@@ -14,7 +14,19 @@ Usage:
   be set ID [FIELD=VALUE]... [--body TEXT] [--append TEXT]
                                     Change a row's fields, replace its page or add to it
   be edit ID                        Edit a row's page in $EDITOR
+  be import DATABASE FILE [--page COLUMN]
+                                    Add a row for each line of a CSV file, such as
+                                    Linear's export: Title is the title, COLUMN
+                                    (Description) the page, and a column named like
+                                    one of the database's sets it; an option an Enum
+                                    column lacks is added
   be whoami                         Say which account and workspace this is
+  be pull-request EVENT-FILE        Move the rows a GitHub pull request names, from the
+                                    event GitHub Actions writes to $GITHUB_EVENT_PATH:
+                                    opening it sets the status to $BE3_REVIEW_STATUS (In
+                                    review) and links it on the row's page, merging it
+                                    sets $BE3_DONE_STATUS (Done); $BE3_STATUS_FIELD names
+                                    the column (Status)
 
   DATABASE is a database's name, its id prefix (BE) or its block id, and ID a
   row's id, such as BE-7K3Q2M. An empty VALUE clears the field. TEXT given as -
@@ -53,6 +65,14 @@ pub enum Command {
     Edit {
         id: String,
     },
+    PullRequest {
+        event: String,
+    },
+    Import {
+        database: String,
+        file: String,
+        page: String,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -74,8 +94,14 @@ pub fn parse(
     let name = rest.next().unwrap_or_else(|| "help".to_owned());
     let mut positional = Vec::new();
     let mut body = Body::Keep;
+    let mut page = "Description".to_owned();
     while let Some(argument) = rest.next() {
         match argument.as_str() {
+            "--page" => {
+                page = rest
+                    .next()
+                    .ok_or("--page needs the name of the column that holds the page")?;
+            }
             "--body" | "--append" => {
                 let text = rest
                     .next()
@@ -150,6 +176,20 @@ pub fn parse(
                 id: positional[0].clone(),
             }
         }
+        "import" => {
+            needs(2, "import DATABASE FILE [--page COLUMN]")?;
+            Command::Import {
+                database: positional[0].clone(),
+                file: positional[1].clone(),
+                page,
+            }
+        }
+        "pull-request" => {
+            needs(1, "pull-request EVENT-FILE")?;
+            Command::PullRequest {
+                event: positional[0].clone(),
+            }
+        }
         other => return Err(format!("unknown command {other}\n\n{USAGE}")),
     };
     Ok(Invocation { command, json })
@@ -164,14 +204,11 @@ pub async fn run<S: ObjectStore>(
         Command::Help => USAGE.to_owned(),
         Command::WhoAmI => {
             let peer = tracker.peer();
-            let text = format!(
-                "account {}\nworkspace {}",
-                peer.account(),
-                peer.workspace()
-            );
+            let text = format!("account {}\nworkspace {}", peer.account(), peer.workspace());
             match json {
-                true => json!({"account": peer.account(), "workspace": peer.workspace()})
-                    .to_string(),
+                true => {
+                    json!({"account": peer.account(), "workspace": peer.workspace()}).to_string()
+                }
                 false => text,
             }
         }
@@ -224,7 +261,155 @@ pub async fn run<S: ObjectStore>(
         Command::Edit { .. } => {
             return Err("be edit runs an editor, so only the be command does it".to_owned());
         }
+        Command::Import {
+            database,
+            file,
+            page,
+        } => {
+            let text = std::fs::read_to_string(file)
+                .map_err(|error| format!("could not read {file}: {error}"))?;
+            let records = crate::csv::parse(&text)?;
+            let database = tracker.find_database(database).await?;
+            let imported = tracker.import(database, records, page).await?;
+            let mut said = vec![format!(
+                "added {} rows, {} with a page",
+                imported.rows, imported.pages
+            )];
+            if !imported.options.is_empty() {
+                said.push(format!("added options {}", imported.options.join(", ")));
+            }
+            if !imported.ignored.is_empty() {
+                said.push(format!(
+                    "left out the columns no field is named after: {}",
+                    imported.ignored.join(", ")
+                ));
+            }
+            said.extend(imported.problems);
+            match json {
+                true => json!({
+                    "rows": imported.rows,
+                    "pages": imported.pages,
+                    "options": imported.options,
+                    "ignored": imported.ignored,
+                })
+                .to_string(),
+                false => said.join("\n"),
+            }
+        }
+        Command::PullRequest { event } => {
+            let text = std::fs::read_to_string(event)
+                .map_err(|error| format!("could not read {event}: {error}"))?;
+            let event: Value = serde_json::from_str(&text)
+                .map_err(|error| format!("{event} is not a GitHub event: {error}"))?;
+            let setting = |name: &str, default: &str| {
+                std::env::var(name)
+                    .ok()
+                    .filter(|value| !value.trim().is_empty())
+                    .unwrap_or_else(|| default.to_owned())
+            };
+            let statuses = Statuses {
+                field: setting("BE3_STATUS_FIELD", "Status"),
+                review: setting("BE3_REVIEW_STATUS", "In review"),
+                done: setting("BE3_DONE_STATUS", "Done"),
+            };
+            pull_request(tracker, &event, &statuses).await?.join("\n")
+        }
     })
+}
+
+pub struct Statuses {
+    pub field: String,
+    pub review: String,
+    pub done: String,
+}
+
+pub async fn pull_request<S: ObjectStore>(
+    tracker: &Tracker<S>,
+    event: &Value,
+    statuses: &Statuses,
+) -> Result<Vec<String>, String> {
+    let text = |pointer: &str| {
+        event
+            .pointer(pointer)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned()
+    };
+    let action = text("/action");
+    let url = text("/pull_request/html_url");
+    let merged = event
+        .pointer("/pull_request/merged")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let draft = event
+        .pointer("/pull_request/draft")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let mentioned = [
+        text("/pull_request/head/ref"),
+        text("/pull_request/title"),
+        text("/pull_request/body"),
+    ]
+    .join("\n");
+    let mut said = Vec::new();
+    for id in row_ids(&mentioned) {
+        let Ok(row) = tracker.show(&id).await else {
+            continue;
+        };
+        let (status, link) = match action.as_str() {
+            "closed" if merged => (Some(&statuses.done), false),
+            "opened" | "reopened" | "ready_for_review" if !draft => (Some(&statuses.review), true),
+            _ => (None, false),
+        };
+        let Some(status) = status else {
+            continue;
+        };
+        let linked = row.body.as_deref().unwrap_or_default().contains(&url);
+        let body = match link && !linked && !url.is_empty() {
+            true => Body::Append(format!("Pull request: {url}\n")),
+            false => Body::Keep,
+        };
+        match tracker
+            .update(&row.id, &[(statuses.field.clone(), status.clone())], body)
+            .await
+        {
+            Ok(_) => said.push(format!("{}: {} is now {status}", row.id, statuses.field)),
+            Err(error) => said.push(format!("{}: {error}", row.id)),
+        }
+    }
+    Ok(said)
+}
+
+pub fn row_ids(text: &str) -> Vec<String> {
+    let mut found = Vec::new();
+    for word in
+        text.split(|character: char| !(character.is_ascii_alphanumeric() || character == '-'))
+    {
+        let parts: Vec<&str> = word.split('-').collect();
+        for pair in parts.windows(2) {
+            let (prefix, code) = (pair[0], pair[1]);
+            if prefix.is_empty()
+                || !prefix
+                    .chars()
+                    .all(|character| character.is_ascii_alphabetic())
+                || code.len() != 6
+                || !code
+                    .chars()
+                    .all(|character| character.is_ascii_alphanumeric())
+            {
+                continue;
+            }
+            let id = format!(
+                "{}-{}",
+                prefix.to_ascii_uppercase(),
+                code.to_ascii_uppercase()
+            );
+            if !found.contains(&id) {
+                found.push(id);
+            }
+        }
+    }
+    found
 }
 
 fn shown(row: &RowView, json: bool) -> String {

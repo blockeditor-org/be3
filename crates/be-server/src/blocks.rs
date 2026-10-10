@@ -305,7 +305,11 @@ impl ServerStore {
         .await
     }
 
-    pub async fn may_read_object(&self, identity: Identity, hash: Hash) -> Result<bool, ServerError> {
+    pub async fn may_read_object(
+        &self,
+        identity: Identity,
+        hash: Hash,
+    ) -> Result<bool, ServerError> {
         self.with_graph(identity.workspace, move |graph, database| {
             let mut statement = database.prepare(
                 "SELECT block_id FROM commit_objects WHERE workspace_id = ?1 AND hash = ?2

@@ -20,6 +20,7 @@ Guides:
 - guides/running/android.md
 - guides/testing_a_gui.md
 - guides/the_new_block_stack.md: the `be-*` crates every block lives in
+- guides/tracker.md: the issue tracker in block-app, and `be`, the command line tool agents use to read and change it
 
 Commands (builds run on the build server; see guides/buck2.md and guides/build_server.md):
 - `./scripts/buck run //:check`: fast compile check of every first-party target, native and wasm. Use this instead of cargo, which no longer builds the workspace.
@@ -31,6 +32,7 @@ Commands (builds run on the build server; see guides/buck2.md and guides/build_s
 - `./scripts/buck run //crates/block-app:smoke`: a bounded launch test; run it for changes that could affect native startup.
 - `./scripts/buck build //crates/block-app:web`: for web-specific changes; `./scripts/buck run //crates/block-app:web-serve` serves it on http://127.0.0.1:8080 (guides/running/web.md).
 - `./scripts/buck run //crates/block-app:android`: for Android-specific changes; builds the APK (guides/running/android.md).
+- `./scripts/buck run //crates/be-cli:be -- show BE-7K3Q2M`: read or change a tracker row (guides/tracker.md); needs `BE3_TOKEN` and `BE3_RECOVERY_PHRASE`.
 
 Do:
 - Use commit messages of the form `type: message`, ending with a Co-Authored-By line naming your model.

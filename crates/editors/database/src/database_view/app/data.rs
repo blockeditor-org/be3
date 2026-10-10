@@ -3,19 +3,19 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use block_editor_beui::BlockList;
-use block_editor_beui::BlockQuery;
-use block_editor_beui::be_block::Edit;
 use block_editor_beui::BlockParent;
+use block_editor_beui::BlockQuery;
+use block_editor_beui::be_block::BlockContent;
+use block_editor_beui::be_block::Edit;
+use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::be_block::database::{
     Database, DatabaseContent, DatabaseRow, DatabaseValue, RowRef,
 };
-use block_editor_beui::be_block::BlockContent;
-use block_editor_beui::be_block::text::{TextBlock, TextContent};
 use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseSchemaContent};
 use block_editor_beui::be_block::database_view::{
     DatabaseViewContent, DatabaseViewKind, DatabaseViewSort, ViewFilter,
 };
-use block_editor_beui::be_block::ObjectId;
+use block_editor_beui::be_block::text::{TextBlock, TextContent};
 use block_editor_beui::beui::reactive::{
     Memo, WriteSignal, clone, create_effect, create_memo, create_signal,
 };
@@ -116,7 +116,8 @@ impl ViewData {
         let filters = create_memo(clone!(filter_items -> move || {
             filter_items.with(|items| items.iter().map(|(_, filter)| filter.clone()).collect())
         }));
-        let targets = create_memo(clone!(fields -> move || fields.with(|fields| relation_targets(fields))));
+        let targets =
+            create_memo(clone!(fields -> move || fields.with(|fields| relation_targets(fields))));
         let row_labels = watch_row_labels(editor, targets);
         let labels = watch_labels(editor, database_id.clone(), rows.clone(), row_labels);
 
@@ -214,10 +215,11 @@ impl ViewData {
             Some(page) => Some(page),
             None if !self.read_only.get_untracked() => {
                 let title = self.title_field.get_untracked().and_then(|field| {
-                    self.rows.with_untracked(|rows| match rows.get(index)?.value(field)? {
-                        DatabaseValue::String(text) => Some(text.clone()),
-                        _ => None,
-                    })
+                    self.rows
+                        .with_untracked(|rows| match rows.get(index)?.value(field)? {
+                            DatabaseValue::String(text) => Some(text.clone()),
+                            _ => None,
+                        })
                 });
                 self.create_page(row, title.unwrap_or_default())
             }
