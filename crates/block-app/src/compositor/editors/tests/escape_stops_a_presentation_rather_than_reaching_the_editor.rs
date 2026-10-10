@@ -26,7 +26,7 @@ fn escape_stops_a_presentation_rather_than_reaching_the_editor() {
         }
     });
     let context = Context::new(FreetypeFonts::default());
-    let mut frame = |document: &mut beui::Document, events: Vec<Event>| {
+    let frame = |document: &mut beui::Document, events: Vec<Event>| {
         context.run(RawInput { events }, |context| {
             document.show(context, Rect::from_min_size(Pos2::ZERO, vec2(200.0, 200.0)));
         });
