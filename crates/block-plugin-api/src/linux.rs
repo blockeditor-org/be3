@@ -15,6 +15,7 @@ pub struct HostWindow {
     pub fullscreen: Option<ChildRect>,
     pub responding: bool,
     pub focused: bool,
+    pub icon: Option<HostImage>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

@@ -15,10 +15,12 @@ mod a_process_the_compositor_launched_can_be_ended;
 mod a_program_that_is_not_found_is_reported;
 mod a_shown_dmabuf_is_released_once_a_newer_one_is_painted;
 mod a_shown_window_that_inhibits_idle_keeps_the_session_awake;
+mod a_single_pixel_buffer_fills_its_window_with_one_color;
 mod a_wake_from_the_host_counts_as_activity;
 mod a_window_asking_for_fullscreen_before_it_is_shown_is_answered;
 mod a_window_asking_for_fullscreen_covers_the_screen;
 mod a_window_that_stops_answering_pings_is_not_responding_until_it_answers;
+mod an_app_that_inhibits_shortcuts_gets_super_chords_until_super_escape;
 mod an_inhibitor_on_a_window_that_is_not_shown_does_not_keep_the_session_awake;
 mod closing_a_window_that_is_not_responding_disconnects_its_client;
 mod idle_notifications_tell_clients_when_the_user_idles_and_resumes;
@@ -79,6 +81,7 @@ fn Shown(windows: Windows) -> NodeId {
         .shortcut(beui::reactive::Chord::logo(Key::G))
         .global()
         .register();
+        crate::view::register_restore_shortcuts(&windows);
         let (text, set_text) = create_signal(String::new());
         let (locked, set_locked) = create_signal(false);
         LOCK.with(|lock| *lock.borrow_mut() = Some(set_locked));
@@ -330,6 +333,7 @@ impl Harness {
 
 const KEY_F: u32 = 33;
 const KEY_G: u32 = 34;
+const KEY_ESC: u32 = 1;
 const KEY_LEFTMETA: u32 = 125;
 
 thread_local! {

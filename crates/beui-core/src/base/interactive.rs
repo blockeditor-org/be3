@@ -54,6 +54,7 @@ pub struct InteractiveNode {
     pub intercept_at: Callback<Pos2, bool>,
     pub on_forward: Callback<crate::interact::forward::ForwardedInput>,
     pub forward_at: Callback<Pos2, bool>,
+    pub inhibits_shortcuts: bool,
     pub claim_modifiers: Option<Modifiers>,
     pub claim_at: Callback<(Pos2, Modifiers), bool>,
     pub on_press_outside: Callback<Pos2>,
@@ -116,6 +117,7 @@ impl InteractiveNode {
             intercept_at: Callback::empty(),
             on_forward: Callback::empty(),
             forward_at: Callback::empty(),
+            inhibits_shortcuts: false,
             claim_modifiers: None,
             claim_at: Callback::empty(),
             on_press_outside: Callback::empty(),
@@ -675,6 +677,16 @@ impl Document {
     ) {
         if self.arena.get_as::<InteractiveNode>(id).claims_touch != claims_touch {
             self.arena.get_mut_as::<InteractiveNode>(id).claims_touch = claims_touch;
+        }
+    }
+
+    pub fn set_interactive_inhibits_shortcuts(
+        &mut self,
+        id: NodeOf<InteractiveNode>,
+        inhibits: bool,
+    ) {
+        if self.arena.get_as::<InteractiveNode>(id).inhibits_shortcuts != inhibits {
+            self.arena.get_mut_as::<InteractiveNode>(id).inhibits_shortcuts = inhibits;
         }
     }
 

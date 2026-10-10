@@ -6,9 +6,9 @@ use block_editor_beui::beui::reactive::{
 };
 use block_editor_beui::beui::styled::{Body, Button, ButtonVariant, WINDOW_CHROME, use_theme};
 use block_editor_beui::beui::unstyled::{Edge, Floating, TabId, use_dock_tab};
-use block_editor_beui::beui::{NodeId, Rect, pos2, vec2};
+use block_editor_beui::beui::{Image, NodeId, Rect, pos2, vec2};
 use block_editor_beui::{
-    ChildMode, Editor, HostWindow, HostWindowId, Subregion, SubregionContent, WindowAction,
+    ChildMode, Editor, HostImage, HostWindow, HostWindowId, Subregion, SubregionContent, WindowAction,
 };
 
 const WINDOW_TABS: u64 = 1 << 41;
@@ -33,6 +33,11 @@ pub(crate) fn dialog_window(window: &HostWindow) -> Rect {
         pos2(DIALOG_ORIGIN + step, DIALOG_ORIGIN + step),
         vec2(window.size.width, window.size.height) + WINDOW_CHROME,
     )
+}
+
+pub(crate) fn window_picture(icon: &HostImage) -> Option<Image> {
+    (icon.width > 0 && icon.height > 0 && icon.is_whole())
+        .then(|| Image::from_rgba(icon.width, icon.height, icon.rgba.clone()))
 }
 
 pub(crate) fn window_title(window: &HostWindow) -> String {

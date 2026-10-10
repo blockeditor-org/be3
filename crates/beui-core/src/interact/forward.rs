@@ -136,6 +136,18 @@ pub(super) fn takes_keys(doc: &Document) -> bool {
         .is_some_and(|focused| doc.arena.contains(focused) && wants_forward(doc.arena.get(focused)))
 }
 
+pub(super) fn shortcuts_inhibited(doc: &Document) -> bool {
+    doc.focused_node().is_some_and(|focused| {
+        doc.arena.contains(focused)
+            && doc
+                .arena
+                .get(focused)
+                .as_any()
+                .downcast_ref::<InteractiveNode>()
+                .is_some_and(|catcher| catcher.inhibits_shortcuts)
+    })
+}
+
 pub(super) fn route(
     doc: &mut Document,
     ctx: &Context,

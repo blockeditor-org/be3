@@ -30,6 +30,8 @@ use wayland_protocols::wp::idle_inhibit::zv1::client::{
     zwp_idle_inhibit_manager_v1, zwp_idle_inhibitor_v1,
 };
 
+mod protocols;
+
 const ARGB8888: u32 = u32::from_le_bytes(*b"AR24");
 use crate::state::{ServerEvent, WindowId};
 
@@ -67,6 +69,7 @@ pub(crate) struct Received {
     pub(crate) ignores_pings: bool,
     pub(crate) pings: Vec<u32>,
     pub(crate) idle: Vec<bool>,
+    pub(crate) protocols: protocols::Protocols,
 }
 
 pub(crate) struct TestClient {
@@ -499,6 +502,15 @@ impl Dispatch<xdg_toplevel::XdgToplevel, ()> for Received {
             state.activated = has(xdg_toplevel::State::Activated);
             state.fullscreen = has(xdg_toplevel::State::Fullscreen);
             state.maximized = has(xdg_toplevel::State::Maximized);
+        } else if let xdg_toplevel::Event::WmCapabilities { capabilities } = event {
+            state.protocols.wm_capabilities = Some(
+                capabilities
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .map(|chunk| u32::from_ne_bytes(*chunk))
+                    .collect(),
+            );
         }
     }
 }

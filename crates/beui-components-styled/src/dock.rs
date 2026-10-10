@@ -13,11 +13,12 @@ use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     DockBarHandle, DockChromeHandle, DockDragged, DockGripHandle, DockKey, DockMode, DockNode,
     DockPreviewHandle, DockSplitterHandle, DockStackHandle, DockSwitchHandle, DockSwitcherHandle,
-    DockTabHandle, DockingLayout, Entry, MenuItem,
+    DockTabHandle, DockingLayout, Entry, MenuItem, Picture,
 };
 use beui_core::base::{Align, Direction, ItemSize, Justify};
 use beui_core::color::Color32;
 use beui_core::icons::{ICON_CLOSE, ICON_DRAG_INDICATOR, ICON_MORE_VERT, ICON_TAB_GROUP};
+use beui_core::image::Image;
 use beui_core::input::Modifiers;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
@@ -132,6 +133,7 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
         entry,
         title,
         icon,
+        picture,
         selected,
         hovered,
         active,
@@ -146,6 +148,7 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
         <DockTabChrome
             title
             icon
+            picture
             grouped={matches!(entry, Entry::Group(_))}
             vertical
             selected
@@ -164,6 +167,7 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
 fn DockTabChrome(
     title: Prop<String>,
     icon: Memo<String>,
+    picture: Memo<Option<Image>>,
     grouped: bool,
     vertical: bool,
     selected: Memo<bool>,
@@ -189,7 +193,10 @@ fn DockTabChrome(
         false => theme.text_muted.get(),
     }));
     let glyph = label.clone();
-    let pictured = create_memo(clone!(icon -> move || !grouped && !icon.get().is_empty()));
+    let shows_picture = create_memo(clone!(picture -> move || !grouped && picture.with(Option::is_some)));
+    let pictured = create_memo(clone!(icon shows_picture -> move || {
+        !grouped && !shows_picture.get() && !icon.get().is_empty()
+    }));
     let icon_color = label.clone();
     let title_size = match vertical {
         true => ItemSize::Percent(100.0),
@@ -217,6 +224,9 @@ fn DockTabChrome(
                         color={icon_color.clone()}
                     />
                 </Show>
+                <Show condition={shows_picture}>
+                    <TabPicture picture={picture.clone()} />
+                </Show>
                 <Text
                     string={title}
                     font_size=FONT_BODY
@@ -238,6 +248,15 @@ fn DockTabChrome(
                     })}
                 </Show>
             </List>
+        </Frame>
+    }
+}
+
+#[component]
+fn TabPicture(picture: Memo<Option<Image>>) -> NodeId {
+    view! {
+        <Frame width=GROUP_GLYPH height=GROUP_GLYPH>
+            <Picture image={picture} />
         </Frame>
     }
 }

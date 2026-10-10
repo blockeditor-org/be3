@@ -1,17 +1,23 @@
 mod compositor;
+mod content_type;
 mod decoration;
+mod foreign;
 mod idle;
 pub mod programs;
 mod render;
 mod server;
+mod shortcuts_inhibit;
+mod single_pixel;
 mod state;
+mod tearing;
+mod toplevel_icon;
 mod view;
 mod windows;
 
 pub use compositor::{Compositor, CursorImage};
 pub use server::Server;
 pub use state::{KeyboardConfig, WindowId};
-pub use view::WindowView;
+pub use view::{WindowView, register_restore_shortcuts};
 pub use windows::{Launch, WindowInfo, Windows};
 
 #[cfg(test)]

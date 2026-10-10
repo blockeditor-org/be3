@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use beui::reactive::{ReadSignal, WriteSignal, create_signal};
-use beui::{CursorIcon, Drawing, ForwardedInput, Rect, Vec2};
+use beui::{CursorIcon, Drawing, ForwardedInput, Image, Rect, Vec2};
 
 use crate::state::WindowId;
 
@@ -16,12 +16,15 @@ pub struct WindowInfo {
     pub size: Vec2,
     pub fullscreen: Option<Rect>,
     pub responding: bool,
+    pub icon: Option<Image>,
+    pub inhibits_shortcuts: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Command {
     Configure(WindowId),
     Close(WindowId),
+    RestoreShortcuts(WindowId),
     Launch(Launch),
 }
 
@@ -139,6 +142,12 @@ impl Windows {
 
     pub fn close(&self, id: WindowId) {
         self.push(Command::Close(id));
+    }
+
+    pub fn restore_shortcuts(&self) {
+        if let Some(id) = self.focused() {
+            self.push(Command::RestoreShortcuts(id));
+        }
     }
 
     pub fn launch(&self, line: String) {

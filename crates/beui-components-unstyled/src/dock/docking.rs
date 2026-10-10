@@ -8,6 +8,7 @@ use std::rc::Rc;
 
 use beui_core::base::Direction;
 use beui_core::geometry::Rect;
+use beui_core::image::Image;
 use beui_core::input::Modifiers;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
@@ -69,6 +70,7 @@ enum EntryKind<K: 'static> {
         id: K,
         title: Memo<String>,
         icon: Memo<String>,
+        picture: Memo<Option<Image>>,
         on_close: Option<ClickCallback>,
         content: RenderFn<()>,
     },
@@ -185,6 +187,7 @@ pub fn DockTab<K>(
     id: K,
     title: Prop<String>,
     #[prop(default = String::new())] icon: Prop<String>,
+    #[prop(default = None)] picture: Prop<Option<Image>>,
     on_close: Option<ClickCallback>,
     #[prop(children)] content: RenderFn<()>,
 ) -> DockEntry<K>
@@ -196,6 +199,7 @@ where
             id,
             title: create_memo(move || title.get()),
             icon: create_memo(move || icon.get()),
+            picture: create_memo(move || picture.get()),
             on_close,
             content,
         },
@@ -582,6 +586,13 @@ impl<K: 'static> Found<K> {
         }
     }
 
+    fn picture(&self, tab: TabId) -> Option<Image> {
+        match &self.tabs.get(&tab)?.kind {
+            EntryKind::Tab { picture, .. } => picture.get(),
+            EntryKind::Group { .. } => None,
+        }
+    }
+
     fn empty(&self, key: &str) -> Option<RenderFn<()>> {
         match &self.panes.get(key)?.kind {
             NodeKind::Pane { empty, .. } => empty.clone(),
@@ -650,6 +661,8 @@ where
             .with(|found| found.tab(tab, |_, icon, _, _| icon.get()))
             .unwrap_or_default()
     });
+    let pictures = found.clone();
+    let picture = Func::new(move |tab: TabId| pictures.with(|found| found.picture(tab)));
     let closers = found.clone();
     let closable = Func::new(move |tab: TabId| {
         closers
@@ -723,6 +736,7 @@ where
                 title,
                 group_title,
                 icon,
+                picture,
                 closable,
                 menu,
                 mode,

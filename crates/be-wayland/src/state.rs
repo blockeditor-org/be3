@@ -24,6 +24,9 @@ use smithay::wayland::drm_syncobj::{
 
 use crate::decoration::{Decorations, server_side};
 use crate::idle::Idle;
+use crate::shortcuts_inhibit::Shortcuts;
+use crate::toplevel_icon::ToplevelIcons;
+use smithay::wayland::xdg_foreign::XdgForeignState;
 use crate::server::{Waiter, readable};
 use smithay::delegate_cursor_shape;
 use smithay::delegate_data_device;
@@ -127,6 +130,9 @@ pub struct State {
     syncobj: Option<DrmSyncobjState>,
     decorations: Decorations,
     pub(crate) idle: Idle,
+    pub(crate) foreign: XdgForeignState,
+    pub(crate) icons: ToplevelIcons,
+    pub(crate) shortcuts: Shortcuts,
     start: Instant,
     compositor: CompositorState,
     xdg_shell: XdgShellState,
@@ -164,11 +170,17 @@ pub struct KeyboardConfig {
 impl State {
     pub fn new(handle: &DisplayHandle, waiter: Waiter) -> Self {
         let compositor = CompositorState::new::<Self>(handle);
-        let xdg_shell = XdgShellState::new::<Self>(handle);
+        let xdg_shell = XdgShellState::new_with_capabilities::<Self>(
+            handle,
+            [xdg_toplevel::WmCapabilities::Fullscreen],
+        );
         let shm = ShmState::new::<Self>(handle, Vec::new());
         let data_device = DataDeviceState::new::<Self>(handle);
         let decorations = Decorations::new(handle);
         let idle = Idle::new(handle);
+        crate::content_type::create(handle);
+        crate::single_pixel::create(handle);
+        crate::tearing::create(handle);
         CursorShapeManagerState::new::<Self>(handle);
         ViewporterState::new::<Self>(handle);
         OutputManagerState::new_with_xdg_output::<Self>(handle);
@@ -196,6 +208,9 @@ impl State {
             syncobj: None,
             decorations,
             idle,
+            foreign: XdgForeignState::new::<Self>(handle),
+            icons: ToplevelIcons::new(handle),
+            shortcuts: Shortcuts::new(handle),
             handle: handle.clone(),
             start: Instant::now(),
             compositor,
@@ -495,6 +510,16 @@ impl State {
             .iter()
             .filter_map(|surface| Some(self.window_of_root(&self.root_of(surface))?.id))
             .collect()
+    }
+
+    pub(crate) fn window_id_of(&self, surface: &WlSurface) -> Option<WindowId> {
+        Some(self.window_of_root(&self.root_of(surface))?.id)
+    }
+
+    pub(crate) fn changed(&mut self, id: WindowId) {
+        if !self.events.contains(&ServerEvent::Changed(id)) {
+            self.events.push(ServerEvent::Changed(id));
+        }
     }
 
     fn root_of(&self, surface: &WlSurface) -> WlSurface {
@@ -865,6 +890,7 @@ impl State {
             .map(|toplevel| toplevel.wl_surface().clone());
         let keyboard = self.keyboard();
         keyboard.set_focus(self, surface, SERIAL_COUNTER.next_serial());
+        self.settle_inhibitors();
     }
 
     pub fn set_keyboard(&mut self, keyboard: &KeyboardConfig) -> bool {
@@ -1060,6 +1086,7 @@ impl CompositorHandler for State {
         self.committed.push(surface.clone());
         let root = self.root_of(surface);
         self.committed_window(&root);
+        self.icon_committed(&root);
     }
 }
 
@@ -1165,6 +1192,7 @@ impl XdgShellHandler for State {
             return;
         };
         let id = self.windows.remove(index).id;
+        self.forget_icon(id);
         if self.keyboard_window == Some(id) {
             self.keyboard_window = None;
         }
