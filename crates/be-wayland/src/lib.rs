@@ -1,6 +1,7 @@
 mod compositor;
 mod decoration;
 mod idle;
+mod presentation;
 pub mod programs;
 mod render;
 mod server;
@@ -9,6 +10,7 @@ mod view;
 mod windows;
 
 pub use compositor::{Compositor, CursorImage};
+pub use presentation::Presented;
 pub use server::Server;
 pub use state::{KeyboardConfig, WindowId};
 pub use view::WindowView;

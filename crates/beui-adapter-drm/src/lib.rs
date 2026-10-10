@@ -1,6 +1,7 @@
 mod arrow;
 mod display;
 mod displays;
+mod flips;
 mod gpu;
 mod input;
 mod keyboard;
@@ -8,6 +9,7 @@ mod keys;
 mod layout;
 mod modes;
 mod output;
+mod pacing;
 mod problems;
 mod recovery;
 mod runner;
@@ -15,6 +17,7 @@ mod screen;
 mod wake;
 
 pub use display::{DisplayConfig, DisplayControl, DisplayMode, Monitor};
+pub use flips::{Flip, Flips};
 pub use gpu::{CursorImage, SoftwareCursor};
 pub use input::{DeviceId, InputConfig, InputControl, PointerConfig, PointerDevice};
 pub use problems::Problems;

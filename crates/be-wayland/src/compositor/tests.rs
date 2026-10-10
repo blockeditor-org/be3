@@ -6,6 +6,7 @@ mod a_dialog_that_closes_gives_the_keyboard_back_to_the_window_that_had_it;
 mod a_dmabuf_window_samples_the_clients_pixels;
 mod a_drag_begun_on_the_ui_over_a_window_never_reaches_the_window;
 mod a_drawn_window_is_listed_and_fitted_to_where_it_is_shown;
+mod a_frame_callback_waits_for_the_flip_of_the_screen_the_window_is_on;
 mod a_fullscreen_window_covers_only_its_own_screen;
 mod a_global_action_that_does_not_intercept_leaves_the_window_its_keys;
 mod a_locked_session_gives_no_window_the_keyboard_or_the_pointer;
@@ -25,6 +26,7 @@ mod idle_notifications_tell_clients_when_the_user_idles_and_resumes;
 mod keys_follow_the_focus_between_beui_and_a_window;
 mod leaving_fullscreen_returns_the_window_to_where_it_was_shown;
 mod only_an_input_idle_notification_ignores_inhibitors;
+mod presentation_feedback_carries_the_flip_time;
 mod super_f_toggles_fullscreen_on_the_focused_window;
 mod the_f_of_super_f_released_elsewhere_is_not_held_against_the_next;
 mod the_lock_time_runs_on_its_own_and_ignores_inhibitors_once_locked;
@@ -325,6 +327,75 @@ impl Harness {
             .find(|info| info.id == id)
             .expect("the window is listed")
             .responding
+    }
+}
+
+struct Painter {
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    renderer: beui::Renderer,
+    view: wgpu::TextureView,
+}
+
+impl Painter {
+    fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
+        let format = wgpu::TextureFormat::Bgra8Unorm;
+        let target = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("screen"),
+            size: wgpu::Extent3d {
+                width: SCREEN.x as u32,
+                height: SCREEN.y as u32,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+        Self {
+            device: device.clone(),
+            queue: queue.clone(),
+            renderer: beui::Renderer::new(device, format),
+            view: target.create_view(&wgpu::TextureViewDescriptor::default()),
+        }
+    }
+
+    fn paint(&mut self, harness: &Harness) {
+        use beui::Repainting as _;
+        let output = harness.output.as_ref().expect("a frame ran");
+        let repaint = output.repaint(beui::Color32::BLACK);
+        self.renderer
+            .prepare(&self.device, &self.queue, output, SCREEN, 1.0, repaint);
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+        self.renderer.render(
+            &self.device,
+            &self.queue,
+            &mut encoder,
+            &self.view,
+            (SCREEN.x as u32, SCREEN.y as u32),
+            wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+        );
+        let index = self.queue.submit([encoder.finish()]);
+        self.device
+            .poll(wgpu::PollType::Wait {
+                submission_index: Some(index),
+                timeout: None,
+            })
+            .expect("the frame finishes");
+    }
+}
+
+fn flip(seconds: u64) -> crate::presentation::Presented {
+    crate::presentation::Presented {
+        time: std::time::Duration::from_secs(seconds),
+        refresh: std::time::Duration::from_nanos(16_666_667),
+        sequence: seconds,
+        vsync: true,
+        hardware_clock: true,
     }
 }
 

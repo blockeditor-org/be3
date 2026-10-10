@@ -12,6 +12,7 @@ use smithay::backend::renderer::utils::with_renderer_surface_state;
 use smithay::input::pointer::{CursorImageStatus, CursorImageSurfaceData};
 use smithay::wayland::compositor::with_states;
 
+use crate::presentation::Presented;
 use crate::render::{Gpu, Textures, WindowDraw};
 use crate::server::{Server, Watch};
 use crate::state::{KeyboardConfig, ServerEvent, WindowId};
@@ -382,6 +383,10 @@ impl Compositor {
             .into_iter()
             .map(|id| (id, self.drawing(id)))
             .collect();
+        for (id, _) in &drawings {
+            let callbacks = self.server.state.take_feedback(*id);
+            self.server.state.presentation.drawn(*id, callbacks);
+        }
         let store = self.windows.clone();
         with_reactive_scope(document, || {
             for (id, drawing) in drawings {
@@ -544,9 +549,6 @@ impl Compositor {
                 Command::Launch(launch) => self.launch(&launch),
             }
         }
-        for id in self.windows.take_painted() {
-            self.server.state.send_frames(id);
-        }
         let cursor = match self.server.state.cursor() {
             CursorImageStatus::Hidden => CursorIcon::None,
             CursorImageStatus::Named(icon) => cursor_icon(*icon),
@@ -603,7 +605,52 @@ impl Compositor {
 }
 
 impl Compositor {
+    pub fn pace_to_flips(&mut self) {
+        self.server.state.presentation.pace_to_flips();
+    }
+
+    pub fn presented(&mut self, screen: Rect, presented: Presented) {
+        self.server.state.presentation.flipped(screen, presented);
+    }
+
+    pub fn awaits_flip(&self) -> bool {
+        self.server.state.presentation.awaits_flip()
+    }
+
+    fn screen_of(&self, id: WindowId) -> Option<Rect> {
+        let rect = self.windows.rect(id)?;
+        let area = |screen: &Rect| {
+            let shared = screen.intersect(rect);
+            shared.width().max(0.0) * shared.height().max(0.0)
+        };
+        self.screens
+            .iter()
+            .copied()
+            .filter(|screen| area(screen) > 0.0)
+            .max_by(|left, right| area(left).total_cmp(&area(right)))
+    }
+
+    fn show_painted(&mut self, context: &Context) {
+        let open = self.server.state.windows();
+        let presentation = &mut self.server.state.presentation;
+        for id in self.windows.take_painted() {
+            presentation.painted(id);
+        }
+        presentation.forget_closed(&open);
+        let screens: Vec<_> = open.iter().map(|id| (*id, self.screen_of(*id))).collect();
+        let shown = self.server.state.presentation.take_shown(context.now(), |id| {
+            screens
+                .iter()
+                .find(|(held, _)| *held == id)
+                .and_then(|(_, screen)| *screen)
+        });
+        for shown in shown {
+            self.server.state.present(shown);
+        }
+    }
+
     pub fn before(&mut self, context: &Context, rect: Rect, document: &mut Document) {
+        self.show_painted(context);
         self.receive(context, document);
         let scale = context.pixels_per_point().ceil().max(1.0) as i32;
         let size = (rect.width().round() as i32, rect.height().round() as i32);

@@ -13,6 +13,7 @@ struct Running {
     compositor: Compositor,
     cursor: Option<beui_adapter_drm::SoftwareCursor>,
     display: Option<beui_adapter_drm::DisplayControl>,
+    flips: Option<beui_adapter_drm::Flips>,
     blanked: bool,
     lock_due: bool,
     lock_noticed: bool,
@@ -59,11 +60,16 @@ pub(crate) fn start(setup: &Setup) {
     );
     let cursor = setup.get::<beui_adapter_drm::SoftwareCursor>().cloned();
     let display = setup.get::<beui_adapter_drm::DisplayControl>().cloned();
+    let flips = setup.get::<beui_adapter_drm::Flips>().cloned();
+    if flips.is_some() {
+        compositor.pace_to_flips();
+    }
     RUNNING.with(|running| {
         *running.borrow_mut() = Some(Running {
             compositor,
             cursor,
             display,
+            flips,
             blanked: false,
             lock_due: false,
             lock_noticed: false,
@@ -95,6 +101,24 @@ pub(crate) fn before(context: &Context, rect: Rect, document: &mut Document) {
         {
             running.compositor.woke();
         }
+        if let Some(flips) = &running.flips {
+            let screens = document.screens();
+            for flip in flips.take() {
+                let Some(screen) = screens.iter().find(|screen| screen.id == flip.screen) else {
+                    continue;
+                };
+                running.compositor.presented(
+                    screen.rect,
+                    be_wayland::Presented {
+                        time: flip.time,
+                        refresh: flip.refresh,
+                        sequence: flip.sequence,
+                        vsync: true,
+                        hardware_clock: flip.hardware_clock,
+                    },
+                );
+            }
+        }
         running.compositor.before(context, rect, document);
     });
 }
@@ -102,6 +126,9 @@ pub(crate) fn before(context: &Context, rect: Rect, document: &mut Document) {
 pub(crate) fn after(context: &Context, document: &mut Document) {
     with(|running| {
         running.compositor.after(context, document);
+        if let Some(flips) = &running.flips {
+            flips.watch(running.compositor.awaits_flip());
+        }
         let due = running.compositor.lock_due();
         if due && !running.lock_due {
             running.lock_noticed = true;

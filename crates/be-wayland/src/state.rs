@@ -24,6 +24,7 @@ use smithay::wayland::drm_syncobj::{
 
 use crate::decoration::{Decorations, server_side};
 use crate::idle::Idle;
+use crate::presentation::Presentation;
 use crate::server::{Waiter, readable};
 use smithay::delegate_cursor_shape;
 use smithay::delegate_data_device;
@@ -127,6 +128,7 @@ pub struct State {
     syncobj: Option<DrmSyncobjState>,
     decorations: Decorations,
     pub(crate) idle: Idle,
+    pub(crate) presentation: Presentation,
     start: Instant,
     compositor: CompositorState,
     xdg_shell: XdgShellState,
@@ -169,6 +171,7 @@ impl State {
         let data_device = DataDeviceState::new::<Self>(handle);
         let decorations = Decorations::new(handle);
         let idle = Idle::new(handle);
+        let presentation = Presentation::new(handle);
         CursorShapeManagerState::new::<Self>(handle);
         ViewporterState::new::<Self>(handle);
         OutputManagerState::new_with_xdg_output::<Self>(handle);
@@ -196,6 +199,7 @@ impl State {
             syncobj: None,
             decorations,
             idle,
+            presentation,
             handle: handle.clone(),
             start: Instant::now(),
             compositor,
@@ -730,14 +734,18 @@ impl State {
         layers
     }
 
-    pub fn send_frames(&self, id: WindowId) {
+    pub(crate) fn output(&self) -> &Output {
+        &self.output
+    }
+
+    pub fn send_frames(&self, id: WindowId, time: Duration) {
         let Some(window) = self.find(id) else {
             return;
         };
         let output = self.output.clone();
         window.window.send_frame(
             &self.output,
-            self.start.elapsed(),
+            time,
             Some(Duration::ZERO),
             |_, _| Some(output.clone()),
         );

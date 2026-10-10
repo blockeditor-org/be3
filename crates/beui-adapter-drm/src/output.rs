@@ -17,6 +17,7 @@ use be_dmabuf::{Usage, Vulkan};
 
 use crate::display::{DisplayConfig, DisplayMode, Monitor};
 use crate::gpu::{Gpu, Submitted};
+use crate::pacing::{Lane, refresh_interval};
 use crate::modes::{
     Candidate, Timing, choose, default_mode, identity, listed, monitor_id, monitor_name,
     preferred_mode, refresh_millihertz,
@@ -51,6 +52,7 @@ pub struct Output {
     blanked: bool,
     dark: bool,
     darken_failed: bool,
+    fresh: bool,
 }
 
 pub fn connected(drm: &DrmDevice) -> Vec<(connector::Handle, connector::Info)> {
@@ -217,6 +219,7 @@ impl Output {
             blanked: false,
             dark: false,
             darken_failed: false,
+            fresh: false,
         })
     }
 
@@ -331,8 +334,28 @@ impl Output {
             return false;
         }
         self.state = State::Idle;
+        self.fresh = true;
         self.darken();
         true
+    }
+
+    pub fn refresh(&self) -> std::time::Duration {
+        refresh_interval(self.candidates[self.chosen].mode.refresh_millihertz)
+    }
+
+    pub fn lane(&self) -> Option<Lane> {
+        if self.blanked || self.stalled {
+            return None;
+        }
+        Some(Lane {
+            busy: !matches!(self.state, State::Idle),
+            flipped: self.fresh,
+            refresh: self.refresh(),
+        })
+    }
+
+    pub fn framed(&mut self) {
+        self.fresh = false;
     }
 
     pub fn take_fence(&mut self) -> Option<(u64, u64, OwnedFd)> {
