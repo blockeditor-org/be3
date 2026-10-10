@@ -35,13 +35,14 @@ const SECOND: Duration = Duration::from_secs(1);
 pub fn KeepChanges(
     open: Prop<bool>,
     title: Prop<String>,
-    #[prop(default = KEEP_CHANGES_TIMEOUT)] timeout: Duration,
+    #[prop(default = KEEP_CHANGES_TIMEOUT)] timeout: Prop<Duration>,
+    #[prop(default = 0)] round: Prop<u64>,
     #[prop(default = "keep-changes".to_owned())] id: String,
     on_keep: ClickCallback,
     on_revert: ClickCallback,
 ) -> NodeId {
     let deadline: Rc<Cell<Option<Instant>>> = Rc::new(Cell::new(None));
-    let (left, set_left) = create_signal(timeout);
+    let (left, set_left) = create_signal(timeout.peek());
     let expire = on_revert.clone();
     let ticking = create_timer(clone!(deadline set_left -> move || {
         let due = deadline.get()?;
@@ -57,8 +58,10 @@ pub fn KeepChanges(
     let open = create_memo(move || open.get());
     create_effect(clone!(open deadline ticking -> move || {
         let opened = open.get();
+        round.get();
         untrack(|| match opened {
             true => {
+                let timeout = timeout.get();
                 deadline.set(Some(now() + timeout));
                 set_left.set(timeout);
                 ticking.restart(until_next_second(timeout));

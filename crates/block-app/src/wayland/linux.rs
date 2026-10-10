@@ -27,7 +27,6 @@ thread_local! {
 
 pub(crate) fn create() {
     let windows = Windows::new();
-    be_wayland::toggle_fullscreen_action(&windows);
     WINDOWS.with(|slot| *slot.borrow_mut() = Some(windows));
 }
 

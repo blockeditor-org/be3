@@ -4,7 +4,7 @@ use crate::button::{Button, ButtonVariant};
 use crate::icon_button::{IconButton, IconButtonSize};
 use crate::text::Icon;
 use crate::theme::{BORDER_WIDTH, FONT_BODY, FONT_SMALL, RADIUS, use_theme};
-use beui_components_unstyled::{Picture, Pressable};
+use beui_components_unstyled::{Edge, Picture, Pressable};
 use beui_core::base::Justify;
 use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
 use beui_core::icons::{ICON_CLOSE, ICON_ERROR, ICON_INFO};
@@ -63,16 +63,23 @@ pub fn Toasts(
     anchor: Prop<OverlayAnchor>,
     toasts: Prop<Vec<Toast>>,
     #[prop(default = Some(TOAST_DURATION))] duration: Prop<Option<Duration>>,
+    #[prop(default = Edge::BottomEnd)] edge: Prop<Edge>,
     on_dismiss: Callback<u64>,
     on_action: Callback<(u64, String)>,
     on_activate: Callback<u64>,
 ) -> NodeId {
     let listed = toasts.clone();
     let open = create_memo(move || !listed.get().is_empty());
+    let placement = edge.map(|edge| match edge {
+        Edge::Top => Placement::InsideTop,
+        Edge::TopEnd => Placement::InsideTopEnd,
+        Edge::Bottom => Placement::InsideBottom,
+        Edge::BottomEnd => Placement::InsideBottomEnd,
+    });
     view! {
         <Overlay
             anchor
-            placement=Placement::InsideBottomEnd
+            placement={placement}
             mode=OverlayMode::Floating
             traps_focus=false
             open={open}

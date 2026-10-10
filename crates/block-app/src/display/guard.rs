@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use be_block::DisplaySettings;
 use be_block::be_model::{Document, Edit};
 use be_block::display_settings::DisplayMode;
@@ -26,11 +28,28 @@ impl Screen {
     }
 }
 
+pub(crate) const ANSWER_WITHIN: Duration = Duration::from_secs(15);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Prompt {
+    Settled,
+    Asking { round: u64, left: Duration },
+    Expired,
+}
+
+#[derive(Clone, Copy)]
+struct Asked {
+    round: u64,
+    due: Duration,
+}
+
 #[derive(Default)]
 pub(crate) struct Guard {
     screens: Vec<Screen>,
     applied: DisplaySettings,
     previous: Option<DisplaySettings>,
+    asked: Option<Asked>,
+    rounds: u64,
 }
 
 impl Guard {
@@ -51,8 +70,35 @@ impl Guard {
         self.applied = settings;
         if changed {
             self.previous = Some(base);
+            self.asked = None;
         }
         !changed
+    }
+
+    pub(crate) fn prompt(&mut self, now: Duration) -> Prompt {
+        if !self.asking() {
+            self.asked = None;
+            return Prompt::Settled;
+        }
+        let asked = match self.asked {
+            Some(asked) => asked,
+            None => {
+                self.rounds += 1;
+                let asked = Asked {
+                    round: self.rounds,
+                    due: now + ANSWER_WITHIN,
+                };
+                self.asked = Some(asked);
+                asked
+            }
+        };
+        match asked.due.saturating_sub(now) {
+            Duration::ZERO => Prompt::Expired,
+            left => Prompt::Asking {
+                round: asked.round,
+                left,
+            },
+        }
     }
 
     pub(crate) fn asking(&self) -> bool {
@@ -61,6 +107,7 @@ impl Guard {
 
     pub(crate) fn keep(&mut self) -> Vec<Edit> {
         self.previous = None;
+        self.asked = None;
         let edits: Vec<Edit> = self
             .untried()
             .map(|screen| DisplaySettings::set_mode(&screen.id, Some(screen.default)))
@@ -70,6 +117,7 @@ impl Guard {
     }
 
     pub(crate) fn revert(&mut self) -> Vec<Edit> {
+        self.asked = None;
         let mut edits = Vec::new();
         if let Some(previous) = self.previous.take() {
             let restored: Vec<Edit> = self
