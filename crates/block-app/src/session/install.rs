@@ -110,7 +110,10 @@ fn lightdm_sessions(root: &Path) -> Option<String> {
         };
         let mut found: Vec<PathBuf> = entries
             .filter_map(|entry| entry.ok().map(|entry| entry.path()))
-            .filter(|path| path.extension().is_some_and(|extension| extension == "conf"))
+            .filter(|path| {
+                path.extension()
+                    .is_some_and(|extension| extension == "conf")
+            })
             .collect();
         found.sort();
         files.extend(found);
@@ -123,7 +126,10 @@ fn lightdm_sessions(root: &Path) -> Option<String> {
         };
         let mut section = String::new();
         for line in text.lines().map(str::trim) {
-            if let Some(name) = line.strip_prefix('[').and_then(|line| line.strip_suffix(']')) {
+            if let Some(name) = line
+                .strip_prefix('[')
+                .and_then(|line| line.strip_suffix(']'))
+            {
                 section = name.trim().to_owned();
             } else if section == "LightDM"
                 && let Some((key, value)) = line.split_once('=')

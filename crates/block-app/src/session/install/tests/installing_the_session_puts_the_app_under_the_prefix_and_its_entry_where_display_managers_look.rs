@@ -1,11 +1,15 @@
 use super::*;
 
 #[test]
-fn installing_the_session_puts_the_app_under_the_prefix_and_its_entry_where_display_managers_look() {
+fn installing_the_session_puts_the_app_under_the_prefix_and_its_entry_where_display_managers_look()
+{
     let root = std::env::temp_dir().join(format!("block-app-install-{}", uuid::Uuid::new_v4()));
     let source = root.join("app");
     let prefix = root.join("prefix");
-    let sessions = vec![root.join("usr/share/wayland-sessions"), root.join("lightdm")];
+    let sessions = vec![
+        root.join("usr/share/wayland-sessions"),
+        root.join("lightdm"),
+    ];
     let old = prefix.join("share/wayland-sessions/block-app.desktop");
     std::fs::create_dir_all(old.parent().unwrap()).unwrap();
     std::fs::write(&old, "an older entry").unwrap();
