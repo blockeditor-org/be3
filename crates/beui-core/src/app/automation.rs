@@ -16,7 +16,7 @@ mod target;
 mod window;
 
 pub use diff::changes;
-pub use engine::{Automation, USAGE, Settled, View, World};
+pub use engine::{Automation, PANE, Settled, USAGE, View, World};
 pub use window::{Simulation, WindowSize};
 
 pub struct Capture {

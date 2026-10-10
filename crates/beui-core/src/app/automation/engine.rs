@@ -36,7 +36,7 @@ Keyboard:
   type TEXT                 type TEXT (a newline presses Enter)
   key CHORD...              press each chord in turn, such as ctrl+z or Enter
   hold KEY... / release KEY...   hold or let go of modifiers (shift, ctrl, alt, super)
-  act ID                    run the action ID, as the command palette would
+  act ID [PANE]             run the action ID, as the command palette would, in PANE's plugin when given
 Window (headless only, except focus, blur and leave):
   resize WIDTHxHEIGHT[@SCALE]   resize the window, and its scale when given
   resize screen WIDTHxHEIGHT    the screen a fullscreen window fills
@@ -52,6 +52,8 @@ Waiting:
   pause MILLISECONDS        let that much time pass, by the app's clock
 A TARGET is #TEST_ID, X,Y or X,Y,WIDTH,HEIGHT in the tree's pixels, or text found in one line of the tree.
 Every command that gives input waits for the app to settle and answers with what changed in the tree.";
+
+pub const PANE: char = '\u{1f}';
 
 pub struct View<'a> {
     pub lines: &'a [Line],
@@ -218,7 +220,10 @@ impl Automation {
             }
             Phase::Acting { id, before } => match unran.iter().any(|unran| unran == id) {
                 true => {
-                    failed = Some(format!("no action is called {id}; `actions all` lists them"));
+                    let named = id.replace(PANE, " in ");
+                    failed = Some(format!(
+                        "no action is called {named}; `actions all` lists them"
+                    ));
                 }
                 false => active.phase = settling(before),
             },
@@ -368,7 +373,10 @@ impl Automation {
                 arguments.first().map(String::as_str) == Some("all"),
             )))),
             "act" => {
-                let id = argument(0)?.to_owned();
+                let id = match arguments.get(1) {
+                    Some(pane) => format!("{pane}{PANE}{}", argument(0)?),
+                    None => argument(0)?.to_owned(),
+                };
                 world.context.request_action(id.clone());
                 Ok(Started::Phase(Phase::Acting {
                     id,

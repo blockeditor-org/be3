@@ -102,28 +102,26 @@ pub(crate) fn describe(context: &beui::Context) {
     });
     regions.sort_by_key(|region| region.document);
     for requested in context.action_requests() {
-        let owner = regions
-            .iter()
-            .rev()
-            .find(|region| {
-                region
+        let (pane, id) = match requested.split_once(beui::automation::PANE) {
+            Some((pane, id)) => (Some(pane), id),
+            None => (None, requested.as_str()),
+        };
+        let offers = |region: &&Region, live: bool| {
+            pane.is_none_or(|pane| region.actions.name == pane)
+                && region
                     .actions
                     .actions
                     .iter()
-                    .any(|action| action.id == requested && action.live)
-            })
-            .or_else(|| {
-                regions.iter().rev().find(|region| {
-                    region
-                        .actions
-                        .actions
-                        .iter()
-                        .any(|action| action.id == requested)
-                })
-            });
+                    .any(|action| action.id == id && (action.live || !live))
+        };
+        let owner = regions
+            .iter()
+            .rev()
+            .find(|region| offers(region, true))
+            .or_else(|| regions.iter().rev().find(|region| offers(region, false)));
         if let Some(owner) = owner {
             let screen = owner.screen;
-            let id = requested.clone();
+            let id = id.to_owned();
             runtime::with(&owner.plugin, |runtime| runtime.run_action(screen, id));
             context.action_ran(&requested);
         }
