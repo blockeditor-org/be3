@@ -702,7 +702,9 @@ impl Document {
             true => self.outside_watchers.remove(&id.id()),
             false => self.outside_watchers.insert(id.id()),
         };
-        self.arena.get_mut_as::<InteractiveNode>(id).on_press_outside = on_press_outside;
+        self.arena
+            .get_mut_as::<InteractiveNode>(id)
+            .on_press_outside = on_press_outside;
     }
 
     pub(crate) fn pressed_outside(&mut self, rects: &Rects, pos: Pos2) {
@@ -710,7 +712,11 @@ impl Document {
             .outside_watchers
             .iter()
             .filter(|id| self.arena.contains(**id))
-            .filter(|id| !rects.visible(*id).is_some_and(|rect| rect.contains_half_open(pos)))
+            .filter(|id| {
+                !rects
+                    .visible(id)
+                    .is_some_and(|rect| rect.contains_half_open(pos))
+            })
             .filter_map(|id| {
                 self.arena
                     .get(*id)

@@ -53,10 +53,13 @@ fn escape_stops_a_presentation_rather_than_reaching_the_editor() {
     frame(&mut document, vec![key(Key::Escape, false)]);
     assert_eq!(stopped.get(), 1, "Escape stops presenting");
     assert!(
-        !heard
-            .borrow()
-            .iter()
-            .any(|event| matches!(event, Event::Key { key: Key::Escape, .. })),
+        !heard.borrow().iter().any(|event| matches!(
+            event,
+            Event::Key {
+                key: Key::Escape,
+                ..
+            }
+        )),
         "and neither its press nor its release reaches the editor: {:?}",
         heard.borrow()
     );

@@ -1793,7 +1793,10 @@ pub(crate) fn take_region_actions(
 }
 
 pub(crate) fn take_block_drags(plugin_id: &str, instance: EditorInstanceId) -> Vec<BlockDrag> {
-    with(plugin_id, |runtime| runtime.instances.take_block_drags(instance)).unwrap_or_default()
+    with(plugin_id, |runtime| {
+        runtime.instances.take_block_drags(instance)
+    })
+    .unwrap_or_default()
 }
 
 pub(crate) fn drag_over_region(

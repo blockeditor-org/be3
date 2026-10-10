@@ -40,7 +40,11 @@ fn a_drag_put_on_the_board_drops_where_the_button_is_let_go() {
         Rc::new(|_| {}),
     );
     harness.frame(vec![Event::PointerMoved(to)]);
-    assert_eq!(dropped.get(), None, "nothing drops while the button is held");
+    assert_eq!(
+        dropped.get(),
+        None,
+        "nothing drops while the button is held"
+    );
 
     harness.release_at(to);
     assert_eq!(

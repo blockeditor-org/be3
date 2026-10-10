@@ -18,7 +18,8 @@ use uuid::Uuid;
 
 use crate::host::HostItem;
 use crate::plugin_host::{
-    self, BlockDrag, EditorView, HostChild, InstanceRole, Piece, RegionPlacement, RegionSlot, RegionView,
+    self, BlockDrag, EditorView, HostChild, InstanceRole, Piece, RegionPlacement, RegionSlot,
+    RegionView,
 };
 use crate::surfaces::HostItemFace;
 
