@@ -2003,6 +2003,7 @@ impl BlockApp {
                 );
             }
         }
+        self.run_display_prompt();
         #[cfg(target_os = "linux")]
         self.run_session(context);
     }
@@ -2046,7 +2047,6 @@ impl BlockApp {
     fn run_frame(&mut self, context: &beui::Context) {
         performance::begin_frame();
         plugin_host::poll();
-        self.run_display_prompt();
         #[cfg(target_os = "linux")]
         self.run_notifications();
         if !self.signed_in {
