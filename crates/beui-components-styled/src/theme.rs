@@ -30,6 +30,7 @@ pub struct Theme {
     pub scroll_thumb_hover: Color32,
     pub scroll_thumb_active: Color32,
     pub track: Color32,
+    pub track_hover: Color32,
     pub knob: Color32,
     pub control_outline: Option<Color32>,
 }
@@ -56,6 +57,7 @@ impl Theme {
         scroll_thumb_hover: Color32::from_rgb(84, 98, 124),
         scroll_thumb_active: Color32::from_rgb(110, 127, 158),
         track: Color32::from_rgb(48, 57, 73),
+        track_hover: Color32::from_rgb(60, 71, 92),
         knob: Color32::from_rgb(226, 232, 244),
         control_outline: None,
     };
@@ -81,6 +83,7 @@ impl Theme {
         scroll_thumb_hover: Color32::from_gray(64),
         scroll_thumb_active: Color32::from_gray(100),
         track: Color32::from_gray(200),
+        track_hover: Color32::from_gray(170),
         knob: Color32::WHITE,
         control_outline: Some(Color32::BLACK),
     };

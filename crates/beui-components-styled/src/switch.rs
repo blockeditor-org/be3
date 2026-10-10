@@ -113,7 +113,7 @@ fn track_fill(theme: &ThemeStore, disabled: bool, on: bool, hovered: bool) -> Co
     match (on, hovered) {
         (true, false) => theme.accent.get(),
         (true, true) => theme.accent_hover.get(),
-        (false, false) => theme.surface_raised.get(),
-        (false, true) => theme.pressed.get(),
+        (false, false) => theme.track.get(),
+        (false, true) => theme.track_hover.get(),
     }
 }
