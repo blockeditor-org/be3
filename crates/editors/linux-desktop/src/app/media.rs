@@ -8,7 +8,7 @@ use block_editor_beui::beui::reactive::{
 };
 use block_editor_beui::beui::styled::{LevelOsd, OsdLevel};
 use block_editor_beui::beui::{Key, NodeId};
-use block_editor_beui::{Editor, MediaLevel, MediaLevels, MediaRequest, PlayerCommand};
+use block_editor_beui::{Editor, Media, MediaLevel, MediaLevels, MediaRequest, PlayerCommand};
 
 pub(crate) const VOLUME_STEP: f32 = 0.05;
 pub(crate) const BRIGHTNESS_STEP: f32 = 0.05;
@@ -156,7 +156,7 @@ fn osd_level(shown: Shown, levels: MediaLevels) -> Option<OsdLevel> {
 
 #[component]
 pub(super) fn MediaKeys(editor: Editor) -> NodeId {
-    let levels = editor.media();
+    let levels = editor.host_value::<Media>();
     let (shown, set_shown) = create_signal(None);
     let (shows, set_shows) = create_signal(0_u64);
     for (key, media_key) in BINDINGS {
@@ -164,7 +164,7 @@ pub(super) fn MediaKeys(editor: Editor) -> NodeId {
         let (set_shown, set_shows) = (set_shown.clone(), set_shows.clone());
         Action::new(media_key.id(), media_key.label(), move || {
             let (request, showing) = media_key.request();
-            editor.request_media(request);
+            editor.act(request);
             if let Some(showing) = showing {
                 set_shown.set(Some(showing));
                 set_shows.update(|shows| *shows += 1);

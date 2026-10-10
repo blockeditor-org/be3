@@ -172,6 +172,9 @@ way for the test to fail.
   request CI does the same, and when that writes a painting it fails the run and pushes the
   painting to the pull request's branch as a commit. Everywhere else CI runs ./scripts/ci --check, which sets nothing,
   so a painting that was never committed fails there.
+- ./scripts/verify also fails on a painting that a test names with a literal, snapshot("name"),
+  but that snapshots/ does not hold once it is done: the test failed, or returned, before
+  painting it.
 - Once every plugin test passes, ./scripts/verify deletes each painting in snapshots/ that no test
   compared, so renaming or removing a snapshot takes its old file with it; with --check it
   fails on them instead. A single editor's test run leaves the folder alone.

@@ -4,7 +4,7 @@ use super::*;
 fn a_window_the_host_focuses_leads_the_window_switcher() {
     let mut fixture = Fixture::with_windows(&[1, 2, 3]);
     let windows = [1, 2, 3].map(|id| host_window(id, id == 1)).to_vec();
-    fixture.test.linux(LinuxMessage::Windows(windows));
+    fixture.test.set_host_value::<HostWindows>(&windows);
     fixture.settle();
     assert!(
         fixture.focused_windows().is_empty(),

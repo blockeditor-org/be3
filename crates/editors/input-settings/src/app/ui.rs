@@ -16,7 +16,7 @@ use block_editor_beui::beui::styled::{
     Body, Caption, Heading, IconButton, Scroll, Select, Slider, Switch, TextInput, use_theme,
 };
 use block_editor_beui::beui::unstyled::ChoiceOption;
-use block_editor_beui::{ContentProjection, Editor, HostInputDevice};
+use block_editor_beui::{ContentProjection, Editor, HostInputDevice, InputDevices};
 
 const PADDING: f32 = 20.0;
 const VALUE_WIDTH: f32 = 72.0;
@@ -33,7 +33,7 @@ type Apply = Rc<dyn Fn(PointerSetting)>;
 pub fn InputSettingsView(editor: Editor) -> NodeId {
     let settings = editor.block_content::<InputSettingsContent>();
     let read_only = editor.read_only();
-    let devices = editor.input_devices();
+    let devices = editor.host_value::<InputDevices>();
     let root = settings.project(|content| content.root());
     let layout = settings.project(|content| content.root().keyboard_layout);
     let variant = settings.project(|content| content.root().keyboard_variant);

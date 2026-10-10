@@ -1,4 +1,6 @@
-use block_editor_beui::{HostNotification, HostNotificationAction};
+use block_editor_beui::{
+    HostNotification, HostNotificationAction, NotificationAction, Notifications,
+};
 
 use super::*;
 
@@ -37,10 +39,9 @@ fn the_notifications_button_lists_what_arrived_and_answers_it() {
         )
     };
     let update = notification(2, "Software", "Updates are ready", "");
-    fixture.test.linux(LinuxMessage::Notifications(vec![
-        update.clone(),
-        message.clone(),
-    ]));
+    fixture
+        .test
+        .set_host_value::<Notifications>(&vec![update.clone(), message.clone()]);
     fixture.settle();
     fixture.test.settle();
     assert!(fixture.says("Updates are ready"));
@@ -50,23 +51,23 @@ fn the_notifications_button_lists_what_arrived_and_answers_it() {
     fixture.test.click("desktop.notifications.2.dismiss");
     fixture.settle();
     assert_eq!(
-        fixture.test.take_notification_requests(),
-        vec![LinuxMessage::DismissNotifications(vec![2])]
+        fixture.test.take_actions::<NotificationAction>(),
+        vec![NotificationAction::Dismiss(vec![2])]
     );
 
     fixture.test.click("desktop.notifications.2");
     fixture.settle();
     assert_eq!(
-        fixture.test.take_notification_requests(),
-        vec![LinuxMessage::DismissNotifications(vec![2])],
+        fixture.test.take_actions::<NotificationAction>(),
+        vec![NotificationAction::Dismiss(vec![2])],
         "one with nothing to open is dismissed by a click"
     );
 
     fixture.test.click("desktop.notifications.1");
     fixture.settle();
     assert_eq!(
-        fixture.test.take_notification_requests(),
-        vec![LinuxMessage::InvokeNotification {
+        fixture.test.take_actions::<NotificationAction>(),
+        vec![NotificationAction::Invoke {
             id: 1,
             action: HostNotification::DEFAULT_ACTION.to_owned(),
         }],
@@ -82,7 +83,7 @@ fn the_notifications_button_lists_what_arrived_and_answers_it() {
     fixture.test.click("desktop.notifications.clear");
     fixture.settle();
     assert_eq!(
-        fixture.test.take_notification_requests(),
-        vec![LinuxMessage::DismissNotifications(vec![2, 1])]
+        fixture.test.take_actions::<NotificationAction>(),
+        vec![NotificationAction::Dismiss(vec![2, 1])]
     );
 }

@@ -4,10 +4,11 @@ use block_editor_beui::be_block::{
 };
 use block_editor_beui::beui::{Document, Key, KeyChord, Modifiers, NodeId, Rect};
 use block_editor_beui::{
-    BlockInfo, BlockParent, ChildContent, Editor, EditorHost, HostWindow, HostWindowId, MediaLevel,
-    MediaLevels, MediaRequest, PlayerCommand, PowerAction, PowerAvailability,
+    BlockInfo, BlockParent, ChildContent, Editor, EditorHost, HostWindow, HostWindowId,
+    HostWindows, Media, MediaLevel, MediaLevels, MediaRequest, PlayerCommand, Power, PowerAction,
+    PowerAvailability, WindowAction,
 };
-use block_plugin_api::{EditorMessage, LinuxMessage, Size};
+use block_plugin_api::Size;
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -106,7 +107,7 @@ impl Fixture {
                 .iter()
                 .map(|id| host_window(*id, focused == Some(*id)))
                 .collect();
-            fixture.test.linux(LinuxMessage::Windows(windows));
+            fixture.test.set_host_value::<HostWindows>(&windows);
             fixture.settle();
         }
         fixture.test.take_sent();
@@ -115,20 +116,17 @@ impl Fixture {
 
     fn focused_windows(&self) -> Vec<HostWindowId> {
         self.test
-            .sent()
-            .iter()
-            .filter_map(|message| match message {
-                EditorMessage::Linux {
-                    message: LinuxMessage::FocusWindow(window),
-                    ..
-                } => Some(*window),
+            .actions::<WindowAction>()
+            .into_iter()
+            .filter_map(|action| match action {
+                WindowAction::Focus(window) => Some(window),
                 _ => None,
             })
             .collect()
     }
 
     fn allow_power(&mut self, power: PowerAvailability) {
-        self.test.linux(LinuxMessage::Power(power));
+        self.test.set_host_value::<Power>(&power);
         self.settle();
     }
 

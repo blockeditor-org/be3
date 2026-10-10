@@ -12,7 +12,7 @@ use block_editor_beui::beui::styled::{
     Body, Caption, Heading, IconButton, Scroll, Select, use_theme,
 };
 use block_editor_beui::beui::unstyled::ChoiceOption;
-use block_editor_beui::{ContentProjection, Editor, HostDisplay, HostDisplayMode};
+use block_editor_beui::{ContentProjection, Displays, Editor, HostDisplay, HostDisplayMode};
 
 use super::modes::{
     LOCK_AFTER, SCREEN_OFF, Size, effective, lock_after_label, mode_label, rate_label, rates,
@@ -31,7 +31,7 @@ type Settings = Rc<ContentProjection<DisplaySettingsContent>>;
 pub fn DisplaySettingsView(editor: Editor) -> NodeId {
     let settings = editor.block_content::<DisplaySettingsContent>();
     let read_only = editor.read_only();
-    let displays = editor.displays();
+    let displays = editor.host_value::<Displays>();
     let root = settings.project(|content| content.root());
     let ids = create_memo(clone!(displays -> move || {
         displays.with(|displays| displays.iter().map(|display| display.id.clone()).collect::<Vec<String>>())

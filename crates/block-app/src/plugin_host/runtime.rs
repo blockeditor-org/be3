@@ -8,10 +8,10 @@ use std::{
 
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
-    ArtifactDescription, BlockPick, ChildRect, EditorInstanceId, EditorMessage, EditorRegion,
-    FrameSpec, HostPanel, HostSession, MAX_QUEUED_MESSAGES, Message, Monitor, PluginManifest,
+    ArtifactDescription, BlockPick, ChildRect, EditorInstanceId, EditorMessage, EditorRegion, FrameSpec,
+    HostAction, HostPanel, HostSession, HostValue, MAX_QUEUED_MESSAGES, Message, Monitor, PluginManifest,
     PresentedFrame, ScreenDamage, ScreenId, ScreenLayout, ScreenRequest, SessionState,
-    SurfaceFormat, SurfaceSpec, Theme, ViewChange,
+    SurfaceFormat, SurfaceSpec, Theme, ViewChange, decode_host, encode_host,
 };
 use uuid::Uuid;
 
@@ -51,11 +51,8 @@ struct Host {
     over_budget: u64,
     runtimes: HashMap<String, Runtime>,
     focus: Focus,
-    input_devices: Vec<block_plugin_api::HostInputDevice>,
-    displays: Vec<block_plugin_api::HostDisplay>,
-    power: block_plugin_api::PowerAvailability,
-    media: block_plugin_api::MediaLevels,
-    notifications: std::sync::Arc<Vec<block_plugin_api::HostNotification>>,
+    published: HashMap<String, Arc<Vec<u8>>>,
+    shell: Option<(String, EditorInstanceId)>,
     grabbed: bool,
 }
 
@@ -68,11 +65,8 @@ impl Host {
             over_budget: 0,
             runtimes: HashMap::new(),
             focus: Focus::default(),
-            input_devices: Vec::new(),
-            displays: Vec::new(),
-            power: block_plugin_api::PowerAvailability::default(),
-            media: block_plugin_api::MediaLevels::default(),
-            notifications: std::sync::Arc::default(),
+            published: HashMap::new(),
+            shell: None,
             grabbed: false,
         }
     }
@@ -85,23 +79,21 @@ impl Host {
             return Err(CROWDED.to_owned());
         };
         let focus = self.focus.clone();
-        let devices = &self.input_devices;
-        let displays = &self.displays;
-        let power = self.power;
-        let media = self.media;
-        let notifications = &self.notifications;
+        let published = &self.published;
+        let shell = self
+            .shell
+            .as_ref()
+            .filter(|(shell, _)| *shell == plugin.identity.id)
+            .map(|(_, instance)| *instance);
         let runtime = self
             .runtimes
             .entry(plugin.identity.id.clone())
             .or_insert_with(|| {
                 let mut runtime = Runtime::new(plugin, surface);
-                runtime.instances.set_input_devices(devices.clone());
-                runtime.instances.set_displays(displays.clone());
-                runtime.instances.set_power(power);
-                runtime.instances.set_media(media);
-                runtime
-                    .instances
-                    .set_notifications(std::sync::Arc::clone(notifications));
+                for (key, value) in published {
+                    runtime.instances.set_host_value(key, Arc::clone(value));
+                }
+                runtime.instances.set_shell(shell);
                 runtime
             });
         runtime.instances.set_focus(focus);
@@ -959,141 +951,72 @@ pub(crate) fn set_focus(block: Option<(Uuid, Uuid)>, via: Vec<Uuid>) {
     });
 }
 
-#[cfg(target_os = "linux")]
-pub(crate) fn set_input_devices(devices: Vec<block_plugin_api::HostInputDevice>) {
+pub(crate) fn publish<T: HostValue>(value: &T::Value) {
+    let bytes = encode_host(value);
     HOST.with(|host| {
         let mut host = host.borrow_mut();
-        if host.input_devices == devices {
+        if host
+            .published
+            .get(T::KEY)
+            .is_some_and(|published| **published == bytes)
+        {
             return;
         }
-        host.input_devices = devices.clone();
+        let value = Arc::new(bytes);
+        host.published.insert(T::KEY.to_owned(), Arc::clone(&value));
         for (plugin_id, runtime) in &mut host.runtimes {
-            if runtime.instances.set_input_devices(devices.clone()) {
+            if runtime.instances.set_host_value(T::KEY, Arc::clone(&value)) {
                 runtime.pacing.needed = true;
                 mark(plugin_id);
+                host::request_repaint();
             }
         }
     });
-    host::request_repaint();
 }
 
 #[cfg(target_os = "linux")]
-pub(crate) fn set_displays(displays: Vec<block_plugin_api::HostDisplay>) {
-    HOST.with(|host| {
-        let mut host = host.borrow_mut();
-        if host.displays == displays {
-            return;
-        }
-        host.displays = displays.clone();
-        for (plugin_id, runtime) in &mut host.runtimes {
-            if runtime.instances.set_displays(displays.clone()) {
-                runtime.pacing.needed = true;
-                mark(plugin_id);
-            }
-        }
-    });
-    host::request_repaint();
-}
-
-#[cfg(target_os = "linux")]
-pub(crate) fn set_power(power: block_plugin_api::PowerAvailability) {
-    HOST.with(|host| {
-        let mut host = host.borrow_mut();
-        if host.power == power {
-            return;
-        }
-        host.power = power;
-        for (plugin_id, runtime) in &mut host.runtimes {
-            if runtime.instances.set_power(power) {
-                runtime.pacing.needed = true;
-                mark(plugin_id);
-            }
-        }
-    });
-    host::request_repaint();
-}
-
-#[cfg(target_os = "linux")]
-pub(crate) fn set_media(media: block_plugin_api::MediaLevels) {
-    HOST.with(|host| {
-        let mut host = host.borrow_mut();
-        if host.media == media {
-            return;
-        }
-        host.media = media;
-        for (plugin_id, runtime) in &mut host.runtimes {
-            if runtime.instances.set_media(media) {
-                runtime.pacing.needed = true;
-                mark(plugin_id);
-            }
-        }
-    });
-    host::request_repaint();
-}
-
-#[cfg(target_os = "linux")]
-pub(crate) fn watches_media() -> bool {
+pub(crate) fn watched<T: HostValue>() -> bool {
     HOST.with(|host| {
         host.borrow()
             .runtimes
             .values()
-            .any(|runtime| runtime.instances.watches_media())
+            .any(|runtime| runtime.instances.watches_host_value(T::KEY))
     })
 }
 
-#[cfg(target_os = "linux")]
-pub(crate) fn take_media_requests(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-) -> Vec<block_plugin_api::MediaRequest> {
-    with(plugin_id, |runtime| {
-        runtime.instances.take_media_requests(instance)
-    })
-    .unwrap_or_default()
-}
-
-#[cfg(target_os = "linux")]
-pub(crate) fn set_notifications(notifications: Vec<block_plugin_api::HostNotification>) {
+pub(crate) fn take_actions<A: HostAction>() -> Vec<A> {
     HOST.with(|host| {
         let mut host = host.borrow_mut();
-        if *host.notifications == notifications {
+        let mut runtimes: Vec<_> = host.runtimes.iter_mut().collect();
+        runtimes.sort_by_key(|(left, _)| *left);
+        runtimes
+            .into_iter()
+            .flat_map(|(_, runtime)| runtime.instances.take_host_actions(A::KEY))
+            .filter_map(|action| decode_host(&action))
+            .collect()
+    })
+}
+
+pub(crate) fn set_shell(shell: Option<(&str, EditorInstanceId)>) {
+    HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        let shell = shell.map(|(plugin_id, instance)| (plugin_id.to_owned(), instance));
+        if host.shell == shell {
             return;
         }
-        let notifications = std::sync::Arc::new(notifications);
-        host.notifications = std::sync::Arc::clone(&notifications);
+        host.shell = shell.clone();
         for (plugin_id, runtime) in &mut host.runtimes {
-            if runtime
-                .instances
-                .set_notifications(std::sync::Arc::clone(&notifications))
-            {
+            let instance = shell
+                .as_ref()
+                .filter(|(shell, _)| shell == plugin_id)
+                .map(|(_, instance)| *instance);
+            if runtime.instances.set_shell(instance) {
                 runtime.pacing.needed = true;
                 mark(plugin_id);
+                host::request_repaint();
             }
         }
     });
-    host::request_repaint();
-}
-
-#[cfg(target_os = "linux")]
-pub(crate) fn take_notification_requests(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-) -> Vec<block_plugin_api::LinuxMessage> {
-    with(plugin_id, |runtime| {
-        runtime.instances.take_notification_requests(instance)
-    })
-    .unwrap_or_default()
-}
-
-#[cfg(target_os = "linux")]
-pub(crate) fn take_power_request(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-) -> Option<block_plugin_api::PowerAction> {
-    with(plugin_id, |runtime| {
-        runtime.instances.take_power_request(instance)
-    })
-    .flatten()
 }
 
 pub(crate) fn take_focus_report(plugin_id: &str, instance: EditorInstanceId) -> Option<Focus> {
@@ -1101,36 +1024,6 @@ pub(crate) fn take_focus_report(plugin_id: &str, instance: EditorInstanceId) -> 
         runtime.instances.take_focus_report(instance)
     })
     .flatten()
-}
-
-pub(crate) fn take_focused_windows(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-) -> Vec<block_plugin_api::HostWindowId> {
-    with(plugin_id, |runtime| {
-        runtime.instances.take_focused_windows(instance)
-    })
-    .unwrap_or_default()
-}
-
-pub(crate) fn take_fullscreen_windows(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-) -> Vec<(block_plugin_api::HostWindowId, bool)> {
-    with(plugin_id, |runtime| {
-        runtime.instances.take_fullscreen_windows(instance)
-    })
-    .unwrap_or_default()
-}
-
-pub(crate) fn take_closed_windows(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-) -> Vec<block_plugin_api::HostWindowId> {
-    with(plugin_id, |runtime| {
-        runtime.instances.take_closed_windows(instance)
-    })
-    .unwrap_or_default()
 }
 
 pub(crate) fn take_artifact_watch(
@@ -1335,19 +1228,6 @@ pub(crate) fn frame_rects(plugin_id: &str, instance: EditorInstanceId) -> Option
 
 pub(crate) fn presenting(plugin_id: &str, instance: EditorInstanceId) -> bool {
     with(plugin_id, |runtime| runtime.instances.presenting(instance)).unwrap_or_default()
-}
-
-pub(crate) fn set_windows(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-    windows: Vec<block_plugin_api::HostWindow>,
-) {
-    with(plugin_id, |runtime| {
-        if runtime.instances.set_windows(instance, windows) {
-            mark(plugin_id);
-            host::request_repaint();
-        }
-    });
 }
 
 pub(crate) fn present(plugin_id: &str, instance: EditorInstanceId, presenting: bool) {

@@ -8,7 +8,7 @@
 # buck2 unchanged, except that tests may run on the workers, on anything but
 # Linux x86_64 `run` builds for this machine unless it names
 # --target-platforms, and a command that fails with an infrastructure error is
-# tried once more. A program `run` starts gets RUST_BACKTRACE=1 unless the
+# tried again, three times in all. A program `run` starts gets RUST_BACKTRACE=1 unless the
 # environment already sets it.
 #
 # Usage:
@@ -32,32 +32,40 @@ command="${1:-}"
 
 # buck2 exits with 2 for an infrastructure error and with other statuses for a
 # build that is wrong. A connection to the build server sometimes resets
-# partway through a download, which buck2 does not retry itself, and
-# Namespace's cluster may have shut down since nsc was last asked; the second
-# attempt wakes it if it has, and finds the actions cached. When a program
-# reads the output, the first attempt's is held back until it is known not to
-# be retried: a --keep-going bxl prints its results even when it fails, and the
-# reader would otherwise get each one twice.
+# partway through a download, which buck2 does not retry itself, a relay
+# through the proxy drops its calls now and then, and Namespace's cluster may
+# have shut down since nsc was last asked; the next attempt wakes it if it has,
+# and finds the finished actions cached. Such a command is tried three times in
+# all, or BE3_BUCK_ATTEMPTS. When a program reads the output, an attempt's is
+# held back until it is known not to be retried: a --keep-going bxl prints its
+# results even when it fails, and the reader would otherwise get each one more
+# than once.
 retrying() {
-    local status=0 first=''
-    if [[ -t 1 ]]; then
-        "$@" || status=$?
-    else
-        first="$(mktemp)"
-        "$@" > "$first" || status=$?
+    local status attempt=1 attempts="${BE3_BUCK_ATTEMPTS:-3}" output=''
+    if [[ ! "$attempts" =~ ^[1-9][0-9]?$ ]]; then
+        echo "BE3_BUCK_ATTEMPTS is a number of attempts from 1 to 99, not '$attempts'." >&2
+        return 1
     fi
-    if [[ $status -eq 2 ]]; then
-        [[ -z "$first" ]] || rm -f "$first"
-        echo 'buck2 failed with an infrastructure error; trying once more.' >&2
+    while true; do
+        status=0
+        if [[ -t 1 ]]; then
+            "$@" || status=$?
+        else
+            output="$(mktemp)"
+            "$@" > "$output" || status=$?
+        fi
+        if [[ $status -ne 2 || $attempt -ge $attempts ]]; then
+            break
+        fi
+        [[ -z "$output" ]] || rm -f "$output"
+        attempt=$((attempt + 1))
+        echo "buck2 failed with an infrastructure error; trying again ($attempt of $attempts). guides/build_server.md says what to do when this keeps happening." >&2
         namespace_recheck=true
         configure_build_server "$buck2"
-        status=0
-        "$@" || status=$?
-        return $status
-    fi
-    if [[ -n "$first" ]]; then
-        cat "$first"
-        rm -f "$first"
+    done
+    if [[ -n "$output" ]]; then
+        cat "$output"
+        rm -f "$output"
     fi
     return $status
 }

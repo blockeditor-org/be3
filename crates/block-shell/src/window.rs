@@ -7,7 +7,9 @@ use block_editor_beui::beui::reactive::{
 use block_editor_beui::beui::styled::{Body, Button, ButtonVariant, WINDOW_CHROME, use_theme};
 use block_editor_beui::beui::unstyled::{Edge, Floating, TabId, use_dock_tab};
 use block_editor_beui::beui::{NodeId, Rect, pos2, vec2};
-use block_editor_beui::{ChildMode, Editor, HostWindow, HostWindowId, Subregion, SubregionContent};
+use block_editor_beui::{
+    ChildMode, Editor, HostWindow, HostWindowId, Subregion, SubregionContent, WindowAction,
+};
 
 const WINDOW_TABS: u64 = 1 << 41;
 const DIALOG_ORIGIN: f32 = 80.0;
@@ -62,7 +64,7 @@ pub(crate) fn WindowPanel(
         create_effect(clone!(focused -> move || {
             let shown = shown.get();
             if settled.replace(true) && shown && !focused.get_untracked() {
-                host.focus_window(window);
+                host.act(WindowAction::Focus(window));
             }
         }));
         create_effect(clone!(tab fullscreen -> move || match fullscreen.get() {
@@ -74,7 +76,10 @@ pub(crate) fn WindowPanel(
         create_effect(move || {
             let shown = shown.get();
             if shown != fullscreen.get_untracked().is_some() {
-                host.fullscreen_window(window, shown);
+                host.act(WindowAction::Fullscreen {
+                    window,
+                    fullscreen: shown,
+                });
             }
         });
     }
@@ -101,7 +106,7 @@ pub(crate) fn WindowPanel(
                 <NotResponding
                     name
                     on_wait={move || set_waited.set(true)}
-                    on_force_close={move || host.close_window(window)}
+                    on_force_close={move || host.act(WindowAction::Close(window))}
                 />
             </Floating>
         </Layers>

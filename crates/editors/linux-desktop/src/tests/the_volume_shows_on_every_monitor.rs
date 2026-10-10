@@ -11,14 +11,14 @@ fn the_volume_shows_on_every_monitor() {
         .test
         .set_monitors(vec![("left", left), ("right", right)]);
     fixture.settle();
-    fixture.test.linux(LinuxMessage::Media(MediaLevels {
+    fixture.test.set_host_value::<Media>(&MediaLevels {
         output: Some(MediaLevel {
             level: 0.4,
             muted: false,
         }),
         input: None,
         brightness: None,
-    }));
+    });
     assert!(fixture.test.app_key(Modifiers::NONE, Key::VolumeUp));
     fixture.settle();
     let shown = [

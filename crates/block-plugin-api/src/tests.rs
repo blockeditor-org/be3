@@ -135,3 +135,42 @@ mod version_control_messages_round_trip;
 mod view_messages_round_trip;
 mod web_view_messages_round_trip;
 mod zoom_gesture_round_trips;
+
+fn host_value_round_trips<T: HostValue>(value: T::Value)
+where
+    T::Value: std::fmt::Debug,
+{
+    let watch = Message::Editor(EditorMessage::WatchHostValue {
+        instance: EditorInstanceId(4),
+        key: T::KEY.into(),
+    });
+    assert_eq!(watch.direction(), Direction::ToHost);
+    assert_eq!(decode_frame(&encode_frame(&watch).unwrap()).unwrap(), watch);
+    let message = Message::Editor(EditorMessage::HostValue {
+        instance: EditorInstanceId(4),
+        key: T::KEY.into(),
+        value: encode_host(&value),
+    });
+    assert_eq!(message.direction(), Direction::ToPlugin);
+    let Message::Editor(EditorMessage::HostValue { value: bytes, .. }) =
+        decode_frame(&encode_frame(&message).unwrap()).unwrap()
+    else {
+        panic!("a host value comes back as one");
+    };
+    assert_eq!(decode_host::<T::Value>(&bytes), Some(value));
+}
+
+fn host_action_round_trips<A: HostAction + PartialEq + std::fmt::Debug>(action: A) {
+    let message = Message::Editor(EditorMessage::HostAction {
+        instance: EditorInstanceId(4),
+        key: A::KEY.into(),
+        action: encode_host(&action),
+    });
+    assert_eq!(message.direction(), Direction::ToHost);
+    let Message::Editor(EditorMessage::HostAction { action: bytes, .. }) =
+        decode_frame(&encode_frame(&message).unwrap()).unwrap()
+    else {
+        panic!("a host action comes back as one");
+    };
+    assert_eq!(decode_host::<A>(&bytes), Some(action));
+}

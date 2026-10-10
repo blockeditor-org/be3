@@ -7,7 +7,7 @@ use block_editor_beui::beui::reactive::{
 };
 use block_editor_beui::beui::styled::{Button, ButtonVariant, Dialog, MenuButton, Paragraph};
 use block_editor_beui::beui::unstyled::MenuItem;
-use block_editor_beui::{Editor, PowerAction, PowerAvailability};
+use block_editor_beui::{Editor, Power, PowerAction, PowerAvailability};
 
 const DIALOG_SPACING: f32 = 16.0;
 const BUTTON_SPACING: f32 = 8.0;
@@ -71,7 +71,7 @@ fn PowerItem(action: PowerAction, available: Memo<PowerAvailability>) -> MenuIte
 
 #[component]
 pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
-    let available = editor.power();
+    let available = editor.host_value::<Power>();
     let allowed = available.clone();
     let (confirming, set_confirming) = create_signal(PowerAction::LogOut);
     let (open, set_open) = create_signal(false);
@@ -87,7 +87,7 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
             return;
         }
         match action {
-            PowerAction::Lock | PowerAction::Suspend => requesting.request_power(action),
+            PowerAction::Lock | PowerAction::Suspend => requesting.act(action),
             _ => {
                 set_confirming.set(action);
                 set_open.set(true);
@@ -102,7 +102,7 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
     let cancel = clone!(set_open -> move || set_open.set(false));
     let confirm = move || {
         set_open.set(false);
-        editor.request_power(confirming.get_untracked());
+        editor.act(confirming.get_untracked());
     };
     view! {
         <List spacing=0.0>

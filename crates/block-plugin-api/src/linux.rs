@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{ChildRect, Direction, Size};
+use crate::{ChildRect, HostAction, HostValue, Size};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct HostWindowId(pub u64);
@@ -146,53 +146,76 @@ impl HostNotification {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum LinuxMessage {
-    Windows(Vec<HostWindow>),
-    WatchInputDevices,
-    InputDevices(Vec<HostInputDevice>),
-    WatchDisplays,
-    Displays(Vec<HostDisplay>),
-    FullscreenWindow {
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WindowAction {
+    Focus(HostWindowId),
+    Fullscreen {
         window: HostWindowId,
         fullscreen: bool,
     },
-    FocusWindow(HostWindowId),
-    WatchPower,
-    Power(PowerAvailability),
-    RequestPower(PowerAction),
-    WatchMedia,
-    Media(MediaLevels),
-    RequestMedia(MediaRequest),
-    WatchNotifications,
-    Notifications(Vec<HostNotification>),
-    InvokeNotification {
-        id: u32,
-        action: String,
-    },
-    DismissNotifications(Vec<u32>),
+    Close(HostWindowId),
 }
 
-impl LinuxMessage {
-    pub fn direction(&self) -> Direction {
-        match self {
-            Self::Windows(_)
-            | Self::InputDevices(_)
-            | Self::Displays(_)
-            | Self::Power(_)
-            | Self::Media(_)
-            | Self::Notifications(_) => Direction::ToPlugin,
-            Self::WatchInputDevices
-            | Self::WatchDisplays
-            | Self::FullscreenWindow { .. }
-            | Self::FocusWindow(_)
-            | Self::WatchPower
-            | Self::RequestPower(_)
-            | Self::WatchMedia
-            | Self::RequestMedia(_)
-            | Self::WatchNotifications
-            | Self::InvokeNotification { .. }
-            | Self::DismissNotifications(_) => Direction::ToHost,
-        }
-    }
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationAction {
+    Invoke { id: u32, action: String },
+    Dismiss(Vec<u32>),
+}
+
+pub enum HostWindows {}
+
+impl HostValue for HostWindows {
+    const KEY: &'static str = "windows";
+    type Value = Vec<HostWindow>;
+}
+
+pub enum InputDevices {}
+
+impl HostValue for InputDevices {
+    const KEY: &'static str = "input_devices";
+    type Value = Vec<HostInputDevice>;
+}
+
+pub enum Displays {}
+
+impl HostValue for Displays {
+    const KEY: &'static str = "displays";
+    type Value = Vec<HostDisplay>;
+}
+
+pub enum Power {}
+
+impl HostValue for Power {
+    const KEY: &'static str = "power";
+    type Value = PowerAvailability;
+}
+
+pub enum Media {}
+
+impl HostValue for Media {
+    const KEY: &'static str = "media";
+    type Value = MediaLevels;
+}
+
+pub enum Notifications {}
+
+impl HostValue for Notifications {
+    const KEY: &'static str = "notifications";
+    type Value = Vec<HostNotification>;
+}
+
+impl HostAction for WindowAction {
+    const KEY: &'static str = "window";
+}
+
+impl HostAction for PowerAction {
+    const KEY: &'static str = "power";
+}
+
+impl HostAction for MediaRequest {
+    const KEY: &'static str = "media";
+}
+
+impl HostAction for NotificationAction {
+    const KEY: &'static str = "notification";
 }

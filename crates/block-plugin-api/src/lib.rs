@@ -3,14 +3,17 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 mod block_ids;
+mod host_value;
 mod linux;
 mod manifest;
 mod session;
 pub use block_ids::BlockIdRole;
+pub use host_value::{HostAction, HostValue, decode_host, encode_host};
 pub use linux::{
-    HostDisplay, HostDisplayMode, HostInputDevice, HostNotification, HostNotificationAction,
-    HostWindow, HostWindowId, LinuxMessage, MediaLevel, MediaLevels, MediaRequest, PlayerCommand,
-    PowerAction, PowerAvailability,
+    Displays, HostDisplay, HostDisplayMode, HostInputDevice, HostNotification,
+    HostNotificationAction, HostWindow, HostWindowId, HostWindows, InputDevices, Media, MediaLevel,
+    MediaLevels, MediaRequest, NotificationAction, Notifications, PlayerCommand, Power,
+    PowerAction, PowerAvailability, WindowAction,
 };
 pub use manifest::{
     EditorDocument, ManifestDocument, TemplateDocument, Templates, manifest_from_json,
@@ -799,14 +802,23 @@ pub enum EditorMessage {
         panel: HostPanel,
     },
 
-    CloseWindow {
+    WatchHostValue {
         instance: EditorInstanceId,
-        window: HostWindowId,
+        key: String,
     },
 
-    Linux {
+    HostValue {
         instance: EditorInstanceId,
-        message: LinuxMessage,
+        key: String,
+        #[serde(with = "serde_bytes")]
+        value: Vec<u8>,
+    },
+
+    HostAction {
+        instance: EditorInstanceId,
+        key: String,
+        #[serde(with = "serde_bytes")]
+        action: Vec<u8>,
     },
 
     ShowDialog {
@@ -1124,8 +1136,9 @@ impl EditorMessage {
             | Self::OpenBlock { instance, .. }
             | Self::ShowBlock { instance, .. }
             | Self::ShowPanel { instance, .. }
-            | Self::CloseWindow { instance, .. }
-            | Self::Linux { instance, .. }
+            | Self::WatchHostValue { instance, .. }
+            | Self::HostValue { instance, .. }
+            | Self::HostAction { instance, .. }
             | Self::ShowDialog { instance, .. }
             | Self::SetAccess { instance, .. }
             | Self::Focused { instance, .. }
@@ -1712,6 +1725,7 @@ impl EditorMessage {
             | Self::ChildBar { .. }
             | Self::Blocks { .. }
             | Self::MenuPick { .. }
+            | Self::HostValue { .. }
             | Self::VersionStatus { .. } => Direction::ToPlugin,
             Self::OpenBlock { .. }
             | Self::Focused { .. }
@@ -1756,9 +1770,9 @@ impl EditorMessage {
             | Self::VersionControl { .. }
             | Self::CreateBlock { .. }
             | Self::SetParent { .. }
-            | Self::CloseWindow { .. }
+            | Self::WatchHostValue { .. }
+            | Self::HostAction { .. }
             | Self::SetName { .. } => Direction::ToHost,
-            Self::Linux { message, .. } => message.direction(),
         }
     }
 }
@@ -2624,60 +2638,16 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             Ok(())
         }
         EditorMessage::CopyText { text: value, .. } => text(value),
-        EditorMessage::Linux { message, .. } => match message {
-            LinuxMessage::Windows(windows) => {
-                collection(windows.len())?;
-                for window in windows {
-                    string(&window.title)?;
-                    string(&window.app_id)?;
-                }
-                Ok(())
-            }
-            LinuxMessage::InputDevices(devices) => {
-                collection(devices.len())?;
-                for device in devices {
-                    string(&device.name)?;
-                }
-                Ok(())
-            }
-            LinuxMessage::Displays(displays) => {
-                collection(displays.len())?;
-                for display in displays {
-                    string(&display.id)?;
-                    string(&display.name)?;
-                    string(&display.connector)?;
-                    collection(display.modes.len())?;
-                }
-                Ok(())
-            }
-            LinuxMessage::WatchInputDevices
-            | LinuxMessage::WatchDisplays
-            | LinuxMessage::FullscreenWindow { .. }
-            | LinuxMessage::FocusWindow(_)
-            | LinuxMessage::WatchPower
-            | LinuxMessage::Power(_)
-            | LinuxMessage::RequestPower(_)
-            | LinuxMessage::WatchMedia
-            | LinuxMessage::Media(_)
-            | LinuxMessage::RequestMedia(_)
-            | LinuxMessage::WatchNotifications => Ok(()),
-            LinuxMessage::Notifications(notifications) => {
-                collection(notifications.len())?;
-                for notification in notifications {
-                    string(&notification.app_name)?;
-                    string(&notification.summary)?;
-                    string(&notification.body)?;
-                    collection(notification.actions.len())?;
-                    for action in &notification.actions {
-                        string(&action.key)?;
-                        string(&action.label)?;
-                    }
-                }
-                Ok(())
-            }
-            LinuxMessage::InvokeNotification { action, .. } => string(action),
-            LinuxMessage::DismissNotifications(ids) => collection(ids.len()),
-        },
+        EditorMessage::WatchHostValue { key, .. } => string(key),
+        EditorMessage::HostValue {
+            key, value: bytes, ..
+        }
+        | EditorMessage::HostAction {
+            key, action: bytes, ..
+        } => {
+            string(key)?;
+            blob(bytes)
+        }
         EditorMessage::Menu { entries, .. } => menu(entries),
         EditorMessage::MenuPick { id, .. } | EditorMessage::ChildMenuPick { id, .. } => string(id),
         EditorMessage::WebViewCommand { command, .. } => match command {
