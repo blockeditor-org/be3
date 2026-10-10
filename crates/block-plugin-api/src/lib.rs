@@ -10,7 +10,8 @@ mod session;
 pub use block_ids::BlockIdRole;
 pub use host_value::{HostAction, HostValue, decode_host, encode_host};
 pub use linux::{
-    Displays, HostDisplay, HostDisplayMode, HostInputDevice, HostNotification,
+    DisplayAnswer, DisplayConfirmation, Displays, HostDisplay, HostProblem, PendingDisplayChange,
+    ProblemAction, Problems, HostDisplayMode, HostInputDevice, HostNotification,
     HostNotificationAction, HostWindow, HostWindowId, HostWindows, InputDevices, Media, MediaLevel,
     MediaLevels, MediaRequest, NotificationAction, Notifications, PlayerCommand, Power,
     PowerAction, PowerAvailability, WindowAction,

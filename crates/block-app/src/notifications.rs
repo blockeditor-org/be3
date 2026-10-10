@@ -79,10 +79,6 @@ impl Notifications {
         toasts(&self.center, locked)
     }
 
-    pub(crate) fn owns_toast(toast: u64) -> bool {
-        toast > TOAST_IDS
-    }
-
     pub(crate) fn dismiss_toast(&mut self, toast: u64) {
         if let Some(id) = notification(toast) {
             self.center.dismiss(id);

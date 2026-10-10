@@ -17,8 +17,8 @@ use block_editor_beui::{
     NARROW_WIDTH, TopBar,
 };
 use block_shell::{
-    BlockTab, DialogWindow, FILES, Failure, PanelStatus, PanelWindow, PickerDialogs, WindowTab,
-    Workspace, WorkspaceDialogs,
+    BlockTab, DialogWindow, FILES, Failure, PanelStatus, PanelWindow, PickerDialogs,
+    ProblemToasts, WindowTab, Workspace, WorkspaceDialogs,
 };
 
 const FILES_SHARE: f32 = 0.22;
@@ -86,6 +86,7 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
     let dialogs = Rc::clone(&workspace);
     let pickers = Rc::clone(&workspace);
     let shell_dialogs = Rc::clone(&workspace);
+    let editor = workspace.editor().clone();
     let theme = use_theme();
     view! {
         <Frame @node_ref={&surface} color={theme.background.clone()}>
@@ -129,6 +130,7 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
                 </Docking>
                 <PickerDialogs workspace={pickers} />
                 <WorkspaceDialogs workspace={shell_dialogs} />
+                <ProblemToasts editor anchor={surface.clone()} />
             </List>
         </Frame>
     }

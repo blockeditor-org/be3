@@ -613,13 +613,11 @@ impl BlockApp {
     }
 
     fn toasts(&self) -> Vec<beui::styled::Toast> {
-        #[allow(unused_mut)]
-        let mut toasts = notices::shown();
         #[cfg(target_os = "linux")]
         if let Some(notifications) = &self.notifications {
-            toasts.extend(notifications.toasts(self.locked()));
+            return notifications.toasts(self.locked());
         }
-        toasts
+        Vec::new()
     }
 
     #[cfg(target_os = "linux")]
@@ -629,15 +627,12 @@ impl BlockApp {
             .is_some_and(session::ScreenLock::locked)
     }
 
+    #[cfg_attr(not(target_os = "linux"), allow(unused_variables))]
     fn dismiss_toast(&mut self, id: u64) {
         #[cfg(target_os = "linux")]
-        if notifications::Notifications::owns_toast(id) {
-            if let Some(notifications) = &mut self.notifications {
-                notifications.dismiss_toast(id);
-            }
-            return;
+        if let Some(notifications) = &mut self.notifications {
+            notifications.dismiss_toast(id);
         }
-        notices::dismiss(id);
     }
 
     #[cfg_attr(not(target_os = "linux"), allow(unused_variables))]
@@ -2047,6 +2042,41 @@ impl BlockApp {
         self.run_session(context);
     }
 
+    fn run_display_prompt(&mut self) {
+        let now = host::now();
+        for answer in plugin_host::take_actions::<block_plugin_api::DisplayAnswer>() {
+            let display::Prompt::Asking { round, .. } = display::prompt(now) else {
+                continue;
+            };
+            let edits = match answer {
+                block_plugin_api::DisplayAnswer::Keep(answered) if answered == round => {
+                    display::keep()
+                }
+                block_plugin_api::DisplayAnswer::Revert(answered) if answered == round => {
+                    display::revert()
+                }
+                _ => continue,
+            };
+            self.display.commit(&self.app_state, edits);
+        }
+        let mut prompt = display::prompt(now);
+        if prompt == display::Prompt::Expired {
+            self.display.commit(&self.app_state, display::revert());
+            prompt = display::prompt(now);
+        }
+        let pending = match prompt {
+            display::Prompt::Asking { round, left } => {
+                host::request_repaint_after(left);
+                Some(block_plugin_api::PendingDisplayChange {
+                    round,
+                    timeout: display::ANSWER_WITHIN,
+                })
+            }
+            display::Prompt::Settled | display::Prompt::Expired => None,
+        };
+        plugin_host::publish::<block_plugin_api::DisplayConfirmation>(&pending);
+    }
+
     fn crashed(&mut self, report: String) {
         self.error = Some(report);
         let _ = self.app_state.clear_active_account();
@@ -2055,6 +2085,8 @@ impl BlockApp {
     fn run_frame(&mut self, context: &beui::Context) {
         performance::begin_frame();
         plugin_host::poll();
+        self.run_display_prompt();
+        notices::frame();
         #[cfg(target_os = "linux")]
         self.run_notifications();
         if !self.signed_in {
@@ -2301,8 +2333,6 @@ impl BlockApp {
             UiCommand::DismissToast(id) => self.dismiss_toast(id),
             UiCommand::ToastAction(id, action) => self.act_on_toast(id, Some(action)),
             UiCommand::ActivateToast(id) => self.act_on_toast(id, None),
-            UiCommand::KeepDisplay => self.display.commit(&self.app_state, display::keep()),
-            UiCommand::RevertDisplay => self.display.commit(&self.app_state, display::revert()),
             #[cfg(target_os = "linux")]
             UiCommand::LockScreen => {
                 if let Some(lock) = &mut self.screen_lock {
@@ -2511,7 +2541,6 @@ impl BlockApp {
                 .with(|open| open.values().any(PluginEditor::presenting_now)),
             debug: debug::view(),
             toasts: self.toasts(),
-            keep_display: display::asking(),
             #[cfg(target_os = "linux")]
             lock: self.lock_view(),
             #[cfg(not(target_os = "linux"))]

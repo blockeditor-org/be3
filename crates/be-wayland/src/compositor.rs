@@ -174,12 +174,6 @@ impl Compositor {
         for (id, fullscreen) in self.windows.take_fullscreen_requests() {
             self.set_fullscreen(id, fullscreen);
         }
-        if self.windows.take_fullscreen_toggle()
-            && let Some(id) = self.windows.focused()
-        {
-            let fullscreen = !self.server.state.fullscreen(id);
-            self.set_fullscreen(id, fullscreen);
-        }
         if let Some((id, _)) = self.fullscreen
             && !self.server.state.windows().contains(&id)
         {

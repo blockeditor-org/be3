@@ -118,8 +118,8 @@ Wayland program has the focus, the key goes to it and the action does not run.
 `.intercepts()` (which implies `.global()`) is the opt-in to take a key away
 from a focused app: the action is offered the press before the app, and a
 press it takes never reaches the app, nor does its release. Reserve it for
-shortcuts that must work over anything, such as Super+F
-(`be_wayland::toggle_fullscreen_action`) and the media keys. Inside an app only
+shortcuts that must work over anything, such as linux-desktop's Super+F
+and media keys. Inside an app only
 chords with Ctrl, Alt or Super, and media keys, are offered, since the app
 counts as a text field. A Wayland program's window is an app in the same way
 as a plugin's region (see One input path below), so it gets this offer and no

@@ -1,5 +1,7 @@
 mod bar;
 mod calendar;
+mod display_prompt;
+mod fullscreen;
 pub(crate) mod media;
 mod notifications;
 mod popup;
@@ -20,10 +22,12 @@ use block_editor_beui::beui::unstyled::{
 use block_editor_beui::beui::{Modifiers, NodeId, Rect, Vec2, pos2, vec2};
 use block_editor_beui::{HostPanel, HostWindowId};
 use block_shell::{
-    BlockTab, DialogWindow, Failure, PanelWindow, PickerDialogs, Workspace, WorkspaceDialogs,
+    BlockTab, DialogWindow, Failure, PanelWindow, PickerDialogs, ProblemToasts, Workspace,
+    WorkspaceDialogs,
 };
 
 use bar::DesktopBar;
+use display_prompt::DisplayPrompt;
 use media::MediaKeys;
 
 const WINDOW_ORIGIN: f32 = 48.0;
@@ -62,6 +66,7 @@ fn DesktopBody(workspace: Rc<Workspace>) -> NodeId {
     workspace.editor().content(&surface);
     let layout = workspace.layout();
     switcher::bind_window_switcher(&layout);
+    fullscreen::bind_fullscreen(workspace.editor());
     let failure = workspace.error();
     let failed = create_memo(clone!(failure -> move || failure.get().is_some()));
     let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
@@ -111,6 +116,8 @@ fn DesktopBody(workspace: Rc<Workspace>) -> NodeId {
                 <DesktopBar workspace={bar} />
                 <PickerDialogs workspace={pickers} />
                 <WorkspaceDialogs workspace={shell_dialogs} />
+                <ProblemToasts editor={editor.clone()} anchor={surface.clone()} />
+                <DisplayPrompt editor={editor.clone()} />
                 <MediaKeys editor />
             </List>
         </Frame>
