@@ -489,6 +489,15 @@ impl Screens {
                 self.requests = set.screens.clone();
                 self.relayout();
             }
+            Message::RunAction { screen, id } => {
+                let Some((instance, region)) = self.screen(*screen) else {
+                    return false;
+                };
+                let Some(session) = self.sessions.get_mut(&instance) else {
+                    return false;
+                };
+                session.run_action(region, id);
+            }
             Message::Input(batch) => {
                 let Some((instance, region)) = self.screen(batch.screen) else {
                     return false;
@@ -598,6 +607,10 @@ impl Screens {
         }
         match message {
             Message::Input(batch) => match self.screen(batch.screen) {
+                Some((instance, _)) => self.mark(instance),
+                None => return false,
+            },
+            Message::RunAction { screen, .. } => match self.screen(*screen) {
                 Some((instance, _)) => self.mark(instance),
                 None => return false,
             },

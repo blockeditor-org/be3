@@ -109,6 +109,17 @@ pub struct FrameReport {
 pub struct Description {
     pub nodes: Vec<DescribedNode>,
     pub test_ids: Vec<TestIdRect>,
+    pub actions: Vec<DescribedAction>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DescribedAction {
+    pub id: String,
+    pub label: String,
+    pub shortcut: Option<String>,
+    pub enabled: bool,
+    pub checked: Option<bool>,
+    pub live: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1672,6 +1683,7 @@ pub enum Message {
     Children(ChildPlacements),
     ChildStatuses(Vec<ChildStatus>),
     Describe(bool),
+    RunAction { screen: ScreenId, id: String },
 }
 
 impl Message {
@@ -1708,7 +1720,8 @@ impl Message {
             | Self::Shutdown
             | Self::BlockTypes(_)
             | Self::ChildStatuses(_)
-            | Self::Describe(_) => Direction::ToPlugin,
+            | Self::Describe(_)
+            | Self::RunAction { .. } => Direction::ToPlugin,
             Self::Hello(_)
             | Self::Acknowledged { .. }
             | Self::ShutdownAcknowledged
@@ -2470,6 +2483,7 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
             Ok(())
         }
         Message::Children(value) => validate_children(value),
+        Message::RunAction { id, .. } => string(id),
         Message::ChildStatuses(value) => {
             collection(value.len())?;
             for status in value {
@@ -2506,6 +2520,16 @@ fn described(description: &Description) -> Result<(), DecodeError> {
     }
     for test_id in &description.test_ids {
         string(&test_id.id)?;
+    }
+    if description.actions.len() > MAX_DESCRIBED_NODES {
+        return Err(DecodeError::LimitExceeded("described actions"));
+    }
+    for action in &description.actions {
+        string(&action.id)?;
+        string(&action.label)?;
+        if let Some(shortcut) = &action.shortcut {
+            string(shortcut)?;
+        }
     }
     Ok(())
 }

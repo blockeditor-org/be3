@@ -1,7 +1,10 @@
+#![cfg(not(target_arch = "wasm32"))]
+
 use std::error::Error;
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant};
 
+use beui_core::app::automation::{Simulation, WindowSize};
 use beui_core::app::{SafeArea, Setup, Waker};
 use beui_core::file_picker::FilePickRequest;
 use beui_core::geometry::Vec2;
@@ -13,8 +16,8 @@ use beui_renderer_wgpu::present::OpenDevice;
 const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
 
 pub struct Headless {
-    pub size: Vec2,
-    pub scale: f32,
+    pub window: WindowSize,
+    pub screen: Option<Vec2>,
     pub open_device: Option<OpenDevice>,
 }
 
@@ -28,28 +31,24 @@ impl Adapter for Headless {
     }
 }
 
-#[derive(Default)]
-struct Quiet {
-    clipboard: Option<String>,
-}
+struct Offscreen;
 
-impl Platform for Quiet {
-    fn copy(&mut self, text: String) {
-        self.clipboard = Some(text);
-    }
+impl Platform for Offscreen {
+    fn copy(&mut self, _text: String) {}
 
     fn paste(&mut self) -> Option<String> {
-        self.clipboard.clone()
+        None
     }
 
     fn pick_file(&mut self, _request: FilePickRequest) {}
 }
 
 fn run(headless: Headless, launch: Launch) -> Result<(), Box<dyn Error>> {
-    let width = (headless.size.x * headless.scale).round().max(1.0) as u32;
-    let height = (headless.size.y * headless.scale).round().max(1.0) as u32;
+    let simulation = Simulation::new(headless.window, headless.screen);
+    let (width, height) = simulation.physical();
     let renderer = pollster::block_on(OffscreenSurface::new(width, height, headless.open_device))?;
     let mut runner = Runner::new(launch);
+    runner.simulate(simulation);
     let (sender, receiver) = mpsc::channel();
     let setup = Setup::new(Waker::new(move || {
         let _ = sender.send(());
@@ -61,10 +60,9 @@ fn run(headless: Headless, launch: Launch) -> Result<(), Box<dyn Error>> {
         }],
         setup,
     )?;
-    let mut platform = Quiet::default();
     loop {
         let started = Instant::now();
-        let next = match runner.frame(&mut platform, headless.scale, SafeArea::default()) {
+        let next = match runner.frame(&mut Offscreen, headless.window.scale, SafeArea::default()) {
             Some(frame) => {
                 if frame.close_requested {
                     break;

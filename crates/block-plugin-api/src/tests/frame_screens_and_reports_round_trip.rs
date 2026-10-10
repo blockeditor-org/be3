@@ -96,6 +96,14 @@ fn frame_screens_and_reports_round_trip() {
                     height: 24.0,
                 },
             }],
+            actions: vec![DescribedAction {
+                id: "checklist.clear".to_owned(),
+                label: "Clear completed".to_owned(),
+                shortcut: Some("Ctrl+Shift+K".to_owned()),
+                enabled: false,
+                checked: None,
+                live: true,
+            }],
         }),
     }]);
     assert_eq!(

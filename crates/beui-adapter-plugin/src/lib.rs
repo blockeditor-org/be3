@@ -14,7 +14,7 @@ use beui_core::renderer::Loaded;
 use beui_core::runner::{Adapter, Launch, RunOptions, Runner, Running};
 use beui_core::screens::Screen;
 use block_editor_plugin::{
-    DescribedNode, Description, EditorHost, Frame, InputEvent, Region, Toggled,
+    DescribedAction, DescribedNode, Description, EditorHost, Frame, InputEvent, Region, Toggled,
 };
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect};
@@ -101,6 +101,10 @@ impl PluginSurface {
         region.scale_factor / context.pixels_per_point()
     }
 
+    pub fn run_action(&mut self, id: &str) {
+        self.runner.context().request_action(id.to_owned());
+    }
+
     pub fn input(&mut self, region: &Region, event: &InputEvent) {
         let context = self.runner.context().clone();
         for event in self.input.translate(&context, region, event) {
@@ -144,6 +148,7 @@ impl PluginSurface {
         };
         if region.describe {
             self.runner.keep_accessibility();
+            self.runner.context().set_automated(true);
         }
         let Some(frame) = self.runner.frame(&mut self.platform, scale, area) else {
             return Frame::default();
@@ -220,7 +225,30 @@ impl PluginSurface {
             })
             .unwrap_or_default();
         test_ids.sort_by(|a, b| a.0.cmp(&b.0));
-        Description { nodes, test_ids }
+        let actions = self
+            .runner
+            .output()
+            .map(|output| {
+                output
+                    .actions
+                    .iter()
+                    .flat_map(|group| &group.actions)
+                    .map(|action| DescribedAction {
+                        id: action.id.clone(),
+                        label: action.label.clone(),
+                        shortcut: action.shortcut.clone(),
+                        enabled: action.enabled,
+                        checked: action.checked,
+                        live: action.live,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        Description {
+            nodes,
+            test_ids,
+            actions,
+        }
     }
 
     pub fn to_region(&self, region: &Region, rect: Rect) -> Rect {

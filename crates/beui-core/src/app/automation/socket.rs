@@ -9,6 +9,12 @@ use std::time::Duration;
 use super::{Inbox, Reply, Request};
 
 pub fn serve(path: &Path, inbox: Inbox) -> io::Result<()> {
+    if UnixStream::connect(path).is_ok() {
+        return Err(io::Error::new(
+            io::ErrorKind::AddrInUse,
+            "another app already answers there",
+        ));
+    }
     let _ = std::fs::remove_file(path);
     let listener = UnixListener::bind(path)?;
     let path = path.to_path_buf();

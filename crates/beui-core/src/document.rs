@@ -34,6 +34,8 @@ pub type Shortcut = dyn Fn(KeyPress) -> bool;
 type PickedCallback = Box<dyn FnOnce(FilePick)>;
 pub type FingerTap = dyn Fn(usize) -> bool;
 pub type UnhandledKey = dyn Fn(UnhandledKeyPress) -> bool;
+
+pub type ActionsHook = dyn Fn(&Context, &[NodeId]);
 pub type GlobalKey = dyn Fn(GlobalKeyPress) -> bool;
 
 #[derive(Clone, Copy, Debug)]
@@ -103,6 +105,7 @@ pub struct Document {
     finger_taps: RefCell<Vec<Weak<FingerTap>>>,
     unhandled_keys: RefCell<Vec<Weak<UnhandledKey>>>,
     global_keys: RefCell<Vec<Weak<GlobalKey>>>,
+    actions_hooks: RefCell<Vec<Weak<ActionsHook>>>,
     pub(crate) globally_held: Vec<(Key, Option<Rc<GlobalKey>>)>,
     pub(crate) tapping: Option<Key>,
     input_frames: u64,
@@ -324,6 +327,7 @@ impl Document {
             finger_taps: RefCell::new(Vec::new()),
             unhandled_keys: RefCell::new(Vec::new()),
             global_keys: RefCell::new(Vec::new()),
+            actions_hooks: RefCell::new(Vec::new()),
             globally_held: Vec::new(),
             tapping: None,
             input_frames: 0,
@@ -555,6 +559,21 @@ impl Document {
             typing: self.focus_types(),
         };
         live.into_iter().any(|handler| handler(unhandled.clone()))
+    }
+
+    pub fn register_actions(&self, hook: Weak<ActionsHook>) {
+        self.actions_hooks.borrow_mut().push(hook);
+    }
+
+    fn describe_actions(&self, ctx: &Context) {
+        let mut hooks = self.actions_hooks.borrow_mut();
+        hooks.retain(|hook| hook.strong_count() > 0);
+        let live: Vec<Rc<ActionsHook>> = hooks.iter().filter_map(Weak::upgrade).collect();
+        drop(hooks);
+        let path = self.focus_ancestry();
+        for hook in live {
+            hook(ctx, &path);
+        }
     }
 
     pub fn register_global_key(&self, handler: Weak<GlobalKey>) {
@@ -1127,6 +1146,11 @@ impl Document {
             let context = self.reactive_scope().context();
             let _guard = crate::current::install(self);
             context.run(|| crate::current::with_document(|document| document.run_timers()));
+        }
+        if ctx.automated() {
+            let context = self.reactive_scope().context();
+            let _guard = crate::current::install(self);
+            context.run(|| crate::current::with_document(|document| document.describe_actions(ctx)));
         }
         self.deliver_file_picks(ctx);
 

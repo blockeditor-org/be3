@@ -59,7 +59,8 @@ impl Message {
             | Self::ShutdownAcknowledged
             | Self::BlockTypes(_)
             | Self::ChildStatuses(_)
-            | Self::Describe(_) => {}
+            | Self::Describe(_)
+            | Self::RunAction { .. } => {}
         }
     }
 }

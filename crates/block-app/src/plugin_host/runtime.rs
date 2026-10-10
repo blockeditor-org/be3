@@ -398,6 +398,16 @@ impl Runtime {
         &self.plugin.identity.name
     }
 
+    pub(super) fn id(&self) -> &str {
+        &self.plugin.identity.id
+    }
+
+    pub(super) fn run_action(&mut self, screen: ScreenId, id: String) {
+        self.pacing.needed = true;
+        self.send(vec![Message::RunAction { screen, id }]);
+        host::request_repaint();
+    }
+
     fn busy(&mut self) -> bool {
         if self.error.is_some() || !self.instances.has_mounted() {
             return false;

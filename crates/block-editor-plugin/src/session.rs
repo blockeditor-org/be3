@@ -194,6 +194,7 @@ fn name(message: &Message) -> &'static str {
         Message::Children(_) => "child placements",
         Message::ChildStatuses(_) => "child statuses",
         Message::Describe(_) => "a description request",
+        Message::RunAction { .. } => "an action to run",
     }
 }
 

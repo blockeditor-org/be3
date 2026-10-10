@@ -1000,6 +1000,7 @@ impl EditorSession {
                                 rect: reported(*rect),
                             })
                             .collect(),
+                        actions: description.actions.clone(),
                     }
                 }),
             });
@@ -1015,6 +1016,11 @@ impl EditorSession {
     pub(crate) fn input(&mut self, region: EditorRegion, event: &InputEvent) {
         let context = self.context(region);
         self.app.input(&context, event);
+    }
+
+    pub(crate) fn run_action(&mut self, region: EditorRegion, id: &str) {
+        let context = self.context(region);
+        self.app.run_action(&context, id);
     }
 
     pub fn report(&self, region: EditorRegion) -> Option<&FrameReport> {

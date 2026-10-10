@@ -51,6 +51,8 @@ pub trait Instance: std::any::Any {
 
     fn input(&mut self, region: &Region, event: &InputEvent);
 
+    fn run_action(&mut self, _region: &Region, _id: &str) {}
+
     fn update(&mut self, region: &Region, settings: Option<&mut Vec<u8>>) -> Frame;
 
     #[cfg(target_arch = "wasm32")]
@@ -102,6 +104,7 @@ pub struct Frame {
 pub struct Description {
     pub nodes: Vec<DescribedNode>,
     pub test_ids: Vec<(String, Rect)>,
+    pub actions: Vec<block_plugin_api::DescribedAction>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

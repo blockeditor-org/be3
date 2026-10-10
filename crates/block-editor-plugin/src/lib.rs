@@ -33,7 +33,7 @@ pub use block_plugin_api::{
     NotificationRequest, NotificationSignal, NotificationUrgency, Notifications, Occluder,
     PlayerCommand, PointerButton, Power, PowerAction, PowerAvailability, ProgramAction, Programs,
     ResizeMode, ScreenLocked, ScreenPlacement, SettingsProgress, ShellDialog, SurfaceRect,
-    TemplateCategory, TemplateDescriptor, Toggled, TopBar, TouchPhase, VersionBranch,
+    TemplateCategory, TemplateDescriptor, Toggled, TopBar, TouchPhase, VersionBranch, DescribedAction,
     VersionChange, VersionChangeKind, VersionCommand, VersionCommit, VersionStatus, ViewChange,
     WebViewCommand, WebViewEvent, WebViewId, WheelUnit, WindowAction,
 };

@@ -476,6 +476,10 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
     fn input(&mut self, region: &Region, event: &InputEvent) {
         self.surface(region.region).input(region, event);
     }
+
+    fn run_action(&mut self, region: &Region, id: &str) {
+        self.surface(region.region).run_action(id);
+    }
 }
 
 #[cfg(test)]

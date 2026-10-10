@@ -2653,6 +2653,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-adapter-headless:beui-adapter-headless",
                     "//crates/beui-adapter-winit:beui-adapter-winit",
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -2669,6 +2670,7 @@ crates = {
                 "examples": {
                     "survey": {
                         "deps": [
+                            "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
                             "//crates/beui-components-styled:beui-components-styled",
                             "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -2711,6 +2713,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-adapter-headless:beui-adapter-headless",
                     "//crates/beui-adapter-winit:beui-adapter-winit",
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -2727,6 +2730,7 @@ crates = {
                 "examples": {
                     "survey": {
                         "deps": [
+                            "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
                             "//crates/beui-components-styled:beui-components-styled",
                             "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -2769,6 +2773,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-adapter-headless:beui-adapter-headless",
                     "//crates/beui-adapter-winit:beui-adapter-winit",
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -2785,6 +2790,7 @@ crates = {
                 "examples": {
                     "survey": {
                         "deps": [
+                            "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
                             "//crates/beui-components-styled:beui-components-styled",
                             "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -2827,6 +2833,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-adapter-headless:beui-adapter-headless",
                     "//crates/beui-adapter-winit:beui-adapter-winit",
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -2843,6 +2850,7 @@ crates = {
                 "examples": {
                     "survey": {
                         "deps": [
+                            "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
                             "//crates/beui-components-styled:beui-components-styled",
                             "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -2934,6 +2942,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-adapter-headless:beui-adapter-headless",
                     "//crates/beui-adapter-winit:beui-adapter-winit",
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -2950,6 +2959,7 @@ crates = {
                 "examples": {
                     "survey": {
                         "deps": [
+                            "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
                             "//crates/beui-components-styled:beui-components-styled",
                             "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -2992,6 +3002,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-adapter-headless:beui-adapter-headless",
                     "//crates/beui-adapter-winit:beui-adapter-winit",
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -3008,6 +3019,7 @@ crates = {
                 "examples": {
                     "survey": {
                         "deps": [
+                            "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
                             "//crates/beui-components-styled:beui-components-styled",
                             "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -3249,6 +3261,105 @@ crates = {
                     "//third-party/rust:rustix-1.1.4",
                     "//third-party/rust:smithay-0.7.0",
                     "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/beui-adapter-headless": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "beui_adapter_headless",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "beui-adapter-headless",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//third-party/rust:pollster-0.4.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//third-party/rust:pollster-0.4.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//third-party/rust:pollster-0.4.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//third-party/rust:pollster-0.4.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//third-party/rust:pollster-0.4.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//third-party/rust:pollster-0.4.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "examples": {},
                 "features": [],
