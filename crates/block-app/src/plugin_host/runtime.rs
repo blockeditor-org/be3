@@ -161,6 +161,7 @@ struct Pacing {
     needed: bool,
     paint_at: Option<Duration>,
     requested_at: Option<Duration>,
+    unanswered_since: Option<Duration>,
     animated: u64,
 }
 
@@ -169,6 +170,7 @@ impl Pacing {
         self.needed = false;
         self.paint_at = None;
         self.requested_at = None;
+        self.unanswered_since = None;
     }
 
     fn due(&self, now: Duration, pass: u64) -> bool {
@@ -180,12 +182,14 @@ impl Pacing {
 
     fn request(&mut self, now: Duration, pass: u64) {
         self.requested_at = Some(now);
+        self.unanswered_since.get_or_insert(now);
         self.animated = pass;
     }
 
     fn ready(&mut self, now: Duration, repaint_after: Option<Duration>) {
         self.needed = false;
         self.requested_at = None;
+        self.unanswered_since = None;
         self.paint_at = repaint_after.map(|delay| now + delay);
     }
 
@@ -992,8 +996,45 @@ pub(crate) fn take_actions<A: HostAction>() -> Vec<A> {
         runtimes
             .into_iter()
             .flat_map(|(_, runtime)| runtime.instances.take_host_actions(A::KEY))
-            .filter_map(|action| decode_host(&action))
+            .filter_map(|mut action| {
+                let decoded = decode_host(&action);
+                for byte in &mut action {
+                    unsafe { std::ptr::write_volatile(byte, 0) };
+                }
+                decoded
+            })
             .collect()
+    })
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn shell_lock() -> crate::session::PluginLock {
+    HOST.with(|host| {
+        let host = host.borrow();
+        let Some((plugin_id, instance)) = host.shell.as_ref() else {
+            return crate::session::PluginLock::default();
+        };
+        let Some(runtime) = host.runtimes.get(plugin_id) else {
+            return crate::session::PluginLock::default();
+        };
+        let drawn = runtime
+            .instances
+            .screen_id(*instance, EditorRegion::Lock)
+            .and_then(|screen| runtime.layout.placement(screen))
+            .is_some();
+        crate::session::PluginLock {
+            offered: runtime
+                .plugin
+                .editors
+                .iter()
+                .any(|editor| editor.regions.contains(&EditorRegion::Lock)),
+            failed: runtime.error.is_some(),
+            drawn,
+            unanswered: runtime
+                .pacing
+                .unanswered_since
+                .map(|since| host::now().saturating_sub(since)),
+        }
     })
 }
 

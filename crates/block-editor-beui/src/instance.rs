@@ -72,6 +72,7 @@ impl<A: BeuiApp> beui::App for RegionApp<A> {
             EditorRegion::Frame if views.creating => shown.content = views.creation(context, rect),
             EditorRegion::Frame => views.frame(context, rect, region, picks, shown),
             EditorRegion::Preview => views.preview(context, rect),
+            EditorRegion::Lock => views.lock(context, rect),
             EditorRegion::ArtifactSettings => {
                 if let Some(draft) = settings {
                     views.artifact_settings(context, rect, draft);
@@ -91,6 +92,8 @@ struct Views<A: BeuiApp> {
     editor: Option<Editor>,
     preview: Option<Editor>,
     preview_document: Option<beui::Document>,
+    lock: Option<Editor>,
+    lock_document: Option<beui::Document>,
     creation: Option<Creation>,
     dialog: Option<beui::Document>,
     artifacts: Option<Artifacts>,
@@ -107,6 +110,20 @@ impl<A: BeuiApp> Views<A> {
         let document = self.preview_document.get_or_insert_with(|| {
             let built = editor.clone();
             beui::reactive::build(move || A::preview_view(built))
+        });
+        let begun = editor.clone();
+        beui::reactive::with_reactive_scope(document, move || begun.begin_frame());
+        document.show(context, rect);
+        editor.end_frame(document);
+    }
+
+    fn lock(&mut self, context: &beui::Context, rect: beui::Rect) {
+        let Some(editor) = self.lock.clone() else {
+            return;
+        };
+        let document = self.lock_document.get_or_insert_with(|| {
+            let built = editor.clone();
+            beui::reactive::build(move || A::lock_view(built))
         });
         let begun = editor.clone();
         beui::reactive::with_reactive_scope(document, move || begun.begin_frame());
@@ -159,6 +176,8 @@ impl<A: BeuiApp> Views<A> {
             editor: None,
             preview: None,
             preview_document: None,
+            lock: None,
+            lock_document: None,
             creation: None,
             dialog: None,
             artifacts: None,
@@ -236,6 +255,7 @@ impl<A: BeuiApp> BeuiInstance<A> {
                 views.view = view;
             }
             crate::headless::Adopted::Preview(editor) => views.preview = Some(editor),
+            crate::headless::Adopted::Lock(editor) => views.lock = Some(editor),
             crate::headless::Adopted::Creation(creation) => views.creation = Some(creation),
             crate::headless::Adopted::Artifacts(artifacts) => views.artifacts = Some(artifacts),
         }
@@ -251,6 +271,7 @@ impl<A: BeuiApp> BeuiInstance<A> {
             (EditorRegion::Frame, false) => self.views.chrome.as_ref().map(BeuiFrame::document),
             (EditorRegion::Frame, true) => self.views.dialog.as_ref(),
             (EditorRegion::Preview, _) => self.views.preview_document.as_ref(),
+            (EditorRegion::Lock, _) => self.views.lock_document.as_ref(),
             (EditorRegion::ArtifactSettings, _) => self.views.settings.as_ref(),
         }
     }
@@ -313,6 +334,10 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         if fresh(&self.views.preview) {
             self.views.preview = Some(scaled(self.host.clone()));
             self.views.preview_document = None;
+        }
+        if fresh(&self.views.lock) {
+            self.views.lock = Some(scaled(self.host.clone()));
+            self.views.lock_document = None;
         }
     }
 

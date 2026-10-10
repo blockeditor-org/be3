@@ -15,7 +15,7 @@ fn the_right_password_unlocks_the_screen() {
     assert_eq!(recorder.attempts.len(), 1);
     assert_eq!(recorder.attempts[0].1, "hunter2");
     assert!(
-        lock.state(seconds(1)).busy,
+        lock.state(seconds(1)).busy(),
         "the field waits for the answer"
     );
     lock.submit(password("again"), seconds(1), &mut recorder);

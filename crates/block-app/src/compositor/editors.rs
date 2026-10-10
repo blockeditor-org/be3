@@ -363,6 +363,7 @@ struct Handle {
     pan_and_zoom: bool,
     max_zoom: Option<u32>,
     preview: bool,
+    lock: bool,
 }
 
 impl Handle {
@@ -376,6 +377,7 @@ impl Handle {
             pan_and_zoom: capabilities.supports_pan_and_zoom,
             max_zoom: capabilities.max_zoom,
             preview: editor.has_region(EditorRegion::Preview),
+            lock: editor.has_region(EditorRegion::Lock),
         }
     }
 
@@ -476,6 +478,49 @@ pub(crate) fn PresentingSurface() -> NodeId {
                             embedded=false
                             passive=false
                             presented=true
+                        />
+                    }
+                }}
+            </ForEach>
+        </Layers>
+    }
+}
+
+#[component]
+pub(crate) fn LockSurface(shown: Memo<bool>) -> NodeId {
+    let editors = editors();
+    let any = super::any();
+    let shell = super::shell();
+    let keys = create_memo(clone!(editors -> move || {
+        any.get();
+        shell
+            .get()
+            .filter(|block| editors.handle(*block).is_some_and(|handle| handle.lock))
+            .into_iter()
+            .collect::<Vec<_>>()
+    }));
+    view! {
+        <Layers>
+            <ForEach keys={keys}>
+                {move |block: Uuid| {
+                    let Some(region_editor) = editors.handle(block).and_then(|handle| editors.region(&handle)) else {
+                        return view! {
+                            <Frame />
+                        };
+                    };
+                    let opacity = create_memo(clone!(shown -> move || match shown.get() {
+                        true => 1.0,
+                        false => 0.0,
+                    }));
+                    let passive = create_memo(clone!(shown -> move || !shown.get()));
+                    view! {
+                        <PluginRegion
+                            editor={region_editor}
+                            region=EditorRegion::Lock
+                            opacity
+                            passive
+                            focused={shown.clone()}
+                            child_view={child_view(block, EditorRegion::Lock)}
                         />
                     }
                 }}

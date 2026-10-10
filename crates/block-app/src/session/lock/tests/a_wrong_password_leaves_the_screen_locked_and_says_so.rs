@@ -17,7 +17,8 @@ fn a_wrong_password_leaves_the_screen_locked_and_says_so() {
         lock.state(seconds(2)),
         LockState {
             locked: true,
-            busy: false,
+            checking: false,
+            retry_in: None,
             error: Some("That password is not right.".to_owned()),
         }
     );

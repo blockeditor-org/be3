@@ -13,10 +13,10 @@ fn a_password_that_cannot_be_checked_leaves_the_screen_locked() {
     );
     assert!(lock.locked(), "an error is never an unlock");
     let state = lock.state(seconds(2));
-    assert!(!state.busy, "the field can be tried again");
+    assert!(!state.busy(), "the field can be tried again");
     assert!(
         state
-            .error
+            .message()
             .is_some_and(|error| error.contains("PAM is not installed")),
         "the problem is shown"
     );

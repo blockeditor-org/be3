@@ -14,6 +14,7 @@ pub type View = Box<dyn FnOnce() -> beui::NodeId>;
 pub enum Adopted {
     Editor(Editor, Option<View>),
     Preview(Editor),
+    Lock(Editor),
     Creation(Creation),
     Artifacts(Artifacts),
 }
@@ -21,7 +22,9 @@ pub enum Adopted {
 impl Adopted {
     pub(crate) fn host(&self) -> EditorHost {
         match self {
-            Self::Editor(editor, _) | Self::Preview(editor) => editor.host().clone(),
+            Self::Editor(editor, _) | Self::Preview(editor) | Self::Lock(editor) => {
+                editor.host().clone()
+            }
             Self::Creation(creation) => creation.host().clone(),
             Self::Artifacts(artifacts) => artifacts.host().clone(),
         }

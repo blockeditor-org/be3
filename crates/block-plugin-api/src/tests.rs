@@ -106,6 +106,7 @@ mod history_messages_round_trip;
 mod host_panel_messages_round_trip;
 mod host_window_messages_round_trip;
 mod ime_messages_round_trip;
+mod lock_screen_messages_round_trip;
 mod manifest_validation;
 mod media_messages_round_trip;
 mod menus_and_their_picks_round_trip;

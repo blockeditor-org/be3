@@ -94,6 +94,7 @@ impl Wakes {
 enum Kind {
     Frame(Uuid),
     Preview(Uuid),
+    Lock(Uuid),
     Creation,
     Settings,
 }
@@ -122,6 +123,11 @@ impl<A: BeuiApp> BeuiTest<A> {
         Self::open(Kind::Preview(block), Adopted::Preview(editor), Vec::new())
     }
 
+    pub fn lock(editor: Editor) -> Self {
+        let block = editor.block_id();
+        Self::open(Kind::Lock(block), Adopted::Lock(editor), Vec::new())
+    }
+
     pub fn creation(creation: Creation) -> Self {
         Self::open(Kind::Creation, Adopted::Creation(creation), Vec::new())
     }
@@ -134,7 +140,9 @@ impl<A: BeuiApp> BeuiTest<A> {
         beui::verify_paint(true);
         block_editor_beui::pin_wall_clock(Some(WALL_CLOCK));
         let host = match &adopted {
-            Adopted::Editor(editor, _) | Adopted::Preview(editor) => editor.host().clone(),
+            Adopted::Editor(editor, _) | Adopted::Preview(editor) | Adopted::Lock(editor) => {
+                editor.host().clone()
+            }
             Adopted::Creation(creation) => creation.host().clone(),
             Adopted::Artifacts(artifacts) => artifacts.host().clone(),
         };
@@ -159,7 +167,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             host.client_id().into_bytes(),
         );
         let open = match kind {
-            Kind::Frame(block) | Kind::Preview(block) => {
+            Kind::Frame(block) | Kind::Preview(block) | Kind::Lock(block) => {
                 store.own(block, block_type);
                 EditorMessage::Open {
                     instance: INSTANCE,
@@ -279,7 +287,7 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn block_id(&self) -> Option<Uuid> {
         match self.kind {
-            Kind::Frame(block) | Kind::Preview(block) => Some(block),
+            Kind::Frame(block) | Kind::Preview(block) | Kind::Lock(block) => Some(block),
             Kind::Creation | Kind::Settings => None,
         }
     }
@@ -1036,6 +1044,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     fn region(&self) -> EditorRegion {
         match self.kind {
             Kind::Preview(_) => EditorRegion::Preview,
+            Kind::Lock(_) => EditorRegion::Lock,
             Kind::Settings => EditorRegion::ArtifactSettings,
             Kind::Frame(_) | Kind::Creation => EditorRegion::Frame,
         }

@@ -63,6 +63,7 @@ pub(crate) fn PluginRegion(
     #[prop(default = false)] passive: Prop<bool>,
     #[prop(default = 0.0)] rotation: Prop<f32>,
     #[prop(default = 1.0)] opacity: Prop<f32>,
+    #[prop(default = false)] focused: Prop<bool>,
     child_view: ChildView,
 ) -> NodeId {
     let instance = editor.instance;
@@ -290,6 +291,7 @@ pub(crate) fn PluginRegion(
             <BackHandler enabled={handles_back} on_gesture={back}>
                 <Interactive
                     focusable=true
+                    focused={focused}
                     cursor={cursor}
                     ime={ime}
                     ime_keyboard={ime_keyboard}

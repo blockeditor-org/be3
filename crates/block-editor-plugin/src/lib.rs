@@ -27,12 +27,12 @@ pub use block_plugin_api::{
     DataListing, Displays, EditorCapabilities, EditorInstanceId, EditorRegion, FetchResult,
     FileSave, FrameChrome, FrameSpec, HostAction, HostDisplay, HostDisplayMode, HostInputDevice,
     HostNotification, HostNotificationAction, HostPanel, HostReply, HostRequest, HostValue,
-    HostWindow, HostWindowId, HostWindows, InputDevices, InputEvent, InteractionMode, Key,
-    KeyChord, Media, MediaLevel, MediaLevels, MediaRequest, MenuEntry, Modifiers,
+    HostWindow, HostWindowId, HostWindows, Idle, IdleState, InputDevices, InputEvent, InteractionMode, Key,
+    KeyChord, LockState, Media, MediaLevel, MediaLevels, MediaRequest, MenuEntry, Modifiers,
     NotificationAction, Notifications, Occluder, PlayerCommand, PointerButton, Power, PowerAction,
-    PowerAvailability, ResizeMode, ScreenPlacement, SettingsProgress, ShellDialog, SurfaceRect,
+    PowerAvailability, ResizeMode, ScreenLock, ScreenPlacement, SettingsProgress, ShellDialog, SurfaceRect,
     TemplateCategory, TemplateDescriptor, TopBar, TouchPhase, VersionBranch, VersionChange,
-    VersionChangeKind, VersionCommand, VersionCommit, VersionStatus, ViewChange, WebViewCommand,
+    VersionChangeKind, VersionCommand, VersionCommit, UnlockAttempt, VersionStatus, ViewChange, WebViewCommand,
     WebViewEvent, WebViewId, WheelUnit, WindowAction,
 };
 pub use block_ui;

@@ -162,6 +162,31 @@ pub enum NotificationAction {
     Dismiss(Vec<u32>),
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LockState {
+    pub locked: bool,
+    pub user: String,
+    pub checking: bool,
+    pub retry_in_seconds: Option<u32>,
+    pub error: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IdleState {
+    pub lock_due: bool,
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UnlockAttempt {
+    pub password: String,
+}
+
+impl std::fmt::Debug for UnlockAttempt {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("UnlockAttempt(..)")
+    }
+}
+
 pub enum HostWindows {}
 
 impl HostValue for HostWindows {
@@ -202,6 +227,24 @@ pub enum Notifications {}
 impl HostValue for Notifications {
     const KEY: &'static str = "notifications";
     type Value = Vec<HostNotification>;
+}
+
+pub enum ScreenLock {}
+
+impl HostValue for ScreenLock {
+    const KEY: &'static str = "screen_lock";
+    type Value = LockState;
+}
+
+pub enum Idle {}
+
+impl HostValue for Idle {
+    const KEY: &'static str = "idle";
+    type Value = IdleState;
+}
+
+impl HostAction for UnlockAttempt {
+    const KEY: &'static str = "unlock";
 }
 
 impl HostAction for WindowAction {

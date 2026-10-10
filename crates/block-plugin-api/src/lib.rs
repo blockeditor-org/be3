@@ -11,9 +11,9 @@ pub use block_ids::BlockIdRole;
 pub use host_value::{HostAction, HostValue, decode_host, encode_host};
 pub use linux::{
     Displays, HostDisplay, HostDisplayMode, HostInputDevice, HostNotification,
-    HostNotificationAction, HostWindow, HostWindowId, HostWindows, InputDevices, Media, MediaLevel,
-    MediaLevels, MediaRequest, NotificationAction, Notifications, PlayerCommand, Power,
-    PowerAction, PowerAvailability, WindowAction,
+    HostNotificationAction, HostWindow, HostWindowId, HostWindows, Idle, IdleState, InputDevices,
+    LockState, Media, MediaLevel, MediaLevels, MediaRequest, NotificationAction, Notifications,
+    PlayerCommand, Power, PowerAction, PowerAvailability, ScreenLock, UnlockAttempt, WindowAction,
 };
 pub use manifest::{
     EditorDocument, ManifestDocument, TemplateDocument, Templates, manifest_from_json,
@@ -543,10 +543,16 @@ pub enum EditorRegion {
     Frame,
     Preview,
     ArtifactSettings,
+    Lock,
 }
 
 impl EditorRegion {
-    pub const ALL: [Self; 3] = [Self::Frame, Self::Preview, Self::ArtifactSettings];
+    pub const ALL: [Self; 4] = [
+        Self::Frame,
+        Self::Preview,
+        Self::ArtifactSettings,
+        Self::Lock,
+    ];
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

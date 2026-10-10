@@ -8,21 +8,17 @@ pub(crate) const LONGEST_WAIT: Duration = Duration::from_secs(60);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Trigger {
-    Shortcut,
-    Menu,
+    Desktop,
     Logind,
     Sleep,
-    Idle,
 }
 
 impl Trigger {
     fn reason(self) -> &'static str {
         match self {
-            Self::Shortcut => "Super+L",
-            Self::Menu => "the power menu",
+            Self::Desktop => "the desktop",
             Self::Logind => "logind",
             Self::Sleep => "a suspend",
-            Self::Idle => "idling",
         }
     }
 }
@@ -41,8 +37,29 @@ pub(crate) trait Authenticate {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct LockState {
     pub(crate) locked: bool,
-    pub(crate) busy: bool,
+    pub(crate) checking: bool,
+    pub(crate) retry_in: Option<Duration>,
     pub(crate) error: Option<String>,
+}
+
+impl LockState {
+    pub(crate) fn busy(&self) -> bool {
+        self.checking || self.retry_in.is_some()
+    }
+
+    pub(crate) fn retry_in_seconds(&self) -> Option<u32> {
+        let wait = self.retry_in?;
+        let seconds = wait.as_secs() + u64::from(wait.subsec_nanos() > 0);
+        Some(u32::try_from(seconds).unwrap_or(u32::MAX))
+    }
+
+    pub(crate) fn message(&self) -> Option<String> {
+        match self.retry_in_seconds() {
+            Some(1) => Some("Too many attempts. Try again in 1 second.".to_owned()),
+            Some(seconds) => Some(format!("Too many attempts. Try again in {seconds} seconds.")),
+            None => self.error.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -126,18 +143,11 @@ impl Lock {
     }
 
     pub(crate) fn state(&self, now: Duration) -> LockState {
-        let waiting = self.wait(now);
-        let error = match waiting {
-            Some(wait) => Some(format!(
-                "Too many attempts. Try again in {}.",
-                seconds(wait)
-            )),
-            None => self.error.clone(),
-        };
         LockState {
             locked: self.locked,
-            busy: self.checking || waiting.is_some(),
-            error: error.filter(|_| self.locked),
+            checking: self.checking,
+            retry_in: self.wait(now).filter(|_| self.locked),
+            error: self.error.clone().filter(|_| self.locked),
         }
     }
 }
@@ -146,14 +156,6 @@ fn penalty(failures: u32) -> Option<Duration> {
     let over = failures.checked_sub(FREE_ATTEMPTS)?;
     let doubled = FIRST_WAIT.saturating_mul(1 << over.min(16));
     Some(doubled.min(LONGEST_WAIT))
-}
-
-fn seconds(wait: Duration) -> String {
-    let seconds = wait.as_secs() + u64::from(wait.subsec_nanos() > 0);
-    match seconds {
-        1 => "1 second".to_owned(),
-        seconds => format!("{seconds} seconds"),
-    }
 }
 
 #[cfg(test)]

@@ -1,3 +1,4 @@
+mod cover;
 mod install;
 mod lock;
 mod log;
@@ -11,6 +12,9 @@ use std::sync::mpsc::Receiver;
 use std::time::Duration;
 
 use block_plugin_api::{PowerAction, PowerAvailability};
+
+pub(crate) use cover::{Cover, PluginLock};
+use cover::CoverChoice;
 
 use crate::host::{WakingSender, waking_channel};
 pub(crate) use install::install;
@@ -33,6 +37,8 @@ pub(crate) struct ScreenLock {
     pam: Pam,
     user: String,
     drawn: u32,
+    choice: CoverChoice,
+    cover: Cover,
 }
 
 impl ScreenLock {
@@ -52,6 +58,8 @@ impl ScreenLock {
             pam: Pam::new(user.map(|(name, _)| name)),
             user: shown,
             drawn: 0,
+            choice: CoverChoice::default(),
+            cover: Cover::Blank,
         }
     }
 
@@ -64,6 +72,40 @@ impl ScreenLock {
 
     pub(crate) fn locked(&self) -> bool {
         self.lock.locked()
+    }
+
+    pub(crate) fn submit_from_desktop(&mut self, password: Password) {
+        if self.cover.takes_desktop_passwords() {
+            self.submit(password);
+        }
+    }
+
+    pub(crate) fn cover(&self) -> Cover {
+        self.cover
+    }
+
+    pub(crate) fn choose_cover(&mut self, plugin: PluginLock) {
+        let (cover, wake) = self
+            .choice
+            .choose(self.locked(), crate::host::now(), plugin);
+        if cover != self.cover {
+            self.cover = cover;
+            crate::host::request_repaint();
+        }
+        if let Some(wake) = wake {
+            crate::host::request_repaint_after(wake);
+        }
+    }
+
+    pub(crate) fn published(&self) -> block_plugin_api::LockState {
+        let state = self.state();
+        block_plugin_api::LockState {
+            locked: state.locked,
+            user: self.user.clone(),
+            checking: state.checking,
+            retry_in_seconds: state.retry_in_seconds(),
+            error: state.error,
+        }
     }
 
     pub(crate) fn submit(&mut self, password: Password) {

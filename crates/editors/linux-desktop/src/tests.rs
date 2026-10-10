@@ -5,14 +5,15 @@ use block_editor_beui::be_block::{
 use block_editor_beui::beui::{Document, Key, KeyChord, Modifiers, NodeId, Rect};
 use block_editor_beui::{
     BlockInfo, BlockParent, ChildContent, Editor, EditorHost, HostWindow, HostWindowId,
-    HostWindows, Media, MediaLevel, MediaLevels, MediaRequest, PlayerCommand, Power, PowerAction,
-    PowerAvailability, WindowAction,
+    HostWindows, Idle, IdleState, LockState, Media, MediaLevel, MediaLevels, MediaRequest,
+    PlayerCommand, Power, PowerAction, PowerAvailability, ScreenLock, UnlockAttempt, WindowAction,
 };
 use block_plugin_api::Size;
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
 use crate::app::LinuxDesktopApp;
+use crate::app::lock::LOCK_POWER;
 use crate::app::media::{BINDINGS, BRIGHTNESS_STEP, VOLUME_STEP};
 
 mod a_block_shown_on_the_desktop_opens_in_its_own_window;
@@ -23,10 +24,14 @@ mod a_session_chosen_from_the_menu_opens_in_a_window_and_closing_it_keeps_the_se
 mod a_volume_key_shows_the_level_the_host_reports_until_it_fades;
 mod a_window_the_host_focuses_leads_the_window_switcher;
 mod alt_tab_switches_to_the_window_two_back_once_alt_is_let_go;
+mod idling_past_the_lock_time_asks_the_host_to_lock;
 mod clicking_the_clock_opens_the_desktops_calendar_and_clicking_away_closes_it;
 mod escape_leaves_the_window_switcher_without_switching;
 mod the_calendar_popup_fits_a_narrow_screen;
+mod super_l_asks_the_host_to_lock_the_screen;
 mod the_desktop_starts_with_nothing_open_but_its_bar;
+mod the_lock_screen_offers_only_the_power_the_host_allows;
+mod the_lock_screen_sends_the_password_and_shows_the_hosts_answer;
 mod the_media_keys_ask_the_host_even_from_a_program_with_the_keyboard;
 mod the_notifications_button_lists_what_arrived_and_answers_it;
 mod the_power_menu_asks_before_ending_the_session;
@@ -193,6 +198,28 @@ impl Fixture {
             .expect("an open tab can be closed");
         self.test.click_at(cross.center());
         self.settle();
+    }
+}
+
+fn lock_screen(state: LockState) -> BeuiTest<LinuxDesktopApp> {
+    let host = EditorHost::default();
+    host.set_editable(true);
+    let mut test = BeuiTest::lock(Editor::new(host, Uuid::new_v4()));
+    test.set_host_value::<Power>(&PowerAvailability {
+        lock: false,
+        log_out: false,
+        ..EVERYTHING
+    });
+    test.set_host_value::<ScreenLock>(&state);
+    test.run();
+    test
+}
+
+fn locked() -> LockState {
+    LockState {
+        locked: true,
+        user: "Ada Lovelace".to_owned(),
+        ..LockState::default()
     }
 }
 

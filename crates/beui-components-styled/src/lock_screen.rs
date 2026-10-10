@@ -43,6 +43,47 @@ pub fn LockScreen(
 ) -> NodeId {
     let theme = use_theme();
     let open = create_memo(move || open.get());
+    let screens = use_screens();
+    let bounds = create_memo(clone!(screens -> move || screens.with(|screens| bounds(screens))));
+    let anchor = create_memo(clone!(bounds -> move || OverlayAnchor::Point(bounds.get().min)));
+    view! {
+        <Overlay
+            anchor={anchor}
+            open={open.clone()}
+            placement=Placement::At
+            scrim={theme.background.clone()}
+            locks=true
+        >
+            <LockCards
+                time
+                date
+                user
+                error
+                busy
+                actions
+                active={open}
+                id
+                on_submit={move |typed: String| on_submit.call(typed)}
+                on_action={move |chosen: usize| on_action.call(chosen)}
+            />
+        </Overlay>
+    }
+}
+
+#[component]
+pub fn LockCards(
+    time: Prop<String>,
+    date: Prop<String>,
+    user: Prop<String>,
+    #[prop(default = None)] error: Prop<Option<String>>,
+    #[prop(default = false)] busy: Prop<bool>,
+    #[prop(default = Vec::new())] actions: Prop<Vec<LockAction>>,
+    #[prop(default = true)] active: Prop<bool>,
+    #[prop(default = "lock".to_owned())] id: String,
+    on_submit: Callback<String>,
+    on_action: Callback<usize>,
+) -> NodeId {
+    let active = create_memo(move || active.get());
     let time = create_memo(move || time.get());
     let date = create_memo(move || date.get());
     let user = create_memo(move || user.get());
@@ -54,7 +95,6 @@ pub fn LockScreen(
     let places = create_memo(clone!(screens -> move || {
         (0..screens.with(Vec::len)).collect::<Vec<usize>>()
     }));
-    let anchor = create_memo(clone!(bounds -> move || OverlayAnchor::Point(bounds.get().min)));
     let width = create_memo(clone!(bounds -> move || Some(bounds.get().width())));
     let height = create_memo(clone!(bounds -> move || Some(bounds.get().height())));
     let (password, set_password) = create_signal(String::new());
@@ -66,55 +106,47 @@ pub fn LockScreen(
         on_submit.call(typed);
     }));
     view! {
-        <Overlay
-            anchor={anchor}
-            open={open.clone()}
-            placement=Placement::At
-            scrim={theme.background.clone()}
-            locks=true
-        >
-            <Frame width={width} height={height}>
-                <Layers>
-                    <ForEach keys={places}>
-                        {move |index: usize| {
-                            let place = create_memo(clone!(screens bounds -> move || {
-                                let origin = bounds.get().min.to_vec2();
-                                screens.with(|screens| {
-                                    screens
-                                        .get(index)
-                                        .map_or(Rect::ZERO, |screen| screen.rect.translate(-origin))
-                                })
-                            }));
-                            let focused = create_memo(clone!(open busy -> move || {
-                                index == 0 && open.get() && !busy.get()
-                            }));
-                            let submit = submit.clone();
-                            let action = on_action.clone();
-                            let changed = set_password.clone();
-                            let card = view! {
-                                <LockCard
-                                    place={place}
-                                    time={time.clone()}
-                                    date={date.clone()}
-                                    user={user.clone()}
-                                    error={error.clone()}
-                                    busy={busy.clone()}
-                                    actions={actions.clone()}
-                                    password={password.clone()}
-                                    focused={focused}
-                                    id={format!("{}.{index}", id)}
-                                    on_change={move |typed: String| changed.set(typed)}
-                                    on_submit={move |typed: String| submit(typed)}
-                                    on_action={move |chosen: usize| action.call(chosen)}
-                                />
-                            };
-                            let layer: Layer = card.into_child();
-                            layer
-                        }}
-                    </ForEach>
-                </Layers>
-            </Frame>
-        </Overlay>
+        <Frame width={width} height={height}>
+            <Layers>
+                <ForEach keys={places}>
+                    {move |index: usize| {
+                        let place = create_memo(clone!(screens bounds -> move || {
+                            let origin = bounds.get().min.to_vec2();
+                            screens.with(|screens| {
+                                screens
+                                    .get(index)
+                                    .map_or(Rect::ZERO, |screen| screen.rect.translate(-origin))
+                            })
+                        }));
+                        let focused = create_memo(clone!(active busy -> move || {
+                            index == 0 && active.get() && !busy.get()
+                        }));
+                        let submit = submit.clone();
+                        let action = on_action.clone();
+                        let changed = set_password.clone();
+                        let card = view! {
+                            <LockCard
+                                place={place}
+                                time={time.clone()}
+                                date={date.clone()}
+                                user={user.clone()}
+                                error={error.clone()}
+                                busy={busy.clone()}
+                                actions={actions.clone()}
+                                password={password.clone()}
+                                focused={focused}
+                                id={format!("{}.{index}", id)}
+                                on_change={move |typed: String| changed.set(typed)}
+                                on_submit={move |typed: String| submit(typed)}
+                                on_action={move |chosen: usize| action.call(chosen)}
+                            />
+                        };
+                        let layer: Layer = card.into_child();
+                        layer
+                    }}
+                </ForEach>
+            </Layers>
+        </Frame>
     }
 }
 

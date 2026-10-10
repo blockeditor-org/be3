@@ -26,7 +26,7 @@ impl Recorder {
 
 fn locked() -> Lock {
     let mut lock = Lock::default();
-    lock.lock(Trigger::Shortcut);
+    lock.lock(Trigger::Desktop);
     lock
 }
 

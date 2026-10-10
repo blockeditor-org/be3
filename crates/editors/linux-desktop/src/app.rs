@@ -1,5 +1,6 @@
 mod bar;
 mod calendar;
+pub(crate) mod lock;
 pub(crate) mod media;
 mod notifications;
 mod popup;
@@ -39,6 +40,12 @@ impl block_editor_beui::BeuiApp for LinuxDesktopApp {
             <DesktopShell editor={editor} />
         }
     }
+
+    fn lock_view(editor: Editor) -> NodeId {
+        view! {
+            <lock::DesktopLock editor={editor} />
+        }
+    }
 }
 
 #[component]
@@ -62,6 +69,7 @@ fn DesktopBody(workspace: Rc<Workspace>) -> NodeId {
     workspace.editor().content(&surface);
     let layout = workspace.layout();
     switcher::bind_window_switcher(&layout);
+    lock::bind_lock(workspace.editor());
     let failure = workspace.error();
     let failed = create_memo(clone!(failure -> move || failure.get().is_some()));
     let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));

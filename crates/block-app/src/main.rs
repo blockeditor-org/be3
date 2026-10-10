@@ -659,17 +659,17 @@ impl BlockApp {
                 .published_power
                 .is_some_and(|power| power.allows(action))
         {
-            self.request_power(action, session::Trigger::Menu);
+            self.request_power(action);
         }
         self.run_media();
     }
 
     #[cfg(target_os = "linux")]
-    fn request_power(&mut self, action: block_plugin_api::PowerAction, trigger: session::Trigger) {
+    fn request_power(&mut self, action: block_plugin_api::PowerAction) {
         match action {
             block_plugin_api::PowerAction::Lock => {
                 if let Some(lock) = &mut self.screen_lock {
-                    lock.lock(trigger);
+                    lock.lock(session::Trigger::Desktop);
                 }
             }
             action => {
@@ -687,9 +687,12 @@ impl BlockApp {
             return;
         };
         lock.frame();
-        if wayland::take_lock_due() {
-            lock.lock(session::Trigger::Idle);
+        for attempt in plugin_host::take_actions::<block_plugin_api::UnlockAttempt>() {
+            lock.submit_from_desktop(crate::password::Password::new(attempt.password));
         }
+        plugin_host::publish::<block_plugin_api::Idle>(&block_plugin_api::IdleState {
+            lock_due: wayland::lock_due(),
+        });
         if let Some(desktop) = &mut self.desktop {
             desktop.frame(context, lock);
         }
@@ -699,12 +702,15 @@ impl BlockApp {
             self.launcher.show(false);
             self.app_menu_open = false;
         }
+        lock.choose_cover(plugin_host::shell_lock());
+        plugin_host::publish::<block_plugin_api::ScreenLock>(&lock.published());
         let mut availability = self
             .desktop
             .as_ref()
             .map(session::DesktopSession::availability)
             .unwrap_or_default();
         availability.lock = !locked;
+        availability.log_out &= !locked;
         if self.published_power != Some(availability) {
             self.published_power = Some(availability);
             plugin_host::publish::<block_plugin_api::Power>(&availability);
@@ -717,25 +723,16 @@ impl BlockApp {
             return ui::LockView::default();
         };
         let state = lock.state();
-        let offered = self
-            .desktop
-            .as_ref()
-            .map(session::DesktopSession::availability)
-            .unwrap_or_default();
         ui::LockView {
-            available: true,
             locked: state.locked,
-            busy: state.busy,
-            error: state.error,
+            cover: match lock.cover() {
+                session::Cover::Blank => ui::LockCover::Blank,
+                session::Cover::Plugin => ui::LockCover::Desktop,
+                session::Cover::Fallback => ui::LockCover::BuiltIn,
+            },
+            busy: state.busy(),
+            error: state.message(),
             user: lock.user().to_owned(),
-            power: [
-                block_plugin_api::PowerAction::Suspend,
-                block_plugin_api::PowerAction::Restart,
-                block_plugin_api::PowerAction::PowerOff,
-            ]
-            .into_iter()
-            .filter(|action| offered.allows(*action))
-            .collect(),
         }
     }
 
@@ -2304,29 +2301,15 @@ impl BlockApp {
             UiCommand::KeepDisplay => self.display.commit(&self.app_state, display::keep()),
             UiCommand::RevertDisplay => self.display.commit(&self.app_state, display::revert()),
             #[cfg(target_os = "linux")]
-            UiCommand::LockScreen => {
-                if let Some(lock) = &mut self.screen_lock {
-                    lock.lock(session::Trigger::Shortcut);
-                }
-            }
-            #[cfg(target_os = "linux")]
             UiCommand::Unlock(password) => {
-                if let Some(lock) = &mut self.screen_lock {
+                if let Some(lock) = &mut self.screen_lock
+                    && lock.cover() == session::Cover::Fallback
+                {
                     lock.submit(password);
                 }
             }
-            #[cfg(target_os = "linux")]
-            UiCommand::LockPower(action) => {
-                if self
-                    .screen_lock
-                    .as_ref()
-                    .is_some_and(session::ScreenLock::locked)
-                {
-                    self.request_power(action, session::Trigger::Menu);
-                }
-            }
             #[cfg(not(target_os = "linux"))]
-            UiCommand::LockScreen | UiCommand::Unlock(_) | UiCommand::LockPower(_) => {}
+            UiCommand::Unlock(_) => {}
             UiCommand::SendInvite(email, role) => {
                 if let Some(workspace) = &self.workspace
                     && !email.trim().is_empty()

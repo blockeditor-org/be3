@@ -2,7 +2,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::datetime::{HourCycle, Time};
+use block_editor_beui::beui::datetime::{DateTime, HourCycle};
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_APPS, ICON_MENU, ICON_WORKSPACES};
 use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, ReadSignal, Spacer, clone, component,
@@ -30,11 +30,14 @@ pub(crate) fn local_minutes(unix: Duration) -> u32 {
     u32::try_from(minutes).unwrap_or(0)
 }
 
-fn wall_clock() -> ReadSignal<String> {
+pub(crate) fn wall_clock() -> ReadSignal<DateTime> {
     let started = block_editor_beui::wall_clock();
     let anchor = now();
     let unix = move || started + now().saturating_duration_since(anchor);
-    let shown = move || Time::from_minutes(local_minutes(unix())).format(HourCycle::H24);
+    let shown = move || {
+        let seconds = i64::try_from(unix().as_secs()).unwrap_or(0) + i64::from(utc_offset());
+        DateTime::from_unix(seconds)
+    };
     let until_next_minute = move || {
         let into = unix().as_secs() % SECONDS_PER_MINUTE;
         Duration::from_secs(SECONDS_PER_MINUTE - into)
@@ -51,7 +54,8 @@ fn wall_clock() -> ReadSignal<String> {
 #[component]
 pub(crate) fn DesktopBar(workspace: Rc<Workspace>) -> NodeId {
     let theme = use_theme();
-    let clock = wall_clock();
+    let wall = wall_clock();
+    let clock = create_memo(move || wall.get().time.format(HourCycle::H24));
     let editor = workspace.editor().clone();
     let power = editor.clone();
     let notified = editor.clone();

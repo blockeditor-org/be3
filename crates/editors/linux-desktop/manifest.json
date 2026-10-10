@@ -10,7 +10,8 @@
       "interaction": "Live",
       "resize": "None",
       "regions": [
-        "Frame"
+        "Frame",
+        "Lock"
       ],
       "accepts": [
         "show_block",

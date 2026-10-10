@@ -20,9 +20,9 @@ fn repeated_wrong_passwords_make_the_next_attempt_wait() {
     }
     assert_eq!(recorder.attempts.len(), FREE_ATTEMPTS as usize);
     let state = lock.state(now);
-    assert!(state.busy, "the field waits out the delay");
+    assert!(state.busy(), "the field waits out the delay");
     assert_eq!(
-        state.error.as_deref(),
+        state.message().as_deref(),
         Some("Too many attempts. Try again in 4 seconds.")
     );
     assert_eq!(
@@ -33,7 +33,7 @@ fn repeated_wrong_passwords_make_the_next_attempt_wait() {
     assert_eq!(recorder.attempts.len(), FREE_ATTEMPTS as usize);
 
     now += seconds(4);
-    assert!(!lock.state(now).busy);
+    assert!(!lock.state(now).busy());
     deny(&mut lock, &mut recorder, now);
     assert_eq!(
         lock.wait(now),
@@ -49,7 +49,7 @@ fn repeated_wrong_passwords_make_the_next_attempt_wait() {
     now += LONGEST_WAIT;
     lock.submit(password("right"), now, &mut recorder);
     assert!(lock.answered(recorder.last(), Verdict::Accepted, now));
-    lock.lock(Trigger::Idle);
+    lock.lock(Trigger::Logind);
     deny(&mut lock, &mut recorder, now);
     assert_eq!(lock.wait(now), None, "unlocking forgives the failures");
 }

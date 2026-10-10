@@ -1,35 +1,18 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use beui::datetime::{DateTime, HourCycle};
-use beui::icons::{
-    ICON_BEDTIME, ICON_LOCK, ICON_LOGOUT, ICON_POWER_SETTINGS_NEW, ICON_RESTART_ALT,
-};
 use beui::reactive::{
-    Action, Chord, ReadSignal, clone, component, create_memo, create_signal, create_timer, now,
-    view,
+    Frame, Layers, Overlay, OverlayAnchor, Placement, ReadSignal, Show, clone, component,
+    create_memo, create_signal, create_timer, now, use_screens, view,
 };
-use beui::styled::{LockAction, LockScreen};
-use beui::{Key, NodeId};
-use block_plugin_api::PowerAction;
+use beui::styled::{LockCards, use_theme};
+use beui::{NodeId, screen_bounds};
 
-use super::{AppViewStore, UiCommand, send};
+use super::{AppViewStore, LockCover, UiCommand, send};
+use crate::compositor::LockSurface;
 use crate::password::Password;
 
 const SECONDS_PER_MINUTE: u64 = 60;
-
-fn action(power: PowerAction) -> LockAction {
-    let (label, glyph) = match power {
-        PowerAction::Lock => ("Lock", ICON_LOCK),
-        PowerAction::Suspend => ("Suspend", ICON_BEDTIME),
-        PowerAction::Restart => ("Restart", ICON_RESTART_ALT),
-        PowerAction::PowerOff => ("Power off", ICON_POWER_SETTINGS_NEW),
-        PowerAction::LogOut => ("Log out", ICON_LOGOUT),
-    };
-    LockAction {
-        label: label.to_owned(),
-        glyph: glyph.to_owned(),
-    }
-}
 
 fn wall_clock() -> ReadSignal<DateTime> {
     let started = SystemTime::now()
@@ -56,17 +39,50 @@ fn wall_clock() -> ReadSignal<DateTime> {
 }
 
 #[component]
-pub(crate) fn SessionLock(view: AppViewStore) -> NodeId {
+pub(crate) fn ScreenCover(view: AppViewStore) -> NodeId {
+    let theme = use_theme();
     let lock = view.lock.clone();
-    let available = create_memo(clone!(lock -> move || lock.get().available && !lock.get().locked));
-    Action::new("session.lock", "Lock the screen", || {
-        send(UiCommand::LockScreen);
-    })
-    .glyph(ICON_LOCK)
-    .shortcut(Chord::logo(Key::L))
-    .intercepts()
-    .enabled(available)
-    .register();
+    let open = create_memo(clone!(lock -> move || lock.get().locked));
+    let cover = create_memo(clone!(lock -> move || lock.get().cover));
+    let desktop = create_memo(clone!(cover -> move || cover.get() == LockCover::Desktop));
+    let built_in = create_memo(clone!(cover -> move || cover.get() == LockCover::BuiltIn));
+    let screens = use_screens();
+    let bounds = create_memo(clone!(screens -> move || screens.with(|screens| screen_bounds(screens))));
+    let anchor = create_memo(clone!(bounds -> move || OverlayAnchor::Point(bounds.get().min)));
+    let width = create_memo(clone!(bounds -> move || Some(bounds.get().width())));
+    let height = create_memo(clone!(bounds -> move || Some(bounds.get().height())));
+    view! {
+        <Overlay
+            anchor={anchor}
+            open={open.clone()}
+            placement=Placement::At
+            scrim={theme.background.clone()}
+            locks=true
+        >
+            <Frame width={width} height={height} color={theme.background.clone()}>
+                <Layers>
+                <Show condition={open}>
+                    {move || clone!(desktop built_in view -> view! {
+                        <Layers>
+                            <LockSurface shown={desktop} />
+                            <Show condition={built_in}>
+                                {move || clone!(view -> view! {
+                                    <BuiltInLock view />
+                                })}
+                            </Show>
+                        </Layers>
+                    })}
+                </Show>
+                </Layers>
+            </Frame>
+        </Overlay>
+    }
+}
+
+#[component]
+fn BuiltInLock(view: AppViewStore) -> NodeId {
+    let theme = use_theme();
+    let lock = view.lock.clone();
     let clock = wall_clock();
     let time = create_memo(clone!(clock -> move || clock.get().time.format(HourCycle::H24)));
     let date = create_memo(move || {
@@ -78,30 +94,21 @@ pub(crate) fn SessionLock(view: AppViewStore) -> NodeId {
             date.month_name()
         )
     });
-    let open = create_memo(clone!(lock -> move || lock.get().locked));
     let user = create_memo(clone!(lock -> move || lock.get().user));
     let error = create_memo(clone!(lock -> move || lock.get().error));
     let busy = create_memo(clone!(lock -> move || lock.get().busy));
-    let powers = create_memo(clone!(lock -> move || lock.get().power));
-    let actions = create_memo(clone!(powers -> move || {
-        powers.with(|powers| powers.iter().copied().map(action).collect::<Vec<_>>())
-    }));
     view! {
-        <LockScreen
-            open
-            time
-            date
-            user
-            error
-            busy
-            actions
-            id="session.lock"
-            on_submit={|typed: String| send(UiCommand::Unlock(Password::new(typed)))}
-            on_action={move |index: usize| {
-                if let Some(power) = powers.with_untracked(|powers| powers.get(index).copied()) {
-                    send(UiCommand::LockPower(power));
-                }
-            }}
-        />
+        <Frame color={theme.background.clone()}>
+            <LockCards
+                time
+                date
+                user
+                error
+                busy
+                id="session.lock"
+                on_submit={|typed: String| send(UiCommand::Unlock(Password::new(typed)))}
+                on_action={|_index: usize| {}}
+            />
+        </Frame>
     }
 }

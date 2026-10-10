@@ -41,6 +41,11 @@ pub trait BeuiApp: 'static {
             <beui::reactive::Frame />
         }
     }
+    fn lock_view(_editor: Editor) -> beui::NodeId {
+        beui::reactive::view! {
+            <beui::reactive::Frame />
+        }
+    }
     fn creation_view(_creation: Creation) -> beui::NodeId {
         beui::reactive::view! {
             <beui::reactive::Frame />

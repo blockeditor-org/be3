@@ -14,7 +14,7 @@ fn an_answer_to_an_earlier_attempt_unlocks_nothing() {
     lock.submit(password("first"), seconds(1), &mut recorder);
     let first = recorder.last();
     assert!(lock.answered(first, Verdict::Accepted, seconds(2)));
-    lock.lock(Trigger::Idle);
+    lock.lock(Trigger::Logind);
     assert!(
         !lock.answered(first, Verdict::Accepted, seconds(3)),
         "an answer from before the screen locked again is ignored"

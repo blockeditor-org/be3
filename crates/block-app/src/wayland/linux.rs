@@ -17,7 +17,6 @@ struct Running {
     display: Option<beui_adapter_drm::DisplayControl>,
     blanked: bool,
     lock_due: bool,
-    lock_noticed: bool,
 }
 
 thread_local! {
@@ -69,7 +68,6 @@ pub(crate) fn start(setup: &Setup) {
             display,
             blanked: false,
             lock_due: false,
-            lock_noticed: false,
         });
     });
 }
@@ -106,10 +104,10 @@ pub(crate) fn after(context: &Context, document: &mut Document) {
     with(|running| {
         running.compositor.after(context, document);
         let due = running.compositor.lock_due();
-        if due && !running.lock_due {
-            running.lock_noticed = true;
+        if due != running.lock_due {
+            running.lock_due = due;
+            crate::host::request_repaint();
         }
-        running.lock_due = due;
         let blanked = running.compositor.idle();
         if let Some(display) = &running.display
             && blanked != running.blanked
@@ -138,8 +136,8 @@ pub(crate) fn set_lock_after(after: Option<Duration>) {
     with(|running| running.compositor.set_lock_after(after));
 }
 
-pub(crate) fn take_lock_due() -> bool {
-    with(|running| std::mem::take(&mut running.lock_noticed)).unwrap_or(false)
+pub(crate) fn lock_due() -> bool {
+    with(|running| running.lock_due).unwrap_or(false)
 }
 
 pub(crate) fn set_locked(locked: bool) {

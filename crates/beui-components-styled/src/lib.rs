@@ -78,7 +78,7 @@ pub use launcher::{Launcher, LauncherItem, launcher_rank, launcher_score};
 pub use level_osd::{LevelOsd, OSD_DURATION, OsdLevel};
 pub use link::Link;
 pub use list_row::ListRow;
-pub use lock_screen::{LockAction, LockScreen};
+pub use lock_screen::{LockAction, LockCards, LockScreen};
 pub use menu_button::{IconMenuButton, MenuButton};
 pub use number_input::{NumberInput, number_input_field, number_input_text};
 pub use popover::Popover;
