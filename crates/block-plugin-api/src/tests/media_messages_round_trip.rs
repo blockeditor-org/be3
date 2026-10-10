@@ -12,6 +12,17 @@ fn media_messages_round_trip() {
             muted: true,
         }),
         brightness: Some(0.3),
+        outputs: vec![
+            AudioOutput {
+                id: "alsa_output.pci-0000_00_1f.3.analog-stereo".to_owned(),
+                name: "Built-in Audio".to_owned(),
+            },
+            AudioOutput {
+                id: "bluez_output.headphones".to_owned(),
+                name: "Headphones".to_owned(),
+            },
+        ],
+        default_output: Some("bluez_output.headphones".to_owned()),
     };
     host_value_round_trips::<Media>(levels);
     host_value_round_trips::<Media>(MediaLevels::default());
@@ -19,6 +30,8 @@ fn media_messages_round_trip() {
         MediaRequest::StepVolume(-0.05),
         MediaRequest::SetVolume(0.7),
         MediaRequest::ToggleMute,
+        MediaRequest::SetMute(true),
+        MediaRequest::ChooseOutput("bluez_output.headphones".to_owned()),
         MediaRequest::ToggleMicMute,
         MediaRequest::StepBrightness(0.05),
     ]
