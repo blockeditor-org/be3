@@ -48,15 +48,19 @@ def _deb_sysroot_impl(ctx: AnalysisContext) -> list[Provider]:
     command = cmd_args("sh", ctx.attrs._script, out.as_output())
     if ctx.attrs.keep_xkb:
         command.add("--keep-xkb")
+    for program in ctx.attrs.programs:
+        command.add("--keep", program)
     command.add(ctx.attrs.packages)
     ctx.actions.run(command, category = "deb_sysroot")
     return [DefaultInfo(default_output = out)]
 
 # keep_xkb also keeps the XKB keymaps, which nothing compiles against but a
-# program that builds a keyboard with libxkbcommon reads when it runs.
+# program that builds a keyboard with libxkbcommon reads when it runs, and
+# programs the files a test runs, such as usr/bin/dbus-daemon.
 deb_sysroot = rule(
     attrs = {
         "keep_xkb": attrs.bool(default = False),
+        "programs": attrs.list(attrs.string(), default = []),
         "packages": attrs.list(attrs.source()),
         "_script": attrs.default_only(attrs.source(default = "root//buck/sysroot:deb_sysroot.sh")),
     },

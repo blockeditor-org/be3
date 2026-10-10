@@ -9,6 +9,7 @@ mod a_menu_keeps_what_is_shown_without_its_mnemonics;
 mod a_service_names_the_bus_and_path_of_its_item;
 mod an_item_reads_its_properties;
 mod items_are_published_once_read_and_go_with_their_owner;
+mod items_on_a_private_bus_show_and_answer_the_desktop;
 mod the_pixmap_nearest_above_the_size_is_turned_to_rgba;
 
 fn owned(value: Value<'_>) -> OwnedValue {
