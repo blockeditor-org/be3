@@ -1535,7 +1535,8 @@ focused field into what is left, through every scroll it sits in.
 `beui::run_with_renderers` takes the `beui::WindowRenderer`s to load instead
 (block-app's opens its device itself, to import Wayland clients' buffers), and
 `beui::run_on` runs on an adapter of the caller's choosing, such as
-`beui_adapter_drm::Drm`, which drives the displays and input devices itself. The rest of
+`beui_adapter_drm::Drm`, which drives the displays and input devices itself, or
+`beui::Headless`, which draws offscreen with no window or display server. The rest of
 `App` is optional:
 
 - `setup(&Setup)` runs once, after the gpu exists and before the first frame.
@@ -1556,6 +1557,8 @@ focused field into what is left, through every scroll it sits in.
   reactive state there aborts or crashes the process (block-app's
   `Shell::exiting` takes down the Wayland compositor, the plugin runtimes and
   their worker threads, and the screens this way).
+- `busy` says whether work the app is waiting on, such as a server request or a
+  plugin's frame, will still change what it shows. Only a driver reads it.
 
 From inside a frame the app can also ask the window for things through the
 `Context`: `set_fullscreen`, `set_ime_area` for an input it draws itself,
@@ -1568,6 +1571,15 @@ A runner hands the document its events in batches, one per frame. A press that
 follows typing waits for the next frame, so text typed before a click always
 reaches the field it was typed into, however many events arrive between two
 frames.
+
+`RunOptions::automation` hands the runner an `automation::Inbox` of commands
+from a driver: block-app serves one on a Unix socket for `drive`
+(guides/running_the_app.md), and its web build through its `automate` export.
+The runner keeps the accessibility tree as text, publishes test ids, takes the
+next command at the start of a frame, turns input commands into `Event`s
+(`automation/keys.rs` names the keys), and answers once a frame asks for no
+other and the app is not `busy`. `Renderer::capture` reads the presented frame
+back for a screenshot.
 
 The web runner draws into the canvas it is given with WebGPU, or WebGL where
 the browser has no WebGPU. It reads the keyboard through a hidden text area,
