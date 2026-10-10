@@ -79,6 +79,20 @@ fn with<R>(act: impl FnOnce(&mut Running) -> R) -> Option<R> {
     RUNNING.with(|running| running.borrow_mut().as_mut().map(act))
 }
 
+pub(crate) fn environment() -> Vec<(String, String)> {
+    with(|running| {
+        let compositor = &running.compositor;
+        let wayland = compositor
+            .socket()
+            .map(|socket| ("WAYLAND_DISPLAY".to_owned(), socket));
+        let x11 = compositor
+            .x11_display()
+            .map(|display| ("DISPLAY".to_owned(), display));
+        wayland.into_iter().chain(x11).collect()
+    })
+    .unwrap_or_default()
+}
+
 pub(crate) fn running() -> bool {
     with(|_| ()).is_some()
 }

@@ -217,6 +217,32 @@ goes to, and `Compositor::after` turns what each window was forwarded into `wl_p
 window (a floating window's tab, say) the window takes nothing (`occluders`, from the region's
 occlusion), and a press keeps going to the window or plugin it began on until it is let go.
 
+### X11 programs
+
+`be_wayland::Server::start_xwayland`, which block-app calls once the server is up, starts
+`Xwayland` (the `xwayland` package; without it X11 programs just do not run) on the first free
+display, with smithay's `X11Wm` as its window manager (`crates/be-wayland/src/xwayland.rs`).
+It starts with the compositor rather than when an X11 client first connects: smithay creates
+the Xwayland client and its X11 sockets only inside `XWayland::spawn`, which starts the server
+at once. Programs the compositor launches get `DISPLAY`, and under `--session` both it and
+`WAYLAND_DISPLAY` go to D-Bus's activation environment and systemd's user manager
+(`src/session/environment.rs`). If Xwayland dies, its windows close and it starts again on the
+same display, up to three times. To try it under `:dev`, the app's log names the display:
+
+    DISPLAY=:0 xterm
+    DISPLAY=:0 GDK_BACKEND=x11 xfce4-terminal --disable-server
+
+An X11 toplevel is one more kind of window behind the same `WindowId`: `ClientWindow` holds a
+smithay `desktop::Window`, which is either an xdg toplevel or an `X11Surface`, so it is listed,
+docked, focused, resized, fullscreened and closed (`WM_DELETE_WINDOW`) like any other, and its
+input goes through the same forwarding. The keyboard focus is `focus::KeyboardFocus`, which for
+an X11 window also sets the X input focus. X11 has no ping here, so an X11 window is always
+responding. Each X11 window is configured at its place on the screen (`State::place`), so X
+coordinates are the screen's; an override-redirect window (a menu, tooltip or dropdown)
+positions itself in those coordinates and is drawn and hit-tested as a layer of the toplevel it
+belongs to (its `WM_TRANSIENT_FOR`, else the X11 window under the pointer or with the
+keyboard), clipped to that window like an xdg popup.
+
 The compositor pings a window's client when it is clicked, typed into, focused or asked to
 close, and a client that has not answered within `PING_TIMEOUT` (be-wayland's `state.rs`) is listed as
 not responding: its window is dimmed and its tab offers Wait and Force close. Closing a window
