@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use beui::reactive::{ReadSignal, WriteSignal, create_signal};
-use beui::{CursorIcon, Drawing, ForwardedInput, Rect, Vec2};
+use beui::{CursorIcon, Drawing, ForwardedInput, NodeId, Rect, Vec2};
 
 use crate::state::WindowId;
 
@@ -43,6 +43,7 @@ pub struct WindowSignals {
 #[derive(Clone, Copy, Default, PartialEq)]
 struct View {
     rect: Option<Rect>,
+    catcher: Option<NodeId>,
 }
 
 struct Inner {
@@ -225,6 +226,19 @@ impl Windows {
         if resized {
             self.push(Command::Configure(id));
         }
+    }
+
+    pub(crate) fn caught_by(&self, id: WindowId, catcher: NodeId) {
+        self.0.views.borrow_mut().entry(id).or_default().catcher = Some(catcher);
+    }
+
+    pub(crate) fn caught_at(&self, catcher: NodeId) -> Option<(WindowId, Rect)> {
+        self.0
+            .views
+            .borrow()
+            .iter()
+            .find(|(_, view)| view.catcher == Some(catcher))
+            .and_then(|(id, view)| Some((*id, view.rect?)))
     }
 
     pub(crate) fn unplaced(&self, id: WindowId) {

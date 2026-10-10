@@ -7,9 +7,11 @@ use rustix::fs::OFlags;
 use rustix::io::Errno;
 use smithay::input::Seat;
 use smithay::reexports::wayland_server::DisplayHandle;
+use smithay::reexports::wayland_server::protocol::wl_data_source::WlDataSource;
+use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
 use smithay::wayland::selection::data_device::{
-    DataDeviceHandler, DataDeviceState, request_data_device_client_selection,
-    set_data_device_selection,
+    ClientDndGrabHandler, DataDeviceHandler, DataDeviceState,
+    request_data_device_client_selection, set_data_device_selection,
 };
 use smithay::wayland::selection::ext_data_control::{
     DataControlHandler as ExtDataControlHandler, DataControlState as ExtDataControlState,
@@ -50,6 +52,7 @@ pub(crate) struct Selection {
     offered: Option<Vec<String>>,
     reading: Option<Reading>,
     read: Option<String>,
+    dragging: bool,
 }
 
 struct Reading {
@@ -90,6 +93,7 @@ impl Selection {
             offered: None,
             reading: None,
             read: None,
+            dragging: false,
         }
     }
 
@@ -214,6 +218,10 @@ impl State {
         self.selection.fetch(&self.seat, &waiter);
     }
 
+    pub(crate) fn dragging(&self) -> bool {
+        self.selection.dragging
+    }
+
     pub fn take_selection_text(&mut self) -> Option<String> {
         self.selection.take_read()
     }
@@ -256,6 +264,16 @@ impl SelectionHandler for State {
 impl DataDeviceHandler for State {
     fn data_device_state(&self) -> &DataDeviceState {
         &self.selection.data_device
+    }
+}
+
+impl ClientDndGrabHandler for State {
+    fn started(&mut self, _source: Option<WlDataSource>, _icon: Option<WlSurface>, _seat: Seat<Self>) {
+        self.selection.dragging = true;
+    }
+
+    fn dropped(&mut self, _target: Option<WlSurface>, _validated: bool, _seat: Seat<Self>) {
+        self.selection.dragging = false;
     }
 }
 

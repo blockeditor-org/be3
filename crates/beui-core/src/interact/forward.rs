@@ -14,6 +14,7 @@ pub struct ForwardedInput {
     pub hovered: bool,
     pub focused: bool,
     pub pointer: Option<Pos2>,
+    pub under: Option<NodeId>,
     pub modifiers: Modifiers,
 }
 
@@ -303,6 +304,7 @@ pub(super) fn route(
             hovered: hovered == Some(sink),
             focused: focused == Some(sink),
             pointer: position.filter(|_| hovered == Some(sink)),
+            under: hovered,
             modifiers,
         };
         on_forward.call(raw);

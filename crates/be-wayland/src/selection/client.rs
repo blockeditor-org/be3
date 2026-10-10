@@ -45,6 +45,8 @@ struct Clipboard {
     selection: Option<Offer>,
     copied: String,
     cancelled: bool,
+    entered: Option<wayland_client::protocol::wl_surface::WlSurface>,
+    dropped: bool,
 }
 
 thread_local! {
@@ -76,6 +78,19 @@ impl TestClient {
         DataDevice { manager, device }
     }
 
+    pub(crate) fn start_drag(
+        &self,
+        device: &DataDevice,
+        origin: &wayland_client::protocol::wl_surface::WlSurface,
+        serial: u32,
+    ) {
+        let source = device.manager.create_data_source(&self.handle, ());
+        source.offer(TEXT.to_owned());
+        source.set_actions(wl_data_device_manager::DndAction::Copy);
+        CLIPBOARD.with(|clipboard| clipboard.borrow_mut().copied = "dragged".to_owned());
+        device.device.start_drag(Some(&source), origin, None, serial);
+    }
+
     pub(crate) fn copy_with_control(&self, control: &DataControl, text: &str) {
         let source = control.manager.create_data_source(&self.handle, ());
         source.offer(TEXT.to_owned());
@@ -94,6 +109,14 @@ impl TestClient {
 
 pub(crate) fn selection() -> Option<Offer> {
     CLIPBOARD.with(|clipboard| clipboard.borrow().selection.clone())
+}
+
+pub(crate) fn drop_target() -> Option<wayland_client::protocol::wl_surface::WlSurface> {
+    CLIPBOARD.with(|clipboard| clipboard.borrow().entered.clone())
+}
+
+pub(crate) fn dropped() -> bool {
+    CLIPBOARD.with(|clipboard| clipboard.borrow().dropped)
 }
 
 pub(crate) fn source_cancelled() -> bool {
@@ -156,6 +179,26 @@ impl Dispatch<wl_data_device::WlDataDevice, ()> for Received {
         _: &Connection,
         _: &QueueHandle<Self>,
     ) {
+        CLIPBOARD.with(|clipboard| {
+            let mut clipboard = clipboard.borrow_mut();
+            match &event {
+                wl_data_device::Event::Enter {
+                    surface, serial, id, ..
+                } => {
+                    clipboard.entered = Some(surface.clone());
+                    if let Some(offer) = id {
+                        offer.accept(*serial, Some(TEXT.to_owned()));
+                        offer.set_actions(
+                            wl_data_device_manager::DndAction::Copy,
+                            wl_data_device_manager::DndAction::Copy,
+                        );
+                    }
+                }
+                wl_data_device::Event::Leave => clipboard.entered = None,
+                wl_data_device::Event::Drop => clipboard.dropped = true,
+                _ => {}
+            }
+        });
         if let wl_data_device::Event::Selection { id } = event {
             selected(id.map(Offer::Data));
         }

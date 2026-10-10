@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
 use beui::reactive::{
-    Drawing, Frame, Interactive, Layers, Prop, clone, component, component_rect, create_effect,
-    create_memo, draw_gpu, on_cleanup, view,
+    Drawing, Frame, Interactive, Layers, NodeRef, Prop, clone, component, component_rect,
+    create_effect, create_memo, draw_gpu, on_cleanup, view,
 };
 use beui::{Color32, ForwardedInput, NodeId, Pos2, Rect};
 
@@ -23,7 +23,13 @@ pub fn WindowView(
         };
     };
     let rect = component_rect();
-    create_effect(clone!(windows rect -> move || windows.placed(id, rect.get())));
+    let catcher = NodeRef::new();
+    create_effect(clone!(windows rect catcher -> move || {
+        windows.placed(id, rect.get());
+        if let Some(node) = catcher.try_get() {
+            windows.caught_by(id, node);
+        }
+    }));
     let list = windows.list();
     let dim = create_memo(move || {
         let responding = list.with(|list| {
@@ -49,6 +55,7 @@ pub fn WindowView(
     on_cleanup(move || windows.unplaced(id));
     view! {
         <Interactive
+            @node_ref={&catcher}
             focusable=true
             @test_id={format!("wayland.window.{}", id.0)}
             focused={signals.focused}

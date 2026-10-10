@@ -223,3 +223,29 @@ not responding: its window is dimmed and its tab offers Wait and Force close. Cl
 that is not responding forces it: the compositor kills the process if it launched it (or one
 of its descendants) and disconnects the client either way. `kill -STOP` on a client's pid
 freezes it to try this, and `kill -CONT` brings it back.
+
+### Clipboard and drag and drop
+
+The app's clipboard (beui's, through the runner's `Platform`) and the Wayland clipboard are one
+(be-wayland's `selection.rs` and `compositor/clipboard.rs`). A program that sets the selection,
+through `wl_data_device` or the data-control protocols (`ext-data-control-v1` and
+`zwlr-data-control-v1`, which clipboard managers, `wl-copy` and `wl-paste` use), is asked for its
+text, which the compositor reads without blocking and hands to the app with `Context::copy_text`;
+the program's own selection stays, with all its types. Everything the app copies
+(`Context::watch_copies`) becomes a selection the compositor serves as text. Plugins paste
+through `Context::read_clipboard`, so both work in a session, where the platform's clipboard is
+the DRM adapter's own. A selection that only offers images is not handed to the app.
+
+Middle-click paste (`zwp_primary_selection_device_manager_v1`, and the primary selection of the
+data-control protocols) is off unless the input settings' "Middle-click paste" is on; while it
+is off the global is not advertised, so programs have no primary selection. Like any global it
+is offered when a program connects, so the setting reaches programs started after it changes.
+
+To try them, run `wl-copy TEXT` and `wl-paste` (the `wl-clipboard` package) with
+`WAYLAND_DISPLAY` set to the app's socket, and copy or paste in the app with `drive key ctrl+c`
+and `ctrl+v`.
+
+A window's drag (`wl_data_device.start_drag`) goes to the window under the pointer: the press
+stays with the window it began in, and while the drag lasts the compositor moves it to the
+window beui finds under the pointer (`ForwardedInput::under`). Only a shown window can be dropped on: a
+dock tab does not switch under a drag, and the drag's icon is not drawn (BE3-296).

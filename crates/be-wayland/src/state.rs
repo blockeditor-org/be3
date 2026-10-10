@@ -57,7 +57,7 @@ use smithay::wayland::compositor::{
 };
 use smithay::wayland::cursor_shape::CursorShapeManagerState;
 use smithay::wayland::output::{OutputHandler, OutputManagerState};
-use smithay::wayland::selection::data_device::{ClientDndGrabHandler, ServerDndGrabHandler};
+use smithay::wayland::selection::data_device::ServerDndGrabHandler;
 use smithay::wayland::shell::PingError;
 use smithay::wayland::shell::xdg::ShellClient;
 use smithay::wayland::shell::xdg::{
@@ -1305,8 +1305,6 @@ impl State {
         self.handle.clone()
     }
 }
-
-impl ClientDndGrabHandler for State {}
 
 impl ServerDndGrabHandler for State {}
 

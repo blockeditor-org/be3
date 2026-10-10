@@ -449,8 +449,15 @@ impl Compositor {
 
     fn deliver(&mut self, id: WindowId, input: &ForwardedInput, now: Instant) {
         let state = &mut self.server.state;
+        let dropping_on = state
+            .dragging()
+            .then(|| input.under.and_then(|node| self.windows.caught_at(node)));
         let at = |pos: Pos2| {
-            let local = pos - input.rect.min;
+            let (id, rect) = match dropping_on {
+                Some(target) => target?,
+                None => (id, input.rect),
+            };
+            let local = pos - rect.min;
             Some((id, (f64::from(local.x), f64::from(local.y)).into()))
         };
         for event in &input.events {
