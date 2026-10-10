@@ -724,6 +724,7 @@ impl BlockApp {
         };
         let state = lock.state();
         ui::LockView {
+            available: true,
             locked: state.locked,
             cover: match lock.cover() {
                 session::Cover::Blank => ui::LockCover::Blank,
@@ -2301,6 +2302,12 @@ impl BlockApp {
             UiCommand::KeepDisplay => self.display.commit(&self.app_state, display::keep()),
             UiCommand::RevertDisplay => self.display.commit(&self.app_state, display::revert()),
             #[cfg(target_os = "linux")]
+            UiCommand::LockScreen => {
+                if let Some(lock) = &mut self.screen_lock {
+                    lock.lock(session::Trigger::Shortcut);
+                }
+            }
+            #[cfg(target_os = "linux")]
             UiCommand::Unlock(password) => {
                 if let Some(lock) = &mut self.screen_lock
                     && lock.cover() == session::Cover::Fallback
@@ -2309,7 +2316,7 @@ impl BlockApp {
                 }
             }
             #[cfg(not(target_os = "linux"))]
-            UiCommand::Unlock(_) => {}
+            UiCommand::LockScreen | UiCommand::Unlock(_) => {}
             UiCommand::SendInvite(email, role) => {
                 if let Some(workspace) = &self.workspace
                     && !email.trim().is_empty()

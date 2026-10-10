@@ -8,6 +8,7 @@ pub(crate) const LONGEST_WAIT: Duration = Duration::from_secs(60);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Trigger {
+    Shortcut,
     Desktop,
     Logind,
     Sleep,
@@ -16,6 +17,7 @@ pub(crate) enum Trigger {
 impl Trigger {
     fn reason(self) -> &'static str {
         match self {
+            Self::Shortcut => "Super+L",
             Self::Desktop => "the desktop",
             Self::Logind => "logind",
             Self::Sleep => "a suspend",

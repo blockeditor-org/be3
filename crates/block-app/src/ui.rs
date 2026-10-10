@@ -194,6 +194,7 @@ pub(crate) enum LockCover {
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct LockView {
+    pub(crate) available: bool,
     pub(crate) locked: bool,
     pub(crate) cover: LockCover,
     pub(crate) busy: bool,
@@ -283,6 +284,7 @@ pub(crate) enum UiCommand {
     ActivateToast(u64),
     KeepDisplay,
     RevertDisplay,
+    LockScreen,
     #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     Unlock(crate::password::Password),
 }

@@ -2,7 +2,12 @@ use super::*;
 
 #[test]
 fn each_trigger_locks_the_screen() {
-    for trigger in [Trigger::Desktop, Trigger::Logind, Trigger::Sleep] {
+    for trigger in [
+        Trigger::Shortcut,
+        Trigger::Desktop,
+        Trigger::Logind,
+        Trigger::Sleep,
+    ] {
         let mut lock = Lock::default();
         assert!(!lock.locked());
         assert!(lock.lock(trigger), "{trigger:?} locks");

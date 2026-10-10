@@ -1,12 +1,12 @@
 use block_editor_beui::beui::datetime::HourCycle;
 use block_editor_beui::beui::icons::{
-    ICON_BEDTIME, ICON_LOCK, ICON_POWER_SETTINGS_NEW, ICON_RESTART_ALT,
+    ICON_BEDTIME, ICON_POWER_SETTINGS_NEW, ICON_RESTART_ALT,
 };
 use block_editor_beui::beui::reactive::{
-    Action, Chord, Frame, clone, component, create_effect, create_memo, view,
+    Frame, clone, component, create_effect, create_memo, view,
 };
 use block_editor_beui::beui::styled::{LockAction, LockCards, use_theme};
-use block_editor_beui::beui::{Key, NodeId};
+use block_editor_beui::beui::NodeId;
 use block_editor_beui::{Editor, Idle, LockState, Power, PowerAction, ScreenLock, UnlockAttempt};
 
 use super::bar::wall_clock;
@@ -18,17 +18,6 @@ pub(crate) const LOCK_POWER: [PowerAction; 3] = [
 ];
 
 pub(crate) fn bind_lock(editor: &Editor) {
-    let power = editor.host_value::<Power>();
-    let can_lock = create_memo(move || power.get().lock);
-    let asking = editor.clone();
-    Action::new("desktop.lock", "Lock the screen", move || {
-        asking.act(PowerAction::Lock);
-    })
-    .glyph(ICON_LOCK)
-    .shortcut(Chord::logo(Key::L))
-    .intercepts()
-    .enabled(can_lock)
-    .register();
     let idle = editor.host_value::<Idle>();
     let due = create_memo(move || idle.get().lock_due);
     let locking = editor.clone();

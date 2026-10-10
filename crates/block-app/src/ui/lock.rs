@@ -1,12 +1,13 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use beui::datetime::{DateTime, HourCycle};
+use beui::icons::ICON_LOCK;
 use beui::reactive::{
-    Frame, Layers, Overlay, OverlayAnchor, Placement, ReadSignal, Show, clone, component,
+    Action, Chord, Frame, Layers, Overlay, OverlayAnchor, Placement, ReadSignal, Show, clone, component,
     create_memo, create_signal, create_timer, now, use_screens, view,
 };
 use beui::styled::{LockCards, use_theme};
-use beui::{NodeId, screen_bounds};
+use beui::{Key, NodeId, screen_bounds};
 
 use super::{AppViewStore, LockCover, UiCommand, send};
 use crate::compositor::LockSurface;
@@ -43,6 +44,15 @@ pub(crate) fn ScreenCover(view: AppViewStore) -> NodeId {
     let theme = use_theme();
     let lock = view.lock.clone();
     let open = create_memo(clone!(lock -> move || lock.get().locked));
+    let can_lock = create_memo(clone!(lock -> move || lock.get().available && !lock.get().locked));
+    Action::new("session.lock", "Lock the screen", || {
+        send(UiCommand::LockScreen);
+    })
+    .glyph(ICON_LOCK)
+    .shortcut(Chord::logo(Key::L))
+    .intercepts()
+    .enabled(can_lock)
+    .register();
     let cover = create_memo(clone!(lock -> move || lock.get().cover));
     let desktop = create_memo(clone!(cover -> move || cover.get() == LockCover::Desktop));
     let built_in = create_memo(clone!(cover -> move || cover.get() == LockCover::BuiltIn));

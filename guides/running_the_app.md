@@ -166,8 +166,9 @@ plugin does or fails to do unlocks the screen or shows what is behind it.
 
 The host (block-app) owns the locked state and decides when to unlock. `src/session/lock.rs` is
 the state machine, `src/session.rs`'s `ScreenLock` runs it, and only a PAM `Verdict::Accepted` for
-the attempt in flight unlocks. It locks when linux-desktop asks (`PowerAction::Lock`: the bar's power
-menu, Super+L, idling), and under `--session` on logind's `Lock` for the app's own session
+the attempt in flight unlocks. It locks on Super+L, an intercepting action of the host's own (`src/ui/lock.rs`) so that it
+works even while the shell is hung or gone; when linux-desktop asks (`PowerAction::Lock`: the bar's
+power menu and its idle policy); and under `--session` on logind's `Lock` for the app's own session
 (`loginctl lock-session`) and before every suspend: `DesktopSession` holds a logind `delay` inhibitor
 for sleep and lets it go once the lock's cover has been drawn twice (`src/session/sleep.rs`), taking it
 again on waking. It sets logind's `LockedHint`. logind's `Unlock` is not obeyed.
@@ -186,8 +187,8 @@ covering every monitor (`use_screens()` in the plugin). linux-desktop draws its 
 field, the host's answer and the power buttons the host allows. It reads `ScreenLock` (a
 `LockState`: whether it is locked, the user's name, whether a check is running, how many seconds
 the next attempt must wait, and PAM's error) and sends what was typed as an `UnlockAttempt`
-host action. Super+L is an intercepting action of linux-desktop's, and the idle policy is too: the
-host publishes `Idle` (`lock_due`, true once the session has gone without input, and without an
+host action. `LockState::locked` is also how the rest of linux-desktop knows the screen is locked,
+to close its launcher and popups. The idle policy is linux-desktop's: the host publishes `Idle` (`lock_due`, true once the session has gone without input, and without an
 idle inhibitor, for the display settings' "Lock the screen after"), and linux-desktop asks for a lock
 when it turns true. `ScreenLock`, `Idle` and `UnlockAttempt` are the shell's alone. While locked
 the host offers neither Lock nor Log out in `Power`.
