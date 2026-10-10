@@ -865,6 +865,18 @@ in closed, whoever closed that. Its owner writing `open` false
 "cancel" needs no guard against its own Keep button. A menu's item selection
 closes it through the menu's own `on_dismiss`/`on_close`.
 
+Every overlay, of any mode, gives the focus back when it closes, however it
+closes (its owner writing `open` false, a dismissal, or its node being removed
+while open): an overlay remembers the node that had the focus when it opened,
+or the last one focused outside it since, and refocuses that node if the focus
+is inside the overlay when it closes, or is nowhere and the overlay is modal and
+traps focus, and the node is still there to focus. A close that has moved the
+focus somewhere outside the overlay on purpose keeps it there, and so does a
+focus change that comes after the close. Components rely on this rather than
+refocusing their triggers themselves, so a select, the command palette and a
+dialog put the focus back on what opened them, and a forwarding catcher (a
+plugin's region, a Wayland window) gets the keyboard back.
+
 Back - Android's back gesture, or the Back key or mouse button - goes to the
 most recently made enabled `BackHandler` inside the topmost modal overlay, or,
 with no modal open, outside every overlay; with no such handler it closes the

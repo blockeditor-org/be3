@@ -41,7 +41,6 @@ pub struct SelectOptionHandle {
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum Focus {
     Away,
-    Trigger,
     Search,
 }
 
@@ -213,7 +212,7 @@ pub fn Select(
         state.clone(),
         state.clone(),
     );
-    let (trigger_blur, search_blur) = (state.clone(), state.clone());
+    let search_blur = state.clone();
 
     view! {
         <List spacing=0.0>
@@ -221,8 +220,6 @@ pub fn Select(
                 @node_ref={&state.trigger}
                 accessibility={trigger_accessibility}
                 disabled={disabled}
-                focused={focused.memo(Focus::Trigger)}
-                on_focus_change={move |has_focus: bool| blur(&trigger_blur, has_focus, Focus::Trigger)}
                 content={trigger_content}
                 on_click={move || open(&open_state)}
                 on_key={move |press: KeyPress| trigger_key(&key_state, press)}
@@ -400,7 +397,7 @@ fn open(state: &State) {
 
 fn dismiss(state: &State) {
     state.set_open.set(false);
-    state.set_focus.set(Focus::Trigger);
+    state.set_focus.set(Focus::Away);
 }
 
 fn confirm(state: &State, index: usize) {

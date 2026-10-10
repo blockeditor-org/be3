@@ -83,6 +83,7 @@ pub struct OverlayNode {
     screen: Option<String>,
     mode: OverlayMode,
     locks: bool,
+    returns_to: Option<NodeId>,
     on_dismiss: Option<ClickHandler>,
 }
 
@@ -107,6 +108,7 @@ impl OverlayNode {
             screen: None,
             mode: OverlayMode::Modal,
             locks: false,
+            returns_to: None,
             on_dismiss: None,
         }
     }
@@ -452,10 +454,7 @@ impl Document {
             return;
         }
         self.arena.get_mut_as::<OverlayNode>(overlay).mode = mode;
-        if self.arena.get_as::<OverlayNode>(overlay).open {
-            self.close_overlay(overlay);
-            self.open_overlay(overlay);
-        }
+        self.restack_overlay(overlay);
     }
 
     pub fn overlay_is_floating(&self, overlay: NodeOf<OverlayNode>) -> bool {
@@ -513,10 +512,7 @@ impl Document {
             return;
         }
         self.arena.touch_mut_as::<OverlayNode>(overlay).locks = locks;
-        if self.arena.get_as::<OverlayNode>(overlay).open {
-            self.close_overlay(overlay);
-            self.open_overlay(overlay);
-        }
+        self.restack_overlay(overlay);
     }
 
     pub(crate) fn lock(&self) -> Option<NodeOf<OverlayNode>> {
@@ -666,9 +662,16 @@ impl Document {
             return;
         }
         let screen = self.opening_screen(overlay);
+        let returns_to = match self.focused {
+            Some(focused) if self.is_within(focused, overlay.id()) => self
+                .focus_before
+                .filter(|before| !self.is_within(*before, overlay.id())),
+            focused => focused,
+        };
         let node = self.arena.get_mut_as::<OverlayNode>(overlay);
         node.open = true;
         node.screen = screen;
+        node.returns_to = returns_to;
         let below_lock = self
             .lock()
             .filter(|lock| !self.is_within(overlay.id(), lock.id()))
@@ -706,14 +709,24 @@ impl Document {
     }
 
     pub fn close_overlay(&mut self, overlay: NodeOf<OverlayNode>) {
-        self.end_overlay(overlay, false);
+        self.end_overlay(overlay, false, true);
     }
 
     pub fn dismiss_overlay(&mut self, overlay: NodeOf<OverlayNode>) {
-        self.end_overlay(overlay, true);
+        self.end_overlay(overlay, true, true);
     }
 
-    fn end_overlay(&mut self, overlay: NodeOf<OverlayNode>, dismissed: bool) {
+    fn restack_overlay(&mut self, overlay: NodeOf<OverlayNode>) {
+        if !self.arena.get_as::<OverlayNode>(overlay).open {
+            return;
+        }
+        let returns_to = self.arena.get_as::<OverlayNode>(overlay).returns_to;
+        self.end_overlay(overlay, false, false);
+        self.open_overlay(overlay);
+        self.arena.get_mut_as::<OverlayNode>(overlay).returns_to = returns_to;
+    }
+
+    fn end_overlay(&mut self, overlay: NodeOf<OverlayNode>, dismissed: bool, returns: bool) {
         if dismissed && self.contains(overlay) && self.arena.get_as::<OverlayNode>(overlay).locks {
             return;
         }
@@ -734,22 +747,93 @@ impl Document {
         let closing = |id: &NodeOf<OverlayNode>| *id == overlay || nested.contains(id);
         self.overlay_stack.retain(|id| !closing(id));
         self.passive_overlays.retain(|id| !closing(id));
-        for (id, dismissed) in
-            std::iter::once((overlay, dismissed)).chain(nested.iter().map(|&id| (id, true)))
-        {
+        let ended: Vec<(NodeOf<OverlayNode>, bool)> = std::iter::once((overlay, dismissed))
+            .chain(nested.iter().map(|&id| (id, true)))
+            .collect();
+        for &(id, _) in &ended {
             if self.contains(id) {
                 self.arena.get_mut_as(id).open = false;
                 self.arena.invalidate_node(id);
             }
+        }
+        if returns {
+            self.return_focus(overlay);
+        }
+        for (id, dismissed) in ended {
             if dismissed {
                 self.call_overlay_dismiss(id);
             }
         }
     }
 
+    pub(crate) fn note_focus_outside_overlays(&mut self, focus: NodeId) {
+        let open: Vec<NodeOf<OverlayNode>> = self
+            .overlay_stack
+            .iter()
+            .chain(self.passive_overlays.iter())
+            .copied()
+            .filter(|overlay| self.contains(*overlay))
+            .collect();
+        for overlay in open {
+            if !self.is_within(focus, overlay.id()) {
+                self.arena.get_mut_as::<OverlayNode>(overlay).returns_to = Some(focus);
+            }
+        }
+    }
+
+    fn takes_focus_back(&self, overlay: NodeOf<OverlayNode>) -> bool {
+        let node = self.arena.get_as::<OverlayNode>(overlay);
+        match self.focused {
+            Some(focused) => self.is_within(focused, overlay.id()),
+            None => node.mode.stacked() && node.traps_focus,
+        }
+    }
+
+    fn return_focus(&mut self, overlay: NodeOf<OverlayNode>) {
+        if !self.contains(overlay) {
+            return;
+        }
+        let returns_to = self.arena.get_mut_as::<OverlayNode>(overlay).returns_to.take();
+        if !self.takes_focus_back(overlay) {
+            return;
+        }
+        let target = returns_to
+            .filter(|target| self.contains(*target) && self.focusables().contains(target));
+        if target.is_some() || self.focused.is_some() {
+            self.update_focus(target);
+        }
+    }
+
+    pub(crate) fn returns_on_removal(&self, removed: NodeId) -> Option<NodeId> {
+        if self.overlay_stack.is_empty() && self.passive_overlays.is_empty() {
+            return None;
+        }
+        self.overlay_stack
+            .iter()
+            .chain(self.passive_overlays.iter())
+            .copied()
+            .filter(|overlay| self.contains(*overlay) && self.is_within(overlay.id(), removed))
+            .filter(|overlay| self.takes_focus_back(*overlay))
+            .find_map(|overlay| {
+                self.arena
+                    .get_as::<OverlayNode>(overlay)
+                    .returns_to
+                    .filter(|target| !self.is_within(*target, removed))
+            })
+    }
+
+    pub(crate) fn return_removed_focus(&mut self, target: NodeId) {
+        if self.focused.is_none()
+            && self.contains(target)
+            && self.focusables().contains(&target)
+        {
+            self.update_focus(Some(target));
+        }
+    }
+
     pub fn dismiss_topmost_overlay(&mut self) {
         if let Some(&top) = self.overlay_stack.last() {
-            self.end_overlay(top, true);
+            self.end_overlay(top, true, true);
         }
     }
 
@@ -837,7 +921,7 @@ impl Document {
             {
                 return;
             }
-            self.end_overlay(top, true);
+            self.end_overlay(top, true, true);
         }
     }
 
@@ -862,7 +946,7 @@ impl Document {
             let scrim = self.arena.get_as::<OverlayNode>(overlay).scrim;
             self.capture_pointer(scrim);
             self.forward.swallow_press();
-            self.end_overlay(overlay, true);
+            self.end_overlay(overlay, true, true);
         }
     }
 }

@@ -72,6 +72,7 @@ pub struct Document {
     pub arena: Arena,
     pub root: Option<NodeId>,
     pub focused: Option<NodeId>,
+    pub(crate) focus_before: Option<NodeId>,
     pub composed: String,
     pub(crate) keyboard_held: bool,
     pub activated: Option<NodeId>,
@@ -296,6 +297,7 @@ impl Document {
             arena: Arena::default(),
             root: None,
             focused: None,
+            focus_before: None,
             composed: String::new(),
             keyboard_held: false,
             activated: None,
@@ -901,11 +903,15 @@ impl Document {
             let rects = Rc::clone(&self.rects);
             self.drop_placement(id, &rects, &mut dropped);
         }
+        let returning = self.returns_on_removal(id);
         let mut scopes = Vec::new();
         self.detach_subtree(id, &mut scopes);
         drop(scopes);
         for node in dropped {
             self.release_placement(node);
+        }
+        if let Some(returning) = returning {
+            self.return_removed_focus(returning);
         }
     }
 
@@ -969,6 +975,9 @@ impl Document {
         }
         if self.focused == Some(id) {
             self.focused = None;
+        }
+        if self.focus_before == Some(id) {
+            self.focus_before = None;
         }
         if self.activated == Some(id) {
             self.activated = None;
