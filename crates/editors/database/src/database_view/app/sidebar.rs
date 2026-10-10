@@ -12,8 +12,8 @@ use block_editor_beui::beui::reactive::{
     create_memo, view,
 };
 use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, Heading, IconButton, Select, Separator, ToggleButton,
-    use_theme,
+    Body, Button, ButtonVariant, Caption, Heading, IconButton, Select, Separator, TextInput,
+    ToggleButton, use_theme,
 };
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::block_ui::database::{DatabaseBlockPickRequest, DatabaseValueChange};
@@ -46,6 +46,9 @@ pub fn ViewSidebar(data: Data) -> NodeId {
     let kanban = create_memo(clone!(data -> move || data.kind.get() == DatabaseViewKind::Kanban));
     let scatter = create_memo(clone!(data -> move || data.kind.get() == DatabaseViewKind::Scatter));
     let listed = create_memo(clone!(data -> move || data.kind.get() != DatabaseViewKind::List));
+    let prefix = data.prefix.clone();
+    let prefix_off = data.read_only.clone();
+    let reprefix = clone!(data -> move |text: String| data.set_prefix(text));
     let (switch, status, axes, item, filters) = (
         data.clone(),
         data.clone(),
@@ -94,6 +97,14 @@ pub fn ViewSidebar(data: Data) -> NodeId {
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
+            <Caption content="Row id prefix" />
+            <TextInput
+                value={prefix}
+                placeholder="BE"
+                disabled={prefix_off}
+                @test_id={"database-view.prefix"}
+                on_change={reprefix}
+            />
             <Show condition={listed}>
                 {move || clone!(item -> view! {
                     <List spacing=SPACING>

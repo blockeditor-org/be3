@@ -248,6 +248,10 @@ impl ViewData {
             .operate(Database::set_value(row, field, value.as_ref()));
     }
 
+    pub fn set_prefix(&self, prefix: String) {
+        self.database.operate(Database::set_prefix(prefix));
+    }
+
     pub fn page_of(&self, row: ObjectId) -> Option<Uuid> {
         self.database
             .read(|database| database.root().rows.get(row).and_then(|row| row.page()))
