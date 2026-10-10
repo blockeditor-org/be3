@@ -37,6 +37,7 @@ pub(crate) fn set_screens(screens: Vec<Screen>) {
     GUARD.with(|guard| guard.borrow_mut().set_screens(screens));
 }
 
+#[cfg(test)]
 pub(crate) fn asking() -> bool {
     GUARD.with(|guard| guard.borrow().asking())
 }
