@@ -26,10 +26,15 @@ drive like any other run (guides/running/drive.md).
 
 installs the app with its plugins in `PREFIX/lib/block-app` (`/usr/local` by default, asking
 sudo when it needs root), links `PREFIX/bin/block-app` to it and writes
-`PREFIX/share/wayland-sessions/block-app.desktop` (from `src/session/block-app.desktop`),
-which runs it with `--session`. GDM and SDDM then offer Block on the login screen's session
-menu, where it can be picked and remembered as the default; an SDDM older than 0.20 reads only
-`/usr/share/wayland-sessions`, so give it `/usr`. Running it again replaces the install.
+`/usr/share/wayland-sessions/block-app.desktop` (from `src/session/block-app.desktop`), which
+runs it with `--session`, whatever the prefix: GDM, SDDM (older ones read nothing else) and
+LightDM all read that directory, and LightDM (Mint's slick-greeter) never reads
+`/usr/local/share`. When LightDM's `sessions-directory` (its `lightdm.conf.d` directories and
+`/etc/lightdm/lightdm.conf`) leaves that directory out, the entry also goes in the first one it
+lists; `X-LightDM-Session-Type=wayland` makes LightDM run it as Wayland from any directory. The
+login screen then offers Block on its session menu, where it can be picked and remembered as
+the default. Running it again replaces the install, and removes an entry an older install left
+in `PREFIX/share/wayland-sessions`.
 
 In session mode stdout and stderr, and so every `eprintln!`, every panic with its backtrace
 and the output of every program the app starts, go to `$XDG_STATE_HOME/block/session.log`
@@ -166,8 +171,9 @@ it, and `src/ui/lock.rs` shows it as `styled::LockScreen`, a card on every scree
 the document (`use_screens()`) over an opaque scrim. logind's `Unlock` is not obeyed: only a password unlocks.
 
 The password is checked by PAM on a thread of its own, with the service `block-app` when
-`/etc/pam.d/block-app` exists (`--install-session` writes it, as `auth include login`, unless one is
-there) and `login` otherwise. libpam is opened with `dlopen` when a password is checked, so the app
+`/etc/pam.d/block-app` exists (`--install-session` writes it unless one is there, as
+`auth include common-auth` where that exists, as on Debian and Ubuntu, and `auth include login`
+elsewhere) and `login` otherwise. libpam is opened with `dlopen` when a password is checked, so the app
 does not link it. After three wrong passwords each attempt waits, from five seconds doubling up to
 a minute. Anything that goes wrong - no libpam, a PAM error, a check that panics, an answer to an
 earlier attempt - leaves the screen locked; only `Verdict::Accepted` for the attempt in flight
