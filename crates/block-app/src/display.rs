@@ -9,8 +9,8 @@ use crate::local_settings::LocalSettings;
 
 mod guard;
 
-pub(crate) use guard::{ANSWER_WITHIN, Prompt, Screen};
 use guard::Guard;
+pub(crate) use guard::{ANSWER_WITHIN, Prompt, Screen};
 
 #[cfg(target_os = "linux")]
 mod linux;

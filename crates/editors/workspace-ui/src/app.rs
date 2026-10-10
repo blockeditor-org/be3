@@ -17,8 +17,8 @@ use block_editor_beui::{
     NARROW_WIDTH, TopBar,
 };
 use block_shell::{
-    BlockTab, DialogWindow, FILES, Failure, PanelStatus, PanelWindow, PickerDialogs,
-    ProblemToasts, WindowTab, Workspace, WorkspaceDialogs,
+    BlockTab, DialogWindow, FILES, Failure, PanelStatus, PanelWindow, PickerDialogs, ProblemToasts,
+    WindowTab, Workspace, WorkspaceDialogs,
 };
 
 const FILES_SHARE: f32 = 0.22;
