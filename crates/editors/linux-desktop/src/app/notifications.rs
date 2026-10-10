@@ -63,6 +63,7 @@ struct Shared {
     center: RefCell<Center>,
     started: Instant,
     handled: Cell<u64>,
+    arrived: RefCell<NotificationInbox>,
     reported: RefCell<Vec<u32>>,
     revision: WriteSignal<u64>,
     shown: Cell<u64>,
@@ -77,6 +78,7 @@ impl DesktopNotifications {
             center: RefCell::new(Center::default()),
             started: now(),
             handled: Cell::new(0),
+            arrived: RefCell::new(NotificationInbox::default()),
             reported: RefCell::new(Vec::new()),
             revision: set_revision,
             shown: Cell::new(0),
@@ -84,14 +86,14 @@ impl DesktopNotifications {
         });
         let weak = Rc::downgrade(&shared);
         let expiry = create_timer(clone!(weak -> move || {
-            weak.upgrade().and_then(|shared| shared.tick(None))
+            weak.upgrade().and_then(|shared| shared.tick())
         }));
         shared.expiry.replace(Some(expiry));
         let inbox = editor.host_value::<Notifications>();
         create_effect(move || {
             let inbox = inbox.get();
             if let Some(shared) = weak.upgrade() {
-                untrack(|| shared.receive(&inbox));
+                untrack(|| shared.arrive(inbox));
             }
         });
         let (browsing, set_browsing) = create_signal(false);
@@ -138,12 +140,12 @@ impl DesktopNotifications {
                 center.dismiss(*id);
             }
         }
-        self.shared.settle(None);
+        self.shared.settle();
     }
 
     pub(crate) fn invoke(&self, id: u32, action: &str) {
         self.shared.center.borrow_mut().invoke(id, action);
-        self.shared.settle(None);
+        self.shared.settle();
     }
 
     pub(crate) fn activate(&self, id: u32) {
@@ -156,38 +158,43 @@ impl Shared {
         now().saturating_duration_since(self.started)
     }
 
-    fn receive(&self, inbox: &NotificationInbox) {
+    fn arrive(&self, inbox: NotificationInbox) {
+        self.arrived.replace(inbox);
+        if let Some(expiry) = self.expiry.borrow().as_ref() {
+            expiry.restart(Duration::ZERO);
+        }
+    }
+
+    fn receive(&self, elapsed: Duration) -> Option<u64> {
+        let inbox = self.arrived.take();
         let handled = self.handled.get();
-        let elapsed = self.elapsed();
         let mut received = None;
-        {
-            let mut center = self.center.borrow_mut();
-            for (sequence, request) in &inbox.requests {
-                if *sequence <= handled {
-                    continue;
-                }
-                received = Some(*sequence);
-                match request {
-                    NotificationRequest::Notify(incoming) => center.notify(
-                        incoming.id,
-                        Incoming::from_host(incoming),
-                        elapsed,
-                        incoming.received,
-                    ),
-                    NotificationRequest::Close(id) => {
-                        center.close(*id, NotificationCloseReason::Closed);
-                    }
+        let mut center = self.center.borrow_mut();
+        for (sequence, request) in inbox.requests {
+            if sequence <= handled {
+                continue;
+            }
+            received = Some(sequence);
+            match request {
+                NotificationRequest::Notify(incoming) => center.notify(
+                    incoming.id,
+                    Incoming::from_host(&incoming),
+                    elapsed,
+                    incoming.received,
+                ),
+                NotificationRequest::Close(id) => {
+                    center.close(id, NotificationCloseReason::Closed);
                 }
             }
         }
         if let Some(sequence) = received {
             self.handled.set(sequence);
         }
-        self.settle(received);
+        received
     }
 
-    fn settle(&self, received: Option<u64>) {
-        let wait = self.tick(received);
+    fn settle(&self) {
+        let wait = self.tick();
         if let Some(expiry) = self.expiry.borrow().as_ref() {
             match wait {
                 Some(wait) => expiry.restart(wait),
@@ -196,8 +203,9 @@ impl Shared {
         }
     }
 
-    fn tick(&self, received: Option<u64>) -> Option<Duration> {
+    fn tick(&self) -> Option<Duration> {
         let elapsed = self.elapsed();
+        let received = self.receive(elapsed);
         let (wait, signals, kept, revision) = {
             let mut center = self.center.borrow_mut();
             let wait = center.frame(elapsed);
