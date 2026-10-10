@@ -345,7 +345,6 @@ pub struct ChildStatus {
     pub available: bool,
     pub intrinsic: Option<Size>,
     pub aspect_ratio: Option<f32>,
-    pub hovered: bool,
     pub active: bool,
     pub interaction: InteractionMode,
     pub capabilities: EditorCapabilities,

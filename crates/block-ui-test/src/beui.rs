@@ -657,7 +657,6 @@ impl<A: BeuiApp> BeuiTest<A> {
             available: true,
             intrinsic: None,
             aspect_ratio: None,
-            hovered: false,
             active: false,
             interaction: block_editor_beui::InteractionMode::Preview,
             capabilities: block_editor_beui::EditorCapabilities::default(),

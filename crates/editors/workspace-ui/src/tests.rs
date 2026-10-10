@@ -246,7 +246,6 @@ fn report_creation(fixture: &mut Fixture, progress: block_editor_beui::CreationP
             available: true,
             intrinsic: None,
             aspect_ratio: None,
-            hovered: false,
             active: false,
             interaction: block_editor_beui::InteractionMode::Live,
             capabilities: block_editor_beui::EditorCapabilities::default(),

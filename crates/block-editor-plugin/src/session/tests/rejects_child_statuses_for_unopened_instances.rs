@@ -12,7 +12,6 @@ fn status(instance: EditorInstanceId) -> ChildStatus {
             height: 180.0,
         }),
         aspect_ratio: None,
-        hovered: false,
         active: false,
         interaction: InteractionMode::Live,
         capabilities: EditorCapabilities::default(),

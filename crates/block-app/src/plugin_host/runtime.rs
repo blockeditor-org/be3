@@ -21,6 +21,7 @@ use super::{
     ArtifactSlot, ArtifactState, BlockPickRequest, CreationSlot, CreationState, HostChild,
     HostChildStatus, InstanceRole, RuntimeStatus, SurfaceStatus,
     backend::{Availability, Backend, Deadline, Platform, ShownFrame},
+    input::{BlockDrag, BlockDragEvent},
     instances::{EditorView, Focus, Instances, Placement},
     presenter::{
         self, Blit, MAX_SURFACES, Piece, PresenterState, PresenterStatus, Quad, RegionDrawing,
@@ -860,13 +861,7 @@ pub(crate) fn poll() {
     let touched = crate::be::take_touched();
     HOST.with(|host| {
         let mut host = host.borrow_mut();
-        let pressed = host::pressed_at();
         for runtime in host.runtimes.values_mut() {
-            if let Some(position) = pressed
-                && runtime.instances.pressed_at(position)
-            {
-                mark(&runtime.plugin.identity.id);
-            }
             runtime.instances.touch(&touched);
             runtime.detect_error();
             runtime.pump();
@@ -1502,6 +1497,18 @@ pub(crate) fn forward_region(
     });
 }
 
+pub(crate) fn pressed_outside_region(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+) {
+    with(plugin_id, |runtime| {
+        if runtime.instances.revoke_active(instance, region) {
+            mark(plugin_id);
+        }
+    });
+}
+
 pub(crate) fn back_region(
     plugin_id: &str,
     instance: EditorInstanceId,
@@ -1777,15 +1784,46 @@ pub(crate) fn take_region_actions(
                 via,
             });
         }
-        while let Some((id, block_type)) = runtime.instances.take_block_drag(instance) {
-            actions.push(EditorAction::DragBlock { id, block_type });
-        }
         while let Some((id, command)) = runtime.instances.take_block_command(instance) {
             actions.push(EditorAction::Command { id, command });
         }
         actions
     })
     .unwrap_or_default()
+}
+
+pub(crate) fn take_block_drags(plugin_id: &str, instance: EditorInstanceId) -> Vec<BlockDrag> {
+    with(plugin_id, |runtime| {
+        runtime.instances.take_block_drags(instance)
+    })
+    .unwrap_or_default()
+}
+
+pub(crate) fn drag_over_region(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+    over: Option<(BlockDrag, Pos2)>,
+    dropped: bool,
+) {
+    with(plugin_id, |runtime| {
+        let origin = runtime
+            .instances
+            .placement(instance, region)
+            .map_or(Pos2::ZERO, |placement| placement.rect.min);
+        let was = runtime.instances.dragging(instance, region);
+        let event = over.map(|(drag, at)| BlockDragEvent {
+            position: at - origin,
+            drag,
+            dropped,
+        });
+        let messages = runtime.instances.drag(instance, region, event);
+        runtime.pacing.needed |= !messages.is_empty();
+        runtime.send(messages);
+        if was != runtime.instances.dragging(instance, region) {
+            mark(plugin_id);
+        }
+    });
 }
 
 pub(crate) fn region_drawing(

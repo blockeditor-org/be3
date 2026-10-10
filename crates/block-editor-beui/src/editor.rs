@@ -189,7 +189,6 @@ impl SubregionContent {
 pub struct ChildState {
     pub placed: bool,
     pub available: bool,
-    pub hovered: bool,
     pub active: bool,
     pub intrinsic_size: Option<Vec2>,
     pub aspect_ratio: Option<f32>,
@@ -215,7 +214,6 @@ impl ChildState {
         Self {
             placed: true,
             available: status.available,
-            hovered: status.hovered,
             active: status.active,
             intrinsic_size: status
                 .intrinsic
