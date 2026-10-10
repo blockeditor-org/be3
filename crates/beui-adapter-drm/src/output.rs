@@ -224,6 +224,10 @@ impl Output {
         &self.id
     }
 
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
     pub fn monitor(&self) -> Monitor {
         let default = default_mode(&self.candidates).unwrap_or(self.chosen);
         let preferred = preferred_mode(&self.candidates).unwrap_or(default);

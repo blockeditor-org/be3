@@ -42,6 +42,7 @@ pub use beui_core::node::{ClickHandler, Handler, NodeId, NodeOf};
 pub use beui_core::page::{Page, PageShape};
 pub use beui_core::painter::{Corners, Painter, Shape};
 pub use beui_core::performance::{FramePerformance, PerformanceSnapshot, PerformanceTimings};
+pub use beui_core::screens::Screen;
 #[cfg(not(target_arch = "wasm32"))]
 pub use beui_font_freetype::system::SystemFonts;
 pub use beui_font_freetype::{

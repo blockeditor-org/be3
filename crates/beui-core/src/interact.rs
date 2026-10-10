@@ -10,7 +10,7 @@ use crate::geometry::{Pos2, Rect, Vec2, vec2};
 use crate::input::{BackGesture, Event, ImeEvent, Key, KeyPress, Modifiers, PointerButton};
 use crate::painter::Painter;
 
-use crate::document::{Document, GlobalKeyPress};
+use crate::document::{Acted, Document, GlobalKeyPress};
 use crate::node::{InteractInput, NodeId, NodeMap, Rects};
 
 pub const WHEEL_LATCH_TIMEOUT: Duration = Duration::from_millis(500);
@@ -65,6 +65,35 @@ pub fn interact(
     }
     if !touching {
         doc.touch_shift = Vec2::ZERO;
+    }
+    let pressed = ctx.input(|input| {
+        input.pointer.primary_pressed()
+            || input.pointer.secondary_pressed()
+            || input.touch.started()
+    });
+    let moved = ctx.input(|input| {
+        input
+            .events
+            .iter()
+            .any(|event| matches!(event, Event::PointerMoved(_)))
+    });
+    let typed = !keys.ignored()
+        && ctx.input(|input| {
+            input
+                .events
+                .iter()
+                .any(|event| matches!(event, Event::Key { pressed: true, .. }))
+        });
+    let press = ctx
+        .input(|input| input.pointer.press_pos)
+        .filter(|_| pointer && pressed);
+    let motion = raw_pointer.filter(|_| pointer && moved);
+    if let Some(pos) = press {
+        doc.acted = Acted::Pointer(pos + doc.touch_shift);
+    } else if typed {
+        doc.acted = Acted::Keys;
+    } else if let Some(pos) = motion {
+        doc.acted = Acted::Pointer(pos + doc.touch_shift);
     }
     if pointer && let Some(pos) = raw_pointer {
         doc.last_pointer = Some(crate::input::PointerSample {

@@ -971,6 +971,31 @@ ancestors - and then scrolls the row into view once it is laid out. The file
 tree and the beui inspector both work this way. `styled::tree_row_node` and
 `styled::tree_focused` reach the rows through the styled tree's node.
 
+### Screens
+
+A document knows the screens it is shown on: `Document::screens()`, and
+`use_screens()` in a component, a signal of `Screen`s (an `id` that stays the
+same while the monitor is plugged in, a `name`, and a `rect` in document
+coordinates). A window, a browser tab, an Android view, a plugin's region and
+an inspector panel are one screen the size of what the document is shown in;
+under `block-app --session` there is one per monitor. They come from the
+renderer: `Renderer::screens` hands the runner each monitor in physical
+pixels (beui-adapter-drm's outputs, beui-adapter-plugin's from the monitors
+the host says its region covers), the runner puts them on the `Context`
+(`Context::set_screens`, which is also how a test gives a document two
+screens), and the document keeps the part of each inside the rect it is shown
+in. Nothing else should keep its own list of monitors.
+
+Overlays place themselves on one screen rather than across the box around all
+of them. A `Center` or `FillScreen` overlay is on the screen it opened on: its
+trigger's, else where the pointer was last pressed or moved unless a key was
+pressed since, else the focused node's, else the pointer's, else the first. One anchored to a node is kept on the screen
+most of that node is on, and one anchored to a point on that point's screen.
+`Fill`, `At` and `Around` use the whole document, so something meant for every
+screen - `styled::KeepChanges`, `styled::LockScreen`, `styled::LevelOsd` - lays
+out one card per entry of `use_screens()`, which is a single card everywhere
+but a desktop with several monitors.
+
 ### Docking and windows
 
 `styled::Docking` is the workspace layout: panes split from one another, a tab
@@ -1178,7 +1203,7 @@ has a switch for Alt.
 
 One tab at a time can be fullscreen: `DockState::set_fullscreen` with a
 `DockFullscreen` naming the tab and an area (a rect in document coordinates, or
-`None` for the whole document), `DockingLayout::enter_fullscreen` and
+`None` for the screen it opens on), `DockingLayout::enter_fullscreen` and
 `leave_fullscreen` from outside, or the `DockTabControl` that `use_dock_tab()`
 hands the tab's own content. The panel moves into a floating overlay over that
 area, wrapped in Docking's `fullscreen` render prop (styled: the theme's

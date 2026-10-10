@@ -7,7 +7,7 @@ use std::{
 use beui::reactive::{
     BackHandler, Canvas, CanvasItem, Drawing, Embed, EmbedPlacement, EmbedSlot, ForEach, Frame,
     Interactive, Layers, List, Memo, NodeRef, Prop, Show, clone, component, create_effect,
-    create_memo, draw_gpu, on_cleanup, use_context, view,
+    create_memo, draw_gpu, on_cleanup, use_context, use_screens, view,
 };
 use beui::{Align, CursorIcon, ForwardedInput, ImeCursor, NodeId, Pos2, Rect, Region, Vec2, pos2};
 use block_plugin_api::{ChildId, EditorInstanceId, EditorRegion, FrameSpec, PluginManifest};
@@ -81,8 +81,9 @@ pub(crate) fn PluginRegion(
     }));
     let revision = super::listen(&plugin_id);
     let placed: Rc<Cell<Option<EmbedPlacement>>> = Rc::new(Cell::new(None));
+    let screens = use_screens();
     let place: Rc<dyn Fn(Option<EmbedPlacement>)> = Rc::new(
-        clone!(plugin_id frame view -> move |placement: Option<EmbedPlacement>| {
+        clone!(plugin_id frame view screens -> move |placement: Option<EmbedPlacement>| {
             match placement {
                 Some(placement) => plugin_host::place_region(
                     &plugin_id,
@@ -91,6 +92,7 @@ pub(crate) fn PluginRegion(
                     RegionPlacement {
                         rect: placement.rect,
                         clip: placement.clip,
+                        screens: screens.get_untracked(),
                     },
                     frame.peek(),
                     view.peek(),
@@ -107,6 +109,7 @@ pub(crate) fn PluginRegion(
     create_effect(clone!(placed place frame view -> move || {
         let _ = frame.get();
         let _ = view.get();
+        screens.with(|_| ());
         place(placed.get());
     }));
     let state = create_memo(clone!(revision -> move || {

@@ -16,18 +16,13 @@ mod linux;
 #[cfg(target_os = "linux")]
 use linux::apply;
 #[cfg(target_os = "linux")]
-pub(crate) use linux::{screens, start, stop};
+pub(crate) use linux::{start, stop};
 
 #[cfg(not(target_os = "linux"))]
 pub(crate) fn start(_setup: &beui::Setup) {}
 
 #[cfg(not(target_os = "linux"))]
 pub(crate) fn stop() {}
-
-#[cfg(not(target_os = "linux"))]
-pub(crate) fn screens() -> Vec<beui::Rect> {
-    Vec::new()
-}
 
 #[cfg(not(target_os = "linux"))]
 fn apply(_settings: &DisplaySettings) {}

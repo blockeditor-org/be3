@@ -10,13 +10,14 @@ use crate::text::{Paragraph, Title};
 use crate::theme::{BORDER_WIDTH, CARD_RADIUS, use_theme};
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
-use beui_core::geometry::{Pos2, Rect};
+use beui_core::geometry::Rect;
 use beui_core::node::NodeId;
+use beui_core::screens::bounds;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Align, ClickCallback, Direction, ForEach, Frame, IntoChild, Justify, Layer, Layers, List, Memo,
     Prop, clone, component_accessibility, create_effect, create_memo, create_signal, create_timer,
-    now, untrack,
+    now, untrack, use_screens,
 };
 
 pub const KEEP_CHANGES_TIMEOUT: Duration = Duration::from_secs(15);
@@ -35,7 +36,6 @@ pub fn KeepChanges(
     open: Prop<bool>,
     title: Prop<String>,
     #[prop(default = KEEP_CHANGES_TIMEOUT)] timeout: Duration,
-    #[prop(default = Vec::new())] screens: Prop<Vec<Rect>>,
     #[prop(default = "keep-changes".to_owned())] id: String,
     on_keep: ClickCallback,
     on_revert: ClickCallback,
@@ -89,43 +89,53 @@ pub fn KeepChanges(
         on_revert.call();
     });
     let dismiss = revert.clone();
-    let screens = create_memo(move || screens.get());
+    let screens = use_screens();
+    let bounds = create_memo(clone!(screens -> move || screens.with(|screens| bounds(screens))));
     let places = create_memo(clone!(screens -> move || {
-        let count = screens.with(Vec::len).max(1);
-        (0..count).collect::<Vec<usize>>()
+        (0..screens.with(Vec::len)).collect::<Vec<usize>>()
     }));
+    let anchor = create_memo(clone!(bounds -> move || OverlayAnchor::Point(bounds.get().min)));
+    let width = create_memo(clone!(bounds -> move || Some(bounds.get().width())));
+    let height = create_memo(clone!(bounds -> move || Some(bounds.get().height())));
     let title = create_memo(move || title.get());
     view! {
         <Overlay
-            anchor=OverlayAnchor::Point(Pos2::ZERO)
+            anchor={anchor}
             open={open.clone()}
-            placement=Placement::Fill
+            placement=Placement::At
             scrim=SCRIM
             on_dismiss={move || dismiss()}
         >
-            <Layers>
-                <ForEach keys={places}>
-                    {move |index: usize| {
-                        let (keep, revert) = (keep.clone(), revert.clone());
-                        let place = create_memo(clone!(screens -> move || {
-                            screens.with(|screens| screens.get(index).copied())
-                        }));
-                        let card = view! {
-                            <KeepChangesCard
-                                place={place}
-                                title={title.clone()}
-                                message={message.clone()}
-                                focused={create_memo(clone!(open -> move || index == 0 && open.get()))}
-                                id={format!("{}.{index}", id)}
-                                on_keep={move || keep()}
-                                on_revert={move || revert()}
-                            />
-                        };
-                        let layer: Layer = card.into_child();
-                        layer
-                    }}
-                </ForEach>
-            </Layers>
+            <Frame width={width} height={height}>
+                <Layers>
+                    <ForEach keys={places}>
+                        {move |index: usize| {
+                            let (keep, revert) = (keep.clone(), revert.clone());
+                            let place = create_memo(clone!(screens bounds -> move || {
+                                let origin = bounds.get().min.to_vec2();
+                                screens.with(|screens| {
+                                    screens
+                                        .get(index)
+                                        .map_or(Rect::ZERO, |screen| screen.rect.translate(-origin))
+                                })
+                            }));
+                            let card = view! {
+                                <KeepChangesCard
+                                    place={place}
+                                    title={title.clone()}
+                                    message={message.clone()}
+                                    focused={create_memo(clone!(open -> move || index == 0 && open.get()))}
+                                    id={format!("{}.{index}", id)}
+                                    on_keep={move || keep()}
+                                    on_revert={move || revert()}
+                                />
+                            };
+                            let layer: Layer = card.into_child();
+                            layer
+                        }}
+                    </ForEach>
+                </Layers>
+            </Frame>
         </Overlay>
     }
 }
@@ -139,7 +149,7 @@ fn until_next_second(remaining: Duration) -> Duration {
 
 #[component]
 fn KeepChangesCard(
-    place: Memo<Option<Rect>>,
+    place: Memo<Rect>,
     title: Memo<String>,
     message: Memo<String>,
     focused: Memo<bool>,
@@ -148,14 +158,10 @@ fn KeepChangesCard(
     on_revert: ClickCallback,
 ) -> NodeId {
     let theme = use_theme();
-    let left = create_memo(clone!(place -> move || place.get().map(|rect| rect.left())));
-    let top = create_memo(clone!(place -> move || place.get().map(|rect| rect.top())));
-    let width = create_memo(clone!(place -> move || place.get().map(|rect| rect.width())));
-    let height = create_memo(clone!(place -> move || place.get().map(|rect| rect.height())));
-    let placed = create_memo(clone!(place -> move || match place.get() {
-        Some(_) => Align::Start,
-        None => Align::Center,
-    }));
+    let left = create_memo(clone!(place -> move || Some(place.get().left())));
+    let top = create_memo(clone!(place -> move || Some(place.get().top())));
+    let width = create_memo(clone!(place -> move || Some(place.get().width())));
+    let height = create_memo(clone!(place -> move || Some(place.get().height())));
     let label = title.clone();
     component_accessibility(create_memo(move || {
         let mut node = Node::new(Role::AlertDialog);
@@ -166,8 +172,8 @@ fn KeepChangesCard(
         <Frame
             padding_left={left}
             padding_top={top}
-            align_horizontal={placed.clone()}
-            align_vertical={placed}
+            align_horizontal=Align::Start
+            align_vertical=Align::Start
         >
             <Frame
                 width={width}

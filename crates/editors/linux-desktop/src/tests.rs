@@ -33,6 +33,7 @@ mod the_power_menu_asks_before_ending_the_session;
 mod the_power_menu_locks_the_screen_without_asking;
 mod the_power_menu_offers_only_what_the_host_allows;
 mod the_programs_button_asks_the_host_for_its_launcher;
+mod the_volume_shows_on_every_monitor;
 
 const MAX_TAB: u64 = 64;
 const WINDOW_TABS: u64 = 1 << 41;

@@ -2512,7 +2512,6 @@ impl BlockApp {
             debug: debug::view(),
             toasts: self.toasts(),
             keep_display: display::asking(),
-            screens: display::screens(),
             #[cfg(target_os = "linux")]
             lock: self.lock_view(),
             #[cfg(not(target_os = "linux"))]

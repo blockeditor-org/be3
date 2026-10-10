@@ -41,6 +41,7 @@ pub struct BeuiTest<A: BeuiApp> {
     store: ContentStore,
     size: Vec2,
     scale_factor: f32,
+    monitors: Vec<block_plugin_api::Monitor>,
     frame: Option<block_plugin_api::FrameSpec>,
     input: Input,
     frames: Vec<Vec<Event>>,
@@ -202,6 +203,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             store,
             size: SIZE,
             scale_factor: 1.0,
+            monitors: Vec::new(),
             frame,
             input: Input::default(),
             frames: Vec::new(),
@@ -261,6 +263,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             pixel_width: (self.size.x * self.scale_factor).round() as u32,
             pixel_height: (self.size.y * self.scale_factor).round() as u32,
             scale_factor: self.scale_factor,
+            monitors: self.monitors.clone(),
         };
         self.inbox.push(Message::Screens(ScreenSet {
             request_id: self.screens,
@@ -432,6 +435,24 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.place();
         self.run();
         self
+    }
+
+    pub fn set_monitors(&mut self, monitors: Vec<(&str, Rect)>) {
+        self.monitors = monitors
+            .into_iter()
+            .map(|(id, rect)| block_plugin_api::Monitor {
+                id: id.to_owned(),
+                name: id.to_owned(),
+                rect: block_plugin_api::ChildRect {
+                    x: rect.min.x,
+                    y: rect.min.y,
+                    width: rect.width(),
+                    height: rect.height(),
+                },
+            })
+            .collect();
+        self.place();
+        self.run();
     }
 
     pub fn block_types(&mut self, descriptors: Vec<BlockTypeDescriptor>) {

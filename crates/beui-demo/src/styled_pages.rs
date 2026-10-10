@@ -52,7 +52,6 @@ const TREE_NODES: [(&str, usize); 9] = [
     ("Cargo.toml", 1),
 ];
 const TOAST_AREA_HEIGHT: f32 = 380.0;
-const OSD_AREA_HEIGHT: f32 = 200.0;
 const FRUITS: [&str; 6] = ["Apple", "Banana", "Cherry", "Date", "Grape", "Mango"];
 
 #[sample]
@@ -1789,8 +1788,6 @@ fn message_toast(id: u64) -> Toast {
 #[sample]
 #[component]
 fn VolumeDisplay() -> NodeId {
-    let theme = use_theme();
-    let area = beui::reactive::NodeRef::new();
     let (volume, set_volume) = create_signal(0.4_f32);
     let (muted, set_muted) = create_signal(false);
     let (shown, set_shown) = create_signal(0_u64);
@@ -1815,41 +1812,32 @@ fn VolumeDisplay() -> NodeId {
     };
     let (down, up) = (step.clone(), step);
     view! {
-        <Frame
-            @node_ref=&area
-            height=OSD_AREA_HEIGHT
-            color={theme.surface.clone()}
-            radius=CARD_RADIUS
-            padding_horizontal=12.0
-            padding_vertical=12.0
-        >
-            <List spacing=0.0>
-                <List direction=Direction::Horizontal align=Align::Start spacing=8.0>
-                    <Button
-                        @test_id={"demo.osd.down"}
-                        label="Volume down"
-                        variant=ButtonVariant::Secondary
-                        on_click={move || down(-0.05)}
-                    />
-                    <Button
-                        @test_id={"demo.osd.up"}
-                        label="Volume up"
-                        variant=ButtonVariant::Secondary
-                        on_click={move || up(0.05)}
-                    />
-                    <Button
-                        @test_id={"demo.osd.mute"}
-                        label="Mute"
-                        variant=ButtonVariant::Secondary
-                        on_click={move || {
-                            set_muted.update(|muted| *muted = !*muted);
-                            show.update(|shown| *shown += 1);
-                        }}
-                    />
-                </List>
-                <LevelOsd anchor={area} level={level} shown={shown} id="demo.osd" />
+        <List spacing=0.0>
+            <List direction=Direction::Horizontal align=Align::Start spacing=8.0>
+                <Button
+                    @test_id={"demo.osd.down"}
+                    label="Volume down"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || down(-0.05)}
+                />
+                <Button
+                    @test_id={"demo.osd.up"}
+                    label="Volume up"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || up(0.05)}
+                />
+                <Button
+                    @test_id={"demo.osd.mute"}
+                    label="Mute"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || {
+                        set_muted.update(|muted| *muted = !*muted);
+                        show.update(|shown| *shown += 1);
+                    }}
+                />
             </List>
-        </Frame>
+            <LevelOsd level={level} shown={shown} id="demo.osd" />
+        </List>
     }
 }
 
