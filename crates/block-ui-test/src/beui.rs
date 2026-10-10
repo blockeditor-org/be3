@@ -694,6 +694,13 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.run();
     }
 
+    pub fn wait(&mut self, by: std::time::Duration) {
+        self.clock += by;
+        for message in std::mem::take(&mut self.inbox) {
+            self.deliver(message);
+        }
+    }
+
     pub fn settle(&mut self) {
         self.settle_until("its animations to finish", |test| {
             test.output.as_ref().is_none_or(|output| {

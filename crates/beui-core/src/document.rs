@@ -1065,7 +1065,8 @@ impl Document {
     }
 
     pub fn now(&self) -> Instant {
-        self.now
+        self.context()
+            .map_or(self.now, |context| context.now().max(self.now))
     }
 
     pub fn show_content(&mut self, ctx: &Context, rect: Rect, pointer: bool, keys: Keys) {
