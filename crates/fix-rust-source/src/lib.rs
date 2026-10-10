@@ -1,7 +1,7 @@
 mod beui_rules;
 mod views;
 
-use ra_ap_syntax::ast::{self, AstNode, AstToken, HasAttrs, HasModuleItem, HasName};
+use ra_ap_syntax::ast::{self, AstNode, AstToken, HasAttrs, HasModuleItem, HasName, HasVisibility};
 use ra_ap_syntax::{Edition, NodeOrToken, SourceFile, SyntaxNode};
 use std::collections::HashSet;
 use std::error::Error;
@@ -618,35 +618,154 @@ fn write_test_file(
 }
 
 fn merge_support(aggregator: &Path, support: &[u8]) -> Result<(), Box<dyn Error>> {
-    let mut support = String::from_utf8(support.to_vec())?;
     let mut content = if aggregator.exists() {
         fs::read_to_string(aggregator)?
     } else {
         String::new()
     };
-    if has_line(&content, "use super::*;") {
-        support = support
-            .lines()
-            .filter(|line| line.trim() != "use super::*;")
-            .collect::<Vec<_>>()
-            .join("\n");
+    let mut imported = HashSet::new();
+    let mut defined = HashSet::new();
+    let mut names = HashSet::new();
+    let mut after_imports = 0;
+    for item in parse(content.as_bytes())?.items() {
+        if let ast::Item::Use(import) = &item {
+            imported.extend(use_leaves(import));
+            after_imports = syntax_range(item.syntax().text_range()).end;
+        } else {
+            defined.insert(squeezed(&item.syntax().text().to_string()));
+            names.extend(item_name(&item));
+        }
     }
-    let support = support.trim();
-    if support.is_empty() {
+    let mut imports = Vec::new();
+    let mut added = Vec::new();
+    for item in parse(support)?.items() {
+        let text = item.syntax().text().to_string();
+        if let ast::Item::Use(import) = &item {
+            let leaves = use_leaves(import);
+            let missing = leaves
+                .iter()
+                .filter(|leaf| !imported.contains(*leaf))
+                .collect::<Vec<_>>();
+            if missing.len() == leaves.len() {
+                imports.push(text.trim().to_owned());
+            } else {
+                let visibility = import
+                    .visibility()
+                    .map(|visibility| format!("{} ", visibility.syntax().text()))
+                    .unwrap_or_default();
+                imports.extend(
+                    missing
+                        .into_iter()
+                        .map(|leaf| format!("{visibility}use {leaf};")),
+                );
+            }
+            imported.extend(leaves);
+            continue;
+        }
+        if !defined.insert(squeezed(&text)) {
+            continue;
+        }
+        if let Some(name) = item_name(&item)
+            && !names.insert(name.clone())
+        {
+            return Err(format!(
+                "cannot move {name} into {}, which already has a different {name}",
+                aggregator.display()
+            )
+            .into());
+        }
+        added.push(text.trim().to_owned());
+    }
+    if imports.is_empty() && added.is_empty() {
         if content.is_empty() {
             fs::write(aggregator, "use super::*;\n")?;
         }
         return Ok(());
     }
-    if !content.contains(support) {
+    if !added.is_empty() {
         if !content.is_empty() && !content.ends_with("\n\n") {
             content.push('\n');
         }
-        content.push_str(support);
+        content.push_str(&added.join("\n"));
         content.push('\n');
-        fs::write(aggregator, content)?;
     }
+    if !imports.is_empty() {
+        let mut lines = imports.join("\n");
+        lines.push('\n');
+        if after_imports == 0 {
+            if !content.is_empty() {
+                lines.push('\n');
+            }
+            content.insert_str(0, &lines);
+        } else {
+            let end = content[after_imports..]
+                .find('\n')
+                .map_or(content.len(), |index| after_imports + index + 1);
+            if end == content.len() && !content.ends_with('\n') {
+                content.push('\n');
+            }
+            content.insert_str(end.min(content.len()), &lines);
+        }
+    }
+    fs::write(aggregator, content)?;
     Ok(())
+}
+
+fn use_leaves(import: &ast::Use) -> Vec<String> {
+    let mut leaves = Vec::new();
+    if let Some(tree) = import.use_tree() {
+        collect_use_leaves(&tree, "", &mut leaves);
+    }
+    leaves
+}
+
+fn collect_use_leaves(tree: &ast::UseTree, prefix: &str, leaves: &mut Vec<String>) {
+    let path = tree
+        .path()
+        .map(|path| {
+            path.syntax()
+                .text()
+                .to_string()
+                .split_whitespace()
+                .collect::<String>()
+        })
+        .unwrap_or_default();
+    let joined = match (prefix.is_empty(), path.is_empty()) {
+        (_, true) => prefix.to_owned(),
+        (true, false) => path,
+        (false, false) => format!("{prefix}::{path}"),
+    };
+    if let Some(list) = tree.use_tree_list() {
+        for tree in list.use_trees() {
+            collect_use_leaves(&tree, &joined, leaves);
+        }
+        return;
+    }
+    let mut leaf = joined.strip_suffix("::self").unwrap_or(&joined).to_owned();
+    if tree.star_token().is_some() {
+        leaf = if leaf.is_empty() {
+            "*".to_owned()
+        } else {
+            format!("{leaf}::*")
+        };
+    }
+    if let Some(rename) = tree.rename() {
+        leaf = format!("{leaf} {}", squeezed(&rename.syntax().text().to_string()));
+    }
+    leaves.push(leaf);
+}
+
+fn item_name(item: &ast::Item) -> Option<String> {
+    if matches!(item, ast::Item::Impl(_) | ast::Item::MacroCall(_)) {
+        return None;
+    }
+    ast::AnyHasName::cast(item.syntax().clone())
+        .and_then(|named| named.name())
+        .map(|name| name.text().to_string())
+}
+
+fn squeezed(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 fn ensure_modules(aggregator: &Path, functions: &[TestFunction]) -> Result<(), Box<dyn Error>> {
@@ -863,10 +982,6 @@ fn has_plain_module(source: &str, module: &str) -> bool {
     source
         .lines()
         .any(|line| line.trim() == format!("mod {module};"))
-}
-
-fn has_line(source: &str, expected: &str) -> bool {
-    source.lines().any(|line| line.trim() == expected)
 }
 
 fn declared_modules(source: &str) -> Vec<String> {

@@ -745,11 +745,10 @@ monitor's EDID make, model and serial, or by its connector when it has no EDID)
 to the seat's outputs through `beui_adapter_drm::DisplayControl`, which switches
 mode live. Every setting is an `Option`, and an unset one means the default:
 libinput's own for a pointer setting, which the seat reports per device and an
-editor reads with `Editor::input_devices`, and for a monitor its preferred
+editor reads as the `InputDevices` host value, and for a monitor its preferred
 resolution at the fastest refresh rate it offers there, which the seat reports
-with the monitor's modes and an editor reads with `Editor::displays`. Messages
-only a Linux host can answer, such as those lists, travel as
-`EditorMessage::Linux`. Because the seat runs before anyone signs in, the app
+with the monitor's modes and an editor reads as the `Displays` host value
+(guides/adding_a_plugin_editor.md says how host values reach a plugin). Because the seat runs before anyone signs in, the app
 keeps a copy of the last settings of each kind it applied in `app_state` and
 applies that at startup; the block stays the source of truth. A kind of setting
 the app applies itself implements `local_settings::LocalSettings` and is kept by

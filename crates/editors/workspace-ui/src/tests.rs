@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::{EditorView, EditorViewContent, ViewState, WORKSPACE_EDITOR};
 
 use block_editor_beui::beui::{Document, NodeId, Rect, Vec2};
-use block_editor_beui::{BlockParent, ChildContent, Editor, EditorHost};
+use block_editor_beui::{BlockParent, ChildContent, Editor, EditorHost, HostWindows, WindowAction};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 

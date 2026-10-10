@@ -7,7 +7,9 @@ use std::sync::mpsc::Receiver;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use beui::styled::{Toast, ToastAction};
-use block_plugin_api::{HostNotification, HostNotificationAction, LinuxMessage};
+use block_plugin_api::{
+    HostNotification, HostNotificationAction, NotificationAction, Notifications as Listed,
+};
 use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 
 use center::{Center, CloseReason, DEFAULT_ACTION, Urgency};
@@ -35,7 +37,7 @@ impl Notifications {
         }
     }
 
-    pub(crate) fn frame(&mut self, asked: Vec<LinuxMessage>) {
+    pub(crate) fn frame(&mut self, asked: Vec<NotificationAction>) {
         let now = crate::host::now();
         for request in self.requests.try_iter() {
             match request {
@@ -48,17 +50,16 @@ impl Notifications {
                 }
             }
         }
-        for message in asked {
-            match message {
-                LinuxMessage::InvokeNotification { id, action } => {
+        for action in asked {
+            match action {
+                NotificationAction::Invoke { id, action } => {
                     self.center.invoke(id, &action);
                 }
-                LinuxMessage::DismissNotifications(ids) => {
+                NotificationAction::Dismiss(ids) => {
                     for id in ids {
                         self.center.dismiss(id);
                     }
                 }
-                _ => {}
             }
         }
         if let Some(wait) = self.center.frame(now) {
@@ -70,7 +71,7 @@ impl Notifications {
         let revision = self.center.revision();
         if self.published != Some(revision) {
             self.published = Some(revision);
-            crate::plugin_host::set_notifications(self.center.listed().map(listed).collect());
+            crate::plugin_host::publish::<Listed>(&self.center.listed().map(listed).collect());
         }
     }
 

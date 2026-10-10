@@ -12,7 +12,7 @@ fn the_power_menu_locks_the_screen_without_asking() {
     fixture.test.click("desktop.power.lock");
     fixture.settle();
     assert!(
-        fixture.test.take_power_requests().is_empty(),
+        fixture.test.take_actions::<PowerAction>().is_empty(),
         "a host that cannot lock is not asked to"
     );
 
@@ -24,6 +24,9 @@ fn the_power_menu_locks_the_screen_without_asking() {
     fixture.test.click("desktop.power.lock");
     fixture.settle();
     fixture.test.settle();
-    assert_eq!(fixture.test.take_power_requests(), vec![PowerAction::Lock]);
+    assert_eq!(
+        fixture.test.take_actions::<PowerAction>(),
+        vec![PowerAction::Lock]
+    );
     assert!(!fixture.test.shown("desktop.power.dialog"));
 }

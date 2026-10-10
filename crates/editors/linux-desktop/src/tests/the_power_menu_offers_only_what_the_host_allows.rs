@@ -1,5 +1,3 @@
-use block_plugin_api::EditorMessage;
-
 use super::*;
 
 #[test]
@@ -7,13 +5,7 @@ fn the_power_menu_offers_only_what_the_host_allows() {
     let mut fixture = Fixture::new();
     fixture.settle();
     assert!(
-        fixture.test.sent().iter().any(|message| matches!(
-            message,
-            EditorMessage::Linux {
-                message: LinuxMessage::WatchPower,
-                ..
-            }
-        )),
+        fixture.test.watches::<Power>(),
         "the desktop asks the host what it can do"
     );
     fixture.allow_power(PowerAvailability {
@@ -28,7 +20,7 @@ fn the_power_menu_offers_only_what_the_host_allows() {
     fixture.test.click("desktop.power.suspend");
     fixture.settle();
     assert!(
-        fixture.test.take_power_requests().is_empty(),
+        fixture.test.take_actions::<PowerAction>().is_empty(),
         "a computer that cannot suspend is not asked to"
     );
 
@@ -40,7 +32,7 @@ fn the_power_menu_offers_only_what_the_host_allows() {
     fixture.test.click("desktop.power.suspend");
     fixture.settle();
     assert_eq!(
-        fixture.test.take_power_requests(),
+        fixture.test.take_actions::<PowerAction>(),
         vec![PowerAction::Suspend],
         "suspending needs no confirmation"
     );

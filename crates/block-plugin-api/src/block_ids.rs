@@ -258,8 +258,9 @@ impl EditorMessage {
             | Self::GrabCursor { .. }
             | Self::WebViewCommand { .. }
             | Self::ShowPanel { .. }
-            | Self::CloseWindow { .. }
-            | Self::Linux { .. }
+            | Self::WatchHostValue { .. }
+            | Self::HostValue { .. }
+            | Self::HostAction { .. }
             | Self::WebViewEvent { .. }
             | Self::OpenCreation { .. }
             | Self::CreationReady { .. }

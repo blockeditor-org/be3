@@ -2,9 +2,9 @@ use be_block::presence::{PresenceKind, UserActive, pick_free_color};
 use block_plugin_api::{
     ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildRect,
     ChildStatus, CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion,
-    FrameChrome, FrameReport, HostPanel, HostReply, ImeArea, InputEvent, LinuxMessage,
-    MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Message, Occluder, RegionSize, ScreenPlacement,
-    ScreenRequest, Size, ViewChange, ViewportMetrics, WebViewEvent, WebViewId,
+    FrameChrome, FrameReport, HostPanel, HostReply, ImeArea, InputEvent, MAX_CHILDREN,
+    MAX_COLLECTION_ITEMS, MenuEntry, Message, Occluder, RegionSize, ScreenPlacement, ScreenRequest,
+    Size, ViewChange, ViewportMetrics, WebViewEvent, WebViewId,
 };
 use block_ui::BlockCatalog;
 use geometry::{Rect, Vec2, pos2, vec2};
@@ -191,28 +191,8 @@ impl EditorSession {
         self.host.show_panel(panel);
     }
 
-    pub(crate) fn linux_message(&self, message: LinuxMessage) {
-        match message {
-            LinuxMessage::Windows(windows) => self.host.set_windows(windows),
-            LinuxMessage::InputDevices(devices) => self.host.set_input_devices(devices),
-            LinuxMessage::Displays(displays) => self.host.set_displays(displays),
-            LinuxMessage::Power(power) => self.host.set_power(power),
-            LinuxMessage::Media(media) => self.host.set_media(media),
-            LinuxMessage::Notifications(notifications) => {
-                self.host.set_notifications(notifications)
-            }
-            LinuxMessage::WatchInputDevices
-            | LinuxMessage::WatchDisplays
-            | LinuxMessage::FullscreenWindow { .. }
-            | LinuxMessage::FocusWindow(_)
-            | LinuxMessage::WatchPower
-            | LinuxMessage::RequestPower(_)
-            | LinuxMessage::WatchMedia
-            | LinuxMessage::RequestMedia(_)
-            | LinuxMessage::WatchNotifications
-            | LinuxMessage::InvokeNotification { .. }
-            | LinuxMessage::DismissNotifications(_) => {}
-        }
+    pub(crate) fn host_value(&self, key: String, value: Vec<u8>) {
+        self.host.receive_host_value(key, value);
     }
 
     pub(crate) fn show_block(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>) {
@@ -600,37 +580,11 @@ impl EditorSession {
                 answer,
             }));
         }
-        for (window, fullscreen) in self.host.take_fullscreen_windows() {
-            messages.push(Message::Editor(EditorMessage::Linux {
+        for (key, action) in self.host.take_host_actions() {
+            messages.push(Message::Editor(EditorMessage::HostAction {
                 instance,
-                message: LinuxMessage::FullscreenWindow { window, fullscreen },
-            }));
-        }
-        for window in self.host.take_focused_windows() {
-            messages.push(Message::Editor(EditorMessage::Linux {
-                instance,
-                message: LinuxMessage::FocusWindow(window),
-            }));
-        }
-        for action in self.host.take_power_requests() {
-            messages.push(Message::Editor(EditorMessage::Linux {
-                instance,
-                message: LinuxMessage::RequestPower(action),
-            }));
-        }
-        for request in self.host.take_media_requests() {
-            messages.push(Message::Editor(EditorMessage::Linux {
-                instance,
-                message: LinuxMessage::RequestMedia(request),
-            }));
-        }
-        for message in self.host.take_notification_requests() {
-            messages.push(Message::Editor(EditorMessage::Linux { instance, message }));
-        }
-        for window in self.host.take_closed_windows() {
-            messages.push(Message::Editor(EditorMessage::CloseWindow {
-                instance,
-                window,
+                key,
+                action,
             }));
         }
         for (block_id, account, access) in self.host.take_access_changes() {
@@ -728,34 +682,10 @@ impl EditorSession {
                 blocks: blocks.into_iter().map(Uuid::into_bytes).collect(),
             }));
         }
-        if self.host.take_input_device_watch() {
-            messages.push(Message::Editor(EditorMessage::Linux {
+        for key in self.host.take_host_watches() {
+            messages.push(Message::Editor(EditorMessage::WatchHostValue {
                 instance,
-                message: LinuxMessage::WatchInputDevices,
-            }));
-        }
-        if self.host.take_power_watch() {
-            messages.push(Message::Editor(EditorMessage::Linux {
-                instance,
-                message: LinuxMessage::WatchPower,
-            }));
-        }
-        if self.host.take_media_watch() {
-            messages.push(Message::Editor(EditorMessage::Linux {
-                instance,
-                message: LinuxMessage::WatchMedia,
-            }));
-        }
-        if self.host.take_notification_watch() {
-            messages.push(Message::Editor(EditorMessage::Linux {
-                instance,
-                message: LinuxMessage::WatchNotifications,
-            }));
-        }
-        if self.host.take_display_watch() {
-            messages.push(Message::Editor(EditorMessage::Linux {
-                instance,
-                message: LinuxMessage::WatchDisplays,
+                key,
             }));
         }
         if let Some(blocks) = self.host.take_history_watch() {

@@ -6,8 +6,8 @@ xdotool:
     ./scripts/buck run //crates/block-app:dev
     source ~/.cache/be3/dev/env
 
-The command builds the app with every plugin, starts Xvfb on `:99` if it is not already
-running, starts the app in it and returns once its window is up. The app is signed in to an
+The command builds the app with every plugin, starts Xvfb on `:99` unless an X server already
+answers there (clearing a lock or pid file a restart left behind), starts the app in it and returns once its window is up. The app is signed in to an
 account on its embedded server with a workspace called Dev open, so there is no account or
 workspace to make first. Its data lives in `~/.cache/be3/dev/data` and survives restarts,
 so running the command again restarts the app on the same workspace, which is how to pick

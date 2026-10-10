@@ -9,25 +9,9 @@ fn power_messages_round_trip() {
         power_off: false,
         log_out: true,
     };
-    let mut messages = vec![LinuxMessage::WatchPower, LinuxMessage::Power(available)];
-    messages.extend(PowerAction::ALL.map(LinuxMessage::RequestPower));
-    for message in messages {
-        let to_plugin = matches!(message, LinuxMessage::Power(_));
-        assert_eq!(
-            message.direction(),
-            match to_plugin {
-                true => Direction::ToPlugin,
-                false => Direction::ToHost,
-            }
-        );
-        let message = Message::Editor(EditorMessage::Linux {
-            instance: EditorInstanceId(4),
-            message,
-        });
-        assert_eq!(
-            decode_frame(&encode_frame(&message).unwrap()).unwrap(),
-            message
-        );
+    host_value_round_trips::<Power>(available);
+    for action in PowerAction::ALL {
+        host_action_round_trips(action);
     }
     assert!(available.allows(PowerAction::Restart));
     assert!(!available.allows(PowerAction::PowerOff));
