@@ -89,6 +89,15 @@ async fn open(
     })
 }
 
+pub async fn create_offscreen(
+    format: wgpu::TextureFormat,
+    open_device: Option<OpenDevice>,
+) -> Result<Gpu, Box<dyn Error>> {
+    let instance = wgpu::Instance::default();
+    let opened = open(&instance, None, open_device.as_ref()).await?;
+    Ok(Gpu::assemble(instance, opened, format, open_device))
+}
+
 pub async fn create_gpu(
     instance: wgpu::Instance,
     probe: &wgpu::Surface<'_>,
@@ -99,15 +108,6 @@ pub async fn create_gpu(
     let format =
         surface_format(&capabilities.formats).ok_or("the adapter does not support this surface")?;
     Ok(Gpu::assemble(instance, opened, format, open_device))
-}
-
-#[cfg(test)]
-pub(crate) async fn create_offscreen_gpu(
-    format: wgpu::TextureFormat,
-) -> Result<Gpu, Box<dyn Error>> {
-    let instance = wgpu::Instance::default();
-    let opened = open(&instance, None, None).await?;
-    Ok(Gpu::assemble(instance, opened, format, None))
 }
 
 impl Gpu {
@@ -183,6 +183,8 @@ pub struct Target {
     pending: Option<Repaint>,
     moved: Option<(Moved, f32, Repaint)>,
     retained: Option<Retained>,
+    presented: bool,
+    offscreen: bool,
 }
 
 struct Retained {
@@ -210,7 +212,24 @@ impl Target {
             pending: None,
             moved: None,
             retained: None,
+            presented: false,
+            offscreen: false,
         }
+    }
+
+    pub fn offscreen(gpu: &Gpu, width: u32, height: u32) -> Self {
+        let mut target = Self::new(gpu.format);
+        target.offscreen = true;
+        target.config.usage |= wgpu::TextureUsages::COPY_DST;
+        target.config.width = width;
+        target.config.height = height;
+        target
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn capture(&self, gpu: &Gpu) -> Option<beui_core::app::automation::Capture> {
+        let retained = self.retained.as_ref().filter(|_| self.presented)?;
+        read_texture(&gpu.device, &gpu.queue, &retained.texture)
     }
 
     pub fn size(&self) -> (u32, u32) {
@@ -218,11 +237,11 @@ impl Target {
     }
 
     pub fn attached(&self) -> bool {
-        self.surface.is_some()
+        self.surface.is_some() || self.offscreen
     }
 
     pub fn physical(&self) -> Option<Vec2> {
-        if self.surface.is_none() || self.config.width == 0 || self.config.height == 0 {
+        if !self.attached() || self.config.width == 0 || self.config.height == 0 {
             return None;
         }
         Some(vec2(self.config.width as f32, self.config.height as f32))
@@ -364,21 +383,24 @@ impl Target {
         if self.config.width == 0 || self.config.height == 0 {
             return Presented::Done;
         }
-        let Some(surface) = &self.surface else {
-            return Presented::Done;
+        let frame = match &self.surface {
+            Some(surface) => match surface.get_current_texture() {
+                wgpu::CurrentSurfaceTexture::Success(frame)
+                | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => Some(frame),
+                wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
+                    surface.configure(&gpu.device, &self.config);
+                    return Presented::Again;
+                }
+                _ => return Presented::Done,
+            },
+            None if self.offscreen => None,
+            None => return Presented::Done,
         };
-        let frame = match surface.get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(frame)
-            | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
-            wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
-                surface.configure(&gpu.device, &self.config);
-                return Presented::Again;
-            }
-            _ => return Presented::Done,
-        };
-        let view = frame
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
+        let view = frame.as_ref().map(|frame| {
+            frame
+                .texture
+                .create_view(&wgpu::TextureViewDescriptor::default())
+        });
         let mut encoder = gpu
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -404,13 +426,16 @@ impl Target {
                     _ => wgpu::LoadOp::Clear(clear),
                 },
             ),
-            None => (&view, wgpu::LoadOp::Clear(clear)),
+            None => match &view {
+                Some(view) => (view, wgpu::LoadOp::Clear(clear)),
+                None => return Presented::Done,
+            },
         };
         if pending.is_some() || retained.is_none() {
             gpu.renderer
                 .render(&gpu.device, &gpu.queue, &mut encoder, target, size, load);
         }
-        if let Some(retained) = retained {
+        if let (Some(retained), Some(frame)) = (retained, &frame) {
             encoder.copy_texture_to_texture(
                 wgpu::TexelCopyTextureInfo {
                     texture: &retained.texture,
@@ -432,10 +457,88 @@ impl Target {
             );
         }
         gpu.queue.submit(Some(encoder.finish()));
-        frame.present();
+        if let Some(frame) = frame {
+            frame.present();
+        }
+        self.presented = true;
         match gpu.lost() {
             true => Presented::Again,
             false => Presented::Done,
         }
     }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn read_texture(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    texture: &wgpu::Texture,
+) -> Option<beui_core::app::automation::Capture> {
+    let swap = match texture.format() {
+        wgpu::TextureFormat::Rgba8Unorm | wgpu::TextureFormat::Rgba8UnormSrgb => false,
+        wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb => true,
+        _ => return None,
+    };
+    let (width, height) = (texture.width(), texture.height());
+    let row = width * 4;
+    let padded =
+        row.div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT) * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+    let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("beui capture"),
+        size: u64::from(padded) * u64::from(height),
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("beui capture encoder"),
+    });
+    encoder.copy_texture_to_buffer(
+        wgpu::TexelCopyTextureInfo {
+            texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        wgpu::TexelCopyBufferInfo {
+            buffer: &buffer,
+            layout: wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(padded),
+                rows_per_image: Some(height),
+            },
+        },
+        wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+    );
+    queue.submit(Some(encoder.finish()));
+    let (sender, receiver) = std::sync::mpsc::channel();
+    buffer
+        .slice(..)
+        .map_async(wgpu::MapMode::Read, move |result| {
+            let _ = sender.send(result);
+        });
+    device.poll(wgpu::PollType::wait_indefinitely()).ok()?;
+    receiver.try_recv().ok()?.ok()?;
+    let mapped = buffer.slice(..).get_mapped_range();
+    let mut rgba = Vec::with_capacity((row * height) as usize);
+    for line in mapped.chunks(padded as usize) {
+        rgba.extend_from_slice(&line[..row as usize]);
+    }
+    drop(mapped);
+    if swap {
+        for pixel in rgba.as_chunks_mut::<4>().0 {
+            pixel.swap(0, 2);
+        }
+    }
+    for pixel in rgba.as_chunks_mut::<4>().0 {
+        pixel[3] = 255;
+    }
+    Some(beui_core::app::automation::Capture {
+        width,
+        height,
+        rgba,
+    })
 }

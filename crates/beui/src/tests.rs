@@ -71,6 +71,18 @@ mod a_drag_put_on_the_board_drops_where_the_button_is_let_go;
 mod a_drag_whose_moves_share_a_frame_with_its_press_and_release_keeps_both_ends;
 mod a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given;
 mod a_drawing_repaints_on_its_deadline_without_repeating_layout;
+mod a_driver_acts_on_a_slider_the_way_a_screen_reader_does;
+mod a_driver_answers_a_file_dialog_with_a_file;
+mod a_driver_carries_grabbed_files_and_drops_them;
+mod a_driver_clicks_a_button_by_its_label_and_hears_what_changed;
+mod a_driver_composes_with_an_input_method_and_holds_a_key;
+mod a_driver_holds_a_back_gesture_part_way_and_cancels_it;
+mod a_driver_holds_a_press_across_a_pause_and_taps_with_a_finger;
+mod a_driver_lists_and_runs_an_action;
+mod a_driver_pinches_with_two_fingers_and_zooms_with_a_touchpad;
+mod a_driver_resizes_a_headless_window_and_reads_its_state;
+mod a_driver_turns_the_wheel_and_answers_without_settling_when_asked;
+mod a_driver_types_into_a_field_found_by_its_test_id;
 mod a_drop_the_dock_would_refuse_draws_no_drop_marker;
 mod a_dynamic_child_can_fill_its_available_height;
 mod a_file_picker_hands_the_chosen_file_to_its_callback_without_waiting_for_it;
@@ -108,6 +120,7 @@ mod a_grid_in_a_scroll_lays_out_only_the_cells_near_the_view;
 mod a_grid_lines_its_cells_up_in_shared_columns;
 mod a_grip_touch_cancelled_by_a_second_finger_lets_the_sheet_go;
 mod a_half_typed_date_field_goes_back_to_its_value_when_the_focus_leaves;
+mod a_headless_window_fills_its_screen_when_the_app_goes_fullscreen;
 mod a_hidden_show_gives_its_share_of_the_space_to_its_visible_siblings;
 mod a_horizontal_scroll_lays_its_items_out_in_a_row;
 mod a_hovered_catcher_hears_where_the_pointer_is_while_another_holds_it;
@@ -124,6 +137,7 @@ mod a_list_in_a_scroll_lays_out_only_the_rows_near_the_view;
 mod a_list_sizes_plain_nodes_handed_to_it_intrinsically;
 mod a_locking_overlay_stays_on_top_and_shuts_out_global_keys;
 mod a_lone_child_fills_a_children_prop_as_a_run_of_one;
+mod a_long_change_is_cut_short_unless_asked_for_in_full;
 mod a_long_press_on_selectable_text_selects_the_word_and_copy_copies_it;
 mod a_long_text_area_only_builds_the_lines_in_view;
 mod a_menu_item_shows_its_icon_and_detail_and_runs_its_click_in_a_dropdown_and_a_sheet;
@@ -151,6 +165,7 @@ mod a_picture_given_a_source_paints_only_that_part_of_the_image;
 mod a_picture_paints_the_image_it_is_given;
 mod a_picture_scaled_down_never_grows_past_its_own_pixels;
 mod a_picture_shows_its_thumbhash_until_the_image_arrives;
+mod a_plugin_description_reads_as_a_pane_under_the_window;
 mod a_pointer_lock_lets_go_when_the_window_loses_focus;
 mod a_pointer_lock_reports_motion_only_while_it_holds_the_pointer;
 mod a_popover_panel_stops_at_its_max_width_rather_than_spanning_the_window;
@@ -215,6 +230,7 @@ mod a_stack_built_inside_a_show_still_measures_the_container_above_it;
 mod a_stacked_dock_bar_goes_home_switches_tabs_and_holds_the_tabs_actions;
 mod a_stacked_dock_bar_shows_the_menu_its_tab_hands_it;
 mod a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels;
+mod a_stopped_clock_lets_an_animating_app_settle_and_pause_moves_it;
 mod a_styled_scroll_fades_its_content_only_toward_an_edge_with_more_beyond_it;
 mod a_styled_scroll_puts_its_scrollbar_beside_the_content;
 mod a_tab_clicked_within_one_frame_does_not_start_a_drag;
@@ -1944,4 +1960,130 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
     harness.frame(Vec::new());
     harness.key(Key::Enter, Modifiers::NONE);
     assert_eq!(*heard.borrow(), ["close", "run true"]);
+}
+
+pub(crate) struct Driven {
+    runner: beui_core::runner::Runner,
+    inbox: beui_core::app::automation::Inbox,
+}
+
+struct DrivenScreen(Vec2);
+
+impl beui_core::renderer::Renderer for DrivenScreen {
+    fn name(&self) -> &'static str {
+        "screen"
+    }
+
+    fn info(&self) -> RendererInfo {
+        RendererInfo::default()
+    }
+
+    fn resize(&mut self, width: u32, height: u32) {
+        self.0 = Vec2::new(width as f32, height as f32);
+    }
+
+    fn physical(&self) -> Option<Vec2> {
+        Some(self.0)
+    }
+
+    fn prepare(&mut self, output: &FrameOutput, _scale: f32, _background: Color32) -> bool {
+        output.changed
+    }
+
+    fn present(&mut self, _background: Color32) -> bool {
+        false
+    }
+}
+
+struct DrivenPlatform;
+
+impl beui_core::runner::Platform for DrivenPlatform {
+    fn copy(&mut self, _text: String) {}
+
+    fn paste(&mut self) -> Option<String> {
+        None
+    }
+
+    fn pick_file(&mut self, _request: FilePickRequest) {}
+}
+
+struct DrivenDocument(Document);
+
+impl App for DrivenDocument {
+    fn update(&mut self, context: &Context, rect: Rect) {
+        self.0.show(context, rect);
+    }
+}
+
+impl Driven {
+    pub(crate) fn new(document: Document) -> Self {
+        Self::with_app(DrivenDocument(document), false)
+    }
+
+    pub(crate) fn headless(document: Document) -> Self {
+        Self::with_app(DrivenDocument(document), true)
+    }
+
+    pub(crate) fn with_app(app: impl App + 'static, headless: bool) -> Self {
+        let inbox = beui_core::app::automation::Inbox::default();
+        let mut options = beui_core::runner::RunOptions::new("Driven");
+        options.automation = Some(inbox.clone());
+        let mut runner = beui_core::runner::Runner::new(beui_core::runner::Launch {
+            options,
+            context: context(),
+            app: Box::new(app),
+        });
+        if headless {
+            runner.simulate(beui_core::app::automation::Simulation::new(
+                beui_core::app::automation::WindowSize {
+                    size: VIEWPORT,
+                    scale: 1.0,
+                },
+                Some(WIDE_VIEWPORT),
+            ));
+        }
+        runner
+            .start(
+                vec![beui_core::renderer::Loaded {
+                    renderer: Box::new(DrivenScreen(VIEWPORT)),
+                    fonts: None,
+                }],
+                Setup::new(Waker::new(|| {})),
+            )
+            .expect("the screen loads");
+        runner.context().stop_clock();
+        let mut driven = Self { runner, inbox };
+        driven.frame();
+        driven
+    }
+
+    fn frame(&mut self) {
+        self.runner
+            .context()
+            .advance_clock(Duration::from_micros(16_667));
+        self.runner.frame(
+            &mut DrivenPlatform,
+            1.0,
+            beui_core::app::SafeArea::default(),
+        );
+    }
+
+    pub(crate) fn ask(&mut self, words: &[&str]) -> Result<String, String> {
+        use beui_core::app::automation::{Reply, ask};
+        use std::future::Future;
+        let owned = words.iter().map(|word| (*word).to_owned()).collect();
+        let mut answered = std::pin::pin!(ask(&self.inbox, owned));
+        let mut waiting = std::task::Context::from_waker(std::task::Waker::noop());
+        for _ in 0..600 {
+            self.frame();
+            if let std::task::Poll::Ready(reply) = answered.as_mut().poll(&mut waiting) {
+                return match reply {
+                    Reply::Text(text) => Ok(text),
+                    Reply::Error(error) => Err(error),
+                    Reply::Image { .. } => Err("an image".to_owned()),
+                };
+            }
+        }
+        panic!("the app never answered {words:?}");
+    }
 }

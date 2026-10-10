@@ -1,0 +1,3 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library")
+
+cargo_library()

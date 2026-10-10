@@ -178,7 +178,7 @@ What one event goes through, in order:
 
 1. The runner. `beui-adapter-drm` drops the input that wakes blanked screens,
    the rest of it for a grace period, and every release of a press it dropped
-   (`wake.rs`, see guides/running_the_app.md). That has to happen there: it is
+   (`wake.rs`, see guides/linux_desktop.md). That has to happen there: it is
    decided on libinput's own clock before the keymap sees the key, and nothing
    about it is the document's to judge. The keymap's own actions (switching
    terminals, Ctrl+Alt+Backspace) are the adapter's too. Each key arrives as

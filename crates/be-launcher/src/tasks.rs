@@ -372,8 +372,11 @@ fn kill_tree(process: u32) -> std::io::Result<std::process::ExitStatus> {
 
 #[cfg(not(target_os = "android"))]
 pub(crate) fn command(program: impl AsRef<OsStr>) -> Command {
-    #[cfg_attr(not(windows), allow(unused_mut))]
     let mut command = Command::new(program);
+    command
+        .env_remove("BEUI_AUTOMATION")
+        .env_remove("BEUI_HEADLESS")
+        .env_remove("BEUI_HEADLESS_SCREEN");
     #[cfg(windows)]
     {
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;

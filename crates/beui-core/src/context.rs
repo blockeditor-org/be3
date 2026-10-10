@@ -68,6 +68,9 @@ struct Inner {
     accessibility: RefCell<Vec<Fragment>>,
     accessibility_actions: RefCell<Vec<ActionRequest>>,
     accessibility_active: Cell<bool>,
+    automated: Cell<bool>,
+    actions: RefCell<Vec<ActionGroup>>,
+    action_requests: RefCell<Vec<String>>,
     accessibility_known: RefCell<HashSet<u32>>,
     accessibility_published: RefCell<HashSet<u32>>,
     test_ids_published: Cell<bool>,
@@ -121,6 +124,22 @@ impl Moved {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct ActionInfo {
+    pub id: String,
+    pub label: String,
+    pub shortcut: Option<String>,
+    pub enabled: bool,
+    pub checked: Option<bool>,
+    pub live: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ActionGroup {
+    pub name: String,
+    pub actions: Vec<ActionInfo>,
+}
+
 pub struct FrameOutput {
     pub layers: Rc<Vec<Layer>>,
     pub filter: Option<(Filter, usize)>,
@@ -143,6 +162,8 @@ pub struct FrameOutput {
     pub damage: Region,
     pub moved: Option<Moved>,
     accessibility: Vec<Fragment>,
+    pub actions: Vec<ActionGroup>,
+    pub unran_actions: Vec<String>,
     pixels_per_point: f32,
 }
 
@@ -194,6 +215,10 @@ impl FrameOutput {
     pub fn damage(&self) -> Option<Rect> {
         let bounds = self.unmoved().bounds();
         bounds.is_positive().then_some(bounds)
+    }
+
+    pub fn test_ids(&self) -> &HashMap<String, Rect> {
+        &self.test_ids
     }
 
     pub fn test_id_rect(&self, test_id: &str) -> Option<Rect> {
@@ -263,6 +288,9 @@ impl Context {
                 accessibility: RefCell::new(Vec::new()),
                 accessibility_actions: RefCell::new(Vec::new()),
                 accessibility_active: Cell::new(true),
+                automated: Cell::new(false),
+                actions: RefCell::new(Vec::new()),
+                action_requests: RefCell::new(Vec::new()),
                 accessibility_known: RefCell::new(HashSet::new()),
                 accessibility_published: RefCell::new(HashSet::new()),
                 test_ids_published: Cell::new(true),
@@ -326,6 +354,34 @@ impl Context {
         self.inner.accessibility_active.get()
     }
 
+    pub fn set_automated(&self, automated: bool) {
+        self.inner.automated.set(automated);
+    }
+
+    pub fn automated(&self) -> bool {
+        self.inner.automated.get()
+    }
+
+    pub fn publish_actions(&self, group: ActionGroup) {
+        self.inner.actions.borrow_mut().push(group);
+    }
+
+    pub fn request_action(&self, id: String) {
+        self.inner.action_requests.borrow_mut().push(id);
+        self.request_repaint();
+    }
+
+    pub fn action_requests(&self) -> Vec<String> {
+        self.inner.action_requests.borrow().clone()
+    }
+
+    pub fn action_ran(&self, id: &str) {
+        self.inner
+            .action_requests
+            .borrow_mut()
+            .retain(|requested| requested != id);
+    }
+
     pub fn set_test_ids_published(&self, published: bool) {
         self.inner.test_ids_published.set(published);
     }
@@ -340,6 +396,10 @@ impl Context {
 
     pub fn stop_clock(&self) {
         self.inner.clock.set(Some(self.inner.now.get()));
+    }
+
+    pub fn run_clock(&self) {
+        self.inner.clock.set(None);
     }
 
     pub fn set_clock(&self, now: Instant) {
@@ -396,6 +456,7 @@ impl Context {
         self.inner.wants_keyboard.set(false);
         self.inner.intercepted_keys.borrow_mut().clear();
         self.inner.accessibility.borrow_mut().clear();
+        self.inner.actions.borrow_mut().clear();
         let published = std::mem::take(&mut *self.inner.accessibility_published.borrow_mut());
         *self.inner.accessibility_known.borrow_mut() = published;
     }
@@ -468,6 +529,8 @@ impl Context {
             pointer_locked: self.inner.pointer_locked.get(),
             repaint: self.inner.repaint.get(),
             accessibility: std::mem::take(&mut *self.inner.accessibility.borrow_mut()),
+            actions: std::mem::take(&mut *self.inner.actions.borrow_mut()),
+            unran_actions: std::mem::take(&mut *self.inner.action_requests.borrow_mut()),
             pixels_per_point: scale,
         }
     }

@@ -118,6 +118,7 @@ pub(crate) struct Shared {
     pub(crate) version_watch: std::collections::HashSet<Uuid>,
     pub(crate) versions: HashMap<Uuid, super::version::VersionState>,
     pub(crate) touched: std::collections::HashSet<Uuid>,
+    pub(crate) pending: usize,
 }
 
 impl Shared {
@@ -787,7 +788,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
             }
             Woken::Disconnected => return Outcome::Lost,
             Woken::Command(command) => {
-                apply(
+                let applied = apply(
                     &peer,
                     &mut sessions,
                     shared,
@@ -796,7 +797,13 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                     &mut flushes,
                     command,
                 )
-                .await
+                .await;
+                {
+                    let mut held = shared.lock().unwrap();
+                    held.pending = held.pending.saturating_sub(1);
+                }
+                crate::host::wake();
+                applied
             }
             Woken::Event(event) => {
                 match event {

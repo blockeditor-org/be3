@@ -568,14 +568,21 @@ pub(crate) fn status() -> Status {
 }
 
 fn send(command: Command) {
-    if let Some(commands) = stack()
-        .lock()
-        .unwrap()
-        .as_ref()
-        .and_then(|stack| stack.commands.as_ref())
-    {
-        let _ = commands.send(command);
+    let held = stack().lock().unwrap();
+    let Some(stack) = held.as_ref() else {
+        return;
+    };
+    let Some(commands) = &stack.commands else {
+        return;
+    };
+    stack.shared.lock().unwrap().pending += 1;
+    if commands.send(command).is_err() {
+        stack.shared.lock().unwrap().pending -= 1;
     }
+}
+
+pub(crate) fn busy() -> bool {
+    with_shared(|shared| shared.pending > 0 || !shared.graph.loaded).unwrap_or_default()
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]

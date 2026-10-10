@@ -1,0 +1,16 @@
+[package]
+name = "be-drive"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "be-drive"
+path = "src/main.rs"
+
+[dependencies]
+beui-core = { path = "../beui-core" }
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+[lints]
+workspace = true

@@ -51,6 +51,17 @@ pub trait Instance: std::any::Any {
 
     fn input(&mut self, region: &Region, event: &InputEvent);
 
+    fn run_action(&mut self, _region: &Region, _id: &str) {}
+
+    fn node_action(
+        &mut self,
+        _region: &Region,
+        _node: usize,
+        _action: &str,
+        _value: Option<block_plugin_api::NodeValue>,
+    ) {
+    }
+
     fn update(&mut self, region: &Region, settings: Option<&mut Vec<u8>>) -> Frame;
 
     #[cfg(target_arch = "wasm32")]
@@ -66,6 +77,7 @@ pub struct Region {
     pub age: u32,
     pub spec: FrameSpec,
     pub monitors: Vec<RegionMonitor>,
+    pub describe: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -94,6 +106,27 @@ pub struct Frame {
     pub handles_back: bool,
     pub wants_keyboard: bool,
     pub intercepted_keys: Vec<KeyChord>,
+    pub description: Option<Description>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Description {
+    pub nodes: Vec<DescribedNode>,
+    pub test_ids: Vec<(String, Rect)>,
+    pub actions: Vec<block_plugin_api::DescribedAction>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct DescribedNode {
+    pub depth: u16,
+    pub role: String,
+    pub label: String,
+    pub value: String,
+    pub toggled: Option<block_plugin_api::Toggled>,
+    pub disabled: bool,
+    pub focused: bool,
+    pub rect: Option<Rect>,
+    pub actions: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
