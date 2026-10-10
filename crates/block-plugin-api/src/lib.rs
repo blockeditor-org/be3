@@ -10,10 +10,12 @@ mod session;
 pub use block_ids::BlockIdRole;
 pub use host_value::{HostAction, HostValue, decode_host, encode_host};
 pub use linux::{
-    Displays, HostDisplay, HostDisplayMode, HostInputDevice, HostNotification,
-    HostNotificationAction, HostWindow, HostWindowId, HostWindows, InputDevices, Media, MediaLevel,
-    MediaLevels, MediaRequest, NotificationAction, Notifications, PlayerCommand, Power,
-    PowerAction, PowerAvailability, WindowAction,
+    Displays, HostDisplay, HostDisplayMode, HostInputDevice, HostNotificationAction, HostWindow,
+    HostWindowId, HostWindows, IncomingNotification, InputDevices, Media, MediaLevel, MediaLevels,
+    MediaRequest, NotificationCloseReason, NotificationImage, NotificationInbox,
+    NotificationReport, NotificationRequest, NotificationSignal, NotificationUrgency,
+    Notifications, PlayerCommand, Power, PowerAction, PowerAvailability, ScreenLocked,
+    WindowAction,
 };
 pub use manifest::{
     EditorDocument, ManifestDocument, TemplateDocument, Templates, manifest_from_json,

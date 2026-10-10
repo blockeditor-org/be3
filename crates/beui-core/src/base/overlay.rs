@@ -18,11 +18,18 @@ use crate::node::{ClickHandler, Element, InteractInput, NodeId, NodeOf, Rects};
 pub enum OverlayAnchor {
     Node(NodeRef),
     Point(Pos2),
+    Rect(Rect),
 }
 
 impl beui_tree::reactive::IntoProp<OverlayAnchor> for &NodeRef {
     fn into_prop(self) -> beui_tree::reactive::Prop<OverlayAnchor> {
         beui_tree::reactive::Prop::Static(OverlayAnchor::Node(self.clone()))
+    }
+}
+
+impl beui_tree::reactive::IntoProp<OverlayAnchor> for NodeRef {
+    fn into_prop(self) -> beui_tree::reactive::Prop<OverlayAnchor> {
+        beui_tree::reactive::Prop::Static(OverlayAnchor::Node(self))
     }
 }
 
@@ -122,6 +129,7 @@ impl OverlayNode {
                 anchored.map_or_else(opened, |rect| doc.screen_under(rect))
             }
             (_, OverlayAnchor::Point(pos)) => doc.screen_at(*pos),
+            (_, OverlayAnchor::Rect(rect)) => doc.screen_under(*rect),
         };
         screen.map_or(viewport, |screen| screen.rect)
     }
@@ -260,7 +268,7 @@ impl Element for OverlayNode {
         crate::layout::layout(doc, painter, self.scrim, viewport, out);
         let anchored = match &self.anchor {
             OverlayAnchor::Node(node) => node.try_get().and_then(|id| out.get(&id)),
-            OverlayAnchor::Point(_) => None,
+            OverlayAnchor::Point(_) | OverlayAnchor::Rect(_) => None,
         };
         self.anchored = anchored;
         let area = self.area(doc, viewport, anchored);
@@ -268,6 +276,7 @@ impl Element for OverlayNode {
         let anchor_rect = match &self.anchor {
             OverlayAnchor::Node(_) => anchored.unwrap_or(area),
             OverlayAnchor::Point(pos) => Rect::from_min_size(*pos, Vec2::ZERO),
+            OverlayAnchor::Rect(rect) => *rect,
         };
         let rect = resolve_rect(area, anchor_rect, self.placement, content_size);
         crate::layout::layout(doc, painter, content, rect, out);
@@ -329,6 +338,10 @@ impl Element for OverlayNode {
                 match &self.anchor {
                     OverlayAnchor::Node(_) => "node".to_owned(),
                     OverlayAnchor::Point(point) => format!("{}, {}", point.x, point.y),
+                    OverlayAnchor::Rect(rect) => format!(
+                        "{}, {} to {}, {}",
+                        rect.min.x, rect.min.y, rect.max.x, rect.max.y
+                    ),
                 },
             ),
             ("traps focus", self.traps_focus.to_string()),

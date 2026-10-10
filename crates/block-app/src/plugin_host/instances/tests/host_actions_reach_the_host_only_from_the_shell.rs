@@ -1,7 +1,8 @@
 use super::*;
 
 use block_plugin_api::{
-    HostWindowId, MediaRequest, NotificationAction, PlayerCommand, PowerAction, WindowAction,
+    HostWindowId, MediaRequest, NotificationReport, NotificationSignal, PlayerCommand, PowerAction,
+    WindowAction,
 };
 
 #[test]
@@ -25,9 +26,10 @@ fn host_actions_reach_the_host_only_from_the_shell() {
         assert!(act(&mut instances, &request));
     }
     assert!(act(&mut instances, &PowerAction::Suspend));
-    let notification = NotificationAction::Invoke {
-        id: 2,
-        action: "default".to_owned(),
+    let notification = NotificationReport {
+        received: Some(3),
+        signals: vec![NotificationSignal::ActionInvoked(2, "default".to_owned())],
+        kept: vec![2],
     };
     assert!(act(&mut instances, &notification));
     assert!(act(&mut instances, &WindowAction::Close(HostWindowId(4))));
@@ -43,7 +45,7 @@ fn host_actions_reach_the_host_only_from_the_shell() {
         vec![PowerAction::Suspend]
     );
     assert_eq!(
-        take_actions::<NotificationAction>(&mut instances),
+        take_actions::<NotificationReport>(&mut instances),
         vec![notification]
     );
     assert_eq!(

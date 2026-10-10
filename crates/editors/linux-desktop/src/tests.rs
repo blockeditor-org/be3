@@ -5,8 +5,9 @@ use block_editor_beui::be_block::{
 use block_editor_beui::beui::{Document, Key, KeyChord, Modifiers, NodeId, Rect};
 use block_editor_beui::{
     BlockInfo, BlockParent, ChildContent, Editor, EditorHost, HostWindow, HostWindowId,
-    HostWindows, Media, MediaLevel, MediaLevels, MediaRequest, PlayerCommand, Power, PowerAction,
-    PowerAvailability, WindowAction,
+    HostWindows, IncomingNotification, Media, MediaLevel, MediaLevels, MediaRequest,
+    NotificationInbox, NotificationReport, NotificationRequest, NotificationSignal, Notifications,
+    PlayerCommand, Power, PowerAction, PowerAvailability, WindowAction,
 };
 use block_plugin_api::Size;
 use block_ui_test::BeuiTest;
@@ -19,7 +20,10 @@ mod a_block_shown_on_the_desktop_opens_in_its_own_window;
 mod a_calendar_the_desktop_no_longer_holds_is_replaced;
 mod a_first_desktop_with_no_sessions_offers_a_new_one;
 mod a_held_volume_key_keeps_turning_the_volume;
+mod a_locked_screen_shows_no_notification_toasts;
+mod a_notification_toast_shows_above_the_bar_until_its_time_is_up;
 mod a_session_chosen_from_the_menu_opens_in_a_window_and_closing_it_keeps_the_session;
+mod a_toast_answers_its_actions_and_hides_while_the_history_is_open;
 mod a_volume_key_shows_the_level_the_host_reports_until_it_fades;
 mod a_window_the_host_focuses_leads_the_window_switcher;
 mod alt_tab_switches_to_the_window_two_back_once_alt_is_let_go;
@@ -45,12 +49,15 @@ const EVERYTHING: PowerAvailability = PowerAvailability {
     log_out: true,
 };
 const SHOWN_TYPE: Uuid = Uuid::from_u128(0x7368_6f77_6e2d_7479_7065_2d74_6573_7431);
+const DEFAULT_ACTION: &str = "default";
+const NOON: u64 = 1_768_478_400;
 
 struct Fixture {
     test: BeuiTest<LinuxDesktopApp>,
     host: EditorHost,
     client: Uuid,
     settings: Uuid,
+    notified: u64,
 }
 
 impl Fixture {
@@ -69,6 +76,7 @@ impl Fixture {
             host,
             client,
             settings: Uuid::new_v4(),
+            notified: 0,
         }
     }
 
@@ -134,6 +142,30 @@ impl Fixture {
         self.test.run();
     }
 
+    fn notify(&mut self, arrived: &[IncomingNotification]) {
+        let requests = arrived
+            .iter()
+            .map(|incoming| {
+                self.notified += 1;
+                (
+                    self.notified,
+                    NotificationRequest::Notify(Box::new(incoming.clone())),
+                )
+            })
+            .collect();
+        self.test
+            .set_host_value::<Notifications>(&NotificationInbox { requests });
+        self.settle();
+    }
+
+    fn signals(&mut self) -> Vec<NotificationSignal> {
+        self.test
+            .take_actions::<NotificationReport>()
+            .into_iter()
+            .flat_map(|report| report.signals)
+            .collect()
+    }
+
     fn says(&self, words: &str) -> bool {
         let document = self.test.document();
         document
@@ -196,6 +228,18 @@ impl Fixture {
     }
 }
 
+fn notification(id: u32, app_name: &str, summary: &str, body: &str) -> IncomingNotification {
+    IncomingNotification {
+        id,
+        app_name: app_name.to_owned(),
+        summary: summary.to_owned(),
+        body: body.to_owned(),
+        expire_timeout: -1,
+        received: NOON + u64::from(id) * 60,
+        ..IncomingNotification::default()
+    }
+}
+
 fn host_window(id: u64, focused: bool) -> HostWindow {
     HostWindow {
         id: HostWindowId(id),
@@ -238,4 +282,8 @@ fn text_under(document: &Document, id: NodeId) -> Option<String> {
         .children(id)
         .into_iter()
         .find_map(|child| text_under(document, child))
+}
+
+fn toast(id: u32) -> String {
+    format!("toast.{}", (1_u64 << 32) + u64::from(id))
 }

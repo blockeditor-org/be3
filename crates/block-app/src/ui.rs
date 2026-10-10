@@ -272,8 +272,6 @@ pub(crate) enum UiCommand {
     ApprovePairing(u64, String),
     DismissPairing(u64),
     DismissToast(u64),
-    ToastAction(u64, String),
-    ActivateToast(u64),
     KeepDisplay,
     RevertDisplay,
     LockScreen,
@@ -329,8 +327,6 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                     anchor={area.clone()}
                     toasts={toasts}
                     on_dismiss={move |id: u64| send(UiCommand::DismissToast(id))}
-                    on_action={move |(id, action): (u64, String)| send(UiCommand::ToastAction(id, action))}
-                    on_activate={move |id: u64| send(UiCommand::ActivateToast(id))}
                 />
                 <KeepChanges
                     open={keep_display}
