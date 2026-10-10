@@ -638,6 +638,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-cli"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-client",
+ "be-commit",
+ "be-graph",
+ "be-keys",
+ "be-protocol",
+ "be-server",
+ "be-store",
+ "block-ui",
+ "serde_json",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "be-client"
 version = "0.1.0"
 dependencies = [

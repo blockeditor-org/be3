@@ -1,0 +1,71 @@
+use std::io::Read;
+use std::process::ExitCode;
+
+use be_cli::cli::{self, Command, USAGE};
+use be_cli::session::{Settings, connect};
+use be_cli::tracker::Tracker;
+
+#[tokio::main]
+async fn main() -> ExitCode {
+    match run().await {
+        Ok(output) => {
+            if !output.is_empty() {
+                println!("{output}");
+            }
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("be: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+async fn run() -> Result<String, String> {
+    let invocation = cli::parse(std::env::args().skip(1).collect(), || {
+        let mut text = String::new();
+        std::io::stdin()
+            .read_to_string(&mut text)
+            .map_err(|error| format!("could not read standard input: {error}"))?;
+        Ok(text)
+    })?;
+    if invocation.command == Command::Help {
+        return Ok(USAGE.to_owned());
+    }
+    let settings = Settings::from_env()?;
+    let tracker = Tracker::new(connect(&settings).await?);
+    let Command::Edit { id } = &invocation.command else {
+        return cli::run(&tracker, &invocation).await;
+    };
+    let row = tracker.show(id).await?;
+    let base = row.body.clone().unwrap_or_default();
+    let path = std::env::temp_dir().join(format!("{}.md", row.id));
+    std::fs::write(&path, cli::edit_document(&row))
+        .map_err(|error| format!("could not write {}: {error}", path.display()))?;
+    let editor = std::env::var("VISUAL")
+        .or_else(|_| std::env::var("EDITOR"))
+        .unwrap_or_else(|_| "vi".to_owned());
+    let status = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(format!("{editor} \"$1\""))
+        .arg("sh")
+        .arg(&path)
+        .status()
+        .map_err(|error| format!("could not start {editor}: {error}"))?;
+    let edited = std::fs::read_to_string(&path)
+        .map_err(|error| format!("could not read {}: {error}", path.display()))?;
+    let _ = std::fs::remove_file(&path);
+    if !status.success() {
+        return Err(format!("{editor} failed, so nothing was saved"));
+    }
+    let body = cli::edited_body(&edited);
+    if body == base {
+        return Ok("unchanged".to_owned());
+    }
+    match tracker.rewrite_page(id, &base, &body).await? {
+        true => Ok(format!("saved {id}")),
+        false => Ok(format!(
+            "saved {id}, with conflict markers where someone else changed the same lines"
+        )),
+    }
+}

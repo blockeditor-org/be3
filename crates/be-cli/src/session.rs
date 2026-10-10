@@ -1,0 +1,136 @@
+use be_client::{ClientError, Connection, Credentials, Peer, PeerConfig, socket_url};
+use be_protocol::{ClientMessage, ServerMessage};
+use be_store::{ContentKey, MemoryStore};
+use uuid::Uuid;
+
+pub const DEFAULT_SERVER: &str = "https://blocks.pfg.pw";
+
+#[derive(Clone, Debug)]
+pub struct Settings {
+    pub server: String,
+    pub workspace: Option<Uuid>,
+    pub token: Option<String>,
+    pub phrase: String,
+}
+
+impl Settings {
+    pub fn from_env() -> Result<Self, String> {
+        let read = |name: &str| {
+            std::env::var(name)
+                .ok()
+                .map(|value| value.trim().to_owned())
+                .filter(|value| !value.is_empty())
+        };
+        let workspace = match read("BE3_WORKSPACE") {
+            Some(text) => Some(
+                Uuid::parse_str(&text)
+                    .map_err(|_| format!("BE3_WORKSPACE is not a workspace id: {text}"))?,
+            ),
+            None => None,
+        };
+        let phrase = read("BE3_RECOVERY_PHRASE").ok_or(
+            "set BE3_RECOVERY_PHRASE to the recovery phrase the app showed when it added this agent",
+        )?;
+        Ok(Self {
+            server: read("BE3_SERVER").unwrap_or_else(|| DEFAULT_SERVER.to_owned()),
+            workspace,
+            token: read("BE3_TOKEN"),
+            phrase,
+        })
+    }
+
+    fn credentials(&self) -> Credentials {
+        match &self.token {
+            Some(token) => Credentials::Token(token.clone()),
+            None => Credentials::Ambient,
+        }
+    }
+}
+
+pub async fn connect(settings: &Settings) -> Result<Peer<MemoryStore>, String> {
+    let url = socket_url(&settings.server);
+    let connection = Connection::connect(&url).await.map_err(explain)?;
+    let signed_in = connection
+        .request(|request| match settings.credentials() {
+            Credentials::Token(token) => ClientMessage::Authenticate { request, token },
+            _ => ClientMessage::WhoAmI { request },
+        })
+        .await
+        .map_err(|error| match settings.token {
+            Some(_) => format!("the server refused BE3_TOKEN: {}", explain(error)),
+            None => format!(
+                "set BE3_TOKEN, or reach the server through a proxy that signs requests in: {}",
+                explain(error)
+            ),
+        })?;
+    if !matches!(signed_in, ServerMessage::Authenticated { .. }) {
+        return Err("the server did not sign this connection in".to_owned());
+    }
+    let workspace = match settings.workspace {
+        Some(workspace) => workspace,
+        None => only_workspace(&connection).await?,
+    };
+    let key = workspace_key(&connection, workspace, &settings.phrase).await?;
+    Peer::connect(
+        PeerConfig::new(url, ContentKey::from_bytes(key), settings.credentials())
+            .workspace(Some(workspace)),
+        MemoryStore::new(),
+    )
+    .await
+    .map_err(explain)
+}
+
+async fn only_workspace(connection: &Connection) -> Result<Uuid, String> {
+    let ServerMessage::Workspaces { workspaces, .. } = connection
+        .request(|request| ClientMessage::ListWorkspaces { request })
+        .await
+        .map_err(explain)?
+    else {
+        return Err("the server did not list workspaces".to_owned());
+    };
+    match workspaces.as_slice() {
+        [only] => Ok(only.id),
+        [] => Err("this account is not a member of any workspace".to_owned()),
+        several => Err(format!(
+            "this account is in {} workspaces; set BE3_WORKSPACE to one of: {}",
+            several.len(),
+            several
+                .iter()
+                .map(|workspace| format!("{} ({})", workspace.id, workspace.name))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )),
+    }
+}
+
+async fn workspace_key(
+    connection: &Connection,
+    workspace: Uuid,
+    phrase: &str,
+) -> Result<[u8; 32], String> {
+    let ServerMessage::Keys { sealed, .. } = connection
+        .request(|request| ClientMessage::GetKeys { request })
+        .await
+        .map_err(explain)?
+    else {
+        return Err("the server did not send the keys".to_owned());
+    };
+    let sealed = sealed
+        .into_iter()
+        .find(|key| key.workspace == workspace)
+        .ok_or("no workspace key has been sealed for this account yet; open the workspace in the app once so it can seal one")?;
+    let phrase = be_keys::RecoveryPhrase::parse(phrase).map_err(|error| error.to_string())?;
+    let key = phrase
+        .secret()
+        .open(&sealed.sealed)
+        .map_err(|error| error.to_string())?;
+    key.try_into()
+        .map_err(|_| "the workspace key is not 32 bytes".to_owned())
+}
+
+pub fn explain(error: ClientError) -> String {
+    match error {
+        ClientError::Refused(_, message) => message,
+        other => other.to_string(),
+    }
+}

@@ -42,14 +42,7 @@ impl std::fmt::Display for AccountError {
     }
 }
 
-pub(crate) fn socket_url(server_url: &str) -> String {
-    let base = match server_url.split_once("://") {
-        Some(("http", host)) => format!("ws://{host}"),
-        Some(("https", host)) => format!("wss://{host}"),
-        _ => server_url.to_owned(),
-    };
-    format!("{}/api/be", base.trim_end_matches('/'))
-}
+pub(crate) use be_client::socket_url;
 
 fn session_of(response: ServerMessage) -> Result<Session, AccountError> {
     match response {

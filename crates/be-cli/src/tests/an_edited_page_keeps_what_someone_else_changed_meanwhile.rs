@@ -1,0 +1,34 @@
+use super::*;
+
+#[tokio::test]
+async fn an_edited_page_keeps_what_someone_else_changed_meanwhile() {
+    let harness = Harness::start().await;
+    let tracker = Tracker::new(harness.owner().await);
+    let board = board(&tracker).await;
+    let made = tracker
+        .create(
+            board.database,
+            "Plan the release",
+            &[],
+            Body::Replace("one\ntwo\nthree\n".into()),
+        )
+        .await
+        .unwrap();
+    let base = made.body.clone().unwrap();
+
+    tracker
+        .update(&made.id, &[], Body::Replace("one\ntwo\nthree\nfour\n".into()))
+        .await
+        .unwrap();
+    let clean = tracker
+        .rewrite_page(&made.id, &base, "ONE\ntwo\nthree\n")
+        .await
+        .unwrap();
+
+    assert!(clean);
+    assert_eq!(
+        tracker.show(&made.id).await.unwrap().body.as_deref(),
+        Some("ONE\ntwo\nthree\nfour\n")
+    );
+    harness.stop().await;
+}
