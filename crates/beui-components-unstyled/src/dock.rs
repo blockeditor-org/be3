@@ -124,6 +124,7 @@ pub struct DockBarHandle {
     pub grip: NodeId,
     pub tabs: Option<NodeId>,
     pub title: Memo<String>,
+    pub vacant: Memo<bool>,
     pub closable: Memo<bool>,
     pub menu: Memo<Vec<Action>>,
     pub close: ClickCallback,
@@ -1635,6 +1636,7 @@ fn DockPanelView(dock: Handle, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeI
                 .collect::<Vec<_>>()
         })
     }));
+    let vacant = create_memo(clone!(contents -> move || contents.with(Vec::is_empty)));
     let sidebar_width =
         create_memo(clone!(state -> move || state.with(|state| state.sidebar_width(leaf))));
     let closed = dock.clone();
@@ -1683,6 +1685,7 @@ fn DockPanelView(dock: Handle, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeI
                                 <DockTabBar dock={dock.clone()} leaf vertical />
                             }),
                             title: create_memo(String::new),
+                            vacant: vacant.clone(),
                             closable: dock.all_closable(contents.clone()),
                             menu: menu.clone(),
                             close: close.clone(),
@@ -2353,6 +2356,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
     }));
     let contents =
         create_memo(clone!(state -> move || state.with(|state| state.surface_tabs(surface))));
+    let vacant = create_memo(clone!(contents -> move || contents.with(Vec::is_empty)));
     let close = ClickCallback::new(clone!(dock -> move || {
         for tab in dock.state.get_untracked().surface_tabs(surface) {
             dock.close_tab(tab);
@@ -2520,6 +2524,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                                 grip,
                                                 tabs,
                                                 title: title.clone(),
+                                                vacant: vacant.clone(),
                                                 closable: dock.all_closable(contents.clone()),
                                                 menu: menu.clone(),
                                                 close: close.clone(),
