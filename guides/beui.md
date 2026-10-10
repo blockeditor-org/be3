@@ -937,7 +937,10 @@ forwarding catcher under it unless the claimant is that catcher.
 `Document::press_claims` lists the `claim_modifiers` rectangles laid out this
 frame, which a plugin reports to its host. A Wayland program's window is a
 forwarding catcher like a plugin's region, so a press claimed over it never
-reaches the program. A secondary drag stays with the node that
+reaches the program. `on_press_outside` hears every primary press or touch
+that lands outside the `Interactive`'s visible rectangle, wherever it goes and
+whatever takes it, which is how the host hands an embedded editor's active
+child back when someone clicks elsewhere. A secondary drag stays with the node that
 took it while the pointer crosses a floating window above that node; only the
 start of one is hidden from what a floating window covers.
 
@@ -1285,9 +1288,14 @@ insertion point - draws its marker, and how a filmstrip reorders live. The drop
 is handed over before the source hears `on_drag_change(false)`, so a source can
 keep whatever it set up for the drag until the drop has used it.
 
-A drag between editors is not this: a block dragged from the file tree to
-another editor crosses plugins, so it goes through the host with
-`Editor::drag` and `accept_drag` (guides/adding_a_plugin_editor.md).
+A drag between editors is not this inside the plugin: a block dragged from
+the file tree to another editor crosses plugins, so it goes through the host
+with `Editor::drag` and `accept_drag` (guides/adding_a_plugin_editor.md). The
+host carries it on its own document's board, though: a plugin's request to drag
+a block puts it there with `Board::begin`, each plugin region is a `DropTarget`
+for it, and the board drops whatever it carries when the primary button or the
+finger is let go, wherever the press was, so a drag that no `Draggable` began
+still ends.
 
 ### Pan and zoom
 

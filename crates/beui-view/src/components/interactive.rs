@@ -64,6 +64,7 @@ pub fn Interactive(
     forward_at: Callback<Pos2, bool>,
     #[prop(default = None)] claim_modifiers: Prop<Option<Modifiers>>,
     claim_at: Callback<(Pos2, Modifiers), bool>,
+    on_press_outside: Callback<Pos2>,
     children: Option<Child>,
 ) -> NodeId {
     assert!(
@@ -118,6 +119,7 @@ pub fn Interactive(
         node.on_forward = on_forward;
         node.forward_at = forward_at;
         node.claim_at = claim_at;
+        document.set_interactive_on_press_outside(interactive, on_press_outside);
         if let Some(child) = children {
             document.set_interactive_child(interactive, child);
         }

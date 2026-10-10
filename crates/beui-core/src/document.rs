@@ -123,6 +123,7 @@ pub struct Document {
     pub press_claim: Option<NodeId>,
     pub secondary_claim: Option<NodeId>,
     pub(crate) press_claimants: HashSet<NodeId>,
+    pub(crate) outside_watchers: HashSet<NodeId>,
     pub forward: crate::interact::forward::Routing,
     pub drags: Rc<crate::drag_board::Board>,
     paste_requested: bool,
@@ -338,6 +339,7 @@ impl Document {
             press_claim: None,
             secondary_claim: None,
             press_claimants: HashSet::new(),
+            outside_watchers: HashSet::new(),
             forward: Default::default(),
             drags: Rc::default(),
             paste_requested: false,
@@ -949,6 +951,7 @@ impl Document {
         self.placed_children.remove(&id);
         self.placed_pass.remove(&id);
         self.press_claimants.remove(&id);
+        self.outside_watchers.remove(&id);
         self.reached_pass.remove(&id);
         self.scroll_shifts.remove(&id);
         self.accessibility.remove(&id);

@@ -8,22 +8,16 @@ use uuid::Uuid;
 
 use crate::host;
 
-pub(super) struct BlockDragEvent {
-    pub(super) position: Vec2,
-    pub(super) block_id: Uuid,
-    pub(super) block_type: Uuid,
-    pub(super) dropped: bool,
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct BlockDrag {
+    pub(crate) block_id: Uuid,
+    pub(crate) block_type: Uuid,
 }
 
-pub(super) fn block_drag(input: &beui::ForwardedInput) -> Option<BlockDragEvent> {
-    let payload = host::drag()?;
-    let pointer = input.pointer.filter(|_| input.hovered)?;
-    Some(BlockDragEvent {
-        position: pointer - input.rect.min,
-        block_id: payload.block_id,
-        block_type: payload.block_type,
-        dropped: host::drag_released(),
-    })
+pub(super) struct BlockDragEvent {
+    pub(super) position: Vec2,
+    pub(super) drag: BlockDrag,
+    pub(super) dropped: bool,
 }
 
 pub(super) struct FileDropEvent {
@@ -86,7 +80,6 @@ pub(super) struct InputAdapter {
     pressed_buttons: u8,
     focused: bool,
     modifiers: Modifiers,
-    paste_shortcut_down: bool,
     captured_touches: HashSet<(u64, u64)>,
 }
 
@@ -117,12 +110,6 @@ impl InputAdapter {
         if !input.hovered && self.pressed_buttons == 0 {
             self.captured = false;
             self.leave(&mut output);
-        }
-        let shortcut_down = super::clipboard::paste_shortcut_down();
-        let shortcut_pressed = shortcut_down && !self.paste_shortcut_down;
-        self.paste_shortcut_down = shortcut_down;
-        if input.focused && shortcut_pressed {
-            output.push(InputEvent::Paste(String::new()));
         }
         match output.is_empty() {
             true => Vec::new(),

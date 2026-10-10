@@ -23,10 +23,6 @@ pub enum EditorAction {
         block_type: Uuid,
         via: Option<Uuid>,
     },
-    DragBlock {
-        id: Uuid,
-        block_type: Uuid,
-    },
     Command {
         id: Uuid,
         command: block_plugin_api::BlockCommand,

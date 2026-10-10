@@ -8,7 +8,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use beui::{Document, Event, FileFilter, FilePick, FilePickId, Key, PointerButton, Pos2, Waker};
+use beui::{Document, FileFilter, FilePick, FilePickId, PointerButton, Waker};
 use uuid::Uuid;
 
 static WAKER: OnceLock<Waker> = OnceLock::new();
@@ -48,24 +48,9 @@ pub(crate) fn waking_channel<T>() -> (WakingSender<T>, Receiver<T>) {
     (WakingSender(sender), receiver)
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct DragPayload {
-    pub(crate) block_id: Uuid,
-    pub(crate) block_type: Uuid,
-}
-
 #[derive(Clone, Debug)]
 pub(crate) enum HostCommand {
     RestartPlugin(String),
-}
-
-#[derive(Default)]
-pub(crate) struct Input {
-    pub(crate) events: Vec<Event>,
-    pub(crate) pointer: Option<Pos2>,
-    pub(crate) pressed: bool,
-    pub(crate) primary_released: bool,
-    pub(crate) primary_down: bool,
 }
 
 #[derive(Default)]
@@ -85,9 +70,6 @@ struct Host {
     pixels_per_point: f32,
     screen_scale: f32,
     dark: bool,
-    input: Input,
-    pointer: Option<Pos2>,
-    drag: Option<DragPayload>,
     grabbed: bool,
     commands: Vec<HostCommand>,
     waiting_picks: Vec<(FilePickId, PickSlot)>,
@@ -103,9 +85,6 @@ impl Default for Host {
             pixels_per_point: 1.0,
             screen_scale: 1.0,
             dark: true,
-            input: Input::default(),
-            pointer: None,
-            drag: None,
             grabbed: false,
             commands: Vec::new(),
             waiting_picks: Vec::new(),
@@ -120,12 +99,6 @@ fn with<R>(act: impl FnOnce(&mut Host) -> R) -> R {
 
 struct Frame {
     now: Option<Instant>,
-    events: Vec<Event>,
-    pointer: Option<Pos2>,
-    pressed: bool,
-    released: bool,
-    down: bool,
-    touch_position: Option<Pos2>,
     dark: bool,
     pixels_per_point: f32,
     screen_scale: f32,
@@ -135,12 +108,6 @@ impl Default for Frame {
     fn default() -> Self {
         Self {
             now: None,
-            events: Vec::new(),
-            pointer: None,
-            pressed: false,
-            released: false,
-            down: false,
-            touch_position: None,
             dark: true,
             pixels_per_point: 1.0,
             screen_scale: 1.0,
@@ -163,16 +130,10 @@ pub(crate) fn begin(context: &beui::Context, document: &Document) {
     for (deliver, pick) in picked {
         deliver(pick);
     }
-    let mut frame = context.screen_input(|input| Frame {
+    let mut frame = Frame {
         now: Some(context.now()),
-        events: input.events.clone(),
-        pointer: input.pointer.pos,
-        pressed: input.pointer.primary_pressed || input.touch.started(),
-        released: input.pointer.primary_released,
-        down: input.pointer.primary_down,
-        touch_position: input.touch.primary_pos(),
         ..Frame::default()
-    });
+    };
     let [red, green, blue, _] = document.theme().background.to_array();
     frame.dark = u32::from(red) + u32::from(green) + u32::from(blue) < 384;
     frame.screen_scale = context.screen_scale();
@@ -191,26 +152,11 @@ fn start(frame: Frame) {
         host.pixels_per_point = frame.pixels_per_point;
         host.screen_scale = frame.screen_scale;
         host.output = Output::default();
-        if frame.pointer.is_some() {
-            host.pointer = frame.pointer;
-        }
-        host.input = Input {
-            events: frame.events,
-            pointer: frame.pointer.or(frame.touch_position).or(host.pointer),
-            pressed: frame.pressed,
-            primary_released: frame.released,
-            primary_down: frame.down,
-        };
     });
 }
 
 fn finish() -> Output {
-    with(|host| {
-        if host.input.primary_released && !host.input.primary_down {
-            host.drag = None;
-        }
-        std::mem::take(&mut host.output)
-    })
+    with(|host| std::mem::take(&mut host.output))
 }
 
 pub(crate) fn end(context: &beui::Context) {
@@ -258,22 +204,6 @@ pub(crate) fn dark() -> bool {
     with(|host| host.dark)
 }
 
-pub(crate) fn input<R>(read: impl FnOnce(&Input) -> R) -> R {
-    with(|host| read(&host.input))
-}
-
-pub(crate) fn pointer() -> Option<Pos2> {
-    input(|input| input.pointer)
-}
-
-pub(crate) fn key_pressed(key: Key) -> bool {
-    input(|input| {
-        input.events.iter().any(|event| {
-            matches!(event, Event::Key { key: pressed, pressed: true, .. } if *pressed == key)
-        })
-    })
-}
-
 pub(crate) fn set_fullscreen(fullscreen: bool) {
     with(|host| host.output.fullscreen = Some(fullscreen));
 }
@@ -307,22 +237,6 @@ pub(crate) fn request_repaint_after(delay: Duration) {
             None => delay,
         });
     });
-}
-
-pub(crate) fn start_drag(payload: DragPayload) {
-    with(|host| host.drag = Some(payload));
-}
-
-pub(crate) fn drag() -> Option<DragPayload> {
-    with(|host| host.drag)
-}
-
-pub(crate) fn pressed_at() -> Option<Pos2> {
-    input(|input| input.pressed.then_some(input.pointer).flatten())
-}
-
-pub(crate) fn drag_released() -> bool {
-    input(|input| input.primary_released)
 }
 
 pub(crate) fn push_command(command: HostCommand) {

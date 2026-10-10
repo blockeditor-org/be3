@@ -151,6 +151,11 @@ pub fn interact(
     {
         doc.dismiss_light_overlays(pos);
     }
+    if (input.pressed_this_frame || input.touch_started)
+        && let Some(pos) = input.pointer_pos
+    {
+        doc.pressed_outside(rects, pos);
+    }
     if input.touch_started {
         doc.touch_scroll_vertical = target(doc, rects, root, input.pointer_pos, &|element| {
             catches_drag(element, Direction::Vertical)
@@ -454,6 +459,12 @@ pub fn interact(
     if input.touch_ended || input.touch_cancelled {
         doc.touch_scroll_vertical = None;
         doc.touch_scroll_horizontal = None;
+    }
+    if (input.released_this_frame || input.touch_ended || input.touch_cancelled)
+        && !input.pointer_down
+        && doc.dragging()
+    {
+        doc.drag_board().finish();
     }
     if !input.pointer_down {
         doc.pointer_capture = None;

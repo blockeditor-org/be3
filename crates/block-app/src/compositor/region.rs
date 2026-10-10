@@ -9,13 +9,16 @@ use beui::reactive::{
     Interactive, Layers, List, Memo, NodeRef, Prop, Show, clone, component, create_effect,
     create_memo, draw_gpu, on_cleanup, try_with_document, untrack, use_context, use_screens, view,
 };
-use beui::{Align, CursorIcon, ForwardedInput, ImeCursor, NodeId, Pos2, Rect, Region, Vec2, pos2};
+use beui::unstyled::{DragPoint, DropHandle, DropTarget};
+use beui::{
+    Align, CursorIcon, ForwardedInput, ImeCursor, Modifiers, NodeId, Pos2, Rect, Region, Vec2, pos2,
+};
 use block_plugin_api::{ChildId, EditorInstanceId, EditorRegion, FrameSpec, PluginManifest};
 use uuid::Uuid;
 
 use crate::host::HostItem;
 use crate::plugin_host::{
-    self, EditorView, HostChild, InstanceRole, Piece, RegionPlacement, RegionSlot, RegionView,
+    self, BlockDrag, EditorView, HostChild, InstanceRole, Piece, RegionPlacement, RegionSlot, RegionView,
 };
 use crate::surfaces::HostItemFace;
 
@@ -136,6 +139,9 @@ pub(crate) fn PluginRegion(
             if let Some((_, block)) = placed.iter().find(|(placed, _)| *placed == child) {
                 super::editors::pick_frame_menu(*block, pick);
             }
+        }
+        for drag in plugin_host::take_block_drags(&plugin_id, instance) {
+            carry(drag);
         }
     }));
     let frames = create_memo(clone!(revision plugin_id -> move || {
@@ -266,7 +272,7 @@ pub(crate) fn PluginRegion(
         plugin_host::back_region(&plugin_id, instance, region, gesture);
     });
     let occluded = occlusion();
-    let takes = clone!(state passive -> move |local: Pos2| {
+    let takes: Rc<dyn Fn(Pos2) -> bool> = Rc::new(clone!(state passive -> move |local: Pos2| {
         !passive.peek()
             && state.with_untracked(|view| {
                 let position = local + view.rect.min.to_vec2();
@@ -275,43 +281,82 @@ pub(crate) fn PluginRegion(
                         occluded.with_untracked(|rects| rects.iter().any(|rect| rect.contains(position)))
                     })
             })
+    }));
+    let taken = clone!(state takes -> move |point: DragPoint| {
+        takes(point.pos - state.with_untracked(|view| view.rect.min.to_vec2()))
     });
+    let over = clone!(plugin_id taken -> move |over: Option<(BlockDrag, DragPoint)>| {
+        let over = over
+            .filter(|(_, point)| taken(*point))
+            .map(|(drag, point)| (drag, point.pos));
+        plugin_host::drag_over_region(&plugin_id, instance, region, over, false);
+    });
+    let dropped = clone!(plugin_id -> move |(drag, point): (BlockDrag, DragPoint)| {
+        if taken(point) {
+            plugin_host::drag_over_region(&plugin_id, instance, region, Some((drag, point.pos)), true);
+        }
+    });
+    let pressed_outside = clone!(plugin_id -> move |_: Pos2| {
+        plugin_host::pressed_outside_region(&plugin_id, instance, region);
+    });
+    let takes = move |local: Pos2| takes(local);
     let claims = clone!(state passive -> move |(position, held): (Pos2, beui::Modifiers)| {
         !passive.peek() && state.with_untracked(|view| view.claims(position, held))
     });
     let below = Rc::clone(&child_view);
     let above = child_view;
     view! {
-        <Layers>
-            <RegionChildren
-                state={state.clone()}
-                rect={rect.clone()}
-                child_view={below}
-                below=true
-            />
-            <BackHandler enabled={handles_back} on_gesture={back}>
-                <Interactive
-                    @node_ref={&catcher}
-                    focusable=true
-                    cursor={cursor}
-                    ime={ime}
-                    ime_keyboard={ime_keyboard}
-                    ime_cursor={ime_cursor}
-                    ime_text={ime_text}
-                    on_forward={forward}
-                    forward_at={takes}
-                    claim_at={claims}
-                >
-                    <Embed slot={slot} punch=false @node_ref={&anchor}>
-                        <Drawing draw={base} />
-                    </Embed>
-                </Interactive>
-            </BackHandler>
-            <Notices loading failure />
-            <RegionChildren state rect child_view={above} below=false />
-            <Drawing draw={floating} />
-        </Layers>
+        <DropTarget on_over={over} on_drop={dropped}>
+            {move |_: DropHandle| view! {
+                <Layers>
+                    <RegionChildren
+                        state={state.clone()}
+                        rect={rect.clone()}
+                        child_view={below}
+                        below=true
+                    />
+                    <BackHandler enabled={handles_back} on_gesture={back}>
+                        <Interactive
+                            @node_ref={&catcher}
+                            focusable=true
+                            cursor={cursor}
+                            ime={ime}
+                            ime_keyboard={ime_keyboard}
+                            ime_cursor={ime_cursor}
+                            ime_text={ime_text}
+                            on_forward={forward}
+                            forward_at={takes}
+                            claim_at={claims}
+                            on_press_outside={pressed_outside}
+                        >
+                            <Embed slot={slot} punch=false @node_ref={&anchor}>
+                                <Drawing draw={base} />
+                            </Embed>
+                        </Interactive>
+                    </BackHandler>
+                    <Notices loading failure />
+                    <RegionChildren state rect child_view={above} below=false />
+                    <Drawing draw={floating} />
+                </Layers>
+            }}
+        </DropTarget>
     }
+}
+
+fn carry(drag: BlockDrag) {
+    let Some((board, pointer)) =
+        try_with_document(|document| (document.drag_board(), document.last_pointer))
+    else {
+        return;
+    };
+    let Some(pointer) = pointer.filter(|_| !board.carrying()) else {
+        return;
+    };
+    let point = DragPoint {
+        pos: pointer.pos,
+        modifiers: Modifiers::NONE,
+    };
+    board.begin(Rc::new(drag), point, Rc::new(|_| {}));
 }
 
 fn take_keyboard(state: &Memo<RegionView>, catcher: &NodeRef) {
