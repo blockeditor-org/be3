@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use beui::Image;
 use zbus::zvariant::{OwnedValue, Value};
 
-use super::center::Urgency;
+use block_plugin_api::NotificationUrgency as Urgency;
 
 const MAX_IMAGE_SIDE: i32 = 1024;
 

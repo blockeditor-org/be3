@@ -125,25 +125,66 @@ pub struct HostNotificationAction {
     pub label: String,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub struct HostNotification {
+#[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationUrgency {
+    Low,
+    #[default]
+    Normal,
+    Critical,
+}
+
+#[derive(Clone, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NotificationImage {
+    pub width: u32,
+    pub height: u32,
+    #[serde(with = "serde_bytes")]
+    pub rgba: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IncomingNotification {
     pub id: u32,
     pub app_name: String,
     pub summary: String,
     pub body: String,
-    pub received: u64,
-    pub critical: bool,
     pub actions: Vec<HostNotificationAction>,
+    pub urgency: NotificationUrgency,
+    pub image: Option<NotificationImage>,
+    pub transient: bool,
+    pub resident: bool,
+    pub expire_timeout: i32,
+    pub received: u64,
 }
 
-impl HostNotification {
-    pub const DEFAULT_ACTION: &str = "default";
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationRequest {
+    Notify(Box<IncomingNotification>),
+    Close(u32),
+}
 
-    pub fn has_default_action(&self) -> bool {
-        self.actions
-            .iter()
-            .any(|action| action.key == Self::DEFAULT_ACTION)
-    }
+#[derive(Clone, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NotificationInbox {
+    pub requests: Vec<(u64, NotificationRequest)>,
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationCloseReason {
+    Expired = 1,
+    Dismissed = 2,
+    Closed = 3,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NotificationSignal {
+    Closed(u32, NotificationCloseReason),
+    ActionInvoked(u32, String),
+}
+
+#[derive(Clone, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NotificationReport {
+    pub received: Option<u64>,
+    pub signals: Vec<NotificationSignal>,
+    pub kept: Vec<u32>,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -154,12 +195,6 @@ pub enum WindowAction {
         fullscreen: bool,
     },
     Close(HostWindowId),
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub enum NotificationAction {
-    Invoke { id: u32, action: String },
-    Dismiss(Vec<u32>),
 }
 
 pub enum HostWindows {}
@@ -201,7 +236,14 @@ pub enum Notifications {}
 
 impl HostValue for Notifications {
     const KEY: &'static str = "notifications";
-    type Value = Vec<HostNotification>;
+    type Value = NotificationInbox;
+}
+
+pub enum ScreenLocked {}
+
+impl HostValue for ScreenLocked {
+    const KEY: &'static str = "screen_locked";
+    type Value = bool;
 }
 
 impl HostAction for WindowAction {
@@ -216,6 +258,6 @@ impl HostAction for MediaRequest {
     const KEY: &'static str = "media";
 }
 
-impl HostAction for NotificationAction {
+impl HostAction for NotificationReport {
     const KEY: &'static str = "notification";
 }

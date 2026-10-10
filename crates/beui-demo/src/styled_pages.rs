@@ -27,6 +27,8 @@ const COMPACT_ROW_PADDING_VERTICAL: f32 = 4.0;
 const STRIP_COUNT: usize = 200;
 const STRIP_HEIGHT: f32 = 52.0;
 const STRIP_ITEM_WIDTH: f32 = 120.0;
+const FITTED_SCROLL_HEIGHT: f32 = 200.0;
+const FITTED_SCROLL_ROWS: usize = 3;
 const EDITOR_HEIGHT: f32 = 320.0;
 const STAGE_HEIGHT: f32 = 360.0;
 const STAGE_VIEW: PanZoomView = PanZoomView::new(beui::pos2(200.0, 120.0), 0.8);
@@ -1895,6 +1897,9 @@ pub(crate) fn RowsPage() -> NodeId {
             <Sample title="A horizontal strip" code={vec![CardStrip::SOURCE, StripCard::SOURCE]}>
                 <CardStrip />
             </Sample>
+            <Sample title="A scroll that fits its rows" code={vec![FittedScroll::SOURCE]}>
+                <FittedScroll />
+            </Sample>
             <Sample
                 title="Ten thousand rows"
                 code={vec![ThousandsOfRows::SOURCE, ScrollRow::SOURCE, ScrollRowFace::SOURCE]}
@@ -1926,6 +1931,55 @@ fn CardStrip() -> NodeId {
                     }}
                 </VirtualList>
             </Scroll>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn FittedScroll() -> NodeId {
+    let theme = use_theme();
+    let (count, set_count) = create_signal(FITTED_SCROLL_ROWS);
+    let rows = create_memo(move || (0..count.get()).collect::<Vec<usize>>());
+    let adding = set_count.clone();
+    view! {
+        <List spacing=SECTION_SPACING>
+            <Caption
+                content="With max_length a scroll is as long as what it holds, up to that length, \
+                 and scrolls from there on."
+                wrap=true
+            />
+            <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
+                <Button
+                    label="Add a row"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || adding.update(|count| *count += 1)}
+                />
+                <Button
+                    label="Remove a row"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || set_count.update(|count| *count = count.saturating_sub(1))}
+                />
+            </List>
+            <Frame
+                outline={theme.border.clone()}
+                outline_width=1.0
+                outline_visible=true
+                radius=RADIUS
+            >
+                <Scroll max_length=FITTED_SCROLL_HEIGHT>
+                    <ForEach keys={rows}>
+                        {move |index: usize| view! {
+                            <Frame
+                                padding_horizontal=ROW_PADDING_HORIZONTAL
+                                padding_vertical=ROW_PADDING_VERTICAL
+                            >
+                                <Body content={format!("Row {}", index + 1)} />
+                            </Frame>
+                        }}
+                    </ForEach>
+                </Scroll>
+            </Frame>
         </List>
     }
 }
