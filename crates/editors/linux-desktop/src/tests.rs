@@ -4,8 +4,8 @@ use block_editor_beui::be_block::{
 };
 use block_editor_beui::beui::{Document, Key, KeyChord, Modifiers, NodeId, Rect};
 use block_editor_beui::{
-    BlockInfo, BlockParent, ChildContent, Editor, EditorHost, HostImage, HostProgram, HostWindow, HostWindowId,
-    HostWindows, IncomingNotification, Media, MediaLevel, MediaLevels, MediaRequest,
+    BlockInfo, BlockParent, ChildContent, Editor, EditorHost, HostImage, HostProgram, HostWindow,
+    HostWindowId, HostWindows, IncomingNotification, Media, MediaLevel, MediaLevels, MediaRequest,
     NotificationInbox, NotificationReport, NotificationRequest, NotificationSignal, Notifications,
     PlayerCommand, Power, PowerAction, PowerAvailability, ProgramAction, Programs, WindowAction,
 };
@@ -20,9 +20,9 @@ mod a_block_shown_on_the_desktop_opens_in_its_own_window;
 mod a_calendar_the_desktop_no_longer_holds_is_replaced;
 mod a_first_desktop_with_no_sessions_offers_a_new_one;
 mod a_held_volume_key_keeps_turning_the_volume;
-mod a_query_no_program_matches_runs_as_a_command;
 mod a_locked_screen_shows_no_notification_toasts;
 mod a_notification_toast_shows_above_the_bar_until_its_time_is_up;
+mod a_query_no_program_matches_runs_as_a_command;
 mod a_session_chosen_from_the_menu_opens_in_a_window_and_closing_it_keeps_the_session;
 mod a_super_tap_toggles_the_launcher_even_from_a_program_with_the_keyboard;
 mod a_toast_answers_its_actions_and_hides_while_the_history_is_open;

@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use block_editor_beui::beui::Image;
 use block_editor_beui::{
-    IncomingNotification, NotificationCloseReason, HostImage, NotificationSignal,
+    HostImage, IncomingNotification, NotificationCloseReason, NotificationSignal,
     NotificationUrgency,
 };
 

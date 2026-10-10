@@ -6,7 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use be_wayland::programs::{DesktopEntry, Environment, IconThemes, load_icon};
 use beui::Image;
 use block_plugin_api::{
-    HostNotificationAction, IncomingNotification, HostImage, NotificationRequest,
+    HostImage, HostNotificationAction, IncomingNotification, NotificationRequest,
     NotificationSignal,
 };
 use image::imageops::FilterType;
