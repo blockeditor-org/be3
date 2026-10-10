@@ -1,14 +1,16 @@
 mod debug;
 mod dialogs;
 mod keys;
+mod lock;
 mod onboarding;
 mod workspace;
 
 use std::cell::RefCell;
 
 use be_protocol::WorkspaceRole;
-use beui::reactive::{Dynamic, Frame, List, Store, component, view};
-use beui::styled::use_theme;
+use beui::reactive::{Dynamic, Frame, List, NodeRef, Store, clone, component, create_memo, view};
+use beui::styled::{KeepChanges, Toast, Toasts, use_theme};
+use beui::unstyled::Edge;
 use beui::{ItemSize, NodeId};
 use block_plugin_api::HostPanel;
 use uuid::Uuid;
@@ -152,16 +154,18 @@ pub(crate) struct StatusView {
     pub(crate) changes_saved: bool,
     pub(crate) workspace: String,
     pub(crate) signed_in_as: String,
-    pub(crate) accounts: Vec<AccountRow>,
     pub(crate) profiles: Vec<ProfileRow>,
     pub(crate) profiles_loaded: bool,
-    pub(crate) runs_programs: bool,
+    pub(crate) every_profile_type: bool,
+    pub(crate) session_type: Uuid,
+    pub(crate) can_close: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct ProfileRow {
     pub(crate) id: Uuid,
     pub(crate) name: String,
+    pub(crate) kind: Option<String>,
     pub(crate) current: bool,
 }
 
@@ -180,6 +184,16 @@ pub(crate) struct DiscardView {
     pub(crate) button: String,
 }
 
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct LockView {
+    pub(crate) available: bool,
+    pub(crate) locked: bool,
+    pub(crate) busy: bool,
+    pub(crate) error: Option<String>,
+    pub(crate) user: String,
+    pub(crate) power: Vec<block_plugin_api::PowerAction>,
+}
+
 #[derive(Clone, Default, PartialEq, Store)]
 pub(crate) struct AppView {
     pub(crate) screen: Screen,
@@ -196,11 +210,13 @@ pub(crate) struct AppView {
     pub(crate) status: StatusView,
     pub(crate) invite: Option<InviteView>,
     pub(crate) about: bool,
-    pub(crate) run_program: bool,
     pub(crate) app_menu: bool,
     pub(crate) discard: Option<DiscardView>,
     pub(crate) presenting: bool,
     pub(crate) debug: DebugView,
+    pub(crate) toasts: Vec<Toast>,
+    pub(crate) keep_display: Option<u64>,
+    pub(crate) lock: LockView,
 }
 
 #[derive(Clone, Debug)]
@@ -220,7 +236,8 @@ pub(crate) enum UiCommand {
     OpenWorkspace(Uuid),
     ChooseProfile(Uuid),
     OpenProfile(Uuid),
-    OpenNewProfile,
+    OpenNewProfile(Uuid),
+    EveryProfileType(bool),
     RespondInvitation(Uuid, bool),
     CreateWorkspace(String),
     SwitchAccount,
@@ -231,13 +248,9 @@ pub(crate) enum UiCommand {
     OpenInspector,
     InviteMember,
     SwitchWorkspace,
-    SwitchTo(String),
-    SwitchProfile(Uuid),
-    NewProfile,
     ManageAccounts,
     About(bool),
-    RunProgram(bool),
-    Launch(String),
+    CloseApp,
     AppMenu(bool),
     SendInvite(String, WorkspaceRole),
     CloseInvite,
@@ -253,14 +266,30 @@ pub(crate) enum UiCommand {
     CancelPairing,
     ApprovePairing(u64, String),
     DismissPairing(u64),
+    DismissToast(u64),
+    KeepDisplay(u64),
+    RevertDisplay(u64),
+    LockScreen,
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    Unlock(crate::password::Password),
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    LockPower(block_plugin_api::PowerAction),
 }
 
 #[component]
 pub(crate) fn Root(view: AppViewStore) -> NodeId {
     let theme = use_theme();
     let screen = view.screen.clone();
+    let toasts = view.toasts.clone();
+    let keep_display = view.keep_display.clone();
+    let asking = create_memo(clone!(keep_display -> move || keep_display.get().is_some()));
+    let round = create_memo(move || keep_display.get().unwrap_or_default());
+    let keeping = round.clone();
+    let reverting = round.clone();
+    let locking = view.clone();
+    let area = NodeRef::new();
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame @node_ref=&area color={theme.background.clone()}>
             <List spacing=0.0>
                 <Dynamic value={screen}>
                     {move |screen: Screen| {
@@ -293,6 +322,22 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                         }
                     }}
                 </Dynamic>
+                <Toasts
+                    anchor={area.clone()}
+                    edge=Edge::TopEnd
+                    toasts={toasts}
+                    on_dismiss={move |id: u64| send(UiCommand::DismissToast(id))}
+                />
+                <KeepChanges
+                    open={asking}
+                    title="Keep these display settings?"
+                    timeout=crate::display::ANSWER_WITHIN
+                    round={round}
+                    id="display.keep"
+                    on_keep={move || send(UiCommand::KeepDisplay(keeping.get_untracked()))}
+                    on_revert={move || send(UiCommand::RevertDisplay(reverting.get_untracked()))}
+                />
+                <lock::SessionLock view={locking} />
             </List>
         </Frame>
     }

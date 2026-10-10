@@ -57,7 +57,8 @@ component has nothing for `component_state`, `component_accessibility`,
 `component_size`, `component_rect` or `component_placed` to watch, so calling any of them in its body
 panics when it is built, and `@test_id` and `@node_ref` on its tag do not compile,
 because they only take a component whose output implements `BuildsNode`.
-`unstyled::MenuItem` is one: a menu item is a label, a disabled flag and its
+`unstyled::MenuItem` is one: a menu item is a label, an icon, a detail, a
+disabled and a danger flag, a separator above it, an `on_click` and its
 own submenu items, so a menu is written as tags and each row follows
 the signals its tag was given, and `unstyled::ChoiceOption` is the same for the
 options of a tab bar, a listbox, a radio group and a select. Declare the type
@@ -229,7 +230,7 @@ direction:
 | `beui-renderer-wgpu` | the wgpu renderer, its shaders and filters, and presenting to a surface |
 | `beui-renderer-dom` | the DOM renderer: the display tree as nested absolutely positioned elements |
 | `beui-adapter-winit`, `beui-adapter-android`, `beui-adapter-web` | each platform's `Adapter` and `Platform`: its event loop, window or view, input, IME, clipboard, file picker and accessibility adapter |
-| `beui-adapter-drm` | Linux's displays and input devices through DRM/KMS and libinput: an `Adapter`, `Platform` and `Renderer` whose screens each keep a retained frame and are drawn when their display flips; callers run it with `beui::run_on` |
+| `beui-adapter-drm` | Linux's displays and input devices through DRM/KMS and libinput: an `Adapter`, `Platform` and `Renderer` whose screens each keep a retained frame and are drawn when their display flips, handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers run it with `beui::run_on` |
 | `beui-adapter-plugin` | the `Adapter`, `Platform` and `Renderer` for one region of a block editor plugin, which the plugin framework drives frame by frame (guides/adding_a_plugin_editor.md); it depends on the plugin framework, so the facade does not offer it |
 
 Core cannot see the crates above it, so the few places it used to reach up are
@@ -481,12 +482,19 @@ gutter, scrolled sideways to keep the caret in view, where Enter submits and
 Tab leaves; `frame` wraps the field in the caller's chrome inside the area's
 own focus and pointer handling. `TextInput` is that single-line mode over a
 plain-text buffer it owns, driven by a `value` and reporting `on_change`, so a
-fix to how text is edited lands in both. `MenuButton` is the button that opens a menu under itself, which is
-what a toolbar reaches for where `Select` would imply the choice sticks - or,
-when a finger opened it, the same items as rows in a sheet, so one button
-serves a mouse and a touch (`IconMenuButton` is the same with an icon button's face);
-`ContextMenu` is the same menu on a secondary press, and it also takes an
-`open_at` point so a touch gesture can raise it where the finger was. A finger
+fix to how text is edited lands in both. A menu is never asked for as a dropdown
+or as a sheet: every menu opens as a dropdown when a mouse opened it and as the
+same items in a `ModalSheet` when a finger did, so the two show the same
+features. A `MenuStyle` carries both looks (the styled `menu_style()`), and an
+unstyled one without a sheet stays a dropdown. `MenuButton` is the button that
+opens a menu under itself, which is what a toolbar reaches for where `Select`
+would imply the choice sticks (`IconMenuButton` is the same with an icon
+button's face); `ContextMenu` is the same menu on a secondary press, and it
+also takes an `open_at` point so a touch gesture can raise it where the finger
+was, or `open_at_pointer` to open where the last pointer was, reading
+`Document::last_pointer` to know whether that was a finger, for a menu something
+else asks for (the app menu a plugin's button opens). A text selection's menu
+sets `selection` and stays beside the selection under a finger too. A finger
 held still for the long-press delay (`Context::set_long_press_delay`, which a
 test sets to zero rather than waiting) is a secondary press where it rests, so
 every context menu opens on tap-and-hold; the press the finger began is
@@ -556,6 +564,10 @@ view! {
 
 The focus ring follows the theme's accent unless `focus_color` names another,
 and `on_change` still reports the position for anything else that wants it.
+With `max_length` the scroll is as long as what it holds, up to that length, and
+scrolls from there on, which is what a popup listing a few rows or many wants. A
+`Frame` with `max_height` around a scroll does not do this: a `Frame` with a
+maximum fills the space it is offered up to it.
 
 ### Long lists
 
@@ -652,7 +664,11 @@ the thumb it would paint, drags the thumb with the pointer, pages by a viewport
 towards a press on the track either side of it, and hands its content a
 `ScrollbarHandle` of `hovered` and `dragging` so the styled bar can paint those
 states. `thumb_start` and `thumb_length` are the same fractions both layers
-work in, so what is painted and what is pressed cannot drift apart. A press on
+work in, so what is painted and what is pressed cannot drift apart. The styled
+bar paints its track inset by `SCROLLBAR_INSET` from the scroll's outer edge and
+from both ends, so it does not touch the separators around a panel; the inset at
+the ends sits outside the unstyled bar, keeping those fractions measured over
+the track that is painted. A press on
 the bar rests whatever momentum a fling left, so the content stops where it is
 put.
 
@@ -841,6 +857,14 @@ and a press there closes it and still lands): it goes on the overlay stack, so i
 nothing else, it can trap focus, Escape closes the topmost one, and a press
 outside it dismisses it.
 
+`on_dismiss` runs only when the user closes an overlay, or beui does on their
+behalf: Escape, a press outside it, a light one's press elsewhere, back
+(`Document::dismiss_overlay`), and an overlay closed because one it is nested
+in closed, whoever closed that. Its owner writing `open` false
+(`Document::close_overlay`) runs nothing, so a prompt whose dismiss means
+"cancel" needs no guard against its own Keep button. A menu's item selection
+closes it through the menu's own `on_dismiss`/`on_close`.
+
 Back - Android's back gesture, or the Back key or mouse button - goes to the
 most recently made enabled `BackHandler` inside the topmost modal overlay, or,
 with no modal open, outside every overlay; with no such handler it closes the
@@ -849,14 +873,27 @@ completes, or hands every phase of the gesture to `on_gesture` if it has one,
 and moves nothing. The motion lives above it. `unstyled::BackSlide` wraps a
 page: held, the page follows the finger across a good share of the screen;
 let go, it carries on off the edge before `on_back` runs and the next page
-slides in behind it, and a cancelled gesture eases it back. A back with no
-gesture before it (a key) goes back at once. `styled::Dialog` and
+slides in behind it, and a cancelled gesture eases it back. Given `behind`, a
+function that builds the page back goes to, it builds that page under the
+moving one for as long as the gesture lasts, shaded and coming in from the
+side, so `on_back` swaps in what was already showing and nothing slides in
+afterwards; the page that moves needs an opaque background, and a page that
+must keep its state (a scroll position) is built once and handed to a `Portal`
+in both places. The stacked dock shows its home tab behind the tab it leaves
+this way. A back with no gesture before it (a key) goes back at once. `styled::Dialog` and
 `Fullscreen` slide away the same way and fade their scrim, and a `Sheet`
 sinks with the gesture and slides on down from where it was. The document
 reports whether anything would take back through
 `FrameOutput::handles_back`; on Android the runner passes that to the
 activity's `setBackHandled`, and when nothing takes it the system's own back
 (to the home screen) plays instead.
+
+A modal overlay with `locks` set is a lock screen (`styled::LockScreen`): nothing the user
+does dismisses it, an overlay opened outside it while it is open goes beneath it, passive overlays
+outside it paint beneath it, the focus cannot leave it (not even to nothing, through Escape or a
+click on its scrim), and `Document::locked` is true. While it is, `on_global_key` handlers and global
+actions hear nothing but media keys (`Key::is_media`), and a forwarding catcher outside it loses any
+press it had captured. Only its owner writing `open` false closes it.
 
 A **passive** one takes no input at all. It is painted above everything and is
 not on the stack, so the document underneath goes on answering the pointer and
@@ -889,6 +926,21 @@ row that is itself a button, a close cross on a tab - asks `unstyled::Button`
 for `capture_presses` instead. The captured press reaches that button and
 nothing else, so the row it sits in does not open as well.
 
+A press made with modifiers held can be claimed from everything inside a
+region, which is how a window manager takes Super+drag from the windows it
+holds. An `Interactive` given `claim_modifiers` takes every primary or secondary
+press in its rectangle while all of those modifiers are held, and `claim_at`
+decides the same per point. The claim is searched for from the top of the tree
+down, before `capture_presses`, so the outermost claimant wins; the press, its
+drag and its release reach the claimant alone, none of its descendants, and no
+forwarding catcher under it unless the claimant is that catcher.
+`Document::press_claims` lists the `claim_modifiers` rectangles laid out this
+frame, which a plugin reports to its host. A Wayland program's window is a
+forwarding catcher like a plugin's region, so a press claimed over it never
+reaches the program. A secondary drag stays with the node that
+took it while the pointer crosses a floating window above that node; only the
+start of one is hidden from what a floating window covers.
+
 `unstyled::Tree` makes the same split the other way round. A row is a tab stop
 with the tree's keyboard and its `TreeItem` accessibility, and nothing more:
 where a pointer has to land to select it is the face's business, because a
@@ -897,8 +949,7 @@ chevron, the indent beside it and the name to mean three different things. The
 handle carries `select`, `toggle` and `hover` for the face to call from
 wherever it decides they belong. The arrow keys, Home, End and typing move the
 keyboard between rows without selecting them, and Enter or Space selects the
-row it is on; `selection_follows_focus` makes every move select, as the beui
-inspector does. `toggle` puts the keyboard on its row too.
+row it is on. `toggle` puts the keyboard on its row too.
 
 `styled::Tree` is the face that split was made for, and the one app code
 reaches for. It draws the indent, a chevron that is a button of its own -
@@ -923,6 +974,35 @@ the top or bottom edge that reports `on_reveal` - the caller expands the
 ancestors - and then scrolls the row into view once it is laid out. The file
 tree and the beui inspector both work this way. `styled::tree_row_node` and
 `styled::tree_focused` reach the rows through the styled tree's node.
+
+### Screens
+
+A document knows the screens it is shown on: `Document::screens()`, and
+`use_screens()` in a component, a signal of `Screen`s (an `id` that stays the
+same while the monitor is plugged in, a `name`, and a `rect` in document
+coordinates). A window, a browser tab, an Android view, a plugin's region and
+an inspector panel are one screen the size of what the document is shown in;
+under `block-app --session` there is one per monitor. They come from the
+renderer: `Renderer::screens` hands the runner each monitor in physical
+pixels (beui-adapter-drm's outputs, beui-adapter-plugin's from the monitors
+the host says its region covers), the runner puts them on the `Context`
+(`Context::set_screens`, which is also how a test gives a document two
+screens), and the document keeps the part of each inside the rect it is shown
+in. Nothing else should keep its own list of monitors.
+
+Overlays place themselves on one screen rather than across the box around all
+of them. A `Center` or `FillScreen` overlay is on the screen it opened on: its
+trigger's, else where the pointer was last pressed or moved unless a key was
+pressed since, else the focused node's, else the pointer's, else the first. One anchored to a node is kept on the screen
+most of that node is on, one anchored to a point on that point's screen, and one
+anchored to a rect (`OverlayAnchor::Rect`, in document coordinates) on the screen
+most of that rect is on, placed against the rect as it would be against a node.
+`styled::Toasts` takes any anchor this way, so linux-desktop stacks its toasts in the
+corner of a screen above its bar.
+`Fill`, `At` and `Around` use the whole document, so something meant for every
+screen - `styled::KeepChanges`, `styled::LockScreen`, `styled::LevelOsd` - lays
+out one card per entry of `use_screens()`, which is a single card everywhere
+but a desktop with several monitors.
 
 ### Docking and windows
 
@@ -1023,6 +1103,22 @@ order is part of the state, so it is saved with the layout), and
 shown last when the focused pane is empty. The workspace stacks its dock on a
 phone.
 
+The dock's switcher walks `recent_tabs` across every pane and window, the way
+Alt+Tab walks a desktop's windows. `DockingLayout::begin_switch(backwards)`
+chooses the tab shown before the current one (or, backwards, the one shown
+longest ago), `step_switch` moves the choice along and wraps, `commit_switch`
+shows the chosen tab (activating it in its pane and raising its window) and
+`cancel_switch` leaves everything as it was; `switching` and `switch_choice`
+read it back, and `DockState` has the same calls and `switch()`. While a switch
+lasts, the dock opens an overlay in the middle of the document listing the
+tabs, each with its icon and title and the chosen one highlighted, drawn by the
+`switch` render prop (`DockSwitchHandle`, a row per tab whose `pick` commits
+that tab); nothing is shown until the switch is committed. A switch is not part
+of the saved layout. The dock binds no key to it: whoever binds it decides the
+keys, usually a chord that begins or steps the switch while a modifier is held,
+`held_modifiers()` letting go of that modifier to commit, and Escape to cancel,
+as linux-desktop does with Alt+Tab and the demo with Alt+Q.
+
 Each surface - the main one and one per window - lays its tree out over the
 rectangle it was given, so panes and the bars between them are canvas items at
 computed rectangles rather than nested boxes. `layout_surface` is that
@@ -1100,6 +1196,30 @@ the panel keeps its nodes, its scroll position, its caret and its state when
 the tab is hidden behind another, dragged to another pane, or floated into a
 window. A panel no pane is showing is laid out by nobody, so it costs nothing
 and a screen reader does not read it. Closing the tab is what removes it.
+
+`drag_modifier` (none unless asked for) makes the dock a window manager while
+those modifiers are held. A primary drag anywhere in a floating window - its
+content, its bar or its tabs - moves the whole window, as dragging its bar does;
+a secondary drag resizes it from the edge or corner nearest the pointer (by
+thirds of the window). On a docked pane a secondary drag moves the split nearest
+the pointer, and a primary drag does nothing: it is swallowed rather than handed
+to the content, since a press made with the modifier is never meant for it.
+Each window and each docked pane claims those presses (`claim_modifiers`), so
+neither the tabs nor the content see them. The code is
+`dock/modifier_drag.rs`; linux-desktop sets Super, and the demo's Docking page
+has a switch for Alt.
+
+One tab at a time can be fullscreen: `DockState::set_fullscreen` with a
+`DockFullscreen` naming the tab and an area (a rect in document coordinates, or
+`None` for the screen it opens on), `DockingLayout::enter_fullscreen` and
+`leave_fullscreen` from outside, or the `DockTabControl` that `use_dock_tab()`
+hands the tab's own content. The panel moves into a floating overlay over that
+area, wrapped in Docking's `fullscreen` render prop (styled: the theme's
+background), so it covers the tab bars, the other panes and anything else in the
+document there, and nothing under it hears the pointer, while the rest of the
+document stays live. Leaving puts the panel back in its pane without rebuilding
+it. The dock binds no key to leave: whoever enters fullscreen offers the way out,
+as the demo's Escape does. Fullscreen is not part of the saved layout.
 
 ### Spinners
 
@@ -1427,7 +1547,15 @@ focused field into what is left, through every scroll it sits in.
   how work finishing elsewhere is pushed to the ui instead of polled for.
 - `close_requested` is asked when the window is closed, and can refuse by
   returning `false` (to ask about unsaved work first, then call
-  `Context::close_window`). `exiting` runs once on the way out.
+  `Context::close_window`). `exiting` runs once on the way out, and the runner
+  drops the app right after it, while the GPU device and the adapter's displays
+  are still there; no frame runs after it. Whatever the app keeps in a
+  `thread_local!` must be taken out in `exiting`: the main thread's
+  thread-locals are dropped only by `exit()` after `main` returns, in no set
+  order, after the GPU and the rest of the runner are gone, and dropping GPU or
+  reactive state there aborts or crashes the process (block-app's
+  `Shell::exiting` takes down the Wayland compositor, the plugin runtimes and
+  their worker threads, and the screens this way).
 
 From inside a frame the app can also ask the window for things through the
 `Context`: `set_fullscreen`, `set_ime_area` for an input it draws itself,
@@ -1514,6 +1642,14 @@ what an app that reads input or places surfaces outside `Document::show` needs:
 `Context::screen_scale` and `Context::screen_input` give it the scale and the
 frame's input in document points, the way block-app's host reads them for its
 plugin surfaces.
+
+### Back gesture
+
+The Sim tab's Back gesture slider plays Android's back gesture into the
+document, so a `BackSlide` can be tried without a phone: dragging it starts the
+gesture and follows it, reaching the end goes back, and letting go before then
+cancels. It calls `Document::back` directly, the way the Android runner's events
+do, so it reaches the document even while the inspector holds the keyboard.
 
 ### Filters
 
@@ -2059,6 +2195,8 @@ damaged whole either: the frame reports it as `FrameOutput::moved`, and a host
 that keeps its last frame, as `beui::run` does, copies that region by the
 scroll with `Renderer::shift` and repaints only what the copy cannot supply -
 the rows it exposes, and whatever else changed or does not move with the rows.
+Only one region is copied per frame: when several moved at once - a scroll and
+its scrollbar's thumb - the largest is copied and the rest are repainted.
 `FrameOutput::repaint` covers the moved region for hosts that do not copy.
 
 Pointer input only visits a node when the pointer lies within the rects of it

@@ -457,11 +457,19 @@ fn client(event: &web_sys::MouseEvent, axis: &str) -> Option<f64> {
     js_sys::Reflect::get(event, &axis.into()).ok()?.as_f64()
 }
 
+thread_local! {
+    static APPLE: bool = web_sys::window()
+        .and_then(|window| window.navigator().platform().ok())
+        .is_some_and(|platform| platform.starts_with("Mac") || platform.starts_with("iP"));
+}
+
 fn modifiers_of(alt: bool, ctrl: bool, meta: bool, shift: bool) -> Modifiers {
+    let command = APPLE.with(|apple| *apple);
     let modifiers = Modifiers {
         alt,
-        ctrl: ctrl || meta,
+        ctrl: ctrl || (command && meta),
         shift,
+        logo: !command && meta,
     };
     let changed = INPUT.with(|input| input.modifiers.replace(modifiers) != modifiers);
     if changed {
@@ -648,7 +656,7 @@ fn listen(
             event.shift_key(),
         );
         let key = key(&event.code());
-        if let Some(key) = key {
+        if let Some(key) = key.filter(|key| !(event.repeat() && key.is_modifier())) {
             push(Event::Key {
                 key,
                 pressed: true,
@@ -657,8 +665,9 @@ fn listen(
             });
         }
         let clipboard = modifiers.ctrl && matches!(key, Some(Key::C | Key::V | Key::X));
-        let printable = event.key().chars().count() == 1 && !modifiers.ctrl && !modifiers.alt;
-        if key.is_some() && !clipboard && !printable {
+        let printable = event.key().chars().count() == 1 && !modifiers.command();
+        let passes = key.is_some_and(|key| key.is_media() || key.is_modifier());
+        if key.is_some() && !clipboard && !printable && !passes {
             event.prevent_default();
         }
     })?;
@@ -923,6 +932,18 @@ fn key(code: &str) -> Option<Key> {
         "F22" => Key::F22,
         "F23" => Key::F23,
         "F24" => Key::F24,
+        "AudioVolumeUp" => Key::VolumeUp,
+        "AudioVolumeDown" => Key::VolumeDown,
+        "AudioVolumeMute" => Key::VolumeMute,
+        "MediaPlayPause" => Key::MediaPlayPause,
+        "MediaTrackNext" => Key::MediaNext,
+        "MediaTrackPrevious" => Key::MediaPrevious,
+        "MediaStop" => Key::MediaStop,
+        "ShiftLeft" | "ShiftRight" => Key::Shift,
+        "ControlLeft" | "ControlRight" => Key::Ctrl,
+        "AltLeft" | "AltRight" => Key::Alt,
+        "MetaLeft" | "MetaRight" if APPLE.with(|apple| *apple) => Key::Ctrl,
+        "MetaLeft" | "MetaRight" => Key::Logo,
         _ => return None,
     };
     Some(key)

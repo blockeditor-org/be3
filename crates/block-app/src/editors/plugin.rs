@@ -448,10 +448,12 @@ impl PluginEditor {
         }
     }
 
-    pub(crate) fn set_windows(&self, windows: Vec<block_plugin_api::HostWindow>) {
-        if let Some(plugin) = &self.plugin {
-            crate::plugin_host::set_windows(&plugin.identity.id, self.instance, windows);
-        }
+    pub(crate) fn claim_shell(&self) {
+        crate::plugin_host::set_shell(
+            self.plugin
+                .as_ref()
+                .map(|plugin| (plugin.identity.id.as_str(), self.instance)),
+        );
     }
 
     pub(crate) fn take_focus_report(&self) -> Option<FocusReport> {
@@ -462,15 +464,6 @@ impl PluginEditor {
                 via: focus.via,
             }
         })
-    }
-
-    pub(crate) fn take_closed_windows(&self) -> Vec<block_plugin_api::HostWindowId> {
-        match &self.plugin {
-            Some(plugin) => {
-                crate::plugin_host::take_closed_windows(&plugin.identity.id, self.instance)
-            }
-            None => Vec::new(),
-        }
     }
 
     pub(crate) fn take_artifact_watch(&self) -> Option<Vec<Uuid>> {

@@ -19,7 +19,7 @@ commit = {
     })
 }
 
-app_srcs = glob(["src/**/*.rs", "src/**/*.wgsl", "assets/**/*"])
+app_srcs = glob(["src/**/*.rs", "src/**/*.wgsl", "src/**/*.desktop", "src/**/*.pam", "assets/**/*"])
 
 # On Android the app is this library, loaded by MainActivity under cargo's
 # name for it; on the web it is the module :web runs wasm-bindgen over.
@@ -36,12 +36,14 @@ cargo_library(
 # The app links system libraries the worker's image does not have - ALSA, and
 # GTK and WebKitGTK when the browser is built - so its tests load them from the
 # sysroot it was linked against. The plugin surface presenter's tests draw
-# through lavapipe, as the renderer's do.
+# through lavapipe, as the renderer's do, and the Wayland compositor's build a
+# keyboard from the test runtime's keymaps, as be-wayland's do.
 cargo_test(
     env = commit
     | {
         "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu",
         "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
+        "XKB_CONFIG_ROOT": "$(location //buck/sysroot:amd64-test)/usr/share/X11/xkb",
     },
     srcs = app_srcs,
 )
@@ -241,14 +243,30 @@ export_file(
     visibility = ["//crates/be-launcher:"],
 )
 
-# The native startup smoke check: the app for ten seconds in a virtual display.
+# The native startup smoke check: the app for ten seconds in a virtual display,
+# and :smoke-desktop the same with the desktop shell in its window.
+[
+    command_alias(
+        name = name,
+        args = [
+            "sh",
+            "$(location //buck/app:smoke.sh)",
+            "$(location :app)/block-app",
+            "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
+        ]
+        + flags,
+    )
+    for name, flags in [("smoke", []), ("smoke-desktop", ["--desktop"])]
+]
+
+# The app with its plugins installed under /usr/local (or the prefix given after
+# `--`), with a wayland-sessions entry that runs it with --session, for a
+# display manager to offer on its login screen: guides/running_the_app.md.
 command_alias(
-    name = "smoke",
+    name = "install-session",
     args = [
-        "sh",
-        "$(location //buck/app:smoke.sh)",
         "$(location :app)/block-app",
-        "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
+        "--install-session",
     ],
 )
 

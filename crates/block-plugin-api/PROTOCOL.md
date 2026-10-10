@@ -12,16 +12,9 @@ The accepted handshake carries the theme the host is drawn in, which is what
 a plugin's own interface follows, so an editor looks the same as the app it is
 embedded in wherever it runs.
 
-The initial handshake advertises an inclusive supported-version range. Peers
-may communicate only after selecting one version in the intersection. A peer
-rejects an absent intersection with `UnsupportedVersion` and closes the
-session.
-
-Adding an optional capability or a message that cannot be sent before its
-capability is negotiated is compatible within a protocol version. Changing a
-message representation, ordering requirement, validation rule, or existing
-semantic requires incrementing `PROTOCOL_VERSION`. Unknown message variants
-are never silently ignored.
+The protocol has no version and the handshake checks none: the app and its
+plugins are built together, so a change to a message needs no bookkeeping.
+Unknown message variants are never silently ignored.
 
 Messages with request identifiers are answered with the same identifier by a
 response, `Acknowledged`, or `Error`. Lifecycle messages and input events are
@@ -344,6 +337,16 @@ one tab bottom-up: every frame's painted area first, then every frame's
 floating rectangles, so a menu opened by an editor underneath still falls over
 the frame above it. The two passes are cut into disjoint rectangles, so no
 pixel is blended twice.
+
+A frame report may also carry press claims: a set of modifiers and a
+rectangle. While every one of those modifiers is held, a pointer press inside
+the rectangle belongs to the instance itself, not to the children placed
+under it there: the host delivers that press, its drag and its release to the
+instance, and none of it to the child (another editor, or a program's
+window). A window manager written as a plugin claims the windows it places
+this way, so a drag with the modifier held moves or resizes the window rather
+than reaching the program inside it. The claims of an editor nested in another
+yield to the claims of the editor around it.
 
 An instance whose chrome is only reserved keeps the bands exactly where they
 were and paints nothing in them, so selecting or leaving a child moves neither

@@ -1,11 +1,15 @@
 use block_editor_beui::be_block::settings::{ActivationCondition, Settings};
-use block_editor_beui::be_block::{BlockContent, SettingsContent, UiSettingsContent};
+use block_editor_beui::be_block::{
+    BlockContent, DisplaySettingsContent, InputSettingsContent, SettingsContent, UiSettingsContent,
+};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::{
     Align, Direction, Frame, List, clone, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::{Button, ButtonVariant, Caption, Heading, use_theme};
 use block_editor_beui::{ContentProjection, Editor};
+use std::rc::Rc;
+
 use uuid::Uuid;
 
 const PADDING: f32 = 20.0;
@@ -13,26 +17,13 @@ const PADDING: f32 = 20.0;
 #[component]
 pub fn SettingsView(editor: Editor) -> NodeId {
     let settings = editor.block_content::<SettingsContent>();
-    let client_id = editor.host().client_id();
     let loaded = settings.project(|_| true);
-    let ui_settings = settings.project(move |settings| {
-        settings
-            .root()
-            .resolve(UiSettingsContent::CONTENT_TYPE, client_id)
-    });
     let read_only = editor.read_only();
     let blocked = create_memo(clone!(loaded read_only -> move || !loaded.get() || read_only.get()));
-    let host = editor.host().clone();
-    let creator = editor.clone();
-    let open = clone!(settings ui_settings -> move || {
-        let Some(id) = ui_settings
-            .get_untracked()
-            .or_else(|| create_ui_settings(&creator, &settings))
-        else {
-            return;
-        };
-        host.open_block(id, UiSettingsContent::CONTENT_TYPE);
-    });
+    let open_ui = opener::<UiSettingsContent>(&editor, &settings);
+    let open_input = opener::<InputSettingsContent>(&editor, &settings);
+    let open_display = opener::<DisplaySettingsContent>(&editor, &settings);
+    let (ui_blocked, input_blocked) = (blocked.clone(), blocked.clone());
     let theme = use_theme();
     view! {
         <Frame color={theme.background.clone()} padding_horizontal=PADDING padding_vertical=PADDING>
@@ -43,9 +34,23 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                     <Button
                         label="UI settings"
                         variant=ButtonVariant::Primary
-                        disabled={blocked}
+                        disabled={ui_blocked}
                         @test_id={"settings.ui-settings"}
-                        on_click={open}
+                        on_click={open_ui}
+                    />
+                    <Button
+                        label="Input settings"
+                        variant=ButtonVariant::Secondary
+                        disabled={input_blocked}
+                        @test_id={"settings.input-settings"}
+                        on_click={open_input}
+                    />
+                    <Button
+                        label="Display settings"
+                        variant=ButtonVariant::Secondary
+                        disabled={blocked}
+                        @test_id={"settings.display-settings"}
+                        on_click={open_display}
                     />
                 </List>
             </List>
@@ -53,15 +58,33 @@ pub fn SettingsView(editor: Editor) -> NodeId {
     }
 }
 
-fn create_ui_settings(
+fn opener<C: BlockContent + Default>(
+    editor: &Editor,
+    settings: &Rc<ContentProjection<SettingsContent>>,
+) -> impl Fn() + Clone + use<C> {
+    let client_id = editor.host().client_id();
+    let resolved =
+        settings.project(move |settings| settings.root().resolve(C::CONTENT_TYPE, client_id));
+    let host = editor.host().clone();
+    let creator = editor.clone();
+    let settings = settings.clone();
+    move || {
+        let id = resolved
+            .get_untracked()
+            .unwrap_or_else(|| create::<C>(&creator, &settings));
+        host.open_block(id, C::CONTENT_TYPE);
+    }
+}
+
+fn create<C: BlockContent + Default>(
     editor: &Editor,
     settings: &ContentProjection<SettingsContent>,
-) -> Option<Uuid> {
-    let block = editor.create_child(&UiSettingsContent::default());
+) -> Uuid {
+    let block = editor.create_child(&C::default());
     settings.operate(Settings::set_entry(
-        UiSettingsContent::CONTENT_TYPE,
+        C::CONTENT_TYPE,
         ActivationCondition::Fallback,
         block,
     ));
-    Some(block)
+    block
 }

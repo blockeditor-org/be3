@@ -19,14 +19,19 @@ fn slices_are_stitched_together_from_chunks() {
 
 struct ChunkedDocument {
     bytes: Vec<u8>,
-    anchors: Vec<Anchor>,
+    anchors: Vec<Pos>,
     chunk: usize,
 }
 
 impl ChunkedDocument {
     fn new(bytes: impl AsRef<[u8]>, chunk: usize) -> Self {
         let bytes = bytes.as_ref().to_vec();
-        let anchors = bytes.iter().map(|_| Anchor::new()).collect();
+        let anchors = (0..bytes.len())
+            .map(|offset| Pos {
+                client: 0,
+                offset: offset as u64,
+            })
+            .collect();
         Self {
             bytes,
             anchors,
@@ -45,11 +50,11 @@ impl DocumentRead for ChunkedDocument {
         self.bytes.get(index..end).unwrap_or_default()
     }
 
-    fn anchor(&self, index: usize) -> Option<Anchor> {
+    fn anchor(&self, index: usize) -> Option<Pos> {
         self.anchors.get(index).copied()
     }
 
-    fn anchor_index(&self, anchor: Anchor) -> Option<usize> {
+    fn anchor_index(&self, anchor: Pos) -> Option<usize> {
         self.anchors
             .iter()
             .position(|candidate| *candidate == anchor)

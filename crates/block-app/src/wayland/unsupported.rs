@@ -14,6 +14,8 @@ pub(crate) fn before(_context: &Context, _rect: Rect, _document: &mut Document) 
 
 pub(crate) fn after(_context: &Context, _document: &mut Document) {}
 
+pub(crate) fn replace_gpu(_setup: &Setup) {}
+
 pub(crate) fn exiting() {}
 
 pub(crate) fn revision() -> u64 {
@@ -26,6 +28,10 @@ pub(crate) fn listed() -> Vec<HostWindow> {
 
 pub(crate) fn close(_window: HostWindowId) {}
 
+pub(crate) fn fullscreen(_window: HostWindowId, _fullscreen: bool) {}
+
+pub(crate) fn focus(_window: HostWindowId) {}
+
 pub(crate) fn launch(_command: String) -> bool {
     false
 }
@@ -35,5 +41,24 @@ pub(crate) fn WindowSurface(window: HostWindowId) -> NodeId {
     let _ = window;
     view! {
         <Frame />
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct Programs;
+
+impl Programs {
+    pub(crate) fn scan(&mut self, _pixels: u32) {}
+
+    pub(crate) fn receive(&mut self) -> bool {
+        false
+    }
+
+    pub(crate) fn listed(&self) -> Vec<block_plugin_api::HostProgram> {
+        Vec::new()
+    }
+
+    pub(crate) fn launch(&self, _key: &str) -> bool {
+        false
     }
 }

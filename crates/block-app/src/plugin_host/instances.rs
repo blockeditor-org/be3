@@ -5,9 +5,9 @@ use block_plugin_api::{
     ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId, ChildMode,
     ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, CursorIcon, DataListing,
     EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick, FileSave, FrameReport,
-    FrameSpec, HostPanel, HostReply, HostRequest, Message, Occluder, PerformanceMeasurement,
-    RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenSet, Size,
-    ViewChange, WatchedContent, WebViewId,
+    FrameSpec, HostPanel, HostReply, HostRequest, Message, Monitor, Occluder,
+    PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
+    ScreenSet, Size, ViewChange, WatchedContent, WebViewId,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -19,6 +19,7 @@ use super::{
     BlockPickRequest, ChildCommit, EditorBlock, HostChild, HostChildStatus, InstanceRole,
     MAX_LIVE_CHILDREN,
     audio::AudioPlayer,
+    host_values::{Published, Watched},
     input::{BlockDragEvent, FileDropEvent, InputAdapter, viewport_metrics},
     pieces,
 };
@@ -48,6 +49,8 @@ pub(super) struct Instances {
     graph_seen: Option<u64>,
     pasted: HashSet<EditorInstanceId>,
     audio_changes: AudioChanges,
+    published: Published,
+    shell: Option<EditorInstanceId>,
 }
 
 struct AudioChanges {
@@ -120,9 +123,7 @@ struct Instance {
     child_menu_picks: Vec<(ChildId, String)>,
     presenting: bool,
     reported_presenting: bool,
-    windows: Option<Vec<block_plugin_api::HostWindow>>,
-    reported_windows: Option<Vec<block_plugin_api::HostWindow>>,
-    closed_windows: Vec<block_plugin_api::HostWindowId>,
+    host_values: Watched,
     grabbed: bool,
     web_views: HashMap<WebViewId, WebViewHost>,
     presence_visible: Option<bool>,
@@ -185,12 +186,14 @@ impl ContentLink {
             crate::be::Update::Snapshot {
                 content_type,
                 bytes,
+                session,
                 applied,
             } => EditorMessage::Content {
                 instance,
                 block_id,
                 content_type: content_type.into_bytes(),
                 bytes,
+                session,
                 applied,
             },
             crate::be::Update::Operations(operations) => EditorMessage::ContentOperations {
@@ -294,9 +297,7 @@ impl Instance {
             child_menu_picks: Vec::new(),
             presenting: false,
             reported_presenting: false,
-            windows: None,
-            reported_windows: None,
-            closed_windows: Vec::new(),
+            host_values: Watched::default(),
             grabbed: false,
             web_views: HashMap::new(),
             presence_visible: None,
@@ -464,7 +465,7 @@ struct Screen {
 impl Screen {
     fn unplace(&mut self) {
         self.placement = None;
-        self.request.metrics = viewport_metrics(Vec2::ZERO, Rect::ZERO, 1.0);
+        self.request.metrics = viewport_metrics(Vec2::ZERO, Rect::ZERO, 1.0, Vec::new());
     }
 }
 
@@ -677,7 +678,7 @@ impl Instances {
                     screen: ScreenId(*next_screen),
                     instance,
                     region,
-                    metrics: viewport_metrics(size, visible, scale_factor),
+                    metrics: viewport_metrics(size, visible, scale_factor, Vec::new()),
                     frame: frame.clone(),
                 },
                 last_seen: pass,
@@ -696,8 +697,8 @@ impl Instances {
                 frame_revoked: HashSet::new(),
             }
         });
-        let metrics = viewport_metrics(size, visible, scale_factor);
-        screen.request.metrics = metrics;
+        let monitors = std::mem::take(&mut screen.request.metrics.monitors);
+        screen.request.metrics = viewport_metrics(size, visible, scale_factor, monitors);
         screen.request.frame = frame;
         screen.last_seen = pass;
         screen.request.screen
@@ -759,11 +760,12 @@ impl Instances {
         size: Vec2,
         visible: Rect,
         scale_factor: f32,
+        monitors: Vec<Monitor>,
     ) {
         let Some(screen) = self.screen_mut(instance, region) else {
             return;
         };
-        let metrics = viewport_metrics(size, visible, scale_factor);
+        let metrics = viewport_metrics(size, visible, scale_factor, monitors);
         if screen.request.metrics != metrics || screen.request.frame != frame {
             screen.request.metrics = metrics;
             screen.request.frame = frame;
@@ -811,6 +813,56 @@ impl Instances {
         vec![Message::Input(block_plugin_api::InputBatch {
             screen: screen.request.screen,
             events: vec![screen.input.back(gesture)],
+        })]
+    }
+
+    pub(super) fn intercepted(
+        &mut self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+        press: Option<beui::KeyPress>,
+        modifiers: beui::Modifiers,
+    ) -> Vec<Message> {
+        let announced = &self.announced;
+        let Some(screen) = self
+            .entries
+            .get_mut(&instance)
+            .and_then(|entry| entry.screens.get_mut(&region))
+            .filter(|screen| announced.contains(&screen.request.screen))
+        else {
+            return Vec::new();
+        };
+        let events = screen.input.intercepted(press, modifiers);
+        if events.is_empty() {
+            return Vec::new();
+        }
+        vec![Message::Input(block_plugin_api::InputBatch {
+            screen: screen.request.screen,
+            events,
+        })]
+    }
+
+    pub(super) fn intercepted_tap(
+        &mut self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+        key: beui::Key,
+    ) -> Vec<Message> {
+        let announced = &self.announced;
+        let Some(screen) = self
+            .entries
+            .get(&instance)
+            .and_then(|entry| entry.screens.get(&region))
+            .filter(|screen| announced.contains(&screen.request.screen))
+            .filter(|screen| !screen.input.focused())
+        else {
+            return Vec::new();
+        };
+        vec![Message::Input(block_plugin_api::InputBatch {
+            screen: screen.request.screen,
+            events: vec![block_plugin_api::InputEvent::InterceptedTap {
+                key: beui_plugin_input::protocol_key(key),
+            }],
         })]
     }
 
@@ -931,19 +983,6 @@ impl Instances {
         self.entries
             .get(&instance)
             .is_some_and(|entry| entry.presenting)
-    }
-
-    pub(super) fn set_windows(
-        &mut self,
-        instance: EditorInstanceId,
-        windows: Vec<block_plugin_api::HostWindow>,
-    ) -> bool {
-        let Some(entry) = self.entries.get_mut(&instance) else {
-            return false;
-        };
-        let changed = entry.windows.as_ref() != Some(&windows);
-        entry.windows = Some(windows);
-        changed
     }
 
     pub(super) fn set_presenting(&mut self, instance: EditorInstanceId, presenting: bool) -> bool {
@@ -1119,7 +1158,17 @@ impl Instances {
             entry.reported_editable = None;
             entry.reported_view = None;
             entry.reported_presenting = false;
-            entry.reported_windows = None;
+            entry.host_values.forget_reported();
+            entry.reported_history = None;
+            entry.reported_artifacts.clear();
+            entry.reported_size = None;
+            entry.sent_blocks.clear();
+            entry.blocks_seen = None;
+            entry.version_sent = None;
+            for link in entry.content.iter_mut().chain(entry.watched.values_mut()) {
+                link.sent = None;
+                link.peers_sent = None;
+            }
             entry.stale = true;
         }
         self.epoch += 1;
@@ -1208,6 +1257,15 @@ impl Instances {
                         })
                     }
                 });
+                let mut statuses: Vec<_> = entry
+                    .screens
+                    .values()
+                    .flat_map(|screen| screen.reported_statuses.values().cloned())
+                    .collect();
+                statuses.sort_by_key(|status| status.child.0);
+                if !statuses.is_empty() {
+                    opened.push(Message::ChildStatuses(statuses));
+                }
             }
             opened.append(&mut entry.deferred);
             let stale = std::mem::take(&mut entry.stale);
@@ -1255,13 +1313,12 @@ impl Instances {
                     presenting: entry.presenting,
                 }));
             }
-            if entry.windows.is_some() && entry.windows != entry.reported_windows {
-                entry.reported_windows = entry.windows.clone();
-                opened.push(Message::Editor(EditorMessage::Windows {
-                    instance,
-                    windows: entry.windows.clone().unwrap_or_default(),
-                }));
-            }
+            entry.host_values.report(
+                instance,
+                self.shell == Some(instance),
+                &self.published,
+                &mut opened,
+            );
             if entry.view != entry.reported_view {
                 entry.reported_view = entry.view;
                 if let Some(view) = entry.view {
@@ -2251,12 +2308,19 @@ impl Instances {
                 entry.pick_answers.push((pick, answer));
                 true
             }
-            EditorMessage::CloseWindow { instance, window } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                entry.closed_windows.push(window);
-                true
+            EditorMessage::WatchHostValue { instance, key } => self
+                .entries
+                .get_mut(&instance)
+                .is_some_and(|entry| entry.host_values.watch(key)),
+            EditorMessage::HostAction {
+                instance,
+                key,
+                action,
+            } => {
+                let shell = self.shell == Some(instance);
+                self.entries
+                    .get_mut(&instance)
+                    .is_some_and(|entry| entry.host_values.act(key, action, shell))
             }
             EditorMessage::SetAccess {
                 block_id,
@@ -2841,16 +2905,6 @@ impl Instances {
         }
     }
 
-    pub(super) fn take_closed_windows(
-        &mut self,
-        instance: EditorInstanceId,
-    ) -> Vec<block_plugin_api::HostWindowId> {
-        self.entries
-            .get_mut(&instance)
-            .map(|entry| std::mem::take(&mut entry.closed_windows))
-            .unwrap_or_default()
-    }
-
     pub(super) fn take_artifact_watch(&mut self, instance: EditorInstanceId) -> Option<Vec<Uuid>> {
         self.entries.get_mut(&instance)?.artifact_watch.take()
     }
@@ -2919,6 +2973,41 @@ impl Instances {
             instance,
             states,
         })]
+    }
+
+    pub(super) fn set_host_value(&mut self, key: &str, value: Arc<Vec<u8>>) -> bool {
+        self.published.insert(key.to_owned(), value);
+        self.watches_host_value(key)
+    }
+
+    pub(super) fn watches_host_value(&self, key: &str) -> bool {
+        self.entries.iter().any(|(instance, entry)| {
+            entry
+                .host_values
+                .watches(key, self.shell == Some(*instance))
+        })
+    }
+
+    pub(super) fn take_host_actions(&mut self, key: &str) -> Vec<Vec<u8>> {
+        let mut instances: Vec<_> = self.entries.keys().copied().collect();
+        instances.sort_by_key(|instance| instance.0);
+        instances
+            .into_iter()
+            .flat_map(|instance| {
+                self.entries
+                    .get_mut(&instance)
+                    .map(|entry| entry.host_values.take_actions(key))
+                    .unwrap_or_default()
+            })
+            .collect()
+    }
+
+    pub(super) fn set_shell(&mut self, shell: Option<EditorInstanceId>) -> bool {
+        if self.shell == shell {
+            return false;
+        }
+        self.shell = shell;
+        true
     }
 
     pub(super) fn set_focus(&mut self, focus: Focus) -> bool {

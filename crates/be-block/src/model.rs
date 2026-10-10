@@ -1,5 +1,5 @@
 use be_commit::MergeResult;
-use be_model::{Document, Edit, Model, Step, Touched};
+use be_model::{Change, Document, Edit, Model, Step, Touched};
 use uuid::Uuid;
 
 use crate::{BlockContent, ChildChange, ContentError, LiveEdit, Merge, Undo};
@@ -13,6 +13,11 @@ pub trait Root: Model + Send + Sync + 'static {
 
     fn references(&self) -> Vec<Uuid> {
         Vec::new()
+    }
+
+    fn references_in(&self, workspace: Uuid) -> Vec<Uuid> {
+        let _ = workspace;
+        self.references()
     }
 
     fn child_edit(&self, change: ChildChange) -> Option<Edit> {
@@ -37,8 +42,18 @@ impl<R: Root> BlockContent for Document<R> {
     }
 
     fn references(&self) -> Vec<Uuid> {
-        self.root().references()
+        joined(self.root().references(), self.block_refs())
     }
+
+    fn references_in(&self, workspace: Uuid) -> Vec<Uuid> {
+        joined(self.root().references_in(workspace), self.block_refs())
+    }
+}
+
+fn joined(mut references: Vec<Uuid>, more: Vec<Uuid>) -> Vec<Uuid> {
+    let mut seen: std::collections::HashSet<Uuid> = references.iter().copied().collect();
+    references.extend(more.into_iter().filter(|id| seen.insert(*id)));
+    references
 }
 
 impl<R: Root> LiveEdit for Document<R> {
@@ -54,6 +69,39 @@ impl<R: Root> LiveEdit for Document<R> {
 
     fn child_operations(&self, change: ChildChange) -> Option<Vec<Self::Op>> {
         self.root().child_edit(change).map(|edit| vec![edit])
+    }
+
+    fn absorb_operation(operation: &mut Self::Op, next: Self::Op) -> Option<Self::Op> {
+        for change in next.0 {
+            let leftover = match (operation.0.last_mut(), change) {
+                (
+                    Some(Change::Text { object, field, op }),
+                    Change::Text {
+                        object: next_object,
+                        field: next_field,
+                        op: next_op,
+                    },
+                ) if *object == next_object && *field == next_field => {
+                    op.absorb(next_op).map(|op| Change::Text {
+                        object: next_object,
+                        field: next_field,
+                        op,
+                    })
+                }
+                (_, change) => Some(change),
+            };
+            operation.0.extend(leftover);
+        }
+        None
+    }
+
+    fn session_state(&self) -> Vec<u8> {
+        Document::session_state(self)
+    }
+
+    fn adopt_session_state(&mut self, state: &[u8]) -> Result<(), ContentError> {
+        Document::adopt_session_state(self, state)
+            .map_err(|_| ContentError::Malformed("session state"))
     }
 }
 

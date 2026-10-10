@@ -1,0 +1,6 @@
+use super::*;
+
+mod a_session_entry_quotes_a_path_with_reserved_characters;
+mod installing_adds_the_lock_screens_pam_service_without_replacing_one;
+mod installing_the_session_puts_the_app_and_its_entry_under_the_prefix;
+mod the_session_entry_runs_the_installed_app_in_session_mode;

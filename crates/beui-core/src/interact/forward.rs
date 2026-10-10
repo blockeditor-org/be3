@@ -4,7 +4,7 @@ use crate::base::interactive::InteractiveNode;
 use crate::context::Context;
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect};
-use crate::input::{Event, Key, Modifiers, PointerButton, TouchPhase};
+use crate::input::{Event, Modifiers, PointerButton, TouchPhase};
 use crate::node::{Element, NodeId, Rects};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -24,6 +24,19 @@ pub struct Routing {
     captor: Option<NodeId>,
     buttons: u8,
     touches: HashMap<(u64, u64), NodeId>,
+    swallowed: bool,
+    claimed: Option<NodeId>,
+}
+
+impl Routing {
+    pub(crate) fn swallow_press(&mut self) {
+        self.swallowed = true;
+        self.captor = None;
+    }
+
+    pub(crate) fn claim_press(&mut self, sink: NodeId) {
+        self.claimed = Some(sink);
+    }
 }
 
 pub fn wants_forward(element: &dyn Element) -> bool {
@@ -86,7 +99,7 @@ pub fn sink_at(doc: &Document, rects: &Rects, root: NodeId, pos: Pos2) -> Option
     deepest(doc, rects, root, pos)
 }
 
-fn cycle_focus(doc: &mut Document, step: isize) -> bool {
+pub(super) fn cycle_focus(doc: &mut Document, step: isize) -> bool {
     let sinks: Vec<NodeId> = doc
         .focusables()
         .into_iter()
@@ -131,37 +144,30 @@ pub(super) fn route(
     pointer: bool,
     keys: super::Keys,
 ) {
-    let mut events = ctx.input(|input| input.events.clone());
-    let cycle = events.iter().rev().find_map(|event| match event {
-        Event::Key {
-            key: Key::F6,
-            pressed: true,
-            modifiers,
-            ..
-        } => Some(if modifiers.shift { -1 } else { 1 }),
-        _ => None,
-    });
-    if let Some(step) = cycle.filter(|_| !keys.ignored())
-        && cycle_focus(doc, step)
-    {
-        events.retain(|event| !matches!(event, Event::Key { key: Key::F6, .. }));
-    }
+    let events = ctx.input(|input| input.events.clone());
     let modifiers = ctx.input(|input| input.modifiers);
     let position = ctx.input(|input| input.pointer.interact_pos());
     let mut routing = std::mem::take(&mut doc.forward);
     let alive = |doc: &Document, id: Option<NodeId>| {
         id.filter(|id| doc.arena.contains(*id) && wants_forward(doc.arena.get(*id)))
     };
-    routing.captor = alive(doc, routing.captor);
-    routing
-        .touches
-        .retain(|_, sink| doc.arena.contains(*sink) && wants_forward(doc.arena.get(*sink)));
+    let unlocked =
+        |doc: &Document, sink: NodeId| doc.lock().is_none_or(|lock| doc.is_within(sink, lock.id()));
+    routing.captor = alive(doc, routing.captor).filter(|sink| unlocked(doc, *sink));
+    routing.touches.retain(|_, sink| {
+        doc.arena.contains(*sink) && wants_forward(doc.arena.get(*sink)) && unlocked(doc, *sink)
+    });
     let focused = alive(doc, doc.focused_node()).filter(|_| !keys.ignored());
     let at = |doc: &Document, pos: Pos2| match pointer {
         true => sink_at(doc, rects, root, pos),
         false => None,
     };
     let hovered = position.and_then(|pos| at(doc, pos));
+    let swallowed = routing.swallowed;
+    let pressed_at = |doc: &Document, pos: Pos2| match swallowed {
+        true => None,
+        false => at(doc, pos),
+    };
     let mut routed: Vec<(NodeId, Vec<Event>)> = Vec::new();
     let mut deliver = |to: Option<NodeId>, event: &Event| {
         let Some(to) = to else {
@@ -174,7 +180,9 @@ pub(super) fn route(
     };
     for event in &events {
         match event {
-            Event::PointerMoved(pos) => deliver(routing.captor.or_else(|| at(doc, *pos)), event),
+            Event::PointerMoved(pos) => {
+                deliver(routing.captor.or_else(|| pressed_at(doc, *pos)), event)
+            }
             Event::PointerGone => deliver(routing.captor.or(routing.hovered), event),
             Event::PointerButton {
                 pos,
@@ -182,7 +190,8 @@ pub(super) fn route(
                 pressed,
                 ..
             } => {
-                let to = routing.captor.or_else(|| at(doc, *pos));
+                let claimed = routing.claimed.filter(|_| *pressed);
+                let to = routing.captor.or(claimed).or_else(|| pressed_at(doc, *pos));
                 deliver(to, event);
                 match (pressed, to) {
                     (true, Some(to)) => {
@@ -202,7 +211,7 @@ pub(super) fn route(
                 let finger = (id.device, id.finger);
                 let to = match phase {
                     TouchPhase::Start => {
-                        let to = at(doc, *pos);
+                        let to = pressed_at(doc, *pos);
                         if let Some(to) = to {
                             routing.touches.insert(finger, to);
                         }
@@ -226,9 +235,13 @@ pub(super) fn route(
             | Event::Modifiers(_)
             | Event::PointerMotion(_)
             | Event::Focus(false) => deliver(focused, event),
-            Event::Focus(true) | Event::Back(_) => {}
+            Event::Focus(true)
+            | Event::Back(_)
+            | Event::InterceptedKey(_)
+            | Event::InterceptedTap(_) => {}
         }
     }
+    routing.claimed = None;
     let held = ctx.input(|input| {
         [
             (input.pointer.primary_down, PointerButton::Primary),
@@ -240,6 +253,9 @@ pub(super) fn route(
         if !down {
             routing.buttons &= !button_mask(button);
         }
+    }
+    if held.iter().all(|(down, _)| !down) {
+        routing.swallowed = false;
     }
     if routing.buttons == 0 {
         routing.captor = None;

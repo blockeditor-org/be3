@@ -9,18 +9,19 @@ The styled controls follow the keyboard conventions in the [W3C Authoring Practi
 | Radio groups | One Tab stop, at the selected option or the first option when unselected. Arrows wrap and select; Space selects without clearing an existing selection. Home/End select the first/last option. |
 | Single-select listboxes | One Tab stop. Up/Down select the previous/next option and stop at the ends. Home/End select the first/last option. Typing searches case-insensitive prefixes; repeated letters cycle matches. The search resets after one second or when focus leaves. |
 | Sliders | Right/Up increase and Left/Down decrease by 5% of the track. Home/End select minimum/maximum. Page Up/Down adjust by 20% of the track. Values remain within the range, which is `min` to `max` and defaults to 0 to 1. A curved `scale` keeps the steps even along the track, so they are small where the track is fine and large where it is coarse. |
-| Text inputs | Left/Right, Home/End, Shift-selection, Ctrl/Alt word navigation and deletion, Ctrl+A, Ctrl+C/X, Ctrl+Z, Ctrl+Shift+Z/Ctrl+Y, and Enter to submit. Up and Down move to the start and the end of the text, as they would on the one line of a multiline area. Space inserts text. Paste replaces the selection. A secondary click opens the Copy, Cut, Paste and Select All menu that a touch tap on the selection or the caret handle opens. The desktop runner maps Command to Ctrl on macOS. A multiline text area takes Tab and Shift+Tab to indent; Escape then Tab or Shift+Tab moves the focus out of it instead. It registers Find (Ctrl+F), Find and replace (Ctrl+H), the next and previous match (Ctrl+G, Ctrl+Shift+G), Duplicate the line (Ctrl+Shift+D), Select the next occurrence (Ctrl+D) and folding (Ctrl+Shift+[) as actions, which answer while the focus is in it. |
+| Text inputs | Left/Right, Home/End, Shift-selection, Ctrl/Alt word navigation and deletion, Ctrl+A, Ctrl+C/X, Ctrl+Z, Ctrl+Shift+Z/Ctrl+Y, and Enter to submit. Up and Down move to the start and the end of the text, as they would on the one line of a multiline area. Space inserts text. Paste replaces the selection. A secondary click opens the Copy, Cut, Paste and Select All menu that a touch tap on the selection or the caret handle opens. The desktop runner maps Command to Ctrl on macOS; Super chords type nothing. A multiline text area takes Tab and Shift+Tab to indent; Escape then Tab or Shift+Tab moves the focus out of it instead. It registers Find (Ctrl+F), Find and replace (Ctrl+H), the next and previous match (Ctrl+G, Ctrl+Shift+G), Duplicate the line (Ctrl+Shift+D), Select the next occurrence (Ctrl+D) and folding (Ctrl+Shift+[) as actions, which answer while the focus is in it. |
 | Selectable text | `<SelectableText>` makes the plain text nodes under it selectable together: a mouse drag selects from one text to another in tree order, Shift+click extends the selection, and a click clears it. Ctrl+C copies the selection, joining texts on one line with a space and lines with a line break; Ctrl+A selects everything under it. A secondary click opens a Copy and Select All menu. It is not a Tab stop, and the keys also reach it from a focused control inside it. |
 | Scroll areas | Tab focuses the area. Up/Down scroll by a line; Page Up/Down and Space/Shift+Space scroll by a page; Home/End reach the endpoints. Tabbing to a child or navigating a choice scrolls it into view. Unused Up/Down, Home/End, and Page keys on child controls scroll the nearest containing area. Virtual lists can be paged before tabbing into their realized controls. |
 | Select (dropdown) | Clicking or activating the trigger opens the popup and focuses its search box; typing filters the options by case-insensitive substring. Up/Down/Home/End on the closed trigger also open the popup and move the highlight in that direction. Up/Down move the highlighted option without moving the text caret; Home/End jump to the first/last visible option. Enter confirms the highlighted option and closes the popup. Escape or an outside click closes the popup without changing the selection and returns focus to the trigger. |
 | Tree views | One Tab stop, at the selected row or the first row. Up/Down move to the previous/next visible row and stop at the ends; Home/End reach the first/last row. Right expands a collapsed row and then moves to its first child; Left collapses an expanded row and then moves to its parent. Space or Enter selects a row, the same as clicking it, and leaves it open or closed; only Left, Right and the chevron expand or collapse. Typing searches case-insensitive prefixes over the visible rows. Selection follows the focused row. |
 | Pan and zoom areas | Tab focuses the area. Arrows pan by a step; `+` and `-` zoom around the middle of the viewport and `0` returns the scale to one. The area owns the keys it uses, so arrows pan it rather than scrolling whatever contains it. |
-| Dock | One Tab stop per tab bar, at the tab the pane is showing, walked like any other tab list; the bar scrolls the tab that takes focus into view. The bar between two panes is a Tab stop with a `Splitter` role that the arrows move. Ctrl+Tab and Ctrl+Shift+Tab walk the tabs of the pane the focus is in, wherever the focus is inside it. |
+| Dock | One Tab stop per tab bar, at the tab the pane is showing, walked like any other tab list; the bar scrolls the tab that takes focus into view. The bar between two panes is a Tab stop with a `Splitter` role that the arrows move. Ctrl+Tab and Ctrl+Shift+Tab walk the tabs of the pane the focus is in, wherever the focus is inside it. The switcher across every pane and window (`DockingLayout::begin_switch`) is bound to no key. |
 | Calendar | One Tab stop in the grid, at the focused day. Left/Right move a day and Up/Down a week, crossing into the next or previous month. Home/End reach the start/end of the week. Page Up/Down move a month and Shift+Page Up/Down a year, keeping the day within the month. Space or Enter picks the day. Days outside `min` and `max` are skipped. The title's month button switches to a grid of months, where the arrows move by a month and a row, Page Up/Down by a year, and Enter shows that month's days; its year button switches to a grid of twenty years, where the arrows move by a year and a row, Page Up/Down by twenty years, and Enter shows that year's months. |
 | Date and time fields | Each segment is a Tab stop and a spin button. Up/Down step it and wrap; Page Up/Down step by a larger amount; Home/End reach its first/last value. Left/Right move between segments and stop at the first and last. Alt+Down opens the calendar over the field with the focus kept in the segment. Digits type into the segment and move on once it is full or no further digit could fit; `-`, `/`, `:` and space move on too, and `a`/`p` set AM/PM. Backspace or Delete clears a segment, and Backspace on an empty one goes back a segment. The button beside the segments opens the calendar and time list; Escape closes them and returns the focus to it. |
 | Time lists | One Tab stop, at the selected time. Up/Down move a time, Page Up/Down an hour, Home/End the first/last. Laid out as a grid, Left/Right move a time, Up/Down a row and Page Up/Down four rows. Space or Enter picks the time. |
 | Color area | Tab focuses the area. Left/Right change the saturation and Up/Down the brightness by 1%, or 10% with Shift; Page Up/Down change the brightness by 10%; Home/End reach no saturation and full saturation. Hue and opacity are sliders. |
 | Context menu | Secondary click opens the menu at the pointer and focuses its first item, which is shown with a highlighted background; Tab is trapped on the menu's single roving Tab stop while it is open. Up/Down move between items and update the highlight; Home/End jump to the first/last item. Right Arrow (or hovering an item) opens its submenu and focuses its first item; Left Arrow closes a submenu and refocuses the item that opened it. Only one submenu per level stays open. Enter or clicking a leaf item selects it and closes the entire menu stack; Escape closes one level at a time; an outside click closes the whole stack. |
+| Keep changes prompt | Opens with the focus on Keep, so Enter keeps; Escape reverts, as running out its countdown does. |
 
 The inspector panel is a document of its own, so Ctrl+Shift+F moves focus into
 it and back, and Escape inside it returns focus to the inspected document.
@@ -30,8 +31,45 @@ registered with `on_shortcut`, which is offered every key press before the
 focused control sees it, and answers `true` for the ones it takes. Shortcuts
 are consulted only while no menu or dialog is open, since those take the
 document over. That is how the dock's Ctrl+Tab reaches it from inside a text
-input, and it is the only way a component can claim a key before the focused
-control does.
+input.
+
+`on_global_key` goes further: it is offered every key press and release
+before anything else, including while a menu or dialog is open. It is handed a
+`GlobalKeyPress`, whose `in_app` says the focus is in an app (a plugin editor's
+region, or a Wayland program in a desktop session) that would otherwise get
+the key. A handler takes such a key only when it means to intercept it from
+the app. A press it answers `true` for goes nowhere else, and neither do its
+physical key, the text it typed, its repeats or its release: those are offered
+to the handler that took the press alone, with `held` set, wherever the focus
+has gone since. That is the one record of taken keys; nothing else keeps its
+own.
+`held_modifiers()` is a signal of the modifiers held now, which changes on
+modifier presses alone. Shortcuts that are not chords, such as a hold-and-release
+switcher, are built from those two.
+
+The modifier keys themselves arrive as `Key::Shift`, `Key::Ctrl`, `Key::Alt` and
+`Key::Logo` presses and releases (`Key::is_modifier`), alongside the
+`Event::Modifiers` they cause. They reach `on_global_key` and forwarded regions
+(plugins and Wayland programs), but not the focused control's `on_key`, shortcuts or
+actions, which read the state from `KeyPress::modifiers` or `held_modifiers()`; nor
+do they show the focus ring or end autoscroll, and the runners drop their repeats.
+Something that reacts to the modifier key rather
+than to the state, such as tapping Super alone, is a global action with a
+`Chord::tap(Key::Logo)` rather than code reading events: the document counts a
+modifier pressed and let go with no other key, press, scroll or loss of focus
+between as a tap, judged from the key events alone (the runners do not agree on
+whether `Event::Modifiers` comes before or after the key's own event, and winit
+on X11 can report a modifier state that reverts before the key arrives), and
+offers it on the release with `GlobalKeyPress::tap` set. The release still goes
+on to whatever it would have reached. linux-desktop's program launcher opens
+that way. An intercepting tap action (see below) is named among the document's
+intercepted keys as a `KeyChord` with `tap` set, and a host that hears that tap
+while the focus is elsewhere hands it over as an `Event::InterceptedTap`.
+
+`Modifiers` and `Chord` have `logo` for the Super (Windows) key. The runners
+report Super as `logo`, except on macOS, where Command acts as Ctrl and Super
+is never reported. `Key` also has the volume, mic mute, brightness and media
+transport keys, mapped wherever the platform reports them.
 
 Tab and Shift+Tab traverse visible controls in tree order and wrap within the document. Hidden panels and collapsed content are excluded. Changing a selection programmatically updates the group's Tab stop and moves focus with the selection when the group already contains focus. Programmatic changes do not pull focus from other controls. Empty groups have no Tab stop, and invalid selection updates are ignored.
 
@@ -67,10 +105,51 @@ the node, so an action registered under it - an editor's, or a text area's -
 only answers while the focus is there. A key press the focused control does not
 handle (its `on_key` answers `false`) goes to the live actions, innermost scope
 first, and the first enabled one with a matching `Chord` runs. With nothing
-focused, every scope is live. A chord without Ctrl or Alt does not reach actions
-while the focus is in a text field, so typing a letter into a field never
-switches a canvas tool. Actions are consulted only while no menu or dialog is
-open.
+focused, every scope is live. A chord without Ctrl, Alt or Super (and not on a
+media key) does not reach actions while the focus is in a text field, so typing
+a letter into a field never switches a canvas tool. Actions are consulted only
+while no menu or dialog is open.
+
+An action built with `.global()` is consulted through `on_global_key` instead:
+before the focused control, wherever it was registered, and while menus and
+dialogs are open. The command palette lists global actions wherever it opens.
+A global action still leaves an app's keys alone: while a plugin editor or a
+Wayland program has the focus, the key goes to it and the action does not run.
+
+`.intercepts()` (which implies `.global()`) is the opt-in to take a key away
+from a focused app: the action is offered the press before the app, and a
+press it takes never reaches the app, nor does its release. Reserve it for
+shortcuts that must work over anything, such as linux-desktop's Super+F
+and media keys. Inside an app only
+chords with Ctrl, Alt or Super, and media keys, are offered, since the app
+counts as a text field. A Wayland program's window is an app in the same way
+as a plugin's region (see One input path below), so it gets this offer and no
+other; modifier presses always reach it. keyboard-shortcuts-inhibit, for a
+program that wants these chords too, is not implemented.
+
+A document that runs inside a host - a plugin's - intercepts the same way. Its
+enabled intercepting actions' chords (never one that types) are
+`Document::intercepted_keys`, which reach the runner as
+`FrameOutput::intercepted_keys` and `Platform::set_intercepted_keys`; a host
+offers the chords it was handed to its own global keys ahead of the focused app,
+and hands each press it takes, its repeats and its release back as an
+`Event::InterceptedKey`, which the document offers to `on_global_key` as a key
+from an app and which reaches nothing else. The host goes on sending the held
+modifiers until those of the chord are let go, so `held_modifiers()` sees Alt
+released while a Wayland program has the keyboard; that is how linux-desktop's
+Alt+Tab works over any window. block-app takes intercepted keys only from the
+shell's frame, and only chords with Ctrl, Alt or Super, or media keys. A tap
+chord goes the same way as `InputEvent::InterceptedTap`, but only while the
+region does not have the keyboard itself, since it then hears the key and
+counts the tap on its own; the release still reaches whatever had the focus.
+
+A document with a modal overlay open (`Document::modal_open`, such as a
+dialog or the launcher) reports `FrameOutput::wants_keyboard`, which reaches the
+runner as `Platform::set_wants_keyboard`. A plugin passes it on as
+`FrameReport::wants_keyboard`, and block-app's region then takes the focus from
+whatever had it (a program's window, another editor) and gives it back when
+the overlay closes, so a dialog a plugin opens from an intercepted key can be
+typed into.
 
 `styled::CommandPalette` lists the actions that are live where the focus was
 when it opened: typing filters them by every word, Up/Down/Page Up/Page Down
@@ -81,6 +160,52 @@ opens it with Ctrl+Shift+P and from a row of its menu, and
 `menu_actions()` (every action registered with
 `in_menu()`) is what fills that menu, which the dock shows behind its More
 button.
+
+## One input path
+
+Every embedded editor - a plugin's region, and in `block-app --session` and
+`--desktop` each Wayland program's window - is a forwarding catcher: an
+`Interactive` with `on_forward` (and `forward_at` for the points it takes),
+handed the events beui routes to it as a `ForwardedInput`. The host knows
+nothing of the editor behind it beyond turning those events into its own
+protocol (`plugin_host::forward_region` for a plugin, `be_wayland::Compositor`
+for a window), so press capture, hover, claims, overlays, focus, intercepting
+actions and the lock apply to both by the same rules. The only one outside it
+is the browser tab's web view (crates/editors/browser-tab), a native view placed
+over the window that takes its input from the platform rather than from beui.
+
+What one event goes through, in order:
+
+1. The runner. `beui-adapter-drm` drops the input that wakes blanked screens,
+   the rest of it for a grace period, and every release of a press it dropped
+   (`wake.rs`, see guides/running_the_app.md). That has to happen there: it is
+   decided on libinput's own clock before the keymap sees the key, and nothing
+   about it is the document's to judge. The keymap's own actions (switching
+   terminals, Ctrl+Alt+Backspace) are the adapter's too. Each key arrives as
+   `Event::PhysicalKey` (the scan code, for Wayland programs) just before the
+   `Event::Key` and any `Event::Text` it made.
+2. `interact`: the document counts the frame as input (`Document::input_frames`,
+   which the compositor's idle time reads), dismisses light overlays, finds a
+   modifier claim (`claim_modifiers`, `claim_at`) or a capture for a press, and
+   moves the focus. A lock overlay keeps the focus and every press.
+3. Global keys: taps, then `on_global_key` handlers (global and intercepting
+   actions among them, and in block-app the shell plugin's intercepted chords,
+   `compositor/intercept.rs`), then F6 and Shift+F6, which move the focus
+   between forwarding catchers. A key one of them takes is gone from the frame
+   along with its physical key and text, and so are its repeats and release
+   when they come.
+4. `forward::route`: the pointer goes to the catcher under it (`forward_at`
+   says no where something else is drawn over it), a press is captured by the
+   catcher it landed on until every button is let go, a claimed press goes to
+   its claimant, wheel and drop events to the catcher under the pointer, and
+   keys, text and IME to the focused catcher. A catcher outside an open lock
+   loses its capture. Each catcher is also told when it gains or loses the
+   hover or the focus.
+5. What is left is the document's own: shortcuts, the focused control's
+   `on_key`, actions, Tab and Escape.
+
+So no editor reads the frame's events itself, and nothing gives a key a
+meaning outside an action, a shortcut or a control.
 
 ## Control props
 

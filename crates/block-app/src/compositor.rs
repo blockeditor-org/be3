@@ -1,5 +1,6 @@
 mod editors;
-mod region;
+mod intercept;
+pub(crate) mod region;
 
 use std::{
     cell::{Cell, RefCell},

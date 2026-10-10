@@ -18,7 +18,8 @@ pub use beui_core::context::{
 };
 pub use beui_core::damage::Region;
 pub use beui_core::document::{
-    Document, OverRepaint, Tools, detect_over_repaint, take_over_repaints, verify_paint,
+    Document, GlobalKeyPress, OverRepaint, Tools, detect_over_repaint, take_over_repaints,
+    verify_paint,
 };
 pub use beui_core::draw::{Quad, Quads, Turn, quads};
 pub use beui_core::drawing::Drawing;
@@ -33,7 +34,7 @@ pub use beui_core::icons;
 pub use beui_core::image::{Image, ImageFit, ImageId, Thumbhash};
 pub use beui_core::input::{
     AutoscrollGesture, BackEdge, BackGesture, CursorIcon, DroppedFile, Event, ImeArea, ImeEvent,
-    ImeText, InputState, Key, KeyPress, Modifiers, PointerButton, PointerPress, RawInput,
+    ImeText, InputState, Key, KeyChord, KeyPress, Modifiers, PointerButton, PointerPress, RawInput,
     ScrollGesture, SecondaryDrag, TouchId, TouchPhase, TouchPoint, TouchState, ZoomGesture,
 };
 pub use beui_core::interact::forward::ForwardedInput;
@@ -41,6 +42,7 @@ pub use beui_core::node::{ClickHandler, Handler, NodeId, NodeOf};
 pub use beui_core::page::{Page, PageShape};
 pub use beui_core::painter::{Corners, Painter, Shape};
 pub use beui_core::performance::{FramePerformance, PerformanceSnapshot, PerformanceTimings};
+pub use beui_core::screens::Screen;
 #[cfg(not(target_arch = "wasm32"))]
 pub use beui_font_freetype::system::SystemFonts;
 pub use beui_font_freetype::{

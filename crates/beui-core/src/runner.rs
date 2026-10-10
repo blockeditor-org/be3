@@ -7,11 +7,11 @@ use std::time::Duration;
 use accesskit::TreeUpdate;
 
 use crate::app::accessibility_dump::AccessibilityDump;
-use crate::app::{App, SafeArea, Setup, next_batch, safe_rect};
+use crate::app::{App, SafeArea, Setup, Waker, next_batch, safe_rect};
 use crate::context::{Context, FrameOutput};
 use crate::file_picker::FilePickRequest;
 use crate::geometry::Vec2;
-use crate::input::{CursorIcon, Event, ImeArea, RawInput};
+use crate::input::{CursorIcon, Event, ImeArea, KeyChord, RawInput};
 use crate::renderer::{Loaded, Renderers};
 
 pub struct RunOptions {
@@ -63,6 +63,10 @@ pub trait Platform {
 
     fn set_handles_back(&mut self, _handles: bool) {}
 
+    fn set_wants_keyboard(&mut self, _wants: bool) {}
+
+    fn set_intercepted_keys(&mut self, _chords: &[KeyChord]) {}
+
     fn show_ime(&mut self, _ime: Option<&ImeArea>) {}
 
     fn publish_accessibility(&mut self, _tree: &mut dyn FnMut() -> TreeUpdate) {}
@@ -82,6 +86,12 @@ impl Frame {
     }
 }
 
+struct Exited;
+
+impl App for Exited {
+    fn update(&mut self, _context: &Context, _rect: crate::geometry::Rect) {}
+}
+
 #[derive(Default)]
 struct Shown {
     cursor_icon: CursorIcon,
@@ -89,6 +99,8 @@ struct Shown {
     pointer_locked: bool,
     fullscreen: bool,
     handles_back: bool,
+    wants_keyboard: bool,
+    intercepted_keys: Vec<KeyChord>,
 }
 
 pub struct Runner {
@@ -96,10 +108,12 @@ pub struct Runner {
     context: Context,
     title: String,
     renderers: Option<Renderers>,
+    waker: Option<Waker>,
     events: Vec<Event>,
     accessibility: Option<AccessibilityDump>,
     shown: Shown,
     output: Option<FrameOutput>,
+    reports_screens: bool,
     exited: bool,
 }
 
@@ -124,10 +138,12 @@ impl Runner {
             context,
             title: options.title,
             renderers: None,
+            waker: None,
             events: Vec::new(),
             accessibility,
             shown: Shown::default(),
             output: None,
+            reports_screens: false,
             exited: false,
         }
     }
@@ -144,6 +160,7 @@ impl Runner {
         let renderers = Renderers::new(&self.context, loaded)?;
         renderers.provide(&mut setup);
         self.renderers = Some(renderers);
+        self.waker = Some(setup.waker.clone());
         self.app.setup(&setup);
         Ok(())
     }
@@ -180,6 +197,7 @@ impl Runner {
         if !self.exited {
             self.exited = true;
             self.app.exiting();
+            self.app = Box::new(Exited);
         }
     }
 
@@ -193,7 +211,21 @@ impl Runner {
         pixels_per_point: f32,
         safe_area: SafeArea,
     ) -> Option<Frame> {
+        if self.exited {
+            return None;
+        }
         let renderers = self.renderers.as_mut()?;
+        match renderers.recover() {
+            Ok(false) => {}
+            Ok(true) => {
+                if let Some(waker) = &self.waker {
+                    let mut setup = Setup::new(waker.clone());
+                    renderers.provide(&mut setup);
+                    self.app.renderer_replaced(&setup);
+                }
+            }
+            Err(error) => panic!("beui: the GPU was lost and could not be reopened: {error}"),
+        }
         if let Err(error) = renderers.follow_choice(&self.context) {
             eprintln!("beui: could not switch renderers: {error}");
         }
@@ -204,6 +236,21 @@ impl Runner {
         self.context.set_pixels_per_point(pixels_per_point);
         let scale = self.context.pixels_per_point();
         let screen = physical / scale;
+        match renderers.screens() {
+            Some(screens) => {
+                self.context.set_screens(
+                    screens
+                        .iter()
+                        .map(|screen| screen.scaled(scale.recip()))
+                        .collect(),
+                );
+                self.reports_screens = true;
+            }
+            None if std::mem::take(&mut self.reports_screens) => {
+                self.context.set_screens(Vec::new());
+            }
+            None => {}
+        }
         let raw = RawInput {
             events: next_batch(&mut self.events),
         };
@@ -250,6 +297,14 @@ impl Runner {
             shown.handles_back = output.handles_back;
             platform.set_handles_back(output.handles_back);
         }
+        if output.wants_keyboard != shown.wants_keyboard {
+            shown.wants_keyboard = output.wants_keyboard;
+            platform.set_wants_keyboard(output.wants_keyboard);
+        }
+        if output.intercepted_keys != shown.intercepted_keys {
+            shown.intercepted_keys.clone_from(&output.intercepted_keys);
+            platform.set_intercepted_keys(&output.intercepted_keys);
+        }
 
         let pending = renderers.prepare(&output, scale, self.app.clear_color());
         let frame = Frame {
@@ -264,6 +319,9 @@ impl Runner {
     }
 
     pub fn present(&mut self) -> bool {
+        if self.exited {
+            return false;
+        }
         let background = self.app.clear_color();
         self.renderers
             .as_mut()

@@ -41,7 +41,6 @@ impl Message {
             }
             Self::Hello(_)
             | Self::HelloAccepted(_)
-            | Self::HelloRejected(_)
             | Self::Theme(_)
             | Self::UtcOffset(_)
             | Self::Fonts(_)
@@ -258,8 +257,9 @@ impl EditorMessage {
             | Self::GrabCursor { .. }
             | Self::WebViewCommand { .. }
             | Self::ShowPanel { .. }
-            | Self::Windows { .. }
-            | Self::CloseWindow { .. }
+            | Self::WatchHostValue { .. }
+            | Self::HostValue { .. }
+            | Self::HostAction { .. }
             | Self::WebViewEvent { .. }
             | Self::OpenCreation { .. }
             | Self::CreationReady { .. }

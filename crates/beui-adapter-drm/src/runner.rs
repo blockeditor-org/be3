@@ -8,14 +8,15 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use beui::{
-    CursorIcon, Event, FilePickRequest, Launch, Platform, PointerButton, Pos2, Setup, TouchId,
-    TouchPhase, Waker, vec2,
+    CursorIcon, Event, FilePickRequest, Launch, Modifiers, Platform, PointerButton, Pos2, Setup,
+    TouchId, TouchPhase, Waker, vec2,
 };
 use beui_core::app::SafeArea;
 use beui_core::renderer::Loaded;
 use beui_core::runner::Runner;
 use smithay::backend::allocator::gbm::GbmDevice;
 use smithay::backend::drm::{DrmDevice, DrmDeviceFd, DrmEvent};
+use smithay::backend::input::Event as _;
 use smithay::backend::input::{
     AbsolutePositionEvent, Axis, ButtonState, InputEvent, KeyState, KeyboardKeyEvent,
     PointerAxisEvent, PointerButtonEvent, PointerMotionEvent, TouchEvent,
@@ -24,37 +25,56 @@ use smithay::backend::libinput::{LibinputInputBackend, LibinputSessionInterface}
 use smithay::backend::session::libseat::LibSeatSession;
 use smithay::backend::session::{Event as SessionEvent, Session as _};
 use smithay::backend::udev::{UdevBackend, UdevEvent, all_gpus, primary_gpu};
+use smithay::reexports::calloop::generic::Generic;
 use smithay::reexports::calloop::ping::make_ping;
 use smithay::reexports::calloop::timer::{TimeoutAction, Timer};
-use smithay::reexports::calloop::{EventLoop, LoopHandle, LoopSignal, RegistrationToken};
+use smithay::reexports::calloop::{
+    EventLoop, Interest, LoopHandle, LoopSignal, Mode, PostAction, RegistrationToken,
+};
 use smithay::reexports::drm;
 use smithay::reexports::drm::control::Device as ControlDevice;
-use smithay::reexports::input::Libinput;
+use smithay::reexports::drm::control::{connector, crtc};
+use smithay::reexports::input::{Device as InputDevice, Libinput};
 use smithay::reexports::rustix::fs::OFlags;
 use smithay::utils::DeviceFd;
 
 use be_dmabuf::{adapter_for, open_device};
 
+use crate::display::{DisplayConfig, DisplayControl};
 use crate::displays::{DisplayRenderer, Displays};
 use crate::gpu::{Gpu, SoftwareCursor};
+use crate::input::{DeviceId, InputConfig, InputControl, PointerConfig, PointerDevice};
 use crate::keyboard::Keyboard;
 use crate::layout::{arrange, bounds, clamp, moved};
-use crate::output::{Output, connected};
+use crate::output::{Output, connected, wait_for};
+use crate::problems::Problems;
+use crate::recovery::{Card, Recovery};
 use crate::screen::FORMAT;
+use crate::wake::{Held, Input, WakeGate};
 
-const REPEAT_DELAY: Duration = Duration::from_millis(600);
-const REPEAT_RATE: Duration = Duration::from_millis(25);
 const WHEEL_STEP: f64 = 15.0;
+const LONGEST_WAIT: Duration = Duration::from_secs(3600);
+const BLANKED_FRAME: Duration = Duration::from_secs(1);
+const DARKEN_RETRY: Duration = Duration::from_secs(1);
 
 struct Session {
     seat: LibSeatSession,
-    active: bool,
+    recovery: Recovery<connector::Handle>,
+    built: u64,
     handle: LoopHandle<'static, Session>,
     signal: LoopSignal,
     drm: DrmDevice,
     gbm: GbmDevice<DrmDeviceFd>,
     node: u64,
     libinput: Libinput,
+    devices: Vec<InputDevice>,
+    input: InputConfig,
+    control: InputControl,
+    display_control: DisplayControl,
+    display_config: DisplayConfig,
+    modes_pending: bool,
+    blanked: bool,
+    gate: WakeGate,
     runner: Runner,
     platform: Seat,
     displays: Rc<RefCell<Displays>>,
@@ -62,7 +82,9 @@ struct Session {
     keyboard: Keyboard,
     repeat: Option<(u32, RegistrationToken)>,
     wakeup: Option<RegistrationToken>,
+    darken_retry: Option<RegistrationToken>,
     lost: Arc<AtomicBool>,
+    problems: Problems,
 }
 
 struct Seat {
@@ -105,7 +127,9 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
     let gbm = GbmDevice::new(fd)?;
     handle.insert_source(drm_events, |event, _, session| match event {
         DrmEvent::VBlank(crtc) => session.flipped(crtc),
-        DrmEvent::Error(error) => eprintln!("beui: the display device failed: {error}"),
+        DrmEvent::Error(error) => session
+            .problems
+            .report(format!("The display device failed: {error}")),
     })?;
     let udev = UdevBackend::new(&name)?;
     handle.insert_source(udev, |event, _, session| session.udev(event))?;
@@ -119,6 +143,9 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
     )?;
     let (ping, pinged) = make_ping()?;
     handle.insert_source(pinged, |_, _, session| session.dirty = true)?;
+    let waker = Waker::new(move || ping.ping());
+    let control = InputControl::new(waker.clone());
+    let display_control = DisplayControl::new(waker.clone());
 
     let lost = Arc::new(AtomicBool::new(false));
     let (device, queue) = open_gpu(node, &lost)?;
@@ -129,13 +156,19 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         scale(),
     )));
     let mut runner = Runner::new(launch);
+    let mut setup = Setup::new(waker);
+    setup.provide(control.clone());
+    setup.provide(display_control.clone());
+    let problems = Problems::default();
+    setup.provide(problems.clone());
     runner.start(
         vec![Loaded {
             renderer: Box::new(DisplayRenderer(Rc::clone(&displays))),
             fonts: None,
         }],
-        Setup::new(Waker::new(move || ping.ping())),
+        setup,
     )?;
+    let input = InputConfig::default();
     let platform = Seat {
         clipboard: None,
         locked: false,
@@ -143,22 +176,36 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
     };
     let mut session = Session {
         seat,
-        active: true,
+        recovery: Recovery::default(),
+        built: 0,
         handle: handle.clone(),
         signal: event_loop.get_signal(),
         drm,
         gbm,
         node,
         libinput,
+        devices: Vec::new(),
+        keyboard: Keyboard::new(&input).ok_or("the keymap could not be compiled")?,
+        input,
+        control,
+        display_control,
+        display_config: DisplayConfig::default(),
+        modes_pending: false,
+        blanked: false,
+        gate: WakeGate::default(),
         runner,
         platform,
         displays,
         dirty: true,
-        keyboard: Keyboard::new().ok_or("the keymap could not be compiled")?,
         repeat: None,
         wakeup: None,
+        darken_retry: None,
         lost,
+        problems,
     };
+    if let Some(config) = session.display_control.take() {
+        session.display_config = config;
+    }
     session.scan();
     if session.displays.borrow().outputs.is_empty() {
         return Err("no display is connected".into());
@@ -167,8 +214,10 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         let mut displays = session.displays.borrow_mut();
         displays.pointer = displays.outputs[0].screen.rect.center();
     }
-    event_loop.run(None, &mut session, Session::idle)?;
-    session.runner.exit();
+    let ran = event_loop.run(None, &mut session, Session::idle);
+    session.end();
+    drop(event_loop);
+    ran?;
     Ok(())
 }
 
@@ -250,17 +299,184 @@ fn open_gpu(node: u64, lost: &Arc<AtomicBool>) -> Result<(wgpu::Device, wgpu::Qu
 }
 
 impl Session {
+    fn end(mut self) {
+        self.runner.exit();
+        let Session {
+            runner,
+            platform,
+            displays,
+            devices,
+            libinput,
+            gbm,
+            drm,
+            ..
+        } = self;
+        drop(runner);
+        drop(platform);
+        drop(displays);
+        drop(devices);
+        libinput.suspend();
+        drop(libinput);
+        drop(gbm);
+        drop(drm);
+    }
+
     fn idle(&mut self) {
         if self.lost.swap(false, Ordering::SeqCst) {
             self.recover();
         }
-        if !self.active {
+        if let Some(config) = self.control.take() {
+            self.configure(config);
+        }
+        if let Some(config) = self.display_control.take() {
+            self.display_config = config;
+            self.modes_pending = true;
+        }
+        if !self.recovery.active() {
             return;
+        }
+        if self.modes_pending {
+            self.apply_modes();
         }
         if self.dirty || self.runner.has_events() {
             self.update();
         }
+        if let Some(blanked) = self.display_control.take_blanked() {
+            self.set_blanked(blanked);
+        }
         self.runner.present();
+        if self.blanked {
+            self.darken();
+        }
+        self.watch_fences();
+        self.check_failures();
+    }
+
+    fn with_recovery(&mut self, step: impl FnOnce(&mut Recovery<connector::Handle>, &mut Self)) {
+        let mut recovery = std::mem::take(&mut self.recovery);
+        step(&mut recovery, self);
+        self.recovery = recovery;
+    }
+
+    fn check_failures(&mut self) {
+        let failures: Vec<_> = self
+            .displays
+            .borrow_mut()
+            .outputs
+            .iter_mut()
+            .filter_map(|output| Some((output.connector, output.take_failure()?)))
+            .collect();
+        for (connector, problem) in failures {
+            self.with_recovery(|recovery, session| recovery.failed(session, connector, problem));
+        }
+    }
+
+    fn apply_modes(&mut self) {
+        let mut changed = false;
+        let mut waiting = false;
+        {
+            let mut displays = self.displays.borrow_mut();
+            let displays = &mut *displays;
+            for output in &mut displays.outputs {
+                if output.drawing() {
+                    waiting = true;
+                    continue;
+                }
+                let wanted = self.display_config.mode(output.id());
+                changed |= output.set_mode(&displays.gpu, wanted);
+            }
+        }
+        self.modes_pending = waiting;
+        if changed {
+            self.relayout();
+        }
+    }
+
+    fn set_blanked(&mut self, blanked: bool) {
+        if blanked == self.blanked {
+            return;
+        }
+        self.blanked = blanked;
+        self.gate.set_blanked(blanked);
+        for output in &mut self.displays.borrow_mut().outputs {
+            output.set_blanked(blanked);
+        }
+        self.dirty = true;
+    }
+
+    fn darken(&mut self) {
+        let lit = {
+            let mut displays = self.displays.borrow_mut();
+            for output in &mut displays.outputs {
+                output.darken();
+            }
+            displays.outputs.iter().any(Output::lit_while_blanked)
+        };
+        if lit && self.darken_retry.is_none() {
+            self.darken_retry = self
+                .handle
+                .insert_source(Timer::from_duration(DARKEN_RETRY), |_, _, session| {
+                    session.darken_retry = None;
+                    session.dirty = true;
+                    TimeoutAction::Drop
+                })
+                .ok();
+        }
+    }
+
+    fn watch_fences(&mut self) {
+        let fences: Vec<_> = self
+            .displays
+            .borrow_mut()
+            .outputs
+            .iter_mut()
+            .filter_map(|output| {
+                let (generation, frame, fence) = output.take_fence()?;
+                Some((output.crtc, generation, frame, fence))
+            })
+            .collect();
+        for (crtc, generation, frame, fence) in fences {
+            let spare = fence.try_clone();
+            let watched = self.handle.insert_source(
+                Generic::new(fence, Interest::READ, Mode::OneShot),
+                move |_, _, session| {
+                    session.drawn(crtc, generation, frame);
+                    session.check_failures();
+                    Ok(PostAction::Remove)
+                },
+            );
+            if let Err(error) = watched {
+                eprintln!(
+                    "beui: a frame's fence could not be watched, so it is waited for: {error}"
+                );
+                if let Ok(spare) = spare {
+                    let _ = wait_for(&spare);
+                }
+                self.drawn(crtc, generation, frame);
+            }
+        }
+    }
+
+    fn drawn(&mut self, crtc: crtc::Handle, generation: u64, frame: u64) {
+        let mut displays = self.displays.borrow_mut();
+        if let Some(output) = displays
+            .outputs
+            .iter_mut()
+            .find(|output| output.crtc == crtc)
+        {
+            output.drawn(generation, frame);
+        }
+    }
+
+    fn report_monitors(&self) {
+        let monitors = self
+            .displays
+            .borrow()
+            .outputs
+            .iter()
+            .map(Output::monitor)
+            .collect();
+        self.display_control.set_monitors(monitors);
     }
 
     fn rects(&self) -> Vec<beui::Rect> {
@@ -279,42 +495,56 @@ impl Session {
         if frame.close_requested && self.runner.close_requested() {
             self.signal.stop();
         }
-        self.dirty = frame.deferred || frame.repaint;
-        self.schedule(frame.repaint_after);
+        match self.blanked {
+            false => {
+                self.dirty = frame.deferred || frame.repaint;
+                self.schedule(frame.repaint_after);
+            }
+            true => {
+                self.dirty = frame.deferred;
+                self.schedule(frame.repaint_after.max(BLANKED_FRAME));
+            }
+        }
     }
 
     fn schedule(&mut self, after: Duration) {
         if let Some(token) = self.wakeup.take() {
             self.handle.remove(token);
         }
-        if after >= Duration::from_secs(3600) {
+        if after == Duration::MAX {
             return;
         }
         self.wakeup = self
             .handle
-            .insert_source(Timer::from_duration(after), |_, _, session| {
-                session.wakeup = None;
-                session.dirty = true;
-                TimeoutAction::Drop
-            })
+            .insert_source(
+                Timer::from_duration(after.min(LONGEST_WAIT)),
+                |_, _, session| {
+                    session.wakeup = None;
+                    session.dirty = true;
+                    TimeoutAction::Drop
+                },
+            )
             .ok();
     }
 
-    fn flipped(&mut self, crtc: smithay::reexports::drm::control::crtc::Handle) {
-        let mut displays = self.displays.borrow_mut();
-        if let Some(output) = displays
+    fn flipped(&mut self, crtc: crtc::Handle) {
+        let shown = self
+            .displays
+            .borrow_mut()
             .outputs
             .iter_mut()
             .find(|output| output.crtc == crtc)
-        {
-            output.flipped();
+            .and_then(|output| output.flipped().then_some(output.connector));
+        if let Some(connector) = shown {
+            self.recovery.shown(connector);
         }
+        self.check_failures();
     }
 
     fn scan(&mut self) {
         let connectors = connected(&self.drm);
-        let mut displays = self.displays.borrow_mut();
-        let displays = &mut *displays;
+        let mut guard = self.displays.borrow_mut();
+        let displays = &mut *guard;
         displays.outputs.retain(|output| {
             connectors
                 .iter()
@@ -330,11 +560,33 @@ impl Session {
                 continue;
             }
             let taken: Vec<_> = displays.outputs.iter().map(|output| output.crtc).collect();
-            match Output::new(&mut self.drm, &self.gbm, &gpu, handle, &info, &taken) {
-                Ok(output) => displays.outputs.push(output),
-                Err(error) => eprintln!("beui: a display was skipped: {error}"),
+            self.built += 1;
+            match Output::new(
+                &mut self.drm,
+                &self.gbm,
+                &gpu,
+                handle,
+                &info,
+                &taken,
+                &self.display_config,
+                self.built,
+            ) {
+                Ok(mut output) => {
+                    output.set_blanked(self.blanked);
+                    displays.outputs.push(output);
+                }
+                Err(error) => self
+                    .problems
+                    .report(format!("A display could not be used: {error}")),
             }
         }
+        drop(guard);
+        self.relayout();
+    }
+
+    fn relayout(&mut self) {
+        let mut guard = self.displays.borrow_mut();
+        let displays = &mut *guard;
         let sizes: Vec<_> = displays
             .outputs
             .iter()
@@ -350,6 +602,8 @@ impl Session {
         }
         displays.pointer = clamp(displays.pointer, &displays.rects());
         self.dirty = true;
+        drop(guard);
+        self.report_monitors();
     }
 
     fn recover(&mut self) {
@@ -360,23 +614,10 @@ impl Session {
     fn seat_event(&mut self, event: SessionEvent) {
         match event {
             SessionEvent::PauseSession => {
-                self.active = false;
-                self.libinput.suspend();
-                self.drm.pause();
-                self.stop_repeat();
+                self.with_recovery(|recovery, session| recovery.pause(session))
             }
             SessionEvent::ActivateSession => {
-                if self.libinput.resume().is_err() {
-                    eprintln!("beui: the input devices could not be reopened");
-                }
-                if let Err(error) = self.drm.activate(false) {
-                    eprintln!("beui: the display device could not be reclaimed: {error}");
-                }
-                for output in &mut self.displays.borrow_mut().outputs {
-                    output.reset();
-                }
-                self.active = true;
-                self.scan();
+                self.with_recovery(|recovery, session| recovery.activate(session));
             }
         }
     }
@@ -385,7 +626,7 @@ impl Session {
         if let UdevEvent::Changed { device_id } = event
             && device_id == self.node
         {
-            self.scan();
+            self.with_recovery(|recovery, session| recovery.changed(session));
         }
     }
 
@@ -395,20 +636,115 @@ impl Session {
     }
 
     fn point(&mut self, pointer: Pos2) {
-        {
-            let mut displays = self.displays.borrow_mut();
-            displays.pointer = pointer;
-            displays.moved_pointer();
-        }
+        self.place_pointer(pointer);
         self.push(Event::PointerMoved(pointer));
+    }
+
+    fn place_pointer(&mut self, pointer: Pos2) {
+        let mut displays = self.displays.borrow_mut();
+        displays.pointer = pointer;
+        displays.moved_pointer();
+    }
+
+    fn gated(&mut self, event: &InputEvent<LibinputInputBackend>) -> bool {
+        let Some((input, time)) = gate_input(event) else {
+            return true;
+        };
+        let pass = self.gate.pass(input, time);
+        if pass.woke {
+            self.set_blanked(false);
+            self.display_control.woke();
+            self.dirty = true;
+        }
+        if !pass.deliver {
+            match event {
+                InputEvent::PointerMotion { event } if !self.platform.locked => {
+                    let delta = vec2(event.delta_x() as f32, event.delta_y() as f32);
+                    self.place_pointer(moved(self.pointer(), delta, &self.rects()));
+                }
+                InputEvent::PointerMotionAbsolute { event } => {
+                    let position = self.absolute_position(event);
+                    self.place_pointer(position);
+                }
+                _ => {}
+            }
+        }
+        pass.deliver
+    }
+
+    fn absolute_position(
+        &self,
+        event: &<LibinputInputBackend as smithay::backend::input::InputBackend>::PointerMotionAbsoluteEvent,
+    ) -> Pos2 {
+        let area = bounds(&self.rects());
+        let position =
+            event.position_transformed((area.width() as i32, area.height() as i32).into());
+        clamp(
+            area.min + vec2(position.x as f32, position.y as f32),
+            &self.rects(),
+        )
     }
 
     fn pointer(&self) -> Pos2 {
         self.displays.borrow().pointer
     }
 
+    fn configure(&mut self, mut config: InputConfig) {
+        if config == self.input {
+            return;
+        }
+        if !config.same_keymap(&self.input) {
+            match Keyboard::new(&config) {
+                Some(keyboard) => self.keyboard = keyboard,
+                None => {
+                    self.problems.report(format!(
+                        "The keyboard layout {:?} ({:?}, {:?}) could not be compiled, so the last one stays.",
+                        config.layout, config.variant, config.options
+                    ));
+                    config.layout.clone_from(&self.input.layout);
+                    config.variant.clone_from(&self.input.variant);
+                    config.options.clone_from(&self.input.options);
+                }
+            }
+        }
+        self.stop_repeat();
+        self.input = config;
+        for device in &mut self.devices {
+            configure_device(device, &self.input);
+        }
+    }
+
+    fn report_devices(&self) {
+        let mut pointers: Vec<PointerDevice> = Vec::new();
+        for device in &self.devices {
+            let defaults = pointer_defaults(device);
+            if defaults == PointerConfig::default() {
+                continue;
+            }
+            let id = device_id(device);
+            if pointers.iter().any(|pointer| pointer.id == id) {
+                continue;
+            }
+            pointers.push(PointerDevice { id, defaults });
+        }
+        pointers.sort_by(|left, right| left.id.cmp(&right.id));
+        self.control.set_devices(pointers);
+    }
+
     fn input(&mut self, event: InputEvent<LibinputInputBackend>) {
+        if !self.gated(&event) {
+            return;
+        }
         match event {
+            InputEvent::DeviceAdded { mut device } => {
+                configure_device(&mut device, &self.input);
+                self.devices.push(device);
+                self.report_devices();
+            }
+            InputEvent::DeviceRemoved { device } => {
+                self.devices.retain(|known| *known != device);
+                self.report_devices();
+            }
             InputEvent::Keyboard { event } => {
                 let code = event.key_code().raw().saturating_sub(8);
                 self.key(code, event.state() == KeyState::Pressed);
@@ -422,13 +758,8 @@ impl Session {
                 self.point(moved(self.pointer(), delta, &self.rects()));
             }
             InputEvent::PointerMotionAbsolute { event } => {
-                let area = bounds(&self.rects());
-                let position =
-                    event.position_transformed((area.width() as i32, area.height() as i32).into());
-                self.point(clamp(
-                    area.min + vec2(position.x as f32, position.y as f32),
-                    &self.rects(),
-                ));
+                let position = self.absolute_position(&event);
+                self.point(position);
             }
             InputEvent::PointerButton { event } => {
                 let Some(button) = pointer_button(event.button_code()) else {
@@ -508,7 +839,9 @@ impl Session {
         }
         if let Some(terminal) = translated.terminal {
             if let Err(error) = self.seat.change_vt(terminal) {
-                eprintln!("beui: could not switch to terminal {terminal}: {error:?}");
+                self.problems.report(format!(
+                    "Could not switch to terminal {terminal}: {error:?}"
+                ));
             }
             return;
         }
@@ -526,14 +859,16 @@ impl Session {
 
     fn start_repeat(&mut self, code: u32, repeated: Vec<Event>) {
         self.stop_repeat();
-        let token =
-            self.handle
-                .insert_source(Timer::from_duration(REPEAT_DELAY), move |_, _, session| {
-                    for event in &repeated {
-                        session.push(event.clone());
-                    }
-                    TimeoutAction::ToDuration(REPEAT_RATE)
-                });
+        let interval = self.input.repeat_interval;
+        let token = self.handle.insert_source(
+            Timer::from_duration(self.input.repeat_delay),
+            move |_, _, session| {
+                for event in &repeated {
+                    session.push(event.clone());
+                }
+                TimeoutAction::ToDuration(interval)
+            },
+        );
         if let Ok(token) = token {
             self.repeat = Some((code, token));
         }
@@ -543,6 +878,140 @@ impl Session {
         if let Some((_, token)) = self.repeat.take() {
             self.handle.remove(token);
         }
+    }
+}
+
+impl Card for Session {
+    type Output = connector::Handle;
+
+    fn suspend(&mut self) {
+        self.libinput.suspend();
+        self.drm.pause();
+        self.stop_repeat();
+    }
+
+    fn release(&mut self, output: Option<connector::Handle>) {
+        self.displays
+            .borrow_mut()
+            .outputs
+            .retain(|known| output.is_some_and(|released| released != known.connector));
+    }
+
+    fn take_back(&mut self) {
+        if self.libinput.resume().is_err() {
+            self.problems
+                .report("The input devices could not be reopened.".to_owned());
+        }
+        if let Err(error) = self.drm.activate(true) {
+            self.problems.report(format!(
+                "The display device could not be taken back: {error}"
+            ));
+        }
+        if let Some(keyboard) = Keyboard::new(&self.input) {
+            if self.keyboard.modifiers() != Modifiers::NONE {
+                self.push(Event::Modifiers(Modifiers::NONE));
+            }
+            self.keyboard = keyboard;
+        }
+        if self.blanked {
+            self.set_blanked(false);
+            self.display_control.woke();
+        }
+        self.dirty = true;
+    }
+
+    fn rescan(&mut self) {
+        self.scan();
+    }
+
+    fn stall(&mut self, output: connector::Handle) {
+        let mut displays = self.displays.borrow_mut();
+        if let Some(output) = displays
+            .outputs
+            .iter_mut()
+            .find(|known| known.connector == output)
+        {
+            output.stall();
+        }
+    }
+
+    fn report(&mut self, problem: String) {
+        self.problems.report(problem);
+    }
+}
+
+fn gate_input(event: &InputEvent<LibinputInputBackend>) -> Option<(Input, u64)> {
+    let pressed = |held, pressed| match pressed {
+        true => Input::Press(held),
+        false => Input::Release(held),
+    };
+    Some(match event {
+        InputEvent::Keyboard { event } => (
+            pressed(
+                Held::Key(event.key_code().raw()),
+                event.state() == KeyState::Pressed,
+            ),
+            event.time(),
+        ),
+        InputEvent::PointerButton { event } => (
+            pressed(
+                Held::Button(event.button_code()),
+                event.state() == ButtonState::Pressed,
+            ),
+            event.time(),
+        ),
+        InputEvent::PointerMotion { event } => (Input::Other, event.time()),
+        InputEvent::PointerMotionAbsolute { event } => (Input::Other, event.time()),
+        InputEvent::PointerAxis { event } => (Input::Other, event.time()),
+        InputEvent::TouchDown { event } => (Input::Press(touch_held(event.slot())), event.time()),
+        InputEvent::TouchMotion { event } => {
+            (Input::Continue(touch_held(event.slot())), event.time())
+        }
+        InputEvent::TouchUp { event } => (Input::Release(touch_held(event.slot())), event.time()),
+        InputEvent::TouchCancel { event } => {
+            (Input::Release(touch_held(event.slot())), event.time())
+        }
+        _ => return None,
+    })
+}
+
+fn touch_held(slot: smithay::backend::input::TouchSlot) -> Held {
+    Held::Touch(slot.into())
+}
+
+fn device_id(device: &InputDevice) -> DeviceId {
+    DeviceId {
+        name: device.name().to_owned(),
+        vendor: device.id_vendor(),
+        product: device.id_product(),
+    }
+}
+
+fn pointer_defaults(device: &InputDevice) -> PointerConfig {
+    PointerConfig {
+        speed: device
+            .config_accel_is_available()
+            .then(|| device.config_accel_default_speed()),
+        tap_to_click: (device.config_tap_finger_count() > 0)
+            .then(|| device.config_tap_default_enabled()),
+        natural_scroll: device
+            .config_scroll_has_natural_scroll()
+            .then(|| device.config_scroll_default_natural_scroll_enabled()),
+    }
+}
+
+fn configure_device(device: &mut InputDevice, config: &InputConfig) {
+    let defaults = pointer_defaults(device);
+    let wanted = config.pointer(&device_id(device));
+    if let Some(default) = defaults.speed {
+        let _ = device.config_accel_set_speed(wanted.speed.unwrap_or(default));
+    }
+    if let Some(default) = defaults.tap_to_click {
+        let _ = device.config_tap_set_enabled(wanted.tap_to_click.unwrap_or(default));
+    }
+    if let Some(default) = defaults.natural_scroll {
+        let _ = device
+            .config_scroll_set_natural_scroll_enabled(wanted.natural_scroll.unwrap_or(default));
     }
 }
 

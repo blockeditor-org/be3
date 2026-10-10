@@ -102,6 +102,42 @@ pub enum Key {
     F22,
     F23,
     F24,
+    VolumeUp,
+    VolumeDown,
+    VolumeMute,
+    MicMute,
+    BrightnessUp,
+    BrightnessDown,
+    MediaPlayPause,
+    MediaNext,
+    MediaPrevious,
+    MediaStop,
+    Shift,
+    Ctrl,
+    Alt,
+    Logo,
+}
+
+impl Key {
+    pub const fn is_modifier(self) -> bool {
+        matches!(self, Self::Shift | Self::Ctrl | Self::Alt | Self::Logo)
+    }
+
+    pub const fn is_media(self) -> bool {
+        matches!(
+            self,
+            Self::VolumeUp
+                | Self::VolumeDown
+                | Self::VolumeMute
+                | Self::MicMute
+                | Self::BrightnessUp
+                | Self::BrightnessDown
+                | Self::MediaPlayPause
+                | Self::MediaNext
+                | Self::MediaPrevious
+                | Self::MediaStop
+        )
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
@@ -109,6 +145,7 @@ pub struct Modifiers {
     pub alt: bool,
     pub ctrl: bool,
     pub shift: bool,
+    pub logo: bool,
 }
 
 impl Modifiers {
@@ -116,7 +153,17 @@ impl Modifiers {
         alt: false,
         ctrl: false,
         shift: false,
+        logo: false,
     };
+
+    pub const LOGO: Self = Self {
+        logo: true,
+        ..Self::NONE
+    };
+
+    pub const fn command(self) -> bool {
+        self.ctrl || self.alt || self.logo
+    }
 
     pub const ALT: Self = Self {
         alt: true,
@@ -132,6 +179,17 @@ impl Modifiers {
         shift: true,
         ..Self::NONE
     };
+
+    pub const fn holds(self, held: Self) -> bool {
+        (self.alt || !held.alt)
+            && (self.ctrl || !held.ctrl)
+            && (self.shift || !held.shift)
+            && (self.logo || !held.logo)
+    }
+
+    pub const fn any(self) -> bool {
+        self.alt || self.ctrl || self.shift || self.logo
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -142,12 +200,47 @@ pub struct KeyPress {
     pub modifiers: Modifiers,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct KeyChord {
+    pub key: Key,
+    pub modifiers: Modifiers,
+    pub tap: bool,
+}
+
+impl KeyChord {
+    pub const fn new(key: Key, modifiers: Modifiers) -> Self {
+        Self {
+            key,
+            modifiers,
+            tap: false,
+        }
+    }
+
+    pub const fn tap(key: Key) -> Self {
+        Self {
+            key,
+            modifiers: Modifiers::NONE,
+            tap: true,
+        }
+    }
+
+    pub fn matches(self, press: KeyPress) -> bool {
+        !self.tap && press.key == self.key && press.modifiers == self.modifiers
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct PointerPress {
     pub pos: Pos2,
     pub fraction: Vec2,
     pub clicks: u32,
     pub modifiers: Modifiers,
+    pub touch: bool,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct PointerSample {
+    pub pos: Pos2,
     pub touch: bool,
 }
 
@@ -198,7 +291,9 @@ impl SecondaryDrag {
     }
 
     fn cancel(drag: &mut Option<Self>) {
-        if let Some(drag) = drag {
+        if let Some(drag) = drag
+            && !drag.ended
+        {
             drag.cancelled = true;
         }
     }
@@ -278,6 +373,8 @@ pub enum Event {
     FileHoverCancelled,
     FileDropped(DroppedFile),
     Back(BackGesture),
+    InterceptedKey(KeyPress),
+    InterceptedTap(Key),
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -410,6 +507,7 @@ impl InputState {
             }
         }
         input.pointer.pos = input.pointer.pos.map(scale);
+        input.pointer.press_pos = input.pointer.press_pos.map(scale);
         input.pointer.motion *= factor;
         input.pointer.last_click = input
             .pointer
@@ -499,6 +597,7 @@ impl InputState {
                             self.pointer.primary_down = *pressed;
                             if *pressed {
                                 self.pointer.primary_pressed = true;
+                                self.pointer.press_pos = Some(*pos);
                                 self.pointer.count_click(*pos, now);
                             } else {
                                 self.pointer.primary_released = true;
@@ -583,6 +682,7 @@ impl InputState {
 #[derive(Clone, Copy, Default, Debug)]
 pub struct Pointer {
     pub pos: Option<Pos2>,
+    pub press_pos: Option<Pos2>,
     pub motion: Vec2,
     pub primary_down: bool,
     pub primary_pressed: bool,
@@ -750,6 +850,7 @@ impl TouchState {
         pointer.pos = Some(pos);
         pointer.primary_down = true;
         pointer.primary_pressed = true;
+        pointer.press_pos = Some(pos);
         pointer.from_touch = true;
         pointer.count_click(pos, self.now);
     }
@@ -1042,6 +1143,10 @@ impl Pointer {
 
     pub fn interact_pos(&self) -> Option<Pos2> {
         self.pos
+    }
+
+    pub fn from_touch(&self) -> bool {
+        self.from_touch
     }
 
     pub fn primary_pressed(&self) -> bool {

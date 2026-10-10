@@ -15,6 +15,8 @@ const SWATCH_HEIGHT: f32 = 28.0;
 const LARGE_ICON: f32 = 28.0;
 const SPINNER_WIDTH: f32 = 120.0;
 const DIALOG_WIDTH: f32 = 380.0;
+const LAUNCHER_ICON_PIXELS: u32 = 64;
+const LAUNCHER_ICON_BORDER: u32 = 6;
 const ROW_COUNT: usize = 10_000;
 const ROWS_HEIGHT: f32 = 360.0;
 const ROW_HEIGHT: f32 = 34.0;
@@ -25,6 +27,8 @@ const COMPACT_ROW_PADDING_VERTICAL: f32 = 4.0;
 const STRIP_COUNT: usize = 200;
 const STRIP_HEIGHT: f32 = 52.0;
 const STRIP_ITEM_WIDTH: f32 = 120.0;
+const FITTED_SCROLL_HEIGHT: f32 = 200.0;
+const FITTED_SCROLL_ROWS: usize = 3;
 const EDITOR_HEIGHT: f32 = 320.0;
 const STAGE_HEIGHT: f32 = 360.0;
 const STAGE_VIEW: PanZoomView = PanZoomView::new(beui::pos2(200.0, 120.0), 0.8);
@@ -49,6 +53,7 @@ const TREE_NODES: [(&str, usize); 9] = [
     ("README.md", 1),
     ("Cargo.toml", 1),
 ];
+const TOAST_AREA_HEIGHT: f32 = 380.0;
 const FRUITS: [&str; 6] = ["Apple", "Banana", "Cherry", "Date", "Grape", "Mango"];
 
 #[sample]
@@ -100,10 +105,60 @@ pub(crate) fn DockingPage() -> NodeId {
                     />
                 </List>
             </Sample>
+            <Sample title="Switching tabs" code={vec![switch_tabs_with_alt_q::SOURCE]}>
+                <Paragraph
+                    content="Hold Alt and press Q to switch between the tabs you looked at last, \
+                     in every pane and window: each Q moves one further back, Shift+Q one \
+                     forward, letting go of Alt shows the one chosen, and Escape with Alt still \
+                     held keeps the tab you were on. The dock binds no key to this itself; the demo binds Alt+Q \
+                     where a desktop binds Alt+Tab."
+                />
+            </Sample>
             <Sample title="State follows the tab" code={vec![EditCounter::SOURCE]}>
                 <EditCounter />
             </Sample>
+            <Sample title="Fullscreen" code={vec![FullscreenTab::SOURCE]}>
+                <FullscreenTab />
+            </Sample>
+            <Sample title="Moving windows by their content" code={vec![ContentDrag::SOURCE]}>
+                <ContentDrag />
+            </Sample>
         </ScrollPage>
+    }
+}
+
+#[sample]
+#[component]
+fn ContentDrag() -> NodeId {
+    let modifier = use_context::<DragModifier>();
+    let on = create_memo(clone!(modifier -> move || {
+        modifier.as_ref().is_some_and(|modifier| modifier.held.get().is_some())
+    }));
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <Switch
+                    @test_id="demo.drag_modifier"
+                    label="Alt moves and resizes windows"
+                    on
+                    on_change={move |on: bool| {
+                        if let Some(modifier) = modifier.as_ref() {
+                            modifier.set.set(on.then_some(Modifiers::ALT));
+                        }
+                    }}
+                />
+                <Body content="Alt moves and resizes windows" />
+            </List>
+            <Caption
+                content="A dock can be given a drag modifier, which is off unless asked for. \
+                 While it is held, dragging anywhere in a window, its bar and tabs included, \
+                 moves the whole window, and dragging with the right button resizes it from \
+                 its nearest edge or corner, or moves the split nearest the pointer in a docked \
+                 pane. Nothing in the dock or its tabs sees those presses. The Linux desktop \
+                 uses Super."
+                wrap=true
+            />
+        </List>
     }
 }
 
@@ -139,6 +194,53 @@ fn EditCounter() -> NodeId {
                     wrap=true
                 />
             </Show>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn FullscreenTab() -> NodeId {
+    let control = use_dock_tab();
+    let shown = create_memo(clone!(control -> move || {
+        control.as_ref().is_some_and(|control| control.fullscreen())
+    }));
+    let label = create_memo(clone!(shown -> move || match shown.get() {
+        true => "Leave fullscreen".to_owned(),
+        false => "Show this tab fullscreen".to_owned(),
+    }));
+    let leaving = control.clone();
+    let escaping = shown.clone();
+    on_shortcut(move |press: beui::KeyPress| {
+        let leave = press.pressed && press.key == beui::Key::Escape && escaping.get_untracked();
+        if let Some(control) = leaving.as_ref().filter(|_| leave) {
+            control.leave_fullscreen();
+        }
+        leave
+    });
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal spacing=ROW_SPACING>
+                <Button
+                    @test_id="demo.fullscreen"
+                    label
+                    variant=ButtonVariant::Secondary
+                    on_click={move || {
+                        let Some(control) = control.as_ref() else {
+                            return;
+                        };
+                        match shown.get_untracked() {
+                            true => control.leave_fullscreen(),
+                            false => control.enter_fullscreen(None),
+                        }
+                    }}
+                />
+            </List>
+            <Caption
+                content="The tab covers the whole window, its bar and every pane around it. \
+                 Escape or the same button brings it back."
+                wrap=true
+            />
         </List>
     }
 }
@@ -546,6 +648,38 @@ fn LockedControls() -> NodeId {
     }
 }
 
+#[sample]
+#[component]
+fn LightSwitches() -> NodeId {
+    let (kitchen, set_kitchen) = create_signal(true);
+    let (hall, set_hall) = create_signal(false);
+    let every = create_memo(clone!(kitchen hall -> move || kitchen.get() && hall.get()));
+    let mixed = create_memo(clone!(kitchen hall -> move || kitchen.get() != hall.get()));
+    let (set_every_kitchen, set_every_hall) = (set_kitchen.clone(), set_hall.clone());
+    view! {
+        <List spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <Switch
+                    label="Every light"
+                    on={every}
+                    indeterminate={mixed}
+                    on_change={move |on: bool| {
+                        set_every_kitchen.set(on);
+                        set_every_hall.set(on);
+                    }}
+                />
+                <Body content="Every light" />
+            </List>
+            <LabelledSwitch
+                label="Kitchen"
+                on={kitchen}
+                on_change={move |on| set_kitchen.set(on)}
+            />
+            <LabelledSwitch label="Hall" on={hall} on_change={move |on| set_hall.set(on)} />
+        </List>
+    }
+}
+
 #[component]
 pub(crate) fn ChoicesPage() -> NodeId {
     view! {
@@ -558,6 +692,9 @@ pub(crate) fn ChoicesPage() -> NodeId {
             </Sample>
             <Sample title="Select" code={vec![FruitSelect::SOURCE]}>
                 <FruitSelect />
+            </Sample>
+            <Sample title="Switches with a mixed state" code={vec![LightSwitches::SOURCE]}>
+                <LightSwitches />
             </Sample>
             <Sample title="Tabs" code={vec![ScaleTabs::SOURCE]}>
                 <ScaleTabs />
@@ -952,7 +1089,56 @@ pub(crate) fn MenusPage() -> NodeId {
             <Sample title="Split buttons" code={vec![RunButtons::SOURCE]}>
                 <RunButtons />
             </Sample>
+            <Sample title="Global actions" code={vec![GlobalActions::SOURCE]}>
+                <GlobalActions />
+            </Sample>
         </ScrollPage>
+    }
+}
+
+#[sample]
+#[component]
+fn GlobalActions() -> NodeId {
+    let (locks, set_locks) = create_signal(0);
+    let (open, set_open) = create_signal(false);
+    let lock = Action::new("demo.lock", "Lock the screen", move || {
+        set_locks.update(|locks| *locks += 1)
+    })
+    .glyph(ICON_LOCK)
+    .shortcut(Chord::logo(Key::L))
+    .intercepts()
+    .register();
+    let opening = set_open.clone();
+    let palette = Action::new("demo.palette", "Command palette", move || opening.set(true))
+        .shortcut(Chord::logo(Key::P))
+        .global()
+        .register();
+    let lock_keys = lock.shortcut_label().unwrap_or_default();
+    let palette_keys = palette.shortcut_label().unwrap_or_default();
+    let locked = create_memo(move || format!("Locked {} times", locks.get()));
+    view! {
+        <List spacing=SECTION_SPACING>
+            <Paragraph
+                content="A global action answers its chord wherever the focus is, even in a text \
+                 field or under an open menu; Super chords count like Ctrl and Alt. While a \
+                 program's window or a plugin editor has the focus, its keys are its own, unless \
+                 the action intercepts them."
+            />
+            <Shortcut
+                keys={lock_keys}
+                description="lock the screen: intercepts, so it works over any program"
+            />
+            <Shortcut
+                keys={palette_keys}
+                description="open the palette: global, but a focused program keeps the keys"
+            />
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0 wrap=true>
+                <Button action={lock} variant=ButtonVariant::Primary />
+                <Button action={palette} variant=ButtonVariant::Secondary />
+            </List>
+            <Caption content={locked} />
+            <CommandPalette open on_close={move || set_open.set(false)} />
+        </List>
     }
 }
 
@@ -966,12 +1152,27 @@ fn CardMenu() -> NodeId {
         <List spacing=SECTION_SPACING>
             <ContextMenu
                 items={view! {
-                    <unstyled::MenuItem label="Copy" />
-                    <unstyled::MenuItem label="Paste" disabled={nothing_copied} />
-                    <unstyled::MenuItem label="Share">
-                        <unstyled::MenuItem label="Email" />
-                        <unstyled::MenuItem label="Link" />
+                    <unstyled::MenuItem
+                        label="Copy"
+                        glyph={ICON_CONTENT_COPY.to_owned()}
+                        detail="Ctrl+C"
+                    />
+                    <unstyled::MenuItem
+                        label="Paste"
+                        glyph={ICON_CONTENT_PASTE.to_owned()}
+                        detail="Ctrl+V"
+                        disabled={nothing_copied}
+                    />
+                    <unstyled::MenuItem label="Share" glyph={ICON_SHARE.to_owned()}>
+                        <unstyled::MenuItem label="Email" glyph={ICON_MAIL.to_owned()} />
+                        <unstyled::MenuItem label="Link" glyph={ICON_LINK.to_owned()} />
                     </unstyled::MenuItem>
+                    <unstyled::MenuItem
+                        label="Delete"
+                        glyph={ICON_DELETE.to_owned()}
+                        danger=true
+                        separated=true
+                    />
                 }}
                 on_select={move |path: Vec<usize>| {
                     let label = match path.as_slice() {
@@ -982,6 +1183,7 @@ fn CardMenu() -> NodeId {
                         [1] => "Paste".to_owned(),
                         [2, 0] => "Share > Email".to_owned(),
                         [2, 1] => "Share > Link".to_owned(),
+                        [3] => "Delete".to_owned(),
                         other => format!("{other:?}"),
                     };
                     set_menu_text.set(format!("Chose: {label}"));
@@ -989,10 +1191,11 @@ fn CardMenu() -> NodeId {
             >
                 <Card>
                     <List spacing=4.0>
-                        <Caption content="Right-click this card" />
+                        <Caption content="Right-click or long-press this card" />
                         <Paragraph
-                            content="Paste stays disabled until Copy is chosen; Share opens \
-                             a submenu on hover or Right Arrow, and Left Arrow closes it."
+                            content="A mouse opens the menu at the pointer and a finger opens \
+                             it as a sheet. Paste stays disabled until Copy is chosen; Share \
+                             opens a submenu on hover or Right Arrow, and Left Arrow closes it."
                         />
                     </List>
                 </Card>
@@ -1096,7 +1299,19 @@ pub(crate) fn OverlaysPage() -> NodeId {
             <Sample title="Dialog" code={vec![DiscardDialog::SOURCE]}>
                 <DiscardDialog />
             </Sample>
-            <Sample title="Modal sheet" code={vec![ActionsSheet::SOURCE]}>
+            <Sample title="Keep changes" code={vec![KeepModeChange::SOURCE]}>
+                <KeepModeChange />
+            </Sample>
+            <Sample title="Lock screen" code={vec![ScreenLock::SOURCE]}>
+                <ScreenLock />
+            </Sample>
+            <Sample title="Launcher" code={vec![ProgramLauncher::SOURCE, program::SOURCE]}>
+                <ProgramLauncher />
+            </Sample>
+            <Sample title="Level display" code={vec![VolumeDisplay::SOURCE]}>
+                <VolumeDisplay />
+            </Sample>
+            <Sample title="Menu as a sheet" code={vec![ActionsSheet::SOURCE]}>
                 <ActionsSheet />
             </Sample>
             <Sample title="Long modal sheet" code={vec![LongSheet::SOURCE]}>
@@ -1107,6 +1322,9 @@ pub(crate) fn OverlaysPage() -> NodeId {
                 code={vec![FullscreenButton::SOURCE, FullscreenBody::SOURCE]}
             >
                 <FullscreenButton />
+            </Sample>
+            <Sample title="Toasts" code={vec![ToastArea::SOURCE]}>
+                <ToastArea />
             </Sample>
         </ScrollPage>
     }
@@ -1202,6 +1420,186 @@ fn DiscardDialog() -> NodeId {
 
 #[sample]
 #[component]
+fn KeepModeChange() -> NodeId {
+    let (asking, set_asking) = create_signal(false);
+    let (outcome, set_outcome) = create_signal("Showing 1920 × 1080 at 60 Hz".to_owned());
+    let (kept, reverted) = (set_asking.clone(), set_asking.clone());
+    let (keeping, reverting) = (set_outcome.clone(), set_outcome);
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <Button
+                    @test_id={"demo.keep_changes.open"}
+                    label="Switch to 144 Hz"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || set_asking.set(true)}
+                />
+            </List>
+            <Caption content={outcome} @test_id={"demo.keep_changes.outcome"} />
+            <KeepChanges
+                open={asking}
+                title="Keep these display settings?"
+                on_keep={move || {
+                    keeping.set("Kept 1920 × 1080 at 144 Hz".to_owned());
+                    kept.set(false);
+                }}
+                on_revert={move || {
+                    reverting.set("Went back to 1920 × 1080 at 60 Hz".to_owned());
+                    reverted.set(false);
+                }}
+            />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn ScreenLock() -> NodeId {
+    let (locked, set_locked) = create_signal(false);
+    let (error, set_error) = create_signal(None::<String>);
+    let (unlocking, failing) = (set_locked.clone(), set_error.clone());
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <Button
+                    @test_id={"demo.lock.open"}
+                    label="Lock"
+                    glyph={ICON_LOCK.to_owned()}
+                    variant=ButtonVariant::Secondary
+                    on_click={move || {
+                        set_error.set(None);
+                        set_locked.set(true);
+                    }}
+                />
+            </List>
+            <Caption content="The password is beui." />
+            <LockScreen
+                open={locked}
+                time="09:41"
+                date="Thursday, 8 October"
+                user="Ada Lovelace"
+                error={error}
+                actions={vec![LockAction {
+                    label: "Power off".to_owned(),
+                    glyph: ICON_POWER_SETTINGS_NEW.to_owned(),
+                }]}
+                id="demo.lock"
+                on_submit={move |typed: String| match typed == "beui" {
+                    true => unlocking.set(false),
+                    false => failing.set(Some("That password is not right.".to_owned())),
+                }}
+            />
+        </List>
+    }
+}
+
+#[sample]
+fn program(
+    key: &str,
+    title: &str,
+    detail: &str,
+    terms: &[&str],
+    color: Option<Color32>,
+) -> LauncherItem {
+    let side = LAUNCHER_ICON_PIXELS;
+    let image = color.map(|color| {
+        let pixels = (0..side * side)
+            .flat_map(|at| {
+                let (x, y) = (at % side, at / side);
+                let edge = x.min(y).min(side - 1 - x).min(side - 1 - y);
+                match edge < LAUNCHER_ICON_BORDER {
+                    true => [255, 255, 255, 255],
+                    false => color.to_array(),
+                }
+            })
+            .collect();
+        Image::from_rgba(side, side, pixels)
+    });
+    LauncherItem {
+        key: key.to_owned(),
+        title: title.to_owned(),
+        detail: detail.to_owned(),
+        terms: terms.iter().map(|term| (*term).to_owned()).collect(),
+        image,
+    }
+}
+
+#[sample]
+#[component]
+fn ProgramLauncher() -> NodeId {
+    let (launcher, set_launcher) = create_signal(false);
+    let (outcome, set_outcome) = create_signal("Nothing launched".to_owned());
+    let items = Rc::new(vec![
+        program(
+            "calculator",
+            "Calculator",
+            "Perform calculations",
+            &["math"],
+            Some(Color32::from_rgb(52, 120, 246)),
+        ),
+        program(
+            "files",
+            "Files",
+            "Access and organize files",
+            &["folder", "manager"],
+            Some(Color32::from_rgb(245, 166, 35)),
+        ),
+        program(
+            "firefox",
+            "Firefox",
+            "Browse the web",
+            &["internet", "browser"],
+            Some(Color32::from_rgb(230, 80, 40)),
+        ),
+        program(
+            "terminal",
+            "Terminal",
+            "Use the command line",
+            &["shell", "prompt"],
+            None,
+        ),
+        program(
+            "text",
+            "Text Editor",
+            "Edit text files",
+            &["notepad"],
+            Some(Color32::from_rgb(90, 180, 110)),
+        ),
+    ]);
+    let (showing, closing, launching) = (set_launcher.clone(), set_launcher.clone(), set_launcher);
+    let ran = set_outcome.clone();
+    let shut = closing.clone();
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <Button
+                    @test_id={"demo.launcher.open"}
+                    label="Open the launcher"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || showing.set(true)}
+                />
+            </List>
+            <Caption content={outcome} />
+            <Launcher
+                open={launcher}
+                items
+                placeholder="Search programs"
+                on_launch={move |key: String| {
+                    set_outcome.set(format!("Launched {key}"));
+                    launching.set(false);
+                }}
+                on_run={move |line: String| {
+                    ran.set(format!("Ran {line}"));
+                    shut.set(false);
+                }}
+                on_close={move || closing.set(false)}
+            />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
 fn LongSheet() -> NodeId {
     let (sheet, set_sheet) = create_signal(false);
     let (picked, set_picked) = create_signal("Nothing picked".to_owned());
@@ -1247,59 +1645,200 @@ fn LongSheet() -> NodeId {
 #[sample]
 #[component]
 fn ActionsSheet() -> NodeId {
-    let (sheet, set_sheet) = create_signal(false);
     let (outcome, set_outcome) = create_signal("No action taken".to_owned());
-    let open_sheet = set_sheet.clone();
-    let dismiss_sheet = set_sheet.clone();
-    let duplicate = set_sheet.clone();
-    let duplicated = set_outcome.clone();
-    let rename = set_sheet.clone();
-    let renamed = set_outcome.clone();
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Button
+                <MenuButton
                     label="Show actions"
-                    variant=ButtonVariant::Secondary
-                    on_click={move || open_sheet.set(true)}
+                    items={view! {
+                        <unstyled::MenuItem label="Duplicate" glyph=ICON_CONTENT_COPY />
+                        <unstyled::MenuItem label="Rename" glyph=ICON_EDIT detail="Ctrl+R" />
+                        <unstyled::MenuItem label="Share" glyph=ICON_SHARE disabled=true />
+                        <unstyled::MenuItem
+                            label="Delete"
+                            glyph=ICON_DELETE
+                            danger=true
+                            separated=true
+                        />
+                    }}
+                    on_select={move |path: Vec<usize>| {
+                        let done = match path.as_slice() {
+                            [0] => "Duplicated",
+                            [1] => "Renamed",
+                            [3] => "Deleted",
+                            _ => return,
+                        };
+                        set_outcome.set(done.to_owned());
+                    }}
                 />
             </List>
             <Caption
-                content="A sheet slides up from the bottom; swipe it down, or tap above it, to close it."
+                content="Tap the button to see its menu as a sheet; swipe it down, or tap above \
+                 it, to close it. A click opens the same menu under the button."
                 wrap=true
             />
             <Caption content={outcome} />
-            <ModalSheet open={sheet} fit=true on_close={move || dismiss_sheet.set(false)}>
-                <List spacing=0.0>
-                    <ActionRow
-                        label="Duplicate"
-                        glyph=ICON_CONTENT_COPY
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn ToastArea() -> NodeId {
+    let theme = use_theme();
+    let area = beui::reactive::NodeRef::new();
+    let (toasts, set_toasts) = create_signal(vec![
+        Toast {
+            id: 1,
+            message: "Saved a copy of the workspace.".to_owned(),
+            danger: false,
+            ..Toast::default()
+        },
+        Toast {
+            id: 2,
+            message: "Could not run firefox: the command was not found".to_owned(),
+            danger: true,
+            ..Toast::default()
+        },
+        message_toast(3),
+    ]);
+    let (next, set_next) = create_signal(4);
+    let (chosen, set_chosen) = create_signal(String::new());
+    let add = set_toasts.clone();
+    let notify = set_toasts.clone();
+    let dismiss = set_toasts.clone();
+    let act = set_toasts.clone();
+    let open = set_toasts.clone();
+    let (counted, set_counted) = (next.clone(), set_next.clone());
+    let opened = set_chosen.clone();
+    view! {
+        <Frame
+            @node_ref=&area
+            height=TOAST_AREA_HEIGHT
+            color={theme.surface.clone()}
+            radius=CARD_RADIUS
+            padding_horizontal=12.0
+            padding_vertical=12.0
+        >
+            <List spacing=0.0>
+                <List direction=Direction::Horizontal align=Align::Start spacing=8.0>
+                    <Button
+                        label="Show a toast"
+                        variant=ButtonVariant::Secondary
                         on_click={move || {
-                            duplicated.set("Duplicated".to_owned());
-                            duplicate.set(false);
+                            let id = next.get_untracked();
+                            set_next.set(id + 1);
+                            add.update(|toasts| toasts.push(Toast {
+                                id,
+                                message: format!("Toast {id}, gone in a few seconds."),
+                                danger: false,
+                                ..Toast::default()
+                            }));
                         }}
                     />
-                    <ActionRow
-                        label="Rename"
-                        glyph=ICON_EDIT
-                        detail="Ctrl+R"
+                    <Button
+                        label="Show a message"
+                        variant=ButtonVariant::Secondary
                         on_click={move || {
-                            renamed.set("Renamed".to_owned());
-                            rename.set(false);
+                            let id = counted.get_untracked();
+                            set_counted.set(id + 1);
+                            notify.update(|toasts| toasts.push(message_toast(id)));
                         }}
                     />
-                    <ActionRow label="Share" glyph=ICON_SHARE disabled=true />
-                    <ActionRow
-                        label="Delete"
-                        glyph=ICON_DELETE
-                        danger=true
-                        on_click={move || {
-                            set_outcome.set("Deleted".to_owned());
-                            set_sheet.set(false);
-                        }}
-                    />
+                    <Text string={chosen} font_size=14.0 color={theme.text_muted.clone()} />
                 </List>
-            </ModalSheet>
+                <Toasts
+                    anchor={area}
+                    toasts={toasts}
+                    on_dismiss={move |id: u64| dismiss.update(|toasts| toasts.retain(|toast| toast.id != id))}
+                    on_action={move |(id, key): (u64, String)| {
+                        set_chosen.set(format!("Chose {key} on message {id}"));
+                        act.update(|toasts| toasts.retain(|toast| toast.id != id));
+                    }}
+                    on_activate={move |id: u64| {
+                        opened.set(format!("Opened message {id}"));
+                        open.update(|toasts| toasts.retain(|toast| toast.id != id));
+                    }}
+                />
+            </List>
+        </Frame>
+    }
+}
+
+fn message_toast(id: u64) -> Toast {
+    Toast {
+        id,
+        title: "Mia Chen".to_owned(),
+        message: "Lunch at noon? The new place on Bridge Street has a table free.".to_owned(),
+        actions: vec![
+            ToastAction {
+                key: "reply".to_owned(),
+                label: "Reply".to_owned(),
+            },
+            ToastAction {
+                key: "read".to_owned(),
+                label: "Mark as read".to_owned(),
+            },
+        ],
+        activates: true,
+        sticky: true,
+        ..Toast::default()
+    }
+}
+
+#[sample]
+#[component]
+fn VolumeDisplay() -> NodeId {
+    let (volume, set_volume) = create_signal(0.4_f32);
+    let (muted, set_muted) = create_signal(false);
+    let (shown, set_shown) = create_signal(0_u64);
+    let level = create_memo(move || {
+        let (volume, muted) = (volume.get(), muted.get());
+        let glyph = match volume {
+            _ if muted || volume == 0.0 => ICON_VOLUME_OFF,
+            volume if volume < 0.5 => ICON_VOLUME_DOWN,
+            _ => ICON_VOLUME_UP,
+        };
+        Some(OsdLevel {
+            glyph: glyph.to_owned(),
+            label: "Volume".to_owned(),
+            level: volume,
+            muted,
+        })
+    });
+    let show = set_shown.clone();
+    let step = move |by: f32| {
+        set_volume.update(|volume| *volume = (*volume + by).clamp(0.0, 1.0));
+        set_shown.update(|shown| *shown += 1);
+    };
+    let (down, up) = (step.clone(), step);
+    view! {
+        <List spacing=0.0>
+            <List direction=Direction::Horizontal align=Align::Start spacing=8.0>
+                <Button
+                    @test_id={"demo.osd.down"}
+                    label="Volume down"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || down(-0.05)}
+                />
+                <Button
+                    @test_id={"demo.osd.up"}
+                    label="Volume up"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || up(0.05)}
+                />
+                <Button
+                    @test_id={"demo.osd.mute"}
+                    label="Mute"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || {
+                        set_muted.update(|muted| *muted = !*muted);
+                        show.update(|shown| *shown += 1);
+                    }}
+                />
+            </List>
+            <LevelOsd level={level} shown={shown} id="demo.osd" />
         </List>
     }
 }
@@ -1358,6 +1897,9 @@ pub(crate) fn RowsPage() -> NodeId {
             <Sample title="A horizontal strip" code={vec![CardStrip::SOURCE, StripCard::SOURCE]}>
                 <CardStrip />
             </Sample>
+            <Sample title="A scroll that fits its rows" code={vec![FittedScroll::SOURCE]}>
+                <FittedScroll />
+            </Sample>
             <Sample
                 title="Ten thousand rows"
                 code={vec![ThousandsOfRows::SOURCE, ScrollRow::SOURCE, ScrollRowFace::SOURCE]}
@@ -1389,6 +1931,55 @@ fn CardStrip() -> NodeId {
                     }}
                 </VirtualList>
             </Scroll>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn FittedScroll() -> NodeId {
+    let theme = use_theme();
+    let (count, set_count) = create_signal(FITTED_SCROLL_ROWS);
+    let rows = create_memo(move || (0..count.get()).collect::<Vec<usize>>());
+    let adding = set_count.clone();
+    view! {
+        <List spacing=SECTION_SPACING>
+            <Caption
+                content="With max_length a scroll is as long as what it holds, up to that length, \
+                 and scrolls from there on."
+                wrap=true
+            />
+            <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
+                <Button
+                    label="Add a row"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || adding.update(|count| *count += 1)}
+                />
+                <Button
+                    label="Remove a row"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || set_count.update(|count| *count = count.saturating_sub(1))}
+                />
+            </List>
+            <Frame
+                outline={theme.border.clone()}
+                outline_width=1.0
+                outline_visible=true
+                radius=RADIUS
+            >
+                <Scroll max_length=FITTED_SCROLL_HEIGHT>
+                    <ForEach keys={rows}>
+                        {move |index: usize| view! {
+                            <Frame
+                                padding_horizontal=ROW_PADDING_HORIZONTAL
+                                padding_vertical=ROW_PADDING_VERTICAL
+                            >
+                                <Body content={format!("Row {}", index + 1)} />
+                            </Frame>
+                        }}
+                    </ForEach>
+                </Scroll>
+            </Frame>
         </List>
     }
 }

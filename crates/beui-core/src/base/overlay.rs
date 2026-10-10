@@ -11,18 +11,25 @@ use crate::base::frame::FrameNode;
 use crate::base::interactive::InteractiveNode;
 use crate::callback::{Callback, NodeRef};
 use crate::current::with_document;
-use crate::document::Document;
+use crate::document::{Acted, Document};
 use crate::node::{ClickHandler, Element, InteractInput, NodeId, NodeOf, Rects};
 
 #[derive(Clone, PartialEq)]
 pub enum OverlayAnchor {
     Node(NodeRef),
     Point(Pos2),
+    Rect(Rect),
 }
 
 impl beui_tree::reactive::IntoProp<OverlayAnchor> for &NodeRef {
     fn into_prop(self) -> beui_tree::reactive::Prop<OverlayAnchor> {
         beui_tree::reactive::Prop::Static(OverlayAnchor::Node(self.clone()))
+    }
+}
+
+impl beui_tree::reactive::IntoProp<OverlayAnchor> for NodeRef {
+    fn into_prop(self) -> beui_tree::reactive::Prop<OverlayAnchor> {
+        beui_tree::reactive::Prop::Static(OverlayAnchor::Node(self))
     }
 }
 
@@ -32,7 +39,7 @@ impl Default for OverlayAnchor {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Placement {
     At,
     Over(u16),
@@ -41,13 +48,14 @@ pub enum Placement {
     RightStart,
     Center,
     Fill,
+    FillScreen,
     InsideTop,
     InsideTopEnd,
     InsideBottom,
     InsideBottomEnd,
 }
 
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
 pub enum OverlayMode {
     #[default]
     Modal,
@@ -72,7 +80,9 @@ pub struct OverlayNode {
     traps_focus: bool,
     light: bool,
     trigger: Option<NodeRef>,
+    screen: Option<String>,
     mode: OverlayMode,
+    locks: bool,
     on_dismiss: Option<ClickHandler>,
 }
 
@@ -94,13 +104,34 @@ impl OverlayNode {
             traps_focus: true,
             light: false,
             trigger: None,
+            screen: None,
             mode: OverlayMode::Modal,
+            locks: false,
             on_dismiss: None,
         }
     }
 
     pub fn is_open(&self) -> bool {
         self.open
+    }
+
+    fn area(&self, doc: &Document, viewport: Rect, anchored: Option<Rect>) -> Rect {
+        let opened = || {
+            self.screen
+                .as_deref()
+                .and_then(|id| doc.screen_named(id))
+                .or_else(|| doc.screens().into_iter().next())
+        };
+        let screen = match (self.placement, &self.anchor) {
+            (Placement::Fill | Placement::At | Placement::Around, _) => None,
+            (Placement::Center | Placement::FillScreen, _) => opened(),
+            (_, OverlayAnchor::Node(_)) => {
+                anchored.map_or_else(opened, |rect| doc.screen_under(rect))
+            }
+            (_, OverlayAnchor::Point(pos)) => doc.screen_at(*pos),
+            (_, OverlayAnchor::Rect(rect)) => doc.screen_under(*rect),
+        };
+        screen.map_or(viewport, |screen| screen.rect)
     }
 }
 
@@ -126,7 +157,7 @@ fn resolve_rect(
     if placement == Placement::Around {
         return Rect::from_center_size(anchor_rect.center(), content_size);
     }
-    if placement == Placement::Fill {
+    if let Placement::Fill | Placement::FillScreen = placement {
         return viewport;
     }
     if placement == Placement::Center {
@@ -170,6 +201,23 @@ fn resolve_rect(
             content_size,
         );
     }
+    let mut content_size = content_size.min(viewport.size());
+    if placement == Placement::BelowStart {
+        let below = viewport.bottom() - anchor_rect.bottom();
+        let above = anchor_rect.top() - viewport.top();
+        if content_size.y > below && content_size.y > above && below.max(above) > 0.0 {
+            content_size.y = below.max(above);
+            let top = match below >= above {
+                true => anchor_rect.bottom(),
+                false => anchor_rect.top() - content_size.y,
+            };
+            let left = anchor_rect
+                .left()
+                .min(viewport.right() - content_size.x)
+                .max(viewport.left());
+            return Rect::from_min_size(pos2(left, top), content_size);
+        }
+    }
     let mut origin = match placement {
         Placement::BelowStart => pos2(anchor_rect.left(), anchor_rect.bottom()),
         Placement::RightStart => pos2(anchor_rect.right(), anchor_rect.top()),
@@ -178,6 +226,7 @@ fn resolve_rect(
         | Placement::Around
         | Placement::Center
         | Placement::Fill
+        | Placement::FillScreen
         | Placement::InsideTop
         | Placement::InsideTopEnd
         | Placement::InsideBottom
@@ -217,17 +266,19 @@ impl Element for OverlayNode {
         let painter = &painter.ctx().painter();
         let viewport = doc.viewport_rect();
         crate::layout::layout(doc, painter, self.scrim, viewport, out);
-        let content_size = crate::layout::measure(doc, painter, content, viewport.size());
         let anchored = match &self.anchor {
             OverlayAnchor::Node(node) => node.try_get().and_then(|id| out.get(&id)),
-            OverlayAnchor::Point(_) => None,
+            OverlayAnchor::Point(_) | OverlayAnchor::Rect(_) => None,
         };
         self.anchored = anchored;
+        let area = self.area(doc, viewport, anchored);
+        let content_size = crate::layout::measure(doc, painter, content, area.size());
         let anchor_rect = match &self.anchor {
-            OverlayAnchor::Node(_) => anchored.unwrap_or(viewport),
+            OverlayAnchor::Node(_) => anchored.unwrap_or(area),
             OverlayAnchor::Point(pos) => Rect::from_min_size(*pos, Vec2::ZERO),
+            OverlayAnchor::Rect(rect) => *rect,
         };
-        let rect = resolve_rect(viewport, anchor_rect, self.placement, content_size);
+        let rect = resolve_rect(area, anchor_rect, self.placement, content_size);
         crate::layout::layout(doc, painter, content, rect, out);
     }
 
@@ -275,6 +326,28 @@ impl Element for OverlayNode {
 
     fn detail(&self) -> Option<String> {
         Some(if self.open { "open" } else { "closed" }.to_owned())
+    }
+
+    fn properties(&self) -> Vec<(&'static str, String)> {
+        vec![
+            ("open", self.open.to_string()),
+            ("mode", format!("{:?}", self.mode)),
+            ("placement", format!("{:?}", self.placement)),
+            (
+                "anchor",
+                match &self.anchor {
+                    OverlayAnchor::Node(_) => "node".to_owned(),
+                    OverlayAnchor::Point(point) => format!("{}, {}", point.x, point.y),
+                    OverlayAnchor::Rect(rect) => format!(
+                        "{}, {} to {}, {}",
+                        rect.min.x, rect.min.y, rect.max.x, rect.max.y
+                    ),
+                },
+            ),
+            ("traps focus", self.traps_focus.to_string()),
+            ("light dismiss", self.light.to_string()),
+            ("locks", self.locks.to_string()),
+        ]
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -381,7 +454,6 @@ impl Document {
         self.arena.get_mut_as::<OverlayNode>(overlay).mode = mode;
         if self.arena.get_as::<OverlayNode>(overlay).open {
             self.close_overlay(overlay);
-            self.arena.get_mut_as::<OverlayNode>(overlay).open = false;
             self.open_overlay(overlay);
         }
     }
@@ -402,16 +474,72 @@ impl Document {
 
     pub fn overlays_bottom_up(&self) -> Vec<NodeOf<OverlayNode>> {
         let floating = self.floating_overlays();
-        let passive = self
+        let passive: Vec<NodeOf<OverlayNode>> = self
             .passive_overlays
             .iter()
-            .filter(|overlay| !floating.contains(overlay));
+            .filter(|overlay| !floating.contains(overlay))
+            .copied()
+            .collect();
+        let Some(lock) = self.lock() else {
+            return floating
+                .iter()
+                .chain(self.overlay_stack.iter())
+                .chain(passive.iter())
+                .copied()
+                .collect();
+        };
+        let at = self
+            .overlay_stack
+            .iter()
+            .position(|overlay| *overlay == lock)
+            .unwrap_or(self.overlay_stack.len());
+        let inside = self.overlays_within(lock, &passive);
+        let outside: Vec<_> = passive
+            .into_iter()
+            .filter(|overlay| !inside.contains(overlay))
+            .collect();
         floating
             .iter()
-            .chain(self.overlay_stack.iter())
-            .chain(passive)
+            .chain(self.overlay_stack[..at].iter())
+            .chain(outside.iter())
+            .chain(self.overlay_stack[at..].iter())
+            .chain(inside.iter())
             .copied()
             .collect()
+    }
+
+    pub fn set_overlay_locks(&mut self, overlay: NodeOf<OverlayNode>, locks: bool) {
+        if self.arena.get_as::<OverlayNode>(overlay).locks == locks {
+            return;
+        }
+        self.arena.touch_mut_as::<OverlayNode>(overlay).locks = locks;
+        if self.arena.get_as::<OverlayNode>(overlay).open {
+            self.close_overlay(overlay);
+            self.open_overlay(overlay);
+        }
+    }
+
+    pub(crate) fn lock(&self) -> Option<NodeOf<OverlayNode>> {
+        self.overlay_stack.iter().copied().find(|overlay| {
+            self.contains(*overlay) && self.arena.get_as::<OverlayNode>(*overlay).locks
+        })
+    }
+
+    pub fn locked(&self) -> bool {
+        self.lock().is_some()
+    }
+
+    pub(crate) fn is_within(&self, node: NodeId, ancestor: NodeId) -> bool {
+        let mut pending = vec![ancestor];
+        while let Some(id) = pending.pop() {
+            if id == node {
+                return true;
+            }
+            if self.contains(id) {
+                pending.extend(self.arena.get(id).children());
+            }
+        }
+        false
     }
 
     pub fn pointer_layers(&self, root: NodeId) -> Vec<NodeId> {
@@ -537,51 +665,91 @@ impl Document {
         if self.arena.get_as::<OverlayNode>(overlay).open {
             return;
         }
-        self.arena.get_mut_as::<OverlayNode>(overlay).open = true;
+        let screen = self.opening_screen(overlay);
+        let node = self.arena.get_mut_as::<OverlayNode>(overlay);
+        node.open = true;
+        node.screen = screen;
+        let below_lock = self
+            .lock()
+            .filter(|lock| !self.is_within(overlay.id(), lock.id()))
+            .and_then(|lock| self.overlay_stack.iter().position(|open| *open == lock));
         match self.arena.get_as::<OverlayNode>(overlay).mode.stacked() {
-            true => self.overlay_stack.push(overlay),
+            true => match below_lock {
+                Some(at) => self.overlay_stack.insert(at, overlay),
+                None => self.overlay_stack.push(overlay),
+            },
             false => self.passive_overlays.push(overlay),
         }
         self.arena.invalidate_node(overlay);
     }
 
-    pub fn close_overlay(&mut self, overlay: NodeOf<OverlayNode>) {
-        if let Some(level) = self.overlay_stack.iter().position(|&id| id == overlay) {
-            self.close_overlay_at(level);
-            return;
-        }
-        if let Some(index) = self.passive_overlays.iter().position(|&id| id == overlay) {
-            self.passive_overlays.remove(index);
-            if self.contains(overlay) {
-                self.arena.get_mut_as::<OverlayNode>(overlay).open = false;
-                self.arena.invalidate_node(overlay);
-            }
-            self.call_overlay_dismiss(overlay);
-        }
-    }
-
-    pub fn close_topmost_overlay(&mut self) {
-        if !self.overlay_stack.is_empty() {
-            self.close_overlay_at(self.overlay_stack.len() - 1);
-        }
-    }
-
-    fn close_overlay_at(&mut self, level: usize) {
-        let Some(&closed) = self.overlay_stack.get(level) else {
-            return;
+    fn opening_screen(&self, overlay: NodeOf<OverlayNode>) -> Option<String> {
+        let rect_of = |node: Option<NodeId>| node.and_then(|node| self.node_rect(node));
+        let trigger = self
+            .arena
+            .get_as::<OverlayNode>(overlay)
+            .trigger
+            .as_ref()
+            .and_then(NodeRef::try_get);
+        let pressed = match self.acted {
+            Acted::Pointer(pos) => Some(Rect::from_min_size(pos, Vec2::ZERO)),
+            Acted::Keys | Acted::Nothing => None,
         };
-        let above = self.overlay_stack.split_off(level + 1);
-        let nested = self.overlays_within(closed, &above);
-        let (nested, kept): (Vec<NodeOf<OverlayNode>>, Vec<NodeOf<OverlayNode>>) =
-            above.into_iter().partition(|id| nested.contains(id));
-        self.overlay_stack.pop();
-        self.overlay_stack.extend(kept);
-        for id in std::iter::once(closed).chain(nested) {
+        let pointer = self
+            .last_pointer
+            .map(|sample| Rect::from_min_size(sample.pos, Vec2::ZERO));
+        let rect = rect_of(trigger)
+            .or(pressed)
+            .or_else(|| rect_of(self.focused))
+            .or(pointer)?;
+        Some(self.screen_under(rect)?.id)
+    }
+
+    pub fn close_overlay(&mut self, overlay: NodeOf<OverlayNode>) {
+        self.end_overlay(overlay, false);
+    }
+
+    pub fn dismiss_overlay(&mut self, overlay: NodeOf<OverlayNode>) {
+        self.end_overlay(overlay, true);
+    }
+
+    fn end_overlay(&mut self, overlay: NodeOf<OverlayNode>, dismissed: bool) {
+        if dismissed && self.contains(overlay) && self.arena.get_as::<OverlayNode>(overlay).locks {
+            return;
+        }
+        let open: Vec<NodeOf<OverlayNode>> = self
+            .overlay_stack
+            .iter()
+            .chain(self.passive_overlays.iter())
+            .copied()
+            .filter(|&id| id != overlay)
+            .collect();
+        if open.len() == self.overlay_stack.len() + self.passive_overlays.len() {
+            return;
+        }
+        let mut nested = self.overlays_within(overlay, &open);
+        if dismissed {
+            nested.retain(|id| !self.arena.get_as::<OverlayNode>(*id).locks);
+        }
+        let closing = |id: &NodeOf<OverlayNode>| *id == overlay || nested.contains(id);
+        self.overlay_stack.retain(|id| !closing(id));
+        self.passive_overlays.retain(|id| !closing(id));
+        for (id, dismissed) in
+            std::iter::once((overlay, dismissed)).chain(nested.iter().map(|&id| (id, true)))
+        {
             if self.contains(id) {
                 self.arena.get_mut_as(id).open = false;
+                self.arena.invalidate_node(id);
             }
-            self.arena.invalidate_node(id);
-            self.call_overlay_dismiss(id);
+            if dismissed {
+                self.call_overlay_dismiss(id);
+            }
+        }
+    }
+
+    pub fn dismiss_topmost_overlay(&mut self) {
+        if let Some(&top) = self.overlay_stack.last() {
+            self.end_overlay(top, true);
         }
     }
 
@@ -663,10 +831,13 @@ impl Document {
 
     pub fn dismiss_light_overlays(&mut self, pos: Pos2) {
         while let Some(&top) = self.overlay_stack.last() {
-            if !self.light_overlay_misses(top, pos) || self.on_overlay_trigger(top, pos) {
+            if !self.light_overlay_misses(top, pos)
+                || self.on_overlay_trigger(top, pos)
+                || self.arena.get_as::<OverlayNode>(top).locks
+            {
                 return;
             }
-            self.close_overlay_at(self.overlay_stack.len() - 1);
+            self.end_overlay(top, true);
         }
     }
 
@@ -690,7 +861,8 @@ impl Document {
         if !inside_any {
             let scrim = self.arena.get_as::<OverlayNode>(overlay).scrim;
             self.capture_pointer(scrim);
-            self.close_overlay_at(level);
+            self.forward.swallow_press();
+            self.end_overlay(overlay, true);
         }
     }
 }

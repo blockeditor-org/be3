@@ -7,7 +7,7 @@ use std::{
 use beui::reactive::{
     BackHandler, Canvas, CanvasItem, Drawing, Embed, EmbedPlacement, EmbedSlot, ForEach, Frame,
     Interactive, Layers, List, Memo, NodeRef, Prop, Show, clone, component, create_effect,
-    create_memo, draw_gpu, on_cleanup, use_context, view,
+    create_memo, draw_gpu, on_cleanup, try_with_document, untrack, use_context, use_screens, view,
 };
 use beui::{Align, CursorIcon, ForwardedInput, ImeCursor, NodeId, Pos2, Rect, Region, Vec2, pos2};
 use block_plugin_api::{ChildId, EditorInstanceId, EditorRegion, FrameSpec, PluginManifest};
@@ -67,6 +67,7 @@ pub(crate) fn PluginRegion(
 ) -> NodeId {
     let instance = editor.instance;
     let plugin_id = editor.plugin_id().to_owned();
+    let block = editor.role.block().map(|block| block.id);
     plugin_host::mount_region(RegionSlot {
         plugin: &editor.plugin,
         block_types: &editor.block_types,
@@ -80,8 +81,9 @@ pub(crate) fn PluginRegion(
     }));
     let revision = super::listen(&plugin_id);
     let placed: Rc<Cell<Option<EmbedPlacement>>> = Rc::new(Cell::new(None));
+    let screens = use_screens();
     let place: Rc<dyn Fn(Option<EmbedPlacement>)> = Rc::new(
-        clone!(plugin_id frame view -> move |placement: Option<EmbedPlacement>| {
+        clone!(plugin_id frame view screens -> move |placement: Option<EmbedPlacement>| {
             match placement {
                 Some(placement) => plugin_host::place_region(
                     &plugin_id,
@@ -90,6 +92,7 @@ pub(crate) fn PluginRegion(
                     RegionPlacement {
                         rect: placement.rect,
                         clip: placement.clip,
+                        screens: screens.get_untracked(),
                     },
                     frame.peek(),
                     view.peek(),
@@ -106,6 +109,7 @@ pub(crate) fn PluginRegion(
     create_effect(clone!(placed place frame view -> move || {
         let _ = frame.get();
         let _ = view.get();
+        screens.with(|_| ());
         place(placed.get());
     }));
     let state = create_memo(clone!(revision -> move || {
@@ -207,6 +211,19 @@ pub(crate) fn PluginRegion(
         state.with(|view| view.cursor.unwrap_or(CursorIcon::Default))
     }));
     let handles_back = create_memo(clone!(state -> move || state.with(|view| view.handles_back)));
+    let intercepted = create_memo(clone!(state -> move || {
+        state.with(|view| view.intercepted_keys.clone())
+    }));
+    let shell = super::shell();
+    super::intercept::intercept_keys(
+        plugin_id.clone(),
+        instance,
+        region,
+        intercepted,
+        move || region == EditorRegion::Frame && block.is_some() && shell.get_untracked() == block,
+    );
+    let catcher = NodeRef::new();
+    take_keyboard(&state, &catcher);
     let anchor = NodeRef::new();
     let ime = create_memo(clone!(state -> move || state.with(|view| view.ime.is_some())));
     let ime_cursor = create_memo(clone!(state anchor -> move || {
@@ -259,6 +276,9 @@ pub(crate) fn PluginRegion(
                     })
             })
     });
+    let claims = clone!(state passive -> move |(position, held): (Pos2, beui::Modifiers)| {
+        !passive.peek() && state.with_untracked(|view| view.claims(position, held))
+    });
     let below = Rc::clone(&child_view);
     let above = child_view;
     view! {
@@ -271,6 +291,7 @@ pub(crate) fn PluginRegion(
             />
             <BackHandler enabled={handles_back} on_gesture={back}>
                 <Interactive
+                    @node_ref={&catcher}
                     focusable=true
                     cursor={cursor}
                     ime={ime}
@@ -279,6 +300,7 @@ pub(crate) fn PluginRegion(
                     ime_text={ime_text}
                     on_forward={forward}
                     forward_at={takes}
+                    claim_at={claims}
                 >
                     <Embed slot={slot} punch=false @node_ref={&anchor}>
                         <Drawing draw={base} />
@@ -290,6 +312,38 @@ pub(crate) fn PluginRegion(
             <Drawing draw={floating} />
         </Layers>
     }
+}
+
+fn take_keyboard(state: &Memo<RegionView>, catcher: &NodeRef) {
+    let wants = create_memo(clone!(state -> move || state.with(|view| view.wants_keyboard)));
+    let before = Cell::new(None::<NodeId>);
+    let catcher = catcher.clone();
+    create_effect(move || {
+        let wanted = wants.get();
+        untrack(|| {
+            let Some(region) = catcher.try_get() else {
+                return;
+            };
+            try_with_document(|document| {
+                let focused = document.focused_node();
+                match wanted {
+                    true if focused != Some(region) => {
+                        before.set(focused);
+                        document.focus_focusable(region);
+                    }
+                    true => {}
+                    false => {
+                        let back = before.take().filter(|back| document.contains(*back));
+                        if let Some(back) = back
+                            && focused == Some(region)
+                        {
+                            document.focus_focusable(back);
+                        }
+                    }
+                }
+            });
+        });
+    });
 }
 
 #[component]

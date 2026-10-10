@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+#
+# Runs the tests whose full names (module path, then function, as the test
+# binary filters them) contain NAME and prints everything they print,
+# whether they pass or fail. It finds the crates whose sources hold such a test
+# and runs each crate's :test, so a plugin's tests run as wasm, where they can
+# compare paintings, and everything else runs natively. --update accepts the
+# paintings they make. Naming a target runs that target's tests alone.
+#
+# Usage:
+#   ./scripts/test NAME [--update]
+#   ./scripts/test //crates/editors/checklist:test [NAME] [--update]
+
+set -euo pipefail
+
+source "$(dirname "${BASH_SOURCE[0]}")/internal/common.sh"
+cd "$repository"
+
+usage() {
+    echo "Usage: ./scripts/test NAME [--update]" >&2
+    echo "       ./scripts/test //crates/<crate>:test [NAME] [--update]" >&2
+    exit 1
+}
+
+name=''
+update=false
+targets=()
+for argument in "$@"; do
+    case "$argument" in
+        --update) update=true ;;
+        //*) targets+=("$argument") ;;
+        -*) usage ;;
+        *) [[ -z "$name" ]] || usage; name="$argument" ;;
+    esac
+done
+[[ -n "$name" || ${#targets[@]} -gt 0 ]] || usage
+
+if [[ ${#targets[@]} -eq 0 ]]; then
+    if [[ ! "$name" =~ ^[A-Za-z0-9_:]+$ ]]; then
+        echo "A test name is letters, digits, underscores and ::, not '$name'." >&2
+        exit 1
+    fi
+    # A test's name is its module path and its function, the way the test
+    # binary filters it: crates/block-app/src/media/tests/plays.rs holds
+    # media::tests::plays::plays. Every function in a file with a test in it is
+    # named so, and NAME picks the crates where one of those names contains it.
+    crates=()
+    while IFS= read -r crate; do
+        crates+=("$crate")
+    done < <(grep -rlE --include='*.rs' '#\[(test|tokio::test)' crates \
+        | xargs -r grep -oHE 'fn [A-Za-z0-9_]+' \
+        | awk -v name="$name" -f "$internal/test-names.awk" \
+        | sort -u)
+    if [[ ${#crates[@]} -eq 0 ]]; then
+        echo "No test in crates/ has a name containing '$name'." >&2
+        echo "A test's name is its module path and its function, such as media::tests::plays::plays for" >&2
+        echo "crates/block-app/src/media/tests/plays.rs; NAME may be any part of one." >&2
+        exit 1
+    fi
+    while IFS= read -r crate; do
+        if ! grep -qE '^(cargo_test|editor|plugin_tests)\(' "$crate/BUCK" 2> /dev/null; then
+            echo "Skipping $crate: it holds a test whose name contains '$name' but has no :test target in its BUCK." >&2
+            continue
+        fi
+        targets+=("//$crate:test")
+    done < <(printf '%s\n' "${crates[@]}")
+    [[ ${#targets[@]} -gt 0 ]] || exit 1
+fi
+
+arguments=(--test-arg=--nocapture)
+[[ -z "$name" ]] || arguments+=("--test-arg=$name")
+! $update || arguments+=(--env UPDATE_SNAPSHOTS=1)
+
+echo "Running ${targets[*]}" >&2
+BE3_VERBOSE=1 exec "$repository/scripts/buck" test "${targets[@]}" -- "${arguments[@]}"

@@ -12,21 +12,24 @@ use beui_core::icons::{ICON_CHECK, ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW
 use beui_core::node::NodeId;
 use beui_core::rich::{TextCaret, TextMark};
 use beui_view::components::overlay::Overlay;
+use text_editor_core::{EditorCommand, MarkdownCommand};
+
+use crate::{Toggle, ToggleHandle};
 use beui_view::reactive::{
-    Canvas, CanvasItem, ForEach, Frame, List, Memo, NodeRef, Portal, RenderFn, Show, Text,
-    TextItem, VirtualList, clone, component_rect, create_effect, create_memo, on_cleanup, untrack,
-    with_document,
+    Callback, Canvas, CanvasItem, ForEach, Frame, List, Memo, NodeRef, Portal, RenderFn, Show,
+    Text, TextItem, VirtualList, clone, component_rect, create_effect, create_memo, on_cleanup,
+    untrack, with_document,
 };
 
 use super::rows::{
     BODY_SIZE, CHECKBOX_WIDTH, DOCUMENT_PADDING, INLINE_WIDGET_HEIGHT, INLINE_WIDGET_ICON_INSET,
-    Inline, InlineItem, LINE_PADDING, Row, RowInputs, RowOptions, build_row, galley, line_range,
-    rich_layout,
+    Inline, InlineItem, LINE_PADDING, RUN_CHIP_HEIGHT, RUN_CHIP_SIZE, Row, RowInputs, RowOptions,
+    build_row, galley, line_range, rich_layout,
 };
 use super::{
     CARET_WIDTH, CHECKBOX_OUTLINE, CHECKBOX_RADIUS, CODE_OUTSET, CODE_RADIUS, Context,
     GUTTER_ARROW_SIZE, GUTTER_PADDING_LEFT, GUTTER_PADDING_RIGHT, GUTTER_TEXT_SIZE, GeometryCell,
-    INLINE_WIDGET_RADIUS, REMOTE_SELECTION_ALPHA, RowEntry,
+    INLINE_WIDGET_RADIUS, REMOTE_SELECTION_ALPHA, RUN_CHIP_RADIUS, RowEntry, TextCheckbox,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -112,20 +115,6 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
 #[component]
 fn AreaRow(cx: Context, line: usize) -> NodeId {
     let model = row_model(&cx, line);
-    let fill = create_memo(clone!(cx model -> move || {
-        let start = model.get().start;
-        let revealed = cx.state.content();
-        revealed.get();
-        match cx.state.with_snapshot(|snapshot| {
-            snapshot
-                .sections
-                .iter()
-                .any(|section| section.revealed && start > section.line_end && start <= section.content_end)
-        }) {
-            true => cx.colors.get().revealed_background,
-            false => Color32::TRANSPARENT,
-        }
-    }));
     let gutter = create_memo(clone!(cx -> move || Some(cx.gutter.get())));
     let padding = create_memo(clone!(cx -> move || (cx.padding.get().x - CODE_OUTSET.x).max(0.0)));
     let inset = create_memo(clone!(cx -> move || cx.padding.get().x.min(CODE_OUTSET.x)));
@@ -144,7 +133,7 @@ fn AreaRow(cx: Context, line: usize) -> NodeId {
     register_row(&cx, line, &row, &text, &block_ref, &model);
     let (gutter_cx, gutter_model) = (cx.clone(), model.clone());
     view! {
-        <Frame @node_ref=&row color={fill}>
+        <Frame @node_ref=&row>
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
                 <Frame width={gutter}>
                     <Gutter cx={gutter_cx} model={gutter_model} />
@@ -226,6 +215,7 @@ fn row_model(cx: &Context, line: usize) -> Memo<Rc<Row>> {
         let starts = cx.starts.get();
         let tables = cx.tables.get();
         let widgets = cx.widgets.get();
+        let client_colors = cx.client_colors.get();
         let colors = cx.colors.get();
         let composition = cx.composition.get();
         let placeholder = cx.placeholder.get();
@@ -253,6 +243,7 @@ fn row_model(cx: &Context, line: usize) -> Memo<Rc<Row>> {
                 &RowInputs {
                     snapshot,
                     widgets: &widgets,
+                    client_colors: &client_colors,
                     composition: composition.as_ref(),
                     selection: &selection,
                     colors: &colors,
@@ -446,14 +437,17 @@ fn InlineView(cx: Context, model: Memo<Rc<Row>>, index: usize) -> NodeId {
     let checkbox = create_memo(
         clone!(item -> move || matches!(item.get().map(|item| item.inline), Some(Inline::Checkbox { .. }))),
     );
-    let widget = create_memo(clone!(checkbox -> move || !checkbox.get()));
-    let (checkbox_cx, widget_cx) = (cx.clone(), cx);
-    let (checkbox_item, widget_item) = (item.clone(), item);
+    let run = create_memo(
+        clone!(item -> move || matches!(item.get().map(|item| item.inline), Some(Inline::Run))),
+    );
+    let widget = create_memo(clone!(checkbox run -> move || !checkbox.get() && !run.get()));
+    let (checkbox_cx, widget_cx, run_cx) = (cx.clone(), cx.clone(), cx);
+    let (checkbox_item, widget_item, run_item) = (item.clone(), item.clone(), item);
     view! {
         <List spacing=0.0>
             <Show condition={checkbox}>
                 {move || view! {
-                    <CheckboxBox cx={checkbox_cx.clone()} item={checkbox_item.clone()} />
+                    <InlineCheckbox cx={checkbox_cx.clone()} item={checkbox_item.clone()} />
                 }}
             </Show>
             <Show condition={widget}>
@@ -461,15 +455,85 @@ fn InlineView(cx: Context, model: Memo<Rc<Row>>, index: usize) -> NodeId {
                     <WidgetPill cx={widget_cx.clone()} item={widget_item.clone()} />
                 }}
             </Show>
+            <Show condition={run}>
+                {move || view! {
+                    <RunChip cx={run_cx.clone()} item={run_item.clone()} />
+                }}
+            </Show>
         </List>
     }
 }
 
 #[component]
-fn CheckboxBox(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
+fn RunChip(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
+    let fill = create_memo(clone!(cx -> move || cx.colors.get().widget));
+    let width =
+        create_memo(clone!(item -> move || Some(item.get().map_or(0.0, |item| item.size.x))));
+    let label =
+        create_memo(clone!(item -> move || item.get().map(|item| item.label).unwrap_or_default()));
+    let color = create_memo(
+        clone!(item -> move || item.get().map_or(Color32::WHITE, |item| item.style.color)),
+    );
+    view! {
+        <Frame width={width} height=RUN_CHIP_HEIGHT color={fill} radius=RUN_CHIP_RADIUS>
+            <Text
+                string={label}
+                font_size=RUN_CHIP_SIZE
+                color={color}
+                monospace=true
+                align=TextAlign::Center
+                vertical_align=TextAlign::Center
+            />
+        </Frame>
+    }
+}
+
+#[component]
+fn InlineCheckbox(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     let checked = create_memo(
         clone!(item -> move || matches!(item.get().map(|item| item.inline), Some(Inline::Checkbox { checked: true, .. }))),
     );
+    let toggle_cx = cx.clone();
+    let on_change = Callback::new(move |_: bool| {
+        let Some(Inline::Checkbox { line_start, .. }) =
+            item.get_untracked().map(|item| item.inline)
+        else {
+            return;
+        };
+        let position = toggle_cx.state.core().position(line_start);
+        toggle_cx
+            .state
+            .execute(EditorCommand::Markdown(MarkdownCommand::ToggleCheckbox(
+                position,
+            )));
+    });
+    let disabled = cx.disabled.clone();
+    if let Some(render) = &cx.checkbox {
+        return render.call(TextCheckbox {
+            checked,
+            disabled,
+            on_change,
+        });
+    }
+    view! {
+        <Toggle
+            checked
+            disabled
+            capture_presses=true
+            tab_stop=false
+            press_focus=false
+            on_change={move |checked: bool| on_change.call(checked)}
+        >
+            {move |handle: ToggleHandle| view! {
+                <CheckboxBox cx handle />
+            }}
+        </Toggle>
+    }
+}
+
+#[component]
+fn CheckboxBox(cx: Context, handle: ToggleHandle) -> NodeId {
+    let checked = handle.checked;
     let fill = create_memo(clone!(cx checked -> move || match checked.get() {
         true => cx.colors.get().widget,
         false => Color32::TRANSPARENT,

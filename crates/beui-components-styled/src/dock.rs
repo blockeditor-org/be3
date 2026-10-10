@@ -1,4 +1,5 @@
 mod stack;
+mod switch;
 
 use beui_macros::{component, view};
 
@@ -11,18 +12,20 @@ use crate::theme::{CARD_RADIUS, FOCUS_RING_WIDTH, FONT_BODY, RADIUS, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     DockBarHandle, DockChromeHandle, DockDragged, DockGripHandle, DockKey, DockMode, DockNode,
-    DockPreviewHandle, DockSplitterHandle, DockStackHandle, DockSwitcherHandle, DockTabHandle,
-    DockingLayout, Entry, MenuItem,
+    DockPreviewHandle, DockSplitterHandle, DockStackHandle, DockSwitchHandle, DockSwitcherHandle,
+    DockTabHandle, DockingLayout, Entry, MenuItem,
 };
 use beui_core::base::{Align, Direction, ItemSize, Justify};
 use beui_core::color::Color32;
 use beui_core::icons::{ICON_CLOSE, ICON_DRAG_INDICATOR, ICON_MORE_VERT, ICON_TAB_GROUP};
+use beui_core::input::Modifiers;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Action, Children, ClickCallback, DynamicSegment, ForEach, Frame, List, ListChild, Memo, Prop,
     ReadSignal, Show, Text, clone, create_memo, focus_ring,
 };
 use stack::{DockStackBar, DockSwitcher};
+use switch::DockSwitchPanel;
 
 const TAB_PADDING_HORIZONTAL: f32 = 10.0;
 const TAB_HEIGHT: f32 = 33.0;
@@ -51,6 +54,7 @@ pub fn Docking<K>(
     #[prop(default = DockMode::Tiled)] mode: Prop<DockMode>,
     #[prop(default = None)] home: Prop<Option<K>>,
     #[prop(default = None)] focus: Prop<Option<K>>,
+    #[prop(default = None)] drag_modifier: Prop<Option<Modifiers>>,
     children: Children<DockNode<K>>,
 ) -> NodeId
 where
@@ -62,6 +66,7 @@ where
         DockMode::Stacked => 0.0,
     }));
     let theme = use_theme();
+    let backdrop = theme.background.clone();
     let fill = create_memo(clone!(mode -> move || match mode.get() {
         DockMode::Tiled => Color32::TRANSPARENT,
         DockMode::Stacked => theme.background.get(),
@@ -72,6 +77,7 @@ where
             mode
             home
             focus
+            drag_modifier
             inset={padding}
             group_inset=GROUP_INSET
             menu={menu_style()}
@@ -79,11 +85,17 @@ where
             frame={move |body: NodeId| view! {
                 <Frame color={fill.clone()}>{body}</Frame>
             }}
+            fullscreen={move |body: NodeId| view! {
+                <Frame color={backdrop.clone()}>{body}</Frame>
+            }}
             stack={move |handle: DockStackHandle| view! {
                 <DockStackBar handle />
             }}
             switcher={move |handle: DockSwitcherHandle| view! {
                 <DockSwitcher handle />
+            }}
+            switch={move |handle: DockSwitchHandle| view! {
+                <DockSwitchPanel handle />
             }}
             tab={move |handle: DockTabHandle| view! {
                 <DockTabFace handle />

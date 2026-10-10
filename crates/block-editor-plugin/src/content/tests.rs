@@ -1,13 +1,14 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use be_block::{BlockContent, Checklist, ChecklistContent, Edit, LiveEdit, ObjectId, Touched};
+use be_block::{Checklist, ChecklistContent, Edit, LiveEdit, ObjectId, Touched};
 use reactive::Scope;
 
 use super::ContentProjection;
-use crate::EditorHost;
+use crate::{EditorHost, HostContent};
 
 mod a_foreign_edit_during_an_edit_in_flight_keeps_both;
+mod a_snapshot_carries_where_removed_items_were;
 mod an_edit_coming_back_as_mine_runs_nothing_again;
 mod an_operation_runs_only_the_watchers_of_what_it_touched;
 mod an_undecodable_operation_asks_for_a_fresh_snapshot;
@@ -31,7 +32,7 @@ impl Fixture {
         let mut content = ChecklistContent::default();
         content.apply(&add_first);
         content.apply(&add_second);
-        host.set_block_content(ChecklistContent::CONTENT_TYPE, content.encode(), 0);
+        host.set_block_content(HostContent::of(&content));
         let projection = ContentProjection::<ChecklistContent>::new(host.clone(), None);
         let runs = [
             Rc::new(Cell::new(0)),

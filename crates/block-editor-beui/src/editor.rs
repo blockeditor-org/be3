@@ -11,8 +11,8 @@ use beui::reactive::{
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
     BarAction, ChildContent, ChildId, ChildLayer, ChildMode, CreationProgress, EditorCapabilities,
-    HostPanel, HostWindow, HostWindowId, InteractionMode, MenuEntry, ResizeMode, SettingsProgress,
-    TopBar, ViewChange, WebViewId,
+    HostAction, HostPanel, HostValue, HostWindowId, InteractionMode, MenuEntry, ResizeMode,
+    SettingsProgress, TopBar, ViewChange, WebViewId,
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;
@@ -376,6 +376,7 @@ struct EditorState {
     children_moved: Cell<bool>,
     wakes: Rc<RefCell<Vec<Wake>>>,
     pushed: Mirror,
+    host_values: RefCell<std::collections::HashMap<&'static str, Revision>>,
     files: ReadSignal<Option<FileDrop>>,
     set_files: WriteSignal<Option<FileDrop>>,
     placed: ReadSignal<Rect>,
@@ -448,6 +449,7 @@ impl Editor {
             children_moved: Cell::new(false),
             wakes: Rc::default(),
             pushed,
+            host_values: RefCell::default(),
             files,
             set_files,
             placed,
@@ -668,13 +670,24 @@ impl Editor {
         self.0.host.take_panel_requests()
     }
 
-    pub fn windows(&self) -> Memo<Vec<HostWindow>> {
+    pub fn host_value<T: HostValue>(&self) -> Memo<T::Value> {
         let host = self.0.host.clone();
-        let revision = self.pushed(Pushed::Windows);
+        let revision = self
+            .0
+            .host_values
+            .borrow_mut()
+            .entry(T::KEY)
+            .or_insert_with(|| create_signal(host.host_value_revision(T::KEY)))
+            .0
+            .clone();
         create_memo(move || {
             revision.get();
-            host.windows()
+            host.host_value::<T>()
         })
+    }
+
+    pub fn act<A: HostAction>(&self, action: A) {
+        self.0.host.act(action);
     }
 
     pub fn web_view_events(&self) -> ReadSignal<u64> {
@@ -967,6 +980,16 @@ impl Editor {
         }
         if pushed {
             self.0.pushed.sync(&self.0.host);
+            let keys: Vec<_> = self
+                .0
+                .host_values
+                .borrow()
+                .iter()
+                .map(|(key, (_, revision))| (*key, revision.clone()))
+                .collect();
+            for (key, revision) in keys {
+                revision.set(self.0.host.host_value_revision(key));
+            }
             self.0
                 .set_files
                 .set(self.0.host.files().map(|files| crate::FileDrop {
@@ -1234,3 +1257,6 @@ impl crate::root_settings::SettingsGraph for Editor {
             .operate(edit);
     }
 }
+
+#[cfg(test)]
+mod tests;

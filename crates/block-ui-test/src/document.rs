@@ -61,6 +61,16 @@ impl DocumentTest {
         self.output = Some(output);
     }
 
+    pub fn set_screens(&mut self, screens: Vec<beui::Screen>) {
+        self.context.set_screens(screens);
+        self.frame(Vec::new());
+    }
+
+    pub fn advance(&mut self, by: Duration) {
+        self.context.advance_clock(by);
+        self.frame(Vec::new());
+    }
+
     pub fn shows(&self, test_id: &str) -> bool {
         self.document
             .find_test_id(test_id)
@@ -124,21 +134,13 @@ impl DocumentTest {
     }
 
     pub fn snapshot(&mut self, name: &str) {
-        self.snapshot_region(name, Rect::from_min_size(Pos2::ZERO, self.size));
-    }
-
-    pub fn snapshot_of(&mut self, name: &str, test_id: &str) {
-        let region = self.rect_of(test_id);
-        self.snapshot_region(name, region);
-    }
-
-    fn snapshot_region(&mut self, name: &str, region: Rect) {
         let output = self
             .output
             .as_ref()
             .expect("the document has not drawn a frame yet");
-        let painting = capture::capture(output, region, output.pixels_per_point(), Color32::BLACK)
-            .expect("the painting could not be rendered");
+        let painting =
+            capture::capture(output, self.size, output.pixels_per_point(), Color32::BLACK)
+                .expect("the painting could not be rendered");
         snapshot::assert_snapshot(name, &painting);
     }
 }

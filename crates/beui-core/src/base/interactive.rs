@@ -4,8 +4,8 @@ use crate::base::focus::Focus;
 use crate::base::list::Direction;
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::{
-    AutoscrollGesture, CursorIcon, DragGesture, PointerPress, ScrollGesture, SecondaryDrag,
-    ZoomGesture,
+    AutoscrollGesture, CursorIcon, DragGesture, Modifiers, PointerPress, ScrollGesture,
+    SecondaryDrag, ZoomGesture,
 };
 use crate::painter::Painter;
 
@@ -54,6 +54,8 @@ pub struct InteractiveNode {
     pub intercept_at: Callback<Pos2, bool>,
     pub on_forward: Callback<crate::interact::forward::ForwardedInput>,
     pub forward_at: Callback<Pos2, bool>,
+    pub claim_modifiers: Option<Modifiers>,
+    pub claim_at: Callback<(Pos2, Modifiers), bool>,
 }
 
 impl Default for InteractiveNode {
@@ -113,7 +115,16 @@ impl InteractiveNode {
             intercept_at: Callback::empty(),
             on_forward: Callback::empty(),
             forward_at: Callback::empty(),
+            claim_modifiers: None,
+            claim_at: Callback::empty(),
         }
+    }
+
+    pub fn claims(&self, pos: Pos2, rect: Rect, held: Modifiers) -> bool {
+        let whole = self.claim_modifiers.is_some_and(|claimed| {
+            claimed.any() && held.holds(claimed) && rect.contains_half_open(pos)
+        });
+        whole || (!self.claim_at.is_empty() && self.claim_at.call((pos, held)))
     }
 
     pub fn takes_presses(&self) -> bool {
@@ -360,16 +371,18 @@ impl Element for InteractiveNode {
         let contains_pointer = input.pointer_over(rect);
         if input.pressed_this_frame
             && !yielded
-            && (contains_pointer || captured)
-            && let Some(pos) = input.pointer_pos
+            && let Some(pos) = input.press_pos.or(input.pointer_pos)
+            && (input.over(rect, pos) || captured)
         {
             self.armed = true;
             let press = self.press(input, rect, pos);
             self.on_press.call(press);
             self.report_active();
         }
+        let secondary_yielded = doc.secondary_claim.is_some_and(|claimant| claimant != id);
         if contains_pointer
             && input.secondary_pressed_this_frame
+            && !secondary_yielded
             && let Some(pos) = input.pointer_pos
         {
             let press = self.press(input, rect, pos);
@@ -384,6 +397,17 @@ impl Element for InteractiveNode {
             }
             self.armed = false;
             self.dragged = None;
+        }
+        if input.released_this_frame
+            && self.armed
+            && !input.touch_cancelled
+            && (!input.touch_scrolling || holds_drag)
+            && let Some(pos) = input.pointer_pos
+            && self.dragged.or(input.press_pos) != Some(pos)
+        {
+            self.dragged = Some(pos);
+            let press = self.press(input, rect, pos);
+            self.on_drag.call(press);
         }
         if input.released_this_frame {
             if self.armed
@@ -434,7 +458,9 @@ impl Element for InteractiveNode {
         }
         self.middle_click(input, contains_pointer);
         self.pan_drag(input, id, contains_pointer);
-        self.secondary_drag(input, rect);
+        if !secondary_yielded {
+            self.secondary_drag(input, rect);
+        }
         if input.wheel_target == Some(id)
             && (input.scroll != Vec2::ZERO || input.scroll_fling != Vec2::ZERO)
             && let Some(pos) = input.pointer_pos
@@ -478,6 +504,79 @@ impl Element for InteractiveNode {
 
     fn detail(&self) -> Option<String> {
         self.focus.as_ref().map(|_| "focusable".to_owned())
+    }
+
+    fn properties(&self) -> Vec<(&'static str, String)> {
+        let handlers: Vec<&str> = [
+            (self.on_click.is_empty(), "click"),
+            (self.on_click_at.is_empty(), "click at"),
+            (self.on_press.is_empty(), "press"),
+            (self.on_secondary_press.is_empty(), "secondary press"),
+            (self.on_secondary_drag.is_empty(), "secondary drag"),
+            (self.on_middle_click.is_empty(), "middle click"),
+            (self.on_cancel.is_empty(), "cancel"),
+            (self.on_hover_change.is_empty(), "hover"),
+            (self.on_hover_move.is_empty(), "hover move"),
+            (self.on_active_change.is_empty(), "active"),
+            (self.on_drag.is_empty(), "drag"),
+            (self.on_pan_drag.is_empty(), "pan"),
+            (self.on_scroll.is_empty(), "scroll"),
+            (self.on_scroll_drag.is_empty(), "scroll drag"),
+            (self.on_autoscroll.is_empty(), "autoscroll"),
+            (self.on_zoom.is_empty(), "zoom"),
+            (self.on_forward.is_empty(), "forward"),
+        ]
+        .into_iter()
+        .filter_map(|(empty, name)| (!empty).then_some(name))
+        .collect();
+        let states: Vec<&str> = [
+            (self.hovered, "hovered"),
+            (self.active, "active"),
+            (self.armed, "armed"),
+            (self.key_active, "key active"),
+            (self.dragged.is_some(), "dragged"),
+            (self.pan_active, "panning"),
+        ]
+        .into_iter()
+        .filter_map(|(on, name)| on.then_some(name))
+        .collect();
+        let focus = self.focus.as_ref().map_or_else(
+            || "none".to_owned(),
+            |focus| {
+                let flags: Vec<&str> = [
+                    (focus.tab_stop, "tab stop"),
+                    (focus.press_focus, "press"),
+                    (focus.ime, "ime"),
+                    (focus.keyboard_on_focus, "keyboard"),
+                ]
+                .into_iter()
+                .filter_map(|(on, name)| on.then_some(name))
+                .collect();
+                match flags.is_empty() {
+                    true => "focusable".to_owned(),
+                    false => flags.join(", "),
+                }
+            },
+        );
+        let list = |names: Vec<&str>| match names.is_empty() {
+            true => "none".to_owned(),
+            false => names.join(", "),
+        };
+        vec![
+            ("focus", focus),
+            (
+                "cursor",
+                self.cursor
+                    .map_or_else(|| "default".to_owned(), |cursor| format!("{cursor:?}")),
+            ),
+            (
+                "scroll axis",
+                self.scroll_axis
+                    .map_or_else(|| "none".to_owned(), |axis| format!("{axis:?}")),
+            ),
+            ("handlers", list(handlers)),
+            ("state", list(states)),
+        ]
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -575,6 +674,38 @@ impl Document {
         if self.arena.get_as::<InteractiveNode>(id).claims_touch != claims_touch {
             self.arena.get_mut_as::<InteractiveNode>(id).claims_touch = claims_touch;
         }
+    }
+
+    pub fn set_interactive_claim_modifiers(
+        &mut self,
+        id: NodeOf<InteractiveNode>,
+        claimed: Option<Modifiers>,
+    ) {
+        if self.arena.get_as::<InteractiveNode>(id).claim_modifiers == claimed {
+            return;
+        }
+        self.arena.get_mut_as::<InteractiveNode>(id).claim_modifiers = claimed;
+        match claimed {
+            Some(_) => self.press_claimants.insert(id.id()),
+            None => self.press_claimants.remove(&id.id()),
+        };
+    }
+
+    pub fn press_claims(&self) -> Vec<(Modifiers, Rect)> {
+        self.press_claimants
+            .iter()
+            .filter(|id| self.arena.contains(**id))
+            .filter_map(|id| {
+                let claimed = self
+                    .arena
+                    .get(*id)
+                    .as_any()
+                    .downcast_ref::<InteractiveNode>()?
+                    .claim_modifiers?;
+                let rect = self.rects.visible(id)?;
+                (claimed.any() && rect.is_positive()).then_some((claimed, rect))
+            })
+            .collect()
     }
 
     pub fn set_interactive_repeat_drag(&mut self, id: NodeOf<InteractiveNode>, repeat_drag: bool) {

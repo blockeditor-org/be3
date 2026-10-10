@@ -3,13 +3,15 @@ pub mod find;
 
 use beui_macros::{component, view};
 
+use crate::checkbox::Checkbox;
 use crate::context_menu::menu_style;
 use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    Completer, RemoteTextCursor, TextAreaColors, TextAreaState, TextWidget,
+    Completer, RemoteTextCursor, TextAreaColors, TextAreaState, TextCheckbox, TextWidget,
 };
 use beui_core::base::ItemSize;
+use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::geometry::Pos2;
 use beui_core::input::KeyPress;
@@ -29,6 +31,8 @@ pub fn TextArea(
     #[prop(default = None)] drop_caret: Prop<Option<usize>>,
     #[prop(default = String::new())] placeholder: Prop<String>,
     #[prop(default = false)] password: Prop<bool>,
+    #[prop(default = false)] show_runs: Prop<bool>,
+    #[prop(default = Vec::new())] client_colors: Prop<Vec<(u64, Color32)>>,
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
     #[prop(default = true)] emoji: bool,
@@ -68,12 +72,15 @@ pub fn TextArea(
                         drop_caret
                         placeholder
                         password
+                        show_runs
+                        client_colors
                         on_widget_press={move |widget: usize| on_widget_press.call(widget)}
                         on_key_override={move |press: KeyPress| on_key_override.call(press)}
                         on_focus_change={move |focused: bool| on_focus_change.call(focused)}
                         on_menu={move |at: Pos2| open_menu.call(at)}
                         block={block}
                         selected_widget={selected_widget}
+                        checkbox={inline_checkbox()}
                         completer={match emoji {
                             true => unstyled::emoji_completer(),
                             false => Completer::none(),
@@ -84,6 +91,26 @@ pub fn TextArea(
             </unstyled::TextContextMenu>
         </List>
     }
+}
+
+fn inline_checkbox() -> RenderFn<TextCheckbox> {
+    RenderFn::new(|checkbox: TextCheckbox| {
+        let TextCheckbox {
+            checked,
+            disabled,
+            on_change,
+        } = checkbox;
+        view! {
+            <Checkbox
+                checked
+                disabled
+                capture_presses=true
+                tab_stop=false
+                press_focus=false
+                on_change={move |checked: bool| on_change.call(checked)}
+            />
+        }
+    })
 }
 
 fn blank_widget() -> RenderFn<usize> {

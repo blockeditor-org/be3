@@ -11,17 +11,23 @@ fn host_window_messages_round_trip() {
             width: 640.0,
             height: 480.0,
         },
+        fullscreen: None,
+        responding: true,
+        focused: false,
     };
-    for message in [
-        Message::Editor(EditorMessage::Windows {
-            instance: EditorInstanceId(3),
-            windows: vec![window.clone()],
-        }),
-        Message::Editor(EditorMessage::CloseWindow {
-            instance: EditorInstanceId(3),
+    host_value_round_trips::<HostWindows>(vec![window.clone()]);
+    for action in [
+        WindowAction::Focus(window.id),
+        WindowAction::Fullscreen {
             window: window.id,
-        }),
-        Message::Children(ChildPlacements {
+            fullscreen: true,
+        },
+        WindowAction::Close(window.id),
+    ] {
+        host_action_round_trips(action);
+    }
+    {
+        let message = Message::Children(ChildPlacements {
             instance: EditorInstanceId(3),
             region: EditorRegion::Frame,
             generation: 2,
@@ -54,8 +60,7 @@ fn host_window_messages_round_trip() {
                 opacity: 1.0,
             }],
             occluders: Vec::new(),
-        }),
-    ] {
+        });
         assert_eq!(
             decode_frame(&encode_frame(&message).unwrap()).unwrap(),
             message

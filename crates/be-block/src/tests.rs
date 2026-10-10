@@ -14,10 +14,12 @@ use crate::{
         DatabaseSchemaContent,
     },
     database_view::{DatabaseView, DatabaseViewContent},
+    display_settings::{DisplaySettings, DisplaySettingsContent},
     image::{ImageContent, ImageHeader},
+    input_settings::{InputSettings, InputSettingsContent},
     logic_game::LogicGameContent,
     logic_grid::{LogicGridContent, LogicGridOperation},
-    text::{TextContent, TextLanguage, TextOp},
+    text::{TextBlock, TextContent, TextLanguage},
     ui_settings::{UiSettings, UiSettingsContent},
 };
 use be_model::ObjectId;
@@ -47,6 +49,7 @@ mod a_folder_lists_each_block_once_and_follows_its_children;
 mod a_language_changed_on_both_sides_counts_a_conflict;
 mod a_logic_grid_edit_keeps_its_wires_normalized_and_follows_its_children;
 mod a_map_keeps_its_points_in_bounds_and_follows_its_children;
+mod a_monitor_back_at_its_default_mode_is_forgotten;
 mod a_pixel_painted_outside_the_other_sides_crop_counts_as_a_conflict;
 mod a_presentation_moves_slides_by_index_and_follows_its_children;
 mod a_repository_moves_and_drops_branches;
@@ -81,6 +84,7 @@ mod deleting_or_replacing_a_linked_block_rewrites_the_cells_that_link_it;
 mod entities_brought_forward_on_both_sides_merge_to_both_moves;
 mod enum_options_added_on_both_sides_merge_to_both;
 mod file_contents_check_what_they_hold_and_round_trip;
+mod input_settings_keep_their_values_in_bounds;
 mod inserts_at_one_place_from_two_peers_keep_each_peers_text_whole;
 mod items_added_by_two_peers_at_once_are_both_kept;
 mod logic_game_solutions_keep_their_order_per_challenge;
@@ -89,6 +93,8 @@ mod moves_played_on_both_sides_merge_to_both;
 mod pages_opened_on_both_sides_are_both_kept_in_history;
 mod pixel_art_fills_resizes_and_keeps_a_paint_made_during_a_resize;
 mod resetting_a_ray_traced_scene_clears_pixels_and_entities;
+mod screens_turn_off_after_ten_minutes_unless_told_otherwise;
+mod setting_every_pointer_replaces_what_each_device_overrode;
 mod settings_resolve_per_client_and_follow_their_children;
 mod slides_moved_by_two_peers_at_once_both_move;
 mod slides_moved_on_both_sides_merge_to_both_moves;
@@ -96,8 +102,8 @@ mod solutions_and_quiz_answers_made_on_both_sides_merge_to_both;
 mod streamed_content_separates_its_header_from_its_payload;
 mod text_edited_in_different_paragraphs_merges_cleanly;
 mod text_merges_line_by_line_and_marks_real_conflicts;
-mod text_operations_rebase_onto_concurrent_edits;
 mod text_typed_inside_a_range_someone_deletes_at_once_survives;
+mod the_frozen_blocks_read_every_register_without_any_one_field;
 mod the_same_range_deleted_by_two_peers_at_once_is_deleted_once;
 mod the_same_solution_inserted_by_two_peers_at_once_is_listed_once;
 mod the_same_wire_drawn_on_both_sides_merges_to_one;
@@ -129,14 +135,6 @@ fn header(name: &str) -> ImageHeader {
 
 fn image(name: &str, payload: &[u8]) -> ImageContent {
     ImageContent::new(header(name), payload.to_vec())
-}
-
-fn applied(start: &str, operations: &[TextOp]) -> String {
-    let mut content = TextContent::from(start);
-    for operation in operations {
-        content.apply(operation);
-    }
-    content.text()
 }
 
 fn edited<C: LiveEdit + Clone>(start: &C, edits: impl IntoIterator<Item = C::Op>) -> C {

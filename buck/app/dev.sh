@@ -6,18 +6,22 @@
 #   ./scripts/buck run //crates/block-app:dev              start, or restart
 #   ./scripts/buck run //crates/block-app:dev -- --fresh   start with no data
 #   ./scripts/buck run //crates/block-app:dev -- --stop    stop it
+#   ./scripts/buck run //crates/block-app:dev -- --desktop the desktop shell
 set -u
 app="$1"
-LD_LIBRARY_PATH="$2"
-export LD_LIBRARY_PATH
+# Only the app loads the sysroot's libraries. Xvfb and xdotool are this
+# machine's, and Xvfb outlives the build that made this path.
+libraries="$2"
 shift 2
 fresh=false
 stop=false
+desktop=
 for argument in "$@"; do
     case "$argument" in
         --fresh) fresh=true ;;
         --stop) stop=true ;;
-        *) echo "Unknown argument $argument; expected --fresh or --stop." >&2; exit 1 ;;
+        --desktop) desktop=--desktop ;;
+        *) echo "Unknown argument $argument; expected --fresh, --stop or --desktop." >&2; exit 1 ;;
     esac
 done
 
@@ -25,18 +29,21 @@ dir="${BLOCK_DEV_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/be3/dev}"
 display="${BLOCK_DEV_DISPLAY:-:99}"
 mkdir -p "$dir"
 
+# A pid file outlives its process when the machine or container restarts, and
+# its pid may then name another program, so a pid is only stopped while it
+# still runs the program it was written for.
 stop_pid() {
     [ -f "$dir/$1.pid" ] || return 0
     pid="$(cat "$dir/$1.pid")"
-    if kill "$pid" 2> /dev/null; then
+    if [ "$(cat "/proc/$pid/comm" 2> /dev/null)" = "$2" ] && kill "$pid" 2> /dev/null; then
         while kill -0 "$pid" 2> /dev/null; do sleep 0.1; done
     fi
     rm -f "$dir/$1.pid"
 }
 
-stop_pid app
+stop_pid app block-app
 if $stop; then
-    stop_pid xvfb
+    stop_pid xvfb Xvfb
     echo 'Stopped the app and its display.'
     exit 0
 fi
@@ -49,19 +56,61 @@ if $fresh; then
     rm -rf "$dir/data"
 fi
 
-if ! [ -f "$dir/xvfb.pid" ] || ! kill -0 "$(cat "$dir/xvfb.pid")" 2> /dev/null; then
+number="${display#:}"
+number="${number%%.*}"
+lock="/tmp/.X$number-lock"
+
+answers() {
+    DISPLAY="$display" timeout 5 xdotool getmouselocation > /dev/null 2>&1
+}
+
+# Whether a pid is an X server, for the same reason as stop_pid.
+is_x_server() {
+    case "$(cat "/proc/$1/comm" 2> /dev/null)" in
+        Xvfb | Xorg | X | Xwayland) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+ours=''
+[ -f "$dir/xvfb.pid" ] && ours="$(cat "$dir/xvfb.pid")"
+if [ -n "$ours" ] && ! { is_x_server "$ours" && answers; }; then
+    is_x_server "$ours" && kill "$ours" 2> /dev/null
+    rm -f "$dir/xvfb.pid"
+    ours=''
+fi
+if [ -z "$ours" ] && ! answers; then
+    if [ -f "$lock" ]; then
+        owner="$(tr -d ' ' < "$lock" 2> /dev/null)"
+        if [ -n "$owner" ] && is_x_server "$owner"; then
+            echo "The display $display belongs to an X server (pid $owner) that does not answer; stop it, or set BLOCK_DEV_DISPLAY to another display." >&2
+            exit 1
+        fi
+        rm -f "$lock" "/tmp/.X11-unix/X$number"
+    fi
     setsid Xvfb "$display" -screen 0 1280x800x24 -nolisten tcp > "$dir/xvfb.log" 2>&1 < /dev/null &
-    echo $! > "$dir/xvfb.pid"
+    xvfb=$!
+    echo "$xvfb" > "$dir/xvfb.pid"
+    waited=0
+    until answers; do
+        if ! kill -0 "$xvfb" 2> /dev/null || [ "$waited" -ge 300 ]; then
+            echo "The virtual display $display did not start. Xvfb said, in $dir/xvfb.log:" >&2
+            grep -v -e '^> ' -e 'xkbcomp' -e '^$' "$dir/xvfb.log" | tail -n 8 >&2
+            if kill "$xvfb" 2> /dev/null; then
+                while kill -0 "$xvfb" 2> /dev/null; do sleep 0.1; done
+            fi
+            rm -f "$dir/xvfb.pid"
+            exit 1
+        fi
+        sleep 0.1
+        waited=$((waited + 1))
+    done
 fi
 export DISPLAY="$display"
-if ! timeout 10 sh -c 'until xdotool getmouselocation > /dev/null 2>&1; do sleep 0.1; done'; then
-    echo "The virtual display $display did not start; see $dir/xvfb.log." >&2
-    exit 1
-fi
 
 tree="$dir/accessibility.txt"
 rm -f "$tree"
-XDG_DATA_HOME="$dir/data" setsid "$app" --dev-workspace "--accessibility-tree=$tree" \
+LD_LIBRARY_PATH="$libraries" XDG_DATA_HOME="$dir/data" setsid "$app" --dev-workspace $desktop "--accessibility-tree=$tree" \
     > "$dir/app.log" 2>&1 < /dev/null &
 pid=$!
 echo "$pid" > "$dir/app.pid"

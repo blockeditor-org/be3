@@ -46,6 +46,7 @@ fn place(session: &mut EditorSession, height: u32) {
                 pixel_width: 100,
                 pixel_height: height,
                 scale_factor: 1.0,
+                monitors: Vec::new(),
             },
         }],
     );

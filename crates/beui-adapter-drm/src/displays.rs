@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use beui::{
-    Color32, CursorIcon, FrameOutput, GpuSetup, Pos2, Rect, RendererInfo, Repainting, Setup, Vec2,
-    vec2,
+    Color32, CursorIcon, FrameOutput, GpuSetup, Pos2, Rect, RendererInfo, Repainting, Screen,
+    Setup, Vec2, vec2,
 };
 use beui_core::renderer::Renderer;
 
@@ -99,7 +99,7 @@ impl Displays {
                 },
             );
             if let Err(error) = drawn {
-                eprintln!("beui: an output could not be drawn: {error}");
+                output.fail(error);
             }
         }
     }
@@ -136,6 +136,20 @@ impl Renderer for DisplayRenderer {
             return None;
         }
         Some(bounds(&displays.rects()).max.to_vec2() * displays.scale)
+    }
+
+    fn screens(&self) -> Option<Vec<Screen>> {
+        let displays = self.0.borrow();
+        Some(
+            displays
+                .outputs
+                .iter()
+                .map(|output| {
+                    Screen::new(output.id(), output.name(), output.screen.rect)
+                        .scaled(displays.scale)
+                })
+                .collect(),
+        )
     }
 
     fn prepare(&mut self, output: &FrameOutput, scale: f32, background: Color32) -> bool {

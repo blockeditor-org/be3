@@ -1,6 +1,6 @@
 use block_plugin_api::{
-    BackEdge, BackPhase, CursorIcon, FilePick, ImeInput, ImeText, Key, Modifiers, PointerButton,
-    TouchPhase,
+    BackEdge, BackPhase, CursorIcon, FilePick, ImeInput, ImeText, Key, KeyChord, Modifiers,
+    PointerButton, TouchPhase,
 };
 
 pub fn protocol_modifiers(modifiers: beui::Modifiers) -> Modifiers {
@@ -8,8 +8,33 @@ pub fn protocol_modifiers(modifiers: beui::Modifiers) -> Modifiers {
         alt: modifiers.alt,
         control: modifiers.ctrl,
         shift: modifiers.shift,
-        command: modifiers.ctrl,
+        logo: modifiers.logo,
     }
+}
+
+pub fn beui_modifiers(modifiers: Modifiers) -> beui::Modifiers {
+    beui::Modifiers {
+        alt: modifiers.alt,
+        ctrl: modifiers.control,
+        shift: modifiers.shift,
+        logo: modifiers.logo,
+    }
+}
+
+pub fn protocol_chord(chord: beui::KeyChord) -> KeyChord {
+    KeyChord {
+        key: protocol_key(chord.key),
+        modifiers: protocol_modifiers(chord.modifiers),
+        tap: chord.tap,
+    }
+}
+
+pub fn beui_chord(chord: KeyChord) -> Option<beui::KeyChord> {
+    Some(beui::KeyChord {
+        key: beui_key(chord.key)?,
+        modifiers: beui_modifiers(chord.modifiers),
+        tap: chord.tap,
+    })
 }
 
 pub fn pointer_button(button: beui::PointerButton) -> PointerButton {
@@ -100,6 +125,20 @@ pub fn protocol_key(key: beui::Key) -> Key {
         beui::Key::Semicolon => Key::Semicolon,
         beui::Key::Quote => Key::Quote,
         beui::Key::BrowserBack => Key::BrowserBack,
+        beui::Key::VolumeUp => Key::VolumeUp,
+        beui::Key::VolumeDown => Key::VolumeDown,
+        beui::Key::VolumeMute => Key::VolumeMute,
+        beui::Key::MicMute => Key::MicMute,
+        beui::Key::BrightnessUp => Key::BrightnessUp,
+        beui::Key::BrightnessDown => Key::BrightnessDown,
+        beui::Key::MediaPlayPause => Key::MediaPlayPause,
+        beui::Key::MediaNext => Key::MediaNext,
+        beui::Key::MediaPrevious => Key::MediaPrevious,
+        beui::Key::MediaStop => Key::MediaStop,
+        beui::Key::Shift => Key::Shift,
+        beui::Key::Ctrl => Key::Control,
+        beui::Key::Alt => Key::Alt,
+        beui::Key::Logo => Key::Logo,
         beui::Key::A => Key::A,
         beui::Key::B => Key::B,
         beui::Key::C => Key::C,
@@ -192,6 +231,20 @@ pub fn beui_key(key: Key) -> Option<beui::Key> {
         Key::Semicolon => beui::Key::Semicolon,
         Key::Quote => beui::Key::Quote,
         Key::BrowserBack => beui::Key::BrowserBack,
+        Key::VolumeUp => beui::Key::VolumeUp,
+        Key::VolumeDown => beui::Key::VolumeDown,
+        Key::VolumeMute => beui::Key::VolumeMute,
+        Key::MicMute => beui::Key::MicMute,
+        Key::BrightnessUp => beui::Key::BrightnessUp,
+        Key::BrightnessDown => beui::Key::BrightnessDown,
+        Key::MediaPlayPause => beui::Key::MediaPlayPause,
+        Key::MediaNext => beui::Key::MediaNext,
+        Key::MediaPrevious => beui::Key::MediaPrevious,
+        Key::MediaStop => beui::Key::MediaStop,
+        Key::Shift => beui::Key::Shift,
+        Key::Control => beui::Key::Ctrl,
+        Key::Alt => beui::Key::Alt,
+        Key::Logo => beui::Key::Logo,
         Key::A => beui::Key::A,
         Key::B => beui::Key::B,
         Key::C => beui::Key::C,

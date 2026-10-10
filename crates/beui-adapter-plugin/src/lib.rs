@@ -12,6 +12,7 @@ use beui_core::context::{Context, FrameOutput};
 use beui_core::geometry::Rect;
 use beui_core::renderer::Loaded;
 use beui_core::runner::{Adapter, Launch, RunOptions, Runner, Running};
+use beui_core::screens::Screen;
 use block_editor_plugin::{EditorHost, Frame, InputEvent, Region};
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect};
@@ -111,6 +112,14 @@ impl PluginSurface {
             let mut surface = self.surface.borrow_mut();
             surface.age = region.age;
             surface.laid = region.rect;
+            surface.screens = region
+                .monitors
+                .iter()
+                .map(|monitor| {
+                    Screen::new(&monitor.id, &monitor.name, monitor.rect)
+                        .scaled(region.scale_factor)
+                })
+                .collect();
             let resized = surface.size != Some((width, height));
             surface.size = Some((width, height));
             resized
@@ -149,6 +158,7 @@ impl PluginSurface {
             content: None,
             painted: Vec::new(),
             floating: Vec::new(),
+            claims: Vec::new(),
             ime: self
                 .platform
                 .ime
@@ -160,6 +170,8 @@ impl PluginSurface {
                     keyboard: area.keyboard,
                 }),
             handles_back: self.platform.handles_back,
+            wants_keyboard: self.platform.wants_keyboard,
+            intercepted_keys: self.platform.intercepted_keys.clone(),
         }
     }
 

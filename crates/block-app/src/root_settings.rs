@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use be_block::settings::Settings;
 use be_block::{
     BlockContent, BlockMetadata, EditorView, EditorViewContent, LINUX_DESKTOP_EDITOR, LiveEdit,
-    Root, SettingsContent,
+    Root, SettingsContent, WORKSPACE_EDITOR,
 };
 use be_graph::BlockParent;
 use uuid::Uuid;
@@ -17,6 +17,25 @@ pub(crate) fn settings(block: Uuid) -> Option<Settings> {
     SettingsContent::decode(&content.bytes)
         .ok()
         .map(|document| document.root().clone())
+}
+
+pub(crate) const SESSION_TYPES: [(Uuid, &str); 2] = [
+    (WORKSPACE_EDITOR, "Workspace UI"),
+    (LINUX_DESKTOP_EDITOR, "Linux desktop"),
+];
+
+pub(crate) fn session_type_name(editor: Uuid) -> &'static str {
+    SESSION_TYPES
+        .iter()
+        .find(|(id, _)| *id == editor)
+        .map_or("Other", |(_, name)| name)
+}
+
+pub(crate) struct ProfileEntry {
+    pub(crate) id: Uuid,
+    pub(crate) name: String,
+    pub(crate) editor: Uuid,
+    pub(crate) current: bool,
 }
 
 pub(crate) fn device_name() -> &'static str {
@@ -54,8 +73,8 @@ impl RootSettings {
         self.shell
     }
 
-    fn session_document(&self) -> Vec<u8> {
-        EditorView::document(self.shell, None).encode()
+    fn session_document(editor: Uuid) -> Vec<u8> {
+        EditorView::document(editor, None).encode()
     }
 
     fn profile_name(&self) -> &'static str {
@@ -65,7 +84,7 @@ impl RootSettings {
         }
     }
 
-    fn editor_of(&self, profile: Uuid) -> Option<Uuid> {
+    pub(crate) fn profile_editor(&self, profile: Uuid) -> Option<Uuid> {
         be::hold(profile, EditorViewContent::CONTENT_TYPE);
         let revision = be::content_revision(profile)?;
         if let Some((held, editor)) = self.editors.borrow().get(&profile)
@@ -75,9 +94,7 @@ impl RootSettings {
         }
         let content = be::content(profile)?;
         let editor = EditorViewContent::decode(&content.bytes)
-            .ok()?
-            .root()
-            .editor;
+            .map_or(self.shell, |document| document.root().editor);
         self.editors
             .borrow_mut()
             .insert(profile, (revision, editor));
@@ -132,23 +149,31 @@ impl RootSettings {
         }
     }
 
-    pub(crate) fn profiles(&self, client: Uuid) -> Vec<(Uuid, String, bool)> {
+    pub(crate) fn profiles(&self, client: Uuid, every_type: bool) -> Vec<ProfileEntry> {
         let Some(settings) = self.block.and_then(|block| self.decoded(block)) else {
             return Vec::new();
         };
         let current = self.chosen_profile.or(settings.profile(self.shell, client));
-        let mut profiles: Vec<(Uuid, String, bool)> = settings
+        let mut profiles: Vec<ProfileEntry> = settings
             .profiles()
             .into_iter()
-            .filter(|profile| self.editor_of(*profile) == Some(self.shell))
-            .map(|profile| {
+            .filter_map(|profile| {
+                let editor = self.profile_editor(profile)?;
+                if !every_type && editor != self.shell {
+                    return None;
+                }
                 let name = be::node(profile)
                     .and_then(|node| node.metadata.name)
                     .unwrap_or_else(|| "Profile".to_owned());
-                (profile, name, current == Some(profile))
+                Some(ProfileEntry {
+                    id: profile,
+                    name,
+                    editor,
+                    current: current == Some(profile),
+                })
             })
             .collect();
-        profiles.sort_by(|left, right| left.1.cmp(&right.1).then(left.0.cmp(&right.0)));
+        profiles.sort_by(|left, right| left.name.cmp(&right.name).then(left.id.cmp(&right.id)));
         profiles
     }
 
@@ -164,7 +189,7 @@ impl RootSettings {
         self.chosen_profile = Some(profile);
     }
 
-    pub(crate) fn new_profile(&mut self, client: Uuid) {
+    pub(crate) fn new_profile(&mut self, client: Uuid, editor: Uuid) {
         let Some(settings_block) = self.find() else {
             return;
         };
@@ -177,7 +202,7 @@ impl RootSettings {
             EditorViewContent::CONTENT_TYPE,
             BlockParent::Block(settings_block),
             BlockMetadata::named(format!("Profile {}", count + 1)),
-            Some(self.session_document()),
+            Some(Self::session_document(editor)),
         );
         be::operate_from(
             settings_block,
@@ -209,7 +234,7 @@ impl RootSettings {
             EditorViewContent::CONTENT_TYPE,
             BlockParent::Block(settings_block),
             BlockMetadata::named(self.profile_name()),
-            Some(self.session_document()),
+            Some(Self::session_document(self.shell)),
         );
         be::operate_from(
             settings_block,

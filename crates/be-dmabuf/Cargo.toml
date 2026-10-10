@@ -7,7 +7,7 @@ license.workspace = true
 [dependencies]
 ash = "0.38"
 pollster = "0.4"
-rustix = { version = "1", features = ["fs"] }
+rustix = { version = "1", features = ["event", "fs"] }
 smithay = { version = "0.7", default-features = false }
 wgpu = { version = "29", default-features = false, features = ["vulkan"] }
 

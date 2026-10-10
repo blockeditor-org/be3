@@ -8,7 +8,8 @@ use crate::{ChildChange, Root};
 
 const ROWS: Uuid = Uuid::from_u128(0x7a1c_52e0_9b4d_4f36_8d2a_6c1e_0f93_b5d7);
 
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(default)]
 pub struct DatabaseColor {
     pub red: u8,
     pub green: u8,
@@ -21,7 +22,7 @@ pub enum DatabaseValue {
     String(String),
     Number(f64),
     Enum(Uuid),
-    Block(Uuid),
+    Block(#[serde(with = "be_model::references::block_ref")] Uuid),
     Boolean(bool),
     Color(DatabaseColor),
     Datetime(i64),

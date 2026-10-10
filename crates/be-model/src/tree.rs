@@ -1,15 +1,23 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Anchor, Change, Malformed, Model, Object, ObjectId, Objects, Place, Touched, Value};
+use crate::items::ItemsState;
+use crate::{
+    Anchor, Change, Items, Malformed, Model, Object, ObjectId, Objects, Place, Sequence, Touched,
+    Value,
+};
+use sequence::State;
 
-pub(crate) type Gone = BTreeMap<ObjectId, (Place, Anchor)>;
+#[derive(Default, Deserialize, Serialize)]
+struct Session {
+    texts: BTreeMap<Place, State>,
+    lists: BTreeMap<Place, ItemsState>,
+}
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Tree {
     objects: Objects,
-    gone: Gone,
 }
 
 impl PartialEq for Tree {
@@ -24,43 +32,83 @@ impl Tree {
     pub(crate) fn from_objects(objects: impl IntoIterator<Item = (ObjectId, Object)>) -> Self {
         Self {
             objects: objects.into_iter().collect(),
-            gone: Gone::new(),
         }
     }
 
-    pub(crate) fn from_parts(objects: Objects, gone: Gone) -> Self {
-        let gone = gone
-            .into_iter()
-            .filter(|(_, (place, _))| objects.contains_key(&place.object))
-            .collect();
-        Self { objects, gone }
-    }
-
-    pub(crate) fn objects(&self) -> &Objects {
+    pub fn objects(&self) -> &Objects {
         &self.objects
     }
 
-    pub(crate) fn gone(&self) -> &Gone {
-        &self.gone
+    pub(crate) fn session_state(&self) -> Vec<u8> {
+        let mut session = Session::default();
+        for (place, value) in self.places() {
+            match value {
+                Value::Text(sequence) if !sequence.is_fresh() => {
+                    session.texts.insert(place, sequence.state());
+                }
+                Value::List(items) if !items.is_fresh() => {
+                    session.lists.insert(place, items.state());
+                }
+                _ => {}
+            }
+        }
+        if session.texts.is_empty() && session.lists.is_empty() {
+            return Vec::new();
+        }
+        postcard::to_stdvec(&session).unwrap_or_default()
     }
 
-    pub fn upgrade(&mut self, id: ObjectId, blank: Vec<Value>) {
-        let Some(object) = self.objects.get_mut(&id) else {
-            return;
+    pub(crate) fn adopt_session_state(&mut self, bytes: &[u8]) -> Result<(), Malformed> {
+        let Session { texts, lists } = match bytes.is_empty() {
+            true => Session::default(),
+            false => postcard::from_bytes(bytes).map_err(|_| Malformed)?,
         };
-        for (index, value) in blank.into_iter().enumerate() {
-            match object.fields.get_mut(index) {
-                Some(held) if std::mem::discriminant(&*held) != std::mem::discriminant(&value) => {
-                    *held = value;
-                }
-                Some(_) => {}
-                None => object.fields.push(value),
+        let mut adopted = Vec::new();
+        for (place, state) in texts {
+            let Some(Value::Text(held)) = self.value(place.object, place.field) else {
+                return Err(Malformed);
+            };
+            let sequence = Sequence::from_state(state, &held.items()).map_err(|_| Malformed)?;
+            adopted.push((place, Value::Text(sequence)));
+        }
+        for (place, state) in lists {
+            let Some(Value::List(held)) = self.value(place.object, place.field) else {
+                return Err(Malformed);
+            };
+            let items = Items::from_state(state, &held.ids()).map_err(|_| Malformed)?;
+            adopted.push((place, Value::List(items)));
+        }
+        self.refresh_sequences();
+        for (place, value) in adopted {
+            if let Some(held) = self.value_mut(place.object, place.field) {
+                *held = value;
             }
+        }
+        Ok(())
+    }
+
+    fn places(&self) -> impl Iterator<Item = (Place, &Value)> {
+        self.objects.iter().flat_map(|(id, object)| {
+            object
+                .fields
+                .iter()
+                .enumerate()
+                .filter_map(move |(index, value)| {
+                    u16::try_from(index)
+                        .ok()
+                        .map(|field| (Place { object: *id, field }, value))
+                })
+        })
+    }
+
+    pub(crate) fn refresh_sequences(&mut self) {
+        for object in self.objects.values_mut() {
+            refresh(&mut object.fields);
         }
     }
 
     pub(crate) fn list_ids(&self, place: Place) -> Vec<ObjectId> {
-        self.list(place).cloned().unwrap_or_default()
+        self.list(place).map(Items::ids).unwrap_or_default()
     }
 
     pub fn contains(&self, id: ObjectId) -> bool {
@@ -83,19 +131,34 @@ impl Tree {
         fields
     }
 
-    pub(crate) fn encode(&self) -> Vec<u8> {
-        postcard::to_stdvec(self).unwrap_or_default()
-    }
-
-    pub(crate) fn decode(bytes: &[u8]) -> Result<Self, Malformed> {
-        let tree: Self = postcard::from_bytes(bytes).map_err(|_| Malformed)?;
-        if !tree.objects.contains_key(&ObjectId::ROOT) {
-            return Err(Malformed);
+    fn permits(&self, change: &Change) -> bool {
+        let locked = |id: &ObjectId| self.objects.get(id).is_some_and(Object::is_locked);
+        let parent_locked = |id: &ObjectId| {
+            self.objects
+                .get(id)
+                .and_then(|held| held.parent)
+                .is_some_and(|parent| locked(&parent.object))
+        };
+        match change {
+            Change::Set { object, .. }
+            | Change::SetIf { object, .. }
+            | Change::Add { object, .. }
+            | Change::Put { object, .. }
+            | Change::PutIf { object, .. }
+            | Change::Paint { object, .. }
+            | Change::Reshape { object, .. }
+            | Change::Stamp { object, .. }
+            | Change::Text { object, .. } => !locked(object),
+            Change::Insert { place, .. } => !locked(&place.object),
+            Change::Remove { object } | Change::RemoveIf { object, .. } => !parent_locked(object),
+            Change::Move { object, place, .. } => !parent_locked(object) && !locked(&place.object),
         }
-        Ok(tree)
     }
 
     pub(crate) fn apply(&mut self, change: &Change) -> bool {
+        if !self.permits(change) {
+            return false;
+        }
         match change {
             Change::Set {
                 object,
@@ -174,8 +237,9 @@ impl Tree {
             Change::Insert {
                 place,
                 anchor,
+                client,
                 objects,
-            } => self.insert(*place, *anchor, objects),
+            } => self.insert(*place, *anchor, *client, objects),
             Change::Stamp {
                 object,
                 field,
@@ -183,6 +247,10 @@ impl Tree {
                 stamped,
             } => match self.value_mut(*object, *field) {
                 Some(Value::Latest(entries)) => crate::latest::stamp(entries, key, stamped),
+                _ => false,
+            },
+            Change::Text { object, field, op } => match self.value_mut(*object, *field) {
+                Some(Value::Text(sequence)) => sequence.apply(op).is_some(),
                 _ => false,
             },
             Change::Remove { object } => self.remove(*object),
@@ -193,20 +261,15 @@ impl Tree {
                 object,
                 place,
                 anchor,
-            } => self.relocate(*object, *place, *anchor),
-            Change::MoveIf {
-                object,
-                expected,
-                place,
-                anchor,
-            } => {
-                self.objects.get(object).and_then(|held| held.parent) == Some(*expected)
-                    && self.relocate(*object, *place, *anchor)
-            }
+                client,
+            } => self.relocate(*object, *place, *anchor, *client),
         }
     }
 
     pub(crate) fn inverse(&self, change: &Change) -> Option<(Change, Change)> {
+        if !self.permits(change) {
+            return None;
+        }
         match change {
             Change::Set {
                 object,
@@ -336,9 +399,27 @@ impl Tree {
                 ))
             }
             Change::Stamp { .. } => None,
+            Change::Text { object, field, op } => {
+                let Some(Value::Text(sequence)) = self.value(*object, *field) else {
+                    return None;
+                };
+                let (back, forward) = sequence.inverse(op)?;
+                Some((
+                    Change::Text {
+                        object: *object,
+                        field: *field,
+                        op: back,
+                    },
+                    Change::Text {
+                        object: *object,
+                        field: *field,
+                        op: forward,
+                    },
+                ))
+            }
             Change::Insert { place, objects, .. } => {
                 let (top, _) = objects.first()?;
-                (!self.contains(*top) && self.list(*place).is_some())
+                (objects.iter().all(|(id, _)| !self.contains(*id)) && self.list(*place).is_some())
                     .then(|| (Change::Remove { object: *top }, change.clone()))
             }
             Change::Remove { object } | Change::RemoveIf { object, .. } => {
@@ -352,6 +433,7 @@ impl Tree {
                     Change::Insert {
                         place,
                         anchor: self.anchor_of(*object, place),
+                        client: crate::local_client(),
                         objects: self.subtree(*object),
                     },
                     change.clone(),
@@ -361,18 +443,8 @@ impl Tree {
                 object,
                 place,
                 anchor,
-            } => self.inverse_move(*object, *place, *anchor),
-            Change::MoveIf {
-                object,
-                expected,
-                place,
-                anchor,
-            } => {
-                if self.objects.get(object)?.parent? != *expected {
-                    return None;
-                }
-                self.inverse_move(*object, *place, *anchor)
-            }
+                client,
+            } => self.inverse_move(*object, *place, *anchor, *client),
         }
     }
 
@@ -381,36 +453,29 @@ impl Tree {
         object: ObjectId,
         place: Place,
         anchor: Anchor,
+        client: u64,
     ) -> Option<(Change, Change)> {
         let from = self.objects.get(&object)?.parent?;
         if !self.can_move(object, place) || anchor == Anchor::After(object) {
             return None;
         }
-        if from == place {
-            let items = self.list(place)?;
-            let mut moved: Vec<ObjectId> = items
-                .iter()
-                .copied()
-                .filter(|held| *held != object)
-                .collect();
-            let index = self.index_in(&moved, place, anchor);
-            moved.insert(index, object);
-            if moved == *items {
-                return None;
-            }
+        let items = self.list(place)?;
+        let after = items.resolve(anchor);
+        if from == place && items.stays(object, after) {
+            return None;
         }
         Some((
-            Change::MoveIf {
+            Change::Move {
                 object,
-                expected: place,
                 place: from,
                 anchor: self.anchor_of(object, from),
+                client,
             },
-            Change::MoveIf {
+            Change::Move {
                 object,
-                expected: from,
                 place,
-                anchor,
+                anchor: after.map_or(Anchor::Start, Anchor::Behind),
+                client,
             },
         ))
     }
@@ -424,7 +489,8 @@ impl Tree {
             | Change::PutIf { object, field, .. }
             | Change::Paint { object, field, .. }
             | Change::Reshape { object, field, .. }
-            | Change::Stamp { object, field, .. } => {
+            | Change::Stamp { object, field, .. }
+            | Change::Text { object, field, .. } => {
                 out.push(Touched::Field(*object, *field));
                 self.touch_up(*object, out);
             }
@@ -442,7 +508,7 @@ impl Tree {
                         .map(|(id, _)| Touched::Subtree(id)),
                 );
             }
-            Change::Move { object, place, .. } | Change::MoveIf { object, place, .. } => {
+            Change::Move { object, place, .. } => {
                 if let Some(from) = self.objects.get(object).and_then(|held| held.parent) {
                     self.touch_place(from, out);
                 }
@@ -477,7 +543,7 @@ impl Tree {
             };
             for value in object.fields.iter().rev() {
                 if let Value::List(children) = value {
-                    pending.extend(children.iter().rev());
+                    pending.extend(children.ids().into_iter().rev());
                 }
             }
             out.push((id, object.clone()));
@@ -502,14 +568,14 @@ impl Tree {
             .get_mut(usize::from(field))
     }
 
-    fn list(&self, place: Place) -> Option<&Vec<ObjectId>> {
+    fn list(&self, place: Place) -> Option<&Items> {
         match self.value(place.object, place.field)? {
             Value::List(items) => Some(items),
             _ => None,
         }
     }
 
-    fn list_mut(&mut self, place: Place) -> Option<&mut Vec<ObjectId>> {
+    fn list_mut(&mut self, place: Place) -> Option<&mut Items> {
         match self.value_mut(place.object, place.field)? {
             Value::List(items) => Some(items),
             _ => None,
@@ -517,74 +583,58 @@ impl Tree {
     }
 
     fn anchor_of(&self, object: ObjectId, place: Place) -> Anchor {
-        let Some(items) = self.list(place) else {
-            return Anchor::End;
-        };
-        match items.iter().position(|held| *held == object) {
-            Some(0) | None => Anchor::Start,
-            Some(index) => Anchor::After(items[index - 1]),
-        }
-    }
-
-    fn index_in(&self, items: &[ObjectId], place: Place, anchor: Anchor) -> usize {
-        let mut anchor = anchor;
-        let mut seen = BTreeSet::new();
-        loop {
-            match anchor {
-                Anchor::Start => return 0,
-                Anchor::End => return items.len(),
-                Anchor::After(sibling) => {
-                    if let Some(index) = items.iter().position(|held| *held == sibling) {
-                        return index + 1;
-                    }
-                    match self.gone.get(&sibling) {
-                        Some((left, before)) if *left == place && seen.insert(sibling) => {
-                            anchor = *before;
-                        }
-                        _ => return items.len(),
-                    }
-                }
-            }
-        }
-    }
-
-    fn place_in(&mut self, id: ObjectId, place: Place, anchor: Anchor) -> bool {
-        let Some(items) = self.list(place) else {
-            return false;
-        };
-        let index = self.index_in(items, place, anchor);
-        if let Some(items) = self.list_mut(place) {
-            items.insert(index, id);
-        }
-        true
+        self.list(place)
+            .map_or(Anchor::End, |items| items.anchor_of(object))
     }
 
     fn detach(&mut self, id: ObjectId) {
         let Some(place) = self.objects.get(&id).and_then(|object| object.parent) else {
             return;
         };
-        let anchor = self.anchor_of(id, place);
-        self.gone.insert(id, (place, anchor));
         if let Some(items) = self.list_mut(place) {
-            items.retain(|held| *held != id);
+            items.remove(id);
         }
     }
 
-    fn insert(&mut self, place: Place, anchor: Anchor, objects: &[(ObjectId, Object)]) -> bool {
+    fn insert(
+        &mut self,
+        place: Place,
+        anchor: Anchor,
+        client: u64,
+        objects: &[(ObjectId, Object)],
+    ) -> bool {
         let Some((top, _)) = objects.first() else {
             return false;
         };
-        if self.list(place).is_none() || objects.iter().any(|(id, _)| self.contains(*id)) {
+        let Some(after) = self.list(place).and_then(|items| items.admit(*top, anchor)) else {
+            return false;
+        };
+        if objects.iter().any(|(id, _)| self.contains(*id)) {
             return false;
         }
-        for (index, (id, object)) in objects.iter().enumerate() {
-            let mut object = object.clone();
-            if index == 0 {
-                object.parent = Some(place);
-            }
-            self.objects.insert(*id, object);
+        let inside: Objects = objects
+            .iter()
+            .enumerate()
+            .map(|(index, (id, object))| {
+                let mut object = object.clone();
+                if index == 0 {
+                    object.parent = Some(place);
+                }
+                refresh(&mut object.fields);
+                (*id, object)
+            })
+            .collect();
+        if inside.len() != objects.len() || !whole(&inside, *top) {
+            return false;
         }
-        self.place_in(*top, place, anchor)
+        if !self
+            .list_mut(place)
+            .is_some_and(|items| items.insert(*top, client, after))
+        {
+            return false;
+        }
+        self.objects.extend(inside);
+        true
     }
 
     fn remove(&mut self, object: ObjectId) -> bool {
@@ -616,15 +666,30 @@ impl Tree {
         true
     }
 
-    fn relocate(&mut self, object: ObjectId, place: Place, anchor: Anchor) -> bool {
+    fn relocate(&mut self, object: ObjectId, place: Place, anchor: Anchor, client: u64) -> bool {
         if !self.can_move(object, place) || anchor == Anchor::After(object) {
             return false;
         }
+        let from = self.objects.get(&object).and_then(|held| held.parent);
+        if from == Some(place) {
+            let Some(items) = self.list_mut(place) else {
+                return false;
+            };
+            let after = items.resolve(anchor);
+            return items.shift(object, after);
+        }
+        let Some(after) = self
+            .list(place)
+            .and_then(|items| items.admit(object, anchor))
+        else {
+            return false;
+        };
         self.detach(object);
         if let Some(held) = self.objects.get_mut(&object) {
             held.parent = Some(place);
         }
-        self.place_in(object, place, anchor)
+        self.list_mut(place)
+            .is_some_and(|items| items.insert(object, client, after))
     }
 
     pub(crate) fn children_by_place(&self) -> BTreeMap<Place, Vec<ObjectId>> {
@@ -639,7 +704,7 @@ impl Tree {
 
     pub(crate) fn set_list(&mut self, place: Place, items: Vec<ObjectId>) {
         if let Some(held) = self.list_mut(place) {
-            *held = items;
+            *held = Items::from_ids(items);
         }
     }
 }
@@ -699,4 +764,48 @@ fn conditional_entry(
             value: after.cloned(),
         },
     )
+}
+
+fn whole(inside: &Objects, top: ObjectId) -> bool {
+    inside.iter().all(|(id, object)| {
+        let listed = object
+            .fields
+            .iter()
+            .enumerate()
+            .all(|(index, value)| match value {
+                Value::List(items) => {
+                    let place = u16::try_from(index)
+                        .ok()
+                        .map(|field| Place { object: *id, field });
+                    items.iter().all(|child| {
+                        *child != top
+                            && inside
+                                .get(child)
+                                .is_some_and(|held| held.parent.is_some() && held.parent == place)
+                    })
+                }
+                _ => true,
+            });
+        let held = *id == top
+            || object.parent.is_some_and(|parent| {
+                inside
+                    .get(&parent.object)
+                    .and_then(|holder| holder.fields.get(usize::from(parent.field)))
+                    .is_some_and(|value| match value {
+                        Value::List(items) => items.index_of(*id).is_some(),
+                        _ => false,
+                    })
+            });
+        listed && held
+    })
+}
+
+fn refresh(fields: &mut [Value]) {
+    for value in fields {
+        match value {
+            Value::Text(sequence) if !sequence.is_fresh() => *sequence = sequence.refreshed(),
+            Value::List(items) if !items.is_fresh() => *items = items.refreshed(),
+            _ => {}
+        }
+    }
 }

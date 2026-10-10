@@ -8,10 +8,10 @@ use std::{
 
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
-    ArtifactDescription, BlockPick, EditorInstanceId, EditorMessage, EditorRegion, FrameSpec,
-    HostPanel, HostSession, MAX_QUEUED_MESSAGES, Message, PluginManifest, PresentedFrame,
-    ScreenDamage, ScreenId, ScreenLayout, ScreenRequest, SessionState, SurfaceFormat, SurfaceSpec,
-    Theme, ViewChange,
+    ArtifactDescription, BlockPick, ChildRect, EditorInstanceId, EditorMessage, EditorRegion,
+    FrameSpec, HostAction, HostPanel, HostSession, HostValue, MAX_QUEUED_MESSAGES, Message,
+    Monitor, PluginManifest, PresentedFrame, ScreenDamage, ScreenId, ScreenLayout, ScreenRequest,
+    SessionState, SurfaceFormat, SurfaceSpec, Theme, ViewChange, decode_host, encode_host,
 };
 use uuid::Uuid;
 
@@ -51,6 +51,8 @@ struct Host {
     over_budget: u64,
     runtimes: HashMap<String, Runtime>,
     focus: Focus,
+    published: HashMap<String, Arc<Vec<u8>>>,
+    shell: Option<(String, EditorInstanceId)>,
     grabbed: bool,
 }
 
@@ -63,6 +65,8 @@ impl Host {
             over_budget: 0,
             runtimes: HashMap::new(),
             focus: Focus::default(),
+            published: HashMap::new(),
+            shell: None,
             grabbed: false,
         }
     }
@@ -75,10 +79,23 @@ impl Host {
             return Err(CROWDED.to_owned());
         };
         let focus = self.focus.clone();
+        let published = &self.published;
+        let shell = self
+            .shell
+            .as_ref()
+            .filter(|(shell, _)| *shell == plugin.identity.id)
+            .map(|(_, instance)| *instance);
         let runtime = self
             .runtimes
             .entry(plugin.identity.id.clone())
-            .or_insert_with(|| Runtime::new(plugin, surface));
+            .or_insert_with(|| {
+                let mut runtime = Runtime::new(plugin, surface);
+                for (key, value) in published {
+                    runtime.instances.set_host_value(key, Arc::clone(value));
+                }
+                runtime.instances.set_shell(shell);
+                runtime
+            });
         runtime.instances.set_focus(focus);
         runtime.begin_pass(host::pass());
         Ok(runtime)
@@ -626,6 +643,27 @@ pub(crate) fn install(setup: &beui::Setup) {
     });
 }
 
+pub(crate) fn exiting() {
+    let runtimes = HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        host.availability = Availability::missing();
+        std::mem::take(&mut host.runtimes)
+    });
+    for (_, mut runtime) in runtimes {
+        runtime.stop();
+    }
+    presenter::stop();
+}
+
+pub(crate) fn replace_gpu(setup: &beui::Setup) {
+    install(setup);
+    HOST.with(|host| {
+        for runtime in host.borrow_mut().runtimes.values_mut() {
+            runtime.restart();
+        }
+    });
+}
+
 pub(crate) struct HostFrame {
     pub(crate) content: Rect,
 }
@@ -913,21 +951,79 @@ pub(crate) fn set_focus(block: Option<(Uuid, Uuid)>, via: Vec<Uuid>) {
     });
 }
 
+pub(crate) fn publish<T: HostValue>(value: &T::Value) {
+    let bytes = encode_host(value);
+    HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        if host
+            .published
+            .get(T::KEY)
+            .is_some_and(|published| **published == bytes)
+        {
+            return;
+        }
+        let value = Arc::new(bytes);
+        host.published.insert(T::KEY.to_owned(), Arc::clone(&value));
+        for (plugin_id, runtime) in &mut host.runtimes {
+            if runtime.instances.set_host_value(T::KEY, Arc::clone(&value)) {
+                runtime.pacing.needed = true;
+                mark(plugin_id);
+                host::request_repaint();
+            }
+        }
+    });
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn watched<T: HostValue>() -> bool {
+    HOST.with(|host| {
+        host.borrow()
+            .runtimes
+            .values()
+            .any(|runtime| runtime.instances.watches_host_value(T::KEY))
+    })
+}
+
+pub(crate) fn take_actions<A: HostAction>() -> Vec<A> {
+    HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        let mut runtimes: Vec<_> = host.runtimes.iter_mut().collect();
+        runtimes.sort_by_key(|(left, _)| *left);
+        runtimes
+            .into_iter()
+            .flat_map(|(_, runtime)| runtime.instances.take_host_actions(A::KEY))
+            .filter_map(|action| decode_host(&action))
+            .collect()
+    })
+}
+
+pub(crate) fn set_shell(shell: Option<(&str, EditorInstanceId)>) {
+    HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        let shell = shell.map(|(plugin_id, instance)| (plugin_id.to_owned(), instance));
+        if host.shell == shell {
+            return;
+        }
+        host.shell = shell.clone();
+        for (plugin_id, runtime) in &mut host.runtimes {
+            let instance = shell
+                .as_ref()
+                .filter(|(shell, _)| shell == plugin_id)
+                .map(|(_, instance)| *instance);
+            if runtime.instances.set_shell(instance) {
+                runtime.pacing.needed = true;
+                mark(plugin_id);
+                host::request_repaint();
+            }
+        }
+    });
+}
+
 pub(crate) fn take_focus_report(plugin_id: &str, instance: EditorInstanceId) -> Option<Focus> {
     with(plugin_id, |runtime| {
         runtime.instances.take_focus_report(instance)
     })
     .flatten()
-}
-
-pub(crate) fn take_closed_windows(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-) -> Vec<block_plugin_api::HostWindowId> {
-    with(plugin_id, |runtime| {
-        runtime.instances.take_closed_windows(instance)
-    })
-    .unwrap_or_default()
 }
 
 pub(crate) fn take_artifact_watch(
@@ -1134,19 +1230,6 @@ pub(crate) fn presenting(plugin_id: &str, instance: EditorInstanceId) -> bool {
     with(plugin_id, |runtime| runtime.instances.presenting(instance)).unwrap_or_default()
 }
 
-pub(crate) fn set_windows(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-    windows: Vec<block_plugin_api::HostWindow>,
-) {
-    with(plugin_id, |runtime| {
-        if runtime.instances.set_windows(instance, windows) {
-            mark(plugin_id);
-            host::request_repaint();
-        }
-    });
-}
-
 pub(crate) fn present(plugin_id: &str, instance: EditorInstanceId, presenting: bool) {
     with(plugin_id, |runtime| {
         if runtime.instances.set_presenting(instance, presenting) {
@@ -1318,10 +1401,11 @@ pub(crate) fn unplace_region(plugin_id: &str, instance: EditorInstanceId, region
     host::request_repaint();
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct RegionPlacement {
     pub(crate) rect: Rect,
     pub(crate) clip: Rect,
+    pub(crate) screens: Vec<beui::Screen>,
 }
 
 pub(crate) fn place_region(
@@ -1337,7 +1421,11 @@ pub(crate) fn place_region(
             return;
         }
         runtime.placed = host::pass();
-        let RegionPlacement { rect, clip } = placement;
+        let RegionPlacement {
+            rect,
+            clip,
+            screens,
+        } = placement;
         let scale_factor = host::pixels_per_point();
         let size = match region {
             EditorRegion::Preview => preview_size(rect.size(), scale_factor),
@@ -1347,9 +1435,16 @@ pub(crate) fn place_region(
         let visible = cropped
             .as_ref()
             .map_or(Rect::ZERO, |(_, source)| scale_rect(*source, size));
-        runtime
-            .instances
-            .place_mounted(instance, region, frame, size, visible, scale_factor);
+        let monitors = region_monitors(&screens, rect, size);
+        runtime.instances.place_mounted(
+            instance,
+            region,
+            frame,
+            size,
+            visible,
+            scale_factor,
+            monitors,
+        );
         if let Some(view) = view {
             runtime.instances.set_view(instance, view);
         }
@@ -1365,6 +1460,30 @@ pub(crate) fn place_region(
         mark(plugin_id);
     });
     host::request_repaint();
+}
+
+fn region_monitors(screens: &[beui::Screen], rect: Rect, size: Vec2) -> Vec<Monitor> {
+    if rect.width() <= 0.0 || rect.height() <= 0.0 {
+        return Vec::new();
+    }
+    let scale = vec2(size.x / rect.width(), size.y / rect.height());
+    screens
+        .iter()
+        .filter(|screen| screen.rect.intersects(rect))
+        .map(|screen| {
+            let shown = screen.rect.translate(-rect.min.to_vec2());
+            Monitor {
+                id: screen.id.clone(),
+                name: screen.name.clone(),
+                rect: ChildRect {
+                    x: shown.min.x * scale.x,
+                    y: shown.min.y * scale.y,
+                    width: shown.width() * scale.x,
+                    height: shown.height() * scale.y,
+                },
+            }
+        })
+        .collect()
 }
 
 pub(crate) fn forward_region(
@@ -1397,6 +1516,37 @@ pub(crate) fn back_region(
     host::request_repaint();
 }
 
+pub(crate) fn intercept_region(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+    press: Option<beui::KeyPress>,
+    modifiers: beui::Modifiers,
+) {
+    with(plugin_id, |runtime| {
+        let messages = runtime
+            .instances
+            .intercepted(instance, region, press, modifiers);
+        runtime.pacing.needed |= !messages.is_empty();
+        runtime.send(messages);
+    });
+    host::request_repaint();
+}
+
+pub(crate) fn intercept_tap(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+    key: beui::Key,
+) {
+    with(plugin_id, |runtime| {
+        let messages = runtime.instances.intercepted_tap(instance, region, key);
+        runtime.pacing.needed |= !messages.is_empty();
+        runtime.send(messages);
+    });
+    host::request_repaint();
+}
+
 #[derive(Clone, PartialEq)]
 pub(crate) struct RegionView {
     pub(crate) error: Option<(String, bool)>,
@@ -1406,6 +1556,7 @@ pub(crate) struct RegionView {
     pub(crate) base: Vec<Piece>,
     pub(crate) floating: Vec<Piece>,
     pub(crate) floating_rects: Vec<Rect>,
+    pub(crate) claims: Vec<(beui::Modifiers, Rect)>,
     pub(crate) held: Option<Rect>,
     pub(crate) drawn: Option<(u32, u32)>,
     pub(crate) children: Vec<HostChild>,
@@ -1413,6 +1564,8 @@ pub(crate) struct RegionView {
     pub(crate) cursor: Option<beui::CursorIcon>,
     pub(crate) ime: Option<beui::ImeArea>,
     pub(crate) handles_back: bool,
+    pub(crate) wants_keyboard: bool,
+    pub(crate) intercepted_keys: Vec<beui::KeyChord>,
     pub(crate) grabbed: bool,
 }
 
@@ -1426,6 +1579,7 @@ impl RegionView {
             base: Vec::new(),
             floating: Vec::new(),
             floating_rects: Vec::new(),
+            claims: Vec::new(),
             held: None,
             drawn: None,
             children: Vec::new(),
@@ -1433,6 +1587,8 @@ impl RegionView {
             cursor: None,
             ime: None,
             handles_back: false,
+            wants_keyboard: false,
+            intercepted_keys: Vec::new(),
             grabbed: false,
         }
     }
@@ -1443,6 +1599,12 @@ impl RegionView {
             loading: true,
             ..Self::failed(String::new(), false)
         }
+    }
+
+    pub(crate) fn claims(&self, position: Pos2, held: beui::Modifiers) -> bool {
+        self.claims.iter().any(|(claimed, rect)| {
+            claimed.any() && held.holds(*claimed) && rect.contains_half_open(position)
+        })
     }
 
     pub(crate) fn takes(&self, local: Pos2) -> bool {
@@ -1525,6 +1687,32 @@ pub(crate) fn region_view(
                 .unwrap_or_default(),
         };
         let handles_back = report.is_some_and(|report| report.handles_back);
+        let claims = report
+            .map(|report| {
+                report
+                    .claims
+                    .iter()
+                    .map(|claim| {
+                        let held = beui::Modifiers {
+                            alt: claim.modifiers.alt,
+                            ctrl: claim.modifiers.control,
+                            shift: claim.modifiers.shift,
+                            logo: claim.modifiers.logo,
+                        };
+                        let at = Rect::from_min_size(
+                            pos2(claim.rect.x, claim.rect.y) + rect.min.to_vec2(),
+                            vec2(claim.rect.width, claim.rect.height),
+                        );
+                        (held, at.intersect(visible))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let intercepted_keys = report
+            .iter()
+            .flat_map(|report| &report.intercepted_keys)
+            .filter_map(|chord| beui_plugin_input::beui_chord(*chord))
+            .collect();
         let base: Vec<Rect> = match floating_rects.is_empty() {
             true => vec![visible],
             false => super::pieces::subtract(visible, &floating_rects),
@@ -1551,6 +1739,7 @@ pub(crate) fn region_view(
             base,
             floating,
             floating_rects,
+            claims,
             held: held.map(|held| held.rect),
             drawn: held.map(|held| held.drawn),
             children,
@@ -1563,6 +1752,8 @@ pub(crate) fn region_view(
             },
             ime: runtime.instances.ime(instance, region, rect),
             handles_back,
+            wants_keyboard: report.is_some_and(|report| report.wants_keyboard),
+            intercepted_keys,
             grabbed: runtime.instances.grabbing(),
         }
     })

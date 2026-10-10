@@ -5,6 +5,7 @@ mod a_back_gesture_slides_a_dialog_away_before_it_closes;
 mod a_back_handler_goes_back_while_enabled_without_moving_its_content;
 mod a_back_handler_that_takes_the_gesture_hears_each_phase_and_stays_put;
 mod a_back_slide_carries_its_page_away_and_brings_the_next_one_in;
+mod a_back_slide_shows_the_page_it_goes_back_to_while_it_is_swiped;
 mod a_bare_separator_rules_across_the_column_it_sits_in;
 mod a_baseline_row_lines_up_text_of_different_sizes;
 mod a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back;
@@ -22,6 +23,7 @@ mod a_catcher_in_a_dialog_hears_a_press_on_it;
 mod a_catcher_that_lost_its_release_lets_go_of_the_pointer;
 mod a_catcher_under_a_dialog_that_is_under_another_hears_no_pointer;
 mod a_catcher_under_an_open_dialog_hears_no_press;
+mod a_centred_dialog_opens_on_the_screen_it_was_opened_from;
 mod a_change_inside_a_fixed_size_frame_lays_out_only_that_frame;
 mod a_clean_panel_is_not_laid_out_again_when_the_one_beside_it_changes;
 mod a_clean_sibling_keeps_its_measurement_when_the_one_beside_it_changes;
@@ -41,6 +43,8 @@ mod a_component_function_returns_its_base_node;
 mod a_component_that_builds_no_node_owns_its_scope_through_the_value;
 mod a_component_wrapping_a_node_less_component_keeps_its_scope;
 mod a_context_menu_item_follows_the_signals_its_tag_was_written_with;
+mod a_context_menu_reads_its_rows_as_named_menu_items;
+mod a_context_menu_too_long_for_the_window_stays_inside_it_and_scrolls;
 mod a_crowded_dock_tab_bar_scrolls_rather_than_spilling;
 mod a_date_field_takes_a_date_typed_segment_by_segment;
 mod a_date_segment_reads_and_steps_as_a_spin_button;
@@ -55,10 +59,12 @@ mod a_disabled_select_does_not_open_when_its_trigger_is_clicked;
 mod a_disabled_text_input_ignores_typing_and_reads_as_dimmed;
 mod a_dock_stacked_by_narrowing_its_container_leaves_the_hidden_panel_unplaced;
 mod a_dock_tab_in_a_window_opens_its_menu_over_the_window;
+mod a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names;
 mod a_dock_with_no_tabs_shows_the_view_it_was_given_for_nothing_open;
 mod a_docked_pane_lays_its_content_inside_its_border;
 mod a_double_tap_on_the_simulated_trackpad_locks_the_left_button_until_the_next_tap;
 mod a_drag_preview_follows_the_pointer_until_the_drop;
+mod a_drag_whose_moves_share_a_frame_with_its_press_and_release_keeps_both_ends;
 mod a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given;
 mod a_drawing_repaints_on_its_deadline_without_repeating_layout;
 mod a_drop_the_dock_would_refuse_draws_no_drop_marker;
@@ -74,6 +80,7 @@ mod a_finger_swiping_along_a_tab_bar_moves_no_tab;
 mod a_fitted_sheet_taller_than_the_screen_stops_short_of_the_top_and_scrolls;
 mod a_floating_child_pins_itself_over_the_scroll_it_names;
 mod a_floating_overlay_follows_an_anchor_that_only_moves;
+mod a_focused_app_keeps_its_keys_from_global_actions_that_do_not_intercept;
 mod a_focused_forwarding_catcher_takes_the_keys_from_the_document;
 mod a_focused_node_scrolled_far_away_stays_laid_out;
 mod a_focused_text_input_asks_for_the_keyboard;
@@ -88,8 +95,11 @@ mod a_frame_rounds_each_corner_on_its_own;
 mod a_frame_takes_a_fraction_of_the_space_it_is_offered;
 mod a_frame_width_bound_to_a_signal_measures_intrinsically_once_it_clears;
 mod a_frame_with_a_max_width_stops_growing_at_it_but_still_shrinks;
+mod a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane;
 mod a_fullscreen_overlay_fills_the_window_and_escape_dismisses_it;
 mod a_gap_before_one_child_replaces_the_rows_spacing;
+mod a_global_action_runs_from_a_text_field_inside_an_open_palette;
+mod a_global_key_whose_release_was_lost_does_not_swallow_the_next_press;
 mod a_grid_in_a_scroll_lays_out_only_the_cells_near_the_view;
 mod a_grid_lines_its_cells_up_in_shared_columns;
 mod a_grip_touch_cancelled_by_a_second_finger_lets_the_sheet_go;
@@ -99,22 +109,33 @@ mod a_horizontal_scroll_lays_its_items_out_in_a_row;
 mod a_hovered_catcher_hears_where_the_pointer_is_while_another_holds_it;
 mod a_justified_row_places_its_leftover_space;
 mod a_keyed_view_rebuilds_only_when_its_key_changes;
+mod a_launcher_closed_by_a_click_outside_opens_again;
+mod a_launcher_closed_by_a_click_outside_within_one_frame_opens_again;
+mod a_launcher_closed_by_escape_opens_again;
+mod a_launcher_query_that_matches_nothing_runs_as_a_command_and_escape_closes;
+mod a_launcher_ranks_names_above_keywords_and_comments;
 mod a_layout_put_back_from_its_snapshot_keeps_the_tabs_where_they_were;
 mod a_light_overlay_occludes_only_its_content;
 mod a_list_in_a_scroll_lays_out_only_the_rows_near_the_view;
 mod a_list_sizes_plain_nodes_handed_to_it_intrinsically;
+mod a_locking_overlay_stays_on_top_and_shuts_out_global_keys;
 mod a_lone_child_fills_a_children_prop_as_a_run_of_one;
 mod a_long_press_on_selectable_text_selects_the_word_and_copy_copies_it;
 mod a_long_text_area_only_builds_the_lines_in_view;
+mod a_menu_item_shows_its_icon_and_detail_and_runs_its_click_in_a_dropdown_and_a_sheet;
+mod a_menu_opened_at_the_pointer_is_a_sheet_after_a_tap_and_a_dropdown_after_a_click;
 mod a_menu_row_with_a_submenu_shows_an_arrow_the_leaf_rows_do_not;
 mod a_middle_click_on_a_dock_tab_closes_it;
 mod a_middle_drag_on_a_pan_zoom_in_a_scroll_pans_it_rather_than_autoscrolling;
 mod a_modal_sheet_fits_its_content_and_a_tap_above_it_closes_it;
 mod a_modal_sheet_slides_in_and_out;
+mod a_modifier_drag_moves_a_floating_window_by_its_content_or_its_tab_bar;
+mod a_modifier_drag_on_a_docked_pane_moves_nothing_and_reaches_nothing;
 mod a_multi_root_view_fills_a_children_prop_in_order;
 mod a_narrow_inspector_puts_its_close_button_beside_its_tabs;
 mod a_narrow_window_shows_the_inspector_below_a_tab_bar;
 mod a_nested_container_reports_its_own_width_not_the_windows;
+mod a_nested_overlay_closes_with_its_parent_whatever_the_parents_mode;
 mod a_node_ref_lets_go_of_a_removed_node;
 mod a_number_input_reports_what_was_typed_within_its_range;
 mod a_pan_zoom_follows_the_view_its_caller_sets;
@@ -132,7 +153,9 @@ mod a_popover_panel_stops_at_its_max_width_rather_than_spanning_the_window;
 mod a_portal_shows_a_subtree_it_does_not_own;
 mod a_press_a_catcher_declines_focuses_the_catcher_beneath;
 mod a_press_and_release_in_one_frame_on_a_submenu_item_selects_it_once;
+mod a_press_claimed_by_its_modifiers_goes_to_the_claimant_and_not_the_catcher_beneath;
 mod a_press_inside_a_color_wheels_triangle_picks_saturation_and_value;
+mod a_press_that_dismisses_an_overlay_does_not_reach_the_catcher_beneath;
 mod a_pressed_forwarding_catcher_keeps_the_pointer_until_it_is_released;
 mod a_quick_flick_on_the_simulated_trackpad_moves_the_cursor_without_clicking;
 mod a_quick_tap_with_several_fingers_is_a_finger_tap;
@@ -158,6 +181,10 @@ mod a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it;
 mod a_second_finger_cancels_the_press_the_first_began;
 mod a_second_finger_dragged_beside_a_held_one_is_a_secondary_drag_not_a_pinch;
 mod a_second_swipe_during_a_fling_keeps_scrolling;
+mod a_secondary_drag_carried_over_a_floating_window_keeps_moving_the_split;
+mod a_secondary_drag_released_as_the_pointer_leaves_still_ends;
+mod a_secondary_drag_with_the_dock_drag_modifier_moves_the_nearest_split;
+mod a_secondary_drag_with_the_dock_drag_modifier_resizes_a_window_from_its_nearest_corner;
 mod a_select_following_its_prop_does_not_report_a_change;
 mod a_selected_radio_option_marks_its_ring_with_the_accent_colour;
 mod a_selection_across_text_with_spans_is_painted;
@@ -189,6 +216,7 @@ mod a_tab_clicked_within_one_frame_does_not_start_a_drag;
 mod a_tab_split_out_of_a_window_keeps_its_panel_on_screen;
 mod a_tag_can_take_a_node_ref_and_a_test_id_slot_at_once;
 mod a_tap_during_a_fling_stops_it_without_clicking_a_row;
+mod a_tap_intercepted_for_a_document_runs_its_tap_action;
 mod a_tap_on_the_simulated_trackpad_holds_its_press_until_the_double_tap_timer_runs_out;
 mod a_test_id_names_the_copy_that_is_shown;
 mod a_text_area_shows_its_placeholder_until_something_is_typed;
@@ -198,6 +226,8 @@ mod a_tiled_dock_bar_offers_the_shown_tabs_menu_whether_its_tabs_run_across_or_d
 mod a_time_field_picks_from_a_grid_of_times;
 mod a_time_list_moves_through_its_times_and_picks_one;
 mod a_timer_asks_for_frames_until_its_work_settles;
+mod a_toast_goes_away_when_dismissed_or_when_its_time_is_up;
+mod a_toast_with_actions_reports_them_and_stays_until_answered;
 mod a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable;
 mod a_touch_beside_a_control_reaches_the_nearest_one;
 mod a_touch_fling_glides_to_a_stop_and_stops_asking_for_frames;
@@ -245,13 +275,19 @@ mod an_embed_reports_the_rect_and_the_clip_it_was_laid_out_in;
 mod an_embed_taken_out_of_the_tree_forgets_where_it_was;
 mod an_empty_field_shows_its_placeholder_until_something_is_typed;
 mod an_empty_view_builds_a_children_prop_with_nothing_in_it;
+mod an_exiting_runner_lets_its_app_go_while_its_renderers_are_still_there;
 mod an_icon_is_as_tall_as_the_text_it_sits_with;
 mod an_idle_frame_describes_no_accessibility_nodes_and_one_changed_row_describes_few;
 mod an_ime_composition_is_written_as_it_is_composed_and_holds_the_keys_meanwhile;
 mod an_ime_composition_pushes_the_text_after_the_caret_along;
 mod an_ime_correction_replaces_the_word_it_names;
+mod an_indeterminate_switch_reads_as_mixed_and_a_click_turns_it_on;
+mod an_intercepted_press_keeps_its_physical_key_repeats_and_release_from_the_app;
+mod an_intercepting_action_names_its_chords_and_answers_keys_intercepted_for_it;
 mod an_offset_leaves_the_wheel_to_the_scroll_around_it;
 mod an_optional_child_slot_takes_no_children_or_exactly_one;
+mod an_overlay_reports_a_dismiss_only_when_the_user_closes_it;
+mod an_overlay_too_tall_for_either_side_of_its_anchor_fills_the_roomier_side;
 mod an_unstyled_scroll_keeps_the_whole_width_for_its_content;
 mod appending_to_a_virtual_list_keeps_the_rows_it_built;
 mod arrow_and_page_keys_walk_a_calendar_by_day_week_month_and_year;
@@ -274,8 +310,10 @@ mod clicking_a_checkbox_toggles_it;
 mod clicking_a_choice_keeps_keyboard_focus_on_the_selected_option;
 mod clicking_a_date_field_shows_its_calendar_and_keeps_taking_typing;
 mod clicking_a_link_reports_it_and_reads_as_a_link;
+mod clicking_a_markdown_checkbox_in_a_text_area_toggles_it_without_moving_the_caret;
 mod clicking_a_popover_trigger_again_closes_it;
 mod clicking_a_row_leaves_its_children_expanded;
+mod clicking_a_row_selects_it_without_leaving_it_highlighted;
 mod clicking_a_row_selects_the_node_it_lists;
 mod clicking_a_switch_moves_its_knob_and_survives_a_tab_round_trip;
 mod clicking_a_tab_selects_the_panel_it_names;
@@ -345,6 +383,7 @@ mod escape_closes_an_open_select_popup_and_returns_focus_to_the_trigger;
 mod escape_closes_the_emoji_menu_until_the_colon_is_typed_again;
 mod escape_discards_what_was_typed_into_a_number_input;
 mod escape_then_tab_moves_the_focus_out_of_a_text_area_that_takes_tab;
+mod escaping_a_pick_clears_its_highlight;
 mod every_srgb_color_has_a_place_in_an_oklch_wheels_triangle;
 mod every_styled_interactive_control_paints_a_keyboard_focus_ring;
 mod evicting_a_virtual_scroll_row_disposes_its_effects;
@@ -362,6 +401,7 @@ mod for_each_reuses_nodes_for_keys_that_persist_across_an_update;
 mod forwarded_input_reaches_only_the_topmost_catcher_under_it;
 mod grabbing_a_color_areas_thumb_off_centre_drags_it_from_where_it_was;
 mod grabbing_the_bar_between_two_panes_off_centre_moves_it_only_as_far_as_the_pointer;
+mod held_modifiers_and_key_releases_reach_global_listeners;
 mod holding_a_finger_down_opens_a_context_menu;
 mod holding_the_caret_handle_below_a_short_text_area_keeps_scrolling;
 mod holding_the_caret_handle_past_the_edge_of_a_narrow_input_keeps_scrolling;
@@ -424,6 +464,7 @@ mod pointer_motion_only_reaches_what_lies_under_the_pointer;
 mod pointing_inside_the_autoscroll_dead_zone_leaves_the_scroll_still;
 mod pressing_a_sliders_knob_keeps_its_value_until_it_is_dragged;
 mod pressing_enter_past_the_bottom_of_a_text_area_scrolls_the_caret_into_view;
+mod pressing_shift_between_escape_and_tab_still_moves_the_focus_out_of_a_text_area;
 mod quadruple_clicking_selects_everything_so_typing_replaces_the_value;
 mod radio_groups_select_with_space_and_arrows_without_leaving_the_group;
 mod recolouring_a_nested_frame_repaints_it_alone;
@@ -458,6 +499,7 @@ mod scrolling_lays_out_and_paints_the_rows_it_exposes_rather_than_every_row_that
 mod scrolling_moves_what_the_scroll_showed_and_damages_only_the_rows_it_exposes;
 mod scrolling_resends_the_rows_that_moved_but_not_what_moved_with_them;
 mod selecting_a_leaf_item_in_a_nested_context_menu_closes_the_whole_menu_stack;
+mod selecting_a_node_lists_its_properties_in_the_inspector;
 mod setting_the_value_of_a_text_input_reports_the_change;
 mod shift_arrow_selects_the_character_that_typing_then_replaces;
 mod shift_scrolling_a_horizontal_scroll_moves_it_sideways;
@@ -471,6 +513,7 @@ mod sizing_attributes_on_the_roots_of_a_multi_root_view_are_honoured;
 mod slider_home_end_and_page_keys_clamp_at_the_bounds;
 mod space_toggles_checkboxes_switches_and_toggle_buttons;
 mod splitting_a_dock_tab_with_the_next_shows_both_side_by_side;
+mod super_tapped_alone_runs_its_tap_action_and_still_reaches_the_app;
 mod swiping_the_simulated_middle_button_scrolls_in_ticks;
 mod switching_a_show_damages_both_panels;
 mod switching_dock_tabs_keeps_the_panel_it_hides;
@@ -500,6 +543,7 @@ mod the_click_that_ends_autoscroll_presses_nothing;
 mod the_color_areas_thumb_shows_a_grab_cursor;
 mod the_command_palette_runs_the_action_it_is_filtered_to_and_greys_disabled_ones;
 mod the_components_tab_lists_components_instead_of_base_nodes;
+mod the_dock_switcher_shows_the_recent_tabs_and_a_pick_shows_one;
 mod the_edge_two_rows_share_hovers_only_the_lower_one;
 mod the_emoji_menu_opens_below_the_caret_on_a_line_it_opened_on_before;
 mod the_find_bar_counts_matches_as_the_query_is_typed_and_steps_between_them;
@@ -514,8 +558,10 @@ mod the_inspector_shows_document_performance;
 mod the_inspector_shows_the_accesskit_tree;
 mod the_inspector_shows_the_base_nodes_of_a_styled_component;
 mod the_inspector_shows_the_renderer_the_host_reports;
+mod the_inspector_swipes_back_as_far_as_its_slider_is_dragged;
 mod the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition;
 mod the_keyboard_opening_scrolls_the_focused_field_into_what_is_left;
+mod the_launcher_filters_as_it_is_typed_and_launches_with_enter;
 mod the_left_and_right_arrows_collapse_and_expand_an_inspector_row;
 mod the_menu_of_a_selectable_text_copies_what_is_selected;
 mod the_reveal_button_scrolls_the_inspector_tree_to_a_picked_row;
@@ -539,6 +585,7 @@ mod touch_dragging_across_a_text_input_does_not_select_its_text;
 mod touch_overscroll_bands_without_hovering_a_row;
 mod triple_clicking_selects_the_line_so_typing_replaces_the_value;
 mod turning_an_oklch_color_wheel_keeps_its_lightness;
+mod turning_off_picking_clears_its_highlight;
 mod turning_off_rubber_banding_in_the_inspector_stops_a_scroll_at_its_end;
 mod turning_on_the_screen_reader_reads_what_it_is_on;
 mod turning_the_accessibility_tree_off_in_the_inspector_stops_building_it;
@@ -558,6 +605,7 @@ mod view_attributes_can_be_written_without_braces;
 mod view_attributes_can_pun_a_bare_name_as_its_own_value;
 mod view_children_can_pick_fixed_and_percent_sizing;
 mod what_on_laid_out_changes_is_laid_out_before_the_frame_is_painted;
+mod without_a_drag_modifier_a_modified_drag_reaches_the_dock_content;
 mod wrapped_rows_wrap_long_text_and_grow_percent_children;
 mod zooming_a_pan_zoom_stops_at_its_scale_limits;
 mod zooming_into_the_simulated_screen_follows_the_pointer;
@@ -1531,6 +1579,89 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
     (document, dock.get())
 }
 
+pub(crate) struct SplitDock {
+    pub(crate) document: Document,
+    pub(crate) dock: NodeId,
+    pub(crate) presses: Rc<Cell<u32>>,
+}
+
+pub(crate) fn split_dock(drag_modifier: Option<Modifiers>) -> SplitDock {
+    let dock = NodeRef::new();
+    let built = dock.clone();
+    let presses = Rc::new(Cell::new(0));
+    let pressed = Rc::clone(&presses);
+    let document = build(move || {
+        let layout = unstyled::DockingLayout::new();
+        let (first, second, third) = (Rc::clone(&pressed), Rc::clone(&pressed), pressed);
+        view! {
+            <styled::Docking @node_ref=&built layout drag_modifier>
+                <unstyled::DockSplit id="split">
+                    <unstyled::DockPane id="left">
+                        <CountingTab id=1 presses={first} />
+                    </unstyled::DockPane>
+                    <unstyled::DockPane id="right">
+                        <CountingTab id=2 presses={second} />
+                        <CountingTab id=3 presses={third} />
+                    </unstyled::DockPane>
+                </unstyled::DockSplit>
+            </styled::Docking>
+        }
+    });
+    SplitDock {
+        document,
+        dock: dock.get(),
+        presses,
+    }
+}
+
+#[component]
+fn CountingTab(id: u64, presses: Rc<Cell<u32>>) -> unstyled::DockEntry<u64> {
+    view! {
+        <unstyled::DockTab id title={format!("Tab {id}")}>
+            <CountingPanel id presses={Rc::clone(&presses)} />
+        </unstyled::DockTab>
+    }
+}
+
+use crate::reactive::Interactive;
+
+#[component]
+fn CountingPanel(id: u64, presses: Rc<Cell<u32>>) -> NodeId {
+    let secondary = Rc::clone(&presses);
+    view! {
+        <Interactive
+            on_press={move |_: crate::input::PointerPress| presses.set(presses.get() + 1)}
+            on_secondary_press={move |_: crate::input::PointerPress| {
+                secondary.set(secondary.get() + 1)
+            }}
+        >
+            <Frame @test_id={format!("content.{id}")} />
+        </Interactive>
+    }
+}
+
+pub(crate) fn secondary_drag_with(
+    harness: &mut Harness,
+    from: Pos2,
+    to: Pos2,
+    modifiers: Modifiers,
+) {
+    harness.frame(vec![Event::PointerMoved(from), Event::Modifiers(modifiers)]);
+    harness.frame(vec![Event::PointerButton {
+        pos: from,
+        button: PointerButton::Secondary,
+        pressed: true,
+        modifiers,
+    }]);
+    harness.frame(vec![Event::PointerMoved(to)]);
+    harness.frame(vec![Event::PointerButton {
+        pos: to,
+        button: PointerButton::Secondary,
+        pressed: false,
+        modifiers,
+    }]);
+}
+
 pub(crate) fn floated_window(harness: &mut Harness, dock: NodeId) -> unstyled::SurfaceId {
     harness.frame(Vec::new());
     let tab = harness.center(dock_tab(harness.document(), dock, "Tab 2"));
@@ -1753,4 +1884,59 @@ fn Rows(count: usize) -> DynamicSegment<ListChild> {
             }}
         </ForEach>
     }
+}
+
+use crate::styled::{Button, ButtonVariant, Launcher, LauncherItem};
+
+fn reopens_after(close: impl Fn(&mut Harness)) {
+    let (open, set_open) = create_signal(true);
+    let heard = Rc::new(RefCell::new(Vec::<String>::new()));
+    let (ran, closed) = (heard.clone(), heard.clone());
+    let closing = set_open.clone();
+    let reopening = set_open.clone();
+    let document = build({
+        let open = open.clone();
+        move || {
+            view! {
+                <List spacing=0.0>
+                    <Button
+                        label="Programs"
+                        variant=ButtonVariant::Secondary
+                        @test_id={"reopen"}
+                        on_click={move || reopening.set(true)}
+                    />
+                    <Launcher
+                        open={open}
+                        items={Rc::new(vec![LauncherItem {
+                            key: "files".to_owned(),
+                            title: "Files".to_owned(),
+                            ..LauncherItem::default()
+                        }])}
+                        on_launch={|_: String| {}}
+                        on_run={move |line: String| ran.borrow_mut().push(format!("run {line}"))}
+                        on_close={move || {
+                            closed.borrow_mut().push("close".to_owned());
+                            closing.set(false);
+                        }}
+                    />
+                </List>
+            }
+        }
+    });
+    let mut harness = Harness::sized(document, Vec2::new(1600.0, 1000.0));
+    harness.frame(Vec::new());
+    harness.frame(Vec::new());
+
+    close(&mut harness);
+    harness.frame(Vec::new());
+    assert_eq!(*heard.borrow(), ["close"]);
+
+    let button = harness.center(harness.find("reopen"));
+    harness.click(button);
+    harness.frame(Vec::new());
+    harness.frame(Vec::new());
+    harness.type_text("true");
+    harness.frame(Vec::new());
+    harness.key(Key::Enter, Modifiers::NONE);
+    assert_eq!(*heard.borrow(), ["close", "run true"]);
 }

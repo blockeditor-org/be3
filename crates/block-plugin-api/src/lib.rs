@@ -3,15 +3,24 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 mod block_ids;
+mod host_value;
+mod linux;
 mod manifest;
 mod session;
 pub use block_ids::BlockIdRole;
+pub use host_value::{HostAction, HostImage, HostValue, decode_host, encode_host};
+pub use linux::{
+    Displays, HostDisplay, HostDisplayMode, HostInputDevice, HostNotificationAction, HostProgram,
+    HostWindow, HostWindowId, HostWindows, IncomingNotification, InputDevices, Media, MediaLevel,
+    MediaLevels, MediaRequest, NotificationCloseReason, NotificationInbox, NotificationReport,
+    NotificationRequest, NotificationSignal, NotificationUrgency, Notifications, PlayerCommand,
+    Power, PowerAction, PowerAvailability, ProgramAction, Programs, ScreenLocked, WindowAction,
+};
 pub use manifest::{
     EditorDocument, ManifestDocument, TemplateDocument, Templates, manifest_from_json,
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 68;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_TEXT_BYTES: usize = 64 * 1024 * 1024;
@@ -88,7 +97,23 @@ pub struct FrameReport {
     pub content: ChildRect,
     pub painted: Vec<ChildRect>,
     pub floating: Vec<ChildRect>,
+    pub claims: Vec<PressClaim>,
     pub handles_back: bool,
+    pub wants_keyboard: bool,
+    pub intercepted_keys: Vec<KeyChord>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KeyChord {
+    pub key: Key,
+    pub modifiers: Modifiers,
+    pub tap: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PressClaim {
+    pub modifiers: Modifiers,
+    pub rect: ChildRect,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -201,18 +226,6 @@ pub struct ChildRect {
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WebViewId(pub u32);
-
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct HostWindowId(pub u64);
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct HostWindow {
-    pub id: HostWindowId,
-    pub title: String,
-    pub app_id: String,
-    pub parent: Option<HostWindowId>,
-    pub size: Size,
-}
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ChildContent {
@@ -676,6 +689,8 @@ pub enum EditorMessage {
         content_type: [u8; 16],
         #[serde(with = "serde_bytes")]
         bytes: Vec<u8>,
+        #[serde(with = "serde_bytes")]
+        session: Vec<u8>,
         applied: u64,
     },
     ContentOperations {
@@ -790,14 +805,23 @@ pub enum EditorMessage {
         panel: HostPanel,
     },
 
-    Windows {
+    WatchHostValue {
         instance: EditorInstanceId,
-        windows: Vec<HostWindow>,
+        key: String,
     },
 
-    CloseWindow {
+    HostValue {
         instance: EditorInstanceId,
-        window: HostWindowId,
+        key: String,
+        #[serde(with = "serde_bytes")]
+        value: Vec<u8>,
+    },
+
+    HostAction {
+        instance: EditorInstanceId,
+        key: String,
+        #[serde(with = "serde_bytes")]
+        action: Vec<u8>,
     },
 
     ShowDialog {
@@ -1115,8 +1139,9 @@ impl EditorMessage {
             | Self::OpenBlock { instance, .. }
             | Self::ShowBlock { instance, .. }
             | Self::ShowPanel { instance, .. }
-            | Self::Windows { instance, .. }
-            | Self::CloseWindow { instance, .. }
+            | Self::WatchHostValue { instance, .. }
+            | Self::HostValue { instance, .. }
+            | Self::HostAction { instance, .. }
             | Self::ShowDialog { instance, .. }
             | Self::SetAccess { instance, .. }
             | Self::Focused { instance, .. }
@@ -1593,7 +1618,6 @@ pub struct AudioStatus {
 pub enum Message {
     Hello(Hello),
     HelloAccepted(HelloAccepted),
-    HelloRejected(ProtocolError),
     Theme(Theme),
     UtcOffset(i32),
     Fonts(Fonts),
@@ -1622,7 +1646,6 @@ impl Message {
             self,
             Self::Hello(_)
                 | Self::HelloAccepted(_)
-                | Self::HelloRejected(_)
                 | Self::Acknowledged { .. }
                 | Self::Error(_)
                 | Self::Shutdown
@@ -1642,7 +1665,6 @@ impl Message {
     pub fn direction(&self) -> Direction {
         match self {
             Self::HelloAccepted(_)
-            | Self::HelloRejected(_)
             | Self::Theme(_)
             | Self::UtcOffset(_)
             | Self::Fonts(_)
@@ -1686,7 +1708,6 @@ impl EditorMessage {
             | Self::FocusChanged { .. }
             | Self::ShowBlock { .. }
             | Self::ShowPanel { .. }
-            | Self::Windows { .. }
             | Self::ShowDialog { .. }
             | Self::DragOver { .. }
             | Self::DragLeft { .. }
@@ -1706,6 +1727,7 @@ impl EditorMessage {
             | Self::ChildBar { .. }
             | Self::Blocks { .. }
             | Self::MenuPick { .. }
+            | Self::HostValue { .. }
             | Self::VersionStatus { .. } => Direction::ToPlugin,
             Self::OpenBlock { .. }
             | Self::Focused { .. }
@@ -1721,7 +1743,6 @@ impl EditorMessage {
             | Self::Menu { .. }
             | Self::CommitChild { .. }
             | Self::SetAccess { .. }
-            | Self::CloseWindow { .. }
             | Self::PickAnswered { .. }
             | Self::ChildMenuPick { .. }
             | Self::GrabCursor { .. }
@@ -1751,6 +1772,8 @@ impl EditorMessage {
             | Self::VersionControl { .. }
             | Self::CreateBlock { .. }
             | Self::SetParent { .. }
+            | Self::WatchHostValue { .. }
+            | Self::HostAction { .. }
             | Self::SetName { .. } => Direction::ToHost,
         }
     }
@@ -1758,14 +1781,12 @@ impl EditorMessage {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Hello {
-    pub version: u16,
     pub plugin: PluginIdentity,
     pub surface: SurfaceSupport,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HelloAccepted {
-    pub version: u16,
     pub host_name: String,
     pub surface: Option<SurfaceSpec>,
     pub theme: Theme,
@@ -1858,6 +1879,14 @@ pub struct ViewportMetrics {
     pub pixel_width: u32,
     pub pixel_height: u32,
     pub scale_factor: f32,
+    pub monitors: Vec<Monitor>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Monitor {
+    pub id: String,
+    pub name: String,
+    pub rect: ChildRect,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1911,6 +1940,14 @@ pub enum InputEvent {
     Modifiers(Modifiers),
     Focus(bool),
     Back(BackPhase),
+    InterceptedKey {
+        key: Key,
+        pressed: bool,
+        repeat: bool,
+    },
+    InterceptedTap {
+        key: Key,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -2092,10 +2129,24 @@ pub enum Key {
     F34,
     F35,
     BrowserBack,
+    VolumeUp,
+    VolumeDown,
+    VolumeMute,
+    MicMute,
+    BrightnessUp,
+    BrightnessDown,
+    MediaPlayPause,
+    MediaNext,
+    MediaPrevious,
+    MediaStop,
+    Shift,
+    Control,
+    Alt,
+    Logo,
 }
 
 impl Key {
-    pub const ALL: [Self; 108] = [
+    pub const ALL: [Self; 122] = [
         Self::ArrowDown,
         Self::ArrowLeft,
         Self::ArrowRight,
@@ -2204,6 +2255,20 @@ impl Key {
         Self::F34,
         Self::F35,
         Self::BrowserBack,
+        Self::VolumeUp,
+        Self::VolumeDown,
+        Self::VolumeMute,
+        Self::MicMute,
+        Self::BrightnessUp,
+        Self::BrightnessDown,
+        Self::MediaPlayPause,
+        Self::MediaNext,
+        Self::MediaPrevious,
+        Self::MediaStop,
+        Self::Shift,
+        Self::Control,
+        Self::Alt,
+        Self::Logo,
     ];
 }
 
@@ -2212,7 +2277,7 @@ pub struct Modifiers {
     pub alt: bool,
     pub control: bool,
     pub shift: bool,
-    pub command: bool,
+    pub logo: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -2251,7 +2316,6 @@ pub struct ProtocolError {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ErrorCode {
-    UnsupportedVersion,
     InvalidMessage,
     InvalidState,
     Internal,
@@ -2310,7 +2374,7 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
             strings([&value.plugin.id, &value.plugin.name, &value.plugin.version])
         }
         Message::HelloAccepted(value) => string(&value.host_name),
-        Message::HelloRejected(value) | Message::Error(value) => string(&value.message),
+        Message::Error(value) => string(&value.message),
         Message::Input(value) => {
             collection(value.events.len())?;
             for event in &value.events {
@@ -2333,6 +2397,8 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
             for report in value {
                 collection(report.painted.len())?;
                 collection(report.floating.len())?;
+                collection(report.claims.len())?;
+                collection(report.intercepted_keys.len())?;
             }
             Ok(())
         }
@@ -2577,13 +2643,15 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             Ok(())
         }
         EditorMessage::CopyText { text: value, .. } => text(value),
-        EditorMessage::Windows { windows, .. } => {
-            collection(windows.len())?;
-            for window in windows {
-                string(&window.title)?;
-                string(&window.app_id)?;
-            }
-            Ok(())
+        EditorMessage::WatchHostValue { key, .. } => string(key),
+        EditorMessage::HostValue {
+            key, value: bytes, ..
+        }
+        | EditorMessage::HostAction {
+            key, action: bytes, ..
+        } => {
+            string(key)?;
+            blob(bytes)
         }
         EditorMessage::Menu { entries, .. } => menu(entries),
         EditorMessage::MenuPick { id, .. } | EditorMessage::ChildMenuPick { id, .. } => string(id),

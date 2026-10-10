@@ -1,3 +1,5 @@
+mod switch;
+
 use std::any::Any;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -6,6 +8,7 @@ use std::rc::Rc;
 
 use beui_core::base::Direction;
 use beui_core::geometry::Rect;
+use beui_core::input::Modifiers;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::reactive::{
@@ -15,13 +18,15 @@ use beui_view::reactive::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::state::{DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow};
+use super::state::{
+    DockFullscreen, DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow,
+};
 use super::{
     Dock, DockBarHandle, DockChromeHandle, DockConfig, DockGripHandle, DockMode, DockPreviewHandle,
-    DockSplitterHandle, DockStackHandle, DockState, DockSwitcherHandle, DockTabHandle, GroupId,
-    LeafId, SIDEBAR_WIDTH, SPLITTER_THICKNESS, TabId,
+    DockSplitterHandle, DockStackHandle, DockState, DockSwitchHandle, DockSwitcherHandle,
+    DockTabHandle, GroupId, LeafId, SIDEBAR_WIDTH, SPLITTER_THICKNESS, TabId,
 };
-use crate::context_menu::MenuStyle;
+use crate::menu_popup::MenuStyle;
 
 pub trait DockKey: Clone + Eq + Hash + 'static {}
 
@@ -367,6 +372,22 @@ impl<K: DockKey> DockingLayout<K> {
         self.edit(|state| state.show(tab));
     }
 
+    pub fn fullscreen(&self) -> Option<K> {
+        let tab = self.inner.state.with(DockState::fullscreen)?.tab;
+        self.key_of(tab)
+    }
+
+    pub fn enter_fullscreen(&self, key: &K, area: Option<Rect>) {
+        let Some(tab) = self.tab_of(key) else {
+            return;
+        };
+        self.edit(|state| state.set_fullscreen(Some(DockFullscreen { tab, area })));
+    }
+
+    pub fn leave_fullscreen(&self) {
+        self.edit(|state| state.set_fullscreen(None));
+    }
+
     fn edit(&self, change: impl FnOnce(&mut DockState)) {
         let current = self.inner.state.get_untracked();
         let mut next = current.clone();
@@ -582,12 +603,14 @@ pub fn Docking<K>(
     #[prop(default = DockMode::Tiled)] mode: Prop<DockMode>,
     #[prop(default = None)] home: Prop<Option<K>>,
     #[prop(default = None)] focus: Prop<Option<K>>,
+    #[prop(default = None)] drag_modifier: Prop<Option<Modifiers>>,
     #[prop(default = MenuStyle::default())] menu: MenuStyle,
     #[prop(default = SPLITTER_THICKNESS)] splitter_thickness: f32,
     #[prop(default = 0.0)] group_inset: f32,
     #[prop(default = 0.0)] inset: Prop<f32>,
     tab: RenderFn<DockTabHandle>,
     frame: Option<RenderFn<NodeId>>,
+    fullscreen: Option<RenderFn<NodeId>>,
     chrome: Option<RenderFn<DockChromeHandle>>,
     bar: Option<RenderFn<DockBarHandle>>,
     splitter: Option<RenderFn<DockSplitterHandle>>,
@@ -596,6 +619,7 @@ pub fn Docking<K>(
     preview: Option<RenderFn<DockPreviewHandle>>,
     stack: Option<RenderFn<DockStackHandle>>,
     switcher: Option<RenderFn<DockSwitcherHandle>>,
+    switch: Option<RenderFn<DockSwitchHandle>>,
     children: Children<DockNode<K>>,
 ) -> NodeId
 where
@@ -703,12 +727,14 @@ where
                 menu,
                 mode,
                 home: home.into_prop(),
+                drag_modifier,
                 splitter_thickness,
                 group_inset,
                 inset,
                 tab,
                 content,
                 empty,
+                fullscreen,
                 chrome,
                 bar,
                 splitter,
@@ -717,6 +743,7 @@ where
                 preview,
                 stack,
                 switcher,
+                switch,
             }}
         />
     }

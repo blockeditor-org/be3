@@ -1,6 +1,6 @@
 use beui::{Event, Pos2, Rect, Vec2};
 use block_plugin_api::{
-    DroppedFile, InputBatch, InputEvent, Message, Modifiers, PointerButton, ScreenId,
+    DroppedFile, InputBatch, InputEvent, Message, Modifiers, Monitor, PointerButton, ScreenId,
     ViewportMetrics, WheelUnit,
 };
 use std::collections::HashSet;
@@ -238,6 +238,23 @@ impl InputAdapter {
         }
     }
 
+    pub(super) fn intercepted(
+        &mut self,
+        press: Option<beui::KeyPress>,
+        modifiers: beui::Modifiers,
+    ) -> Vec<InputEvent> {
+        let mut output = Vec::new();
+        push_modifiers(&mut self.modifiers, modifiers, &mut output);
+        if let Some(press) = press {
+            output.push(InputEvent::InterceptedKey {
+                key: beui_plugin_input::protocol_key(press.key),
+                pressed: press.pressed,
+                repeat: press.repeat,
+            });
+        }
+        output
+    }
+
     pub(super) fn back(&self, gesture: beui::BackGesture) -> InputEvent {
         InputEvent::Back(beui_plugin_input::back_phase(gesture))
     }
@@ -250,7 +267,12 @@ impl InputAdapter {
     }
 }
 
-pub(super) fn viewport_metrics(size: Vec2, visible: Rect, scale_factor: f32) -> ViewportMetrics {
+pub(super) fn viewport_metrics(
+    size: Vec2,
+    visible: Rect,
+    scale_factor: f32,
+    monitors: Vec<Monitor>,
+) -> ViewportMetrics {
     let logical_width = size.x.max(0.0);
     let logical_height = size.y.max(0.0);
     let visible = visible.intersect(Rect::from_min_size(Pos2::ZERO, size));
@@ -262,6 +284,7 @@ pub(super) fn viewport_metrics(size: Vec2, visible: Rect, scale_factor: f32) -> 
         pixel_width: (visible.width().max(0.0) * scale_factor).round() as u32,
         pixel_height: (visible.height().max(0.0) * scale_factor).round() as u32,
         scale_factor,
+        monitors,
     }
 }
 

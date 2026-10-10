@@ -21,5 +21,5 @@ fn a_component_function_returns_its_base_node() {
 
     harness.toggle_inspector();
 
-    assert_eq!(harness.tree(), ["column", "  row"]);
+    assert_eq!(harness.tree(), ["list", "  list"]);
 }

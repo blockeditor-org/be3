@@ -8,6 +8,7 @@ use crate::color::Color32;
 use crate::context::{Context, FrameOutput, RendererChoices, RendererInfo};
 use crate::font::FontBackend;
 use crate::geometry::Vec2;
+use crate::screens::Screen;
 
 pub trait WindowHandle: HasWindowHandle + HasDisplayHandle + Send + Sync {}
 
@@ -21,6 +22,10 @@ pub trait Renderer {
     fn provide(&self, _setup: &mut Setup) {}
 
     fn set_active(&mut self, _active: bool) {}
+
+    fn recover(&mut self) -> Result<bool, Box<dyn Error>> {
+        Ok(false)
+    }
 
     fn attach(
         &mut self,
@@ -36,6 +41,10 @@ pub trait Renderer {
     fn resize(&mut self, width: u32, height: u32);
 
     fn physical(&self) -> Option<Vec2>;
+
+    fn screens(&self) -> Option<Vec<Screen>> {
+        None
+    }
 
     fn prepare(&mut self, output: &FrameOutput, scale: f32, background: Color32) -> bool;
 
@@ -119,6 +128,14 @@ impl Renderers {
         }
     }
 
+    pub fn recover(&mut self) -> Result<bool, Box<dyn Error>> {
+        let mut replaced = false;
+        for slot in &mut self.slots {
+            replaced |= slot.renderer.recover()?;
+        }
+        Ok(replaced)
+    }
+
     pub fn attach(
         &mut self,
         window: Arc<dyn WindowHandle>,
@@ -146,6 +163,10 @@ impl Renderers {
 
     pub fn physical(&self) -> Option<Vec2> {
         self.slots[self.active].renderer.physical()
+    }
+
+    pub fn screens(&self) -> Option<Vec<Screen>> {
+        self.slots[self.active].renderer.screens()
     }
 
     pub fn prepare(&mut self, output: &FrameOutput, scale: f32, background: Color32) -> bool {

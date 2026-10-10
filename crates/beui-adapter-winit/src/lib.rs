@@ -2,6 +2,8 @@
 
 mod clipboard;
 mod file_picker;
+#[cfg(test)]
+mod tests;
 
 pub use winit;
 
@@ -45,6 +47,7 @@ const TOUCH_CURSOR_STROKE: f32 = 1.0;
 const TOUCH_CURSOR_SAMPLES: u16 = 4;
 #[cfg(target_os = "linux")]
 const EVDEV_BACK: u32 = 158;
+const XKB_AUDIO_MIC_MUTE: u32 = 0x1008_ffb2;
 
 enum UserEvent {
     AccessKit(AccessKitEvent),
@@ -469,10 +472,12 @@ impl ApplicationHandler<UserEvent> for Runner {
             }
             WindowEvent::ModifiersChanged(modifiers) => {
                 let state = modifiers.state();
+                let command = cfg!(target_os = "macos");
                 self.modifiers = Modifiers {
                     alt: state.alt_key(),
-                    ctrl: state.control_key() || state.super_key(),
+                    ctrl: state.control_key() || (command && state.super_key()),
                     shift: state.shift_key(),
+                    logo: !command && state.super_key(),
                 };
                 self.push(Event::Modifiers(self.modifiers));
             }
@@ -587,7 +592,7 @@ impl ApplicationHandler<UserEvent> for Runner {
                 {
                     self.push(Event::Text(text));
                 }
-                if let Some(key) = named {
+                if let Some(key) = named.filter(|key| !(event.repeat && key.is_modifier())) {
                     self.push(Event::Key {
                         key,
                         pressed,
@@ -596,8 +601,7 @@ impl ApplicationHandler<UserEvent> for Runner {
                     });
                 }
                 if pressed
-                    && !self.modifiers.ctrl
-                    && !self.modifiers.alt
+                    && !self.modifiers.command()
                     && let Some(text) = event.text
                     && !text.chars().any(char::is_control)
                 {
@@ -816,6 +820,9 @@ fn logical_key(logical: &winit::keyboard::Key) -> Logical {
                 _ => None,
             }
         }
+        Winit::Unidentified(winit::keyboard::NativeKey::Xkb(XKB_AUDIO_MIC_MUTE)) => {
+            Some(Key::MicMute)
+        }
         Winit::Unidentified(_) | Winit::Dead(_) => None,
     };
     match (named, logical) {
@@ -867,6 +874,23 @@ fn named_key(named: NamedKey) -> Option<Key> {
         NamedKey::F22 => Key::F22,
         NamedKey::F23 => Key::F23,
         NamedKey::F24 => Key::F24,
+        NamedKey::AudioVolumeUp => Key::VolumeUp,
+        NamedKey::AudioVolumeDown => Key::VolumeDown,
+        NamedKey::AudioVolumeMute => Key::VolumeMute,
+        NamedKey::MicrophoneVolumeMute => Key::MicMute,
+        NamedKey::BrightnessUp => Key::BrightnessUp,
+        NamedKey::BrightnessDown => Key::BrightnessDown,
+        NamedKey::MediaPlayPause | NamedKey::MediaPlay | NamedKey::MediaPause => {
+            Key::MediaPlayPause
+        }
+        NamedKey::MediaTrackNext => Key::MediaNext,
+        NamedKey::MediaTrackPrevious => Key::MediaPrevious,
+        NamedKey::MediaStop => Key::MediaStop,
+        NamedKey::Shift => Key::Shift,
+        NamedKey::Control => Key::Ctrl,
+        NamedKey::Alt => Key::Alt,
+        NamedKey::Super if cfg!(target_os = "macos") => Key::Ctrl,
+        NamedKey::Super => Key::Logo,
         _ => return None,
     };
     Some(key)
@@ -1016,6 +1040,13 @@ fn key(code: KeyCode) -> Option<Key> {
         KeyCode::F22 => Key::F22,
         KeyCode::F23 => Key::F23,
         KeyCode::F24 => Key::F24,
+        KeyCode::AudioVolumeUp => Key::VolumeUp,
+        KeyCode::AudioVolumeDown => Key::VolumeDown,
+        KeyCode::AudioVolumeMute => Key::VolumeMute,
+        KeyCode::MediaPlayPause => Key::MediaPlayPause,
+        KeyCode::MediaTrackNext => Key::MediaNext,
+        KeyCode::MediaTrackPrevious => Key::MediaPrevious,
+        KeyCode::MediaStop => Key::MediaStop,
         _ => return None,
     };
     Some(key)

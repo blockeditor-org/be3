@@ -2,7 +2,7 @@ use std::time::Duration;
 
 #[cfg(target_arch = "wasm32")]
 use block_plugin_api::SurfaceRect;
-use block_plugin_api::{CursorIcon, EditorRegion, FrameChrome, FrameSpec, InputEvent};
+use block_plugin_api::{CursorIcon, EditorRegion, FrameChrome, FrameSpec, InputEvent, KeyChord};
 use geometry::{Rect, Vec2};
 use uuid::Uuid;
 
@@ -65,6 +65,14 @@ pub struct Region {
     pub pixels: [u32; 2],
     pub age: u32,
     pub spec: FrameSpec,
+    pub monitors: Vec<RegionMonitor>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct RegionMonitor {
+    pub id: String,
+    pub name: String,
+    pub rect: Rect,
 }
 
 impl Region {
@@ -81,8 +89,17 @@ pub struct Frame {
     pub content: Option<Rect>,
     pub painted: Vec<Rect>,
     pub floating: Vec<Rect>,
+    pub claims: Vec<Claim>,
     pub ime: Option<Ime>,
     pub handles_back: bool,
+    pub wants_keyboard: bool,
+    pub intercepted_keys: Vec<KeyChord>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Claim {
+    pub modifiers: block_plugin_api::Modifiers,
+    pub rect: Rect,
 }
 
 #[derive(Clone, Debug, PartialEq)]

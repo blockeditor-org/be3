@@ -9,6 +9,8 @@ use beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, Prop, Show, Spacer, Text, clone,
     component, create_memo, view,
 };
+#[cfg(target_os = "android")]
+use beui::reactive::{Portal, in_new_scope, on_cleanup, try_with_document};
 #[cfg(not(target_os = "android"))]
 use beui::styled::Separator;
 use beui::styled::theme::{FONT_BODY, FONT_SMALL};
@@ -52,26 +54,40 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
     let reading = create_memo(clone!(listing -> move || !listing.get()));
     let back = clone!(model -> move || model.deselect());
     let gesture = back.clone();
-    let sidebar = model.clone();
+    let sidebar = in_new_scope(clone!(model -> move || view! {
+        <Sidebar model />
+    }));
+    on_cleanup(move || {
+        try_with_document(|document| document.remove_node(sidebar));
+    });
     let viewer = model.clone();
+    let page = use_theme().background;
     view! {
         <List spacing=0.0>
             <Show condition={listing}>
-                <Sidebar @sizing=ItemSize::Percent(100.0) model={sidebar.clone()} />
+                <Portal @sizing=ItemSize::Percent(100.0) node={Some(sidebar)} />
             </Show>
             <Show condition={reading}>
-                {move || clone!(back model -> view! {
-                    <BackSlide @sizing=ItemSize::Percent(100.0) on_back={gesture.clone()}>
-                        <List spacing=0.0>
-                            <Frame padding_horizontal=8.0 padding_vertical=4.0>
-                                <IconButton
-                                    glyph=ICON_ARROW_BACK
-                                    label="Back to the pull requests"
-                                    on_click={back.clone()}
-                                />
-                            </Frame>
-                            <Detail @sizing=ItemSize::Percent(100.0) model={model.clone()} />
-                        </List>
+                {move || clone!(back model page -> view! {
+                    <BackSlide
+                        @sizing=ItemSize::Percent(100.0)
+                        on_back={gesture.clone()}
+                        behind={move || view! {
+                            <Portal node={Some(sidebar)} />
+                        }}
+                    >
+                        <Frame color={page.clone()} radius=0>
+                            <List spacing=0.0>
+                                <Frame padding_horizontal=8.0 padding_vertical=4.0>
+                                    <IconButton
+                                        glyph=ICON_ARROW_BACK
+                                        label="Back to the pull requests"
+                                        on_click={back.clone()}
+                                    />
+                                </Frame>
+                                <Detail @sizing=ItemSize::Percent(100.0) model={model.clone()} />
+                            </List>
+                        </Frame>
                     </BackSlide>
                 })}
             </Show>

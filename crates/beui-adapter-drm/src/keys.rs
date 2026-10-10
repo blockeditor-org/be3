@@ -40,6 +40,22 @@ pub fn key(keysym: u32) -> Option<Key> {
         keysyms::KEY_semicolon | keysyms::KEY_colon => Key::Semicolon,
         keysyms::KEY_apostrophe | keysyms::KEY_quotedbl => Key::Quote,
         keysyms::KEY_XF86Back => Key::BrowserBack,
+        keysyms::KEY_XF86AudioRaiseVolume => Key::VolumeUp,
+        keysyms::KEY_XF86AudioLowerVolume => Key::VolumeDown,
+        keysyms::KEY_XF86AudioMute => Key::VolumeMute,
+        keysyms::KEY_XF86AudioMicMute => Key::MicMute,
+        keysyms::KEY_XF86MonBrightnessUp => Key::BrightnessUp,
+        keysyms::KEY_XF86MonBrightnessDown => Key::BrightnessDown,
+        keysyms::KEY_XF86AudioPlay | keysyms::KEY_XF86AudioPause => Key::MediaPlayPause,
+        keysyms::KEY_XF86AudioNext => Key::MediaNext,
+        keysyms::KEY_XF86AudioPrev => Key::MediaPrevious,
+        keysyms::KEY_XF86AudioStop => Key::MediaStop,
+        keysyms::KEY_Shift_L | keysyms::KEY_Shift_R => Key::Shift,
+        keysyms::KEY_Control_L | keysyms::KEY_Control_R => Key::Ctrl,
+        keysyms::KEY_Alt_L | keysyms::KEY_Alt_R | keysyms::KEY_Meta_L | keysyms::KEY_Meta_R => {
+            Key::Alt
+        }
+        keysyms::KEY_Super_L | keysyms::KEY_Super_R => Key::Logo,
         keysyms::KEY_F1..=keysyms::KEY_F24 => FUNCTION[(keysym - keysyms::KEY_F1) as usize],
         _ => letter(keysym)?,
     };

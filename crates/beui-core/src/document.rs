@@ -16,7 +16,7 @@ use crate::file_picker::{FileFilter, FilePick, FilePickId};
 use crate::flash::FlashLog;
 use crate::font::{FontId, Galley, TextLayout};
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
-use crate::input::{Key, KeyPress};
+use crate::input::{Key, KeyChord, KeyPress, Modifiers};
 
 use crate::display::Display;
 use crate::interact::{self, Keys};
@@ -27,12 +27,23 @@ use crate::painter::{Entry, Painter, PainterState, Shape};
 use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
 use crate::pixel_grid::PixelGrid;
 use crate::screen_simulation::{self, Placement};
+use crate::screens::Screen;
 use crate::sight::Sight;
 
 pub type Shortcut = dyn Fn(KeyPress) -> bool;
 type PickedCallback = Box<dyn FnOnce(FilePick)>;
 pub type FingerTap = dyn Fn(usize) -> bool;
 pub type UnhandledKey = dyn Fn(UnhandledKeyPress) -> bool;
+pub type GlobalKey = dyn Fn(GlobalKeyPress) -> bool;
+
+#[derive(Clone, Copy, Debug)]
+pub struct GlobalKeyPress {
+    pub press: KeyPress,
+    pub typing: bool,
+    pub in_app: bool,
+    pub held: bool,
+    pub tap: bool,
+}
 
 #[derive(Clone, Debug)]
 pub struct UnhandledKeyPress {
@@ -49,6 +60,14 @@ pub trait Tools: Any {
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum Acted {
+    #[default]
+    Nothing,
+    Pointer(Pos2),
+    Keys,
+}
+
 pub struct Document {
     pub arena: Arena,
     pub root: Option<NodeId>,
@@ -61,6 +80,8 @@ pub struct Document {
     tools: Option<Box<dyn Tools>>,
     inspector_requested: bool,
     screen_pointer: Option<Pos2>,
+    pub last_pointer: Option<crate::input::PointerSample>,
+    pub acted: Acted,
     placement: Option<(Rect, Option<Placement>)>,
     pub portal_holders: std::collections::HashMap<NodeId, NodeOf<crate::base::portal::PortalNode>>,
     pub overlay_stack: Vec<NodeOf<crate::base::overlay::OverlayNode>>,
@@ -71,16 +92,37 @@ pub struct Document {
     scale: (::reactive::ReadSignal<f32>, ::reactive::WriteSignal<f32>),
     attached: (::reactive::ReadSignal<u64>, ::reactive::WriteSignal<u64>),
     focus_visible: (::reactive::ReadSignal<bool>, ::reactive::WriteSignal<bool>),
+    screens: (
+        ::reactive::ReadSignal<Vec<Screen>>,
+        ::reactive::WriteSignal<Vec<Screen>>,
+    ),
+    offered_screens: Option<Vec<Screen>>,
+    rescreened: RefCell<Option<Vec<Screen>>>,
     reattached: Cell<bool>,
     shortcuts: RefCell<Vec<Weak<Shortcut>>>,
     finger_taps: RefCell<Vec<Weak<FingerTap>>>,
     unhandled_keys: RefCell<Vec<Weak<UnhandledKey>>>,
+    global_keys: RefCell<Vec<Weak<GlobalKey>>>,
+    pub(crate) globally_held: Vec<(Key, Option<Rc<GlobalKey>>)>,
+    pub(crate) tapping: Option<Key>,
+    input_frames: u64,
+    modifiers: (
+        ::reactive::ReadSignal<Modifiers>,
+        ::reactive::WriteSignal<Modifiers>,
+    ),
+    intercepted_keys: (
+        ::reactive::ReadSignal<Vec<KeyChord>>,
+        ::reactive::WriteSignal<Vec<KeyChord>>,
+    ),
     pub touch_scroll_vertical: Option<NodeId>,
     pub touch_shift: crate::geometry::Vec2,
     pub touch_scroll_horizontal: Option<NodeId>,
     pub wheel_latch: Option<(NodeId, Instant, Option<crate::geometry::Pos2>)>,
     pub autoscroll: Option<crate::interact::autoscroll::Autoscroll>,
     pub pointer_capture: Option<NodeId>,
+    pub press_claim: Option<NodeId>,
+    pub secondary_claim: Option<NodeId>,
+    pub(crate) press_claimants: HashSet<NodeId>,
     pub forward: crate::interact::forward::Routing,
     pub drags: Rc<crate::drag_board::Board>,
     paste_requested: bool,
@@ -262,6 +304,8 @@ impl Document {
             tools: None,
             inspector_requested: false,
             screen_pointer: None,
+            last_pointer: None,
+            acted: Acted::Nothing,
             placement: None,
             portal_holders: std::collections::HashMap::new(),
             overlay_stack: Vec::new(),
@@ -272,16 +316,28 @@ impl Document {
             scale: ::reactive::create_signal(1.0),
             attached: ::reactive::create_signal(0),
             focus_visible: ::reactive::create_signal(false),
+            screens: ::reactive::create_signal(Vec::new()),
+            offered_screens: None,
+            rescreened: RefCell::new(None),
             reattached: Cell::new(false),
             shortcuts: RefCell::new(Vec::new()),
             finger_taps: RefCell::new(Vec::new()),
             unhandled_keys: RefCell::new(Vec::new()),
+            global_keys: RefCell::new(Vec::new()),
+            globally_held: Vec::new(),
+            tapping: None,
+            input_frames: 0,
+            modifiers: ::reactive::create_signal(Modifiers::NONE),
+            intercepted_keys: ::reactive::create_signal(Vec::new()),
             touch_scroll_vertical: None,
             touch_shift: crate::geometry::Vec2::ZERO,
             touch_scroll_horizontal: None,
             wheel_latch: None,
             autoscroll: None,
             pointer_capture: None,
+            press_claim: None,
+            secondary_claim: None,
+            press_claimants: HashSet::new(),
             forward: Default::default(),
             drags: Rc::default(),
             paste_requested: false,
@@ -421,6 +477,32 @@ impl Document {
         self.scale.0.clone()
     }
 
+    pub fn watch_screens(&self) -> ::reactive::ReadSignal<Vec<Screen>> {
+        self.screens.0.clone()
+    }
+
+    pub fn screens(&self) -> Vec<Screen> {
+        self.screens.0.get_untracked()
+    }
+
+    pub fn screen_at(&self, pos: Pos2) -> Option<Screen> {
+        self.screens
+            .0
+            .with_untracked(|screens| crate::screens::at(screens, pos).cloned())
+    }
+
+    pub fn screen_under(&self, rect: Rect) -> Option<Screen> {
+        self.screens
+            .0
+            .with_untracked(|screens| crate::screens::under(screens, rect).cloned())
+    }
+
+    pub fn screen_named(&self, id: &str) -> Option<Screen> {
+        self.screens
+            .0
+            .with_untracked(|screens| screens.iter().find(|screen| screen.id == id).cloned())
+    }
+
     pub fn watch_focus_visible(&self) -> ::reactive::ReadSignal<bool> {
         self.focus_visible.0.clone()
     }
@@ -475,6 +557,51 @@ impl Document {
         live.into_iter().any(|handler| handler(unhandled.clone()))
     }
 
+    pub fn register_global_key(&self, handler: Weak<GlobalKey>) {
+        self.global_keys.borrow_mut().push(handler);
+    }
+
+    pub fn key_global(&self, global: GlobalKeyPress) -> bool {
+        self.global_taker(global).is_some()
+    }
+
+    pub(crate) fn global_taker(&self, global: GlobalKeyPress) -> Option<Rc<GlobalKey>> {
+        if self.locked() && !global.press.key.is_media() {
+            return None;
+        }
+        let mut handlers = self.global_keys.borrow_mut();
+        handlers.retain(|handler| handler.strong_count() > 0);
+        let live: Vec<Rc<GlobalKey>> = handlers.iter().filter_map(Weak::upgrade).collect();
+        drop(handlers);
+        live.into_iter().find(|handler| handler(global))
+    }
+
+    pub fn input_frames(&self) -> u64 {
+        self.input_frames
+    }
+
+    pub(crate) fn note_input(&mut self) {
+        self.input_frames += 1;
+    }
+
+    pub fn watch_modifiers(&self) -> ::reactive::ReadSignal<Modifiers> {
+        self.modifiers.0.clone()
+    }
+
+    pub fn intercepted_keys_writer(&self) -> ::reactive::WriteSignal<Vec<KeyChord>> {
+        self.intercepted_keys.1.clone()
+    }
+
+    pub fn intercepted_keys(&self) -> Vec<KeyChord> {
+        self.intercepted_keys.0.get_untracked()
+    }
+
+    pub fn set_modifiers(&self, modifiers: Modifiers) {
+        if self.modifiers.0.get_untracked() != modifiers {
+            self.modifiers.1.set(modifiers);
+        }
+    }
+
     pub fn key_shortcut(&self, press: KeyPress) -> bool {
         let mut shortcuts = self.shortcuts.borrow_mut();
         shortcuts.retain(|shortcut| shortcut.strong_count() > 0);
@@ -487,6 +614,10 @@ impl Document {
         let scale = self.pixels_per_point();
         if self.scale.0.get_untracked() != scale {
             self.scale.1.set(scale);
+        }
+        let rescreened = self.rescreened.borrow_mut().take();
+        if let Some(screens) = rescreened {
+            self.screens.1.set(screens);
         }
         if self.reattached.replace(false) {
             self.attached.1.update(|attached| *attached += 1);
@@ -585,6 +716,18 @@ impl Document {
 
     pub fn node_detail(&self, id: NodeId) -> Option<String> {
         self.arena.get(id).detail()
+    }
+
+    pub fn node_properties(&self, id: NodeId) -> Vec<(&'static str, String)> {
+        self.arena.get(id).properties()
+    }
+
+    pub fn node_parent(&self, id: NodeId) -> Option<NodeId> {
+        self.arena.parent(id)
+    }
+
+    pub fn node_test_ids(&self, id: NodeId) -> &[String] {
+        self.node_test_ids.get(&id).map_or(&[], Vec::as_slice)
     }
 
     pub fn node_rect(&self, id: impl Into<NodeId>) -> Option<Rect> {
@@ -805,6 +948,7 @@ impl Document {
         self.component_names.remove(&id);
         self.placed_children.remove(&id);
         self.placed_pass.remove(&id);
+        self.press_claimants.remove(&id);
         self.reached_pass.remove(&id);
         self.scroll_shifts.remove(&id);
         self.accessibility.remove(&id);
@@ -888,6 +1032,10 @@ impl Document {
             ctx.request_repaint();
         }
         ctx.set_screen_scale(placement.map_or(1.0, |placement| placement.scale));
+        self.offered_screens = match placement {
+            Some(placement) => Some(vec![Screen::window(placement.screen)]),
+            None => Some(crate::screens::shown_in(&ctx.screens(), rect)),
+        };
         match placement {
             Some(placement) => {
                 let shown = placement.shown();
@@ -917,7 +1065,8 @@ impl Document {
     }
 
     pub fn now(&self) -> Instant {
-        self.now
+        self.context()
+            .map_or(self.now, |context| context.now().max(self.now))
     }
 
     pub fn show_content(&mut self, ctx: &Context, rect: Rect, pointer: bool, keys: Keys) {
@@ -934,6 +1083,15 @@ impl Document {
             });
         let refonted =
             std::mem::replace(&mut self.fonts_generation, fonts_generation) != fonts_generation;
+        let screens = self
+            .offered_screens
+            .take()
+            .unwrap_or_else(|| vec![Screen::window(rect)]);
+        let rescreened = self.screens.0.with_untracked(|shown| *shown != screens);
+        if rescreened {
+            self.arena.invalidate();
+            *self.rescreened.borrow_mut() = Some(screens);
+        }
         if refonted
             || self
                 .viewport
@@ -996,6 +1154,12 @@ impl Document {
         if self.handles_back() {
             ctx.handle_back();
         }
+        if self.modal_open() {
+            ctx.want_keyboard();
+        }
+        self.intercepted_keys
+            .0
+            .with_untracked(|chords| ctx.intercept_keys(chords));
 
         if let Some(text) = self.copied_text.take() {
             ctx.copy_text(text);
@@ -1154,13 +1318,22 @@ impl Document {
         region: Region,
         viewport: Rect,
     ) -> (Region, Option<Moved>) {
-        let [only] = moves.as_slice() else {
-            let mut region = region;
-            for moved in &moves {
-                region.add(moved.viewport.intersect(viewport));
-            }
+        let shown_area = |moved: &paint::Move| {
+            let visible = moved.viewport.intersect(viewport);
+            visible.width().max(0.0) * visible.height().max(0.0)
+        };
+        let Some(largest) = (0..moves.len())
+            .max_by(|a, b| shown_area(&moves[*a]).total_cmp(&shown_area(&moves[*b])))
+        else {
             return (region, None);
         };
+        let mut region = region;
+        for (index, moved) in moves.iter().enumerate() {
+            if index != largest {
+                region.add(moved.viewport.intersect(viewport));
+            }
+        }
+        let only = &moves[largest];
         let visible = only.viewport.intersect(viewport);
         let rooted = self.paint_cache.borrow().rooted();
         let (fixed, inner) =

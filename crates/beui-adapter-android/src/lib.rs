@@ -561,7 +561,7 @@ impl Runner {
                 {
                     self.runner.push(Event::Text(text));
                 }
-                if let Some(key) = key {
+                if let Some(key) = key.filter(|key| !(repeat && key.is_modifier())) {
                     self.runner.push(Event::Key {
                         key,
                         pressed,
@@ -570,8 +570,7 @@ impl Runner {
                     });
                 }
                 if pressed
-                    && !modifiers.ctrl
-                    && !modifiers.alt
+                    && !modifiers.command()
                     && let Some(text) = text
                 {
                     self.runner.push(Event::Text(text));
@@ -704,8 +703,9 @@ impl ActionHandler for Actions {
 fn modifiers(meta: jint) -> Modifiers {
     Modifiers {
         alt: meta & META_ALT_ON != 0,
-        ctrl: meta & (META_CTRL_ON | META_META_ON) != 0,
+        ctrl: meta & META_CTRL_ON != 0,
         shift: meta & META_SHIFT_ON != 0,
+        logo: meta & META_META_ON != 0,
     }
 }
 
@@ -789,6 +789,10 @@ fn key(code: jint) -> Option<Key> {
         140 => Key::F10,
         141 => Key::F11,
         142 => Key::F12,
+        57 | 58 => Key::Alt,
+        59 | 60 => Key::Shift,
+        113 | 114 => Key::Ctrl,
+        117 | 118 => Key::Logo,
         _ => return None,
     };
     Some(key)

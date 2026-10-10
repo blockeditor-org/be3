@@ -1,6 +1,6 @@
 use beui_core::context::Context;
 use beui_core::geometry::{Pos2, pos2, vec2};
-use beui_core::input::{Event, Modifiers, TouchId, TouchPhase};
+use beui_core::input::{Event, KeyPress, Modifiers, TouchId, TouchPhase};
 use block_editor_plugin::{InputEvent, PointerButton, Region, WheelUnit};
 
 const WHEEL_LINE: f32 = 40.0;
@@ -127,8 +127,9 @@ impl Input {
             InputEvent::Modifiers(modifiers) => {
                 self.modifiers = Modifiers {
                     alt: modifiers.alt,
-                    ctrl: modifiers.control || modifiers.command,
+                    ctrl: modifiers.control,
                     shift: modifiers.shift,
+                    logo: modifiers.logo,
                 };
                 events.push(Event::Modifiers(self.modifiers));
             }
@@ -145,6 +146,25 @@ impl Input {
             }
             InputEvent::Ime(ime) => events.push(Event::Ime(beui_plugin_input::beui_ime(ime))),
             InputEvent::Focus(_) => {}
+            InputEvent::InterceptedKey {
+                key,
+                pressed,
+                repeat,
+            } => {
+                if let Some(key) = beui_plugin_input::beui_key(*key) {
+                    events.push(Event::InterceptedKey(KeyPress {
+                        key,
+                        pressed: *pressed,
+                        repeat: *repeat,
+                        modifiers: self.modifiers,
+                    }));
+                }
+            }
+            InputEvent::InterceptedTap { key } => {
+                if let Some(key) = beui_plugin_input::beui_key(*key) {
+                    events.push(Event::InterceptedTap(key));
+                }
+            }
             InputEvent::Back(phase) => {
                 events.push(Event::Back(beui_plugin_input::beui_back(*phase)));
             }

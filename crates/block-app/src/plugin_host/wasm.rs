@@ -7,7 +7,7 @@ use std::{
         mpsc::{self, Receiver, RecvTimeoutError, Sender, TryRecvError},
     },
     thread,
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use crate::editors::plugin::discovery::{self, Module};
@@ -25,6 +25,28 @@ const STOPPED: &str = "The plugin worker stopped.";
 
 thread_local! {
     static CACHE: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
+    static STOPPING: RefCell<Vec<Thread>> = const { RefCell::new(Vec::new()) };
+}
+
+struct Thread {
+    handle: thread::JoinHandle<()>,
+    ended: Receiver<()>,
+}
+
+pub(super) fn wait_for_workers(within: Duration) {
+    let stopping = STOPPING.with(|stopping| std::mem::take(&mut *stopping.borrow_mut()));
+    let deadline = Instant::now() + within;
+    for thread in stopping {
+        let left = deadline.saturating_duration_since(Instant::now());
+        match thread.ended.recv_timeout(left) {
+            Err(RecvTimeoutError::Disconnected) => {
+                let _ = thread.handle.join();
+            }
+            Ok(()) | Err(RecvTimeoutError::Timeout) => {
+                eprintln!("block-app: a plugin worker did not stop in time, so it is left running");
+            }
+        }
+    }
 }
 
 pub(crate) fn cache_in(directory: PathBuf) {
@@ -69,6 +91,20 @@ struct Worker {
     presented: Vec<PresentedTexture>,
     presents: u64,
     took: Option<StepTime>,
+    thread: Option<Thread>,
+}
+
+impl Drop for Worker {
+    fn drop(&mut self) {
+        let Some(thread) = self.thread.take() else {
+            return;
+        };
+        STOPPING.with(|stopping| {
+            let mut stopping = stopping.borrow_mut();
+            stopping.retain(|stopping| !stopping.handle.is_finished());
+            stopping.push(thread);
+        });
+    }
 }
 
 pub(super) struct Wasm {
@@ -113,11 +149,15 @@ impl super::backend::Backend for Wasm {
         let (reports, events) = mpsc::channel();
         let waiting = Arc::new(AtomicBool::new(false));
         let watched = Arc::clone(&waiting);
+        let (ending, ended) = mpsc::channel();
         let spawned = thread::Builder::new()
             .name(format!("plugin {}", plugin.identity.id))
-            .spawn(move || run(host, module, orders, reports, watched));
+            .spawn(move || {
+                let _ending: Sender<()> = ending;
+                run(host, module, orders, reports, watched);
+            });
         match spawned {
-            Ok(_) => {
+            Ok(handle) => {
                 self.worker = Some(Worker {
                     commands,
                     events,
@@ -130,6 +170,7 @@ impl super::backend::Backend for Wasm {
                     presented: Vec::new(),
                     presents: 0,
                     took: None,
+                    thread: Some(Thread { handle, ended }),
                 })
             }
             Err(error) => self.error = Some(format!("the plugin worker could not start: {error}")),

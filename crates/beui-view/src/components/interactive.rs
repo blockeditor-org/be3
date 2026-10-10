@@ -2,8 +2,8 @@ use crate::reactive::{Callback, Child, ClickCallback, Prop, create_effect, with_
 use beui_core::base::list::Direction;
 use beui_core::geometry::{Pos2, Vec2};
 use beui_core::input::{
-    AutoscrollGesture, CursorIcon, DragGesture, ImeEvent, ImeText, KeyPress, PointerPress,
-    ScrollGesture, SecondaryDrag, ZoomGesture,
+    AutoscrollGesture, CursorIcon, DragGesture, ImeEvent, ImeText, KeyPress, Modifiers,
+    PointerPress, ScrollGesture, SecondaryDrag, ZoomGesture,
 };
 use beui_core::node::NodeId;
 
@@ -62,6 +62,8 @@ pub fn Interactive(
     intercept_at: Callback<Pos2, bool>,
     on_forward: Callback<ForwardedInput>,
     forward_at: Callback<Pos2, bool>,
+    #[prop(default = None)] claim_modifiers: Prop<Option<Modifiers>>,
+    claim_at: Callback<(Pos2, Modifiers), bool>,
     children: Option<Child>,
 ) -> NodeId {
     assert!(
@@ -115,6 +117,7 @@ pub fn Interactive(
         node.intercept_at = intercept_at;
         node.on_forward = on_forward;
         node.forward_at = forward_at;
+        node.claim_at = claim_at;
         if let Some(child) = children {
             document.set_interactive_child(interactive, child);
         }
@@ -194,6 +197,10 @@ pub fn Interactive(
     });
     create_effect(move || {
         with_document(|document| document.set_interactive_key_active(interactive, key_active.get()))
+    });
+    create_effect(move || {
+        let claimed = claim_modifiers.get();
+        with_document(|document| document.set_interactive_claim_modifiers(interactive, claimed))
     });
     interactive.id()
 }

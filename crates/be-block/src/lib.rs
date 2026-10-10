@@ -16,11 +16,13 @@ pub mod counter;
 pub mod database;
 pub mod database_schema;
 pub mod database_view;
+pub mod display_settings;
 pub mod editor_view;
 pub mod folder;
 pub mod game;
 pub mod hotbar;
 pub mod image;
+pub mod input_settings;
 pub mod kinds;
 pub mod logic_game;
 pub mod logic_grid;
@@ -54,11 +56,13 @@ pub use counter::{Counter, CounterContent};
 pub use database::{Database, DatabaseContent};
 pub use database_schema::{DatabaseSchema, DatabaseSchemaContent};
 pub use database_view::{DatabaseView, DatabaseViewContent};
+pub use display_settings::{DisplaySettings, DisplaySettingsContent};
 pub use editor_view::{EditorView, EditorViewContent, ViewState};
 pub use folder::{Folder, FolderContent};
 pub use game::{DeterministicGame, DeterministicGameContent, GameModuleContent, GameMove};
 pub use hotbar::{Hotbar, HotbarContent, HotbarSlot, SlotKind};
 pub use image::{ImageContent, ImageHeader, ImageOp};
+pub use input_settings::{InputSettings, InputSettingsContent};
 pub use kinds::{PanZoomContent, Scene3dContent, TriangleContent};
 pub use logic_game::{LogicGameContent, LogicGameProgress};
 pub use logic_grid::{LogicGridContent, LogicGridDocument};
@@ -75,7 +79,7 @@ pub use settings::{Settings, SettingsContent};
 pub use streamed::{
     HEADER_PREFIX_BYTES, Streamed, decode_streamed, encode_streamed, payload_start,
 };
-pub use text::{TextContent, TextHeader, TextIndentation, TextLanguage, TextOp};
+pub use text::{TextBlock, TextContent, TextIndentation, TextLanguage};
 pub use ui_settings::{UiSettings, UiSettingsContent, Zoom};
 pub use version_control::{
     Checkout, CheckoutConflict, CheckoutContent, ConflictKind, MAIN_BRANCH, Repository,
@@ -152,12 +156,26 @@ pub trait LiveEdit: BlockContent {
         Some(operation)
     }
 
+    fn absorb_operation(operation: &mut Self::Op, next: Self::Op) -> Option<Self::Op> {
+        let _ = operation;
+        Some(next)
+    }
+
     fn encode_operation(operation: &Self::Op) -> Vec<u8> {
         postcard::to_stdvec(operation).unwrap_or_default()
     }
 
     fn decode_operation(bytes: &[u8]) -> Result<Self::Op, ContentError> {
         postcard::from_bytes(bytes).map_err(|_| ContentError::Malformed("operation"))
+    }
+
+    fn session_state(&self) -> Vec<u8> {
+        Vec::new()
+    }
+
+    fn adopt_session_state(&mut self, state: &[u8]) -> Result<(), ContentError> {
+        let _ = state;
+        Ok(())
     }
 }
 

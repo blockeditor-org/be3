@@ -4,40 +4,46 @@ use base_pages::{
 use beui::datetime::{Date, DateTime, HourCycle, Time};
 use beui::icons::{
     ICON_ACCOUNT_TREE, ICON_ALT_ROUTE, ICON_BUG_REPORT, ICON_CALENDAR_MONTH, ICON_CODE,
-    ICON_CONTENT_COPY, ICON_CONTRAST, ICON_CROP_SQUARE, ICON_DASHBOARD, ICON_DELETE,
-    ICON_DRAG_INDICATOR, ICON_DRAW, ICON_EDIT, ICON_FLIP_TO_FRONT, ICON_GRID_VIEW, ICON_INPUT,
-    ICON_LAYERS, ICON_LIST, ICON_MENU, ICON_MOUSE, ICON_NOTES, ICON_OPEN_IN_NEW, ICON_PALETTE,
-    ICON_PLAY_ARROW, ICON_RADIO_BUTTON_CHECKED, ICON_SHARE, ICON_SMART_BUTTON, ICON_STAR,
-    ICON_SWAP_VERT, ICON_TEXT_FIELDS, ICON_TITLE, ICON_TOGGLE_ON, ICON_TOUCH_APP, ICON_TUNE,
-    ICON_VIEW_COLUMN, ICON_VIEW_QUILT, ICON_WIDGETS,
+    ICON_CONTENT_COPY, ICON_CONTENT_PASTE, ICON_CONTRAST, ICON_CROP_SQUARE, ICON_DASHBOARD,
+    ICON_DELETE, ICON_DRAG_INDICATOR, ICON_DRAW, ICON_EDIT, ICON_FLIP_TO_FRONT, ICON_GRID_VIEW,
+    ICON_INPUT, ICON_LAYERS, ICON_LINK, ICON_LIST, ICON_LOCK, ICON_MAIL, ICON_MENU, ICON_MOUSE,
+    ICON_NOTES, ICON_OPEN_IN_NEW, ICON_PALETTE, ICON_PLAY_ARROW, ICON_POWER_SETTINGS_NEW,
+    ICON_RADIO_BUTTON_CHECKED, ICON_SHARE, ICON_SMART_BUTTON, ICON_STAR, ICON_SWAP_VERT,
+    ICON_TEXT_FIELDS, ICON_TITLE, ICON_TOGGLE_ON, ICON_TOUCH_APP, ICON_TUNE, ICON_VIEW_COLUMN,
+    ICON_VIEW_QUILT, ICON_VOLUME_DOWN, ICON_VOLUME_OFF, ICON_VOLUME_UP, ICON_WIDGETS,
 };
 use beui::reactive::{
-    Align, Callback, Canvas, CanvasItem, CanvasView, Child, Children, ClickCallback, ForEach,
-    Frame, Func, Justify, List, ListChild, Memo, Prop, ReadSignal, Selector, Show, Spacer,
-    SpanStyle, Text, TextSpan, VirtualList, WriteSignal, batch, build, clone, create_memo,
-    create_selector, create_signal, focus_ring, provide_context, use_context, view, with_document,
+    Action, Align, Callback, Canvas, CanvasItem, CanvasView, Child, Children, Chord, ClickCallback,
+    ForEach, Frame, Func, Justify, List, ListChild, Memo, Prop, ReadSignal, Selector, Show, Spacer,
+    SpanStyle, Text, TextSpan, VirtualList, WriteSignal, batch, build, clone, create_effect,
+    create_memo, create_selector, create_signal, focus_ring, held_modifiers, on_shortcut,
+    provide_context, untrack, use_context, view, with_document,
 };
 use beui::styled::DocumentTheme;
 use beui::styled::theme::{CARD_RADIUS, FONT_SMALL, NARROW_WIDTH, RADIUS};
 use beui::styled::{
     Accordion, ActionRow, Body, Bordered, Button, ButtonVariant, Calendar, Caption, Card, Checkbox,
-    Chip, Code, ColorInput, ColorPicker, ColorWheel, ContextMenu, DateTimeField, Dialog, Display,
-    Docking, FocusRing, Fullscreen, Heading, Icon, IconButton, IconButtonSize, IconSized, Link,
-    ListRow, Listbox, MenuButton, ModalSheet, NumberInput, OklchColorWheel, Paragraph, Popover,
+    Chip, Code, ColorInput, ColorPicker, ColorWheel, CommandPalette, ContextMenu, DateTimeField,
+    Dialog, Display, Docking, FocusRing, Fullscreen, Heading, Icon, IconButton, IconButtonSize,
+    IconSized, KeepChanges, Launcher, LauncherItem, LevelOsd, Link, ListRow, Listbox, LockAction,
+    LockScreen, MenuButton, ModalSheet, NumberInput, OklchColorWheel, OsdLevel, Paragraph, Popover,
     Progress, RadioGroup, ResponsiveTabs, Scroll, Select, SelectableText, Separator, Shortcut,
     Slider, Spinner, SplitButton, Stack, Switch, Tabs, TextArea, TextInput, Theme, ThemeProvider,
-    Title, ToggleButton, Tooltip, Tree, TreeRowFace, use_theme,
+    Title, Toast, ToastAction, Toasts, ToggleButton, Tooltip, Tree, TreeRowFace, use_theme,
 };
 use beui::unstyled::{
     ChoiceOption, Container, DateTimeParts, DockMode, DockPane, DockSplit, DockTab, DockingLayout,
     MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView, PopoverHandle, SliderScale,
-    SyntaxColors, TabId, TextAreaState, TreeItem, dock_actions, narrower_than,
+    SyntaxColors, TabId, TextAreaState, TreeItem, dock_actions, narrower_than, use_dock_tab,
 };
 use beui::{
-    Color32, Context, Direction, Document, FontId, ItemSize, NodeId, Rect, TextAlign, unstyled,
+    Color32, Context, Direction, Document, FontId, Image, ItemSize, Key, Modifiers, NodeId, Rect,
+    TextAlign, unstyled,
 };
 use beui_macros::{component, sample};
+use collaboration::CollaborationPage;
 use sample::{Sample, ScrollPage};
+use std::rc::Rc;
 use std::sync::Arc;
 use styled_pages::{
     ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockingPage, EditorPage, InputsPage,
@@ -52,6 +58,7 @@ use unstyled_pages::{
 };
 
 mod base_pages;
+mod collaboration;
 mod sample;
 mod styled_pages;
 mod unstyled_pages;
@@ -84,6 +91,7 @@ enum Page {
     Tree,
     Layout,
     Editor,
+    Collaboration,
     Canvas,
     Themes,
     Pressing,
@@ -101,7 +109,7 @@ enum Page {
     Colors,
 }
 
-const STYLED_PAGES: [Page; 15] = [
+const STYLED_PAGES: [Page; 16] = [
     Page::Docking,
     Page::Text,
     Page::Buttons,
@@ -115,6 +123,7 @@ const STYLED_PAGES: [Page; 15] = [
     Page::Tree,
     Page::Layout,
     Page::Editor,
+    Page::Collaboration,
     Page::Canvas,
     Page::Themes,
 ];
@@ -137,7 +146,7 @@ const BASE_PAGES: [Page; 6] = [
     Page::Layering,
 ];
 
-const PAGES: [Page; 27] = [
+const PAGES: [Page; 28] = [
     Page::Docking,
     Page::Text,
     Page::Buttons,
@@ -151,6 +160,7 @@ const PAGES: [Page; 27] = [
     Page::Tree,
     Page::Layout,
     Page::Editor,
+    Page::Collaboration,
     Page::Canvas,
     Page::Themes,
     Page::Pressing,
@@ -191,6 +201,7 @@ impl Page {
             Page::Tree => "Tree",
             Page::Layout => "Layout",
             Page::Editor => "Editor",
+            Page::Collaboration => "Collaboration",
             Page::Canvas => "Canvas",
             Page::Themes => "Themes",
             Page::Pressing => "Pressing",
@@ -223,6 +234,7 @@ impl Page {
             Page::Tree => ICON_ACCOUNT_TREE,
             Page::Layout => ICON_DASHBOARD,
             Page::Editor => ICON_NOTES,
+            Page::Collaboration => ICON_SHARE,
             Page::Canvas => ICON_DRAW,
             Page::Themes => ICON_CONTRAST,
             Page::Pressing => ICON_TOUCH_APP,
@@ -255,6 +267,7 @@ impl Page {
             Page::Tree => "An expandable, keyboard-driven tree",
             Page::Layout => "Cards, accordions, stacks, scrolls",
             Page::Editor => "A markdown text area",
+            Page::Collaboration => "Two editors over a simulated network",
             Page::Canvas => "A pannable, zoomable stage",
             Page::Themes => "The dark and e-ink themes",
             Page::Pressing => "Pressables, buttons, toggles and rows",
@@ -307,6 +320,35 @@ impl DemoApp {
     }
 }
 
+#[cfg(test)]
+impl DemoApp {
+    fn alone(today: Date, page: Page) -> Self {
+        Self {
+            document: build(move || {
+                provide_context(Today(today));
+                view! {
+                    <Container>
+                        {move |_| view! {
+                            <LonePage page />
+                        }}
+                    </Container>
+                }
+            }),
+        }
+    }
+}
+
+#[cfg(test)]
+#[component]
+fn LonePage(page: Page) -> NodeId {
+    let theme = use_theme();
+    view! {
+        <Frame color={theme.background.clone()}>
+            <PageView page />
+        </Frame>
+    }
+}
+
 impl beui::App for DemoApp {
     fn update(&mut self, context: &Context, rect: Rect) {
         self.document.show(context, rect);
@@ -315,6 +357,12 @@ impl beui::App for DemoApp {
     fn clear_color(&self) -> Color32 {
         self.document.theme().background
     }
+}
+
+#[derive(Clone)]
+struct DragModifier {
+    held: ReadSignal<Option<Modifiers>>,
+    set: WriteSignal<Option<Modifiers>>,
 }
 
 #[derive(Clone)]
@@ -370,6 +418,58 @@ impl Pages {
 }
 
 #[sample]
+fn switch_tabs_with_alt_q(layout: &DockingLayout<TabId>) {
+    let modifiers = held_modifiers();
+    let next = Chord::key(Key::Q).alt();
+    for (id, label, backwards, chord) in [
+        (
+            "demo.switch.next",
+            "Switch to the tab shown before",
+            false,
+            next,
+        ),
+        (
+            "demo.switch.previous",
+            "Switch to the tab shown longest ago",
+            true,
+            next.shift(),
+        ),
+    ] {
+        let switching = layout.clone();
+        let held = modifiers.clone();
+        Action::new(id, label, move || {
+            match switching.switching() {
+                true => switching.step_switch(backwards),
+                false => switching.begin_switch(backwards),
+            }
+            if !held.get_untracked().alt {
+                switching.commit_switch();
+            }
+        })
+        .glyph(ICON_FLIP_TO_FRONT)
+        .shortcut(chord)
+        .global()
+        .register();
+    }
+    let open = create_memo(clone!(layout -> move || layout.switching()));
+    let cancelling = layout.clone();
+    Action::new("demo.switch.cancel", "Stop switching tabs", move || {
+        cancelling.cancel_switch();
+    })
+    .shortcut(Chord::key(Key::Escape).alt())
+    .shortcut(Chord::key(Key::Escape).alt().shift())
+    .enabled(open)
+    .global()
+    .register();
+    let committing = layout.clone();
+    create_effect(move || {
+        if !modifiers.get().alt && untrack(|| committing.switching()) {
+            untrack(|| committing.commit_switch());
+        }
+    });
+}
+
+#[sample]
 #[component]
 fn DemoShell() -> NodeId {
     let theme = use_theme();
@@ -384,9 +484,15 @@ fn DemoShell() -> NodeId {
     }));
     let active = create_selector(clone!(pages -> move || pages.active()));
     let layout = pages.layout.clone();
+    switch_tabs_with_alt_q(&layout);
     let open = pages.open.clone();
     let catalog = pages.clone();
     let toolbar = pages.clone();
+    let (drag_modifier, set_drag_modifier) = create_signal(None);
+    provide_context(DragModifier {
+        held: drag_modifier.clone(),
+        set: set_drag_modifier,
+    });
     view! {
         <Frame color={theme.background.clone()}>
             <List spacing=0.0>
@@ -394,7 +500,7 @@ fn DemoShell() -> NodeId {
                     <DemoToolbar pages=toolbar mobile set_mobile />
                 </Frame>
                 <Separator />
-                <Docking @sizing=ItemSize::Percent(100.0) layout mode home=CATALOG>
+                <Docking @sizing=ItemSize::Percent(100.0) layout mode home=CATALOG drag_modifier>
                     <DockSplit id="shell" fraction={1.0 - PAGE_SHARE}>
                         <DockPane id="catalog">
                             <DockTab id=CATALOG title="Components" icon=ICON_WIDGETS>
@@ -415,89 +521,9 @@ fn DemoShell() -> NodeId {
                                         icon={page.icon()}
                                         on_close={move || pages.close(page)}
                                     >
-                                        <Container @test_id={format!("demo.page.{}", page.title())}>
-                                            {move |_| match page {
-                                                Page::Docking => view! {
-                                                    <DockingPage />
-                                                },
-                                                Page::Text => view! {
-                                                    <TextPage />
-                                                },
-                                                Page::Buttons => view! {
-                                                    <ButtonsPage />
-                                                },
-                                                Page::Inputs => view! {
-                                                    <InputsPage />
-                                                },
-                                                Page::Choices => view! {
-                                                    <ChoicesPage />
-                                                },
-                                                Page::Pickers => view! {
-                                                    <PickersPage />
-                                                },
-                                                Page::Colors => view! {
-                                                    <ColorsPage />
-                                                },
-                                                Page::Menus => view! {
-                                                    <MenusPage />
-                                                },
-                                                Page::Overlays => view! {
-                                                    <OverlaysPage />
-                                                },
-                                                Page::Rows => view! {
-                                                    <RowsPage />
-                                                },
-                                                Page::Tree => view! {
-                                                    <TreePage />
-                                                },
-                                                Page::Layout => view! {
-                                                    <LayoutPage />
-                                                },
-                                                Page::Editor => view! {
-                                                    <EditorPage />
-                                                },
-                                                Page::Canvas => view! {
-                                                    <CanvasPage />
-                                                },
-                                                Page::Themes => view! {
-                                                    <ThemesPage />
-                                                },
-                                                Page::Pressing => view! {
-                                                    <PressingPage />
-                                                },
-                                                Page::Values => view! {
-                                                    <ValuesPage />
-                                                },
-                                                Page::Selecting => view! {
-                                                    <SelectingPage />
-                                                },
-                                                Page::Popups => view! {
-                                                    <PopupsPage />
-                                                },
-                                                Page::Dragging => view! {
-                                                    <DraggingPage />
-                                                },
-                                                Page::Scrolling => view! {
-                                                    <ScrollingPage />
-                                                },
-                                                Page::Frames => view! {
-                                                    <FramesPage />
-                                                },
-                                                Page::TextNodes => view! {
-                                                    <TextNodesPage />
-                                                },
-                                                Page::Lists => view! {
-                                                    <ListsPage />
-                                                },
-                                                Page::ControlFlow => view! {
-                                                    <ControlFlowPage />
-                                                },
-                                                Page::Interaction => view! {
-                                                    <InteractionPage />
-                                                },
-                                                Page::Layering => view! {
-                                                    <LayeringPage />
-                                                },
+                                        <Container>
+                                            {move |_| view! {
+                                                <PageView page />
                                             }}
                                         </Container>
                                     </DockTab>
@@ -508,6 +534,96 @@ fn DemoShell() -> NodeId {
                 </Docking>
             </List>
         </Frame>
+    }
+}
+
+#[component]
+fn PageView(page: Page) -> NodeId {
+    match page {
+        Page::Docking => view! {
+            <DockingPage />
+        },
+        Page::Text => view! {
+            <TextPage />
+        },
+        Page::Buttons => view! {
+            <ButtonsPage />
+        },
+        Page::Inputs => view! {
+            <InputsPage />
+        },
+        Page::Choices => view! {
+            <ChoicesPage />
+        },
+        Page::Pickers => view! {
+            <PickersPage />
+        },
+        Page::Colors => view! {
+            <ColorsPage />
+        },
+        Page::Menus => view! {
+            <MenusPage />
+        },
+        Page::Overlays => view! {
+            <OverlaysPage />
+        },
+        Page::Rows => view! {
+            <RowsPage />
+        },
+        Page::Tree => view! {
+            <TreePage />
+        },
+        Page::Layout => view! {
+            <LayoutPage />
+        },
+        Page::Editor => view! {
+            <EditorPage />
+        },
+        Page::Collaboration => view! {
+            <CollaborationPage />
+        },
+        Page::Canvas => view! {
+            <CanvasPage />
+        },
+        Page::Themes => view! {
+            <ThemesPage />
+        },
+        Page::Pressing => view! {
+            <PressingPage />
+        },
+        Page::Values => view! {
+            <ValuesPage />
+        },
+        Page::Selecting => view! {
+            <SelectingPage />
+        },
+        Page::Popups => view! {
+            <PopupsPage />
+        },
+        Page::Dragging => view! {
+            <DraggingPage />
+        },
+        Page::Scrolling => view! {
+            <ScrollingPage />
+        },
+        Page::Frames => view! {
+            <FramesPage />
+        },
+        Page::TextNodes => view! {
+            <TextNodesPage />
+        },
+        Page::Lists => view! {
+            <ListsPage />
+        },
+        Page::ControlFlow => view! {
+            <ControlFlowPage />
+        },
+        Page::Interaction => view! {
+            <InteractionPage />
+        },
+        Page::Layering => view! {
+            <LayeringPage />
+        },
     }
 }
 

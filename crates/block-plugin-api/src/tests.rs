@@ -3,7 +3,6 @@ use std::collections::HashSet;
 
 fn hello() -> Message {
     Message::Hello(Hello {
-        version: PROTOCOL_VERSION,
         plugin: PluginIdentity {
             id: "demo".into(),
             name: "Plugin Demo".into(),
@@ -67,12 +66,14 @@ fn region_screen(
             pixel_width,
             pixel_height,
             scale_factor,
+            monitors: Vec::new(),
         },
     }
 }
 
 mod a_layout_gives_each_shown_screen_its_own_surface;
 mod a_paste_over_the_text_limit_arrives_in_pieces;
+mod an_intercepted_key_round_trips;
 mod artifact_messages_round_trip;
 mod artifact_watch_messages_round_trip;
 mod audio_messages_round_trip;
@@ -106,12 +107,15 @@ mod host_panel_messages_round_trip;
 mod host_window_messages_round_trip;
 mod ime_messages_round_trip;
 mod manifest_validation;
+mod media_messages_round_trip;
 mod menus_and_their_picks_round_trip;
 mod multiplexed_messages_round_trip;
+mod notification_messages_round_trip;
 mod open_block_request_round_trips;
 mod open_messages_round_trip;
 mod performance_messages_round_trip;
 mod pick_block_messages_round_trip;
+mod power_messages_round_trip;
 mod presence_messages_round_trip;
 mod present_messages_round_trip;
 mod region_sizes_round_trip;
@@ -131,3 +135,42 @@ mod version_control_messages_round_trip;
 mod view_messages_round_trip;
 mod web_view_messages_round_trip;
 mod zoom_gesture_round_trips;
+
+fn host_value_round_trips<T: HostValue>(value: T::Value)
+where
+    T::Value: std::fmt::Debug,
+{
+    let watch = Message::Editor(EditorMessage::WatchHostValue {
+        instance: EditorInstanceId(4),
+        key: T::KEY.into(),
+    });
+    assert_eq!(watch.direction(), Direction::ToHost);
+    assert_eq!(decode_frame(&encode_frame(&watch).unwrap()).unwrap(), watch);
+    let message = Message::Editor(EditorMessage::HostValue {
+        instance: EditorInstanceId(4),
+        key: T::KEY.into(),
+        value: encode_host(&value),
+    });
+    assert_eq!(message.direction(), Direction::ToPlugin);
+    let Message::Editor(EditorMessage::HostValue { value: bytes, .. }) =
+        decode_frame(&encode_frame(&message).unwrap()).unwrap()
+    else {
+        panic!("a host value comes back as one");
+    };
+    assert_eq!(decode_host::<T::Value>(&bytes), Some(value));
+}
+
+fn host_action_round_trips<A: HostAction + PartialEq + std::fmt::Debug>(action: A) {
+    let message = Message::Editor(EditorMessage::HostAction {
+        instance: EditorInstanceId(4),
+        key: A::KEY.into(),
+        action: encode_host(&action),
+    });
+    assert_eq!(message.direction(), Direction::ToHost);
+    let Message::Editor(EditorMessage::HostAction { action: bytes, .. }) =
+        decode_frame(&encode_frame(&message).unwrap()).unwrap()
+    else {
+        panic!("a host action comes back as one");
+    };
+    assert_eq!(decode_host::<A>(&bytes), Some(action));
+}

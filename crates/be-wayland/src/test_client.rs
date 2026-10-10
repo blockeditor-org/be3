@@ -23,8 +23,22 @@ use wayland_protocols::wp::linux_dmabuf::zv1::client::{
     zwp_linux_buffer_params_v1, zwp_linux_dmabuf_v1,
 };
 
+use wayland_protocols::ext::idle_notify::v1::client::{
+    ext_idle_notification_v1, ext_idle_notifier_v1,
+};
+use wayland_protocols::wp::idle_inhibit::zv1::client::{
+    zwp_idle_inhibit_manager_v1, zwp_idle_inhibitor_v1,
+};
+
 const ARGB8888: u32 = u32::from_le_bytes(*b"AR24");
 use crate::state::{ServerEvent, WindowId};
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum Seen {
+    Button(wl_surface::WlSurface, bool),
+    Key(wl_surface::WlSurface, u32),
+    PopupDone(xdg_popup::XdgPopup),
+}
 
 #[derive(Default)]
 pub(crate) struct Received {
@@ -32,16 +46,27 @@ pub(crate) struct Received {
     pub(crate) configured: Option<u32>,
     pub(crate) size: Option<(i32, i32)>,
     pub(crate) activated: bool,
+    pub(crate) fullscreen: bool,
+    pub(crate) maximized: bool,
     pub(crate) keyboard_entered: bool,
+    pub(crate) keyboard_surface: Option<wl_surface::WlSurface>,
+    pub(crate) serial: Option<u32>,
+    pub(crate) seen: Vec<Seen>,
     pub(crate) keys: Vec<(u32, bool)>,
+    pub(crate) keymaps: usize,
+    pub(crate) repeat: Option<(i32, i32)>,
     pub(crate) pointer_entered: Option<(f64, f64)>,
     pub(crate) pointer_surface: Option<wl_surface::WlSurface>,
     pub(crate) buttons: Vec<(u32, bool)>,
+    pub(crate) scrolled: f64,
     pub(crate) frames: usize,
     pub(crate) released: Vec<wl_buffer::WlBuffer>,
     pub(crate) xdg_decoration: Option<zxdg_toplevel_decoration_v1::Mode>,
     pub(crate) kde_default_decoration: Option<org_kde_kwin_server_decoration_manager::Mode>,
     pub(crate) kde_decoration: Option<org_kde_kwin_server_decoration::Mode>,
+    pub(crate) ignores_pings: bool,
+    pub(crate) pings: Vec<u32>,
+    pub(crate) idle: Vec<bool>,
 }
 
 pub(crate) struct TestClient {
@@ -60,7 +85,20 @@ pub(crate) struct TestWindow {
     pub(crate) surface: wl_surface::WlSurface,
     pub(crate) xdg_surface: xdg_surface::XdgSurface,
     pub(crate) toplevel: Option<xdg_toplevel::XdgToplevel>,
-    pub(crate) _popup: Option<xdg_popup::XdgPopup>,
+    pub(crate) popup: Option<xdg_popup::XdgPopup>,
+}
+
+impl TestWindow {
+    pub(crate) fn destroy(&self) {
+        if let Some(popup) = &self.popup {
+            popup.destroy();
+        }
+        if let Some(toplevel) = &self.toplevel {
+            toplevel.destroy();
+        }
+        self.xdg_surface.destroy();
+        self.surface.destroy();
+    }
 }
 
 pub(crate) fn server() -> Server {
@@ -157,7 +195,7 @@ impl TestClient {
                 surface,
                 xdg_surface,
                 toplevel: Some(toplevel),
-                _popup: None,
+                popup: None,
             },
             id,
         )
@@ -180,17 +218,60 @@ impl TestClient {
             surface,
             xdg_surface,
             toplevel: Some(toplevel),
-            _popup: None,
+            popup: None,
+        }
+    }
+
+    pub(crate) fn inhibit(
+        &self,
+        surface: &wl_surface::WlSurface,
+    ) -> zwp_idle_inhibitor_v1::ZwpIdleInhibitorV1 {
+        let manager: zwp_idle_inhibit_manager_v1::ZwpIdleInhibitManagerV1 =
+            self.bind("zwp_idle_inhibit_manager_v1", 1);
+        manager.create_inhibitor(surface, &self.handle, ())
+    }
+
+    pub(crate) fn idle_notification(
+        &self,
+        timeout_ms: u32,
+        input_only: bool,
+    ) -> ext_idle_notification_v1::ExtIdleNotificationV1 {
+        let notifier: ext_idle_notifier_v1::ExtIdleNotifierV1 =
+            self.bind("ext_idle_notifier_v1", 2);
+        let seat = self.seat.as_ref().unwrap();
+        match input_only {
+            true => notifier.get_input_idle_notification(timeout_ms, seat, &self.handle, ()),
+            false => notifier.get_idle_notification(timeout_ms, seat, &self.handle, ()),
         }
     }
 
     pub(crate) fn flush(&mut self) {
+        if self.disconnected() {
+            return;
+        }
         self.connection.flush().expect("the client flushes");
     }
 
+    pub(crate) fn disconnected(&self) -> bool {
+        self.connection.protocol_error().is_some()
+    }
+
+    pub(crate) fn pong(&mut self) {
+        let base = self.wm_base.as_ref().unwrap();
+        for serial in self.received.pings.drain(..) {
+            base.pong(serial);
+        }
+    }
+
     pub(crate) fn receive(&mut self) {
+        if self.disconnected() {
+            return;
+        }
         if let Some(guard) = self.queue.prepare_read() {
             let _ = guard.read();
+        }
+        if self.disconnected() {
+            return;
         }
         self.queue
             .dispatch_pending(&mut self.received)
@@ -228,6 +309,31 @@ impl TestClient {
         anchor: (i32, i32),
         size: (i32, i32),
     ) -> TestWindow {
+        self.popup_grabbing(server, parent, anchor, size, None)
+    }
+
+    pub(crate) fn grabbing_popup(
+        &mut self,
+        server: &mut Server,
+        parent: &TestWindow,
+        anchor: (i32, i32),
+        size: (i32, i32),
+    ) -> TestWindow {
+        let serial = self
+            .received
+            .serial
+            .expect("a grab is taken with the serial of an input event");
+        self.popup_grabbing(server, parent, anchor, size, Some(serial))
+    }
+
+    fn popup_grabbing(
+        &mut self,
+        server: &mut Server,
+        parent: &TestWindow,
+        anchor: (i32, i32),
+        size: (i32, i32),
+        grab: Option<u32>,
+    ) -> TestWindow {
         let surface = self
             .compositor
             .as_ref()
@@ -242,20 +348,26 @@ impl TestClient {
         positioner.set_gravity(xdg_positioner::Gravity::BottomRight);
         let popup = xdg_surface.get_popup(Some(&parent.xdg_surface), &positioner, &self.handle, ());
         positioner.destroy();
+        if let Some(serial) = grab {
+            popup.grab(self.seat.as_ref().unwrap(), serial);
+        }
         surface.commit();
         self.exchange(server);
-        let serial = self
-            .received
-            .configured
-            .take()
-            .expect("the popup's first commit is configured");
-        xdg_surface.ack_configure(serial);
+        let configured = self.received.configured.take();
         let window = TestWindow {
             surface,
             xdg_surface,
             toplevel: None,
-            _popup: Some(popup),
+            popup: Some(popup),
         };
+        let Some(serial) = configured else {
+            assert!(
+                grab.is_some(),
+                "a popup that does not grab is always configured"
+            );
+            return window;
+        };
+        window.xdg_surface.ack_configure(serial);
         self.attach(server, &window, size.0, size.1);
         window
     }
@@ -330,7 +442,7 @@ impl Dispatch<wl_registry::WlRegistry, ()> for Received {
 
 impl Dispatch<xdg_wm_base::XdgWmBase, ()> for Received {
     fn event(
-        _: &mut Self,
+        state: &mut Self,
         base: &xdg_wm_base::XdgWmBase,
         event: xdg_wm_base::Event,
         _: &(),
@@ -338,7 +450,10 @@ impl Dispatch<xdg_wm_base::XdgWmBase, ()> for Received {
         _: &QueueHandle<Self>,
     ) {
         if let xdg_wm_base::Event::Ping { serial } = event {
-            base.pong(serial);
+            state.pings.push(serial);
+            if !state.ignores_pings {
+                base.pong(serial);
+            }
         }
     }
 }
@@ -374,12 +489,16 @@ impl Dispatch<xdg_toplevel::XdgToplevel, ()> for Received {
         } = event
         {
             state.size = Some((width, height));
-            state.activated = states
+            let states: Vec<u32> = states
                 .as_chunks::<4>()
                 .0
                 .iter()
-                .map(|chunk| u32::from_ne_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
-                .any(|value| value == xdg_toplevel::State::Activated as u32);
+                .map(|chunk| u32::from_ne_bytes(*chunk))
+                .collect();
+            let has = |which: xdg_toplevel::State| states.contains(&(which as u32));
+            state.activated = has(xdg_toplevel::State::Activated);
+            state.fullscreen = has(xdg_toplevel::State::Fullscreen);
+            state.maximized = has(xdg_toplevel::State::Maximized);
         }
     }
 }
@@ -394,15 +513,31 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Received {
         _: &QueueHandle<Self>,
     ) {
         match event {
-            wl_keyboard::Event::Enter { .. } => state.keyboard_entered = true,
-            wl_keyboard::Event::Leave { .. } => state.keyboard_entered = false,
+            wl_keyboard::Event::Enter { surface, .. } => {
+                state.keyboard_entered = true;
+                state.keyboard_surface = Some(surface);
+            }
+            wl_keyboard::Event::Leave { .. } => {
+                state.keyboard_entered = false;
+                state.keyboard_surface = None;
+            }
             wl_keyboard::Event::Key {
                 key,
                 state: WEnum::Value(pressed),
+                serial,
                 ..
-            } => state
-                .keys
-                .push((key, pressed == wl_keyboard::KeyState::Pressed)),
+            } => {
+                let pressed = pressed == wl_keyboard::KeyState::Pressed;
+                state.keys.push((key, pressed));
+                if pressed {
+                    state.serial = Some(serial);
+                    if let Some(surface) = state.keyboard_surface.clone() {
+                        state.seen.push(Seen::Key(surface, key));
+                    }
+                }
+            }
+            wl_keyboard::Event::Keymap { .. } => state.keymaps += 1,
+            wl_keyboard::Event::RepeatInfo { rate, delay } => state.repeat = Some((rate, delay)),
             _ => {}
         }
     }
@@ -427,13 +562,23 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Received {
                 state.pointer_entered = Some((surface_x, surface_y));
                 state.pointer_surface = Some(surface);
             }
+            wl_pointer::Event::Leave { .. } => state.pointer_surface = None,
             wl_pointer::Event::Button {
                 button,
                 state: WEnum::Value(pressed),
+                serial,
                 ..
-            } => state
-                .buttons
-                .push((button, pressed == wl_pointer::ButtonState::Pressed)),
+            } => {
+                let pressed = pressed == wl_pointer::ButtonState::Pressed;
+                state.buttons.push((button, pressed));
+                if pressed {
+                    state.serial = Some(serial);
+                }
+                if let Some(surface) = state.pointer_surface.clone() {
+                    state.seen.push(Seen::Button(surface, pressed));
+                }
+            }
+            wl_pointer::Event::Axis { value, .. } => state.scrolled += value,
             _ => {}
         }
     }
@@ -531,9 +676,41 @@ impl Dispatch<org_kde_kwin_server_decoration::OrgKdeKwinServerDecoration, ()> fo
 
 wayland_client::delegate_noop!(Received: ignore zxdg_decoration_manager_v1::ZxdgDecorationManagerV1);
 wayland_client::delegate_noop!(Received: ignore wl_seat::WlSeat);
+wayland_client::delegate_noop!(Received: ignore zwp_idle_inhibit_manager_v1::ZwpIdleInhibitManagerV1);
+wayland_client::delegate_noop!(Received: ignore zwp_idle_inhibitor_v1::ZwpIdleInhibitorV1);
+wayland_client::delegate_noop!(Received: ignore ext_idle_notifier_v1::ExtIdleNotifierV1);
+impl Dispatch<ext_idle_notification_v1::ExtIdleNotificationV1, ()> for Received {
+    fn event(
+        received: &mut Self,
+        _notification: &ext_idle_notification_v1::ExtIdleNotificationV1,
+        event: ext_idle_notification_v1::Event,
+        _data: &(),
+        _connection: &Connection,
+        _handle: &QueueHandle<Self>,
+    ) {
+        match event {
+            ext_idle_notification_v1::Event::Idled => received.idle.push(true),
+            ext_idle_notification_v1::Event::Resumed => received.idle.push(false),
+            _ => {}
+        }
+    }
+}
 wayland_client::delegate_noop!(Received: ignore zwp_linux_dmabuf_v1::ZwpLinuxDmabufV1);
 wayland_client::delegate_noop!(Received: ignore zwp_linux_buffer_params_v1::ZwpLinuxBufferParamsV1);
 wayland_client::delegate_noop!(Received: ignore xdg_positioner::XdgPositioner);
-wayland_client::delegate_noop!(Received: ignore xdg_popup::XdgPopup);
+impl Dispatch<xdg_popup::XdgPopup, ()> for Received {
+    fn event(
+        state: &mut Self,
+        popup: &xdg_popup::XdgPopup,
+        event: xdg_popup::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let xdg_popup::Event::PopupDone = event {
+            state.seen.push(Seen::PopupDone(popup.clone()));
+        }
+    }
+}
 
 pub(crate) use be_dmabuf::testing::{pattern, read, vulkan_device};

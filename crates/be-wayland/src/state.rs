@@ -23,6 +23,7 @@ use smithay::wayland::drm_syncobj::{
 };
 
 use crate::decoration::{Decorations, server_side};
+use crate::idle::Idle;
 use crate::server::{Waiter, readable};
 use smithay::delegate_cursor_shape;
 use smithay::delegate_data_device;
@@ -32,11 +33,12 @@ use smithay::delegate_shm;
 use smithay::delegate_viewporter;
 use smithay::delegate_xdg_shell;
 use smithay::desktop::{
-    PopupKind, PopupManager, Window, WindowSurfaceType, find_popup_root_surface,
+    PopupGrab, PopupKeyboardGrab, PopupKind, PopupManager, PopupPointerGrab, PopupUngrabStrategy,
+    Window, WindowSurfaceType, find_popup_root_surface,
 };
-use smithay::input::keyboard::{FilterResult, Keycode, XkbConfig};
+use smithay::input::keyboard::{FilterResult, KeyboardHandle, Keycode, XkbConfig};
 use smithay::input::pointer::{
-    AxisFrame, ButtonEvent, CursorImageStatus, MotionEvent, PointerHandle,
+    AxisFrame, ButtonEvent, CursorImageStatus, Focus, MotionEvent, PointerHandle,
 };
 use smithay::input::{Seat, SeatHandler, SeatState};
 use smithay::output::{Mode, Output, PhysicalProperties, Scale, Subpixel};
@@ -58,6 +60,8 @@ use smithay::wayland::selection::SelectionHandler;
 use smithay::wayland::selection::data_device::{
     ClientDndGrabHandler, DataDeviceHandler, DataDeviceState, ServerDndGrabHandler,
 };
+use smithay::wayland::shell::PingError;
+use smithay::wayland::shell::xdg::ShellClient;
 use smithay::wayland::shell::xdg::{
     PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState,
     XdgToplevelSurfaceData,
@@ -68,6 +72,13 @@ use smithay::wayland::viewporter::ViewporterState;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct WindowId(pub u64);
 
+pub const PING_TIMEOUT: Duration = Duration::from_secs(3);
+
+struct Ping {
+    client: ClientId,
+    sent: Instant,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ServerEvent {
     Opened(WindowId),
@@ -75,6 +86,7 @@ pub enum ServerEvent {
     Titled(WindowId, String),
     Changed(WindowId),
     Committed(WindowId),
+    Fullscreen(WindowId, bool),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -89,6 +101,8 @@ struct ClientWindow {
     id: WindowId,
     window: Window,
     title: String,
+    fullscreen: bool,
+    maximized: bool,
 }
 
 #[derive(Default)]
@@ -112,6 +126,7 @@ pub struct State {
     dmabuf_check: Option<DmabufCheck>,
     syncobj: Option<DrmSyncobjState>,
     decorations: Decorations,
+    pub(crate) idle: Idle,
     start: Instant,
     compositor: CompositorState,
     xdg_shell: XdgShellState,
@@ -121,6 +136,7 @@ pub struct State {
     seat: Seat<State>,
     output: Output,
     popups: PopupManager,
+    popup_grab: Option<PopupGrab<State>>,
     windows: Vec<ClientWindow>,
     next_window: u64,
     events: Vec<ServerEvent>,
@@ -129,7 +145,20 @@ pub struct State {
     scale: i32,
     size: Size<i32, Logical>,
     pointer_window: Option<WindowId>,
+    buttons: Vec<u32>,
     keyboard_window: Option<WindowId>,
+    pings: Vec<Ping>,
+    unresponsive: Vec<ClientId>,
+    disconnected: Vec<ClientId>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct KeyboardConfig {
+    pub layout: String,
+    pub variant: String,
+    pub options: String,
+    pub repeat_delay: i32,
+    pub repeat_rate: i32,
 }
 
 impl State {
@@ -139,6 +168,7 @@ impl State {
         let shm = ShmState::new::<Self>(handle, Vec::new());
         let data_device = DataDeviceState::new::<Self>(handle);
         let decorations = Decorations::new(handle);
+        let idle = Idle::new(handle);
         CursorShapeManagerState::new::<Self>(handle);
         ViewporterState::new::<Self>(handle);
         OutputManagerState::new_with_xdg_output::<Self>(handle);
@@ -165,6 +195,7 @@ impl State {
             dmabuf_check: None,
             syncobj: None,
             decorations,
+            idle,
             handle: handle.clone(),
             start: Instant::now(),
             compositor,
@@ -175,6 +206,7 @@ impl State {
             seat,
             output,
             popups: PopupManager::default(),
+            popup_grab: None,
             windows: Vec::new(),
             next_window: 1,
             events: Vec::new(),
@@ -183,7 +215,11 @@ impl State {
             scale: 1,
             size: Size::from((1280, 800)),
             pointer_window: None,
+            buttons: Vec::new(),
             keyboard_window: None,
+            pings: Vec::new(),
+            unresponsive: Vec::new(),
+            disconnected: Vec::new(),
         };
         state.set_output(state.size, state.scale);
         state
@@ -321,6 +357,57 @@ impl State {
 
     pub fn cleanup(&mut self) {
         self.popups.cleanup();
+        self.settle_popup_grab();
+    }
+
+    fn settle_popup_grab(&mut self) {
+        let Some(grab) = self.popup_grab.clone() else {
+            return;
+        };
+        let keyboard = self.keyboard();
+        let serial = SERIAL_COUNTER.next_serial();
+        if !grab.has_ended() {
+            let current = grab.current_grab();
+            if keyboard.has_grab(grab.serial()) && keyboard.current_focus() != current {
+                keyboard.set_focus(self, current, serial);
+            }
+            return;
+        }
+        self.popup_grab = None;
+        self.release_popup_grab(&grab);
+        self.restore_keyboard_focus();
+    }
+
+    fn restore_keyboard_focus(&mut self) {
+        let keyboard = self.keyboard();
+        let focus = self
+            .keyboard_window
+            .and_then(|id| self.toplevel(id))
+            .map(|toplevel| toplevel.wl_surface().clone());
+        if keyboard.current_focus() != focus {
+            keyboard.set_focus(self, focus, SERIAL_COUNTER.next_serial());
+        }
+    }
+
+    fn release_popup_grab(&mut self, grab: &PopupGrab<State>) {
+        let pointer = self.pointer();
+        if pointer.has_grab(grab.serial()) {
+            let time = self.time();
+            pointer.unset_grab(self, SERIAL_COUNTER.next_serial(), time);
+        }
+        let keyboard = self.keyboard();
+        if keyboard.has_grab(grab.serial()) {
+            keyboard.unset_grab(self);
+        }
+    }
+
+    pub fn dismiss_popups(&mut self) {
+        let Some(mut grab) = self.popup_grab.take() else {
+            return;
+        };
+        grab.ungrab(PopupUngrabStrategy::All);
+        self.release_popup_grab(&grab);
+        self.restore_keyboard_focus();
     }
 
     pub fn take_events(&mut self) -> Vec<ServerEvent> {
@@ -402,6 +489,27 @@ impl State {
         })
     }
 
+    pub fn inhibiting_windows(&mut self) -> Vec<WindowId> {
+        let surfaces = self.idle.inhibitors().to_vec();
+        surfaces
+            .iter()
+            .filter_map(|surface| Some(self.window_of_root(&self.root_of(surface))?.id))
+            .collect()
+    }
+
+    fn root_of(&self, surface: &WlSurface) -> WlSurface {
+        let mut root = surface.clone();
+        while let Some(parent) = get_parent(&root) {
+            root = parent;
+        }
+        if let Some(popup) = self.popups.find_popup(&root)
+            && let Ok(toplevel) = find_popup_root_surface(&popup)
+        {
+            root = toplevel;
+        }
+        root
+    }
+
     fn toplevel(&self, id: WindowId) -> Option<ToplevelSurface> {
         self.find(id)?.window.toplevel().cloned()
     }
@@ -410,13 +518,78 @@ impl State {
         Some(self.toplevel(id)?.wl_surface().clone())
     }
 
+    pub fn fullscreen(&self, id: WindowId) -> bool {
+        self.find(id).is_some_and(|window| window.fullscreen)
+    }
+
+    pub fn set_fullscreen(&mut self, id: WindowId, fullscreen: bool) {
+        if let Some(window) = self.windows.iter_mut().find(|window| window.id == id) {
+            window.fullscreen = fullscreen;
+        }
+    }
+
+    pub fn maximized(&self, id: WindowId) -> bool {
+        self.find(id).is_some_and(|window| window.maximized)
+    }
+
+    fn window_of(&mut self, surface: &ToplevelSurface) -> Option<&mut ClientWindow> {
+        self.windows
+            .iter_mut()
+            .find(|window| window.window.toplevel() == Some(surface))
+    }
+
+    fn request_fullscreen(&mut self, surface: &ToplevelSurface, fullscreen: bool) {
+        let Some(window) = self.window_of(surface) else {
+            return;
+        };
+        let id = window.id;
+        if window.fullscreen == fullscreen {
+            if surface.is_initial_configure_sent() {
+                surface.send_configure();
+            }
+            return;
+        }
+        window.fullscreen = fullscreen;
+        surface.with_pending_state(|state| {
+            set_state(state, xdg_toplevel::State::Fullscreen, fullscreen)
+        });
+        self.events.push(ServerEvent::Fullscreen(id, fullscreen));
+    }
+
+    fn request_maximized(&mut self, surface: &ToplevelSurface, maximized: bool) {
+        let Some(window) = self.window_of(surface) else {
+            return;
+        };
+        window.maximized = maximized;
+        surface.with_pending_state(|state| {
+            set_state(state, xdg_toplevel::State::Maximized, maximized)
+        });
+        if surface.is_initial_configure_sent() {
+            surface.send_configure();
+        }
+    }
+
     pub fn configure(&mut self, id: WindowId, size: Size<i32, Logical>, activated: bool) {
+        self.configure_sized(id, Some(size), activated);
+    }
+
+    pub fn configure_sized(
+        &mut self,
+        id: WindowId,
+        size: Option<Size<i32, Logical>>,
+        activated: bool,
+    ) {
         let Some(toplevel) = self.toplevel(id) else {
             return;
         };
+        let (fullscreen, maximized) = (self.fullscreen(id), self.maximized(id));
         toplevel.with_pending_state(|state| {
-            state.size = Some(size);
-            state.bounds = Some(size);
+            set_state(state, xdg_toplevel::State::Fullscreen, fullscreen);
+            set_state(state, xdg_toplevel::State::Maximized, maximized);
+            if let Some(size) = size {
+                state.size = Some(size);
+                state.bounds = Some(size);
+            }
             for tiled in [
                 xdg_toplevel::State::TiledLeft,
                 xdg_toplevel::State::TiledRight,
@@ -425,11 +598,7 @@ impl State {
             ] {
                 state.states.set(tiled);
             }
-            if activated {
-                state.states.set(xdg_toplevel::State::Activated);
-            } else {
-                state.states.unset(xdg_toplevel::State::Activated);
-            }
+            set_state(state, xdg_toplevel::State::Activated, activated);
         });
         if toplevel.is_initial_configure_sent() {
             toplevel.send_pending_configure();
@@ -449,6 +618,99 @@ impl State {
         if let Some(toplevel) = self.toplevel(id) {
             toplevel.send_close();
         }
+    }
+
+    fn client(&self, id: WindowId) -> Option<Client> {
+        self.toplevel(id)?.wl_surface().client()
+    }
+
+    fn client_windows(&self, client: &ClientId) -> Vec<WindowId> {
+        self.windows
+            .iter()
+            .filter(|window| {
+                window
+                    .window
+                    .toplevel()
+                    .and_then(|toplevel| toplevel.wl_surface().client())
+                    .is_some_and(|owner| owner.id() == *client)
+            })
+            .map(|window| window.id)
+            .collect()
+    }
+
+    pub fn ping(&mut self, id: WindowId, now: Instant) {
+        let (Some(toplevel), Some(client)) = (self.toplevel(id), self.client(id)) else {
+            return;
+        };
+        let client = client.id();
+        if self.pings.iter().any(|ping| ping.client == client) {
+            return;
+        }
+        match toplevel.client().send_ping(SERIAL_COUNTER.next_serial()) {
+            Ok(()) | Err(PingError::PingAlreadyPending(_)) => {
+                self.pings.push(Ping { client, sent: now });
+            }
+            Err(_) => {}
+        }
+    }
+
+    pub fn check_pings(&mut self, now: Instant) -> Option<Instant> {
+        let live: Vec<ClientId> = self
+            .windows()
+            .into_iter()
+            .filter_map(|id| Some(self.client(id)?.id()))
+            .collect();
+        self.pings.retain(|ping| live.contains(&ping.client));
+        self.unresponsive.retain(|client| live.contains(client));
+        let mut due = None;
+        let mut late = Vec::new();
+        for ping in &self.pings {
+            if self.unresponsive.contains(&ping.client) {
+                continue;
+            }
+            let deadline = ping.sent + PING_TIMEOUT;
+            if deadline <= now {
+                late.push(ping.client.clone());
+            } else {
+                due = Some(due.map_or(deadline, |due: Instant| due.min(deadline)));
+            }
+        }
+        if !late.is_empty() {
+            due = Some(now);
+        }
+        for client in late {
+            self.changed_client(&client);
+            self.unresponsive.push(client);
+        }
+        due
+    }
+
+    fn changed_client(&mut self, client: &ClientId) {
+        for id in self.client_windows(client) {
+            self.events.push(ServerEvent::Changed(id));
+        }
+    }
+
+    pub fn responding(&self, id: WindowId) -> bool {
+        self.client(id)
+            .is_none_or(|client| !self.unresponsive.contains(&client.id()))
+    }
+
+    pub fn client_pid(&self, id: WindowId) -> Option<i32> {
+        let client = self.client(id)?;
+        Some(client.get_credentials(&self.handle).ok()?.pid)
+    }
+
+    pub fn disconnect(&mut self, id: WindowId) {
+        let (Some(toplevel), Some(client)) = (self.toplevel(id), self.client(id)) else {
+            return;
+        };
+        let _ = toplevel.client().unresponsive();
+        self.disconnected.push(client.id());
+    }
+
+    pub fn take_disconnected(&mut self) -> Vec<ClientId> {
+        std::mem::take(&mut self.disconnected)
     }
 
     pub fn layers(&self, id: WindowId) -> Vec<Layer> {
@@ -487,6 +749,10 @@ impl State {
 
     fn pointer(&self) -> PointerHandle<Self> {
         self.seat.get_pointer().expect("the seat has a pointer")
+    }
+
+    fn keyboard(&self) -> KeyboardHandle<Self> {
+        self.seat.get_keyboard().expect("the seat has a keyboard")
     }
 
     pub fn pointer_window(&self) -> Option<WindowId> {
@@ -537,10 +803,11 @@ impl State {
     }
 
     pub fn pointer_button(&mut self, button: u32, pressed: bool) {
-        let pointer = self.pointer();
+        self.buttons.retain(|held| *held != button);
         if pressed {
-            self.dismiss_popups_outside(&pointer);
+            self.buttons.push(button);
         }
+        let pointer = self.pointer();
         let serial = SERIAL_COUNTER.next_serial();
         let time = self.time();
         pointer.button(
@@ -559,24 +826,13 @@ impl State {
         pointer.frame(self);
     }
 
-    fn dismiss_popups_outside(&mut self, pointer: &PointerHandle<Self>) {
-        let over = pointer.current_focus();
-        for window in &self.windows {
-            let Some(toplevel) = window.window.toplevel() else {
-                continue;
-            };
-            let popups: Vec<PopupKind> = PopupManager::popups_for_surface(toplevel.wl_surface())
-                .map(|(popup, _)| popup)
-                .collect();
-            let inside = popups
-                .iter()
-                .any(|popup| over.as_ref().is_some_and(|over| over == popup.wl_surface()));
-            if inside {
-                continue;
-            }
-            for popup in popups.iter().rev() {
-                let _ = PopupManager::dismiss_popup(toplevel.wl_surface(), popup);
-            }
+    pub fn buttons_held(&self) -> bool {
+        !self.buttons.is_empty()
+    }
+
+    pub fn release_buttons(&mut self) {
+        for button in self.buttons.clone() {
+            self.pointer_button(button, false);
         }
     }
 
@@ -602,16 +858,29 @@ impl State {
         if id == self.keyboard_window {
             return;
         }
+        self.dismiss_popups();
         self.keyboard_window = id;
         let surface = id
             .and_then(|id| self.toplevel(id))
             .map(|toplevel| toplevel.wl_surface().clone());
-        let keyboard = self.seat.get_keyboard().expect("the seat has a keyboard");
+        let keyboard = self.keyboard();
         keyboard.set_focus(self, surface, SERIAL_COUNTER.next_serial());
     }
 
+    pub fn set_keyboard(&mut self, keyboard: &KeyboardConfig) -> bool {
+        let handle = self.seat.get_keyboard().expect("the seat has a keyboard");
+        handle.change_repeat_info(keyboard.repeat_rate, keyboard.repeat_delay);
+        let xkb = XkbConfig {
+            layout: &keyboard.layout,
+            variant: &keyboard.variant,
+            options: Some(keyboard.options.clone()).filter(|options| !options.is_empty()),
+            ..XkbConfig::default()
+        };
+        handle.set_xkb_config(self, xkb).is_ok()
+    }
+
     pub fn key(&mut self, code: u32, pressed: bool) {
-        let keyboard = self.seat.get_keyboard().expect("the seat has a keyboard");
+        let keyboard = self.keyboard();
         let time = self.time();
         keyboard.input::<(), _>(
             self,
@@ -634,6 +903,8 @@ impl State {
             id,
             window: Window::new_wayland_window(toplevel),
             title: String::new(),
+            fullscreen: false,
+            maximized: false,
         });
         self.events.push(ServerEvent::Opened(id));
     }
@@ -658,6 +929,18 @@ impl State {
         if !self.events.contains(&ServerEvent::Committed(id)) {
             self.events.push(ServerEvent::Committed(id));
         }
+    }
+}
+
+fn set_state(
+    state: &mut smithay::wayland::shell::xdg::ToplevelState,
+    which: xdg_toplevel::State,
+    on: bool,
+) {
+    if on {
+        state.states.set(which);
+    } else {
+        state.states.unset(which);
     }
 }
 
@@ -775,15 +1058,7 @@ impl CompositorHandler for State {
             let _ = popup.send_configure();
         }
         self.committed.push(surface.clone());
-        let mut root = surface.clone();
-        while let Some(parent) = get_parent(&root) {
-            root = parent;
-        }
-        if let Some(popup) = self.popups.find_popup(&root)
-            && let Ok(toplevel) = find_popup_root_surface(&popup)
-        {
-            root = toplevel;
-        }
+        let root = self.root_of(surface);
         self.committed_window(&root);
     }
 }
@@ -801,6 +1076,25 @@ impl ShmHandler for State {
 impl XdgShellHandler for State {
     fn xdg_shell_state(&mut self) -> &mut XdgShellState {
         &mut self.xdg_shell
+    }
+
+    fn client_pong(&mut self, shell: ShellClient) {
+        let clients: Vec<ClientId> = self
+            .windows
+            .iter()
+            .filter_map(|window| {
+                let toplevel = window.window.toplevel()?;
+                (toplevel.client() == shell).then(|| toplevel.wl_surface().client())?
+            })
+            .map(|client| client.id())
+            .collect();
+        for client in clients {
+            self.pings.retain(|ping| ping.client != client);
+            if let Some(index) = self.unresponsive.iter().position(|held| *held == client) {
+                self.unresponsive.remove(index);
+                self.changed_client(&client);
+            }
+        }
     }
 
     fn new_toplevel(&mut self, surface: ToplevelSurface) {
@@ -828,7 +1122,39 @@ impl XdgShellHandler for State {
         surface.send_repositioned(token);
     }
 
-    fn grab(&mut self, _surface: PopupSurface, _seat: WlSeat, _serial: Serial) {}
+    fn grab(&mut self, surface: PopupSurface, _seat: WlSeat, serial: Serial) {
+        let popup = PopupKind::Xdg(surface);
+        let Ok(root) = find_popup_root_surface(&popup) else {
+            return;
+        };
+        let keyboard = self.keyboard();
+        let pointer = self.pointer();
+        let owns = |focus: Option<WlSurface>| {
+            focus.is_some_and(|focus| focus.id().same_client_as(&root.id()))
+        };
+        let focused = owns(keyboard.current_focus()) || owns(pointer.current_focus());
+        if !focused || self.window_of_root(&root).is_none() {
+            let _ = PopupManager::dismiss_popup(&root, &popup);
+            return;
+        }
+        let seat = self.seat.clone();
+        let Ok(mut grab) = self.popups.grab_popup(root, popup, &seat, serial) else {
+            return;
+        };
+        let previous = grab.previous_serial().unwrap_or(serial);
+        let keyboard_taken =
+            keyboard.is_grabbed() && !(keyboard.has_grab(serial) || keyboard.has_grab(previous));
+        let pointer_taken =
+            pointer.is_grabbed() && !(pointer.has_grab(serial) || pointer.has_grab(previous));
+        if keyboard_taken || pointer_taken {
+            grab.ungrab(PopupUngrabStrategy::All);
+            return;
+        }
+        keyboard.set_focus(self, grab.current_grab(), serial);
+        keyboard.set_grab(self, PopupKeyboardGrab::new(&grab), serial);
+        pointer.set_grab(self, PopupPointerGrab::new(&grab), serial, Focus::Keep);
+        self.popup_grab = Some(grab);
+    }
 
     fn toplevel_destroyed(&mut self, surface: ToplevelSurface) {
         let Some(index) = self
@@ -880,6 +1206,26 @@ impl XdgShellHandler for State {
 
     fn parent_changed(&mut self, surface: ToplevelSurface) {
         self.app_id_changed(surface);
+    }
+
+    fn fullscreen_request(
+        &mut self,
+        surface: ToplevelSurface,
+        _output: Option<smithay::reexports::wayland_server::protocol::wl_output::WlOutput>,
+    ) {
+        self.request_fullscreen(&surface, true);
+    }
+
+    fn unfullscreen_request(&mut self, surface: ToplevelSurface) {
+        self.request_fullscreen(&surface, false);
+    }
+
+    fn maximize_request(&mut self, surface: ToplevelSurface) {
+        self.request_maximized(&surface, true);
+    }
+
+    fn unmaximize_request(&mut self, surface: ToplevelSurface) {
+        self.request_maximized(&surface, false);
     }
 }
 

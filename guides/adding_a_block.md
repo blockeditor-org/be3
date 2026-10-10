@@ -34,7 +34,7 @@ pub type MyBlockContent = Document<MyBlock>;
 
 `CONTENT_TYPE` is the block type everywhere: it is what the server records for the block, what the app's registry is keyed by, and the `block_type` a plugin's manifest names. Once a block of it has been saved, changing it leaves that block with a type nothing opens.
 
-A field is a register (any `Serialize + DeserializeOwned + Clone + PartialEq + Default` value, set as a whole), a `Count` whose concurrent changes add up, a `List<T>` of objects of another `Model` type, a `Map<K, V>` of per-key registers, or a `Grid<T>` of fixed-size cells. The stack guide says what each one does under a merge and an undo; choose by what two people changing it at once should end up with.
+Give each `Model` struct a kind, `#[model(kind = "my_block.item")]`: it is saved with every object, and the stack guide's "The stored form" says how fields are saved and how to add, rename and retire them without a migration. A field is a register (any `Serialize + DeserializeOwned + Clone + PartialEq + Default` value, set as a whole; give its structs `#[serde(default)]`), a `Count` whose concurrent changes add up, a `List<T>` of objects of another `Model` type, a `Map<K, V>` of per-key registers, or a `Grid<T>` of fixed-size cells. The stack guide says what each one does under a merge and an undo; choose by what two people changing it at once should end up with.
 
 A block holds what it is, not what an editor makes of it. The image block keeps the file's bytes and a header saying what decoding them found - or why it failed - which the editor fills in the first time it draws the image. Nothing but the plugin then needs a decoder, and no other client has to decode the block to know its shape.
 
@@ -74,20 +74,22 @@ Every object in a `List` has an `ObjectId`, and an edit names the object, never 
 
 ## 3. References
 
-If the content holds the ids of other blocks, override `Root::references`. It is recorded with every commit and drives the graph: backlinks, the `References` and `Backrefs` queries editors watch, and the `KnowExists` access a member gets to a block something they can see refers to.
+If the content holds the ids of other blocks, store each as a `be_model::BlockRef` (or mark a `Uuid` inside a register with `#[serde(with = "be_model::references::block_ref")]`): the content's references are then every one of them, found wherever it is stored. References are recorded with every commit and drive the graph: backlinks, the `References` and `Backrefs` queries editors watch, and the `KnowExists` access a member gets to a block something they can see refers to. `folder.rs` and `canvas.rs` hold theirs this way.
+
+Override `Root::references` only for references the content does not hold as ids, such as the block URLs in a text block's body; its result comes first, followed by the `BlockRef`s it did not name.
 
 ```rust
 fn references(&self) -> Vec<Uuid> {
     let mut seen = HashSet::new();
-    self.slides
-        .iter()
-        .filter_map(|slide| slide.block)
+    block_url::parse_block_urls(&self.body)
+        .into_iter()
+        .map(|url| url.block)
         .filter(|block| seen.insert(*block))
         .collect()
 }
 ```
 
-A reference is a plain `Uuid` (or `Option<Uuid>`) field: `DatabaseView` holds `database: Option<Uuid>` and returns it, `Presentation` returns each slide's block. Return each block once, in a deterministic order, and leave out ids that are not blocks, such as a database's field ids. References are for navigation and access, never for liveness: a block stays alive because its parent chain reaches the root, not because something points at it.
+Return each block once, in a deterministic order, and leave out ids that are not blocks, such as a database's field ids. References are for navigation and access, never for liveness: a block stays alive because its parent chain reaches the root, not because something points at it.
 
 ## 4. Name
 
@@ -122,7 +124,7 @@ The app calls it through `be::change_child`, so the host makes the edit itself a
 
 A `Document` implements `Undo` already: every edit records a step that is taken against the state before it and reverted against the state as it is now, so undo leaves alone what someone else changed since. It is enabled per type in the app's registry (below) with `kind_with_history`. Undo belongs to the app's peer, not to the editor, so an editor gets it without writing anything.
 
-A content type that does not fit a document - text, or a file with a large payload (`Blob<K>`) - implements `BlockContent`, `LiveEdit` and `Merge` by hand in `be-block`, and `Undo` too if it wants one. Prefer a document whenever the content can be described as one.
+A content type that does not fit a document - a file with a large payload (`Blob<K>`) - implements `BlockContent`, `LiveEdit` and `Merge` by hand in `be-block`, and `Undo` too if it wants one. Prefer a document whenever the content can be described as one.
 
 ## 7. Export and register
 

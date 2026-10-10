@@ -4,11 +4,15 @@ load(":workspace.bxl", "rust_targets")
 # Everything ./scripts/verify and ./scripts/ci build, in one buck2 command: the
 # generated rules and Cargo.lock, the sysroot's lockfile, the autofixes
 # (fix.sh) and every test, plugin test, and on request the Android builds and
-# the paint preview renderer. It prints what the scripts read afterwards,
-# "kind<TAB>path" a line; with --keep-going it prints them all even when some
-# fail to build, and the scripts read what was built.
+# the paint preview renderer; and crates/verify, for the machine that asked
+# (--host, a platform in buck/platforms), which reads the rest afterwards. It
+# prints what that reads, "kind<TAB>path" a line; with --keep-going it prints
+# them all even when some fail to build, and crates/verify reads what was
+# built. A path whose action failed can still hold an earlier run's output, so
+# crates/verify writes a fix or a painting only where the checkout still holds
+# what it was made from.
 #
-#   ./scripts/buck bxl --keep-going //buck/dev/verify.bxl:main -- --lint true --tests true
+#   ./scripts/buck bxl --keep-going //buck/dev/verify.bxl:main -- --host linux_x86_64 --lint true --tests true
 
 # Every file under directory, skipping what fix-rust-source skips: hidden
 # directories and target/.
@@ -26,6 +30,10 @@ def _files(ctx, directory: str) -> list[str]:
 
 def _output(ctx, target: str) -> Artifact:
     return ctx.analysis(ctx.configured_targets(target)).providers()[DefaultInfo].default_outputs[0]
+
+def _host_output(ctx, target: str, host: str) -> Artifact:
+    configured = ctx.cquery(target_platform = "root//buck/platforms:" + host).eval(target)
+    return ctx.analysis(list(configured)[0]).providers()[DefaultInfo].default_outputs[0]
 
 def _outputs(ctx, kind: str, universe: str) -> list[Artifact]:
     targets = ctx.cquery().kind(kind, ctx.cquery().eval(universe))
@@ -100,6 +108,7 @@ def _impl(ctx: bxl.Context):
     args = ctx.cli_args
     actions = ctx.bxl_actions().actions
     printed = [
+        ("verify", _host_output(ctx, "root//crates/verify:verify-bin", args.host)),
         ("buckify", buckify(ctx, actions)),
         ("sysroot", _output(ctx, "root//buck/sysroot:lock")),
     ]
@@ -124,6 +133,7 @@ def _impl(ctx: bxl.Context):
 main = bxl_main(
     cli_args = {
         "android": cli_args.bool(False),
+        "host": cli_args.string("linux_x86_64"),
         "lint": cli_args.bool(False),
         "plugin_tests": cli_args.bool(False),
         "previews": cli_args.bool(False),

@@ -1,6 +1,7 @@
 use beui::{Event, Modifiers};
 use smithay::input::keyboard::{keysyms, xkb};
 
+use super::input::InputConfig;
 use super::keys::{key, virtual_terminal};
 
 #[derive(Default, Debug, PartialEq)]
@@ -17,15 +18,15 @@ pub struct Keyboard {
 }
 
 impl Keyboard {
-    pub fn new() -> Option<Self> {
+    pub fn new(config: &InputConfig) -> Option<Self> {
         let context = xkb::Context::new(xkb::CONTEXT_NO_FLAGS);
         let keymap = xkb::Keymap::new_from_names(
             &context,
             "",
             "",
-            "",
-            "",
-            None,
+            &config.layout,
+            &config.variant,
+            Some(config.options.clone()).filter(|options| !options.is_empty()),
             xkb::KEYMAP_COMPILE_NO_FLAGS,
         )?;
         Some(Self {
@@ -53,8 +54,9 @@ impl Keyboard {
         );
         let modifiers = Modifiers {
             alt: self.active(xkb::MOD_NAME_ALT),
-            ctrl: self.active(xkb::MOD_NAME_CTRL) || self.active(xkb::MOD_NAME_LOGO),
+            ctrl: self.active(xkb::MOD_NAME_CTRL),
             shift: self.active(xkb::MOD_NAME_SHIFT),
+            logo: self.active(xkb::MOD_NAME_LOGO),
         };
         if modifiers != self.modifiers {
             self.modifiers = modifiers;
@@ -73,19 +75,16 @@ impl Keyboard {
                 repeat: false,
                 modifiers: held,
             });
-            repeated.push(Event::Key {
-                key,
-                pressed: true,
-                repeat: true,
-                modifiers: held,
-            });
+            if !key.is_modifier() {
+                repeated.push(Event::Key {
+                    key,
+                    pressed: true,
+                    repeat: true,
+                    modifiers: held,
+                });
+            }
         }
-        if pressed
-            && !held.ctrl
-            && !held.alt
-            && !text.is_empty()
-            && !text.chars().any(char::is_control)
-        {
+        if pressed && !held.command() && !text.is_empty() && !text.chars().any(char::is_control) {
             out.events.push(Event::Text(text.clone()));
             repeated.push(Event::Text(text));
         }

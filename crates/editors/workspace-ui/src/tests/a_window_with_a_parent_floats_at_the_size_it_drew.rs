@@ -4,7 +4,7 @@ use super::*;
 fn a_window_with_a_parent_floats_at_the_size_it_drew() {
     let (mut fixture, _) = editor();
 
-    fixture.host.set_windows(vec![
+    fixture.host.set_host_value::<HostWindows>(&vec![
         window(1, "Editor", None),
         window(2, "Save changes?", Some(1)),
     ]);

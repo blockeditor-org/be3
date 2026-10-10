@@ -6,7 +6,6 @@ use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_WEB_ASSET;
 use block_editor_beui::beui::reactive::{
     Frame, ItemSize, List, Memo, ReadSignal, Spacer, WriteSignal, batch, clone, component,
@@ -16,10 +15,11 @@ use block_editor_beui::beui::styled::{Caption, use_theme};
 use block_editor_beui::beui::unstyled::{
     DockEntry, DockNode, DockPane, DockTab, DockWindow, DockingLayout, TabId,
 };
+use block_editor_beui::beui::{NodeId, Rect, pos2, vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
     AccessLevel, BlockFilter, BlockPick, ChildState, Editor, EditorHost, FocusedBlock, HostPanel,
-    HostWindow, HostWindowId, PickedBlock, Pushed, ShellDialog,
+    HostWindow, HostWindowId, HostWindows, PickedBlock, Pushed, ShellDialog, WindowAction,
 };
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
@@ -105,7 +105,7 @@ impl Workspace {
         let (dialog, set_dialog) = create_signal(None);
         let (share, set_share) = create_signal(None);
         let (panels, set_panels) = create_signal(Vec::new());
-        let windows = editor.windows();
+        let windows = editor.host_value::<HostWindows>();
         let workspace = Rc::new(Self {
             editor,
             with_files,
@@ -734,7 +734,7 @@ impl Workspace {
 
     fn close(&self, tab: TabId) {
         if let Some(window) = tab_window(tab) {
-            self.host().close_window(window);
+            self.host().act(WindowAction::Close(window));
             return;
         }
         if let Some(panel) = tab_panel(tab) {
@@ -968,12 +968,46 @@ pub fn BlockTab(workspace: Rc<Workspace>, tab: TabId) -> DockEntry<TabId> {
 #[component]
 pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<TabId> {
     let windows = workspace.windows.clone();
-    let title = create_memo(move || {
+    let name = create_memo(move || {
         windows.with(|windows| {
             windows
                 .iter()
                 .find(|listed| listed.id == window)
                 .map_or_else(|| "Window".to_owned(), window_title)
+        })
+    });
+    let listed = workspace.windows.clone();
+    let responding = create_memo(move || {
+        listed.with(|windows| {
+            windows
+                .iter()
+                .find(|listed| listed.id == window)
+                .is_none_or(|listed| listed.responding)
+        })
+    });
+    let title = create_memo(clone!(name responding -> move || match responding.get() {
+        true => name.get(),
+        false => format!("{} (not responding)", name.get()),
+    }));
+    let listed = workspace.windows.clone();
+    let fullscreen = create_memo(move || {
+        listed.with(|windows| {
+            let area = windows
+                .iter()
+                .find(|listed| listed.id == window)?
+                .fullscreen?;
+            Some(Rect::from_min_size(
+                pos2(area.x, area.y),
+                vec2(area.width, area.height),
+            ))
+        })
+    });
+    let listed = workspace.windows.clone();
+    let focused = create_memo(move || {
+        listed.with(|windows| {
+            windows
+                .iter()
+                .any(|listed| listed.id == window && listed.focused)
         })
     });
     let closing = Rc::clone(&workspace);
@@ -985,7 +1019,14 @@ pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<Ta
             icon=ICON_WEB_ASSET
             on_close={move || closing.close(window_tab(window))}
         >
-            <WindowPanel editor={editor.clone()} window />
+            <WindowPanel
+                editor={editor.clone()}
+                window
+                fullscreen={fullscreen.clone()}
+                name={name.clone()}
+                responding={responding.clone()}
+                focused={focused.clone()}
+            />
         </DockTab>
     }
 }

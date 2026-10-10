@@ -1,13 +1,21 @@
 use std::cell::RefCell;
+use std::collections::HashMap;
+use std::sync::mpsc::{Receiver, TryRecvError};
+use std::time::Duration;
 
-use be_wayland::{Compositor, Server, WindowId, WindowView, Windows};
-use beui::reactive::{Frame, component, view};
+use be_wayland::programs::{DesktopEntry, Environment, IconThemes, load_icon};
+use be_wayland::{Compositor, Launch, Server, WindowId, WindowView, Windows};
+use beui::reactive::{Frame, component, create_memo, view};
 use beui::{Context, Document, NodeId, Rect, Setup};
-use block_plugin_api::{HostWindow, HostWindowId, Size};
+use block_plugin_api::{ChildRect, HostImage, HostProgram, HostWindow, HostWindowId, Size};
 
 struct Running {
     compositor: Compositor,
     cursor: Option<beui_adapter_drm::SoftwareCursor>,
+    display: Option<beui_adapter_drm::DisplayControl>,
+    blanked: bool,
+    lock_due: bool,
+    lock_noticed: bool,
 }
 
 thread_local! {
@@ -16,7 +24,8 @@ thread_local! {
 }
 
 pub(crate) fn create() {
-    WINDOWS.with(|windows| *windows.borrow_mut() = Some(Windows::new()));
+    let windows = Windows::new();
+    WINDOWS.with(|slot| *slot.borrow_mut() = Some(windows));
 }
 
 fn windows() -> Option<Windows> {
@@ -31,10 +40,17 @@ pub(crate) fn start(setup: &Setup) {
         Ok(server) => server,
         Err(error) => {
             eprintln!("block-app: the Wayland server did not start: {error}");
+            crate::notices::report(format!(
+                "Programs cannot be run, since the Wayland server did not start: {error}"
+            ));
             return;
         }
     };
     let mut compositor = Compositor::new(server, windows);
+    compositor.on_failure(crate::notices::report);
+    let defaults = be_block::DisplaySettings::default();
+    compositor.set_blank_after(defaults.screen_off().after());
+    compositor.set_lock_after(defaults.lock_time());
     compositor.start(
         gpu.device.clone(),
         gpu.queue.clone(),
@@ -42,8 +58,16 @@ pub(crate) fn start(setup: &Setup) {
         setup.waker.clone(),
     );
     let cursor = setup.get::<beui_adapter_drm::SoftwareCursor>().cloned();
+    let display = setup.get::<beui_adapter_drm::DisplayControl>().cloned();
     RUNNING.with(|running| {
-        *running.borrow_mut() = Some(Running { compositor, cursor });
+        *running.borrow_mut() = Some(Running {
+            compositor,
+            cursor,
+            display,
+            blanked: false,
+            lock_due: false,
+            lock_noticed: false,
+        });
     });
 }
 
@@ -56,12 +80,40 @@ pub(crate) fn running() -> bool {
 }
 
 pub(crate) fn before(context: &Context, rect: Rect, document: &mut Document) {
-    with(|running| running.compositor.before(context, rect, document));
+    with(|running| {
+        running.compositor.set_screens(
+            document
+                .screens()
+                .into_iter()
+                .map(|screen| screen.rect)
+                .collect(),
+        );
+        if running
+            .display
+            .as_ref()
+            .is_some_and(beui_adapter_drm::DisplayControl::take_woken)
+        {
+            running.compositor.woke();
+        }
+        running.compositor.before(context, rect, document);
+    });
 }
 
 pub(crate) fn after(context: &Context, document: &mut Document) {
     with(|running| {
         running.compositor.after(context, document);
+        let due = running.compositor.lock_due();
+        if due && !running.lock_due {
+            running.lock_noticed = true;
+        }
+        running.lock_due = due;
+        let blanked = running.compositor.idle();
+        if let Some(display) = &running.display
+            && blanked != running.blanked
+        {
+            running.blanked = blanked;
+            display.set_blanked(blanked);
+        }
         if let Some(cursor) = &running.cursor {
             cursor.set(running.compositor.cursor_image().map(|image| {
                 beui_adapter_drm::CursorImage {
@@ -75,8 +127,43 @@ pub(crate) fn after(context: &Context, document: &mut Document) {
     });
 }
 
+pub(crate) fn set_blank_after(after: Option<Duration>) {
+    with(|running| running.compositor.set_blank_after(after));
+}
+
+pub(crate) fn set_lock_after(after: Option<Duration>) {
+    with(|running| running.compositor.set_lock_after(after));
+}
+
+pub(crate) fn take_lock_due() -> bool {
+    with(|running| std::mem::take(&mut running.lock_noticed)).unwrap_or(false)
+}
+
+pub(crate) fn set_locked(locked: bool) {
+    with(|running| running.compositor.set_locked(locked));
+}
+
+pub(crate) fn set_keyboard(keyboard: &be_wayland::KeyboardConfig) -> bool {
+    with(|running| running.compositor.set_keyboard(keyboard)).unwrap_or(true)
+}
+
+pub(crate) fn replace_gpu(setup: &Setup) {
+    let Some(gpu) = setup.get::<beui::GpuSetup>() else {
+        return;
+    };
+    with(|running| {
+        running
+            .compositor
+            .replace_gpu(gpu.device.clone(), gpu.queue.clone(), gpu.format);
+    });
+}
+
 pub(crate) fn exiting() {
     with(|running| running.compositor.exiting());
+    let running = RUNNING.with(|running| running.borrow_mut().take());
+    drop(running);
+    let windows = WINDOWS.with(|windows| windows.borrow_mut().take());
+    drop(windows);
 }
 
 pub(crate) fn revision() -> u64 {
@@ -100,6 +187,14 @@ pub(crate) fn listed() -> Vec<HostWindow> {
                 width: info.size.x,
                 height: info.size.y,
             },
+            fullscreen: info.fullscreen.map(|area| ChildRect {
+                x: area.min.x,
+                y: area.min.y,
+                width: area.width(),
+                height: area.height(),
+            }),
+            responding: info.responding,
+            focused: windows.focused() == Some(info.id),
         })
         .collect()
 }
@@ -107,6 +202,20 @@ pub(crate) fn listed() -> Vec<HostWindow> {
 pub(crate) fn close(window: HostWindowId) {
     if let Some(windows) = windows() {
         windows.close(WindowId(window.0));
+    }
+}
+
+pub(crate) fn fullscreen(window: HostWindowId, fullscreen: bool) {
+    if let Some(windows) = windows() {
+        windows.request_fullscreen(WindowId(window.0), fullscreen);
+        crate::host::wake();
+    }
+}
+
+pub(crate) fn focus(window: HostWindowId) {
+    if let Some(windows) = windows() {
+        windows.activate(WindowId(window.0));
+        crate::host::wake();
     }
 }
 
@@ -119,14 +228,158 @@ pub(crate) fn launch(command: String) -> bool {
     true
 }
 
+const ICON_BUDGET: usize = block_plugin_api::MAX_BLOB_BYTES / 2;
+
+enum Scanned {
+    Entries(Environment, Vec<DesktopEntry>),
+    Icons(Vec<(String, HostImage)>),
+}
+
+#[derive(Default)]
+pub(crate) struct Programs {
+    environment: Environment,
+    entries: Vec<DesktopEntry>,
+    icons: HashMap<String, HostImage>,
+    scanning: Option<Receiver<Scanned>>,
+}
+
+impl Programs {
+    pub(crate) fn scan(&mut self, pixels: u32) {
+        if self.scanning.is_some() {
+            return;
+        }
+        let (sender, receiver) = crate::host::waking_channel();
+        self.scanning = Some(receiver);
+        let spawned = std::thread::Builder::new()
+            .name("programs".to_owned())
+            .spawn(move || {
+                let environment = Environment::from_env();
+                let entries = environment.programs();
+                let named: Vec<(String, String)> = entries
+                    .iter()
+                    .filter_map(|entry| Some((entry.id.clone(), entry.icon.clone()?)))
+                    .collect();
+                if sender
+                    .send(Scanned::Entries(environment.clone(), entries))
+                    .is_err()
+                {
+                    return;
+                }
+                let themes = IconThemes::new(&environment);
+                let icons = named
+                    .into_iter()
+                    .filter_map(|(id, name)| {
+                        let path = themes.find(&name, pixels)?;
+                        let icon = load_icon(&path, pixels)?;
+                        let image = HostImage {
+                            width: icon.width(),
+                            height: icon.height(),
+                            rgba: icon.pixels().to_vec(),
+                        };
+                        Some((id, image))
+                    })
+                    .collect();
+                let _ = sender.send(Scanned::Icons(icons));
+            });
+        if let Err(error) = spawned {
+            eprintln!("block-app: the programs were not listed: {error}");
+            self.scanning = None;
+        }
+    }
+
+    pub(crate) fn receive(&mut self) -> bool {
+        let Some(receiver) = &self.scanning else {
+            return false;
+        };
+        let mut changed = false;
+        loop {
+            match receiver.try_recv() {
+                Ok(Scanned::Entries(environment, entries)) => {
+                    self.environment = environment;
+                    self.entries = entries;
+                    changed = true;
+                }
+                Ok(Scanned::Icons(icons)) => {
+                    self.icons = icons.into_iter().collect();
+                    changed = true;
+                }
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => {
+                    self.scanning = None;
+                    break;
+                }
+            }
+        }
+        changed
+    }
+
+    pub(crate) fn listed(&self) -> Vec<HostProgram> {
+        let mut room = ICON_BUDGET;
+        self.entries
+            .iter()
+            .map(|entry| HostProgram {
+                id: entry.id.clone(),
+                name: entry.name.clone(),
+                generic_name: entry.generic_name.clone(),
+                comment: entry.comment.clone(),
+                keywords: entry.keywords.clone(),
+                icon: self
+                    .icons
+                    .get(&entry.id)
+                    .filter(|icon| {
+                        let fits = icon.rgba.len() <= room;
+                        if fits {
+                            room -= icon.rgba.len();
+                        }
+                        fits
+                    })
+                    .cloned(),
+            })
+            .collect()
+    }
+
+    pub(crate) fn launch(&self, key: &str) -> bool {
+        let Some(entry) = self.entries.iter().find(|entry| entry.id == key) else {
+            return false;
+        };
+        let arguments = match self.environment.command(entry) {
+            Ok(arguments) => arguments,
+            Err(error) => {
+                eprintln!("block-app: {} did not start: {error}", entry.name);
+                crate::notices::report(format!("{} did not start: {error}", entry.name));
+                return false;
+            }
+        };
+        let Some(windows) = windows().filter(|_| running()) else {
+            return false;
+        };
+        windows.run(Launch {
+            arguments,
+            working_dir: entry.working_dir.clone(),
+        });
+        crate::host::wake();
+        true
+    }
+}
+
 #[component]
 pub(crate) fn WindowSurface(window: HostWindowId) -> NodeId {
+    let occluders = crate::compositor::region::occlusion();
+    let occluders = create_memo(move || {
+        occluders
+            .as_ref()
+            .map(|occluders| occluders.get())
+            .unwrap_or_default()
+    });
     match windows() {
         Some(windows) => view! {
-            <WindowView windows id={WindowId(window.0)} />
+            <WindowView windows id={WindowId(window.0)} occluders />
         },
         None => view! {
             <Frame />
         },
     }
 }
+
+#[cfg(test)]
+mod tests;

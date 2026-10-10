@@ -16,8 +16,11 @@ use uuid::Uuid;
 
 #[cfg(target_arch = "wasm32")]
 use crate::plugin::PaintTarget;
-use crate::plugin::{Frame, Instance, Region};
-use crate::{EditorHost, Waker, host::BlockDrag};
+use crate::plugin::{Frame, Instance, Region, RegionMonitor};
+use crate::{
+    EditorHost, Waker,
+    host::{BlockDrag, HostContent},
+};
 
 pub type Open = fn(EditorHost) -> Box<dyn Instance>;
 
@@ -153,18 +156,10 @@ impl EditorSession {
         self.host.set_editable(editable);
     }
 
-    pub(crate) fn set_block_content(
-        &self,
-        block: Uuid,
-        content_type: Uuid,
-        bytes: Vec<u8>,
-        applied: u64,
-    ) {
+    pub(crate) fn set_block_content(&self, block: Uuid, content: HostContent) {
         match self.own_block == Some(block) {
-            true => self.host.set_block_content(content_type, bytes, applied),
-            false => self
-                .host
-                .set_content_of(block, content_type, bytes, applied),
+            true => self.host.set_block_content(content),
+            false => self.host.set_content_of(block, content),
         }
     }
 
@@ -196,8 +191,8 @@ impl EditorSession {
         self.host.show_panel(panel);
     }
 
-    pub(crate) fn set_windows(&self, windows: Vec<block_plugin_api::HostWindow>) {
-        self.host.set_windows(windows);
+    pub(crate) fn host_value(&self, key: String, value: Vec<u8>) {
+        self.host.receive_host_value(key, value);
     }
 
     pub(crate) fn show_block(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>) {
@@ -585,10 +580,11 @@ impl EditorSession {
                 answer,
             }));
         }
-        for window in self.host.take_closed_windows() {
-            messages.push(Message::Editor(EditorMessage::CloseWindow {
+        for (key, action) in self.host.take_host_actions() {
+            messages.push(Message::Editor(EditorMessage::HostAction {
                 instance,
-                window,
+                key,
+                action,
             }));
         }
         for (block_id, account, access) in self.host.take_access_changes() {
@@ -684,6 +680,12 @@ impl EditorSession {
             messages.push(Message::Editor(EditorMessage::WatchArtifacts {
                 instance,
                 blocks: blocks.into_iter().map(Uuid::into_bytes).collect(),
+            }));
+        }
+        for key in self.host.take_host_watches() {
+            messages.push(Message::Editor(EditorMessage::WatchHostValue {
+                instance,
+                key,
             }));
         }
         if let Some(blocks) = self.host.take_history_watch() {
@@ -840,6 +842,28 @@ impl EditorSession {
         )
     }
 
+    fn monitors(&self, region: EditorRegion) -> Vec<RegionMonitor> {
+        let origin = self.rect(region).min.to_vec2();
+        self.regions
+            .get(&region)
+            .and_then(|state| state.metrics.as_ref())
+            .map_or_else(Vec::new, |metrics| {
+                metrics
+                    .monitors
+                    .iter()
+                    .map(|monitor| RegionMonitor {
+                        id: monitor.id.clone(),
+                        name: monitor.name.clone(),
+                        rect: Rect::from_min_size(
+                            pos2(monitor.rect.x, monitor.rect.y),
+                            vec2(monitor.rect.width, monitor.rect.height),
+                        )
+                        .translate(origin),
+                    })
+                    .collect()
+            })
+    }
+
     fn context(&self, region: EditorRegion) -> Region {
         let state = self.regions.get(&region);
         Region {
@@ -855,6 +879,7 @@ impl EditorSession {
                 .get(&region)
                 .and_then(|state| state.frame.clone())
                 .unwrap_or_default(),
+            monitors: self.monitors(region),
         }
     }
 
@@ -939,7 +964,17 @@ impl EditorSession {
                 content: reported(reported_content),
                 painted: frame.painted.iter().map(|rect| reported(*rect)).collect(),
                 floating: frame.floating.iter().map(|rect| reported(*rect)).collect(),
+                claims: frame
+                    .claims
+                    .iter()
+                    .map(|claim| block_plugin_api::PressClaim {
+                        modifiers: claim.modifiers,
+                        rect: reported(claim.rect),
+                    })
+                    .collect(),
                 handles_back: frame.handles_back,
+                wants_keyboard: frame.wants_keyboard,
+                intercepted_keys: frame.intercepted_keys.clone(),
             });
         }
         frame

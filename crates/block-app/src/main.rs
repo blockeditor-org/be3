@@ -3,15 +3,29 @@ mod app_state;
 mod be;
 mod block_label;
 mod compositor;
+#[cfg(target_os = "linux")]
+mod dbus;
 mod debug;
+mod display;
 mod editors;
 mod host;
+mod input;
 mod keys;
+mod local_settings;
+#[cfg(target_os = "linux")]
+mod media;
+mod notices;
+#[cfg(target_os = "linux")]
+mod notifications;
 mod panic_guard;
+mod password;
 mod performance;
 mod platform;
 mod plugin_host;
+mod programs;
 mod root_settings;
+#[cfg(target_os = "linux")]
+mod session;
 mod shell_route;
 mod surfaces;
 mod ui;
@@ -29,7 +43,7 @@ use std::{io, path::PathBuf};
 
 use accounts::{AccountError, Session};
 use app_state::{AppStateStore, SavedAccount, ServerLocation};
-use be_block::{BlockContent, UiSettingsContent, WORKSPACE_EDITOR};
+use be_block::{BlockContent, DisplaySettings, InputSettings, UiSettingsContent, WORKSPACE_EDITOR};
 use be_graph::{Access, BlockParent};
 use be_protocol::{Workspace, WorkspaceInvitation, WorkspaceRole};
 use beui::Document;
@@ -40,6 +54,7 @@ use editors::{
     ArtifactSession, ArtifactStatus, EditorAction, EditorRegistry, PluginEditor, SidebarDragSource,
     plugin::PickSource,
 };
+use local_settings::SettingsSync;
 use root_settings::RootSettings;
 use surfaces::SurfaceId;
 use ui::{AccountForm, AppView, AppViewStore, ErrorAction, UiCommand};
@@ -67,15 +82,25 @@ fn storage_dir() -> Option<PathBuf> {
 
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 pub fn run() -> Result<(), Box<dyn Error>> {
+    let arguments: Vec<String> = std::env::args().skip(1).collect();
+    #[cfg(target_os = "linux")]
+    if arguments.first().map(String::as_str) == Some("--install-session") {
+        return session::install(arguments.get(1).map(String::as_str));
+    }
+    let session =
+        cfg!(target_os = "linux") && arguments.iter().any(|argument| argument == "--session");
+    #[cfg(target_os = "linux")]
+    if session {
+        session::start_log();
+    }
     panic_guard::install();
     let mut app = BlockApp::new(None).map_err(|error| error.to_string())?;
     let mut options = run_options();
-    let mut session = false;
-    for argument in std::env::args().skip(1) {
+    for argument in arguments {
         if argument == "--dev-workspace" {
             app.open_dev_workspace(None);
-        } else if argument == "--session" && cfg!(target_os = "linux") {
-            session = true;
+        } else if cfg!(target_os = "linux") && (argument == "--session" || argument == "--desktop")
+        {
             app.run_as_desktop();
         } else if let Some(path) = argument.strip_prefix("--accessibility-tree=") {
             options.accessibility_dump = Some(PathBuf::from(path));
@@ -203,6 +228,18 @@ impl beui::App for Shell {
         host::install_waker(setup.waker.clone());
         plugin_host::install(setup);
         wayland::start(setup);
+        input::start(setup);
+        #[cfg(target_os = "linux")]
+        if let Some(problems) = setup.get::<beui_adapter_drm::Problems>() {
+            problems.listen(notices::report);
+        }
+        #[cfg(target_os = "linux")]
+        if self.app.desktop.is_none() && session::owns_a_seat(setup) {
+            self.app.desktop = Some(session::DesktopSession::start());
+        }
+        display::start(setup);
+        self.app.input.boot(&self.app.app_state);
+        self.app.display.boot(&self.app.app_state);
         #[cfg(all(
             feature = "web-view",
             not(target_os = "android"),
@@ -211,6 +248,11 @@ impl beui::App for Shell {
         if let Some(window) = setup.get::<std::sync::Arc<beui::winit::window::Window>>() {
             plugin_host::install_web_view(window.clone());
         }
+    }
+
+    fn renderer_replaced(&mut self, setup: &beui::Setup) {
+        plugin_host::replace_gpu(setup);
+        wayland::replace_gpu(setup);
     }
 
     fn update(&mut self, context: &beui::Context, rect: beui::Rect) {
@@ -236,6 +278,10 @@ impl beui::App for Shell {
             self.document.theme().background,
         );
         self.document.show(context, rect);
+        #[cfg(target_os = "linux")]
+        if let Some(lock) = &mut self.app.screen_lock {
+            lock.note_drawn(self.document.locked());
+        }
         wayland::after(context, &mut self.document);
         let commands = ui::take_commands();
         if !commands.is_empty() {
@@ -259,6 +305,14 @@ impl beui::App for Shell {
 
     fn exiting(&mut self) {
         wayland::exiting();
+        plugin_host::exiting();
+        display::stop();
+        #[cfg(target_os = "linux")]
+        {
+            self.app.media = None;
+            self.app.notifications = None;
+            self.app.desktop = None;
+        }
         be::flush();
         be::stop();
     }
@@ -293,13 +347,17 @@ struct BlockApp {
     account: Account,
     root_settings: RootSettings,
     choosing_profile: bool,
+    every_profile_type: bool,
     shell: Option<Uuid>,
-    windows_sent: Option<(Uuid, u64)>,
+    windows_sent: Option<u64>,
     forwarded_picks: HashMap<u64, (PickSource, u64)>,
     next_pick: u64,
     focus_reports: HashMap<Uuid, editors::FocusReport>,
     artifact_watches: HashMap<Uuid, Vec<Uuid>>,
     ui_settings: Option<Uuid>,
+    input: SettingsSync<InputSettings>,
+    display: SettingsSync<DisplaySettings>,
+    display_round: Option<u64>,
     block_types: HashMap<Uuid, Uuid>,
     registry: Rc<EditorRegistry>,
     editors: compositor::Editors,
@@ -315,10 +373,9 @@ struct BlockApp {
     pending_transfers: Vec<PendingTransfer>,
     pending_copies: Vec<PendingCopy>,
     about_open: bool,
-    run_program_open: bool,
+    programs: programs::Programs,
     app_menu_open: bool,
     pending_destructive_action: Option<PendingDestructiveAction>,
-    scheduled_account_switch: Option<Account>,
     allow_close: bool,
     #[cfg(not(target_arch = "wasm32"))]
     data_dir: PathBuf,
@@ -330,6 +387,16 @@ struct BlockApp {
     dev_workspace: bool,
     keys: keys::KeyState,
     workspace_key: Option<[u8; 32]>,
+    #[cfg(target_os = "linux")]
+    desktop: Option<session::DesktopSession>,
+    #[cfg(target_os = "linux")]
+    screen_lock: Option<session::ScreenLock>,
+    #[cfg(target_os = "linux")]
+    published_power: Option<block_plugin_api::PowerAvailability>,
+    #[cfg(target_os = "linux")]
+    media: Option<media::Media>,
+    #[cfg(target_os = "linux")]
+    notifications: Option<notifications::Notifications>,
 }
 
 type Account = SavedAccount;
@@ -364,7 +431,6 @@ struct ReauthState {
 
 #[derive(Clone)]
 enum PendingDestructiveAction {
-    Switch(Account),
     ChooseWorkspace,
     Close,
 }
@@ -476,6 +542,7 @@ impl BlockApp {
             account,
             root_settings: RootSettings::new(WORKSPACE_EDITOR),
             choosing_profile: false,
+            every_profile_type: false,
             shell: None,
             windows_sent: None,
             forwarded_picks: HashMap::new(),
@@ -483,6 +550,9 @@ impl BlockApp {
             artifact_watches: HashMap::new(),
             next_pick: 0,
             ui_settings: None,
+            input: SettingsSync::default(),
+            display: SettingsSync::default(),
+            display_round: None,
             block_types: HashMap::new(),
             registry,
             editors,
@@ -494,10 +564,9 @@ impl BlockApp {
             pending_transfers: Vec::new(),
             pending_copies: Vec::new(),
             about_open: false,
-            run_program_open: false,
+            programs: programs::Programs::default(),
             app_menu_open: false,
             pending_destructive_action: None,
-            scheduled_account_switch: None,
             allow_close: false,
             #[cfg(not(target_arch = "wasm32"))]
             data_dir: PathBuf::new(),
@@ -509,12 +578,143 @@ impl BlockApp {
             dev_workspace: false,
             keys: keys::KeyState::default(),
             workspace_key: None,
+            #[cfg(target_os = "linux")]
+            desktop: None,
+            #[cfg(target_os = "linux")]
+            screen_lock: None,
+            #[cfg(target_os = "linux")]
+            published_power: None,
+            #[cfg(target_os = "linux")]
+            media: None,
+            #[cfg(target_os = "linux")]
+            notifications: None,
         })
     }
 
     #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
     fn run_as_desktop(&mut self) {
         self.root_settings = RootSettings::new(be_block::LINUX_DESKTOP_EDITOR);
+        #[cfg(target_os = "linux")]
+        {
+            self.screen_lock = Some(session::ScreenLock::start());
+            if self.notifications.is_none() {
+                self.notifications = Some(notifications::Notifications::start());
+            }
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn run_notifications(&mut self) {
+        if let Some(notifications) = &mut self.notifications {
+            notifications.frame();
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn take_power_request(&mut self) {
+        let request = plugin_host::take_actions::<block_plugin_api::PowerAction>().pop();
+        if let Some(action) = request
+            && self
+                .published_power
+                .is_some_and(|power| power.allows(action))
+        {
+            self.request_power(action, session::Trigger::Menu);
+        }
+        self.run_media();
+    }
+
+    #[cfg(target_os = "linux")]
+    fn request_power(&mut self, action: block_plugin_api::PowerAction, trigger: session::Trigger) {
+        match action {
+            block_plugin_api::PowerAction::Lock => {
+                if let Some(lock) = &mut self.screen_lock {
+                    lock.lock(trigger);
+                }
+            }
+            action => {
+                if let Some(desktop) = &mut self.desktop {
+                    desktop.request(action);
+                    host::request_repaint();
+                }
+            }
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn run_session(&mut self, context: &beui::Context) {
+        let Some(lock) = &mut self.screen_lock else {
+            return;
+        };
+        lock.frame();
+        if wayland::take_lock_due() {
+            lock.lock(session::Trigger::Idle);
+        }
+        if let Some(desktop) = &mut self.desktop {
+            desktop.frame(context, lock);
+        }
+        let locked = lock.locked();
+        wayland::set_locked(locked);
+        plugin_host::publish::<block_plugin_api::ScreenLocked>(&locked);
+        if locked {
+            self.app_menu_open = false;
+        }
+        let mut availability = self
+            .desktop
+            .as_ref()
+            .map(session::DesktopSession::availability)
+            .unwrap_or_default();
+        availability.lock = !locked;
+        if self.published_power != Some(availability) {
+            self.published_power = Some(availability);
+            plugin_host::publish::<block_plugin_api::Power>(&availability);
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn lock_view(&self) -> ui::LockView {
+        let Some(lock) = &self.screen_lock else {
+            return ui::LockView::default();
+        };
+        let state = lock.state();
+        let offered = self
+            .desktop
+            .as_ref()
+            .map(session::DesktopSession::availability)
+            .unwrap_or_default();
+        ui::LockView {
+            available: true,
+            locked: state.locked,
+            busy: state.busy,
+            error: state.error,
+            user: lock.user().to_owned(),
+            power: [
+                block_plugin_api::PowerAction::Suspend,
+                block_plugin_api::PowerAction::Restart,
+                block_plugin_api::PowerAction::PowerOff,
+            ]
+            .into_iter()
+            .filter(|action| offered.allows(*action))
+            .collect(),
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn run_media(&mut self) {
+        let requests = plugin_host::take_actions::<block_plugin_api::MediaRequest>();
+        if self.media.is_none()
+            && (!requests.is_empty() || plugin_host::watched::<block_plugin_api::Media>())
+        {
+            self.media = Some(media::Media::start());
+        }
+        let Some(media) = &mut self.media else {
+            return;
+        };
+        for request in requests {
+            media.request(request);
+        }
+        if let Some(levels) = media.frame() {
+            plugin_host::publish::<block_plugin_api::Media>(&levels);
+        }
     }
 
     #[cfg(not(target_os = "android"))]
@@ -894,6 +1094,8 @@ impl BlockApp {
         self.choosing_profile = false;
         self.shell = None;
         self.ui_settings = None;
+        self.input.set_block(None);
+        self.display.set_block(None);
         self.keys.cancel_pairing();
         self.workspace_key = match self.app_state.workspace_key(&self.account, workspace.id) {
             Ok(key) => key,
@@ -962,17 +1164,6 @@ impl BlockApp {
         self.poll_workspace_request();
     }
 
-    fn request_account_switch(&mut self, account: Account) {
-        if account == self.account {
-            return;
-        }
-        if be::status().unsealed == 0 {
-            self.scheduled_account_switch = Some(account);
-        } else {
-            self.pending_destructive_action = Some(PendingDestructiveAction::Switch(account));
-        }
-    }
-
     fn switch_account(&mut self, account: Account) {
         let server_url = match &account.server {
             ServerLocation::Local => self.local_server_url.clone(),
@@ -992,10 +1183,8 @@ impl BlockApp {
         self.dynamic_artifact_settings_open = None;
         self.pending_transfers.clear();
         self.about_open = false;
-        self.run_program_open = false;
         self.app_menu_open = false;
         self.pending_destructive_action = None;
-        self.scheduled_account_switch = None;
         self.allow_close = false;
         self.workspace = None;
         self.workspaces.clear();
@@ -1010,6 +1199,8 @@ impl BlockApp {
         self.choosing_profile = false;
         self.shell = None;
         self.ui_settings = None;
+        self.input.set_block(None);
+        self.display.set_block(None);
         self.keys = keys::KeyState::default();
         self.workspace_key = None;
         self.account = account;
@@ -1035,9 +1226,6 @@ impl BlockApp {
             return;
         };
         match action {
-            PendingDestructiveAction::Switch(account) => {
-                self.scheduled_account_switch = Some(account);
-            }
             PendingDestructiveAction::ChooseWorkspace => {
                 self.scheduled_workspace_list = true;
             }
@@ -1289,7 +1477,7 @@ impl BlockApp {
             }
             self.block_types.remove(&previous);
         }
-        let shell_editor = self.root_settings.shell();
+        let shell_editor = self.root_settings.profile_editor(id)?;
         self.block_types.insert(id, shell_editor);
         if !self.editors.with(|open| open.contains_key(&id)) {
             let editor = self.registry.open(id, shell_editor).viewed_by(Some(id));
@@ -1300,7 +1488,6 @@ impl BlockApp {
                 eprintln!("the shell editor does not accept {missing:?} requests");
             }
             self.editors.with(|open| open.insert(id, editor));
-            self.windows_sent = None;
         }
         self.shell = Some(id);
         Some(id)
@@ -1388,20 +1575,24 @@ impl BlockApp {
             return;
         };
         compositor::set_shell(Some(shell));
-        let windows = (Some((shell, wayland::revision())) != self.windows_sent).then(|| {
-            self.windows_sent = Some((shell, wayland::revision()));
-            wayland::listed()
-        });
-        let Some(closed) = self.with_editor(shell, |editor| {
-            if let Some(windows) = windows {
-                editor.set_windows(windows);
-            }
-            editor.take_closed_windows()
-        }) else {
+        if self
+            .with_editor(shell, |editor| editor.claim_shell())
+            .is_none()
+        {
             return;
-        };
-        for window in closed {
-            wayland::close(window);
+        }
+        if Some(wayland::revision()) != self.windows_sent {
+            self.windows_sent = Some(wayland::revision());
+            plugin_host::publish::<block_plugin_api::HostWindows>(&wayland::listed());
+        }
+        for action in plugin_host::take_actions::<block_plugin_api::WindowAction>() {
+            match action {
+                block_plugin_api::WindowAction::Focus(window) => wayland::focus(window),
+                block_plugin_api::WindowAction::Close(window) => wayland::close(window),
+                block_plugin_api::WindowAction::Fullscreen { window, fullscreen } => {
+                    wayland::fullscreen(window, fullscreen);
+                }
+            }
         }
         let reports: Vec<(Uuid, Option<editors::FocusReport>, Option<Vec<Uuid>>)> =
             self.editors.with(|open| {
@@ -1799,17 +1990,50 @@ impl BlockApp {
         {
             self.crashed(report);
         }
-        if self.error.is_some() {
+        if self.error.is_none() {
+            let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                self.run_frame(context);
+            }));
+            if caught.is_err() {
+                self.crashed(
+                    panic_guard::take().unwrap_or_else(|| "The app stopped responding.".into()),
+                );
+            }
+        }
+        self.run_display_prompt();
+        #[cfg(target_os = "linux")]
+        self.run_session(context);
+    }
+
+    fn run_display_prompt(&mut self) {
+        let now = host::now();
+        let mut prompt = display::prompt(now);
+        if prompt == display::Prompt::Expired {
+            self.display.commit(&self.app_state, display::revert());
+            prompt = display::prompt(now);
+        }
+        self.display_round = match prompt {
+            display::Prompt::Asking { round, left } => {
+                host::request_repaint_after(left);
+                Some(round)
+            }
+            display::Prompt::Settled | display::Prompt::Expired => None,
+        };
+    }
+
+    fn answer_display(&mut self, round: u64, keep: bool) {
+        let display::Prompt::Asking { round: asked, .. } = display::prompt(host::now()) else {
+            return;
+        };
+        if asked != round {
             return;
         }
-        let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            self.run_frame(context);
-        }));
-        if caught.is_err() {
-            self.crashed(
-                panic_guard::take().unwrap_or_else(|| "The app stopped responding.".into()),
-            );
-        }
+        let edits = match keep {
+            true => display::keep(),
+            false => display::revert(),
+        };
+        self.display.commit(&self.app_state, edits);
+        self.display_round = None;
     }
 
     fn crashed(&mut self, report: String) {
@@ -1820,6 +2044,8 @@ impl BlockApp {
     fn run_frame(&mut self, context: &beui::Context) {
         performance::begin_frame();
         plugin_host::poll();
+        #[cfg(target_os = "linux")]
+        self.run_notifications();
         if !self.signed_in {
             be::stop();
             self.poll_account_request();
@@ -1831,9 +2057,6 @@ impl BlockApp {
             let mut account = self.account.clone();
             account.last_workspace_id = None;
             let _ = self.app_state.set_last_workspace(&account, None);
-            self.switch_account(account);
-        }
-        if let Some(account) = self.scheduled_account_switch.take() {
             self.switch_account(account);
         }
         self.poll_keys();
@@ -1855,6 +2078,8 @@ impl BlockApp {
             return;
         }
         self.sync_ui_settings(context);
+        self.sync_local_settings();
+        self.programs.frame();
         self.sync_be_stack();
         self.poll_workspace_request();
         self.poll_reauth_request();
@@ -1867,6 +2092,8 @@ impl BlockApp {
         self.process_pending_copies();
         debug::poll();
         self.show_shell();
+        #[cfg(target_os = "linux")]
+        self.take_power_request();
         self.poll_artifacts();
         plugin_host::flush();
         performance::end_frame();
@@ -1896,6 +2123,18 @@ impl BlockApp {
             #[cfg(not(target_arch = "wasm32"))]
             data_dir: self.data_dir.join("be-objects"),
         });
+    }
+
+    fn sync_local_settings(&mut self) {
+        if self.input.block().is_none() || self.display.block().is_none() {
+            let settings = self.root_settings.find().and_then(root_settings::settings);
+            if let Some(settings) = settings {
+                self.input.resolve(&settings, self.client_id);
+                self.display.resolve(&settings, self.client_id);
+            }
+        }
+        self.input.sync(&self.app_state);
+        self.display.sync(&self.app_state);
     }
 
     fn sync_ui_settings(&mut self, context: &beui::Context) {
@@ -1937,6 +2176,11 @@ impl BlockApp {
                 None => {}
             },
             UiCommand::Exit => std::process::exit(1),
+            UiCommand::CloseApp => {
+                if self.close_requested() {
+                    context.close_window();
+                }
+            }
             UiCommand::OpenAccount(key) => {
                 if let Some(account) = self.account_by_key(&key) {
                     self.open_account(account, false);
@@ -1997,10 +2241,11 @@ impl BlockApp {
                 self.root_settings.use_profile(self.client_id, profile);
                 self.choosing_profile = false;
             }
-            UiCommand::OpenNewProfile => {
-                self.root_settings.new_profile(self.client_id);
+            UiCommand::OpenNewProfile(editor) => {
+                self.root_settings.new_profile(self.client_id, editor);
                 self.choosing_profile = false;
             }
+            UiCommand::EveryProfileType(every) => self.every_profile_type = every,
             UiCommand::RespondInvitation(id, accept) => {
                 self.begin_workspace_request(WorkspaceOperation::Respond(id, accept));
             }
@@ -2027,10 +2272,6 @@ impl BlockApp {
                 self.close_reauth();
             }
             UiCommand::ReauthClose => self.close_reauth(),
-            UiCommand::SwitchProfile(profile) => {
-                self.root_settings.use_profile(self.client_id, profile);
-            }
-            UiCommand::NewProfile => self.root_settings.new_profile(self.client_id),
             UiCommand::OpenInspector => self.inspector_requested = Some(true),
             UiCommand::InviteMember => self.invite_open = true,
             UiCommand::SwitchWorkspace => {
@@ -2041,18 +2282,35 @@ impl BlockApp {
                         Some(PendingDestructiveAction::ChooseWorkspace);
                 }
             }
-            UiCommand::SwitchTo(key) => {
-                if let Some(account) = self.account_by_key(&key) {
-                    self.request_account_switch(account);
+            UiCommand::About(open) => self.about_open = open,
+            UiCommand::AppMenu(open) => self.app_menu_open = open,
+            UiCommand::DismissToast(id) => notices::dismiss(id),
+            UiCommand::KeepDisplay(round) => self.answer_display(round, true),
+            UiCommand::RevertDisplay(round) => self.answer_display(round, false),
+            #[cfg(target_os = "linux")]
+            UiCommand::LockScreen => {
+                if let Some(lock) = &mut self.screen_lock {
+                    lock.lock(session::Trigger::Shortcut);
                 }
             }
-            UiCommand::About(open) => self.about_open = open,
-            UiCommand::RunProgram(open) => self.run_program_open = open,
-            UiCommand::Launch(command) => {
-                self.run_program_open = false;
-                wayland::launch(command);
+            #[cfg(target_os = "linux")]
+            UiCommand::Unlock(password) => {
+                if let Some(lock) = &mut self.screen_lock {
+                    lock.submit(password);
+                }
             }
-            UiCommand::AppMenu(open) => self.app_menu_open = open,
+            #[cfg(target_os = "linux")]
+            UiCommand::LockPower(action) => {
+                if self
+                    .screen_lock
+                    .as_ref()
+                    .is_some_and(session::ScreenLock::locked)
+                {
+                    self.request_power(action, session::Trigger::Menu);
+                }
+            }
+            #[cfg(not(target_os = "linux"))]
+            UiCommand::LockScreen | UiCommand::Unlock(_) | UiCommand::LockPower(_) => {}
             UiCommand::SendInvite(email, role) => {
                 if let Some(workspace) = &self.workspace
                     && !email.trim().is_empty()
@@ -2136,7 +2394,7 @@ impl BlockApp {
                 pending: self.pending_error_action,
                 unsaved: be::status().unsealed,
             },
-            accounts: accounts.clone(),
+            accounts,
             account_error: self.account_error.clone(),
             add_account: ui::AddAccountView {
                 open: self.add_account_open,
@@ -2203,15 +2461,22 @@ impl BlockApp {
                 changes_saved,
                 workspace: workspace_name.clone(),
                 signed_in_as: format!("Signed in as {}", self.account.name),
-                accounts,
                 profiles: self
                     .root_settings
-                    .profiles(self.client_id)
+                    .profiles(self.client_id, self.every_profile_type)
                     .into_iter()
-                    .map(|(id, name, current)| ui::ProfileRow { id, name, current })
+                    .map(|profile| ui::ProfileRow {
+                        id: profile.id,
+                        name: profile.name,
+                        kind: (profile.editor != self.root_settings.shell())
+                            .then(|| root_settings::session_type_name(profile.editor).to_owned()),
+                        current: profile.current,
+                    })
                     .collect(),
                 profiles_loaded: self.root_settings.loaded(),
-                runs_programs: wayland::running(),
+                every_profile_type: self.every_profile_type,
+                session_type: self.root_settings.shell(),
+                can_close: !cfg!(target_arch = "wasm32"),
             },
             invite: self.invite_open.then(|| ui::InviteView {
                 workspace: workspace_name,
@@ -2220,13 +2485,18 @@ impl BlockApp {
                 sent: self.invite_sent,
             }),
             about: self.about_open,
-            run_program: self.run_program_open,
             app_menu: self.app_menu_open,
             discard: self.pending_destructive_action.as_ref().map(discard_view),
             presenting: self
                 .editors
                 .with(|open| open.values().any(PluginEditor::presenting_now)),
             debug: debug::view(),
+            toasts: notices::shown(),
+            keep_display: self.display_round,
+            #[cfg(target_os = "linux")]
+            lock: self.lock_view(),
+            #[cfg(not(target_os = "linux"))]
+            lock: ui::LockView::default(),
         }
     }
 
@@ -2288,13 +2558,6 @@ impl BlockApp {
 
 fn discard_view(action: &PendingDestructiveAction) -> ui::DiscardView {
     let (message, button) = match action {
-        PendingDestructiveAction::Switch(account) => (
-            format!(
-                "Switching to {} will discard changes that have not reached the server.",
-                account.name
-            ),
-            "Discard and switch",
-        ),
         PendingDestructiveAction::ChooseWorkspace => (
             "Switching workspaces will discard changes that have not reached the server."
                 .to_owned(),

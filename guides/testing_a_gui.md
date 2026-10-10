@@ -119,12 +119,22 @@ paints a frame, for a timer that is longer than an animation:
 
     editor.settle_until("the lighting to land", |editor| editor.shown("scene.lit"));
 
+wait(by) moves the clock on without painting and hands the plugin what the host has queued
+(a set_host_value, say), the way a message reaches an idle editor between frames; the next
+run() paints the frame that takes it. Whatever the editor's effects do with it at the top of
+that frame reads that frame's time from `timer::now()`, not the last frame painted.
+
 settle() is the same wait for the editor's own animations, such as a sheet sliding in:
 it paints until a frame stops asking to be painted again at once. Call it before a
 snapshot or record() of something that animates in.
 
 Wait for the work rather than for a number of frames: a few more run() calls is the same
 race with a wider margin, which is how one of these hid.
+
+The date and the time of day come from the harness too: an editor reads them from
+`block_editor_beui::wall_clock()` (and `utc_offset()` for local time), never
+`SystemTime::now()`, and the harness pins that clock to one fixed moment plus its frame clock, so
+a clock or a calendar paints the same on every run.
 
 An editor whose manifest claims pan_and_zoom draws into a view the host owns, so its test
 calls in_viewport() on the harness. The harness then does what the host does around the main
@@ -167,6 +177,9 @@ way for the test to fail.
   request CI does the same, and when that writes a painting it fails the run and pushes the
   painting to the pull request's branch as a commit. Everywhere else CI runs ./scripts/ci --check, which sets nothing,
   so a painting that was never committed fails there.
+- ./scripts/verify also fails on a painting that a test names with a literal, snapshot("name"),
+  but that snapshots/ does not hold once it is done: the test failed, or returned, before
+  painting it.
 - Once every plugin test passes, ./scripts/verify deletes each painting in snapshots/ that no test
   compared, so renaming or removing a snapshot takes its old file with it; with --check it
   fails on them instead. A single editor's test run leaves the folder alone.
@@ -194,7 +207,9 @@ way for the test to fail.
 A beui document that is not an editor - beui's demo, say - is painted the same way through
 block_ui_test::DocumentTest, which drives the document itself with only the fonts beui
 carries, never the system's. Its tests are compiled to wasm with plugin_tests like an
-editor's; crates/beui-demo paints every page of the demo that way.
+editor's; crates/beui-demo paints every page of the demo that way. Its clock is a frame
+clock too: every frame() is one frame interval later, and advance(by) moves it on and paints
+a frame.
 
 A snapshot never holds the glyph atlases. Each glyph carries its own image - coverage, or
 colour for an emoji from a colour font - keyed by what is in it, so where a glyph happened
@@ -234,7 +249,8 @@ While working on one editor, run its tests alone:
 The first compares, the second accepts. A panic aborts a wasm guest, so a failing test ends
 its binary's run; the runner then lists the tests and runs each in an instance of its own, and
 reports every one that failed, each with its panic message, at the end of the output. A single test is a filter handed through to the
-test binary: ./scripts/buck test //crates/editors/checklist:test -- --test-arg some_test_name.
+test binary: ./scripts/test some_test_name finds the crate and runs it, and
+./scripts/buck test //crates/editors/checklist:test -- --test-arg=some_test_name is the same by hand.
 
 Cranelift compiles each test module once, as an action of its own, and leaves the machine
 code as a .cwasm the runner maps in, so a run that changed nothing takes seconds; that

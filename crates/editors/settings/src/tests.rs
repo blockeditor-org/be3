@@ -1,4 +1,6 @@
-use block_editor_beui::be_block::{BlockContent, UiSettingsContent};
+use block_editor_beui::be_block::{
+    BlockContent, DisplaySettingsContent, InputSettingsContent, UiSettingsContent,
+};
 
 use block_editor_beui::be_block::SettingsContent;
 use block_editor_beui::{Editor, EditorHost};
@@ -7,6 +9,8 @@ use uuid::Uuid;
 
 use crate::app::SettingsApp;
 
+mod opening_display_settings_creates_the_block_once;
+mod opening_input_settings_creates_the_block_once;
 mod opening_ui_settings_creates_the_block_once;
 
 fn editor() -> BeuiTest<SettingsApp> {
@@ -21,13 +25,13 @@ fn editor() -> BeuiTest<SettingsApp> {
     editor
 }
 
-fn entries(editor: &BeuiTest<SettingsApp>) -> Vec<Uuid> {
+fn entries(editor: &BeuiTest<SettingsApp>, block_type: Uuid) -> Vec<Uuid> {
     editor
         .content::<SettingsContent>(None)
         .root()
         .entries
         .iter()
-        .filter(|((block_type, _), _)| *block_type == UiSettingsContent::CONTENT_TYPE)
+        .filter(|((entry_type, _), _)| *entry_type == block_type)
         .map(|(_, block)| *block)
         .collect()
 }

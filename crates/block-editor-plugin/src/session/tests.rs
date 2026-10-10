@@ -6,7 +6,6 @@ use block_plugin_api::{
 
 fn accept(session: &mut ClientSession) {
     session.receive(Message::HelloAccepted(HelloAccepted {
-        version: PROTOCOL_VERSION,
         host_name: "test host".into(),
         surface: Some(SurfaceSpec {
             format: SurfaceFormat::Rgba8Unorm,
@@ -42,6 +41,7 @@ fn screen(screen: ScreenId, instance: EditorInstanceId) -> ScreenRequest {
             pixel_width: 100,
             pixel_height: 100,
             scale_factor: 1.0,
+            monitors: Vec::new(),
         },
     }
 }
@@ -63,6 +63,7 @@ fn content(instance: EditorInstanceId) -> Message {
         block_id: [1; 16],
         content_type: [7; 16],
         bytes: vec![0; 8],
+        session: Vec::new(),
         applied: 0,
     })
 }

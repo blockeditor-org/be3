@@ -13,11 +13,12 @@ use crate::file_picker::{FileFilter, FilePick, FilePickId, FilePickRequest};
 use crate::filter::Filter;
 use crate::font::{FontBackend, FontId, Fonts, Galley, TextLayout};
 use crate::geometry::{Rect, pos2};
-use crate::input::{CursorIcon, Event, ImeArea, InputState, RawInput};
+use crate::input::{CursorIcon, Event, ImeArea, InputState, KeyChord, RawInput};
 use crate::node::NodeId;
 use crate::paint::{Item, Recorded};
 use crate::painter::{Entry, Painter, Shape};
 use crate::screen_simulation::ScreenSimulation;
+use crate::screens::Screen;
 
 #[derive(Clone)]
 pub struct Context {
@@ -46,6 +47,8 @@ struct Inner {
     fullscreen: Cell<Option<bool>>,
     close_requested: Cell<bool>,
     handles_back: Cell<bool>,
+    wants_keyboard: Cell<bool>,
+    intercepted_keys: RefCell<Vec<KeyChord>>,
     pointer_locked: Cell<bool>,
     touch_emulation: Cell<bool>,
     input_simulation: RefCell<Option<Box<dyn InputSimulation>>>,
@@ -57,6 +60,7 @@ struct Inner {
     simulated_pixels_per_point: Cell<Option<f32>>,
     screen_simulation: Cell<Option<ScreenSimulation>>,
     screen_scale: Cell<f32>,
+    screens: RefCell<Vec<Screen>>,
     zoom: Cell<f32>,
     repaint: Cell<bool>,
     repaint_after: Cell<Duration>,
@@ -127,6 +131,8 @@ pub struct FrameOutput {
     pub fullscreen: Option<bool>,
     pub close_requested: bool,
     pub handles_back: bool,
+    pub wants_keyboard: bool,
+    pub intercepted_keys: Vec<KeyChord>,
     pub pointer_locked: bool,
     pub copied_text: Option<String>,
     pub paste_requested: bool,
@@ -236,6 +242,8 @@ impl Context {
                 fullscreen: Cell::new(None),
                 close_requested: Cell::new(false),
                 handles_back: Cell::new(false),
+                wants_keyboard: Cell::new(false),
+                intercepted_keys: RefCell::new(Vec::new()),
                 pointer_locked: Cell::new(false),
                 touch_emulation: Cell::new(false),
                 input_simulation: RefCell::new(None),
@@ -247,6 +255,7 @@ impl Context {
                 simulated_pixels_per_point: Cell::new(None),
                 screen_simulation: Cell::new(None),
                 screen_scale: Cell::new(1.0),
+                screens: RefCell::new(Vec::new()),
                 zoom: Cell::new(1.0),
                 repaint: Cell::new(false),
                 repaint_after: Cell::new(Duration::MAX),
@@ -384,6 +393,8 @@ impl Context {
         self.inner.fullscreen.set(None);
         self.inner.close_requested.set(false);
         self.inner.handles_back.set(false);
+        self.inner.wants_keyboard.set(false);
+        self.inner.intercepted_keys.borrow_mut().clear();
         self.inner.accessibility.borrow_mut().clear();
         let published = std::mem::take(&mut *self.inner.accessibility_published.borrow_mut());
         *self.inner.accessibility_known.borrow_mut() = published;
@@ -452,6 +463,8 @@ impl Context {
             fullscreen: self.inner.fullscreen.get(),
             close_requested: self.inner.close_requested.get(),
             handles_back: self.inner.handles_back.get(),
+            wants_keyboard: self.inner.wants_keyboard.get(),
+            intercepted_keys: std::mem::take(&mut *self.inner.intercepted_keys.borrow_mut()),
             pointer_locked: self.inner.pointer_locked.get(),
             repaint: self.inner.repaint.get(),
             accessibility: std::mem::take(&mut *self.inner.accessibility.borrow_mut()),
@@ -487,6 +500,19 @@ impl Context {
 
     pub fn handle_back(&self) {
         self.inner.handles_back.set(true);
+    }
+
+    pub fn want_keyboard(&self) {
+        self.inner.wants_keyboard.set(true);
+    }
+
+    pub fn intercept_keys(&self, chords: &[KeyChord]) {
+        let mut held = self.inner.intercepted_keys.borrow_mut();
+        for chord in chords {
+            if !held.contains(chord) {
+                held.push(*chord);
+            }
+        }
     }
 
     pub fn painter(&self) -> Painter {
@@ -850,6 +876,17 @@ impl Context {
 
     pub fn set_screen_scale(&self, scale: f32) {
         self.inner.screen_scale.set(scale);
+    }
+
+    pub fn screens(&self) -> Vec<Screen> {
+        self.inner.screens.borrow().clone()
+    }
+
+    pub fn set_screens(&self, screens: Vec<Screen>) {
+        if *self.inner.screens.borrow() != screens {
+            *self.inner.screens.borrow_mut() = screens;
+            self.request_repaint();
+        }
     }
 
     pub fn screen_input<R>(&self, reader: impl FnOnce(&InputState) -> R) -> R {

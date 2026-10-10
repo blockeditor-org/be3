@@ -5,6 +5,8 @@ use super::{AppStateError, SavedAccount};
 const ACCOUNTS_KEY: &str = "block.accounts";
 const ACTIVE_KEY: &str = "block.active-account";
 const CLIENT_ID_KEY: &str = "block.client-id";
+const DISPLAY_SETTINGS_KEY: &str = "block.display-settings";
+const INPUT_SETTINGS_KEY: &str = "block.input-settings";
 const WORKSPACE_KEYS_KEY: &str = "block.workspace-keys";
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -93,7 +95,14 @@ impl AppStateStore {
     }
 
     pub fn clear(&self) -> Result<(), AppStateError> {
-        for key in [ACCOUNTS_KEY, ACTIVE_KEY, CLIENT_ID_KEY, WORKSPACE_KEYS_KEY] {
+        for key in [
+            ACCOUNTS_KEY,
+            ACTIVE_KEY,
+            CLIENT_ID_KEY,
+            DISPLAY_SETTINGS_KEY,
+            INPUT_SETTINGS_KEY,
+            WORKSPACE_KEYS_KEY,
+        ] {
             self.storage
                 .remove_item(key)
                 .map_err(|_| AppStateError::from(format!("failed to clear {key}")))?;
@@ -178,6 +187,22 @@ impl AppStateStore {
         let id = Uuid::new_v4();
         self.write(CLIENT_ID_KEY, &id)?;
         Ok(id)
+    }
+
+    pub fn input_settings(&self) -> Result<Option<Vec<u8>>, AppStateError> {
+        self.read(INPUT_SETTINGS_KEY)
+    }
+
+    pub fn set_input_settings(&self, content: &[u8]) -> Result<(), AppStateError> {
+        self.write(INPUT_SETTINGS_KEY, &content)
+    }
+
+    pub fn display_settings(&self) -> Result<Option<Vec<u8>>, AppStateError> {
+        self.read(DISPLAY_SETTINGS_KEY)
+    }
+
+    pub fn set_display_settings(&self, content: &[u8]) -> Result<(), AppStateError> {
+        self.write(DISPLAY_SETTINGS_KEY, &content)
     }
 
     fn read<T: serde::de::DeserializeOwned>(&self, key: &str) -> Result<Option<T>, AppStateError> {

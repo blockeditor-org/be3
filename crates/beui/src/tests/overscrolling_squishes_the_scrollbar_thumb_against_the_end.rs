@@ -20,10 +20,12 @@ fn overscrolling_squishes_the_scrollbar_thumb_against_the_end() {
     harness.frame(Vec::new());
     let thumb = |harness: &Harness| {
         let bar = harness.document().children(scroll)[1];
-        let track = harness.document().children(bar)[0];
+        let interactive = harness.document().children(bar)[0];
+        let inset = harness.document().children(interactive)[0];
+        let track = harness.document().children(inset)[0];
         let list = harness.document().children(track)[0];
         (
-            harness.rect(bar),
+            harness.rect(track),
             harness.rect(harness.document().children(list)[1]),
         )
     };

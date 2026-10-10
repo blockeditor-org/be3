@@ -10,10 +10,10 @@ fn clicking_a_row_leaves_its_children_expanded() {
     harness.click(padding_row);
     harness.frame(Vec::new());
 
-    assert_eq!(harness.tree(), ["column", "  frame", "    text"]);
+    assert_eq!(harness.tree(), ["list", "  frame", "    text"]);
 
     harness.click(padding_row);
     harness.frame(Vec::new());
 
-    assert_eq!(harness.tree(), ["column", "  frame", "    text"]);
+    assert_eq!(harness.tree(), ["list", "  frame", "    text"]);
 }

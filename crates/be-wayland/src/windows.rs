@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use beui::reactive::{ReadSignal, WriteSignal, create_signal};
-use beui::{CursorIcon, Drawing, Rect, Vec2};
+use beui::{CursorIcon, Drawing, ForwardedInput, Rect, Vec2};
 
 use crate::state::WindowId;
 
@@ -14,13 +14,21 @@ pub struct WindowInfo {
     pub app_id: String,
     pub parent: Option<WindowId>,
     pub size: Vec2,
+    pub fullscreen: Option<Rect>,
+    pub responding: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Command {
     Configure(WindowId),
     Close(WindowId),
-    Launch(String),
+    Launch(Launch),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Launch {
+    pub arguments: Vec<String>,
+    pub working_dir: Option<String>,
 }
 
 #[derive(Clone)]
@@ -35,19 +43,23 @@ pub struct WindowSignals {
 #[derive(Clone, Copy, Default, PartialEq)]
 struct View {
     rect: Option<Rect>,
-    hovered: bool,
 }
 
 struct Inner {
     windows: RefCell<HashMap<WindowId, WindowSignals>>,
     views: RefCell<HashMap<WindowId, View>>,
     commands: RefCell<Vec<Command>>,
+    input: RefCell<Vec<(WindowId, ForwardedInput)>>,
+    fullscreen_requests: RefCell<Vec<(WindowId, bool)>>,
+    activate: Cell<Option<WindowId>>,
     focused: Cell<Option<WindowId>>,
     list: ReadSignal<Vec<WindowInfo>>,
     set_list: WriteSignal<Vec<WindowInfo>>,
     revision: Cell<u64>,
     cursor: ReadSignal<CursorIcon>,
     set_cursor: WriteSignal<CursorIcon>,
+    idle: ReadSignal<bool>,
+    set_idle: WriteSignal<bool>,
 }
 
 #[derive(Clone)]
@@ -57,16 +69,22 @@ impl Windows {
     pub fn new() -> Self {
         let (list, set_list) = create_signal(Vec::new());
         let (cursor, set_cursor) = create_signal(CursorIcon::Default);
+        let (idle, set_idle) = create_signal(false);
         Self(Rc::new(Inner {
             windows: RefCell::new(HashMap::new()),
             views: RefCell::new(HashMap::new()),
             commands: RefCell::new(Vec::new()),
+            input: RefCell::new(Vec::new()),
+            fullscreen_requests: RefCell::new(Vec::new()),
+            activate: Cell::new(None),
             focused: Cell::new(None),
             list,
             set_list,
             revision: Cell::new(0),
             cursor,
             set_cursor,
+            idle,
+            set_idle,
         }))
     }
 
@@ -86,12 +104,52 @@ impl Windows {
         self.0.cursor.clone()
     }
 
+    pub fn idle(&self) -> ReadSignal<bool> {
+        self.0.idle.clone()
+    }
+
+    pub(crate) fn set_idle(&self, idle: bool) {
+        self.0.set_idle.set(idle);
+    }
+
+    pub fn request_fullscreen(&self, id: WindowId, fullscreen: bool) {
+        self.0
+            .fullscreen_requests
+            .borrow_mut()
+            .push((id, fullscreen));
+    }
+
+    pub(crate) fn take_fullscreen_requests(&self) -> Vec<(WindowId, bool)> {
+        std::mem::take(&mut *self.0.fullscreen_requests.borrow_mut())
+    }
+
+    pub fn activate(&self, id: WindowId) {
+        self.0.activate.set(Some(id));
+    }
+
+    pub(crate) fn take_activation(&self) -> Option<WindowId> {
+        self.0.activate.take()
+    }
+
+    pub(crate) fn raise(&self, id: WindowId) {
+        if let Some(signals) = self.signals(id) {
+            signals.set_focused.set(true);
+        }
+    }
+
     pub fn close(&self, id: WindowId) {
         self.push(Command::Close(id));
     }
 
     pub fn launch(&self, line: String) {
-        self.push(Command::Launch(line));
+        self.run(Launch {
+            arguments: vec!["sh".to_owned(), "-c".to_owned(), line],
+            working_dir: None,
+        });
+    }
+
+    pub fn run(&self, launch: Launch) {
+        self.push(Command::Launch(launch));
     }
 
     pub(crate) fn set_cursor(&self, cursor: CursorIcon) {
@@ -177,17 +235,12 @@ impl Windows {
         self.0.views.borrow().get(&id).and_then(|view| view.rect)
     }
 
-    pub(crate) fn hover(&self, id: WindowId, hovered: bool) {
-        self.0.views.borrow_mut().entry(id).or_default().hovered = hovered;
+    pub(crate) fn forward(&self, id: WindowId, input: ForwardedInput) {
+        self.0.input.borrow_mut().push((id, input));
     }
 
-    pub(crate) fn hovered(&self) -> Option<WindowId> {
-        self.0
-            .views
-            .borrow()
-            .iter()
-            .find(|(_, view)| view.hovered)
-            .map(|(id, _)| *id)
+    pub(crate) fn take_input(&self) -> Vec<(WindowId, ForwardedInput)> {
+        std::mem::take(&mut *self.0.input.borrow_mut())
     }
 
     pub(crate) fn focus(&self, id: WindowId, focused: bool) {
@@ -196,10 +249,14 @@ impl Windows {
         {
             signals.set_focused.set(focused);
         }
+        let was = self.0.focused.get();
         if focused {
             self.0.focused.set(Some(id));
-        } else if self.0.focused.get() == Some(id) {
+        } else if was == Some(id) {
             self.0.focused.set(None);
+        }
+        if self.0.focused.get() != was {
+            self.0.revision.set(self.0.revision.get() + 1);
         }
         self.push(Command::Configure(id));
     }

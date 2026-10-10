@@ -2,7 +2,7 @@ use super::*;
 
 use block_editor_beui::beui::reactive::{Frame, build, with_reactive_scope};
 
-use block_editor_beui::be_block::BlockContent;
+use block_editor_beui::HostContent;
 
 use crate::app::state::RayState;
 
@@ -12,11 +12,7 @@ fn a_traced_frame_lands_without_asking_to_be_stepped_again() {
     let host = EditorHost::default();
     host.set_editable(true);
     let editor = Editor::new(host.clone(), block);
-    host.set_block_content(
-        PixelRayTracerContent::CONTENT_TYPE,
-        PixelRayTracerContent::default().encode(),
-        0,
-    );
+    host.set_block_content(HostContent::of(&PixelRayTracerContent::default()));
     let mut document = build(|| Frame().build());
 
     let state = with_reactive_scope(&mut document, || {

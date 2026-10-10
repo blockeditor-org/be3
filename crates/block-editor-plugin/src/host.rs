@@ -12,8 +12,9 @@ use block_plugin_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand,
     BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect,
     ChildStatus, ClipboardImage, DataListing, EditorRegion, FetchResult, FilePick, FileSave,
-    HostPanel, HostReply, HostRequest, HostWindow, HostWindowId, MenuEntry, Occluder,
+    HostAction, HostPanel, HostReply, HostRequest, HostValue, HostWindowId, MenuEntry, Occluder,
     PerformanceMeasurement, ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent, WebViewId,
+    decode_host, encode_host,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;
@@ -32,7 +33,19 @@ pub struct BlockDrag {
 pub struct HostContent {
     pub content_type: Uuid,
     pub bytes: Vec<u8>,
+    pub session: Vec<u8>,
     pub applied: u64,
+}
+
+impl HostContent {
+    pub fn of<C: be_block::LiveEdit>(content: &C) -> Self {
+        Self {
+            content_type: C::CONTENT_TYPE,
+            bytes: content.encode(),
+            session: content.session_state(),
+            applied: 0,
+        }
+    }
 }
 
 type ContentOperation = (Option<Uuid>, Vec<u8>);
@@ -343,7 +356,7 @@ pub enum Pushed {
     WebView,
     Shows,
     Version,
-    Windows,
+    HostValues,
 }
 
 impl Pushed {
@@ -358,16 +371,24 @@ impl Pushed {
         Self::WebView,
         Self::Shows,
         Self::Version,
-        Self::Windows,
+        Self::HostValues,
     ];
+}
+
+#[derive(Default)]
+struct HostValues {
+    values: HashMap<String, Vec<u8>>,
+    revisions: HashMap<String, u64>,
+    watched: HashSet<String>,
+    unreported: Vec<String>,
+    actions: Vec<(String, Vec<u8>)>,
 }
 
 #[derive(Clone, Default)]
 pub struct EditorHost {
     waker: Waker,
     shown_panels: Rc<RefCell<Vec<HostPanel>>>,
-    windows: Rc<RefCell<Vec<HostWindow>>>,
-    closed_windows: Rc<RefCell<Vec<HostWindowId>>>,
+    host_values: Rc<RefCell<HostValues>>,
     pick_requests: Rc<RefCell<Vec<PickRequest>>>,
     dialog_requests: Rc<RefCell<Vec<(Uuid, ShellDialog)>>>,
     access_changes: Rc<RefCell<Vec<(Uuid, Uuid, AccessLevel)>>>,
@@ -550,25 +571,57 @@ impl EditorHost {
         self.push(Pushed::Shows);
     }
 
-    pub fn windows(&self) -> Vec<HostWindow> {
-        self.windows.borrow().clone()
+    pub fn host_value<T: HostValue>(&self) -> T::Value {
+        let mut values = self.host_values.borrow_mut();
+        if !values.watched.contains(T::KEY) {
+            values.watched.insert(T::KEY.to_owned());
+            values.unreported.push(T::KEY.to_owned());
+        }
+        values
+            .values
+            .get(T::KEY)
+            .and_then(|bytes| decode_host(bytes))
+            .unwrap_or_default()
     }
 
-    pub fn set_windows(&self, windows: Vec<HostWindow>) {
-        if *self.windows.borrow() == windows {
+    pub fn set_host_value<T: HostValue>(&self, value: &T::Value) {
+        self.receive_host_value(T::KEY.to_owned(), encode_host(value));
+    }
+
+    pub(crate) fn receive_host_value(&self, key: String, bytes: Vec<u8>) {
+        let mut values = self.host_values.borrow_mut();
+        if values.values.get(&key) == Some(&bytes) {
             return;
         }
-        *self.windows.borrow_mut() = windows;
-        self.push(Pushed::Windows);
+        *values.revisions.entry(key.clone()).or_default() += 1;
+        values.values.insert(key, bytes);
+        drop(values);
+        self.push(Pushed::HostValues);
     }
 
-    pub fn close_window(&self, window: HostWindowId) {
-        self.closed_windows.borrow_mut().push(window);
+    pub fn host_value_revision(&self, key: &str) -> u64 {
+        self.host_values
+            .borrow()
+            .revisions
+            .get(key)
+            .copied()
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn take_host_watches(&self) -> Vec<String> {
+        std::mem::take(&mut self.host_values.borrow_mut().unreported)
+    }
+
+    pub fn act<A: HostAction>(&self, action: A) {
+        self.host_values
+            .borrow_mut()
+            .actions
+            .push((A::KEY.to_owned(), encode_host(&action)));
         self.changed();
     }
 
-    pub(crate) fn take_closed_windows(&self) -> Vec<HostWindowId> {
-        std::mem::take(&mut self.closed_windows.borrow_mut())
+    pub(crate) fn take_host_actions(&self) -> Vec<(String, Vec<u8>)> {
+        std::mem::take(&mut self.host_values.borrow_mut().actions)
     }
 
     pub fn show_block(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>) {
@@ -824,26 +877,12 @@ impl EditorHost {
         self.block_type.set(Some(block_type));
     }
 
-    pub fn set_block_content(&self, content_type: Uuid, bytes: Vec<u8>, applied: u64) {
-        self.update_content(
-            None,
-            ContentUpdate::Snapshot(HostContent {
-                content_type,
-                bytes,
-                applied,
-            }),
-        );
+    pub fn set_block_content(&self, content: HostContent) {
+        self.update_content(None, ContentUpdate::Snapshot(content));
     }
 
-    pub fn set_content_of(&self, block: Uuid, content_type: Uuid, bytes: Vec<u8>, applied: u64) {
-        self.update_content(
-            Some(block),
-            ContentUpdate::Snapshot(HostContent {
-                content_type,
-                bytes,
-                applied,
-            }),
-        );
+    pub fn set_content_of(&self, block: Uuid, content: HostContent) {
+        self.update_content(Some(block), ContentUpdate::Snapshot(content));
     }
 
     pub fn push_content_operations(&self, operations: Vec<(Vec<u8>, bool)>) {
