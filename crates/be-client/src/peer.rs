@@ -533,6 +533,11 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(Saved::Unchanged(expected.expect("a previous commit")));
         }
         let mut parents: Vec<_> = expected.into_iter().collect();
+        let mut chunks = manifest.chunk_hashes();
+        for parent in &extra_parents {
+            chunks.push(parent.hash());
+            chunks.extend(self.commits.get(*parent)?.manifest.chunk_hashes());
+        }
         parents.extend(extra_parents);
         let kind = if parents.len() > 1 {
             be_commit::CommitKind::Merge
@@ -547,7 +552,6 @@ impl<S: ObjectStore> Peer<S> {
             .with_references(references.clone());
         let id = self.commits.put(&commit)?;
 
-        let chunks = manifest.chunk_hashes();
         let mut objects = vec![id.hash()];
         objects.extend(chunks.iter().copied());
         self.push(&objects).await?;

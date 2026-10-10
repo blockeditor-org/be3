@@ -479,11 +479,12 @@ impl Connection {
                 })
             }
             ClientMessage::GetObject { request, hash } => {
-                self.identity()?;
-                Ok(ServerMessage::Object {
-                    request,
-                    bytes: self.store.get_object(hash)?,
-                })
+                let identity = self.identity()?;
+                let bytes = match self.store.may_read_object(identity, hash).await? {
+                    true => self.store.get_object(hash)?,
+                    false => None,
+                };
+                Ok(ServerMessage::Object { request, bytes })
             }
             ClientMessage::GetObjectRange {
                 request,
@@ -491,11 +492,12 @@ impl Connection {
                 offset,
                 length,
             } => {
-                self.identity()?;
-                Ok(ServerMessage::Object {
-                    request,
-                    bytes: self.store.get_object_range(hash, offset, length)?,
-                })
+                let identity = self.identity()?;
+                let bytes = match self.store.may_read_object(identity, hash).await? {
+                    true => self.store.get_object_range(hash, offset, length)?,
+                    false => None,
+                };
+                Ok(ServerMessage::Object { request, bytes })
             }
             ClientMessage::MissingObjects { request, hashes } => {
                 self.identity()?;

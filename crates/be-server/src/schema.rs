@@ -110,6 +110,12 @@ pub fn initialize(connection: &Connection) -> Result<(), ServerError> {
             PRIMARY KEY (workspace_id, account_id)
         );
 
+        CREATE INDEX IF NOT EXISTS commit_objects_hash
+            ON commit_objects (workspace_id, hash);
+
+        CREATE INDEX IF NOT EXISTS block_objects_hash
+            ON block_objects (workspace_id, hash);
+
         CREATE INDEX IF NOT EXISTS block_edges_reference
             ON block_edges (workspace_id, reference_id);
         ",
