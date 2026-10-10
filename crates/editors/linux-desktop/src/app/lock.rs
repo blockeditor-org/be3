@@ -1,12 +1,10 @@
+use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::datetime::HourCycle;
-use block_editor_beui::beui::icons::{
-    ICON_BEDTIME, ICON_POWER_SETTINGS_NEW, ICON_RESTART_ALT,
-};
+use block_editor_beui::beui::icons::{ICON_BEDTIME, ICON_POWER_SETTINGS_NEW, ICON_RESTART_ALT};
 use block_editor_beui::beui::reactive::{
     Frame, clone, component, create_effect, create_memo, view,
 };
 use block_editor_beui::beui::styled::{LockAction, LockCards, use_theme};
-use block_editor_beui::beui::NodeId;
 use block_editor_beui::{Editor, Idle, LockState, Power, PowerAction, ScreenLock, UnlockAttempt};
 
 use super::bar::wall_clock;
