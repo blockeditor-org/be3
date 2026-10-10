@@ -36,7 +36,7 @@ pub(crate) fn start(setup: &Setup) {
     let (Some(windows), Some(gpu)) = (windows(), setup.get::<beui::GpuSetup>()) else {
         return;
     };
-    let server = match Server::new() {
+    let mut server = match Server::new() {
         Ok(server) => server,
         Err(error) => {
             eprintln!("block-app: the Wayland server did not start: {error}");
@@ -46,6 +46,10 @@ pub(crate) fn start(setup: &Setup) {
             return;
         }
     };
+    match server.start_xwayland() {
+        Ok(display) => eprintln!("block-app: X11 programs run on Xwayland at :{display}"),
+        Err(error) => eprintln!("block-app: Xwayland did not start, so X11 programs cannot run: {error}"),
+    }
     let mut compositor = Compositor::new(server, windows);
     compositor.on_failure(crate::notices::report);
     let defaults = be_block::DisplaySettings::default();
