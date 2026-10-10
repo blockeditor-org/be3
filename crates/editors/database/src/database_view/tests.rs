@@ -19,9 +19,13 @@ use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
 use crate::database_view::app::{DatabaseViewApp, value_block_filter};
-use crate::database_view::sort::compare_database_values;
+use crate::database_view::sort::{BlockLabels, compare_database_values};
 
+mod a_filter_hides_the_rows_it_rejects;
+mod a_list_shows_each_row_by_its_short_id_and_opens_it_beside_the_list;
 mod a_new_view_starts_as_a_spreadsheet;
+mod a_relation_cell_shows_the_title_of_the_row_it_links_to;
+mod adding_a_page_links_a_new_text_block_to_the_row;
 mod arrow_keys_walk_the_spreadsheet_and_enter_steps_down;
 mod block_values_sort_by_resolved_label_then_reference;
 mod cards_sit_in_the_kanban_column_their_status_names;
@@ -31,6 +35,7 @@ mod new_values_sort_by_their_typed_order;
 mod selected_row_string_edit_updates_the_database;
 mod switching_to_kanban_stores_the_kind;
 mod the_scatter_plot_places_and_selects_a_point_for_each_row;
+mod typing_in_the_new_item_box_adds_a_row_with_that_title;
 mod value_picker_filter_is_exact_and_never_includes_templates;
 
 struct Fixture {
@@ -121,5 +126,6 @@ fn field(field_type: DatabaseFieldType) -> DatabaseField {
         enum_options: Vec::new(),
         number_options: Default::default(),
         block_options: Default::default(),
+        relation_options: Default::default(),
     }
 }

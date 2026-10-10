@@ -121,7 +121,7 @@ fn ComponentRow(state: Rc<CanvasState>, schema_id: Uuid) -> NodeId {
                     if let DatabaseValue::Block(reference) = value
                         && let Some(label) = state.label_of(*reference)
                     {
-                        labels.insert(*reference, label);
+                        labels.blocks.insert(*reference, label);
                     }
                 }
             }

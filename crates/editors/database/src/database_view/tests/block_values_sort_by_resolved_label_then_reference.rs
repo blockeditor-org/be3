@@ -4,7 +4,7 @@ use super::*;
 fn block_values_sort_by_resolved_label_then_reference() {
     let first = Uuid::from_u128(1);
     let second = Uuid::from_u128(2);
-    let labels = HashMap::from([
+    let blocks = HashMap::from([
         (
             first,
             BlockLabel {
@@ -24,6 +24,10 @@ fn block_values_sort_by_resolved_label_then_reference() {
             },
         ),
     ]);
+    let labels = BlockLabels {
+        blocks: blocks.clone(),
+        rows: Default::default(),
+    };
     assert_eq!(
         compare_database_values(
             &DatabaseValue::Block(first),
@@ -34,13 +38,16 @@ fn block_values_sort_by_resolved_label_then_reference() {
         Ordering::Greater
     );
 
-    let tied = labels
-        .into_iter()
-        .map(|(reference, mut label)| {
-            label.name = "Same".into();
-            (reference, label)
-        })
-        .collect();
+    let tied = BlockLabels {
+        blocks: blocks
+            .into_iter()
+            .map(|(reference, mut label)| {
+                label.name = "Same".into();
+                (reference, label)
+            })
+            .collect(),
+        rows: Default::default(),
+    };
     assert_eq!(
         compare_database_values(
             &DatabaseValue::Block(first),

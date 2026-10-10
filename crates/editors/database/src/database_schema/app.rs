@@ -27,7 +27,7 @@ pub fn field_line_count(field: &DatabaseField) -> usize {
     1 + match field.field_type {
         DatabaseFieldType::Enum => field.enum_options.len() + 1,
         DatabaseFieldType::Number => 4,
-        DatabaseFieldType::Block => 1,
+        DatabaseFieldType::Block | DatabaseFieldType::Relation => 1,
         DatabaseFieldType::String
         | DatabaseFieldType::Boolean
         | DatabaseFieldType::Color

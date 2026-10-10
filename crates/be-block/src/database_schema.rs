@@ -14,6 +14,7 @@ pub enum DatabaseFieldType {
     Boolean,
     Color,
     Datetime,
+    Relation,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
@@ -66,6 +67,13 @@ pub struct DatabaseBlockOptions {
     pub block_type: Option<Uuid>,
 }
 
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(default)]
+pub struct DatabaseRelationOptions {
+    #[serde(with = "be_model::references::block_ref::option")]
+    pub database: Option<Uuid>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DatabaseEnumOption {
     pub id: Uuid,
@@ -80,6 +88,7 @@ pub struct DatabaseField {
     pub enum_options: Vec<DatabaseEnumOption>,
     pub number_options: DatabaseNumberOptions,
     pub block_options: DatabaseBlockOptions,
+    pub relation_options: DatabaseRelationOptions,
 }
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
@@ -94,6 +103,7 @@ pub struct SchemaField {
     pub enum_options: List<EnumOption>,
     pub number_options: DatabaseNumberOptions,
     pub block_options: DatabaseBlockOptions,
+    pub relation_options: DatabaseRelationOptions,
 }
 
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
@@ -119,8 +129,23 @@ impl DatabaseSchema {
                     .collect(),
                 number_options: field.number_options,
                 block_options: field.block_options,
+                relation_options: field.relation_options,
             })
             .collect()
+    }
+
+    pub fn title_field(&self) -> Option<Uuid> {
+        self.fields
+            .iter()
+            .find(|field| field.field_type == DatabaseFieldType::String)
+            .map(|field| field.id.as_uuid())
+    }
+
+    pub fn field_named(&self, name: &str) -> Option<DatabaseField> {
+        let name = name.trim();
+        self.fields()
+            .into_iter()
+            .find(|field| field.name.trim().eq_ignore_ascii_case(name))
     }
 
     pub fn add_field(name: impl Into<String>, field_type: DatabaseFieldType) -> (Uuid, Edit) {
@@ -157,6 +182,12 @@ impl DatabaseSchema {
 
     pub fn set_block_options(field: Uuid, options: DatabaseBlockOptions) -> Edit {
         SchemaField::BLOCK_OPTIONS
+            .set(ObjectId::from_uuid(field), &options)
+            .into()
+    }
+
+    pub fn set_relation_options(field: Uuid, options: DatabaseRelationOptions) -> Edit {
+        SchemaField::RELATION_OPTIONS
             .set(ObjectId::from_uuid(field), &options)
             .into()
     }

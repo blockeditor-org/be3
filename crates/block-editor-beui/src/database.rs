@@ -1,14 +1,15 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 
-use be_block::database::{DatabaseColor, DatabaseValue};
+use be_block::database::{DatabaseColor, DatabaseContent, DatabaseValue, RowRef};
 use be_block::database_schema::{
     DatabaseField, DatabaseFieldType, DatabaseNumberOptions, DatabaseNumberScale,
+    DatabaseSchemaContent,
 };
 use beui::datetime::DateTime;
 use beui::icons::ICON_CLEAR;
 use beui::reactive::{
-    Align, Callback, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, Prop, Show, Spacer,
-    clone, component, create_memo, view,
+    Align, Callback, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, Prop, ReadSignal,
+    Show, Spacer, clone, component, create_effect, create_memo, create_signal, view,
 };
 use beui::styled::{
     Body, Button, ButtonVariant, Caption, Checkbox, ColorInput, DateTimeField, IconButton,
@@ -16,7 +17,7 @@ use beui::styled::{
 };
 use beui::unstyled::ChoiceOption;
 use beui::{Color32, NodeId};
-use block_ui::BlockLabel;
+pub use block_ui::database::ValueLabels;
 use block_ui::database::{
     DatabaseBlockPickRequest, DatabaseValueChange, block_reference_text, field_type_label,
 };
@@ -25,7 +26,6 @@ use uuid::Uuid;
 const SPACING: f32 = 6.0;
 const FIELD_SPACING: f32 = 12.0;
 
-pub type ValueLabels = HashMap<Uuid, BlockLabel>;
 pub type RowValues = BTreeMap<Uuid, DatabaseValue>;
 
 #[component]
@@ -217,6 +217,16 @@ fn DatabaseValueControl(
                             <DatetimeValue
                                 field={field}
                                 value={value}
+                                disabled={disabled}
+                                id={test_id}
+                                on_change={on_change}
+                            />
+                        },
+                        Some(DatabaseFieldType::Relation) => view! {
+                            <RelationValue
+                                field={field}
+                                value={value}
+                                labels={labels}
                                 disabled={disabled}
                                 id={test_id}
                                 on_change={on_change}
@@ -479,7 +489,7 @@ fn BlockValue(
 ) -> NodeId {
     let label = create_memo(clone!(value labels -> move || match value.get() {
         Some(DatabaseValue::Block(reference)) => {
-            labels.with(|labels| block_reference_text(&reference, labels))
+            labels.with(|labels| block_reference_text(&reference, &labels.blocks))
         }
         _ => "Choose block".to_owned(),
     }));
@@ -504,6 +514,156 @@ fn BlockValue(
             <Spacer @sizing=ItemSize::Percent(100.0) />
         </List>
     }
+}
+
+#[component]
+fn RelationValue(
+    field: Memo<Option<DatabaseField>>,
+    value: Memo<Option<DatabaseValue>>,
+    labels: Memo<ValueLabels>,
+    disabled: Memo<bool>,
+    id: String,
+    on_change: Callback<DatabaseValueChange>,
+) -> NodeId {
+    let target = create_memo(clone!(field -> move || {
+        field.with(|field| field.as_ref().and_then(|field| field.relation_options.database))
+    }));
+    let choices = create_memo(clone!(target labels -> move || {
+        let Some(database) = target.get() else {
+            return Vec::new();
+        };
+        labels.with(|labels| labels.rows_of(database))
+    }));
+    let keys = create_memo(clone!(choices -> move || {
+        choices.with(|choices| choices.iter().map(|(link, _)| *link).collect::<Vec<RowRef>>())
+    }));
+    let selected = create_memo(clone!(choices value -> move || {
+        let Some(DatabaseValue::Relation(chosen)) = value.get() else {
+            return None;
+        };
+        choices.with(|choices| choices.iter().position(|(link, _)| *link == chosen))
+    }));
+    let unlinked = create_memo(clone!(target -> move || target.get().is_none()));
+    let names = choices.clone();
+    let picked = clone!(choices field on_change -> move |index: Option<usize>| {
+        let Some(field_id) = field.with_untracked(|field| field.as_ref().map(|field| field.id))
+        else {
+            return;
+        };
+        let link = index.and_then(|index| {
+            choices.with_untracked(|choices| choices.get(index).map(|(link, _)| *link))
+        });
+        on_change.call(DatabaseValueChange {
+            field_id,
+            value: link.map(DatabaseValue::Relation),
+            continuous: false,
+        });
+    });
+    view! {
+        <List spacing=SPACING>
+            <Show condition={unlinked}>
+                <Caption content="Choose the database this column links to." wrap=true />
+            </Show>
+            <Select
+                options={view! {
+                    <ForEach keys={keys}>
+                        {move |link: RowRef| {
+                            let label = create_memo(clone!(names -> move || {
+                                names.with(|choices| {
+                                    choices
+                                        .iter()
+                                        .find(|(held, _)| *held == link)
+                                        .map_or_else(String::new, |(_, label)| label.clone())
+                                })
+                            }));
+                            view! {
+                                <ChoiceOption label={label} />
+                            }
+                        }}
+                    </ForEach>
+                }}
+                selected={selected}
+                label="Row"
+                disabled={disabled}
+                @test_id={id}
+                on_change={picked}
+            />
+        </List>
+    }
+}
+
+pub fn relation_targets(fields: &[DatabaseField]) -> Vec<Uuid> {
+    let mut targets: Vec<Uuid> = fields
+        .iter()
+        .filter(|field| field.field_type == DatabaseFieldType::Relation)
+        .filter_map(|field| field.relation_options.database)
+        .collect();
+    targets.sort();
+    targets.dedup();
+    targets
+}
+
+pub fn watch_row_labels(
+    editor: &crate::Editor,
+    databases: Memo<Vec<Uuid>>,
+) -> Memo<BTreeMap<RowRef, String>> {
+    let (labels, set_labels) = create_signal(BTreeMap::new());
+    let editor = editor.clone();
+    create_effect(move || {
+        let watched: Vec<ReadSignal<Vec<(RowRef, String)>>> = databases
+            .get()
+            .into_iter()
+            .map(|database| row_titles(&editor, database))
+            .collect();
+        let set_labels = set_labels.clone();
+        create_effect(move || {
+            set_labels.set(
+                watched
+                    .iter()
+                    .flat_map(|titles| titles.get())
+                    .collect::<BTreeMap<RowRef, String>>(),
+            );
+        });
+    });
+    create_memo(move || labels.get())
+}
+
+fn row_titles(editor: &crate::Editor, database: Uuid) -> ReadSignal<Vec<(RowRef, String)>> {
+    let content = editor.content_of::<DatabaseContent>(database);
+    let schema_id = content.project(|content| content.root().schema);
+    let (titles, set_titles) = create_signal(Vec::new());
+    let editor = editor.clone();
+    create_effect(move || {
+        let title_field = match schema_id.get() {
+            Some(schema) => Some(
+                editor
+                    .content_of::<DatabaseSchemaContent>(schema)
+                    .project(|schema| schema.root().title_field()),
+            ),
+            None => None,
+        };
+        let content = content.clone();
+        let set_titles = set_titles.clone();
+        create_effect(move || {
+            let title = title_field.as_ref().and_then(ReadSignal::get);
+            let projected = content.project(move |content| {
+                let root = content.root();
+                root.rows
+                    .iter()
+                    .map(|row| {
+                        let link = RowRef {
+                            database,
+                            row: row.id.as_uuid(),
+                        };
+                        (link, root.title(row.id, title))
+                    })
+                    .collect::<Vec<_>>()
+            });
+            let set_titles = set_titles.clone();
+            create_effect(move || set_titles.set(projected.get()));
+        });
+    });
+    titles
 }
 
 #[component]

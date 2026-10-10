@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashSet};
 
-use be_model::{Anchor, Change, Document, Edit, Item, List, Map, Model, ObjectId};
+use be_model::{Anchor, BlockRef, Change, Document, Edit, Item, List, Map, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -17,6 +17,14 @@ pub struct DatabaseColor {
     pub alpha: u8,
 }
 
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(default)]
+pub struct RowRef {
+    #[serde(with = "be_model::references::block_ref")]
+    pub database: Uuid,
+    pub row: Uuid,
+}
+
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub enum DatabaseValue {
     String(String),
@@ -26,17 +34,20 @@ pub enum DatabaseValue {
     Boolean(bool),
     Color(DatabaseColor),
     Datetime(i64),
+    Relation(RowRef),
 }
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct Database {
     pub schema: Option<Uuid>,
+    pub prefix: String,
     pub rows: List<DatabaseRow>,
 }
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct DatabaseRow {
     pub values: Map<Uuid, DatabaseValue>,
+    pub page: Option<BlockRef>,
 }
 
 impl DatabaseRow {
@@ -47,18 +58,107 @@ impl DatabaseRow {
     pub fn value(&self, field: Uuid) -> Option<&DatabaseValue> {
         self.values.get(&field)
     }
+
+    pub fn page(&self) -> Option<Uuid> {
+        self.page.map(|page| page.0)
+    }
+}
+
+const SHORT_ID_ALPHABET: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+const SHORT_ID_LEN: usize = 6;
+
+pub fn short_id(prefix: &str, row: Uuid) -> String {
+    let mut bits = row.as_u128();
+    let mut code = [0u8; SHORT_ID_LEN];
+    for slot in code.iter_mut().rev() {
+        *slot = SHORT_ID_ALPHABET[(bits & 31) as usize];
+        bits >>= 5;
+    }
+    let code = String::from_utf8_lossy(&code).into_owned();
+    match prefix.trim() {
+        "" => code,
+        prefix => format!("{prefix}-{code}"),
+    }
+}
+
+fn short_code(text: &str) -> String {
+    let code = text.rsplit('-').next().unwrap_or(text);
+    code.trim()
+        .chars()
+        .map(|character| match character.to_ascii_uppercase() {
+            'O' => '0',
+            'I' | 'L' => '1',
+            other => other,
+        })
+        .collect()
 }
 
 impl Database {
     pub fn with_schema(schema: Uuid) -> Self {
         Self {
             schema: Some(schema),
-            rows: List::default(),
+            ..Self::default()
         }
     }
 
     pub fn set_schema(schema: Uuid) -> Edit {
         Self::SCHEMA.set(ObjectId::ROOT, &Some(schema)).into()
+    }
+
+    pub fn set_prefix(prefix: impl Into<String>) -> Edit {
+        Self::PREFIX
+            .set(ObjectId::ROOT, &prefix.into().trim().to_owned())
+            .into()
+    }
+
+    pub fn short_id(&self, row: ObjectId) -> String {
+        short_id(&self.prefix, row.as_uuid())
+    }
+
+    pub fn find_short_id(&self, text: &str) -> Option<ObjectId> {
+        let wanted = short_code(text);
+        if wanted.len() != SHORT_ID_LEN {
+            return None;
+        }
+        self.rows
+            .iter()
+            .map(|row| row.id)
+            .find(|id| short_id("", id.as_uuid()) == wanted)
+    }
+
+    pub fn title(&self, row: ObjectId, title_field: Option<Uuid>) -> String {
+        let title = title_field
+            .and_then(|field| self.rows.get(row)?.value(field).cloned())
+            .and_then(|value| match value {
+                DatabaseValue::String(text) if !text.trim().is_empty() => Some(text),
+                _ => None,
+            });
+        title.unwrap_or_else(|| self.short_id(row))
+    }
+
+    pub fn index_of(&self, row: ObjectId) -> Option<usize> {
+        self.rows.iter().position(|item| item.id == row)
+    }
+
+    pub fn add_row(values: impl IntoIterator<Item = (Uuid, DatabaseValue)>) -> (ObjectId, Edit) {
+        let row = DatabaseRow {
+            values: values.into_iter().collect(),
+            page: None,
+        };
+        let (id, change) = Self::ROWS.insert(ObjectId::ROOT, Anchor::End, &row);
+        (id, change.into())
+    }
+
+    pub fn set_value(row: ObjectId, field: Uuid, value: Option<&DatabaseValue>) -> Edit {
+        DatabaseRow::VALUES.put(row, &field, value).into()
+    }
+
+    pub fn set_page(row: ObjectId, page: Option<Uuid>) -> Edit {
+        DatabaseRow::PAGE.set(row, &page.map(BlockRef)).into()
+    }
+
+    pub fn remove_row(row: ObjectId) -> Edit {
+        Change::remove(row).into()
     }
 
     pub fn set_cell(&self, row: usize, field: Uuid, value: Option<DatabaseValue>) -> Edit {
@@ -123,17 +223,31 @@ impl Root for Database {
         let (old, new) = match change {
             ChildChange::Add(_) => return None,
             ChildChange::Delete(old) => (old, None),
-            ChildChange::Replace { old, new } => (old, Some(DatabaseValue::Block(new))),
+            ChildChange::Replace { old, new } => (old, Some(new)),
         };
-        let old = DatabaseValue::Block(old);
+        let replaced = |value: &DatabaseValue| match value {
+            DatabaseValue::Block(block) if *block == old => {
+                Some(new.map(DatabaseValue::Block))
+            }
+            DatabaseValue::Relation(link) if link.database == old => Some(new.map(|database| {
+                DatabaseValue::Relation(RowRef {
+                    database,
+                    row: link.row,
+                })
+            })),
+            _ => None,
+        };
         Some(
             self.rows
                 .iter()
                 .flat_map(|row| {
-                    row.values
-                        .iter()
-                        .filter(|(_, value)| **value == old)
-                        .map(|(field, _)| DatabaseRow::VALUES.put(row.id, field, new.as_ref()))
+                    let values = row.values.iter().filter_map(|(field, value)| {
+                        let next = replaced(value)?;
+                        Some(DatabaseRow::VALUES.put(row.id, field, next.as_ref()))
+                    });
+                    let page = (row.page() == Some(old))
+                        .then(|| DatabaseRow::PAGE.set(row.id, &new.map(BlockRef)));
+                    values.chain(page).collect::<Vec<_>>()
                 })
                 .collect(),
         )

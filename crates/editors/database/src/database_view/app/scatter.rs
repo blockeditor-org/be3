@@ -59,16 +59,14 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
     let rect = component_rect();
     let bounds = create_memo(clone!(data axes -> move || {
         let (x_field, y_field) = axes.get()?;
-        data.rows.with(|rows| plot_bounds(rows, x_field.id, y_field.id))
+        plot_bounds(&shown_rows(&data), x_field.id, y_field.id)
     }));
     let placed = create_memo(clone!(data axes bounds size -> move || {
         let (Some((x_field, y_field)), Some(bounds)) = (axes.get(), bounds.get()) else {
             return Vec::new();
         };
         let area = size.get();
-        data.rows.with(|rows| {
-            place_points(rows, x_field.id, y_field.id, bounds, plot_area(area))
-        })
+        place_points(&shown_rows(&data), x_field.id, y_field.id, bounds, plot_area(area))
     }));
     let keys = create_memo(clone!(placed -> move || {
         placed.with(|placed| placed.iter().map(|point| point.row).collect::<Vec<usize>>())
@@ -233,6 +231,17 @@ fn number_value(row: &DatabaseRow, field_id: Uuid) -> Option<f64> {
         Some(DatabaseValue::Number(value)) => Some(*value),
         _ => None,
     }
+}
+
+fn shown_rows(data: &Data) -> Vec<DatabaseRow> {
+    data.rows.with(|rows| {
+        rows.iter()
+            .map(|row| match data.shows(row) {
+                true => row.clone(),
+                false => DatabaseRow::default(),
+            })
+            .collect()
+    })
 }
 
 fn plot_bounds(rows: &[DatabaseRow], x: Uuid, y: Uuid) -> Option<(f64, f64, f64, f64)> {

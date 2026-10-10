@@ -393,18 +393,22 @@ pub fn display(data: &Data) -> Memo<Vec<DisplayRow>> {
     let fields = data.fields.clone();
     let labels = data.labels.clone();
     let sort = data.sort.clone();
+    let filters = data.filters.clone();
     let selected = data.selected.clone();
     create_memo(move || {
         rows.with(|rows| {
             fields.with(|fields| {
                 labels.with(|labels| {
-                    display_rows(
-                        rows,
-                        selected.get().map(|selection| selection.row),
-                        sort.get(),
-                        fields,
-                        labels,
-                    )
+                    filters.with(|filters| {
+                        display_rows(
+                            rows,
+                            selected.get().map(|selection| selection.row),
+                            sort.get(),
+                            filters,
+                            fields,
+                            labels,
+                        )
+                    })
                 })
             })
         })
