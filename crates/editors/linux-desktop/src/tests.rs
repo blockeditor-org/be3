@@ -4,10 +4,11 @@ use block_editor_beui::be_block::{
 };
 use block_editor_beui::beui::{Document, Key, KeyChord, Modifiers, NodeId, Rect};
 use block_editor_beui::{
-    BlockInfo, BlockParent, ChildContent, Editor, EditorHost, HostImage, HostProgram, HostWindow,
-    HostWindowId, HostWindows, IncomingNotification, Media, MediaLevel, MediaLevels, MediaRequest,
-    NotificationInbox, NotificationReport, NotificationRequest, NotificationSignal, Notifications,
-    PlayerCommand, Power, PowerAction, PowerAvailability, ProgramAction, Programs, WindowAction,
+    AudioOutput, BlockInfo, BlockParent, ChildContent, Editor, EditorHost, HostImage, HostProgram,
+    HostWindow, HostWindowId, HostWindows, IncomingNotification, Media, MediaLevel, MediaLevels,
+    MediaRequest, NotificationInbox, NotificationReport, NotificationRequest, NotificationSignal,
+    Notifications, PlayerCommand, Power, PowerAction, PowerAvailability, ProgramAction, Programs,
+    WindowAction,
 };
 use block_plugin_api::Size;
 use block_ui_test::BeuiTest;
@@ -40,6 +41,8 @@ mod the_power_menu_asks_before_ending_the_session;
 mod the_power_menu_locks_the_screen_without_asking;
 mod the_power_menu_offers_only_what_the_host_allows;
 mod the_programs_button_opens_the_launcher_on_the_programs_the_host_lists;
+mod the_volume_in_the_bar_follows_the_host_and_opens_its_controls;
+mod the_volume_popup_asks_the_host_for_a_level_a_mute_and_an_output;
 mod the_volume_shows_on_every_monitor;
 
 const MAX_TAB: u64 = 64;
@@ -54,6 +57,8 @@ const EVERYTHING: PowerAvailability = PowerAvailability {
 const SHOWN_TYPE: Uuid = Uuid::from_u128(0x7368_6f77_6e2d_7479_7065_2d74_6573_7431);
 const DEFAULT_ACTION: &str = "default";
 const NOON: u64 = 1_768_478_400;
+const SPEAKERS: &str = "alsa_output.pci-0000_00_1f.3.analog-stereo";
+const HEADPHONES: &str = "bluez_output.headphones";
 
 struct Fixture {
     test: BeuiTest<LinuxDesktopApp>,
@@ -143,6 +148,25 @@ impl Fixture {
 
     fn settle(&mut self) {
         self.test.run();
+    }
+
+    fn hear(&mut self, level: f32, muted: bool, default_output: &str) {
+        self.test.set_host_value::<Media>(&MediaLevels {
+            output: Some(MediaLevel { level, muted }),
+            outputs: vec![
+                AudioOutput {
+                    id: SPEAKERS.to_owned(),
+                    name: "Speakers".to_owned(),
+                },
+                AudioOutput {
+                    id: HEADPHONES.to_owned(),
+                    name: "Headphones".to_owned(),
+                },
+            ],
+            default_output: Some(default_output.to_owned()),
+            ..MediaLevels::default()
+        });
+        self.settle();
     }
 
     fn notify(&mut self, arrived: &[IncomingNotification]) {

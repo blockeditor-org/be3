@@ -8,6 +8,8 @@ fn requests_from_the_desktop_reach_their_backends_within_bounds() {
         MediaRequest::StepVolume(-VOLUME_STEP),
         MediaRequest::SetVolume(0.7),
         MediaRequest::ToggleMute,
+        MediaRequest::SetMute(true),
+        MediaRequest::ChooseOutput("headphones".to_owned()),
         MediaRequest::ToggleMicMute,
         MediaRequest::StepBrightness(BRIGHTNESS_STEP),
         MediaRequest::StepBrightness(-BRIGHTNESS_STEP),
@@ -25,6 +27,8 @@ fn requests_from_the_desktop_reach_their_backends_within_bounds() {
             Sent::Audio(AudioRequest::Step(-VOLUME_STEP)),
             Sent::Audio(AudioRequest::Set(0.7)),
             Sent::Audio(AudioRequest::ToggleMute),
+            Sent::Audio(AudioRequest::SetMute(true)),
+            Sent::Audio(AudioRequest::Choose("headphones".to_owned())),
             Sent::Audio(AudioRequest::ToggleMicMute),
             Sent::Brightness(BRIGHTNESS_STEP),
             Sent::Brightness(-BRIGHTNESS_STEP),
@@ -42,6 +46,8 @@ fn requests_from_the_desktop_reach_their_backends_within_bounds() {
         MediaRequest::StepVolume(f32::INFINITY),
         MediaRequest::StepVolume(0.0),
         MediaRequest::StepBrightness(-9.0),
+        MediaRequest::ChooseOutput(String::new()),
+        MediaRequest::ChooseOutput("head\0phones".to_owned()),
     ] {
         media.request(request);
     }
@@ -52,6 +58,6 @@ fn requests_from_the_desktop_reach_their_backends_within_bounds() {
             Sent::Audio(AudioRequest::Set(0.0)),
             Sent::Brightness(-1.0),
         ],
-        "a plugin's numbers are kept within bounds, and ones that are no number are dropped"
+        "a plugin's numbers are kept within bounds, and numbers and names that are no such thing are dropped"
     );
 }
