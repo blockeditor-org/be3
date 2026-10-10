@@ -74,5 +74,8 @@ fn a_toast_answers_its_actions_and_hides_while_the_history_is_open() {
 
     fixture.test.click("desktop.notifications");
     fixture.settle();
-    assert!(fixture.says("Now playing"), "the resident one is still listed");
+    assert!(
+        fixture.says("Now playing"),
+        "the resident one is still listed"
+    );
 }

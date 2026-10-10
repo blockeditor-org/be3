@@ -81,10 +81,14 @@ impl Inbox {
             .kept
             .iter()
             .copied()
-            .chain(self.pending.iter().filter_map(|(_, request)| match request {
-                NotificationRequest::Notify(incoming) => Some(incoming.id),
-                NotificationRequest::Close(_) => None,
-            }))
+            .chain(
+                self.pending
+                    .iter()
+                    .filter_map(|(_, request)| match request {
+                        NotificationRequest::Notify(incoming) => Some(incoming.id),
+                        NotificationRequest::Close(_) => None,
+                    }),
+            )
             .collect();
         (changed, signals)
     }

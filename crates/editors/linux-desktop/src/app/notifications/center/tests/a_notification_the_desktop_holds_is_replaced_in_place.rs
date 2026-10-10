@@ -23,7 +23,10 @@ fn a_notification_the_desktop_holds_is_replaced_in_place() {
         ..IncomingNotification::default()
     };
     let first = Incoming::from_host(&arrived);
-    assert_eq!(first.body, "Mia wrote & asked", "the body is shown as plain text");
+    assert_eq!(
+        first.body, "Mia wrote & asked",
+        "the body is shown as plain text"
+    );
     assert!(first.image.is_some());
     assert!(
         Incoming::from_host(&IncomingNotification {

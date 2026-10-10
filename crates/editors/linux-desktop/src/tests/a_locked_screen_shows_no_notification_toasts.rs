@@ -6,7 +6,12 @@ use super::*;
 fn a_locked_screen_shows_no_notification_toasts() {
     let mut fixture = Fixture::new();
     fixture.settle();
-    fixture.notify(&[notification(1, "Mail", "From Ada", "The password is hunter2")]);
+    fixture.notify(&[notification(
+        1,
+        "Mail",
+        "From Ada",
+        "The password is hunter2",
+    )]);
     assert!(fixture.test.shown(&toast(1)));
     assert!(fixture.says("hunter2"));
 

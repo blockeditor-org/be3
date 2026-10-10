@@ -31,7 +31,9 @@ fn the_notifications_button_lists_what_arrived_and_answers_it() {
     assert!(fixture.says("Lunch at noon?"), "the body loses its markup");
     let reports = fixture.test.take_actions::<NotificationReport>();
     assert_eq!(
-        reports.last().map(|report| (report.received, report.kept.clone())),
+        reports
+            .last()
+            .map(|report| (report.received, report.kept.clone())),
         Some((Some(2), vec![1, 2])),
         "the desktop tells the host what it took and what it holds: {reports:?}"
     );

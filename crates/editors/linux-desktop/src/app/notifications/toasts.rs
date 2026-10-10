@@ -13,7 +13,10 @@ pub(crate) fn above_bar(screen: Rect, bar: Rect) -> Rect {
         && bar.top() < screen.bottom()
         && bar.bottom() > screen.top();
     match covers {
-        true => Rect::from_min_max(screen.min, pos2(screen.right(), bar.top().max(screen.top()))),
+        true => Rect::from_min_max(
+            screen.min,
+            pos2(screen.right(), bar.top().max(screen.top())),
+        ),
         false => screen,
     }
 }
