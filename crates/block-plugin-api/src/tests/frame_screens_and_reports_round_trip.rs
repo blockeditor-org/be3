@@ -76,7 +76,7 @@ fn frame_screens_and_reports_round_trip() {
                 depth: 0,
                 role: "CheckBox".to_owned(),
                 label: "Buy milk".to_owned(),
-                value: String::new(),
+                value: "x".repeat(MAX_STRING_BYTES + 1),
                 toggled: Some(Toggled::On),
                 disabled: false,
                 focused: true,

@@ -74,7 +74,6 @@ fn region_screen(
 mod a_layout_gives_each_shown_screen_its_own_surface;
 mod a_paste_over_the_text_limit_arrives_in_pieces;
 mod an_intercepted_key_round_trips;
-mod an_oversized_description_is_fitted_to_the_limits;
 mod artifact_messages_round_trip;
 mod artifact_watch_messages_round_trip;
 mod audio_messages_round_trip;

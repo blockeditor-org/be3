@@ -20,6 +20,14 @@ fn a_driver_resizes_a_headless_window_and_reads_its_state() {
         tree.starts_with("Window \"Driven\" focused at 0,0 size 400x200"),
         "the window is 200 by 100 points at twice the pixels:\n{tree}"
     );
+    assert!(
+        driven.ask(&["resize", "screen", "8192x100"]).is_err(),
+        "a screen wider than a texture at the window's scale is refused"
+    );
+    assert!(
+        driven.ask(&["resize", "200x100@inf"]).is_err(),
+        "an infinite scale is refused"
+    );
     driven.ask(&["blur"]).expect("the window loses focus");
     let state = driven.ask(&["state"]).expect("the state is read");
     assert!(

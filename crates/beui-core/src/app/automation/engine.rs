@@ -4,7 +4,7 @@ use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 use super::target::{describe, locate, node, point, scaled};
-use super::window::{Simulation, WindowSize};
+use super::window::{MAX_PIXELS, Simulation, WindowSize};
 use super::{Capture, Inbox, Reply, Request, changes, keys};
 use crate::app::accessibility_dump::{ACTIONS, Line};
 use crate::context::{ActionGroup, Context};
@@ -839,17 +839,30 @@ impl Automation {
                     .simulation
                     .as_deref_mut()
                     .ok_or_else(|| simulated("resize"))?;
-                match argument(0)? {
+                let (window, screen) = match argument(0)? {
                     "screen" => {
                         let size = WindowSize::parse(argument(1)?)
                             .ok_or("resize screen takes WIDTHxHEIGHT")?;
-                        simulation.screen = size.size;
+                        (simulation.window, size.size)
                     }
                     size => {
-                        simulation.window = WindowSize::parse(size)
+                        let window = WindowSize::parse(size)
                             .ok_or("resize takes WIDTHxHEIGHT or WIDTHxHEIGHT@SCALE")?;
+                        (window, simulation.screen)
                     }
+                };
+                let shown = WindowSize {
+                    size: screen,
+                    scale: window.scale,
+                };
+                if !shown.fits() {
+                    return Err(format!(
+                        "a {}x{} screen at scale {} is more than {} pixels across",
+                        screen.x, screen.y, window.scale, MAX_PIXELS
+                    ));
                 }
+                simulation.window = window;
+                simulation.screen = screen;
                 input(vec![Vec::new()])
             }
             "clipboard" => {

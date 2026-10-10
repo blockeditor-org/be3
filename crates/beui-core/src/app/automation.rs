@@ -17,7 +17,7 @@ mod window;
 
 pub use diff::changes;
 pub use engine::{Automation, PANE, Settled, USAGE, View, World};
-pub use window::{Simulation, WindowSize};
+pub use window::{MAX_PIXELS, Simulation, WindowSize};
 
 pub struct Capture {
     pub width: u32,

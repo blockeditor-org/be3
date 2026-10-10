@@ -23,10 +23,15 @@ impl WindowSize {
         };
         let (width, height) = size.split_once('x')?;
         let size = Vec2::new(width.parse().ok()?, height.parse().ok()?);
+        Some(Self { size, scale }).filter(Self::fits)
+    }
+
+    pub fn fits(&self) -> bool {
         let fits = |length: f32| {
-            (1.0..=MAX_PIXELS).contains(&length) && (1.0..=MAX_PIXELS).contains(&(length * scale))
+            (1.0..=MAX_PIXELS).contains(&length)
+                && (1.0..=MAX_PIXELS).contains(&(length * self.scale))
         };
-        (fits(size.x) && fits(size.y)).then_some(Self { size, scale })
+        fits(self.size.x) && fits(self.size.y)
     }
 }
 
@@ -61,8 +66,8 @@ impl Simulation {
     pub fn physical(&self) -> (u32, u32) {
         let shown = self.shown() * self.window.scale;
         (
-            shown.x.round().clamp(1.0, MAX_PIXELS) as u32,
-            shown.y.round().clamp(1.0, MAX_PIXELS) as u32,
+            shown.x.round().max(1.0) as u32,
+            shown.y.round().max(1.0) as u32,
         )
     }
 }

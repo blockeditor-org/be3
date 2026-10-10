@@ -977,7 +977,7 @@ impl EditorSession {
                 wants_keyboard: frame.wants_keyboard,
                 intercepted_keys: frame.intercepted_keys.clone(),
                 description: frame.description.as_ref().map(|description| {
-                    let mut fitted = block_plugin_api::Description {
+                    block_plugin_api::Description {
                         nodes: description
                             .nodes
                             .iter()
@@ -1002,9 +1002,7 @@ impl EditorSession {
                             })
                             .collect(),
                         actions: description.actions.clone(),
-                    };
-                    fitted.fit();
-                    fitted
+                    }
                 }),
             });
         }

@@ -66,6 +66,20 @@ fn from_environment(
         ),
         Err(_) => None,
     };
+    if let Some(size) = screen
+        && !(WindowSize {
+            size,
+            scale: window.scale,
+        })
+        .fits()
+    {
+        return Err(format!(
+            "BEUI_HEADLESS_SCREEN at scale {} is more than {} pixels across",
+            window.scale,
+            beui_core::app::automation::MAX_PIXELS
+        )
+        .into());
+    }
     Ok(Some(Box::new(beui_adapter_headless::Headless {
         window,
         screen,
