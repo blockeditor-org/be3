@@ -315,8 +315,14 @@ when it is let go, and reports that the drag has moved off the instance again.
 An instance answers with whether it would take the block, which only decides
 the cursor the host shows; a drop is delivered whether or not it was accepted.
 
-An instance is shown through screens of three kinds: a frame, a preview, and
-an artifact-settings region. A frame is the whole rectangle an editor is
+An instance is shown through screens of four kinds: a frame, a preview, an
+artifact-settings region, and a lock region. The host gives the lock region only
+to the instance drawing the app's window, only while the screen is locked, as
+one screen covering every monitor; it draws that screen over everything else
+and forwards it all the input. The plugin draws the lock screen's look there,
+but the lock is the host's: the host alone checks the password a plugin sends
+and unlocks, and it shows a lock screen of its own instead whenever the
+plugin's has not drawn in time, has stopped, or stops answering. A frame is the whole rectangle an editor is
 edited in, and an instance has at most one; the plugin lays its own toolbar
 row, sidebars and content out inside it, in one pass of one context. The host
 says, per frame, whether the instance owns the chrome bands this frame, where

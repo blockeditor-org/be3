@@ -888,8 +888,11 @@ A modal overlay with `locks` set is a lock screen (`styled::LockScreen`): nothin
 does dismisses it, an overlay opened outside it while it is open goes beneath it, passive overlays
 outside it paint beneath it, the focus cannot leave it (not even to nothing, through Escape or a
 click on its scrim), and `Document::locked` is true. While it is, `on_global_key` handlers and global
-actions hear nothing but media keys (`Key::is_media`), and a forwarding catcher outside it loses any
-press it had captured. Only its owner writing `open` false closes it.
+actions hear nothing but media keys (`Key::is_media`), a forwarding catcher outside it loses any
+press it had captured, and only a catcher inside it is forwarded presses, keys and text. Only its
+owner writing `open` false closes it. `styled::LockCards` is what `LockScreen` puts in its overlay,
+one card per screen, for a document that is a lock screen already (a plugin's lock region) or one
+inside a locking overlay of its own (block-app's built-in lock screen).
 
 A **passive** one takes no input at all. It is painted above everything and is
 not on the stack, so the document underneath goes on answering the pointer and

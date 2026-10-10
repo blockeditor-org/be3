@@ -86,7 +86,7 @@ the output stops drawing and the problem is reported once through `Problems`, un
 comes back or a display is plugged in or out.
 
 The desktop bar's power button locks, suspends, restarts, powers off or logs out. linux-desktop
-asks for what it may offer with `LinuxMessage::WatchPower` and sends `RequestPower`;
+reads what it may offer from the `Power` host value and sends a `PowerAction`;
 `src/session/power.rs` decides what happens (programs are asked to close, and are given five
 seconds before the session ends or logind is asked to restart or power off) and
 `src/session/logind.rs` talks to `org.freedesktop.login1`, including its `PrepareForSleep`
@@ -161,32 +161,53 @@ and `DBUS_SESSION_BUS_ADDRESS` set for the app, and press them with
 
 ## The lock screen
 
-In the desktop shell (`--session` and `--desktop`) the screen locks on Super+L, the bar's power
-menu's Lock, idling for the display settings' "Lock the screen after" (by default when the screens
-turn off), and, under `--session`, logind's `Lock` for the app's own session (`loginctl
-lock-session`) and before every suspend: `DesktopSession` holds a logind `delay` inhibitor for
-sleep and lets it go once the lock screen has been drawn twice (`src/session/sleep.rs`), taking it
-again on waking. `src/session/lock.rs` is the state machine, `src/session.rs`'s `ScreenLock` runs
-it, and `src/ui/lock.rs` shows it as `styled::LockScreen`, a card on every screen of
-the document (`use_screens()`) over an opaque scrim. logind's `Unlock` is not obeyed: only a password unlocks.
+The lock screen is split between the host and linux-desktop, and it fails closed: nothing the
+plugin does or fails to do unlocks the screen or shows what is behind it.
+
+The host (block-app) owns the locked state and decides when to unlock. `src/session/lock.rs` is
+the state machine, `src/session.rs`'s `ScreenLock` runs it, and only a PAM `Verdict::Accepted` for
+the attempt in flight unlocks. It locks when linux-desktop asks (`PowerAction::Lock`: the bar's power
+menu, Super+L, idling), and under `--session` on logind's `Lock` for the app's own session
+(`loginctl lock-session`) and before every suspend: `DesktopSession` holds a logind `delay` inhibitor
+for sleep and lets it go once the lock's cover has been drawn twice (`src/session/sleep.rs`), taking it
+again on waking. It sets logind's `LockedHint`. logind's `Unlock` is not obeyed.
+
+While locked, `src/ui/lock.rs`'s `ScreenCover` is a beui `Overlay` with `locks` set over every screen,
+with an opaque background, and inside it one of three things (`src/session/cover.rs`): nothing at
+first; the shell's lock region, once the shell (linux-desktop) has drawn it; or the host's own
+built-in lock screen (`styled::LockCards` with no power buttons), if the shell's plugin has no lock
+region, has stopped, has left a frame unanswered for `HUNG_AFTER`, or has not drawn within
+`DRAW_WITHIN` of the lock. Once the built-in one shows it stays until the screen is unlocked, and
+passwords from the plugin are then ignored, so a misbehaving plugin cannot spend the attempts.
+
+The lock region is `EditorRegion::Lock`, a screen the shell's instance is given only while locked,
+covering every monitor (`use_screens()` in the plugin). linux-desktop draws its look there
+(`src/app/lock.rs`, `BeuiApp::lock_view`): the clock, the date, the user's name, the password
+field, the host's answer and the power buttons the host allows. It reads `ScreenLock` (a
+`LockState`: whether it is locked, the user's name, whether a check is running, how many seconds
+the next attempt must wait, and PAM's error) and sends what was typed as an `UnlockAttempt`
+host action. Super+L is an intercepting action of linux-desktop's, and the idle policy is too: the
+host publishes `Idle` (`lock_due`, true once the session has gone without input, and without an
+idle inhibitor, for the display settings' "Lock the screen after"), and linux-desktop asks for a lock
+when it turns true. `ScreenLock`, `Idle` and `UnlockAttempt` are the shell's alone. While locked
+the host offers neither Lock nor Log out in `Power`.
 
 The password is checked by PAM on a thread of its own, with the service `block-app` when
 `/etc/pam.d/block-app` exists (`--install-session` writes it, as `auth include login`, unless one is
 there) and `login` otherwise. libpam is opened with `dlopen` when a password is checked, so the app
 does not link it. After three wrong passwords each attempt waits, from five seconds doubling up to
 a minute. Anything that goes wrong - no libpam, a PAM error, a check that panics, an answer to an
-earlier attempt - leaves the screen locked; only `Verdict::Accepted` for the attempt in flight
-unlocks it. Under `:dev` the app runs as the VM's user, so that user needs a password
-(`passwd`) for the lock to be tried.
+earlier attempt - leaves the screen locked. Under `:dev` the app runs as the VM's user, so that
+user needs a password (`passwd`) for the right one to be tried.
 
-While it is locked, two things keep input from everything behind it: the lock is a beui
-`Overlay` with `locks` set, which nothing dismisses, which stays above every other overlay and keeps
-the focus and the pointer, and while it is open `Document::key_global` hears only media keys (no other global action, no plugin's
-intercepted chord, no Alt+Tab); and the launcher and app menu are closed. Windows need nothing
-of their own for it: each is a forwarding catcher like a plugin's region, so with the focus and the
-pointer held by the lock none is forwarded anything. `be_wayland::Compositor::set_locked` only lets
-go of the buttons and popups a window held. Screens still
-turn off while locked, and idle inhibitors from the windows behind it are ignored. Media keys
+While it is locked, two things keep input from everything behind it: the cover is a locking
+overlay, which nothing dismisses, which stays above every other overlay and keeps the focus and
+the pointer, and while it is open `Document::key_global` hears only media keys (no other global
+action, no plugin's intercepted chord, no Alt+Tab); and the launcher and app menu are closed.
+Windows and other plugins need nothing of their own for it: each is a forwarding catcher, so with
+the focus and the pointer held by the cover only the lock region inside it is forwarded anything.
+`be_wayland::Compositor::set_locked` only lets go of the buttons and popups a window held. Screens
+still turn off while locked, and idle inhibitors from the windows behind it are ignored. Media keys
 still reach linux-desktop's intercepting media actions (through `compositor/intercept.rs`'s
 `on_global_key`), so volume and playback work over the lock. Notification toasts are left out of
 the host's toasts and can't be acted on while locked; they show again once it is unlocked.
