@@ -6208,7 +6208,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
                 "test_features": [],
             },
             "windows-arm64": {

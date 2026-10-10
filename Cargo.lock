@@ -1261,6 +1261,7 @@ dependencies = [
  "block-editor-plugin",
  "block-plugin-api",
  "block-ui",
+ "serde",
  "serde_json",
  "uuid",
 ]

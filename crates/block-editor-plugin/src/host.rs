@@ -378,6 +378,7 @@ impl Pushed {
 #[derive(Default)]
 struct HostValues {
     values: HashMap<String, Vec<u8>>,
+    revisions: HashMap<String, u64>,
     watched: HashSet<String>,
     unreported: Vec<String>,
     actions: Vec<(String, Vec<u8>)>,
@@ -592,9 +593,19 @@ impl EditorHost {
         if values.values.get(&key) == Some(&bytes) {
             return;
         }
+        *values.revisions.entry(key.clone()).or_default() += 1;
         values.values.insert(key, bytes);
         drop(values);
         self.push(Pushed::HostValues);
+    }
+
+    pub fn host_value_revision(&self, key: &str) -> u64 {
+        self.host_values
+            .borrow()
+            .revisions
+            .get(key)
+            .copied()
+            .unwrap_or_default()
     }
 
     pub(crate) fn take_host_watches(&self) -> Vec<String> {
