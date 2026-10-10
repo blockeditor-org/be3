@@ -1,4 +1,5 @@
 mod arrow;
+mod cursors;
 mod display;
 mod displays;
 mod gpu;
@@ -12,6 +13,7 @@ mod problems;
 mod recovery;
 mod runner;
 mod screen;
+mod theme;
 mod wake;
 
 pub use display::{DisplayConfig, DisplayControl, DisplayMode, Monitor};

@@ -181,7 +181,7 @@ impl Platform for WebPlatform {
     }
 
     fn set_cursor(&mut self, icon: CursorIcon, _touch_emulation: bool) {
-        let _ = self.surface.style().set_property("cursor", cursor(icon));
+        let _ = self.surface.style().set_property("cursor", icon.name());
     }
 
     fn lock_pointer(&mut self, locked: bool) {
@@ -821,27 +821,6 @@ fn pointer_button(button: i16) -> Option<PointerButton> {
     }
 }
 
-fn cursor(icon: CursorIcon) -> &'static str {
-    match icon {
-        CursorIcon::Default => "default",
-        CursorIcon::Crosshair => "crosshair",
-        CursorIcon::Grab => "grab",
-        CursorIcon::Grabbing => "grabbing",
-        CursorIcon::NotAllowed => "not-allowed",
-        CursorIcon::PointingHand => "pointer",
-        CursorIcon::ResizeHorizontal => "ew-resize",
-        CursorIcon::ResizeVertical => "ns-resize",
-        CursorIcon::ResizeNeSw => "nesw-resize",
-        CursorIcon::ResizeNwSe => "nwse-resize",
-        CursorIcon::Text => "text",
-        CursorIcon::Wait => "wait",
-        CursorIcon::None => "none",
-        CursorIcon::Move => "move",
-        CursorIcon::Progress => "progress",
-        CursorIcon::Help => "help",
-        CursorIcon::Alias => "alias",
-    }
-}
 
 fn key(code: &str) -> Option<Key> {
     let key = match code {

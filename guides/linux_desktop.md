@@ -223,6 +223,16 @@ goes to, and `Compositor::after` turns what each window was forwarded into `wl_p
 window (a floating window's tab, say) the window takes nothing (`occluders`, from the region's
 occlusion), and a press keeps going to the window or plugin it began on until it is let go.
 
+Under `--session` the DRM adapter draws the pointer into each output's frame, redrawing only the
+outputs the cursor moved off or onto. beui's `CursorIcon`s (every CSS cursor; `name()` is the CSS
+name) come from the XCursor theme (`XCURSOR_THEME`, `XCURSOR_SIZE`, `XCURSOR_PATH` or the XDG
+icon directories, following `Inherits`), looked up by CSS name and then the old X11 names
+(`cursors.rs`), at the size the scale needs; without a theme the built-in arrow is drawn. Over a
+window, a `wp_cursor_shape_v1` shape becomes the window's `CursorIcon` (`Windows::cursor`, which
+the winit backend shows too), and a `wl_pointer.set_cursor` surface reaches the adapter through
+`beui_adapter_drm::SoftwareCursor` (block-app's `wayland/linux.rs`), redrawn whenever the client
+commits to it; a null cursor hides the pointer.
+
 The compositor pings a window's client when it is clicked, typed into, focused or asked to
 close, and a client that has not answered within `PING_TIMEOUT` (be-wayland's `state.rs`) is listed as
 not responding: its window is dimmed and its tab offers Wait and Force close. Closing a window

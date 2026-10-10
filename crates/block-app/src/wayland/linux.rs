@@ -121,6 +121,7 @@ pub(crate) fn after(context: &Context, document: &mut Document) {
                     size: image.size,
                     hotspot: image.hotspot,
                     opaque: image.opaque,
+                    revision: image.revision,
                 }
             }));
         }
