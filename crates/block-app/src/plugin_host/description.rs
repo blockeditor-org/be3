@@ -21,7 +21,7 @@ pub(crate) fn describe(context: &beui::Context) {
     if !on {
         return;
     }
-    let mut published = HashSet::new();
+    let mut regions = Vec::new();
     runtime::each(|runtime| {
         for ((instance, region), placed) in &runtime.placements {
             if *region != EditorRegion::Frame {
@@ -60,16 +60,27 @@ pub(crate) fn describe(context: &beui::Context) {
                 })
                 .collect();
             let area = placed.rect.intersect(placed.clip);
-            context.publish_accessibility(
+            let test_ids: Vec<(String, Rect)> = description
+                .test_ids
+                .iter()
+                .map(|test_id| (test_id.id.clone(), place(&test_id.rect)))
+                .collect();
+            regions.push((
                 placed.document,
                 embedded(placed.document, runtime.name(), area, &nodes),
-            );
-            for test_id in &description.test_ids {
-                match published.insert(test_id.id.clone()) {
-                    true => context.publish_test_id(&test_id.id, place(&test_id.rect)),
-                    false => context.publish_ambiguous_test_id(&test_id.id),
-                }
-            }
+                test_ids,
+            ));
         }
     });
+    regions.sort_by_key(|(document, _, _)| *document);
+    let mut published = HashSet::new();
+    for (document, fragment, test_ids) in regions {
+        context.publish_accessibility(document, fragment);
+        for (id, rect) in test_ids {
+            match published.insert(id.clone()) {
+                true => context.publish_test_id(&id, rect),
+                false => context.publish_ambiguous_test_id(&id),
+            }
+        }
+    }
 }

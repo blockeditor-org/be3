@@ -60,10 +60,7 @@ fn converse(stream: UnixStream, inbox: &Inbox) -> io::Result<()> {
             Ok(reply) => reply,
             Err(RecvTimeoutError::Timeout) => {
                 cancelled.store(true, Ordering::SeqCst);
-                Reply::Error(format!(
-                    "timed out after {} seconds",
-                    timeout.as_secs_f32()
-                ))
+                Reply::Error(format!("timed out after {} seconds", timeout.as_secs_f32()))
             }
             Err(RecvTimeoutError::Disconnected) => {
                 Reply::Error("the app stopped before it answered".to_owned())
@@ -95,9 +92,13 @@ pub fn read_request(reader: &mut impl BufRead) -> io::Result<Option<(Vec<String>
     Ok(Some((words, Duration::from_millis(timeout))))
 }
 
-pub fn write_request(writer: &mut impl Write, words: &[String], timeout: Duration) -> io::Result<()> {
+pub fn write_request(
+    writer: &mut impl Write,
+    words: &[String],
+    timeout: Duration,
+) -> io::Result<()> {
     let body = words.join("\0");
-    write!(writer, "{} {}\n", body.len(), timeout.as_millis())?;
+    writeln!(writer, "{} {}", body.len(), timeout.as_millis())?;
     writer.write_all(body.as_bytes())?;
     writer.flush()
 }
@@ -105,11 +106,11 @@ pub fn write_request(writer: &mut impl Write, words: &[String], timeout: Duratio
 pub fn write_reply(writer: &mut impl Write, reply: &Reply) -> io::Result<()> {
     match reply {
         Reply::Text(text) => {
-            write!(writer, "text {}\n", text.len())?;
+            writeln!(writer, "text {}", text.len())?;
             writer.write_all(text.as_bytes())?;
         }
         Reply::Error(text) => {
-            write!(writer, "error {}\n", text.len())?;
+            writeln!(writer, "error {}", text.len())?;
             writer.write_all(text.as_bytes())?;
         }
         Reply::Image {
@@ -117,7 +118,7 @@ pub fn write_reply(writer: &mut impl Write, reply: &Reply) -> io::Result<()> {
             height,
             rgba,
         } => {
-            write!(writer, "image {width} {height}\n")?;
+            writeln!(writer, "image {width} {height}")?;
             writer.write_all(rgba)?;
         }
     }

@@ -132,8 +132,8 @@ impl Runner {
             context.set_test_ids_published(true);
             context.set_automated(true);
         }
-        let accessibility = (options.accessibility_tree || automation.is_some())
-            .then(AccessibilityDump::new);
+        let accessibility =
+            (options.accessibility_tree || automation.is_some()).then(AccessibilityDump::new);
         Self {
             app,
             context,

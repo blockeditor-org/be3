@@ -75,7 +75,11 @@ pub fn embedded(document: u32, title: &str, area: Rect, described: &[Described])
     let mut focus = None;
     for (index, entry) in described.iter().enumerate() {
         let slot = index + 1;
-        while parents.len() > 1 && parents.last().is_some_and(|(depth, _)| *depth >= entry.depth + 1) {
+        while parents.len() > 1
+            && parents
+                .last()
+                .is_some_and(|(depth, _)| *depth > entry.depth)
+        {
             parents.pop();
         }
         let parent = parents.last().map_or(0, |(_, slot)| *slot);

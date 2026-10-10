@@ -48,11 +48,7 @@ impl Platform for Quiet {
 fn run(headless: Headless, launch: Launch) -> Result<(), Box<dyn Error>> {
     let width = (headless.size.x * headless.scale).round().max(1.0) as u32;
     let height = (headless.size.y * headless.scale).round().max(1.0) as u32;
-    let renderer = pollster::block_on(OffscreenSurface::new(
-        width,
-        height,
-        headless.open_device,
-    ))?;
+    let renderer = pollster::block_on(OffscreenSurface::new(width, height, headless.open_device))?;
     let mut runner = Runner::new(launch);
     let (sender, receiver) = mpsc::channel();
     let setup = Setup::new(Waker::new(move || {

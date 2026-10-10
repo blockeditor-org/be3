@@ -481,7 +481,8 @@ pub fn read_texture(
     };
     let (width, height) = (texture.width(), texture.height());
     let row = width * 4;
-    let padded = row.div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT) * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+    let padded =
+        row.div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT) * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
     let buffer = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("beui capture"),
         size: u64::from(padded) * u64::from(height),
@@ -522,11 +523,11 @@ pub fn read_texture(
     }
     drop(mapped);
     if swap {
-        for pixel in rgba.chunks_exact_mut(4) {
+        for pixel in rgba.as_chunks_mut::<4>().0 {
             pixel.swap(0, 2);
         }
     }
-    for pixel in rgba.chunks_exact_mut(4) {
+    for pixel in rgba.as_chunks_mut::<4>().0 {
         pixel[3] = 255;
     }
     Some(beui_core::app::automation::Capture {

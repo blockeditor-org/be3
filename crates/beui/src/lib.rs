@@ -4,10 +4,10 @@ extern crate self as beui;
 use std::error::Error;
 
 pub use accesskit;
-pub use beui_core::accessibility;
 pub use beui_components_styled as styled;
 pub use beui_components_unstyled as unstyled;
 pub use beui_components_unstyled::datetime;
+pub use beui_core::accessibility;
 pub use beui_core::app::automation;
 pub use beui_core::app::{App, Setup, Waker};
 pub use beui_core::base::{
@@ -119,8 +119,8 @@ pub fn run(title: impl Into<String>, app: impl App + 'static) -> Result<(), Box<
 
 #[cfg(test)]
 use beui_core::{
-    base, color, context, damage, draw, drawing, filter, flash, font, geometry,
-    image, input, interact, node, painter, screen_simulation, sight,
+    base, color, context, damage, draw, drawing, filter, flash, font, geometry, image, input,
+    interact, node, painter, screen_simulation, sight,
 };
 #[cfg(test)]
 use beui_inspector::{self as inspector, mouse_simulation};

@@ -33,9 +33,9 @@ pub use block_plugin_api::{
     NotificationRequest, NotificationSignal, NotificationUrgency, Notifications, Occluder,
     PlayerCommand, PointerButton, Power, PowerAction, PowerAvailability, ProgramAction, Programs,
     ResizeMode, ScreenLocked, ScreenPlacement, SettingsProgress, ShellDialog, SurfaceRect,
-    TemplateCategory, TemplateDescriptor, Toggled, TopBar, TouchPhase, VersionBranch, VersionChange,
-    VersionChangeKind, VersionCommand, VersionCommit, VersionStatus, ViewChange, WebViewCommand,
-    WebViewEvent, WebViewId, WheelUnit, WindowAction,
+    TemplateCategory, TemplateDescriptor, Toggled, TopBar, TouchPhase, VersionBranch,
+    VersionChange, VersionChangeKind, VersionCommand, VersionCommit, VersionStatus, ViewChange,
+    WebViewCommand, WebViewEvent, WebViewId, WheelUnit, WindowAction,
 };
 pub use block_ui;
 pub use clock::{frame_time, pin_wall_clock, utc_offset, wall_clock};

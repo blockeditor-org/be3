@@ -31,7 +31,8 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
         }
     }
     let dir = directory()?;
-    fs::create_dir_all(&dir).map_err(|error| format!("could not create {}: {error}", dir.display()))?;
+    fs::create_dir_all(&dir)
+        .map_err(|error| format!("could not create {}: {error}", dir.display()))?;
     stop_app(&dir.join("app.pid"));
     if stop {
         println!("Stopped the app.");
@@ -99,7 +100,10 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
         format!(
             "export BE_DRIVE_SOCKET={}\nexport PATH={}:\"$PATH\"\n",
             socket.display(),
-            drive.parent().map_or_else(PathBuf::new, Path::to_path_buf).display(),
+            drive
+                .parent()
+                .map_or_else(PathBuf::new, Path::to_path_buf)
+                .display(),
         ),
     )
     .map_err(|error| format!("could not write {}: {error}", env.display()))?;

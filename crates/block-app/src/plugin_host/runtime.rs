@@ -943,12 +943,7 @@ pub(crate) fn settle() {
 }
 
 pub(crate) fn busy() -> bool {
-    HOST.with(|host| {
-        host.borrow_mut()
-            .runtimes
-            .values_mut()
-            .any(Runtime::busy)
-    })
+    HOST.with(|host| host.borrow_mut().runtimes.values_mut().any(Runtime::busy))
 }
 
 pub(crate) fn start_frames() {

@@ -123,7 +123,10 @@ struct InboxState {
 impl Inbox {
     pub fn send(&self, request: Request) {
         let waker = {
-            let mut state = self.inner.lock().unwrap_or_else(|poison| poison.into_inner());
+            let mut state = self
+                .inner
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner());
             state.requests.push_back(request);
             state.waker.clone()
         };
@@ -134,7 +137,10 @@ impl Inbox {
 
     pub fn set_waker(&self, waker: Waker) {
         let pending = {
-            let mut state = self.inner.lock().unwrap_or_else(|poison| poison.into_inner());
+            let mut state = self
+                .inner
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner());
             state.waker = Some(waker.clone());
             !state.requests.is_empty()
         };
@@ -379,7 +385,9 @@ impl Automation {
                     Some("right") => (PointerButton::Secondary, 1),
                     Some("middle") => (PointerButton::Middle, 1),
                     Some("double") => (PointerButton::Primary, 2),
-                    Some(other) => return Err(format!("click takes right, middle or double, not {other}")),
+                    Some(other) => {
+                        return Err(format!("click takes right, middle or double, not {other}"));
+                    }
                 };
                 self.pointer = at;
                 let mut steps = Vec::new();
@@ -528,30 +536,25 @@ fn locate(target: &str, view: &View<'_>) -> Result<Rect, String> {
     {
         return Ok(Rect::from_min_size(pos2(x, y), Vec2::ZERO));
     }
-    let found: Vec<&Line> = view
-        .lines
-        .iter()
-        .filter(|line| line.text.contains(target))
+    let found: Vec<usize> = (0..view.lines.len())
+        .filter(|index| view.lines[*index].text.contains(target))
         .collect();
-    let line = match found.as_slice() {
-        [] => return Err(format!("no line of the tree contains {target:?}; `tree` prints it")),
-        [line] => *line,
-        _ => {
-            let shown: Vec<&&Line> = found.iter().filter(|line| line.visible).collect();
-            match shown.as_slice() {
-                [line] => **line,
-                _ => {
-                    let mut message =
-                        format!("{} lines of the tree contain {target:?}:\n", found.len());
-                    for line in &found {
-                        message.push_str("  ");
-                        message.push_str(&line.text);
-                        message.push('\n');
-                    }
-                    message.push_str("name one of them more closely, or use #TEST_ID or X,Y");
-                    return Err(message);
-                }
+    let line = match pick(view.lines, &found) {
+        Some(index) => &view.lines[index],
+        None if found.is_empty() => {
+            return Err(format!(
+                "no line of the tree contains {target:?}; `tree` prints it"
+            ));
+        }
+        None => {
+            let mut message = format!("{} lines of the tree contain {target:?}:\n", found.len());
+            for index in &found {
+                message.push_str("  ");
+                message.push_str(&view.lines[*index].text);
+                message.push('\n');
             }
+            message.push_str("name one of them more closely, or use #TEST_ID or X,Y");
+            return Err(message);
         }
     };
     let rect = line
@@ -561,6 +564,26 @@ fn locate(target: &str, view: &View<'_>) -> Result<Rect, String> {
         return Err(format!("{:?} is scrolled out of view", line.text));
     }
     Ok(rect)
+}
+
+fn pick(lines: &[Line], found: &[usize]) -> Option<usize> {
+    let within = |candidates: &[usize]| {
+        let first = *candidates.first()?;
+        let depth = lines[first].depth;
+        let end = lines[first + 1..]
+            .iter()
+            .position(|line| line.depth <= depth)
+            .map_or(lines.len(), |offset| first + 1 + offset);
+        candidates.iter().all(|index| *index < end).then_some(first)
+    };
+    within(found).or_else(|| {
+        let shown: Vec<usize> = found
+            .iter()
+            .copied()
+            .filter(|index| lines[*index].visible)
+            .collect();
+        within(&shown)
+    })
 }
 
 fn point(target: &str, view: &View<'_>) -> Result<Pos2, String> {
@@ -605,11 +628,7 @@ const DIFF_LIMIT: usize = 4000;
 pub fn changes(before: &str, after: &str) -> String {
     let old: Vec<&str> = before.lines().collect();
     let new: Vec<&str> = after.lines().collect();
-    let prefix = old
-        .iter()
-        .zip(&new)
-        .take_while(|(a, b)| a == b)
-        .count();
+    let prefix = old.iter().zip(&new).take_while(|(a, b)| a == b).count();
     let suffix = old[prefix..]
         .iter()
         .rev()
@@ -651,18 +670,18 @@ pub fn changes(before: &str, after: &str) -> String {
         if i < old.len() && j < new.len() && old[i] == new[j] {
             i += 1;
             j += 1;
-        } else if j < new.len()
-            && (i == old.len() || common[i * width + j + 1] >= common[(i + 1) * width + j])
+        } else if i < old.len()
+            && (j == new.len() || common[(i + 1) * width + j] >= common[i * width + j + 1])
         {
-            text.push_str("+ ");
-            text.push_str(new[j]);
-            text.push('\n');
-            j += 1;
-        } else {
             text.push_str("- ");
             text.push_str(old[i]);
             text.push('\n');
             i += 1;
+        } else {
+            text.push_str("+ ");
+            text.push_str(new[j]);
+            text.push('\n');
+            j += 1;
         }
     }
     text

@@ -126,7 +126,11 @@ pub fn run() -> Result<(), Box<dyn Error>> {
         };
         return beui::run_on(Box::new(headless), options, Shell::new(app));
     }
-    run_shell(options, Shell::new(app), matches!(display, Display::Session))
+    run_shell(
+        options,
+        Shell::new(app),
+        matches!(display, Display::Session),
+    )
 }
 
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
@@ -139,7 +143,10 @@ enum Display {
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 fn headless_size(text: &str) -> Option<(beui::Vec2, f32)> {
     let (size, scale) = match text.split_once('@') {
-        Some((size, scale)) => (size, scale.parse::<f32>().ok().filter(|scale| *scale > 0.0)?),
+        Some((size, scale)) => (
+            size,
+            scale.parse::<f32>().ok().filter(|scale| *scale > 0.0)?,
+        ),
         None => (text, 1.0),
     };
     let (width, height) = size.split_once('x')?;

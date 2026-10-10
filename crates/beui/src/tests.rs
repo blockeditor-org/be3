@@ -67,6 +67,8 @@ mod a_drag_preview_follows_the_pointer_until_the_drop;
 mod a_drag_whose_moves_share_a_frame_with_its_press_and_release_keeps_both_ends;
 mod a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given;
 mod a_drawing_repaints_on_its_deadline_without_repeating_layout;
+mod a_driver_clicks_a_button_by_its_label_and_hears_what_changed;
+mod a_driver_types_into_a_field_found_by_its_test_id;
 mod a_drop_the_dock_would_refuse_draws_no_drop_marker;
 mod a_dynamic_child_can_fill_its_available_height;
 mod a_file_picker_hands_the_chosen_file_to_its_callback_without_waiting_for_it;
@@ -147,6 +149,7 @@ mod a_picture_given_a_source_paints_only_that_part_of_the_image;
 mod a_picture_paints_the_image_it_is_given;
 mod a_picture_scaled_down_never_grows_past_its_own_pixels;
 mod a_picture_shows_its_thumbhash_until_the_image_arrives;
+mod a_plugin_description_reads_as_a_pane_under_the_window;
 mod a_pointer_lock_lets_go_when_the_window_loses_focus;
 mod a_pointer_lock_reports_motion_only_while_it_holds_the_pointer;
 mod a_popover_panel_stops_at_its_max_width_rather_than_spanning_the_window;
@@ -1938,4 +1941,111 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
     harness.frame(Vec::new());
     harness.key(Key::Enter, Modifiers::NONE);
     assert_eq!(*heard.borrow(), ["close", "run true"]);
+}
+
+pub(crate) struct Driven {
+    runner: beui_core::runner::Runner,
+    inbox: beui_core::app::automation::Inbox,
+}
+
+struct DrivenScreen;
+
+impl beui_core::renderer::Renderer for DrivenScreen {
+    fn name(&self) -> &'static str {
+        "screen"
+    }
+
+    fn info(&self) -> RendererInfo {
+        RendererInfo::default()
+    }
+
+    fn resize(&mut self, _width: u32, _height: u32) {}
+
+    fn physical(&self) -> Option<Vec2> {
+        Some(VIEWPORT)
+    }
+
+    fn prepare(&mut self, output: &FrameOutput, _scale: f32, _background: Color32) -> bool {
+        output.changed
+    }
+
+    fn present(&mut self, _background: Color32) -> bool {
+        false
+    }
+}
+
+struct DrivenPlatform;
+
+impl beui_core::runner::Platform for DrivenPlatform {
+    fn copy(&mut self, _text: String) {}
+
+    fn paste(&mut self) -> Option<String> {
+        None
+    }
+
+    fn pick_file(&mut self, _request: FilePickRequest) {}
+}
+
+struct DrivenDocument(Document);
+
+impl App for DrivenDocument {
+    fn update(&mut self, context: &Context, rect: Rect) {
+        self.0.show(context, rect);
+    }
+}
+
+impl Driven {
+    pub(crate) fn new(document: Document) -> Self {
+        let inbox = beui_core::app::automation::Inbox::default();
+        let mut options = beui_core::runner::RunOptions::new("Driven");
+        options.automation = Some(inbox.clone());
+        let mut runner = beui_core::runner::Runner::new(beui_core::runner::Launch {
+            options,
+            context: context(),
+            app: Box::new(DrivenDocument(document)),
+        });
+        runner
+            .start(
+                vec![beui_core::renderer::Loaded {
+                    renderer: Box::new(DrivenScreen),
+                    fonts: None,
+                }],
+                Setup::new(Waker::new(|| {})),
+            )
+            .expect("the screen loads");
+        runner.context().stop_clock();
+        let mut driven = Self { runner, inbox };
+        driven.frame();
+        driven
+    }
+
+    fn frame(&mut self) {
+        self.runner
+            .context()
+            .advance_clock(Duration::from_micros(16_667));
+        self.runner.frame(
+            &mut DrivenPlatform,
+            1.0,
+            beui_core::app::SafeArea::default(),
+        );
+    }
+
+    pub(crate) fn ask(&mut self, words: &[&str]) -> Result<String, String> {
+        use beui_core::app::automation::{Reply, ask};
+        use std::future::Future;
+        let owned = words.iter().map(|word| (*word).to_owned()).collect();
+        let mut answered = std::pin::pin!(ask(&self.inbox, owned));
+        let mut waiting = std::task::Context::from_waker(std::task::Waker::noop());
+        for _ in 0..600 {
+            self.frame();
+            if let std::task::Poll::Ready(reply) = answered.as_mut().poll(&mut waiting) {
+                return match reply {
+                    Reply::Text(text) => Ok(text),
+                    Reply::Error(error) => Err(error),
+                    Reply::Image { .. } => Err("an image".to_owned()),
+                };
+            }
+        }
+        panic!("the app never answered {words:?}");
+    }
 }
