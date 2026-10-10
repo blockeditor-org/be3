@@ -4,15 +4,22 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const ENTRY: &str = include_str!("block-app.desktop");
-const PAM: &str = include_str!("block-app.pam");
 const PAM_DIR: &str = super::pam::DIR;
 const EXECUTABLE: &str = "block-app";
 const DEFAULT_PREFIX: &str = "/usr/local";
+const SESSIONS: &str = "usr/share/wayland-sessions";
+const LIGHTDM_CONFIGS: [&str; 4] = [
+    "usr/share/lightdm/lightdm.conf.d",
+    "usr/local/share/lightdm/lightdm.conf.d",
+    "etc/xdg/lightdm/lightdm.conf.d",
+    "etc/lightdm/lightdm.conf.d",
+];
+const LIGHTDM_CONFIG: &str = "etc/lightdm/lightdm.conf";
 
 pub(crate) struct Installed {
     pub(crate) home: PathBuf,
     pub(crate) link: PathBuf,
-    pub(crate) entry: PathBuf,
+    pub(crate) entries: Vec<PathBuf>,
 }
 
 pub(crate) fn install(prefix: Option<&str>) -> Result<(), Box<dyn Error>> {
@@ -24,13 +31,18 @@ pub(crate) fn install(prefix: Option<&str>) -> Result<(), Box<dyn Error>> {
     let source = executable
         .parent()
         .ok_or("the app's directory is unknown")?;
-    match place(source, &prefix) {
+    match place(source, &prefix, &session_dirs(Path::new("/"))) {
         Ok(installed) => {
+            let entries: Vec<String> = installed
+                .entries
+                .iter()
+                .map(|entry| entry.display().to_string())
+                .collect();
             println!(
                 "Installed the app in {}, linked it from {} and added the session {}.",
                 installed.home.display(),
                 installed.link.display(),
-                installed.entry.display()
+                entries.join(" and ")
             );
             match place_pam(Path::new(PAM_DIR)) {
                 Ok(Some(service)) => {
@@ -70,12 +82,64 @@ fn root() -> bool {
     unsafe { libc::geteuid() == 0 }
 }
 
-pub(crate) fn place(source: &Path, prefix: &Path) -> io::Result<Installed> {
+pub(crate) fn session_dirs(root: &Path) -> Vec<PathBuf> {
+    let standard = root.join(SESSIONS);
+    let mut dirs = vec![standard.clone()];
+    let Some(configured) = lightdm_sessions(root) else {
+        return dirs;
+    };
+    let configured: Vec<PathBuf> = configured
+        .split(':')
+        .map(str::trim)
+        .filter(|dir| dir.starts_with('/'))
+        .map(|dir| root.join(dir.trim_start_matches('/')))
+        .collect();
+    if !configured.contains(&standard)
+        && let Some(first) = configured.into_iter().next()
+    {
+        dirs.push(first);
+    }
+    dirs
+}
+
+fn lightdm_sessions(root: &Path) -> Option<String> {
+    let mut files = Vec::new();
+    for dir in LIGHTDM_CONFIGS {
+        let Ok(entries) = std::fs::read_dir(root.join(dir)) else {
+            continue;
+        };
+        let mut found: Vec<PathBuf> = entries
+            .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+            .filter(|path| path.extension().is_some_and(|extension| extension == "conf"))
+            .collect();
+        found.sort();
+        files.extend(found);
+    }
+    files.push(root.join(LIGHTDM_CONFIG));
+    let mut sessions = None;
+    for file in files {
+        let Ok(text) = std::fs::read_to_string(file) else {
+            continue;
+        };
+        let mut section = String::new();
+        for line in text.lines().map(str::trim) {
+            if let Some(name) = line.strip_prefix('[').and_then(|line| line.strip_suffix(']')) {
+                section = name.trim().to_owned();
+            } else if section == "LightDM"
+                && let Some((key, value)) = line.split_once('=')
+                && key.trim() == "sessions-directory"
+            {
+                sessions = Some(value.trim().to_owned());
+            }
+        }
+    }
+    sessions
+}
+
+pub(crate) fn place(source: &Path, prefix: &Path, sessions: &[PathBuf]) -> io::Result<Installed> {
     let home = prefix.join("lib").join(EXECUTABLE);
     let link = prefix.join("bin").join(EXECUTABLE);
-    let entry = prefix
-        .join("share/wayland-sessions")
-        .join(format!("{EXECUTABLE}.desktop"));
+    let name = format!("{EXECUTABLE}.desktop");
     if !source.join(EXECUTABLE).is_file() {
         return Err(io::Error::other(format!(
             "{} has no {EXECUTABLE} to install",
@@ -98,11 +162,22 @@ pub(crate) fn place(source: &Path, prefix: &Path) -> io::Result<Installed> {
         std::fs::remove_file(&link)?;
     }
     std::os::unix::fs::symlink(&installed, &link)?;
-    if let Some(sessions) = entry.parent() {
-        std::fs::create_dir_all(sessions)?;
+    let mut entries = Vec::new();
+    for dir in sessions {
+        std::fs::create_dir_all(dir)?;
+        let entry = dir.join(&name);
+        std::fs::write(&entry, session_entry(&installed))?;
+        entries.push(entry);
     }
-    std::fs::write(&entry, session_entry(&installed))?;
-    Ok(Installed { home, link, entry })
+    let old = prefix.join("share/wayland-sessions");
+    if !sessions.contains(&old) && old.join(&name).is_file() {
+        std::fs::remove_file(old.join(&name))?;
+    }
+    Ok(Installed {
+        home,
+        link,
+        entries,
+    })
 }
 
 pub(crate) fn place_pam(dir: &Path) -> io::Result<Option<PathBuf>> {
@@ -110,8 +185,16 @@ pub(crate) fn place_pam(dir: &Path) -> io::Result<Option<PathBuf>> {
     if !dir.is_dir() || service.exists() {
         return Ok(None);
     }
-    std::fs::write(&service, PAM)?;
+    std::fs::write(&service, pam_service(dir))?;
     Ok(Some(service))
+}
+
+pub(crate) fn pam_service(dir: &Path) -> String {
+    let base = match dir.join("common-auth").is_file() {
+        true => "common-auth",
+        false => super::pam::FALLBACK_SERVICE,
+    };
+    format!("auth include {base}\n")
 }
 
 fn replace_tree(source: &Path, home: &Path) -> io::Result<()> {
