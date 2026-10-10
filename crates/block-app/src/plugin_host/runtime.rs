@@ -8,10 +8,10 @@ use std::{
 
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
-    ArtifactDescription, BlockPick, ChildRect, EditorInstanceId, EditorMessage, EditorRegion, FrameSpec,
-    HostAction, HostPanel, HostSession, HostValue, MAX_QUEUED_MESSAGES, Message, Monitor, PluginManifest,
-    PresentedFrame, ScreenDamage, ScreenId, ScreenLayout, ScreenRequest, SessionState,
-    SurfaceFormat, SurfaceSpec, Theme, ViewChange, decode_host, encode_host,
+    ArtifactDescription, BlockPick, ChildRect, EditorInstanceId, EditorMessage, EditorRegion,
+    FrameSpec, HostAction, HostPanel, HostSession, HostValue, MAX_QUEUED_MESSAGES, Message,
+    Monitor, PluginManifest, PresentedFrame, ScreenDamage, ScreenId, ScreenLayout, ScreenRequest,
+    SessionState, SurfaceFormat, SurfaceSpec, Theme, ViewChange, decode_host, encode_host,
 };
 use uuid::Uuid;
 
