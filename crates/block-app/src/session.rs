@@ -13,8 +13,8 @@ use std::time::Duration;
 
 use block_plugin_api::{PowerAction, PowerAvailability};
 
-pub(crate) use cover::{Cover, PluginLock};
 use cover::CoverChoice;
+pub(crate) use cover::{Cover, PluginLock};
 
 use crate::host::{WakingSender, waking_channel};
 pub(crate) use install::install;

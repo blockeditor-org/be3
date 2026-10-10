@@ -85,9 +85,13 @@ fn a_locking_overlay_forwards_input_only_to_the_catcher_inside_it() {
         .collect();
     assert_eq!(typed, "hunter2", "and the typing");
     assert!(
-        heard
-            .iter()
-            .any(|event| matches!(event, Event::Key { key: Key::Escape, .. })),
+        heard.iter().any(|event| matches!(
+            event,
+            Event::Key {
+                key: Key::Escape,
+                ..
+            }
+        )),
         "and Escape, which the lock keeps for itself: {heard:?}"
     );
 }

@@ -67,9 +67,7 @@ impl CoverChoice {
         if self.fallen_back {
             return (Cover::Fallback, None);
         }
-        let until_hung = plugin
-            .unanswered
-            .map(|unanswered| HUNG_AFTER - unanswered);
+        let until_hung = plugin.unanswered.map(|unanswered| HUNG_AFTER - unanswered);
         match plugin.drawn {
             true => (Cover::Plugin, until_hung),
             false => {

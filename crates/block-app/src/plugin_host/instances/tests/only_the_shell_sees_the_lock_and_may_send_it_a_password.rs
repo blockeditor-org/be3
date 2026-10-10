@@ -21,7 +21,10 @@ fn only_the_shell_sees_the_lock_and_may_send_it_a_password() {
         !publish::<ScreenLock>(&mut instances, &locked),
         "an editor that is not the shell is not told about the lock"
     );
-    assert!(!publish::<Idle>(&mut instances, &IdleState { lock_due: true }));
+    assert!(!publish::<Idle>(
+        &mut instances,
+        &IdleState { lock_due: true }
+    ));
     assert!(host_values_sent::<ScreenLock>(&instances.next_screens(PASS).opened).is_empty());
     assert!(
         !act(&mut instances, &attempt),

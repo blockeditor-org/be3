@@ -47,7 +47,8 @@ pub(crate) fn ScreenCover(view: AppViewStore) -> NodeId {
     let desktop = create_memo(clone!(cover -> move || cover.get() == LockCover::Desktop));
     let built_in = create_memo(clone!(cover -> move || cover.get() == LockCover::BuiltIn));
     let screens = use_screens();
-    let bounds = create_memo(clone!(screens -> move || screens.with(|screens| screen_bounds(screens))));
+    let bounds =
+        create_memo(clone!(screens -> move || screens.with(|screens| screen_bounds(screens))));
     let anchor = create_memo(clone!(bounds -> move || OverlayAnchor::Point(bounds.get().min)));
     let width = create_memo(clone!(bounds -> move || Some(bounds.get().width())));
     let height = create_memo(clone!(bounds -> move || Some(bounds.get().height())));
@@ -61,18 +62,18 @@ pub(crate) fn ScreenCover(view: AppViewStore) -> NodeId {
         >
             <Frame width={width} height={height} color={theme.background.clone()}>
                 <Layers>
-                <Show condition={open}>
-                    {move || clone!(desktop built_in view -> view! {
-                        <Layers>
-                            <LockSurface shown={desktop} />
-                            <Show condition={built_in}>
-                                {move || clone!(view -> view! {
-                                    <BuiltInLock view />
-                                })}
-                            </Show>
-                        </Layers>
-                    })}
-                </Show>
+                    <Show condition={open}>
+                        {move || clone!(desktop built_in view -> view! {
+                            <Layers>
+                                <LockSurface shown={desktop} />
+                                <Show condition={built_in}>
+                                    {move || clone!(view -> view! {
+                                        <BuiltInLock view />
+                                    })}
+                                </Show>
+                            </Layers>
+                        })}
+                    </Show>
                 </Layers>
             </Frame>
         </Overlay>

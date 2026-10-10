@@ -56,7 +56,9 @@ impl LockState {
     pub(crate) fn message(&self) -> Option<String> {
         match self.retry_in_seconds() {
             Some(1) => Some("Too many attempts. Try again in 1 second.".to_owned()),
-            Some(seconds) => Some(format!("Too many attempts. Try again in {seconds} seconds.")),
+            Some(seconds) => Some(format!(
+                "Too many attempts. Try again in {seconds} seconds."
+            )),
             None => self.error.clone(),
         }
     }
