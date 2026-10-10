@@ -28,6 +28,7 @@ pub const MAX_BLOB_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_OPAQUE_DESCRIPTOR_BYTES: usize = 64 * 1024;
 pub const MAX_QUEUED_MESSAGES: usize = 256;
 pub const MAX_CHILDREN: usize = 256;
+pub const MAX_DESCRIBED_NODES: usize = 16 * 1024;
 pub const MAX_LISTED_BLOCKS: usize = 16 * 1024;
 pub const REQUEST_TIMEOUT_MILLISECONDS: u64 = 5_000;
 
@@ -101,6 +102,38 @@ pub struct FrameReport {
     pub handles_back: bool,
     pub wants_keyboard: bool,
     pub intercepted_keys: Vec<KeyChord>,
+    pub description: Option<Description>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Description {
+    pub nodes: Vec<DescribedNode>,
+    pub test_ids: Vec<TestIdRect>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DescribedNode {
+    pub depth: u16,
+    pub role: String,
+    pub label: String,
+    pub value: String,
+    pub toggled: Option<Toggled>,
+    pub disabled: bool,
+    pub focused: bool,
+    pub rect: Option<ChildRect>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Toggled {
+    Off,
+    On,
+    Mixed,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct TestIdRect {
+    pub id: String,
+    pub rect: ChildRect,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1638,6 +1671,7 @@ pub enum Message {
     BlockTypes(Catalog),
     Children(ChildPlacements),
     ChildStatuses(Vec<ChildStatus>),
+    Describe(bool),
 }
 
 impl Message {
@@ -1673,7 +1707,8 @@ impl Message {
             | Self::DrawFrame { .. }
             | Self::Shutdown
             | Self::BlockTypes(_)
-            | Self::ChildStatuses(_) => Direction::ToPlugin,
+            | Self::ChildStatuses(_)
+            | Self::Describe(_) => Direction::ToPlugin,
             Self::Hello(_)
             | Self::Acknowledged { .. }
             | Self::ShutdownAcknowledged
@@ -2399,6 +2434,9 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
                 collection(report.floating.len())?;
                 collection(report.claims.len())?;
                 collection(report.intercepted_keys.len())?;
+                if let Some(description) = &report.description {
+                    described(description)?;
+                }
             }
             Ok(())
         }
@@ -2454,6 +2492,22 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
         }
         _ => Ok(()),
     }
+}
+
+fn described(description: &Description) -> Result<(), DecodeError> {
+    if description.nodes.len() > MAX_DESCRIBED_NODES {
+        return Err(DecodeError::LimitExceeded("described nodes"));
+    }
+    collection(description.test_ids.len())?;
+    for node in &description.nodes {
+        string(&node.role)?;
+        string(&node.label)?;
+        string(&node.value)?;
+    }
+    for test_id in &description.test_ids {
+        string(&test_id.id)?;
+    }
+    Ok(())
 }
 
 fn block_filter(filter: &BlockFilter) -> Result<(), DecodeError> {

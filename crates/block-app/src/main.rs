@@ -106,8 +106,6 @@ pub fn run() -> Result<(), Box<dyn Error>> {
         } else if cfg!(target_os = "linux") && (argument == "--session" || argument == "--desktop")
         {
             app.run_as_desktop();
-        } else if let Some(path) = argument.strip_prefix("--accessibility-tree=") {
-            options.accessibility_dump = Some(PathBuf::from(path));
         } else if let Some(path) = argument.strip_prefix("--automation=") {
             options.automation = Some(automation(path)?);
         } else if argument == "--headless" {
@@ -216,7 +214,11 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
     if page.search_params().has("dev-workspace") {
         app.open_dev_workspace(Some(location.origin()?));
     }
-    options.accessibility_tree = page.search_params().has("accessibility-tree");
+    if page.search_params().has("automation") {
+        let inbox = beui::automation::Inbox::default();
+        AUTOMATION.with(|automation| *automation.borrow_mut() = Some(inbox.clone()));
+        options.automation = Some(inbox);
+    }
     beui::run_web(
         &canvas_id,
         vec![beui::WebRenderer::Wgpu],
@@ -228,9 +230,42 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
 }
 
 #[cfg(target_arch = "wasm32")]
+thread_local! {
+    static AUTOMATION: std::cell::RefCell<Option<beui::automation::Inbox>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen::prelude::wasm_bindgen]
-pub fn accessibility_tree() -> Option<String> {
-    beui::accessibility_tree()
+pub async fn automate(
+    words: Vec<String>,
+    timeout_milliseconds: i32,
+) -> Result<String, wasm_bindgen::JsValue> {
+    use wasm_bindgen::JsCast;
+    let inbox = AUTOMATION
+        .with(|automation| automation.borrow().clone())
+        .ok_or("the page was not opened with ?automation")?;
+    let answered = beui::automation::ask(&inbox, words);
+    let canceller = answered.canceller();
+    let late = wasm_bindgen::closure::Closure::once_into_js(move || {
+        canceller.cancel(format!(
+            "timed out after {} seconds",
+            f64::from(timeout_milliseconds) / 1000.0
+        ));
+    });
+    web_sys::window()
+        .ok_or("no browser window is available")?
+        .set_timeout_with_callback_and_timeout_and_arguments_0(
+            late.unchecked_ref(),
+            timeout_milliseconds,
+        )?;
+    match answered.await {
+        beui::automation::Reply::Text(text) => Ok(text),
+        beui::automation::Reply::Error(error) => Err(error.into()),
+        beui::automation::Reply::Image { .. } => {
+            Err("the browser takes screenshots itself: use drive shot".into())
+        }
+    }
 }
 
 #[cfg(target_os = "android")]
@@ -343,6 +378,7 @@ impl beui::App for Shell {
             self.document.theme().background,
         );
         self.document.show(context, rect);
+        plugin_host::describe(context);
         #[cfg(target_os = "linux")]
         if let Some(lock) = &mut self.app.screen_lock {
             lock.note_drawn(self.document.locked());
@@ -365,7 +401,7 @@ impl beui::App for Shell {
     }
 
     fn busy(&self) -> bool {
-        plugin_host::busy()
+        self.app.busy() || plugin_host::busy()
     }
 
     fn close_requested(&mut self) -> bool {
@@ -784,6 +820,14 @@ impl BlockApp {
         if let Some(levels) = media.frame() {
             plugin_host::publish::<block_plugin_api::Media>(&levels);
         }
+    }
+
+    fn busy(&self) -> bool {
+        self.pending_account_request.is_some()
+            || self.pending_workspace_request.is_some()
+            || !self.pending_transfers.is_empty()
+            || !self.pending_copies.is_empty()
+            || (self.dev_workspace && self.workspace.is_none())
     }
 
     #[cfg(not(target_os = "android"))]

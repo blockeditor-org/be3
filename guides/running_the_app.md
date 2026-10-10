@@ -1,30 +1,32 @@
 # Running the app
 
-To see a change working in the real app, start it in a virtual display and drive it with
-xdotool:
+To see a change working in the real app, start it headless and drive it with `drive`:
 
     ./scripts/buck run //crates/block-app:dev
     source ~/.cache/be3/dev/env
 
-The command builds the app with every plugin, starts Xvfb on `:99` unless an X server already
-answers there (clearing a lock or pid file a restart left behind), starts the app in it and returns once its window is up. The app is signed in to an
-account on its embedded server with a workspace called Dev open, so there is no account or
-workspace to make first. Its data lives in `~/.cache/be3/dev/data` and survives restarts,
-so running the command again restarts the app on the same workspace, which is how to pick
-up a rebuild. `-- --fresh` deletes the data first, and `-- --stop` stops the app and Xvfb.
-`-- --desktop` runs the desktop shell instead of the workspace (see `--desktop` below); it
-combines with `--fresh`.
-`BLOCK_DEV_DIR` and `BLOCK_DEV_DISPLAY` move the directory and the display, for running two
-at once.
+The command builds the app with every plugin, starts it with no window and returns once it
+has settled: signed in to an account on its embedded server, with a workspace called Dev open,
+so there is no account or workspace to make first. Its data lives in `~/.cache/be3/dev/data`
+and survives restarts, so running the command again restarts the app on the same workspace,
+which is how to pick up a rebuild. `-- --fresh` deletes the data first, `-- --stop` stops the
+app, `-- --size=WIDTHxHEIGHT[@SCALE]` sets the screen (1100x720 by default) and `-- --desktop`
+runs the desktop shell instead of the workspace (see `--desktop` below); they combine.
+`BLOCK_DEV_DIR` moves the directory, for running two at once. The launcher is `be-drive
+launch` (crates/be-drive); the app's output goes to `~/.cache/be3/dev/app.log`.
 
-`env` exports `DISPLAY`, `WINDOW` (the app's X window id) and `TREE`. The app's output goes
-to `~/.cache/be3/dev/app.log`.
+`env` puts `drive` on `PATH`, pointed at the app's automation socket. `drive help` lists
+the commands; `drive tree` prints what is on screen and `drive click '"Create"'` clicks it.
 
 What the launcher passes the app is available to any native run:
 - `--dev-workspace`: sign in to the first local account, registering `dev@localhost` with
   the password `dev-password` if there is none, save a recovery phrase without asking, and
   open the last workspace, or the first one, or a new one called Dev.
-- `--accessibility-tree=PATH`: write the accessibility tree to PATH (see below).
+- `--headless[=WIDTHxHEIGHT[@SCALE]]`: draw offscreen with wgpu (`beui::Headless`) instead of
+  in a window, needing no display server. It has no clipboard but its own and no file dialog.
+- `--automation=PATH`: answer `drive` on the Unix socket PATH (see Driving the app). It works
+  with a window too, for a bug that only shows with winit: give `drive --socket=PATH` the
+  same path. Screenshots then need a surface that can be copied from.
 - `--session` (Linux): run on the displays and input devices themselves through
   `beui-adapter-drm` instead of in a window, from a virtual terminal with no other display
   server on it, as the desktop: the shell is linux-desktop instead of workspace-ui, on a
@@ -163,11 +165,9 @@ the levels back. The backends run as tasks on the D-Bus thread:
 - `media/players.rs`: play/pause, next, previous and stop to the MPRIS player that most
   recently started playing, or the first one listed, on the session bus.
 
-A desktop the window is nested in usually takes these keys first; to try them under
-`:dev -- --desktop`, run `pipewire`, `wireplumber` and `pipewire-pulse` with `XDG_RUNTIME_DIR`
-and `DBUS_SESSION_BUS_ADDRESS` set for the app, and press them with
-`xdotool key --window $WINDOW XF86AudioRaiseVolume` (or `XF86AudioMicMute`, `XF86AudioPlay`,
-...).
+To try them under `:dev -- --desktop`, run `pipewire`, `wireplumber` and `pipewire-pulse`
+with `XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` set for the app, and press them with
+`drive key volumeup` (or `micmute`, `play`, ...).
 
 ## The lock screen
 
@@ -223,7 +223,7 @@ included, moves the window, and Super+right-drag resizes it from its nearest edg
 or moves the split beside a docked one. In the desktop shell Alt+Tab, with Alt held, opens the window switcher and walks the
 windows from the one used last (Alt+Shift+Tab the other way); letting go of Alt focuses and
 raises the chosen one and Alt+Escape stays where it was. To drive it, hold Alt across the
-presses: `xdotool keydown alt key Tab key Tab keyup alt`.
+presses: `drive hold alt; drive key tab tab; drive release alt`.
 
 Each window is a `be_wayland::WindowView`, a forwarding catcher like a plugin's region (see
 guides/beui_keyboard.md, One input path): beui decides which window a press, motion, scroll or key
@@ -239,43 +239,56 @@ that is not responding forces it: the compositor kills the process if it launche
 of its descendants) and disconnects the client either way. `kill -STOP` on a client's pid
 freezes it to try this, and `kill -CONT` brings it back.
 
-## Seeing what is on screen
+## Driving the app
 
-`cat $TREE` is the accessibility tree as text, rewritten whenever it changes, one node per
-line, indented under its parent:
+`drive COMMAND` sends one command to the app and prints its answer; an error exits nonzero.
+beui runs the commands (`beui_core::app::automation`), so they work the same in any beui app
+started with an automation inbox, and the web build answers the same ones
+(guides/running_the_web_app.md).
+
+`drive tree` is the accessibility tree as text, one node per line, indented under its parent:
 
     Dialog "Invite member" at 360,180 size 380x300
       TextInput "Email address" at 380,260 size 340x36
       Button at 380,420 size 116x36
         Label value="Send invitation" at 392,430 size 92x15
+    Pane "Checklist" at 250,10 size 840x700
+      CheckBox "Buy milk" toggled=True at 270,60 size 400x24
 
-Coordinates are pixels relative to the window, the same ones xdotool takes, so the centre of
-a node is `x + width / 2, y + height / 2`. `offscreen` marks a node scrolled out of view, and
-`focused` the node with keyboard focus.
+Coordinates are pixels from the window's top left corner. `offscreen` marks a node scrolled
+or clipped out of view, and `focused` the host's node with keyboard focus.
 
-The tree holds only what the host draws itself: the account and workspace pages, the app
-menu, the debugging panels and host dialogs such as Invite member. Everything a plugin draws,
-which includes the workspace's dock and file tree and every block's editor, is a texture to
-the host and does not appear. For those, take a screenshot and read it:
+The tree holds what plugins draw too. Each plugin region the host shows is a `Pane` named
+after its plugin, holding the nodes its editor describes: the host sends `Message::Describe`
+while a driver is attached, and each `FrameReport` then carries a `Description`, the editor's
+accessibility nodes and test ids in region coordinates, which `plugin_host/description.rs`
+places in the host's tree. `drive ids` lists every test id on screen, the host's and the
+plugins', which are the steadiest way to name a control (guides/testing_a_gui.md).
 
-    import -window $WINDOW shot.png
+Commands that act take a TARGET:
+- `#TEST_ID`, such as `#checklist.add`;
+- `X,Y` in the tree's pixels;
+- text found in exactly one line of the tree, such as `'"Send invitation"'` or
+  `'Button "Create"'`; when several lines match, the error lists them.
 
-`-crop WxH+X+Y` after the window id keeps a region, which is cheaper to read than the whole
-window.
+    drive click '#checklist.add'          click (`right`, `middle` or `double` after it)
+    drive type 'buy milk'                 type into what has focus (a newline presses Enter)
+    drive key ctrl+z                      chords, such as Enter, shift+Tab or ctrl+shift+z
+    drive hold alt; drive key tab tab; drive release alt
+    drive drag '#card.1' '#column.done'   drag with the left button
+    drive scroll '"Files"' 300            scroll down 300 pixels at a target
+    drive hover '"Settings"'
+    drive shot shot.png ['"Add block"']   a PNG of the window, or of one target
 
-## Input
+Every command that gives input waits until the app has settled, then prints what changed in
+the tree (`+` and `-` lines), so there is no need to wait or to read the tree again. The app
+has settled once a frame asks for no other and nothing is in flight: no plugin is starting, owes
+a frame or holds unanswered input, and no account or workspace request is pending
+(`App::busy`). Work the app cannot see, such as a server push, is waited for with `drive wait
+TEXT` or `drive gone TEXT`, which return once a line of the tree contains TEXT or none does.
+`drive settle` waits on its own. Each command gives up after 30 seconds, or `--timeout=SECONDS`.
 
-    xdotool mousemove --window $WINDOW 455 220 click 1
-    xdotool type --window $WINDOW 'hello'
-    xdotool key --window $WINDOW ctrl+z
-
-Always pass `--window $WINDOW`: without it, keys go to whichever window has focus, which is
-not always the app's. There is no window manager, so the launcher gives the window focus
-once; if keys stop arriving, `xdotool windowfocus --sync $WINDOW` gives it back. Click a
-text field before typing into it. Other buttons are `click 3` (right) and `click 4`/`click 5`
-(scroll up and down); `mousedown 1`, `mousemove`, `mouseup 1` drag.
-
-The app draws when something changes, so give it a moment after an input before reading the
-tree or taking a screenshot.
+Click a text field before typing into it. `type` sends text, which a Wayland window does not
+take; `key` sends each key's scan code too, which it does.
 
 The web build has a launcher of its own: guides/running_the_web_app.md.

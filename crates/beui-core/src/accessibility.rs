@@ -15,6 +15,10 @@ use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::{Key, KeyPress, Modifiers};
 use crate::node::{Arena, NodeId, NodeMap};
 
+mod roles;
+
+pub use roles::role_named;
+
 pub const WINDOW_NODE: AccessNodeId = AccessNodeId(0);
 const DOCUMENT_SHIFT: u32 = 40;
 const GENERATION_SHIFT: u32 = 32;
@@ -37,6 +41,76 @@ impl Fragment {
                 node.set_transform(Affine::scale(scale.into()) * local);
             }
         }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Described {
+    pub depth: usize,
+    pub role: Role,
+    pub label: String,
+    pub value: String,
+    pub toggled: Option<accesskit::Toggled>,
+    pub disabled: bool,
+    pub focused: bool,
+    pub rect: Option<Rect>,
+}
+
+pub fn embedded(document: u32, title: &str, area: Rect, described: &[Described]) -> Fragment {
+    let id = |index: usize| AccessNodeId((u64::from(document) << DOCUMENT_SHIFT) | index as u64);
+    let bounds = |rect: Rect| {
+        AccessRect::new(
+            rect.min.x.into(),
+            rect.min.y.into(),
+            rect.max.x.into(),
+            rect.max.y.into(),
+        )
+    };
+    let mut root = Node::new(Role::Pane);
+    root.set_label(title);
+    root.set_bounds(bounds(area));
+    let mut nodes: Vec<(AccessNodeId, Node)> = Vec::with_capacity(described.len() + 1);
+    let mut children: Vec<Vec<AccessNodeId>> = vec![Vec::new(); described.len() + 1];
+    let mut parents: Vec<(usize, usize)> = vec![(0, 0)];
+    let mut focus = None;
+    for (index, entry) in described.iter().enumerate() {
+        let slot = index + 1;
+        while parents.len() > 1 && parents.last().is_some_and(|(depth, _)| *depth >= entry.depth + 1) {
+            parents.pop();
+        }
+        let parent = parents.last().map_or(0, |(_, slot)| *slot);
+        children[parent].push(id(slot));
+        parents.push((entry.depth + 1, slot));
+        let mut node = Node::new(entry.role);
+        if !entry.label.is_empty() {
+            node.set_label(entry.label.as_str());
+        }
+        if !entry.value.is_empty() {
+            node.set_value(entry.value.as_str());
+        }
+        if let Some(toggled) = entry.toggled {
+            node.set_toggled(toggled);
+        }
+        if entry.disabled {
+            node.set_disabled();
+        }
+        if let Some(rect) = entry.rect {
+            node.set_bounds(bounds(rect));
+        }
+        if entry.focused {
+            focus = Some(id(slot));
+        }
+        nodes.push((id(slot), node));
+    }
+    for (slot, (_, node)) in nodes.iter_mut().enumerate() {
+        node.set_children(std::mem::take(&mut children[slot + 1]));
+    }
+    root.set_children(std::mem::take(&mut children[0]));
+    nodes.insert(0, (id(0), root));
+    Fragment {
+        nodes,
+        root: id(0),
+        focus,
     }
 }
 

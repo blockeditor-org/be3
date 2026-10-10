@@ -1,7 +1,9 @@
 use std::collections::{HashMap, VecDeque};
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
+use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
 
 use crate::app::Waker;
 use crate::app::accessibility_dump::Line;
@@ -24,8 +26,87 @@ pub enum Reply {
 
 pub struct Request {
     pub words: Vec<String>,
-    pub reply: Sender<Reply>,
+    pub reply: Box<dyn FnOnce(Reply) + Send>,
     pub cancelled: Arc<AtomicBool>,
+}
+
+#[derive(Default)]
+struct Answer {
+    reply: Option<Reply>,
+    answered: bool,
+    waker: Option<TaskWaker>,
+}
+
+pub struct Answered {
+    answer: Arc<Mutex<Answer>>,
+    cancelled: Arc<AtomicBool>,
+}
+
+#[derive(Clone)]
+pub struct Canceller {
+    answer: Arc<Mutex<Answer>>,
+    cancelled: Arc<AtomicBool>,
+}
+
+impl Answered {
+    pub fn canceller(&self) -> Canceller {
+        Canceller {
+            answer: self.answer.clone(),
+            cancelled: self.cancelled.clone(),
+        }
+    }
+}
+
+impl Canceller {
+    pub fn cancel(&self, why: String) {
+        self.cancelled.store(true, Ordering::SeqCst);
+        answer(&self.answer, Reply::Error(why));
+    }
+}
+
+fn answer(answer: &Mutex<Answer>, reply: Reply) {
+    let waker = {
+        let mut answer = answer.lock().unwrap_or_else(|poison| poison.into_inner());
+        if answer.reply.is_some() || answer.answered {
+            return;
+        }
+        answer.answered = true;
+        answer.reply = Some(reply);
+        answer.waker.take()
+    };
+    if let Some(waker) = waker {
+        waker.wake();
+    }
+}
+
+impl Future for Answered {
+    type Output = Reply;
+
+    fn poll(self: Pin<&mut Self>, context: &mut TaskContext<'_>) -> Poll<Reply> {
+        let mut answer = self
+            .answer
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        match answer.reply.take() {
+            Some(reply) => Poll::Ready(reply),
+            None => {
+                answer.waker = Some(context.waker().clone());
+                Poll::Pending
+            }
+        }
+    }
+}
+
+pub fn ask(inbox: &Inbox, words: Vec<String>) -> Answered {
+    let answer = Arc::new(Mutex::new(Answer::default()));
+    let cancelled = Arc::new(AtomicBool::new(false));
+    let answering = answer.clone();
+    inbox.send(Request {
+        words,
+        reply: Box::new(move |reply| self::answer(&answering, reply)),
+        cancelled: cancelled.clone(),
+    });
+    Answered { answer, cancelled }
 }
 
 #[derive(Clone, Default)]
@@ -167,13 +248,9 @@ impl Automation {
                 continue;
             }
             match self.start(&request.words, view) {
-                Ok(Started::Done(reply)) => {
-                    let _ = request.reply.send(reply);
-                }
+                Ok(Started::Done(reply)) => (request.reply)(reply),
                 Ok(Started::Phase(phase)) => self.active = Some(Active { request, phase }),
-                Err(error) => {
-                    let _ = request.reply.send(Reply::Error(error));
-                }
+                Err(error) => (request.reply)(Reply::Error(error)),
             }
         }
         if let Some(Active {
@@ -259,7 +336,7 @@ impl Automation {
 
     fn finish(&mut self, reply: Reply) {
         if let Some(active) = self.active.take() {
-            let _ = active.request.reply.send(reply);
+            (active.request.reply)(reply);
         }
     }
 

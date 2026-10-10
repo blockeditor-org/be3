@@ -33,7 +33,7 @@ pub use block_plugin_api::{
     NotificationRequest, NotificationSignal, NotificationUrgency, Notifications, Occluder,
     PlayerCommand, PointerButton, Power, PowerAction, PowerAvailability, ProgramAction, Programs,
     ResizeMode, ScreenLocked, ScreenPlacement, SettingsProgress, ShellDialog, SurfaceRect,
-    TemplateCategory, TemplateDescriptor, TopBar, TouchPhase, VersionBranch, VersionChange,
+    TemplateCategory, TemplateDescriptor, Toggled, TopBar, TouchPhase, VersionBranch, VersionChange,
     VersionChangeKind, VersionCommand, VersionCommit, VersionStatus, ViewChange, WebViewCommand,
     WebViewEvent, WebViewId, WheelUnit, WindowAction,
 };
@@ -49,7 +49,9 @@ pub use host::{
     PerformanceReporter, PickRequest, PickedBlock, PickedFile, Pushed, SavedFile, SeededContent,
     ShowRequest, ShownPresence, Waker,
 };
-pub use plugin::{Claim, Frame, Ime, Instance, Plugin, Region, RegionMonitor};
+pub use plugin::{
+    Claim, DescribedNode, Description, Frame, Ime, Instance, Plugin, Region, RegionMonitor,
+};
 #[cfg(target_arch = "wasm32")]
 pub use plugin::{PaintTarget, SurfaceGpu, surface_gpu};
 #[cfg(target_arch = "wasm32")]

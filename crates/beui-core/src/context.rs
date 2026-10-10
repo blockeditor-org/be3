@@ -68,6 +68,7 @@ struct Inner {
     accessibility: RefCell<Vec<Fragment>>,
     accessibility_actions: RefCell<Vec<ActionRequest>>,
     accessibility_active: Cell<bool>,
+    automated: Cell<bool>,
     accessibility_known: RefCell<HashSet<u32>>,
     accessibility_published: RefCell<HashSet<u32>>,
     test_ids_published: Cell<bool>,
@@ -267,6 +268,7 @@ impl Context {
                 accessibility: RefCell::new(Vec::new()),
                 accessibility_actions: RefCell::new(Vec::new()),
                 accessibility_active: Cell::new(true),
+                automated: Cell::new(false),
                 accessibility_known: RefCell::new(HashSet::new()),
                 accessibility_published: RefCell::new(HashSet::new()),
                 test_ids_published: Cell::new(true),
@@ -328,6 +330,14 @@ impl Context {
 
     pub fn accessibility_active(&self) -> bool {
         self.inner.accessibility_active.get()
+    }
+
+    pub fn set_automated(&self, automated: bool) {
+        self.inner.automated.set(automated);
+    }
+
+    pub fn automated(&self) -> bool {
+        self.inner.automated.get()
     }
 
     pub fn set_test_ids_published(&self, published: bool) {

@@ -1,6 +1,5 @@
 use std::error::Error;
 use std::future::Future;
-use std::path::PathBuf;
 use std::pin::Pin;
 use std::time::Duration;
 
@@ -19,7 +18,6 @@ pub struct RunOptions {
     pub title: String,
     pub app_id: Option<String>,
     pub size: Vec2,
-    pub accessibility_dump: Option<PathBuf>,
     pub accessibility_tree: bool,
     pub automation: Option<Inbox>,
 }
@@ -30,7 +28,6 @@ impl RunOptions {
             title: title.into(),
             app_id: None,
             size: Vec2::new(1280.0, 800.0),
-            accessibility_dump: None,
             accessibility_tree: false,
             automation: None,
         }
@@ -130,18 +127,13 @@ impl Runner {
             context,
             app,
         } = launch;
-        #[cfg(not(target_arch = "wasm32"))]
-        let dump = options.accessibility_dump.map(AccessibilityDump::new);
-        #[cfg(target_arch = "wasm32")]
-        let dump = None;
         let automation = options.automation.map(Automation::new);
         if automation.is_some() {
             context.set_test_ids_published(true);
+            context.set_automated(true);
         }
-        let accessibility = dump.or_else(|| {
-            (options.accessibility_tree || automation.is_some())
-                .then(AccessibilityDump::in_memory)
-        });
+        let accessibility = (options.accessibility_tree || automation.is_some())
+            .then(AccessibilityDump::new);
         Self {
             app,
             context,
@@ -198,6 +190,21 @@ impl Runner {
 
     pub fn take_output(&mut self) -> Option<FrameOutput> {
         self.output.take()
+    }
+
+    pub fn keep_accessibility(&mut self) {
+        if self.accessibility.is_none() {
+            self.accessibility = Some(AccessibilityDump::new());
+            self.context.reset_accessibility();
+        }
+    }
+
+    pub fn accessibility(&self) -> Option<&AccessibilityDump> {
+        self.accessibility.as_ref()
+    }
+
+    pub fn output(&self) -> Option<&FrameOutput> {
+        self.output.as_ref()
     }
 
     pub fn accessibility_text(&self) -> Option<&str> {

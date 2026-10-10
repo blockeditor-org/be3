@@ -10,6 +10,7 @@ use uuid::Uuid;
 mod audio;
 mod backend;
 mod clipboard;
+mod description;
 mod fonts;
 pub(crate) mod graph;
 mod host_values;
@@ -26,6 +27,7 @@ mod wasm;
 mod web;
 mod web_view;
 
+pub(crate) use description::describe;
 pub(crate) use instances::EditorView;
 pub(crate) use presenter::Piece;
 #[cfg(target_arch = "wasm32")]

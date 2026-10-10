@@ -270,13 +270,13 @@ command_alias(
     ],
 )
 
-# The app in a virtual display for an agent to drive, signed in with a
-# workspace open: guides/running_the_app.md.
+# The app headless for an agent to drive, signed in with a workspace open:
+# guides/running_the_app.md.
 command_alias(
     name = "dev",
     args = [
-        "sh",
-        "$(location //buck/app:dev.sh)",
+        "$(location //crates/be-drive:be-drive-bin)",
+        "launch",
         "$(location :app)/block-app",
         "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
     ],

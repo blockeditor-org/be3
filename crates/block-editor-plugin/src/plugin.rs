@@ -66,6 +66,7 @@ pub struct Region {
     pub age: u32,
     pub spec: FrameSpec,
     pub monitors: Vec<RegionMonitor>,
+    pub describe: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -94,6 +95,25 @@ pub struct Frame {
     pub handles_back: bool,
     pub wants_keyboard: bool,
     pub intercepted_keys: Vec<KeyChord>,
+    pub description: Option<Description>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Description {
+    pub nodes: Vec<DescribedNode>,
+    pub test_ids: Vec<(String, Rect)>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct DescribedNode {
+    pub depth: u16,
+    pub role: String,
+    pub label: String,
+    pub value: String,
+    pub toggled: Option<block_plugin_api::Toggled>,
+    pub disabled: bool,
+    pub focused: bool,
+    pub rect: Option<Rect>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

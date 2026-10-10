@@ -1,6 +1,8 @@
+mod launch;
+
 use std::io::{BufReader, Write};
 use std::os::unix::net::UnixStream;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::Duration;
 
@@ -21,6 +23,9 @@ fn main() -> ExitCode {
 }
 
 fn run(mut arguments: Vec<String>) -> Result<(), String> {
+    if arguments.first().map(String::as_str) == Some("launch") {
+        return launch::run(&arguments[1..]);
+    }
     let mut timeout = TIMEOUT;
     let mut socket = std::env::var_os("BE_DRIVE_SOCKET").map(PathBuf::from);
     while let Some(first) = arguments.first() {
@@ -52,15 +57,7 @@ fn run(mut arguments: Vec<String>) -> Result<(), String> {
         }
         file = Some(PathBuf::from(arguments.remove(1)));
     }
-    let stream = UnixStream::connect(&socket)
-        .map_err(|error| format!("could not reach the app at {}: {error}", socket.display()))?;
-    let mut writer = stream
-        .try_clone()
-        .map_err(|error| error.to_string())?;
-    write_request(&mut writer, &arguments, timeout).map_err(|error| error.to_string())?;
-    let reply = read_reply(&mut BufReader::new(stream))
-        .map_err(|error| format!("the app did not answer: {error}"))?;
-    match reply {
+    match request(&socket, &arguments, timeout)? {
         Reply::Text(text) => {
             print!("{text}");
             Ok(())
@@ -80,5 +77,18 @@ fn run(mut arguments: Vec<String>) -> Result<(), String> {
             println!("{} ({width}x{height})", file.display());
             Ok(())
         }
+    }
+}
+
+pub(crate) fn request(socket: &Path, words: &[String], timeout: Duration) -> Result<Reply, String> {
+    let stream = UnixStream::connect(socket)
+        .map_err(|error| format!("could not reach the app at {}: {error}", socket.display()))?;
+    let mut writer = stream.try_clone().map_err(|error| error.to_string())?;
+    write_request(&mut writer, words, timeout).map_err(|error| error.to_string())?;
+    let reply = read_reply(&mut BufReader::new(stream))
+        .map_err(|error| format!("the app did not answer: {error}"))?;
+    match reply {
+        Reply::Error(error) => Err(error),
+        reply => Ok(reply),
     }
 }

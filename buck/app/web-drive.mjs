@@ -6,23 +6,24 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
 
-const usage = `usage: drive COMMAND
-  tree                      print the accessibility tree
-  shot FILE [X Y W H]       save a screenshot, or the region at X,Y of W by H
-  click X Y [right]         click at X,Y
-  dblclick X Y              double-click at X,Y
-  move X Y                  move the pointer to X,Y
-  drag X1 Y1 X2 Y2          drag with the left button from X1,Y1 to X2,Y2
-  wheel X Y DY              scroll by DY at X,Y, down when positive
-  type TEXT...              type the text
-  key KEY                   press a key, such as Enter or Control+z
-  upload FILE X Y           click at X,Y and answer the file chooser with FILE
+const usage = `usage: drive [--timeout=SECONDS] COMMAND
+The app answers the same commands as the native app's drive (help lists them),
+such as tree, click TARGET, type TEXT, key CHORD, wait TEXT and settle. These
+are the browser's own:
+  shot FILE [TARGET]        save a screenshot, of TARGET only when given
+  upload FILE TARGET        click TARGET and answer the file chooser with FILE
   eval EXPRESSION           evaluate JavaScript in the page and print the result
   reload                    reload the page
   size W H                  make the page W by H
   quit                      close the browser`;
 
-const [command, ...rest] = process.argv.slice(2);
+let args = process.argv.slice(2);
+let timeout = 30;
+if (args[0]?.startsWith("--timeout=")) {
+    timeout = Number(args[0].slice("--timeout=".length));
+    args = args.slice(1);
+}
+const [command, ...rest] = args;
 const number = (index) => {
     const value = Number(rest[index]);
     if (!Number.isFinite(value)) {
@@ -31,6 +32,10 @@ const number = (index) => {
     }
     return value;
 };
+if (!command) {
+    console.error(usage);
+    process.exit(1);
+}
 
 const endpoint = process.env.BLOCK_WEB_DEV;
 if (!endpoint) {
@@ -44,54 +49,45 @@ if (!page) {
     process.exit(1);
 }
 
+const automate = (words) =>
+    page.evaluate(
+        async ({ words, timeout }) => {
+            const app = await import(new URL("block_app_lib.js", location.href).href);
+            try {
+                return { text: await app.automate(words, Math.round(timeout * 1000)) };
+            } catch (error) {
+                return { error: String(error?.message ?? error) };
+            }
+        },
+        { words, timeout },
+    );
+const answer = async (words) => {
+    const { text, error } = await automate(words);
+    if (error !== undefined) {
+        console.error(error);
+        process.exit(1);
+    }
+    return text;
+};
+const place = async (target) => {
+    const found = (await answer(["find", target])).match(/at (-?[\d.]+),(-?[\d.]+) size ([\d.]+)x([\d.]+)/);
+    const ratio = await page.evaluate(() => devicePixelRatio);
+    const [x, y, width, height] = found.slice(1).map((value) => Number(value) / ratio);
+    return { x, y, width, height };
+};
+
 switch (command) {
-    case "tree":
-        process.stdout.write(
-            (await page.evaluate(async () => {
-                const app = await import(new URL("block_app_lib.js", location.href).href);
-                return app.accessibility_tree() ?? "";
-            })) ?? "",
-        );
-        break;
     case "shot":
         await page.screenshot({
             path: rest[0],
-            clip:
-                rest.length >= 5
-                    ? { x: number(1), y: number(2), width: number(3), height: number(4) }
-                    : undefined,
+            clip: rest.length >= 2 ? await place(rest.slice(1).join(" ")) : undefined,
         });
-        break;
-    case "click":
-        await page.mouse.click(number(0), number(1), {
-            button: rest[2] === "right" ? "right" : "left",
-        });
-        break;
-    case "dblclick":
-        await page.mouse.dblclick(number(0), number(1));
-        break;
-    case "move":
-        await page.mouse.move(number(0), number(1));
-        break;
-    case "drag":
-        await page.mouse.move(number(0), number(1));
-        await page.mouse.down();
-        await page.mouse.move(number(2), number(3), { steps: 10 });
-        await page.mouse.up();
-        break;
-    case "wheel":
-        await page.mouse.move(number(0), number(1));
-        await page.mouse.wheel(0, number(2));
-        break;
-    case "type":
-        await page.keyboard.type(rest.join(" "), { delay: 20 });
-        break;
-    case "key":
-        await page.keyboard.press(rest[0]);
+        console.log(rest[0]);
         break;
     case "upload": {
+        const { x, y, width, height } = await place(rest.slice(1).join(" "));
         const chosen = page.waitForEvent("filechooser");
-        await page.mouse.click(number(1), number(2));
+        await page.mouse.click(x + width / 2, y + height / 2);
         await (await chosen).setFiles(rest[0]);
         break;
     }
@@ -123,7 +119,6 @@ switch (command) {
         break;
     }
     default:
-        console.error(usage);
-        process.exit(1);
+        process.stdout.write(await answer([command, ...rest]));
 }
 process.exit(0);

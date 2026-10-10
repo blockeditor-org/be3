@@ -71,6 +71,32 @@ fn frame_screens_and_reports_round_trip() {
                 tap: true,
             },
         ],
+        description: Some(Description {
+            nodes: vec![DescribedNode {
+                depth: 0,
+                role: "CheckBox".to_owned(),
+                label: "Buy milk".to_owned(),
+                value: String::new(),
+                toggled: Some(Toggled::On),
+                disabled: false,
+                focused: true,
+                rect: Some(ChildRect {
+                    x: 8.0,
+                    y: 48.0,
+                    width: 200.0,
+                    height: 24.0,
+                }),
+            }],
+            test_ids: vec![TestIdRect {
+                id: "checklist.add".to_owned(),
+                rect: ChildRect {
+                    x: 8.0,
+                    y: 80.0,
+                    width: 60.0,
+                    height: 24.0,
+                },
+            }],
+        }),
     }]);
     assert_eq!(
         decode_frame(&encode_frame(&frames).unwrap()).unwrap(),

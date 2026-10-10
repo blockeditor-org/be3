@@ -144,6 +144,7 @@ impl Screens {
             }
             Message::Fonts(fonts) => crate::fonts::receive(fonts),
             Message::UtcOffset(seconds) => crate::clock::receive(*seconds),
+            Message::Describe(on) => DESCRIBE.store(*on, std::sync::atomic::Ordering::Relaxed),
             Message::DrawFrame { now_micros } => {
                 crate::clock::set_frame_time(std::time::Duration::from_micros(*now_micros));
                 return false;
@@ -712,4 +713,10 @@ fn catalog(catalog: &Catalog) -> BlockCatalog {
         },
         dialog: template.dialog,
     }))
+}
+
+static DESCRIBE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub(crate) fn describing() -> bool {
+    DESCRIBE.load(std::sync::atomic::Ordering::Relaxed)
 }

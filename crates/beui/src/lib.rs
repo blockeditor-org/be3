@@ -4,6 +4,7 @@ extern crate self as beui;
 use std::error::Error;
 
 pub use accesskit;
+pub use beui_core::accessibility;
 pub use beui_components_styled as styled;
 pub use beui_components_unstyled as unstyled;
 pub use beui_components_unstyled::datetime;
@@ -118,7 +119,7 @@ pub fn run(title: impl Into<String>, app: impl App + 'static) -> Result<(), Box<
 
 #[cfg(test)]
 use beui_core::{
-    accessibility, base, color, context, damage, draw, drawing, filter, flash, font, geometry,
+    base, color, context, damage, draw, drawing, filter, flash, font, geometry,
     image, input, interact, node, painter, screen_simulation, sight,
 };
 #[cfg(test)]

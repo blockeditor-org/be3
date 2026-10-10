@@ -1,13 +1,10 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
-#[cfg(not(target_arch = "wasm32"))]
-use std::path::PathBuf;
 
 use accesskit::{Affine, Node, NodeId, Rect, Role, TreeUpdate};
 
+#[derive(Default)]
 pub struct AccessibilityDump {
-    #[cfg(not(target_arch = "wasm32"))]
-    path: Option<PathBuf>,
     nodes: HashMap<NodeId, Node>,
     root: Option<NodeId>,
     focus: Option<NodeId>,
@@ -17,34 +14,21 @@ pub struct AccessibilityDump {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Line {
+    pub depth: usize,
+    pub role: Role,
+    pub label: String,
+    pub value: String,
+    pub toggled: Option<accesskit::Toggled>,
+    pub disabled: bool,
+    pub focused: bool,
     pub text: String,
     pub bounds: Option<crate::geometry::Rect>,
     pub visible: bool,
 }
 
 impl AccessibilityDump {
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn new(path: PathBuf) -> Self {
-        Self {
-            path: Some(path),
-            nodes: HashMap::new(),
-            root: None,
-            focus: None,
-            written: String::new(),
-            lines: Vec::new(),
-        }
-    }
-
-    pub fn in_memory() -> Self {
-        Self {
-            #[cfg(not(target_arch = "wasm32"))]
-            path: None,
-            nodes: HashMap::new(),
-            root: None,
-            focus: None,
-            written: String::new(),
-            lines: Vec::new(),
-        }
+    pub fn new() -> Self {
+        Self::default()
     }
 
     pub fn update(&mut self, update: TreeUpdate) {
@@ -71,21 +55,6 @@ impl AccessibilityDump {
         );
         self.nodes.retain(|id, _| reached.contains(id));
         self.lines = lines;
-        if text == self.written {
-            return;
-        }
-        #[cfg(not(target_arch = "wasm32"))]
-        if let Some(path) = &self.path {
-            let staged = path.with_extension("tmp");
-            let written =
-                std::fs::write(&staged, &text).and_then(|()| std::fs::rename(&staged, path));
-            if let Err(error) = written {
-                eprintln!(
-                    "could not write the accessibility tree to {}: {error}",
-                    path.display()
-                );
-            }
-        }
         self.written = text;
     }
 
@@ -157,6 +126,13 @@ impl AccessibilityDump {
                 }
             }
             lines.push(Line {
+                depth,
+                role: node.role(),
+                label: label.unwrap_or_default().to_owned(),
+                value: value.unwrap_or_default().to_owned(),
+                toggled: node.toggled(),
+                disabled: node.is_disabled(),
+                focused: self.focus == Some(id),
                 text: text[start..].trim_start().to_owned(),
                 bounds: rect.map(|rect| {
                     crate::geometry::Rect::from_min_max(
@@ -170,7 +146,7 @@ impl AccessibilityDump {
         }
         let depth = depth + usize::from(shown);
         let clip = match rect {
-            Some(rect) if matches!(node.role(), Role::Window | Role::ScrollView) => {
+            Some(rect) if matches!(node.role(), Role::Window | Role::ScrollView | Role::Pane) => {
                 clip.intersect(rect)
             }
             _ => clip,

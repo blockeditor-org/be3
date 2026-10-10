@@ -88,7 +88,7 @@ setsid "$chromium" --headless=new --no-sandbox --no-first-run --no-default-brows
     $graphics --enable-unsafe-swiftshader --ignore-gpu-blocklist \
     --enable-logging=stderr --v=0 --window-size=1280,800 \
     --remote-debugging-port="$debugging" --user-data-dir="$dir/profile" \
-    "${url}?dev-workspace&accessibility-tree" > "$dir/browser.log" 2>&1 < /dev/null &
+    "${url}?dev-workspace&automation" > "$dir/browser.log" 2>&1 < /dev/null &
 echo $! > "$dir/browser.pid"
 
 cat > "$dir/env" <<ENV
@@ -97,7 +97,7 @@ export NODE_PATH=$NODE_PATH
 drive() { node "$drive" "\$@"; }
 ENV
 . "$dir/env"
-if ! timeout 60 sh -c ". '$dir/env'; until drive tree 2> /dev/null | grep -q '^Window'; do sleep 0.2; done"; then
+if ! timeout 60 sh -c ". '$dir/env'; until drive tree 2> /dev/null | grep -q '^Window'; do sleep 0.2; done" || ! drive --timeout=120 settle; then
     echo "The page did not start; see $dir/browser.log." >&2
     exit 1
 fi

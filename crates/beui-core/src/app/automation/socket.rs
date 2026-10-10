@@ -51,7 +51,9 @@ fn converse(stream: UnixStream, inbox: &Inbox) -> io::Result<()> {
         let cancelled = Arc::new(AtomicBool::new(false));
         inbox.send(Request {
             words,
-            reply: sender,
+            reply: Box::new(move |reply| {
+                let _ = sender.send(reply);
+            }),
             cancelled: cancelled.clone(),
         });
         let reply = match receiver.recv_timeout(timeout) {

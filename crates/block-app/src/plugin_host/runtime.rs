@@ -151,9 +151,17 @@ pub(super) struct Runtime {
     theme: Theme,
     utc_offset: Option<i32>,
     fonts_sent: bool,
+    described: bool,
+    pub(super) placements: HashMap<(EditorInstanceId, EditorRegion), Placed>,
     fallbacks: super::fonts::Fallbacks,
     presents: Presents,
     frames: u64,
+}
+
+pub(super) struct Placed {
+    pub(super) rect: Rect,
+    pub(super) clip: Rect,
+    pub(super) document: u32,
 }
 
 #[derive(Default)]
@@ -256,6 +264,8 @@ impl Runtime {
             theme: theme(),
             utc_offset: None,
             fonts_sent: false,
+            described: false,
+            placements: HashMap::new(),
             fallbacks: super::fonts::Fallbacks::new(),
             presents: Presents::default(),
             frames: 0,
@@ -282,6 +292,7 @@ impl Runtime {
         self.theme = theme();
         self.utc_offset = None;
         self.fonts_sent = false;
+        self.described = false;
         self.fallbacks = super::fonts::Fallbacks::new();
         self.presents = Presents::default();
         self.instances.reopen();
@@ -299,6 +310,11 @@ impl Runtime {
         if !self.fonts_sent && *self.session.state() == SessionState::Running {
             self.fonts_sent = true;
             messages.push(Message::Fonts(super::fonts::bundled()));
+        }
+        let describing = super::description::describing();
+        if *self.session.state() == SessionState::Running && self.described != describing {
+            self.described = describing;
+            messages.push(Message::Describe(describing));
         }
         let theme = theme();
         if self.theme != theme {
@@ -376,6 +392,10 @@ impl Runtime {
             self.request_frame();
         }
         self.error.is_none() && !self.backend.settled()
+    }
+
+    pub(super) fn name(&self) -> &str {
+        &self.plugin.identity.name
     }
 
     fn busy(&mut self) -> bool {
@@ -1409,6 +1429,7 @@ pub(crate) fn mount_region(slot: RegionSlot<'_>) {
 
 pub(crate) fn unmount_region(plugin_id: &str, instance: EditorInstanceId, region: EditorRegion) {
     with(plugin_id, |runtime| {
+        runtime.placements.remove(&(instance, region));
         runtime.instances.unmount(instance, region)
     });
     mark(plugin_id);
@@ -1417,6 +1438,7 @@ pub(crate) fn unmount_region(plugin_id: &str, instance: EditorInstanceId, region
 
 pub(crate) fn unplace_region(plugin_id: &str, instance: EditorInstanceId, region: EditorRegion) {
     with(plugin_id, |runtime| {
+        runtime.placements.remove(&(instance, region));
         runtime.instances.unplace(instance, region)
     });
     mark(plugin_id);
@@ -1448,6 +1470,18 @@ pub(crate) fn place_region(
             clip,
             screens,
         } = placement;
+        runtime
+            .placements
+            .entry((instance, region))
+            .and_modify(|placed| {
+                placed.rect = rect;
+                placed.clip = clip;
+            })
+            .or_insert_with(|| Placed {
+                rect,
+                clip,
+                document: beui::accessibility::next_document_id(),
+            });
         let scale_factor = host::pixels_per_point();
         let size = match region {
             EditorRegion::Preview => preview_size(rect.size(), scale_factor),
@@ -1867,6 +1901,10 @@ pub(crate) fn region_damage(
         runtime.template(screen, view.drawn).damage(pieces)
     })
     .flatten()
+}
+
+pub(super) fn each(mut act: impl FnMut(&Runtime)) {
+    HOST.with(|host| host.borrow().runtimes.values().for_each(&mut act));
 }
 
 pub(super) fn with<R>(plugin_id: &str, act: impl FnOnce(&mut Runtime) -> R) -> Option<R> {

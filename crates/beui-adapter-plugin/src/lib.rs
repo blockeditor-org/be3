@@ -13,7 +13,9 @@ use beui_core::geometry::Rect;
 use beui_core::renderer::Loaded;
 use beui_core::runner::{Adapter, Launch, RunOptions, Runner, Running};
 use beui_core::screens::Screen;
-use block_editor_plugin::{EditorHost, Frame, InputEvent, Region};
+use block_editor_plugin::{
+    DescribedNode, Description, EditorHost, Frame, InputEvent, Region, Toggled,
+};
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect};
 use block_plugin_api::CursorIcon;
@@ -140,9 +142,13 @@ impl PluginSurface {
             right: width as f32 - rect.max.x * scale,
             bottom: height as f32 - rect.max.y * scale,
         };
+        if region.describe {
+            self.runner.keep_accessibility();
+        }
         let Some(frame) = self.runner.frame(&mut self.platform, scale, area) else {
             return Frame::default();
         };
+        let description = region.describe.then(|| self.describe(region));
         let unscale = ratio.recip();
         let cursor = match self.runner.context().touch_emulation() {
             true => CursorIcon::Crosshair,
@@ -172,7 +178,49 @@ impl PluginSurface {
             handles_back: self.platform.handles_back,
             wants_keyboard: self.platform.wants_keyboard,
             intercepted_keys: self.platform.intercepted_keys.clone(),
+            description,
         }
+    }
+
+    fn describe(&self, region: &Region) -> Description {
+        let points = region.scale_factor.recip();
+        let nodes = self
+            .runner
+            .accessibility()
+            .map(|dump| {
+                dump.lines()
+                    .iter()
+                    .filter(|line| line.role != beui_core::accesskit::Role::Window)
+                    .map(|line| DescribedNode {
+                        depth: line.depth.saturating_sub(1).min(usize::from(u16::MAX)) as u16,
+                        role: format!("{:?}", line.role),
+                        label: line.label.clone(),
+                        value: line.value.clone(),
+                        toggled: line.toggled.map(|toggled| match toggled {
+                            beui_core::accesskit::Toggled::False => Toggled::Off,
+                            beui_core::accesskit::Toggled::True => Toggled::On,
+                            beui_core::accesskit::Toggled::Mixed => Toggled::Mixed,
+                        }),
+                        disabled: line.disabled,
+                        focused: line.focused,
+                        rect: line.bounds.map(|bounds| bounds.scaled(points)),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let mut test_ids: Vec<(String, Rect)> = self
+            .runner
+            .output()
+            .map(|output| {
+                output
+                    .test_ids()
+                    .iter()
+                    .map(|(id, rect)| (id.clone(), self.to_region(region, *rect)))
+                    .collect()
+            })
+            .unwrap_or_default();
+        test_ids.sort_by(|a, b| a.0.cmp(&b.0));
+        Description { nodes, test_ids }
     }
 
     pub fn to_region(&self, region: &Region, rect: Rect) -> Rect {

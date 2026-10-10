@@ -28,53 +28,25 @@ It needs Node and Playwright's Chromium: `npm install -g playwright` and
 and its plugins' workers log to the console goes to `~/.cache/be3/web-dev/browser.log` as
 `INFO:CONSOLE` lines, among the browser's own output. be-server's goes to `server.log`.
 
-What the launcher opens is `http://127.0.0.1:8090/?dev-workspace&accessibility-tree`; those
+What the launcher opens is `http://127.0.0.1:8090/?dev-workspace&automation`; those
 two parameters work on any page serving the bundle:
 - `dev-workspace`: sign in to the page's own server as `dev@localhost`, registering it
   unless it is registered already. Then open the last workspace, or the first one, or a new
   one called Dev.
-- `accessibility-tree`: keep the accessibility tree as text for `drive tree` (see below).
+- `automation`: answer `drive`'s commands through the bundle's `automate` export.
 
-## Seeing what is on screen
+## Driving the page
 
-`drive tree` prints the accessibility tree, one node per line, indented under its parent,
-in the same format as the native app's:
+`drive` answers the same commands as the native app's, run by the app itself in the page:
+`drive tree`, `drive click TARGET`, `drive type TEXT`, `drive key CHORD`, `drive wait TEXT`
+and the rest, each waiting until the app settles and printing what changed in the tree
+(guides/running_the_app.md, Driving the app, says what they do and what a TARGET is). The
+tree's coordinates are the page's CSS pixels when the device pixel ratio is 1, as it is in the
+launcher's browser.
 
-    Dialog "Invite member" at 450,220 size 380x300
-      TextInput "Email address" at 470,300 size 340x36
-      Button at 470,460 size 116x36
-        Label value="Send invitation" at 482,470 size 92x15
-
-Coordinates are CSS pixels from the page's top left corner, the same ones `drive` takes,
-so the centre of a node is `x + width / 2, y + height / 2`. `offscreen` marks a node scrolled
-out of view, and `focused` the node with keyboard focus.
-
-As natively, the tree holds only what the host draws itself. The workspace's dock, its file
-tree and every block's editor are drawn by plugins, and for those you take a screenshot and
-read it:
-
-    drive shot shot.png
-
-`drive shot shot.png X Y W H` keeps only the region at X,Y of W by H, which is cheaper to
-read than the whole page.
-
-## Input
-
-    drive click 455 220
-    drive type hello
-    drive key Control+z
-
-- `drive click X Y right` right-clicks, and `drive dblclick X Y` double-clicks.
-- `drive wheel X Y DY` scrolls at X,Y, down when DY is positive.
-- `drive drag X1 Y1 X2 Y2` drags with the left button.
-- `drive key` takes Playwright's key names, such as `Enter`, `Escape`, `ArrowDown` or
-  `Shift+Tab`.
-- Click a text field before typing into it.
-- `drive upload FILE X Y` clicks X,Y and answers the file chooser that opens with FILE, which
-  is how to add an image, a PDF or an audio file.
+A few commands are the browser's own (`drive` with no command lists them):
+- `drive shot FILE [TARGET]` saves a screenshot through Playwright, of TARGET only when given.
+- `drive upload FILE TARGET` clicks TARGET and answers the file chooser that opens with FILE,
+  which is how to add an image, a PDF or an audio file.
 - `drive eval EXPRESSION` evaluates JavaScript in the page and prints the result.
 - `drive reload` reloads the page, and `drive size W H` resizes it.
-- `drive` with no command lists them all.
-
-The app draws when something changes, so give it a moment after an input before reading the
-tree or taking a screenshot.
