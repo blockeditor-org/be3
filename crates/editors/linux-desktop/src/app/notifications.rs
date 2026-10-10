@@ -160,9 +160,7 @@ impl Shared {
 
     fn arrive(&self, inbox: NotificationInbox) {
         self.arrived.replace(inbox);
-        if let Some(expiry) = self.expiry.borrow().as_ref() {
-            expiry.restart(Duration::ZERO);
-        }
+        self.settle();
     }
 
     fn receive(&self, elapsed: Duration) -> Option<u64> {
