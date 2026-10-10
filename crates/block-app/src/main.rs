@@ -603,51 +603,8 @@ impl BlockApp {
 
     #[cfg(target_os = "linux")]
     fn run_notifications(&mut self) {
-        if self.notifications.is_none() {
-            return;
-        }
-        let asked = plugin_host::take_actions::<block_plugin_api::NotificationAction>();
         if let Some(notifications) = &mut self.notifications {
-            notifications.frame(asked);
-        }
-    }
-
-    fn toasts(&self) -> Vec<beui::styled::Toast> {
-        #[allow(unused_mut)]
-        let mut toasts = notices::shown();
-        #[cfg(target_os = "linux")]
-        if let Some(notifications) = &self.notifications {
-            toasts.extend(notifications.toasts(self.locked()));
-        }
-        toasts
-    }
-
-    #[cfg(target_os = "linux")]
-    fn locked(&self) -> bool {
-        self.screen_lock
-            .as_ref()
-            .is_some_and(session::ScreenLock::locked)
-    }
-
-    fn dismiss_toast(&mut self, id: u64) {
-        #[cfg(target_os = "linux")]
-        if notifications::Notifications::owns_toast(id) {
-            if let Some(notifications) = &mut self.notifications {
-                notifications.dismiss_toast(id);
-            }
-            return;
-        }
-        notices::dismiss(id);
-    }
-
-    #[cfg_attr(not(target_os = "linux"), allow(unused_variables))]
-    fn act_on_toast(&mut self, id: u64, action: Option<String>) {
-        #[cfg(target_os = "linux")]
-        if !self.locked()
-            && let Some(notifications) = &mut self.notifications
-        {
-            let action = action.unwrap_or_else(|| notifications::activate_action().to_owned());
-            notifications.invoke_toast(id, &action);
+            notifications.frame();
         }
     }
 
@@ -695,6 +652,7 @@ impl BlockApp {
         }
         let locked = lock.locked();
         wayland::set_locked(locked);
+        plugin_host::publish::<block_plugin_api::ScreenLocked>(&locked);
         if locked {
             self.app_menu_open = false;
         }
@@ -2292,9 +2250,7 @@ impl BlockApp {
             }
             UiCommand::About(open) => self.about_open = open,
             UiCommand::AppMenu(open) => self.app_menu_open = open,
-            UiCommand::DismissToast(id) => self.dismiss_toast(id),
-            UiCommand::ToastAction(id, action) => self.act_on_toast(id, Some(action)),
-            UiCommand::ActivateToast(id) => self.act_on_toast(id, None),
+            UiCommand::DismissToast(id) => notices::dismiss(id),
             UiCommand::KeepDisplay => self.display.commit(&self.app_state, display::keep()),
             UiCommand::RevertDisplay => self.display.commit(&self.app_state, display::revert()),
             #[cfg(target_os = "linux")]
@@ -2501,7 +2457,7 @@ impl BlockApp {
                 .editors
                 .with(|open| open.values().any(PluginEditor::presenting_now)),
             debug: debug::view(),
-            toasts: self.toasts(),
+            toasts: notices::shown(),
             keep_display: display::asking(),
             #[cfg(target_os = "linux")]
             lock: self.lock_view(),

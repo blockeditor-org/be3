@@ -1,6 +1,6 @@
 use super::*;
 
-mod a_new_notification_gets_a_fresh_id_and_a_replacement_keeps_its_own;
+mod a_notification_the_desktop_holds_is_replaced_in_place;
 mod a_toast_hides_when_its_time_is_up_and_the_notification_stays_listed;
 mod closing_a_notification_reports_why;
 mod invoking_an_action_reports_it_and_closes_the_notification_unless_it_is_resident;

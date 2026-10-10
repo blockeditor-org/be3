@@ -2,13 +2,11 @@ use super::*;
 
 #[test]
 fn notification_messages_round_trip() {
-    let notification = HostNotification {
+    let incoming = IncomingNotification {
         id: 7,
         app_name: "Mail".into(),
         summary: "New message".into(),
-        body: "Lunch at noon?".into(),
-        received: 1_700_000_000,
-        critical: false,
+        body: "Lunch at <b>noon</b>?".into(),
         actions: vec![
             HostNotificationAction {
                 key: "default".into(),
@@ -19,12 +17,30 @@ fn notification_messages_round_trip() {
                 label: "Reply".into(),
             },
         ],
+        urgency: NotificationUrgency::Critical,
+        image: Some(HostImage {
+            width: 1,
+            height: 1,
+            rgba: vec![1, 2, 3, 4],
+        }),
+        transient: false,
+        resident: true,
+        expire_timeout: -1,
+        received: 1_700_000_000,
     };
-    assert!(notification.has_default_action());
-    host_value_round_trips::<Notifications>(vec![notification]);
-    host_action_round_trips(NotificationAction::Invoke {
-        id: 7,
-        action: "reply".into(),
+    host_value_round_trips::<Notifications>(NotificationInbox {
+        requests: vec![
+            (1, NotificationRequest::Notify(Box::new(incoming))),
+            (2, NotificationRequest::Close(7)),
+        ],
     });
-    host_action_round_trips(NotificationAction::Dismiss(vec![7, 8]));
+    host_value_round_trips::<ScreenLocked>(true);
+    host_action_round_trips(NotificationReport {
+        received: Some(2),
+        signals: vec![
+            NotificationSignal::ActionInvoked(7, "reply".into()),
+            NotificationSignal::Closed(7, NotificationCloseReason::Dismissed),
+        ],
+        kept: vec![3, 5],
+    });
 }

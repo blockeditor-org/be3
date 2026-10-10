@@ -2,8 +2,8 @@ use std::{collections::HashMap, sync::Arc};
 
 use block_plugin_api::{
     Displays, EditorInstanceId, EditorMessage, HostAction, HostValue, HostWindows, InputDevices,
-    Media, MediaRequest, Message, NotificationAction, Notifications, Power, PowerAction,
-    ProgramAction, Programs, WindowAction,
+    Media, MediaRequest, Message, NotificationReport, Notifications, Power, PowerAction,
+    ProgramAction, Programs, ScreenLocked, WindowAction,
 };
 
 pub(super) const MAX_ACTIONS: usize = 64;
@@ -20,7 +20,8 @@ const VALUES: &[(&str, Access)] = &[
     (Displays::KEY, Access::Anyone),
     (Power::KEY, Access::Anyone),
     (Media::KEY, Access::Anyone),
-    (Notifications::KEY, Access::Anyone),
+    (Notifications::KEY, Access::Shell),
+    (ScreenLocked::KEY, Access::Anyone),
     (Programs::KEY, Access::Shell),
 ];
 
@@ -28,7 +29,7 @@ const ACTIONS: &[(&str, Access)] = &[
     (WindowAction::KEY, Access::Shell),
     (PowerAction::KEY, Access::Shell),
     (MediaRequest::KEY, Access::Shell),
-    (NotificationAction::KEY, Access::Shell),
+    (NotificationReport::KEY, Access::Shell),
     (ProgramAction::KEY, Access::Shell),
 ];
 

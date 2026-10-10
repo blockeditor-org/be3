@@ -15,7 +15,7 @@ use block_shell::Workspace;
 
 use super::calendar::{CALENDAR_WIDTH, DesktopCalendar};
 use super::launcher::ProgramLauncher;
-use super::notifications::NotificationsButton;
+use super::notifications::{DesktopNotifications, NotificationsButton};
 use super::popup::BarPopup;
 use super::power::PowerMenu;
 use super::sessions::Sessions;
@@ -50,12 +50,15 @@ fn wall_clock() -> ReadSignal<String> {
 }
 
 #[component]
-pub(crate) fn DesktopBar(workspace: Rc<Workspace>, launcher: ProgramLauncher) -> NodeId {
+pub(crate) fn DesktopBar(
+    workspace: Rc<Workspace>,
+    notifications: DesktopNotifications,
+    launcher: ProgramLauncher,
+) -> NodeId {
     let theme = use_theme();
     let clock = wall_clock();
     let editor = workspace.editor().clone();
     let power = editor.clone();
-    let notified = editor.clone();
     let dated = editor.clone();
     let launcher = move || launcher.show(true);
     let menu = move || editor.host().show_app_menu(editor.block_id());
@@ -133,7 +136,7 @@ pub(crate) fn DesktopBar(workspace: Rc<Workspace>, launcher: ProgramLauncher) ->
                         on_select={chose}
                     />
                     <Spacer @sizing=ItemSize::Percent(100.0) />
-                    <NotificationsButton editor={notified} />
+                    <NotificationsButton notifications />
                     <BarPopup label={clock} width=CALENDAR_WIDTH @test_id={"desktop.clock"}>
                         {move |_: PopoverHandle| view! {
                             <DesktopCalendar editor={dated.clone()} />
