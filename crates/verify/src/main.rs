@@ -296,11 +296,9 @@ impl Run {
                     }
                 }
                 println!(
-                    "Until the next ./scripts/verify, the files as they were before these fixes are under:"
+                    "Until the next ./scripts/verify, the files as they were before these fixes are under {}",
+                    one_pattern(&originals)
                 );
-                for original in &originals {
-                    println!("  {}", original.display());
-                }
                 if !added.is_empty() || !deleted.is_empty() {
                     println!(
                         "These fixes moved code between files, and the build and the tests ran on the files as they were before, so they are unchecked; run ./scripts/verify again to check them."
@@ -373,13 +371,12 @@ impl Run {
             if self.options.check {
                 self.failed = true;
             } else {
+                let previous: BTreeSet<PathBuf> =
+                    changed.iter().map(|(_, used)| used.clone()).collect();
                 println!(
-                    "Until the next ./scripts/verify, the paintings as they were before are under these, empty where there was none:"
+                    "Until the next ./scripts/verify, the paintings as they were before are under {}, missing where there was none",
+                    one_pattern(&previous)
                 );
-                let previous: BTreeSet<&PathBuf> = changed.iter().map(|(_, used)| used).collect();
-                for used in previous {
-                    println!("  {}", used.display());
-                }
             }
         }
         if expected == 0 || directories.len() != expected || self.options.build_failed {
@@ -646,6 +643,31 @@ fn paint_files(directory: &Path) -> Vec<PathBuf> {
         .collect();
     found.sort();
     found
+}
+
+fn one_pattern(paths: &BTreeSet<PathBuf>) -> String {
+    let split: Vec<Vec<_>> = paths
+        .iter()
+        .map(|path| path.components().collect())
+        .collect();
+    let Some(first) = split.first() else {
+        return String::new();
+    };
+    if split.len() == 1 {
+        return first.iter().collect::<PathBuf>().display().to_string();
+    }
+    let shortest = split.iter().map(Vec::len).min().unwrap_or(0);
+    let shared = |at: &dyn Fn(&Vec<_>) -> _| split.iter().all(|path| at(path) == at(first));
+    let prefix = (0..shortest)
+        .take_while(|&i| shared(&|path: &Vec<_>| path[i]))
+        .count();
+    let suffix = (0..shortest - prefix)
+        .take_while(|&i| shared(&|path: &Vec<_>| path[path.len() - 1 - i]))
+        .count();
+    let mut pattern: PathBuf = first[..prefix].iter().collect();
+    pattern.push("*");
+    pattern.extend(&first[first.len() - suffix..]);
+    pattern.display().to_string()
 }
 
 fn slashed(path: &Path) -> String {
