@@ -103,21 +103,28 @@ thread waits on the bus. `dbus::session()` is the shared session bus connection.
 ## Notifications
 
 The desktop shell (`--session` and `--desktop`) serves `org.freedesktop.Notifications` on the
-session bus from `src/notifications/server.rs`, asking for the name without replacing an owner,
-so under another desktop that already runs a notification daemon it logs that and serves
-nothing. The D-Bus side reads the hints and loads the picture (image-data, image-path, the
-app icon through be-wayland's `IconThemes`, then the desktop entry's icon) and hands each
-`Notify` to the UI thread, which answers with its id. `notifications/center.rs` holds what
-happens to them, and is where to test it: ids and `replaces_id`, the toast's timeout (-1 is
-five seconds, 0 and critical urgency never), actions, `resident` and `transient`, and the
-reason every `NotificationClosed` carries. A toast whose time is up only hides: the
-notification stays until it is dismissed, an action is taken or its program closes it, which
-is the `persistence` capability, except a transient one, which closes as expired.
+session bus from block-app's `src/notifications/server.rs`, asking for the name without
+replacing an owner, so under another desktop that already runs a notification daemon it logs
+that and serves nothing. The host keeps only what a plugin cannot do: it owns the name, reads
+the hints, loads the picture (image-data, image-path, the app icon through be-wayland's
+`IconThemes`, then the desktop entry's icon, scaled down to at most 128 pixels and sent as
+RGBA), and answers `Notify` at once with an id it picks itself (`notifications/inbox.rs`:
+`replaces_id` keeps its id while the desktop still holds it). Each `Notify` and
+`CloseNotification` then waits in the `Notifications` host value, a `NotificationInbox` of
+numbered requests, until the shell's `NotificationReport` says it took them; the report also
+carries the `NotificationClosed` and `ActionInvoked` signals the host sends and the ids the
+desktop still holds.
 
-Each shows as one of the host's toasts (`beui::styled::Toasts`, with a title, picture and
-action buttons; clicking the body is the `default` action). The desktop bar's bell lists
-them, newest first: linux-desktop watches them with `LinuxMessage::WatchNotifications` and
-answers with `InvokeNotification` and `DismissNotifications`.
+Everything else is linux-desktop's (`src/app/notifications/`): `center.rs` is what happens to
+a notification, and is where to test it: replacement in place, the toast's timeout (-1 is
+five seconds, 0 and critical urgency never), actions, `resident` and `transient`, the cap of
+100 kept, and the reason every close carries; `markup.rs` turns the body into plain text. A
+toast whose time is up only hides: the notification stays until it is dismissed, an action
+is taken or its program closes it, which is the `persistence` capability, except a transient
+one, which closes as expired. The toasts are a `beui::styled::Toasts` (title, picture and
+action buttons; clicking the body is the `default` action) anchored to the first screen with
+the desktop bar cut off it, with ids from `TOAST_IDS` up so other toasts can share the stack.
+They make way while the bell's list of notifications is open.
 
 To try it, start a session bus of its own (`dbus-daemon --session --fork --print-address`
 prints its address; `notify-send` is in the `libnotify-bin` package), and run the dev app and
@@ -191,8 +198,9 @@ pointer held by the lock none is forwarded anything. `be_wayland::Compositor::se
 go of the buttons and popups a window held. Screens still
 turn off while locked, and idle inhibitors from the windows behind it are ignored. Media keys
 still reach linux-desktop's intercepting media actions (through `compositor/intercept.rs`'s
-`on_global_key`), so volume and playback work over the lock. Notification toasts are left out of
-the host's toasts and can't be acted on while locked; they show again once it is unlocked.
+`on_global_key`), so volume and playback work over the lock. The host publishes the
+`ScreenLocked` host value, and linux-desktop shows no notification toasts while it is set, so
+none can be read or acted on behind the lock; they show again once it is unlocked.
 `ext-session-lock-v1` (external lockers such as swaylock) is not implemented.
 
 ## Wayland programs

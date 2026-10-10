@@ -605,46 +605,8 @@ impl BlockApp {
 
     #[cfg(target_os = "linux")]
     fn run_notifications(&mut self) {
-        if self.notifications.is_none() {
-            return;
-        }
-        let asked = plugin_host::take_actions::<block_plugin_api::NotificationAction>();
         if let Some(notifications) = &mut self.notifications {
-            notifications.frame(asked);
-        }
-    }
-
-    fn toasts(&self) -> Vec<beui::styled::Toast> {
-        #[cfg(target_os = "linux")]
-        if let Some(notifications) = &self.notifications {
-            return notifications.toasts(self.locked());
-        }
-        Vec::new()
-    }
-
-    #[cfg(target_os = "linux")]
-    fn locked(&self) -> bool {
-        self.screen_lock
-            .as_ref()
-            .is_some_and(session::ScreenLock::locked)
-    }
-
-    #[cfg_attr(not(target_os = "linux"), allow(unused_variables))]
-    fn dismiss_toast(&mut self, id: u64) {
-        #[cfg(target_os = "linux")]
-        if let Some(notifications) = &mut self.notifications {
-            notifications.dismiss_toast(id);
-        }
-    }
-
-    #[cfg_attr(not(target_os = "linux"), allow(unused_variables))]
-    fn act_on_toast(&mut self, id: u64, action: Option<String>) {
-        #[cfg(target_os = "linux")]
-        if !self.locked()
-            && let Some(notifications) = &mut self.notifications
-        {
-            let action = action.unwrap_or_else(|| notifications::activate_action().to_owned());
-            notifications.invoke_toast(id, &action);
+            notifications.frame();
         }
     }
 
@@ -692,6 +654,7 @@ impl BlockApp {
         }
         let locked = lock.locked();
         wayland::set_locked(locked);
+        plugin_host::publish::<block_plugin_api::ScreenLocked>(&locked);
         if locked {
             self.launcher.show(false);
             self.app_menu_open = false;
@@ -2327,10 +2290,7 @@ impl BlockApp {
             UiCommand::LaunchProgram(key) => self.launcher.launch(&key),
             UiCommand::Launch(command) => self.launcher.run(command),
             UiCommand::AppMenu(open) => self.app_menu_open = open,
-            UiCommand::DismissToast(id) => self.dismiss_toast(id),
-            UiCommand::ToastAction(id, action) => self.act_on_toast(id, Some(action)),
-            UiCommand::ActivateToast(id) => self.act_on_toast(id, None),
-            UiCommand::DismissProblem(id) => notices::dismiss(id),
+            UiCommand::DismissToast(id) => notices::dismiss(id),
             UiCommand::KeepDisplay(round) => self.answer_display(round, true),
             UiCommand::RevertDisplay(round) => self.answer_display(round, false),
             #[cfg(target_os = "linux")]
@@ -2540,8 +2500,7 @@ impl BlockApp {
                 .editors
                 .with(|open| open.values().any(PluginEditor::presenting_now)),
             debug: debug::view(),
-            toasts: self.toasts(),
-            problems: notices::shown(),
+            toasts: notices::shown(),
             keep_display: self.display_round,
             #[cfg(target_os = "linux")]
             lock: self.lock_view(),

@@ -26,6 +26,7 @@ use block_shell::{
 
 use bar::DesktopBar;
 use media::MediaKeys;
+use notifications::{DesktopNotifications, DesktopToasts};
 
 const WINDOW_ORIGIN: f32 = 48.0;
 const WINDOW_CASCADE: f32 = 32.0;
@@ -79,6 +80,8 @@ fn DesktopBody(workspace: Rc<Workspace>) -> NodeId {
     let pickers = Rc::clone(&workspace);
     let shell_dialogs = Rc::clone(&workspace);
     let editor = workspace.editor().clone();
+    let notifications = DesktopNotifications::new(&editor);
+    let bar_node = NodeRef::new();
     let theme = use_theme();
     view! {
         <Frame @node_ref={&surface} color={theme.background.clone()}>
@@ -110,10 +113,15 @@ fn DesktopBody(workspace: Rc<Workspace>) -> NodeId {
                         }}
                     </ForEach>
                 </Docking>
-                <DesktopBar workspace={bar} />
+                <DesktopBar
+                    @node_ref=&bar_node
+                    workspace={bar}
+                    notifications={notifications.clone()}
+                />
                 <PickerDialogs workspace={pickers} />
                 <WorkspaceDialogs workspace={shell_dialogs} />
                 <MediaKeys editor />
+                <DesktopToasts notifications bar={bar_node} />
             </List>
         </Frame>
     }

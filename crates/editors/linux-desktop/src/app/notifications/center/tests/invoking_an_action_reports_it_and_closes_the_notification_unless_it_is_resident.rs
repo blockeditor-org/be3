@@ -3,12 +3,15 @@ use super::*;
 #[test]
 fn invoking_an_action_reports_it_and_closes_the_notification_unless_it_is_resident() {
     let mut center = Center::default();
-    let message = center.notify(
+    let (message, player) = (1, 2);
+    center.notify(
+        message,
         with_actions("message", &[DEFAULT_ACTION, "reply"]),
         seconds(0),
         0,
     );
-    let player = center.notify(
+    center.notify(
+        player,
         Incoming {
             resident: true,
             ..with_actions("player", &["pause"])
@@ -25,9 +28,9 @@ fn invoking_an_action_reports_it_and_closes_the_notification_unless_it_is_reside
     assert_eq!(
         center.take_signals(),
         vec![
-            Signal::ActionInvoked(message, "reply".to_owned()),
-            Signal::Closed(message, CloseReason::Dismissed),
-            Signal::ActionInvoked(player, "pause".to_owned()),
+            NotificationSignal::ActionInvoked(message, "reply".to_owned()),
+            NotificationSignal::Closed(message, NotificationCloseReason::Dismissed),
+            NotificationSignal::ActionInvoked(player, "pause".to_owned()),
         ]
     );
     assert_eq!(listed(&center), vec![player], "a resident one stays listed");

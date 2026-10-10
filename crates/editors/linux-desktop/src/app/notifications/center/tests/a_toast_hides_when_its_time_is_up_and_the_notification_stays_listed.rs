@@ -3,8 +3,10 @@ use super::*;
 #[test]
 fn a_toast_hides_when_its_time_is_up_and_the_notification_stays_listed() {
     let mut center = Center::default();
-    let usual = center.notify(incoming("usual"), seconds(0), 0);
-    let quick = center.notify(
+    let (usual, quick, never, critical, transient) = (1, 2, 3, 4, 5);
+    center.notify(usual, incoming("usual"), seconds(0), 0);
+    center.notify(
+        quick,
         Incoming {
             expire_timeout: 1500,
             ..incoming("quick")
@@ -12,7 +14,8 @@ fn a_toast_hides_when_its_time_is_up_and_the_notification_stays_listed() {
         seconds(0),
         0,
     );
-    let never = center.notify(
+    center.notify(
+        never,
         Incoming {
             expire_timeout: 0,
             ..incoming("never")
@@ -20,15 +23,17 @@ fn a_toast_hides_when_its_time_is_up_and_the_notification_stays_listed() {
         seconds(0),
         0,
     );
-    let critical = center.notify(
+    center.notify(
+        critical,
         Incoming {
-            urgency: Urgency::Critical,
+            urgency: NotificationUrgency::Critical,
             ..incoming("critical")
         },
         seconds(0),
         0,
     );
-    let transient = center.notify(
+    center.notify(
+        transient,
         Incoming {
             transient: true,
             ..incoming("transient")
@@ -66,19 +71,15 @@ fn a_toast_hides_when_its_time_is_up_and_the_notification_stays_listed() {
     );
     assert_eq!(
         center.take_signals(),
-        vec![Signal::Closed(transient, CloseReason::Expired)],
+        vec![NotificationSignal::Closed(
+            transient,
+            NotificationCloseReason::Expired
+        )],
         "a transient notification closes when its time is up"
     );
     assert_eq!(listed(&center), vec![critical, never, quick, usual]);
 
-    center.notify(
-        Incoming {
-            replaces_id: usual,
-            ..incoming("usual, again")
-        },
-        seconds(10),
-        0,
-    );
+    center.notify(usual, incoming("usual, again"), seconds(10), 0);
     assert_eq!(
         toasted(&center),
         vec![usual, never, critical],

@@ -1,197 +1,261 @@
-use std::time::Duration;
+mod center;
+mod history;
+mod markup;
+mod toasts;
 
-use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::datetime::{HourCycle, Time};
-use block_editor_beui::beui::icons::{ICON_CLOSE, ICON_NOTIFICATIONS, ICON_NOTIFICATIONS_ACTIVE};
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
+use std::time::{Duration, Instant};
+
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, Text, clone, component,
-    create_memo, view,
+    Memo, ReadSignal, Timer, WriteSignal, clone, create_effect, create_memo, create_signal,
+    create_timer, now, untrack,
 };
-use block_editor_beui::beui::styled::theme::{FONT_BODY, FONT_SMALL};
-use block_editor_beui::beui::styled::{
-    Button, ButtonVariant, Caption, Heading, IconButton, IconButtonSize, ListRow, Scroll, use_theme,
+use block_editor_beui::beui::styled::{Toast, ToastAction};
+use block_editor_beui::{
+    Editor, NotificationCloseReason, NotificationInbox, NotificationReport, NotificationRequest,
+    Notifications, ScreenLocked,
 };
-use block_editor_beui::beui::unstyled::PopoverHandle;
-use block_editor_beui::{Editor, HostNotification, NotificationAction, Notifications};
 
-use super::bar::local_minutes;
-use super::popup::BarPopup;
+use center::{Center, DEFAULT_ACTION, Incoming, Notification};
 
-pub(crate) const NOTIFICATIONS_WIDTH: f32 = 360.0;
-const LIST_HEIGHT: f32 = 420.0;
-const SPACING: f32 = 8.0;
-const ROW_SPACING: f32 = 2.0;
+pub(crate) use history::NotificationsButton;
+pub(crate) use toasts::DesktopToasts;
 
-fn received_at(received: u64) -> String {
-    let minutes = local_minutes(Duration::from_secs(received));
-    Time::from_minutes(minutes).format(HourCycle::H24)
+pub(crate) const TOAST_IDS: u64 = 1 << 32;
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct Listed {
+    pub(crate) id: u32,
+    pub(crate) app_name: String,
+    pub(crate) summary: String,
+    pub(crate) body: String,
+    pub(crate) received: u64,
+    pub(crate) critical: bool,
+    pub(crate) activates: bool,
 }
 
-#[component]
-pub(crate) fn NotificationsButton(editor: Editor) -> NodeId {
-    let notifications = editor.host_value::<Notifications>();
-    let glyph = create_memo(clone!(notifications -> move || {
-        match notifications.with(Vec::is_empty) {
-            true => ICON_NOTIFICATIONS.to_owned(),
-            false => ICON_NOTIFICATIONS_ACTIVE.to_owned(),
+impl Listed {
+    fn of(kept: &Notification) -> Self {
+        Self {
+            id: kept.id,
+            app_name: kept.incoming.app_name.clone(),
+            summary: kept.incoming.summary.clone(),
+            body: kept.incoming.body.clone(),
+            received: kept.received,
+            critical: kept.critical(),
+            activates: kept.has_default_action(),
         }
-    }));
-    let label = create_memo(clone!(notifications -> move || {
-        match notifications.with(Vec::len) {
-            0 => "Notifications".to_owned(),
-            count => format!("Notifications ({count})"),
-        }
-    }));
-    view! {
-        <BarPopup
-            label
-            glyph
-            icon_only=true
-            width=NOTIFICATIONS_WIDTH
-            @test_id={"desktop.notifications"}
-        >
-            {move |handle: PopoverHandle| view! {
-                <NotificationList editor={editor.clone()} popover={handle} />
-            }}
-        </BarPopup>
     }
 }
 
-#[component]
-fn NotificationList(editor: Editor, popover: PopoverHandle) -> NodeId {
-    let notifications = editor.host_value::<Notifications>();
-    let empty = create_memo(clone!(notifications -> move || notifications.with(Vec::is_empty)));
-    let unclearable = empty.clone();
-    let some = create_memo(clone!(empty -> move || !empty.get()));
-    let clearing = editor.clone();
-    let cleared = notifications.clone();
-    let clear = move || {
-        let ids: Vec<u32> =
-            cleared.with_untracked(|listed| listed.iter().map(|shown| shown.id).collect());
-        if !ids.is_empty() {
-            clearing.act(NotificationAction::Dismiss(ids));
-        }
-    };
-    view! {
-        <List spacing=SPACING @test_id={"desktop.notifications.list"}>
-            <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <Heading content="Notifications" />
-                <Spacer @sizing=ItemSize::Percent(100.0) />
-                <Button
-                    label="Clear all"
-                    variant=ButtonVariant::Ghost
-                    disabled={unclearable}
-                    @test_id={"desktop.notifications.clear"}
-                    on_click={clear}
-                />
-            </List>
-            <Show condition={empty}>
-                <Caption content="Nothing new." />
-            </Show>
-            <Show condition={some}>
-                <NotificationRows
-                    editor={editor.clone()}
-                    notifications={notifications.clone()}
-                    popover={popover.clone()}
-                />
-            </Show>
-        </List>
-    }
+#[derive(Clone)]
+pub(crate) struct DesktopNotifications {
+    shared: Rc<Shared>,
+    revision: ReadSignal<u64>,
+    locked: Memo<bool>,
+    browsing: ReadSignal<bool>,
+    set_browsing: WriteSignal<bool>,
 }
 
-#[component]
-fn NotificationRows(
+struct Shared {
     editor: Editor,
-    notifications: Memo<Vec<HostNotification>>,
-    popover: PopoverHandle,
-) -> NodeId {
-    view! {
-        <Frame max_height=Some(LIST_HEIGHT)>
-            <Scroll>
-                <ForEach keys={notifications}>
-                    {move |notification: HostNotification| view! {
-                        <NotificationRow
-                            editor={editor.clone()}
-                            notification
-                            popover={popover.clone()}
-                        />
-                    }}
-                </ForEach>
-            </Scroll>
-        </Frame>
+    center: RefCell<Center>,
+    started: Instant,
+    handled: Cell<u64>,
+    arrived: RefCell<NotificationInbox>,
+    reported: RefCell<Vec<u32>>,
+    revision: WriteSignal<u64>,
+    shown: Cell<u64>,
+    expiry: RefCell<Option<Timer>>,
+}
+
+impl DesktopNotifications {
+    pub(crate) fn new(editor: &Editor) -> Self {
+        let (revision, set_revision) = create_signal(0_u64);
+        let shared = Rc::new(Shared {
+            editor: editor.clone(),
+            center: RefCell::new(Center::default()),
+            started: now(),
+            handled: Cell::new(0),
+            arrived: RefCell::new(NotificationInbox::default()),
+            reported: RefCell::new(Vec::new()),
+            revision: set_revision,
+            shown: Cell::new(0),
+            expiry: RefCell::new(None),
+        });
+        let weak = Rc::downgrade(&shared);
+        let expiry = create_timer(clone!(weak -> move || {
+            weak.upgrade().and_then(|shared| shared.tick())
+        }));
+        shared.expiry.replace(Some(expiry));
+        let inbox = editor.host_value::<Notifications>();
+        create_effect(move || {
+            let inbox = inbox.get();
+            if let Some(shared) = weak.upgrade() {
+                untrack(|| shared.arrive(inbox));
+            }
+        });
+        let (browsing, set_browsing) = create_signal(false);
+        Self {
+            shared,
+            revision,
+            locked: editor.host_value::<ScreenLocked>(),
+            browsing,
+            set_browsing,
+        }
+    }
+
+    pub(crate) fn listed(&self) -> Memo<Vec<Listed>> {
+        let revision = self.revision.clone();
+        let shared = Rc::clone(&self.shared);
+        create_memo(move || {
+            revision.get();
+            shared.center.borrow().listed().map(Listed::of).collect()
+        })
+    }
+
+    pub(crate) fn toasts(&self) -> Memo<Vec<Toast>> {
+        let revision = self.revision.clone();
+        let locked = self.locked.clone();
+        let browsing = self.browsing.clone();
+        let shared = Rc::clone(&self.shared);
+        create_memo(move || {
+            revision.get();
+            if locked.get() || browsing.get() {
+                return Vec::new();
+            }
+            shared.center.borrow().toasts().map(toast).collect()
+        })
+    }
+
+    pub(crate) fn browse(&self, open: bool) {
+        self.set_browsing.set(open);
+    }
+
+    pub(crate) fn dismiss(&self, ids: &[u32]) {
+        {
+            let mut center = self.shared.center.borrow_mut();
+            for id in ids {
+                center.dismiss(*id);
+            }
+        }
+        self.shared.settle();
+    }
+
+    pub(crate) fn invoke(&self, id: u32, action: &str) {
+        self.shared.center.borrow_mut().invoke(id, action);
+        self.shared.settle();
+    }
+
+    pub(crate) fn activate(&self, id: u32) {
+        self.invoke(id, DEFAULT_ACTION);
     }
 }
 
-#[component]
-fn NotificationRow(
-    editor: Editor,
-    notification: HostNotification,
-    popover: PopoverHandle,
-) -> NodeId {
-    let theme = use_theme();
-    let id = notification.id;
-    let activates = notification.has_default_action();
-    let dismissing = editor.clone();
-    let activate = move || match activates {
-        true => {
-            editor.act(NotificationAction::Invoke {
-                id,
-                action: HostNotification::DEFAULT_ACTION.to_owned(),
+impl Shared {
+    fn elapsed(&self) -> Duration {
+        now().saturating_duration_since(self.started)
+    }
+
+    fn arrive(&self, inbox: NotificationInbox) {
+        self.arrived.replace(inbox);
+        if let Some(expiry) = self.expiry.borrow().as_ref() {
+            expiry.restart(Duration::ZERO);
+        }
+    }
+
+    fn receive(&self, elapsed: Duration) -> Option<u64> {
+        let inbox = self.arrived.take();
+        let handled = self.handled.get();
+        let mut received = None;
+        let mut center = self.center.borrow_mut();
+        for (sequence, request) in inbox.requests {
+            if sequence <= handled {
+                continue;
+            }
+            received = Some(sequence);
+            match request {
+                NotificationRequest::Notify(incoming) => center.notify(
+                    incoming.id,
+                    Incoming::from_host(&incoming),
+                    elapsed,
+                    incoming.received,
+                ),
+                NotificationRequest::Close(id) => {
+                    center.close(id, NotificationCloseReason::Closed);
+                }
+            }
+        }
+        if let Some(sequence) = received {
+            self.handled.set(sequence);
+        }
+        received
+    }
+
+    fn settle(&self) {
+        let wait = self.tick();
+        if let Some(expiry) = self.expiry.borrow().as_ref() {
+            match wait {
+                Some(wait) => expiry.restart(wait),
+                None => expiry.stop(),
+            }
+        }
+    }
+
+    fn tick(&self) -> Option<Duration> {
+        let elapsed = self.elapsed();
+        let received = self.receive(elapsed);
+        let (wait, signals, kept, revision) = {
+            let mut center = self.center.borrow_mut();
+            let wait = center.frame(elapsed);
+            (
+                wait,
+                center.take_signals(),
+                center.kept_ids(),
+                center.revision(),
+            )
+        };
+        let moved = *self.reported.borrow() != kept;
+        if received.is_some() || !signals.is_empty() || moved {
+            self.reported.replace(kept.clone());
+            self.editor.act(NotificationReport {
+                received,
+                signals,
+                kept,
             });
-            popover.close.call(());
         }
-        false => editor.act(NotificationAction::Dismiss(vec![id])),
-    };
-    let source = match notification.app_name.is_empty() {
-        true => received_at(notification.received),
-        false => format!(
-            "{}  {}",
-            notification.app_name,
-            received_at(notification.received)
-        ),
-    };
-    let said = !notification.body.is_empty();
-    let body = notification.body.clone();
-    let summary = notification.summary.clone();
-    let body_color = theme.text_muted.clone();
-    let summary_color = match notification.critical {
-        true => theme.danger.clone(),
-        false => theme.text.clone(),
-    };
-    view! {
-        <List direction=Direction::Horizontal align=Align::Start spacing=ROW_SPACING>
-            <ListRow
-                @sizing=ItemSize::Percent(100.0)
-                @test_id={format!("desktop.notifications.{id}")}
-                on_click={activate}
-            >
-                <List spacing=ROW_SPACING>
-                    <Caption content={source} />
-                    <Text
-                        string={summary}
-                        font_size=FONT_BODY
-                        color={summary_color}
-                        bold=true
-                        wrap=true
-                    />
-                    <Show condition={said}>
-                        <Text
-                            string={body.clone()}
-                            font_size=FONT_SMALL
-                            color={body_color.clone()}
-                            wrap=true
-                        />
-                    </Show>
-                </List>
-            </ListRow>
-            <IconButton
-                glyph={ICON_CLOSE.to_owned()}
-                label="Dismiss"
-                variant=ButtonVariant::Ghost
-                size=IconButtonSize::Compact
-                @test_id={format!("desktop.notifications.{id}.dismiss")}
-                on_click={move || dismissing.act(NotificationAction::Dismiss(vec![id]))}
-            />
-        </List>
+        if self.shown.replace(revision) != revision {
+            self.revision.set(revision);
+        }
+        wait
     }
+}
+
+fn toast(kept: &Notification) -> Toast {
+    Toast {
+        id: TOAST_IDS + u64::from(kept.id),
+        title: kept.incoming.summary.clone(),
+        message: kept.incoming.body.clone(),
+        danger: kept.critical() && kept.incoming.image.is_none(),
+        image: kept.incoming.image.clone(),
+        actions: kept
+            .incoming
+            .actions
+            .iter()
+            .filter(|action| action.key != DEFAULT_ACTION)
+            .map(|action| ToastAction {
+                key: action.key.clone(),
+                label: action.label.clone(),
+            })
+            .collect(),
+        activates: kept.has_default_action(),
+        sticky: true,
+    }
+}
+
+fn notification(toast: u64) -> Option<u32> {
+    toast
+        .checked_sub(TOAST_IDS)
+        .and_then(|id| u32::try_from(id).ok())
 }

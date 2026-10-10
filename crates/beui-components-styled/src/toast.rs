@@ -4,14 +4,16 @@ use crate::button::{Button, ButtonVariant};
 use crate::icon_button::{IconButton, IconButtonSize};
 use crate::text::Icon;
 use crate::theme::{BORDER_WIDTH, FONT_BODY, FONT_SMALL, RADIUS, use_theme};
-use beui_components_unstyled::{Edge, Floating, Picture, Pressable};
+use beui_components_unstyled::{Edge, Picture, Pressable};
 use beui_core::base::Justify;
+use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
 use beui_core::icons::{ICON_CLOSE, ICON_ERROR, ICON_INFO};
 use beui_core::image::Image;
 use beui_core::node::NodeId;
+use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    Align, Callback, Direction, ForEach, Frame, ItemSize, List, NodeRef, Prop, Show, Text,
-    create_memo, create_timer,
+    Align, Callback, Direction, ForEach, Frame, ItemSize, List, Prop, Show, Text, create_memo,
+    create_timer,
 };
 use std::hash::{Hash, Hasher};
 use std::time::Duration;
@@ -58,7 +60,7 @@ impl Hash for Toast {
 
 #[component]
 pub fn Toasts(
-    anchor: NodeRef,
+    anchor: Prop<OverlayAnchor>,
     toasts: Prop<Vec<Toast>>,
     #[prop(default = Some(TOAST_DURATION))] duration: Prop<Option<Duration>>,
     #[prop(default = Edge::BottomEnd)] edge: Prop<Edge>,
@@ -68,8 +70,20 @@ pub fn Toasts(
 ) -> NodeId {
     let listed = toasts.clone();
     let open = create_memo(move || !listed.get().is_empty());
+    let placement = edge.map(|edge| match edge {
+        Edge::Top => Placement::InsideTop,
+        Edge::TopEnd => Placement::InsideTopEnd,
+        Edge::Bottom => Placement::InsideBottom,
+        Edge::BottomEnd => Placement::InsideBottomEnd,
+    });
     view! {
-        <Floating anchor edge open={open}>
+        <Overlay
+            anchor
+            placement={placement}
+            mode=OverlayMode::Floating
+            traps_focus=false
+            open={open}
+        >
             <Frame
                 padding_horizontal=MARGIN
                 padding_vertical=MARGIN
@@ -98,7 +112,7 @@ pub fn Toasts(
                     </ForEach>
                 </List>
             </Frame>
-        </Floating>
+        </Overlay>
     }
 }
 
