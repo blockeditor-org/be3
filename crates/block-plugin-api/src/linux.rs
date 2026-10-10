@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{ChildRect, HostAction, HostValue, Size};
+use crate::{ChildRect, HostAction, HostImage, HostValue, Size};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct HostWindowId(pub u64);
@@ -134,14 +134,6 @@ pub enum NotificationUrgency {
 }
 
 #[derive(Clone, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub struct NotificationImage {
-    pub width: u32,
-    pub height: u32,
-    #[serde(with = "serde_bytes")]
-    pub rgba: Vec<u8>,
-}
-
-#[derive(Clone, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IncomingNotification {
     pub id: u32,
     pub app_name: String,
@@ -149,7 +141,7 @@ pub struct IncomingNotification {
     pub body: String,
     pub actions: Vec<HostNotificationAction>,
     pub urgency: NotificationUrgency,
-    pub image: Option<NotificationImage>,
+    pub image: Option<HostImage>,
     pub transient: bool,
     pub resident: bool,
     pub expire_timeout: i32,
@@ -185,6 +177,27 @@ pub struct NotificationReport {
     pub received: Option<u64>,
     pub signals: Vec<NotificationSignal>,
     pub kept: Vec<u32>,
+}
+
+#[derive(Clone, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HostProgram {
+    pub id: String,
+    pub name: String,
+    pub generic_name: String,
+    pub comment: String,
+    pub keywords: Vec<String>,
+    pub icon: Option<HostImage>,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProgramAction {
+    List { icon_size: u32 },
+    Launch(String),
+    Run(String),
+}
+
+impl ProgramAction {
+    pub const MAX_ICON_SIZE: u32 = 256;
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -244,6 +257,17 @@ pub enum ScreenLocked {}
 impl HostValue for ScreenLocked {
     const KEY: &'static str = "screen_locked";
     type Value = bool;
+}
+
+pub enum Programs {}
+
+impl HostValue for Programs {
+    const KEY: &'static str = "programs";
+    type Value = Vec<HostProgram>;
+}
+
+impl HostAction for ProgramAction {
+    const KEY: &'static str = "program";
 }
 
 impl HostAction for WindowAction {

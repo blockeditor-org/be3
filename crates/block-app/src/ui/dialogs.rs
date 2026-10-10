@@ -1,14 +1,13 @@
 use be_protocol::WorkspaceRole;
-use beui::icons::ICON_APPS;
+use beui::NodeId;
 use beui::reactive::{
-    Action, Align, Chord, Direction, Frame, List, Show, clone, component, create_effect,
-    create_memo, create_signal, untrack, view,
+    Align, Direction, Frame, List, Show, clone, component, create_effect, create_memo,
+    create_signal, untrack, view,
 };
 use beui::styled::{
-    Button, ButtonVariant, Caption, Code, Dialog, Launcher, Paragraph, Spinner, Tabs, TextInput,
+    Button, ButtonVariant, Caption, Code, Dialog, Paragraph, Spinner, Tabs, TextInput,
 };
 use beui::unstyled::ChoiceOption;
-use beui::{Key, NodeId};
 
 use super::onboarding::ErrorText;
 
@@ -21,7 +20,6 @@ pub(super) fn Dialogs(view: AppViewStore) -> NodeId {
             <DiscardDialog view={view.clone()} />
             <InviteDialog view={view.clone()} />
             <AboutDialog view={view.clone()} />
-            <ProgramLauncher view />
         </List>
     }
 }
@@ -49,31 +47,6 @@ fn AboutDialog(view: AppViewStore) -> NodeId {
         <Dialog open={open} title="About" width=420.0 on_dismiss={|| send(UiCommand::About(false))}>
             <AboutPanel />
         </Dialog>
-    }
-}
-
-#[component]
-fn ProgramLauncher(view: AppViewStore) -> NodeId {
-    let open = view.launcher.clone();
-    Action::new(
-        "launcher.toggle",
-        "Programs",
-        clone!(open -> move || send(UiCommand::Launcher(!open.get_untracked()))),
-    )
-    .glyph(ICON_APPS)
-    .shortcut(Chord::tap(Key::Logo))
-    .intercepts()
-    .register();
-    let programs = view.programs.clone();
-    view! {
-        <Launcher
-            open={open}
-            items={programs}
-            placeholder="Search programs, or type a command"
-            on_launch={|key: String| send(UiCommand::LaunchProgram(key))}
-            on_run={|line: String| send(UiCommand::Launch(line))}
-            on_close={|| send(UiCommand::Launcher(false))}
-        />
     }
 }
 

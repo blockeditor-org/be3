@@ -45,9 +45,7 @@ pub(crate) fn WindowSurface(window: HostWindowId) -> NodeId {
 }
 
 #[derive(Default)]
-pub(crate) struct Programs {
-    items: std::rc::Rc<Vec<beui::styled::LauncherItem>>,
-}
+pub(crate) struct Programs;
 
 impl Programs {
     pub(crate) fn scan(&mut self, _pixels: u32) {}
@@ -56,8 +54,8 @@ impl Programs {
         false
     }
 
-    pub(crate) fn items(&self) -> std::rc::Rc<Vec<beui::styled::LauncherItem>> {
-        std::rc::Rc::clone(&self.items)
+    pub(crate) fn listed(&self) -> Vec<block_plugin_api::HostProgram> {
+        Vec::new()
     }
 
     pub(crate) fn launch(&self, _key: &str) -> bool {

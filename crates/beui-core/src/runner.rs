@@ -63,6 +63,8 @@ pub trait Platform {
 
     fn set_handles_back(&mut self, _handles: bool) {}
 
+    fn set_wants_keyboard(&mut self, _wants: bool) {}
+
     fn set_intercepted_keys(&mut self, _chords: &[KeyChord]) {}
 
     fn show_ime(&mut self, _ime: Option<&ImeArea>) {}
@@ -97,6 +99,7 @@ struct Shown {
     pointer_locked: bool,
     fullscreen: bool,
     handles_back: bool,
+    wants_keyboard: bool,
     intercepted_keys: Vec<KeyChord>,
 }
 
@@ -293,6 +296,10 @@ impl Runner {
         if output.handles_back != shown.handles_back {
             shown.handles_back = output.handles_back;
             platform.set_handles_back(output.handles_back);
+        }
+        if output.wants_keyboard != shown.wants_keyboard {
+            shown.wants_keyboard = output.wants_keyboard;
+            platform.set_wants_keyboard(output.wants_keyboard);
         }
         if output.intercepted_keys != shown.intercepted_keys {
             shown.intercepted_keys.clone_from(&output.intercepted_keys);

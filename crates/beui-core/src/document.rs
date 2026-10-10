@@ -1153,6 +1153,9 @@ impl Document {
         if self.handles_back() {
             ctx.handle_back();
         }
+        if self.modal_open() {
+            ctx.want_keyboard();
+        }
         self.intercepted_keys
             .0
             .with_untracked(|chords| ctx.intercept_keys(chords));

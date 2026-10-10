@@ -6,10 +6,7 @@ fn the_media_keys_ask_the_host_even_from_a_program_with_the_keyboard() {
     let intercepted = fixture.test.intercepted_keys();
     for (key, _) in BINDINGS {
         assert!(
-            intercepted.contains(&KeyChord {
-                key,
-                modifiers: Modifiers::NONE
-            }),
+            intercepted.contains(&KeyChord::new(key, Modifiers::NONE)),
             "the desktop takes {key:?} before the program that has the keyboard"
         );
     }

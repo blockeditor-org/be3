@@ -170,6 +170,7 @@ impl PluginSurface {
                     keyboard: area.keyboard,
                 }),
             handles_back: self.platform.handles_back,
+            wants_keyboard: self.platform.wants_keyboard,
             intercepted_keys: self.platform.intercepted_keys.clone(),
         }
     }

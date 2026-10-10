@@ -1,6 +1,6 @@
 use beui::icons::{
-    ICON_APPS, ICON_BUG_REPORT, ICON_CHECK, ICON_INFO, ICON_KEY, ICON_MANAGE_ACCOUNTS,
-    ICON_PERSON_ADD, ICON_POWER_SETTINGS_NEW, ICON_SWAP_HORIZ, ICON_SYNC,
+    ICON_BUG_REPORT, ICON_CHECK, ICON_INFO, ICON_KEY, ICON_MANAGE_ACCOUNTS, ICON_PERSON_ADD,
+    ICON_POWER_SETTINGS_NEW, ICON_SWAP_HORIZ, ICON_SYNC,
 };
 use beui::reactive::{
     ForEach, Frame, ItemSize, List, Memo, Prop, Show, clone, component, create_memo,
@@ -77,7 +77,6 @@ fn AppMenu(status: Memo<StatusView>, open: Prop<bool>) -> NodeId {
     let workspace = create_memo(clone!(status -> move || status.get().workspace));
     let signed_in_as = create_memo(clone!(status -> move || status.get().signed_in_as));
     let panel = |panel: HostPanel| move || pick(UiCommand::ShowPanel(panel));
-    let runs_programs = create_memo(clone!(status -> move || status.get().runs_programs));
     let can_close = create_memo(clone!(status -> move || status.get().can_close));
     view! {
         <ContextMenu
@@ -118,14 +117,6 @@ fn AppMenu(status: Memo<StatusView>, open: Prop<bool>) -> NodeId {
                     disabled={unsaved}
                     on_click={|| pick(UiCommand::ManageAccounts)}
                 />
-                <Show condition={runs_programs}>
-                    <MenuItem
-                        row_test_id={"app.menu.programs".to_owned()}
-                        label="Programs"
-                        glyph={ICON_APPS.to_owned()}
-                        on_click={|| pick(UiCommand::Launcher(true))}
-                    />
-                </Show>
                 <MenuItem
                     row_test_id={"app.menu.about".to_owned()}
                     label="About"

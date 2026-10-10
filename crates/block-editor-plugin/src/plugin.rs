@@ -92,6 +92,7 @@ pub struct Frame {
     pub claims: Vec<Claim>,
     pub ime: Option<Ime>,
     pub handles_back: bool,
+    pub wants_keyboard: bool,
     pub intercepted_keys: Vec<KeyChord>,
 }
 

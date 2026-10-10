@@ -842,6 +842,30 @@ impl Instances {
         })]
     }
 
+    pub(super) fn intercepted_tap(
+        &mut self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+        key: beui::Key,
+    ) -> Vec<Message> {
+        let announced = &self.announced;
+        let Some(screen) = self
+            .entries
+            .get(&instance)
+            .and_then(|entry| entry.screens.get(&region))
+            .filter(|screen| announced.contains(&screen.request.screen))
+            .filter(|screen| !screen.input.focused())
+        else {
+            return Vec::new();
+        };
+        vec![Message::Input(block_plugin_api::InputBatch {
+            screen: screen.request.screen,
+            events: vec![block_plugin_api::InputEvent::InterceptedTap {
+                key: beui_plugin_input::protocol_key(key),
+            }],
+        })]
+    }
+
     pub(super) fn mounted(&self, instance: EditorInstanceId, region: EditorRegion) -> bool {
         self.entries
             .get(&instance)

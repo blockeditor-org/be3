@@ -1,5 +1,5 @@
 use bincode::Options;
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use crate::MAX_BLOB_BYTES;
 
@@ -10,6 +10,20 @@ pub trait HostValue: 'static {
 
 pub trait HostAction: Clone + Serialize + DeserializeOwned + 'static {
     const KEY: &'static str;
+}
+
+#[derive(Clone, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HostImage {
+    pub width: u32,
+    pub height: u32,
+    #[serde(with = "serde_bytes")]
+    pub rgba: Vec<u8>,
+}
+
+impl HostImage {
+    pub fn is_whole(&self) -> bool {
+        self.rgba.len() == self.width as usize * self.height as usize * 4
+    }
 }
 
 pub fn encode_host<T: Serialize>(value: &T) -> Vec<u8> {

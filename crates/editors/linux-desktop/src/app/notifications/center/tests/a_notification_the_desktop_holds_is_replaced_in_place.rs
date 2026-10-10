@@ -14,7 +14,7 @@ fn a_notification_the_desktop_holds_is_replaced_in_place() {
             key: DEFAULT_ACTION.to_owned(),
             label: "Open".to_owned(),
         }],
-        image: Some(NotificationImage {
+        image: Some(HostImage {
             width: 1,
             height: 1,
             rgba: vec![1, 2, 3, 4],
@@ -30,7 +30,7 @@ fn a_notification_the_desktop_holds_is_replaced_in_place() {
     assert!(first.image.is_some());
     assert!(
         Incoming::from_host(&IncomingNotification {
-            image: Some(NotificationImage {
+            image: Some(HostImage {
                 width: 2,
                 height: 2,
                 rgba: vec![0; 3],

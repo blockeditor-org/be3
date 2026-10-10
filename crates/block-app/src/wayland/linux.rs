@@ -1,15 +1,13 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::Duration;
 
 use be_wayland::programs::{DesktopEntry, Environment, IconThemes, load_icon};
 use be_wayland::{Compositor, Launch, Server, WindowId, WindowView, Windows};
 use beui::reactive::{Frame, component, create_memo, view};
-use beui::styled::LauncherItem;
 use beui::{Context, Document, NodeId, Rect, Setup};
-use block_plugin_api::{ChildRect, HostWindow, HostWindowId, Size};
+use block_plugin_api::{ChildRect, HostImage, HostProgram, HostWindow, HostWindowId, Size};
 
 struct Running {
     compositor: Compositor,
@@ -230,17 +228,18 @@ pub(crate) fn launch(command: String) -> bool {
     true
 }
 
+const ICON_BUDGET: usize = block_plugin_api::MAX_BLOB_BYTES / 2;
+
 enum Scanned {
     Entries(Environment, Vec<DesktopEntry>),
-    Icons(Vec<(String, beui::Image)>),
+    Icons(Vec<(String, HostImage)>),
 }
 
 #[derive(Default)]
 pub(crate) struct Programs {
     environment: Environment,
     entries: Vec<DesktopEntry>,
-    icons: HashMap<String, beui::Image>,
-    items: Rc<Vec<LauncherItem>>,
+    icons: HashMap<String, HostImage>,
     scanning: Option<Receiver<Scanned>>,
 }
 
@@ -271,7 +270,13 @@ impl Programs {
                     .into_iter()
                     .filter_map(|(id, name)| {
                         let path = themes.find(&name, pixels)?;
-                        Some((id, load_icon(&path, pixels)?))
+                        let icon = load_icon(&path, pixels)?;
+                        let image = HostImage {
+                            width: icon.width(),
+                            height: icon.height(),
+                            rgba: icon.pixels().to_vec(),
+                        };
+                        Some((id, image))
                     })
                     .collect();
                 let _ = sender.send(Scanned::Icons(icons));
@@ -305,32 +310,32 @@ impl Programs {
                 }
             }
         }
-        if changed {
-            self.items = Rc::new(self.entries.iter().map(|entry| self.item(entry)).collect());
-        }
         changed
     }
 
-    fn item(&self, entry: &DesktopEntry) -> LauncherItem {
-        let detail = match entry.comment.is_empty() {
-            true => entry.generic_name.clone(),
-            false => entry.comment.clone(),
-        };
-        let id = entry.id.trim_end_matches(".desktop").to_owned();
-        LauncherItem {
-            key: entry.id.clone(),
-            title: entry.name.clone(),
-            detail,
-            terms: std::iter::once(entry.generic_name.clone())
-                .chain(entry.keywords.iter().cloned())
-                .chain(std::iter::once(id))
-                .collect(),
-            image: self.icons.get(&entry.id).cloned(),
-        }
-    }
-
-    pub(crate) fn items(&self) -> Rc<Vec<LauncherItem>> {
-        Rc::clone(&self.items)
+    pub(crate) fn listed(&self) -> Vec<HostProgram> {
+        let mut room = ICON_BUDGET;
+        self.entries
+            .iter()
+            .map(|entry| HostProgram {
+                id: entry.id.clone(),
+                name: entry.name.clone(),
+                generic_name: entry.generic_name.clone(),
+                comment: entry.comment.clone(),
+                keywords: entry.keywords.clone(),
+                icon: self
+                    .icons
+                    .get(&entry.id)
+                    .filter(|icon| {
+                        let fits = icon.rgba.len() <= room;
+                        if fits {
+                            room -= icon.rgba.len();
+                        }
+                        fits
+                    })
+                    .cloned(),
+            })
+            .collect()
     }
 
     pub(crate) fn launch(&self, key: &str) -> bool {

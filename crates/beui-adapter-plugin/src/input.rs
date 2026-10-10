@@ -160,6 +160,11 @@ impl Input {
                     }));
                 }
             }
+            InputEvent::InterceptedTap { key } => {
+                if let Some(key) = beui_plugin_input::beui_key(*key) {
+                    events.push(Event::InterceptedTap(key));
+                }
+            }
             InputEvent::Back(phase) => {
                 events.push(Event::Back(beui_plugin_input::beui_back(*phase)));
             }

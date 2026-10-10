@@ -14,6 +14,7 @@ fn an_intercepted_key_round_trips() {
                 pressed: true,
                 repeat: false,
             },
+            InputEvent::InterceptedTap { key: Key::Logo },
         ],
     });
     assert_eq!(

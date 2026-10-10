@@ -767,12 +767,6 @@ impl EditorHost {
             .push((block_id, BlockCommand::AppMenu));
     }
 
-    pub fn show_launcher(&self, block_id: Uuid) {
-        self.block_commands
-            .borrow_mut()
-            .push((block_id, BlockCommand::Launcher));
-    }
-
     pub fn rename_block(&self, block_id: Uuid) {
         self.block_commands
             .borrow_mut()

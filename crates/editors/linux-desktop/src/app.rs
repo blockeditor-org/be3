@@ -1,6 +1,7 @@
 mod bar;
 mod calendar;
 mod fullscreen;
+pub(crate) mod launcher;
 pub(crate) mod media;
 mod notifications;
 mod popup;
@@ -25,6 +26,7 @@ use block_shell::{
 };
 
 use bar::DesktopBar;
+use launcher::{ProgramLauncher, ProgramLauncherOverlay};
 use media::MediaKeys;
 use notifications::{DesktopNotifications, DesktopToasts};
 
@@ -80,6 +82,8 @@ fn DesktopBody(workspace: Rc<Workspace>) -> NodeId {
     let pickers = Rc::clone(&workspace);
     let shell_dialogs = Rc::clone(&workspace);
     let editor = workspace.editor().clone();
+    let launcher = ProgramLauncher::new(editor.clone());
+    let opener = launcher.clone();
     let notifications = DesktopNotifications::new(&editor);
     let bar_node = NodeRef::new();
     let theme = use_theme();
@@ -117,10 +121,12 @@ fn DesktopBody(workspace: Rc<Workspace>) -> NodeId {
                     @node_ref=&bar_node
                     workspace={bar}
                     notifications={notifications.clone()}
+                    launcher={opener}
                 />
                 <PickerDialogs workspace={pickers} />
                 <WorkspaceDialogs workspace={shell_dialogs} />
                 <MediaKeys editor />
+                <ProgramLauncherOverlay launcher />
                 <DesktopToasts notifications bar={bar_node} />
             </List>
         </Frame>

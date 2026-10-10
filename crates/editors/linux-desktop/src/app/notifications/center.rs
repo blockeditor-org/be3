@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use block_editor_beui::beui::Image;
 use block_editor_beui::{
-    IncomingNotification, NotificationCloseReason, NotificationImage, NotificationSignal,
+    HostImage, IncomingNotification, NotificationCloseReason, NotificationSignal,
     NotificationUrgency,
 };
 
@@ -55,7 +55,7 @@ impl Incoming {
     }
 }
 
-fn picture(image: &NotificationImage) -> Option<Image> {
+fn picture(image: &HostImage) -> Option<Image> {
     let pixels = u64::from(image.width) * u64::from(image.height) * 4;
     let fits = image.width > 0 && image.height > 0 && pixels == image.rgba.len() as u64;
     fits.then(|| Image::from_rgba(image.width, image.height, image.rgba.clone()))

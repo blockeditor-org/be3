@@ -18,7 +18,7 @@ fn notification_messages_round_trip() {
             },
         ],
         urgency: NotificationUrgency::Critical,
-        image: Some(NotificationImage {
+        image: Some(HostImage {
             width: 1,
             height: 1,
             rgba: vec![1, 2, 3, 4],

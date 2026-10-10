@@ -114,6 +114,7 @@ impl Chord {
                 shift: self.shift,
                 logo: self.logo,
             },
+            tap: self.tap,
         }
     }
 }
@@ -515,11 +516,7 @@ impl Registry {
             if !action.intercepts() || !action.0.enabled.get() {
                 continue;
             }
-            for chord in action
-                .shortcuts()
-                .iter()
-                .filter(|chord| !chord.typed() && !chord.tap)
-            {
+            for chord in action.shortcuts().iter().filter(|chord| !chord.typed()) {
                 let chord = chord.key_chord();
                 if !chords.contains(&chord) {
                     chords.push(chord);

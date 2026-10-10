@@ -5,10 +5,10 @@ fn alt_tab_switches_to_the_window_two_back_once_alt_is_let_go() {
     let mut fixture = Fixture::with_windows(&[1, 2, 3]);
     let alt = Modifiers::ALT;
     assert!(
-        fixture.test.intercepted_keys().contains(&KeyChord {
-            key: Key::Tab,
-            modifiers: alt
-        }),
+        fixture
+            .test
+            .intercepted_keys()
+            .contains(&KeyChord::new(Key::Tab, alt)),
         "the desktop asks the host for Alt+Tab, even from the program that has the keyboard"
     );
 

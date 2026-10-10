@@ -6,7 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use be_wayland::programs::{DesktopEntry, Environment, IconThemes, load_icon};
 use beui::Image;
 use block_plugin_api::{
-    HostNotificationAction, IncomingNotification, NotificationImage, NotificationRequest,
+    HostImage, HostNotificationAction, IncomingNotification, NotificationRequest,
     NotificationSignal,
 };
 use image::imageops::FilterType;
@@ -141,7 +141,7 @@ impl Server {
     }
 }
 
-fn picture(image: Image) -> NotificationImage {
+fn picture(image: Image) -> HostImage {
     let (width, height) = (image.width(), image.height());
     let rgba = image.pixels().to_vec();
     let fits = width.max(height) <= MAX_PICTURE;
@@ -154,12 +154,12 @@ fn picture(image: Image) -> NotificationImage {
             image::imageops::resize(&full, side(width), side(height), FilterType::Triangle)
         });
     match shrunk {
-        Some(shrunk) => NotificationImage {
+        Some(shrunk) => HostImage {
             width: shrunk.width(),
             height: shrunk.height(),
             rgba: shrunk.into_raw(),
         },
-        None => NotificationImage {
+        None => HostImage {
             width,
             height,
             rgba,

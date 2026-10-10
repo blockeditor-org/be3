@@ -25,6 +25,7 @@ pub fn protocol_chord(chord: beui::KeyChord) -> KeyChord {
     KeyChord {
         key: protocol_key(chord.key),
         modifiers: protocol_modifiers(chord.modifiers),
+        tap: chord.tap,
     }
 }
 
@@ -32,6 +33,7 @@ pub fn beui_chord(chord: KeyChord) -> Option<beui::KeyChord> {
     Some(beui::KeyChord {
         key: beui_key(chord.key)?,
         modifiers: beui_modifiers(chord.modifiers),
+        tap: chord.tap,
     })
 }
 

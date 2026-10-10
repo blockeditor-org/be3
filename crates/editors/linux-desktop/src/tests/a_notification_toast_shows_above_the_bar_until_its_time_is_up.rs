@@ -1,20 +1,20 @@
 use std::time::Duration;
 
 use block_editor_beui::beui::{pos2, vec2};
-use block_editor_beui::{NotificationImage, NotificationUrgency};
+use block_editor_beui::{HostImage, NotificationUrgency};
 
 use super::*;
 
 const PICTURE: u32 = 16;
 
-fn picture() -> NotificationImage {
+fn picture() -> HostImage {
     let rgba = (0..PICTURE * PICTURE)
         .flat_map(|at| match (at / PICTURE + at % PICTURE) % 2 {
             0 => [64, 120, 220, 255],
             _ => [240, 240, 255, 255],
         })
         .collect();
-    NotificationImage {
+    HostImage {
         width: PICTURE,
         height: PICTURE,
         rgba,

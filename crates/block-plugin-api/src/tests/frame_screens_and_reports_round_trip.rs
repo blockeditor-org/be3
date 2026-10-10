@@ -55,13 +55,22 @@ fn frame_screens_and_reports_round_trip() {
             },
         }],
         handles_back: true,
-        intercepted_keys: vec![KeyChord {
-            key: Key::Tab,
-            modifiers: Modifiers {
-                alt: true,
-                ..Modifiers::default()
+        wants_keyboard: true,
+        intercepted_keys: vec![
+            KeyChord {
+                key: Key::Tab,
+                modifiers: Modifiers {
+                    alt: true,
+                    ..Modifiers::default()
+                },
+                tap: false,
             },
-        }],
+            KeyChord {
+                key: Key::Logo,
+                modifiers: Modifiers::default(),
+                tap: true,
+            },
+        ],
     }]);
     assert_eq!(
         decode_frame(&encode_frame(&frames).unwrap()).unwrap(),

@@ -47,6 +47,7 @@ struct Inner {
     fullscreen: Cell<Option<bool>>,
     close_requested: Cell<bool>,
     handles_back: Cell<bool>,
+    wants_keyboard: Cell<bool>,
     intercepted_keys: RefCell<Vec<KeyChord>>,
     pointer_locked: Cell<bool>,
     touch_emulation: Cell<bool>,
@@ -130,6 +131,7 @@ pub struct FrameOutput {
     pub fullscreen: Option<bool>,
     pub close_requested: bool,
     pub handles_back: bool,
+    pub wants_keyboard: bool,
     pub intercepted_keys: Vec<KeyChord>,
     pub pointer_locked: bool,
     pub copied_text: Option<String>,
@@ -240,6 +242,7 @@ impl Context {
                 fullscreen: Cell::new(None),
                 close_requested: Cell::new(false),
                 handles_back: Cell::new(false),
+                wants_keyboard: Cell::new(false),
                 intercepted_keys: RefCell::new(Vec::new()),
                 pointer_locked: Cell::new(false),
                 touch_emulation: Cell::new(false),
@@ -390,6 +393,7 @@ impl Context {
         self.inner.fullscreen.set(None);
         self.inner.close_requested.set(false);
         self.inner.handles_back.set(false);
+        self.inner.wants_keyboard.set(false);
         self.inner.intercepted_keys.borrow_mut().clear();
         self.inner.accessibility.borrow_mut().clear();
         let published = std::mem::take(&mut *self.inner.accessibility_published.borrow_mut());
@@ -459,6 +463,7 @@ impl Context {
             fullscreen: self.inner.fullscreen.get(),
             close_requested: self.inner.close_requested.get(),
             handles_back: self.inner.handles_back.get(),
+            wants_keyboard: self.inner.wants_keyboard.get(),
             intercepted_keys: std::mem::take(&mut *self.inner.intercepted_keys.borrow_mut()),
             pointer_locked: self.inner.pointer_locked.get(),
             repaint: self.inner.repaint.get(),
@@ -495,6 +500,10 @@ impl Context {
 
     pub fn handle_back(&self) {
         self.inner.handles_back.set(true);
+    }
+
+    pub fn want_keyboard(&self) {
+        self.inner.wants_keyboard.set(true);
     }
 
     pub fn intercept_keys(&self, chords: &[KeyChord]) {
