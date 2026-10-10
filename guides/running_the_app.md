@@ -56,8 +56,10 @@ and the output of every program the app starts, go to `$XDG_STATE_HOME/block/ses
 `session.previous.log`. Problems a person should see at once also show as toasts in the
 corner of the screen: `beui_adapter_drm::Problems` carries the display and input ones,
 `be_wayland::Compositor::on_failure` a program that could not be run, and `notices::report`
-adds each to the `Problems` host value, which the shell plugin (linux-desktop, or the workspace
-in a window) shows with block-shell's `ProblemToasts` and dismisses with `ProblemAction`.
+puts each in front of the person. The host draws these itself, so they show before any shell
+plugin runs (signing in, choosing a workspace) and over either shell; they stack in the
+top-right corner (`Toasts` with `edge=Edge::TopEnd`), clear of linux-desktop's bar and its
+notification toasts at the bottom.
 
 The screens turn off after the display settings' "Turn off screens after" (ten minutes by
 default). `be_wayland::Compositor` counts the idle time on the frame clock from the frames that

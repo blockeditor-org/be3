@@ -31,6 +31,7 @@ mod the_lock_screens_actions_are_told_apart_by_place;
 mod the_message_toast_sample_offers_its_actions;
 mod the_overlay_sample_closes_on_escape_and_a_click_outside;
 mod the_runs_toggle_shows_where_each_side_typed_and_deleted;
+mod toasts_on_the_top_edge_stack_in_the_top_corner;
 
 const TODAY: (i32, u8, u8) = (2026, 1, 15);
 const WIDE: Vec2 = Vec2::new(1100.0, 800.0);

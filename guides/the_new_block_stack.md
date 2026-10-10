@@ -755,14 +755,14 @@ the app applies itself implements `local_settings::LocalSettings` and is kept by
 a `SettingsSync`; its `apply` answers whether the settings may be saved now.
 Display settings may not until someone keeps them: a change that moves what a
 connected monitor shows, or a monitor started at a fastest rate other than its
-preferred mode that it was never kept at, is asked about by `display::guard`.
-The host publishes the `DisplayConfirmation` host value (a round and the time
-it waits for an answer) and linux-desktop shows "Keep these display settings?"
-(`styled::KeepChanges`, a card on every screen), answering with
-`DisplayAnswer::Keep` or `Revert` for that round. Keep saves, storing a kept
-default as the monitor's mode; Revert, Escape, or the host's own 15 seconds of
-the frame clock (`Guard::prompt`, so a black monitor or a dead plugin still
-reverts) put back the earlier modes, or the preferred mode for an untried default, and `SettingsSync::commit` writes
+preferred mode that it was never kept at, opens the host's "Keep these display
+settings?" prompt (`styled::KeepChanges`, a card on every screen) in
+`display::guard`. It is the host's because it must work before any shell plugin
+runs. Each change is a round (`Guard::prompt`): another change while asking
+starts a new round and a full countdown, and an answer counts only for the
+round it was given in. Keep saves, storing a kept default as the monitor's mode;
+Revert, Escape or 15 seconds of the frame clock, which the guard counts itself,
+put back the earlier modes, or the preferred mode for an untried default, and `SettingsSync::commit` writes
 those edits into the block too, holding them until its content is loaded and reading
 the block with them on top until a revision holds them.
 `be::hold` opens a
