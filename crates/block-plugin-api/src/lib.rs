@@ -113,6 +113,46 @@ pub struct Description {
     pub actions: Vec<DescribedAction>,
 }
 
+impl Description {
+    pub fn fit(&mut self) {
+        self.nodes.truncate(MAX_DESCRIBED_NODES);
+        for node in &mut self.nodes {
+            clip(&mut node.role);
+            clip(&mut node.label);
+            clip(&mut node.value);
+            node.actions
+                .retain(|action| action.len() <= MAX_STRING_BYTES);
+            node.actions.truncate(MAX_COLLECTION_ITEMS);
+        }
+        self.test_ids
+            .retain(|test_id| test_id.id.len() <= MAX_STRING_BYTES);
+        self.test_ids.truncate(MAX_COLLECTION_ITEMS);
+        self.actions
+            .retain(|action| action.id.len() <= MAX_STRING_BYTES);
+        self.actions.truncate(MAX_DESCRIBED_NODES);
+        for action in &mut self.actions {
+            clip(&mut action.label);
+            if action
+                .shortcut
+                .as_ref()
+                .is_some_and(|shortcut| shortcut.len() > MAX_STRING_BYTES)
+            {
+                action.shortcut = None;
+            }
+        }
+    }
+}
+
+fn clip(text: &mut String) {
+    if text.len() > MAX_STRING_BYTES {
+        let mut end = MAX_STRING_BYTES;
+        while !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        text.truncate(end);
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DescribedAction {
     pub id: String,

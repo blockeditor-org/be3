@@ -1,6 +1,8 @@
 use crate::file_picker::FilePickRequest;
 use crate::geometry::Vec2;
 
+pub const MAX_PIXELS: f32 = 8192.0;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct WindowSize {
     pub size: Vec2,
@@ -12,13 +14,19 @@ impl WindowSize {
         let (size, scale) = match text.split_once('@') {
             Some((size, scale)) => (
                 size,
-                scale.parse::<f32>().ok().filter(|scale| *scale > 0.0)?,
+                scale
+                    .parse::<f32>()
+                    .ok()
+                    .filter(|scale| scale.is_finite() && *scale > 0.0)?,
             ),
             None => (text, 1.0),
         };
         let (width, height) = size.split_once('x')?;
         let size = Vec2::new(width.parse().ok()?, height.parse().ok()?);
-        (size.x >= 1.0 && size.y >= 1.0).then_some(Self { size, scale })
+        let fits = |length: f32| {
+            (1.0..=MAX_PIXELS).contains(&length) && (1.0..=MAX_PIXELS).contains(&(length * scale))
+        };
+        (fits(size.x) && fits(size.y)).then_some(Self { size, scale })
     }
 }
 
@@ -53,8 +61,8 @@ impl Simulation {
     pub fn physical(&self) -> (u32, u32) {
         let shown = self.shown() * self.window.scale;
         (
-            shown.x.round().max(1.0) as u32,
-            shown.y.round().max(1.0) as u32,
+            shown.x.round().clamp(1.0, MAX_PIXELS) as u32,
+            shown.y.round().clamp(1.0, MAX_PIXELS) as u32,
         )
     }
 }

@@ -800,6 +800,12 @@ impl Automation {
             }
             "ime" => {
                 let mut events = Vec::new();
+                if !["compose", "commit", "cancel"].contains(&argument(0)?) {
+                    return Err(format!(
+                        "ime takes compose, commit or cancel, not {}",
+                        arguments[0]
+                    ));
+                }
                 if !self.ime {
                     self.ime = true;
                     events.push(Event::Ime(ImeEvent::Enabled));
@@ -823,9 +829,7 @@ impl Automation {
                         self.composing = None;
                         events.push(Event::Ime(ImeEvent::SetComposingText(String::new())));
                     }
-                    other => {
-                        return Err(format!("ime takes compose, commit or cancel, not {other}"));
-                    }
+                    _ => unreachable!("the sub-command was checked above"),
                 }
                 input(vec![events])
             }

@@ -34,10 +34,11 @@ fn run(mut arguments: Vec<String>) -> Result<(), String> {
         if first == "--no-settle" || first.starts_with("--changes=") {
             options.push(first.clone());
         } else if let Some(seconds) = first.strip_prefix("--timeout=") {
-            let seconds: f64 = seconds
+            timeout = seconds
                 .parse()
-                .map_err(|_| format!("--timeout takes seconds, not {seconds}"))?;
-            timeout = Duration::from_secs_f64(seconds);
+                .ok()
+                .and_then(|seconds| Duration::try_from_secs_f64(seconds).ok())
+                .ok_or_else(|| format!("--timeout takes seconds, not {seconds}"))?;
         } else if let Some(path) = first.strip_prefix("--socket=") {
             socket = Some(PathBuf::from(path));
         } else {

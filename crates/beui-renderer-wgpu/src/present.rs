@@ -514,8 +514,14 @@ pub fn read_texture(
         },
     );
     queue.submit(Some(encoder.finish()));
-    buffer.slice(..).map_async(wgpu::MapMode::Read, |_| {});
+    let (sender, receiver) = std::sync::mpsc::channel();
+    buffer
+        .slice(..)
+        .map_async(wgpu::MapMode::Read, move |result| {
+            let _ = sender.send(result);
+        });
     device.poll(wgpu::PollType::wait_indefinitely()).ok()?;
+    receiver.try_recv().ok()?.ok()?;
     let mapped = buffer.slice(..).get_mapped_range();
     let mut rgba = Vec::with_capacity((row * height) as usize);
     for line in mapped.chunks(padded as usize) {

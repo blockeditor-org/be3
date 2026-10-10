@@ -77,7 +77,12 @@ const answer = async (words) => {
     return text;
 };
 const place = async (target) => {
-    const found = (await answer(["find", target])).match(/at (-?[\d.]+),(-?[\d.]+) size ([\d.]+)x([\d.]+)/);
+    const reply = await answer(["find", target]);
+    const found = reply.match(/at (-?[\d.]+),(-?[\d.]+) size ([\d.]+)x([\d.]+)/);
+    if (found === null) {
+        console.error(`${target} has no place on screen: ${reply.trim()}`);
+        process.exit(1);
+    }
     const ratio = await page.evaluate(() => devicePixelRatio);
     const [x, y, width, height] = found.slice(1).map((value) => Number(value) / ratio);
     return { x, y, width, height };

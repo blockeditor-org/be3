@@ -105,29 +105,38 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
         .spawn()
         .map_err(|error| format!("could not start {program}: {error}"))?;
     fs::write(dir.join("app.pid"), child.id().to_string()).map_err(|error| error.to_string())?;
-    let started = Instant::now();
-    loop {
-        if let Ok(Some(status)) = child.try_wait() {
-            return Err(format!(
-                "{name} exited ({status}) before it answered; see {}",
-                log_path.display()
-            ));
+    let answered = (|| {
+        let started = Instant::now();
+        loop {
+            if let Ok(Some(status)) = child.try_wait() {
+                return Err(format!(
+                    "{name} exited ({status}) before it answered; see {}",
+                    log_path.display()
+                ));
+            }
+            if UnixStream::connect(&socket).is_ok() {
+                break;
+            }
+            if started.elapsed() > STARTUP {
+                return Err(format!(
+                    "{name} did not open {} within {} seconds; is it a beui app? See {}",
+                    socket.display(),
+                    STARTUP.as_secs(),
+                    log_path.display()
+                ));
+            }
+            std::thread::sleep(Duration::from_millis(50));
         }
-        if UnixStream::connect(&socket).is_ok() {
-            break;
-        }
-        if started.elapsed() > STARTUP {
-            return Err(format!(
-                "{name} did not open {} within {} seconds; is it a beui app? See {}",
-                socket.display(),
-                STARTUP.as_secs(),
-                log_path.display()
-            ));
-        }
-        std::thread::sleep(Duration::from_millis(50));
+        request(&socket, &["settle".to_owned()], STARTUP)
+            .map(|_| ())
+            .map_err(|error| format!("{error}; see {}", log_path.display()))
+    })();
+    if let Err(error) = answered {
+        let _ = child.kill();
+        let _ = child.wait();
+        let _ = fs::remove_file(dir.join("app.pid"));
+        return Err(error);
     }
-    request(&socket, &["settle".to_owned()], STARTUP)
-        .map_err(|error| format!("{error}; see {}", log_path.display()))?;
     let env = dir.join("env");
     let bin = drive.parent().map_or_else(PathBuf::new, Path::to_path_buf);
     fs::write(

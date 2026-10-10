@@ -23,7 +23,12 @@ fn a_driver_answers_a_file_dialog_with_a_file() {
         }
     });
     let mut driven = Driven::headless(document);
-    let file = std::env::temp_dir().join("a_driver_answers_a_file_dialog.txt");
+    let directory = std::env::temp_dir().join(format!(
+        "a_driver_answers_a_file_dialog.{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&directory).expect("the directory is made");
+    let file = directory.join("a_driver_answers_a_file_dialog.txt");
     std::fs::write(&file, "hello").expect("the file is written");
 
     let changed = driven
@@ -37,4 +42,5 @@ fn a_driver_answers_a_file_dialog_with_a_file() {
         driven.ask(&["dismiss"]).is_err(),
         "no dialog is left open to dismiss"
     );
+    let _ = std::fs::remove_dir_all(&directory);
 }
