@@ -308,6 +308,33 @@ pub enum ClientMessage {
         #[serde(with = "serde_bytes")]
         payload: Vec<u8>,
     },
+    WhoAmI {
+        request: u64,
+    },
+    CreateAgent {
+        request: u64,
+        workspace: Uuid,
+        name: String,
+        recovery: [u8; 32],
+        #[serde(with = "serde_bytes")]
+        sealed: Vec<u8>,
+    },
+    ListAgents {
+        request: u64,
+        workspace: Uuid,
+    },
+    RemoveAgent {
+        request: u64,
+        workspace: Uuid,
+        account: Uuid,
+    },
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Agent {
+    pub account: Uuid,
+    pub name: String,
+    pub email: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -367,7 +394,11 @@ impl ClientMessage {
             | Self::SetRecoveryKey { request, .. }
             | Self::PutWorkspaceKey { request, .. }
             | Self::ListMemberKeys { request, .. }
-            | Self::Pair { request, .. } => *request,
+            | Self::Pair { request, .. }
+            | Self::WhoAmI { request }
+            | Self::CreateAgent { request, .. }
+            | Self::ListAgents { request, .. }
+            | Self::RemoveAgent { request, .. } => *request,
         }
     }
 }
@@ -496,6 +527,15 @@ pub enum ServerMessage {
         #[serde(with = "serde_bytes")]
         payload: Vec<u8>,
     },
+    AgentCreated {
+        request: u64,
+        agent: Agent,
+        token: String,
+    },
+    Agents {
+        request: u64,
+        agents: Vec<Agent>,
+    },
 }
 
 impl ServerMessage {
@@ -519,7 +559,9 @@ impl ServerMessage {
             | Self::AccessList { request, .. }
             | Self::Session { request, .. }
             | Self::Keys { request, .. }
-            | Self::MemberKeys { request, .. } => Some(*request),
+            | Self::MemberKeys { request, .. }
+            | Self::AgentCreated { request, .. }
+            | Self::Agents { request, .. } => Some(*request),
             Self::HeadChanged { .. }
             | Self::BlockDeleted { .. }
             | Self::BlockChanged { .. }

@@ -651,12 +651,14 @@ dependencies = [
  "futures-channel",
  "futures-util",
  "js-sys",
+ "rustls",
  "tokio",
  "tokio-tungstenite",
  "uuid",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+ "webpki-roots 0.26.11",
 ]
 
 [[package]]

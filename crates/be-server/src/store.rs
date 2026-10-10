@@ -11,7 +11,7 @@ use argon2::{
 use be_commit::CommitId;
 use be_graph::{Access, BlockGraph, BlockNode, BlockParent, GraphError, ObjectRefs};
 use be_protocol::{
-    AccessEntry, BlockSummary, ErrorCode, HistoryEntry, MemberKey, SealedKey, Workspace,
+    AccessEntry, Agent, BlockSummary, ErrorCode, HistoryEntry, MemberKey, SealedKey, Workspace,
     WorkspaceInvitation, WorkspaceRole,
 };
 use be_store::{FileStore, Hash, ObjectStore};
@@ -573,6 +573,128 @@ impl ServerStore {
             });
         }
         Ok(members)
+    }
+
+    pub async fn create_agent(
+        &self,
+        caller: Uuid,
+        workspace: Uuid,
+        name: &str,
+        recovery: [u8; 32],
+        sealed: Vec<u8>,
+    ) -> Result<(Agent, String), ServerError> {
+        if self.membership(caller, workspace).await? != WorkspaceRole::Administrator {
+            return Err(ServerError::Refused(
+                ErrorCode::PermissionDenied,
+                "only a workspace administrator can add an agent".into(),
+            ));
+        }
+        let name = name.trim().to_owned();
+        if name.is_empty() {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidRequest,
+                "an agent needs a name".into(),
+            ));
+        }
+        let account = Uuid::new_v4();
+        let email = format!("agent-{}@agents.invalid", account.simple());
+        let database = self.database.lock().await;
+        let transaction = database.unchecked_transaction()?;
+        transaction.execute(
+            "INSERT INTO accounts (id, email, display_name, password_hash) VALUES (?1, ?2, ?3, '!')",
+            params![account.to_string(), email, name],
+        )?;
+        transaction.execute(
+            "INSERT INTO agents (account_id, workspace_id, created_by) VALUES (?1, ?2, ?3)",
+            params![account.to_string(), workspace.to_string(), caller.to_string()],
+        )?;
+        transaction.execute(
+            "INSERT INTO memberships (workspace_id, account_id, role) VALUES (?1, ?2, ?3)",
+            params![
+                workspace.to_string(),
+                account.to_string(),
+                encode_role(WorkspaceRole::Editor)
+            ],
+        )?;
+        transaction.execute(
+            "INSERT INTO recovery_keys (account_id, public) VALUES (?1, ?2)",
+            params![account.to_string(), recovery.to_vec()],
+        )?;
+        transaction.execute(
+            "INSERT INTO workspace_keys (workspace_id, account_id, sealed) VALUES (?1, ?2, ?3)",
+            params![workspace.to_string(), account.to_string(), sealed],
+        )?;
+        let token = issue_token(&transaction, account)?;
+        transaction.commit()?;
+        Ok((
+            Agent {
+                account,
+                name,
+                email,
+            },
+            token,
+        ))
+    }
+
+    pub async fn list_agents(
+        &self,
+        caller: Uuid,
+        workspace: Uuid,
+    ) -> Result<Vec<Agent>, ServerError> {
+        let database = self.database.lock().await;
+        if !is_member(&database, caller, workspace)? {
+            return Err(not_a_member());
+        }
+        let mut statement = database.prepare(
+            "SELECT accounts.id, accounts.display_name, accounts.email FROM agents
+             JOIN accounts ON accounts.id = agents.account_id
+             WHERE agents.workspace_id = ?1
+             ORDER BY accounts.display_name, accounts.id",
+        )?;
+        let rows = statement.query_map([workspace.to_string()], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })?;
+        let mut agents = Vec::new();
+        for row in rows {
+            let (account, name, email) = row?;
+            agents.push(Agent {
+                account: parse_uuid(&account)?,
+                name,
+                email,
+            });
+        }
+        Ok(agents)
+    }
+
+    pub async fn remove_agent(
+        &self,
+        caller: Uuid,
+        workspace: Uuid,
+        agent: Uuid,
+    ) -> Result<(), ServerError> {
+        if self.membership(caller, workspace).await? != WorkspaceRole::Administrator {
+            return Err(ServerError::Refused(
+                ErrorCode::PermissionDenied,
+                "only a workspace administrator can remove an agent".into(),
+            ));
+        }
+        let database = self.database.lock().await;
+        let removed = database.execute(
+            "DELETE FROM accounts WHERE id = ?1
+             AND id IN (SELECT account_id FROM agents WHERE workspace_id = ?2)",
+            params![agent.to_string(), workspace.to_string()],
+        )?;
+        if removed == 0 {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidRequest,
+                "that account is not an agent of this workspace".into(),
+            ));
+        }
+        Ok(())
     }
 
     pub async fn issue_session(&self, account: Uuid) -> Result<String, ServerError> {

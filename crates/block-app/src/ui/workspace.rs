@@ -1,5 +1,6 @@
 use beui::icons::{
     ICON_BUG_REPORT, ICON_CHECK, ICON_INFO, ICON_KEY, ICON_MANAGE_ACCOUNTS, ICON_PERSON_ADD,
+    ICON_SMART_TOY,
     ICON_POWER_SETTINGS_NEW, ICON_SWAP_HORIZ, ICON_SYNC,
 };
 use beui::reactive::{
@@ -97,6 +98,12 @@ fn AppMenu(status: Memo<StatusView>, open: Prop<bool>) -> NodeId {
                     detail={workspace}
                     separated=true
                     on_click={|| pick(UiCommand::InviteMember)}
+                />
+                <MenuItem
+                    row_test_id={"app.menu.agents".to_owned()}
+                    label="Agents"
+                    glyph={ICON_SMART_TOY.to_owned()}
+                    on_click={|| pick(UiCommand::OpenAgents)}
                 />
                 <MenuItem
                     row_test_id={"app.menu.switch-workspace".to_owned()}

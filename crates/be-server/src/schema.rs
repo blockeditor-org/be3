@@ -110,6 +110,12 @@ pub fn initialize(connection: &Connection) -> Result<(), ServerError> {
             PRIMARY KEY (workspace_id, account_id)
         );
 
+        CREATE TABLE IF NOT EXISTS agents (
+            account_id      TEXT PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+            workspace_id    TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+            created_by      TEXT NOT NULL
+        );
+
         CREATE INDEX IF NOT EXISTS commit_objects_hash
             ON commit_objects (workspace_id, hash);
 

@@ -174,16 +174,30 @@ struct Connection {
     config: ServerConfig,
 }
 
-struct Forwarded(Arc<std::sync::Mutex<Option<String>>>);
+#[derive(Default)]
+struct Handshake {
+    forwarded: Option<String>,
+    bearer: Option<String>,
+}
+
+struct Forwarded(Arc<std::sync::Mutex<Handshake>>);
 
 impl Callback for Forwarded {
     fn on_request(self, request: &Request, response: Response) -> Result<Response, ErrorResponse> {
-        *self.0.lock().unwrap() = request
-            .headers()
-            .get("x-forwarded-for")
-            .and_then(|value| value.to_str().ok())
+        let header = |name: &str| {
+            request
+                .headers()
+                .get(name)
+                .and_then(|value| value.to_str().ok())
+        };
+        let mut held = self.0.lock().unwrap();
+        held.forwarded = header("x-forwarded-for")
             .and_then(|value| value.split(',').next())
             .map(|value| value.trim().to_owned());
+        held.bearer = header("authorization")
+            .and_then(|value| value.strip_prefix("Bearer "))
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
         Ok(response)
     }
 }
@@ -196,10 +210,10 @@ async fn handle_connection(
     registry: Arc<SessionRegistry>,
     config: ServerConfig,
 ) -> Result<(), ServerError> {
-    let forwarded = Arc::new(std::sync::Mutex::new(None));
+    let held = Arc::new(std::sync::Mutex::new(Handshake::default()));
     let handshake = accept_hdr_async_with_config(
         stream,
-        Forwarded(Arc::clone(&forwarded)),
+        Forwarded(Arc::clone(&held)),
         Some(WebSocketConfig {
             max_frame_size: Some(MAX_FRAME_BYTES),
             max_message_size: Some(MAX_FRAME_BYTES),
@@ -209,13 +223,10 @@ async fn handle_connection(
     let socket = tokio::time::timeout(HANDSHAKE_TIMEOUT, handshake)
         .await
         .map_err(|_| ServerError::Socket("the websocket handshake timed out".into()))??;
-    let client = forwarded
-        .lock()
-        .unwrap()
-        .take()
-        .unwrap_or_else(|| peer.ip().to_string());
+    let Handshake { forwarded, bearer } = std::mem::take(&mut *held.lock().unwrap());
+    let client = forwarded.unwrap_or_else(|| peer.ip().to_string());
     tracing::debug!(%client, "connected");
-    serve_socket(socket, store, hub, registry, config).await
+    serve_socket(socket, store, hub, registry, config, bearer).await
 }
 
 pub async fn serve_socket<S>(
@@ -224,6 +235,7 @@ pub async fn serve_socket<S>(
     hub: Arc<WatchHub>,
     registry: Arc<SessionRegistry>,
     config: ServerConfig,
+    bearer: Option<String>,
 ) -> Result<(), ServerError>
 where
     S: AsyncRead + AsyncWrite + Unpin + Send,
@@ -243,6 +255,11 @@ where
         identity: None,
         config,
     };
+    if let Some(token) = bearer
+        && let Ok(profile) = connection.store.resolve_token(&token).await
+    {
+        connection.authenticated(0, profile, token).await;
+    }
 
     let outcome = async {
         loop {
@@ -814,6 +831,47 @@ impl Connection {
             ClientMessage::ListMemberKeys { request, workspace } => {
                 let members = self.store.member_keys(self.account()?, workspace).await?;
                 Ok(ServerMessage::MemberKeys { request, members })
+            }
+            ClientMessage::WhoAmI { request } => {
+                let profile = self.store.profile(self.account()?).await?;
+                Ok(ServerMessage::Authenticated {
+                    request,
+                    account: profile.account,
+                    email: profile.email,
+                    display_name: profile.display_name,
+                    token: String::new(),
+                })
+            }
+            ClientMessage::CreateAgent {
+                request,
+                workspace,
+                name,
+                recovery,
+                sealed,
+            } => {
+                let (agent, token) = self
+                    .store
+                    .create_agent(self.account()?, workspace, &name, recovery, sealed)
+                    .await?;
+                Ok(ServerMessage::AgentCreated {
+                    request,
+                    agent,
+                    token,
+                })
+            }
+            ClientMessage::ListAgents { request, workspace } => Ok(ServerMessage::Agents {
+                request,
+                agents: self.store.list_agents(self.account()?, workspace).await?,
+            }),
+            ClientMessage::RemoveAgent {
+                request,
+                workspace,
+                account,
+            } => {
+                self.store
+                    .remove_agent(self.account()?, workspace, account)
+                    .await?;
+                Ok(ServerMessage::Ok { request })
             }
             ClientMessage::Pair {
                 request,

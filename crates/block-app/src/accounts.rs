@@ -195,6 +195,79 @@ pub(crate) async fn invite(
     Ok(())
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct AgentCredentials {
+    pub(crate) name: String,
+    pub(crate) server: String,
+    pub(crate) workspace: Uuid,
+    pub(crate) token: String,
+    pub(crate) phrase: String,
+}
+
+pub(crate) async fn create_agent(
+    server_url: String,
+    token: String,
+    workspace: Uuid,
+    name: String,
+    key: [u8; 32],
+) -> Result<AgentCredentials, AccountError> {
+    let phrase = be_keys::RecoveryPhrase::generate();
+    let public = phrase.secret().public();
+    let sealed = public.seal(&key);
+    let connection = authenticated(&server_url, token).await?;
+    let ServerMessage::AgentCreated { agent, token, .. } = connection
+        .request(|request| ClientMessage::CreateAgent {
+            request,
+            workspace,
+            name,
+            recovery: public.0,
+            sealed,
+        })
+        .await?
+    else {
+        return Err(ClientError::Unexpected.into());
+    };
+    Ok(AgentCredentials {
+        name: agent.name,
+        server: server_url,
+        workspace,
+        token,
+        phrase: phrase.to_string(),
+    })
+}
+
+pub(crate) async fn agents(
+    server_url: String,
+    token: String,
+    workspace: Uuid,
+) -> Result<Vec<be_protocol::Agent>, AccountError> {
+    let connection = authenticated(&server_url, token).await?;
+    let ServerMessage::Agents { agents, .. } = connection
+        .request(|request| ClientMessage::ListAgents { request, workspace })
+        .await?
+    else {
+        return Err(ClientError::Unexpected.into());
+    };
+    Ok(agents)
+}
+
+pub(crate) async fn remove_agent(
+    server_url: String,
+    token: String,
+    workspace: Uuid,
+    account: Uuid,
+) -> Result<(), AccountError> {
+    let connection = authenticated(&server_url, token).await?;
+    connection
+        .request(|request| ClientMessage::RemoveAgent {
+            request,
+            workspace,
+            account,
+        })
+        .await?;
+    Ok(())
+}
+
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Keys {
     pub(crate) recovery: Option<be_keys::RecoveryPublic>,
