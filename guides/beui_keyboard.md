@@ -61,9 +61,10 @@ between as a tap, judged from the key events alone (the runners do not agree on
 whether `Event::Modifiers` comes before or after the key's own event, and winit
 on X11 can report a modifier state that reverts before the key arrives), and
 offers it on the release with `GlobalKeyPress::tap` set. The release still goes
-on to whatever it would have reached. block-app's launcher opens that way. A
-tap is never reported as an intercepted key, since the protocol has no way to
-say one.
+on to whatever it would have reached. linux-desktop's program launcher opens
+that way. An intercepting tap action (see below) is named among the document's
+intercepted keys as a `KeyChord` with `tap` set, and a host that hears that tap
+while the focus is elsewhere hands it over as an `Event::InterceptedTap`.
 
 `Modifiers` and `Chord` have `logo` for the Super (Windows) key. The runners
 report Super as `logo`, except on macOS, where Command acts as Ctrl and Super
@@ -137,7 +138,18 @@ from an app and which reaches nothing else. The host goes on sending the held
 modifiers until those of the chord are let go, so `held_modifiers()` sees Alt
 released while a Wayland program has the keyboard; that is how linux-desktop's
 Alt+Tab works over any window. block-app takes intercepted keys only from the
-shell's frame, and only chords with Ctrl, Alt or Super, or media keys.
+shell's frame, and only chords with Ctrl, Alt or Super, or media keys. A tap
+chord goes the same way as `InputEvent::InterceptedTap`, but only while the
+region does not have the keyboard itself, since it then hears the key and
+counts the tap on its own; the release still reaches whatever had the focus.
+
+A document with a modal overlay open (`Document::modal_open`, such as a
+dialog or the launcher) reports `FrameOutput::wants_keyboard`, which reaches the
+runner as `Platform::set_wants_keyboard`. A plugin passes it on as
+`FrameReport::wants_keyboard`, and block-app's region then takes the focus from
+whatever had it (a program's window, another editor) and gives it back when
+the overlay closes, so a dialog a plugin opens from an intercepted key can be
+typed into.
 
 `styled::CommandPalette` lists the actions that are live where the focus was
 when it opened: typing filters them by every word, Up/Down/Page Up/Page Down

@@ -182,7 +182,7 @@ unlocks it. Under `:dev` the app runs as the VM's user, so that user needs a pas
 While it is locked, two things keep input from everything behind it: the lock is a beui
 `Overlay` with `locks` set, which nothing dismisses, which stays above every other overlay and keeps
 the focus and the pointer, and while it is open `Document::key_global` hears only media keys (no other global action, no plugin's
-intercepted chord, no Alt+Tab); and the launcher and app menu are closed. Windows need nothing
+intercepted chord, no Alt+Tab); and the app menu is closed. Windows need nothing
 of their own for it: each is a forwarding catcher like a plugin's region, so with the focus and the
 pointer held by the lock none is forwarded anything. `be_wayland::Compositor::set_locked` only lets
 go of the buttons and popups a window held. Screens still
@@ -195,11 +195,13 @@ the host's toasts and can't be acted on while locked; they show again once it is
 ## Wayland programs
 
 On Linux the app is a Wayland compositor. Its socket is `wayland-<n>` in `XDG_RUNTIME_DIR`,
-or `/tmp/be-wayland-<pid>` when that is unset, as it is under `:dev`. The launcher lists the
+or `/tmp/be-wayland-<pid>` when that is unset, as it is under `:dev`. In the desktop shell
+the program launcher, which tapping Super alone or the bar's programs button opens, lists the
 `.desktop` programs of the XDG data dirs and starts the one picked, or what was typed as a
-command, with `WAYLAND_DISPLAY` pointing at it. Tapping Super alone opens it, as do the app
-menu's "Programs" and the desktop bar's programs button; in its accessibility tree each
-program is a `ListBoxOption`. A program can also be started against the socket directly:
+command, with `WAYLAND_DISPLAY` pointing at it. linux-desktop draws it; block-app only reads the
+`.desktop` files and their icons and starts the programs (the `Programs` host value and
+`ProgramAction`, guides/adding_a_plugin_editor.md). The workspace shell has no launcher. A
+program can also be started against the socket directly:
 
     WAYLAND_DISPLAY=/tmp/be-wayland-<the app's pid> foot
 

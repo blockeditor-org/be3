@@ -235,7 +235,10 @@ pub(super) fn route(
             | Event::Modifiers(_)
             | Event::PointerMotion(_)
             | Event::Focus(false) => deliver(focused, event),
-            Event::Focus(true) | Event::Back(_) | Event::InterceptedKey(_) => {}
+            Event::Focus(true)
+            | Event::Back(_)
+            | Event::InterceptedKey(_)
+            | Event::InterceptedTap(_) => {}
         }
     }
     routing.claimed = None;
