@@ -8,7 +8,8 @@ use block_editor_beui::beui::styled::{Body, Button, ButtonVariant, WINDOW_CHROME
 use block_editor_beui::beui::unstyled::{Edge, Floating, TabId, use_dock_tab};
 use block_editor_beui::beui::{Image, NodeId, Rect, pos2, vec2};
 use block_editor_beui::{
-    ChildMode, Editor, HostImage, HostWindow, HostWindowId, Subregion, SubregionContent, WindowAction,
+    ChildMode, Editor, HostImage, HostWindow, HostWindowId, Subregion, SubregionContent,
+    WindowAction,
 };
 
 const WINDOW_TABS: u64 = 1 << 41;

@@ -686,7 +686,9 @@ impl Document {
         inhibits: bool,
     ) {
         if self.arena.get_as::<InteractiveNode>(id).inhibits_shortcuts != inhibits {
-            self.arena.get_mut_as::<InteractiveNode>(id).inhibits_shortcuts = inhibits;
+            self.arena
+                .get_mut_as::<InteractiveNode>(id)
+                .inhibits_shortcuts = inhibits;
         }
     }
 

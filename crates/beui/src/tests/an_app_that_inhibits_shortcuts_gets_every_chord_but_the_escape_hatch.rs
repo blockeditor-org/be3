@@ -4,8 +4,8 @@ use std::rc::Rc;
 use super::*;
 use crate::ForwardedInput;
 use crate::reactive::{
-    Action, Canvas, CanvasItem, Chord, Frame, Interactive, WriteSignal, build, create_signal,
-    view, with_reactive_scope,
+    Action, Canvas, CanvasItem, Chord, Frame, Interactive, WriteSignal, build, create_signal, view,
+    with_reactive_scope,
 };
 
 #[test]

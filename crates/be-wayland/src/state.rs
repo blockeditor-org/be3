@@ -24,10 +24,9 @@ use smithay::wayland::drm_syncobj::{
 
 use crate::decoration::{Decorations, server_side};
 use crate::idle::Idle;
+use crate::server::{Waiter, readable};
 use crate::shortcuts_inhibit::Shortcuts;
 use crate::toplevel_icon::ToplevelIcons;
-use smithay::wayland::xdg_foreign::XdgForeignState;
-use crate::server::{Waiter, readable};
 use smithay::delegate_cursor_shape;
 use smithay::delegate_data_device;
 use smithay::delegate_output;
@@ -71,6 +70,7 @@ use smithay::wayland::shell::xdg::{
 };
 use smithay::wayland::shm::{ShmHandler, ShmState};
 use smithay::wayland::viewporter::ViewporterState;
+use smithay::wayland::xdg_foreign::XdgForeignState;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct WindowId(pub u64);

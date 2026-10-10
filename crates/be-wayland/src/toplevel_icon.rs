@@ -130,7 +130,10 @@ fn read(buffer: &WlBuffer) -> Option<Image> {
         let bytes = unsafe { std::slice::from_raw_parts(pointer.add(offset), length - offset) };
         let mut rgba = Vec::with_capacity(width * height * 4);
         for row in 0..height {
-            for pixel in bytes[row * stride..row * stride + width * 4].chunks_exact(4) {
+            for pixel in bytes[row * stride..row * stride + width * 4]
+                .as_chunks::<4>()
+                .0
+            {
                 let [blue, green, red, alpha] = [pixel[0], pixel[1], pixel[2], pixel[3]];
                 let straight = |channel: u8| match alpha {
                     0 => 0,

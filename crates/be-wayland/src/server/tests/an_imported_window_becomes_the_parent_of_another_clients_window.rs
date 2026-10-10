@@ -22,7 +22,10 @@ fn an_imported_window_becomes_the_parent_of_another_clients_window() {
     portal.exchange(&mut server);
     assert_eq!(server.state.parent(child), Some(parent));
     assert!(
-        server.state.take_events().contains(&ServerEvent::Changed(child)),
+        server
+            .state
+            .take_events()
+            .contains(&ServerEvent::Changed(child)),
         "the ui hears of the new parent"
     );
 

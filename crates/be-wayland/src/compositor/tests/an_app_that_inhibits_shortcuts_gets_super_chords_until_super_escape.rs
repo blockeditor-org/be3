@@ -25,7 +25,10 @@ fn an_app_that_inhibits_shortcuts_gets_super_chords_until_super_escape() {
     harness.click(&format!("wayland.window.{}", id.0));
     let _inhibitor = harness.client.inhibit_shortcuts(&window.surface);
     harness.settle();
-    assert_eq!(harness.client.received.protocols.inhibitor_active, Some(true));
+    assert_eq!(
+        harness.client.received.protocols.inhibitor_active,
+        Some(true)
+    );
 
     super_chord(&mut harness, KEY_F, Key::F);
     assert!(!harness.client.received.fullscreen);

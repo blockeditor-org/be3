@@ -193,7 +193,8 @@ fn DockTabChrome(
         false => theme.text_muted.get(),
     }));
     let glyph = label.clone();
-    let shows_picture = create_memo(clone!(picture -> move || !grouped && picture.with(Option::is_some)));
+    let shows_picture =
+        create_memo(clone!(picture -> move || !grouped && picture.with(Option::is_some)));
     let pictured = create_memo(clone!(icon shows_picture -> move || {
         !grouped && !shows_picture.get() && !icon.get().is_empty()
     }));

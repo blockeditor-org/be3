@@ -116,11 +116,19 @@ impl Dispatch<WpTearingControlV1, ControlData> for State {
             return;
         };
         if let Ok(surface) = data.0.upgrade() {
-            set_hint(&surface, matches!(hint, WEnum::Value(PresentationHint::Async)));
+            set_hint(
+                &surface,
+                matches!(hint, WEnum::Value(PresentationHint::Async)),
+            );
         }
     }
 
-    fn destroyed(_state: &mut Self, _client: ClientId, _control: &WpTearingControlV1, data: &ControlData) {
+    fn destroyed(
+        _state: &mut Self,
+        _client: ClientId,
+        _control: &WpTearingControlV1,
+        data: &ControlData,
+    ) {
         let Ok(surface) = data.0.upgrade() else {
             return;
         };
