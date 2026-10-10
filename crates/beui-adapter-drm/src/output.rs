@@ -17,11 +17,11 @@ use be_dmabuf::{Usage, Vulkan};
 
 use crate::display::{DisplayConfig, DisplayMode, Monitor};
 use crate::gpu::{Gpu, Submitted};
-use crate::pacing::{Lane, refresh_interval};
 use crate::modes::{
     Candidate, Timing, choose, default_mode, identity, listed, monitor_id, monitor_name,
     preferred_mode, refresh_millihertz,
 };
+use crate::pacing::{Lane, refresh_interval};
 
 type Swapchain = GbmBufferedSurface<GbmAllocator<DrmDeviceFd>, ()>;
 

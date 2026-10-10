@@ -2,10 +2,7 @@ use super::*;
 
 #[test]
 fn outputs_at_different_rates_each_flip_at_their_own() {
-    let mut session = Session::new(
-        App::Animating,
-        vec![Display::new(60), Display::new(144)],
-    );
+    let mut session = Session::new(App::Animating, vec![Display::new(60), Display::new(144)]);
     session.run_until(SECOND);
     let (slow, fast) = (&session.displays[0], &session.displays[1]);
     assert!(

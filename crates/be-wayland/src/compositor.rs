@@ -638,12 +638,16 @@ impl Compositor {
         }
         presentation.forget_closed(&open);
         let screens: Vec<_> = open.iter().map(|id| (*id, self.screen_of(*id))).collect();
-        let shown = self.server.state.presentation.take_shown(context.now(), |id| {
-            screens
-                .iter()
-                .find(|(held, _)| *held == id)
-                .and_then(|(_, screen)| *screen)
-        });
+        let shown = self
+            .server
+            .state
+            .presentation
+            .take_shown(context.now(), |id| {
+                screens
+                    .iter()
+                    .find(|(held, _)| *held == id)
+                    .and_then(|(_, screen)| *screen)
+            });
         for shown in shown {
             self.server.state.present(shown);
         }

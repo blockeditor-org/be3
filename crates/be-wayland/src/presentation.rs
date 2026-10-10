@@ -154,9 +154,10 @@ impl Presentation {
         let mut waiting = Vec::new();
         for (id, callbacks) in std::mem::take(&mut self.painted) {
             let screen = screen_of(id);
-            let flip = flips.iter().rev().find(|(flipped, _)| {
-                screen.is_none_or(|screen| screen.contains(flipped.center()))
-            });
+            let flip = flips
+                .iter()
+                .rev()
+                .find(|(flipped, _)| screen.is_none_or(|screen| screen.contains(flipped.center())));
             match flip {
                 Some((_, presented)) => shown.push(Shown {
                     id,

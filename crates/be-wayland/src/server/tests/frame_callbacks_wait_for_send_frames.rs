@@ -15,7 +15,9 @@ fn frame_callbacks_wait_for_send_frames() {
         "a frame callback is not answered before the window is painted"
     );
 
-    server.state.send_frames(id, std::time::Duration::from_millis(16));
+    server
+        .state
+        .send_frames(id, std::time::Duration::from_millis(16));
     client.exchange(&mut server);
     assert_eq!(client.received.frames, 1);
 }

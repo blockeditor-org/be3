@@ -30,9 +30,7 @@ use wayland_protocols::wp::idle_inhibit::zv1::client::{
     zwp_idle_inhibit_manager_v1, zwp_idle_inhibitor_v1,
 };
 
-use wayland_protocols::wp::presentation_time::client::{
-    wp_presentation, wp_presentation_feedback,
-};
+use wayland_protocols::wp::presentation_time::client::{wp_presentation, wp_presentation_feedback};
 
 const ARGB8888: u32 = u32::from_le_bytes(*b"AR24");
 use crate::state::{ServerEvent, WindowId};

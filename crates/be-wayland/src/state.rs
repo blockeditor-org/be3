@@ -743,12 +743,11 @@ impl State {
             return;
         };
         let output = self.output.clone();
-        window.window.send_frame(
-            &self.output,
-            time,
-            Some(Duration::ZERO),
-            |_, _| Some(output.clone()),
-        );
+        window
+            .window
+            .send_frame(&self.output, time, Some(Duration::ZERO), |_, _| {
+                Some(output.clone())
+            });
     }
 
     fn time(&self) -> u32 {

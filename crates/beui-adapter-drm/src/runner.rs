@@ -580,13 +580,9 @@ impl Session {
             .iter_mut()
             .find(|output| output.crtc == crtc)
             .and_then(|output| {
-                output.flipped().then(|| {
-                    (
-                        output.connector,
-                        output.id().to_owned(),
-                        output.refresh(),
-                    )
-                })
+                output
+                    .flipped()
+                    .then(|| (output.connector, output.id().to_owned(), output.refresh()))
             });
         if let Some((connector, screen, refresh)) = shown {
             self.recovery.shown(connector);
