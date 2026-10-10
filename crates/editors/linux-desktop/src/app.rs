@@ -8,6 +8,7 @@ mod popup;
 mod power;
 mod sessions;
 mod switcher;
+mod volume;
 
 use std::rc::Rc;
 

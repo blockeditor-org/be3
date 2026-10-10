@@ -1673,17 +1673,6 @@ impl BlockApp {
         if rewatched {
             self.watch_artifacts(self.watched());
         }
-        if host::key_pressed(beui::Key::Escape) {
-            let presenting: Vec<Uuid> = self.editors.with(|open| {
-                open.values()
-                    .filter(|editor| editor.presenting_now())
-                    .map(PluginEditor::id)
-                    .collect()
-            });
-            for id in presenting {
-                self.with_editor(id, PluginEditor::stop_presenting_now);
-            }
-        }
         self.forward_block_picks(shell);
         self.editors.step_creations();
         for (from, action) in compositor::take_actions() {
@@ -1959,12 +1948,6 @@ impl BlockApp {
                 block_type,
                 via,
             } => self.show_block(from, id, block_type, via),
-            EditorAction::DragBlock { id, block_type } => {
-                host::start_drag(host::DragPayload {
-                    block_id: id,
-                    block_type,
-                });
-            }
             EditorAction::Command { id, command } => self.handle_block_command(from, id, command),
         }
     }

@@ -5,12 +5,12 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::datetime::{HourCycle, Time};
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_APPS, ICON_MENU, ICON_WORKSPACES};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, ReadSignal, Spacer, clone, component,
+    Align, Direction, ForEach, Frame, ItemSize, List, ReadSignal, Show, Spacer, clone, component,
     create_memo, create_signal, create_timer, now, view,
 };
 use block_editor_beui::beui::styled::{IconButton, MenuButton, Separator, use_theme};
 use block_editor_beui::beui::unstyled::{MenuItem, PopoverHandle};
-use block_editor_beui::utc_offset;
+use block_editor_beui::{Media, utc_offset};
 use block_shell::Workspace;
 
 use super::calendar::{CALENDAR_WIDTH, DesktopCalendar};
@@ -19,6 +19,7 @@ use super::notifications::{DesktopNotifications, NotificationsButton};
 use super::popup::BarPopup;
 use super::power::PowerMenu;
 use super::sessions::Sessions;
+use super::volume::VolumeButton;
 
 const BAR_PADDING: f32 = 6.0;
 const BAR_SPACING: f32 = 8.0;
@@ -59,6 +60,10 @@ pub(crate) fn DesktopBar(
     let clock = wall_clock();
     let editor = workspace.editor().clone();
     let power = editor.clone();
+    let sounding = editor.clone();
+    let levels = editor.host_value::<Media>();
+    let audible =
+        create_memo(clone!(levels -> move || levels.with(|levels| levels.output.is_some())));
     let dated = editor.clone();
     let launcher = move || launcher.show(true);
     let menu = move || editor.host().show_app_menu(editor.block_id());
@@ -136,6 +141,9 @@ pub(crate) fn DesktopBar(
                         on_select={chose}
                     />
                     <Spacer @sizing=ItemSize::Percent(100.0) />
+                    <Show condition={audible}>
+                        <VolumeButton editor={sounding.clone()} levels={levels.clone()} />
+                    </Show>
                     <NotificationsButton notifications />
                     <BarPopup label={clock} width=CALENDAR_WIDTH @test_id={"desktop.clock"}>
                         {move |_: PopoverHandle| view! {

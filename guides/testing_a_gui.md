@@ -119,6 +119,11 @@ paints a frame, for a timer that is longer than an animation:
 
     editor.settle_until("the lighting to land", |editor| editor.shown("scene.lit"));
 
+wait(by) moves the clock on without painting and hands the plugin what the host has queued
+(a set_host_value, say), the way a message reaches an idle editor between frames; the next
+run() paints the frame that takes it. Whatever the editor's effects do with it at the top of
+that frame reads that frame's time from `timer::now()`, not the last frame painted.
+
 settle() is the same wait for the editor's own animations, such as a sheet sliding in:
 it paints until a frame stops asking to be painted again at once. Call it before a
 snapshot or record() of something that animates in.

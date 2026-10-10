@@ -90,11 +90,19 @@ pub struct MediaLevel {
     pub muted: bool,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AudioOutput {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct MediaLevels {
     pub output: Option<MediaLevel>,
     pub input: Option<MediaLevel>,
     pub brightness: Option<f32>,
+    pub outputs: Vec<AudioOutput>,
+    pub default_output: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -109,11 +117,13 @@ impl PlayerCommand {
     pub const ALL: [Self; 4] = [Self::PlayPause, Self::Next, Self::Previous, Self::Stop];
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum MediaRequest {
     StepVolume(f32),
     SetVolume(f32),
     ToggleMute,
+    SetMute(bool),
+    ChooseOutput(String),
     ToggleMicMute,
     StepBrightness(f32),
     Player(PlayerCommand),

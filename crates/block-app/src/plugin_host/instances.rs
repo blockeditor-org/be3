@@ -20,7 +20,7 @@ use super::{
     MAX_LIVE_CHILDREN,
     audio::AudioPlayer,
     host_values::{Published, Watched},
-    input::{BlockDragEvent, FileDropEvent, InputAdapter, viewport_metrics},
+    input::{BlockDrag, BlockDragEvent, FileDropEvent, InputAdapter, viewport_metrics},
     pieces,
 };
 use crate::{
@@ -97,7 +97,7 @@ struct Instance {
     opened: bool,
     deferred: Vec<Message>,
     opens: Vec<OpenRequest>,
-    block_drags: Vec<(Uuid, Uuid)>,
+    block_drags: Vec<BlockDrag>,
     block_commands: Vec<(Uuid, BlockCommand)>,
     reported_focus: Option<Focus>,
     reported_editable: Option<bool>,
@@ -923,15 +923,11 @@ impl Instances {
                 )
             });
         let mut messages = screen.input.forward(input, id);
-        let dragging = screen.dragging;
         let files = super::input::file_drop(input, screen.file_dropping);
-        let drag = super::input::block_drag(input);
-        let changed = dragging != drag.as_ref().is_some_and(|drag| !drag.dropped);
-        messages.extend(self.drag(instance, region, drag));
         messages.extend(self.file_drop(instance, region, files));
         let revoked =
             (escaped || (pressed && input.hovered)) && self.revoke_active(instance, region);
-        (messages, revoked || changed)
+        (messages, revoked)
     }
 
     pub(super) fn hold(&mut self, instance: EditorInstanceId, region: EditorRegion) {
@@ -1378,8 +1374,8 @@ impl Instances {
                     region,
                     x: event.position.x,
                     y: event.position.y,
-                    block_id: event.block_id.into_bytes(),
-                    block_type: event.block_type.into_bytes(),
+                    block_id: event.drag.block_id.into_bytes(),
+                    block_type: event.drag.block_type.into_bytes(),
                     dropped: event.dropped,
                 })]
             }
@@ -1592,26 +1588,6 @@ impl Instances {
         (children, holes)
     }
 
-    pub(super) fn pressed_at(&mut self, position: beui::Pos2) -> bool {
-        let outside: Vec<(EditorInstanceId, EditorRegion)> = self
-            .entries
-            .iter()
-            .flat_map(|(instance, entry)| {
-                entry.screens.iter().filter_map(move |(region, screen)| {
-                    let placement = screen.placement?;
-                    let away = screen.mounted > 0
-                        && !placement.rect.intersect(placement.clip).contains(position);
-                    away.then_some((*instance, *region))
-                })
-            })
-            .collect();
-        let mut revoked = false;
-        for (instance, region) in outside {
-            revoked |= self.revoke_active(instance, region);
-        }
-        revoked
-    }
-
     pub(super) fn revoke_active(
         &mut self,
         instance: EditorInstanceId,
@@ -1701,7 +1677,6 @@ impl Instances {
                     height: size.y,
                 }),
                 aspect_ratio: status.aspect_ratio,
-                hovered: status.hovered,
                 active: status.active,
                 interaction: status.interaction,
                 capabilities: status.capabilities,
@@ -2406,9 +2381,10 @@ impl Instances {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
                 };
-                entry
-                    .block_drags
-                    .push((Uuid::from_bytes(block_id), Uuid::from_bytes(block_type)));
+                entry.block_drags.push(BlockDrag {
+                    block_id: Uuid::from_bytes(block_id),
+                    block_type: Uuid::from_bytes(block_type),
+                });
                 true
             }
             EditorMessage::BlockCommand {
@@ -2875,13 +2851,11 @@ impl Instances {
         }
     }
 
-    pub(super) fn take_block_drag(&mut self, instance: EditorInstanceId) -> Option<(Uuid, Uuid)> {
-        let entry = self.entries.get_mut(&instance)?;
-        if entry.block_drags.is_empty() {
-            None
-        } else {
-            Some(entry.block_drags.remove(0))
-        }
+    pub(super) fn take_block_drags(&mut self, instance: EditorInstanceId) -> Vec<BlockDrag> {
+        self.entries
+            .get_mut(&instance)
+            .map(|entry| std::mem::take(&mut entry.block_drags))
+            .unwrap_or_default()
     }
 
     pub(super) fn take_block_command(

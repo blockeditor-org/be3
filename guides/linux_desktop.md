@@ -127,16 +127,19 @@ returns.
 linux-desktop binds the volume, mute, mic mute, brightness and media transport keys
 (`BINDINGS` in its `app/media.rs`, the one place that says which key does what) as
 intercepting actions, so the host hands them to the shell even while a program has the keyboard,
-and a held key repeats. Each key sends a `MediaRequest` (`LinuxMessage::RequestMedia`), and
+and a held key repeats. Each key sends a `MediaRequest` host action (`editor.act`), and
 a volume, mute or brightness key shows `beui::styled::LevelOsd`, an icon and a level bar on
-every monitor that fades out after 1.5 seconds, with the levels the host reports (`editor.media()`, from
-`LinuxMessage::Media`).
+every monitor that fades out after 1.5 seconds, with the levels the host reports (the `Media`
+host value, `editor.host_value::<Media>()`). The bar's volume item (`app/volume.rs`) shows
+the same output level while the host reports one, and its popup sets the volume, the mute and
+the default output (`MediaRequest::SetVolume`, `SetMute`, `ChooseOutput`) from the sinks the
+host lists in `MediaLevels::outputs`.
 
 block-app does what a plugin cannot: `src/media.rs` starts its backends once a plugin watches
 the levels or the shell asks for something, carries out the shell's requests only, and reports
 the levels back. The backends run as tasks on the D-Bus thread:
 - `media/audio.rs`: volume steps up to 100%, set volume, mute and mic mute on the default sink
-  and source, over the PulseAudio protocol (the `pulseaudio` crate's protocol layer, pure Rust),
+  and source, the list of sinks and choosing the default one, over the PulseAudio protocol (the `pulseaudio` crate's protocol layer, pure Rust),
   which pipewire-pulse serves on `$XDG_RUNTIME_DIR/pulse/native`. It subscribes to the server's
   sink, source and server events and reports every change.
 - `media/backlight.rs`: brightness steps through logind's `Session.SetBrightness` on
@@ -146,7 +149,10 @@ the levels back. The backends run as tasks on the D-Bus thread:
 
 To try them under `:dev -- --desktop`, run `pipewire`, `wireplumber` and `pipewire-pulse`
 with `XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` set for the app, and press them with
-`drive key volumeup` (or `micmute`, `play`, ...).
+`drive key volumeup` (or `micmute`, `play`, ...). The VM has no sound card, so give it outputs with
+`pactl load-module module-null-sink sink_name=speakers sink_properties=device.description=Speakers`,
+and change them from outside the app with `pactl set-sink-volume`, `set-sink-mute` and
+`set-default-sink`.
 
 ## The lock screen
 

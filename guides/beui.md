@@ -865,6 +865,18 @@ in closed, whoever closed that. Its owner writing `open` false
 "cancel" needs no guard against its own Keep button. A menu's item selection
 closes it through the menu's own `on_dismiss`/`on_close`.
 
+Every overlay, of any mode, gives the focus back when it closes, however it
+closes (its owner writing `open` false, a dismissal, or its node being removed
+while open): an overlay remembers the node that had the focus when it opened,
+or the last one focused outside it since, and refocuses that node if the focus
+is inside the overlay when it closes, or is nowhere and the overlay is modal and
+traps focus, and the node is still there to focus. A close that has moved the
+focus somewhere outside the overlay on purpose keeps it there, and so does a
+focus change that comes after the close. Components rely on this rather than
+refocusing their triggers themselves, so a select, the command palette and a
+dialog put the focus back on what opened them, and a forwarding catcher (a
+plugin's region, a Wayland window) gets the keyboard back.
+
 Back - Android's back gesture, or the Back key or mouse button - goes to the
 most recently made enabled `BackHandler` inside the topmost modal overlay, or,
 with no modal open, outside every overlay; with no such handler it closes the
@@ -937,7 +949,10 @@ forwarding catcher under it unless the claimant is that catcher.
 `Document::press_claims` lists the `claim_modifiers` rectangles laid out this
 frame, which a plugin reports to its host. A Wayland program's window is a
 forwarding catcher like a plugin's region, so a press claimed over it never
-reaches the program. A secondary drag stays with the node that
+reaches the program. `on_press_outside` hears every primary press or touch
+that lands outside the `Interactive`'s visible rectangle, wherever it goes and
+whatever takes it, which is how the host hands an embedded editor's active
+child back when someone clicks elsewhere. A secondary drag stays with the node that
 took it while the pointer crosses a floating window above that node; only the
 start of one is hidden from what a floating window covers.
 
@@ -1285,9 +1300,14 @@ insertion point - draws its marker, and how a filmstrip reorders live. The drop
 is handed over before the source hears `on_drag_change(false)`, so a source can
 keep whatever it set up for the drag until the drop has used it.
 
-A drag between editors is not this: a block dragged from the file tree to
-another editor crosses plugins, so it goes through the host with
-`Editor::drag` and `accept_drag` (guides/adding_a_plugin_editor.md).
+A drag between editors is not this inside the plugin: a block dragged from
+the file tree to another editor crosses plugins, so it goes through the host
+with `Editor::drag` and `accept_drag` (guides/adding_a_plugin_editor.md). The
+host carries it on its own document's board, though: a plugin's request to drag
+a block puts it there with `Board::begin`, each plugin region is a `DropTarget`
+for it, and the board drops whatever it carries when the primary button or the
+finger is let go, wherever the press was, so a drag that no `Draggable` began
+still ends; a cancelled touch ends it without a drop.
 
 ### Pan and zoom
 

@@ -1253,7 +1253,6 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "wgpu",
- "windows-sys 0.59.0",
  "winit",
  "wry",
  "zbus",
@@ -1279,6 +1278,7 @@ dependencies = [
  "block-editor-plugin",
  "block-plugin-api",
  "block-ui",
+ "serde",
  "serde_json",
  "uuid",
 ]

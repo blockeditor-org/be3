@@ -99,7 +99,6 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
         available: true,
         intrinsic: None,
         aspect_ratio: None,
-        hovered: false,
         active: false,
         interaction: InteractionMode::Live,
         capabilities: EditorCapabilities::default(),

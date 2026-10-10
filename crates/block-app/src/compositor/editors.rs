@@ -8,9 +8,9 @@ use be_graph::Access;
 use beui::reactive::{
     Canvas, CanvasItem, Dynamic, ForEach, Frame, Interactive, Layers, Memo, Portal, Prop,
     ReadSignal, Show, WriteSignal, clone, component, component_rect, create_effect, create_memo,
-    create_signal, on_cleanup, provide_context, use_context, view,
+    create_signal, on_cleanup, on_global_key, provide_context, use_context, view,
 };
-use beui::{NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2};
+use beui::{GlobalKeyPress, Key, NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2};
 use block_plugin_api::{
     BarAction, ChildId, ChildMode, ChildRect, CreationProgress, EditorInstanceId, EditorRegion,
     FrameChrome, FrameSpec, HostPanel, HostWindowId, SettingsProgress, TopBar, ViewChange,
@@ -467,6 +467,13 @@ pub(crate) fn PresentingSurface() -> NodeId {
                     provide_context(Nesting::root());
                     crate::host::set_fullscreen(true);
                     on_cleanup(|| crate::host::set_fullscreen(false));
+                    stop_on_escape(clone!(editors -> move || {
+                        editors.with(|open| {
+                            for editor in open.values_mut().filter(|editor| editor.presenting_now()) {
+                                editor.stop_presenting_now();
+                            }
+                        });
+                    }));
                     view! {
                         <BlockFrame
                             block
@@ -482,6 +489,20 @@ pub(crate) fn PresentingSurface() -> NodeId {
             </ForEach>
         </Layers>
     }
+}
+
+fn stop_on_escape(stop: impl Fn() + 'static) {
+    on_global_key(move |global: GlobalKeyPress| {
+        let press = global.press;
+        if global.held {
+            return true;
+        }
+        if global.tap || press.key != Key::Escape || !press.pressed {
+            return false;
+        }
+        stop();
+        true
+    });
 }
 
 #[component]
@@ -1458,8 +1479,6 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
         available,
         intrinsic,
         aspect_ratio,
-        hovered: crate::host::pointer()
-            .is_some_and(|position| child.rect.contains(position) && child.clip.contains(position)),
         active: available && child.is_active(),
         interaction,
         capabilities,

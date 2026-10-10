@@ -28,6 +28,7 @@ mod web;
 mod web_view;
 
 pub(crate) use description::describe;
+pub(crate) use input::BlockDrag;
 pub(crate) use instances::EditorView;
 pub(crate) use presenter::Piece;
 #[cfg(target_arch = "wasm32")]
@@ -48,9 +49,10 @@ pub(crate) use runtime::{
     take_leaving, take_pick_answers, take_view_changes,
 };
 pub(crate) use runtime::{
-    RegionPlacement, RegionSlot, RegionView, back_region, forward_region, frames, intercept_region,
-    intercept_tap, mount_region, place_region, region_damage, region_drawing, region_placed,
-    region_view, take_changed, take_region_actions, unmount_region, unplace_region,
+    RegionPlacement, RegionSlot, RegionView, back_region, drag_over_region, forward_region, frames,
+    intercept_region, intercept_tap, mount_region, place_region, pressed_outside_region,
+    region_damage, region_drawing, region_placed, region_view, take_block_drags, take_changed,
+    take_region_actions, unmount_region, unplace_region,
 };
 #[cfg(all(
     feature = "web-view",
@@ -140,7 +142,6 @@ pub(crate) struct HostChildStatus {
     pub(crate) available: bool,
     pub(crate) intrinsic: Option<Vec2>,
     pub(crate) aspect_ratio: Option<f32>,
-    pub(crate) hovered: bool,
     pub(crate) active: bool,
     pub(crate) interaction: InteractionMode,
     pub(crate) capabilities: EditorCapabilities,

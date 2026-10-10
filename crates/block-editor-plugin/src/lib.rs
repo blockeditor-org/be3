@@ -21,13 +21,13 @@ pub mod session;
 mod wasm;
 
 pub use block_plugin_api::{
-    AccessGrant, AccessLevel, AccessListing, ArtifactAction, AudioStatus, BarAction, BlockCommand,
-    BlockFilter, BlockLocation, BlockPick, Catalog, ChildContent, ChildId, ChildLayer, ChildMode,
-    ChildPlacement, ChildStatus, ClipboardImage, ConflictSide, CreationProgress, CursorIcon,
-    DataListing, DescribedAction, Displays, EditorCapabilities, EditorInstanceId, EditorRegion,
-    FetchResult, FileSave, FrameChrome, FrameSpec, HostAction, HostDisplay, HostDisplayMode,
-    HostImage, HostInputDevice, HostNotificationAction, HostPanel, HostProgram, HostReply,
-    HostRequest, HostValue, HostWindow, HostWindowId, HostWindows, IncomingNotification,
+    AccessGrant, AccessLevel, AccessListing, ArtifactAction, AudioOutput, AudioStatus, BarAction,
+    BlockCommand, BlockFilter, BlockLocation, BlockPick, Catalog, ChildContent, ChildId,
+    ChildLayer, ChildMode, ChildPlacement, ChildStatus, ClipboardImage, ConflictSide,
+    CreationProgress, CursorIcon, DataListing, DescribedAction, Displays, EditorCapabilities, EditorInstanceId,
+    EditorRegion, FetchResult, FileSave, FrameChrome, FrameSpec, HostAction, HostDisplay,
+    HostDisplayMode, HostImage, HostInputDevice, HostNotificationAction, HostPanel, HostProgram,
+    HostReply, HostRequest, HostValue, HostWindow, HostWindowId, HostWindows, IncomingNotification,
     InputDevices, InputEvent, InteractionMode, Key, KeyChord, Media, MediaLevel, MediaLevels,
     MediaRequest, MenuEntry, Modifiers, NodeValue, NotificationCloseReason, NotificationInbox,
     NotificationReport, NotificationRequest, NotificationSignal, NotificationUrgency,

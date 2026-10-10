@@ -115,7 +115,7 @@ impl MediaKey {
     }
 }
 
-fn volume_glyph(level: MediaLevel) -> &'static str {
+pub(crate) fn volume_glyph(level: MediaLevel) -> &'static str {
     match level.level {
         _ if level.muted || level.level <= 0.0 => ICON_VOLUME_OFF,
         volume if volume < 0.5 => ICON_VOLUME_DOWN,

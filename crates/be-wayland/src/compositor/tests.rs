@@ -2,6 +2,7 @@ use super::*;
 
 mod a_click_on_beui_dismisses_a_grabbed_popup;
 mod a_closed_window_leaves_the_list;
+mod a_dialog_that_closes_gives_the_keyboard_back_to_the_window_that_had_it;
 mod a_dmabuf_window_samples_the_clients_pixels;
 mod a_drag_begun_on_the_ui_over_a_window_never_reaches_the_window;
 mod a_drawn_window_is_listed_and_fitted_to_where_it_is_shown;
@@ -81,6 +82,8 @@ fn Shown(windows: Windows) -> NodeId {
         let (text, set_text) = create_signal(String::new());
         let (locked, set_locked) = create_signal(false);
         LOCK.with(|lock| *lock.borrow_mut() = Some(set_locked));
+        let (asking, set_asking) = create_signal(false);
+        DIALOG.with(|dialog| *dialog.borrow_mut() = Some(set_asking));
         let ids = create_memo(clone_list(&windows));
         view! {
             <Interactive
@@ -126,6 +129,13 @@ fn Shown(windows: Windows) -> NodeId {
                         open={locked}
                     >
                         <TextInput @test_id={"test.lock"} value="" />
+                    </Overlay>
+                    <Overlay
+                        anchor=OverlayAnchor::Point(Pos2::ZERO)
+                        placement=Placement::Center
+                        open={asking.clone()}
+                    >
+                        <TextInput @test_id={"test.dialog"} value="" focused={asking} />
                     </Overlay>
                 </List>
             </Interactive>
@@ -211,6 +221,14 @@ impl Harness {
             .expect("the harness has a lock");
         with_reactive_scope(&mut self.document, move || set.set(locked));
         self.app.set_locked(locked);
+        self.settle();
+    }
+
+    fn ask(&mut self, open: bool) {
+        let set = DIALOG
+            .with(|dialog| dialog.borrow().clone())
+            .expect("the harness has a dialog");
+        with_reactive_scope(&mut self.document, move || set.set(open));
         self.settle();
     }
 
@@ -316,6 +334,7 @@ const KEY_LEFTMETA: u32 = 125;
 
 thread_local! {
     static LOCK: std::cell::RefCell<Option<WriteSignal<bool>>> = const { std::cell::RefCell::new(None) };
+    static DIALOG: std::cell::RefCell<Option<WriteSignal<bool>>> = const { std::cell::RefCell::new(None) };
     static GLOBAL_RAN: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
     static CLAIMED: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }

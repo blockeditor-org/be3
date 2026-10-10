@@ -657,7 +657,6 @@ impl<A: BeuiApp> BeuiTest<A> {
             available: true,
             intrinsic: None,
             aspect_ratio: None,
-            hovered: false,
             active: false,
             interaction: block_editor_beui::InteractionMode::Preview,
             capabilities: block_editor_beui::EditorCapabilities::default(),
@@ -692,6 +691,13 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn advance(&mut self, by: std::time::Duration) {
         self.clock += by;
         self.run();
+    }
+
+    pub fn wait(&mut self, by: std::time::Duration) {
+        self.clock += by;
+        for message in std::mem::take(&mut self.inbox) {
+            self.deliver(message);
+        }
     }
 
     pub fn settle(&mut self) {
