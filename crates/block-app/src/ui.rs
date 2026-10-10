@@ -8,9 +8,7 @@ mod workspace;
 use std::cell::RefCell;
 
 use be_protocol::WorkspaceRole;
-use beui::reactive::{
-    Dynamic, Frame, List, NodeRef, Store, clone, component, create_memo, view,
-};
+use beui::reactive::{Dynamic, Frame, List, NodeRef, Store, clone, component, create_memo, view};
 use beui::styled::{KeepChanges, Toast, Toasts, use_theme};
 use beui::unstyled::Edge;
 use beui::{ItemSize, NodeId};
