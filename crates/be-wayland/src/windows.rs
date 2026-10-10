@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use beui::reactive::{ReadSignal, WriteSignal, create_signal};
-use beui::{CursorIcon, Drawing, Rect, Vec2};
+use beui::{CursorIcon, Drawing, ForwardedInput, Rect, Vec2};
 
 use crate::state::WindowId;
 
@@ -43,13 +43,13 @@ pub struct WindowSignals {
 #[derive(Clone, Copy, Default, PartialEq)]
 struct View {
     rect: Option<Rect>,
-    hovered: bool,
 }
 
 struct Inner {
     windows: RefCell<HashMap<WindowId, WindowSignals>>,
     views: RefCell<HashMap<WindowId, View>>,
     commands: RefCell<Vec<Command>>,
+    input: RefCell<Vec<(WindowId, ForwardedInput)>>,
     fullscreen_requests: RefCell<Vec<(WindowId, bool)>>,
     toggle_fullscreen: Cell<bool>,
     activate: Cell<Option<WindowId>>,
@@ -75,6 +75,7 @@ impl Windows {
             windows: RefCell::new(HashMap::new()),
             views: RefCell::new(HashMap::new()),
             commands: RefCell::new(Vec::new()),
+            input: RefCell::new(Vec::new()),
             fullscreen_requests: RefCell::new(Vec::new()),
             toggle_fullscreen: Cell::new(false),
             activate: Cell::new(None),
@@ -244,17 +245,12 @@ impl Windows {
         self.0.views.borrow().get(&id).and_then(|view| view.rect)
     }
 
-    pub(crate) fn hover(&self, id: WindowId, hovered: bool) {
-        self.0.views.borrow_mut().entry(id).or_default().hovered = hovered;
+    pub(crate) fn forward(&self, id: WindowId, input: ForwardedInput) {
+        self.0.input.borrow_mut().push((id, input));
     }
 
-    pub(crate) fn hovered(&self) -> Option<WindowId> {
-        self.0
-            .views
-            .borrow()
-            .iter()
-            .find(|(_, view)| view.hovered)
-            .map(|(id, _)| *id)
+    pub(crate) fn take_input(&self) -> Vec<(WindowId, ForwardedInput)> {
+        std::mem::take(&mut *self.0.input.borrow_mut())
     }
 
     pub(crate) fn focus(&self, id: WindowId, focused: bool) {

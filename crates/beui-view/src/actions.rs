@@ -19,6 +19,7 @@ pub struct Chord {
     pub shift: bool,
     pub alt: bool,
     pub logo: bool,
+    pub tap: bool,
 }
 
 impl Chord {
@@ -29,6 +30,14 @@ impl Chord {
             shift: false,
             alt: false,
             logo: false,
+            tap: false,
+        }
+    }
+
+    pub const fn tap(key: Key) -> Self {
+        Self {
+            tap: true,
+            ..Self::key(key)
         }
     }
 
@@ -58,7 +67,8 @@ impl Chord {
     }
 
     pub fn matches(self, press: KeyPress) -> bool {
-        press.pressed
+        !self.tap
+            && press.pressed
             && press.key == self.key
             && press.modifiers.ctrl == self.ctrl
             && press.modifiers.shift == self.shift
@@ -85,7 +95,14 @@ impl Chord {
     }
 
     fn typed(self) -> bool {
-        !self.ctrl && !self.alt && !self.logo && !self.key.is_media()
+        !self.tap && !self.ctrl && !self.alt && !self.logo && !self.key.is_media()
+    }
+
+    fn heard(self, global: GlobalKeyPress) -> bool {
+        match global.tap {
+            true => self.tap && global.press.key == self.key,
+            false => self.matches(global.press) && !(global.typing && self.typed()),
+        }
     }
 
     pub fn key_chord(self) -> KeyChord {
@@ -141,6 +158,7 @@ fn key_label(key: Key) -> String {
         Key::MediaNext => "Next Track",
         Key::MediaPrevious => "Previous Track",
         Key::MediaStop => "Stop",
+        Key::Logo => "Super",
         _ => return format!("{key:?}"),
     };
     symbol.to_owned()
@@ -471,7 +489,16 @@ impl Registry {
     fn key(&self, unhandled: &UnhandledKeyPress) -> bool {
         let actions = self.actions(&unhandled.focus_path);
         let local = actions.iter().filter(|action| !action.is_global());
-        run_matching(local, unhandled.press, unhandled.typing)
+        run_matching(
+            local,
+            GlobalKeyPress {
+                press: unhandled.press,
+                typing: unhandled.typing,
+                in_app: false,
+                held: false,
+                tap: false,
+            },
+        )
     }
 
     fn global_key(&self, global: GlobalKeyPress) -> bool {
@@ -479,7 +506,7 @@ impl Registry {
         let live = actions
             .iter()
             .filter(|action| action.is_global() && (action.intercepts() || !global.in_app));
-        run_matching(live, global.press, global.typing)
+        run_matching(live, global)
     }
 
     fn intercepted(&self) -> Vec<KeyChord> {
@@ -488,7 +515,11 @@ impl Registry {
             if !action.intercepts() || !action.0.enabled.get() {
                 continue;
             }
-            for chord in action.shortcuts().iter().filter(|chord| !chord.typed()) {
+            for chord in action
+                .shortcuts()
+                .iter()
+                .filter(|chord| !chord.typed() && !chord.tap)
+            {
                 let chord = chord.key_chord();
                 if !chords.contains(&chord) {
                     chords.push(chord);
@@ -508,16 +539,9 @@ impl Registry {
     }
 }
 
-fn run_matching<'a>(
-    actions: impl Iterator<Item = &'a Action>,
-    press: KeyPress,
-    typing: bool,
-) -> bool {
+fn run_matching<'a>(actions: impl Iterator<Item = &'a Action>, global: GlobalKeyPress) -> bool {
     for action in actions {
-        let matched = action
-            .shortcuts()
-            .iter()
-            .any(|chord| chord.matches(press) && !(typing && chord.typed()));
+        let matched = action.shortcuts().iter().any(|chord| chord.heard(global));
         if matched && untrack(|| action.run()) {
             return true;
         }

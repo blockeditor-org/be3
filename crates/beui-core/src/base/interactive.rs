@@ -708,16 +708,6 @@ impl Document {
             .collect()
     }
 
-    pub fn press_claimed(&self, button: crate::input::PointerButton) -> bool {
-        use crate::input::PointerButton;
-        self.claimed_now.contains(&button)
-            || match button {
-                PointerButton::Primary => self.press_claim.is_some(),
-                PointerButton::Secondary => self.secondary_claim.is_some(),
-                _ => false,
-            }
-    }
-
     pub fn set_interactive_repeat_drag(&mut self, id: NodeOf<InteractiveNode>, repeat_drag: bool) {
         if self.arena.get_as::<InteractiveNode>(id).repeat_drag != repeat_drag {
             self.arena.touch_mut_as::<InteractiveNode>(id).repeat_drag = repeat_drag;

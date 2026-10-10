@@ -4,7 +4,7 @@ use crate::base::interactive::InteractiveNode;
 use crate::context::Context;
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect};
-use crate::input::{Event, Key, Modifiers, PointerButton, TouchPhase};
+use crate::input::{Event, Modifiers, PointerButton, TouchPhase};
 use crate::node::{Element, NodeId, Rects};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -99,7 +99,7 @@ pub fn sink_at(doc: &Document, rects: &Rects, root: NodeId, pos: Pos2) -> Option
     deepest(doc, rects, root, pos)
 }
 
-fn cycle_focus(doc: &mut Document, step: isize) -> bool {
+pub(super) fn cycle_focus(doc: &mut Document, step: isize) -> bool {
     let sinks: Vec<NodeId> = doc
         .focusables()
         .into_iter()
@@ -144,31 +144,19 @@ pub(super) fn route(
     pointer: bool,
     keys: super::Keys,
 ) {
-    let mut events = ctx.input(|input| input.events.clone());
-    let cycle = events.iter().rev().find_map(|event| match event {
-        Event::Key {
-            key: Key::F6,
-            pressed: true,
-            modifiers,
-            ..
-        } => Some(if modifiers.shift { -1 } else { 1 }),
-        _ => None,
-    });
-    if let Some(step) = cycle.filter(|_| !keys.ignored())
-        && cycle_focus(doc, step)
-    {
-        events.retain(|event| !matches!(event, Event::Key { key: Key::F6, .. }));
-    }
+    let events = ctx.input(|input| input.events.clone());
     let modifiers = ctx.input(|input| input.modifiers);
     let position = ctx.input(|input| input.pointer.interact_pos());
     let mut routing = std::mem::take(&mut doc.forward);
     let alive = |doc: &Document, id: Option<NodeId>| {
         id.filter(|id| doc.arena.contains(*id) && wants_forward(doc.arena.get(*id)))
     };
-    routing.captor = alive(doc, routing.captor);
-    routing
-        .touches
-        .retain(|_, sink| doc.arena.contains(*sink) && wants_forward(doc.arena.get(*sink)));
+    let unlocked =
+        |doc: &Document, sink: NodeId| doc.lock().is_none_or(|lock| doc.is_within(sink, lock.id()));
+    routing.captor = alive(doc, routing.captor).filter(|sink| unlocked(doc, *sink));
+    routing.touches.retain(|_, sink| {
+        doc.arena.contains(*sink) && wants_forward(doc.arena.get(*sink)) && unlocked(doc, *sink)
+    });
     let focused = alive(doc, doc.focused_node()).filter(|_| !keys.ignored());
     let at = |doc: &Document, pos: Pos2| match pointer {
         true => sink_at(doc, rects, root, pos),

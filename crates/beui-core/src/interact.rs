@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use crate::base::list::Direction;
 use crate::context::Context;
 use crate::geometry::{Pos2, Rect, Vec2, vec2};
-use crate::input::{BackGesture, Event, ImeEvent, Key, KeyPress, Modifiers, PointerButton};
+use crate::input::{BackGesture, Event, ImeEvent, Key, KeyPress, Modifiers};
 use crate::painter::Painter;
 
 use crate::document::{Acted, Document, GlobalKeyPress};
@@ -54,6 +54,9 @@ pub fn interact(
     } else {
         (wheel, fling)
     };
+    if ctx.input(|input| input.events.iter().any(is_activity)) {
+        doc.note_input();
+    }
     let touching =
         ctx.input(|input| input.touch.active() || input.touch.ended() || input.touch.cancelled());
     let raw_pointer = ctx.input(|input| input.pointer.interact_pos());
@@ -156,7 +159,6 @@ pub fn interact(
             catches_drag(element, Direction::Horizontal)
         });
     }
-    doc.claimed_now.clear();
     let mouse = !input.touch_started && !input.touch_active;
     let claimed = (input.pressed_this_frame && mouse)
         .then_some(input.pointer_pos)
@@ -165,7 +167,7 @@ pub fn interact(
     if let Some(claimant) = claimed {
         doc.capture_pointer(claimant);
         doc.press_claim = Some(claimant);
-        claim_press(doc, claimant, PointerButton::Primary);
+        claim_press(doc, claimant);
     } else if input.pressed_this_frame
         && let Some(pos) = input.pointer_pos
         && let Some(captor) = doc
@@ -181,7 +183,7 @@ pub fn interact(
         && let Some(claimant) = claimant(doc, rects, root, pos, input.modifiers)
     {
         doc.secondary_claim = Some(claimant);
-        claim_press(doc, claimant, PointerButton::Secondary);
+        claim_press(doc, claimant);
     }
     let wheel = match input.scroll {
         Vec2::ZERO => input.scroll_fling,
@@ -477,8 +479,7 @@ fn hidden_pointer(input: InteractInput) -> InteractInput {
     }
 }
 
-fn claim_press(doc: &mut Document, claimant: NodeId, button: PointerButton) {
-    doc.claimed_now.push(button);
+fn claim_press(doc: &mut Document, claimant: NodeId) {
     match forward::wants_forward(doc.arena.get(claimant)) {
         true => doc.forward.claim_press(claimant),
         false => doc.forward.swallow_press(),
@@ -541,6 +542,7 @@ fn claiming(
 
 fn global_keys(doc: &mut Document, ctx: &Context) {
     let events = ctx.input(|input| input.events.clone());
+    let taps = taps(doc, &events);
     if events
         .iter()
         .any(|event| matches!(event, Event::Focus(false)))
@@ -555,8 +557,8 @@ fn global_keys(doc: &mut Document, ctx: &Context) {
     }
     let in_app = forward::takes_keys(doc);
     let typing = in_app || doc.focus_types();
-    let mut keep = Vec::with_capacity(events.len());
-    for event in &events {
+    let mut keep = vec![true; events.len()];
+    for (index, event) in events.iter().enumerate() {
         let (key, pressed, repeat, modifiers) = match *event {
             Event::Key {
                 key,
@@ -566,7 +568,6 @@ fn global_keys(doc: &mut Document, ctx: &Context) {
             } => (key, pressed, repeat, modifiers),
             Event::Focus(false) => {
                 doc.globally_held.clear();
-                keep.push(true);
                 continue;
             }
             Event::InterceptedKey(press) => {
@@ -575,15 +576,14 @@ fn global_keys(doc: &mut Document, ctx: &Context) {
                     press,
                     typing: true,
                     in_app: true,
+                    held: false,
+                    tap: false,
                 });
                 ::reactive::settle(|| {});
-                keep.push(false);
+                keep[index] = false;
                 continue;
             }
-            _ => {
-                keep.push(true);
-                continue;
-            }
+            _ => continue,
         };
         doc.set_modifiers(modifiers);
         let press = KeyPress {
@@ -592,29 +592,156 @@ fn global_keys(doc: &mut Document, ctx: &Context) {
             repeat,
             modifiers,
         };
-        if pressed && !repeat {
-            doc.globally_held.retain(|other| *other != key);
-        }
-        let held = doc.globally_held.contains(&key);
-        let taken = doc.key_global(GlobalKeyPress {
+        let offered = GlobalKeyPress {
             press,
             typing,
             in_app,
-        });
+            held: false,
+            tap: false,
+        };
+        if pressed && !repeat {
+            doc.globally_held.retain(|(other, _)| *other != key);
+        }
+        let taken = match doc
+            .globally_held
+            .iter()
+            .position(|(other, _)| *other == key)
+        {
+            Some(at) => {
+                let taker = doc.globally_held[at].1.clone();
+                if !pressed {
+                    doc.globally_held.remove(at);
+                }
+                match taker {
+                    Some(taker) => {
+                        taker(GlobalKeyPress {
+                            held: true,
+                            ..offered
+                        });
+                    }
+                    None if pressed => {
+                        forward::cycle_focus(doc, cycle_step(modifiers));
+                    }
+                    None => {}
+                }
+                true
+            }
+            None => {
+                let taker = match doc.global_taker(offered) {
+                    Some(taker) => Some(Some(taker)),
+                    None if pressed && key == Key::F6 => {
+                        forward::cycle_focus(doc, cycle_step(modifiers)).then_some(None)
+                    }
+                    None => None,
+                };
+                if pressed && let Some(taker) = &taker {
+                    doc.globally_held.push((key, taker.clone()));
+                }
+                taker.is_some()
+            }
+        };
         ::reactive::settle(|| {});
-        if pressed && taken && !held {
-            doc.globally_held.push(key);
+        if taken {
+            drop_key(&mut keep, &events, index, pressed);
         }
-        if !pressed && held {
-            doc.globally_held.retain(|other| *other != key);
+        if taps.contains(&index) {
+            doc.key_global(GlobalKeyPress {
+                tap: true,
+                ..offered
+            });
+            ::reactive::settle(|| {});
         }
-        keep.push(!(taken || held));
     }
     if keep.iter().all(|keep| *keep) {
         return;
     }
     let mut kept = keep.into_iter();
     ctx.retain_events(|_| kept.next().unwrap_or(true));
+}
+
+fn is_activity(event: &Event) -> bool {
+    matches!(
+        event,
+        Event::Key { .. }
+            | Event::PointerButton { .. }
+            | Event::PointerMotion(_)
+            | Event::PointerMoved(_)
+            | Event::Scroll(_)
+            | Event::PhysicalKey { .. }
+            | Event::Text(_)
+            | Event::Touch { .. }
+            | Event::Zoom(_)
+    )
+}
+
+fn cycle_step(modifiers: Modifiers) -> isize {
+    match modifiers.shift {
+        true => -1,
+        false => 1,
+    }
+}
+
+fn drop_key(keep: &mut [bool], events: &[Event], index: usize, pressed: bool) {
+    keep[index] = false;
+    for before in (0..index).rev() {
+        match events[before] {
+            Event::Modifiers(_) | Event::Text(_) => {}
+            Event::PhysicalKey {
+                pressed: physical, ..
+            } if physical == pressed => {
+                keep[before] = false;
+                break;
+            }
+            _ => break,
+        }
+    }
+    for after in index + 1..events.len() {
+        match events[after] {
+            Event::Text(_) => keep[after] = false,
+            _ => break,
+        }
+    }
+}
+
+fn taps(doc: &mut Document, events: &[Event]) -> Vec<usize> {
+    let mut taps = Vec::new();
+    for (index, event) in events.iter().enumerate() {
+        match *event {
+            Event::Key {
+                key,
+                pressed: true,
+                repeat: false,
+                modifiers,
+            } => doc.tapping = (key.is_modifier() && alone(key, modifiers)).then_some(key),
+            Event::Key {
+                key,
+                pressed: false,
+                ..
+            } if doc.tapping == Some(key) => {
+                doc.tapping = None;
+                taps.push(index);
+            }
+            Event::Key { pressed: true, .. }
+            | Event::PointerButton { pressed: true, .. }
+            | Event::Scroll(_)
+            | Event::Focus(false)
+            | Event::Touch {
+                phase: crate::input::TouchPhase::Start,
+                ..
+            } => doc.tapping = None,
+            _ => {}
+        }
+    }
+    taps
+}
+
+fn alone(key: Key, held: Modifiers) -> bool {
+    Modifiers {
+        alt: held.alt && key != Key::Alt,
+        ctrl: held.ctrl && key != Key::Ctrl,
+        shift: held.shift && key != Key::Shift,
+        logo: held.logo && key != Key::Logo,
+    } == Modifiers::NONE
 }
 
 fn without_pointer(input: InteractInput) -> InteractInput {

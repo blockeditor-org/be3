@@ -20,8 +20,7 @@ fn a_locked_session_gives_no_window_the_keyboard_or_the_pointer() {
         [(KEY_A, true), (KEY_A, false)]
     );
 
-    harness.app.set_locked(true);
-    harness.settle();
+    harness.lock(true);
     assert!(
         !harness.client.received.keyboard_entered,
         "locking takes the keyboard from the window"
@@ -48,7 +47,7 @@ fn a_locked_session_gives_no_window_the_keyboard_or_the_pointer() {
     assert!(!harness.client.received.keyboard_entered);
     assert_eq!(harness.client.received.scrolled, 0.0);
 
-    harness.app.set_locked(false);
+    harness.lock(false);
     harness.click(&window);
     harness.key(KEY_B);
     assert_eq!(

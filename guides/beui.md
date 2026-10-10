@@ -887,9 +887,9 @@ activity's `setBackHandled`, and when nothing takes it the system's own back
 A modal overlay with `locks` set is a lock screen (`styled::LockScreen`): nothing the user
 does dismisses it, an overlay opened outside it while it is open goes beneath it, passive overlays
 outside it paint beneath it, the focus cannot leave it (not even to nothing, through Escape or a
-click on its scrim), and `Document::locked` is true. While it is, `on_global_key` handlers, global
-actions and `offer_app_key` hear nothing but media keys (`Key::is_media`). Only its owner writing
-`open` false closes it.
+click on its scrim), and `Document::locked` is true. While it is, `on_global_key` handlers and global
+actions hear nothing but media keys (`Key::is_media`), and a forwarding catcher outside it loses any
+press it had captured. Only its owner writing `open` false closes it.
 
 A **passive** one takes no input at all. It is painted above everything and is
 not on the stack, so the document underneath goes on answering the pointer and
@@ -931,9 +931,9 @@ down, before `capture_presses`, so the outermost claimant wins; the press, its
 drag and its release reach the claimant alone, none of its descendants, and no
 forwarding catcher under it unless the claimant is that catcher.
 `Document::press_claims` lists the `claim_modifiers` rectangles laid out this
-frame, which a plugin reports to its host, and `Document::press_claimed(button)` says a
-press of this frame or one still held was claimed, which is how the Wayland
-compositor keeps it from a program. A secondary drag stays with the node that
+frame, which a plugin reports to its host. A Wayland program's window is a
+forwarding catcher like a plugin's region, so a press claimed over it never
+reaches the program. A secondary drag stays with the node that
 took it while the pointer crosses a floating window above that node; only the
 start of one is hidden from what a floating window covers.
 

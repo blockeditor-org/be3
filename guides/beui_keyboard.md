@@ -38,8 +38,11 @@ before anything else, including while a menu or dialog is open. It is handed a
 `GlobalKeyPress`, whose `in_app` says the focus is in an app (a plugin editor's
 region, or a Wayland program in a desktop session) that would otherwise get
 the key. A handler takes such a key only when it means to intercept it from
-the app. A press it answers `true` for, and that key's release, go nowhere
-else.
+the app. A press it answers `true` for goes nowhere else, and neither do its
+physical key, the text it typed, its repeats or its release: those are offered
+to the handler that took the press alone, with `held` set, wherever the focus
+has gone since. That is the one record of taken keys; nothing else keeps its
+own.
 `held_modifiers()` is a signal of the modifiers held now, which changes on
 modifier presses alone. Shortcuts that are not chords, such as a hold-and-release
 switcher, are built from those two.
@@ -51,10 +54,16 @@ The modifier keys themselves arrive as `Key::Shift`, `Key::Ctrl`, `Key::Alt` and
 actions, which read the state from `KeyPress::modifiers` or `held_modifiers()`; nor
 do they show the focus ring or end autoscroll, and the runners drop their repeats.
 Something that reacts to the modifier key rather
-than to the state, such as tapping Super alone (block-app's `SuperTap`), reads
-the key events: the runners do not agree on whether `Event::Modifiers` comes
-before or after the key's own event, and winit on X11 can report a modifier
-state that reverts before the key arrives.
+than to the state, such as tapping Super alone, is a global action with a
+`Chord::tap(Key::Logo)` rather than code reading events: the document counts a
+modifier pressed and let go with no other key, press, scroll or loss of focus
+between as a tap, judged from the key events alone (the runners do not agree on
+whether `Event::Modifiers` comes before or after the key's own event, and winit
+on X11 can report a modifier state that reverts before the key arrives), and
+offers it on the release with `GlobalKeyPress::tap` set. The release still goes
+on to whatever it would have reached. block-app's launcher opens that way. A
+tap is never reported as an intercepted key, since the protocol has no way to
+say one.
 
 `Modifiers` and `Chord` have `logo` for the Super (Windows) key. The runners
 report Super as `logo`, except on macOS, where Command acts as Ctrl and Super
@@ -112,11 +121,10 @@ press it takes never reaches the app, nor does its release. Reserve it for
 shortcuts that must work over anything, such as Super+F
 (`be_wayland::toggle_fullscreen_action`) and the media keys. Inside an app only
 chords with Ctrl, Alt or Super, and media keys, are offered, since the app
-counts as a text field. In `block-app --session`, `be_wayland::Compositor`
-makes that offer with `Document::offer_app_key` before forwarding each press
-to the focused program; modifier presses always reach the program. A program
-that inhibits shortcuts (keyboard-shortcuts-inhibit) is a matter of the
-compositor not making the offer.
+counts as a text field. A Wayland program's window is an app in the same way
+as a plugin's region (see One input path below), so it gets this offer and no
+other; modifier presses always reach it. keyboard-shortcuts-inhibit, for a
+program that wants these chords too, is not implemented.
 
 A document that runs inside a host - a plugin's - intercepts the same way. Its
 enabled intercepting actions' chords (never one that types) are
@@ -140,6 +148,52 @@ opens it with Ctrl+Shift+P and from a row of its menu, and
 `menu_actions()` (every action registered with
 `in_menu()`) is what fills that menu, which the dock shows behind its More
 button.
+
+## One input path
+
+Every embedded editor - a plugin's region, and in `block-app --session` and
+`--desktop` each Wayland program's window - is a forwarding catcher: an
+`Interactive` with `on_forward` (and `forward_at` for the points it takes),
+handed the events beui routes to it as a `ForwardedInput`. The host knows
+nothing of the editor behind it beyond turning those events into its own
+protocol (`plugin_host::forward_region` for a plugin, `be_wayland::Compositor`
+for a window), so press capture, hover, claims, overlays, focus, intercepting
+actions and the lock apply to both by the same rules. The only one outside it
+is the browser tab's web view (crates/editors/browser-tab), a native view placed
+over the window that takes its input from the platform rather than from beui.
+
+What one event goes through, in order:
+
+1. The runner. `beui-adapter-drm` drops the input that wakes blanked screens,
+   the rest of it for a grace period, and every release of a press it dropped
+   (`wake.rs`, see guides/running_the_app.md). That has to happen there: it is
+   decided on libinput's own clock before the keymap sees the key, and nothing
+   about it is the document's to judge. The keymap's own actions (switching
+   terminals, Ctrl+Alt+Backspace) are the adapter's too. Each key arrives as
+   `Event::PhysicalKey` (the scan code, for Wayland programs) just before the
+   `Event::Key` and any `Event::Text` it made.
+2. `interact`: the document counts the frame as input (`Document::input_frames`,
+   which the compositor's idle time reads), dismisses light overlays, finds a
+   modifier claim (`claim_modifiers`, `claim_at`) or a capture for a press, and
+   moves the focus. A lock overlay keeps the focus and every press.
+3. Global keys: taps, then `on_global_key` handlers (global and intercepting
+   actions among them, and in block-app the shell plugin's intercepted chords,
+   `compositor/intercept.rs`), then F6 and Shift+F6, which move the focus
+   between forwarding catchers. A key one of them takes is gone from the frame
+   along with its physical key and text, and so are its repeats and release
+   when they come.
+4. `forward::route`: the pointer goes to the catcher under it (`forward_at`
+   says no where something else is drawn over it), a press is captured by the
+   catcher it landed on until every button is let go, a claimed press goes to
+   its claimant, wheel and drop events to the catcher under the pointer, and
+   keys, text and IME to the focused catcher. A catcher outside an open lock
+   loses its capture. Each catcher is also told when it gains or loses the
+   hover or the focus.
+5. What is left is the document's own: shortcuts, the focused control's
+   `on_key`, actions, Tab and Escape.
+
+So no editor reads the frame's events itself, and nothing gives a key a
+meaning outside an action, a shortcut or a control.
 
 ## Control props
 
