@@ -880,6 +880,7 @@ impl EditorSession {
                 .and_then(|state| state.frame.clone())
                 .unwrap_or_default(),
             monitors: self.monitors(region),
+            describe: crate::screens::describing(),
         }
     }
 
@@ -975,6 +976,34 @@ impl EditorSession {
                 handles_back: frame.handles_back,
                 wants_keyboard: frame.wants_keyboard,
                 intercepted_keys: frame.intercepted_keys.clone(),
+                description: frame.description.as_ref().map(|description| {
+                    block_plugin_api::Description {
+                        nodes: description
+                            .nodes
+                            .iter()
+                            .map(|node| block_plugin_api::DescribedNode {
+                                depth: node.depth,
+                                role: node.role.clone(),
+                                label: node.label.clone(),
+                                value: node.value.clone(),
+                                toggled: node.toggled,
+                                disabled: node.disabled,
+                                focused: node.focused,
+                                rect: node.rect.map(reported),
+                                actions: node.actions.clone(),
+                            })
+                            .collect(),
+                        test_ids: description
+                            .test_ids
+                            .iter()
+                            .map(|(id, rect)| block_plugin_api::TestIdRect {
+                                id: id.clone(),
+                                rect: reported(*rect),
+                            })
+                            .collect(),
+                        actions: description.actions.clone(),
+                    }
+                }),
             });
         }
         frame
@@ -988,6 +1017,22 @@ impl EditorSession {
     pub(crate) fn input(&mut self, region: EditorRegion, event: &InputEvent) {
         let context = self.context(region);
         self.app.input(&context, event);
+    }
+
+    pub(crate) fn node_action(
+        &mut self,
+        region: EditorRegion,
+        node: usize,
+        action: &str,
+        value: Option<block_plugin_api::NodeValue>,
+    ) {
+        let context = self.context(region);
+        self.app.node_action(&context, node, action, value);
+    }
+
+    pub(crate) fn run_action(&mut self, region: EditorRegion, id: &str) {
+        let context = self.context(region);
+        self.app.run_action(&context, id);
     }
 
     pub fn report(&self, region: EditorRegion) -> Option<&FrameReport> {

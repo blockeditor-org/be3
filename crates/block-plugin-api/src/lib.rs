@@ -102,6 +102,56 @@ pub struct FrameReport {
     pub handles_back: bool,
     pub wants_keyboard: bool,
     pub intercepted_keys: Vec<KeyChord>,
+    pub description: Option<Description>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Description {
+    pub nodes: Vec<DescribedNode>,
+    pub test_ids: Vec<TestIdRect>,
+    pub actions: Vec<DescribedAction>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DescribedAction {
+    pub id: String,
+    pub label: String,
+    pub shortcut: Option<String>,
+    pub enabled: bool,
+    pub checked: Option<bool>,
+    pub live: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DescribedNode {
+    pub depth: u16,
+    pub role: String,
+    pub label: String,
+    pub value: String,
+    pub toggled: Option<Toggled>,
+    pub disabled: bool,
+    pub focused: bool,
+    pub rect: Option<ChildRect>,
+    pub actions: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum NodeValue {
+    Text(String),
+    Number(f64),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Toggled {
+    Off,
+    On,
+    Mixed,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct TestIdRect {
+    pub id: String,
+    pub rect: ChildRect,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1627,10 +1677,14 @@ pub enum Message {
     RegionSizes(Vec<RegionSize>),
     Frames(Vec<FrameReport>),
     Input(InputBatch),
-    DrawFrame { now_micros: u64 },
+    DrawFrame {
+        now_micros: u64,
+    },
     FrameNeeded,
     FrameReady(FrameReady),
-    Acknowledged { request_id: u64 },
+    Acknowledged {
+        request_id: u64,
+    },
     Error(ProtocolError),
     Shutdown,
     ShutdownAcknowledged,
@@ -1638,6 +1692,17 @@ pub enum Message {
     BlockTypes(Catalog),
     Children(ChildPlacements),
     ChildStatuses(Vec<ChildStatus>),
+    Describe(bool),
+    RunAction {
+        screen: ScreenId,
+        id: String,
+    },
+    NodeAction {
+        screen: ScreenId,
+        node: u32,
+        action: String,
+        value: Option<NodeValue>,
+    },
 }
 
 impl Message {
@@ -1673,7 +1738,10 @@ impl Message {
             | Self::DrawFrame { .. }
             | Self::Shutdown
             | Self::BlockTypes(_)
-            | Self::ChildStatuses(_) => Direction::ToPlugin,
+            | Self::ChildStatuses(_)
+            | Self::Describe(_)
+            | Self::RunAction { .. }
+            | Self::NodeAction { .. } => Direction::ToPlugin,
             Self::Hello(_)
             | Self::Acknowledged { .. }
             | Self::ShutdownAcknowledged
@@ -2432,6 +2500,14 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
             Ok(())
         }
         Message::Children(value) => validate_children(value),
+        Message::RunAction { id, .. } => string(id),
+        Message::NodeAction { action, value, .. } => {
+            string(action)?;
+            match value {
+                Some(NodeValue::Text(text)) => string(text),
+                _ => Ok(()),
+            }
+        }
         Message::ChildStatuses(value) => {
             collection(value.len())?;
             for status in value {

@@ -7,6 +7,9 @@ pub use accesskit;
 pub use beui_components_styled as styled;
 pub use beui_components_unstyled as unstyled;
 pub use beui_components_unstyled::datetime;
+pub use beui_core::accessibility;
+pub use beui_core::app::accessibility_dump;
+pub use beui_core::app::automation;
 pub use beui_core::app::{App, Setup, Waker};
 pub use beui_core::base::{
     Align, Direction, ImeCursor, ItemSize, Justify, ScrollPosition, Sides, Sizing, Track,
@@ -14,7 +17,8 @@ pub use beui_core::base::{
 };
 pub use beui_core::color::{Color32, Hsva, Oklch, format_hex, parse_hex};
 pub use beui_core::context::{
-    Context, FrameOutput, InputSimulation, Moved, RendererChoices, RendererInfo,
+    ActionGroup, ActionInfo, Context, FrameOutput, InputSimulation, Moved, RendererChoices,
+    RendererInfo,
 };
 pub use beui_core::damage::Region;
 pub use beui_core::document::{
@@ -75,6 +79,12 @@ pub use window::{WindowRenderer, run_on, run_with, run_with_renderers, window_ad
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]
 mod window;
 
+#[cfg(all(
+    feature = "window",
+    not(any(target_os = "android", target_arch = "wasm32"))
+))]
+pub use beui_adapter_headless::Headless;
+
 pub mod reactive {
     pub use beui_components_unstyled::Button;
     pub use beui_view::reactive::*;
@@ -111,8 +121,8 @@ pub fn run(title: impl Into<String>, app: impl App + 'static) -> Result<(), Box<
 
 #[cfg(test)]
 use beui_core::{
-    accessibility, base, color, context, damage, draw, drawing, filter, flash, font, geometry,
-    image, input, interact, node, painter, screen_simulation, sight,
+    base, color, context, damage, draw, drawing, filter, flash, font, geometry, image, input,
+    interact, node, painter, screen_simulation, sight,
 };
 #[cfg(test)]
 use beui_inspector::{self as inspector, mouse_simulation};

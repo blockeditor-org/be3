@@ -2,7 +2,10 @@ use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
 use beui_core::callback::NodeRef;
-use beui_core::document::{GlobalKey, GlobalKeyPress, UnhandledKey, UnhandledKeyPress};
+use beui_core::context::{ActionGroup, ActionInfo, Context};
+use beui_core::document::{
+    ActionsHook, GlobalKey, GlobalKeyPress, UnhandledKey, UnhandledKeyPress,
+};
 use beui_core::input::{Key, KeyChord, KeyPress, Modifiers};
 use beui_core::node::NodeId;
 use reactive::{
@@ -417,6 +420,7 @@ struct RegistryData {
     set_version: WriteSignal<u64>,
     keys: RefCell<Option<Rc<UnhandledKey>>>,
     global_keys: RefCell<Option<Rc<GlobalKey>>>,
+    described: RefCell<Option<Rc<ActionsHook>>>,
 }
 
 #[derive(Clone)]
@@ -436,6 +440,7 @@ impl Registry {
             set_version,
             keys: RefCell::new(None),
             global_keys: RefCell::new(None),
+            described: RefCell::new(None),
         }))
     }
 
@@ -526,6 +531,39 @@ impl Registry {
         chords
     }
 
+    fn describe(&self, context: &Context, focus_path: &[NodeId]) {
+        let live = self.actions(focus_path);
+        let all = self.all();
+        for requested in context.action_requests() {
+            let found = live
+                .iter()
+                .chain(all.iter())
+                .find(|action| action.id() == requested);
+            if let Some(action) = found {
+                untrack(|| action.run());
+                context.action_ran(&requested);
+            }
+        }
+        let info = |action: &Action, live: bool| ActionInfo {
+            id: action.id().to_owned(),
+            label: action.label().peek(),
+            shortcut: action.shortcut_label(),
+            enabled: action.is_enabled(),
+            checked: action.checked().map(|checked| checked.peek()),
+            live,
+        };
+        let mut actions: Vec<ActionInfo> = live.iter().map(|action| info(action, true)).collect();
+        for action in &all {
+            if !actions.iter().any(|listed| listed.id == action.id()) {
+                actions.push(info(action, false));
+            }
+        }
+        context.publish_actions(ActionGroup {
+            name: String::new(),
+            actions,
+        });
+    }
+
     fn all(&self) -> Vec<Action> {
         let mut all: Vec<Action> = self.0.global.actions.borrow().clone();
         for scope in self.scopes() {
@@ -566,6 +604,14 @@ fn registry() -> Registry {
         });
         document.register_global_key(Rc::downgrade(&global));
         *registry.0.global_keys.borrow_mut() = Some(global);
+        let weak = Rc::downgrade(&registry.0);
+        let described: Rc<ActionsHook> = Rc::new(move |context: &Context, path: &[NodeId]| {
+            if let Some(registry) = weak.upgrade() {
+                Registry(registry).describe(context, path);
+            }
+        });
+        document.register_actions(Rc::downgrade(&described));
+        *registry.0.described.borrow_mut() = Some(described);
         let intercepted = document.intercepted_keys_writer();
         let weak = Rc::downgrade(&registry.0);
         let reported = RefCell::new(Vec::new());

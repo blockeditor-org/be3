@@ -10,6 +10,7 @@ use uuid::Uuid;
 mod audio;
 mod backend;
 mod clipboard;
+mod description;
 mod fonts;
 pub(crate) mod graph;
 mod host_values;
@@ -26,6 +27,7 @@ mod wasm;
 mod web;
 mod web_view;
 
+pub(crate) use description::describe;
 pub(crate) use input::BlockDrag;
 pub(crate) use instances::EditorView;
 pub(crate) use presenter::Piece;
@@ -36,15 +38,15 @@ pub(crate) use runtime::place_screens;
 #[cfg(target_os = "linux")]
 pub(crate) use runtime::watched;
 pub(crate) use runtime::{
-    PACING, artifact, artifact_draft, aspect_ratio, block_picked, close, commit_creation, creation,
-    creation_ready, flush, frame_child, frame_rects, hold, install, intrinsic_size, kill, menu,
-    menu_pick, poll, present, presenting, publish, record_pacing, regenerate_artifact, region_size,
-    replace_child, replace_gpu, report_child_bars, report_child_views, report_children,
-    request_pick, resized, revoke_frame_child, running, set_artifact_states, set_focus,
-    set_presence_visible, set_shell, settle, show_block, show_dialog, show_panel, start_frames,
-    take_actions, take_artifact_outcome, take_artifact_watch, take_bar_actions, take_block_pick,
-    take_child_commits, take_child_menu_picks, take_created, take_focus_report, take_leaving,
-    take_pick_answers, take_view_changes,
+    PACING, artifact, artifact_draft, aspect_ratio, block_picked, busy, close, commit_creation,
+    creation, creation_ready, flush, frame_child, frame_rects, hold, install, intrinsic_size, kill,
+    menu, menu_pick, poll, present, presenting, publish, record_pacing, regenerate_artifact,
+    region_size, replace_child, replace_gpu, report_child_bars, report_child_views,
+    report_children, request_pick, resized, revoke_frame_child, running, set_artifact_states,
+    set_focus, set_presence_visible, set_shell, settle, show_block, show_dialog, show_panel,
+    start_frames, take_actions, take_artifact_outcome, take_artifact_watch, take_bar_actions,
+    take_block_pick, take_child_commits, take_child_menu_picks, take_created, take_focus_report,
+    take_leaving, take_pick_answers, take_view_changes,
 };
 pub(crate) use runtime::{
     RegionPlacement, RegionSlot, RegionView, back_region, drag_over_region, forward_region, frames,

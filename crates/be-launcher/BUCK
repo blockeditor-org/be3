@@ -1,4 +1,5 @@
 load("@root//buck/android:defs.bzl", "android_apk", "signed_apk")
+load("@root//buck/app:drive.bzl", "headless")
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
 
 # On Android the launcher is this library, loaded by LauncherActivity under
@@ -53,4 +54,11 @@ command_alias(
 signed_apk(
     name = "android-dist",
     apk = ":apk-dist",
+)
+
+# Headless for an agent to drive: guides/running/drive.md.
+headless(
+    name = "dev",
+    app_name = "be-launcher",
+    program = "$(location :launcher)",
 )

@@ -144,6 +144,7 @@ impl Screens {
             }
             Message::Fonts(fonts) => crate::fonts::receive(fonts),
             Message::UtcOffset(seconds) => crate::clock::receive(*seconds),
+            Message::Describe(on) => DESCRIBE.store(*on, std::sync::atomic::Ordering::Relaxed),
             Message::DrawFrame { now_micros } => {
                 crate::clock::set_frame_time(std::time::Duration::from_micros(*now_micros));
                 return false;
@@ -488,6 +489,29 @@ impl Screens {
                 self.requests = set.screens.clone();
                 self.relayout();
             }
+            Message::NodeAction {
+                screen,
+                node,
+                action,
+                value,
+            } => {
+                let Some((instance, region)) = self.screen(*screen) else {
+                    return false;
+                };
+                let Some(session) = self.sessions.get_mut(&instance) else {
+                    return false;
+                };
+                session.node_action(region, *node as usize, action, value.clone());
+            }
+            Message::RunAction { screen, id } => {
+                let Some((instance, region)) = self.screen(*screen) else {
+                    return false;
+                };
+                let Some(session) = self.sessions.get_mut(&instance) else {
+                    return false;
+                };
+                session.run_action(region, id);
+            }
             Message::Input(batch) => {
                 let Some((instance, region)) = self.screen(batch.screen) else {
                     return false;
@@ -600,6 +624,12 @@ impl Screens {
                 Some((instance, _)) => self.mark(instance),
                 None => return false,
             },
+            Message::RunAction { screen, .. } | Message::NodeAction { screen, .. } => {
+                match self.screen(*screen) {
+                    Some((instance, _)) => self.mark(instance),
+                    None => return false,
+                }
+            }
             Message::ChildStatuses(statuses) => {
                 for status in statuses {
                     self.mark(status.instance);
@@ -712,4 +742,10 @@ fn catalog(catalog: &Catalog) -> BlockCatalog {
         },
         dialog: template.dialog,
     }))
+}
+
+static DESCRIBE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub(crate) fn describing() -> bool {
+    DESCRIBE.load(std::sync::atomic::Ordering::Relaxed)
 }

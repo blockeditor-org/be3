@@ -1,7 +1,7 @@
 #!/bin/sh
 # Serves the web build and opens it in a headless Chromium for an agent to
 # drive, signed in to an account on its own be-server with a workspace open,
-# and returns once the page is up. guides/running_the_web_app.md says how to
+# and returns once the page is up. guides/running/web.md says how to
 # drive it.
 #
 #   ./scripts/buck run //crates/block-app:web-dev              start, or restart
@@ -88,7 +88,7 @@ setsid "$chromium" --headless=new --no-sandbox --no-first-run --no-default-brows
     $graphics --enable-unsafe-swiftshader --ignore-gpu-blocklist \
     --enable-logging=stderr --v=0 --window-size=1280,800 \
     --remote-debugging-port="$debugging" --user-data-dir="$dir/profile" \
-    "${url}?dev-workspace&accessibility-tree" > "$dir/browser.log" 2>&1 < /dev/null &
+    "${url}?dev-workspace&automation" > "$dir/browser.log" 2>&1 < /dev/null &
 echo $! > "$dir/browser.pid"
 
 cat > "$dir/env" <<ENV
@@ -97,14 +97,14 @@ export NODE_PATH=$NODE_PATH
 drive() { node "$drive" "\$@"; }
 ENV
 . "$dir/env"
-if ! timeout 60 sh -c ". '$dir/env'; until drive tree 2> /dev/null | grep -q '^Window'; do sleep 0.2; done"; then
+if ! timeout 60 sh -c ". '$dir/env'; until drive tree 2> /dev/null | grep -q '^Window'; do sleep 0.2; done" || ! drive --timeout=120 settle; then
     echo "The page did not start; see $dir/browser.log." >&2
     exit 1
 fi
 drive size 1280 800
 cat <<INFO
 The web app is served on $url and open in a headless Chromium;
-guides/running_the_web_app.md says how to drive it.
+guides/running/web.md says how to drive it.
   source $dir/env    defines drive
   logs: $dir/browser.log (the page's and its workers' consoles), $dir/server.log
 INFO

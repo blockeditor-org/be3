@@ -25,6 +25,8 @@ pub mod present;
 #[cfg(all(target_arch = "wasm32", feature = "web"))]
 pub mod canvas;
 #[cfg(not(target_arch = "wasm32"))]
+pub mod offscreen;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod window;
 
 use beui_core::context::RendererInfo;

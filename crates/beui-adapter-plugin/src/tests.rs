@@ -21,6 +21,7 @@ fn region(rect: Rect, pixels: [u32; 2]) -> Region {
         age: 0,
         spec: FrameSpec::default(),
         monitors: Vec::new(),
+        describe: false,
     }
 }
 

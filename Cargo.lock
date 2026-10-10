@@ -681,6 +681,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-drive"
+version = "0.1.0"
+dependencies = [
+ "beui-core",
+ "image",
+]
+
+[[package]]
 name = "be-graph"
 version = "0.1.0"
 dependencies = [
@@ -840,6 +848,7 @@ version = "0.1.0"
 dependencies = [
  "accesskit",
  "beui-adapter-android",
+ "beui-adapter-headless",
  "beui-adapter-web",
  "beui-adapter-winit",
  "beui-components-styled",
@@ -887,6 +896,15 @@ dependencies = [
  "rustix 1.1.4",
  "smithay",
  "wgpu",
+]
+
+[[package]]
+name = "beui-adapter-headless"
+version = "0.1.0"
+dependencies = [
+ "beui-core",
+ "beui-renderer-wgpu",
+ "pollster",
 ]
 
 [[package]]
