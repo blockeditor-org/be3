@@ -47,10 +47,7 @@ fn a_host_value_wakes_only_the_watchers_of_its_own_key() {
     let editor = Editor::new(host.clone(), Uuid::new_v4());
     let mut document = build(|| Frame().build());
     let (windows, icons) = with_reactive_scope(&mut document, || {
-        (
-            editor.host_value::<Windows>(),
-            editor.host_value::<Icons>(),
-        )
+        (editor.host_value::<Windows>(), editor.host_value::<Icons>())
     });
     host.set_host_value::<Icons>(&Counted(vec![7; 4096]));
     with_reactive_scope(&mut document, || editor.begin_frame());
