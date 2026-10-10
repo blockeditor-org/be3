@@ -113,8 +113,9 @@ Every command that gives input waits until the app has settled and prints what c
 the tree, `-` and `+` lines, so there is no need to wait or read the whole tree again. A long
 change is cut to its first 60 lines; `drive --changes=N COMMAND` (or `all`) prints more. The app
 has settled once a frame asks for no other and `App::busy` is false; block-app is busy while a
-plugin is starting, owes a frame or holds unanswered input, and while an account or workspace
-request is pending. `drive --no-settle COMMAND` answers after the frame that took the input
+plugin is starting, owes a frame or holds unanswered input, while an account or workspace
+request is pending, and while the block store has commands to carry out or is still loading the
+workspace's graph. `drive --no-settle COMMAND` answers after the frame that took the input
 instead, to see the app part way through something, such as a plugin still loading. Work the
 app cannot see, such as a server push, is waited for with `drive wait TEXT` or `drive gone
 TEXT` (or `#TEST_ID`), which return once a line of the tree contains TEXT or none does;

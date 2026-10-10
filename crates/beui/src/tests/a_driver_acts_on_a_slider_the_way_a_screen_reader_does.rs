@@ -7,11 +7,7 @@ fn a_driver_acts_on_a_slider_the_way_a_screen_reader_does() {
     let document = build(|| {
         let (value, set_value) = create_signal(0.5_f32);
         view! {
-            <Slider
-                value={value}
-                label="Volume"
-                on_change={move |next: f32| set_value.set(next)}
-            />
+            <Slider value={value} label="Volume" on_change={move |next: f32| set_value.set(next)} />
         }
     });
     let mut driven = Driven::new(document);
@@ -31,7 +27,10 @@ fn a_driver_acts_on_a_slider_the_way_a_screen_reader_does() {
             .lines()
             .any(|line| line.starts_with('+') && line.contains(text))
     };
-    assert!(added(&changed, "Slider \"Volume\" value=\"0.25\""), "{changed}");
+    assert!(
+        added(&changed, "Slider \"Volume\" value=\"0.25\""),
+        "{changed}"
+    );
     let changed = driven
         .ask(&["a11y", "Slider \"Volume\"", "increment"])
         .expect("the value steps up");

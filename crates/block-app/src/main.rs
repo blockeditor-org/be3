@@ -763,6 +763,7 @@ impl BlockApp {
             || !self.pending_transfers.is_empty()
             || !self.pending_copies.is_empty()
             || (self.dev_workspace && self.workspace.is_none())
+            || be::busy()
     }
 
     #[cfg(not(target_os = "android"))]

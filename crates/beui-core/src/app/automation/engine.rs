@@ -215,7 +215,8 @@ impl Automation {
                         count => match count.parse() {
                             Ok(count) => Some(count),
                             Err(_) => {
-                                failed = Some(format!("--changes takes a number or all, not {count}"));
+                                failed =
+                                    Some(format!("--changes takes a number or all, not {count}"));
                                 break;
                             }
                         },
@@ -350,11 +351,11 @@ impl Automation {
         let reply = match failed {
             Some(error) => Some(Reply::Error(error)),
             None => match &mut active.phase {
-                Phase::Settling { before } if quiet || (immediate && before.is_some()) => {
-                    Some(Reply::Text(before.as_deref().map_or_else(String::new, |before| {
+                Phase::Settling { before } if quiet || (immediate && before.is_some()) => Some(
+                    Reply::Text(before.as_deref().map_or_else(String::new, |before| {
                         capped(changes(before, view.tree), limit)
-                    })))
-                }
+                    })),
+                ),
                 Phase::Waiting { text, present } if shown(view, text) == *present => {
                     Some(Reply::Text(String::new()))
                 }
@@ -948,7 +949,12 @@ impl Automation {
             }
             "settle" => Ok(Started::Phase(Phase::Settling { before: None })),
             "a11y" => {
-                let line = node(argument(0)?, view.lines, view.test_ids, view.pixels_per_point)?;
+                let line = node(
+                    argument(0)?,
+                    view.lines,
+                    view.test_ids,
+                    view.pixels_per_point,
+                )?;
                 let offered = || {
                     line.actions
                         .iter()
@@ -988,12 +994,14 @@ impl Automation {
                     }
                     _ => None,
                 };
-                world.context.accessibility_action(accesskit::ActionRequest {
-                    action,
-                    target_tree: accesskit::TreeId::ROOT,
-                    target_node: line.id,
-                    data,
-                });
+                world
+                    .context
+                    .accessibility_action(accesskit::ActionRequest {
+                        action,
+                        target_tree: accesskit::TreeId::ROOT,
+                        target_node: line.id,
+                        data,
+                    });
                 input(vec![Vec::new()])
             }
             "clock" => {

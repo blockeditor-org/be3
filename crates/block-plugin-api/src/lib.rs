@@ -1678,10 +1678,14 @@ pub enum Message {
     RegionSizes(Vec<RegionSize>),
     Frames(Vec<FrameReport>),
     Input(InputBatch),
-    DrawFrame { now_micros: u64 },
+    DrawFrame {
+        now_micros: u64,
+    },
     FrameNeeded,
     FrameReady(FrameReady),
-    Acknowledged { request_id: u64 },
+    Acknowledged {
+        request_id: u64,
+    },
     Error(ProtocolError),
     Shutdown,
     ShutdownAcknowledged,

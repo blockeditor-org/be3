@@ -16,7 +16,9 @@ fn a_long_change_is_cut_short_unless_asked_for_in_full() {
                 <ShowKeepAlive condition={shown}>
                     <List spacing=0.0>
                         <ForEach keys={(0..80).collect::<Vec<usize>>()}>
-                            {move |row: usize| view! { <Text string={format!("Row {row}")} /> }}
+                            {move |row: usize| view! {
+                                <Text string={format!("Row {row}")} />
+                            }}
                         </ForEach>
                     </List>
                 </ShowKeepAlive>
@@ -25,8 +27,14 @@ fn a_long_change_is_cut_short_unless_asked_for_in_full() {
     });
     let mut driven = Driven::new(document);
 
-    let changed = driven.ask(&["click", "\"Toggle\""]).expect("the rows appear");
-    assert_eq!(changed.lines().count(), 61, "sixty lines and a note:\n{changed}");
+    let changed = driven
+        .ask(&["click", "\"Toggle\""])
+        .expect("the rows appear");
+    assert_eq!(
+        changed.lines().count(),
+        61,
+        "sixty lines and a note:\n{changed}"
+    );
     assert!(changed.ends_with("--changes=all prints them, and `drive tree` the whole tree\n"));
 
     let changed = driven

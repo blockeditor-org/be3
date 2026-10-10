@@ -624,10 +624,12 @@ impl Screens {
                 Some((instance, _)) => self.mark(instance),
                 None => return false,
             },
-            Message::RunAction { screen, .. } | Message::NodeAction { screen, .. } => match self.screen(*screen) {
-                Some((instance, _)) => self.mark(instance),
-                None => return false,
-            },
+            Message::RunAction { screen, .. } | Message::NodeAction { screen, .. } => {
+                match self.screen(*screen) {
+                    Some((instance, _)) => self.mark(instance),
+                    None => return false,
+                }
+            }
             Message::ChildStatuses(statuses) => {
                 for status in statuses {
                     self.mark(status.instance);

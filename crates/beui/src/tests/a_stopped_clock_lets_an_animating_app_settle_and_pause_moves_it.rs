@@ -14,9 +14,13 @@ fn a_stopped_clock_lets_an_animating_app_settle_and_pause_moves_it() {
     let now = Rc::new(Cell::new(None));
     let mut driven = Driven::with_app(Animating(now.clone()), true);
 
-    driven.ask(&["clock", "stop"]).expect("the clock stops and the app settles");
+    driven
+        .ask(&["clock", "stop"])
+        .expect("the clock stops and the app settles");
     let stopped = now.get().expect("a frame ran");
-    driven.ask(&["settle"]).expect("an animating app settles while time stands still");
+    driven
+        .ask(&["settle"])
+        .expect("an animating app settles while time stands still");
     let state = driven.ask(&["state"]).expect("the state is read");
     assert!(state.contains("clock stopped"), "{state}");
 
