@@ -1,22 +1,24 @@
-use std::cell::RefCell;
+use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use beui::styled::Toast;
 
-#[derive(Default)]
-#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 struct Notices {
     next: u64,
     shown: Vec<Toast>,
 }
 
-thread_local! {
-    static NOTICES: RefCell<Notices> = RefCell::new(Notices::default());
+static NOTICES: Mutex<Notices> = Mutex::new(Notices {
+    next: 0,
+    shown: Vec::new(),
+});
+
+fn notices() -> MutexGuard<'static, Notices> {
+    NOTICES.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub(crate) fn report(message: String) {
-    NOTICES.with(|notices| {
-        let mut notices = notices.borrow_mut();
+    {
+        let mut notices = notices();
         if notices.shown.iter().any(|toast| toast.message == message) {
             return;
         }
@@ -28,14 +30,14 @@ pub(crate) fn report(message: String) {
             danger: true,
             ..Toast::default()
         });
-    });
+    }
     crate::host::wake();
 }
 
 pub(crate) fn dismiss(id: u64) {
-    NOTICES.with(|notices| notices.borrow_mut().shown.retain(|toast| toast.id != id));
+    notices().shown.retain(|toast| toast.id != id);
 }
 
 pub(crate) fn shown() -> Vec<Toast> {
-    NOTICES.with(|notices| notices.borrow().shown.clone())
+    notices().shown.clone()
 }

@@ -6,7 +6,6 @@ mod pam;
 mod power;
 mod sleep;
 
-use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::mpsc::Receiver;
 use std::time::Duration;
 
@@ -146,9 +145,9 @@ impl Authenticate for Pam {
         let spawned = std::thread::Builder::new()
             .name("authenticate".to_owned())
             .spawn(move || {
-                let checked = catch_unwind(AssertUnwindSafe(|| {
+                let checked = crate::panic_guard::contain(|| {
                     pam::authenticate(service, &user, password.as_str())
-                }));
+                });
                 let verdict = checked.unwrap_or_else(|_| {
                     Verdict::Failed("the check stopped unexpectedly".to_owned())
                 });

@@ -98,7 +98,8 @@ impl Host {
                 runtime
             });
         runtime.instances.set_focus(focus);
-        runtime.begin_pass(host::pass());
+        let pass = host::pass();
+        runtime.contain(|runtime| runtime.begin_pass(pass));
         Ok(runtime)
     }
 
@@ -463,14 +464,40 @@ impl Runtime {
         host::milliseconds()
     }
 
+    fn contain<R: Default>(&mut self, act: impl FnOnce(&mut Self) -> R) -> R {
+        match crate::panic_guard::contain(|| act(self)) {
+            Ok(done) => done,
+            Err(panic) => {
+                self.crashed(format!("The app failed while running it: {panic}"));
+                R::default()
+            }
+        }
+    }
+
+    fn crashed(&mut self, error: String) {
+        if self.error.is_some() {
+            return;
+        }
+        let first = error.lines().next().unwrap_or_default();
+        crate::notices::report(format!("{} stopped: {first}", self.name()));
+        self.error = Some(error);
+        let _ = crate::panic_guard::contain(|| self.backend.shutdown());
+        mark(&self.plugin.identity.id);
+        host::request_repaint();
+    }
+
     fn detect_error(&mut self) {
         if self.error.is_some() {
             return;
         }
-        self.error = self.backend.take_error().or(match self.status.get() {
+        if let Some(error) = self.backend.take_error() {
+            self.crashed(error);
+            return;
+        }
+        self.error = match self.status.get() {
             PresenterState::Failed(error) | PresenterState::Unsupported(error) => Some(error),
             PresenterState::Waiting | PresenterState::Presenting | PresenterState::Released => None,
-        });
+        };
         if self.error.is_some() {
             mark(&self.plugin.identity.id);
         }
@@ -855,15 +882,17 @@ pub(crate) fn creation(slot: CreationSlot<'_>) -> CreationState {
             Ok(runtime) => runtime,
             Err(error) => return CreationState::Failed(error),
         };
-        if let Some(error) = runtime.error.clone() {
-            return CreationState::Failed(error);
-        }
-        match runtime
-            .instances
-            .report_creation(instance, client_id, block_types, role)
-        {
-            true => CreationState::Ready,
-            false => CreationState::Starting,
+        let ready = runtime.contain(|runtime| {
+            runtime.error.is_none().then(|| {
+                runtime
+                    .instances
+                    .report_creation(instance, client_id, block_types, role)
+            })
+        });
+        match (ready, runtime.error.clone()) {
+            (_, Some(error)) => CreationState::Failed(error),
+            (Some(true), None) => CreationState::Ready,
+            (Some(false) | None, None) => CreationState::Starting,
         }
     })
 }
@@ -885,26 +914,32 @@ pub(crate) fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
             Ok(runtime) => runtime,
             Err(error) => return ArtifactState::Failed(error),
         };
-        if let Some(error) = runtime.error.clone() {
-            return ArtifactState::Failed(error);
-        }
-        let messages = runtime.instances.report_artifact(
-            instance,
-            client_id,
-            block_types,
-            source_type,
-            block,
-            data,
-            resync,
-        );
-        runtime.send(messages);
-        match runtime.instances.artifact_description(instance) {
-            Some(ArtifactDescription::Described { source, summary }) => ArtifactState::Described {
-                source: Uuid::from_bytes(source),
-                summary,
-            },
-            Some(ArtifactDescription::Unreadable(error)) => ArtifactState::Failed(error),
-            None => ArtifactState::Starting,
+        let description = runtime.contain(|runtime| {
+            if runtime.error.is_some() {
+                return None;
+            }
+            let messages = runtime.instances.report_artifact(
+                instance,
+                client_id,
+                block_types,
+                source_type,
+                block,
+                data,
+                resync,
+            );
+            runtime.send(messages);
+            runtime.instances.artifact_description(instance)
+        });
+        match (description, runtime.error.clone()) {
+            (_, Some(error)) => ArtifactState::Failed(error),
+            (Some(ArtifactDescription::Described { source, summary }), None) => {
+                ArtifactState::Described {
+                    source: Uuid::from_bytes(source),
+                    summary,
+                }
+            }
+            (Some(ArtifactDescription::Unreadable(error)), None) => ArtifactState::Failed(error),
+            (None, None) => ArtifactState::Starting,
         }
     })
 }
@@ -922,10 +957,12 @@ pub(crate) fn poll() {
     HOST.with(|host| {
         let mut host = host.borrow_mut();
         for runtime in host.runtimes.values_mut() {
-            runtime.instances.touch(&touched);
-            runtime.detect_error();
-            runtime.pump();
-            runtime.begin_frame(pass);
+            runtime.contain(|runtime| {
+                runtime.instances.touch(&touched);
+                runtime.detect_error();
+                runtime.pump();
+                runtime.begin_frame(pass);
+            });
         }
         let grabbed = host
             .runtimes
@@ -950,13 +987,17 @@ pub(crate) fn settle() {
         let asked: Vec<String> = host
             .runtimes
             .iter_mut()
-            .filter_map(|(id, runtime)| runtime.ask(pass).then(|| id.clone()))
+            .filter_map(|(id, runtime)| {
+                runtime
+                    .contain(|runtime| runtime.ask(pass))
+                    .then(|| id.clone())
+            })
             .collect();
         let started = std::time::Instant::now();
         let mut over = false;
         for id in asked {
             if let Some(runtime) = host.runtimes.get_mut(&id) {
-                over |= runtime.settle(deadline);
+                over |= runtime.contain(|runtime| runtime.settle(deadline));
             }
         }
         host.waited += started.elapsed();
@@ -965,14 +1006,19 @@ pub(crate) fn settle() {
 }
 
 pub(crate) fn busy() -> bool {
-    HOST.with(|host| host.borrow_mut().runtimes.values_mut().any(Runtime::busy))
+    HOST.with(|host| {
+        host.borrow_mut()
+            .runtimes
+            .values_mut()
+            .any(|runtime| runtime.contain(Runtime::busy))
+    })
 }
 
 pub(crate) fn start_frames() {
     let pass = host::pass();
     HOST.with(|host| {
         for runtime in host.borrow_mut().runtimes.values_mut() {
-            runtime.start(pass);
+            runtime.contain(|runtime| runtime.start(pass));
         }
     });
 }
@@ -989,7 +1035,7 @@ pub(crate) fn record_pacing() {
 pub(crate) fn flush() {
     HOST.with(|host| {
         for runtime in host.borrow_mut().runtimes.values_mut() {
-            runtime.flush();
+            runtime.contain(Runtime::flush);
         }
     });
 }
@@ -1436,9 +1482,11 @@ pub(crate) fn mount_region(slot: RegionSlot<'_>) {
             mark(&plugin.identity.id);
             return;
         };
-        runtime
-            .instances
-            .mount(instance, region, client_id, role, block_types);
+        runtime.contain(|runtime| {
+            runtime
+                .instances
+                .mount(instance, region, client_id, role, block_types);
+        });
         mark(&plugin.identity.id);
     });
     host::request_repaint();
@@ -1735,9 +1783,22 @@ pub(crate) fn region_view(
             Ok(runtime) => runtime,
             Err(error) => return RegionView::failed(error, false),
         };
-        if let Some(error) = runtime.error.clone() {
-            return RegionView::failed(error, true);
+        let view = runtime.contain(|runtime| {
+            runtime
+                .error
+                .is_none()
+                .then(|| placed_view(runtime, instance, region))
+        });
+        match (view, runtime.error.clone()) {
+            (_, Some(error)) => RegionView::failed(error, true),
+            (Some(view), None) => view,
+            (None, None) => RegionView::waiting(),
         }
+    })
+}
+
+fn placed_view(runtime: &mut Runtime, instance: EditorInstanceId, region: EditorRegion) -> RegionView {
+    {
         let Some(placement) = runtime.instances.placement(instance, region) else {
             return RegionView::waiting();
         };
@@ -1841,7 +1902,7 @@ pub(crate) fn region_view(
             intercepted_keys,
             grabbed: runtime.instances.grabbing(),
         }
-    })
+    }
 }
 
 pub(crate) fn frames(plugin_id: &str) -> u64 {
@@ -1968,7 +2029,12 @@ pub(super) fn each(mut act: impl FnMut(&Runtime)) {
 }
 
 pub(super) fn with<R>(plugin_id: &str, act: impl FnOnce(&mut Runtime) -> R) -> Option<R> {
-    HOST.with(|host| Some(act(host.borrow_mut().runtimes.get_mut(plugin_id)?)))
+    HOST.with(|host| {
+        host.borrow_mut()
+            .runtimes
+            .get_mut(plugin_id)?
+            .contain(|runtime| Some(act(runtime)))
+    })
 }
 
 #[cfg(test)]

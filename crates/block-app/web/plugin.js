@@ -110,6 +110,11 @@ function resolve(module, memory, shim) {
             group[wanted.name] = wasi[wanted.name];
         } else if (wanted.module === "wasi") {
             group[wanted.name] = threads[wanted.name];
+        } else if (wanted.module === "be3_host" && wanted.name === "host_panic") {
+            group[wanted.name] = (pointer, length) => {
+                const bytes = new Uint8Array(memory.buffer).slice(pointer, pointer + length);
+                throw new Error(new TextDecoder().decode(bytes));
+            };
         } else if (wanted.module === "be3_gpu" || wanted.module === "be3_host") {
             group[wanted.name] = forward(shim, memory, wanted.name);
         } else {

@@ -4,12 +4,12 @@ use beui::reactive::{
     ForEach, Frame, Layers, List, Memo, ReadSignal, Show, Text, WriteSignal, clone, component,
     create_memo, create_signal, view,
 };
-use beui::styled::{Button, ButtonVariant, Caption, Heading, Icon, Spinner, use_theme};
+use beui::styled::{Caption, Heading, Icon, Spinner, use_theme};
 use beui::{Align, Color32, NodeId, TextAlign};
 use block_plugin_api::{EditorInstanceId, EditorRegion, FrameSpec};
 
 use crate::compositor::{ChildView, PluginRegion, RegionEditor, ShellSurface};
-use crate::host::{self, HostCommand, HostItem};
+use crate::host::HostItem;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub(crate) enum SurfaceId {
@@ -142,7 +142,7 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
     let text = create_memo({
         let content = content.clone();
         move || match content.get() {
-            HostItem::Notice { text, .. } | HostItem::Error { text, .. } => text,
+            HostItem::Notice { text, .. } => text,
             HostItem::Fallback { name, .. } => name,
             HostItem::Unsupported { block, .. } => format!("Block: {block}"),
         }
@@ -170,17 +170,6 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
         let content = content.clone();
         move || matches!(content.get(), HostItem::Notice { spinner: true, .. })
     });
-    let restart = create_memo({
-        let content = content.clone();
-        move || match content.get() {
-            HostItem::Error { restart, .. } => restart,
-            _ => None,
-        }
-    });
-    let restartable = create_memo({
-        let restart = restart.clone();
-        move || restart.get().is_some()
-    });
     let glyph = create_memo({
         let content = content.clone();
         move || match content.get() {
@@ -198,11 +187,6 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
             Color32::from_gray(28),
             Color32::from_gray(75),
             Color32::from_gray(211),
-        ),
-        HostItem::Error { .. } => (
-            Color32::TRANSPARENT,
-            Color32::TRANSPARENT,
-            theme.danger.get_untracked(),
         ),
         _ => (
             Color32::TRANSPARENT,
@@ -234,19 +218,6 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
                 </Show>
                 <Show condition={spinning}>
                     <Spinner />
-                </Show>
-                <Show condition={restartable}>
-                    {move || clone!(restart -> view! {
-                        <Button
-                            label="Restart plugin"
-                            variant=ButtonVariant::Secondary
-                            on_click={move || {
-                                if let Some(plugin) = restart.get_untracked() {
-                                    host::push_command(HostCommand::RestartPlugin(plugin));
-                                }
-                            }}
-                        />
-                    })}
                 </Show>
             </List>
         </Frame>

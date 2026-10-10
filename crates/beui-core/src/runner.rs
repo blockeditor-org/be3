@@ -1,5 +1,7 @@
 use std::error::Error;
+use std::any::Any;
 use std::future::Future;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::pin::Pin;
 use std::time::Duration;
 
@@ -122,6 +124,7 @@ pub struct Runner {
     output: Option<FrameOutput>,
     reports_screens: bool,
     exited: bool,
+    failure: Option<String>,
 }
 
 impl Runner {
@@ -157,6 +160,7 @@ impl Runner {
             output: None,
             reports_screens: false,
             exited: false,
+            failure: None,
         }
     }
 
@@ -230,13 +234,29 @@ impl Runner {
     pub fn exit(&mut self) {
         if !self.exited {
             self.exited = true;
-            self.app.exiting();
+            let app = &mut self.app;
+            if let Err(payload) = catch_unwind(AssertUnwindSafe(|| app.exiting())) {
+                self.failure
+                    .get_or_insert_with(|| format!("while exiting: {}", panic_message(&*payload)));
+            }
             self.app = Box::new(Exited);
         }
     }
 
     pub fn exited(&self) -> bool {
         self.exited
+    }
+
+    pub fn failure(&self) -> Option<&str> {
+        self.failure.as_deref()
+    }
+
+    pub fn finish(mut self) -> Result<(), Box<dyn Error>> {
+        self.exit();
+        match self.failure.take() {
+            Some(failure) => Err(format!("the app stopped after a panic: {failure}").into()),
+            None => Ok(()),
+        }
     }
 
     pub fn frame(
@@ -323,9 +343,20 @@ impl Runner {
             events: next_batch(&mut self.events),
         };
         let app = &mut self.app;
-        let mut output = self.context.run(raw, |context| {
-            app.update(context, safe_rect(screen, safe_area, scale));
-        });
+        let context = &self.context;
+        let ran = catch_unwind(AssertUnwindSafe(|| {
+            context.run(raw, |context| {
+                app.update(context, safe_rect(screen, safe_area, scale));
+            })
+        }));
+        let mut output = match ran {
+            Ok(output) => output,
+            Err(payload) => {
+                self.failure = Some(panic_message(&*payload));
+                self.exit();
+                return None;
+            }
+        };
         let title = &self.title;
         platform.publish_accessibility(&mut || output.accessibility_tree(title, screen));
         if let Some(dump) = &mut self.accessibility {
@@ -468,5 +499,16 @@ impl Runner {
             }
         }
         again
+    }
+}
+
+pub fn panic_message(payload: &(dyn Any + Send)) -> String {
+    match (
+        payload.downcast_ref::<&str>(),
+        payload.downcast_ref::<String>(),
+    ) {
+        (Some(message), _) => (*message).to_owned(),
+        (None, Some(message)) => message.clone(),
+        (None, None) => "a panic without a message".to_owned(),
     }
 }

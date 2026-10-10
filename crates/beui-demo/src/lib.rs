@@ -23,7 +23,7 @@ use beui::styled::DocumentTheme;
 use beui::styled::theme::{CARD_RADIUS, FONT_SMALL, NARROW_WIDTH, RADIUS};
 use beui::styled::{
     Accordion, ActionRow, Body, Bordered, Button, ButtonVariant, Calendar, Caption, Card, Checkbox,
-    Chip, Code, ColorInput, ColorPicker, ColorWheel, CommandPalette, ContextMenu, DateTimeField,
+    Chip, Code, ColorInput, ColorPicker, ColorWheel, CommandPalette, ContextMenu, CrashNotice, DateTimeField,
     Dialog, Display, Docking, FocusRing, Fullscreen, Heading, Icon, IconButton, IconButtonSize,
     IconSized, KeepChanges, Launcher, LauncherItem, LevelOsd, Link, ListRow, Listbox, LockAction,
     LockScreen, MenuButton, ModalSheet, NumberInput, OklchColorWheel, OsdLevel, Paragraph, Popover,

@@ -42,6 +42,17 @@ plugin runs (signing in, choosing a workspace) and over either shell; they stack
 top-right corner (`Toasts` with `edge=Edge::TopEnd`), clear of linux-desktop's bar and its
 notification toasts at the bottom.
 
+A panic must not take every program's window with it, so block-app's `panic_guard` sorts
+panics by where they happen. Every panic is logged with its backtrace. One inside
+`panic_guard::contain` is contained: a plugin, or the host's work for one, stops only that
+plugin (guides/adding_a_plugin_editor.md), the shell included, while the compositor and its
+clients keep running; a D-Bus task (`dbus::spawn`) ends alone with a toast; a
+password check that panics fails. Any other panic, on the UI thread or on a thread nothing
+contains (the block stack's, say), is the app's own: in a window the app shows its error
+screen, and under `--session` it ends the session instead, through beui's runner and
+`beui_adapter_drm`'s `Session::end`, so the console comes back and the display manager takes
+over rather than a frozen screen.
+
 The screens turn off after the display settings' "Turn off screens after" (ten minutes by
 default). `be_wayland::Compositor` counts the idle time on the frame clock from the frames that
 carried input (`Document::input_frames`), held back while a window that is shown has a `zwp_idle_inhibitor_v1`, and answers

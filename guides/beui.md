@@ -261,6 +261,12 @@ hooks the higher crates fill in:
   lock, IME, fullscreen and back handling, only when one of them changed.
   A new platform implements those two traits and hands its window or element
   to the renderer loader the facade gives it.
+  A panic out of the app's `update` stops the runner rather than unwinding
+  through the event loop: the app hears `exiting`, `frame` returns `None` from
+  then on, `Runner::failure` says why, and the adapter ends its loop and
+  returns that as an error (`Runner::finish`), so whatever owns the screen is
+  let go of in order. An app that can carry on after a panic in one part
+  catches it there itself.
 - Every adapter draws through `beui_core::renderer::Renderer` trait objects and
   names no renderer crate: wgpu's `WindowSurface` (native windows),
   `CanvasSurface` (a browser canvas) and `DomRenderer` implement it, and the

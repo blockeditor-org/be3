@@ -97,6 +97,7 @@ impl Spawner {
             .map_err(|error| format!("a plugin thread could not share memory: {error}"))?;
         link(&mut linker)?;
         crate::wake::link(&mut linker)?;
+        crate::panic::link(&mut linker)?;
         self.refuse_host_calls(&mut linker)?;
         linker
             .define_unknown_imports_as_traps(&self.module)
@@ -109,7 +110,10 @@ impl Spawner {
             .map_err(|error| format!("the plugin has no usable {START} export: {error}"))?;
         start
             .call(&mut store, (thread, argument))
-            .map_err(|error| format!("a plugin thread trapped: {error:?}"))
+            .map_err(|error| {
+                crate::panic::message(&error)
+                    .unwrap_or_else(|| format!("a plugin thread trapped: {error:?}"))
+            })
     }
 
     fn refuse_host_calls(&self, linker: &mut Linker<Threaded>) -> Result<(), String> {
@@ -117,7 +121,9 @@ impl Spawner {
             if !matches!(import.module(), abi::GPU_MODULE | abi::HOST_MODULE) {
                 continue;
             }
-            if import.module() == abi::HOST_MODULE && import.name() == abi::HOST_WAKE {
+            if import.module() == abi::HOST_MODULE
+                && matches!(import.name(), abi::HOST_WAKE | abi::HOST_PANIC)
+            {
                 continue;
             }
             let Some(signature) = import.ty().func().cloned() else {
@@ -135,6 +141,10 @@ impl Spawner {
                 .map_err(|error| format!("a host call could not be refused: {error}"))?;
         }
         Ok(())
+    }
+
+    pub(crate) fn read(&self, pointer: u32, length: u32) -> Result<Vec<u8>, String> {
+        crate::state::read(&self.memory, pointer, length)
     }
 
     fn fail(&self, failure: String) {

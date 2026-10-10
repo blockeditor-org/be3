@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::error::Error;
 use std::os::fd::{AsFd, BorrowedFd, OwnedFd};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -13,7 +14,7 @@ use beui::{
 };
 use beui_core::app::SafeArea;
 use beui_core::renderer::Loaded;
-use beui_core::runner::Runner;
+use beui_core::runner::{Runner, panic_message};
 use smithay::backend::allocator::gbm::GbmDevice;
 use smithay::backend::drm::{DrmDevice, DrmDeviceFd, DrmEvent};
 use smithay::backend::input::Event as _;
@@ -214,11 +215,22 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         let mut displays = session.displays.borrow_mut();
         displays.pointer = displays.outputs[0].screen.rect.center();
     }
-    let ran = event_loop.run(None, &mut session, Session::idle);
-    session.end();
+    let ran = catch_unwind(AssertUnwindSafe(|| {
+        event_loop.run(None, &mut session, Session::idle)
+    }));
+    let finished = session.end();
     drop(event_loop);
-    ran?;
-    Ok(())
+    match ran {
+        Ok(ran) => ran?,
+        Err(payload) => {
+            return Err(format!(
+                "the session ended after a panic: {}",
+                panic_message(&*payload)
+            )
+            .into());
+        }
+    }
+    finished
 }
 
 fn open_display(seat: &mut LibSeatSession, name: &str) -> Result<OwnedFd, String> {
@@ -299,8 +311,9 @@ fn open_gpu(node: u64, lost: &Arc<AtomicBool>) -> Result<(wgpu::Device, wgpu::Qu
 }
 
 impl Session {
-    fn end(mut self) {
+    fn end(mut self) -> Result<(), Box<dyn Error>> {
         self.runner.exit();
+        let failure = self.runner.failure().map(str::to_owned);
         let Session {
             runner,
             platform,
@@ -319,6 +332,10 @@ impl Session {
         drop(libinput);
         drop(gbm);
         drop(drm);
+        match failure {
+            Some(failure) => Err(format!("the session ended after a panic: {failure}").into()),
+            None => Ok(()),
+        }
     }
 
     fn idle(&mut self) {
@@ -490,6 +507,9 @@ impl Session {
             .runner
             .frame(&mut self.platform, scale, SafeArea::default())
         else {
+            if self.runner.exited() {
+                self.signal.stop();
+            }
             return;
         };
         if frame.close_requested && self.runner.close_requested() {
