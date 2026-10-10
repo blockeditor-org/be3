@@ -75,6 +75,30 @@ fn held_by(held: Modifiers, key: Key) -> bool {
     }
 }
 
+pub fn key_event(
+    key: Key,
+    pressed: bool,
+    repeat: bool,
+    modifiers: Modifiers,
+    events: &mut Vec<Event>,
+) {
+    if !repeat {
+        physical(key, pressed, events);
+    }
+    events.push(Event::Key {
+        key,
+        pressed,
+        repeat,
+        modifiers,
+    });
+    if pressed
+        && !(modifiers.ctrl || modifiers.alt || modifiers.logo)
+        && let Some(text) = text(key, modifiers.shift)
+    {
+        events.push(Event::Text(text));
+    }
+}
+
 pub fn press(key: Key, modifiers: Modifiers, events: &mut Vec<Event>) {
     for pressed in [true, false] {
         physical(key, pressed, events);

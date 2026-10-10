@@ -60,8 +60,9 @@ so dialogs, the file tree and every editor read like the host's own controls.
   (guides/testing_a_gui.md) are the steadiest way to name a control.
 - `drive find TARGET` says where a target is.
 - `drive state` is what the tree does not say: the window's size, scale and focus, whether it is
-  fullscreen, the cursor's shape, where the pointer is and what it holds, held modifiers, the
-  clipboard and any open file dialog.
+  fullscreen, the cursor's shape, the pointer and the fingers down, held keys, an input
+  method's composition, a back gesture under way, files being dragged in, the clipboard and any
+  open file dialog.
 - `drive actions` lists the actions the command palette would offer where the focus is
   (guides/beui_keyboard.md), with their shortcuts, and each plugin's under its `Pane`;
   `drive actions all` lists every registered one.
@@ -78,32 +79,55 @@ A command that acts on something takes a TARGET:
 
 ## Acting
 
+`drive help` lists every command; these are the kinds.
+
     drive click TARGET [right|middle|double]
-    drive hover TARGET
-    drive drag FROM TO                       a press, a move halfway and a release, a frame each
+    drive move TARGET                         hover
     drive down TARGET; drive pause 600; drive move TARGET; drive up   any gesture, step by step
-    drive scroll TARGET 300                  down 300 pixels; a second number scrolls sideways
-    drive leave                              the pointer leaves the window
-    drive tap TARGET                         touch; a finger number may follow
+    drive drag FROM TO [STEPS]
+    drive wheel TARGET 3                      three mouse-wheel ticks down; a second number turns sideways
+    drive scroll TARGET 300                   a touchpad scroll of 300 pixels
+    drive zoom TARGET 2                       a touchpad pinch
+    drive leave                               the pointer leaves the window
+    drive tap TARGET                          touch, finger 0
     drive swipe FROM TO
-    drive touch down|move|up TARGET          a touch gesture step by step
-    drive type 'buy milk'                    text into what has focus; a newline presses Enter
-    drive key ctrl+z Enter shift+Tab         chords, each pressed and let go in turn
-    drive hold alt; drive key tab tab; drive release alt
-    drive act ACTION_ID                      run an action the way the command palette does
+    drive pinch TARGET 2                      two fingers spreading apart
+    drive touch down 0=TARGET 1=TARGET; drive touch move 0=... 1=...; drive touch up
+    drive back                                the system back gesture; back 0.4 holds it part way,
+                                              back commit and back cancel finish it
+    drive type 'buy milk'                     text into what has focus; a newline presses Enter
+    drive key ctrl+z Enter shift+Tab          chords, each pressed and let go in turn
+    drive keydown alt; drive key tab tab; drive keyup alt
+    drive ime compose ni; drive ime commit 你  an input method's composition
+    drive act ACTION_ID [PANE]                run an action the way the command palette does
+
+`touch` names each finger (`0=TARGET`, `1=TARGET`) so several move in one frame, which is how
+to make a pinch of your own; `touch up` with no finger lifts them all. `keydown` on a key that
+is already down repeats it.
 
 Every command that gives input waits until the app has settled and prints what changed in
 the tree, `-` and `+` lines, so there is no need to wait or read the whole tree again. The app
 has settled once a frame asks for no other and `App::busy` is false; block-app is busy while a
 plugin is starting, owes a frame or holds unanswered input, and while an account or workspace
-request is pending. Work the app cannot see, such as a server push, is waited for with
-`drive wait TEXT` or `drive gone TEXT`, which return once a line of the tree contains TEXT or
-none does; `drive settle` waits on its own, and `drive pause MILLISECONDS` lets time pass by the
-app's own clock, which is how to hold a press for a long press. Each command gives up after 30
-seconds, or `drive --timeout=SECONDS`.
+request is pending. `drive --no-settle COMMAND` answers after the frame that took the input
+instead, to see the app part way through something, such as a plugin still loading. Work the
+app cannot see, such as a server push, is waited for with `drive wait TEXT` or `drive gone
+TEXT` (or `#TEST_ID`), which return once a line of the tree contains TEXT or none does;
+`drive settle` waits on its own, and `drive pause MILLISECONDS` lets time pass by the app's
+own clock. Each command gives up after 30 seconds, or `drive --timeout=SECONDS`.
 
-`type` sends text, which a Wayland program's window does not take; `key` also sends each key's
-scan code, which it does. Neither repeats a held key or goes through an input method.
+`drive -` reads commands from standard input, one a line, quoted as a shell would, prints each
+before its answer and stops at the first that fails:
+
+    drive - <<'EOF'
+    click "Add a root block"
+    click 'Label value="Checklist"'
+    wait 'Pane "Checklist"'
+    shot checklist.png 'Pane "Checklist"'
+    EOF
+
+`type` sends text, which a Wayland program's window does not take; `key` and `keydown` also
+send each key's scan code, which it does.
 
 ## The headless window
 
@@ -119,7 +143,9 @@ real one:
 - A file dialog the app opens waits for drive: `drive upload FILE TARGET` clicks TARGET and
   answers the dialog it opens with FILE (without TARGET it answers one already open), and
   `drive dismiss` cancels it.
-- `drive drop TARGET FILE...` drags files in from outside and drops them on TARGET.
+- `drive grab FILE...` drags files in from outside, over the pointer; `drive move` carries
+  them, to try what hovering with them shows, `drive drop [TARGET]` drops them and
+  `drive ungrab` takes them away again.
 
 ## How it works
 
@@ -127,6 +153,6 @@ real one:
 (guides/beui.md), so input lands on the queue a window's own events go to and everything
 above it - the document, block-app's plugin host, the Wayland compositor - runs as it does
 with a window. What a headless run never exercises is the platform underneath: winit's
-translation of the system's keys, its clipboard and file dialogs, the window's swapchain,
-key repeat and input methods. For those, run the program in a window (guides/running/native.md).
+translation of the system's keys, its clipboard and file dialogs, the window's swapchain and
+real input methods. For those, run the program in a window (guides/running/native.md).
 The web build answers the same commands through Playwright (guides/running/web.md).

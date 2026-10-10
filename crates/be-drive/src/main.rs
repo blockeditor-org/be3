@@ -29,8 +29,11 @@ fn run(mut arguments: Vec<String>) -> Result<(), String> {
     }
     let mut timeout = TIMEOUT;
     let mut socket = std::env::var_os("BE_DRIVE_SOCKET").map(PathBuf::from);
+    let mut settle = true;
     while let Some(first) = arguments.first() {
-        if let Some(seconds) = first.strip_prefix("--timeout=") {
+        if first == "--no-settle" {
+            settle = false;
+        } else if let Some(seconds) = first.strip_prefix("--timeout=") {
             let seconds: f64 = seconds
                 .parse()
                 .map_err(|_| format!("--timeout takes seconds, not {seconds}"))?;
@@ -44,35 +47,65 @@ fn run(mut arguments: Vec<String>) -> Result<(), String> {
     }
     if arguments.is_empty() || arguments[0] == "--help" {
         return Err(format!(
-            "usage: be-drive [--timeout=SECONDS] [--socket=PATH] COMMAND [ARGUMENTS]\n\
-             `shot` takes the file to write the PNG to first: shot FILE [TARGET].\n{USAGE}"
+            "usage: drive [--timeout=SECONDS] [--socket=PATH] [--no-settle] COMMAND [ARGUMENTS]\n\
+             \x20      drive [--timeout=SECONDS] [--socket=PATH] - < COMMANDS\n\
+             `shot` takes the file to write the PNG to first: shot FILE [TARGET].\n\
+             `-` reads one command a line from standard input, quoted as a shell would, and stops at the first that fails.\n\
+             {USAGE}"
         ));
     }
     let socket = socket.ok_or(
         "BE_DRIVE_SOCKET is not set: source the env file the launcher printed, or pass --socket=PATH",
     )?;
+    let settled = |mut words: Vec<String>| {
+        if !settle && words.first().map(String::as_str) != Some("--no-settle") {
+            words.insert(0, "--no-settle".to_owned());
+        }
+        words
+    };
+    if arguments == ["-"] {
+        let mut script = String::new();
+        std::io::Read::read_to_string(&mut std::io::stdin(), &mut script)
+            .map_err(|error| format!("could not read the commands: {error}"))?;
+        for line in script.lines() {
+            let words = words(line)?;
+            if words.is_empty() || words[0].starts_with('#') {
+                continue;
+            }
+            println!("> {}", line.trim());
+            command(&socket, settled(words), timeout)?;
+        }
+        return Ok(());
+    }
+    command(&socket, settled(arguments), timeout)
+}
+
+fn command(socket: &Path, mut arguments: Vec<String>, timeout: Duration) -> Result<(), String> {
+    let first = usize::from(arguments.first().map(String::as_str) == Some("--no-settle"));
     let absolute = |path: &String| {
         std::path::absolute(path)
             .map(|path| path.display().to_string())
             .unwrap_or_else(|_| path.clone())
     };
-    match arguments[0].as_str() {
-        "upload" if arguments.len() > 1 => arguments[1] = absolute(&arguments[1]),
-        "drop" if arguments.len() > 2 => {
-            for file in &mut arguments[2..] {
+    match arguments.get(first).map(String::as_str) {
+        Some("upload") if arguments.len() > first + 1 => {
+            arguments[first + 1] = absolute(&arguments[first + 1]);
+        }
+        Some("grab") => {
+            for file in &mut arguments[first + 1..] {
                 *file = absolute(file);
             }
         }
         _ => {}
     }
     let mut file = None;
-    if arguments[0] == "shot" {
-        if arguments.len() < 2 {
+    if arguments.get(first).map(String::as_str) == Some("shot") {
+        if arguments.len() < first + 2 {
             return Err("shot needs the file to write the PNG to: shot FILE [TARGET]".to_owned());
         }
-        file = Some(PathBuf::from(arguments.remove(1)));
+        file = Some(PathBuf::from(arguments.remove(first + 1)));
     }
-    match request(&socket, &arguments, timeout)? {
+    match request(socket, &arguments, timeout)? {
         Reply::Text(text) => {
             print!("{text}");
             Ok(())
@@ -93,6 +126,55 @@ fn run(mut arguments: Vec<String>) -> Result<(), String> {
             Ok(())
         }
     }
+}
+
+fn words(line: &str) -> Result<Vec<String>, String> {
+    let mut words = Vec::new();
+    let mut word = String::new();
+    let mut started = false;
+    let mut characters = line.chars();
+    while let Some(character) = characters.next() {
+        match character {
+            '\'' => {
+                started = true;
+                loop {
+                    match characters.next() {
+                        Some('\'') => break,
+                        Some(character) => word.push(character),
+                        None => return Err(format!("an unclosed quote in: {line}")),
+                    }
+                }
+            }
+            '"' => {
+                started = true;
+                loop {
+                    match characters.next() {
+                        Some('"') => break,
+                        Some('\\') => word.extend(characters.next()),
+                        Some(character) => word.push(character),
+                        None => return Err(format!("an unclosed quote in: {line}")),
+                    }
+                }
+            }
+            '\\' => {
+                started = true;
+                word.extend(characters.next());
+            }
+            character if character.is_whitespace() => {
+                if std::mem::take(&mut started) {
+                    words.push(std::mem::take(&mut word));
+                }
+            }
+            character => {
+                started = true;
+                word.push(character);
+            }
+        }
+    }
+    if started {
+        words.push(word);
+    }
+    Ok(words)
 }
 
 pub(crate) fn request(socket: &Path, words: &[String], timeout: Duration) -> Result<Reply, String> {

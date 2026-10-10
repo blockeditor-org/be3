@@ -14,8 +14,8 @@ Guides:
 - guides/linux_desktop.md: block-app as a Linux desktop: the session, notifications, media keys, the lock screen, Wayland programs
 - guides/pan_and_zoom.md: the camera a plugin editor is handed by its host
 - guides/reactive.md: the reactive graph under beui
-- guides/running/drive.md: running any beui app headless and driving it with `drive`, the way to see a change working
-- guides/running/native.md: block-app's flags, and running it in a window with xdotool for platform-layer changes
+- guides/running/drive.md: how to run and test any app; read this first
+- guides/running/native.md
 - guides/running/web.md
 - guides/running/android.md
 - guides/testing_a_gui.md
@@ -27,7 +27,7 @@ Commands (builds run on the build server; see guides/buck2.md and guides/build_s
   - Write code however is natural and let its autofixes tidy it; don't do these by hand. It formats code (including `view!` bodies), applies fixable clippy lints, deletes comments and doc comments, splits tests into one per file, and renames `foo/mod.rs` to `foo.rs`.
 - `./scripts/test NAME`: runs the tests whose full names (module path and function, such as `media::tests::plays::plays`) contain NAME, so NAME may also be a module path like `media::tests`, and prints all their output, passing or failing. It finds their crates and runs each the way its tests need, natively or as wasm. `--update` accepts the paintings they make.
 - `./scripts/buck run //crates/block-app:dev`: run the app headless, signed in with a workspace open, then `source ~/.cache/be3/dev/env` and drive it with `drive` (guides/running/drive.md). beui-demo and be-launcher have a `:dev` too.
-- `./scripts/buck run //crates/block-app:app`: build and run the native app in a window (guides/running/native.md).
+- `./scripts/buck run //crates/block-app:app`: build and run the native app in a window.
 - `./scripts/buck run //crates/block-app:smoke`: a bounded launch test; run it for changes that could affect native startup.
 - `./scripts/buck build //crates/block-app:web`: for web-specific changes; `./scripts/buck run //crates/block-app:web-serve` serves it on http://127.0.0.1:8080 (guides/running/web.md).
 - `./scripts/buck run //crates/block-app:android`: for Android-specific changes; builds the APK (guides/running/android.md).

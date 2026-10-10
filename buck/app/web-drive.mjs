@@ -6,7 +6,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
 
-const usage = `usage: drive [--timeout=SECONDS] COMMAND
+const usage = `usage: drive [--timeout=SECONDS] [--no-settle] COMMAND, or drive - < COMMANDS
 The app answers the same commands as the native app's drive (help lists them),
 such as tree, click TARGET, type TEXT, key CHORD, wait TEXT and settle. These
 are the browser's own:
@@ -19,8 +19,15 @@ are the browser's own:
 
 let args = process.argv.slice(2);
 let timeout = 30;
-if (args[0]?.startsWith("--timeout=")) {
-    timeout = Number(args[0].slice("--timeout=".length));
+let settle = true;
+while (args[0]?.startsWith("--")) {
+    if (args[0].startsWith("--timeout=")) {
+        timeout = Number(args[0].slice("--timeout=".length));
+    } else if (args[0] === "--no-settle") {
+        settle = false;
+    } else {
+        break;
+    }
     args = args.slice(1);
 }
 const [command, ...rest] = args;
@@ -76,6 +83,15 @@ const place = async (target) => {
     return { x, y, width, height };
 };
 
+async function run(command, rest) {
+const number = (index) => {
+    const value = Number(rest[index]);
+    if (!Number.isFinite(value)) {
+        console.error(usage);
+        process.exit(1);
+    }
+    return value;
+};
 switch (command) {
     case "shot":
         await page.screenshot({
@@ -118,12 +134,37 @@ switch (command) {
         await session.send("Browser.close").catch(() => {});
         break;
     }
+    case "grab":
     case "drop":
+    case "ungrab":
     case "dismiss":
         console.error(`${command} needs a native headless app; the browser has no way to send it`);
         process.exit(1);
         break;
     default:
-        process.stdout.write(await answer([command, ...rest]));
+        process.stdout.write(await answer([...(settle ? [] : ["--no-settle"]), command, ...rest]));
+}
+}
+
+const words = (line) => {
+    const found = [];
+    const pattern = /'([^']*)'|"((?:\\.|[^"\\])*)"|(\S+)/g;
+    for (const match of line.matchAll(pattern)) {
+        found.push(match[1] ?? match[2]?.replace(/\\(.)/g, "$1") ?? match[3]);
+    }
+    return found;
+};
+
+if (command === "-") {
+    const chunks = [];
+    for await (const chunk of process.stdin) chunks.push(chunk);
+    for (const line of Buffer.concat(chunks).toString().split("\n")) {
+        const [first, ...others] = words(line);
+        if (!first || first.startsWith("#")) continue;
+        console.log(`> ${line.trim()}`);
+        await run(first, others);
+    }
+} else {
+    await run(command, rest);
 }
 process.exit(0);

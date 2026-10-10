@@ -114,6 +114,7 @@ pub struct Runner {
     automation: Option<Automation>,
     simulation: Option<Simulation>,
     simulated_size: Option<(u32, u32)>,
+    ime: Option<crate::geometry::Rect>,
     actions: Vec<ActionGroup>,
     test_ids: std::collections::HashMap<String, crate::geometry::Rect>,
     unpresented: bool,
@@ -148,6 +149,7 @@ impl Runner {
             automation,
             simulation: None,
             simulated_size: None,
+            ime: None,
             actions: Vec::new(),
             test_ids: std::collections::HashMap::new(),
             unpresented: false,
@@ -275,6 +277,7 @@ impl Runner {
                 wants_keyboard: self.shown.wants_keyboard,
                 pointer_locked: self.shown.pointer_locked,
                 actions: &self.actions,
+                ime: self.ime,
             };
             let mut world = World {
                 events: &mut self.events,
@@ -369,6 +372,7 @@ impl Runner {
             platform.set_cursor(output.cursor_icon, touch_emulation);
         }
         platform.show_ime(output.ime.as_ref());
+        self.ime = output.ime.as_ref().map(|area| area.cursor);
         if let Some(fullscreen) = output.fullscreen
             && fullscreen != shown.fullscreen
         {
@@ -419,6 +423,7 @@ impl Runner {
                 wants_keyboard: self.shown.wants_keyboard,
                 pointer_locked: self.shown.pointer_locked,
                 actions: &self.actions,
+                ime: self.ime,
             };
             let settled = Settled {
                 busy: self.app.busy(),

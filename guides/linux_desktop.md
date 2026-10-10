@@ -202,7 +202,7 @@ included, moves the window, and Super+right-drag resizes it from its nearest edg
 or moves the split beside a docked one. In the desktop shell Alt+Tab, with Alt held, opens the window switcher and walks the
 windows from the one used last (Alt+Shift+Tab the other way); letting go of Alt focuses and
 raises the chosen one and Alt+Escape stays where it was. To drive it, hold Alt across the
-presses: `drive hold alt; drive key tab tab; drive release alt`.
+presses: `drive keydown alt; drive key tab tab; drive keyup alt`.
 
 Each window is a `be_wayland::WindowView`, a forwarding catcher like a plugin's region (see
 guides/beui_keyboard.md, One input path): beui decides which window a press, motion, scroll or key

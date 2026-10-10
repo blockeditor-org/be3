@@ -11,47 +11,62 @@ use crate::context::{ActionGroup, Context};
 use crate::file_picker::PickedFile;
 use crate::geometry::{Pos2, Rect, vec2};
 use crate::input::{
-    CursorIcon, DroppedFile, Event, Key, Modifiers, PointerButton, TouchId, TouchPhase,
+    BackEdge, BackGesture, CursorIcon, DroppedFile, Event, ImeEvent, Key, Modifiers, PointerButton,
+    TouchId, TouchPhase,
 };
+
+const WHEEL_LINE: f32 = 40.0;
+const GESTURE_STEPS: usize = 4;
+const PINCH_SPAN: f32 = 100.0;
 
 pub const USAGE: &str = "Reading:
   tree                      the accessibility tree, one node per line
   ids                       every test id on screen, with where it is
   find TARGET               where TARGET is
-  state                     the window, cursor, pointer, held keys, clipboard and file dialog
+  state                     window, cursor, pointer, fingers, held keys, input method, clipboard, dialogs
   actions [all]             the actions the command palette would list (all: every one)
   shot [TARGET]             a screenshot, of TARGET only when given
 Pointer:
   click TARGET [right|middle|double]
-  hover TARGET              move the pointer onto TARGET
-  drag FROM TO              drag with the left button
-  down TARGET [right|middle] / move TARGET / up [TARGET] [right|middle]
-  scroll TARGET DY [DX]     scroll by DY pixels at TARGET, down when positive
+  move TARGET               move the pointer onto TARGET (hover)
+  down TARGET [right|middle] / up [TARGET] [right|middle]   press and let go, for any gesture
+  drag FROM TO [STEPS]      press, move in STEPS (2), let go
+  wheel TARGET TICKS [XTICKS]   turn a mouse wheel, down (right) when positive
+  scroll TARGET DY [DX]     a touchpad scroll of DY pixels, down when positive
+  zoom TARGET FACTOR        a touchpad pinch, such as 2 to zoom in or 0.5 out
   leave                     the pointer leaves the window
 Touch:
   tap TARGET [FINGER]
   swipe FROM TO [FINGER]
-  touch down|move|up TARGET [FINGER]
+  pinch TARGET FACTOR       two fingers spreading (FACTOR > 1) or closing around TARGET
+  touch down|move|up [FINGER=]TARGET...   fingers 0, 1, ... step by step, all in one frame
+  touch up                  lift every finger
+  back                      the system back gesture, whole
+  back [left|right] / back PROGRESS / back commit|cancel   step by step, PROGRESS from 0 to 1
 Keyboard:
   type TEXT                 type TEXT (a newline presses Enter)
-  key CHORD...              press each chord in turn, such as ctrl+z or Enter
-  hold KEY... / release KEY...   hold or let go of modifiers (shift, ctrl, alt, super)
-  act ID [PANE]             run the action ID, as the command palette would, in PANE's plugin when given
+  key CHORD...              press and let go of each chord, such as ctrl+z or Enter
+  keydown KEY... / keyup KEY...   hold keys down and let go; keydown on a held key repeats it
+  ime compose TEXT / ime commit [TEXT] / ime cancel   an input method's composition
+  act ID [PANE]             run the action ID as the command palette would, in PANE's plugin when given
+Files:
+  grab FILE...              drag FILEs in from outside, over where the pointer is; move carries them
+  drop [TARGET]             drop the grabbed files; ungrab takes them away again
+  upload FILE [TARGET]      answer the file dialog with FILE, clicking TARGET first to open it
+  dismiss                   cancel the open file dialog
 Window (headless only, except focus, blur and leave):
   resize WIDTHxHEIGHT[@SCALE]   resize the window, and its scale when given
   resize screen WIDTHxHEIGHT    the screen a fullscreen window fills
   focus / blur              the window gains or loses focus
   clipboard [TEXT]          read the clipboard, or put TEXT on it
-  upload FILE [TARGET]      answer the open file dialog with FILE, clicking TARGET first to open it
-  dismiss                   cancel the open file dialog
-  drop TARGET FILE...       drag FILEs in from outside and drop them on TARGET
 Waiting:
   settle                    wait until nothing is left to draw
-  wait TEXT                 wait until a line of the tree contains TEXT
-  gone TEXT                 wait until no line of the tree contains TEXT
+  wait TEXT|#TEST_ID        wait until a line of the tree contains TEXT, or the test id is on screen
+  gone TEXT|#TEST_ID        wait until it is not
   pause MILLISECONDS        let that much time pass, by the app's clock
 A TARGET is #TEST_ID, X,Y or X,Y,WIDTH,HEIGHT in the tree's pixels, or text found in one line of the tree.
-Every command that gives input waits for the app to settle and answers with what changed in the tree.";
+Every command that gives input waits for the app to settle and answers with what changed in the tree;
+--no-settle before the command answers after the frame that took the input instead.";
 
 pub const PANE: char = '\u{1f}';
 
@@ -66,6 +81,7 @@ pub struct View<'a> {
     pub wants_keyboard: bool,
     pub pointer_locked: bool,
     pub actions: &'a [ActionGroup],
+    pub ime: Option<Rect>,
 }
 
 pub struct World<'a> {
@@ -113,6 +129,7 @@ enum Phase {
 struct Active {
     request: Request,
     phase: Phase,
+    immediate: bool,
 }
 
 enum Started {
@@ -126,7 +143,12 @@ pub struct Automation {
     held: Modifiers,
     pointer: Pos2,
     buttons: Vec<PointerButton>,
-    fingers: Vec<u64>,
+    fingers: Vec<(u64, Pos2)>,
+    keys: Vec<Key>,
+    grabbed: Vec<DroppedFile>,
+    composing: Option<String>,
+    ime: bool,
+    back: Option<f32>,
 }
 
 impl Automation {
@@ -138,6 +160,11 @@ impl Automation {
             pointer: Pos2::ZERO,
             buttons: Vec::new(),
             fingers: Vec::new(),
+            keys: Vec::new(),
+            grabbed: Vec::new(),
+            composing: None,
+            ime: false,
+            back: None,
         }
     }
 
@@ -162,9 +189,17 @@ impl Automation {
             if request.cancelled.load(Ordering::SeqCst) {
                 continue;
             }
-            match self.start(&request.words, view, world) {
+            let immediate = request.words.first().map(String::as_str) == Some("--no-settle");
+            let words = &request.words[usize::from(immediate)..];
+            match self.start(words, view, world) {
                 Ok(Started::Done(reply)) => (request.reply)(reply),
-                Ok(Started::Phase(phase)) => self.active = Some(Active { request, phase }),
+                Ok(Started::Phase(phase)) => {
+                    self.active = Some(Active {
+                        request,
+                        phase,
+                        immediate,
+                    });
+                }
                 Err(error) => (request.reply)(Reply::Error(error)),
             }
         }
@@ -263,21 +298,18 @@ impl Automation {
                 None => {}
             }
         }
+        let immediate = active.immediate;
         let reply = match failed {
             Some(error) => Some(Reply::Error(error)),
             None => match &mut active.phase {
-                Phase::Settling { before } if quiet => Some(Reply::Text(
-                    before
-                        .as_deref()
-                        .map_or_else(String::new, |before| changes(before, view.tree)),
-                )),
-                Phase::Waiting { text, present }
-                    if view
-                        .lines
-                        .iter()
-                        .any(|line| line.text.contains(text.as_str()))
-                        == *present =>
-                {
+                Phase::Settling { before } if quiet || (immediate && before.is_some()) => {
+                    Some(Reply::Text(
+                        before
+                            .as_deref()
+                            .map_or_else(String::new, |before| changes(before, view.tree)),
+                    ))
+                }
+                Phase::Waiting { text, present } if shown(view, text) == *present => {
                     Some(Reply::Text(String::new()))
                 }
                 Phase::Pausing { until, length } => match until {
@@ -415,7 +447,7 @@ impl Automation {
                     .collect();
                 input(steps)
             }
-            "hover" | "move" => {
+            "move" => {
                 let at = at(argument(0)?)?;
                 self.pointer = at;
                 input(vec![vec![Event::PointerMoved(at)]])
@@ -450,19 +482,83 @@ impl Automation {
             "drag" => {
                 let from = at(argument(0)?)?;
                 let to = at(argument(1)?)?;
+                let steps: usize = match arguments.get(2) {
+                    Some(steps) => steps
+                        .parse()
+                        .map_err(|_| format!("{steps} is not a number of steps"))?,
+                    None => 2,
+                };
                 self.pointer = to;
-                let middle = from + (to - from) * 0.5;
-                input(vec![
+                let mut frames = vec![vec![
+                    Event::PointerMoved(from),
+                    self.button(from, PointerButton::Primary, true),
+                ]];
+                for step in 1..steps.max(1) {
+                    frames.push(vec![Event::PointerMoved(
+                        from + (to - from) * (step as f32 / steps as f32),
+                    )]);
+                }
+                frames.push(vec![
+                    Event::PointerMoved(to),
+                    self.button(to, PointerButton::Primary, false),
+                ]);
+                input(frames)
+            }
+            "wheel" => {
+                let at = at(argument(0)?)?;
+                let ticks = |index: usize| -> Result<i32, String> {
+                    arguments.get(index).map_or(Ok(0), |ticks| {
+                        ticks
+                            .parse()
+                            .map_err(|_| format!("{ticks} is not a number of ticks"))
+                    })
+                };
+                let (down, right) = (ticks(1)?, ticks(2)?);
+                self.pointer = at;
+                let count = down.unsigned_abs().max(right.unsigned_abs());
+                let frames = (0..count)
+                    .map(|tick| {
+                        let along = |ticks: i32| match tick < ticks.unsigned_abs() {
+                            true => -(ticks.signum() as f32) * WHEEL_LINE,
+                            false => 0.0,
+                        };
+                        vec![
+                            Event::PointerMoved(at),
+                            Event::Scroll(vec2(along(right), along(down))),
+                        ]
+                    })
+                    .collect();
+                input(frames)
+            }
+            "zoom" => {
+                let at = at(argument(0)?)?;
+                let factor = factor(argument(1)?)?;
+                self.pointer = at;
+                let step = factor.powf(1.0 / GESTURE_STEPS as f32);
+                input(
+                    (0..GESTURE_STEPS)
+                        .map(|_| vec![Event::PointerMoved(at), Event::Zoom(step)])
+                        .collect(),
+                )
+            }
+            "pinch" => {
+                let center = at(argument(0)?)?;
+                let factor = factor(argument(1)?)?;
+                let start = PINCH_SPAN / 2.0;
+                let end = start * factor;
+                let fingers = |half: f32, phase: TouchPhase| {
                     vec![
-                        Event::PointerMoved(from),
-                        self.button(from, PointerButton::Primary, true),
-                    ],
-                    vec![Event::PointerMoved(middle)],
-                    vec![
-                        Event::PointerMoved(to),
-                        self.button(to, PointerButton::Primary, false),
-                    ],
-                ])
+                        touch(0, phase, center - vec2(half, 0.0)),
+                        touch(1, phase, center + vec2(half, 0.0)),
+                    ]
+                };
+                let mut frames = vec![fingers(start, TouchPhase::Start)];
+                for step in 1..=GESTURE_STEPS {
+                    let half = start + (end - start) * (step as f32 / GESTURE_STEPS as f32);
+                    frames.push(fingers(half, TouchPhase::Move));
+                }
+                frames.push(fingers(end, TouchPhase::End));
+                input(frames)
             }
             "scroll" => {
                 let at = at(argument(0)?)?;
@@ -483,10 +579,7 @@ impl Automation {
                     Event::ScrollEnded,
                 ]])
             }
-            "leave" => {
-                self.buttons.clear();
-                input(vec![vec![Event::PointerGone]])
-            }
+            "leave" => input(vec![vec![Event::PointerGone]]),
             "tap" => {
                 let at = at(argument(0)?)?;
                 let finger = finger(arguments.get(1))?;
@@ -519,14 +612,93 @@ impl Automation {
                     "up" => TouchPhase::End,
                     other => return Err(format!("touch takes down, move or up, not {other}")),
                 };
-                let at = at(argument(1)?)?;
-                let finger = finger(arguments.get(2))?;
-                match phase {
-                    TouchPhase::Start => self.fingers.push(finger),
-                    TouchPhase::End => self.fingers.retain(|held| *held != finger),
-                    _ => {}
+                let mut events = Vec::new();
+                if arguments.len() == 1 {
+                    if phase != TouchPhase::End {
+                        return Err("touch down and touch move need a TARGET".to_owned());
+                    }
+                    for (finger, pos) in std::mem::take(&mut self.fingers) {
+                        events.push(touch(finger, phase, pos));
+                    }
                 }
-                input(vec![vec![touch(finger, phase, at)]])
+                for spec in &arguments[1..] {
+                    let (finger, target) = finger_target(spec);
+                    let held = self.fingers.iter().position(|(held, _)| *held == finger);
+                    let pos = match (target, held) {
+                        (Some(target), _) => at(target)?,
+                        (None, Some(index)) if phase == TouchPhase::End => self.fingers[index].1,
+                        (None, _) => return Err(format!("{spec} names no TARGET")),
+                    };
+                    match (phase, held) {
+                        (TouchPhase::Start, Some(_)) => {
+                            return Err(format!("finger {finger} is already down"));
+                        }
+                        (TouchPhase::Start, None) => self.fingers.push((finger, pos)),
+                        (_, None) => return Err(format!("finger {finger} is not down")),
+                        (TouchPhase::End, Some(index)) => {
+                            self.fingers.remove(index);
+                        }
+                        (_, Some(index)) => self.fingers[index].1 = pos,
+                    }
+                    events.push(touch(finger, phase, pos));
+                }
+                input(vec![events])
+            }
+            "back" => {
+                let mut events = Vec::new();
+                let start = |edge: BackEdge, events: &mut Vec<Event>, back: &mut Option<f32>| {
+                    if back.is_none() {
+                        *back = Some(0.0);
+                        events.push(Event::Back(BackGesture::Started { edge }));
+                    }
+                };
+                match arguments.first().map(String::as_str) {
+                    None => {
+                        start(BackEdge::Left, &mut events, &mut self.back);
+                        let mut frames = vec![events];
+                        for progress in [0.5, 1.0] {
+                            frames.push(vec![Event::Back(BackGesture::Progressed(progress))]);
+                        }
+                        frames.push(vec![Event::Back(BackGesture::Invoked)]);
+                        self.back = None;
+                        return input(frames);
+                    }
+                    Some(edge @ ("left" | "right")) => {
+                        if self.back.is_some() {
+                            return Err("a back gesture is already under way".to_owned());
+                        }
+                        let edge = match edge {
+                            "left" => BackEdge::Left,
+                            _ => BackEdge::Right,
+                        };
+                        start(edge, &mut events, &mut self.back);
+                    }
+                    Some("commit") => {
+                        if self.back.take().is_none() {
+                            return Err("no back gesture is under way".to_owned());
+                        }
+                        events.push(Event::Back(BackGesture::Invoked));
+                    }
+                    Some("cancel") => {
+                        if self.back.take().is_none() {
+                            return Err("no back gesture is under way".to_owned());
+                        }
+                        events.push(Event::Back(BackGesture::Cancelled));
+                    }
+                    Some(progress) => {
+                        let progress: f32 = progress
+                            .parse()
+                            .ok()
+                            .filter(|progress: &f32| (0.0..=1.0).contains(progress))
+                            .ok_or(
+                                "back takes left, right, a progress from 0 to 1, commit or cancel",
+                            )?;
+                        start(BackEdge::Left, &mut events, &mut self.back);
+                        self.back = Some(progress);
+                        events.push(Event::Back(BackGesture::Progressed(progress)));
+                    }
+                }
+                input(vec![events])
             }
             "type" => {
                 let text = arguments.join(" ");
@@ -561,14 +733,59 @@ impl Automation {
                 }
                 input(vec![events])
             }
-            "hold" | "release" => {
-                let pressed = command == "hold";
+            "keydown" | "keyup" => {
+                let pressed = command == "keydown";
+                if arguments.is_empty() {
+                    return Err(format!("{command} needs a KEY"));
+                }
                 let mut events = Vec::new();
                 for name in arguments {
-                    let key = keys::modifier(name)
-                        .ok_or_else(|| format!("{name} is not shift, ctrl, alt or super"))?;
-                    keys::set_modifier(&mut self.held, key, pressed);
-                    keys::modifier_event(key, pressed, self.held, &mut events);
+                    let key = keys::named(name)
+                        .ok_or_else(|| format!("{name:?} is not a key beui knows"))?;
+                    if key.is_modifier() {
+                        keys::set_modifier(&mut self.held, key, pressed);
+                        keys::modifier_event(key, pressed, self.held, &mut events);
+                        continue;
+                    }
+                    let held = self.keys.contains(&key);
+                    match (pressed, held) {
+                        (true, false) => self.keys.push(key),
+                        (false, false) => return Err(format!("{name} is not held down")),
+                        (false, true) => self.keys.retain(|down| *down != key),
+                        (true, true) => {}
+                    }
+                    keys::key_event(key, pressed, pressed && held, self.held, &mut events);
+                }
+                input(vec![events])
+            }
+            "ime" => {
+                let mut events = Vec::new();
+                if !self.ime {
+                    self.ime = true;
+                    events.push(Event::Ime(ImeEvent::Enabled));
+                }
+                match argument(0)? {
+                    "compose" => {
+                        let text = arguments[1..].join(" ");
+                        self.composing = Some(text.clone());
+                        events.push(Event::Ime(ImeEvent::SetComposingText(text)));
+                    }
+                    "commit" => {
+                        let composed = self.composing.take().unwrap_or_default();
+                        let text = match arguments.len() {
+                            1 => composed,
+                            _ => arguments[1..].join(" "),
+                        };
+                        events.push(Event::Ime(ImeEvent::SetComposingText(String::new())));
+                        events.push(Event::Ime(ImeEvent::CommitText(text)));
+                    }
+                    "cancel" => {
+                        self.composing = None;
+                        events.push(Event::Ime(ImeEvent::SetComposingText(String::new())));
+                    }
+                    other => {
+                        return Err(format!("ime takes compose, commit or cancel, not {other}"));
+                    }
                 }
                 input(vec![events])
             }
@@ -648,9 +865,11 @@ impl Automation {
                 world.context.file_picked(pick.id, Ok(None));
                 input(vec![Vec::new()])
             }
-            "drop" => {
-                let at = at(argument(0)?)?;
-                let files: Vec<DroppedFile> = arguments[1..]
+            "grab" => {
+                if arguments.is_empty() {
+                    return Err("grab needs at least one FILE".to_owned());
+                }
+                self.grabbed = arguments
                     .iter()
                     .map(|path| {
                         let path = PathBuf::from(path);
@@ -664,14 +883,29 @@ impl Automation {
                         }
                     })
                     .collect();
-                if files.is_empty() {
-                    return Err("drop needs a TARGET and at least one FILE".to_owned());
+                input(vec![vec![
+                    Event::PointerMoved(self.pointer),
+                    Event::FileHovered,
+                ]])
+            }
+            "drop" => {
+                if self.grabbed.is_empty() {
+                    return Err("nothing is grabbed: grab FILE first".to_owned());
                 }
-                self.pointer = at;
+                if let Some(target) = arguments.first() {
+                    self.pointer = at(target)?;
+                }
+                let files = std::mem::take(&mut self.grabbed);
                 input(vec![
-                    vec![Event::PointerMoved(at), Event::FileHovered],
+                    vec![Event::PointerMoved(self.pointer)],
                     files.into_iter().map(Event::FileDropped).collect(),
                 ])
+            }
+            "ungrab" => {
+                if std::mem::take(&mut self.grabbed).is_empty() {
+                    return Err("nothing is grabbed".to_owned());
+                }
+                input(vec![vec![Event::FileHoverCancelled]])
             }
             "settle" => Ok(Started::Phase(Phase::Settling { before: None })),
             "wait" | "gone" => Ok(Started::Phase(Phase::Waiting {
@@ -742,7 +976,13 @@ impl Automation {
             .buttons
             .iter()
             .map(|button| format!("{button:?}"))
-            .chain(self.fingers.iter().map(|finger| format!("finger {finger}")))
+            .chain(self.fingers.iter().map(|(finger, pos)| {
+                format!(
+                    "finger {finger} at {},{}",
+                    (pos.x * scale).round(),
+                    (pos.y * scale).round()
+                )
+            }))
             .collect();
         text.push_str(&format!(
             "pointer {},{}{}\n",
@@ -763,8 +1003,28 @@ impl Automation {
         .filter(|(_, held)| *held)
         .map(|(name, _)| name)
         .collect::<Vec<_>>();
-        if !modifiers.is_empty() {
-            text.push_str(&format!("holding {}\n", modifiers.join("+")));
+        let keys: Vec<String> = modifiers
+            .iter()
+            .map(|name| (*name).to_owned())
+            .chain(self.keys.iter().map(|key| format!("{key:?}")))
+            .collect();
+        if !keys.is_empty() {
+            text.push_str(&format!("keys down {}\n", keys.join(", ")));
+        }
+        match (&self.composing, view.ime) {
+            (Some(composing), _) => text.push_str(&format!("composing {composing:?}\n")),
+            (None, Some(cursor)) => text.push_str(&format!(
+                "the app asks for an input method, its caret {}\n",
+                describe(scaled(cursor, scale))
+            )),
+            (None, None) => {}
+        }
+        if !self.grabbed.is_empty() {
+            let names: Vec<&str> = self.grabbed.iter().map(|file| file.name.as_str()).collect();
+            text.push_str(&format!("dragging the files {}\n", names.join(", ")));
+        }
+        if let Some(progress) = self.back {
+            text.push_str(&format!("back gesture at {progress}\n"));
         }
         text.push_str(&format!(
             "wants the keyboard {}, pointer locked {}\n",
@@ -798,6 +1058,32 @@ fn button_named(name: &str) -> Option<PointerButton> {
         "right" => Some(PointerButton::Secondary),
         "middle" => Some(PointerButton::Middle),
         _ => None,
+    }
+}
+
+fn factor(text: &str) -> Result<f32, String> {
+    text.parse::<f32>()
+        .ok()
+        .filter(|factor| *factor > 0.0)
+        .ok_or_else(|| format!("{text} is not a factor above 0"))
+}
+
+fn finger_target(spec: &str) -> (u64, Option<&str>) {
+    if let Some((finger, target)) = spec.split_once('=')
+        && let Ok(finger) = finger.parse()
+    {
+        return (finger, Some(target));
+    }
+    match spec.parse() {
+        Ok(finger) => (finger, None),
+        Err(_) => (0, Some(spec)),
+    }
+}
+
+fn shown(view: &View<'_>, text: &str) -> bool {
+    match text.strip_prefix('#') {
+        Some(id) => view.test_ids.contains_key(id),
+        None => view.lines.iter().any(|line| line.text.contains(text)),
     }
 }
 
