@@ -6,7 +6,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
 
-const usage = `usage: drive [--timeout=SECONDS] [--no-settle] COMMAND, or drive - < COMMANDS
+const usage = `usage: drive [--timeout=SECONDS] [--no-settle] [--changes=N|all] COMMAND, or drive - < COMMANDS
 The app answers the same commands as the native app's drive (help lists them),
 such as tree, click TARGET, type TEXT, key CHORD, wait TEXT and settle. These
 are the browser's own:
@@ -19,12 +19,12 @@ are the browser's own:
 
 let args = process.argv.slice(2);
 let timeout = 30;
-let settle = true;
+const options = [];
 while (args[0]?.startsWith("--")) {
     if (args[0].startsWith("--timeout=")) {
         timeout = Number(args[0].slice("--timeout=".length));
-    } else if (args[0] === "--no-settle") {
-        settle = false;
+    } else if (args[0] === "--no-settle" || args[0].startsWith("--changes=")) {
+        options.push(args[0]);
     } else {
         break;
     }
@@ -142,7 +142,7 @@ switch (command) {
         process.exit(1);
         break;
     default:
-        process.stdout.write(await answer([...(settle ? [] : ["--no-settle"]), command, ...rest]));
+        process.stdout.write(await answer([...options, command, ...rest]));
 }
 }
 

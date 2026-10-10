@@ -3,7 +3,7 @@ use std::collections::HashSet;
 
 use beui::accessibility::{Described, Fragment, embedded, role_named};
 use beui::{ActionGroup, ActionInfo, Rect, pos2, vec2};
-use block_plugin_api::{ChildRect, EditorRegion, ScreenId, Toggled};
+use block_plugin_api::{ChildRect, EditorRegion, NodeValue, ScreenId, Toggled};
 
 use super::runtime;
 
@@ -69,6 +69,11 @@ pub(crate) fn describe(context: &beui::Context) {
                     disabled: node.disabled,
                     focused: node.focused,
                     rect: node.rect.as_ref().map(place),
+                    actions: node
+                        .actions
+                        .iter()
+                        .filter_map(|action| beui::accessibility_dump::action_named(action))
+                        .collect(),
                 })
                 .collect();
             regions.push(Region {
@@ -101,6 +106,25 @@ pub(crate) fn describe(context: &beui::Context) {
         }
     });
     regions.sort_by_key(|region| region.document);
+    for region in &regions {
+        for request in context.take_accessibility_actions(region.document) {
+            let Some(node) = (request.target_node.0 & 0xFF_FFFF_FFFF).checked_sub(1) else {
+                continue;
+            };
+            let value = request.data.and_then(|data| match data {
+                beui::accesskit::ActionData::Value(text) => Some(NodeValue::Text(text.into())),
+                beui::accesskit::ActionData::NumericValue(number) => {
+                    Some(NodeValue::Number(number))
+                }
+                _ => None,
+            });
+            let action = format!("{:?}", request.action);
+            let screen = region.screen;
+            runtime::with(&region.plugin, |runtime| {
+                runtime.node_action(screen, node as u32, action, value);
+            });
+        }
+    }
     for requested in context.action_requests() {
         let (pane, id) = match requested.split_once(beui::automation::PANE) {
             Some((pane, id)) => (Some(pane), id),

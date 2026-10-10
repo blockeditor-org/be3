@@ -24,7 +24,7 @@ pub use block_plugin_api::{
     AccessGrant, AccessLevel, AccessListing, ArtifactAction, AudioStatus, BarAction, BlockCommand,
     BlockFilter, BlockLocation, BlockPick, Catalog, ChildContent, ChildId, ChildLayer, ChildMode,
     ChildPlacement, ChildStatus, ClipboardImage, ConflictSide, CreationProgress, CursorIcon,
-    DataListing, DescribedAction, Displays, EditorCapabilities, EditorInstanceId, EditorRegion,
+    DataListing, DescribedAction, Displays, NodeValue, EditorCapabilities, EditorInstanceId, EditorRegion,
     FetchResult, FileSave, FrameChrome, FrameSpec, HostAction, HostDisplay, HostDisplayMode,
     HostImage, HostInputDevice, HostNotificationAction, HostPanel, HostProgram, HostReply,
     HostRequest, HostValue, HostWindow, HostWindowId, HostWindows, IncomingNotification,

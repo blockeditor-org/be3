@@ -14,7 +14,8 @@ use beui_core::renderer::Loaded;
 use beui_core::runner::{Adapter, Launch, RunOptions, Runner, Running};
 use beui_core::screens::Screen;
 use block_editor_plugin::{
-    DescribedAction, DescribedNode, Description, EditorHost, Frame, InputEvent, Region, Toggled,
+    DescribedAction, DescribedNode, Description, EditorHost, Frame, InputEvent, NodeValue, Region,
+    Toggled,
 };
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect};
@@ -99,6 +100,33 @@ impl PluginSurface {
         let context = self.runner.context();
         context.set_pixels_per_point(region.scale_factor);
         region.scale_factor / context.pixels_per_point()
+    }
+
+    pub fn node_action(&mut self, node: usize, action: &str, value: Option<NodeValue>) {
+        let Some(action) = beui_core::app::accessibility_dump::action_named(action) else {
+            return;
+        };
+        let Some(target) = self.runner.accessibility().and_then(|dump| {
+            dump.lines()
+                .iter()
+                .filter(|line| line.role != beui_core::accesskit::Role::Window)
+                .nth(node)
+                .map(|line| line.id)
+        }) else {
+            return;
+        };
+        let data = value.map(|value| match value {
+            NodeValue::Text(text) => beui_core::accesskit::ActionData::Value(text.into()),
+            NodeValue::Number(number) => beui_core::accesskit::ActionData::NumericValue(number),
+        });
+        self.runner
+            .context()
+            .accessibility_action(beui_core::accesskit::ActionRequest {
+                action,
+                target_tree: beui_core::accesskit::TreeId::ROOT,
+                target_node: target,
+                data,
+            });
     }
 
     pub fn run_action(&mut self, id: &str) {
@@ -209,6 +237,11 @@ impl PluginSurface {
                         disabled: line.disabled,
                         focused: line.focused,
                         rect: line.bounds.map(|bounds| bounds.scaled(points)),
+                        actions: line
+                            .actions
+                            .iter()
+                            .map(|action| format!("{action:?}"))
+                            .collect(),
                     })
                     .collect()
             })

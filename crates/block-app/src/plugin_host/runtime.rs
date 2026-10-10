@@ -402,6 +402,23 @@ impl Runtime {
         &self.plugin.identity.id
     }
 
+    pub(super) fn node_action(
+        &mut self,
+        screen: ScreenId,
+        node: u32,
+        action: String,
+        value: Option<block_plugin_api::NodeValue>,
+    ) {
+        self.pacing.needed = true;
+        self.send(vec![Message::NodeAction {
+            screen,
+            node,
+            action,
+            value,
+        }]);
+        host::request_repaint();
+    }
+
     pub(super) fn run_action(&mut self, screen: ScreenId, id: String) {
         self.pacing.needed = true;
         self.send(vec![Message::RunAction { screen, id }]);

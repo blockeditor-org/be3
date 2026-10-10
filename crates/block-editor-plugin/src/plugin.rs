@@ -53,6 +53,15 @@ pub trait Instance: std::any::Any {
 
     fn run_action(&mut self, _region: &Region, _id: &str) {}
 
+    fn node_action(
+        &mut self,
+        _region: &Region,
+        _node: usize,
+        _action: &str,
+        _value: Option<block_plugin_api::NodeValue>,
+    ) {
+    }
+
     fn update(&mut self, region: &Region, settings: Option<&mut Vec<u8>>) -> Frame;
 
     #[cfg(target_arch = "wasm32")]
@@ -117,6 +126,7 @@ pub struct DescribedNode {
     pub disabled: bool,
     pub focused: bool,
     pub rect: Option<Rect>,
+    pub actions: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

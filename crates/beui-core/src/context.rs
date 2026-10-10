@@ -398,6 +398,10 @@ impl Context {
         self.inner.clock.set(Some(self.inner.now.get()));
     }
 
+    pub fn run_clock(&self) {
+        self.inner.clock.set(None);
+    }
+
     pub fn set_clock(&self, now: Instant) {
         self.inner.clock.set(Some(now));
         self.inner.now.set(now);

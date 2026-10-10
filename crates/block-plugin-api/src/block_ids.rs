@@ -60,7 +60,8 @@ impl Message {
             | Self::BlockTypes(_)
             | Self::ChildStatuses(_)
             | Self::Describe(_)
-            | Self::RunAction { .. } => {}
+            | Self::RunAction { .. }
+            | Self::NodeAction { .. } => {}
         }
     }
 }

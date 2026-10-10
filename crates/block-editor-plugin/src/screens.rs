@@ -489,6 +489,20 @@ impl Screens {
                 self.requests = set.screens.clone();
                 self.relayout();
             }
+            Message::NodeAction {
+                screen,
+                node,
+                action,
+                value,
+            } => {
+                let Some((instance, region)) = self.screen(*screen) else {
+                    return false;
+                };
+                let Some(session) = self.sessions.get_mut(&instance) else {
+                    return false;
+                };
+                session.node_action(region, *node as usize, action, value.clone());
+            }
             Message::RunAction { screen, id } => {
                 let Some((instance, region)) = self.screen(*screen) else {
                     return false;
@@ -610,7 +624,7 @@ impl Screens {
                 Some((instance, _)) => self.mark(instance),
                 None => return false,
             },
-            Message::RunAction { screen, .. } => match self.screen(*screen) {
+            Message::RunAction { screen, .. } | Message::NodeAction { screen, .. } => match self.screen(*screen) {
                 Some((instance, _)) => self.mark(instance),
                 None => return false,
             },

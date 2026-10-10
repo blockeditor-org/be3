@@ -76,6 +76,55 @@ pub(crate) fn locate(
     Ok(rect)
 }
 
+fn line_with<'a>(target: &str, lines: &'a [Line]) -> Result<&'a Line, String> {
+    let found: Vec<usize> = (0..lines.len())
+        .filter(|index| lines[*index].text.contains(target))
+        .collect();
+    match pick(lines, &found) {
+        Some(index) => Ok(&lines[index]),
+        None if found.is_empty() => Err(format!(
+            "no line of the tree contains {target:?}; `tree` prints it"
+        )),
+        None => {
+            let mut message = format!("{} lines of the tree contain {target:?}:\n", found.len());
+            for index in &found {
+                message.push_str("  ");
+                message.push_str(&lines[*index].text);
+                message.push('\n');
+            }
+            message.push_str("name one of them more closely, or use #TEST_ID or X,Y");
+            Err(message)
+        }
+    }
+}
+
+pub(crate) fn node<'a>(
+    target: &str,
+    lines: &'a [Line],
+    test_ids: &HashMap<String, Rect>,
+    pixels_per_point: f32,
+) -> Result<&'a Line, String> {
+    let named = !target.starts_with('#')
+        && target
+            .split(',')
+            .any(|number| number.trim().parse::<f32>().is_err());
+    if named {
+        return line_with(target, lines);
+    }
+    let center = locate(target, lines, test_ids, pixels_per_point)?.center();
+    let under: Vec<&Line> = lines
+        .iter()
+        .filter(|line| line.visible && line.bounds.is_some_and(|bounds| bounds.contains(center)))
+        .collect();
+    under
+        .iter()
+        .rev()
+        .find(|line| !line.actions.is_empty())
+        .or_else(|| under.last())
+        .copied()
+        .ok_or_else(|| format!("no node of the tree is at {target}"))
+}
+
 fn pick(lines: &[Line], found: &[usize]) -> Option<usize> {
     if let [first, rest @ ..] = found
         && rest.iter().all(|index| {

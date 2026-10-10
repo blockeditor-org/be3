@@ -480,6 +480,16 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
     fn run_action(&mut self, region: &Region, id: &str) {
         self.surface(region.region).run_action(id);
     }
+
+    fn node_action(
+        &mut self,
+        region: &Region,
+        node: usize,
+        action: &str,
+        value: Option<block_editor_plugin::NodeValue>,
+    ) {
+        self.surface(region.region).node_action(node, action, value);
+    }
 }
 
 #[cfg(test)]

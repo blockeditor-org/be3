@@ -86,6 +86,7 @@ fn frame_screens_and_reports_round_trip() {
                     width: 200.0,
                     height: 24.0,
                 }),
+                actions: vec!["Click".to_owned(), "Focus".to_owned()],
             }],
             test_ids: vec![TestIdRect {
                 id: "checklist.add".to_owned(),

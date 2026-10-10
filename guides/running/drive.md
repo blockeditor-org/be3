@@ -100,13 +100,18 @@ A command that acts on something takes a TARGET:
     drive keydown alt; drive key tab tab; drive keyup alt
     drive ime compose ni; drive ime commit 你  an input method's composition
     drive act ACTION_ID [PANE]                run an action the way the command palette does
+    drive a11y TARGET [ACTION [VALUE]]        what a screen reader does: click, focus, increment,
+                                              set VALUE, expand, scroll-down, ...
 
 `touch` names each finger (`0=TARGET`, `1=TARGET`) so several move in one frame, which is how
 to make a pinch of your own; `touch up` with no finger lifts them all. `keydown` on a key that
-is already down repeats it.
+is already down repeats it. `a11y TARGET` with no action prints the node a screen reader would
+act on and the actions it offers; acting goes through the accessibility tree rather than the
+pointer or keys, the path a screen reader takes, and reaches plugins' nodes too.
 
 Every command that gives input waits until the app has settled and prints what changed in
-the tree, `-` and `+` lines, so there is no need to wait or read the whole tree again. The app
+the tree, `-` and `+` lines, so there is no need to wait or read the whole tree again. A long
+change is cut to its first 60 lines; `drive --changes=N COMMAND` (or `all`) prints more. The app
 has settled once a frame asks for no other and `App::busy` is false; block-app is busy while a
 plugin is starting, owes a frame or holds unanswered input, and while an account or workspace
 request is pending. `drive --no-settle COMMAND` answers after the frame that took the input
@@ -115,6 +120,11 @@ app cannot see, such as a server push, is waited for with `drive wait TEXT` or `
 TEXT` (or `#TEST_ID`), which return once a line of the tree contains TEXT or none does;
 `drive settle` waits on its own, and `drive pause MILLISECONDS` lets time pass by the app's
 own clock. Each command gives up after 30 seconds, or `drive --timeout=SECONDS`.
+
+`drive clock stop` stops the app's clock: time then passes only with `drive pause`, a frame at
+a time, so an animation can be stopped at any point and a screenshot of it taken the same way
+every run, and an app that animates forever still settles. `drive clock run` starts it again.
+Anything else waiting on time, such as a plugin's frame timeout, waits for `pause` too.
 
 `drive -` reads commands from standard input, one a line, quoted as a shell would, prints each
 before its answer and stops at the first that fails:

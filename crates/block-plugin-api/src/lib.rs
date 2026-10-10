@@ -132,6 +132,13 @@ pub struct DescribedNode {
     pub disabled: bool,
     pub focused: bool,
     pub rect: Option<ChildRect>,
+    pub actions: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum NodeValue {
+    Text(String),
+    Number(f64),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1683,7 +1690,16 @@ pub enum Message {
     Children(ChildPlacements),
     ChildStatuses(Vec<ChildStatus>),
     Describe(bool),
-    RunAction { screen: ScreenId, id: String },
+    RunAction {
+        screen: ScreenId,
+        id: String,
+    },
+    NodeAction {
+        screen: ScreenId,
+        node: u32,
+        action: String,
+        value: Option<NodeValue>,
+    },
 }
 
 impl Message {
@@ -1721,7 +1737,8 @@ impl Message {
             | Self::BlockTypes(_)
             | Self::ChildStatuses(_)
             | Self::Describe(_)
-            | Self::RunAction { .. } => Direction::ToPlugin,
+            | Self::RunAction { .. }
+            | Self::NodeAction { .. } => Direction::ToPlugin,
             Self::Hello(_)
             | Self::Acknowledged { .. }
             | Self::ShutdownAcknowledged
@@ -2484,6 +2501,13 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
         }
         Message::Children(value) => validate_children(value),
         Message::RunAction { id, .. } => string(id),
+        Message::NodeAction { action, value, .. } => {
+            string(action)?;
+            match value {
+                Some(NodeValue::Text(text)) => string(text),
+                _ => Ok(()),
+            }
+        }
         Message::ChildStatuses(value) => {
             collection(value.len())?;
             for status in value {
@@ -2517,6 +2541,10 @@ fn described(description: &Description) -> Result<(), DecodeError> {
         string(&node.role)?;
         string(&node.label)?;
         string(&node.value)?;
+        collection(node.actions.len())?;
+        for action in &node.actions {
+            string(action)?;
+        }
     }
     for test_id in &description.test_ids {
         string(&test_id.id)?;

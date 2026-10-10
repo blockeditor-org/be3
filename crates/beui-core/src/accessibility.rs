@@ -54,6 +54,7 @@ pub struct Described {
     pub disabled: bool,
     pub focused: bool,
     pub rect: Option<Rect>,
+    pub actions: Vec<Action>,
 }
 
 pub fn embedded(document: u32, title: &str, area: Rect, described: &[Described]) -> Fragment {
@@ -100,6 +101,9 @@ pub fn embedded(document: u32, title: &str, area: Rect, described: &[Described])
         }
         if let Some(rect) = entry.rect {
             node.set_bounds(bounds(rect));
+        }
+        for action in &entry.actions {
+            node.add_action(*action);
         }
         if entry.focused {
             focus = Some(id(slot));

@@ -3,6 +3,31 @@ use std::fmt::Write as _;
 
 use accesskit::{Affine, Node, NodeId, Rect, Role, TreeUpdate};
 
+pub const ACTIONS: [accesskit::Action; 16] = [
+    accesskit::Action::Click,
+    accesskit::Action::Focus,
+    accesskit::Action::Blur,
+    accesskit::Action::Expand,
+    accesskit::Action::Collapse,
+    accesskit::Action::Increment,
+    accesskit::Action::Decrement,
+    accesskit::Action::SetValue,
+    accesskit::Action::ReplaceSelectedText,
+    accesskit::Action::ScrollUp,
+    accesskit::Action::ScrollDown,
+    accesskit::Action::ScrollLeft,
+    accesskit::Action::ScrollRight,
+    accesskit::Action::ScrollIntoView,
+    accesskit::Action::ShowContextMenu,
+    accesskit::Action::ShowTooltip,
+];
+
+pub fn action_named(name: &str) -> Option<accesskit::Action> {
+    ACTIONS
+        .into_iter()
+        .find(|action| format!("{action:?}") == name)
+}
+
 #[derive(Default)]
 pub struct AccessibilityDump {
     nodes: HashMap<NodeId, Node>,
@@ -14,6 +39,8 @@ pub struct AccessibilityDump {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Line {
+    pub id: NodeId,
+    pub actions: Vec<accesskit::Action>,
     pub depth: usize,
     pub role: Role,
     pub label: String,
@@ -135,6 +162,11 @@ impl AccessibilityDump {
                 }
             }
             lines.push(Line {
+                id,
+                actions: ACTIONS
+                    .into_iter()
+                    .filter(|action| node.supports_action(*action))
+                    .collect(),
                 depth,
                 role: node.role(),
                 label: label.unwrap_or_default().to_owned(),

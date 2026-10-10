@@ -427,7 +427,10 @@ impl Runner {
             };
             let settled = Settled {
                 busy: self.app.busy(),
-                again: frame.again(),
+                again: match automation.clock_stopped() {
+                    true => frame.deferred,
+                    false => frame.again(),
+                },
             };
             let mut world = World {
                 events: &mut self.events,

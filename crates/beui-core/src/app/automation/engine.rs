@@ -3,10 +3,10 @@ use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
-use super::target::{describe, locate, point, scaled};
+use super::target::{describe, locate, node, point, scaled};
 use super::window::{Simulation, WindowSize};
 use super::{Capture, Inbox, Reply, Request, changes, keys};
-use crate::app::accessibility_dump::Line;
+use crate::app::accessibility_dump::{ACTIONS, Line};
 use crate::context::{ActionGroup, Context};
 use crate::file_picker::PickedFile;
 use crate::geometry::{Pos2, Rect, vec2};
@@ -16,6 +16,8 @@ use crate::input::{
 };
 
 const WHEEL_LINE: f32 = 40.0;
+const CHANGES: usize = 60;
+const FRAME: Duration = Duration::from_micros(16_667);
 const GESTURE_STEPS: usize = 4;
 const PINCH_SPAN: f32 = 100.0;
 
@@ -49,6 +51,9 @@ Keyboard:
   keydown KEY... / keyup KEY...   hold keys down and let go; keydown on a held key repeats it
   ime compose TEXT / ime commit [TEXT] / ime cancel   an input method's composition
   act ID [PANE]             run the action ID as the command palette would, in PANE's plugin when given
+Screen reader:
+  a11y TARGET               the node a screen reader would act on, and the actions it offers
+  a11y TARGET ACTION [VALUE]   do what a screen reader does: click, focus, increment, set VALUE, ...
 Files:
   grab FILE...              drag FILEs in from outside, over where the pointer is; move carries them
   drop [TARGET]             drop the grabbed files; ungrab takes them away again
@@ -64,9 +69,11 @@ Waiting:
   wait TEXT|#TEST_ID        wait until a line of the tree contains TEXT, or the test id is on screen
   gone TEXT|#TEST_ID        wait until it is not
   pause MILLISECONDS        let that much time pass, by the app's clock
+  clock stop / clock run    stop the app's clock, so time passes only with pause, frame by frame
 A TARGET is #TEST_ID, X,Y or X,Y,WIDTH,HEIGHT in the tree's pixels, or text found in one line of the tree.
-Every command that gives input waits for the app to settle and answers with what changed in the tree;
---no-settle before the command answers after the frame that took the input instead.";
+Every command that gives input waits for the app to settle and answers with what changed in the tree,
+at most 60 lines of it; before the command, --changes=N|all changes that, and --no-settle answers
+after the frame that took the input instead of waiting.";
 
 pub const PANE: char = '\u{1f}';
 
@@ -110,8 +117,7 @@ enum Phase {
         present: bool,
     },
     Pausing {
-        until: Option<Instant>,
-        length: Duration,
+        until: Instant,
     },
     Acting {
         id: String,
@@ -130,6 +136,7 @@ struct Active {
     request: Request,
     phase: Phase,
     immediate: bool,
+    changes: Option<usize>,
 }
 
 enum Started {
@@ -149,6 +156,7 @@ pub struct Automation {
     composing: Option<String>,
     ime: bool,
     back: Option<f32>,
+    clock_stopped: bool,
 }
 
 impl Automation {
@@ -165,7 +173,12 @@ impl Automation {
             composing: None,
             ime: false,
             back: None,
+            clock_stopped: false,
         }
+    }
+
+    pub fn clock_stopped(&self) -> bool {
+        self.clock_stopped
     }
 
     pub fn inbox(&self) -> &Inbox {
@@ -189,19 +202,54 @@ impl Automation {
             if request.cancelled.load(Ordering::SeqCst) {
                 continue;
             }
-            let immediate = request.words.first().map(String::as_str) == Some("--no-settle");
-            let words = &request.words[usize::from(immediate)..];
-            match self.start(words, view, world) {
+            let mut immediate = false;
+            let mut changes = Some(CHANGES);
+            let mut skipped = 0;
+            let mut failed = None;
+            for word in &request.words {
+                if word == "--no-settle" {
+                    immediate = true;
+                } else if let Some(count) = word.strip_prefix("--changes=") {
+                    changes = match count {
+                        "all" => None,
+                        count => match count.parse() {
+                            Ok(count) => Some(count),
+                            Err(_) => {
+                                failed = Some(format!("--changes takes a number or all, not {count}"));
+                                break;
+                            }
+                        },
+                    };
+                } else {
+                    break;
+                }
+                skipped += 1;
+            }
+            let started = match failed {
+                Some(error) => Err(error),
+                None => self.start(&request.words[skipped..], view, world),
+            };
+            match started {
                 Ok(Started::Done(reply)) => (request.reply)(reply),
                 Ok(Started::Phase(phase)) => {
                     self.active = Some(Active {
                         request,
                         phase,
                         immediate,
+                        changes,
                     });
                 }
                 Err(error) => (request.reply)(Reply::Error(error)),
             }
+        }
+        if let Some(Active {
+            phase: Phase::Pausing { until },
+            ..
+        }) = &self.active
+            && self.clock_stopped
+        {
+            let left = until.saturating_duration_since(view.now);
+            world.context.advance_clock(left.min(FRAME));
         }
         if let Some(Active {
             phase: Phase::Input { steps, .. },
@@ -221,12 +269,11 @@ impl Automation {
     }
 
     pub fn wants_frame(&self, now: Instant) -> Option<Duration> {
+        let stopped = self.clock_stopped;
         match &self.active.as_ref()?.phase {
             Phase::Input { steps, .. } if !steps.is_empty() => Some(Duration::ZERO),
-            Phase::Pausing {
-                until: Some(until), ..
-            } => Some(until.saturating_duration_since(now)),
-            Phase::Pausing { until: None, .. } => Some(Duration::ZERO),
+            Phase::Pausing { .. } if stopped => Some(Duration::ZERO),
+            Phase::Pausing { until } => Some(until.saturating_duration_since(now)),
             _ => None,
         }
     }
@@ -299,27 +346,19 @@ impl Automation {
             }
         }
         let immediate = active.immediate;
+        let limit = active.changes;
         let reply = match failed {
             Some(error) => Some(Reply::Error(error)),
             None => match &mut active.phase {
                 Phase::Settling { before } if quiet || (immediate && before.is_some()) => {
-                    Some(Reply::Text(
-                        before
-                            .as_deref()
-                            .map_or_else(String::new, |before| changes(before, view.tree)),
-                    ))
+                    Some(Reply::Text(before.as_deref().map_or_else(String::new, |before| {
+                        capped(changes(before, view.tree), limit)
+                    })))
                 }
                 Phase::Waiting { text, present } if shown(view, text) == *present => {
                     Some(Reply::Text(String::new()))
                 }
-                Phase::Pausing { until, length } => match until {
-                    None => {
-                        *until = Some(view.now + *length);
-                        None
-                    }
-                    Some(until) if view.now >= *until => Some(Reply::Text(String::new())),
-                    Some(_) => None,
-                },
+                Phase::Pausing { until } if view.now >= *until => Some(Reply::Text(String::new())),
                 _ => None,
             },
         };
@@ -908,6 +947,64 @@ impl Automation {
                 input(vec![vec![Event::FileHoverCancelled]])
             }
             "settle" => Ok(Started::Phase(Phase::Settling { before: None })),
+            "a11y" => {
+                let line = node(argument(0)?, view.lines, view.test_ids, view.pixels_per_point)?;
+                let offered = || {
+                    line.actions
+                        .iter()
+                        .map(|action| action_name(*action))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                };
+                let Some(name) = arguments.get(1) else {
+                    return Ok(Started::Done(Reply::Text(format!(
+                        "{}\nactions: {}\n",
+                        line.text,
+                        offered()
+                    ))));
+                };
+                let action = ACTIONS
+                    .into_iter()
+                    .find(|action| action_name(*action) == name)
+                    .ok_or_else(|| {
+                        let names: Vec<&str> = ACTIONS.into_iter().map(action_name).collect();
+                        format!("{name} is not one of {}", names.join(", "))
+                    })?;
+                if !line.actions.contains(&action) {
+                    return Err(format!(
+                        "{:?} does not offer {name}; it offers {}",
+                        line.text,
+                        offered()
+                    ));
+                }
+                let value = arguments[2..].join(" ");
+                let data = match action {
+                    accesskit::Action::SetValue => Some(match value.parse::<f64>() {
+                        Ok(number) => accesskit::ActionData::NumericValue(number),
+                        Err(_) => accesskit::ActionData::Value(value.into()),
+                    }),
+                    accesskit::Action::ReplaceSelectedText => {
+                        Some(accesskit::ActionData::Value(value.into()))
+                    }
+                    _ => None,
+                };
+                world.context.accessibility_action(accesskit::ActionRequest {
+                    action,
+                    target_tree: accesskit::TreeId::ROOT,
+                    target_node: line.id,
+                    data,
+                });
+                input(vec![Vec::new()])
+            }
+            "clock" => {
+                match argument(0)? {
+                    "stop" => world.context.stop_clock(),
+                    "run" => world.context.run_clock(),
+                    other => return Err(format!("clock takes stop or run, not {other}")),
+                }
+                self.clock_stopped = argument(0)? == "stop";
+                Ok(Started::Phase(Phase::Settling { before: None }))
+            }
             "wait" | "gone" => Ok(Started::Phase(Phase::Waiting {
                 text: arguments.join(" "),
                 present: command == "wait",
@@ -917,8 +1014,7 @@ impl Automation {
                     .parse()
                     .map_err(|_| "pause takes milliseconds".to_owned())?;
                 Ok(Started::Phase(Phase::Pausing {
-                    until: None,
-                    length: Duration::from_millis(milliseconds),
+                    until: view.now + Duration::from_millis(milliseconds),
                 }))
             }
             "shot" => {
@@ -1023,6 +1119,9 @@ impl Automation {
             let names: Vec<&str> = self.grabbed.iter().map(|file| file.name.as_str()).collect();
             text.push_str(&format!("dragging the files {}\n", names.join(", ")));
         }
+        if self.clock_stopped {
+            text.push_str("clock stopped: time passes only with pause\n");
+        }
         if let Some(progress) = self.back {
             text.push_str(&format!("back gesture at {progress}\n"));
         }
@@ -1059,6 +1158,48 @@ fn button_named(name: &str) -> Option<PointerButton> {
         "middle" => Some(PointerButton::Middle),
         _ => None,
     }
+}
+
+fn action_name(action: accesskit::Action) -> &'static str {
+    match action {
+        accesskit::Action::Click => "click",
+        accesskit::Action::Focus => "focus",
+        accesskit::Action::Blur => "blur",
+        accesskit::Action::Expand => "expand",
+        accesskit::Action::Collapse => "collapse",
+        accesskit::Action::Increment => "increment",
+        accesskit::Action::Decrement => "decrement",
+        accesskit::Action::SetValue => "set",
+        accesskit::Action::ReplaceSelectedText => "replace",
+        accesskit::Action::ScrollUp => "scroll-up",
+        accesskit::Action::ScrollDown => "scroll-down",
+        accesskit::Action::ScrollLeft => "scroll-left",
+        accesskit::Action::ScrollRight => "scroll-right",
+        accesskit::Action::ScrollIntoView => "scroll-into-view",
+        accesskit::Action::ShowContextMenu => "context-menu",
+        accesskit::Action::ShowTooltip => "tooltip",
+        _ => "other",
+    }
+}
+
+fn capped(changes: String, limit: Option<usize>) -> String {
+    let Some(limit) = limit else {
+        return changes;
+    };
+    let total = changes.lines().count();
+    if total <= limit {
+        return changes;
+    }
+    let mut text: String = changes
+        .lines()
+        .take(limit)
+        .flat_map(|line| [line, "\n"])
+        .collect();
+    text.push_str(&format!(
+        "... and {} more changed lines; --changes=all prints them, and `drive tree` the whole tree\n",
+        total - limit
+    ));
+    text
 }
 
 fn factor(text: &str) -> Result<f32, String> {

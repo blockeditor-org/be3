@@ -8,6 +8,7 @@ pub use beui_components_styled as styled;
 pub use beui_components_unstyled as unstyled;
 pub use beui_components_unstyled::datetime;
 pub use beui_core::accessibility;
+pub use beui_core::app::accessibility_dump;
 pub use beui_core::app::automation;
 pub use beui_core::app::{App, Setup, Waker};
 pub use beui_core::base::{

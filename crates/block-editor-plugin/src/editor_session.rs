@@ -990,6 +990,7 @@ impl EditorSession {
                                 disabled: node.disabled,
                                 focused: node.focused,
                                 rect: node.rect.map(reported),
+                                actions: node.actions.clone(),
                             })
                             .collect(),
                         test_ids: description
@@ -1016,6 +1017,17 @@ impl EditorSession {
     pub(crate) fn input(&mut self, region: EditorRegion, event: &InputEvent) {
         let context = self.context(region);
         self.app.input(&context, event);
+    }
+
+    pub(crate) fn node_action(
+        &mut self,
+        region: EditorRegion,
+        node: usize,
+        action: &str,
+        value: Option<block_plugin_api::NodeValue>,
+    ) {
+        let context = self.context(region);
+        self.app.node_action(&context, node, action, value);
     }
 
     pub(crate) fn run_action(&mut self, region: EditorRegion, id: &str) {

@@ -29,10 +29,10 @@ fn run(mut arguments: Vec<String>) -> Result<(), String> {
     }
     let mut timeout = TIMEOUT;
     let mut socket = std::env::var_os("BE_DRIVE_SOCKET").map(PathBuf::from);
-    let mut settle = true;
+    let mut options = Vec::new();
     while let Some(first) = arguments.first() {
-        if first == "--no-settle" {
-            settle = false;
+        if first == "--no-settle" || first.starts_with("--changes=") {
+            options.push(first.clone());
         } else if let Some(seconds) = first.strip_prefix("--timeout=") {
             let seconds: f64 = seconds
                 .parse()
@@ -47,7 +47,7 @@ fn run(mut arguments: Vec<String>) -> Result<(), String> {
     }
     if arguments.is_empty() || arguments[0] == "--help" {
         return Err(format!(
-            "usage: drive [--timeout=SECONDS] [--socket=PATH] [--no-settle] COMMAND [ARGUMENTS]\n\
+            "usage: drive [--timeout=SECONDS] [--socket=PATH] [--no-settle] [--changes=N|all] COMMAND [ARGUMENTS]\n\
              \x20      drive [--timeout=SECONDS] [--socket=PATH] - < COMMANDS\n\
              `shot` takes the file to write the PNG to first: shot FILE [TARGET].\n\
              `-` reads one command a line from standard input, quoted as a shell would, and stops at the first that fails.\n\
@@ -57,12 +57,7 @@ fn run(mut arguments: Vec<String>) -> Result<(), String> {
     let socket = socket.ok_or(
         "BE_DRIVE_SOCKET is not set: source the env file the launcher printed, or pass --socket=PATH",
     )?;
-    let settled = |mut words: Vec<String>| {
-        if !settle && words.first().map(String::as_str) != Some("--no-settle") {
-            words.insert(0, "--no-settle".to_owned());
-        }
-        words
-    };
+    let settled = |words: Vec<String>| options.iter().cloned().chain(words).collect::<Vec<_>>();
     if arguments == ["-"] {
         let mut script = String::new();
         std::io::Read::read_to_string(&mut std::io::stdin(), &mut script)
@@ -81,7 +76,10 @@ fn run(mut arguments: Vec<String>) -> Result<(), String> {
 }
 
 fn command(socket: &Path, mut arguments: Vec<String>, timeout: Duration) -> Result<(), String> {
-    let first = usize::from(arguments.first().map(String::as_str) == Some("--no-settle"));
+    let first = arguments
+        .iter()
+        .take_while(|word| *word == "--no-settle" || word.starts_with("--changes="))
+        .count();
     let absolute = |path: &String| {
         std::path::absolute(path)
             .map(|path| path.display().to_string())
