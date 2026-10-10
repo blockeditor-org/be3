@@ -77,21 +77,23 @@ pub fn interact(
             .iter()
             .any(|event| matches!(event, Event::PointerMoved(_)))
     });
-    let acted_at = match pressed {
-        true => ctx.input(|input| input.pointer.press_pos),
-        false => raw_pointer.filter(|_| moved),
-    };
-    if pointer && let Some(pos) = acted_at {
-        doc.acted = Acted::Pointer(pos + doc.touch_shift);
-    } else if !keys.ignored()
+    let typed = !keys.ignored()
         && ctx.input(|input| {
             input
                 .events
                 .iter()
                 .any(|event| matches!(event, Event::Key { pressed: true, .. }))
-        })
-    {
+        });
+    let press = ctx
+        .input(|input| input.pointer.press_pos)
+        .filter(|_| pointer && pressed);
+    let motion = raw_pointer.filter(|_| pointer && moved);
+    if let Some(pos) = press {
+        doc.acted = Acted::Pointer(pos + doc.touch_shift);
+    } else if typed {
         doc.acted = Acted::Keys;
+    } else if let Some(pos) = motion {
+        doc.acted = Acted::Pointer(pos + doc.touch_shift);
     }
     if pointer && let Some(pos) = raw_pointer {
         doc.last_pointer = Some(crate::input::PointerSample {
