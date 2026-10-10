@@ -460,11 +460,12 @@ pub fn interact(
         doc.touch_scroll_vertical = None;
         doc.touch_scroll_horizontal = None;
     }
-    if (input.released_this_frame || input.touch_ended || input.touch_cancelled)
-        && !input.pointer_down
-        && doc.dragging()
-    {
-        doc.drag_board().finish();
+    if !input.pointer_down && doc.dragging() {
+        if input.touch_cancelled {
+            doc.drag_board().end(None);
+        } else if input.released_this_frame || input.touch_ended {
+            doc.drag_board().finish();
+        }
     }
     if !input.pointer_down {
         doc.pointer_capture = None;

@@ -1295,7 +1295,7 @@ host carries it on its own document's board, though: a plugin's request to drag
 a block puts it there with `Board::begin`, each plugin region is a `DropTarget`
 for it, and the board drops whatever it carries when the primary button or the
 finger is let go, wherever the press was, so a drag that no `Draggable` began
-still ends.
+still ends; a cancelled touch ends it without a drop.
 
 ### Pan and zoom
 
