@@ -15,7 +15,9 @@ fn a_window_that_copies_keeps_its_own_selection() {
         .serial
         .expect("the click carried a serial");
 
-    harness.client.copy_with_device(&device, "copied in a window", serial);
+    harness
+        .client
+        .copy_with_device(&device, "copied in a window", serial);
     let mut copied = None;
     for _ in 0..4 {
         harness.frame(Vec::new());

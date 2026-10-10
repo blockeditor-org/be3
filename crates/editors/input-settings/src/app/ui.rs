@@ -150,7 +150,9 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
                                     set_paste.operate(InputSettings::set_middle_click_paste(on))
                                 }}
                             />
-                            <Caption content="Lets programs paste the text last selected in them with the middle button. Programs started after it changes follow it." />
+                            <Caption
+                                content="Lets programs paste the text last selected in them with the middle button. Programs started after it changes follow it."
+                            />
                         </List>
                     </List>
                 </Frame>

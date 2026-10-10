@@ -88,7 +88,9 @@ impl TestClient {
         source.offer(TEXT.to_owned());
         source.set_actions(wl_data_device_manager::DndAction::Copy);
         CLIPBOARD.with(|clipboard| clipboard.borrow_mut().copied = "dragged".to_owned());
-        device.device.start_drag(Some(&source), origin, None, serial);
+        device
+            .device
+            .start_drag(Some(&source), origin, None, serial);
     }
 
     pub(crate) fn copy_with_control(&self, control: &DataControl, text: &str) {
@@ -183,7 +185,10 @@ impl Dispatch<wl_data_device::WlDataDevice, ()> for Received {
             let mut clipboard = clipboard.borrow_mut();
             match &event {
                 wl_data_device::Event::Enter {
-                    surface, serial, id, ..
+                    surface,
+                    serial,
+                    id,
+                    ..
                 } => {
                     clipboard.entered = Some(surface.clone());
                     if let Some(offer) = id {

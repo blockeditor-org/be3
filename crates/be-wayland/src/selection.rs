@@ -10,8 +10,8 @@ use smithay::reexports::wayland_server::DisplayHandle;
 use smithay::reexports::wayland_server::protocol::wl_data_source::WlDataSource;
 use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
 use smithay::wayland::selection::data_device::{
-    ClientDndGrabHandler, DataDeviceHandler, DataDeviceState,
-    request_data_device_client_selection, set_data_device_selection,
+    ClientDndGrabHandler, DataDeviceHandler, DataDeviceState, request_data_device_client_selection,
+    set_data_device_selection,
 };
 use smithay::wayland::selection::ext_data_control::{
     DataControlHandler as ExtDataControlHandler, DataControlState as ExtDataControlState,
@@ -23,9 +23,7 @@ use smithay::wayland::selection::wlr_data_control::{
     DataControlHandler as WlrDataControlHandler, DataControlState as WlrDataControlState,
 };
 use smithay::wayland::selection::{SelectionHandler, SelectionSource, SelectionTarget};
-use smithay::{
-    delegate_data_control, delegate_ext_data_control, delegate_primary_selection,
-};
+use smithay::{delegate_data_control, delegate_ext_data_control, delegate_primary_selection};
 
 use crate::server::Waiter;
 use crate::state::State;
@@ -87,9 +85,9 @@ impl Selection {
             data_device: DataDeviceState::new::<State>(handle),
             primary,
             primary_on,
-            ext_with_primary: ext_with_primary,
+            ext_with_primary,
             _ext_without_primary: ext_without_primary,
-            wlr: wlr,
+            wlr,
             offered: None,
             reading: None,
             read: None,
@@ -268,7 +266,12 @@ impl DataDeviceHandler for State {
 }
 
 impl ClientDndGrabHandler for State {
-    fn started(&mut self, _source: Option<WlDataSource>, _icon: Option<WlSurface>, _seat: Seat<Self>) {
+    fn started(
+        &mut self,
+        _source: Option<WlDataSource>,
+        _icon: Option<WlSurface>,
+        _seat: Seat<Self>,
+    ) {
         self.selection.dragging = true;
     }
 

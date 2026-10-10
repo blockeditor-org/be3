@@ -7,7 +7,9 @@ fn text_a_program_copies_reaches_the_host() {
     let control = harness.client.data_control();
     harness.settle();
 
-    harness.client.copy_with_control(&control, "copied in a program");
+    harness
+        .client
+        .copy_with_control(&control, "copied in a program");
     let mut copied = None;
     for _ in 0..4 {
         harness.frame(Vec::new());

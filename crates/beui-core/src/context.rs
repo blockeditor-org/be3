@@ -21,6 +21,8 @@ use crate::painter::{Entry, Painter, Shape};
 use crate::screen_simulation::ScreenSimulation;
 use crate::screens::Screen;
 
+type CopyWatcher = Rc<dyn Fn(&str)>;
+
 #[derive(Clone)]
 pub struct Context {
     inner: Rc<Inner>,
@@ -40,7 +42,7 @@ struct Inner {
     ambiguous_test_ids: RefCell<HashSet<String>>,
     copied_text: RefCell<Option<String>>,
     paste_requested: Cell<bool>,
-    copy_watchers: RefCell<Vec<Rc<dyn Fn(&str)>>>,
+    copy_watchers: RefCell<Vec<CopyWatcher>>,
     clipboard_read_requests: RefCell<Vec<ClipboardReadId>>,
     clipboard_reads: RefCell<Vec<(ClipboardReadId, Option<String>)>>,
     next_clipboard_read: Cell<u64>,

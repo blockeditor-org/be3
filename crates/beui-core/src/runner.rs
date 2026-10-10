@@ -346,7 +346,8 @@ impl Runner {
                     self.events.push(Event::Text(text));
                 }
                 for id in std::mem::take(&mut output.clipboard_reads) {
-                    self.context.clipboard_read(id, simulation.clipboard.clone());
+                    self.context
+                        .clipboard_read(id, simulation.clipboard.clone());
                     output.repaint = true;
                 }
             }
