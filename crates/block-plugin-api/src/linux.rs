@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use serde::{Deserialize, Serialize};
 
 use crate::{ChildRect, HostAction, HostValue, Size};
@@ -149,29 +147,6 @@ impl HostNotification {
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PendingDisplayChange {
-    pub round: u64,
-    pub timeout: Duration,
-}
-
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub enum DisplayAnswer {
-    Keep(u64),
-    Revert(u64),
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub struct HostProblem {
-    pub id: u64,
-    pub message: String,
-}
-
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ProblemAction {
-    Dismiss(u64),
-}
-
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WindowAction {
     Focus(HostWindowId),
     Fullscreen {
@@ -229,20 +204,6 @@ impl HostValue for Notifications {
     type Value = Vec<HostNotification>;
 }
 
-pub enum DisplayConfirmation {}
-
-impl HostValue for DisplayConfirmation {
-    const KEY: &'static str = "display_confirmation";
-    type Value = Option<PendingDisplayChange>;
-}
-
-pub enum Problems {}
-
-impl HostValue for Problems {
-    const KEY: &'static str = "problems";
-    type Value = Vec<HostProblem>;
-}
-
 impl HostAction for WindowAction {
     const KEY: &'static str = "window";
 }
@@ -257,12 +218,4 @@ impl HostAction for MediaRequest {
 
 impl HostAction for NotificationAction {
     const KEY: &'static str = "notification";
-}
-
-impl HostAction for DisplayAnswer {
-    const KEY: &'static str = "display_answer";
-}
-
-impl HostAction for ProblemAction {
-    const KEY: &'static str = "problem";
 }

@@ -61,6 +61,7 @@ pub fn Toasts(
     anchor: NodeRef,
     toasts: Prop<Vec<Toast>>,
     #[prop(default = Some(TOAST_DURATION))] duration: Prop<Option<Duration>>,
+    #[prop(default = Edge::BottomEnd)] edge: Prop<Edge>,
     on_dismiss: Callback<u64>,
     on_action: Callback<(u64, String)>,
     on_activate: Callback<u64>,
@@ -68,7 +69,7 @@ pub fn Toasts(
     let listed = toasts.clone();
     let open = create_memo(move || !listed.get().is_empty());
     view! {
-        <Floating anchor edge=Edge::BottomEnd open={open}>
+        <Floating anchor edge open={open}>
             <Frame
                 padding_horizontal=MARGIN
                 padding_vertical=MARGIN

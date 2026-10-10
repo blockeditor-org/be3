@@ -357,6 +357,7 @@ struct BlockApp {
     ui_settings: Option<Uuid>,
     input: SettingsSync<InputSettings>,
     display: SettingsSync<DisplaySettings>,
+    display_round: Option<u64>,
     block_types: HashMap<Uuid, Uuid>,
     registry: Rc<EditorRegistry>,
     editors: compositor::Editors,
@@ -551,6 +552,7 @@ impl BlockApp {
             ui_settings: None,
             input: SettingsSync::default(),
             display: SettingsSync::default(),
+            display_round: None,
             block_types: HashMap::new(),
             registry,
             editors,
@@ -2044,37 +2046,33 @@ impl BlockApp {
 
     fn run_display_prompt(&mut self) {
         let now = host::now();
-        for answer in plugin_host::take_actions::<block_plugin_api::DisplayAnswer>() {
-            let display::Prompt::Asking { round, .. } = display::prompt(now) else {
-                continue;
-            };
-            let edits = match answer {
-                block_plugin_api::DisplayAnswer::Keep(answered) if answered == round => {
-                    display::keep()
-                }
-                block_plugin_api::DisplayAnswer::Revert(answered) if answered == round => {
-                    display::revert()
-                }
-                _ => continue,
-            };
-            self.display.commit(&self.app_state, edits);
-        }
         let mut prompt = display::prompt(now);
         if prompt == display::Prompt::Expired {
             self.display.commit(&self.app_state, display::revert());
             prompt = display::prompt(now);
         }
-        let pending = match prompt {
+        self.display_round = match prompt {
             display::Prompt::Asking { round, left } => {
                 host::request_repaint_after(left);
-                Some(block_plugin_api::PendingDisplayChange {
-                    round,
-                    timeout: display::ANSWER_WITHIN,
-                })
+                Some(round)
             }
             display::Prompt::Settled | display::Prompt::Expired => None,
         };
-        plugin_host::publish::<block_plugin_api::DisplayConfirmation>(&pending);
+    }
+
+    fn answer_display(&mut self, round: u64, keep: bool) {
+        let display::Prompt::Asking { round: asked, .. } = display::prompt(host::now()) else {
+            return;
+        };
+        if asked != round {
+            return;
+        }
+        let edits = match keep {
+            true => display::keep(),
+            false => display::revert(),
+        };
+        self.display.commit(&self.app_state, edits);
+        self.display_round = None;
     }
 
     fn crashed(&mut self, report: String) {
@@ -2086,7 +2084,6 @@ impl BlockApp {
         performance::begin_frame();
         plugin_host::poll();
         self.run_display_prompt();
-        notices::frame();
         #[cfg(target_os = "linux")]
         self.run_notifications();
         if !self.signed_in {
@@ -2333,6 +2330,9 @@ impl BlockApp {
             UiCommand::DismissToast(id) => self.dismiss_toast(id),
             UiCommand::ToastAction(id, action) => self.act_on_toast(id, Some(action)),
             UiCommand::ActivateToast(id) => self.act_on_toast(id, None),
+            UiCommand::DismissProblem(id) => notices::dismiss(id),
+            UiCommand::KeepDisplay(round) => self.answer_display(round, true),
+            UiCommand::RevertDisplay(round) => self.answer_display(round, false),
             #[cfg(target_os = "linux")]
             UiCommand::LockScreen => {
                 if let Some(lock) = &mut self.screen_lock {
@@ -2541,6 +2541,8 @@ impl BlockApp {
                 .with(|open| open.values().any(PluginEditor::presenting_now)),
             debug: debug::view(),
             toasts: self.toasts(),
+            problems: notices::shown(),
+            keep_display: self.display_round,
             #[cfg(target_os = "linux")]
             lock: self.lock_view(),
             #[cfg(not(target_os = "linux"))]

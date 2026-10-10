@@ -8,8 +8,11 @@ mod workspace;
 use std::cell::RefCell;
 
 use be_protocol::WorkspaceRole;
-use beui::reactive::{Dynamic, Frame, List, NodeRef, Store, component, view};
-use beui::styled::{Toast, Toasts, use_theme};
+use beui::reactive::{
+    Dynamic, Frame, List, NodeRef, Store, clone, component, create_memo, view,
+};
+use beui::styled::{KeepChanges, Toast, Toasts, use_theme};
+use beui::unstyled::Edge;
 use beui::{ItemSize, NodeId};
 use block_plugin_api::HostPanel;
 use uuid::Uuid;
@@ -217,6 +220,8 @@ pub(crate) struct AppView {
     pub(crate) presenting: bool,
     pub(crate) debug: DebugView,
     pub(crate) toasts: Vec<Toast>,
+    pub(crate) problems: Vec<Toast>,
+    pub(crate) keep_display: Option<u64>,
     pub(crate) lock: LockView,
 }
 
@@ -271,8 +276,11 @@ pub(crate) enum UiCommand {
     ApprovePairing(u64, String),
     DismissPairing(u64),
     DismissToast(u64),
+    DismissProblem(u64),
     ToastAction(u64, String),
     ActivateToast(u64),
+    KeepDisplay(u64),
+    RevertDisplay(u64),
     LockScreen,
     #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     Unlock(crate::password::Password),
@@ -285,6 +293,12 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
     let theme = use_theme();
     let screen = view.screen.clone();
     let toasts = view.toasts.clone();
+    let problems = view.problems.clone();
+    let keep_display = view.keep_display.clone();
+    let asking = create_memo(clone!(keep_display -> move || keep_display.get().is_some()));
+    let round = create_memo(move || keep_display.get().unwrap_or_default());
+    let keeping = round.clone();
+    let reverting = round.clone();
     let locking = view.clone();
     let area = NodeRef::new();
     view! {
@@ -327,6 +341,23 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                     on_dismiss={move |id: u64| send(UiCommand::DismissToast(id))}
                     on_action={move |(id, action): (u64, String)| send(UiCommand::ToastAction(id, action))}
                     on_activate={move |id: u64| send(UiCommand::ActivateToast(id))}
+                />
+                <Toasts
+                    anchor={area.clone()}
+                    edge=Edge::TopEnd
+                    toasts={problems}
+                    on_dismiss={move |id: u64| send(UiCommand::DismissProblem(id))}
+                    on_action={|_: (u64, String)| {}}
+                    on_activate={|_: u64| {}}
+                />
+                <KeepChanges
+                    open={asking}
+                    title="Keep these display settings?"
+                    timeout=crate::display::ANSWER_WITHIN
+                    round={round}
+                    id="display.keep"
+                    on_keep={move || send(UiCommand::KeepDisplay(keeping.get_untracked()))}
+                    on_revert={move || send(UiCommand::RevertDisplay(reverting.get_untracked()))}
                 />
                 <lock::SessionLock view={locking} />
             </List>

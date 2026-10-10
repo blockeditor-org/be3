@@ -1,6 +1,5 @@
 mod bar;
 mod calendar;
-mod display_prompt;
 mod fullscreen;
 pub(crate) mod media;
 mod notifications;
@@ -22,12 +21,10 @@ use block_editor_beui::beui::unstyled::{
 use block_editor_beui::beui::{Modifiers, NodeId, Rect, Vec2, pos2, vec2};
 use block_editor_beui::{HostPanel, HostWindowId};
 use block_shell::{
-    BlockTab, DialogWindow, Failure, PanelWindow, PickerDialogs, ProblemToasts, Workspace,
-    WorkspaceDialogs,
+    BlockTab, DialogWindow, Failure, PanelWindow, PickerDialogs, Workspace, WorkspaceDialogs,
 };
 
 use bar::DesktopBar;
-use display_prompt::DisplayPrompt;
 use media::MediaKeys;
 
 const WINDOW_ORIGIN: f32 = 48.0;
@@ -116,8 +113,6 @@ fn DesktopBody(workspace: Rc<Workspace>) -> NodeId {
                 <DesktopBar workspace={bar} />
                 <PickerDialogs workspace={pickers} />
                 <WorkspaceDialogs workspace={shell_dialogs} />
-                <ProblemToasts editor={editor.clone()} anchor={surface.clone()} />
-                <DisplayPrompt editor={editor.clone()} />
                 <MediaKeys editor />
             </List>
         </Frame>
