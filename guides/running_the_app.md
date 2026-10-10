@@ -56,7 +56,10 @@ and the output of every program the app starts, go to `$XDG_STATE_HOME/block/ses
 `session.previous.log`. Problems a person should see at once also show as toasts in the
 corner of the screen: `beui_adapter_drm::Problems` carries the display and input ones,
 `be_wayland::Compositor::on_failure` a program that could not be run, and `notices::report`
-puts each in front of the person.
+puts each in front of the person. The host draws these itself, so they show before any shell
+plugin runs (signing in, choosing a workspace) and over either shell; they stack in the
+top-right corner (`Toasts` with `edge=Edge::TopEnd`), clear of linux-desktop's bar and its
+notification toasts at the bottom.
 
 The screens turn off after the display settings' "Turn off screens after" (ten minutes by
 default). `be_wayland::Compositor` counts the idle time on the frame clock from the frames that
@@ -214,8 +217,8 @@ program can also be started against the socket directly:
     WAYLAND_DISPLAY=/tmp/be-wayland-<the app's pid> foot
 
 Each window opens as a tab of the workspace. `weston-simple-shm` (from the `weston` package)
-and `foot` are small clients to try it with. `foot --fullscreen` starts one fullscreen, and Super+F toggles fullscreen on the focused
-window. Under `--session` and `--desktop`, Super+drag anywhere on a floating window, its bar
+and `foot` are small clients to try it with. `foot --fullscreen` starts one fullscreen, and in the desktop shell Super+F toggles fullscreen on the focused
+window (linux-desktop's `desktop.fullscreen` action, which sends `WindowAction::Fullscreen`). Under `--session` and `--desktop`, Super+drag anywhere on a floating window, its bar
 included, moves the window, and Super+right-drag resizes it from its nearest edge or corner,
 or moves the split beside a docked one. In the desktop shell Alt+Tab, with Alt held, opens the window switcher and walks the
 windows from the one used last (Alt+Shift+Tab the other way); letting go of Alt focuses and

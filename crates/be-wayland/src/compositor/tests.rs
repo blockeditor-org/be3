@@ -54,7 +54,24 @@ struct Harness {
 #[component]
 fn Shown(windows: Windows) -> NodeId {
     {
-        crate::view::toggle_fullscreen_action(&windows);
+        let toggling = windows.clone();
+        beui::reactive::Action::new("test.fullscreen", "Toggle fullscreen", move || {
+            let Some(id) = toggling.focused() else {
+                return;
+            };
+            let fullscreen = toggling
+                .list()
+                .get_untracked()
+                .iter()
+                .any(|info| info.id == id && info.fullscreen.is_some());
+            toggling.request_fullscreen(id, !fullscreen);
+            beui::reactive::try_with_document(|document| {
+                document.request_repaint_after(std::time::Duration::ZERO);
+            });
+        })
+        .shortcut(beui::reactive::Chord::logo(Key::F))
+        .intercepts()
+        .register();
         beui::reactive::Action::new("test.global", "Global", || {
             GLOBAL_RAN.with(|ran| ran.set(ran.get() + 1))
         })

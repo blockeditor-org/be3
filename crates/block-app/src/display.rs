@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::time::Duration;
 
 use be_block::DisplaySettings;
 use be_block::be_model::Edit;
@@ -9,7 +10,7 @@ use crate::local_settings::LocalSettings;
 mod guard;
 
 use guard::Guard;
-pub(crate) use guard::Screen;
+pub(crate) use guard::{ANSWER_WITHIN, Prompt, Screen};
 
 #[cfg(target_os = "linux")]
 mod linux;
@@ -36,8 +37,13 @@ pub(crate) fn set_screens(screens: Vec<Screen>) {
     GUARD.with(|guard| guard.borrow_mut().set_screens(screens));
 }
 
+#[cfg(test)]
 pub(crate) fn asking() -> bool {
     GUARD.with(|guard| guard.borrow().asking())
+}
+
+pub(crate) fn prompt(now: Duration) -> Prompt {
+    GUARD.with(|guard| guard.borrow_mut().prompt(now))
 }
 
 pub(crate) fn keep() -> Vec<Edit> {

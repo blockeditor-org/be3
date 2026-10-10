@@ -1,5 +1,6 @@
 mod bar;
 mod calendar;
+mod fullscreen;
 pub(crate) mod launcher;
 pub(crate) mod media;
 mod notifications;
@@ -65,6 +66,7 @@ fn DesktopBody(workspace: Rc<Workspace>) -> NodeId {
     workspace.editor().content(&surface);
     let layout = workspace.layout();
     switcher::bind_window_switcher(&layout);
+    fullscreen::bind_fullscreen(workspace.editor());
     let failure = workspace.error();
     let failed = create_memo(clone!(failure -> move || failure.get().is_some()));
     let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));

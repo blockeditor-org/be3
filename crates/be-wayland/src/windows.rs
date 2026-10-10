@@ -51,7 +51,6 @@ struct Inner {
     commands: RefCell<Vec<Command>>,
     input: RefCell<Vec<(WindowId, ForwardedInput)>>,
     fullscreen_requests: RefCell<Vec<(WindowId, bool)>>,
-    toggle_fullscreen: Cell<bool>,
     activate: Cell<Option<WindowId>>,
     focused: Cell<Option<WindowId>>,
     list: ReadSignal<Vec<WindowInfo>>,
@@ -77,7 +76,6 @@ impl Windows {
             commands: RefCell::new(Vec::new()),
             input: RefCell::new(Vec::new()),
             fullscreen_requests: RefCell::new(Vec::new()),
-            toggle_fullscreen: Cell::new(false),
             activate: Cell::new(None),
             focused: Cell::new(None),
             list,
@@ -119,14 +117,6 @@ impl Windows {
             .fullscreen_requests
             .borrow_mut()
             .push((id, fullscreen));
-    }
-
-    pub fn toggle_fullscreen(&self) {
-        self.0.toggle_fullscreen.set(true);
-    }
-
-    pub(crate) fn take_fullscreen_toggle(&self) -> bool {
-        self.0.toggle_fullscreen.replace(false)
     }
 
     pub(crate) fn take_fullscreen_requests(&self) -> Vec<(WindowId, bool)> {

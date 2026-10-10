@@ -357,6 +357,7 @@ struct BlockApp {
     ui_settings: Option<Uuid>,
     input: SettingsSync<InputSettings>,
     display: SettingsSync<DisplaySettings>,
+    display_round: Option<u64>,
     block_types: HashMap<Uuid, Uuid>,
     registry: Rc<EditorRegistry>,
     editors: compositor::Editors,
@@ -551,6 +552,7 @@ impl BlockApp {
             ui_settings: None,
             input: SettingsSync::default(),
             display: SettingsSync::default(),
+            display_round: None,
             block_types: HashMap::new(),
             registry,
             editors,
@@ -1998,8 +2000,40 @@ impl BlockApp {
                 );
             }
         }
+        self.run_display_prompt();
         #[cfg(target_os = "linux")]
         self.run_session(context);
+    }
+
+    fn run_display_prompt(&mut self) {
+        let now = host::now();
+        let mut prompt = display::prompt(now);
+        if prompt == display::Prompt::Expired {
+            self.display.commit(&self.app_state, display::revert());
+            prompt = display::prompt(now);
+        }
+        self.display_round = match prompt {
+            display::Prompt::Asking { round, left } => {
+                host::request_repaint_after(left);
+                Some(round)
+            }
+            display::Prompt::Settled | display::Prompt::Expired => None,
+        };
+    }
+
+    fn answer_display(&mut self, round: u64, keep: bool) {
+        let display::Prompt::Asking { round: asked, .. } = display::prompt(host::now()) else {
+            return;
+        };
+        if asked != round {
+            return;
+        }
+        let edits = match keep {
+            true => display::keep(),
+            false => display::revert(),
+        };
+        self.display.commit(&self.app_state, edits);
+        self.display_round = None;
     }
 
     fn crashed(&mut self, report: String) {
@@ -2251,8 +2285,8 @@ impl BlockApp {
             UiCommand::About(open) => self.about_open = open,
             UiCommand::AppMenu(open) => self.app_menu_open = open,
             UiCommand::DismissToast(id) => notices::dismiss(id),
-            UiCommand::KeepDisplay => self.display.commit(&self.app_state, display::keep()),
-            UiCommand::RevertDisplay => self.display.commit(&self.app_state, display::revert()),
+            UiCommand::KeepDisplay(round) => self.answer_display(round, true),
+            UiCommand::RevertDisplay(round) => self.answer_display(round, false),
             #[cfg(target_os = "linux")]
             UiCommand::LockScreen => {
                 if let Some(lock) = &mut self.screen_lock {
@@ -2458,7 +2492,7 @@ impl BlockApp {
                 .with(|open| open.values().any(PluginEditor::presenting_now)),
             debug: debug::view(),
             toasts: notices::shown(),
-            keep_display: display::asking(),
+            keep_display: self.display_round,
             #[cfg(target_os = "linux")]
             lock: self.lock_view(),
             #[cfg(not(target_os = "linux"))]
