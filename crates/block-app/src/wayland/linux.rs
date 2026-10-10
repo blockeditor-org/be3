@@ -229,6 +229,8 @@ pub(crate) fn launch(command: String) -> bool {
     true
 }
 
+const ICON_BUDGET: usize = block_plugin_api::MAX_BLOB_BYTES / 2;
+
 enum Scanned {
     Entries(Environment, Vec<DesktopEntry>),
     Icons(Vec<(String, HostImage)>),
@@ -313,6 +315,7 @@ impl Programs {
     }
 
     pub(crate) fn listed(&self) -> Vec<HostProgram> {
+        let mut room = ICON_BUDGET;
         self.entries
             .iter()
             .map(|entry| HostProgram {
@@ -321,7 +324,17 @@ impl Programs {
                 generic_name: entry.generic_name.clone(),
                 comment: entry.comment.clone(),
                 keywords: entry.keywords.clone(),
-                icon: self.icons.get(&entry.id).cloned(),
+                icon: self
+                    .icons
+                    .get(&entry.id)
+                    .filter(|icon| {
+                        let fits = icon.rgba.len() <= room;
+                        if fits {
+                            room -= icon.rgba.len();
+                        }
+                        fits
+                    })
+                    .cloned(),
             })
             .collect()
     }
