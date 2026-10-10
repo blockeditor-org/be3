@@ -5,9 +5,11 @@ use crate::reactive::{Action, Chord, List, Text, build, create_signal, view};
 fn a_driver_lists_and_runs_an_action() {
     let document = build(|| {
         let (grouped, set_grouped) = create_signal(String::from("apart"));
-        Action::new("test.group", "Group", move || set_grouped.set("grouped".to_owned()))
-            .shortcut(Chord::ctrl(Key::G))
-            .register();
+        Action::new("test.group", "Group", move || {
+            set_grouped.set("grouped".to_owned())
+        })
+        .shortcut(Chord::ctrl(Key::G))
+        .register();
         view! {
             <List spacing=0.0>
                 <Text string={grouped} />

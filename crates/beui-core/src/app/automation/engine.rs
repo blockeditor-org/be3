@@ -212,7 +212,11 @@ impl Automation {
         };
         let mut failed = None;
         match &mut active.phase {
-            Phase::Input { steps, before, then } if steps.is_empty() => {
+            Phase::Input {
+                steps,
+                before,
+                then,
+            } if steps.is_empty() => {
                 active.phase = match then.take() {
                     Some(then) => *then,
                     None => settling(before),
@@ -364,7 +368,12 @@ impl Automation {
                 Ok(Started::Done(Reply::Text(text)))
             }
             "find" => {
-                let rect = locate(argument(0)?, view.lines, view.test_ids, view.pixels_per_point)?;
+                let rect = locate(
+                    argument(0)?,
+                    view.lines,
+                    view.test_ids,
+                    view.pixels_per_point,
+                )?;
                 Ok(Started::Done(Reply::Text(format!("{}\n", describe(rect)))))
             }
             "state" => Ok(Started::Done(Reply::Text(self.state(view, world)))),

@@ -84,8 +84,12 @@ fn from_environment(
 #[cfg(all(unix, not(target_os = "android")))]
 fn serve(path: &std::path::Path) -> Result<beui_core::app::automation::Inbox, Box<dyn Error>> {
     let inbox = beui_core::app::automation::Inbox::default();
-    beui_core::app::automation::socket::serve(path, inbox.clone())
-        .map_err(|error| format!("BEUI_AUTOMATION: could not listen on {}: {error}", path.display()))?;
+    beui_core::app::automation::socket::serve(path, inbox.clone()).map_err(|error| {
+        format!(
+            "BEUI_AUTOMATION: could not listen on {}: {error}",
+            path.display()
+        )
+    })?;
     Ok(inbox)
 }
 

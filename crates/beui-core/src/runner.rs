@@ -334,7 +334,9 @@ impl Runner {
                 if let Some(text) = &output.copied_text {
                     simulation.clipboard = Some(text.clone());
                 }
-                simulation.picks.extend(std::mem::take(&mut output.file_picks));
+                simulation
+                    .picks
+                    .extend(std::mem::take(&mut output.file_picks));
                 if output.paste_requested
                     && let Some(text) = simulation.clipboard.clone()
                 {

@@ -16,7 +16,8 @@ pub use beui_core::base::{
 };
 pub use beui_core::color::{Color32, Hsva, Oklch, format_hex, parse_hex};
 pub use beui_core::context::{
-    ActionGroup, ActionInfo, Context, FrameOutput, InputSimulation, Moved, RendererChoices, RendererInfo,
+    ActionGroup, ActionInfo, Context, FrameOutput, InputSimulation, Moved, RendererChoices,
+    RendererInfo,
 };
 pub use beui_core::damage::Region;
 pub use beui_core::document::{
@@ -77,7 +78,10 @@ pub use window::{WindowRenderer, run_on, run_with, run_with_renderers, window_ad
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]
 mod window;
 
-#[cfg(all(feature = "window", not(any(target_os = "android", target_arch = "wasm32"))))]
+#[cfg(all(
+    feature = "window",
+    not(any(target_os = "android", target_arch = "wasm32"))
+))]
 pub use beui_adapter_headless::Headless;
 
 pub mod reactive {

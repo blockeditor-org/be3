@@ -98,21 +98,20 @@ fn run(mut arguments: Vec<String>) -> Result<(), String> {
 pub(crate) fn request(socket: &Path, words: &[String], timeout: Duration) -> Result<Reply, String> {
     let stream = UnixStream::connect(socket)
         .map_err(|error| format!("could not reach the app at {}: {error}", socket.display()))?;
-    let deadline = Some(timeout + ANSWER_GRACE);
+    let deadline = timeout + ANSWER_GRACE;
     stream
-        .set_read_timeout(deadline)
-        .and_then(|()| stream.set_write_timeout(deadline))
+        .set_read_timeout(Some(deadline))
+        .and_then(|()| stream.set_write_timeout(Some(deadline)))
         .map_err(|error| error.to_string())?;
     let mut writer = stream.try_clone().map_err(|error| error.to_string())?;
     write_request(&mut writer, words, timeout).map_err(|error| error.to_string())?;
-    let reply = read_reply(&mut BufReader::new(stream))
-        .map_err(|error| match error.kind() {
-            std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut => format!(
-                "the app did not answer within {} seconds; is it stuck? Its log says more",
-                deadline.unwrap_or_default().as_secs()
-            ),
-            _ => format!("the app did not answer: {error}"),
-        })?;
+    let reply = read_reply(&mut BufReader::new(stream)).map_err(|error| match error.kind() {
+        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut => format!(
+            "the app did not answer within {} seconds; is it stuck? Its log says more",
+            deadline.as_secs()
+        ),
+        _ => format!("the app did not answer: {error}"),
+    })?;
     match reply {
         Reply::Error(error) => Err(error),
         reply => Ok(reply),

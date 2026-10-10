@@ -10,7 +10,10 @@ pub struct WindowSize {
 impl WindowSize {
     pub fn parse(text: &str) -> Option<Self> {
         let (size, scale) = match text.split_once('@') {
-            Some((size, scale)) => (size, scale.parse::<f32>().ok().filter(|scale| *scale > 0.0)?),
+            Some((size, scale)) => (
+                size,
+                scale.parse::<f32>().ok().filter(|scale| *scale > 0.0)?,
+            ),
             None => (text, 1.0),
         };
         let (width, height) = size.split_once('x')?;

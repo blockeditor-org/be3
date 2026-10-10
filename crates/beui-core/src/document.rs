@@ -1150,7 +1150,8 @@ impl Document {
         if ctx.automated() {
             let context = self.reactive_scope().context();
             let _guard = crate::current::install(self);
-            context.run(|| crate::current::with_document(|document| document.describe_actions(ctx)));
+            context
+                .run(|| crate::current::with_document(|document| document.describe_actions(ctx)));
         }
         self.deliver_file_picks(ctx);
 

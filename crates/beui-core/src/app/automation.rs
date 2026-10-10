@@ -25,7 +25,6 @@ pub struct Capture {
     pub rgba: Vec<u8>,
 }
 
-
 pub enum Reply {
     Text(String),
     Image {
@@ -169,4 +168,3 @@ impl Inbox {
             .pop_front()
     }
 }
-

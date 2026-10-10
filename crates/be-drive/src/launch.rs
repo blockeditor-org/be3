@@ -56,9 +56,10 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
     }
     let program = launch.program.clone().ok_or(USAGE)?;
     let name = launch.name.clone().unwrap_or_else(|| {
-        Path::new(&program)
-            .file_name()
-            .map_or_else(|| "app".to_owned(), |name| name.to_string_lossy().into_owned())
+        Path::new(&program).file_name().map_or_else(
+            || "app".to_owned(),
+            |name| name.to_string_lossy().into_owned(),
+        )
     });
     let dir = directory(&name)?;
     fs::create_dir_all(&dir)
@@ -83,7 +84,10 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
     command
         .args(&launch.arguments)
         .env("BEUI_HEADLESS", launch.size.as_deref().unwrap_or(SIZE))
-        .env("BEUI_HEADLESS_SCREEN", launch.screen.as_deref().unwrap_or(SCREEN))
+        .env(
+            "BEUI_HEADLESS_SCREEN",
+            launch.screen.as_deref().unwrap_or(SCREEN),
+        )
         .env("BEUI_AUTOMATION", &socket)
         .env_remove("DISPLAY")
         .env_remove("WAYLAND_DISPLAY")

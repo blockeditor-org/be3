@@ -10,5 +10,7 @@ def headless(name, program, app_name, args = [], data = False):
             "--name=" + app_name,
             "--libraries=$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
             "--program=" + program,
-        ] + (["--data"] if data else []) + args,
+        ]
+        + (["--data"] if data else [])
+        + args,
     )

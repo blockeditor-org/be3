@@ -39,7 +39,10 @@ pub(crate) fn locate(
     match numbers.as_deref() {
         Some([x, y]) => return Ok(Rect::from_min_size(pos2(*x, *y), Vec2::ZERO)),
         Some([x, y, width, height]) => {
-            return Ok(Rect::from_min_size(pos2(*x, *y), Vec2::new(*width, *height)));
+            return Ok(Rect::from_min_size(
+                pos2(*x, *y),
+                Vec2::new(*width, *height),
+            ));
         }
         _ => {}
     }
@@ -49,7 +52,9 @@ pub(crate) fn locate(
     let line = match pick(lines, &found) {
         Some(index) => &lines[index],
         None if found.is_empty() => {
-            return Err(format!("no line of the tree contains {target:?}; `tree` prints it"));
+            return Err(format!(
+                "no line of the tree contains {target:?}; `tree` prints it"
+            ));
         }
         None => {
             let mut message = format!("{} lines of the tree contain {target:?}:\n", found.len());
@@ -86,10 +91,7 @@ fn pick(lines: &[Line], found: &[usize]) -> Option<usize> {
             .iter()
             .position(|line| line.depth <= depth)
             .map_or(lines.len(), |offset| first + 1 + offset);
-        candidates
-            .iter()
-            .all(|index| *index < end)
-            .then_some(first)
+        candidates.iter().all(|index| *index < end).then_some(first)
     };
     within(found).or_else(|| {
         let shown: Vec<usize> = found
@@ -108,5 +110,8 @@ pub(crate) fn point(
     pixels_per_point: f32,
 ) -> Result<Pos2, String> {
     let center = locate(target, lines, test_ids, pixels_per_point)?.center();
-    Ok(pos2(center.x / pixels_per_point, center.y / pixels_per_point))
+    Ok(pos2(
+        center.x / pixels_per_point,
+        center.y / pixels_per_point,
+    ))
 }

@@ -26,5 +26,8 @@ fn a_headless_window_fills_its_screen_when_the_app_goes_fullscreen() {
     fullscreen.set(false);
     driven.ask(&["settle"]).expect("the app settles");
     let state = driven.ask(&["state"]).expect("the state is read");
-    assert!(state.starts_with("window 400x300 "), "it shrinks back:\n{state}");
+    assert!(
+        state.starts_with("window 400x300 "),
+        "it shrinks back:\n{state}"
+    );
 }
