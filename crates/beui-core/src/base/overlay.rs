@@ -793,7 +793,11 @@ impl Document {
         if !self.contains(overlay) {
             return;
         }
-        let returns_to = self.arena.get_mut_as::<OverlayNode>(overlay).returns_to.take();
+        let returns_to = self
+            .arena
+            .get_mut_as::<OverlayNode>(overlay)
+            .returns_to
+            .take();
         if !self.takes_focus_back(overlay) {
             return;
         }
@@ -823,10 +827,7 @@ impl Document {
     }
 
     pub(crate) fn return_removed_focus(&mut self, target: NodeId) {
-        if self.focused.is_none()
-            && self.contains(target)
-            && self.focusables().contains(&target)
-        {
+        if self.focused.is_none() && self.contains(target) && self.focusables().contains(&target) {
             self.update_focus(Some(target));
         }
     }

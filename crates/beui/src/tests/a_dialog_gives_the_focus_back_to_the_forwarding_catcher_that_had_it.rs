@@ -35,7 +35,11 @@ fn a_dialog_gives_the_focus_back_to_the_forwarding_catcher_that_had_it() {
                             </Interactive>
                         </CanvasItem>
                     </Canvas>
-                    <Dialog open={open.clone()} title="Find" on_dismiss={move || closing.set(false)}>
+                    <Dialog
+                        open={open.clone()}
+                        title="Find"
+                        on_dismiss={move || closing.set(false)}
+                    >
                         <TextInput @node_ref=&field value="" focused={open} />
                     </Dialog>
                 </List>
@@ -45,13 +49,11 @@ fn a_dialog_gives_the_focus_back_to_the_forwarding_catcher_that_had_it() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.document_mut().focus_focusable(catcher.get());
-    assert!(
-        harness.document().focus_is_within(catcher.get()));
+    assert!(harness.document().focus_is_within(catcher.get()));
 
     with_reactive_scope(harness.document_mut(), move || set_open.set(true));
     harness.frame(Vec::new());
-    assert!(
-        harness.document().focus_is_within(field.get()));
+    assert!(harness.document().focus_is_within(field.get()));
 
     harness.key(Key::Escape, Modifiers::NONE);
     harness.frame(Vec::new());

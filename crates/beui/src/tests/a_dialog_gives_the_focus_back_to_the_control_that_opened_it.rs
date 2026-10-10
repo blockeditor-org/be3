@@ -19,9 +19,23 @@ fn a_dialog_gives_the_focus_back_to_the_control_that_opened_it() {
             let (opening, closing, aiming) = (set_open.clone(), set_open.clone(), set_open);
             view! {
                 <List spacing=8.0>
-                    <Button @node_ref=&opener variant=ButtonVariant::Secondary label="Open" on_click={move || opening.set(true)} />
-                    <Button @node_ref=&target variant=ButtonVariant::Secondary label="Elsewhere" focused={aimed} />
-                    <Dialog open={open.clone()} title="Rename" on_dismiss={move || closing.set(false)}>
+                    <Button
+                        @node_ref=&opener
+                        variant=ButtonVariant::Secondary
+                        label="Open"
+                        on_click={move || opening.set(true)}
+                    />
+                    <Button
+                        @node_ref=&target
+                        variant=ButtonVariant::Secondary
+                        label="Elsewhere"
+                        focused={aimed}
+                    />
+                    <Dialog
+                        open={open.clone()}
+                        title="Rename"
+                        on_dismiss={move || closing.set(false)}
+                    >
                         <List spacing=8.0>
                             <TextInput @node_ref=&field value="" focused={open} />
                             <Button
@@ -59,8 +73,7 @@ fn a_dialog_gives_the_focus_back_to_the_control_that_opened_it() {
 
     harness.click(open_at);
     harness.frame(Vec::new());
-    assert!(
-        harness.document().focus_is_within(field.get()));
+    assert!(harness.document().focus_is_within(field.get()));
     let go_at = harness.rect(go.get()).center();
     harness.click(go_at);
     harness.frame(Vec::new());
