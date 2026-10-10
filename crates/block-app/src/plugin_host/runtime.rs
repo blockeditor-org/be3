@@ -1533,6 +1533,20 @@ pub(crate) fn intercept_region(
     host::request_repaint();
 }
 
+pub(crate) fn intercept_tap(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+    key: beui::Key,
+) {
+    with(plugin_id, |runtime| {
+        let messages = runtime.instances.intercepted_tap(instance, region, key);
+        runtime.pacing.needed |= !messages.is_empty();
+        runtime.send(messages);
+    });
+    host::request_repaint();
+}
+
 #[derive(Clone, PartialEq)]
 pub(crate) struct RegionView {
     pub(crate) error: Option<(String, bool)>,
@@ -1550,6 +1564,7 @@ pub(crate) struct RegionView {
     pub(crate) cursor: Option<beui::CursorIcon>,
     pub(crate) ime: Option<beui::ImeArea>,
     pub(crate) handles_back: bool,
+    pub(crate) wants_keyboard: bool,
     pub(crate) intercepted_keys: Vec<beui::KeyChord>,
     pub(crate) grabbed: bool,
 }
@@ -1572,6 +1587,7 @@ impl RegionView {
             cursor: None,
             ime: None,
             handles_back: false,
+            wants_keyboard: false,
             intercepted_keys: Vec::new(),
             grabbed: false,
         }
@@ -1736,6 +1752,7 @@ pub(crate) fn region_view(
             },
             ime: runtime.instances.ime(instance, region, rect),
             handles_back,
+            wants_keyboard: report.is_some_and(|report| report.wants_keyboard),
             intercepted_keys,
             grabbed: runtime.instances.grabbing(),
         }

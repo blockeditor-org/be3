@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{ChildRect, HostAction, HostValue, Size};
+use crate::{ChildRect, HostAction, HostImage, HostValue, Size};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct HostWindowId(pub u64);
@@ -146,6 +146,27 @@ impl HostNotification {
     }
 }
 
+#[derive(Clone, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HostProgram {
+    pub id: String,
+    pub name: String,
+    pub generic_name: String,
+    pub comment: String,
+    pub keywords: Vec<String>,
+    pub icon: Option<HostImage>,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProgramAction {
+    List { icon_size: u32 },
+    Launch(String),
+    Run(String),
+}
+
+impl ProgramAction {
+    pub const MAX_ICON_SIZE: u32 = 256;
+}
+
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WindowAction {
     Focus(HostWindowId),
@@ -202,6 +223,17 @@ pub enum Notifications {}
 impl HostValue for Notifications {
     const KEY: &'static str = "notifications";
     type Value = Vec<HostNotification>;
+}
+
+pub enum Programs {}
+
+impl HostValue for Programs {
+    const KEY: &'static str = "programs";
+    type Value = Vec<HostProgram>;
+}
+
+impl HostAction for ProgramAction {
+    const KEY: &'static str = "program";
 }
 
 impl HostAction for WindowAction {

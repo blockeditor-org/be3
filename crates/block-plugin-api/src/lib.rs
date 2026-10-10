@@ -8,12 +8,12 @@ mod linux;
 mod manifest;
 mod session;
 pub use block_ids::BlockIdRole;
-pub use host_value::{HostAction, HostValue, decode_host, encode_host};
+pub use host_value::{HostAction, HostImage, HostValue, decode_host, encode_host};
 pub use linux::{
     Displays, HostDisplay, HostDisplayMode, HostInputDevice, HostNotification,
-    HostNotificationAction, HostWindow, HostWindowId, HostWindows, InputDevices, Media, MediaLevel,
-    MediaLevels, MediaRequest, NotificationAction, Notifications, PlayerCommand, Power,
-    PowerAction, PowerAvailability, WindowAction,
+    HostNotificationAction, HostProgram, HostWindow, HostWindowId, HostWindows, InputDevices,
+    Media, MediaLevel, MediaLevels, MediaRequest, NotificationAction, Notifications, PlayerCommand,
+    Power, PowerAction, PowerAvailability, ProgramAction, Programs, WindowAction,
 };
 pub use manifest::{
     EditorDocument, ManifestDocument, TemplateDocument, Templates, manifest_from_json,
@@ -98,6 +98,7 @@ pub struct FrameReport {
     pub floating: Vec<ChildRect>,
     pub claims: Vec<PressClaim>,
     pub handles_back: bool,
+    pub wants_keyboard: bool,
     pub intercepted_keys: Vec<KeyChord>,
 }
 
@@ -105,6 +106,7 @@ pub struct FrameReport {
 pub struct KeyChord {
     pub key: Key,
     pub modifiers: Modifiers,
+    pub tap: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -1405,7 +1407,6 @@ pub enum BlockCommand {
         linked: bool,
     },
     AppMenu,
-    Launcher,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1942,6 +1943,9 @@ pub enum InputEvent {
         key: Key,
         pressed: bool,
         repeat: bool,
+    },
+    InterceptedTap {
+        key: Key,
     },
 }
 

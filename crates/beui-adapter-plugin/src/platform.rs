@@ -10,6 +10,7 @@ pub(crate) struct HostPlatform {
     pub(crate) cursor: block_plugin_api::CursorIcon,
     pub(crate) ime: Option<ImeArea>,
     pub(crate) handles_back: bool,
+    pub(crate) wants_keyboard: bool,
     pub(crate) intercepted_keys: Vec<block_plugin_api::KeyChord>,
     pub(crate) locked: bool,
 }
@@ -22,6 +23,7 @@ impl HostPlatform {
             cursor: block_plugin_api::CursorIcon::Default,
             ime: None,
             handles_back: false,
+            wants_keyboard: false,
             intercepted_keys: Vec::new(),
             locked: false,
         }
@@ -68,6 +70,10 @@ impl Platform for HostPlatform {
 
     fn set_handles_back(&mut self, handles: bool) {
         self.handles_back = handles;
+    }
+
+    fn set_wants_keyboard(&mut self, wants: bool) {
+        self.wants_keyboard = wants;
     }
 
     fn set_intercepted_keys(&mut self, chords: &[KeyChord]) {

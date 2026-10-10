@@ -158,7 +158,6 @@ pub(crate) struct StatusView {
     pub(crate) every_profile_type: bool,
     pub(crate) session_type: Uuid,
     pub(crate) can_close: bool,
-    pub(crate) runs_programs: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -210,8 +209,6 @@ pub(crate) struct AppView {
     pub(crate) status: StatusView,
     pub(crate) invite: Option<InviteView>,
     pub(crate) about: bool,
-    pub(crate) launcher: bool,
-    pub(crate) programs: std::rc::Rc<Vec<beui::styled::LauncherItem>>,
     pub(crate) app_menu: bool,
     pub(crate) discard: Option<DiscardView>,
     pub(crate) presenting: bool,
@@ -253,9 +250,6 @@ pub(crate) enum UiCommand {
     ManageAccounts,
     About(bool),
     CloseApp,
-    Launcher(bool),
-    LaunchProgram(String),
-    Launch(String),
     AppMenu(bool),
     SendInvite(String, WorkspaceRole),
     CloseInvite,

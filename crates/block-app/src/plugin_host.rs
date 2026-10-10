@@ -46,7 +46,7 @@ pub(crate) use runtime::{
     take_pick_answers, take_view_changes,
 };
 pub(crate) use runtime::{
-    RegionPlacement, RegionSlot, RegionView, back_region, forward_region, frames, intercept_region,
+    RegionPlacement, RegionSlot, RegionView, back_region, forward_region, frames, intercept_region, intercept_tap,
     mount_region, place_region, region_damage, region_drawing, region_placed, region_view,
     take_changed, take_region_actions, unmount_region, unplace_region,
 };

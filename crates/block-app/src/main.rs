@@ -11,7 +11,7 @@ mod editors;
 mod host;
 mod input;
 mod keys;
-mod launcher;
+mod programs;
 mod local_settings;
 #[cfg(target_os = "linux")]
 mod media;
@@ -372,7 +372,7 @@ struct BlockApp {
     pending_transfers: Vec<PendingTransfer>,
     pending_copies: Vec<PendingCopy>,
     about_open: bool,
-    launcher: launcher::Launcher,
+    programs: programs::Programs,
     app_menu_open: bool,
     pending_destructive_action: Option<PendingDestructiveAction>,
     allow_close: bool,
@@ -562,7 +562,7 @@ impl BlockApp {
             pending_transfers: Vec::new(),
             pending_copies: Vec::new(),
             about_open: false,
-            launcher: launcher::Launcher::default(),
+            programs: programs::Programs::default(),
             app_menu_open: false,
             pending_destructive_action: None,
             allow_close: false,
@@ -696,7 +696,6 @@ impl BlockApp {
         let locked = lock.locked();
         wayland::set_locked(locked);
         if locked {
-            self.launcher.show(false);
             self.app_menu_open = false;
         }
         let mut availability = self
@@ -1224,7 +1223,6 @@ impl BlockApp {
         self.dynamic_artifact_settings_open = None;
         self.pending_transfers.clear();
         self.about_open = false;
-        self.launcher.show(false);
         self.app_menu_open = false;
         self.pending_destructive_action = None;
         self.allow_close = false;
@@ -1970,7 +1968,6 @@ impl BlockApp {
             BlockCommand::Redo if self.editor_access(id).can_edit() => be::redo(id),
             BlockCommand::Undo | BlockCommand::Redo => {}
             BlockCommand::AppMenu => self.app_menu_open = true,
-            BlockCommand::Launcher => self.launcher.show(true),
             BlockCommand::Unlink { container } => {
                 self.queue_copy(id, Uuid::from_bytes(container));
             }
@@ -2090,7 +2087,7 @@ impl BlockApp {
         }
         self.sync_ui_settings(context);
         self.sync_local_settings();
-        self.launcher.frame();
+        self.programs.frame();
         self.sync_be_stack();
         self.poll_workspace_request();
         self.poll_reauth_request();
@@ -2294,9 +2291,6 @@ impl BlockApp {
                 }
             }
             UiCommand::About(open) => self.about_open = open,
-            UiCommand::Launcher(open) => self.launcher.show(open),
-            UiCommand::LaunchProgram(key) => self.launcher.launch(&key),
-            UiCommand::Launch(command) => self.launcher.run(command),
             UiCommand::AppMenu(open) => self.app_menu_open = open,
             UiCommand::DismissToast(id) => self.dismiss_toast(id),
             UiCommand::ToastAction(id, action) => self.act_on_toast(id, Some(action)),
@@ -2493,7 +2487,6 @@ impl BlockApp {
                 every_profile_type: self.every_profile_type,
                 session_type: self.root_settings.shell(),
                 can_close: !cfg!(target_arch = "wasm32"),
-                runs_programs: wayland::running(),
             },
             invite: self.invite_open.then(|| ui::InviteView {
                 workspace: workspace_name,
@@ -2502,8 +2495,6 @@ impl BlockApp {
                 sent: self.invite_sent,
             }),
             about: self.about_open,
-            launcher: self.launcher.open(),
-            programs: self.launcher.items(),
             app_menu: self.app_menu_open,
             discard: self.pending_destructive_action.as_ref().map(discard_view),
             presenting: self

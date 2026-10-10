@@ -7,7 +7,7 @@ use std::{
 use beui::reactive::{
     BackHandler, Canvas, CanvasItem, Drawing, Embed, EmbedPlacement, EmbedSlot, ForEach, Frame,
     Interactive, Layers, List, Memo, NodeRef, Prop, Show, clone, component, create_effect,
-    create_memo, draw_gpu, on_cleanup, use_context, use_screens, view,
+    create_memo, draw_gpu, on_cleanup, try_with_document, untrack, use_context, use_screens, view,
 };
 use beui::{Align, CursorIcon, ForwardedInput, ImeCursor, NodeId, Pos2, Rect, Region, Vec2, pos2};
 use block_plugin_api::{ChildId, EditorInstanceId, EditorRegion, FrameSpec, PluginManifest};
@@ -222,6 +222,8 @@ pub(crate) fn PluginRegion(
         intercepted,
         move || region == EditorRegion::Frame && block.is_some() && shell.get_untracked() == block,
     );
+    let catcher = NodeRef::new();
+    take_keyboard(&state, &catcher);
     let anchor = NodeRef::new();
     let ime = create_memo(clone!(state -> move || state.with(|view| view.ime.is_some())));
     let ime_cursor = create_memo(clone!(state anchor -> move || {
@@ -289,6 +291,7 @@ pub(crate) fn PluginRegion(
             />
             <BackHandler enabled={handles_back} on_gesture={back}>
                 <Interactive
+                    @node_ref={&catcher}
                     focusable=true
                     cursor={cursor}
                     ime={ime}
@@ -309,6 +312,38 @@ pub(crate) fn PluginRegion(
             <Drawing draw={floating} />
         </Layers>
     }
+}
+
+fn take_keyboard(state: &Memo<RegionView>, catcher: &NodeRef) {
+    let wants = create_memo(clone!(state -> move || state.with(|view| view.wants_keyboard)));
+    let before = Cell::new(None::<NodeId>);
+    let catcher = catcher.clone();
+    create_effect(move || {
+        let wanted = wants.get();
+        untrack(|| {
+            let Some(region) = catcher.try_get() else {
+                return;
+            };
+            try_with_document(|document| {
+                let focused = document.focused_node();
+                match wanted {
+                    true if focused != Some(region) => {
+                        before.set(focused);
+                        document.focus_focusable(region);
+                    }
+                    true => {}
+                    false => {
+                        let back = before.take().filter(|back| document.contains(*back));
+                        if let Some(back) = back
+                            && focused == Some(region)
+                        {
+                            document.focus_focusable(back);
+                        }
+                    }
+                }
+            });
+        });
+    });
 }
 
 #[component]

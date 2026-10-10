@@ -129,8 +129,7 @@ impl EditorMessage {
                     | BlockCommand::Artifact { .. }
                     | BlockCommand::SimulateAccess { .. }
                     | BlockCommand::CloseEditor
-                    | BlockCommand::AppMenu
-                    | BlockCommand::Launcher => {}
+                    | BlockCommand::AppMenu => {}
                 }
             }
             Self::PickRequested { filter, parent, .. } => {

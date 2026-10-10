@@ -105,6 +105,11 @@ impl Input {
                     repeat: press.repeat,
                 });
             }
+            Event::InterceptedTap(key) => {
+                output.push(InputEvent::InterceptedTap {
+                    key: protocol_key(key),
+                });
+            }
             _ => {}
         }
     }

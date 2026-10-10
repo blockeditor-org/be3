@@ -14,6 +14,7 @@ use block_editor_beui::utc_offset;
 use block_shell::Workspace;
 
 use super::calendar::{CALENDAR_WIDTH, DesktopCalendar};
+use super::launcher::ProgramLauncher;
 use super::notifications::NotificationsButton;
 use super::popup::BarPopup;
 use super::power::PowerMenu;
@@ -49,15 +50,14 @@ fn wall_clock() -> ReadSignal<String> {
 }
 
 #[component]
-pub(crate) fn DesktopBar(workspace: Rc<Workspace>) -> NodeId {
+pub(crate) fn DesktopBar(workspace: Rc<Workspace>, launcher: ProgramLauncher) -> NodeId {
     let theme = use_theme();
     let clock = wall_clock();
     let editor = workspace.editor().clone();
     let power = editor.clone();
     let notified = editor.clone();
     let dated = editor.clone();
-    let launching = editor.clone();
-    let launcher = move || launching.host().show_launcher(launching.block_id());
+    let launcher = move || launcher.show(true);
     let menu = move || editor.host().show_app_menu(editor.block_id());
     let sessions = Sessions::new(&workspace);
     let listed = sessions.listed.clone();

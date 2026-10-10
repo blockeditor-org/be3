@@ -17,13 +17,22 @@ pub(super) fn intercept_keys(
     let held = Rc::new(Cell::new(Modifiers::NONE));
     on_global_key(clone!(plugin_id held -> move |global: GlobalKeyPress| {
         let press = global.press;
+        if global.tap {
+            let asked = chords.with_untracked(|chords| {
+                chords.iter().any(|chord| chord.tap && chord.key == press.key)
+            });
+            if asked && allowed() {
+                plugin_host::intercept_tap(&plugin_id, instance, region, press.key);
+            }
+            return false;
+        }
         if !global.held {
             let asked = chords.with_untracked(|chords| {
                 chords
                     .iter()
                     .any(|chord| chord.matches(press) && (chord.modifiers.command() || chord.key.is_media()))
             });
-            if !press.pressed || global.tap || !asked || !allowed() {
+            if !press.pressed || !asked || !allowed() {
                 return false;
             }
             held.set(press.modifiers);

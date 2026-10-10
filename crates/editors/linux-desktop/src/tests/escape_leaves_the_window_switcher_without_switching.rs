@@ -4,10 +4,7 @@ use super::*;
 fn escape_leaves_the_window_switcher_without_switching() {
     let mut fixture = Fixture::with_windows(&[1, 2, 3]);
     let alt = Modifiers::ALT;
-    let escape = KeyChord {
-        key: Key::Escape,
-        modifiers: alt,
-    };
+    let escape = KeyChord::new(Key::Escape, alt);
     assert!(
         !fixture.test.intercepted_keys().contains(&escape),
         "a program keeps Alt+Escape while nothing is being switched"

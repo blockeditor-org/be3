@@ -5,8 +5,8 @@ use block_editor_beui::be_block::{
 use block_editor_beui::beui::{Document, Key, KeyChord, Modifiers, NodeId, Rect};
 use block_editor_beui::{
     BlockInfo, BlockParent, ChildContent, Editor, EditorHost, HostWindow, HostWindowId,
-    HostWindows, Media, MediaLevel, MediaLevels, MediaRequest, PlayerCommand, Power, PowerAction,
-    PowerAvailability, WindowAction,
+    HostImage, HostProgram, HostWindows, Media, MediaLevel, MediaLevels, MediaRequest, PlayerCommand, Power, PowerAction,
+    PowerAvailability, ProgramAction, Programs, WindowAction,
 };
 use block_plugin_api::Size;
 use block_ui_test::BeuiTest;
@@ -19,6 +19,8 @@ mod a_block_shown_on_the_desktop_opens_in_its_own_window;
 mod a_calendar_the_desktop_no_longer_holds_is_replaced;
 mod a_first_desktop_with_no_sessions_offers_a_new_one;
 mod a_held_volume_key_keeps_turning_the_volume;
+mod a_query_no_program_matches_runs_as_a_command;
+mod a_super_tap_toggles_the_launcher_even_from_a_program_with_the_keyboard;
 mod a_session_chosen_from_the_menu_opens_in_a_window_and_closing_it_keeps_the_session;
 mod a_volume_key_shows_the_level_the_host_reports_until_it_fades;
 mod a_window_the_host_focuses_leads_the_window_switcher;
@@ -32,7 +34,7 @@ mod the_notifications_button_lists_what_arrived_and_answers_it;
 mod the_power_menu_asks_before_ending_the_session;
 mod the_power_menu_locks_the_screen_without_asking;
 mod the_power_menu_offers_only_what_the_host_allows;
-mod the_programs_button_asks_the_host_for_its_launcher;
+mod the_programs_button_opens_the_launcher_on_the_programs_the_host_lists;
 mod the_volume_shows_on_every_monitor;
 
 const MAX_TAB: u64 = 64;
@@ -210,6 +212,36 @@ fn host_window(id: u64, focused: bool) -> HostWindow {
         responding: true,
         focused,
     }
+}
+
+fn programs() -> Vec<HostProgram> {
+    const SIDE: u32 = 32;
+    let icon = (0..SIDE * SIDE).flat_map(|at| match (at % SIDE + at / SIDE) % 8 < 4 {
+        true => [0x2e, 0x7d, 0x32, 0xff],
+        false => [0x1b, 0x5e, 0x20, 0xff],
+    });
+    vec![
+        HostProgram {
+            id: "files.desktop".to_owned(),
+            name: "Files".to_owned(),
+            generic_name: "File Manager".to_owned(),
+            comment: String::new(),
+            keywords: vec!["folder".to_owned()],
+            icon: None,
+        },
+        HostProgram {
+            id: "foot.desktop".to_owned(),
+            name: "Foot".to_owned(),
+            generic_name: "Terminal".to_owned(),
+            comment: "A fast terminal emulator".to_owned(),
+            keywords: vec!["shell".to_owned()],
+            icon: Some(HostImage {
+                width: SIDE,
+                height: SIDE,
+                rgba: icon.collect(),
+            }),
+        },
+    ]
 }
 
 fn window_tab(id: u64) -> u64 {

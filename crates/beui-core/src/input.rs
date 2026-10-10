@@ -204,11 +204,28 @@ pub struct KeyPress {
 pub struct KeyChord {
     pub key: Key,
     pub modifiers: Modifiers,
+    pub tap: bool,
 }
 
 impl KeyChord {
+    pub const fn new(key: Key, modifiers: Modifiers) -> Self {
+        Self {
+            key,
+            modifiers,
+            tap: false,
+        }
+    }
+
+    pub const fn tap(key: Key) -> Self {
+        Self {
+            key,
+            modifiers: Modifiers::NONE,
+            tap: true,
+        }
+    }
+
     pub fn matches(self, press: KeyPress) -> bool {
-        press.key == self.key && press.modifiers == self.modifiers
+        !self.tap && press.key == self.key && press.modifiers == self.modifiers
     }
 }
 
@@ -357,6 +374,7 @@ pub enum Event {
     FileDropped(DroppedFile),
     Back(BackGesture),
     InterceptedKey(KeyPress),
+    InterceptedTap(Key),
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]

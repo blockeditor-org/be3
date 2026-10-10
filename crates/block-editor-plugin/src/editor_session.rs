@@ -973,6 +973,7 @@ impl EditorSession {
                     })
                     .collect(),
                 handles_back: frame.handles_back,
+                wants_keyboard: frame.wants_keyboard,
                 intercepted_keys: frame.intercepted_keys.clone(),
             });
         }

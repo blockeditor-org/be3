@@ -1064,6 +1064,12 @@ impl<A: BeuiApp> BeuiTest<A> {
             .is_some_and(|report| report.handles_back)
     }
 
+    pub fn wants_keyboard(&self) -> bool {
+        self.report
+            .as_ref()
+            .is_some_and(|report| report.wants_keyboard)
+    }
+
     pub fn intercepted_keys(&self) -> Vec<KeyChord> {
         self.report
             .iter()
@@ -1077,8 +1083,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn hold_app_key(&mut self, modifiers: Modifiers, key: Key, repeats: usize) -> bool {
-        let chord = KeyChord { key, modifiers };
-        if !self.intercepted_keys().contains(&chord) {
+        if !self.intercepted_keys().contains(&KeyChord::new(key, modifiers)) {
             return false;
         }
         let presses = std::iter::once((true, false))
@@ -1092,6 +1097,14 @@ impl<A: BeuiApp> BeuiTest<A> {
                 modifiers,
             }));
         }
+        true
+    }
+
+    pub fn app_tap(&mut self, key: Key) -> bool {
+        if !self.intercepted_keys().contains(&KeyChord::tap(key)) {
+            return false;
+        }
+        self.push(Event::InterceptedTap(key));
         true
     }
 
