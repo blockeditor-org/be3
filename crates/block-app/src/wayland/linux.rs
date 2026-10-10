@@ -143,6 +143,10 @@ pub(crate) fn set_locked(locked: bool) {
     with(|running| running.compositor.set_locked(locked));
 }
 
+pub(crate) fn set_primary_selection(on: bool) {
+    with(|running| running.compositor.set_primary_selection(on));
+}
+
 pub(crate) fn set_keyboard(keyboard: &be_wayland::KeyboardConfig) -> bool {
     with(|running| running.compositor.set_keyboard(keyboard)).unwrap_or(true)
 }

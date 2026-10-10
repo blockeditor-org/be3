@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 use accesskit::{ActionRequest, TreeUpdate};
 
 use crate::accessibility::{self, Fragment};
+use crate::clipboard::ClipboardReadId;
 use crate::damage::{self, Region};
 use crate::display::{Display, Layer};
 use crate::file_picker::{FileFilter, FilePick, FilePickId, FilePickRequest};
@@ -39,6 +40,10 @@ struct Inner {
     ambiguous_test_ids: RefCell<HashSet<String>>,
     copied_text: RefCell<Option<String>>,
     paste_requested: Cell<bool>,
+    copy_watchers: RefCell<Vec<Rc<dyn Fn(&str)>>>,
+    clipboard_read_requests: RefCell<Vec<ClipboardReadId>>,
+    clipboard_reads: RefCell<Vec<(ClipboardReadId, Option<String>)>>,
+    next_clipboard_read: Cell<u64>,
     file_pick_requests: RefCell<Vec<FilePickRequest>>,
     file_picks: RefCell<Vec<(FilePickId, FilePick)>>,
     next_file_pick: Cell<u64>,
@@ -155,6 +160,7 @@ pub struct FrameOutput {
     pub pointer_locked: bool,
     pub copied_text: Option<String>,
     pub paste_requested: bool,
+    pub clipboard_reads: Vec<ClipboardReadId>,
     pub file_picks: Vec<FilePickRequest>,
     pub repaint: bool,
     pub repaint_after: Duration,
@@ -259,6 +265,10 @@ impl Context {
                 ambiguous_test_ids: RefCell::new(HashSet::new()),
                 copied_text: RefCell::new(None),
                 paste_requested: Cell::new(false),
+                copy_watchers: RefCell::new(Vec::new()),
+                clipboard_read_requests: RefCell::new(Vec::new()),
+                clipboard_reads: RefCell::new(Vec::new()),
+                next_clipboard_read: Cell::new(0),
                 file_pick_requests: RefCell::new(Vec::new()),
                 file_picks: RefCell::new(Vec::new()),
                 next_file_pick: Cell::new(0),
@@ -507,6 +517,14 @@ impl Context {
             pixels_per_point: scale,
             filter,
         });
+        drop(previous);
+        let copied_text = self.inner.copied_text.borrow_mut().take();
+        if let Some(text) = &copied_text {
+            let watchers = self.inner.copy_watchers.borrow().clone();
+            for watcher in watchers {
+                watcher(text);
+            }
+        }
         FrameOutput {
             layers,
             filter,
@@ -514,8 +532,9 @@ impl Context {
             moved,
             test_ids: std::mem::take(&mut *self.inner.test_ids.borrow_mut()),
             ambiguous_test_ids: std::mem::take(&mut *self.inner.ambiguous_test_ids.borrow_mut()),
-            copied_text: self.inner.copied_text.borrow_mut().take(),
+            copied_text,
             paste_requested: self.inner.paste_requested.replace(false),
+            clipboard_reads: std::mem::take(&mut *self.inner.clipboard_read_requests.borrow_mut()),
             file_picks: std::mem::take(&mut *self.inner.file_pick_requests.borrow_mut()),
             changed,
             repaint_after: self.inner.repaint_after.get(),
@@ -588,6 +607,27 @@ impl Context {
 
     pub fn request_paste(&self) {
         self.inner.paste_requested.set(true);
+    }
+
+    pub fn watch_copies(&self, watcher: impl Fn(&str) + 'static) {
+        self.inner.copy_watchers.borrow_mut().push(Rc::new(watcher));
+    }
+
+    pub fn read_clipboard(&self) -> ClipboardReadId {
+        let id = ClipboardReadId(self.inner.next_clipboard_read.get() + 1);
+        self.inner.next_clipboard_read.set(id.0);
+        self.inner.clipboard_read_requests.borrow_mut().push(id);
+        id
+    }
+
+    pub fn clipboard_read(&self, id: ClipboardReadId, text: Option<String>) {
+        self.inner.clipboard_reads.borrow_mut().push((id, text));
+    }
+
+    pub fn take_clipboard_read(&self, id: ClipboardReadId) -> Option<Option<String>> {
+        let mut reads = self.inner.clipboard_reads.borrow_mut();
+        let index = reads.iter().position(|(read, _)| *read == id)?;
+        Some(reads.remove(index).1)
     }
 
     pub fn pick_file(&self, filter: FileFilter) -> FilePickId {

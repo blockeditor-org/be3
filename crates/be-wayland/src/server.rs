@@ -75,6 +75,7 @@ impl Server {
                 .dispatch_single_client(&mut self.state, client);
         }
         self.state.release_blockers();
+        self.state.fetch_selection();
         self.state.cleanup();
         self.flush();
     }

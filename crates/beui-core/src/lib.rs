@@ -12,6 +12,7 @@ pub mod drag_board;
 pub mod draw;
 pub mod drawing;
 pub mod fade;
+pub mod clipboard;
 pub mod file_picker;
 pub mod filter;
 pub mod flash;

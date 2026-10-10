@@ -49,6 +49,7 @@ pub struct Compositor {
     input_frames: u64,
     forced: bool,
     locked: bool,
+    clipboard: clipboard::Clipboard,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -78,6 +79,7 @@ impl Compositor {
             input_frames: 0,
             forced: false,
             locked: false,
+            clipboard: clipboard::Clipboard::default(),
         }
     }
 
@@ -269,6 +271,7 @@ impl Compositor {
 
     fn receive(&mut self, context: &Context, document: &mut Document) {
         self.server.dispatch();
+        self.sync_clipboard(context);
         self.watch_pings(context);
         let events = self.server.state.take_events();
         for surface in self.server.state.take_committed() {
@@ -735,6 +738,8 @@ fn cursor_icon(icon: smithay::input::pointer::CursorIcon) -> CursorIcon {
         _ => CursorIcon::Default,
     }
 }
+
+mod clipboard;
 
 #[cfg(test)]
 mod tests;

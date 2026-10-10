@@ -63,6 +63,11 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
         (settings.clone(), settings.clone(), settings.clone());
     let (set_delay, set_rate) = (settings.clone(), settings.clone());
     let pointers_off = read_only.clone();
+    let paste = settings.project(|content| content.root().middle_click_paste);
+    let paste_on = create_memo(clone!(paste -> move || paste.get().unwrap_or(false)));
+    let paste_unset = create_memo(move || paste.get().is_none());
+    let set_paste = settings.clone();
+    let paste_off = read_only.clone();
     let theme = use_theme();
     view! {
         <Frame color={theme.background.clone()}>
@@ -132,6 +137,21 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
                             devices={devices}
                             read_only={pointers_off}
                         />
+                        <List spacing=ROW_SPACING>
+                            <Heading content="Programs" />
+                            <SwitchSetting
+                                label="Middle-click paste"
+                                on={paste_on}
+                                mixed={create_memo(|| false)}
+                                unset={paste_unset}
+                                read_only={paste_off}
+                                id={"middle-click-paste".to_owned()}
+                                on_change={move |on: Option<bool>| {
+                                    set_paste.operate(InputSettings::set_middle_click_paste(on))
+                                }}
+                            />
+                            <Caption content="Lets programs paste the text last selected in them with the middle button. Programs started after it changes follow it." />
+                        </List>
                     </List>
                 </Frame>
             </Scroll>

@@ -3,6 +3,7 @@ mod decoration;
 mod idle;
 pub mod programs;
 mod render;
+mod selection;
 mod server;
 mod state;
 mod view;
