@@ -7,6 +7,7 @@ pub use accesskit;
 pub use beui_components_styled as styled;
 pub use beui_components_unstyled as unstyled;
 pub use beui_components_unstyled::datetime;
+pub use beui_core::app::automation;
 pub use beui_core::app::{App, Setup, Waker};
 pub use beui_core::base::{
     Align, Direction, ImeCursor, ItemSize, Justify, ScrollPosition, Sides, Sizing, Track,
@@ -74,6 +75,12 @@ pub use window::{WindowRenderer, run_on, run_with, run_with_renderers, window_ad
 
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]
 mod window;
+
+#[cfg(all(feature = "window", not(target_arch = "wasm32")))]
+pub use headless::Headless;
+
+#[cfg(all(feature = "window", not(target_arch = "wasm32")))]
+mod headless;
 
 pub mod reactive {
     pub use beui_components_unstyled::Button;

@@ -12,6 +12,14 @@ pub struct AccessibilityDump {
     root: Option<NodeId>,
     focus: Option<NodeId>,
     written: String,
+    lines: Vec<Line>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Line {
+    pub text: String,
+    pub bounds: Option<crate::geometry::Rect>,
+    pub visible: bool,
 }
 
 impl AccessibilityDump {
@@ -23,6 +31,7 @@ impl AccessibilityDump {
             root: None,
             focus: None,
             written: String::new(),
+            lines: Vec::new(),
         }
     }
 
@@ -34,6 +43,7 @@ impl AccessibilityDump {
             root: None,
             focus: None,
             written: String::new(),
+            lines: Vec::new(),
         }
     }
 
@@ -48,6 +58,7 @@ impl AccessibilityDump {
         };
         let mut reached = HashSet::new();
         let mut text = String::new();
+        let mut lines = Vec::new();
         let everywhere = Rect::new(f64::MIN, f64::MIN, f64::MAX, f64::MAX);
         self.render(
             root,
@@ -56,8 +67,10 @@ impl AccessibilityDump {
             0,
             &mut reached,
             &mut text,
+            &mut lines,
         );
         self.nodes.retain(|id, _| reached.contains(id));
+        self.lines = lines;
         if text == self.written {
             return;
         }
@@ -80,6 +93,10 @@ impl AccessibilityDump {
         &self.written
     }
 
+    pub fn lines(&self) -> &[Line] {
+        &self.lines
+    }
+
     fn render(
         &self,
         id: NodeId,
@@ -88,6 +105,7 @@ impl AccessibilityDump {
         depth: usize,
         reached: &mut HashSet<NodeId>,
         text: &mut String,
+        lines: &mut Vec<Line>,
     ) {
         if !reached.insert(id) {
             return;
@@ -103,6 +121,8 @@ impl AccessibilityDump {
         let value = node.value().filter(|value| !value.is_empty());
         let shown = node.role() != Role::GenericContainer || label.is_some() || value.is_some();
         if shown {
+            let start = text.len();
+            let mut visible_part = true;
             let _ = write!(text, "{}{:?}", "  ".repeat(depth), node.role());
             if let Some(label) = label {
                 let _ = write!(text, " {label:?}");
@@ -131,10 +151,21 @@ impl AccessibilityDump {
                 let visible = clip.intersect(rect).area();
                 if visible <= 0.0 && rect.area() > 0.0 {
                     text.push_str(" offscreen");
+                    visible_part = false;
                 } else if visible < rect.area() {
                     text.push_str(" partly offscreen");
                 }
             }
+            lines.push(Line {
+                text: text[start..].trim_start().to_owned(),
+                bounds: rect.map(|rect| {
+                    crate::geometry::Rect::from_min_max(
+                        crate::geometry::pos2(rect.x0 as f32, rect.y0 as f32),
+                        crate::geometry::pos2(rect.x1 as f32, rect.y1 as f32),
+                    )
+                }),
+                visible: visible_part,
+            });
             text.push('\n');
         }
         let depth = depth + usize::from(shown);
@@ -145,7 +176,7 @@ impl AccessibilityDump {
             _ => clip,
         };
         for child in node.children() {
-            self.render(*child, transform, clip, depth, reached, text);
+            self.render(*child, transform, clip, depth, reached, text, lines);
         }
     }
 }

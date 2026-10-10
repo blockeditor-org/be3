@@ -7,6 +7,7 @@ use crate::geometry::{Rect, Vec2, pos2};
 use crate::input::{Event, TouchPhase};
 
 pub mod accessibility_dump;
+pub mod automation;
 pub mod ime_mirror;
 
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
@@ -42,6 +43,10 @@ pub trait App {
     }
 
     fn exiting(&mut self) {}
+
+    fn busy(&self) -> bool {
+        false
+    }
 }
 
 pub struct Setup {

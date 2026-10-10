@@ -681,6 +681,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-drive"
+version = "0.1.0"
+dependencies = [
+ "beui-core",
+ "image",
+]
+
+[[package]]
 name = "be-graph"
 version = "0.1.0"
 dependencies = [

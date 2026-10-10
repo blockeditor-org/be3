@@ -4,6 +4,7 @@ use std::sync::Arc;
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 use crate::app::Setup;
+use crate::app::automation::Capture;
 use crate::color::Color32;
 use crate::context::{Context, FrameOutput, RendererChoices, RendererInfo};
 use crate::font::FontBackend;
@@ -49,6 +50,10 @@ pub trait Renderer {
     fn prepare(&mut self, output: &FrameOutput, scale: f32, background: Color32) -> bool;
 
     fn present(&mut self, background: Color32) -> bool;
+
+    fn capture(&mut self) -> Option<Capture> {
+        None
+    }
 }
 
 pub struct Loaded {
@@ -175,6 +180,10 @@ impl Renderers {
 
     pub fn present(&mut self, background: Color32) -> bool {
         self.active_mut().present(background)
+    }
+
+    pub fn capture(&mut self) -> Option<Capture> {
+        self.active_mut().capture()
     }
 
     pub fn follow_choice(&mut self, context: &Context) -> Result<bool, Box<dyn Error>> {

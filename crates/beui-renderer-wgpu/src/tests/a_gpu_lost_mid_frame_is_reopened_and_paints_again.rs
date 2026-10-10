@@ -1,5 +1,5 @@
 use super::*;
-use crate::present::create_offscreen_gpu;
+use crate::present::create_offscreen;
 
 fn crowded(painter: &Painter) {
     for row in 0..SIZE * 2 {
@@ -21,7 +21,7 @@ fn a_gpu_lost_mid_frame_is_reopened_and_paints_again() {
         "the crowded frame outgrows the instance list the renderer starts with"
     );
     let mut gpu =
-        pollster::block_on(create_offscreen_gpu(FORMAT)).expect("no graphics adapter is available");
+        pollster::block_on(create_offscreen(FORMAT, None)).expect("no graphics adapter is available");
     let mut lost = Target::on(gpu.device.clone(), gpu.queue.clone(), FORMAT);
     gpu.device.destroy();
     let _ = gpu.device.poll(wgpu::PollType::wait_indefinitely());

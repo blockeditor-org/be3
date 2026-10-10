@@ -96,6 +96,10 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     panic_guard::install();
     let mut app = BlockApp::new(None).map_err(|error| error.to_string())?;
     let mut options = run_options();
+    let mut display = match session {
+        true => Display::Session,
+        false => Display::Window,
+    };
     for argument in arguments {
         if argument == "--dev-workspace" {
             app.open_dev_workspace(None);
@@ -104,11 +108,72 @@ pub fn run() -> Result<(), Box<dyn Error>> {
             app.run_as_desktop();
         } else if let Some(path) = argument.strip_prefix("--accessibility-tree=") {
             options.accessibility_dump = Some(PathBuf::from(path));
+        } else if let Some(path) = argument.strip_prefix("--automation=") {
+            options.automation = Some(automation(path)?);
+        } else if argument == "--headless" {
+            display = Display::Headless(options.size, 1.0);
+        } else if let Some(size) = argument.strip_prefix("--headless=") {
+            let (size, scale) = headless_size(size)
+                .ok_or_else(|| format!("--headless takes WIDTHxHEIGHT[@SCALE], not {size}"))?;
+            display = Display::Headless(size, scale);
         } else {
             return Err(format!("unknown argument {argument}").into());
         }
     }
-    run_shell(options, Shell::new(app), session)
+    if let Display::Headless(size, scale) = display {
+        let headless = beui::Headless {
+            size,
+            scale,
+            open_device: open_device(),
+        };
+        return beui::run_on(Box::new(headless), options, Shell::new(app));
+    }
+    run_shell(options, Shell::new(app), matches!(display, Display::Session))
+}
+
+#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+enum Display {
+    Window,
+    Session,
+    Headless(beui::Vec2, f32),
+}
+
+#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+fn headless_size(text: &str) -> Option<(beui::Vec2, f32)> {
+    let (size, scale) = match text.split_once('@') {
+        Some((size, scale)) => (size, scale.parse::<f32>().ok().filter(|scale| *scale > 0.0)?),
+        None => (text, 1.0),
+    };
+    let (width, height) = size.split_once('x')?;
+    let size = beui::vec2(width.parse().ok()?, height.parse().ok()?);
+    (size.x >= 1.0 && size.y >= 1.0).then_some((size, scale))
+}
+
+#[cfg(target_os = "linux")]
+fn open_device() -> Option<beui::OpenDevice> {
+    Some(std::sync::Arc::new(be_dmabuf::open_device))
+}
+
+#[cfg(all(
+    not(target_os = "linux"),
+    not(target_os = "android"),
+    not(target_arch = "wasm32")
+))]
+fn open_device() -> Option<beui::OpenDevice> {
+    None
+}
+
+#[cfg(all(unix, not(target_os = "android"), not(target_arch = "wasm32")))]
+fn automation(path: &str) -> Result<beui::automation::Inbox, Box<dyn Error>> {
+    let inbox = beui::automation::Inbox::default();
+    beui::automation::socket::serve(std::path::Path::new(path), inbox.clone())
+        .map_err(|error| format!("could not listen on {path}: {error}"))?;
+    Ok(inbox)
+}
+
+#[cfg(all(not(unix), not(target_arch = "wasm32")))]
+fn automation(_path: &str) -> Result<beui::automation::Inbox, Box<dyn Error>> {
+    Err("--automation needs a Unix socket, which this platform lacks".into())
 }
 
 #[cfg(target_os = "linux")]
@@ -117,7 +182,7 @@ fn run_shell(options: beui::RunOptions, shell: Shell, session: bool) -> Result<(
         return beui::run_on(Box::new(beui_adapter_drm::Drm), options, shell);
     }
     let renderer = beui::WindowRenderer::Wgpu {
-        open_device: Some(std::sync::Arc::new(be_dmabuf::open_device)),
+        open_device: open_device(),
     };
     beui::run_with_renderers(options, vec![renderer], shell)
 }
@@ -297,6 +362,10 @@ impl beui::App for Shell {
 
     fn clear_color(&self) -> beui::Color32 {
         self.document.theme().background
+    }
+
+    fn busy(&self) -> bool {
+        plugin_host::busy()
     }
 
     fn close_requested(&mut self) -> bool {

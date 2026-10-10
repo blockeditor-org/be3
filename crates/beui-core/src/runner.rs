@@ -7,6 +7,7 @@ use std::time::Duration;
 use accesskit::TreeUpdate;
 
 use crate::app::accessibility_dump::AccessibilityDump;
+use crate::app::automation::{Automation, Inbox, Settled, View};
 use crate::app::{App, SafeArea, Setup, Waker, next_batch, safe_rect};
 use crate::context::{Context, FrameOutput};
 use crate::file_picker::FilePickRequest;
@@ -20,6 +21,7 @@ pub struct RunOptions {
     pub size: Vec2,
     pub accessibility_dump: Option<PathBuf>,
     pub accessibility_tree: bool,
+    pub automation: Option<Inbox>,
 }
 
 impl RunOptions {
@@ -30,6 +32,7 @@ impl RunOptions {
             size: Vec2::new(1280.0, 800.0),
             accessibility_dump: None,
             accessibility_tree: false,
+            automation: None,
         }
     }
 }
@@ -111,6 +114,9 @@ pub struct Runner {
     waker: Option<Waker>,
     events: Vec<Event>,
     accessibility: Option<AccessibilityDump>,
+    automation: Option<Automation>,
+    test_ids: std::collections::HashMap<String, crate::geometry::Rect>,
+    unpresented: bool,
     shown: Shown,
     output: Option<FrameOutput>,
     reports_screens: bool,
@@ -128,9 +134,12 @@ impl Runner {
         let dump = options.accessibility_dump.map(AccessibilityDump::new);
         #[cfg(target_arch = "wasm32")]
         let dump = None;
+        let automation = options.automation.map(Automation::new);
+        if automation.is_some() {
+            context.set_test_ids_published(true);
+        }
         let accessibility = dump.or_else(|| {
-            options
-                .accessibility_tree
+            (options.accessibility_tree || automation.is_some())
                 .then(AccessibilityDump::in_memory)
         });
         Self {
@@ -141,6 +150,9 @@ impl Runner {
             waker: None,
             events: Vec::new(),
             accessibility,
+            automation,
+            test_ids: std::collections::HashMap::new(),
+            unpresented: false,
             shown: Shown::default(),
             output: None,
             reports_screens: false,
@@ -161,6 +173,9 @@ impl Runner {
         renderers.provide(&mut setup);
         self.renderers = Some(renderers);
         self.waker = Some(setup.waker.clone());
+        if let Some(automation) = &self.automation {
+            automation.inbox().set_waker(setup.waker.clone());
+        }
         self.app.setup(&setup);
         Ok(())
     }
@@ -251,6 +266,17 @@ impl Runner {
             }
             None => {}
         }
+        if let Some(automation) = &mut self.automation
+            && let Some(dump) = &self.accessibility
+        {
+            let view = View {
+                lines: dump.lines(),
+                tree: dump.text(),
+                test_ids: &self.test_ids,
+                pixels_per_point: scale,
+            };
+            automation.begin(&view, &mut self.events);
+        }
         let raw = RawInput {
             events: next_batch(&mut self.events),
         };
@@ -307,13 +333,37 @@ impl Runner {
         }
 
         let pending = renderers.prepare(&output, scale, self.app.clear_color());
-        let frame = Frame {
+        let mut frame = Frame {
             pending,
             deferred: !self.events.is_empty(),
             repaint: output.repaint,
             repaint_after: output.repaint_after,
             close_requested: output.close_requested,
         };
+        self.unpresented |= pending;
+        if let Some(automation) = &mut self.automation
+            && let Some(dump) = &self.accessibility
+        {
+            self.test_ids.clone_from(output.test_ids());
+            let view = View {
+                lines: dump.lines(),
+                tree: dump.text(),
+                test_ids: &self.test_ids,
+                pixels_per_point: scale,
+            };
+            let settled = Settled {
+                busy: self.app.busy(),
+                again: frame.again(),
+            };
+            automation.end(&view, settled);
+            if automation.wants_frame() {
+                frame.repaint = true;
+                frame.repaint_after = Duration::ZERO;
+            }
+            if automation.wants_capture() && !self.unpresented {
+                automation.captured(renderers.capture());
+            }
+        }
         self.output = Some(output);
         Some(frame)
     }
@@ -323,8 +373,18 @@ impl Runner {
             return false;
         }
         let background = self.app.clear_color();
-        self.renderers
-            .as_mut()
-            .is_some_and(|renderers| renderers.present(background))
+        let Some(renderers) = self.renderers.as_mut() else {
+            return false;
+        };
+        let again = renderers.present(background);
+        if !again {
+            self.unpresented = false;
+            if let Some(automation) = &mut self.automation
+                && automation.wants_capture()
+            {
+                automation.captured(renderers.capture());
+            }
+        }
+        again
     }
 }

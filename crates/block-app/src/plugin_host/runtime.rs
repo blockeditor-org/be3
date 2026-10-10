@@ -378,6 +378,19 @@ impl Runtime {
         self.error.is_none() && !self.backend.settled()
     }
 
+    fn busy(&mut self) -> bool {
+        if self.error.is_some() || !self.instances.has_mounted() {
+            return false;
+        }
+        let starting = matches!(
+            self.session.state(),
+            SessionState::Idle | SessionState::Starting
+        );
+        let drawing = self.session.granted_surface().is_some();
+        let awaited = drawing && (self.pacing.needed || self.pacing.requested_at.is_some());
+        starting || awaited || !self.backend.settled()
+    }
+
     fn request_frame(&mut self) {
         if self.error.is_some() {
             return;
@@ -907,6 +920,15 @@ pub(crate) fn settle() {
         host.waited += started.elapsed();
         host.over_budget += u64::from(over);
     });
+}
+
+pub(crate) fn busy() -> bool {
+    HOST.with(|host| {
+        host.borrow_mut()
+            .runtimes
+            .values_mut()
+            .any(Runtime::busy)
+    })
 }
 
 pub(crate) fn start_frames() {

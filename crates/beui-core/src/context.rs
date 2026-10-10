@@ -196,6 +196,10 @@ impl FrameOutput {
         bounds.is_positive().then_some(bounds)
     }
 
+    pub fn test_ids(&self) -> &HashMap<String, Rect> {
+        &self.test_ids
+    }
+
     pub fn test_id_rect(&self, test_id: &str) -> Option<Rect> {
         if self.ambiguous_test_ids.contains(test_id) {
             panic!("test id {test_id:?} names more than one node on screen; give each its own id");
