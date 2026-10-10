@@ -28,6 +28,8 @@ mod root_settings;
 mod session;
 mod shell_route;
 mod surfaces;
+#[cfg(target_os = "linux")]
+mod tray;
 mod ui;
 mod wayland;
 
@@ -351,6 +353,7 @@ impl beui::App for Shell {
         {
             self.app.media = None;
             self.app.notifications = None;
+            self.app.tray = None;
             self.app.desktop = None;
         }
         be::flush();
@@ -437,6 +440,8 @@ struct BlockApp {
     media: Option<media::Media>,
     #[cfg(target_os = "linux")]
     notifications: Option<notifications::Notifications>,
+    #[cfg(target_os = "linux")]
+    tray: Option<tray::Tray>,
 }
 
 type Account = SavedAccount;
@@ -628,6 +633,8 @@ impl BlockApp {
             media: None,
             #[cfg(target_os = "linux")]
             notifications: None,
+            #[cfg(target_os = "linux")]
+            tray: None,
         })
     }
 
@@ -640,6 +647,9 @@ impl BlockApp {
             if self.notifications.is_none() {
                 self.notifications = Some(notifications::Notifications::start());
             }
+            if self.tray.is_none() {
+                self.tray = Some(tray::Tray::start());
+            }
         }
     }
 
@@ -647,6 +657,9 @@ impl BlockApp {
     fn run_notifications(&mut self) {
         if let Some(notifications) = &mut self.notifications {
             notifications.frame();
+        }
+        if let Some(tray) = &mut self.tray {
+            tray.frame();
         }
     }
 

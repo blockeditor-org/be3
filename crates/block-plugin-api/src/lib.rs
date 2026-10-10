@@ -15,7 +15,8 @@ pub use linux::{
     MediaLevel, MediaLevels, MediaRequest, NotificationCloseReason, NotificationInbox,
     NotificationReport, NotificationRequest, NotificationSignal, NotificationUrgency,
     Notifications, PlayerCommand, Power, PowerAction, PowerAvailability, ProgramAction, Programs,
-    ScreenLocked, WindowAction,
+    ScreenLocked, Tray, TrayMenuEntry, TrayRequest, TrayStatus, TrayToggle, HostTrayItem,
+    WindowAction,
 };
 pub use manifest::{
     EditorDocument, ManifestDocument, TemplateDocument, Templates, manifest_from_json,
