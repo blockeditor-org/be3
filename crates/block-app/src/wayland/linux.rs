@@ -195,6 +195,7 @@ pub(crate) fn listed() -> Vec<HostWindow> {
             }),
             responding: info.responding,
             focused: windows.focused() == Some(info.id),
+            raised: windows.raised(info.id),
         })
         .collect()
 }

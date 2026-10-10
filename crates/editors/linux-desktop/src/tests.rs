@@ -282,6 +282,7 @@ fn host_window(id: u64, focused: bool) -> HostWindow {
         fullscreen: None,
         responding: true,
         focused,
+        raised: 0,
     }
 }
 

@@ -30,6 +30,8 @@ use wayland_protocols::wp::idle_inhibit::zv1::client::{
     zwp_idle_inhibit_manager_v1, zwp_idle_inhibitor_v1,
 };
 
+use wayland_protocols::xdg::activation::v1::client::{xdg_activation_token_v1, xdg_activation_v1};
+
 const ARGB8888: u32 = u32::from_le_bytes(*b"AR24");
 use crate::state::{ServerEvent, WindowId};
 
@@ -67,6 +69,7 @@ pub(crate) struct Received {
     pub(crate) ignores_pings: bool,
     pub(crate) pings: Vec<u32>,
     pub(crate) idle: Vec<bool>,
+    pub(crate) token: Option<String>,
 }
 
 pub(crate) struct TestClient {
@@ -243,6 +246,27 @@ impl TestClient {
             true => notifier.get_input_idle_notification(timeout_ms, seat, &self.handle, ()),
             false => notifier.get_idle_notification(timeout_ms, seat, &self.handle, ()),
         }
+    }
+
+    pub(crate) fn request_token(
+        &self,
+        serial: Option<u32>,
+        surface: Option<&wl_surface::WlSurface>,
+    ) {
+        let activation: xdg_activation_v1::XdgActivationV1 = self.bind("xdg_activation_v1", 1);
+        let token = activation.get_activation_token(&self.handle, ());
+        if let Some(serial) = serial {
+            token.set_serial(serial, self.seat.as_ref().unwrap());
+        }
+        if let Some(surface) = surface {
+            token.set_surface(surface);
+        }
+        token.commit();
+    }
+
+    pub(crate) fn activate(&self, token: &str, surface: &wl_surface::WlSurface) {
+        let activation: xdg_activation_v1::XdgActivationV1 = self.bind("xdg_activation_v1", 1);
+        activation.activate(token.to_owned(), surface);
     }
 
     pub(crate) fn flush(&mut self) {
@@ -714,3 +738,19 @@ impl Dispatch<xdg_popup::XdgPopup, ()> for Received {
 }
 
 pub(crate) use be_dmabuf::testing::{pattern, read, vulkan_device};
+
+wayland_client::delegate_noop!(Received: ignore xdg_activation_v1::XdgActivationV1);
+impl Dispatch<xdg_activation_token_v1::XdgActivationTokenV1, ()> for Received {
+    fn event(
+        received: &mut Self,
+        _: &xdg_activation_token_v1::XdgActivationTokenV1,
+        event: xdg_activation_token_v1::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let xdg_activation_token_v1::Event::Done { token } = event {
+            received.token = Some(token);
+        }
+    }
+}

@@ -217,6 +217,17 @@ goes to, and `Compositor::after` turns what each window was forwarded into `wl_p
 window (a floating window's tab, say) the window takes nothing (`occluders`, from the region's
 occlusion), and a press keeps going to the window or plugin it began on until it is let go.
 
+A program brings one of its windows forward, or another program's (a link opened in a browser
+that is already running), with `xdg_activation_v1` (be-wayland's `activation.rs`). A client is
+given a token only while it has the keyboard and only for the serial of an input event since it
+got it; the token works once, within `TOKEN_LIFETIME` on the frame clock, and only while the
+keyboard is still where it was when the token was made. Every program the compositor starts
+(`Windows::run`, which the launcher and `ProgramAction::Run` use) gets a fresh token of the
+compositor's own as `XDG_ACTIVATION_TOKEN` and `DESKTOP_STARTUP_ID`, honoured whatever has the
+keyboard. An honoured request goes through `Windows::activate`, as `WindowAction::Focus` does,
+which bumps the window's `raised` count so the shell shows its tab. Anything else is ignored;
+the dock has no way yet to mark a tab as wanting attention.
+
 The compositor pings a window's client when it is clicked, typed into, focused or asked to
 close, and a client that has not answered within `PING_TIMEOUT` (be-wayland's `state.rs`) is listed as
 not responding: its window is dimmed and its tab offers Wait and Force close. Closing a window

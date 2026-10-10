@@ -205,10 +205,11 @@ impl Compositor {
             .map(|name| name.to_string_lossy().into_owned())
     }
 
-    fn launch(&mut self, launch: &Launch) {
+    fn launch(&mut self, launch: &Launch, now: Instant) {
         let Some((program, arguments)) = launch.arguments.split_first() else {
             return;
         };
+        let token = self.server.state.activation.launch_token(now);
         let mut process = Process::new(program);
         if let Some(dir) = &launch.working_dir {
             process.current_dir(dir);
@@ -216,6 +217,8 @@ impl Compositor {
         process
             .args(arguments)
             .env("WAYLAND_DISPLAY", self.socket().unwrap_or_default())
+            .env("XDG_ACTIVATION_TOKEN", &token)
+            .env("DESKTOP_STARTUP_ID", &token)
             .env_remove("DISPLAY")
             .env_remove("BEUI_AUTOMATION")
             .env_remove("BEUI_HEADLESS")
@@ -268,6 +271,7 @@ impl Compositor {
     }
 
     fn receive(&mut self, context: &Context, document: &mut Document) {
+        self.server.state.activation.tick(context.now());
         self.server.dispatch();
         self.watch_pings(context);
         let events = self.server.state.take_events();
@@ -278,6 +282,7 @@ impl Compositor {
         let mut redraw = Vec::new();
         let mut changed = false;
         let mut fullscreen = Vec::new();
+        let mut activated = None;
         let windows = self.windows.clone();
         with_reactive_scope(document, || {
             for event in events {
@@ -289,6 +294,7 @@ impl Compositor {
                     }
                     ServerEvent::Titled(..) | ServerEvent::Changed(_) => changed = true,
                     ServerEvent::Fullscreen(id, on) => fullscreen.push((id, on)),
+                    ServerEvent::Activated(id) => activated = Some(id),
                     ServerEvent::Committed(id) => {
                         if !windows.listed(id) {
                             changed = true;
@@ -302,6 +308,9 @@ impl Compositor {
         });
         for (id, on) in fullscreen {
             self.set_fullscreen(id, on);
+        }
+        if let Some(id) = activated {
+            self.windows.activate(id);
         }
         let open = self.server.state.windows();
         self.configured.retain(|id, _| open.contains(id));
@@ -541,7 +550,7 @@ impl Compositor {
                     self.server.state.ping(id, now);
                 }
                 Command::Close(id) => self.force_close(id),
-                Command::Launch(launch) => self.launch(&launch),
+                Command::Launch(launch) => self.launch(&launch, now),
             }
         }
         for id in self.windows.take_painted() {
