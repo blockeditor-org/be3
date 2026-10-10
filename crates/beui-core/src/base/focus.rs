@@ -369,6 +369,10 @@ impl Document {
         self.composed.clear();
         self.cancel_focus_activation();
         self.focused = new_focus;
+        self.focus_before = old;
+        if let Some(new) = new_focus {
+            self.note_focus_outside_overlays(new);
+        }
         self.keyboard_held = new_focus.is_some_and(|focused| {
             self.contains(focused)
                 && focus_of(self.arena.get(focused)).is_some_and(|node| !node.keyboard_on_focus)

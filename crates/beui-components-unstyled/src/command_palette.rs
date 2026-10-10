@@ -1,4 +1,4 @@
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use accesskit::{Node, Role};
@@ -42,7 +42,6 @@ struct State {
     set_highlighted: WriteSignal<Option<u64>>,
     searching: ReadSignal<bool>,
     set_searching: WriteSignal<bool>,
-    returning: Cell<Option<NodeId>>,
     rows: RefCell<Vec<(u64, NodeRef)>>,
     on_close: ClickCallback,
 }
@@ -86,7 +85,6 @@ pub fn CommandPalette(
         set_highlighted,
         searching: searching.clone(),
         set_searching,
-        returning: Cell::new(None),
         rows: RefCell::new(Vec::new()),
         on_close,
     });
@@ -229,9 +227,7 @@ fn find(state: &State, key: u64) -> Option<Action> {
 }
 
 fn start(state: &State) {
-    let (focused, path) =
-        with_document(|document| (document.focused_node(), document.focus_ancestry()));
-    state.returning.set(focused);
+    let path = with_document(|document| document.focus_ancestry());
     let mut actions = active_actions_from(&path);
     actions.sort_by_key(|action| !action.is_enabled());
     *state.actions.borrow_mut() = actions;
@@ -244,16 +240,10 @@ fn start(state: &State) {
 fn close(state: &State) {
     state.set_searching.set(false);
     state.on_close.call();
-    let returning = state.returning.take();
     let overlay = state.overlay.try_get();
     with_document(|document| {
         if let Some(overlay) = overlay.and_then(|id| document.arena.kind_of::<OverlayNode>(id)) {
             document.close_overlay(overlay);
-        }
-        if returning.is_some_and(|node| document.contains(node)) {
-            document.update_focus(returning);
-        } else {
-            document.update_focus(None);
         }
     });
 }
