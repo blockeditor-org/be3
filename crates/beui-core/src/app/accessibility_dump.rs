@@ -87,7 +87,16 @@ impl AccessibilityDump {
             .bounds()
             .map(|bounds| transform.transform_rect_bbox(bounds));
         let label = node.label().filter(|label| !label.is_empty());
-        let value = node.value().filter(|value| !value.is_empty());
+        let numeric = node.numeric_value().map(|value| {
+            let value = (value * 1000.0).round() / 1000.0;
+            value.to_string()
+        });
+        let value = node
+            .value()
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+            .or(numeric);
+        let value = value.as_deref();
         let shown = node.role() != Role::GenericContainer || label.is_some() || value.is_some();
         if shown {
             let start = text.len();

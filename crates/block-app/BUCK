@@ -1,5 +1,6 @@
 load("@root//buck/android:defs.bzl", "android_apk", "signed_apk")
 load("@root//buck/app:defs.bzl", "app")
+load("@root//buck/app:drive.bzl", "headless")
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test", "editor_packages")
 load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
 load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_app_module")
@@ -151,7 +152,7 @@ command_alias(
 )
 
 # The web app served here and open in a headless Chromium for an agent to
-# drive, signed in with a workspace open: guides/running_the_web_app.md.
+# drive, signed in with a workspace open: guides/running/web.md.
 command_alias(
     name = "web-dev",
     args = [
@@ -261,7 +262,7 @@ export_file(
 
 # The app with its plugins installed under /usr/local (or the prefix given after
 # `--`), with a wayland-sessions entry that runs it with --session, for a
-# display manager to offer on its login screen: guides/running_the_app.md.
+# display manager to offer on its login screen: guides/linux_desktop.md.
 command_alias(
     name = "install-session",
     args = [
@@ -271,13 +272,11 @@ command_alias(
 )
 
 # The app headless for an agent to drive, signed in with a workspace open:
-# guides/running_the_app.md.
-command_alias(
+# guides/running/drive.md.
+headless(
     name = "dev",
-    args = [
-        "$(location //crates/be-drive:be-drive-bin)",
-        "launch",
-        "$(location :app)/block-app",
-        "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
-    ],
+    app_name = "dev",
+    args = ["--dev-workspace"],
+    data = True,
+    program = "$(location :app)/block-app",
 )

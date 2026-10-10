@@ -1573,13 +1573,17 @@ reaches the field it was typed into, however many events arrive between two
 frames.
 
 `RunOptions::automation` hands the runner an `automation::Inbox` of commands
-from a driver: block-app serves one on a Unix socket for `drive`
-(guides/running_the_app.md), and its web build through its `automate` export.
-The runner keeps the accessibility tree as text, publishes test ids, takes the
-next command at the start of a frame, turns input commands into `Event`s
-(`automation/keys.rs` names the keys), and answers once a frame asks for no
-other and the app is not `busy`. `Renderer::capture` reads the presented frame
-back for a screenshot.
+from a driver (guides/running/drive.md); the native run functions fill it
+from `BEUI_AUTOMATION` and switch to `beui::Headless` for `BEUI_HEADLESS`, and
+block-app's web build fills it from its `automate` export. The runner keeps the
+accessibility tree as text, publishes test ids and the action registry's
+actions, takes the next command at the start of a frame, turns input commands
+into `Event`s (`automation/keys.rs` names the keys), and answers once a frame
+asks for no other and the app is not `busy`. Under `Runner::simulate`, which
+the headless adapter calls, the runner is the window as well: it owns its size,
+scale, focus and clipboard, grows it to the screen for fullscreen, and holds
+file dialogs for a driver to answer. `Renderer::capture` reads the presented
+frame back for a screenshot.
 
 The web runner draws into the canvas it is given with WebGPU, or WebGL where
 the browser has no WebGPU. It reads the keyboard through a hidden text area,

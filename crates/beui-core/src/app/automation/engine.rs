@@ -50,7 +50,7 @@ Waiting:
   wait TEXT                 wait until a line of the tree contains TEXT
   gone TEXT                 wait until no line of the tree contains TEXT
   pause MILLISECONDS        let that much time pass, by the app's clock
-A TARGET is #TEST_ID, X,Y in the tree's pixels, or text found in exactly one line of the tree.
+A TARGET is #TEST_ID, X,Y or X,Y,WIDTH,HEIGHT in the tree's pixels, or text found in one line of the tree.
 Every command that gives input waits for the app to settle and answers with what changed in the tree.";
 
 pub struct View<'a> {

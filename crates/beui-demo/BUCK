@@ -1,3 +1,4 @@
+load("@root//buck/app:drive.bzl", "headless")
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library")
 load("@root//buck/wasm:defs.bzl", "plugin_tests")
 
@@ -12,3 +13,10 @@ cargo_binary(srcs = srcs)
 # wasm with the fonts beui carries, and run here so they can read and write
 # snapshots/.
 plugin_tests(srcs = srcs)
+
+# Headless for an agent to drive: guides/running/drive.md.
+headless(
+    name = "dev",
+    app_name = "beui-demo",
+    program = "$(location :demo)",
+)

@@ -10,6 +10,7 @@ use beui_core::app::automation::socket::{read_reply, write_request};
 use beui_core::app::automation::{Reply, USAGE};
 
 const TIMEOUT: Duration = Duration::from_secs(30);
+const ANSWER_GRACE: Duration = Duration::from_secs(5);
 
 fn main() -> ExitCode {
     match run(std::env::args().skip(1).collect()) {
@@ -50,6 +51,20 @@ fn run(mut arguments: Vec<String>) -> Result<(), String> {
     let socket = socket.ok_or(
         "BE_DRIVE_SOCKET is not set: source the env file the launcher printed, or pass --socket=PATH",
     )?;
+    let absolute = |path: &String| {
+        std::path::absolute(path)
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|_| path.clone())
+    };
+    match arguments[0].as_str() {
+        "upload" if arguments.len() > 1 => arguments[1] = absolute(&arguments[1]),
+        "drop" if arguments.len() > 2 => {
+            for file in &mut arguments[2..] {
+                *file = absolute(file);
+            }
+        }
+        _ => {}
+    }
     let mut file = None;
     if arguments[0] == "shot" {
         if arguments.len() < 2 {
@@ -83,10 +98,21 @@ fn run(mut arguments: Vec<String>) -> Result<(), String> {
 pub(crate) fn request(socket: &Path, words: &[String], timeout: Duration) -> Result<Reply, String> {
     let stream = UnixStream::connect(socket)
         .map_err(|error| format!("could not reach the app at {}: {error}", socket.display()))?;
+    let deadline = Some(timeout + ANSWER_GRACE);
+    stream
+        .set_read_timeout(deadline)
+        .and_then(|()| stream.set_write_timeout(deadline))
+        .map_err(|error| error.to_string())?;
     let mut writer = stream.try_clone().map_err(|error| error.to_string())?;
     write_request(&mut writer, words, timeout).map_err(|error| error.to_string())?;
     let reply = read_reply(&mut BufReader::new(stream))
-        .map_err(|error| format!("the app did not answer: {error}"))?;
+        .map_err(|error| match error.kind() {
+            std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut => format!(
+                "the app did not answer within {} seconds; is it stuck? Its log says more",
+                deadline.unwrap_or_default().as_secs()
+            ),
+            _ => format!("the app did not answer: {error}"),
+        })?;
     match reply {
         Reply::Error(error) => Err(error),
         reply => Ok(reply),

@@ -1,5 +1,5 @@
 load("@root//buck/cargo:defs.bzl", "cargo_binary")
 
-# Drives a running app through its automation socket: guides/running_the_app.md.
+# Drives a running app through its automation socket: guides/running/drive.md.
 
 cargo_binary()

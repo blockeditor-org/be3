@@ -1,5 +1,5 @@
 // Drives the page web-dev.sh opened, one command per run:
-// guides/running_the_web_app.md lists them.
+// guides/running/web.md lists them.
 
 import { createRequire } from "node:module";
 
@@ -118,6 +118,11 @@ switch (command) {
         await session.send("Browser.close").catch(() => {});
         break;
     }
+    case "drop":
+    case "dismiss":
+        console.error(`${command} needs a native headless app; the browser has no way to send it`);
+        process.exit(1);
+        break;
     default:
         process.stdout.write(await answer([command, ...rest]));
 }

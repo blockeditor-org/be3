@@ -1,7 +1,7 @@
 #!/bin/sh
 # Serves the web build and opens it in a headless Chromium for an agent to
 # drive, signed in to an account on its own be-server with a workspace open,
-# and returns once the page is up. guides/running_the_web_app.md says how to
+# and returns once the page is up. guides/running/web.md says how to
 # drive it.
 #
 #   ./scripts/buck run //crates/block-app:web-dev              start, or restart
@@ -104,7 +104,7 @@ fi
 drive size 1280 800
 cat <<INFO
 The web app is served on $url and open in a headless Chromium;
-guides/running_the_web_app.md says how to drive it.
+guides/running/web.md says how to drive it.
   source $dir/env    defines drive
   logs: $dir/browser.log (the page's and its workers' consoles), $dir/server.log
 INFO

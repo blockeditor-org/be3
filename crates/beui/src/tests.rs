@@ -67,7 +67,11 @@ mod a_drag_preview_follows_the_pointer_until_the_drop;
 mod a_drag_whose_moves_share_a_frame_with_its_press_and_release_keeps_both_ends;
 mod a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given;
 mod a_drawing_repaints_on_its_deadline_without_repeating_layout;
+mod a_driver_answers_a_file_dialog_with_a_file;
 mod a_driver_clicks_a_button_by_its_label_and_hears_what_changed;
+mod a_driver_holds_a_press_across_a_pause_and_taps_with_a_finger;
+mod a_driver_lists_and_runs_an_action;
+mod a_driver_resizes_a_headless_window_and_reads_its_state;
 mod a_driver_types_into_a_field_found_by_its_test_id;
 mod a_drop_the_dock_would_refuse_draws_no_drop_marker;
 mod a_dynamic_child_can_fill_its_available_height;
@@ -1948,7 +1952,7 @@ pub(crate) struct Driven {
     inbox: beui_core::app::automation::Inbox,
 }
 
-struct DrivenScreen;
+struct DrivenScreen(Vec2);
 
 impl beui_core::renderer::Renderer for DrivenScreen {
     fn name(&self) -> &'static str {
@@ -1959,10 +1963,12 @@ impl beui_core::renderer::Renderer for DrivenScreen {
         RendererInfo::default()
     }
 
-    fn resize(&mut self, _width: u32, _height: u32) {}
+    fn resize(&mut self, width: u32, height: u32) {
+        self.0 = Vec2::new(width as f32, height as f32);
+    }
 
     fn physical(&self) -> Option<Vec2> {
-        Some(VIEWPORT)
+        Some(self.0)
     }
 
     fn prepare(&mut self, output: &FrameOutput, _scale: f32, _background: Color32) -> bool {
@@ -1996,18 +2002,35 @@ impl App for DrivenDocument {
 
 impl Driven {
     pub(crate) fn new(document: Document) -> Self {
+        Self::with_app(DrivenDocument(document), false)
+    }
+
+    pub(crate) fn headless(document: Document) -> Self {
+        Self::with_app(DrivenDocument(document), true)
+    }
+
+    pub(crate) fn with_app(app: impl App + 'static, headless: bool) -> Self {
         let inbox = beui_core::app::automation::Inbox::default();
         let mut options = beui_core::runner::RunOptions::new("Driven");
         options.automation = Some(inbox.clone());
         let mut runner = beui_core::runner::Runner::new(beui_core::runner::Launch {
             options,
             context: context(),
-            app: Box::new(DrivenDocument(document)),
+            app: Box::new(app),
         });
+        if headless {
+            runner.simulate(beui_core::app::automation::Simulation::new(
+                beui_core::app::automation::WindowSize {
+                    size: VIEWPORT,
+                    scale: 1.0,
+                },
+                Some(WIDE_VIEWPORT),
+            ));
+        }
         runner
             .start(
                 vec![beui_core::renderer::Loaded {
-                    renderer: Box::new(DrivenScreen),
+                    renderer: Box::new(DrivenScreen(VIEWPORT)),
                     fonts: None,
                 }],
                 Setup::new(Waker::new(|| {})),

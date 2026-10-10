@@ -32,10 +32,16 @@ pub(crate) fn locate(
             .map(|rect| scaled(*rect, pixels_per_point))
             .ok_or_else(|| format!("no node on screen has the test id {id}; `ids` lists them"));
     }
-    if let Some((x, y)) = target.split_once(',')
-        && let (Ok(x), Ok(y)) = (x.trim().parse::<f32>(), y.trim().parse::<f32>())
-    {
-        return Ok(Rect::from_min_size(pos2(x, y), Vec2::ZERO));
+    let numbers: Option<Vec<f32>> = target
+        .split(',')
+        .map(|number| number.trim().parse::<f32>().ok())
+        .collect();
+    match numbers.as_deref() {
+        Some([x, y]) => return Ok(Rect::from_min_size(pos2(*x, *y), Vec2::ZERO)),
+        Some([x, y, width, height]) => {
+            return Ok(Rect::from_min_size(pos2(*x, *y), Vec2::new(*width, *height)));
+        }
+        _ => {}
     }
     let found: Vec<usize> = (0..lines.len())
         .filter(|index| lines[*index].text.contains(target))
@@ -66,6 +72,13 @@ pub(crate) fn locate(
 }
 
 fn pick(lines: &[Line], found: &[usize]) -> Option<usize> {
+    if let [first, rest @ ..] = found
+        && rest.iter().all(|index| {
+            lines[*index].text == lines[*first].text && lines[*index].bounds == lines[*first].bounds
+        })
+    {
+        return Some(*first);
+    }
     let within = |candidates: &[usize]| {
         let first = *candidates.first()?;
         let depth = lines[first].depth;

@@ -1,7 +1,8 @@
 # Running the web app
 
-To see a change working in the browser, serve the web build and open it in a headless
-Chromium, then drive the page from the shell:
+For a change that only shows in the browser, serve the web build and open it in a headless
+Chromium, then drive the page from the shell (anything else is checked natively, which is
+quicker: guides/running/drive.md):
 
     ./scripts/buck run //crates/block-app:web-dev
     source ~/.cache/be3/web-dev/env
@@ -37,16 +38,13 @@ two parameters work on any page serving the bundle:
 
 ## Driving the page
 
-`drive` answers the same commands as the native app's, run by the app itself in the page:
-`drive tree`, `drive click TARGET`, `drive type TEXT`, `drive key CHORD`, `drive wait TEXT`
-and the rest, each waiting until the app settles and printing what changed in the tree
-(guides/running_the_app.md, Driving the app, says what they do and what a TARGET is). The
-tree's coordinates are the page's CSS pixels when the device pixel ratio is 1, as it is in the
-launcher's browser.
-
-A few commands are the browser's own (`drive` with no command lists them):
+`drive` answers the native app's commands (guides/running/drive.md), run by the app itself in
+the page, except those of the headless window: the browser is the window here. Its own
+commands take their place (`drive` with no command lists them):
 - `drive shot FILE [TARGET]` saves a screenshot through Playwright, of TARGET only when given.
-- `drive upload FILE TARGET` clicks TARGET and answers the file chooser that opens with FILE,
-  which is how to add an image, a PDF or an audio file.
+- `drive upload FILE TARGET` clicks TARGET and answers the file chooser that opens with FILE.
+- `drive size W H` resizes the page, and `drive reload` reloads it.
 - `drive eval EXPRESSION` evaluates JavaScript in the page and prints the result.
-- `drive reload` reloads the page, and `drive size W H` resizes it.
+
+The tree's coordinates are the page's CSS pixels when the device pixel ratio is 1, as it is in
+the launcher's browser.
