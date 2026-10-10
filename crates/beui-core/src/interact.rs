@@ -549,15 +549,12 @@ fn global_keys(doc: &mut Document, ctx: &Context) {
     {
         doc.globally_held.clear();
     }
-    if !events
-        .iter()
-        .any(|event| {
-            matches!(
-                event,
-                Event::Key { .. } | Event::InterceptedKey(_) | Event::InterceptedTap(_)
-            )
-        })
-    {
+    if !events.iter().any(|event| {
+        matches!(
+            event,
+            Event::Key { .. } | Event::InterceptedKey(_) | Event::InterceptedTap(_)
+        )
+    }) {
         return;
     }
     let in_app = forward::takes_keys(doc);

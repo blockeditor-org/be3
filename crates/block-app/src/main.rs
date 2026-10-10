@@ -11,7 +11,6 @@ mod editors;
 mod host;
 mod input;
 mod keys;
-mod programs;
 mod local_settings;
 #[cfg(target_os = "linux")]
 mod media;
@@ -23,6 +22,7 @@ mod password;
 mod performance;
 mod platform;
 mod plugin_host;
+mod programs;
 mod root_settings;
 #[cfg(target_os = "linux")]
 mod session;

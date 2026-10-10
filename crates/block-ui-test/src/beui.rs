@@ -1083,7 +1083,10 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn hold_app_key(&mut self, modifiers: Modifiers, key: Key, repeats: usize) -> bool {
-        if !self.intercepted_keys().contains(&KeyChord::new(key, modifiers)) {
+        if !self
+            .intercepted_keys()
+            .contains(&KeyChord::new(key, modifiers))
+        {
             return false;
         }
         let presses = std::iter::once((true, false))

@@ -4,9 +4,9 @@ use block_editor_beui::be_block::{
 };
 use block_editor_beui::beui::{Document, Key, KeyChord, Modifiers, NodeId, Rect};
 use block_editor_beui::{
-    BlockInfo, BlockParent, ChildContent, Editor, EditorHost, HostWindow, HostWindowId,
-    HostImage, HostProgram, HostWindows, Media, MediaLevel, MediaLevels, MediaRequest, PlayerCommand, Power, PowerAction,
-    PowerAvailability, ProgramAction, Programs, WindowAction,
+    BlockInfo, BlockParent, ChildContent, Editor, EditorHost, HostImage, HostProgram, HostWindow,
+    HostWindowId, HostWindows, Media, MediaLevel, MediaLevels, MediaRequest, PlayerCommand, Power,
+    PowerAction, PowerAvailability, ProgramAction, Programs, WindowAction,
 };
 use block_plugin_api::Size;
 use block_ui_test::BeuiTest;
@@ -20,8 +20,8 @@ mod a_calendar_the_desktop_no_longer_holds_is_replaced;
 mod a_first_desktop_with_no_sessions_offers_a_new_one;
 mod a_held_volume_key_keeps_turning_the_volume;
 mod a_query_no_program_matches_runs_as_a_command;
-mod a_super_tap_toggles_the_launcher_even_from_a_program_with_the_keyboard;
 mod a_session_chosen_from_the_menu_opens_in_a_window_and_closing_it_keeps_the_session;
+mod a_super_tap_toggles_the_launcher_even_from_a_program_with_the_keyboard;
 mod a_volume_key_shows_the_level_the_host_reports_until_it_fades;
 mod a_window_the_host_focuses_leads_the_window_switcher;
 mod alt_tab_switches_to_the_window_two_back_once_alt_is_let_go;

@@ -1,4 +1,5 @@
 use be_protocol::WorkspaceRole;
+use beui::NodeId;
 use beui::reactive::{
     Align, Direction, Frame, List, Show, clone, component, create_effect, create_memo,
     create_signal, untrack, view,
@@ -7,7 +8,6 @@ use beui::styled::{
     Button, ButtonVariant, Caption, Code, Dialog, Paragraph, Spinner, Tabs, TextInput,
 };
 use beui::unstyled::ChoiceOption;
-use beui::NodeId;
 
 use super::onboarding::ErrorText;
 
