@@ -80,6 +80,7 @@ pub(crate) fn PluginRegion(
     let instance = editor.instance;
     let plugin_id = editor.plugin_id().to_owned();
     let name = editor.plugin.identity.name.clone();
+    let crash_id = format!("{plugin_id}.{}.{region:?}.crashed", instance.0);
     let block = editor.role.block().map(|block| block.id);
     plugin_host::mount_region(RegionSlot {
         plugin: &editor.plugin,
@@ -348,7 +349,7 @@ pub(crate) fn PluginRegion(
                             </Embed>
                         </Interactive>
                     </BackHandler>
-                    <Notices loading failure />
+                    <Notices loading failure id={crash_id.clone()} />
                     <RegionChildren state rect child_view={above} below=false />
                     <Drawing draw={floating} />
                 </Layers>
@@ -406,7 +407,7 @@ fn take_keyboard(state: &Memo<RegionView>, catcher: &NodeRef) {
 }
 
 #[component]
-fn Notices(loading: Memo<bool>, failure: Memo<Option<Failure>>) -> NodeId {
+fn Notices(loading: Memo<bool>, failure: Memo<Option<Failure>>, id: String) -> NodeId {
     let failed = create_memo(clone!(failure -> move || failure.get().is_some()));
     let still_loading = create_memo(clone!(failure loading -> move || {
         loading.get() && failure.get().is_none()
@@ -437,6 +438,7 @@ fn Notices(loading: Memo<bool>, failure: Memo<Option<Failure>>) -> NodeId {
                         detail={detail.clone()}
                         reloadable={reloadable.clone()}
                         on_reload={reload.clone()}
+                        id={id.clone()}
                     />
                 </Show>
                 <Show condition={still_loading}>

@@ -1338,7 +1338,7 @@ pub(crate) fn OverlaysPage() -> NodeId {
 fn CrashedEditor() -> NodeId {
     let (reloads, set_reloads) = create_signal(0_u32);
     let detail = create_memo(move || match reloads.get() {
-        0 => "the count overflowed\n(panicked at src/counter.rs:12:9)".to_owned(),
+        0 => "the count overflowed\n(at src/counter.rs:12:9)".to_owned(),
         1 => "It stopped again after a reload.".to_owned(),
         reloads => format!("It stopped again after {reloads} reloads."),
     });

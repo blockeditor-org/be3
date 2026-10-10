@@ -181,11 +181,9 @@ impl Plugin {
             self.stopped = true;
             return Err(failure);
         }
-        let outcome = function
-            .call(&mut self.store, ())
-            .map_err(|error| {
-                panic::message(&error).unwrap_or_else(|| format!("the plugin trapped: {error}"))
-            });
+        let outcome = function.call(&mut self.store, ()).map_err(|error| {
+            panic::message(&error).unwrap_or_else(|| format!("the plugin trapped: {error}"))
+        });
         if let Err(error) = outcome {
             self.stopped = true;
             return Err(error);

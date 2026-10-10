@@ -1797,7 +1797,11 @@ pub(crate) fn region_view(
     })
 }
 
-fn placed_view(runtime: &mut Runtime, instance: EditorInstanceId, region: EditorRegion) -> RegionView {
+fn placed_view(
+    runtime: &mut Runtime,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+) -> RegionView {
     {
         let Some(placement) = runtime.instances.placement(instance, region) else {
             return RegionView::waiting();

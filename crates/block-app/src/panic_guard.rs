@@ -115,7 +115,9 @@ fn library_offset(line: &str) -> Option<String> {
 }
 
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-pub(crate) async fn contain_task(task: impl std::future::Future<Output = ()>) -> Result<(), String> {
+pub(crate) async fn contain_task(
+    task: impl std::future::Future<Output = ()>,
+) -> Result<(), String> {
     let mut task = std::pin::pin!(task);
     std::future::poll_fn(|context| match contain(|| task.as_mut().poll(context)) {
         Ok(polled) => polled.map(Ok),

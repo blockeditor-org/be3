@@ -108,12 +108,10 @@ impl Spawner {
         let start: TypedFunc<(i32, i32), ()> = instance
             .get_typed_func(&mut store, START)
             .map_err(|error| format!("the plugin has no usable {START} export: {error}"))?;
-        start
-            .call(&mut store, (thread, argument))
-            .map_err(|error| {
-                crate::panic::message(&error)
-                    .unwrap_or_else(|| format!("a plugin thread trapped: {error:?}"))
-            })
+        start.call(&mut store, (thread, argument)).map_err(|error| {
+            crate::panic::message(&error)
+                .unwrap_or_else(|| format!("a plugin thread trapped: {error:?}"))
+        })
     }
 
     fn refuse_host_calls(&self, linker: &mut Linker<Threaded>) -> Result<(), String> {

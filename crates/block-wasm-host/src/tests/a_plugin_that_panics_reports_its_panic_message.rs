@@ -23,7 +23,9 @@ fn a_plugin_that_panics_reports_its_panic_message() {
     let mut plugin = host().load_bytes(source.as_bytes()).unwrap();
     plugin.start().unwrap();
 
-    let failure = plugin.step().expect_err("a panicking plugin fails its step");
+    let failure = plugin
+        .step()
+        .expect_err("a panicking plugin fails its step");
 
     assert_eq!(failure, message);
     assert_eq!(
