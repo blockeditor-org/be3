@@ -164,16 +164,10 @@ async fn listen(connection: &Connection, events: &UnboundedSender<Event>) -> zbu
         .msg_type(Type::Signal)
         .interface(MENU)?
         .build();
-    let watchers = MatchRule::builder()
-        .msg_type(Type::Signal)
-        .sender(watcher::NAME)?
-        .interface(watcher::NAME)?
-        .build();
     for (rule, read) in [
         (owners, owner_changed as fn(&Message) -> Option<Event>),
         (items, item_signal),
         (menus, menu_signal),
-        (watchers, watcher_signal),
     ] {
         let stream = MessageStream::for_match_rule(rule, connection, None).await?;
         crate::dbus::spawn(forward(stream, events.clone(), read));
@@ -242,6 +236,13 @@ async fn join_watcher(
     events: &UnboundedSender<Event>,
     host: &str,
 ) -> zbus::Result<()> {
+    let signals = MatchRule::builder()
+        .msg_type(Type::Signal)
+        .sender(watcher::NAME)?
+        .interface(watcher::NAME)?
+        .build();
+    let stream = MessageStream::for_match_rule(signals, connection, None).await?;
+    crate::dbus::spawn(forward(stream, events.clone(), watcher_signal));
     connection
         .call_method(
             Some(watcher::NAME),
