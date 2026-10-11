@@ -25,7 +25,11 @@ fn a_floating_windows_grips_lie_outside_it() {
     );
     harness.drag(inside, inside + vec2(40.0, 30.0));
     harness.frame(Vec::new());
-    assert_eq!(placed(&harness), before, "a press inside the corner resizes nothing");
+    assert_eq!(
+        placed(&harness),
+        before,
+        "a press inside the corner resizes nothing"
+    );
 
     let outside = corner + vec2(3.0, 3.0);
     let output = harness.frame(vec![Event::PointerMoved(outside)]);
