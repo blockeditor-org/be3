@@ -321,7 +321,12 @@ Until the client commits a buffer of that size, its last one is drawn at its own
 view's top-left corner, clipped to the view, never stretched to fit; the size a surface is
 drawn at is its buffer's size over its buffer scale, or the destination it set through
 viewporter. `render.rs` draws it, `a_resized_window_is_drawn_unscaled_until_it_commits_the_new_size`
-checks the pixels.
+checks the pixels. A surface that commits on its own (a toplevel, or a desynchronized
+sub-surface such as Firefox's content) and changes its viewport without attaching a buffer keeps
+the view it had with its last buffer until the next one arrives (`held_view.rs`): Firefox sets
+its content's destination to the new window size as soon as it is configured and commits it
+before it has drawn at that size, which would otherwise stretch the old buffer. A synchronized
+sub-surface's viewport applies with its parent's commit, and a single-pixel buffer's at once.
 A program brings one of its windows forward, or another program's (a link opened in a browser
 that is already running), with `xdg_activation_v1` (be-wayland's `activation.rs`). A client is
 given a token only while it has the keyboard and only for the serial of an input event since it
