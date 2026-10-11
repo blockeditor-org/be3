@@ -2078,6 +2078,7 @@ impl BlockApp {
         let _ = self.app_state.clear_active_account();
         #[cfg(target_os = "linux")]
         if self.desktop.is_some() {
+            panic_guard::persist(&report);
             std::panic::resume_unwind(Box::new(panic_guard::summary(&report).to_owned()));
         }
         panic_guard::forget();
@@ -2088,7 +2089,10 @@ impl BlockApp {
         #[cfg(target_os = "linux")]
         if self.desktop.is_some() {
             let summary = panic_guard::summary(&report);
-            let message = summary.lines().skip(1).collect::<Vec<_>>().join(" ");
+            let message = match summary.lines().skip(1).collect::<Vec<_>>().join(" ") {
+                message if message.is_empty() => summary.to_owned(),
+                message => message,
+            };
             notices::report(format!("The last session ended after an error: {message}"));
             return;
         }

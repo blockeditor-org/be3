@@ -268,6 +268,27 @@ impl Runner {
         if self.exited {
             return None;
         }
+        self.contain(|runner| runner.run_frame(platform, pixels_per_point, safe_area))
+            .flatten()
+    }
+
+    fn contain<R>(&mut self, act: impl FnOnce(&mut Self) -> R) -> Option<R> {
+        match catch_unwind(AssertUnwindSafe(|| act(self))) {
+            Ok(done) => Some(done),
+            Err(payload) => {
+                self.failure.get_or_insert_with(|| panic_message(&*payload));
+                self.exit();
+                None
+            }
+        }
+    }
+
+    fn run_frame(
+        &mut self,
+        platform: &mut dyn Platform,
+        pixels_per_point: f32,
+        safe_area: SafeArea,
+    ) -> Option<Frame> {
         let renderers = self.renderers.as_mut()?;
         match renderers.recover() {
             Ok(false) => {}
@@ -343,20 +364,9 @@ impl Runner {
             events: next_batch(&mut self.events),
         };
         let app = &mut self.app;
-        let context = &self.context;
-        let ran = catch_unwind(AssertUnwindSafe(|| {
-            context.run(raw, |context| {
-                app.update(context, safe_rect(screen, safe_area, scale));
-            })
-        }));
-        let mut output = match ran {
-            Ok(output) => output,
-            Err(payload) => {
-                self.failure = Some(panic_message(&*payload));
-                self.exit();
-                return None;
-            }
-        };
+        let mut output = self.context.run(raw, |context| {
+            app.update(context, safe_rect(screen, safe_area, scale));
+        });
         let title = &self.title;
         platform.publish_accessibility(&mut || output.accessibility_tree(title, screen));
         if let Some(dump) = &mut self.accessibility {
@@ -485,6 +495,10 @@ impl Runner {
         if self.exited {
             return false;
         }
+        self.contain(Self::run_present).unwrap_or(false)
+    }
+
+    fn run_present(&mut self) -> bool {
         let background = self.app.clear_color();
         let Some(renderers) = self.renderers.as_mut() else {
             return false;

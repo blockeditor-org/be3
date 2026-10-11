@@ -194,7 +194,7 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
     runner.run(&receiver);
     match runner.error {
         Some(error) => Err(error.into()),
-        None => Ok(()),
+        None => runner.runner.finish(),
     }
 }
 

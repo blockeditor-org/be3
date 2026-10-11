@@ -116,7 +116,7 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
     event_loop.run_app(&mut runner)?;
     match runner.error {
         Some(error) => Err(error.into()),
-        None => Ok(()),
+        None => runner.runner.finish(),
     }
 }
 

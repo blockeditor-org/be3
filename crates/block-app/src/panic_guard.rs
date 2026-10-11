@@ -70,6 +70,14 @@ pub(crate) fn take_previous() -> Option<String> {
     Some(report)
 }
 
+#[cfg_attr(any(not(target_os = "linux"), target_arch = "wasm32"), allow(dead_code, unused_variables))]
+pub(crate) fn persist(report: &str) {
+    #[cfg(not(target_arch = "wasm32"))]
+    if let Some(path) = &*lock(&REPORT_FILE) {
+        let _ = std::fs::write(path, report);
+    }
+}
+
 pub(crate) fn forget() {
     #[cfg(not(target_arch = "wasm32"))]
     if let Some(path) = &*lock(&REPORT_FILE) {
