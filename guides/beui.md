@@ -800,13 +800,14 @@ saturation and value) and leaves the color model to its caller, and
 images rasterised on the CPU at the screen's pixel density, so they work on
 every renderer.
 
-`unstyled::Popover` is what both open: a trigger and a modal overlay, built the
+`unstyled::Popover` is what both open: a trigger and an overlay, built the
 first time it opens, that traps Tab, closes on Escape, a press outside or its
 handle's `close`, and gives the focus back to the trigger when it closes. It
-dims nothing, so it is a `light` overlay: the pointer goes on hovering the
-document around it, and a press outside closes it and then lands on whatever
-was pressed - except a press on its own trigger, the overlay's `trigger`, which
-is left to the trigger so a second click closes it rather than reopening it. What
+dims nothing, so its layer passes input through (`LayerPolicy::Pass`): the
+pointer goes on hovering the document around it, and a press outside asks it
+to close and then lands on whatever was pressed - except a press on its own
+trigger, the overlay's `trigger`, which is left to the trigger so a second
+click closes it rather than reopening it. What
 it holds decides where the focus lands when it opens, by binding a `focused`
 prop to the handle's `open`, as the calendar, the time list and the color area
 all take.
@@ -830,11 +831,11 @@ reader is the text the bubble shows. Wrap anything else whose meaning is not
 on screen - a bare glyph in a row, a truncated cell - in a `Tooltip` of its
 own.
 
-The bubble lives in a passive `Overlay`. It paints above everything, and
-unlike a menu or a dialog it takes no input at all: it is not in the overlay
-stack, so the document under it keeps answering the pointer, Escape still
-reaches whatever it was going to reach, and clicking the control the tooltip
-describes clicks the control. The dwell is a `create_timer`, started when the
+The bubble lives in an inert `Overlay` (`LayerPolicy::Inert`). It paints
+above what it hangs from, and unlike a menu or a dialog it takes no input at
+all, so the document under it keeps answering the pointer, Escape still reaches
+whatever it was going to reach, and clicking the control the tooltip describes
+clicks the control. The dwell is a `create_timer`, started when the
 pointer arrives and stopped when it leaves, so a tooltip nobody is hovering
 costs no frames.
 
@@ -860,40 +861,90 @@ depends on it.
 ### Overlays, and things that float
 
 An overlay is laid out and painted above the rest of the document rather than
-among it, and it comes in three modes.
+among it. Every open one is a layer, and the layers form a tree: a layer's
+parent is the layer holding the node it hangs from, which is its anchor when it
+is anchored to a node and otherwise the overlay node itself, and the document
+root is the bottom layer. `Document::layers()` is that tree as one ordered
+list, bottom to top, and paint, hit testing, focus, Escape, back and the key
+dispatch all walk that same list. Siblings that block everything sit above
+those that do not, and otherwise are ordered by when they were opened or raised
+(`Document::raise_overlay`), so raising a window never lifts it over a dialog;
+children sit above their parent and rise with it, and a `level` (`LayerLevel`) puts a layer and everything above it over
+every layer of a lower level: `Top` for things that must float over every
+window, such as a drag preview or a volume OSD, and `Lock` for the lock screen.
+Opening a layer raises it and every layer it hangs in, so a menu opened in a
+window that was covered comes up with its window.
 
-A **modal** one - a menu, a select popup, a dialog - takes the document over
-while it is open (a `light` modal one lets the pointer through outside itself,
-and a press there closes it and still lands): it goes on the overlay stack, so input reaches it and
-nothing else, it can trap focus, Escape closes the topmost one, and a press
-outside it dismisses it.
+Each layer has one `policy` (`LayerPolicy`):
 
-`on_dismiss` runs only when the user closes an overlay, or beui does on their
-behalf: Escape, a press outside it, a light one's press elsewhere, back
-(`Document::dismiss_overlay`), and an overlay closed because one it is nested
-in closed, whoever closed that. Its owner writing `open` false
+- `BlocksAll` (the default) - a menu, a select popup, a dialog. Its content
+  takes the pointer, and a press anywhere else is shut out: it asks the layer
+  to close and goes no further, and nothing beneath it is hovered.
+- `Pass` - a window, a toast, a popover. Its content takes the pointer where it
+  actually is, so a press on it does not land on what is underneath, and
+  everything around it stays live.
+- `BlocksParent` - modal to the node it hangs from alone. A press on that node
+  is shut out and asks the layer to close, the focus cannot enter it (Tab skips
+  it, and focusing something inside it focuses the layer's first focusable
+  instead), and everything else stays live. A modal `DockDialog` is one.
+- `Inert` - a tooltip, a drag preview. It takes no input at all, so the
+  document underneath goes on answering the pointer and the keyboard as if it
+  were not there.
+
+`traps_focus` (on unless a caller turns it off) keeps Tab inside the layer and
+makes it a boundary for keys (see the keyboard guide): a menu, a dialog and a
+popover trap; a window does not. A layer that blocks everything but traps
+nothing, such as the touch selection's Copy and Paste menu, leaves the focus in
+the text field beneath it.
+
+Closing is asked, not done: `on_dismiss` is called with a `Dismiss` reason -
+`Escape`, `Back` or `OutsidePress` - and its owner closes the overlay by
+writing `open` false, or decides not to (a modal `DockDialog` asked by a press
+on its parent flashes instead). An overlay with no `on_dismiss` cannot be
+dismissed. There is one request for each reason, sent to one layer:
+
+- Escape that nothing on the focus path took goes to the nearest dismissable
+  layer holding the focus, or with nothing focused, the topmost trapping layer.
+- Back - Android's back gesture, or the Back key or mouse button - goes to the
+  topmost layer that has an enabled `BackHandler` in it or is dismissable,
+  stopping at the first layer that blocks everything; the root's handlers come
+  last. `FrameOutput::handles_back` says whether anything would take it.
+- A press outside goes to every dismissable layer it is outside of, from the
+  top down, until it lands in one or is shut out by one that blocks everything
+  (and then to the chain of blocking layers that one is nested in, so a press
+  outside a submenu closes the whole menu). A layer that blocks everything
+  still lets the pointer reach the blocking layers it is nested in, so the
+  rows of a menu stay hovered and pressable under its open submenu, and a
+  press on one closes the submenu. A mouse asks on the press; a finger
+  on the tap, so a scroll that starts outside a layer leaves it open.
+
+Inside the layer it is sent to, a request goes to the most recently made
+enabled `BackHandler` in that layer first, and to `on_dismiss` only when there
+is none, so Escape, back and a press outside all play the same slide-away.
+An overlay closed because the one it is nested in closed is told so after the
+fact, as `Dismiss::WithParent`. Its owner writing `open` false
 (`Document::close_overlay`) runs nothing, so a prompt whose dismiss means
-"cancel" needs no guard against its own Keep button. A menu's item selection
-closes it through the menu's own `on_dismiss`/`on_close`.
+"cancel" needs no guard against its own Keep button.
 
-Every overlay, of any mode, gives the focus back when it closes, however it
-closes (its owner writing `open` false, a dismissal, or its node being removed
-while open): an overlay remembers the node that had the focus when it opened,
-or the last one focused outside it since, and refocuses that node if the focus
-is inside the overlay when it closes, or is nowhere and the overlay is modal and
-traps focus, and the node is still there to focus. A close that has moved the
-focus somewhere outside the overlay on purpose keeps it there, and so does a
-focus change that comes after the close. Components rely on this rather than
-refocusing their triggers themselves, so a select, the command palette and a
-dialog put the focus back on what opened them, and a forwarding catcher (a
-plugin's region, a Wayland window) gets the keyboard back.
+Every layer gives the focus back when it closes, however it closes (its owner
+writing `open` false, a parent closing, or its node being removed while open):
+a layer remembers the node that had the focus when it opened, or the last one
+focused outside it since, and refocuses that node if the focus is inside the
+layer when it closes, or is nowhere and the layer traps focus, and the node is
+still there to focus. A close that has moved the focus somewhere outside the
+layer on purpose keeps it there, and so does a focus change that comes after
+the close. Components rely on this rather than refocusing their triggers
+themselves, so a select, the command palette and a dialog put the focus back on
+what opened them, and a forwarding catcher (a plugin's region, a Wayland
+window) gets the keyboard back.
 
-Back - Android's back gesture, or the Back key or mouse button - goes to the
-most recently made enabled `BackHandler` inside the topmost modal overlay, or,
-with no modal open, outside every overlay; with no such handler it closes the
-topmost modal. A base `BackHandler` only routes: it calls `on_back` when back
-completes, or hands every phase of the gesture to `on_gesture` if it has one,
-and moves nothing. The motion lives above it. `unstyled::BackSlide` wraps a
+The focus is checked when something that could take it away changes - a layer
+opening or closing, a frame hiding, a node being removed or moved - by walking
+up from the focused node, never by searching the tree.
+
+A base `BackHandler` only routes: it calls `on_back` when back completes, or
+hands every phase of the gesture to `on_gesture` if it has one, and moves
+nothing. The motion lives above it. `unstyled::BackSlide` wraps a
 page: held, the page follows the finger across a good share of the screen;
 let go, it carries on off the edge before `on_back` runs and the next page
 slides in behind it, and a cancelled gesture eases it back. Given `behind`, a
@@ -903,37 +954,24 @@ side, so `on_back` swaps in what was already showing and nothing slides in
 afterwards; the page that moves needs an opaque background, and a page that
 must keep its state (a scroll position) is built once and handed to a `Portal`
 in both places. The stacked dock shows its home tab behind the tab it leaves
-this way. A back with no gesture before it (a key) goes back at once. `styled::Dialog` and
+this way. A back with no gesture before it (a key, Escape, a press outside)
+goes back at once. `styled::Dialog` and
 `Fullscreen` slide away the same way and fade their scrim, and a `Sheet`
-sinks with the gesture and slides on down from where it was. The document
-reports whether anything would take back through
-`FrameOutput::handles_back`; on Android the runner passes that to the
-activity's `setBackHandled`, and when nothing takes it the system's own back
-(to the home screen) plays instead.
+sinks with the gesture and slides on down from where it was. On Android the
+runner passes `handles_back` to the activity's `setBackHandled`, and when
+nothing takes it the system's own back (to the home screen) plays instead.
 
-A modal overlay with `locks` set is a lock screen (`styled::LockScreen`): nothing the user
-does dismisses it, an overlay opened outside it while it is open goes beneath it, passive overlays
-outside it paint beneath it, the focus cannot leave it (not even to nothing, through Escape or a
-click on its scrim), and `Document::locked` is true. While it is, `on_global_key` handlers and global
-actions hear nothing but media keys (`Key::is_media`), and a forwarding catcher outside it loses any
-press it had captured. Only its owner writing `open` false closes it.
+A layer at `LayerLevel::Lock` that blocks everything is a lock screen
+(`styled::LockScreen`): it is above every other layer, so anything opened while
+it is up opens beneath it; it is never dismissable; the focus cannot leave it,
+not even to nothing; `Document::locked` is true; and while it is, the
+listeners above the tree (`on_global_key`, window and host actions) hear
+nothing but media keys (`Key::is_media`), and a forwarding catcher beneath it
+loses any press it had captured, as one beneath any layer that blocks
+everything does.
 
-A **passive** one takes no input at all. It is painted above everything and is
-not on the stack, so the document underneath goes on answering the pointer and
-the keyboard as if it were not there. A tooltip is passive: hovering the thing
-it describes must not become hovering the tooltip.
-
-A **floating** one is painted above everything and answers the pointer where it
-actually is. Only the part of the document it covers is shut out, so a press
-that lands on it does not also land on what is underneath, and everything
-around it stays live. A floating or passive overlay anchored to a node inside
-another one rises with it whenever that one opens or is raised
-(`Document::raise_overlay`), so something pinned to a dock window stays above
-it. An open overlay given `blocks` (a `NodeRef`) is modal to that node alone:
-the focus cannot enter it, Tab skips it, and focusing something inside it
-focuses the overlay's first focusable instead. `unstyled::Floating` is the one to reach for: it pins its
-child to the top or the bottom edge of a node named by `NodeRef`, taking no
-space in the layout around it.
+`unstyled::Floating` pins its child to the top or the bottom edge of a node
+named by `NodeRef`, taking no space in the layout around it:
 
 ```rust
 let scroll = NodeRef::new();
@@ -965,9 +1003,10 @@ forwarding catcher under it unless the claimant is that catcher.
 `Document::press_claims` lists the `claim_modifiers` rectangles laid out this
 frame, which a plugin reports to its host. A Wayland program's window is a
 forwarding catcher like a plugin's region, so a press claimed over it never
-reaches the program. `on_press_outside` hears every primary press or touch
-that lands outside the `Interactive`'s visible rectangle, wherever it goes and
-whatever takes it, which is how the host hands an embedded editor's active
+reaches the program. `on_press_outside` hears every primary press outside the
+`Interactive`'s visible rectangle, wherever it goes and whatever takes it, at
+the same moment and from the same place a press outside asks layers to close
+(a mouse's press, a finger's tap), which is how the host hands an embedded editor's active
 child back when someone clicks elsewhere. A secondary drag stays with the node that
 took it while the pointer crosses a floating window above that node; only the
 start of one is hidden from what a floating window covers.
@@ -1256,21 +1295,22 @@ close button, `dock.dialog.<tab>` naming its body). It is not part of the
 as both a dialog and a tab is only a dialog, and it is not saved with the
 layout. It shows exactly while its parent tab does (`DockState::is_shown`),
 so it hides when another tab takes the parent's place and returns with it,
-and it rises with the window its parent is in, since a floating overlay
-anchored inside another rises with it. A new dialog takes the focus. The
+and it rises with the window its parent is in, since its layer hangs from the
+parent's panel and so is a child of that window's layer. A new dialog takes the focus. The
 dock tracks which dialog has it beside the focused tab: pressing a dialog
 gives it the focus, pressing the parent's pane or tab bar takes it back, and
 when a dialog closes the focus returns to its parent (the overlay's focus
 restore). The content's `use_dock_tab()` is a `DockTabControl` for the
 dialog, whose `focused` follows that and whose `show` focuses the dialog.
-`modal` blocks the parent until the dialog closes or stops being modal: a
-floating shield (`Placement::Cover`) over the parent takes its pointer, and a
-press on it focuses the innermost modal dialog and flashes it (the handle's
-`attention`, and `DockTabControl::attention` for content in another document,
-such as a program's window, to take the keyboard itself); the dialog's overlay
-`blocks` the parent's panel, so the focus cannot move into it (Tab skips it,
-and focusing it lands in the dialog); and while the parent's tab is focused
-the focus goes to its innermost modal dialog.
+`modal` makes the dialog's layer `BlocksParent` until it closes or stops being
+modal: a press on the parent's panel is shut out and asks the dialog to close,
+which it answers by focusing the innermost modal dialog and flashing it (the
+handle's `attention`, and `DockTabControl::attention` for content in another
+document, such as a program's window, to take the keyboard itself); the focus
+cannot move into the panel (Tab skips it, and focusing it lands in the
+dialog); and while the parent's tab is focused the focus goes to its innermost
+modal dialog. Escape or back with the focus in a dialog closes it through
+`on_close`.
 
 One tab at a time can be fullscreen: `DockState::set_fullscreen` with a
 `DockFullscreen` naming the tab and an area (a rect in document coordinates, or
@@ -1325,8 +1365,9 @@ that nest - a card inside the pile that holds it - set `capture_presses`, so a
 press reaches the innermost one and not the one around it, the way
 `unstyled::Button` wins a press; of overlapping ones only the topmost hears it.
 
-While a drag is under way the `preview` is shown beside the pointer in a
-passive overlay, so it paints above everything and takes no input. The pointer
+While a drag is under way the `preview` is shown beside the pointer in an
+inert overlay at `LayerLevel::Top`, so it paints above every window and takes
+no input. The pointer
 it follows is the one the document saw, not the one the draggable's own
 catcher saw: the board is fed the pointer at the start of every frame, even
 where a floating overlay covers the source, so a drag carried over a floating
@@ -2063,14 +2104,14 @@ Pointer input takes one path. Each mouse button and each finger is a pointer
 of its own, and the document sees their downs, moves and ups in the order they
 happened (`InputState::pointer_events`), so a press, a move and a release that
 share a frame are three steps. A down is hit tested once (`interact::hit`):
-the layers are taken from the top - open modal overlays, whose scrim takes
-what a non-light one's content does not, then floating overlays, then the
-document - and in the first one the pointer lands on, the hit is the topmost
-`Interactive` under it together with every `Interactive` around it, its path.
-Any other node is transparent, and so is an `Interactive` at a point its
-`hit_at` turns down, along with the catchers around it up to one that captures
-or forwards; a floating overlay whose content turns a point down lets it
-through to what is beneath.
+the layers of `Document::layers()` are taken from the top, by the rules of
+their policies, and in the first one the pointer lands on, the hit is the
+topmost `Interactive` under it together with every `Interactive` around it,
+its path. The same walk collects the layers the press is outside of, which it
+then asks to close. Any other node is transparent, and so is an `Interactive`
+at a point its `hit_at` turns down, along with the catchers around it up to one
+that captures or forwards; a passing layer whose content turns a point down
+lets it through to what is beneath.
 
 The pointer keeps what its down reached until it is let go. A modifier claim
 (`claim_modifiers`, `claim_at`) is looked for first, from the top of the tree

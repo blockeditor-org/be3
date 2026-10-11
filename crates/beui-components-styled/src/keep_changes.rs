@@ -1,3 +1,4 @@
+use beui_core::layer::Dismiss;
 use std::cell::Cell;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -107,7 +108,7 @@ pub fn KeepChanges(
             open={open.clone()}
             placement=Placement::At
             scrim=SCRIM
-            on_dismiss={move || dismiss()}
+            on_dismiss={move |_: Dismiss| dismiss()}
         >
             <Frame width={width} height={height}>
                 <Layers>

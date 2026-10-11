@@ -1,3 +1,4 @@
+use beui_core::layer::Dismiss;
 use std::rc::Rc;
 
 use accesskit::{Node, Role};
@@ -254,7 +255,7 @@ pub fn Launcher(
             placement=Placement::Center
             scrim=SCRIM
             open
-            on_dismiss={move || on_close.call()}
+            on_dismiss={move |_: Dismiss| on_close.call()}
         >
             <Frame padding_horizontal=MARGIN padding_vertical=MARGIN>
                 <Frame

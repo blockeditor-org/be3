@@ -6,6 +6,7 @@ use crate::base::overlay::OverlayNode;
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::Modifiers;
+use crate::layer::LayerPolicy;
 use crate::node::{NodeId, NodeMap, NodeOf, Rects};
 
 use super::TOUCH_REACH;
@@ -13,21 +14,16 @@ use super::TOUCH_REACH;
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct Hit {
     pub path: Vec<NodeId>,
-    pub scrims: Vec<NodeId>,
     pub embed: bool,
     pub shift: Vec2,
+    pub blocked: bool,
+    pub outside: Vec<NodeOf<OverlayNode>>,
 }
 
 enum Walk {
     Found(Vec<NodeId>, bool),
     Declined,
     Nothing,
-}
-
-enum Layer {
-    Modal(NodeOf<OverlayNode>),
-    Floating(NodeOf<OverlayNode>),
-    Root(NodeId),
 }
 
 pub fn interactive(doc: &Document, id: NodeId) -> Option<&InteractiveNode> {
@@ -38,82 +34,102 @@ pub fn interactive(doc: &Document, id: NodeId) -> Option<&InteractiveNode> {
 }
 
 pub fn hit(doc: &mut Document, rects: &Rects, root: NodeId, pos: Pos2, touch: bool) -> Hit {
-    let mut scrims = Vec::new();
-    let mut above: Option<NodeOf<OverlayNode>> = None;
-    let found = |hit: Hit, scrims: Vec<NodeId>| Hit { scrims, ..hit };
-    for layer in layers(doc, root) {
-        match layer {
-            Layer::Modal(overlay) if above.is_some_and(|above| !nested(doc, above, overlay)) => {
-                break;
+    let layers = doc.layers();
+    let mut outside = Vec::new();
+    let mut blocking = false;
+    let mut chain: Option<usize> = None;
+    let settle =
+        |doc: &Document, at: usize, mut hit: Hit, mut outside: Vec<NodeOf<OverlayNode>>| {
+            if let Some(blocker) = doc.in_blocked(&layers, at, hit.path.first().copied(), pos) {
+                outside.push(blocker);
+                return Hit {
+                    blocked: true,
+                    outside,
+                    ..Hit::default()
+                };
             }
-            Layer::Modal(overlay) => {
-                let content = doc.overlay_content(overlay);
-                let inside = content
+            hit.outside = outside;
+            hit
+        };
+    for index in (0..layers.len()).rev() {
+        let layer = &layers[index];
+        if layer.policy == LayerPolicy::Inert {
+            continue;
+        }
+        if blocking {
+            if chain == Some(index) {
+                if index == 0 {
+                    break;
+                }
+                let inside = layer
+                    .content
                     .and_then(|content| rects.visible(&content))
                     .is_some_and(|rect| rect.contains_half_open(pos));
-                if let Some(content) = content
-                    && let Some(hit) = within(doc, rects, content, pos, touch && inside)
-                {
-                    return found(hit, scrims);
+                if inside && let Some(content) = layer.content {
+                    let hit = within(doc, rects, content, pos, touch).unwrap_or_default();
+                    return settle(doc, index, hit, outside);
+                }
+                if !layer.blocks_all() {
+                    break;
+                }
+                outside.extend(layer.overlay.filter(|_| layer.dismissable));
+                chain = layer.parent;
+            }
+            continue;
+        }
+        let Some(content) = (match index {
+            0 => Some(root),
+            _ => layer.content,
+        }) else {
+            continue;
+        };
+        let inside = rects
+            .visible(&content)
+            .is_some_and(|rect| rect.contains_half_open(pos));
+        if index == 0 {
+            let hit = within(doc, rects, content, pos, touch).unwrap_or_default();
+            return settle(doc, index, hit, outside);
+        }
+        if layer.blocks_all() {
+            if let Some(hit) = within(doc, rects, content, pos, touch && inside) {
+                return settle(doc, index, hit, outside);
+            }
+            if inside {
+                return settle(doc, index, Hit::default(), outside);
+            }
+            outside.extend(layer.overlay.filter(|_| layer.dismissable));
+            blocking = true;
+            chain = layer.parent;
+            continue;
+        }
+        match walk(doc, rects, content, pos) {
+            Walk::Found(path, embed) => {
+                let hit = reach(doc, rects, content, pos, touch, path, embed);
+                return settle(doc, index, hit, outside);
+            }
+            Walk::Declined => continue,
+            Walk::Nothing => {
+                if let Some(hit) = reached(doc, rects, content, pos, touch) {
+                    return settle(doc, index, hit, outside);
                 }
                 if inside {
-                    return found(Hit::default(), scrims);
+                    return settle(doc, index, Hit::default(), outside);
                 }
-                if !doc.overlay_is_light(overlay) {
-                    scrims.push(doc.overlay_scrim(overlay));
-                    above = Some(overlay);
-                }
-            }
-            Layer::Floating(_) | Layer::Root(_) if !scrims.is_empty() => {
-                let scrim = scrims.pop().expect("a scrim was passed");
-                let hit = within(doc, rects, scrim, pos, false).unwrap_or_default();
-                return found(hit, scrims);
-            }
-            Layer::Floating(overlay) => {
-                let Some(content) = doc.overlay_content(overlay) else {
-                    continue;
-                };
-                match walk(doc, rects, content, pos) {
-                    Walk::Found(path, embed) => {
-                        return reach(doc, rects, content, pos, touch, path, embed);
-                    }
-                    Walk::Declined => continue,
-                    Walk::Nothing => {
-                        if let Some(hit) = reached(doc, rects, content, pos, touch) {
-                            return hit;
-                        }
-                        if rects
-                            .visible(&content)
-                            .is_some_and(|rect| rect.contains_half_open(pos))
-                        {
-                            return Hit::default();
-                        }
-                    }
-                }
-            }
-            Layer::Root(root) => {
-                return within(doc, rects, root, pos, touch).unwrap_or_default();
             }
         }
-    }
-    match scrims.pop() {
-        Some(scrim) => found(
-            within(doc, rects, scrim, pos, false).unwrap_or_default(),
-            scrims,
-        ),
-        None => Hit::default(),
-    }
-}
-
-fn nested(doc: &Document, inner: NodeOf<OverlayNode>, outer: NodeOf<OverlayNode>) -> bool {
-    let mut next = doc.arena.parent(inner.id());
-    while let Some(id) = next {
-        if id == outer.id() {
-            return true;
+        if layer.policy == LayerPolicy::Pass
+            && layer.dismissable
+            && let Some(overlay) = layer.overlay
+            && !doc.on_overlay_trigger(overlay, pos)
+        {
+            outside.push(overlay);
         }
-        next = doc.arena.parent(id);
     }
-    false
+    Hit {
+        blocked: true,
+        outside,
+        ..Hit::default()
+    }
 }
 
 pub fn claimant(
@@ -133,11 +149,15 @@ pub fn claimant(
             next = doc.arena.parent(id);
         }
     }
-    for layer in layers(doc, root) {
-        let (top, light) = match layer {
-            Layer::Modal(overlay) => (doc.overlay_content(overlay), doc.overlay_is_light(overlay)),
-            Layer::Floating(overlay) => (doc.overlay_content(overlay), true),
-            Layer::Root(root) => (Some(root), false),
+    let layers = doc.layers();
+    for index in (0..layers.len()).rev() {
+        let layer = &layers[index];
+        if layer.policy == LayerPolicy::Inert {
+            continue;
+        }
+        let top = match index {
+            0 => Some(root),
+            _ => layer.content,
         };
         let Some(top) = top else {
             continue;
@@ -148,7 +168,7 @@ pub fn claimant(
         let covered = rects
             .visible(&top)
             .is_some_and(|rect| rect.contains_half_open(pos));
-        if covered || !light {
+        if covered || layer.blocks_all() {
             return None;
         }
     }
@@ -201,25 +221,6 @@ pub fn sink(doc: &Document, rects: &Rects, path: &[NodeId], pos: Pos2) -> Option
     None
 }
 
-fn layers(doc: &Document, root: NodeId) -> Vec<Layer> {
-    let mut layers: Vec<Layer> = doc
-        .overlays_bottom_up()
-        .into_iter()
-        .rev()
-        .filter_map(|overlay| {
-            if doc.overlay_stack.contains(&overlay) {
-                Some(Layer::Modal(overlay))
-            } else if doc.overlay_is_floating(overlay) {
-                Some(Layer::Floating(overlay))
-            } else {
-                None
-            }
-        })
-        .collect();
-    layers.push(Layer::Root(root));
-    layers
-}
-
 fn within(doc: &mut Document, rects: &Rects, top: NodeId, pos: Pos2, touch: bool) -> Option<Hit> {
     match walk(doc, rects, top, pos) {
         Walk::Found(path, embed) => Some(reach(doc, rects, top, pos, touch, path, embed)),
@@ -247,9 +248,8 @@ fn reach(
     }
     Hit {
         path,
-        scrims: Vec::new(),
         embed,
-        shift: Vec2::ZERO,
+        ..Hit::default()
     }
 }
 
@@ -263,9 +263,9 @@ fn reached(doc: &mut Document, rects: &Rects, top: NodeId, pos: Pos2, touch: boo
     match walk(doc, rects, top, at) {
         Walk::Found(path, embed) => Some(Hit {
             path,
-            scrims: Vec::new(),
             embed,
             shift: at - pos,
+            ..Hit::default()
         }),
         Walk::Declined | Walk::Nothing => None,
     }

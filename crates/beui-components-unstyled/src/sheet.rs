@@ -1,3 +1,4 @@
+use beui_core::layer::Dismiss;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -919,7 +920,7 @@ pub fn ModalSheet(
             open={shown}
             placement=Placement::Fill
             scrim={faded}
-            on_dismiss={move || dismiss.call()}
+            on_dismiss={move |_: Dismiss| dismiss.call()}
         >
             <ModalSheetBody
                 open

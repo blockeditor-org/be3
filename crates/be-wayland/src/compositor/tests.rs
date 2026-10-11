@@ -1,4 +1,6 @@
 use super::*;
+use beui::KeyAt;
+use beui::reactive::LayerLevel;
 
 mod a_click_on_beui_dismisses_a_grabbed_popup;
 mod a_closed_window_leaves_the_list;
@@ -102,13 +104,14 @@ fn Shown(windows: Windows) -> NodeId {
             });
         })
         .shortcut(beui::reactive::Chord::logo(Key::F))
-        .intercepts()
+        .at(KeyAt::Window)
+        .capture()
         .register();
         beui::reactive::Action::new("test.global", "Global", || {
             GLOBAL_RAN.with(|ran| ran.set(ran.get() + 1))
         })
         .shortcut(beui::reactive::Chord::logo(Key::G))
-        .global()
+        .at(KeyAt::Window)
         .register();
         crate::view::register_restore_shortcuts(&windows);
         let (text, set_text) = create_signal(String::new());
@@ -157,7 +160,7 @@ fn Shown(windows: Windows) -> NodeId {
                     <Overlay
                         anchor=OverlayAnchor::Point(Pos2::ZERO)
                         placement=Placement::Fill
-                        locks=true
+                        level=LayerLevel::Lock
                         open={locked}
                     >
                         <TextInput @test_id={"test.lock"} value="" />

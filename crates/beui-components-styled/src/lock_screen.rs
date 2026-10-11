@@ -1,3 +1,4 @@
+use beui_core::layer::LayerLevel;
 use std::rc::Rc;
 
 use accesskit::{Node, Role};
@@ -71,7 +72,7 @@ pub fn LockScreen(
             open={open.clone()}
             placement=Placement::At
             scrim={theme.background.clone()}
-            locks=true
+            level=LayerLevel::Lock
         >
             <Frame width={width} height={height}>
                 <Layers>

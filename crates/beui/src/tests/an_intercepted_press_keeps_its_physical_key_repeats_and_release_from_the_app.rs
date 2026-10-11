@@ -3,6 +3,7 @@ use std::rc::Rc;
 
 use super::*;
 use crate::ForwardedInput;
+use crate::KeyAt;
 use crate::reactive::{Action, Canvas, CanvasItem, Chord, Frame, Interactive, build, view};
 
 const KEY_F: u32 = 33;
@@ -32,7 +33,8 @@ fn an_intercepted_press_keeps_its_physical_key_repeats_and_release_from_the_app(
                 ran.set(ran.get() + 1)
             })
             .shortcut(Chord::logo(Key::F))
-            .intercepts()
+            .at(KeyAt::Window)
+            .capture()
             .register();
             view! {
                 <Canvas>

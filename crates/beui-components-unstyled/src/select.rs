@@ -6,6 +6,7 @@ use crate::text_input::{TextInputHandle, TextInputStyle};
 use beui_core::base::overlay::Placement;
 use beui_core::document::Document;
 use beui_core::input::{Key, KeyPress};
+use beui_core::layer::Dismiss;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
@@ -228,7 +229,7 @@ pub fn Select(
                 anchor={&state.trigger}
                 placement=Placement::BelowStart
                 open={is_open.clone()}
-                on_dismiss={move || dismiss(&dismiss_state)}
+                on_dismiss={move |_: Dismiss| dismiss(&dismiss_state)}
             >
                 {popup.call(view! {
                     <List spacing=6.0>

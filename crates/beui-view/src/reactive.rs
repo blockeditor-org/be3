@@ -97,16 +97,37 @@ pub fn focus_ring(focused: impl IntoProp<bool>) -> Memo<bool> {
     create_memo(move || focused.get() && visible.get())
 }
 
-pub fn on_shortcut(shortcut: impl Fn(beui_core::input::KeyPress) -> bool + 'static) {
-    let shortcut: Rc<beui_core::document::Shortcut> = Rc::new(shortcut);
-    with_document(|document| document.register_shortcut(Rc::downgrade(&shortcut)));
-    on_cleanup(move || drop(shortcut));
+pub fn on_key(
+    at: beui_core::keys::KeyAt,
+    phase: beui_core::keys::KeyPhase,
+    handler: impl Fn(beui_core::keys::KeyEvent) -> bool + 'static,
+) {
+    let handler: Rc<beui_core::keys::KeyHandler> = Rc::new(handler);
+    with_document(|document| document.listen_keys(at, phase, Rc::downgrade(&handler)));
+    on_cleanup(move || drop(handler));
 }
 
-pub fn on_global_key(handler: impl Fn(beui_core::document::GlobalKeyPress) -> bool + 'static) {
-    let handler: Rc<beui_core::document::GlobalKey> = Rc::new(handler);
-    with_document(|document| document.register_global_key(Rc::downgrade(&handler)));
-    on_cleanup(move || drop(handler));
+pub fn on_shortcut(shortcut: impl Fn(beui_core::input::KeyPress) -> bool + 'static) {
+    let at = match beui_tree::reactive::try_current_component() {
+        Some(_) => beui_core::keys::KeyAt::Node(beui_core::tree::component_node()),
+        None => beui_core::keys::KeyAt::Root,
+    };
+    on_key(
+        at,
+        beui_core::keys::KeyPhase::Capture,
+        move |event| match (event.press(), event.phase) {
+            (Some(press), beui_core::keys::KeyPhase::Capture) => shortcut(press),
+            _ => false,
+        },
+    );
+}
+
+pub fn on_global_key(handler: impl Fn(beui_core::keys::KeyEvent) -> bool + 'static) {
+    on_key(
+        beui_core::keys::KeyAt::Window,
+        beui_core::keys::KeyPhase::Capture,
+        handler,
+    );
 }
 
 pub fn held_modifiers() -> ReadSignal<beui_core::input::Modifiers> {
@@ -189,7 +210,8 @@ pub use crate::file_picker::{
 pub use beui_core::base::canvas::CanvasView;
 pub use beui_core::base::drawing::{Draw, draw_gpu};
 pub use beui_core::base::embed::{EmbedPlacement, EmbedSlot};
-pub use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
+pub use beui_core::base::overlay::{OverlayAnchor, Placement};
+pub use beui_core::layer::{Dismiss, LayerLevel, LayerPolicy};
 pub use beui_core::rich::{
     CaretHandle, RichLayout, SpanKind, SpanStyle, TextCaret, TextMark, TextSpan,
 };

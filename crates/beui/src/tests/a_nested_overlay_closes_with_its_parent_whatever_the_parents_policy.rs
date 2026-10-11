@@ -1,19 +1,20 @@
 use super::*;
-use crate::base::overlay::{OverlayAnchor, OverlayMode, OverlayNode, Placement};
+use crate::base::overlay::{OverlayAnchor, OverlayNode, Placement};
 use crate::reactive::{
     Frame, NodeRef, Overlay, WriteSignal, build, create_signal, view, with_reactive_scope,
 };
+use crate::{Dismiss, LayerPolicy};
 
 #[test]
-fn a_nested_overlay_closes_with_its_parent_whatever_the_parents_mode() {
+fn a_nested_overlay_closes_with_its_parent_whatever_the_parents_policy() {
     let (open, set_open) = create_signal(true);
-    let (mode, set_mode) = create_signal(OverlayMode::Modal);
+    let (policy, set_policy) = create_signal(LayerPolicy::BlocksAll);
     let (nested_open, set_nested_open) = create_signal(true);
     let dismissed = Rc::new(Cell::new(0));
     let nested_dismissed = Rc::new(Cell::new(0));
     let (outer, inner) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (open, mode, nested_open) = (open.clone(), mode.clone(), nested_open.clone());
+        let (open, policy, nested_open) = (open.clone(), policy.clone(), nested_open.clone());
         let (reports, nested_reports) = (dismissed.clone(), nested_dismissed.clone());
         let (outer, inner) = (outer.clone(), inner.clone());
         let closing = set_nested_open.clone();
@@ -24,9 +25,9 @@ fn a_nested_overlay_closes_with_its_parent_whatever_the_parents_mode() {
                         @node_ref=&outer
                         anchor=OverlayAnchor::Point(pos2(10.0, 10.0))
                         placement=Placement::At
-                        mode={mode}
+                        policy={policy}
                         open={open}
-                        on_dismiss={move || reports.set(reports.get() + 1)}
+                        on_dismiss={move |_: Dismiss| reports.set(reports.get() + 1)}
                     >
                         <List spacing=0.0>
                             <Frame width=40.0 height=30.0 />
@@ -35,7 +36,7 @@ fn a_nested_overlay_closes_with_its_parent_whatever_the_parents_mode() {
                                 anchor=OverlayAnchor::Point(pos2(60.0, 10.0))
                                 placement=Placement::At
                                 open={nested_open}
-                                on_dismiss={move || {
+                                on_dismiss={move |_: Dismiss| {
                                     nested_reports.set(nested_reports.get() + 1);
                                     closing.set(false);
                                 }}
@@ -63,23 +64,28 @@ fn a_nested_overlay_closes_with_its_parent_whatever_the_parents_mode() {
     }
     assert!(harness.document().is_overlay_open(inner.id()));
 
-    set(&mut harness, &set_mode, OverlayMode::Floating);
+    set(&mut harness, &set_policy, LayerPolicy::Pass);
     assert!(harness.document().is_overlay_open(outer.id()));
     assert!(
-        !harness.document().is_overlay_open(inner.id()),
-        "changing the parent's mode closes the nested overlay"
+        harness.document().is_overlay_open(inner.id()),
+        "changing the parent's policy leaves the nested overlay open"
     );
-    assert_eq!(nested_dismissed.get(), 1);
-    assert_eq!(dismissed.get(), 0, "and does not dismiss the parent");
+    let layers = harness.document().layers();
+    let nested = layers
+        .index_of(inner)
+        .expect("the nested overlay is a layer");
+    assert_eq!(
+        layers[nested].parent,
+        layers.index_of(outer),
+        "and its layer stays a child of the parent's"
+    );
 
-    set(&mut harness, &set_nested_open, true);
-    assert!(harness.document().is_overlay_open(inner.id()));
     set(&mut harness, &set_open, false);
     assert!(
         !harness.document().is_overlay_open(inner.id()),
-        "closing a floating parent takes the nested overlay with it"
+        "closing a passing parent takes the nested overlay with it"
     );
     assert!(!harness.document().modal_open());
-    assert_eq!(nested_dismissed.get(), 2);
+    assert_eq!(nested_dismissed.get(), 1);
     assert_eq!(dismissed.get(), 0);
 }

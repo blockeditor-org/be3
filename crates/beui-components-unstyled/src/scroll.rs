@@ -1,3 +1,4 @@
+use beui_core::layer::LayerPolicy;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -11,7 +12,7 @@ use super::rubber_band::{
 };
 use beui_core::base::Sides;
 use beui_core::base::offset::OffsetNode;
-use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
+use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::base::{Direction, ItemSize, ScrollPosition, Sizing};
 use beui_core::color::Color32;
 use beui_core::document::Document;
@@ -456,7 +457,7 @@ fn Scrolling(
                 @sizing=ItemSize::Percent(100.0)
                 on_focus_change={move |focused: bool| set_focused.set(focused)}
                 on_key={move |press: KeyPress| keyed.key(press)}
-                on_ancestor_key={move |press: KeyPress| ancestor_keyed.key(press)}
+                on_ancestor_key={move |press: KeyPress| navigates(press.key) && ancestor_keyed.key(press)}
                 scroll_axis={axis}
                 @node_ref=&catcher
                 claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
@@ -485,7 +486,7 @@ fn Scrolling(
                             <Overlay
                                 anchor
                                 placement=Placement::Around
-                                mode=OverlayMode::Passive
+                                policy=LayerPolicy::Inert
                                 traps_focus=false
                                 open={marked}
                             >
@@ -639,4 +640,18 @@ pub(crate) fn under(node: &NodeRef, pos: Pos2) -> bool {
     node.try_get().is_some_and(|node| {
         with_document(|document| document.node_rect(node)).is_some_and(|rect| rect.contains(pos))
     })
+}
+
+fn navigates(key: Key) -> bool {
+    matches!(
+        key,
+        Key::ArrowUp
+            | Key::ArrowDown
+            | Key::ArrowLeft
+            | Key::ArrowRight
+            | Key::Home
+            | Key::End
+            | Key::PageUp
+            | Key::PageDown
+    )
 }

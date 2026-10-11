@@ -4,6 +4,7 @@ use super::*;
 fn a_modal_dock_dialog_blocks_its_parent_until_it_closes() {
     let dock = dialog_dock(vec![1, 2], Vec::new());
     let (pressed, keyed, set_dialogs) = (dock.pressed, dock.keyed, dock.set_dialogs);
+    let attended = dock.attended;
     let mut harness = Harness::sized(dock.document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let parent = harness.rect(harness.find("content.1"));
@@ -30,6 +31,16 @@ fn a_modal_dock_dialog_blocks_its_parent_until_it_closes() {
         vec![1],
         "a dialog that is not modal leaves its parent live"
     );
+    harness.frame(Vec::new());
+    assert_eq!(
+        harness.document().focused_node(),
+        Some(field),
+        "and a press on the parent takes the focus there"
+    );
+    assert!(
+        attended.borrow().is_empty(),
+        "without calling the dialog's attention"
+    );
     pressed.borrow_mut().clear();
 
     crate::reactive::with_reactive_scope(harness.document_mut(), || {
@@ -53,6 +64,11 @@ fn a_modal_dock_dialog_blocks_its_parent_until_it_closes() {
     harness.click(corner);
     harness.frame(Vec::new());
     assert!(pressed.borrow().is_empty(), "the parent hears no press");
+    assert_eq!(
+        *attended.borrow(),
+        vec![10],
+        "it calls the modal dialog's attention instead"
+    );
     assert_eq!(
         harness.document().focused_node(),
         Some(dialog),

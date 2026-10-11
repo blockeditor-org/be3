@@ -2,6 +2,7 @@ use accesskit::Role;
 use beui_core::base::overlay::Placement;
 use beui_core::document::Document;
 use beui_core::input::{Key, KeyPress};
+use beui_core::layer::Dismiss;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
@@ -335,7 +336,7 @@ fn MenuRow(
                         anchor=&button
                         placement=Placement::RightStart
                         open={submenu_open.clone()}
-                        on_dismiss={move || dismiss.set(false)}
+                        on_dismiss={move |_: Dismiss| dismiss.set(false)}
                     >
                         {panel.call(view! {
                             <MenuList

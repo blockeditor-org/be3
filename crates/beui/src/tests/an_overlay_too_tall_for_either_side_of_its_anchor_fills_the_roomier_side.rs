@@ -1,4 +1,5 @@
 use super::*;
+use crate::Dismiss;
 use crate::base::overlay::{OverlayAnchor, OverlayNode, Placement};
 use crate::reactive::{Frame, NodeRef, Overlay, build, view};
 
@@ -15,7 +16,7 @@ fn an_overlay_too_tall_for_either_side_of_its_anchor_fills_the_roomier_side() {
                         anchor=OverlayAnchor::Point(pos2(10.0, 200.0))
                         placement=Placement::BelowStart
                         open=true
-                        on_dismiss={|| {}}
+                        on_dismiss={|_: Dismiss| {}}
                     >
                         <Frame width=40.0 height=1000.0 />
                     </Overlay>

@@ -434,9 +434,13 @@ impl Document {
         let (Some(root), Some(focused)) = (self.root, self.focused) else {
             return;
         };
-        let mut path = Vec::new();
-        if !self.focus_path(root, focused, &mut path) {
-            return;
+        let mut path = self.focus_ancestry();
+        path.reverse();
+        if path.first() != Some(&root) {
+            path.clear();
+            if !self.focus_path(root, focused, &mut path) {
+                return;
+            }
         }
         let Some(target) = self.focus_target_rect(painter, focused) else {
             return;

@@ -138,7 +138,6 @@ mod a_launcher_closed_by_escape_opens_again;
 mod a_launcher_query_that_matches_nothing_runs_as_a_command_and_escape_closes;
 mod a_launcher_ranks_names_above_keywords_and_comments;
 mod a_layout_put_back_from_its_snapshot_keeps_the_tabs_where_they_were;
-mod a_light_overlay_occludes_only_its_content;
 mod a_list_in_a_scroll_lays_out_only_the_rows_near_the_view;
 mod a_list_sizes_plain_nodes_handed_to_it_intrinsically;
 mod a_locking_overlay_stays_on_top_and_shuts_out_global_keys;
@@ -160,12 +159,13 @@ mod a_multi_root_view_fills_a_children_prop_in_order;
 mod a_narrow_inspector_puts_its_close_button_beside_its_tabs;
 mod a_narrow_window_shows_the_inspector_below_a_tab_bar;
 mod a_nested_container_reports_its_own_width_not_the_windows;
-mod a_nested_overlay_closes_with_its_parent_whatever_the_parents_mode;
+mod a_nested_overlay_closes_with_its_parent_whatever_the_parents_policy;
 mod a_node_ref_lets_go_of_a_removed_node;
 mod a_number_input_reports_what_was_typed_within_its_range;
 mod a_pan_zoom_follows_the_view_its_caller_sets;
 mod a_panel_between_two_damaged_ones_is_left_alone;
 mod a_panel_taken_out_of_its_list_gives_up_its_rectangle_and_damages_it;
+mod a_passing_overlay_occludes_only_its_content;
 mod a_password_text_area_masks_its_text_and_keeps_it_off_the_clipboard;
 mod a_percent_child_stops_at_its_max_and_hands_the_rest_on;
 mod a_picture_given_a_source_paints_only_that_part_of_the_image;
@@ -224,6 +224,7 @@ mod a_sheet_is_never_taller_than_what_it_holds;
 mod a_sheet_pulled_past_its_top_stretches_and_springs_back;
 mod a_shifted_child_in_a_scrolled_view_still_paints;
 mod a_shortcut_can_leave_keys_to_the_text_input_that_has_the_focus;
+mod a_shortcut_outside_an_open_dialog_does_not_hear_keys_typed_in_it;
 mod a_show_adds_and_removes_a_menu_item_among_the_items_beside_it;
 mod a_show_adds_and_removes_a_tab_among_the_tabs_beside_it;
 mod a_shrinking_child_gives_way_to_its_fixed_neighbour;
@@ -296,6 +297,7 @@ mod accordion_headers_are_keyboard_operable_and_skip_collapsed_content;
 mod activation_requires_a_matching_release_and_escape_cancels_it;
 mod alt_arrows_walk_the_simulated_screen_reader_through_the_document;
 mod alt_dragging_a_tab_floats_it_in_a_window_over_the_pane_it_left;
+mod an_action_placed_at_a_node_answers_only_while_the_focus_is_inside_it;
 mod an_action_shortcut_runs_in_the_scope_that_holds_the_focus;
 mod an_app_that_inhibits_shortcuts_gets_every_chord_but_the_escape_hatch;
 mod an_aspect_ratio_frame_centres_the_largest_box_that_fits;
@@ -413,6 +415,7 @@ mod enter_confirms_the_highlighted_select_option_and_closes_the_popup;
 mod enter_in_a_single_line_text_area_submits_rather_than_breaking_the_line;
 mod enter_on_an_inspector_row_selects_it_without_collapsing_it;
 mod enter_toggles_the_focused_checkbox;
+mod escape_and_back_reach_a_layers_back_handler_and_a_press_outside_its_on_dismiss;
 mod escape_closes_an_open_select_popup_and_returns_focus_to_the_trigger;
 mod escape_closes_the_emoji_menu_until_the_colon_is_typed_again;
 mod escape_discards_what_was_typed_into_a_number_input;
@@ -2091,6 +2094,7 @@ pub(crate) struct DialogDock {
     pub(crate) layout: unstyled::DockingLayout<u64>,
     pub(crate) pressed: Rc<RefCell<Vec<u64>>>,
     pub(crate) keyed: Rc<RefCell<Vec<u64>>>,
+    pub(crate) attended: Rc<RefCell<Vec<u64>>>,
     pub(crate) set_dialogs: crate::reactive::WriteSignal<Dialogs>,
 }
 
@@ -2106,8 +2110,10 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
     let built = dock.clone();
     let pressed = Rc::new(RefCell::new(Vec::new()));
     let keyed = Rc::new(RefCell::new(Vec::new()));
+    let attended = Rc::new(RefCell::new(Vec::new()));
     let layout = unstyled::DockingLayout::new();
     let (listed, set_dialogs) = create_signal(dialogs);
+    let attending = Rc::clone(&attended);
     let (pressing, keying, laid) = (Rc::clone(&pressed), Rc::clone(&keyed), layout.clone());
     let document = build(move || {
         let flags = listed.clone();
@@ -2121,6 +2127,7 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
         });
         let (tab_presses, tab_keys) = (Rc::clone(&pressing), Rc::clone(&keying));
         let (dialog_presses, dialog_keys) = (Rc::clone(&pressing), Rc::clone(&keying));
+        let dialog_attention = Rc::clone(&attending);
         let layout = laid.clone();
         view! {
             <styled::Docking @node_ref=&built layout>
@@ -2135,6 +2142,7 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
                                         owner=id
                                         pressed={Rc::clone(&pressed)}
                                         keyed={Rc::clone(&keyed)}
+                                        attended={None}
                                         size={None}
                                     />
                                 </unstyled::DockTab>
@@ -2146,6 +2154,7 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
                     {move |(id, parent): (u64, u64)| {
                         let (pressed, keyed) =
                             (Rc::clone(&dialog_presses), Rc::clone(&dialog_keys));
+                        let attended = Rc::clone(&dialog_attention);
                         let flags = flags.clone();
                         let modal = crate::reactive::create_memo(move || {
                             flags.with(|listed| listed.iter().any(|(held, _, modal)| *held == id && *modal))
@@ -2163,6 +2172,7 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
                                     owner=id
                                     pressed={Rc::clone(&pressed)}
                                     keyed={Rc::clone(&keyed)}
+                                    attended={Some(Rc::clone(&attended))}
                                     size={Some(dialog_size(id))}
                                 />
                             </unstyled::DockDialog>
@@ -2178,6 +2188,7 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
         layout,
         pressed,
         keyed,
+        attended,
         set_dialogs,
     }
 }
@@ -2188,8 +2199,17 @@ fn FocusPanel(
     owner: u64,
     pressed: Rc<RefCell<Vec<u64>>>,
     keyed: Rc<RefCell<Vec<u64>>>,
+    attended: Option<Rc<RefCell<Vec<u64>>>>,
     size: Option<Vec2>,
 ) -> NodeId {
+    if let (Some(attended), Some(tab)) = (attended, unstyled::use_dock_tab()) {
+        let called = crate::reactive::create_memo(move || tab.attention());
+        crate::reactive::create_effect(move || {
+            if called.get().is_some() {
+                attended.borrow_mut().push(owner);
+            }
+        });
+    }
     let width = size.map(|size| size.x);
     let height = size.map(|size| size.y);
     view! {

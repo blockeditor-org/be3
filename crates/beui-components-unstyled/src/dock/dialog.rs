@@ -1,8 +1,9 @@
 use std::time::Duration;
 
-use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
+use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::geometry::Vec2;
 use beui_core::input::PointerPress;
+use beui_core::layer::{Dismiss, LayerPolicy};
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
@@ -240,8 +241,9 @@ fn DockDialogView(dock: Handle, tab: TabId, parent: TabId) -> NodeId {
         }
     }));
     let blocking = create_memo(clone!(shown modal -> move || shown.get() && modal.get()));
-    let blocks = create_memo(clone!(blocking anchor -> move || {
-        blocking.get().then(|| anchor.clone())
+    let policy = create_memo(clone!(blocking -> move || match blocking.get() {
+        true => LayerPolicy::BlocksParent,
+        false => LayerPolicy::Pass,
     }));
     let focus = dock.dialog_focus.clone();
     let focused = create_memo(move || focus.get() == Some(tab));
@@ -298,61 +300,43 @@ fn DockDialogView(dock: Handle, tab: TabId, parent: TabId) -> NodeId {
     });
     let pressed = dock.clone();
     let attending = dock.clone();
+    let dismissing = on_close.clone();
+    let modal_now = blocking.clone();
     let overlay = NodeRef::new();
-    let shield_anchor = anchor.clone();
-    let dialog_anchor = anchor.clone();
-    let (raised, lifted) = (overlay.clone(), overlay.clone());
-    let (lifting, opening, attended) = (blocking.clone(), shown.clone(), focused.clone());
+    let raised = overlay.clone();
+    let (opening, attended) = (shown.clone(), focused.clone());
     let view = view! {
-        <beui_view::reactive::List spacing=0.0>
-            <Overlay
-                anchor={OverlayAnchor::Node(shield_anchor)}
-                placement=Placement::Cover
-                mode=OverlayMode::Floating
-                traps_focus=false
-                open={blocking.clone()}
+        <Overlay
+            @node_ref=&overlay
+            anchor={OverlayAnchor::Node(anchor)}
+            placement=Placement::CenterOn
+            policy
+            traps_focus=false
+            open={shown.clone()}
+            on_dismiss={move |reason: Dismiss| match reason {
+                Dismiss::OutsidePress if modal_now.get_untracked() => {
+                    attending.focus_dialog(tab);
+                    attending.focus_into_dialog();
+                    attending.call_attention();
+                }
+                Dismiss::Escape | Dismiss::Back => {
+                    if let Some(close) = &dismissing {
+                        close.call();
+                    }
+                }
+                Dismiss::OutsidePress | Dismiss::WithParent => {}
+            }}
+        >
+            <Interactive
+                @node_ref=&frame
+                on_press={move |_: PointerPress| pressed.focus_dialog(tab)}
             >
-                <Interactive
-                    focusable=true
-                    tab_stop=false
-                    press_focus=false
-                    on_press={move |_: PointerPress| {
-                        attending.focus_dialog(tab);
-                        attending.focus_into_dialog();
-                        attending.call_attention();
-                    }}
-                >
-                    <Frame @test_id={format!("dock.dialog.{}.shield", tab.value())} />
-                </Interactive>
-            </Overlay>
-            <Overlay
-                @node_ref=&overlay
-                anchor={OverlayAnchor::Node(dialog_anchor)}
-                placement=Placement::CenterOn
-                mode=OverlayMode::Floating
-                traps_focus=false
-                blocks
-                open={shown.clone()}
-            >
-                <Interactive
-                    @node_ref=&frame
-                    on_press={move |_: PointerPress| pressed.focus_dialog(tab)}
-                >
-                    {face}
-                </Interactive>
-            </Overlay>
-        </beui_view::reactive::List>
+                {face}
+            </Interactive>
+        </Overlay>
     };
-    create_effect(move || {
-        if !lifting.get() {
-            return;
-        }
-        if let Some(overlay) = lifted.try_get() {
-            with_document(|document| document.raise_overlay(overlay));
-        }
-    });
     create_effect(clone!(attended -> move || {
-        if !attended.get() {
+        if !(blocking.get() || attended.get()) {
             return;
         }
         if let Some(overlay) = raised.try_get() {
