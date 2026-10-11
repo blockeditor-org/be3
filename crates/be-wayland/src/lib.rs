@@ -1,5 +1,6 @@
 mod compositor;
 mod decoration;
+mod focus;
 mod idle;
 mod presentation;
 pub mod programs;
@@ -8,6 +9,7 @@ mod server;
 mod state;
 mod view;
 mod windows;
+mod xwayland;
 
 pub use compositor::{Compositor, CursorImage};
 pub use presentation::Presented;

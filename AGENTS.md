@@ -11,7 +11,7 @@ Guides:
 - guides/buck2.md
 - guides/build_server.md
 - guides/hosting.md
-- guides/linux_desktop.md: block-app as a Linux desktop: the session, notifications, media keys, the lock screen, Wayland programs
+- guides/linux_desktop.md: block-app as a Linux desktop: the session, notifications, media keys, the lock screen, Wayland and X11 programs
 - guides/pan_and_zoom.md: the camera a plugin editor is handed by its host
 - guides/reactive.md: the reactive graph under beui
 - guides/running/drive.md: how to run and test any app; read this first
@@ -35,7 +35,7 @@ Commands (builds run on the build server; see guides/buck2.md and guides/build_s
 Do:
 - Use commit messages of the form `type: message`, ending with a Co-Authored-By line naming your model.
 - When done, open a pull request on GitHub. Don't watch it, subscribe to it or check on it, and don't create routines or check-in timers.
-- If you find yourself polling while waiting for a command to finish, run `./scripts/nopoll` in the foreground.
+- To wait for a background command, end your turn: you are re-invoked when it exits. This includes a foreground command that outlives its timeout and is moved to the background. Never loop reading its output file or sleeping to check on it. If a stop hook then tells you to commit uncommitted changes while the command is still running, end your turn again: the hook blocks only once.
 - When updating GitHub Actions workflows, remember that the new version will run on old PRs that don't have main's new changes applied.
 
 Design principles:

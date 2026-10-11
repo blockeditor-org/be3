@@ -27,6 +27,15 @@ fn installing_adds_the_lock_screens_pam_service_without_replacing_one() {
         "auth include login\n"
     );
 
+    std::fs::remove_file(&service).unwrap();
+    std::fs::write(dir.join("common-auth"), "auth required pam_unix.so\n").unwrap();
+    place_pam(&dir).unwrap();
+    assert_eq!(
+        std::fs::read_to_string(&service).unwrap(),
+        "auth include common-auth\n",
+        "Debian and Ubuntu authenticate with common-auth, without login's delay and nologin"
+    );
+
     std::fs::write(&service, "auth include system-auth\n").unwrap();
     assert_eq!(place_pam(&dir).unwrap(), None);
     assert_eq!(

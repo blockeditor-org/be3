@@ -26,10 +26,15 @@ drive like any other run (guides/running/drive.md).
 
 installs the app with its plugins in `PREFIX/lib/block-app` (`/usr/local` by default, asking
 sudo when it needs root), links `PREFIX/bin/block-app` to it and writes
-`PREFIX/share/wayland-sessions/block-app.desktop` (from `src/session/block-app.desktop`),
-which runs it with `--session`. GDM and SDDM then offer Block on the login screen's session
-menu, where it can be picked and remembered as the default; an SDDM older than 0.20 reads only
-`/usr/share/wayland-sessions`, so give it `/usr`. Running it again replaces the install.
+`/usr/share/wayland-sessions/block-app.desktop` (from `src/session/block-app.desktop`), which
+runs it with `--session`, whatever the prefix: GDM, SDDM (older ones read nothing else) and
+LightDM all read that directory, and LightDM (Mint's slick-greeter) never reads
+`/usr/local/share`. When LightDM's `sessions-directory` (its `lightdm.conf.d` directories and
+`/etc/lightdm/lightdm.conf`) leaves that directory out, the entry also goes in the first one it
+lists; `X-LightDM-Session-Type=wayland` makes LightDM run it as Wayland from any directory. The
+login screen then offers Block on its session menu, where it can be picked and remembered as
+the default. Running it again replaces the install, and removes an entry an older install left
+in `PREFIX/share/wayland-sessions`.
 
 In session mode stdout and stderr, and so every `eprintln!`, every panic with its backtrace
 and the output of every program the app starts, go to `$XDG_STATE_HOME/block/session.log`
@@ -166,8 +171,9 @@ it, and `src/ui/lock.rs` shows it as `styled::LockScreen`, a card on every scree
 the document (`use_screens()`) over an opaque scrim. logind's `Unlock` is not obeyed: only a password unlocks.
 
 The password is checked by PAM on a thread of its own, with the service `block-app` when
-`/etc/pam.d/block-app` exists (`--install-session` writes it, as `auth include login`, unless one is
-there) and `login` otherwise. libpam is opened with `dlopen` when a password is checked, so the app
+`/etc/pam.d/block-app` exists (`--install-session` writes it unless one is there, as
+`auth include common-auth` where that exists, as on Debian and Ubuntu, and `auth include login`
+elsewhere) and `login` otherwise. libpam is opened with `dlopen` when a password is checked, so the app
 does not link it. After three wrong passwords each attempt waits, from five seconds doubling up to
 a minute. Anything that goes wrong - no libpam, a PAM error, a check that panics, an answer to an
 earlier attempt - leaves the screen locked; only `Verdict::Accepted` for the attempt in flight
@@ -218,6 +224,39 @@ window (a floating window's tab, say) the window takes nothing (`occluders`, fro
 occlusion), and a press keeps going to the window or plugin it began on until it is let go.
 
 Under `--session` the app runs a frame only when an output has flipped since the last one (`beui-adapter-drm`'s `pacing.rs`), and a window's `wl_surface.frame` callbacks and `wp_presentation_feedback` are answered by the flip of the screen it mostly covers, with the flip's time, refresh and sequence: the adapter reports each flip through `beui_adapter_drm::Flips`, which block-app hands to `Compositor::presented` (`presentation.rs`). Elsewhere there are no flips, so they are answered as soon as the window is painted, at the frame clock's time.
+
+A `WindowView` that changes size configures its client with the new size in that same frame.
+Until the client commits a buffer of that size, its last one is drawn at its own size from the
+view's top-left corner, clipped to the view, never stretched to fit; the size a surface is
+drawn at is its buffer's size over its buffer scale, or the destination it set through
+viewporter. `render.rs` draws it, `a_resized_window_is_drawn_unscaled_until_it_commits_the_new_size`
+checks the pixels.
+
+### X11 programs
+
+`be_wayland::Server::start_xwayland`, which block-app calls once the server is up, starts
+`Xwayland` (the `xwayland` package; without it X11 programs just do not run) on the first free
+display, with smithay's `X11Wm` as its window manager (`crates/be-wayland/src/xwayland.rs`).
+It starts with the compositor rather than when an X11 client first connects: smithay creates
+the Xwayland client and its X11 sockets only inside `XWayland::spawn`, which starts the server
+at once. Programs the compositor launches get `DISPLAY`, and under `--session` both it and
+`WAYLAND_DISPLAY` go to D-Bus's activation environment and systemd's user manager
+(`src/session/environment.rs`). If Xwayland dies, its windows close and it starts again on the
+same display, up to three times. To try it under `:dev`, the app's log names the display:
+
+    DISPLAY=:0 xterm
+    DISPLAY=:0 GDK_BACKEND=x11 xfce4-terminal --disable-server
+
+An X11 toplevel is one more kind of window behind the same `WindowId`: `ClientWindow` holds a
+smithay `desktop::Window`, which is either an xdg toplevel or an `X11Surface`, so it is listed,
+docked, focused, resized, fullscreened and closed (`WM_DELETE_WINDOW`) like any other, and its
+input goes through the same forwarding. The keyboard focus is `focus::KeyboardFocus`, which for
+an X11 window also sets the X input focus. X11 has no ping here, so an X11 window is always
+responding. Each X11 window is configured at its place on the screen (`State::place`), so X
+coordinates are the screen's; an override-redirect window (a menu, tooltip or dropdown)
+positions itself in those coordinates and is drawn and hit-tested as a layer of the toplevel it
+belongs to (its `WM_TRANSIENT_FOR`, else the X11 window under the pointer or with the
+keyboard), clipped to that window like an xdg popup.
 
 The compositor pings a window's client when it is clicked, typed into, focused or asked to
 close, and a client that has not answered within `PING_TIMEOUT` (be-wayland's `state.rs`) is listed as
