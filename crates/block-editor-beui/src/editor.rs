@@ -1083,25 +1083,7 @@ impl Editor {
             .collect();
         records.sort_by(|(left, _), (right, _)| left.cmp(right));
         let unscale = self.ratio().recip();
-        let placed: Vec<(Vec<usize>, Rect)> = records
-            .iter()
-            .filter_map(|(order, record)| {
-                let rect = document.node_rect(record.slot.node()?)?;
-                Some((order.clone(), rect))
-            })
-            .collect();
-        let mut overlays = document.overlay_layers();
-        overlays.extend(
-            document
-                .press_captor_layers()
-                .into_iter()
-                .filter(|(layer, rect)| {
-                    placed
-                        .iter()
-                        .any(|(order, child)| order < layer && child.intersects(*rect))
-                }),
-        );
-        overlays.sort_by(|(left, _), (right, _)| left.cmp(right));
+        let overlays = document.overlay_layers();
         let mut overlays = overlays.iter().peekable();
         for (order, record) in records {
             while let Some((_, rect)) = overlays.next_if(|(layer, _)| *layer < order) {

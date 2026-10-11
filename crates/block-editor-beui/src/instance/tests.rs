@@ -7,7 +7,6 @@ use block_plugin_api::{
 };
 
 mod a_child_block_asks_the_host_for_the_frame_it_will_own;
-mod a_control_drawn_over_a_child_is_withheld_from_the_child;
 mod a_focused_beui_child_gets_the_whole_frame_not_just_its_embedded_rect;
 mod a_focused_beui_childs_reported_content_is_its_own_canvas_not_the_whole_view;
 mod a_visible_editor_shows_its_user_as_active;

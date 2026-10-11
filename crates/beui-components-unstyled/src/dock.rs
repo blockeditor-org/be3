@@ -65,9 +65,8 @@ pub use switch::{DockSwitchHandle, DockSwitchRowHandle};
 
 pub const SPLITTER_THICKNESS: f32 = 6.0;
 const EDGE_ZONE: f32 = 0.22;
-const GRIP: f32 = 7.0;
-const HANDLE_REACH: f32 = 5.0;
-const GRIP_SPAN: f32 = GRIP + HANDLE_REACH;
+const HANDLE_REACH: f32 = 8.0;
+const GRIP_CORNER: f32 = 16.0;
 const MARKER_WIDTH: f32 = 3.0;
 const SPLIT_STEP: f32 = 0.02;
 const SIDEBAR_STEP: f32 = 16.0;
@@ -1003,15 +1002,19 @@ enum Grip {
     BottomRight,
 }
 
-const GRIPS: [Grip; 8] = [
-    Grip::Left,
-    Grip::Right,
-    Grip::Top,
-    Grip::Bottom,
-    Grip::TopLeft,
-    Grip::TopRight,
-    Grip::BottomLeft,
-    Grip::BottomRight,
+const GRIPS: [(Grip, bool); 12] = [
+    (Grip::Left, false),
+    (Grip::Right, false),
+    (Grip::Top, false),
+    (Grip::Bottom, false),
+    (Grip::TopLeft, false),
+    (Grip::TopLeft, true),
+    (Grip::TopRight, false),
+    (Grip::TopRight, true),
+    (Grip::BottomLeft, false),
+    (Grip::BottomLeft, true),
+    (Grip::BottomRight, false),
+    (Grip::BottomRight, true),
 ];
 
 impl Grip {
@@ -1024,20 +1027,26 @@ impl Grip {
         }
     }
 
-    fn rect(self, size: Vec2) -> Rect {
-        let far = pos2(size.x - GRIP_SPAN, size.y - GRIP_SPAN);
-        let corner = vec2(GRIP_SPAN, GRIP_SPAN);
-        let across = vec2(size.x - GRIP_SPAN * 2.0, GRIP_SPAN);
-        let down = vec2(GRIP_SPAN, size.y - GRIP_SPAN * 2.0);
+    fn rect(self, upright: bool, size: Vec2) -> Rect {
+        let (reach, corner) = (HANDLE_REACH, GRIP_CORNER);
+        let far = pos2(size.x - reach, size.y - reach);
+        let along = vec2(size.x - corner * 2.0, reach);
+        let down = vec2(reach, size.y - corner * 2.0);
+        let arm = match upright {
+            true => vec2(reach, corner),
+            false => vec2(corner, reach),
+        };
+        let right = size.x - arm.x;
+        let bottom = size.y - arm.y;
         match self {
-            Grip::Left => Rect::from_min_size(pos2(0.0, GRIP_SPAN), down),
-            Grip::Right => Rect::from_min_size(pos2(far.x, GRIP_SPAN), down),
-            Grip::Top => Rect::from_min_size(pos2(GRIP_SPAN, 0.0), across),
-            Grip::Bottom => Rect::from_min_size(pos2(GRIP_SPAN, far.y), across),
-            Grip::TopLeft => Rect::from_min_size(Pos2::ZERO, corner),
-            Grip::TopRight => Rect::from_min_size(pos2(far.x, 0.0), corner),
-            Grip::BottomLeft => Rect::from_min_size(pos2(0.0, far.y), corner),
-            Grip::BottomRight => Rect::from_min_size(far, corner),
+            Grip::Left => Rect::from_min_size(pos2(0.0, corner), down),
+            Grip::Right => Rect::from_min_size(pos2(far.x, corner), down),
+            Grip::Top => Rect::from_min_size(pos2(corner, 0.0), along),
+            Grip::Bottom => Rect::from_min_size(pos2(corner, far.y), along),
+            Grip::TopLeft => Rect::from_min_size(Pos2::ZERO, arm),
+            Grip::TopRight => Rect::from_min_size(pos2(right, 0.0), arm),
+            Grip::BottomLeft => Rect::from_min_size(pos2(0.0, bottom), arm),
+            Grip::BottomRight => Rect::from_min_size(pos2(right, bottom), arm),
         }
     }
 
@@ -1689,7 +1698,7 @@ fn DockTreeView(
                     let layout = splitter_layout.clone();
                     let rect = create_memo(clone!(layout -> move || {
                         layout.with(|layout| layout.splitter(split)).map_or(Rect::ZERO, |splitter| {
-                            splitter.handle.expand2(splitter.direction.axes(HANDLE_REACH, 0.0))
+                            splitter.handle
                         })
                     }));
                     let x = create_memo(clone!(rect -> move || rect.get().min.x));
@@ -2284,7 +2293,6 @@ fn DockSplitterView(dock: Handle, tree: Tree, split: SplitId) -> NodeId {
     let start = shown.clone();
     let dragged = dock.clone();
     let stepped = dock.clone();
-    let reach = direction.axes(HANDLE_REACH, 0.0);
     view! {
         <Interactive
             capture_presses=true
@@ -2336,7 +2344,7 @@ fn DockSplitterView(dock: Handle, tree: Tree, split: SplitId) -> NodeId {
                 dragged.edit(|state| state.set_split_fraction(split, fraction));
             }}
         >
-            <Frame padding_horizontal={reach.x} padding_vertical={reach.y}>{face}</Frame>
+            <Frame>{face}</Frame>
         </Interactive>
     }
 }
@@ -2699,11 +2707,11 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                         </Frame>
                     </CanvasItem>
                     <ForEach keys={GRIPS.to_vec()}>
-                        {move |grip: Grip| {
+                        {move |(grip, upright): (Grip, bool)| {
                             let dock = grips.clone();
                             let size = size.clone();
                             let rect = grip_rect.clone();
-                            let handle = create_memo(clone!(size -> move || grip.rect(size.get())));
+                            let handle = create_memo(clone!(size -> move || grip.rect(upright, size.get())));
                             let x = create_memo(clone!(handle -> move || handle.get().min.x));
                             let y = create_memo(clone!(handle -> move || handle.get().min.y));
                             let width = create_memo(clone!(handle -> move || handle.get().width()));

@@ -642,10 +642,6 @@ impl Document {
                 .touch_mut_as::<InteractiveNode>(id)
                 .capture_presses = capture_presses;
         }
-        match capture_presses {
-            true => self.press_captors.insert(id.id()),
-            false => self.press_captors.remove(&id.id()),
-        };
     }
 
     pub fn set_interactive_scroll_axis(

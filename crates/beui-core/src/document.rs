@@ -128,7 +128,6 @@ pub struct Document {
     pub press_claim: Option<NodeId>,
     pub secondary_claim: Option<NodeId>,
     pub(crate) press_claimants: HashSet<NodeId>,
-    pub(crate) press_captors: HashSet<NodeId>,
     pub(crate) outside_watchers: HashSet<NodeId>,
     pub forward: crate::interact::forward::Routing,
     pub drags: Rc<crate::drag_board::Board>,
@@ -347,7 +346,6 @@ impl Document {
             press_claim: None,
             secondary_claim: None,
             press_claimants: HashSet::new(),
-            press_captors: HashSet::new(),
             outside_watchers: HashSet::new(),
             forward: Default::default(),
             drags: Rc::default(),
@@ -693,20 +691,6 @@ impl Document {
             .collect()
     }
 
-    pub fn press_captor_layers(&self) -> Vec<(Vec<usize>, Rect)> {
-        let mut layers: Vec<(Vec<usize>, Rect)> = self
-            .press_captors
-            .iter()
-            .filter(|id| self.arena.contains(**id))
-            .filter_map(|id| {
-                let rect = self.rects.visible(id).filter(|rect| rect.is_positive())?;
-                Some((self.paint_order(*id), rect))
-            })
-            .collect();
-        layers.sort_by(|(left, _), (right, _)| left.cmp(right));
-        layers
-    }
-
     pub fn paint_order(&self, node: NodeId) -> Vec<usize> {
         let overlays = self.overlays_bottom_up();
         let mut path = Vec::new();
@@ -993,7 +977,6 @@ impl Document {
         self.placed_children.remove(&id);
         self.placed_pass.remove(&id);
         self.press_claimants.remove(&id);
-        self.press_captors.remove(&id);
         self.outside_watchers.remove(&id);
         self.reached_pass.remove(&id);
         self.scroll_shifts.remove(&id);
