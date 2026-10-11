@@ -16,7 +16,7 @@ use beui_core::app::SafeArea;
 use beui_core::renderer::Loaded;
 use beui_core::runner::{Runner, panic_message};
 use smithay::backend::allocator::gbm::GbmDevice;
-use smithay::backend::drm::{DrmDevice, DrmDeviceFd, DrmEvent};
+use smithay::backend::drm::{DrmDevice, DrmDeviceFd, DrmEvent, DrmEventMetadata, DrmEventTime};
 use smithay::backend::input::Event as _;
 use smithay::backend::input::{
     AbsolutePositionEvent, Axis, ButtonState, InputEvent, KeyState, KeyboardKeyEvent,
@@ -37,17 +37,19 @@ use smithay::reexports::drm::control::Device as ControlDevice;
 use smithay::reexports::drm::control::{connector, crtc};
 use smithay::reexports::input::{Device as InputDevice, Libinput};
 use smithay::reexports::rustix::fs::OFlags;
-use smithay::utils::DeviceFd;
+use smithay::utils::{Clock, DeviceFd, Monotonic};
 
 use be_dmabuf::{adapter_for, open_device};
 
 use crate::display::{DisplayConfig, DisplayControl};
 use crate::displays::{DisplayRenderer, Displays};
+use crate::flips::{Flip, Flips};
 use crate::gpu::{Gpu, SoftwareCursor};
 use crate::input::{DeviceId, InputConfig, InputControl, PointerConfig, PointerDevice};
 use crate::keyboard::Keyboard;
 use crate::layout::{arrange, bounds, clamp, moved};
 use crate::output::{Output, connected, wait_for};
+use crate::pacing::{Lane, Pacer, Wait};
 use crate::problems::Problems;
 use crate::recovery::{Card, Recovery};
 use crate::screen::FORMAT;
@@ -79,10 +81,12 @@ struct Session {
     runner: Runner,
     platform: Seat,
     displays: Rc<RefCell<Displays>>,
-    dirty: bool,
+    pacer: Pacer,
+    clock: Clock<Monotonic>,
+    flips: Flips,
     keyboard: Keyboard,
     repeat: Option<(u32, RegistrationToken)>,
-    wakeup: Option<RegistrationToken>,
+    wakeup: Option<(Duration, RegistrationToken)>,
     darken_retry: Option<RegistrationToken>,
     lost: Arc<AtomicBool>,
     problems: Problems,
@@ -126,8 +130,8 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
     let (drm, drm_events) = DrmDevice::new(fd.clone(), true)?;
     let node = drm.device_id();
     let gbm = GbmDevice::new(fd)?;
-    handle.insert_source(drm_events, |event, _, session| match event {
-        DrmEvent::VBlank(crtc) => session.flipped(crtc),
+    handle.insert_source(drm_events, |event, metadata, session| match event {
+        DrmEvent::VBlank(crtc) => session.flipped(crtc, metadata.as_ref()),
         DrmEvent::Error(error) => session
             .problems
             .report(format!("The display device failed: {error}")),
@@ -143,7 +147,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         |event, _, session| session.input(event),
     )?;
     let (ping, pinged) = make_ping()?;
-    handle.insert_source(pinged, |_, _, session| session.dirty = true)?;
+    handle.insert_source(pinged, |_, _, session| session.pacer.ask())?;
     let waker = Waker::new(move || ping.ping());
     let control = InputControl::new(waker.clone());
     let display_control = DisplayControl::new(waker.clone());
@@ -162,6 +166,8 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
     setup.provide(display_control.clone());
     let problems = Problems::default();
     setup.provide(problems.clone());
+    let flips = displays.borrow().flips.clone();
+    setup.provide(flips.clone());
     runner.start(
         vec![Loaded {
             renderer: Box::new(DisplayRenderer(Rc::clone(&displays))),
@@ -197,7 +203,9 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         runner,
         platform,
         displays,
-        dirty: true,
+        pacer: Pacer::default(),
+        clock: Clock::new(),
+        flips,
         repeat: None,
         wakeup: None,
         darken_retry: None,
@@ -215,6 +223,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         let mut displays = session.displays.borrow_mut();
         displays.pointer = displays.outputs[0].screen.rect.center();
     }
+    session.pacer.ask();
     let ran = catch_unwind(AssertUnwindSafe(|| {
         event_loop.run(None, &mut session, Session::idle)
     }));
@@ -355,7 +364,10 @@ impl Session {
         if self.modes_pending {
             self.apply_modes();
         }
-        if self.dirty || self.runner.has_events() {
+        if self.runner.has_events() {
+            self.pacer.ask();
+        }
+        if self.pacer.wait(self.now(), &self.lanes()) == Wait::Now {
             self.update();
         }
         if let Some(blanked) = self.display_control.take_blanked() {
@@ -367,6 +379,20 @@ impl Session {
         }
         self.watch_fences();
         self.check_failures();
+        self.schedule();
+    }
+
+    fn now(&self) -> Duration {
+        self.clock.now().into()
+    }
+
+    fn lanes(&self) -> Vec<Lane> {
+        self.displays
+            .borrow()
+            .outputs
+            .iter()
+            .filter_map(Output::lane)
+            .collect()
     }
 
     fn with_recovery(&mut self, step: impl FnOnce(&mut Recovery<connector::Handle>, &mut Self)) {
@@ -418,7 +444,7 @@ impl Session {
         for output in &mut self.displays.borrow_mut().outputs {
             output.set_blanked(blanked);
         }
-        self.dirty = true;
+        self.pacer.ask();
     }
 
     fn darken(&mut self) {
@@ -434,7 +460,7 @@ impl Session {
                 .handle
                 .insert_source(Timer::from_duration(DARKEN_RETRY), |_, _, session| {
                     session.darken_retry = None;
-                    session.dirty = true;
+                    session.pacer.ask();
                     TimeoutAction::Drop
                 })
                 .ok();
@@ -501,12 +527,19 @@ impl Session {
     }
 
     fn update(&mut self) {
-        self.dirty = false;
-        let scale = self.displays.borrow().scale;
+        let now = self.now();
+        let scale = {
+            let mut displays = self.displays.borrow_mut();
+            for output in &mut displays.outputs {
+                output.framed();
+            }
+            displays.scale
+        };
         let Some(frame) = self
             .runner
             .frame(&mut self.platform, scale, SafeArea::default())
         else {
+            self.pacer.ran(now, false, None);
             if self.runner.exited() {
                 self.signal.stop();
             }
@@ -515,48 +548,78 @@ impl Session {
         if frame.close_requested && self.runner.close_requested() {
             self.signal.stop();
         }
+        let wait = |after: Duration| (after != Duration::MAX).then(|| after.min(LONGEST_WAIT));
         match self.blanked {
-            false => {
-                self.dirty = frame.deferred || frame.repaint;
-                self.schedule(frame.repaint_after);
-            }
-            true => {
-                self.dirty = frame.deferred;
-                self.schedule(frame.repaint_after.max(BLANKED_FRAME));
-            }
+            false => self.pacer.ran(
+                now,
+                frame.deferred || frame.repaint,
+                wait(frame.repaint_after),
+            ),
+            true => self.pacer.ran(
+                now,
+                frame.deferred,
+                wait(frame.repaint_after.max(BLANKED_FRAME)),
+            ),
         }
     }
 
-    fn schedule(&mut self, after: Duration) {
-        if let Some(token) = self.wakeup.take() {
-            self.handle.remove(token);
-        }
-        if after == Duration::MAX {
+    fn schedule(&mut self) {
+        let now = self.now();
+        let at = match self.pacer.wait(now, &self.lanes()) {
+            Wait::Idle => None,
+            Wait::Now => Some(now),
+            Wait::Until(at) => Some(at),
+        };
+        if self.wakeup.as_ref().map(|(held, _)| *held) == at && at != Some(now) {
             return;
         }
+        if let Some((_, token)) = self.wakeup.take() {
+            self.handle.remove(token);
+        }
+        let Some(at) = at else {
+            return;
+        };
         self.wakeup = self
             .handle
             .insert_source(
-                Timer::from_duration(after.min(LONGEST_WAIT)),
+                Timer::from_duration(at.saturating_sub(now)),
                 |_, _, session| {
                     session.wakeup = None;
-                    session.dirty = true;
                     TimeoutAction::Drop
                 },
             )
-            .ok();
+            .ok()
+            .map(|token| (at, token));
     }
 
-    fn flipped(&mut self, crtc: crtc::Handle) {
+    fn flipped(&mut self, crtc: crtc::Handle, metadata: Option<&DrmEventMetadata>) {
         let shown = self
             .displays
             .borrow_mut()
             .outputs
             .iter_mut()
             .find(|output| output.crtc == crtc)
-            .and_then(|output| output.flipped().then_some(output.connector));
-        if let Some(connector) = shown {
+            .and_then(|output| {
+                output
+                    .flipped()
+                    .then(|| (output.connector, output.id().to_owned(), output.refresh()))
+            });
+        if let Some((connector, screen, refresh)) = shown {
             self.recovery.shown(connector);
+            let (time, hardware_clock) = match metadata.map(|metadata| metadata.time) {
+                Some(DrmEventTime::Monotonic(time)) => (time, true),
+                _ => (self.now(), false),
+            };
+            let flip = Flip {
+                screen,
+                time,
+                refresh,
+                sequence: metadata.map_or(0, |metadata| u64::from(metadata.sequence)),
+                hardware_clock,
+            };
+            if self.flips.shown(flip) {
+                self.pacer.ask();
+            }
         }
         self.check_failures();
     }
@@ -621,7 +684,7 @@ impl Session {
             output.screen.invalidate();
         }
         displays.pointer = clamp(displays.pointer, &displays.rects());
-        self.dirty = true;
+        self.pacer.ask();
         drop(guard);
         self.report_monitors();
     }
@@ -652,7 +715,7 @@ impl Session {
 
     fn push(&mut self, event: Event) {
         self.runner.push(event);
-        self.dirty = true;
+        self.pacer.ask();
     }
 
     fn point(&mut self, pointer: Pos2) {
@@ -674,7 +737,7 @@ impl Session {
         if pass.woke {
             self.set_blanked(false);
             self.display_control.woke();
-            self.dirty = true;
+            self.pacer.ask();
         }
         if !pass.deliver {
             match event {
@@ -937,7 +1000,7 @@ impl Card for Session {
             self.set_blanked(false);
             self.display_control.woke();
         }
-        self.dirty = true;
+        self.pacer.ask();
     }
 
     fn rescan(&mut self) {

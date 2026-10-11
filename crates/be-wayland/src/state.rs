@@ -26,6 +26,7 @@ use crate::activation::Activation;
 use crate::decoration::{Decorations, server_side};
 use crate::focus::KeyboardFocus;
 use crate::idle::Idle;
+use crate::presentation::Presentation;
 use crate::server::{Waiter, readable};
 use crate::xwayland::XWaylandState;
 use smithay::delegate_cursor_shape;
@@ -135,6 +136,7 @@ pub struct State {
     syncobj: Option<DrmSyncobjState>,
     decorations: Decorations,
     pub(crate) idle: Idle,
+    pub(crate) presentation: Presentation,
     pub(crate) activation: Activation,
     start: Instant,
     compositor: CompositorState,
@@ -183,6 +185,7 @@ impl State {
         let data_device = DataDeviceState::new::<Self>(handle);
         let decorations = Decorations::new(handle);
         let idle = Idle::new(handle);
+        let presentation = Presentation::new(handle);
         let activation = Activation::new(handle);
         CursorShapeManagerState::new::<Self>(handle);
         ViewporterState::new::<Self>(handle);
@@ -212,6 +215,7 @@ impl State {
             syncobj: None,
             decorations,
             idle,
+            presentation,
             activation,
             handle: handle.clone(),
             start: Instant::now(),
@@ -780,18 +784,21 @@ impl State {
         layers
     }
 
-    pub fn send_frames(&self, id: WindowId) {
+    pub(crate) fn output(&self) -> &Output {
+        &self.output
+    }
+
+    pub fn send_frames(&self, id: WindowId, time: Duration) {
         let Some(window) = self.find(id) else {
             return;
         };
         let output = self.output.clone();
-        window.window.send_frame(
-            &self.output,
-            self.start.elapsed(),
-            Some(Duration::ZERO),
-            |_, _| Some(output.clone()),
-        );
-        self.send_overlay_frames(id, self.start.elapsed());
+        window
+            .window
+            .send_frame(&self.output, time, Some(Duration::ZERO), |_, _| {
+                Some(output.clone())
+            });
+        self.send_overlay_frames(id, time);
     }
 
     fn time(&self) -> u32 {

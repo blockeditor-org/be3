@@ -33,6 +33,7 @@ use wayland_protocols::wp::idle_inhibit::zv1::client::{
     zwp_idle_inhibit_manager_v1, zwp_idle_inhibitor_v1,
 };
 
+use wayland_protocols::wp::presentation_time::client::{wp_presentation, wp_presentation_feedback};
 use wayland_protocols::xdg::activation::v1::client::{xdg_activation_token_v1, xdg_activation_v1};
 
 const ARGB8888: u32 = u32::from_le_bytes(*b"AR24");
@@ -73,7 +74,18 @@ pub(crate) struct Received {
     pub(crate) ignores_pings: bool,
     pub(crate) pings: Vec<u32>,
     pub(crate) idle: Vec<bool>,
+    pub(crate) clock: Option<u32>,
+    pub(crate) presented: Vec<Feedback>,
+    pub(crate) discarded: usize,
     pub(crate) token: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Feedback {
+    pub(crate) time: std::time::Duration,
+    pub(crate) refresh: u32,
+    pub(crate) sequence: u64,
+    pub(crate) flags: u32,
 }
 
 pub(crate) struct TestClient {
@@ -236,6 +248,14 @@ impl TestClient {
         let manager: zwp_idle_inhibit_manager_v1::ZwpIdleInhibitManagerV1 =
             self.bind("zwp_idle_inhibit_manager_v1", 1);
         manager.create_inhibitor(surface, &self.handle, ())
+    }
+
+    pub(crate) fn presentation_feedback(
+        &self,
+        surface: &wl_surface::WlSurface,
+    ) -> wp_presentation_feedback::WpPresentationFeedback {
+        let presentation: wp_presentation::WpPresentation = self.bind("wp_presentation", 2);
+        presentation.feedback(surface, &self.handle, ())
     }
 
     pub(crate) fn idle_notification(
@@ -796,6 +816,57 @@ impl Dispatch<xdg_activation_token_v1::XdgActivationTokenV1, ()> for Received {
     ) {
         if let xdg_activation_token_v1::Event::Done { token } = event {
             received.token = Some(token);
+        }
+    }
+}
+
+impl Dispatch<wp_presentation::WpPresentation, ()> for Received {
+    fn event(
+        state: &mut Self,
+        _: &wp_presentation::WpPresentation,
+        event: wp_presentation::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let wp_presentation::Event::ClockId { clk_id } = event {
+            state.clock = Some(clk_id);
+        }
+    }
+}
+
+impl Dispatch<wp_presentation_feedback::WpPresentationFeedback, ()> for Received {
+    fn event(
+        state: &mut Self,
+        _: &wp_presentation_feedback::WpPresentationFeedback,
+        event: wp_presentation_feedback::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        match event {
+            wp_presentation_feedback::Event::Presented {
+                tv_sec_hi,
+                tv_sec_lo,
+                tv_nsec,
+                refresh,
+                seq_hi,
+                seq_lo,
+                flags,
+            } => state.presented.push(Feedback {
+                time: std::time::Duration::new(
+                    (u64::from(tv_sec_hi) << 32) | u64::from(tv_sec_lo),
+                    tv_nsec,
+                ),
+                refresh,
+                sequence: (u64::from(seq_hi) << 32) | u64::from(seq_lo),
+                flags: match flags {
+                    WEnum::Value(kind) => kind.bits(),
+                    WEnum::Unknown(bits) => bits,
+                },
+            }),
+            wp_presentation_feedback::Event::Discarded => state.discarded += 1,
+            _ => {}
         }
     }
 }
