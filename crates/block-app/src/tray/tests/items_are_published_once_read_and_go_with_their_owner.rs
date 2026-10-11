@@ -35,7 +35,10 @@ fn items_are_published_once_read_and_go_with_their_owner() {
             .iter()
             .map(|item| (item.id.as_str(), item.title.as_str()))
             .collect::<Vec<_>>(),
-        vec![(":1.4/Chat", "Chat"), ("org.example.Sync/StatusNotifierItem", "Sync")],
+        vec![
+            (":1.4/Chat", "Chat"),
+            ("org.example.Sync/StatusNotifierItem", "Sync")
+        ],
         "in the order they came"
     );
 
@@ -43,7 +46,11 @@ fn items_are_published_once_read_and_go_with_their_owner() {
     assert!(items.signalled(":1.4", "/Other").is_empty());
     assert_eq!(items.menu_signalled(":1.9", "/Menu"), vec![sync.key()]);
 
-    assert_eq!(items.vanished(":1.9"), vec![sync.key()], "a well-known name goes with its owner");
+    assert_eq!(
+        items.vanished(":1.9"),
+        vec![sync.key()],
+        "a well-known name goes with its owner"
+    );
     assert_eq!(items.vanished(":1.4"), vec![chat.key()]);
     assert!(items.published().is_empty());
 }

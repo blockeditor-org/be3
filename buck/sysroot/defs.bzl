@@ -60,8 +60,8 @@ def _deb_sysroot_impl(ctx: AnalysisContext) -> list[Provider]:
 deb_sysroot = rule(
     attrs = {
         "keep_xkb": attrs.bool(default = False),
-        "programs": attrs.list(attrs.string(), default = []),
         "packages": attrs.list(attrs.source()),
+        "programs": attrs.list(attrs.string(), default = []),
         "_script": attrs.default_only(attrs.source(default = "root//buck/sysroot:deb_sysroot.sh")),
     },
     impl = _deb_sysroot_impl,

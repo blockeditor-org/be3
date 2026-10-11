@@ -40,8 +40,7 @@ impl Bus {
             ),
         )
         .expect("the bus configuration is written");
-        let program =
-            std::env::var("BE3_DBUS_DAEMON").unwrap_or_else(|_| "dbus-daemon".to_owned());
+        let program = std::env::var("BE3_DBUS_DAEMON").unwrap_or_else(|_| "dbus-daemon".to_owned());
         let mut daemon = Command::new(program)
             .arg(format!("--config-file={}", config.display()))
             .args(["--nofork", "--nopidfile", "--print-address=1"])
@@ -149,7 +148,11 @@ impl FakeMenu {
             .labels
             .iter()
             .map(|(id, label)| {
-                owned(entry(*id, vec![("label", Value::from(label.clone()))], vec![]))
+                owned(entry(
+                    *id,
+                    vec![("label", Value::from(label.clone()))],
+                    vec![],
+                ))
             })
             .collect();
         (1, (0, HashMap::new(), children))
@@ -316,6 +319,10 @@ fn items_on_a_private_bus_show_and_answer_the_desktop() {
         drop(served);
         drop(menu);
         item.close().await.expect("the program leaves the bus");
-        until(&published, "nothing once the program goes", <[HostTrayItem]>::is_empty);
+        until(
+            &published,
+            "nothing once the program goes",
+            <[HostTrayItem]>::is_empty,
+        );
     });
 }

@@ -18,7 +18,11 @@ pub(super) struct Watcher {
 
 #[zbus::interface(name = "org.kde.StatusNotifierWatcher")]
 impl Watcher {
-    async fn register_status_notifier_item(&self, service: String, #[zbus(header)] header: Header<'_>) {
+    async fn register_status_notifier_item(
+        &self,
+        service: String,
+        #[zbus(header)] header: Header<'_>,
+    ) {
         let sender = header.sender().map(|sender| sender.to_string());
         let _ = self.events.send(Event::Registered { service, sender });
     }

@@ -13,10 +13,16 @@ mod items_on_a_private_bus_show_and_answer_the_desktop;
 mod the_pixmap_nearest_above_the_size_is_turned_to_rgba;
 
 fn owned(value: Value<'_>) -> OwnedValue {
-    value.try_into_owned().expect("a test value has no file descriptors")
+    value
+        .try_into_owned()
+        .expect("a test value has no file descriptors")
 }
 
-fn entry(id: i32, properties: Vec<(&'static str, Value<'static>)>, children: Vec<Value<'static>>) -> Value<'static> {
+fn entry(
+    id: i32,
+    properties: Vec<(&'static str, Value<'static>)>,
+    children: Vec<Value<'static>>,
+) -> Value<'static> {
     let properties: HashMap<&str, Value<'static>> = properties.into_iter().collect();
     Value::from((id, properties, children))
 }

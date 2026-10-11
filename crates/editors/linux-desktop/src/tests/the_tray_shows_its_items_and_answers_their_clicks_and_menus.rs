@@ -99,17 +99,25 @@ fn item(id: &str) -> String {
 fn the_tray_shows_its_items_and_answers_their_clicks_and_menus() {
     let mut fixture = Fixture::new();
     fixture.settle();
-    assert!(fixture.test.watches::<Tray>(), "the desktop asks the host for the tray");
+    assert!(
+        fixture.test.watches::<Tray>(),
+        "the desktop asks the host for the tray"
+    );
     fixture.test.set_host_value::<Tray>(&tray());
     fixture.settle();
     assert!(fixture.test.shown(&item(CHAT)));
     assert!(fixture.test.shown(&item(SYNC)));
-    assert!(!fixture.test.shown(&item(HIDDEN)), "a passive item stays out of the bar");
+    assert!(
+        !fixture.test.shown(&item(HIDDEN)),
+        "a passive item stays out of the bar"
+    );
     fixture.test.snapshot("the_tray_in_the_bar");
 
     fixture.test.click(&item(CHAT));
     fixture.settle();
-    fixture.test.click_button(&item(CHAT), PointerButton::Middle);
+    fixture
+        .test
+        .click_button(&item(CHAT), PointerButton::Middle);
     fixture.settle();
     fixture.test.scroll(&item(CHAT), Vec2::new(0.0, 40.0));
     fixture.settle();
@@ -128,14 +136,22 @@ fn the_tray_shows_its_items_and_answers_their_clicks_and_menus() {
     );
     assert!(!fixture.test.shown(&format!("{}.1", item(CHAT))));
 
-    fixture.test.click_button(&item(CHAT), PointerButton::Secondary);
+    fixture
+        .test
+        .click_button(&item(CHAT), PointerButton::Secondary);
     fixture.settle();
     fixture.test.settle();
-    assert!(fixture.test.shown(&format!("{}.1", item(CHAT))), "a right click opens the menu");
+    assert!(
+        fixture.test.shown(&format!("{}.1", item(CHAT))),
+        "a right click opens the menu"
+    );
     fixture.test.hover(&format!("{}.3", item(CHAT)));
     fixture.settle();
     fixture.test.settle();
-    assert!(fixture.test.shown(&format!("{}.5", item(CHAT))), "a submenu opens on hover");
+    assert!(
+        fixture.test.shown(&format!("{}.5", item(CHAT))),
+        "a submenu opens on hover"
+    );
     fixture.test.snapshot("the_tray_menu");
     fixture.test.click(&format!("{}.5", item(CHAT)));
     fixture.settle();
@@ -156,7 +172,9 @@ fn the_tray_shows_its_items_and_answers_their_clicks_and_menus() {
 
     fixture.test.click(&item(SYNC));
     fixture.settle();
-    fixture.test.click_button(&item(SYNC), PointerButton::Secondary);
+    fixture
+        .test
+        .click_button(&item(SYNC), PointerButton::Secondary);
     fixture.settle();
     assert_eq!(
         fixture.test.take_actions::<TrayRequest>(),
@@ -172,7 +190,10 @@ fn the_tray_shows_its_items_and_answers_their_clicks_and_menus() {
     changed.remove(0);
     fixture.test.set_host_value::<Tray>(&changed);
     fixture.settle();
-    assert!(!fixture.test.shown(&item(CHAT)), "an item goes when its program does");
+    assert!(
+        !fixture.test.shown(&item(CHAT)),
+        "an item goes when its program does"
+    );
     fixture.test.click(&item(SYNC));
     fixture.settle();
     fixture.test.settle();

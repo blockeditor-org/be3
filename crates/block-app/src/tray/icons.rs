@@ -101,8 +101,10 @@ fn size_from_path(path: &Path) -> u32 {
             let (width, _) = component.split_once('x')?;
             width.parse::<u32>().ok()
         })
-        .unwrap_or(match path.extension().and_then(|extension| extension.to_str()) {
-            Some("svg") => ICON_PIXELS,
-            _ => 0,
-        })
+        .unwrap_or(
+            match path.extension().and_then(|extension| extension.to_str()) {
+                Some("svg") => ICON_PIXELS,
+                _ => 0,
+            },
+        )
 }

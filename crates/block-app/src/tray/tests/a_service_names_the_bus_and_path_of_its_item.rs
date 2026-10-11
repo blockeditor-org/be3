@@ -5,7 +5,10 @@ fn a_service_names_the_bus_and_path_of_its_item() {
     let named = Address::registered("org.kde.StatusNotifierItem-4077-1", Some(":1.42"))
         .expect("a bus name is a service");
     assert_eq!(named.bus, "org.kde.StatusNotifierItem-4077-1");
-    assert_eq!(named.path, ITEM_PATH, "a bare bus name serves the default path");
+    assert_eq!(
+        named.path, ITEM_PATH,
+        "a bare bus name serves the default path"
+    );
 
     let pathed = Address::registered("/org/ayatana/NotificationItem/chat", Some(":1.7"))
         .expect("a path is a service of its sender");

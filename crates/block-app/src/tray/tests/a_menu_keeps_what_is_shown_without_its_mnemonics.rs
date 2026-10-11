@@ -2,13 +2,23 @@ use super::*;
 
 #[test]
 fn a_menu_keeps_what_is_shown_without_its_mnemonics() {
-    let children = vec![
+    let children = [
         entry(1, vec![("label", Value::from("_Open Chat"))], vec![]),
-        entry(2, vec![("label", Value::from("Hidden")), ("visible", Value::from(false))], vec![]),
+        entry(
+            2,
+            vec![
+                ("label", Value::from("Hidden")),
+                ("visible", Value::from(false)),
+            ],
+            vec![],
+        ),
         entry(3, vec![("type", Value::from("separator"))], vec![]),
         entry(
             4,
-            vec![("label", Value::from("Status")), ("children-display", Value::from("submenu"))],
+            vec![
+                ("label", Value::from("Status")),
+                ("children-display", Value::from("submenu")),
+            ],
             vec![
                 entry(
                     5,
@@ -37,7 +47,9 @@ fn a_menu_keeps_what_is_shown_without_its_mnemonics() {
     let properties: HashMap<String, OwnedValue> = HashMap::new();
     let root = raw_entry(
         0,
-        properties.iter().map(|(key, value)| (key.as_str(), &**value)),
+        properties
+            .iter()
+            .map(|(key, value)| (key.as_str(), &**value)),
         children.iter(),
         0,
     );

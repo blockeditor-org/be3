@@ -77,8 +77,8 @@ deb_sysroot(
 deb_sysroot(
     name = "amd64-test",
     keep_xkb = True,
-    programs = ["usr/bin/dbus-daemon"],
     packages = [":test-" + name.replace("+", "p") + ".deb" for name, _, _, _ in packages.get("amd64-test", [])],
+    programs = ["usr/bin/dbus-daemon"],
     visibility = ["PUBLIC"],
 )
 

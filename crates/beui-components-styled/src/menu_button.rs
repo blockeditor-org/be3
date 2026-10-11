@@ -128,8 +128,9 @@ pub fn PictureMenuButton(
         let fill = create_memo(clone!(theme disabled -> move || {
             ButtonVariant::Ghost.fill(&theme, disabled.get(), hovered.get(), pressed.get())
         }));
-        let color =
-            create_memo(clone!(theme -> move || ButtonVariant::Ghost.label(&theme, disabled.get())));
+        let color = create_memo(
+            clone!(theme -> move || ButtonVariant::Ghost.label(&theme, disabled.get())),
+        );
         let (image, pictured, plain) = (image.clone(), pictured.clone(), plain.clone());
         view! {
             <Tooltip label disabled={open}>
@@ -146,7 +147,11 @@ pub fn PictureMenuButton(
                                     <SizedPicture image={image.clone()} size />
                                 </Show>
                                 <Show condition={plain}>
-                                    <IconSized glyph={glyph.clone()} font_size=size color={color.clone()} />
+                                    <IconSized
+                                        glyph={glyph.clone()}
+                                        font_size=size
+                                        color={color.clone()}
+                                    />
                                 </Show>
                             </List>
                         </Frame>

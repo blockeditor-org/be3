@@ -48,6 +48,10 @@ fn an_item_reads_its_properties() {
         "Menu".to_owned(),
         owned(Value::from(ObjectPath::try_from("/").expect("a path"))),
     )]));
-    assert_eq!(bare.status, TrayStatus::Active, "an item is active unless it says");
+    assert_eq!(
+        bare.status,
+        TrayStatus::Active,
+        "an item is active unless it says"
+    );
     assert_eq!(bare.menu, None, "the root path is no menu");
 }

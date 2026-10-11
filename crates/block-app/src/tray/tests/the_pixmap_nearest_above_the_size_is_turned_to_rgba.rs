@@ -47,5 +47,9 @@ fn the_pixmap_nearest_above_the_size_is_turned_to_rgba() {
     );
     assert!(image.is_whole());
 
-    assert_eq!(pixmap_image(&pixmaps[3..], 24), None, "a short pixmap is no picture");
+    assert_eq!(
+        pixmap_image(&pixmaps[3..], 24),
+        None,
+        "a short pixmap is no picture"
+    );
 }

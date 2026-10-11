@@ -298,8 +298,9 @@ impl Client {
                 self.fetch(&key);
                 false
             }
-            Event::Unlisted(service) => Address::listed(&service)
-                .is_some_and(|address| self.items.remove(&address.key())),
+            Event::Unlisted(service) => {
+                Address::listed(&service).is_some_and(|address| self.items.remove(&address.key()))
+            }
             Event::OwnerChanged { name, owner } => {
                 if !owner.is_empty() {
                     return false;
@@ -338,8 +339,8 @@ impl Client {
                 if let Some(owner) = owner {
                     item.owner = owner;
                 }
-                let menu_moved = item.menu_path() != properties.menu.as_deref()
-                    || item.properties.is_none();
+                let menu_moved =
+                    item.menu_path() != properties.menu.as_deref() || item.properties.is_none();
                 item.properties = Some(*properties);
                 item.icon = icon;
                 if menu_moved {
@@ -422,11 +423,9 @@ impl Client {
                     &(ITEM,),
                 )
                 .await;
-            let map = match reply.and_then(|reply| {
-                reply
-                    .body()
-                    .deserialize::<HashMap<String, OwnedValue>>()
-            }) {
+            let map = match reply
+                .and_then(|reply| reply.body().deserialize::<HashMap<String, OwnedValue>>())
+            {
                 Ok(map) => map,
                 Err(error) => {
                     eprintln!("block-app: the tray item {key} cannot be read: {error}");

@@ -7,8 +7,8 @@ use crate::menu_popup::{MenuPopup, MenuStyle};
 use beui_core::input::{PointerPress, ScrollGesture};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Children, ClickCallback, Interactive, List, NodeRef, Prop, ReadSignal, Render,
-    clone, create_effect, create_memo, create_signal, untrack,
+    Callback, Children, ClickCallback, Interactive, List, NodeRef, Prop, ReadSignal, Render, clone,
+    create_effect, create_memo, create_signal, untrack,
 };
 
 #[derive(Clone)]
@@ -84,18 +84,20 @@ pub fn MenuButton(
         let (disabled, set_open) = (disabled.clone(), set_open.clone());
         let on_secondary_click = on_secondary_click.unwrap_or_default();
         trigger_node = view! {
-            <Interactive on_secondary_press={move |press: PointerPress| {
-                if untrack(|| disabled.get()) {
-                    return;
-                }
-                match untrack(|| secondary_opens.get()) {
-                    true => {
-                        set_touched.set(press.touch);
-                        set_open.set(true);
+            <Interactive
+                on_secondary_press={move |press: PointerPress| {
+                    if untrack(|| disabled.get()) {
+                        return;
                     }
-                    false => on_secondary_click.call(),
-                }
-            }}>
+                    match untrack(|| secondary_opens.get()) {
+                        true => {
+                            set_touched.set(press.touch);
+                            set_open.set(true);
+                        }
+                        false => on_secondary_click.call(),
+                    }
+                }}
+            >
                 {trigger_node}
             </Interactive>
         };
@@ -103,22 +105,26 @@ pub fn MenuButton(
     if let Some(on_middle_click) = on_middle_click {
         let disabled = disabled.clone();
         trigger_node = view! {
-            <Interactive on_middle_click={move || {
-                if !untrack(|| disabled.get()) {
-                    on_middle_click.call();
-                }
-            }}>
+            <Interactive
+                on_middle_click={move || {
+                    if !untrack(|| disabled.get()) {
+                        on_middle_click.call();
+                    }
+                }}
+            >
                 {trigger_node}
             </Interactive>
         };
     }
     if let Some(on_scroll) = on_scroll {
         trigger_node = view! {
-            <Interactive on_scroll={move |gesture: ScrollGesture| {
-                if !untrack(|| disabled.get()) {
-                    on_scroll.call(gesture);
-                }
-            }}>
+            <Interactive
+                on_scroll={move |gesture: ScrollGesture| {
+                    if !untrack(|| disabled.get()) {
+                        on_scroll.call(gesture);
+                    }
+                }}
+            >
                 {trigger_node}
             </Interactive>
         };

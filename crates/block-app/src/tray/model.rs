@@ -208,7 +208,9 @@ pub(super) fn pixmap_image(pixmaps: &[Pixmap], pixels: u32) -> Option<HostImage>
         .or_else(|| whole.max_by_key(|pixmap| side(pixmap)))?;
     let rgba: Vec<u8> = chosen
         .argb
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .flat_map(|argb| [argb[1], argb[2], argb[3], argb[0]])
         .collect();
     let (width, height) = (chosen.width as u32, chosen.height as u32);
@@ -282,14 +284,20 @@ fn raw_child<'a>(value: &'a Value<'a>, depth: usize) -> Option<RawEntry> {
     let Value::Structure(structure) = inner(value) else {
         return None;
     };
-    let [Value::I32(id), Value::Dict(properties), Value::Array(children)] = structure.fields()
+    let [
+        Value::I32(id),
+        Value::Dict(properties),
+        Value::Array(children),
+    ] = structure.fields()
     else {
         return None;
     };
-    let properties = properties.iter().filter_map(|(key, value)| match inner(key) {
-        Value::Str(key) => Some((key.as_str(), value)),
-        _ => None,
-    });
+    let properties = properties
+        .iter()
+        .filter_map(|(key, value)| match inner(key) {
+            Value::Str(key) => Some((key.as_str(), value)),
+            _ => None,
+        });
     Some(raw_entry(*id, properties, children.inner().iter(), depth))
 }
 

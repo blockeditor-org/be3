@@ -88,7 +88,8 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
     let icon = create_memo(clone!(item -> move || item.with(|item| item.icon.clone())));
     let image = create_memo(move || icon.with(|icon| icon.as_ref().and_then(picture)));
     let entries = create_memo(clone!(item -> move || item.with(|item| item.menu.clone())));
-    let has_menu = create_memo(clone!(entries -> move || entries.with(|entries| !entries.is_empty())));
+    let has_menu =
+        create_memo(clone!(entries -> move || entries.with(|entries| !entries.is_empty())));
     let item_is_menu = create_memo(clone!(item -> move || item.with(|item| item.item_is_menu)));
     let click_opens =
         create_memo(clone!(has_menu item_is_menu -> move || item_is_menu.get() && has_menu.get()));
@@ -172,7 +173,12 @@ fn TrayEntries(
 }
 
 #[component]
-fn TrayEntry(entries: Memo<Vec<TrayMenuEntry>>, id: i32, chosen: Chosen, prefix: String) -> MenuItem {
+fn TrayEntry(
+    entries: Memo<Vec<TrayMenuEntry>>,
+    id: i32,
+    chosen: Chosen,
+    prefix: String,
+) -> MenuItem {
     let entry = create_memo(clone!(entries -> move || {
         entries.with(|entries| {
             entries
@@ -184,7 +190,9 @@ fn TrayEntry(entries: Memo<Vec<TrayMenuEntry>>, id: i32, chosen: Chosen, prefix:
     }));
     let separated = create_memo(move || {
         entries.with(|entries| {
-            let Some(at) = entries.iter().position(|entry| entry.id == id && !entry.separator)
+            let Some(at) = entries
+                .iter()
+                .position(|entry| entry.id == id && !entry.separator)
             else {
                 return false;
             };
@@ -194,20 +202,15 @@ fn TrayEntry(entries: Memo<Vec<TrayMenuEntry>>, id: i32, chosen: Chosen, prefix:
         })
     });
     let label = create_memo(clone!(entry -> move || entry.with(|entry| entry.label.clone())));
-    let glyph = create_memo(clone!(entry -> move || entry.with(|entry| toggle_glyph(entry.toggle).to_owned())));
+    let glyph = create_memo(
+        clone!(entry -> move || entry.with(|entry| toggle_glyph(entry.toggle).to_owned())),
+    );
     let disabled = create_memo(clone!(entry -> move || entry.with(|entry| !entry.enabled)));
     let children = create_memo(move || entry.with(|entry| entry.children.clone()));
     let row_test_id = format!("{prefix}.{id}");
     let choose = chosen.clone();
     view! {
-        <MenuItem
-            label
-            glyph
-            disabled
-            separated
-            row_test_id
-            on_click={move || (choose.0)(id)}
-        >
+        <MenuItem label glyph disabled separated row_test_id on_click={move || (choose.0)(id)}>
             <TrayEntries entries={children} chosen prefix />
         </MenuItem>
     }
