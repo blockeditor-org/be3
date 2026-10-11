@@ -255,10 +255,13 @@ where
         identity: None,
         config,
     };
-    if let Some(token) = bearer
-        && let Ok(profile) = connection.store.resolve_token(&token).await
-    {
-        connection.authenticated(0, profile, token).await;
+    if let Some(token) = bearer {
+        match connection.store.resolve_token(&token).await {
+            Ok(profile) => {
+                connection.authenticated(0, profile, token).await;
+            }
+            Err(error) => tracing::debug!("the connection's bearer token was refused: {error:?}"),
+        }
     }
 
     let outcome = async {

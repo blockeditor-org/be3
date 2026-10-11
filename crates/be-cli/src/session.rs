@@ -47,8 +47,26 @@ impl Settings {
     }
 }
 
+fn secure_or_local(url: &str) -> bool {
+    let Some(rest) = url.strip_prefix("ws://") else {
+        return true;
+    };
+    let authority = rest.split('/').next().unwrap_or_default();
+    let host = match authority.strip_prefix('[') {
+        Some(bracketed) => bracketed.split(']').next().unwrap_or_default(),
+        None => authority.rsplit_once(':').map_or(authority, |(host, _)| host),
+    };
+    matches!(host, "localhost" | "127.0.0.1" | "::1")
+}
+
 pub async fn connect(settings: &Settings) -> Result<Peer<MemoryStore>, String> {
     let url = socket_url(&settings.server);
+    if settings.token.is_some() && !secure_or_local(&url) {
+        return Err(format!(
+            "{} is not https, so BE3_TOKEN would cross the network unencrypted",
+            settings.server
+        ));
+    }
     let connection = Connection::connect(&url).await.map_err(explain)?;
     let signed_in = connection
         .request(|request| match settings.credentials() {

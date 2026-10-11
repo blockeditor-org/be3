@@ -42,7 +42,9 @@ pub(crate) async fn connect(url: &str) -> Result<(Writer, Reader), String> {
     let socket = match proxy_for(&host).filter(|_| secure) {
         Some(proxy) => {
             let port = target.port_u16().unwrap_or(443);
-            let stream = tunnel(&proxy, &host, port).await?;
+            let stream = tokio::time::timeout(TUNNEL_WAIT, tunnel(&proxy, &host, port))
+                .await
+                .map_err(|_| format!("the proxy at {proxy} did not open a tunnel in time"))??;
             let (socket, _) = client_async_tls_with_config(
                 request,
                 stream,
@@ -82,11 +84,20 @@ fn proxy_for(host: &str) -> Option<String> {
     (!bypassed && !local).then_some(proxy)
 }
 
+const TUNNEL_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
+
 async fn tunnel(proxy: &str, host: &str, port: u16) -> Result<TcpStream, String> {
-    let address = proxy
-        .trim()
-        .trim_start_matches("http://")
-        .trim_end_matches('/');
+    let proxy = proxy.trim();
+    let address = match proxy.split_once("://") {
+        None => proxy,
+        Some(("http", address)) => address,
+        Some((scheme, _)) => {
+            return Err(format!(
+                "the proxy {proxy} is {scheme}, and only http:// proxies are supported"
+            ));
+        }
+    };
+    let address = address.trim_end_matches('/');
     let mut stream = TcpStream::connect(address)
         .await
         .map_err(|error| format!("could not reach the proxy at {address}: {error}"))?;

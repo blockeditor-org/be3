@@ -471,7 +471,7 @@ enum WorkspaceResult {
     Created(Workspace),
     Responded,
     Invited,
-    Agents(Vec<be_protocol::Agent>, Option<accounts::AgentCredentials>),
+    Agents(Option<Vec<be_protocol::Agent>>, Option<accounts::AgentCredentials>),
 }
 
 type WorkspaceRequestError = AccountError;
@@ -989,19 +989,19 @@ impl BlockApp {
                 WorkspaceOperation::ListAgents(workspace) => {
                     accounts::agents(url, token, workspace)
                         .await
-                        .map(|agents| WorkspaceResult::Agents(agents, None))
+                        .map(|agents| WorkspaceResult::Agents(Some(agents), None))
                 }
                 WorkspaceOperation::CreateAgent(workspace, name, key) => {
                     let created =
                         accounts::create_agent(url.clone(), token.clone(), workspace, name, key)
                             .await?;
-                    let agents = accounts::agents(url, token, workspace).await?;
+                    let agents = accounts::agents(url, token, workspace).await.ok();
                     Ok(WorkspaceResult::Agents(agents, Some(created)))
                 }
                 WorkspaceOperation::RemoveAgent(workspace, account) => {
                     accounts::remove_agent(url.clone(), token.clone(), workspace, account).await?;
                     let agents = accounts::agents(url, token, workspace).await?;
-                    Ok(WorkspaceResult::Agents(agents, None))
+                    Ok(WorkspaceResult::Agents(Some(agents), None))
                 }
             }
         });
@@ -1070,7 +1070,9 @@ impl BlockApp {
                 self.invite_open = false;
             }
             Ok(WorkspaceResult::Agents(agents, created)) => {
-                self.agents = agents;
+                if let Some(agents) = agents {
+                    self.agents = agents;
+                }
                 if created.is_some() {
                     self.agent_created = created;
                 }

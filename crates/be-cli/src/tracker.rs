@@ -443,11 +443,14 @@ impl<S: ObjectStore> Tracker<S> {
                     false => format!("no database uses the row id prefix {prefix}"),
                 })?;
         let loaded = self.load(database).await?;
-        let row = loaded
-            .database
-            .find_short_id(code)
-            .ok_or_else(|| format!("{} has no row {code}", loaded.name))?;
-        Ok((database, row))
+        match loaded.database.rows_with_short_id(code).as_slice() {
+            [row] => Ok((database, *row)),
+            [] => Err(format!("{} has no row {code}", loaded.name)),
+            _ => Err(format!(
+                "more than one row of {} has the id {code}; use `be {} rows` to find the one you mean by its title",
+                loaded.name, loaded.name
+            )),
+        }
     }
 
     async fn load_plain(&self, id: Uuid) -> Result<(Database, DatabaseSchema), String> {
@@ -1043,24 +1046,41 @@ impl<S: ObjectStore> Tracker<S> {
             .ok_or_else(|| format!("{} does not link to a database yet", field.name))?;
         let code = wanted.rsplit('-').next().unwrap_or(wanted);
         let rows = labels.shown.rows_of(database);
-        if let Some((link, _)) = labels
+        let aliased: Vec<RowRef> = labels
             .aliases
             .iter()
-            .find(|(link, alias)| link.database == database && alias.eq_ignore_ascii_case(wanted))
-        {
-            return Ok(*link);
-        }
-        rows.iter()
-            .find(|(link, _)| short_id("", link.row).eq_ignore_ascii_case(code) && code.len() == 6)
-            .or_else(|| {
-                rows.iter().find(|(_, label)| {
-                    label
-                        .split_once(' ')
-                        .is_some_and(|(_, title)| title.eq_ignore_ascii_case(wanted))
-                })
+            .filter(|(link, alias)| link.database == database && alias.eq_ignore_ascii_case(wanted))
+            .map(|(link, _)| *link)
+            .collect();
+        let by_id: Vec<RowRef> = rows
+            .iter()
+            .filter(|(link, _)| code.len() == 6 && short_id("", link.row).eq_ignore_ascii_case(code))
+            .map(|(link, _)| *link)
+            .collect();
+        let titled: Vec<RowRef> = rows
+            .iter()
+            .filter(|(_, label)| {
+                label
+                    .split_once(' ')
+                    .is_some_and(|(_, title)| title.eq_ignore_ascii_case(wanted))
             })
             .map(|(link, _)| *link)
-            .ok_or_else(|| format!("{} has no row {wanted} to link", field.name))
+            .collect();
+        for mut found in [aliased, by_id, titled] {
+            found.sort();
+            found.dedup();
+            match found.as_slice() {
+                [] => continue,
+                [one] => return Ok(*one),
+                _ => {
+                    return Err(format!(
+                        "more than one row matches {wanted} for {}; use its id",
+                        field.name
+                    ));
+                }
+            }
+        }
+        Err(format!("{} has no row {wanted} to link", field.name))
     }
 
     pub async fn delete(&self, code: &str) -> Result<String, String> {

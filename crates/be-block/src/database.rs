@@ -297,14 +297,22 @@ impl Database {
     }
 
     pub fn find_short_id(&self, text: &str) -> Option<ObjectId> {
+        match self.rows_with_short_id(text).as_slice() {
+            [one] => Some(*one),
+            _ => None,
+        }
+    }
+
+    pub fn rows_with_short_id(&self, text: &str) -> Vec<ObjectId> {
         let wanted = short_code(text);
         if wanted.len() != SHORT_ID_LEN {
-            return None;
+            return Vec::new();
         }
         self.rows
             .iter()
             .map(|row| row.id)
-            .find(|id| short_id("", id.as_uuid()) == wanted)
+            .filter(|id| short_id("", id.as_uuid()) == wanted)
+            .collect()
     }
 
     pub fn title(&self, row: ObjectId, title_field: Option<Uuid>) -> String {

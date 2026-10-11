@@ -38,7 +38,8 @@ async fn run() -> Result<String, String> {
         Outcome::Print(text) => return Ok(text),
         Outcome::Edit { block, label, base } => (block, label, base),
     };
-    let path = std::env::temp_dir().join(format!("be-{}.md", block.simple()));
+    let directory = private_directory()?;
+    let path = directory.join(format!("{}.md", block.simple()));
     std::fs::write(&path, cli::edit_document(&label, &base))
         .map_err(|error| format!("could not write {}: {error}", path.display()))?;
     let editor = std::env::var("VISUAL")
@@ -53,7 +54,7 @@ async fn run() -> Result<String, String> {
         .map_err(|error| format!("could not start {editor}: {error}"))?;
     let edited = std::fs::read_to_string(&path)
         .map_err(|error| format!("could not read {}: {error}", path.display()))?;
-    let _ = std::fs::remove_file(&path);
+    let _ = std::fs::remove_dir_all(&directory);
     if !status.success() {
         return Err(format!("{editor} failed, so nothing was saved"));
     }
@@ -67,4 +68,15 @@ async fn run() -> Result<String, String> {
             "saved {label}, with conflict markers where someone else changed the same lines"
         )),
     }
+}
+
+fn private_directory() -> Result<std::path::PathBuf, String> {
+    let path = std::env::temp_dir().join(format!("be-{}", uuid::Uuid::new_v4().simple()));
+    let mut builder = std::fs::DirBuilder::new();
+    #[cfg(unix)]
+    std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
+    builder
+        .create(&path)
+        .map_err(|error| format!("could not make {}: {error}", path.display()))?;
+    Ok(path)
 }
