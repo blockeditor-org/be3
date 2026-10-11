@@ -8,8 +8,8 @@ use beui::{
 use beui_core::renderer::Renderer;
 
 use crate::cursors::{Cursors, Shape};
-use crate::gpu::{Gpu, SoftwareCursor};
 use crate::flips::Flips;
+use crate::gpu::{Gpu, SoftwareCursor};
 use crate::layout::bounds;
 use crate::output::Output;
 use crate::screen::{FORMAT, Frame, Pointer};
