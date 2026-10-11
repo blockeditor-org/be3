@@ -483,6 +483,16 @@ impl Compositor {
             .map(|(_, layer)| layer.rect)
             .reduce(|bounds, rect| bounds.merge(rect));
         let popups = bounds.map(|bounds| {
+            let areas = popups
+                .iter()
+                .map(|(_, layer)| {
+                    let at = layer.rect.loc - bounds.loc;
+                    Rect::from_min_size(
+                        Pos2::new(at.x as f32, at.y as f32),
+                        Vec2::new(layer.rect.size.w as f32, layer.rect.size.h as f32),
+                    )
+                })
+                .collect();
             let layers = popups
                 .into_iter()
                 .map(|(texture, mut layer)| {
@@ -491,6 +501,7 @@ impl Compositor {
                 })
                 .collect();
             Popups {
+                areas,
                 rect: Rect::from_min_size(
                     Pos2::new(bounds.loc.x as f32, bounds.loc.y as f32),
                     Vec2::new(bounds.size.w as f32, bounds.size.h as f32),

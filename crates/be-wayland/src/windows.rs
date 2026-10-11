@@ -38,6 +38,7 @@ pub struct Launch {
 #[derive(Clone, PartialEq)]
 pub struct Popups {
     pub rect: Rect,
+    pub areas: Vec<Rect>,
     pub drawing: Drawing,
 }
 

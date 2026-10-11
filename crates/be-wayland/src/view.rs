@@ -82,6 +82,14 @@ pub fn WindowView(
         reach.forward(id, input);
     };
     let popup_cursor = windows.cursor();
+    let areas = signals.popups.clone();
+    let on_popup = move |local: Pos2| {
+        areas.with_untracked(|popups| {
+            popups
+                .as_ref()
+                .is_some_and(|popups| popups.areas.iter().any(|area| area.contains(local)))
+        })
+    };
     on_cleanup(move || windows.unplaced(id));
     view! {
         <Layers>
@@ -119,6 +127,7 @@ pub fn WindowView(
                         @test_id={format!("wayland.popups.{}", id.0)}
                         cursor={popup_cursor}
                         on_forward={into_window}
+                        forward_at={on_popup}
                     >
                         <Drawing
                             draw={Prop::Dynamic(Rc::new(move || {
