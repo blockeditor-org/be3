@@ -15,10 +15,12 @@ use crate::cli::{self, Invocation, Outcome};
 use crate::tracker::{Assignment, Body, RowView, Tracker};
 
 mod a_csv_export_is_imported_as_rows_with_pages;
+mod a_page_open_elsewhere_takes_the_change_through_its_session;
 mod a_pull_request_moves_the_rows_it_names;
 mod a_row_blocked_by_another_shows_as_blocking_there;
 mod an_agent_reads_and_writes_the_rows_shared_with_it;
 mod an_edited_page_keeps_what_someone_else_changed_meanwhile;
+mod an_import_links_rows_to_each_other_by_their_old_ids;
 mod arguments_parse_into_commands;
 mod blocks_are_listed_and_found_by_short_id_or_name;
 mod rows_are_added_filtered_changed_and_given_pages;

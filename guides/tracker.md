@@ -83,12 +83,14 @@ them in the handoff.
   with it, but the workspace key opens everything in the workspace, so keep the
   tracker in a workspace of its own. Removing the agent deletes its account and
   its tokens.
-- **Writes.** `be` is a peer without a session: it opens a block, applies the
-  same `Edit` the editor would, and publishes against the head it read; a
-  rejected publish is retried on the new head. An app editing the same block
-  merges it in as it would any publish from outside its session: rows, cells and
-  links by id, and text line by line. A text write changes only the span that
-  differs.
+- **Writes.** `be` joins a block's live session when another client holds
+  one, waits for the owner's snapshot, sends its edits as a follower and leaves
+  once the owner has taken them, so they merge with unsaved typing the way a
+  second window's would. With nobody in the session it opens the block, applies
+  the same `Edit` the editor would and publishes against the head it read,
+  retrying on the new head when the publish is rejected. A text write changes
+  only the span that differs. Deleting a row also removes the links to it from
+  the rows of its own database.
 - **GitHub.** `.github/workflows/tracker.yml` runs `be pull-request` on the
   event: ids in the branch, title or body move to `BE3_REVIEW_STATUS` (In
   review) when the pull request opens, with a link on the page, and to

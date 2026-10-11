@@ -322,7 +322,15 @@ impl ViewData {
         {
             self.deselect();
         }
-        self.database.operate(Database::remove_row(row));
+        let Some(database) = self.database_id.get_untracked() else {
+            return;
+        };
+        if let Some(edit) = self
+            .database
+            .read(|content| content.root().remove_row_and_links(database, row))
+        {
+            self.database.operate(edit);
+        }
     }
 
     fn set_inverse(&self, inverse: &Inverse, row: ObjectId, value: Option<DatabaseValue>) {

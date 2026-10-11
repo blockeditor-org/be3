@@ -257,15 +257,26 @@ async fn listing<S: ObjectStore>(
     json: bool,
 ) -> Result<String, String> {
     let index = tracker.index().await?;
-    let children = index.children(parent);
+    let mut children = index.children(parent);
+    let pages = match parent.and_then(|parent| index.get(parent)) {
+        Some(entry) if entry.block_type == DatabaseContent::CONTENT_TYPE => {
+            tracker.row_pages(entry.id).await?
+        }
+        _ => Vec::new(),
+    };
+    children.retain(|entry| !pages.contains(&entry.id));
     if json {
         return Ok(
             Value::Array(children.iter().map(|entry| entry_json(entry)).collect()).to_string(),
         );
     }
-    if children.is_empty() {
+    if children.is_empty() && pages.is_empty() {
         return Ok("nothing here".to_owned());
     }
+    let paged = match pages.len() {
+        0 => String::new(),
+        count => format!("\n…and {count} row pages, which `be ROW page` reads"),
+    };
     let width = children
         .iter()
         .map(|entry| entry.short.len())
@@ -294,7 +305,8 @@ async fn listing<S: ObjectStore>(
             )
         })
         .collect::<Vec<_>>()
-        .join("\n"))
+        .join("\n")
+        + &paged)
 }
 
 fn entry_json(entry: &Entry) -> Value {
@@ -511,7 +523,15 @@ pub fn row_line(row: &RowView) -> String {
     let fields = row
         .fields
         .iter()
-        .map(|field| format!("{}: {}", field.name, field.text))
+        .map(|field| match field.links.len() {
+            0..=2 => format!("{}: {}", field.name, field.text),
+            count => format!(
+                "{}: {} and {} more",
+                field.name,
+                field.links[0].0,
+                count - 1
+            ),
+        })
         .collect::<Vec<_>>()
         .join("; ");
     match fields.is_empty() {

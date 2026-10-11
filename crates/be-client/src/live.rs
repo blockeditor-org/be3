@@ -52,6 +52,7 @@ pub struct Live<S: ObjectStore, C: LiveEdit> {
     sealed_state: Vec<u8>,
     reload: bool,
     catching_up: bool,
+    snapshot: bool,
     events: Receiver<ServerMessage>,
     journal: Vec<Journaled<C::Op>>,
     presence: BTreeMap<(ClientId, Uuid), Vec<u8>>,
@@ -73,7 +74,8 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
             Some(head) => peer.open_commit::<C>(head).await?,
             None => C::default(),
         };
-        let role = if state.is_owner(client) {
+        let owner = state.is_owner(client);
+        let role = if owner {
             Role::Owner(Sequencer::new(head))
         } else {
             Role::Follower(Follower::new(client))
@@ -92,6 +94,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
             sealed: 0,
             reload: false,
             catching_up: false,
+            snapshot: owner,
             events,
             journal: Vec::new(),
             presence: BTreeMap::new(),
@@ -123,6 +126,10 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
 
     pub fn is_owner(&self) -> bool {
         matches!(self.role, Role::Owner(_))
+    }
+
+    pub fn has_snapshot(&self) -> bool {
+        self.snapshot || self.is_owner()
     }
 
     pub fn content(&self) -> &C {
@@ -421,6 +428,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                     return Ok(());
                 };
                 self.catching_up = false;
+                self.snapshot = true;
                 let applied = follower.applied();
                 if head != self.base || applied < sealed {
                     self.confirmed = match head {

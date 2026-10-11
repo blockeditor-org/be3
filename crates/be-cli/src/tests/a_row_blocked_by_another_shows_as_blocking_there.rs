@@ -77,5 +77,25 @@ async fn a_row_blocked_by_another_shows_as_blocking_there() {
         .unwrap();
     let login = tracker.show(&login.id).await.unwrap();
     assert_eq!(login.field("Blocked by").unwrap().links[0].0, retry.id);
+
+    run(&tracker, &format!("{} delete", retry.id))
+        .await
+        .unwrap();
+    assert!(
+        tracker
+            .show(&login.id)
+            .await
+            .unwrap()
+            .field("Blocked by")
+            .is_none()
+    );
+    assert!(
+        tracker
+            .show(&banner.id)
+            .await
+            .unwrap()
+            .field("Blocked by")
+            .is_none()
+    );
     harness.stop().await;
 }

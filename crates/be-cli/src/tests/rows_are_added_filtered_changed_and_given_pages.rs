@@ -63,6 +63,18 @@ async fn rows_are_added_filtered_changed_and_given_pages() {
         changed.body.as_deref(),
         Some("It fails on a slow network.\nFixed by retrying.")
     );
+    assert!(
+        run(&tracker, "Issues rows Statsu=Done")
+            .await
+            .unwrap_err()
+            .contains("no column")
+    );
+    assert!(
+        tracker
+            .create(board.database, " ", &[], Body::Keep)
+            .await
+            .is_err()
+    );
     let refused = tracker
         .update(&made.id, &[set("Status", "Maybe")], Body::Keep)
         .await

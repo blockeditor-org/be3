@@ -399,6 +399,30 @@ impl Database {
         Change::remove(row).into()
     }
 
+    pub fn remove_row_and_links(&self, database: Uuid, row: ObjectId) -> Edit {
+        let gone = RowRef {
+            database,
+            row: row.as_uuid(),
+        };
+        let mut changes = vec![Change::remove(row)];
+        for other in self.rows.iter().filter(|other| other.id != row) {
+            for field in other.links_to(gone) {
+                changes.push(DatabaseRow::LINKS.put(
+                    other.id,
+                    &RowLink {
+                        field,
+                        target: gone,
+                    },
+                    None,
+                ));
+                if other.value(field) == Some(&DatabaseValue::Relation(gone)) {
+                    changes.push(DatabaseRow::VALUES.put(other.id, &field, None));
+                }
+            }
+        }
+        changes.into_iter().collect()
+    }
+
     pub fn set_cell(&self, row: usize, field: Uuid, value: Option<DatabaseValue>) -> Edit {
         if let Some(existing) = self.rows.get_index(row) {
             let mut changes = vec![DatabaseRow::VALUES.put(existing.id, &field, value.as_ref())];

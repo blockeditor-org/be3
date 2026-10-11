@@ -1,4 +1,6 @@
 use std::collections::BTreeMap;
+use std::sync::Arc;
+use std::time::Duration;
 
 use be_block::database::{
     Database, DatabaseContent, DatabaseValue, Inverse, RowRef, inverses, short_id,
@@ -10,7 +12,7 @@ use be_block::database_schema::{
 use be_block::database_view::{DatabaseView, DatabaseViewContent, DatabaseViewKind};
 use be_block::text::{TextBlock, TextContent};
 use be_block::{BlockContent, BlockMetadata, DerivedMetadata, LiveEdit, ObjectId};
-use be_client::{Peer, Saved};
+use be_client::{Live, Peer, Saved};
 use be_graph::BlockParent;
 use be_store::ObjectStore;
 use block_ui::database::{ValueLabels, database_value_text, parse_cell_value};
@@ -21,6 +23,7 @@ use crate::blocks::{Entry, Index};
 use crate::session::explain;
 
 const ATTEMPTS: usize = 8;
+const SESSION_WAIT: Duration = Duration::from_secs(10);
 const CLIENT: u64 = 0x6265_2d63_6c69;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -184,6 +187,36 @@ enum Column {
     Ignored,
 }
 
+#[derive(Default)]
+struct Labels {
+    shown: ValueLabels,
+    aliases: Vec<(RowRef, String)>,
+}
+
+impl Labels {
+    fn add_aliases(&mut self, database: Uuid, rows: &Database, schema: &DatabaseSchema) {
+        let texts: Vec<Uuid> = schema
+            .fields()
+            .into_iter()
+            .filter(|field| field.field_type == DatabaseFieldType::String)
+            .map(|field| field.id)
+            .collect();
+        for row in rows.rows.iter() {
+            let link = RowRef {
+                database,
+                row: row.id.as_uuid(),
+            };
+            for field in &texts {
+                if let Some(DatabaseValue::String(text)) = row.value(*field)
+                    && !text.trim().is_empty()
+                {
+                    self.aliases.push((link, text.trim().to_owned()));
+                }
+            }
+        }
+    }
+}
+
 enum Writable {
     Own(DatabaseField),
     Inverse(Inverse),
@@ -254,14 +287,14 @@ impl Loaded {
 }
 
 pub struct Tracker<S: ObjectStore> {
-    peer: Peer<S>,
+    peer: Arc<Peer<S>>,
     index: Mutex<Option<Index>>,
 }
 
 impl<S: ObjectStore> Tracker<S> {
     pub fn new(peer: Peer<S>) -> Self {
         Self {
-            peer,
+            peer: Arc::new(peer),
             index: Mutex::new(None),
         }
     }
@@ -477,8 +510,8 @@ impl<S: ObjectStore> Tracker<S> {
         })
     }
 
-    async fn labels(&self, loaded: &Loaded) -> Result<ValueLabels, String> {
-        let mut labels = ValueLabels::new();
+    async fn labels(&self, loaded: &Loaded) -> Result<Labels, String> {
+        let mut labels = Labels::default();
         let mut targets: Vec<Uuid> = loaded
             .shown_fields()
             .iter()
@@ -495,9 +528,10 @@ impl<S: ObjectStore> Tracker<S> {
                     Err(_) => continue,
                 },
             };
+            labels.add_aliases(target, &database, &schema);
             let title = schema.title_field();
             for row in database.rows.iter() {
-                labels.rows.insert(
+                labels.shown.rows.insert(
                     RowRef {
                         database: target,
                         row: row.id.as_uuid(),
@@ -513,7 +547,7 @@ impl<S: ObjectStore> Tracker<S> {
         Ok(labels)
     }
 
-    fn view(&self, loaded: &Loaded, row: ObjectId, labels: &ValueLabels) -> RowView {
+    fn view(&self, loaded: &Loaded, row: ObjectId, labels: &Labels) -> RowView {
         let title_field = loaded.title_field();
         let entry = loaded.row(row);
         let fields = loaded
@@ -529,7 +563,7 @@ impl<S: ObjectStore> Tracker<S> {
                 }
                 .iter()
                 .map(|link| {
-                    let shown = labels.row(link);
+                    let shown = labels.shown.row(link);
                     match shown.split_once(' ') {
                         Some((id, title)) => (id.to_owned(), title.to_owned()),
                         None => (shown, String::new()),
@@ -538,7 +572,7 @@ impl<S: ObjectStore> Tracker<S> {
                 .collect();
                 Some(FieldView {
                     name: field.name.clone(),
-                    text: database_value_text(&value, &field, labels),
+                    text: database_value_text(&value, &field, &labels.shown),
                     links,
                 })
             })
@@ -572,6 +606,36 @@ impl<S: ObjectStore> Tracker<S> {
     pub async fn list(&self, database: Uuid, filters: &[Filter]) -> Result<Vec<RowView>, String> {
         let loaded = self.load(database).await?;
         let labels = self.labels(&loaded).await?;
+        let filters: Vec<Filter> = filters
+            .iter()
+            .map(|filter| {
+                let field = match loaded.field(&filter.field) {
+                    Ok(Writable::Own(field)) => field,
+                    Ok(Writable::Inverse(inverse)) => inverse.field(),
+                    Err(error) => return Err(error),
+                };
+                if field.field_type != DatabaseFieldType::Relation {
+                    return Ok(filter.clone());
+                }
+                let resolve = |value: &String| {
+                    self.link(&field, value, &labels)
+                        .map(|link| {
+                            let shown = labels.shown.row(&link);
+                            shown.split(' ').next().unwrap_or_default().to_owned()
+                        })
+                        .unwrap_or_else(|_| value.clone())
+                };
+                let condition = match &filter.condition {
+                    Condition::Is(value) => Condition::Is(resolve(value)),
+                    Condition::IsNot(value) => Condition::IsNot(resolve(value)),
+                    other => other.clone(),
+                };
+                Ok(Filter {
+                    field: filter.field.clone(),
+                    condition,
+                })
+            })
+            .collect::<Result<_, String>>()?;
         Ok(loaded
             .database
             .rows
@@ -587,12 +651,27 @@ impl<S: ObjectStore> Tracker<S> {
     }
 
     async fn show_row(&self, database: Uuid, row: ObjectId) -> Result<RowView, String> {
-        let loaded = self.load(database).await?;
+        self.show_written(database, row, None, None).await
+    }
+
+    async fn show_written(
+        &self,
+        database: Uuid,
+        row: ObjectId,
+        written: Option<Database>,
+        body: Option<String>,
+    ) -> Result<RowView, String> {
+        let mut loaded = self.load(database).await?;
+        if let Some(written) = written {
+            loaded.database = written;
+        }
         let labels = self.labels(&loaded).await?;
         let mut view = self.view(&loaded, row, &labels);
-        if let Some(page) = view.page {
-            view.body = Some(self.text(page).await?);
-        }
+        view.body = match (body, view.page) {
+            (Some(body), _) => Some(body),
+            (None, Some(page)) => Some(self.text(page).await?),
+            (None, None) => None,
+        };
         Ok(view)
     }
 
@@ -794,6 +873,9 @@ impl<S: ObjectStore> Tracker<S> {
         assignments: &[Assignment],
         body: Body,
     ) -> Result<RowView, String> {
+        if title.trim().is_empty() {
+            return Err("a row needs a title".to_owned());
+        }
         let loaded = self.load(database).await?;
         let title_field = loaded
             .title_field()
@@ -858,14 +940,17 @@ impl<S: ObjectStore> Tracker<S> {
                 }
             }
         }
+        let mut written = None;
         if !own.is_empty() {
-            self.change::<DatabaseContent>(database, |current| {
-                if current.root().rows.get(row).is_none() {
-                    return Err(format!("{code} was deleted"));
-                }
-                Ok(own.clone())
-            })
-            .await?;
+            let content = self
+                .change::<DatabaseContent>(database, |current| {
+                    if current.root().rows.get(row).is_none() {
+                        return Err(format!("{code} was deleted"));
+                    }
+                    Ok(own.clone())
+                })
+                .await?;
+            written = Some(content.root());
         }
         for (source, edit) in elsewhere {
             self.change::<DatabaseContent>(source, |_| Ok(vec![edit.clone()]))
@@ -878,12 +963,13 @@ impl<S: ObjectStore> Tracker<S> {
                 .await
                 .map_err(explain)?;
         }
+        let mut text = None;
         if body != Body::Keep {
             let title =
                 retitled.unwrap_or_else(|| loaded.database.title(row, loaded.title_field()));
-            self.write_page(database, row, &title, body).await?;
+            text = Some(self.write_page(database, row, &title, body).await?);
         }
-        self.show_row(database, row).await
+        self.show_written(database, row, written, text).await
     }
 
     fn assigned(
@@ -893,7 +979,7 @@ impl<S: ObjectStore> Tracker<S> {
         current: &be_block::database::DatabaseRow,
         field: &DatabaseField,
         assignment: &Assignment,
-        labels: &ValueLabels,
+        labels: &Labels,
     ) -> Result<be_block::Edit, String> {
         if field.field_type == DatabaseFieldType::Relation && field.relation_options.multiple {
             let wanted = self.wanted_links(current, field, assignment, labels)?;
@@ -923,7 +1009,7 @@ impl<S: ObjectStore> Tracker<S> {
         current: &be_block::database::DatabaseRow,
         field: &DatabaseField,
         assignment: &Assignment,
-        labels: &ValueLabels,
+        labels: &Labels,
     ) -> Result<Vec<RowRef>, String> {
         let named = assignment
             .value
@@ -950,18 +1036,20 @@ impl<S: ObjectStore> Tracker<S> {
         Ok(links)
     }
 
-    fn link(
-        &self,
-        field: &DatabaseField,
-        wanted: &str,
-        labels: &ValueLabels,
-    ) -> Result<RowRef, String> {
+    fn link(&self, field: &DatabaseField, wanted: &str, labels: &Labels) -> Result<RowRef, String> {
         let database = field
             .relation_options
             .database
             .ok_or_else(|| format!("{} does not link to a database yet", field.name))?;
         let code = wanted.rsplit('-').next().unwrap_or(wanted);
-        let rows = labels.rows_of(database);
+        let rows = labels.shown.rows_of(database);
+        if let Some((link, _)) = labels
+            .aliases
+            .iter()
+            .find(|(link, alias)| link.database == database && alias.eq_ignore_ascii_case(wanted))
+        {
+            return Ok(*link);
+        }
         rows.iter()
             .find(|(link, _)| short_id("", link.row).eq_ignore_ascii_case(code) && code.len() == 6)
             .or_else(|| {
@@ -981,8 +1069,9 @@ impl<S: ObjectStore> Tracker<S> {
         let page = loaded.database.rows.get(row).and_then(|row| row.page());
         let title = loaded.database.title(row, loaded.title_field());
         self.change::<DatabaseContent>(database, |current| {
-            Ok(match current.root().rows.get(row) {
-                Some(_) => vec![Database::remove_row(row)],
+            let current = current.root();
+            Ok(match current.rows.get(row) {
+                Some(_) => vec![current.remove_row_and_links(database, row)],
                 None => Vec::new(),
             })
         })
@@ -995,6 +1084,11 @@ impl<S: ObjectStore> Tracker<S> {
             self.invalidate().await;
         }
         Ok(format!("deleted {} {title}", loaded.database.short_id(row)))
+    }
+
+    pub async fn row_pages(&self, database: Uuid) -> Result<Vec<Uuid>, String> {
+        let (database, _) = self.load_plain(database).await?;
+        Ok(database.rows.iter().filter_map(|row| row.page()).collect())
     }
 
     pub async fn page_of(&self, code: &str, create: bool) -> Result<Option<Uuid>, String> {
@@ -1026,24 +1120,25 @@ impl<S: ObjectStore> Tracker<S> {
             .unwrap_or_default())
     }
 
-    pub async fn write_text(&self, block: Uuid, body: &Body) -> Result<(), String> {
-        self.change::<TextContent>(block, |current| {
-            let edit = match body {
-                Body::Keep => None,
-                Body::Replace(text) => replace_text(current, text),
-                Body::Append(text) => {
-                    let now = TextBlock::text(current);
-                    let joined = match now.is_empty() || now.ends_with('\n') {
-                        true => text.clone(),
-                        false => format!("\n{text}"),
-                    };
-                    TextBlock::insert(current, CLIENT, now.len(), joined.as_bytes())
-                }
-            };
-            Ok(edit.into_iter().collect())
-        })
-        .await?;
-        Ok(())
+    pub async fn write_text(&self, block: Uuid, body: &Body) -> Result<String, String> {
+        let written = self
+            .change::<TextContent>(block, |current| {
+                let edit = match body {
+                    Body::Keep => None,
+                    Body::Replace(text) => replace_text(current, text),
+                    Body::Append(text) => {
+                        let now = TextBlock::text(current);
+                        let joined = match now.is_empty() || now.ends_with('\n') {
+                            true => text.clone(),
+                            false => format!("\n{text}"),
+                        };
+                        TextBlock::insert(current, CLIENT, now.len(), joined.as_bytes())
+                    }
+                };
+                Ok(edit.into_iter().collect())
+            })
+            .await?;
+        Ok(TextBlock::text(&written))
     }
 
     pub async fn rewrite_text(
@@ -1198,11 +1293,11 @@ impl<S: ObjectStore> Tracker<S> {
                 loaded.name
             ));
         }
-        let labels = self.labels(&loaded).await?;
+        let mut labels = self.labels(&loaded).await?;
         let mut edits = Vec::new();
+        let mut later: Vec<(usize, ObjectId, DatabaseField, String)> = Vec::new();
         for (number, row) in rows.iter().enumerate() {
             let mut values = BTreeMap::new();
-            let mut links = Vec::new();
             let mut title = String::new();
             let mut page_text = String::new();
             for (column, cell) in columns.iter().zip(row) {
@@ -1210,24 +1305,8 @@ impl<S: ObjectStore> Tracker<S> {
                     Column::Title => title = cell.trim().to_owned(),
                     Column::Page => page_text = cell.clone(),
                     Column::Ignored => {}
-                    Column::Field(field)
-                        if field.field_type == DatabaseFieldType::Relation
-                            && field.relation_options.multiple =>
-                    {
-                        for item in cell
-                            .split(',')
-                            .map(str::trim)
-                            .filter(|item| !item.is_empty())
-                        {
-                            match self.link(field, item, &labels) {
-                                Ok(link) => links.push((field.id, link)),
-                                Err(error) => imported.problems.push(format!(
-                                    "row {}, {}: {error}",
-                                    number + 2,
-                                    field.name
-                                )),
-                            }
-                        }
+                    Column::Field(field) if field.field_type == DatabaseFieldType::Relation => {
+                        later.push((number, ObjectId::ROOT, field.clone(), cell.clone()));
                     }
                     Column::Field(field) => match self.value(field, cell, &labels) {
                         Ok(Some(value)) => {
@@ -1243,13 +1322,30 @@ impl<S: ObjectStore> Tracker<S> {
                 }
             }
             values.insert(title_field, DatabaseValue::String(title.clone()));
+            for (_, text) in values.iter().filter_map(|(field, value)| match value {
+                DatabaseValue::String(text) if !text.trim().is_empty() => Some((field, text)),
+                _ => None,
+            }) {
+                labels.aliases.push((
+                    RowRef {
+                        database,
+                        row: Uuid::nil(),
+                    },
+                    text.trim().to_owned(),
+                ));
+            }
             let (id, add) = Database::add_row(values);
+            for alias in labels
+                .aliases
+                .iter_mut()
+                .filter(|(link, _)| link.database == database && link.row.is_nil())
+            {
+                alias.0.row = id.as_uuid();
+            }
+            for pending in later.iter_mut().filter(|pending| pending.0 == number) {
+                pending.1 = id;
+            }
             edits.push(add);
-            edits.extend(
-                links
-                    .into_iter()
-                    .map(|(field, link)| Database::link(id, field, link)),
-            );
             if !page_text.trim().is_empty() {
                 let page = Uuid::new_v4();
                 self.peer
@@ -1270,6 +1366,29 @@ impl<S: ObjectStore> Tracker<S> {
             }
             imported.rows += 1;
         }
+        for (number, id, field, cell) in later {
+            let items: Vec<&str> = match field.relation_options.multiple {
+                true => cell.split(',').map(str::trim).collect(),
+                false => vec![cell.trim()],
+            };
+            for item in items.into_iter().filter(|item| !item.is_empty()) {
+                match self.link(&field, item, &labels) {
+                    Ok(link) if field.relation_options.multiple => {
+                        edits.push(Database::link(id, field.id, link));
+                    }
+                    Ok(link) => edits.push(Database::set_value(
+                        id,
+                        field.id,
+                        Some(&DatabaseValue::Relation(link)),
+                    )),
+                    Err(error) => imported.problems.push(format!(
+                        "row {}, {}: {error}",
+                        number + 2,
+                        field.name
+                    )),
+                }
+            }
+        }
         self.change::<DatabaseContent>(database, |_| Ok(edits.clone()))
             .await?;
         self.invalidate().await;
@@ -1282,7 +1401,7 @@ impl<S: ObjectStore> Tracker<S> {
         row: ObjectId,
         title: &str,
         body: Body,
-    ) -> Result<(), String> {
+    ) -> Result<String, String> {
         let (current, _) = self.load_plain(database).await?;
         let page = match current.rows.get(row).and_then(|row| row.page()) {
             Some(page) => page,
@@ -1316,7 +1435,7 @@ impl<S: ObjectStore> Tracker<S> {
         &self,
         field: &DatabaseField,
         text: &str,
-        labels: &ValueLabels,
+        labels: &Labels,
     ) -> Result<Option<DatabaseValue>, String> {
         let wanted = text.trim();
         if wanted.is_empty() {
@@ -1361,8 +1480,11 @@ impl<S: ObjectStore> Tracker<S> {
         mut make: impl FnMut(&C) -> Result<Vec<C::Op>, String>,
     ) -> Result<C, String>
     where
-        C: BlockContent + LiveEdit + Default,
+        C: BlockContent + LiveEdit + Clone + Default,
     {
+        if let Some(content) = self.change_live::<C>(block, &mut make).await? {
+            return Ok(content);
+        }
         for _ in 0..ATTEMPTS {
             let opened = self.peer.open::<C>(block).await.map_err(explain)?;
             let head = opened.as_ref().and_then(|_| self.peer.local_head(block));
@@ -1387,6 +1509,69 @@ impl<S: ObjectStore> Tracker<S> {
         Err(format!(
             "block {block} kept changing while this was being saved; try again"
         ))
+    }
+}
+
+impl<S: ObjectStore> Tracker<S> {
+    async fn change_live<C>(
+        &self,
+        block: Uuid,
+        make: &mut impl FnMut(&C) -> Result<Vec<C::Op>, String>,
+    ) -> Result<Option<C>, String>
+    where
+        C: BlockContent + LiveEdit + Clone + Default,
+    {
+        let mut live = Live::<S, C>::join(Arc::clone(&self.peer), block)
+            .await
+            .map_err(explain)?;
+        let leave = || async {
+            let _ = self.peer.leave_session(block).await;
+            let _ = self.peer.unwatch(block).await;
+        };
+        if live.is_owner() {
+            leave().await;
+            return Ok(None);
+        }
+        let caught_up = tokio::time::timeout(SESSION_WAIT, async {
+            while !live.has_snapshot() {
+                live.wait().await?;
+            }
+            Ok::<(), be_client::ClientError>(())
+        })
+        .await;
+        if !matches!(caught_up, Ok(Ok(()))) {
+            leave().await;
+            return Ok(None);
+        }
+        let edits = match make(live.content()) {
+            Ok(edits) => edits,
+            Err(error) => {
+                leave().await;
+                return Err(error);
+            }
+        };
+        for edit in edits {
+            if let Err(error) = live.edit(edit).await {
+                leave().await;
+                return Err(explain(error));
+            }
+        }
+        let confirmed = tokio::time::timeout(SESSION_WAIT, async {
+            while !live.is_clean() {
+                live.wait().await?;
+            }
+            Ok::<(), be_client::ClientError>(())
+        })
+        .await;
+        let content = live.content().clone();
+        leave().await;
+        match confirmed {
+            Ok(Ok(())) => Ok(Some(content)),
+            Ok(Err(error)) => Err(explain(error)),
+            Err(_) => Err(format!(
+                "block {block} is open elsewhere and its editor did not take the change in time"
+            )),
+        }
     }
 }
 

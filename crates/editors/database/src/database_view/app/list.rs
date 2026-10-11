@@ -24,6 +24,7 @@ use crate::database_view::sort::display_rows;
 
 const PADDING: f32 = 12.0;
 const SPACING: f32 = 8.0;
+const PROPERTIES_HEIGHT: f32 = 300.0;
 
 #[component]
 pub fn ListView(data: Data) -> NodeId {
@@ -332,32 +333,38 @@ fn RowPage(data: Data, row: ObjectId) -> NodeId {
                         @test_id={"database-view.detail.title"}
                         on_change={retitled}
                     />
-                    <DatabaseValueEditor
-                        fields={properties}
-                        values={values}
-                        labels={labels}
-                        disabled={values_off}
-                        prefix="database-view.detail"
-                        on_change={changed}
-                        on_pick={picked}
-                    />
-                    <Show condition={missing}>
-                        {move || clone!(add_page page_off -> view! {
-                            <List direction=Direction::Horizontal spacing=0.0>
-                                <Button
-                                    glyph={ICON_NOTE_ADD.to_owned()}
-                                    label="Add a page"
-                                    variant=ButtonVariant::Secondary
-                                    disabled={page_off}
-                                    @test_id={"database-view.detail.add-page"}
-                                    on_click={add_page}
-                                />
-                                <Spacer @sizing=ItemSize::Percent(100.0) />
-                            </List>
-                        })}
-                    </Show>
                 </List>
             </Frame>
+            <Scroll @sizing={ItemSize::Percent(100.0).max(PROPERTIES_HEIGHT)}>
+                <Frame padding_horizontal=PADDING padding_bottom={Some(PADDING)}>
+                    <List spacing=SPACING>
+                        <DatabaseValueEditor
+                            fields={properties}
+                            values={values}
+                            labels={labels}
+                            disabled={values_off}
+                            prefix="database-view.detail"
+                            on_change={changed}
+                            on_pick={picked}
+                        />
+                        <Show condition={missing}>
+                            {move || clone!(add_page page_off -> view! {
+                                <List direction=Direction::Horizontal spacing=0.0>
+                                    <Button
+                                        glyph={ICON_NOTE_ADD.to_owned()}
+                                        label="Add a page"
+                                        variant=ButtonVariant::Secondary
+                                        disabled={page_off}
+                                        @test_id={"database-view.detail.add-page"}
+                                        on_click={add_page}
+                                    />
+                                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                                </List>
+                            })}
+                        </Show>
+                    </List>
+                </Frame>
+            </Scroll>
             <Show condition={present}>
                 <ChildBlock
                     @sizing=ItemSize::Percent(100.0)
