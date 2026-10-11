@@ -90,7 +90,8 @@ fn columns(
     connection: &Connection,
     table: &str,
 ) -> Result<BTreeMap<String, Column>, rusqlite::Error> {
-    let mut statement = connection.prepare("SELECT name, type, \"notnull\", dflt_value, pk FROM pragma_table_info(?1)")?;
+    let mut statement = connection
+        .prepare("SELECT name, type, \"notnull\", dflt_value, pk FROM pragma_table_info(?1)")?;
     statement
         .query_map([table], |row| {
             Ok((
@@ -135,7 +136,8 @@ fn add_columns(
                     definition.push_str(" DEFAULT ");
                     definition.push_str(default);
                 }
-                connection.execute_batch(&format!("ALTER TABLE \"{table}\" ADD COLUMN {definition}"))?;
+                connection
+                    .execute_batch(&format!("ALTER TABLE \"{table}\" ADD COLUMN {definition}"))?;
             }
         }
     }

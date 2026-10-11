@@ -90,31 +90,51 @@ async fn greet(writer: &mut Writer, reader: &mut Reader) -> Result<(), ClientErr
         .send(hello(ours))
         .await
         .map_err(ClientError::Disconnected)?;
+    let Some(bytes) = next_binary(writer, reader).await? else {
+        return Err(ClientError::Disconnected(
+            "the server closed the connection before greeting it".into(),
+        ));
+    };
+    let theirs = read_hello(&bytes).ok_or_else(|| ClientError::Incompatible {
+        ours: ours.to_owned(),
+        theirs: build_id::UNKNOWN.to_owned(),
+    })?;
+    if build_id::compatible(ours, &theirs) {
+        Ok(())
+    } else {
+        Err(ClientError::Incompatible {
+            ours: ours.to_owned(),
+            theirs,
+        })
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn next_binary(
+    writer: &mut Writer,
+    reader: &mut Reader,
+) -> Result<Option<Vec<u8>>, ClientError> {
     loop {
         match reader.next().await {
-            Some(Frame::Binary(bytes)) => {
-                let theirs = read_hello(&bytes).ok_or_else(|| ClientError::Incompatible {
-                    ours: ours.to_owned(),
-                    theirs: build_id::UNKNOWN.to_owned(),
-                })?;
-                return if build_id::compatible(ours, &theirs) {
-                    Ok(())
-                } else {
-                    Err(ClientError::Incompatible {
-                        ours: ours.to_owned(),
-                        theirs,
-                    })
-                };
-            }
-            #[cfg(not(target_arch = "wasm32"))]
-            Some(Frame::Ping(payload)) => writer.pong(payload).await.map_err(ClientError::Disconnected)?,
-            Some(Frame::Closed) | None => {
-                return Err(ClientError::Disconnected(
-                    "the server closed the connection before greeting it".into(),
-                ));
-            }
+            Some(Frame::Binary(bytes)) => return Ok(Some(bytes)),
+            Some(Frame::Ping(payload)) => writer
+                .pong(payload)
+                .await
+                .map_err(ClientError::Disconnected)?,
+            Some(Frame::Closed) | None => return Ok(None),
         }
     }
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn next_binary(
+    _writer: &mut Writer,
+    reader: &mut Reader,
+) -> Result<Option<Vec<u8>>, ClientError> {
+    Ok(match reader.next().await {
+        Some(Frame::Binary(bytes)) => Some(bytes),
+        Some(Frame::Closed) | None => None,
+    })
 }
 
 async fn worker(

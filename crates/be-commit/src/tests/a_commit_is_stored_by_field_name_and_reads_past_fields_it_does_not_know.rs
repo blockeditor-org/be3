@@ -32,7 +32,15 @@ fn a_commit_is_stored_by_field_name_and_reads_past_fields_it_does_not_know() {
         decode_value(&encode_value(&commit).unwrap()).unwrap();
     assert_eq!(
         fields.keys().map(String::as_str).collect::<Vec<_>>(),
-        ["author", "kind", "manifest", "metadata", "parents", "references", "time"]
+        [
+            "author",
+            "kind",
+            "manifest",
+            "metadata",
+            "parents",
+            "references",
+            "time"
+        ]
     );
 
     let grown = encode_value(&Grown {

@@ -744,6 +744,12 @@ pub(crate) fn create(
     if let Some(name) = PENDING_NAMES.with(|pending| pending.borrow_mut().remove(&block)) {
         metadata.insert(&be_block::NAME, &name);
     }
+    if metadata.derived.is_empty()
+        && let Some(kind) = kind_of(content_type)
+    {
+        let bytes = content.clone().unwrap_or_else(kind.blank);
+        metadata.derived = (kind.describe)(&bytes).unwrap_or_default();
+    }
     let author = account().unwrap_or_default();
     with_shared_mut(|shared| {
         shared.graph.change(Node {

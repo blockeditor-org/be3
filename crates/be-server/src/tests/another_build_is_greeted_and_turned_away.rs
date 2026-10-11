@@ -6,7 +6,11 @@ async fn another_build_is_greeted_and_turned_away() {
 
     let mut stranger = harness.greeted("another build").await;
     assert_eq!(
-        next_binary(&mut stranger).await.as_deref().and_then(read_hello).as_deref(),
+        next_binary(&mut stranger)
+            .await
+            .as_deref()
+            .and_then(read_hello)
+            .as_deref(),
         Some(BUILD),
         "the server did not say which build it is"
     );
@@ -18,7 +22,11 @@ async fn another_build_is_greeted_and_turned_away() {
 
     let mut unversioned = harness.greeted(build_id::UNKNOWN).await;
     assert_eq!(
-        next_binary(&mut unversioned).await.as_deref().and_then(read_hello).as_deref(),
+        next_binary(&mut unversioned)
+            .await
+            .as_deref()
+            .and_then(read_hello)
+            .as_deref(),
         Some(BUILD)
     );
     unversioned

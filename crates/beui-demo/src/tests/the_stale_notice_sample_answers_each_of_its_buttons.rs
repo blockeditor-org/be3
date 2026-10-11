@@ -6,9 +6,7 @@ fn the_stale_notice_sample_answers_each_of_its_buttons() {
     test.frame(Vec::new());
     for _ in 0..REVEAL_TICKS {
         let bottom = test.size().y;
-        if test.shows("stale-notice.try")
-            && test.rect_of("stale-notice.try").bottom() <= bottom
-        {
+        if test.shows("stale-notice.try") && test.rect_of("stale-notice.try").bottom() <= bottom {
             break;
         }
         test.scroll_at(

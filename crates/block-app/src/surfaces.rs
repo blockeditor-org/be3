@@ -236,13 +236,12 @@ pub(crate) fn StaleBlock(block: Uuid, block_type: Uuid, stale: crate::be::Stale)
         }
     };
     let delete = move || {
-        let source = crate::be::node(block).map_or(BlockLocation::Detached, |node| {
-            match node.parent {
+        let source =
+            crate::be::node(block).map_or(BlockLocation::Detached, |node| match node.parent {
                 be_graph::BlockParent::Root => BlockLocation::Root,
                 be_graph::BlockParent::Detached => BlockLocation::Detached,
                 be_graph::BlockParent::Block(parent) => BlockLocation::Block(parent.into_bytes()),
-            }
-        });
+            });
         crate::compositor::act(
             None,
             crate::editors::EditorAction::Command {

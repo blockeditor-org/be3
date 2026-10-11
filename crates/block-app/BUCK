@@ -177,8 +177,8 @@ export_file(
 app(
     name = "android-assets",
     compiled_only = True,
-    files = ["//buck/app:build-id"],
     data = ["//{}:data".format(package) for package in editor_packages()],
+    files = ["//buck/app:build-id"],
     index = True,
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],

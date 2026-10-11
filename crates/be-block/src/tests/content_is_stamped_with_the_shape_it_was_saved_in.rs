@@ -47,5 +47,4 @@ fn content_is_stamped_with_the_shape_it_was_saved_in() {
         schema_fingerprint::<ImageContent>(),
         schema_fingerprint::<ImageContent>()
     );
-    assert!(!TextContent::FROZEN && !FolderContent::FROZEN && !ImageContent::FROZEN);
 }

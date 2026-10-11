@@ -46,7 +46,10 @@ fn parse_fragment(bytes: &[u8], start: usize) -> Option<(usize, Uuid, Uuid)> {
 
 fn ends_a_url(byte: u8) -> bool {
     byte.is_ascii_whitespace()
-        || matches!(byte, b'(' | b')' | b'<' | b'>' | b'[' | b']' | b'"' | b'\'' | b'`')
+        || matches!(
+            byte,
+            b'(' | b')' | b'<' | b'>' | b'[' | b']' | b'"' | b'\'' | b'`'
+        )
 }
 
 fn base_start(bytes: &[u8], marker: usize, floor: usize) -> usize {

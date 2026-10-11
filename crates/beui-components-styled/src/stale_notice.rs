@@ -6,9 +6,7 @@ use crate::theme::{FONT_SMALL, use_theme};
 use beui_core::font::TextAlign;
 use beui_core::icons::{ICON_DELETE, ICON_HISTORY, ICON_RESTART_ALT};
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Align, ClickCallback, Direction, Frame, List, Prop, Text, create_memo,
-};
+use beui_view::reactive::{Align, ClickCallback, Direction, Frame, List, Prop, Text, create_memo};
 
 const PADDING: f32 = 16.0;
 const SPACING: f32 = 8.0;

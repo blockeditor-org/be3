@@ -28,7 +28,9 @@ fn a_column_that_changed_or_cannot_be_added_is_a_mismatch() {
         .unwrap();
     assert_eq!(tables, 0, "a refused schema changed the database");
 
-    let Err(SchemaError::Mismatch(problems)) = ensure(&connection, "CREATE TABLE notes (id TEXT PRIMARY KEY);") else {
+    let Err(SchemaError::Mismatch(problems)) =
+        ensure(&connection, "CREATE TABLE notes (id TEXT PRIMARY KEY);")
+    else {
         panic!("a column this build does not know was accepted");
     };
     assert_eq!(problems, ["notes.body is not a column this build knows"]);

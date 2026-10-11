@@ -261,7 +261,9 @@ where
     if !compatible {
         tracing::info!(
             ours,
-            theirs = theirs.as_deref().unwrap_or("a build from before the greeting"),
+            theirs = theirs
+                .as_deref()
+                .unwrap_or("a build from before the greeting"),
             "refused a client of another build"
         );
         sink.send(Message::Close(None)).await?;

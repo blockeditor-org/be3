@@ -29,9 +29,8 @@ use beui::styled::{
     Listbox, LockAction, LockScreen, MenuButton, ModalSheet, NumberInput, OklchColorWheel,
     OsdLevel, Paragraph, PictureMenuButton, Popover, Progress, RadioGroup, ResponsiveTabs, Scroll,
     Select, SelectableText, Separator, Shortcut, Slider, Spinner, SplitButton, Stack, StaleNotice,
-    Switch, Tabs,
-    TextArea, TextInput, Theme, ThemeProvider, Title, Toast, ToastAction, Toasts, ToggleButton,
-    Tooltip, Tree, TreeRowFace, use_theme,
+    Switch, Tabs, TextArea, TextInput, Theme, ThemeProvider, Title, Toast, ToastAction, Toasts,
+    ToggleButton, Tooltip, Tree, TreeRowFace, use_theme,
 };
 use beui::unstyled::{
     ChoiceOption, Container, DateTimeParts, DockDialog, DockMode, DockPane, DockSplit, DockTab,

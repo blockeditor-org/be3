@@ -24,10 +24,10 @@ mod a_detached_subtree_is_collected_and_its_objects_freed;
 mod a_session_hands_ownership_over_without_a_merge;
 mod a_stale_publish_is_rejected_with_the_current_head;
 mod a_watcher_is_told_when_the_head_moves;
-mod another_build_is_greeted_and_turned_away;
 mod an_editor_sees_only_the_blocks_it_made_or_was_given;
 mod an_invited_account_joins_the_workspace_and_a_logout_ends_the_session;
 mod an_unauthenticated_connection_cannot_touch_blocks;
+mod another_build_is_greeted_and_turned_away;
 mod blocks_publish_and_read_back_through_the_server;
 mod every_graph_change_advances_a_blocks_version;
 mod every_member_connection_hears_how_the_graph_changes;
@@ -128,7 +128,11 @@ impl TestClient {
     async fn connect(url: &str) -> Self {
         let mut socket = greeted(url, BUILD).await;
         assert_eq!(
-            next_binary(&mut socket).await.as_deref().and_then(read_hello).as_deref(),
+            next_binary(&mut socket)
+                .await
+                .as_deref()
+                .and_then(read_hello)
+                .as_deref(),
             Some(BUILD),
             "the server did not greet a client of its own build"
         );

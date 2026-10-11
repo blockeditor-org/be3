@@ -64,7 +64,9 @@ impl From<rusqlite::Error> for Opened {
 impl From<sqlite_schema::SchemaError> for Opened {
     fn from(error: sqlite_schema::SchemaError) -> Self {
         match error {
-            sqlite_schema::SchemaError::Mismatch(problems) => Self::Incompatible(problems.join("; ")),
+            sqlite_schema::SchemaError::Mismatch(problems) => {
+                Self::Incompatible(problems.join("; "))
+            }
             sqlite_schema::SchemaError::Database(error) => error.into(),
         }
     }
@@ -75,7 +77,11 @@ impl AppStateStore {
         let path = path.as_ref();
         match Self::with_connection(Connection::open(path)?) {
             Err(Opened::Incompatible(problems)) => {
-                for stale in [path.to_owned(), path.with_extension("sqlite3-wal"), path.with_extension("sqlite3-shm")] {
+                for stale in [
+                    path.to_owned(),
+                    path.with_extension("sqlite3-wal"),
+                    path.with_extension("sqlite3-shm"),
+                ] {
                     match std::fs::remove_file(&stale) {
                         Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
                             return Err(AppStateError::from(error.to_string()));
