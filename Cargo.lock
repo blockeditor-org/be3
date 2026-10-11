@@ -648,6 +648,7 @@ dependencies = [
  "be-server",
  "be-session",
  "be-store",
+ "build-id",
  "futures-channel",
  "futures-util",
  "js-sys",
@@ -777,6 +778,7 @@ dependencies = [
  "be-protocol",
  "be-session",
  "be-store",
+ "build-id",
  "chacha20poly1305",
  "futures-util",
  "rand 0.9.4",
@@ -1231,6 +1233,7 @@ dependencies = [
  "block-editor-plugin",
  "block-plugin-api",
  "block-wasm-host",
+ "build-id",
  "bytemuck",
  "directories-next",
  "futures-util",
@@ -1468,6 +1471,10 @@ dependencies = [
  "toml 0.9.12+spec-1.1.0",
  "zip",
 ]
+
+[[package]]
+name = "build-id"
+version = "0.1.0"
 
 [[package]]
 name = "bumpalo"

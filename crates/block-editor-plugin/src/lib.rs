@@ -29,7 +29,7 @@ pub use block_plugin_api::{
     HostDisplay, HostDisplayMode, HostImage, HostInputDevice, HostNotificationAction, HostPanel,
     HostProgram, HostReply, HostRequest, HostTrayItem, HostValue, HostWindow, HostWindowId,
     HostWindows, IncomingNotification, InputDevices, InputEvent, InteractionMode, Key, KeyChord,
-    Media, MediaLevel, MediaLevels, MediaRequest, MenuEntry, Modifiers, NodeValue,
+    LinkBase, Media, MediaLevel, MediaLevels, MediaRequest, MenuEntry, Modifiers, NodeValue,
     NotificationCloseReason, NotificationInbox, NotificationReport, NotificationRequest,
     NotificationSignal, NotificationUrgency, Notifications, Occluder, PlayerCommand, PointerButton,
     Power, PowerAction, PowerAvailability, ProgramAction, Programs, ResizeMode, ScreenLocked,

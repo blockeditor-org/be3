@@ -58,6 +58,7 @@ be-store = { path = "../be-store" }
 be-vcs = { path = "../be-vcs" }
 beui = { path = "../beui", default-features = false, features = ["render"] }
 block-plugin-api = { path = "../block-plugin-api" }
+build-id = { path = "../build-id" }
 beui-plugin-input = { path = "../beui-plugin-input" }
 bytemuck = { version = "1.24.0", features = ["derive"] }
 futures-util = { version = "0.3", features = ["io"] }

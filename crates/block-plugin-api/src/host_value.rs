@@ -12,6 +12,13 @@ pub trait HostAction: Clone + Serialize + DeserializeOwned + 'static {
     const KEY: &'static str;
 }
 
+pub enum LinkBase {}
+
+impl HostValue for LinkBase {
+    const KEY: &'static str = "link_base";
+    type Value = String;
+}
+
 #[derive(Clone, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HostImage {
     pub width: u32,

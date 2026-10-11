@@ -28,6 +28,7 @@ use logicgame::grid::{
 };
 use uuid::Uuid;
 
+mod a_block_link_is_found_by_its_fragment_whatever_its_host;
 mod a_block_added_to_a_folder_by_both_sides_is_listed_once;
 mod a_browser_tab_is_named_after_its_page;
 mod a_browser_tab_push_discards_forward_history;

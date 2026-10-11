@@ -2,10 +2,12 @@ use std::ops::Range;
 
 use uuid::Uuid;
 
-const BLOCK_URL_BASE: &str = "https://blocks.pfg.pw/";
+pub const MARKER: &str = "#block/";
 const UUID_TEXT_BYTES: usize = 36;
-pub const BLOCK_URL_BYTES: usize = BLOCK_URL_BASE.len() + UUID_TEXT_BYTES * 2 + 1;
-pub const BLOCK_URL_MAX_BYTES: usize = BLOCK_URL_BYTES;
+pub const MAX_BASE_BYTES: usize = 512;
+pub const BLOCK_URL_FRAGMENT_BYTES: usize = MARKER.len() + UUID_TEXT_BYTES * 2 + 1;
+pub const BLOCK_URL_MAX_BYTES: usize = MAX_BASE_BYTES + BLOCK_URL_FRAGMENT_BYTES;
+const SCHEMES: [&[u8]; 2] = [b"https://", b"http://"];
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlockUrl {
@@ -14,12 +16,14 @@ pub struct BlockUrl {
     pub workspace_id: Uuid,
 }
 
-pub fn block_url_prefix(workspace_id: Uuid) -> String {
-    format!("{BLOCK_URL_BASE}{workspace_id}/")
-}
-
-pub fn block_url(workspace_id: Uuid, id: Uuid) -> String {
-    format!("{}{id}", block_url_prefix(workspace_id))
+pub fn block_url(base: &str, workspace_id: Uuid, id: Uuid) -> String {
+    let base = base.split('#').next().unwrap_or_default();
+    let separator = if base.is_empty() || base.ends_with('/') {
+        ""
+    } else {
+        "/"
+    };
+    format!("{base}{separator}{MARKER}{workspace_id}/{id}")
 }
 
 fn parse_uuid_at(bytes: &[u8], start: usize, end: usize) -> Option<Uuid> {
@@ -28,7 +32,7 @@ fn parse_uuid_at(bytes: &[u8], start: usize, end: usize) -> Option<Uuid> {
         .and_then(|text| Uuid::parse_str(text).ok())
 }
 
-fn parse_block_url(bytes: &[u8], start: usize) -> Option<(usize, Uuid, Uuid)> {
+fn parse_fragment(bytes: &[u8], start: usize) -> Option<(usize, Uuid, Uuid)> {
     let workspace_end = start + UUID_TEXT_BYTES;
     let workspace_id = parse_uuid_at(bytes, start, workspace_end)?;
     if bytes.get(workspace_end) != Some(&b'/') {
@@ -40,15 +44,36 @@ fn parse_block_url(bytes: &[u8], start: usize) -> Option<(usize, Uuid, Uuid)> {
     Some((id_end, id, workspace_id))
 }
 
+fn ends_a_url(byte: u8) -> bool {
+    byte.is_ascii_whitespace()
+        || matches!(byte, b'(' | b')' | b'<' | b'>' | b'[' | b']' | b'"' | b'\'' | b'`')
+}
+
+fn base_start(bytes: &[u8], marker: usize, floor: usize) -> usize {
+    let lowest = marker.saturating_sub(MAX_BASE_BYTES).max(floor);
+    let mut start = marker;
+    while start > lowest && !ends_a_url(bytes[start - 1]) {
+        start -= 1;
+    }
+    if SCHEMES
+        .iter()
+        .any(|scheme| bytes[start..marker].starts_with(scheme))
+    {
+        start
+    } else {
+        marker
+    }
+}
+
 pub fn parse_block_urls(bytes: &[u8]) -> Vec<BlockUrl> {
-    let prefix = BLOCK_URL_BASE.as_bytes();
-    let finder = memchr::memmem::Finder::new(prefix);
+    let finder = memchr::memmem::Finder::new(MARKER.as_bytes());
     let mut urls = Vec::new();
     let mut from = 0;
+    let mut floor = 0;
     while let Some(found) = finder.find(&bytes[from..]) {
-        let index = from + found;
-        from = index + 1;
-        let Some((end, block, workspace_id)) = parse_block_url(bytes, index + prefix.len()) else {
+        let marker = from + found;
+        from = marker + 1;
+        let Some((end, block, workspace_id)) = parse_fragment(bytes, marker + MARKER.len()) else {
             continue;
         };
         if bytes
@@ -58,11 +83,12 @@ pub fn parse_block_urls(bytes: &[u8]) -> Vec<BlockUrl> {
             continue;
         }
         urls.push(BlockUrl {
-            range: index..end,
+            range: base_start(bytes, marker, floor)..end,
             block,
             workspace_id,
         });
         from = end;
+        floor = end;
     }
     urls
 }

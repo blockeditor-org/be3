@@ -41,7 +41,10 @@ use std::{
 };
 
 #[cfg(not(target_arch = "wasm32"))]
-use std::{io, path::PathBuf};
+use std::{
+    io,
+    path::{Path, PathBuf},
+};
 
 use accounts::{AccountError, Session};
 use app_state::{AppStateStore, SavedAccount, ServerLocation};
@@ -65,7 +68,9 @@ use uuid::Uuid;
 #[cfg(not(target_arch = "wasm32"))]
 const APP_ID: &str = "Block";
 
-pub(crate) const COMMIT: &str = env!("BLOCK_APP_COMMIT");
+pub(crate) fn commit() -> &'static str {
+    build_id::commit(build_id::current())
+}
 
 fn run_options() -> beui::RunOptions {
     let mut options = beui::RunOptions::new("Block");
@@ -503,6 +508,25 @@ struct PendingCopy {
     stage: CopyStage,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+const CACHES: [&str; 2] = ["be-objects", "plugin-cache"];
+
+#[cfg(not(target_arch = "wasm32"))]
+fn forget_caches_of_other_builds(data_dir: &Path) -> io::Result<()> {
+    let stamp = data_dir.join(build_id::FILE);
+    let current = build_id::current();
+    if std::fs::read_to_string(&stamp).is_ok_and(|cached| cached == current) {
+        return Ok(());
+    }
+    for cache in CACHES {
+        match std::fs::remove_dir_all(data_dir.join(cache)) {
+            Err(error) if error.kind() != io::ErrorKind::NotFound => return Err(error),
+            _ => {}
+        }
+    }
+    std::fs::write(stamp, current)
+}
+
 #[derive(Clone, Copy)]
 enum CopyStage {
     Duplicate,
@@ -516,6 +540,7 @@ impl BlockApp {
             .or_else(storage_dir)
             .ok_or_else(|| io::Error::other("application-data directory is unavailable"))?;
         std::fs::create_dir_all(&data_dir)?;
+        forget_caches_of_other_builds(&data_dir)?;
         panic_guard::report_in(&data_dir);
         plugin_host::cache_in(data_dir.join("plugin-cache"));
         let embedded_server = platform::start_embedded_server(data_dir.join("server"))?;
@@ -2182,6 +2207,12 @@ impl BlockApp {
         if be::installed_for(self.account.id, workspace) {
             return;
         }
+        let link_base = if self.server_url == self.local_server_url {
+            String::new()
+        } else {
+            self.server_url.clone()
+        };
+        plugin_host::publish::<block_plugin_api::LinkBase>(&link_base);
         be::start(be::Config {
             server_url: self.server_url.clone(),
             token: self.account.token.clone(),

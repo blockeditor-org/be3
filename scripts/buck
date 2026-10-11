@@ -30,6 +30,16 @@ configure_build_server "$buck2"
 
 command="${1:-}"
 
+# Every command that reads the configuration is given the build id, the same
+# for all of them so that buck2 does not reevaluate what reads it between one
+# command and the next.
+case "$command" in
+    build | run | test | bxl | install | targets | query | cquery | uquery | aquery | audit)
+        shift
+        set -- "$command" -c "be3.build_id=${BE3_BUILD_ID:-$(build_id)}" "$@"
+        ;;
+esac
+
 # buck2 exits with 2 for an infrastructure error and with other statuses for a
 # build that is wrong. A connection to the build server sometimes resets
 # partway through a download, which buck2 does not retry itself, a relay

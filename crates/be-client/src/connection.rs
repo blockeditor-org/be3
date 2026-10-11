@@ -6,7 +6,7 @@ use std::{
     },
 };
 
-use be_protocol::{ClientMessage, ServerMessage, decode, encode};
+use be_protocol::{ClientMessage, ServerMessage, decode, encode, hello, read_hello};
 use futures_util::future::{Either, select};
 use tokio::sync::{broadcast, mpsc, oneshot, watch};
 
@@ -32,7 +32,8 @@ pub struct Connection {
 
 impl Connection {
     pub async fn connect(url: &str) -> Result<Arc<Self>, ClientError> {
-        let (writer, reader) = connect(url).await.map_err(ClientError::Disconnected)?;
+        let (mut writer, mut reader) = connect(url).await.map_err(ClientError::Disconnected)?;
+        greet(&mut writer, &mut reader).await?;
         let (commands, receiver) = mpsc::unbounded_channel();
         let (events, _) = broadcast::channel(EVENT_CAPACITY);
         let (closing, closed) = watch::channel(false);
@@ -79,6 +80,39 @@ impl Connection {
         match response {
             ServerMessage::Failed { code, message, .. } => Err(ClientError::Refused(code, message)),
             response => Ok(response),
+        }
+    }
+}
+
+async fn greet(writer: &mut Writer, reader: &mut Reader) -> Result<(), ClientError> {
+    let ours = build_id::current();
+    writer
+        .send(hello(ours))
+        .await
+        .map_err(ClientError::Disconnected)?;
+    loop {
+        match reader.next().await {
+            Some(Frame::Binary(bytes)) => {
+                let theirs = read_hello(&bytes).ok_or_else(|| ClientError::Incompatible {
+                    ours: ours.to_owned(),
+                    theirs: build_id::UNKNOWN.to_owned(),
+                })?;
+                return if build_id::compatible(ours, &theirs) {
+                    Ok(())
+                } else {
+                    Err(ClientError::Incompatible {
+                        ours: ours.to_owned(),
+                        theirs,
+                    })
+                };
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            Some(Frame::Ping(payload)) => writer.pong(payload).await.map_err(ClientError::Disconnected)?,
+            Some(Frame::Closed) | None => {
+                return Err(ClientError::Disconnected(
+                    "the server closed the connection before greeting it".into(),
+                ));
+            }
         }
     }
 }

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use beui::reactive::{ReadSignal, WriteSignal, create_effect, create_signal, untrack};
+use beui::reactive::{Memo, ReadSignal, WriteSignal, create_effect, create_signal, untrack};
 use beui::unstyled::TextAreaState;
 use beui::{Rect, Vec2};
 use block_editor_beui::BlockQuery;
@@ -11,7 +11,7 @@ use block_editor_beui::be_block::presence::pick_free_color;
 use block_editor_beui::be_block::{ImageContent, TextContent};
 use block_editor_beui::{BlockList, Blocks};
 use block_editor_beui::{
-    ChildState, ContentProjection, Editor, EditorHost, ImagePaster, Projected,
+    ChildState, ContentProjection, Editor, EditorHost, ImagePaster, LinkBase, Projected,
 };
 use text_editor_core::{EditorCommand, TextLanguage};
 use uuid::Uuid;
@@ -37,6 +37,7 @@ pub(crate) struct State {
     adopted: Cell<bool>,
     pub document: Arc<BlockDocument>,
     pub workspace_id: Uuid,
+    link_base: Memo<String>,
     pub text: TextAreaState,
     pub dependencies: BlockList,
     pub paster: RefCell<ImagePaster>,
@@ -89,6 +90,7 @@ impl State {
         let (embed_sizes, set_embed_sizes) = create_signal(HashMap::new());
         let state = Rc::new(Self {
             workspace_id: editor.host().workspace_id(),
+            link_base: editor.host_value::<LinkBase>(),
             peers: editor.peers::<TextCursor>(),
             editor,
             client,
@@ -217,7 +219,9 @@ impl State {
 
     pub fn insert_image_embed(&self, id: Uuid, source_name: &str) {
         let markdown = self.text.language() == TextLanguage::Markdown;
-        let directive = image_embed_directive(self.workspace_id, &id, source_name, markdown);
+        let link_base = self.link_base.get_untracked();
+        let directive =
+            image_embed_directive(&link_base, self.workspace_id, &id, source_name, markdown);
         self.text
             .execute(EditorCommand::InsertText(directive.as_bytes()));
         self.text.reveal_cursor();

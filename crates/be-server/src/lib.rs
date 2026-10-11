@@ -8,17 +8,21 @@ use std::{
 };
 
 use be_protocol::{
-    ClientMessage, ErrorCode, MAX_FRAME_BYTES, ServerMessage, WorkspaceRole, decode, encode,
+    ClientMessage, ErrorCode, MAX_FRAME_BYTES, ServerMessage, WorkspaceRole, decode, encode, hello,
+    read_hello,
 };
 use be_session::Claim;
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{
+    SinkExt, StreamExt,
+    stream::{SplitSink, SplitStream},
+};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::{TcpListener, TcpStream},
     sync::{Semaphore, mpsc},
 };
 use tokio_tungstenite::{
-    accept_hdr_async_with_config,
+    WebSocketStream, accept_hdr_async_with_config,
     tungstenite::{
         Message,
         handshake::server::{Callback, ErrorResponse, Request, Response},
@@ -228,6 +232,43 @@ async fn handle_connection(
     serve_socket(socket, store, hub, registry, config).await
 }
 
+async fn greet<S>(
+    sink: &mut SplitSink<WebSocketStream<S>, Message>,
+    source: &mut SplitStream<WebSocketStream<S>>,
+) -> Result<bool, ServerError>
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send,
+{
+    let ours = build_id::current();
+    let greeting = async {
+        loop {
+            match source.next().await {
+                Some(Ok(Message::Binary(bytes))) => return Ok(read_hello(&bytes)),
+                Some(Ok(Message::Ping(payload))) => sink.send(Message::Pong(payload)).await?,
+                Some(Ok(Message::Text(_) | Message::Pong(_) | Message::Frame(_))) => {}
+                Some(Ok(Message::Close(_))) | None => return Ok(None),
+                Some(Err(error)) => return Err(ServerError::from(error)),
+            }
+        }
+    };
+    let theirs = tokio::time::timeout(HANDSHAKE_TIMEOUT, greeting)
+        .await
+        .map_err(|_| ServerError::Socket("the client never said which build it is".into()))??;
+    sink.send(Message::Binary(hello(ours))).await?;
+    let compatible = theirs
+        .as_deref()
+        .is_some_and(|theirs| build_id::compatible(ours, theirs));
+    if !compatible {
+        tracing::info!(
+            ours,
+            theirs = theirs.as_deref().unwrap_or("a build from before the greeting"),
+            "refused a client of another build"
+        );
+        sink.send(Message::Close(None)).await?;
+    }
+    Ok(compatible)
+}
+
 pub async fn serve_socket<S>(
     socket: tokio_tungstenite::WebSocketStream<S>,
     store: Arc<ServerStore>,
@@ -239,6 +280,9 @@ where
     S: AsyncRead + AsyncWrite + Unpin + Send,
 {
     let (mut sink, mut source) = socket.split();
+    if !greet(&mut sink, &mut source).await? {
+        return Ok(());
+    }
     let (sender, mut outbound) = mpsc::channel(OUTBOUND_LIMIT);
     let mut pings = tokio::time::interval(PING_INTERVAL);
     let mut heard = Instant::now();

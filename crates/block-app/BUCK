@@ -7,25 +7,12 @@ load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_app_module")
 
 # The app, with its full features (the embedded browser), which buckify.bxl
 # turns on for every platform.
-#
-# BLOCK_APP_COMMIT is what cargo's build script asks git for; a worker has no
-# checkout, so a release build takes `-c be3.commit=SHA`. A dev build says
-# unknown whatever the command passes, so a new commit does not rebuild it, and
-# a build that asks for both profiles leaves the dev half the cache a person's
-# machine hits.
-commit = {
-    "BLOCK_APP_COMMIT": select({
-        "DEFAULT": "unknown",
-        "root//buck/constraints:release": read_config("be3", "commit", "unknown"),
-    })
-}
 
 app_srcs = glob(["src/**/*.rs", "src/**/*.wgsl", "src/**/*.desktop", "src/**/*.pam", "assets/**/*"])
 
 # On Android the app is this library, loaded by MainActivity under cargo's
 # name for it; on the web it is the module :web runs wasm-bindgen over.
 cargo_library(
-    env = commit,
     rustc_flags = select({
         "DEFAULT": [],
         "root//buck/platforms:wasi_setting": wasi_app_flags,
@@ -41,8 +28,7 @@ cargo_library(
 # keyboard from the test runtime's keymaps, as be-wayland's do. The tray's run a
 # private D-Bus bus with the test runtime's daemon.
 cargo_test(
-    env = commit
-    | {
+    env = {
         "BE3_DBUS_DAEMON": "$(location //buck/sysroot:amd64-test)/usr/bin/dbus-daemon",
         "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu",
         "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
@@ -51,7 +37,7 @@ cargo_test(
     srcs = app_srcs,
 )
 
-cargo_binary(env = commit, srcs = app_srcs)
+cargo_binary(srcs = app_srcs)
 
 # The app with every plugin beside it: `./scripts/buck run //crates/block-app:app`
 # runs it. buck/app says how it is laid out.
@@ -60,6 +46,7 @@ app(
     binary = ":block-app-bin",
     data = ["//{}:data".format(package) for package in editor_packages()],
     executable_name = "block-app",
+    files = ["//buck/app:build-id"],
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
     precompile_target = per_cross_platform("x86_64-unknown-linux-gnu", cross_triple),
@@ -85,6 +72,7 @@ app(
     binary = ":block-app-bin",
     executable_name = "block-app",
     extra_binaries = {"be-server": "//crates/be-server:be-server-bin"},
+    files = ["//buck/app:build-id"],
     manifests = [],
     modules = [],
     precompile = False,
@@ -100,7 +88,7 @@ wasi_app_module(
     module = "block_app_lib",
 )
 
-web_files = glob(["web/*.html", "web/*.js"])
+web_files = glob(["web/*.html", "web/*.js"]) + ["//buck/app:build-id"]
 
 # The WASI and wasi-threads shims, which beui-web-demo needs too.
 [
@@ -189,6 +177,7 @@ export_file(
 app(
     name = "android-assets",
     compiled_only = True,
+    files = ["//buck/app:build-id"],
     data = ["//{}:data".format(package) for package in editor_packages()],
     index = True,
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
