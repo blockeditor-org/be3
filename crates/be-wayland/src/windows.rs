@@ -220,10 +220,10 @@ impl Windows {
     pub(crate) fn placed(&self, id: WindowId, rect: Rect) {
         let mut views = self.0.views.borrow_mut();
         let view = views.entry(id).or_default();
-        let resized = view.rect.map(|rect| rect.size()) != Some(rect.size());
+        let changed = view.rect != Some(rect);
         view.rect = Some(rect);
         drop(views);
-        if resized {
+        if changed {
             self.push(Command::Configure(id));
         }
     }

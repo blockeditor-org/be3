@@ -8,4 +8,8 @@ fn the_session_entry_runs_the_installed_app_in_session_mode() {
     assert!(entry.contains("\nExec=/opt/block/lib/block-app/block-app --session\n"));
     assert!(entry.contains("\nTryExec=/opt/block/lib/block-app/block-app\n"));
     assert!(entry.contains("\nName=Block\n"));
+    assert!(
+        entry.contains("\nX-LightDM-Session-Type=wayland\n"),
+        "LightDM runs it as Wayland whichever directory it is in"
+    );
 }

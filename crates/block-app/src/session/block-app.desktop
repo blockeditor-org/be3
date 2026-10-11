@@ -5,3 +5,4 @@ Comment=Block as the desktop, with Block as the Wayland compositor
 Exec=block-app --session
 TryExec=block-app
 DesktopNames=Block
+X-LightDM-Session-Type=wayland

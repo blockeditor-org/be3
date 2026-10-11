@@ -5,8 +5,8 @@ mod unsupported;
 
 #[cfg(target_os = "linux")]
 pub(crate) use linux::{
-    Programs, WindowSurface, after, before, close, create, exiting, focus, fullscreen, launch,
-    listed, replace_gpu, revision, running, set_blank_after, set_keyboard, set_lock_after,
+    Programs, WindowSurface, after, before, close, create, environment, exiting, focus, fullscreen,
+    launch, listed, replace_gpu, revision, running, set_blank_after, set_keyboard, set_lock_after,
     set_locked, set_primary_selection, start, take_lock_due,
 };
 #[cfg(not(target_os = "linux"))]
