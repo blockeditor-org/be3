@@ -16,7 +16,7 @@ use crate::presentation::{Place, Presented};
 use crate::render::{Gpu, Textures, WindowDraw};
 use crate::server::{Server, Watch};
 use crate::state::{KeyboardConfig, ServerEvent, WindowId};
-use crate::windows::{Command, Launch, WindowInfo, Windows};
+use crate::windows::{Command, Launch, Popups, WindowInfo, Windows};
 
 const BUTTON_LEFT: u32 = 0x110;
 const BUTTON_RIGHT: u32 = 0x111;
@@ -423,8 +423,8 @@ impl Compositor {
         }
         let store = self.windows.clone();
         with_reactive_scope(document, || {
-            for (id, drawing) in drawings {
-                store.draw(id, drawing);
+            for (id, (drawing, popups)) in drawings {
+                store.draw(id, drawing, popups);
             }
         });
     }
@@ -457,35 +457,67 @@ impl Compositor {
         })
     }
 
-    fn drawing(&self, id: WindowId) -> Option<beui::Drawing> {
+    fn drawing(&self, id: WindowId) -> (Option<beui::Drawing>, Option<Popups>) {
         let textures = self.textures.borrow();
-        let gpu = textures.gpu()?;
-        let signals = self.windows.signals(id)?;
-        let layers = self
+        let (Some(gpu), Some(signals)) = (textures.gpu(), self.windows.signals(id)) else {
+            return (None, None);
+        };
+        let (popups, own): (Vec<_>, Vec<_>) = self
             .server
             .state
             .layers(id)
             .into_iter()
             .filter_map(|layer| Some((textures.get(&layer.surface)?, layer)))
-            .collect();
-        Some(WindowDraw::drawing(
-            gpu,
-            layers,
+            .partition(|(_, layer)| layer.popup);
+        let drawing = WindowDraw::drawing(
+            gpu.clone(),
+            own,
             signals.painted.clone(),
             self.waker.clone(),
-        ))
+        );
+        let bounds = popups
+            .iter()
+            .map(|(_, layer)| layer.rect)
+            .reduce(|bounds, rect| bounds.merge(rect));
+        let popups = bounds.map(|bounds| {
+            let layers = popups
+                .into_iter()
+                .map(|(texture, mut layer)| {
+                    layer.rect.loc -= bounds.loc;
+                    (texture, layer)
+                })
+                .collect();
+            Popups {
+                rect: Rect::from_min_size(
+                    Pos2::new(bounds.loc.x as f32, bounds.loc.y as f32),
+                    Vec2::new(bounds.size.w as f32, bounds.size.h as f32),
+                ),
+                drawing: WindowDraw::drawing(
+                    gpu,
+                    layers,
+                    signals.painted.clone(),
+                    self.waker.clone(),
+                ),
+            }
+        });
+        (Some(drawing), popups)
     }
 
     fn input(&mut self, now: Instant) {
-        for (id, input) in self.windows.take_input() {
+        let inputs = self.windows.take_input();
+        for (id, input) in &inputs {
+            let id = *id;
             if !self.server.state.windows().contains(&id) {
                 continue;
             }
             if let Some(dialog) = self.windows.blocked_by(id) {
-                self.refuse(id, dialog, &input, now);
+                self.refuse(id, dialog, input, now);
                 continue;
             }
-            self.deliver(id, &input, now);
+            let hovered = inputs
+                .iter()
+                .any(|(other, input)| *other == id && input.hovered);
+            self.deliver(id, input, hovered, now);
         }
     }
 
@@ -507,7 +539,7 @@ impl Compositor {
                     .collect(),
                 ..input.clone()
             };
-            self.deliver(id, &releases, now);
+            self.deliver(id, &releases, false, now);
         }
         let state = &mut self.server.state;
         if !state.buttons_held() && state.pointer_window() == Some(id) {
@@ -515,7 +547,7 @@ impl Compositor {
         }
     }
 
-    fn deliver(&mut self, id: WindowId, input: &ForwardedInput, now: Instant) {
+    fn deliver(&mut self, id: WindowId, input: &ForwardedInput, hovered: bool, now: Instant) {
         let state = &mut self.server.state;
         let at = |pos: Pos2| {
             let local = pos - input.rect.min;
@@ -553,7 +585,7 @@ impl Compositor {
                 _ => {}
             }
         }
-        if !input.hovered && !state.buttons_held() && state.pointer_window() == Some(id) {
+        if !hovered && !state.buttons_held() && state.pointer_window() == Some(id) {
             state.pointer_motion(None);
         }
     }
@@ -598,7 +630,11 @@ impl Compositor {
                                 (area.width().round() as i32, area.height().round() as i32)
                             })
                         });
-                    let Some(size) = size.filter(|size| size.0 >= 1 && size.1 >= 1) else {
+                    let own = !self.configured.contains_key(&id)
+                        && size.is_some_and(|size| {
+                            self.server.state.own_size(id) == Some(size.into())
+                        });
+                    let Some(size) = size.filter(|size| size.0 >= 1 && size.1 >= 1 && !own) else {
                         self.server
                             .state
                             .configure_sized(id, None, focused == Some(id));
@@ -746,6 +782,23 @@ impl Compositor {
         let size = (rect.width().round() as i32, rect.height().round() as i32);
         self.server.state.set_scale(scale, size.into());
         self.area = rect;
+        let screens = self
+            .screens
+            .iter()
+            .map(|screen| screen.intersect(rect).translate(-rect.min.to_vec2()))
+            .filter(|screen| screen.width() > 0.0 && screen.height() > 0.0)
+            .map(|screen| {
+                smithay::utils::Rectangle::new(
+                    (screen.min.x.round() as i32, screen.min.y.round() as i32).into(),
+                    (
+                        screen.width().round() as i32,
+                        screen.height().round() as i32,
+                    )
+                        .into(),
+                )
+            })
+            .collect();
+        self.server.state.set_screens(screens);
         self.publish(document);
     }
 

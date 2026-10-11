@@ -35,10 +35,18 @@ pub struct Launch {
     pub working_dir: Option<String>,
 }
 
+#[derive(Clone, PartialEq)]
+pub struct Popups {
+    pub rect: Rect,
+    pub drawing: Drawing,
+}
+
 #[derive(Clone)]
 pub struct WindowSignals {
     pub drawing: ReadSignal<Option<Drawing>>,
     set_drawing: WriteSignal<Option<Drawing>>,
+    pub popups: ReadSignal<Option<Popups>>,
+    set_popups: WriteSignal<Option<Popups>>,
     pub focused: ReadSignal<bool>,
     set_focused: WriteSignal<bool>,
     pub(crate) painted: Rc<Cell<bool>>,
@@ -186,12 +194,15 @@ impl Windows {
 
     pub(crate) fn open(&self, id: WindowId) {
         let (drawing, set_drawing) = create_signal(None);
+        let (popups, set_popups) = create_signal(None);
         let (focused, set_focused) = create_signal(true);
         self.0.windows.borrow_mut().insert(
             id,
             WindowSignals {
                 drawing,
                 set_drawing,
+                popups,
+                set_popups,
                 focused,
                 set_focused,
                 painted: Rc::new(Cell::new(false)),
@@ -219,9 +230,10 @@ impl Windows {
         self.0.list.get_untracked().iter().any(|info| info.id == id)
     }
 
-    pub(crate) fn draw(&self, id: WindowId, drawing: Option<Drawing>) {
+    pub(crate) fn draw(&self, id: WindowId, drawing: Option<Drawing>, popups: Option<Popups>) {
         if let Some(signals) = self.signals(id) {
             signals.set_drawing.set(drawing);
+            signals.set_popups.set(popups);
         }
     }
 

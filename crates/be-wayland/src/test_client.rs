@@ -80,6 +80,8 @@ pub(crate) struct Received {
     pub(crate) presented: Vec<Feedback>,
     pub(crate) discarded: usize,
     pub(crate) token: Option<String>,
+    pub(crate) popup_geometry: Option<(i32, i32, i32, i32)>,
+    pub(crate) repositioned: Option<u32>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -391,11 +393,7 @@ impl TestClient {
             .create_surface(&self.handle, ());
         let wm_base = self.wm_base.as_ref().unwrap();
         let xdg_surface = wm_base.get_xdg_surface(&surface, &self.handle, ());
-        let positioner = wm_base.create_positioner(&self.handle, ());
-        positioner.set_size(size.0, size.1);
-        positioner.set_anchor_rect(anchor.0, anchor.1, 1, 1);
-        positioner.set_anchor(xdg_positioner::Anchor::TopLeft);
-        positioner.set_gravity(xdg_positioner::Gravity::BottomRight);
+        let positioner = self.positioner(anchor, size);
         let popup = xdg_surface.get_popup(Some(&parent.xdg_surface), &positioner, &self.handle, ());
         positioner.destroy();
         if let Some(serial) = grab {
@@ -420,6 +418,38 @@ impl TestClient {
         window.xdg_surface.ack_configure(serial);
         self.attach(server, &window, size.0, size.1);
         window
+    }
+
+    fn positioner(&self, anchor: (i32, i32), size: (i32, i32)) -> xdg_positioner::XdgPositioner {
+        let positioner = self
+            .wm_base
+            .as_ref()
+            .unwrap()
+            .create_positioner(&self.handle, ());
+        positioner.set_size(size.0, size.1);
+        positioner.set_anchor_rect(anchor.0, anchor.1, 1, 1);
+        positioner.set_anchor(xdg_positioner::Anchor::TopLeft);
+        positioner.set_gravity(xdg_positioner::Gravity::BottomRight);
+        positioner.set_constraint_adjustment(xdg_positioner::ConstraintAdjustment::all());
+        positioner
+    }
+
+    pub(crate) fn reposition(
+        &mut self,
+        server: &mut Server,
+        popup: &TestWindow,
+        anchor: (i32, i32),
+        size: (i32, i32),
+        token: u32,
+    ) {
+        let positioner = self.positioner(anchor, size);
+        popup
+            .popup
+            .as_ref()
+            .expect("only a popup is repositioned")
+            .reposition(&positioner, token);
+        positioner.destroy();
+        self.exchange(server);
     }
 
     pub(crate) fn attach(
@@ -809,8 +839,16 @@ impl Dispatch<xdg_popup::XdgPopup, ()> for Received {
         _: &Connection,
         _: &QueueHandle<Self>,
     ) {
-        if let xdg_popup::Event::PopupDone = event {
-            state.seen.push(Seen::PopupDone(popup.clone()));
+        match event {
+            xdg_popup::Event::PopupDone => state.seen.push(Seen::PopupDone(popup.clone())),
+            xdg_popup::Event::Configure {
+                x,
+                y,
+                width,
+                height,
+            } => state.popup_geometry = Some((x, y, width, height)),
+            xdg_popup::Event::Repositioned { token } => state.repositioned = Some(token),
+            _ => {}
         }
     }
 }
