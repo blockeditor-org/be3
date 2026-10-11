@@ -51,6 +51,14 @@ pub(crate) fn socket_url(server_url: &str) -> String {
     format!("{}/api/be", base.trim_end_matches('/'))
 }
 
+pub(crate) fn link_base(server_url: &str) -> String {
+    match server_url.split_once("://") {
+        Some(("ws", rest)) => format!("http://{rest}"),
+        Some(("wss", rest)) => format!("https://{rest}"),
+        _ => server_url.to_owned(),
+    }
+}
+
 fn session_of(response: ServerMessage) -> Result<Session, AccountError> {
     match response {
         ServerMessage::Authenticated {

@@ -322,6 +322,9 @@ pub(crate) fn reset(block: Uuid) {
 }
 
 pub(crate) fn try_anyway(block: Uuid) {
+    if !matches!(staleness(block), Some(Stale::Reshaped)) {
+        return;
+    }
     if let Some(stack) = stack().lock().unwrap().as_mut() {
         stack.tried.insert(block);
     }

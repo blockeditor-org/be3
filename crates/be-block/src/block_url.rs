@@ -18,12 +18,7 @@ pub struct BlockUrl {
 
 pub fn block_url(base: &str, workspace_id: Uuid, id: Uuid) -> String {
     let base = base.split('#').next().unwrap_or_default();
-    let separator = if base.is_empty() || base.ends_with('/') {
-        ""
-    } else {
-        "/"
-    };
-    format!("{base}{separator}{MARKER}{workspace_id}/{id}")
+    format!("{base}{MARKER}{workspace_id}/{id}")
 }
 
 fn parse_uuid_at(bytes: &[u8], start: usize, end: usize) -> Option<Uuid> {
@@ -45,11 +40,7 @@ fn parse_fragment(bytes: &[u8], start: usize) -> Option<(usize, Uuid, Uuid)> {
 }
 
 fn ends_a_url(byte: u8) -> bool {
-    byte.is_ascii_whitespace()
-        || matches!(
-            byte,
-            b'(' | b')' | b'<' | b'>' | b'[' | b']' | b'"' | b'\'' | b'`'
-        )
+    byte.is_ascii_whitespace() || matches!(byte, b'(' | b')' | b'<' | b'>' | b'"' | b'\'' | b'`')
 }
 
 fn base_start(bytes: &[u8], marker: usize, floor: usize) -> usize {
@@ -58,14 +49,13 @@ fn base_start(bytes: &[u8], marker: usize, floor: usize) -> usize {
     while start > lowest && !ends_a_url(bytes[start - 1]) {
         start -= 1;
     }
-    if SCHEMES
+    SCHEMES
         .iter()
-        .any(|scheme| bytes[start..marker].starts_with(scheme))
-    {
-        start
-    } else {
-        marker
-    }
+        .filter_map(|scheme| {
+            memchr::memmem::rfind(&bytes[start..marker], scheme).map(|found| start + found)
+        })
+        .max()
+        .unwrap_or(marker)
 }
 
 pub fn parse_block_urls(bytes: &[u8]) -> Vec<BlockUrl> {

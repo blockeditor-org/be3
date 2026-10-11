@@ -56,6 +56,8 @@ pub fn ensure(connection: &Connection, declared: &str) -> Result<(), SchemaError
         };
         if found.kind != object.kind || found.table != object.table {
             problems.push(format!("{name} is a {} on {}", found.kind, found.table));
+        } else if object.kind == "index" && found.sql != object.sql {
+            transaction.execute_batch(&format!("DROP INDEX \"{name}\"; {}", object.sql))?;
         } else if object.kind == "table" {
             add_columns(&transaction, &wanted, &name, &mut problems)?;
         }

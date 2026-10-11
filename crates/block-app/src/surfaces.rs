@@ -227,6 +227,7 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
 
 #[component]
 pub(crate) fn StaleBlock(block: Uuid, block_type: Uuid, stale: crate::be::Stale) -> NodeId {
+    let can_try = matches!(stale, crate::be::Stale::Reshaped);
     let detail = match stale {
         crate::be::Stale::Unreadable(error) => {
             format!("This build cannot read what another build saved here: {error}")
@@ -259,6 +260,7 @@ pub(crate) fn StaleBlock(block: Uuid, block_type: Uuid, stale: crate::be::Stale)
             <StaleNotice
                 title="Saved by another build"
                 detail={detail}
+                can_try
                 on_reset={move || crate::be::reset(block)}
                 on_delete={delete}
                 on_try={move || crate::be::try_anyway(block)}

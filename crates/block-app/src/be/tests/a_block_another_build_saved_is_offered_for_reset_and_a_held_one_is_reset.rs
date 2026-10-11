@@ -46,10 +46,9 @@ fn a_block_another_build_saved_is_offered_for_reset_and_a_held_one_is_reset() {
     assert!(matches!(staleness(shown), Some(Stale::Unreadable(_))));
 
     try_anyway(shown);
-    assert_eq!(
-        staleness(shown),
-        None,
-        "trying anyway still offered a reset"
+    assert!(
+        matches!(staleness(shown), Some(Stale::Unreadable(_))),
+        "an unreadable block was shown anyway, with nothing to show"
     );
 
     reset(shown);

@@ -2210,7 +2210,7 @@ impl BlockApp {
         let link_base = if self.server_url == self.local_server_url {
             String::new()
         } else {
-            self.server_url.clone()
+            accounts::link_base(&self.server_url)
         };
         plugin_host::publish::<block_plugin_api::LinkBase>(&link_base);
         be::start(be::Config {

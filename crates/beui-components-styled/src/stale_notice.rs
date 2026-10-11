@@ -6,7 +6,9 @@ use crate::theme::{FONT_SMALL, use_theme};
 use beui_core::font::TextAlign;
 use beui_core::icons::{ICON_DELETE, ICON_HISTORY, ICON_RESTART_ALT};
 use beui_core::node::NodeId;
-use beui_view::reactive::{Align, ClickCallback, Direction, Frame, List, Prop, Text, create_memo};
+use beui_view::reactive::{
+    Align, ClickCallback, Direction, Frame, List, Prop, Show, Text, clone, create_memo,
+};
 
 const PADDING: f32 = 16.0;
 const SPACING: f32 = 8.0;
@@ -16,6 +18,7 @@ const GLYPH_SIZE: f32 = 28.0;
 pub fn StaleNotice(
     title: Prop<String>,
     detail: Prop<String>,
+    #[prop(default = true)] can_try: Prop<bool>,
     #[prop(default = "stale-notice".to_owned())] id: String,
     on_reset: ClickCallback,
     on_delete: ClickCallback,
@@ -58,12 +61,16 @@ pub fn StaleNotice(
                         variant=ButtonVariant::Secondary
                         on_click={move || on_delete.call()}
                     />
-                    <Button
-                        @test_id={try_id}
-                        label="Try anyway"
-                        variant=ButtonVariant::Ghost
-                        on_click={move || on_try.call()}
-                    />
+                    <Show condition={create_memo(move || can_try.get())}>
+                        {move || clone!(on_try try_id -> view! {
+                            <Button
+                                @test_id={try_id}
+                                label="Try anyway"
+                                variant=ButtonVariant::Ghost
+                                on_click={move || on_try.call()}
+                            />
+                        })}
+                    </Show>
                 </List>
             </List>
         </Frame>

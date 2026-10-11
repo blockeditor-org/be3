@@ -8,13 +8,19 @@ fn a_block_link_is_found_by_its_fragment_whatever_its_host() {
     let fragment = block_url("", workspace_id, block_id);
     assert_eq!(fragment, format!("#block/{workspace_id}/{block_id}"));
 
+    assert_eq!(
+        block_url("https://someurl.com/be3/index.html", workspace_id, block_id),
+        format!("https://someurl.com/be3/index.html#block/{workspace_id}/{block_id}")
+    );
+
     for base in [
         "http://localhost:9090",
+        "http://[::1]:9090/",
         "https://someurl.com/be3/",
         "https://someurl.com/be3/index.html",
     ] {
         let url = block_url(base, workspace_id, block_id);
-        let text = format!("see [the notes]({url}) or <{url}>.");
+        let text = format!("see [the notes]({url}) or [{url}].");
         let parsed = parse_block_urls(text.as_bytes());
         assert_eq!(parsed.len(), 2, "{text}");
         for found in parsed {
