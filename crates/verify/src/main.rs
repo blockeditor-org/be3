@@ -7,6 +7,7 @@ use std::process::{Command, ExitCode, Stdio};
 const USAGE: &str = "usage: verify MANIFEST [--build-failed] [--check] [--lint] [--tests] [--plugin-tests] [--android DIR] [--previews BASE OUT]";
 
 const EXECUTABLE: &[&str] = &[
+    "scripts/internal/install-be.sh",
     "scripts/internal/install-buck2.sh",
     "scripts/internal/install-nsc.sh",
 ];
