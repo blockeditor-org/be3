@@ -717,7 +717,20 @@ impl Arena {
         let mut boundaries = std::mem::take(&mut self.boundaries);
         boundaries.sort_unstable_by_key(|id| (id.index, id.generation));
         boundaries.dedup();
+        boundaries.sort_by_cached_key(|id| self.depth(*id));
         boundaries
+    }
+
+    fn depth(&self, id: NodeId) -> usize {
+        let mut depth = 0;
+        let mut current = self.parent(id);
+        while let Some(parent) = current
+            && depth < ANCESTOR_LIMIT
+        {
+            depth += 1;
+            current = self.parent(parent);
+        }
+        depth
     }
 
     pub fn stale(&self, id: NodeId) -> bool {

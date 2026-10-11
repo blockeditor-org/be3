@@ -2,6 +2,7 @@ use super::*;
 use crate::dock::state::{DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow};
 use beui_core::base::Direction;
 
+mod a_fullscreen_tab_closed_and_opened_again_comes_back_in_its_pane;
 mod a_group_cannot_be_dropped_inside_itself;
 mod a_group_left_with_one_tab_becomes_that_tab_again;
 mod a_kept_pane_added_in_the_code_splits_off_its_sibling;
