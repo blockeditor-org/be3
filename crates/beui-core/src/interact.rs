@@ -569,9 +569,6 @@ fn global_keys(doc: &mut Document, ctx: &Context) {
     }) {
         return;
     }
-    let in_app = forward::takes_keys(doc);
-    let inhibited = in_app && forward::shortcuts_inhibited(doc);
-    let typing = in_app || doc.focus_types();
     let mut keep = vec![true; events.len()];
     for (index, event) in events.iter().enumerate() {
         let (key, pressed, repeat, modifiers) = match *event {
@@ -620,6 +617,9 @@ fn global_keys(doc: &mut Document, ctx: &Context) {
             _ => continue,
         };
         doc.set_modifiers(modifiers);
+        let in_app = forward::takes_keys(doc);
+        let inhibited = in_app && forward::shortcuts_inhibited(doc);
+        let typing = in_app || doc.focus_types();
         let press = KeyPress {
             key,
             pressed,
@@ -654,7 +654,7 @@ fn global_keys(doc: &mut Document, ctx: &Context) {
                             ..offered
                         });
                     }
-                    None if pressed => {
+                    None if pressed && !inhibited => {
                         forward::cycle_focus(doc, cycle_step(modifiers));
                     }
                     None => {}

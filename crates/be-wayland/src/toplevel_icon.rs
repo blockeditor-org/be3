@@ -18,6 +18,7 @@ use crate::state::{State, WindowId};
 
 pub const ICON_PIXELS: u32 = 64;
 const ASKED_SIZES: [i32; 2] = [32, 64];
+const MAX_READ_PIXELS: i32 = 512;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 struct Key {
@@ -87,7 +88,8 @@ impl State {
         if known == Some(&key) || (known.is_none() && key == Key::default()) {
             return;
         }
-        let image = pixels(&buffers).or_else(|| self.icons.named(name.as_deref()?));
+        let named = name.as_deref().and_then(|name| self.icons.named(name));
+        let image = named.or_else(|| pixels(&buffers));
         self.icons.shown.insert(id, (key, image));
         self.changed(id);
     }
@@ -102,7 +104,7 @@ fn pixels(buffers: &[(WlBuffer, i32)]) -> Option<Image> {
         .iter()
         .filter_map(|(buffer, _)| {
             let width = with_buffer_contents(buffer, |_, _, data| data.width).ok()?;
-            Some((buffer, width))
+            (width <= MAX_READ_PIXELS).then_some((buffer, width))
         })
         .collect();
     let (buffer, _) = sized
@@ -119,7 +121,16 @@ fn pixels(buffers: &[(WlBuffer, i32)]) -> Option<Image> {
 
 fn read(buffer: &WlBuffer) -> Option<Image> {
     with_buffer_contents(buffer, |pointer, length, data| {
-        if data.format != wl_shm::Format::Argb8888 || data.width <= 0 || data.height <= 0 {
+        let opaque = match data.format {
+            wl_shm::Format::Argb8888 => false,
+            wl_shm::Format::Xrgb8888 => true,
+            _ => return None,
+        };
+        if data.width <= 0
+            || data.height <= 0
+            || data.width > MAX_READ_PIXELS
+            || data.height > MAX_READ_PIXELS
+        {
             return None;
         }
         let (width, height) = (data.width as usize, data.height as usize);
@@ -127,7 +138,11 @@ fn read(buffer: &WlBuffer) -> Option<Image> {
         if stride < width * 4 || offset + stride * (height - 1) + width * 4 > length {
             return None;
         }
-        let bytes = unsafe { std::slice::from_raw_parts(pointer.add(offset), length - offset) };
+        let needed = stride * (height - 1) + width * 4;
+        let mut bytes = vec![0u8; needed];
+        unsafe {
+            std::ptr::copy_nonoverlapping(pointer.add(offset), bytes.as_mut_ptr(), needed);
+        }
         let mut rgba = Vec::with_capacity(width * height * 4);
         for row in 0..height {
             for pixel in bytes[row * stride..row * stride + width * 4]
@@ -135,6 +150,7 @@ fn read(buffer: &WlBuffer) -> Option<Image> {
                 .0
             {
                 let [blue, green, red, alpha] = [pixel[0], pixel[1], pixel[2], pixel[3]];
+                let alpha = if opaque { 0xff } else { alpha };
                 let straight = |channel: u8| match alpha {
                     0 => 0,
                     _ => ((u32::from(channel) * 255 + u32::from(alpha) / 2) / u32::from(alpha))
