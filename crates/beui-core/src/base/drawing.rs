@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
-use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 
 pub type Draw = Rc<dyn Fn(&Painter, Rect)>;
@@ -39,18 +39,6 @@ impl Element for DrawingNode {
             return;
         };
         draw(painter, rect);
-    }
-
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        _children: &mut Vec<NodeId>,
-    ) {
     }
 
     fn children(&self) -> Vec<NodeId> {

@@ -102,7 +102,7 @@ pub fn WindowView(
                 cursor
                 on_forward={move |input: ForwardedInput| forward.forward(id, input)}
                 inhibits_shortcuts={inhibits}
-                forward_at={takes}
+                hit_at={takes}
             >
                 <Layers>
                     <Drawing
@@ -127,7 +127,7 @@ pub fn WindowView(
                         @test_id={format!("wayland.popups.{}", id.0)}
                         cursor={popup_cursor}
                         on_forward={into_window}
-                        forward_at={on_popup}
+                        hit_at={on_popup}
                     >
                         <Drawing
                             draw={Prop::Dynamic(Rc::new(move || {

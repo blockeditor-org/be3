@@ -7,7 +7,7 @@ use crate::base::list::Direction;
 use crate::base::offset::item_rect;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
-use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 use ::reactive::{KeyedItems, ScopeContext, numbered, owner_scope, settle};
 
@@ -408,19 +408,6 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
                 crate::paint::paint(doc, painter, rects, row.node);
             }
         }
-    }
-
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        children.extend(self.placed.iter().map(|row| row.node));
     }
 
     fn children(&self) -> Vec<NodeId> {

@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
 use crate::geometry::{Pos2, Vec2};
@@ -7,10 +7,10 @@ const MULTI_CLICK_DELAY: f32 = 0.3;
 const MULTI_CLICK_DISTANCE: f32 = 6.0;
 const MULTI_CLICK_LIMIT: u32 = 4;
 pub const TOUCH_DRAG_THRESHOLD: f32 = 8.0;
-const LONG_PRESS_DELAY: Duration = Duration::from_millis(500);
-const FINGER_TAP_TIME: Duration = Duration::from_millis(350);
-const TOUCH_VELOCITY_WINDOW: f32 = 0.12;
-const MAX_TOUCH_VELOCITY: f32 = 4_000.0;
+pub const LONG_PRESS_DELAY: Duration = Duration::from_millis(500);
+pub const FINGER_TAP_TIME: Duration = Duration::from_millis(350);
+pub const TOUCH_VELOCITY_WINDOW: f32 = 0.12;
+pub const MAX_TOUCH_VELOCITY: f32 = 4_000.0;
 const WHEEL_VELOCITY_WINDOW: Duration = Duration::from_millis(100);
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -278,27 +278,6 @@ pub struct SecondaryDrag {
     pub modifiers: Modifiers,
 }
 
-impl SecondaryDrag {
-    fn new(pos: Pos2, modifiers: Modifiers) -> Self {
-        Self {
-            from: pos,
-            pos,
-            started: true,
-            ended: false,
-            cancelled: false,
-            modifiers,
-        }
-    }
-
-    fn cancel(drag: &mut Option<Self>) {
-        if let Some(drag) = drag
-            && !drag.ended
-        {
-            drag.cancelled = true;
-        }
-    }
-}
-
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct ZoomGesture {
     pub factor: f32,
@@ -326,13 +305,6 @@ pub enum TouchPhase {
     Move,
     End,
     Cancel,
-}
-
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct TouchPoint {
-    pub id: TouchId,
-    pub pos: Pos2,
-    pub force: Option<f32>,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -567,16 +539,51 @@ pub struct RawInput {
     pub events: Vec<Event>,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum PointerId {
+    Mouse,
+    Touch(TouchId),
+}
+
+impl PointerId {
+    pub fn is_touch(self) -> bool {
+        matches!(self, Self::Touch(_))
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PointerPhase {
+    Down(PointerButton),
+    Move,
+    Up(PointerButton),
+    Cancel,
+    Gone,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct PointerEvent {
+    pub pointer: PointerId,
+    pub phase: PointerPhase,
+    pub pos: Pos2,
+    pub modifiers: Modifiers,
+    pub clicks: u32,
+    pub force: Option<f32>,
+    pub source: usize,
+}
+
 #[derive(Clone, Debug)]
 pub struct InputState {
     pub events: Vec<Event>,
+    pub pointer_events: Vec<PointerEvent>,
     pub pointer: Pointer,
-    pub touch: TouchState,
     pub scroll_delta: Vec2,
     pub scroll_fling: Vec2,
     pub zoom_factor: f32,
     pub modifiers: Modifiers,
     pub long_press_delay: Duration,
+    touches: Vec<(TouchId, Pos2)>,
+    source: usize,
+    force: Option<f32>,
     scroll_samples: VecDeque<(Instant, Vec2)>,
 }
 
@@ -584,13 +591,16 @@ impl Default for InputState {
     fn default() -> Self {
         Self {
             events: Vec::new(),
+            pointer_events: Vec::new(),
             pointer: Pointer::default(),
-            touch: TouchState::default(),
             scroll_delta: Vec2::ZERO,
             scroll_fling: Vec2::ZERO,
             zoom_factor: 1.0,
             modifiers: Modifiers::default(),
             long_press_delay: LONG_PRESS_DELAY,
+            touches: Vec::new(),
+            source: 0,
+            force: None,
             scroll_samples: VecDeque::new(),
         }
     }
@@ -608,6 +618,12 @@ impl InputState {
                 _ => {}
             }
         }
+        for event in &mut input.pointer_events {
+            event.pos = scale(event.pos);
+        }
+        for (_, pos) in &mut input.touches {
+            *pos = scale(*pos);
+        }
         input.pointer.pos = input.pointer.pos.map(scale);
         input.pointer.press_pos = input.pointer.press_pos.map(scale);
         input.pointer.motion *= factor;
@@ -615,40 +631,20 @@ impl InputState {
             .pointer
             .last_click
             .map(|(when, pos)| (when, scale(pos)));
-        let touch = &mut input.touch;
-        for point in touch.points.values_mut() {
-            point.pos = scale(point.pos);
-        }
-        for origin in touch.origins.values_mut() {
-            *origin = scale(*origin);
-        }
-        touch.start = touch.start.map(scale);
-        touch.previous = touch.previous.map(scale);
-        touch.scroll_delta *= factor;
-        touch.pinch_pan *= factor;
-        touch.pinch_center = touch.pinch_center.map(scale);
-        touch.pinch_span = touch.pinch_span.map(|span| span * factor);
-        for (_, pos) in &mut touch.samples {
-            *pos = scale(*pos);
-        }
-        touch.velocity *= factor;
         input
     }
 
-    pub fn long_press_due(&self, now: Instant) -> Option<Duration> {
-        self.touch
-            .held_since
-            .map(|since| (since + self.long_press_delay).saturating_duration_since(now))
+    pub fn touching(&self) -> bool {
+        !self.touches.is_empty()
     }
 
     pub fn begin_frame(&mut self, raw: RawInput, now: Instant) {
         self.pointer.begin_frame();
-        self.touch.now = now;
-        self.touch.begin_frame(&mut self.pointer);
-        if let Some(pos) = self.touch.long_press(self.long_press_delay, now) {
-            self.pointer.pos = Some(pos);
-            self.pointer.secondary_pressed = true;
+        if self.touches.is_empty() && self.pointer.from_touch {
+            self.pointer.pos = None;
+            self.pointer.from_touch = false;
         }
+        self.pointer_events.clear();
         self.scroll_delta = Vec2::ZERO;
         self.scroll_fling = Vec2::ZERO;
         self.zoom_factor = 1.0;
@@ -658,33 +654,28 @@ impl InputState {
                 .events
                 .iter()
                 .any(|event| matches!(event, Event::Touch { .. }));
-        for event in &raw.events {
+        for (source, event) in raw.events.iter().enumerate() {
+            self.source = source;
+            self.force = None;
             match event {
                 Event::PointerMoved(pos) if !suppress_mouse => {
                     self.pointer.pos = Some(*pos);
-                    if self.pointer.secondary_down
-                        && let Some(drag) = &mut self.pointer.secondary_drag
-                    {
-                        drag.pos = *pos;
-                    }
+                    self.emit(PointerId::Mouse, PointerPhase::Move, *pos);
                 }
                 Event::PointerMotion(delta) => {
                     self.pointer.motion += *delta;
                 }
-                Event::PointerGone if !suppress_mouse => {
-                    SecondaryDrag::cancel(&mut self.pointer.secondary_drag);
-                    self.pointer.pos = None;
-                    self.pointer.primary_down = false;
-                    self.pointer.secondary_down = false;
-                    self.pointer.middle_down = false;
-                }
+                Event::PointerGone if !suppress_mouse => self.mouse_gone(),
                 Event::Focus(false) => {
-                    self.touch.cancel(&mut self.pointer);
-                    SecondaryDrag::cancel(&mut self.pointer.secondary_drag);
-                    self.pointer.pos = None;
-                    self.pointer.primary_down = false;
-                    self.pointer.secondary_down = false;
-                    self.pointer.middle_down = false;
+                    for (id, pos) in std::mem::take(&mut self.touches) {
+                        self.emit(PointerId::Touch(id), PointerPhase::Cancel, pos);
+                    }
+                    if self.pointer.from_touch {
+                        self.pointer.from_touch = false;
+                        self.pointer.pos = None;
+                        self.pointer.primary_down = false;
+                    }
+                    self.mouse_gone();
                 }
                 Event::PointerButton {
                     pos,
@@ -694,41 +685,12 @@ impl InputState {
                 } if !suppress_mouse => {
                     self.pointer.pos = Some(*pos);
                     self.modifiers = *modifiers;
-                    match button {
-                        PointerButton::Primary => {
-                            self.pointer.primary_down = *pressed;
-                            if *pressed {
-                                self.pointer.primary_pressed = true;
-                                self.pointer.press_pos = Some(*pos);
-                                self.pointer.count_click(*pos, now);
-                            } else {
-                                self.pointer.primary_released = true;
-                            }
-                        }
-                        PointerButton::Secondary => {
-                            self.pointer.secondary_down = *pressed;
-                            if *pressed {
-                                self.pointer.secondary_pressed = true;
-                                self.pointer.secondary_drag =
-                                    Some(SecondaryDrag::new(*pos, *modifiers));
-                            } else {
-                                self.pointer.secondary_released = true;
-                                if let Some(drag) = &mut self.pointer.secondary_drag {
-                                    drag.pos = *pos;
-                                    drag.ended = true;
-                                }
-                            }
-                        }
-                        PointerButton::Middle => {
-                            self.pointer.middle_down = *pressed;
-                            if *pressed {
-                                self.pointer.middle_pressed = true;
-                            } else {
-                                self.pointer.middle_released = true;
-                            }
-                        }
-                        PointerButton::Back | PointerButton::Forward => {}
-                    }
+                    self.pointer.button(*button, *pressed, *pos, now);
+                    let phase = match pressed {
+                        true => PointerPhase::Down(*button),
+                        false => PointerPhase::Up(*button),
+                    };
+                    self.emit(PointerId::Mouse, phase, *pos);
                 }
                 Event::Scroll(delta) => self.scroll_delta += *delta,
                 Event::ScrollEnded => scroll_ended = true,
@@ -741,14 +703,87 @@ impl InputState {
                     phase,
                     pos,
                     force,
-                } => self
-                    .touch
-                    .event(*id, *phase, *pos, *force, &mut self.pointer),
+                } => {
+                    self.force = *force;
+                    self.touch(*id, *phase, *pos, now);
+                }
                 _ => {}
             }
         }
         self.events = raw.events;
         self.sample_scroll(now, scroll_ended);
+    }
+
+    fn emit(&mut self, pointer: PointerId, phase: PointerPhase, pos: Pos2) {
+        self.pointer_events.push(PointerEvent {
+            pointer,
+            phase,
+            pos,
+            modifiers: self.modifiers,
+            clicks: self.pointer.clicks,
+            force: self.force,
+            source: self.source,
+        });
+    }
+
+    fn mouse_gone(&mut self) {
+        if let Some(pos) = self.pointer.pos.filter(|_| !self.pointer.from_touch) {
+            self.emit(PointerId::Mouse, PointerPhase::Gone, pos);
+        }
+        if !self.pointer.from_touch {
+            self.pointer.pos = None;
+            self.pointer.primary_down = false;
+        }
+        self.pointer.secondary_down = false;
+        self.pointer.middle_down = false;
+    }
+
+    fn touch(&mut self, id: TouchId, phase: TouchPhase, pos: Pos2, now: Instant) {
+        let held = self.touches.iter().position(|(finger, _)| *finger == id);
+        let first = self.touches.first().map(|(finger, _)| *finger);
+        match (phase, held) {
+            (TouchPhase::Start, None) => {
+                if self.touches.is_empty() {
+                    let pointer = &mut self.pointer;
+                    pointer.pos = Some(pos);
+                    pointer.primary_down = true;
+                    pointer.primary_pressed = true;
+                    pointer.press_pos = Some(pos);
+                    pointer.from_touch = true;
+                    pointer.count_click(pos, now);
+                }
+                self.touches.push((id, pos));
+                self.emit(
+                    PointerId::Touch(id),
+                    PointerPhase::Down(PointerButton::Primary),
+                    pos,
+                );
+            }
+            (TouchPhase::Move, Some(index)) => {
+                self.touches[index].1 = pos;
+                if first == Some(id) {
+                    self.pointer.pos = Some(pos);
+                }
+                self.emit(PointerId::Touch(id), PointerPhase::Move, pos);
+            }
+            (TouchPhase::End | TouchPhase::Cancel, Some(index)) => {
+                self.touches.remove(index);
+                if first == Some(id) {
+                    self.pointer.primary_down = false;
+                    self.pointer.primary_released = true;
+                    self.pointer.pos = Some(pos);
+                    if phase == TouchPhase::Cancel {
+                        self.pointer.pos = None;
+                    }
+                }
+                let phase = match phase {
+                    TouchPhase::End => PointerPhase::Up(PointerButton::Primary),
+                    _ => PointerPhase::Cancel,
+                };
+                self.emit(PointerId::Touch(id), phase, pos);
+            }
+            _ => {}
+        }
     }
 
     fn sample_scroll(&mut self, now: Instant, ended: bool) {
@@ -795,428 +830,13 @@ pub struct Pointer {
     pub middle_down: bool,
     pub middle_pressed: bool,
     pub middle_released: bool,
-    pub secondary_drag: Option<SecondaryDrag>,
     clicks: u32,
     last_click: Option<(Instant, Pos2)>,
     from_touch: bool,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
-enum TouchDirection {
-    #[default]
-    Undecided,
-    Horizontal,
-    Vertical,
-}
-
-#[derive(Clone, Debug)]
-pub struct TouchState {
-    points: HashMap<TouchId, TouchPoint>,
-    primary: Option<TouchId>,
-    start: Option<Pos2>,
-    previous: Option<Pos2>,
-    direction: TouchDirection,
-    multi: bool,
-    started: bool,
-    ended: bool,
-    cancelled: bool,
-    dragged: bool,
-    scroll_delta: Vec2,
-    samples: VecDeque<(Instant, Pos2)>,
-    velocity: Vec2,
-    pinch: f32,
-    pinch_pan: Vec2,
-    pinch_center: Option<Pos2>,
-    pinch_span: Option<f32>,
-    hold: Option<(TouchId, Pos2)>,
-    held_since: Option<Instant>,
-    long_pressed: bool,
-    origins: HashMap<TouchId, Pos2>,
-    fingers: usize,
-    fingers_moved: bool,
-    fingers_since: Option<Instant>,
-    finger_tap: Option<usize>,
-    now: Instant,
-}
-
-impl Default for TouchState {
-    fn default() -> Self {
-        Self {
-            points: HashMap::new(),
-            primary: None,
-            start: None,
-            previous: None,
-            direction: TouchDirection::Undecided,
-            multi: false,
-            started: false,
-            ended: false,
-            cancelled: false,
-            dragged: false,
-            scroll_delta: Vec2::ZERO,
-            samples: VecDeque::new(),
-            velocity: Vec2::ZERO,
-            pinch: 1.0,
-            pinch_pan: Vec2::ZERO,
-            pinch_center: None,
-            pinch_span: None,
-            hold: None,
-            held_since: None,
-            long_pressed: false,
-            origins: HashMap::new(),
-            fingers: 0,
-            fingers_moved: false,
-            fingers_since: None,
-            finger_tap: None,
-            now: Instant::now(),
-        }
-    }
-}
-
-impl TouchState {
-    fn begin_frame(&mut self, pointer: &mut Pointer) {
-        self.started = false;
-        self.ended = false;
-        self.cancelled = false;
-        self.scroll_delta = Vec2::ZERO;
-        self.pinch = 1.0;
-        self.pinch_pan = Vec2::ZERO;
-        self.finger_tap = None;
-        if self.primary.is_none() {
-            self.start = None;
-            self.previous = None;
-            self.direction = TouchDirection::Undecided;
-            self.multi = false;
-            self.dragged = false;
-            self.samples.clear();
-            self.velocity = Vec2::ZERO;
-            self.pinch_center = None;
-            self.pinch_span = None;
-            self.held_since = None;
-            self.long_pressed = false;
-            if pointer.from_touch {
-                pointer.pos = None;
-                pointer.from_touch = false;
-            }
-        }
-    }
-
-    fn event(
-        &mut self,
-        id: TouchId,
-        phase: TouchPhase,
-        pos: Pos2,
-        force: Option<f32>,
-        pointer: &mut Pointer,
-    ) {
-        match phase {
-            TouchPhase::Start => self.start(id, pos, force, pointer),
-            TouchPhase::Move => self.move_to(id, pos, force, pointer),
-            TouchPhase::End => self.finish(id, pos, force, false, pointer),
-            TouchPhase::Cancel => self.finish(id, pos, force, true, pointer),
-        }
-    }
-
-    fn start(&mut self, id: TouchId, pos: Pos2, force: Option<f32>, pointer: &mut Pointer) {
-        if self.points.is_empty() {
-            self.fingers = 0;
-            self.fingers_moved = false;
-            self.fingers_since = Some(self.now);
-        }
-        self.points.insert(id, TouchPoint { id, pos, force });
-        self.origins.insert(id, pos);
-        self.fingers = self.fingers.max(self.points.len());
-        self.measure_pinch();
-        if let Some(anchor) = self.primary_pos() {
-            if !self.dragged && self.hold.is_none() && self.points.len() == 2 {
-                self.hold = Some((id, anchor));
-                pointer.secondary_drag = Some(SecondaryDrag::new(pos, Modifiers::NONE));
-            }
-            self.cancelled = true;
-            self.dragged = true;
-            self.multi = true;
-            self.held_since = None;
-            self.direction = TouchDirection::Undecided;
-            return;
-        }
-        self.primary = Some(id);
-        self.start = Some(pos);
-        self.previous = Some(pos);
-        self.started = true;
-        self.direction = TouchDirection::Undecided;
-        self.dragged = false;
-        self.samples.clear();
-        self.samples.push_back((self.now, pos));
-        self.velocity = Vec2::ZERO;
-        self.held_since = Some(self.now);
-        self.long_pressed = false;
-        pointer.pos = Some(pos);
-        pointer.primary_down = true;
-        pointer.primary_pressed = true;
-        pointer.press_pos = Some(pos);
-        pointer.from_touch = true;
-        pointer.count_click(pos, self.now);
-    }
-
-    fn move_to(&mut self, id: TouchId, pos: Pos2, force: Option<f32>, pointer: &mut Pointer) {
-        let Some(point) = self.points.get_mut(&id) else {
-            return;
-        };
-        point.pos = pos;
-        point.force = force;
-        if self
-            .origins
-            .get(&id)
-            .is_some_and(|origin| origin.distance(pos) >= TOUCH_DRAG_THRESHOLD)
-        {
-            self.fingers_moved = true;
-        }
-        if let Some((finger, anchor)) = self.hold {
-            if finger == id {
-                if let Some(drag) = &mut pointer.secondary_drag {
-                    drag.pos = pos;
-                }
-            } else if self.primary == Some(id) && pos.distance(anchor) >= TOUCH_DRAG_THRESHOLD {
-                self.hold = None;
-                SecondaryDrag::cancel(&mut pointer.secondary_drag);
-            }
-        }
-        self.measure_pinch();
-        if self.primary != Some(id) {
-            return;
-        }
-        let previous = self.previous.replace(pos).unwrap_or(pos);
-        pointer.pos = Some(pos);
-        if self.multi {
-            self.sample(pos);
-            return;
-        }
-        let movement = pos - self.start.unwrap_or(pos);
-        let distance = movement.x.hypot(movement.y);
-        if self.direction == TouchDirection::Undecided && distance >= TOUCH_DRAG_THRESHOLD {
-            self.dragged = true;
-            self.held_since = None;
-            self.direction = if movement.y.abs() >= movement.x.abs() {
-                TouchDirection::Vertical
-            } else {
-                TouchDirection::Horizontal
-            };
-            self.scroll_delta += self.along(movement * (1.0 - TOUCH_DRAG_THRESHOLD / distance));
-        } else if self.direction != TouchDirection::Undecided {
-            self.scroll_delta += self.along(pos - previous);
-        }
-        self.sample(pos);
-    }
-
-    fn finish(
-        &mut self,
-        id: TouchId,
-        pos: Pos2,
-        force: Option<f32>,
-        cancelled: bool,
-        pointer: &mut Pointer,
-    ) {
-        self.move_to(id, pos, force, pointer);
-        self.points.remove(&id);
-        self.origins.remove(&id);
-        if self.points.is_empty() {
-            let quick = self
-                .fingers_since
-                .take()
-                .is_some_and(|since| self.now.duration_since(since) <= FINGER_TAP_TIME);
-            if !cancelled && quick && !self.fingers_moved && self.fingers >= 2 {
-                self.finger_tap = Some(self.fingers);
-            }
-        }
-        self.pinch_span = None;
-        self.pinch_center = None;
-        if let Some((finger, _)) = self.hold {
-            let lifted = finger == id;
-            if lifted || self.primary == Some(id) {
-                self.hold = None;
-                match (lifted && !cancelled, &mut pointer.secondary_drag) {
-                    (true, Some(drag)) => drag.ended = true,
-                    _ => SecondaryDrag::cancel(&mut pointer.secondary_drag),
-                }
-            }
-        }
-        if self.primary != Some(id) {
-            return;
-        }
-        self.primary = None;
-        self.held_since = None;
-        self.ended = !cancelled && !self.long_pressed;
-        self.cancelled |= cancelled || self.long_pressed || !self.points.is_empty();
-        pointer.primary_down = false;
-        pointer.primary_released = true;
-        pointer.from_touch = true;
-        if cancelled {
-            pointer.pos = None;
-        }
-    }
-
-    fn measure_pinch(&mut self) {
-        let mut points = self.points.values();
-        let (Some(first), Some(second), None) = (points.next(), points.next(), points.next())
-        else {
-            self.pinch_center = None;
-            self.pinch_span = None;
-            return;
-        };
-        let (first, second) = (first.pos, second.pos);
-        let span = first.distance(second);
-        let center = Pos2::new((first.x + second.x) * 0.5, (first.y + second.y) * 0.5);
-        if let (Some(previous_span), Some(previous_center)) = (self.pinch_span, self.pinch_center)
-            && self.hold.is_none()
-            && previous_span > 0.0
-            && span > 0.0
-        {
-            self.pinch *= span / previous_span;
-            self.pinch_pan += center - previous_center;
-        }
-        self.pinch_span = Some(span);
-        self.pinch_center = Some(center);
-    }
-
-    fn along(&self, movement: Vec2) -> Vec2 {
-        match self.direction {
-            TouchDirection::Vertical => Vec2::new(0.0, movement.y),
-            TouchDirection::Horizontal => Vec2::new(movement.x, 0.0),
-            TouchDirection::Undecided => Vec2::ZERO,
-        }
-    }
-
-    fn cancel(&mut self, pointer: &mut Pointer) {
-        if self.primary.is_some() {
-            self.cancelled = true;
-        }
-        if self.hold.take().is_some() {
-            SecondaryDrag::cancel(&mut pointer.secondary_drag);
-        }
-        self.points.clear();
-        self.origins.clear();
-        self.fingers_since = None;
-        self.primary = None;
-        self.start = None;
-        self.previous = None;
-        self.direction = TouchDirection::Undecided;
-        self.multi = false;
-        self.dragged = false;
-        self.samples.clear();
-        self.velocity = Vec2::ZERO;
-        self.pinch_span = None;
-        self.pinch_center = None;
-        self.held_since = None;
-        self.long_pressed = false;
-        pointer.from_touch = false;
-    }
-
-    fn long_press(&mut self, delay: Duration, now: Instant) -> Option<Pos2> {
-        let since = self.held_since?;
-        if now.duration_since(since) < delay {
-            return None;
-        }
-        self.held_since = None;
-        self.long_pressed = true;
-        self.cancelled = true;
-        self.primary_pos()
-    }
-
-    fn sample(&mut self, pos: Pos2) {
-        let now = self.now;
-        self.samples.push_back((now, pos));
-        while self.samples.len() > 2
-            && self.samples.front().is_some_and(|(when, _)| {
-                now.duration_since(*when).as_secs_f32() > TOUCH_VELOCITY_WINDOW
-            })
-        {
-            self.samples.pop_front();
-        }
-        let Some((then, origin)) = self.samples.front().copied() else {
-            return;
-        };
-        let elapsed = now.duration_since(then).as_secs_f32();
-        if elapsed <= f32::EPSILON {
-            return;
-        }
-        let measured = (pos - origin) * elapsed.recip();
-        let speed = measured.x.hypot(measured.y);
-        self.velocity = if speed > MAX_TOUCH_VELOCITY {
-            measured * (MAX_TOUCH_VELOCITY / speed)
-        } else {
-            measured
-        };
-    }
-
-    pub fn finger_tap(&self) -> Option<usize> {
-        self.finger_tap
-    }
-
-    pub fn points(&self) -> impl Iterator<Item = &TouchPoint> {
-        self.points.values()
-    }
-
-    pub fn primary_pos(&self) -> Option<Pos2> {
-        self.primary.map(|id| self.points[&id].pos)
-    }
-
-    pub fn active(&self) -> bool {
-        self.primary.is_some()
-    }
-
-    pub fn started(&self) -> bool {
-        self.started
-    }
-
-    pub fn ended(&self) -> bool {
-        self.ended
-    }
-
-    pub fn cancelled(&self) -> bool {
-        self.cancelled
-    }
-
-    pub fn dragged(&self) -> bool {
-        self.dragged
-    }
-
-    pub fn scrolling(&self) -> bool {
-        self.direction == TouchDirection::Vertical
-    }
-
-    pub fn scrolling_horizontally(&self) -> bool {
-        self.direction == TouchDirection::Horizontal
-    }
-
-    pub fn scroll_delta(&self) -> Vec2 {
-        self.scroll_delta
-    }
-
-    pub fn velocity(&self) -> Vec2 {
-        self.velocity
-    }
-
-    pub fn pinch(&self) -> f32 {
-        self.pinch
-    }
-
-    pub fn pinch_pan(&self) -> Vec2 {
-        self.pinch_pan
-    }
-
-    pub fn pinch_center(&self) -> Option<Pos2> {
-        self.pinch_center
-    }
-}
-
 impl Pointer {
     fn begin_frame(&mut self) {
-        self.secondary_drag = self
-            .secondary_drag
-            .filter(|drag| !drag.ended && !drag.cancelled)
-            .map(|drag| SecondaryDrag {
-                started: false,
-                ..drag
-            });
         self.primary_pressed = false;
         self.primary_released = false;
         self.secondary_pressed = false;
@@ -1224,6 +844,36 @@ impl Pointer {
         self.middle_pressed = false;
         self.middle_released = false;
         self.motion = Vec2::ZERO;
+    }
+
+    fn button(&mut self, button: PointerButton, pressed: bool, pos: Pos2, now: Instant) {
+        match button {
+            PointerButton::Primary => {
+                self.primary_down = pressed;
+                if pressed {
+                    self.primary_pressed = true;
+                    self.press_pos = Some(pos);
+                    self.count_click(pos, now);
+                } else {
+                    self.primary_released = true;
+                }
+            }
+            PointerButton::Secondary => {
+                self.secondary_down = pressed;
+                match pressed {
+                    true => self.secondary_pressed = true,
+                    false => self.secondary_released = true,
+                }
+            }
+            PointerButton::Middle => {
+                self.middle_down = pressed;
+                match pressed {
+                    true => self.middle_pressed = true,
+                    false => self.middle_released = true,
+                }
+            }
+            PointerButton::Back | PointerButton::Forward => {}
+        }
     }
 
     fn count_click(&mut self, pos: Pos2, now: Instant) {

@@ -11,9 +11,9 @@ use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::painter::Painter;
 use crate::pixel_grid::PixelGrid;
 
-use crate::base::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
+use crate::base::child_list::{ChildHost, ChildList, NodeChildren};
 use crate::document::Document;
-use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeId, NodeOf, Rects};
 use crate::rich::{
     CaretHandle, RichLayout, RichOptions, SpanStyle, TextCaret, TextMark, TextSpan, handle_shape,
 };
@@ -544,19 +544,6 @@ impl Element for TextNode {
         }
     }
 
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        children.extend(self.items.iter().map(ChildItem::node));
-    }
-
     fn children(&self) -> Vec<NodeId> {
         self.items.nodes()
     }
@@ -813,19 +800,6 @@ impl Element for TextItemNode {
         if let Some(child) = self.child {
             crate::paint::paint(doc, painter, rects, child);
         }
-    }
-
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        children.extend(self.child);
     }
 
     fn children(&self) -> Vec<NodeId> {

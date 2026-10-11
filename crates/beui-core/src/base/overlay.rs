@@ -12,7 +12,7 @@ use crate::base::interactive::InteractiveNode;
 use crate::callback::{Callback, NodeRef};
 use crate::current::with_document;
 use crate::document::{Acted, Document};
-use crate::node::{ClickHandler, Element, InteractInput, NodeId, NodeOf, Rects};
+use crate::node::{ClickHandler, Element, NodeId, NodeOf, Rects};
 
 #[derive(Clone, PartialEq)]
 pub enum OverlayAnchor {
@@ -312,29 +312,14 @@ impl Element for OverlayNode {
         false
     }
 
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        if !self.open || self.mode != OverlayMode::Modal {
-            return;
-        }
-        if !self.light {
-            children.push(self.scrim);
-        }
-        children.extend(self.content);
-    }
-
     fn children(&self) -> Vec<NodeId> {
         let mut children = vec![self.scrim];
         children.extend(self.content);
         children
+    }
+
+    fn pointer_children(&self) -> Vec<NodeId> {
+        Vec::new()
     }
 
     fn live_children(&self) -> Vec<NodeId> {
@@ -579,19 +564,6 @@ impl Document {
         }
     }
 
-    pub fn floating_covers(&self, pos: Pos2) -> bool {
-        if self.modal_open() {
-            return false;
-        }
-        self.floating_overlays().into_iter().any(|overlay| {
-            self.overlay_content(overlay).is_some_and(|content| {
-                self.node_rect(content)
-                    .is_some_and(|rect| rect.contains_half_open(pos))
-                    && !crate::interact::forward::floating_hole(self, &self.rects, content, pos)
-            })
-        })
-    }
-
     pub fn raise_overlay(&mut self, overlay: NodeId) {
         let Some(index) = self
             .passive_overlays
@@ -787,6 +759,10 @@ impl Document {
         self.arena.get_as::<OverlayNode>(overlay).content
     }
 
+    pub(crate) fn overlay_is_light(&self, overlay: NodeOf<OverlayNode>) -> bool {
+        self.arena.get_as::<OverlayNode>(overlay).light
+    }
+
     pub fn modal_open(&self) -> bool {
         !self.overlay_stack.is_empty()
     }
@@ -797,10 +773,6 @@ impl Document {
             .filter_map(|overlay| self.overlay_content(overlay))
             .filter_map(|content| self.node_rect(content))
             .collect()
-    }
-
-    pub fn pointer_claimed(&self, pos: Pos2) -> bool {
-        self.modal_open() || self.floating_covers(pos)
     }
 
     pub fn overlay_rects(&self) -> Vec<Rect> {
@@ -1104,14 +1076,6 @@ impl Document {
         }
     }
 
-    pub fn pointer_passes_under_overlays(&self, pos: Pos2) -> bool {
-        !self.overlay_stack.is_empty()
-            && self
-                .overlay_stack
-                .iter()
-                .all(|overlay| self.light_overlay_misses(*overlay, pos))
-    }
-
     fn dismiss_overlay_if_outside(&mut self, overlay: NodeOf<OverlayNode>, pos: Pos2) {
         let Some(level) = self.overlay_stack.iter().position(|&id| id == overlay) else {
             return;
@@ -1122,9 +1086,6 @@ impl Document {
                 .is_some_and(|rect| rect.contains_half_open(pos))
         });
         if !inside_any {
-            let scrim = self.arena.get_as::<OverlayNode>(overlay).scrim;
-            self.capture_pointer(scrim);
-            self.forward.swallow_press();
             self.end_overlay(overlay, true, true);
         }
     }

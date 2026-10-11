@@ -431,7 +431,7 @@ pub fn Selectable(
             on_key={move |press: KeyPress| key(&keyed, press)}
             on_ancestor_key={move |press: KeyPress| key(&ancestor, press)}
             claims_touch=false
-            capture_at={move |pos: Pos2| {
+            claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
                 with_document(|document| captured.handle_at(document, pos).is_some())
             }}
             on_press={move |event: PointerPress| press(&pressed, &focused, event)}

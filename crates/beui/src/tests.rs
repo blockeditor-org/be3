@@ -20,6 +20,7 @@ mod a_canvas_places_its_items_at_the_view_it_is_given;
 mod a_canvas_without_a_view_places_its_items_from_its_own_corner;
 mod a_capturing_button_takes_the_press_from_the_row_it_sits_in;
 mod a_capturing_catcher_over_a_forwarding_one_keeps_the_press_from_it;
+mod a_catcher_beneath_an_overlapping_one_hears_no_press;
 mod a_catcher_in_a_dialog_hears_a_press_on_it;
 mod a_catcher_that_lost_its_release_lets_go_of_the_pointer;
 mod a_catcher_under_a_dialog_that_is_under_another_hears_no_pointer;
@@ -91,6 +92,7 @@ mod a_drop_the_dock_would_refuse_draws_no_drop_marker;
 mod a_dynamic_child_can_fill_its_available_height;
 mod a_file_picker_hands_the_chosen_file_to_its_callback_without_waiting_for_it;
 mod a_finger_beside_the_bar_between_two_panes_drags_it;
+mod a_finger_drag_from_a_capturing_button_scrolls_the_list_around_it;
 mod a_finger_dragged_across_a_color_area_picks_rather_than_scrolls;
 mod a_finger_dragging_a_tab_out_of_its_bar_moves_it_where_it_is_dropped;
 mod a_finger_drags_a_draggable_down_where_nothing_scrolls;
@@ -1760,7 +1762,7 @@ pub(crate) fn toolbar_of<const N: usize>(
     (document, nodes)
 }
 
-use crate::node::{Element, InteractInput, Rects};
+use crate::node::{Element, Rects};
 use crate::painter::Painter;
 use std::any::Any;
 use std::time::Duration;
@@ -1770,7 +1772,7 @@ struct Counted {
     layouts: Rc<Cell<usize>>,
     paints: Rc<Cell<usize>>,
     measures: Rc<Cell<usize>>,
-    interactions: Rc<Cell<usize>>,
+    visits: Rc<Cell<usize>>,
 }
 
 impl Element for Counted {
@@ -1789,33 +1791,6 @@ impl Element for Counted {
         self.inner.paint(doc, painter, rects, rect);
     }
 
-    fn captures(&mut self, doc: &mut Document, pos: Pos2, rect: Rect) -> bool {
-        self.inner.captures(doc, pos, rect)
-    }
-
-    fn intercepts(&mut self, doc: &mut Document, pos: Pos2, rect: Rect) -> bool {
-        self.inner.intercepts(doc, pos, rect)
-    }
-
-    fn interact(
-        &mut self,
-        doc: &mut Document,
-        painter: &Painter,
-        input: &InteractInput,
-        id: NodeId,
-        rect: Rect,
-        focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        self.interactions.set(self.interactions.get() + 1);
-        self.inner
-            .interact(doc, painter, input, id, rect, focus_target, children)
-    }
-
-    fn engaged(&self) -> bool {
-        self.inner.engaged()
-    }
-
     fn relayout_boundary(&self) -> bool {
         self.inner.relayout_boundary()
     }
@@ -1823,6 +1798,12 @@ impl Element for Counted {
     fn children(&self) -> Vec<NodeId> {
         self.inner.children()
     }
+
+    fn pointer_children(&self) -> Vec<NodeId> {
+        self.visits.set(self.visits.get() + 1);
+        self.inner.pointer_children()
+    }
+
     fn kind(&self) -> &'static str {
         self.inner.kind()
     }
@@ -1838,7 +1819,7 @@ struct Counts {
     layouts: Rc<Cell<usize>>,
     paints: Rc<Cell<usize>>,
     measures: Rc<Cell<usize>>,
-    interactions: Rc<Cell<usize>>,
+    visits: Rc<Cell<usize>>,
 }
 
 const BLINK: Duration = Duration::from_millis(530);
@@ -1867,7 +1848,7 @@ fn counted_with_measures(document: &mut Document, node: impl Into<NodeId>) -> Co
         layouts: Rc::new(Cell::new(0)),
         paints: Rc::new(Cell::new(0)),
         measures: Rc::new(Cell::new(0)),
-        interactions: Rc::new(Cell::new(0)),
+        visits: Rc::new(Cell::new(0)),
     };
     document.verifies_paint = false;
     let inner = document.arena.take(node);
@@ -1878,7 +1859,7 @@ fn counted_with_measures(document: &mut Document, node: impl Into<NodeId>) -> Co
             layouts: counts.layouts.clone(),
             paints: counts.paints.clone(),
             measures: counts.measures.clone(),
-            interactions: counts.interactions.clone(),
+            visits: counts.visits.clone(),
         }),
     );
     counts

@@ -119,17 +119,11 @@ pub struct Document {
         ::reactive::ReadSignal<Vec<KeyChord>>,
         ::reactive::WriteSignal<Vec<KeyChord>>,
     ),
-    pub touch_scroll_vertical: Option<NodeId>,
-    pub touch_shift: crate::geometry::Vec2,
-    pub touch_scroll_horizontal: Option<NodeId>,
-    pub wheel_latch: Option<(NodeId, Instant, Option<crate::geometry::Pos2>)>,
     pub autoscroll: Option<crate::interact::autoscroll::Autoscroll>,
-    pub pointer_capture: Option<NodeId>,
-    pub press_claim: Option<NodeId>,
-    pub secondary_claim: Option<NodeId>,
     pub(crate) press_claimants: HashSet<NodeId>,
     pub(crate) outside_watchers: HashSet<NodeId>,
     pub forward: crate::interact::forward::Routing,
+    pub pointers: crate::interact::pointer::Pointers,
     pub drags: Rc<crate::drag_board::Board>,
     paste_requested: bool,
     unsent_file_picks: Vec<(FileFilter, PickedCallback)>,
@@ -149,11 +143,6 @@ pub struct Document {
     layout_parent: Option<NodeId>,
     placed_children: NodeMap<Vec<NodeId>>,
     placing: Vec<NodeId>,
-    interact_pool: Vec<Vec<NodeId>>,
-    pub engaged: Vec<NodeId>,
-    pub interact_parents: NodeMap<NodeId>,
-    pub interacted: NodeMap<u64>,
-    pub interact_pass: u64,
     pub interact_bounds: NodeMap<Rect>,
     pub interact_bounds_version: Option<u64>,
     pub placed_pass: NodeMap<u64>,
@@ -337,17 +326,11 @@ impl Document {
             input_frames: 0,
             modifiers: ::reactive::create_signal(Modifiers::NONE),
             intercepted_keys: ::reactive::create_signal(Vec::new()),
-            touch_scroll_vertical: None,
-            touch_shift: crate::geometry::Vec2::ZERO,
-            touch_scroll_horizontal: None,
-            wheel_latch: None,
             autoscroll: None,
-            pointer_capture: None,
-            press_claim: None,
-            secondary_claim: None,
             press_claimants: HashSet::new(),
             outside_watchers: HashSet::new(),
             forward: Default::default(),
+            pointers: Default::default(),
             drags: Rc::default(),
             paste_requested: false,
             unsent_file_picks: Vec::new(),
@@ -367,11 +350,6 @@ impl Document {
             layout_parent: None,
             placed_children: NodeMap::default(),
             placing: Vec::new(),
-            interact_pool: Vec::new(),
-            engaged: Vec::new(),
-            interact_parents: NodeMap::default(),
-            interacted: NodeMap::default(),
-            interact_pass: 0,
             interact_bounds: NodeMap::default(),
             interact_bounds_version: None,
             placed_pass: NodeMap::default(),
@@ -1849,14 +1827,6 @@ impl Document {
     fn forget_placement(&mut self, id: NodeId) {
         let rects = Rc::clone(&self.rects);
         self.drop_placement(id, &rects, &mut Vec::new());
-    }
-
-    pub fn take_interact_pool(&mut self) -> Vec<Vec<NodeId>> {
-        std::mem::take(&mut self.interact_pool)
-    }
-
-    pub fn put_back_interact_pool(&mut self, pool: Vec<Vec<NodeId>>) {
-        self.interact_pool = pool;
     }
 
     pub fn laying_out(&self) -> Option<NodeId> {

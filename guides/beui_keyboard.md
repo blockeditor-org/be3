@@ -176,7 +176,7 @@ button.
 
 Every embedded editor - a plugin's region, and in `block-app --session` and
 `--desktop` each Wayland program's window - is a forwarding catcher: an
-`Interactive` with `on_forward` (and `forward_at` for the points it takes),
+`Interactive` with `on_forward` (and `hit_at` for the points it takes),
 handed the events beui routes to it as a `ForwardedInput`. The host knows
 nothing of the editor behind it beyond turning those events into its own
 protocol (`plugin_host::forward_region` for a plugin, `be_wayland::Compositor`
@@ -197,18 +197,18 @@ What one event goes through, in order:
    `Event::Key` and any `Event::Text` it made.
 2. `interact`: the document counts the frame as input (`Document::input_frames`,
    which the compositor's idle time reads), dismisses light overlays, finds a
-   modifier claim (`claim_modifiers`, `claim_at`) or a capture for a press, and
-   moves the focus. A lock overlay keeps the focus and every press.
+   modifier claim (`claim_modifiers`, `claim_at`) or a capture for a press,
+   dispatches each pointer's events, and moves the focus. A lock overlay keeps the focus and every press.
 3. Global keys: taps, then `on_global_key` handlers (global and intercepting
    actions among them, and in block-app the shell plugin's intercepted chords,
    `compositor/intercept.rs`), then F6 and Shift+F6, which move the focus
    between forwarding catchers. A key one of them takes is gone from the frame
    along with its physical key and text, and so are its repeats and release
    when they come.
-4. `forward::route`: the pointer goes to the catcher under it (`forward_at`
-   says no where something else is drawn over it), a press is captured by the
-   catcher it landed on until every button is let go, a claimed press goes to
-   its claimant, wheel and drop events to the catcher under the pointer, and
+4. `forward::route`: the pointer goes to the catcher under it (`hit_at`
+   says no where something else is drawn over it), a press stays with the
+   catcher its pointer's down reached until every button is let go, a claimed
+   press goes to its claimant, wheel and drop events to the catcher under the pointer, and
    keys, text and IME to the focused catcher. A catcher outside an open lock
    loses its capture. Each catcher is also told when it gains or loses the
    hover or the focus.

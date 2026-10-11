@@ -446,10 +446,6 @@ impl Context {
             self.request_repaint_after(delay);
         }
         self.inner.input.borrow_mut().begin_frame(raw, now);
-        let held = self.inner.input.borrow().long_press_due(now);
-        if let Some(delay) = held {
-            self.request_repaint_after(delay);
-        }
         self.inner.layers.borrow_mut().clear();
         self.inner.top_shapes.borrow_mut().clear();
         self.inner.filter.set(None);

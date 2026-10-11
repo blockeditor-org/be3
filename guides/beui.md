@@ -429,8 +429,8 @@ siblings override one.
 `Layers` lays every child over the same box, sized to the largest, later
 children on top: content over a background, a badge over an icon. A child that
 should not fill the box goes in a `Frame` that aligns it. Pointer input is the
-same as anywhere else - every catcher under the pointer hears it unless the
-top one sets `capture_presses`.
+same as anywhere else: it reaches the topmost catcher under the pointer and the
+catchers around it, never one in a layer beneath.
 `Grid` lines cells up in shared columns, filling them row by row: `columns`
 is a `Track` per column (`Fixed`, `Intrinsic` - as wide as its widest cell -
 or `Fraction`, a weight in what is left), with `column_spacing` and
@@ -951,8 +951,8 @@ view! {
 
 A control that has to win a press from a surface around it - an add button in a
 row that is itself a button, a close cross on a tab - asks `unstyled::Button`
-for `capture_presses` instead. The captured press reaches that button and
-nothing else, so the row it sits in does not open as well.
+for `capture_presses` instead. The press stops at that button, so the row it
+sits in does not open as well.
 
 A press made with modifiers held can be claimed from everything inside a
 region, which is how a window manager takes Super+drag from the windows it
@@ -1321,9 +1321,9 @@ it went down, and a press that never does is reported through `on_click`
 instead, so a row that is both clickable and draggable does not select itself
 at the end of a drag. `on_drag_change` says when a drag starts and ends, which
 is what a source that dims itself while it is being carried binds. Draggables
-that overlap or nest - a fanned hand of cards, a card inside the pile that
-holds it - set `capture_presses`, so a press reaches the topmost one under the
-pointer and nothing beneath it, the way `unstyled::Button` wins a press.
+that nest - a card inside the pile that holds it - set `capture_presses`, so a
+press reaches the innermost one and not the one around it, the way
+`unstyled::Button` wins a press; of overlapping ones only the topmost hears it.
 
 While a drag is under way the `preview` is shown beside the pointer in a
 passive overlay, so it paints above everything and takes no input. The pointer
@@ -2059,20 +2059,55 @@ vertical wheel over a horizontal strip passes through to whatever is around it
 and a drag reaches the innermost catcher that scrolls that way.
 `unstyled::Scroll` is built out of those three.
 
-A press normally reaches every `Interactive` under the pointer. A control that
-must win a press, or that reacts to presses outside its own rect, captures it:
-`capture_presses` claims presses inside the catcher and `capture_at` claims
-presses at positions its callback accepts. Before any node handles a press the
-document asks the topmost nodes first, and only the captor receives it: focus
-stays where it is, touch scrolling does not start, and no other catcher arms. The search
-stops at a floating overlay that covers the press, so a captor under one never takes it, and a
-captor over a forwarding catcher (a plugin's region) keeps the forwarded press from it too.
+Pointer input takes one path. Each mouse button and each finger is a pointer
+of its own, and the document sees their downs, moves and ups in the order they
+happened (`InputState::pointer_events`), so a press, a move and a release that
+share a frame are three steps. A down is hit tested once (`interact::hit`):
+the layers are taken from the top - open modal overlays, whose scrim takes
+what a non-light one's content does not, then floating overlays, then the
+document - and in the first one the pointer lands on, the hit is the topmost
+`Interactive` under it together with every `Interactive` around it, its path.
+Any other node is transparent, and so is an `Interactive` at a point its
+`hit_at` turns down, along with the catchers around it up to one that captures
+or forwards; a floating overlay whose content turns a point down lets it
+through to what is beneath.
+
+The pointer keeps what its down reached until it is let go. A modifier claim
+(`claim_modifiers`, `claim_at`) is looked for first, from the top of the tree
+down and past `hit_at`, and a claimed press reaches its claimant alone.
+Otherwise the press goes up the path from the topmost catcher and stops at the
+first that captures it (`capture_presses`, or `capture_at` at the points its
+callback accepts). Every catcher it reached that
+handles presses arms: it hears `on_press`, `on_drag` wherever the pointer goes
+(once in the frame of the press too), and `on_click` when it is let go over the
+catcher, or for a finger, let go without having been dragged. The press then
+focuses the innermost focusable catcher it reached, or clears the focus,
+unless it was claimed or captured: those leave the focus to their catcher. A
+secondary press reaches every catcher on the path that takes one, and a middle
+press the innermost that pans, autoscrolls or forwards.
+
+A finger drag is settled when the finger leaves the tap slop: the innermost
+catcher on its path that takes a drag that way (`touch_drags`,
+`touch_drag_axis`, or `on_scroll_drag` along its `scroll_axis`) wins it,
+every armed catcher that does not hold that drag hears `on_cancel`, and the
+winner's `on_scroll_drag` hears the rest. A claimed finger drag stays with its
+claimant. A second finger, a long press and a lost window focus cancel the
+press the same way.
+
+Hover is the path under the mouse, worked out again every frame, so a catcher
+hears `on_hover_change` when it joins or leaves the path whether the pointer
+moved or the layout did. The cursor is the innermost armed catcher's, else the
+innermost hovered one's. The wheel goes to the innermost catcher on the path
+that takes it along its axis, unless a forwarding catcher comes first, and
+stays latched to it for `WHEEL_LATCH_TIMEOUT` while the pointer holds still.
+
+Parts a catcher draws outside its own rectangle, such as the touch selection
+handles of `unstyled::TextArea`, take their presses with `claim_at`.
 Paint such parts with `Painter::on_top`, which draws above the rest of the
 document, or of the overlay being painted, or from a `CanvasItem` with
 `clip=false`, which a canvas paints without cutting it to its own rectangle.
-The touch selection handles of `unstyled::TextArea` use `capture_at` and are
-carets with a handle, which `Text` paints on top; a single-line area paints
-them from an unclipped item.
+Those handles are carets with a handle, which `Text` paints on top; a
+single-line area paints them from an unclipped item.
 
 Do not put theme colors, fixed visual spacing, typography choices, or decorative
 shapes in this layer. A new skin should be able to use the unstyled control

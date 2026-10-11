@@ -456,7 +456,7 @@ fn Scrolling(
                 on_key={move |press: KeyPress| keyed.key(press)}
                 on_ancestor_key={move |press: KeyPress| ancestor_keyed.key(press)}
                 scroll_axis={axis}
-                intercept_at={move |_: Pos2| tapped.flinging()}
+                claim_at={move |_: (Pos2, beui_core::input::Modifiers)| tapped.flinging()}
                 on_press={move |_: PointerPress| stopped.stop_fling()}
                 on_scroll={move |gesture: ScrollGesture| wheeled.wheel(gesture)}
                 on_scroll_drag={move |gesture: DragGesture| dragged.drag(gesture)}

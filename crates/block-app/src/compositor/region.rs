@@ -340,7 +340,7 @@ pub(crate) fn PluginRegion(
                             ime_cursor={ime_cursor}
                             ime_text={ime_text}
                             on_forward={forward}
-                            forward_at={takes}
+                            hit_at={takes}
                             claim_at={claims}
                             on_press_outside={pressed_outside}
                         >
