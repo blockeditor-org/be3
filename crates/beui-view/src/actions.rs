@@ -326,7 +326,10 @@ impl ActionBuilder {
     }
 
     pub fn at(mut self, at: KeyAt) -> Self {
-        self.at = Some(at);
+        self.at = match at {
+            KeyAt::Root => None,
+            at => Some(at),
+        };
         self
     }
 
@@ -367,6 +370,16 @@ impl ActionBuilder {
         registry.0.next.set(key + 1);
         action.0.key.set(key);
         scope.add(action.clone());
+        if let Some(KeyAt::Node(node)) = &action.0.at {
+            let phase = match action.0.capture {
+                true => KeyPhase::Capture,
+                false => KeyPhase::Bubble,
+            };
+            let listening = action.clone();
+            crate::reactive::on_key(KeyAt::Node(node.clone()), phase, move |event| {
+                run_matching(std::iter::once(&listening), event)
+            });
+        }
         registry.touch();
         on_cleanup(move || {
             scope.remove(key);

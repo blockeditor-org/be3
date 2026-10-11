@@ -301,6 +301,7 @@ fn DockDialogView(dock: Handle, tab: TabId, parent: TabId) -> NodeId {
     let pressed = dock.clone();
     let attending = dock.clone();
     let dismissing = on_close.clone();
+    let modal_now = blocking.clone();
     let overlay = NodeRef::new();
     let raised = overlay.clone();
     let (opening, attended) = (shown.clone(), focused.clone());
@@ -313,7 +314,7 @@ fn DockDialogView(dock: Handle, tab: TabId, parent: TabId) -> NodeId {
             traps_focus=false
             open={shown.clone()}
             on_dismiss={move |reason: Dismiss| match reason {
-                Dismiss::OutsidePress => {
+                Dismiss::OutsidePress if modal_now.get_untracked() => {
                     attending.focus_dialog(tab);
                     attending.focus_into_dialog();
                     attending.call_attention();
@@ -323,7 +324,7 @@ fn DockDialogView(dock: Handle, tab: TabId, parent: TabId) -> NodeId {
                         close.call();
                     }
                 }
-                Dismiss::WithParent => {}
+                Dismiss::OutsidePress | Dismiss::WithParent => {}
             }}
         >
             <Interactive

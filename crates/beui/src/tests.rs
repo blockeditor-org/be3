@@ -297,6 +297,7 @@ mod accordion_headers_are_keyboard_operable_and_skip_collapsed_content;
 mod activation_requires_a_matching_release_and_escape_cancels_it;
 mod alt_arrows_walk_the_simulated_screen_reader_through_the_document;
 mod alt_dragging_a_tab_floats_it_in_a_window_over_the_pane_it_left;
+mod an_action_placed_at_a_node_answers_only_while_the_focus_is_inside_it;
 mod an_action_shortcut_runs_in_the_scope_that_holds_the_focus;
 mod an_app_that_inhibits_shortcuts_gets_every_chord_but_the_escape_hatch;
 mod an_aspect_ratio_frame_centres_the_largest_box_that_fits;
@@ -2093,6 +2094,7 @@ pub(crate) struct DialogDock {
     pub(crate) layout: unstyled::DockingLayout<u64>,
     pub(crate) pressed: Rc<RefCell<Vec<u64>>>,
     pub(crate) keyed: Rc<RefCell<Vec<u64>>>,
+    pub(crate) attended: Rc<RefCell<Vec<u64>>>,
     pub(crate) set_dialogs: crate::reactive::WriteSignal<Dialogs>,
 }
 
@@ -2108,8 +2110,10 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
     let built = dock.clone();
     let pressed = Rc::new(RefCell::new(Vec::new()));
     let keyed = Rc::new(RefCell::new(Vec::new()));
+    let attended = Rc::new(RefCell::new(Vec::new()));
     let layout = unstyled::DockingLayout::new();
     let (listed, set_dialogs) = create_signal(dialogs);
+    let attending = Rc::clone(&attended);
     let (pressing, keying, laid) = (Rc::clone(&pressed), Rc::clone(&keyed), layout.clone());
     let document = build(move || {
         let flags = listed.clone();
@@ -2123,6 +2127,7 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
         });
         let (tab_presses, tab_keys) = (Rc::clone(&pressing), Rc::clone(&keying));
         let (dialog_presses, dialog_keys) = (Rc::clone(&pressing), Rc::clone(&keying));
+        let dialog_attention = Rc::clone(&attending);
         let layout = laid.clone();
         view! {
             <styled::Docking @node_ref=&built layout>
@@ -2137,6 +2142,7 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
                                         owner=id
                                         pressed={Rc::clone(&pressed)}
                                         keyed={Rc::clone(&keyed)}
+                                        attended={None}
                                         size={None}
                                     />
                                 </unstyled::DockTab>
@@ -2148,6 +2154,7 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
                     {move |(id, parent): (u64, u64)| {
                         let (pressed, keyed) =
                             (Rc::clone(&dialog_presses), Rc::clone(&dialog_keys));
+                        let attended = Rc::clone(&dialog_attention);
                         let flags = flags.clone();
                         let modal = crate::reactive::create_memo(move || {
                             flags.with(|listed| listed.iter().any(|(held, _, modal)| *held == id && *modal))
@@ -2165,6 +2172,7 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
                                     owner=id
                                     pressed={Rc::clone(&pressed)}
                                     keyed={Rc::clone(&keyed)}
+                                    attended={Some(Rc::clone(&attended))}
                                     size={Some(dialog_size(id))}
                                 />
                             </unstyled::DockDialog>
@@ -2180,6 +2188,7 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
         layout,
         pressed,
         keyed,
+        attended,
         set_dialogs,
     }
 }
@@ -2190,8 +2199,17 @@ fn FocusPanel(
     owner: u64,
     pressed: Rc<RefCell<Vec<u64>>>,
     keyed: Rc<RefCell<Vec<u64>>>,
+    attended: Option<Rc<RefCell<Vec<u64>>>>,
     size: Option<Vec2>,
 ) -> NodeId {
+    if let (Some(attended), Some(tab)) = (attended, unstyled::use_dock_tab()) {
+        let called = crate::reactive::create_memo(move || tab.attention());
+        crate::reactive::create_effect(move || {
+            if called.get().is_some() {
+                attended.borrow_mut().push(owner);
+            }
+        });
+    }
     let width = size.map(|size| size.x);
     let height = size.map(|size| size.y);
     view! {
