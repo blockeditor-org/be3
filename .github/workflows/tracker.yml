@@ -5,7 +5,9 @@ name: Tracker
 # links it on each row's page, and merging it sets them to Done. It is the be
 # command line tool's `be pull-request` (crates/be-cli), signed in as the agent
 # whose token and recovery phrase are the repository's BE3_TRACKER_TOKEN and
-# BE3_TRACKER_RECOVERY_PHRASE secrets; without them the job does nothing.
+# BE3_TRACKER_RECOVERY_PHRASE secrets; without them the job does nothing. A
+# gateway in front of the server that wants an Authorization header gets the
+# BE3_TRACKER_AUTHORIZATION secret.
 #
 # be is the release ./scripts/be pins on the default branch, built from the
 # same commit as the server, rather than anything the pull request brings: this
@@ -49,6 +51,7 @@ jobs:
           BE3_WORKSPACE: ${{ vars.BE3_WORKSPACE }}
           BE3_TOKEN: ${{ secrets.BE3_TRACKER_TOKEN }}
           BE3_RECOVERY_PHRASE: ${{ secrets.BE3_TRACKER_RECOVERY_PHRASE }}
+          BE3_AUTHORIZATION: ${{ secrets.BE3_TRACKER_AUTHORIZATION }}
         run: |
           umask 077
           {
@@ -56,6 +59,7 @@ jobs:
             if [ -n "$BE3_WORKSPACE" ]; then echo "workspace=$BE3_WORKSPACE"; fi
             echo "token=$BE3_TOKEN"
             echo "recovery_phrase=$BE3_RECOVERY_PHRASE"
+            if [ -n "$BE3_AUTHORIZATION" ]; then echo "authorization=$BE3_AUTHORIZATION"; fi
           } > .tracker-credentials
 
       - name: Move the rows the pull request names

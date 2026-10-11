@@ -17,25 +17,45 @@ use tokio_tungstenite::{
 
 use super::Frame;
 
+mod http;
+
 type Stream = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
-pub(crate) struct Writer(SplitSink<Stream, Message>);
+pub(crate) enum Writer {
+    Socket(SplitSink<Stream, Message>),
+    Http(tokio::sync::mpsc::UnboundedSender<Vec<u8>>),
+}
 
-pub(crate) struct Reader(SplitStream<Stream>);
+pub(crate) enum Reader {
+    Socket(SplitStream<Stream>),
+    Http(tokio::sync::mpsc::UnboundedReceiver<Frame>),
+}
 
 pub(crate) fn spawn(future: impl Future<Output = ()> + Send + 'static) {
     tokio::spawn(future);
 }
 
 pub(crate) async fn connect(url: &str) -> Result<(Writer, Reader), String> {
+    if url.starts_with("http://") || url.starts_with("https://") {
+        let (writer, reader) = http::connect(url).await?;
+        return Ok((Writer::Http(writer), Reader::Http(reader)));
+    }
     let config = WebSocketConfig {
         max_frame_size: Some(MAX_FRAME_BYTES),
         max_message_size: Some(MAX_FRAME_BYTES),
         ..WebSocketConfig::default()
     };
-    let request = url
+    let mut request = url
         .into_client_request()
         .map_err(|error| error.to_string())?;
+    if let Some(header) = crate::authorization(url) {
+        request.headers_mut().insert(
+            "authorization",
+            header
+                .parse()
+                .map_err(|_| "the Authorization header is not valid".to_owned())?,
+        );
+    }
     let target = request.uri().clone();
     let host = target.host().unwrap_or_default().to_owned();
     let secure = target.scheme_str() == Some("wss");
@@ -63,7 +83,7 @@ pub(crate) async fn connect(url: &str) -> Result<(Writer, Reader), String> {
         }
     };
     let (sink, source) = socket.split();
-    Ok((Writer(sink), Reader(source)))
+    Ok((Writer::Socket(sink), Reader::Socket(source)))
 }
 
 fn proxy_for(host: &str) -> Option<String> {
@@ -161,17 +181,26 @@ impl Writer {
     }
 
     async fn send_message(&mut self, message: Message) -> Result<(), String> {
-        self.0
-            .send(message)
-            .await
-            .map_err(|error| error.to_string())
+        match self {
+            Self::Socket(sink) => sink.send(message).await.map_err(|error| error.to_string()),
+            Self::Http(posts) => match message {
+                Message::Binary(bytes) => posts
+                    .send(bytes)
+                    .map_err(|_| "the connection closed".to_owned()),
+                _ => Ok(()),
+            },
+        }
     }
 }
 
 impl Reader {
     pub(crate) async fn next(&mut self) -> Option<Frame> {
+        let source = match self {
+            Self::Socket(source) => source,
+            Self::Http(frames) => return frames.recv().await,
+        };
         loop {
-            return match self.0.next().await? {
+            return match source.next().await? {
                 Ok(Message::Binary(bytes)) => Some(Frame::Binary(bytes)),
                 Ok(Message::Ping(payload)) => Some(Frame::Ping(payload)),
                 Ok(Message::Text(_) | Message::Pong(_) | Message::Frame(_)) => continue,

@@ -22,6 +22,45 @@ pub fn socket_url(server_url: &str) -> String {
     format!("{}/api/be", base.trim_end_matches('/'))
 }
 
+pub fn http_url(server_url: &str) -> String {
+    let base = match server_url.split_once("://") {
+        Some(("ws", host)) => format!("http://{host}"),
+        Some(("wss", host)) => format!("https://{host}"),
+        _ => server_url.to_owned(),
+    };
+    format!("{}/api/be/http", base.trim_end_matches('/'))
+}
+
+static AUTHORIZATION: std::sync::Mutex<Vec<(String, String)>> = std::sync::Mutex::new(Vec::new());
+
+pub fn authorize(server_url: &str, header: Option<String>) {
+    let origin = origin(server_url);
+    let mut held = AUTHORIZATION.lock().unwrap();
+    held.retain(|(known, _)| *known != origin);
+    if let Some(header) = header.filter(|header| !header.trim().is_empty()) {
+        held.push((origin, header.trim().to_owned()));
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn authorization(url: &str) -> Option<String> {
+    let origin = origin(url);
+    AUTHORIZATION
+        .lock()
+        .unwrap()
+        .iter()
+        .find(|(known, _)| *known == origin)
+        .map(|(_, header)| header.clone())
+}
+
+fn origin(url: &str) -> String {
+    let rest = url.split_once("://").map_or(url, |(_, rest)| rest);
+    rest.split(['/', '?', '#'])
+        .next()
+        .unwrap_or_default()
+        .to_ascii_lowercase()
+}
+
 #[derive(Debug)]
 pub enum ClientError {
     Refused(ErrorCode, String),

@@ -6,7 +6,11 @@ How the server runs on a VPS for real notes. The files referred to are in
 ## Layout
 
 - be-server listens on `127.0.0.1:9090` and is never exposed directly: it
-  speaks plain websockets with no TLS.
+  speaks plain websockets with no TLS, and the same protocol over HTTP posts
+  at `/api/be/http` for clients behind a proxy that refuses websockets (`be`).
+- It never reads `Authorization`, so Caddy can gate `/api*` on that header;
+  the app (Authorization header when adding an account on a remote server) and
+  `be` (`authorization=` in `.tracker-credentials`) send one.
 - Caddy terminates TLS for the domain, passes `/api*` to be-server, and serves
   the web bundle from `/srv/be3-web` if it is wanted (`Caddyfile`; build it
   with `./scripts/buck build //crates/block-app:web --out DIR`).

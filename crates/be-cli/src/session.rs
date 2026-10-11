@@ -1,4 +1,4 @@
-use be_client::{ClientError, Connection, Credentials, Peer, PeerConfig, socket_url};
+use be_client::{ClientError, Connection, Credentials, Peer, PeerConfig, authorize, http_url};
 use be_protocol::{ClientMessage, ServerMessage};
 use be_store::{ContentKey, MemoryStore};
 use uuid::Uuid;
@@ -9,8 +9,9 @@ pub const DEFAULT_SERVER: &str = "https://blocks.pfg.pw";
 pub struct Settings {
     pub server: String,
     pub workspace: Option<Uuid>,
-    pub token: Option<String>,
+    pub token: String,
     pub phrase: String,
+    pub authorization: Option<String>,
 }
 
 impl Settings {
@@ -28,27 +29,27 @@ impl Settings {
             ),
             None => None,
         };
+        let token = read("BE3_TOKEN")
+            .ok_or("set BE3_TOKEN to the token the app showed when it added this agent")?;
         let phrase = read("BE3_RECOVERY_PHRASE").ok_or(
             "set BE3_RECOVERY_PHRASE to the recovery phrase the app showed when it added this agent",
         )?;
         Ok(Self {
             server: read("BE3_SERVER").unwrap_or_else(|| DEFAULT_SERVER.to_owned()),
             workspace,
-            token: read("BE3_TOKEN"),
+            token,
             phrase,
+            authorization: read("BE3_AUTHORIZATION"),
         })
     }
 
     fn credentials(&self) -> Credentials {
-        match &self.token {
-            Some(token) => Credentials::Token(token.clone()),
-            None => Credentials::Ambient,
-        }
+        Credentials::Token(self.token.clone())
     }
 }
 
 fn secure_or_local(url: &str) -> bool {
-    let Some(rest) = url.strip_prefix("ws://") else {
+    let Some(rest) = url.strip_prefix("http://") else {
         return true;
     };
     let authority = rest.split('/').next().unwrap_or_default();
@@ -62,8 +63,9 @@ fn secure_or_local(url: &str) -> bool {
 }
 
 pub async fn connect(settings: &Settings) -> Result<Peer<MemoryStore>, String> {
-    let url = socket_url(&settings.server);
-    if settings.token.is_some() && !secure_or_local(&url) {
+    let url = http_url(&settings.server);
+    authorize(&url, settings.authorization.clone());
+    if !secure_or_local(&url) {
         return Err(format!(
             "{} is not https, so BE3_TOKEN would cross the network unencrypted",
             settings.server
@@ -71,18 +73,12 @@ pub async fn connect(settings: &Settings) -> Result<Peer<MemoryStore>, String> {
     }
     let connection = Connection::connect(&url).await.map_err(explain)?;
     let signed_in = connection
-        .request(|request| match settings.credentials() {
-            Credentials::Token(token) => ClientMessage::Authenticate { request, token },
-            _ => ClientMessage::WhoAmI { request },
+        .request(|request| ClientMessage::Authenticate {
+            request,
+            token: settings.token.clone(),
         })
         .await
-        .map_err(|error| match settings.token {
-            Some(_) => format!("the server refused BE3_TOKEN: {}", explain(error)),
-            None => format!(
-                "set BE3_TOKEN, or reach the server through a proxy that signs requests in: {}",
-                explain(error)
-            ),
-        })?;
+        .map_err(|error| format!("the server refused BE3_TOKEN: {}", explain(error)))?;
     if !matches!(signed_in, ServerMessage::Authenticated { .. }) {
         return Err("the server did not sign this connection in".to_owned());
     }

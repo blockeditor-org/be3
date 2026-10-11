@@ -121,6 +121,7 @@ async fn next_binary(
                 .pong(payload)
                 .await
                 .map_err(ClientError::Disconnected)?,
+            Some(Frame::Failed(reason)) => return Err(ClientError::Disconnected(reason)),
             Some(Frame::Closed) | None => return Ok(None),
         }
     }
@@ -189,6 +190,8 @@ async fn carry(
                         return;
                     }
                 }
+                #[cfg(not(target_arch = "wasm32"))]
+                Some(Frame::Failed(_)) => return,
                 Some(Frame::Closed) | None => return,
             },
         }

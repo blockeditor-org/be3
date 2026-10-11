@@ -1,9 +1,7 @@
-use tokio_tungstenite::tungstenite::client::IntoClientRequest;
-
 use super::*;
 
 #[tokio::test]
-async fn an_agent_signs_in_with_its_token_alone_until_it_is_removed() {
+async fn an_agent_signs_in_with_its_token_until_it_is_removed() {
     let harness = Harness::start().await;
     let mut owner = harness.client().await;
     owner.register("owner@example.com").await;
@@ -23,37 +21,17 @@ async fn an_agent_signs_in_with_its_token_alone_until_it_is_removed() {
     };
     assert_eq!(agent.name, "Claude");
 
-    let mut request = harness.url.as_str().into_client_request().unwrap();
-    request
-        .headers_mut()
-        .insert("authorization", format!("Bearer {token}").parse().unwrap());
-    let (mut socket, _) = connect_async(request).await.unwrap();
-    socket.send(WsMessage::Binary(hello(BUILD))).await.unwrap();
-    assert_eq!(
-        next_binary(&mut socket)
-            .await
-            .as_deref()
-            .and_then(read_hello)
-            .as_deref(),
-        Some(BUILD)
-    );
-    let mut bot = TestClient {
-        socket,
-        next: 0,
-        notifications: Vec::new(),
-        token: String::new(),
-    };
-    let response = bot.send(|request| ClientMessage::WhoAmI { request }).await;
-    let ServerMessage::Authenticated {
-        account,
-        token: echoed,
-        ..
-    } = response
-    else {
-        panic!("the header did not sign the agent in: {response:?}");
+    let mut bot = harness.client().await;
+    let response = bot
+        .send(|request| ClientMessage::Authenticate {
+            request,
+            token: token.clone(),
+        })
+        .await;
+    let ServerMessage::Authenticated { account, .. } = response else {
+        panic!("the agent's token did not sign it in: {response:?}");
     };
     assert_eq!(account, agent.account);
-    assert!(echoed.is_empty(), "the server must not echo a header token");
     bot.open(workspace).await;
     let response = bot.send(|request| ClientMessage::GetKeys { request }).await;
     let ServerMessage::Keys {

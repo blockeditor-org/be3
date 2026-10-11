@@ -459,6 +459,7 @@ struct PendingAccountRequest {
     receiver: platform::RequestResult<Result<Session, String>>,
     server: ServerLocation,
     url: String,
+    authorization: Option<String>,
 }
 
 enum WorkspaceOperation {
@@ -574,6 +575,7 @@ impl BlockApp {
     ) -> Result<Self, Box<dyn Error + Send + Sync>> {
         let client_id = app_state.client_id()?;
         let accounts = app_state.accounts()?;
+        accounts::authorize(&accounts);
         let active = app_state.active_account()?;
         let account = active
             .and_then(|(server, id)| {
@@ -590,6 +592,7 @@ impl BlockApp {
             name: String::new(),
             token: String::new(),
             last_workspace_id: None,
+            authorization: None,
         });
         let server_url = match &account.server {
             ServerLocation::Local => url.clone(),
@@ -841,6 +844,7 @@ impl BlockApp {
             register: true,
             remote: remote_url.is_some(),
             remote_url: remote_url.unwrap_or_default(),
+            authorization: String::new(),
             email: "dev@localhost".to_owned(),
             display_name: "Dev".to_owned(),
             password: "dev-password".to_owned(),
@@ -884,6 +888,9 @@ impl BlockApp {
         } else {
             ServerLocation::Local
         };
+        let authorization = Some(form.authorization.trim().to_owned())
+            .filter(|header| remote && !header.is_empty());
+        be_client::authorize(&url, authorization.clone());
         let requested = url.clone();
         let AccountForm {
             register,
@@ -918,6 +925,7 @@ impl BlockApp {
             receiver,
             server,
             url,
+            authorization,
         });
     }
 
@@ -939,6 +947,7 @@ impl BlockApp {
                     name: session.display_name,
                     token: session.token,
                     last_workspace_id: None,
+                    authorization: pending.authorization.clone(),
                 };
                 if let Err(error) = self.app_state.save_account(&saved) {
                     self.account_error = Some(error.to_string());

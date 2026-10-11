@@ -19,14 +19,15 @@ server=https://blocks.pfg.pw
 workspace=<the tracker workspace, when the agent is in more than one>
 token=<the agent's token>
 recovery_phrase=<opens the workspace key the server keeps sealed for the agent>
+authorization=<an Authorization header a gateway in front of the server wants, if any>
 ```
 
 `be` itself reads only the variables, never that file. A `be` built from the
 checkout (`./scripts/buck run //crates/be-cli:be -- ARGS`) carries that
 checkout's build id, so it talks to the dev app built from the same tree, and
-the real server refuses it. Without `BE3_TOKEN` the connection must be signed in by
-a proxy that adds `Authorization: Bearer TOKEN` to the websocket upgrade, and
-`BE3_SERVER` is `https://blocks.pfg.pw` unless set.
+the real server refuses it. `BE3_SERVER` is `https://blocks.pfg.pw` unless
+set. `be` speaks to the server over HTTP posts (`/api/be/http`), since a cloud
+environment's proxy refuses websockets.
 
 A command names a target and then a verb, and the verbs depend on
 what the target is:
@@ -92,25 +93,27 @@ them in the handoff.
   with it, but the workspace key opens everything in the workspace, so keep the
   tracker in a workspace of its own. Removing the agent deletes its account and
   its tokens.
-- **Writes.** `be` joins a block's live session when another client holds
-  one, waits for the owner's snapshot, sends its edits as a follower and leaves
-  once the owner has taken them, so they merge with unsaved typing the way a
-  second window's would. With nobody in the session it opens the block, applies
-  the same `Edit` the editor would and publishes against the head it read,
-  retrying on the new head when the publish is rejected. A text write changes
+- **Writes.** `be` opens the block, applies the same `Edit` the editor would
+  and publishes against the head it read, retrying on the new head when the
+  publish is rejected, so it never overwrites a save it did not see. An editor
+  with the block open takes the new head the way it takes any outside publish,
+  merging it with what it has not saved yet. A text write changes
   only the span that differs. Deleting a row also removes the links to it from
   the rows of its own database.
 - **GitHub.** `.github/workflows/tracker.yml` runs `be pull-request` on the
   event: ids in the branch, title or body move to `BE3_REVIEW_STATUS` (In
   review) when the pull request opens, with a link on the page, and to
   `BE3_DONE_STATUS` (Done) when it merges. It reads the
-  `BE3_TRACKER_TOKEN` and `BE3_TRACKER_RECOVERY_PHRASE` secrets and the
+  `BE3_TRACKER_TOKEN`, `BE3_TRACKER_RECOVERY_PHRASE` and (for a gateway)
+  `BE3_TRACKER_AUTHORIZATION` secrets and the
   `BE3_SERVER`, `BE3_WORKSPACE` and status variables, writes them to
   `.tracker-credentials` and runs `./scripts/be` from the default branch.
 - **Releases.** Deploying be-server means publishing `be` from the same
   checkout, uploaded to the mirror as `be/BUILD/be-TRIPLE/` under the server's
   build id, and moving `be_release` and the `be_sha256_*` hashes in
   `scripts/internal/common.sh` to match (guides/hosting.md).
-- **Proxies.** `be-client` tunnels `wss` through `HTTPS_PROXY` and trusts the
-  certificates in `SSL_CERT_FILE` as well as the usual roots, which is what a
-  cloud environment's proxy needs.
+- **Proxies.** `be-client` tunnels `https` and `wss` through `HTTPS_PROXY` and
+  trusts the certificates in `SSL_CERT_FILE` as well as the usual roots, which
+  is what a cloud environment's proxy needs. That proxy may add the gateway's
+  `Authorization` header itself, so `authorization=` can stay out of the file
+  there.

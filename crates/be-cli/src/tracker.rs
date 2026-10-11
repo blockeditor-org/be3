@@ -1,6 +1,5 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use std::time::Duration;
 
 use be_block::database::{
     Database, DatabaseContent, DatabaseValue, Inverse, RowRef, inverses, short_id,
@@ -12,7 +11,7 @@ use be_block::database_schema::{
 use be_block::database_view::{DatabaseView, DatabaseViewContent, DatabaseViewKind};
 use be_block::text::{TextBlock, TextContent};
 use be_block::{BlockContent, BlockMetadata, LiveEdit, ObjectId};
-use be_client::{Live, Peer, Saved};
+use be_client::{Peer, Saved};
 use be_graph::BlockParent;
 use be_store::ObjectStore;
 use block_ui::database::{ValueLabels, database_value_text, parse_cell_value};
@@ -23,7 +22,6 @@ use crate::blocks::{Entry, Index};
 use crate::session::explain;
 
 const ATTEMPTS: usize = 8;
-const SESSION_WAIT: Duration = Duration::from_secs(10);
 const CLIENT: u64 = 0x6265_2d63_6c69;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1501,9 +1499,6 @@ impl<S: ObjectStore> Tracker<S> {
     where
         C: BlockContent + LiveEdit + Clone + Default,
     {
-        if let Some(content) = self.change_live::<C>(block, &mut make).await? {
-            return Ok(content);
-        }
         for _ in 0..ATTEMPTS {
             let opened = self.peer.open::<C>(block).await.map_err(explain)?;
             let head = opened.as_ref().and_then(|_| self.peer.local_head(block));
@@ -1528,69 +1523,6 @@ impl<S: ObjectStore> Tracker<S> {
         Err(format!(
             "block {block} kept changing while this was being saved; try again"
         ))
-    }
-}
-
-impl<S: ObjectStore> Tracker<S> {
-    async fn change_live<C>(
-        &self,
-        block: Uuid,
-        make: &mut impl FnMut(&C) -> Result<Vec<C::Op>, String>,
-    ) -> Result<Option<C>, String>
-    where
-        C: BlockContent + LiveEdit + Clone + Default,
-    {
-        let mut live = Live::<S, C>::join(Arc::clone(&self.peer), block)
-            .await
-            .map_err(explain)?;
-        let leave = || async {
-            let _ = self.peer.leave_session(block).await;
-            let _ = self.peer.unwatch(block).await;
-        };
-        if live.is_owner() {
-            leave().await;
-            return Ok(None);
-        }
-        let caught_up = tokio::time::timeout(SESSION_WAIT, async {
-            while !live.has_snapshot() {
-                live.wait().await?;
-            }
-            Ok::<(), be_client::ClientError>(())
-        })
-        .await;
-        if !matches!(caught_up, Ok(Ok(()))) {
-            leave().await;
-            return Ok(None);
-        }
-        let edits = match make(live.content()) {
-            Ok(edits) => edits,
-            Err(error) => {
-                leave().await;
-                return Err(error);
-            }
-        };
-        for edit in edits {
-            if let Err(error) = live.edit(edit).await {
-                leave().await;
-                return Err(explain(error));
-            }
-        }
-        let confirmed = tokio::time::timeout(SESSION_WAIT, async {
-            while !live.is_clean() {
-                live.wait().await?;
-            }
-            Ok::<(), be_client::ClientError>(())
-        })
-        .await;
-        let content = live.content().clone();
-        leave().await;
-        match confirmed {
-            Ok(Ok(())) => Ok(Some(content)),
-            Ok(Err(error)) => Err(explain(error)),
-            Err(_) => Err(format!(
-                "block {block} is open elsewhere and its editor did not take the change in time"
-            )),
-        }
     }
 }
 

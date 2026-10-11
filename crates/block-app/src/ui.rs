@@ -115,6 +115,7 @@ pub(crate) struct AccountForm {
     pub(crate) register: bool,
     pub(crate) remote: bool,
     pub(crate) remote_url: String,
+    pub(crate) authorization: String,
     pub(crate) email: String,
     pub(crate) display_name: String,
     pub(crate) password: String,

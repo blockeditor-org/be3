@@ -312,9 +312,6 @@ pub enum ClientMessage {
         #[serde(with = "serde_bytes")]
         payload: Vec<u8>,
     },
-    WhoAmI {
-        request: u64,
-    },
     CreateAgent {
         request: u64,
         workspace: Uuid,
@@ -399,7 +396,6 @@ impl ClientMessage {
             | Self::PutWorkspaceKey { request, .. }
             | Self::ListMemberKeys { request, .. }
             | Self::Pair { request, .. }
-            | Self::WhoAmI { request }
             | Self::CreateAgent { request, .. }
             | Self::ListAgents { request, .. }
             | Self::RemoveAgent { request, .. } => *request,

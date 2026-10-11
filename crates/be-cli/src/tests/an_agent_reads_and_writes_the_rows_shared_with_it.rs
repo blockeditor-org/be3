@@ -44,8 +44,9 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
     let settings = Settings {
         server: harness.url.clone(),
         workspace: None,
-        token: Some(token),
+        token,
         phrase: phrase.to_string(),
+        authorization: None,
     };
     let agent = Tracker::new(connect(&settings).await.unwrap());
     let seen = agent.databases().await.unwrap();

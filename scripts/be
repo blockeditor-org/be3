@@ -15,6 +15,7 @@
 #   workspace=<the tracker workspace's id>
 #   token=<the agent's token>
 #   recovery_phrase=<the agent's recovery phrase>
+#   authorization=<an Authorization header a gateway in front of the server wants>
 #
 # Usage:
 #   ./scripts/be ls
@@ -32,7 +33,7 @@ if [[ ! -f "$credentials" ]]; then
     exit 1
 fi
 
-server='' workspace='' token='' recovery_phrase=''
+server='' workspace='' token='' recovery_phrase='' authorization=''
 while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
     [[ -z "${line//[[:space:]]/}" || "$line" == \#* ]] && continue
@@ -43,8 +44,9 @@ while IFS= read -r line || [[ -n "$line" ]]; do
         workspace) workspace="$value" ;;
         token) token="$value" ;;
         recovery_phrase) recovery_phrase="$value" ;;
+        authorization) authorization="$value" ;;
         *)
-            echo "$credentials has a line for $key, which is not server, workspace, token or recovery_phrase." >&2
+            echo "$credentials has a line for $key, which is not server, workspace, token, recovery_phrase or authorization." >&2
             exit 1
             ;;
     esac
@@ -64,9 +66,10 @@ if [[ ! -x "$be" || ! -f "$(dirname "$be")/build-id" ]]; then
     "$internal/install-be.sh" >&2
 fi
 
-exec env -u BE3_SERVER -u BE3_WORKSPACE -u BE3_TOKEN -u BE3_RECOVERY_PHRASE \
+exec env -u BE3_SERVER -u BE3_WORKSPACE -u BE3_TOKEN -u BE3_RECOVERY_PHRASE -u BE3_AUTHORIZATION \
     ${server:+BE3_SERVER="$server"} \
     ${workspace:+BE3_WORKSPACE="$workspace"} \
+    ${authorization:+BE3_AUTHORIZATION="$authorization"} \
     BE3_TOKEN="$token" \
     BE3_RECOVERY_PHRASE="$recovery_phrase" \
     "$be" "$@"

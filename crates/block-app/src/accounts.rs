@@ -377,3 +377,11 @@ pub(crate) async fn pair(
         invalid_token: false,
     })
 }
+
+pub(crate) fn authorize(saved: &[crate::app_state::SavedAccount]) {
+    for account in saved {
+        if let crate::app_state::ServerLocation::Remote(url) = &account.server {
+            be_client::authorize(url, account.authorization.clone());
+        }
+    }
+}

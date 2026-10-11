@@ -143,7 +143,13 @@ and sweep. Do not reintroduce one.
 ### be-server
 
 SQLite for metadata, a `FileStore` for objects, and a websocket carrying
-postcard frames.
+postcard frames. Where a websocket cannot get through (a proxy that refuses the
+upgrade), `POST .../http` carries the same frames (`http.rs`): the first body is
+the greeting, whose answer names a session in a `Be3-Session` header; each
+later post with that header is one client frame, answered with the frames the
+server has for the client then, each after a four-byte big-endian length. A
+session is a connection like a websocket's, kept until it is idle for the same
+time, so notifications wait for the next post.
 
 - The database's schema is a list of `CREATE` statements (`schema.rs`), and
   `sqlite_schema::ensure` checks a database against it on open: it adds a
@@ -190,9 +196,8 @@ postcard frames.
   checks run off the database lock, a few at a time, and an email with five
   failed sign-ins in a row is locked out for a time that doubles with each
   further failure.
-  A connection whose websocket upgrade carries `Authorization: Bearer TOKEN`
-  starts signed in, so a proxy can hold the token, and `WhoAmI` says as whom
-  without echoing it. An administrator's `CreateAgent` makes an agent: an
+  The server never reads `Authorization`, which is left to a gateway in front
+  of it. An administrator's `CreateAgent` makes an agent: an
   editor account with no password, its workspace key sealed to a recovery key
   the caller made for it, and a token, all answered once (guides/tracker.md).
 - An object is served only to a member who can view a block that holds it, by
@@ -270,7 +275,11 @@ before the `#`.
 `Peer` is a local object store plus a connection. `transport/` is what makes
 that connection portable: a `Writer` and a `Reader` per platform - tokio and
 tokio-tungstenite natively, the browser's own `WebSocket` in `web.rs` - plus the
-`spawn` each one's executor wants. `Connection` above it is the same code
+`spawn` each one's executor wants. Natively, an `http(s)://` URL (`http_url`)
+takes the server's HTTP posts instead of a websocket (`transport/native/http.rs`),
+and both go through `HTTPS_PROXY`. `be_client::authorize` registers an
+`Authorization` header for a server's origin, which every native connection to
+it sends; a browser cannot add one to a websocket. `Connection` above it is the same code
 everywhere, and it waits on its command channel and its socket rather than
 polling either.
 
