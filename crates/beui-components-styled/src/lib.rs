@@ -79,7 +79,7 @@ pub use level_osd::{LevelOsd, OSD_DURATION, OsdLevel};
 pub use link::Link;
 pub use list_row::ListRow;
 pub use lock_screen::{LockAction, LockScreen};
-pub use menu_button::{IconMenuButton, MenuButton};
+pub use menu_button::{IconMenuButton, MenuButton, PictureMenuButton};
 pub use number_input::{NumberInput, number_input_field, number_input_text};
 pub use popover::Popover;
 pub use progress::Progress;
