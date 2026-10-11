@@ -89,6 +89,7 @@ pub struct BlockMetadata {
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Thumbhash {
+    #[serde(with = "be_model::bytes")]
     pub hash: Vec<u8>,
     pub width: u32,
     pub height: u32,
@@ -97,6 +98,7 @@ pub struct Thumbhash {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ArtifactSource {
     pub source_type: Uuid,
+    #[serde(with = "be_model::bytes")]
     pub data: Vec<u8>,
 }
 
