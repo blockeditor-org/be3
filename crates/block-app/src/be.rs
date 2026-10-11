@@ -146,7 +146,7 @@ struct Kind {
     copy: worker::Copy,
     seed: worker::Seed,
     replace: worker::Seed,
-    describe: fn(&[u8]) -> Option<Described>,
+    describe: fn(&[u8]) -> Option<be_block::Entries>,
     child: ChildOperations,
     merge: MergeContent,
     references: ContentReferences,
@@ -186,18 +186,8 @@ where
     }
 }
 
-#[derive(Default)]
-pub(crate) struct Described {
-    pub(crate) name: Option<String>,
-    pub(crate) derived: be_block::DerivedMetadata,
-}
-
-fn describe<C: be_block::BlockContent>(bytes: &[u8]) -> Option<Described> {
-    let content = C::decode(bytes).ok()?;
-    Some(Described {
-        name: content.name(),
-        derived: content.derived_metadata(),
-    })
+fn describe<C: be_block::BlockContent>(bytes: &[u8]) -> Option<be_block::Entries> {
+    Some(be_block::derived_metadata(&C::decode(bytes).ok()?))
 }
 
 fn merge_content<C: be_block::Merge + Default>(
@@ -272,8 +262,12 @@ fn kind_of(content_type: Uuid) -> Option<&'static Kind> {
     KINDS.iter().find(|kind| kind.content_type == content_type)
 }
 
-pub(crate) fn describe_of(content: &Content) -> Option<Described> {
+pub(crate) fn describe_of(content: &Content) -> Option<be_block::Entries> {
     (kind_of(content.content_type)?.describe)(&content.bytes)
+}
+
+pub(crate) fn derived_for(content_type: Uuid, bytes: &[u8]) -> Option<be_block::Entries> {
+    (kind_of(content_type)?.describe)(bytes)
 }
 
 pub(crate) fn is_known(content_type: Uuid) -> bool {
@@ -489,7 +483,7 @@ pub(crate) fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
     kind_of(source.content_type)?;
     let to = Uuid::new_v4();
     let mut metadata = source.metadata.clone();
-    metadata.artifact = None;
+    metadata.remove(&be_block::ARTIFACT);
     let author = account().unwrap_or_default();
     with_shared_mut(|shared| {
         shared.graph.change(Node {
@@ -500,7 +494,6 @@ pub(crate) fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
             access: be_graph::Access::Edit,
             references: source.references.clone(),
             metadata: metadata.clone(),
-            unreadable_metadata: false,
             head: None,
             version: 0,
         });
@@ -538,7 +531,7 @@ pub(crate) fn content_revision(block: Uuid) -> Option<u64> {
     with_shared(|shared| shared.blocks.get(&block).map(|content| content.revision))?
 }
 
-pub(crate) fn describe_block(block: Uuid) -> Option<Described> {
+pub(crate) fn describe_block(block: Uuid) -> Option<be_block::Entries> {
     with_shared(|shared| shared.blocks.get(&block).and_then(describe_of))?
 }
 
@@ -677,8 +670,7 @@ pub(crate) fn create(
     content: Option<Vec<u8>>,
 ) {
     if let Some(name) = PENDING_NAMES.with(|pending| pending.borrow_mut().remove(&block)) {
-        metadata.name = Some(name);
-        metadata.named_by_hand = true;
+        metadata.insert(&be_block::NAME, &name);
     }
     let author = account().unwrap_or_default();
     with_shared_mut(|shared| {
@@ -690,7 +682,6 @@ pub(crate) fn create(
             access: be_graph::Access::Edit,
             references: Vec::new(),
             metadata: metadata.clone(),
-            unreadable_metadata: false,
             head: None,
             version: 0,
         });
@@ -709,44 +700,31 @@ pub(crate) fn set_parent(block: Uuid, parent: be_graph::BlockParent) {
     send(Command::SetParent { block, parent });
 }
 
-pub(crate) fn set_metadata(block: Uuid, metadata: be_block::BlockMetadata) {
-    if node(block).is_some_and(|node| node.unreadable_metadata) {
-        with_shared_mut(|shared| {
-            shared.error = Some(format!(
-                "block {block} has metadata this version cannot read, so it was left unchanged"
-            ));
-        });
+pub(crate) fn define(block: Uuid, changes: Vec<be_block::Definition>) {
+    let Some(metadata) = node(block).map(|node| node.metadata) else {
+        return;
+    };
+    let mut next = metadata.clone();
+    next.define(&changes);
+    if next == metadata {
         return;
     }
+    let derived = describe_block(block);
     with_shared_mut(|shared| {
-        shared
-            .graph
-            .update(block, |node| node.metadata = metadata.clone());
+        shared.graph.update(block, |node| node.metadata = next);
+        if let Some(derived) = derived {
+            shared.graph.derive(block, derived);
+        }
     });
-    send(Command::SetMetadata { block, metadata });
+    send(Command::Define { block, changes });
 }
 
 pub(crate) fn set_name(block: Uuid, name: Option<String>) {
-    let Some(mut metadata) = node(block).map(|node| node.metadata) else {
-        return;
-    };
-    metadata.named_by_hand = name.is_some();
-    metadata.name = name.or_else(|| describe_block(block).and_then(|described| described.name));
-    set_metadata(block, metadata);
+    define(block, vec![be_block::NAME.definition(name.as_ref())]);
 }
 
-pub(crate) fn describe_implicitly(block: Uuid, described: Described) {
-    let Some(original) = node(block).map(|node| node.metadata) else {
-        return;
-    };
-    let mut metadata = original.clone();
-    if !metadata.named_by_hand {
-        metadata.name = described.name;
-    }
-    metadata.derived = described.derived;
-    if metadata != original {
-        set_metadata(block, metadata);
-    }
+pub(crate) fn describe_implicitly(block: Uuid, derived: be_block::Entries) {
+    with_shared_mut(|shared| shared.graph.derive(block, derived));
 }
 
 pub(crate) fn set_access(block: Uuid, account: Uuid, access: be_graph::Access) {

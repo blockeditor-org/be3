@@ -2106,6 +2106,25 @@ impl Instances {
             CursorIcon::ResizeVertical => beui::CursorIcon::ResizeVertical,
             CursorIcon::ResizeNeSw => beui::CursorIcon::ResizeNeSw,
             CursorIcon::ResizeNwSe => beui::CursorIcon::ResizeNwSe,
+            CursorIcon::Alias => beui::CursorIcon::Alias,
+            CursorIcon::ContextMenu => beui::CursorIcon::ContextMenu,
+            CursorIcon::Cell => beui::CursorIcon::Cell,
+            CursorIcon::VerticalText => beui::CursorIcon::VerticalText,
+            CursorIcon::Copy => beui::CursorIcon::Copy,
+            CursorIcon::NoDrop => beui::CursorIcon::NoDrop,
+            CursorIcon::AllScroll => beui::CursorIcon::AllScroll,
+            CursorIcon::ZoomIn => beui::CursorIcon::ZoomIn,
+            CursorIcon::ZoomOut => beui::CursorIcon::ZoomOut,
+            CursorIcon::ResizeColumn => beui::CursorIcon::ResizeColumn,
+            CursorIcon::ResizeRow => beui::CursorIcon::ResizeRow,
+            CursorIcon::ResizeNorth => beui::CursorIcon::ResizeNorth,
+            CursorIcon::ResizeEast => beui::CursorIcon::ResizeEast,
+            CursorIcon::ResizeSouth => beui::CursorIcon::ResizeSouth,
+            CursorIcon::ResizeWest => beui::CursorIcon::ResizeWest,
+            CursorIcon::ResizeNorthEast => beui::CursorIcon::ResizeNorthEast,
+            CursorIcon::ResizeNorthWest => beui::CursorIcon::ResizeNorthWest,
+            CursorIcon::ResizeSouthEast => beui::CursorIcon::ResizeSouthEast,
+            CursorIcon::ResizeSouthWest => beui::CursorIcon::ResizeSouthWest,
         })
     }
 
@@ -2511,8 +2530,7 @@ impl Instances {
                 block_id,
                 content_type,
                 parent,
-                name,
-                artifact,
+                defined,
                 content,
                 ..
             } => {
@@ -2524,15 +2542,11 @@ impl Instances {
                 if crate::be::node(block).is_some() {
                     return false;
                 }
+                let mut defined = super::graph::entries_of(defined);
+                defined.remove(&be_block::LOCAL_ID.id);
                 let metadata = be_block::BlockMetadata {
-                    named_by_hand: name.is_some(),
-                    name,
-                    artifact: artifact.map(|artifact| be_block::ArtifactSource {
-                        source_type: Uuid::from_bytes(artifact.source_type),
-                        data: artifact.data,
-                    }),
-                    local_id: None,
-                    derived: be_block::DerivedMetadata::default(),
+                    defined,
+                    ..be_block::BlockMetadata::default()
                 };
                 crate::be::create(
                     block,
@@ -2556,12 +2570,18 @@ impl Instances {
                 crate::be::set_parent(block, parent);
                 true
             }
-            EditorMessage::SetName { block_id, name, .. } => {
+            EditorMessage::Define {
+                block_id,
+                key,
+                value,
+                ..
+            } => {
                 let block = Uuid::from_bytes(block_id);
-                if !self.editable(block) {
+                let key = Uuid::from_bytes(key);
+                if !self.editable(block) || key == be_block::LOCAL_ID.id {
                     return false;
                 }
-                crate::be::set_name(block, name);
+                crate::be::define(block, vec![(key, value.map(|value| value.into_vec()))]);
                 true
             }
             EditorMessage::ShowPresence {

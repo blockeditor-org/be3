@@ -154,7 +154,15 @@ impl super::backend::Backend for Wasm {
             .name(format!("plugin {}", plugin.identity.id))
             .spawn(move || {
                 let _ending: Sender<()> = ending;
-                run(host, module, orders, reports, watched);
+                let failed = reports.clone();
+                let ran =
+                    crate::panic_guard::contain(|| run(host, module, orders, reports, watched));
+                if let Err(panic) = ran {
+                    let _ = failed.send(Event::Failed(format!(
+                        "The app failed while running it: {panic}"
+                    )));
+                    crate::host::wake();
+                }
             });
         match spawned {
             Ok(handle) => {

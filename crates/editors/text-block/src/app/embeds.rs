@@ -58,8 +58,8 @@ pub(crate) fn resolve_embeds(state: &State) -> Vec<ResolvedEmbed> {
                 reference.id,
                 (
                     reference.block_type,
-                    reference.name.clone(),
-                    reference.named_by_hand,
+                    reference.name(),
+                    reference.named_by_hand(),
                 ),
             )
         })
@@ -75,7 +75,7 @@ pub(crate) fn resolve_embeds(state: &State) -> Vec<ResolvedEmbed> {
                 state
                     .client
                     .info(id)
-                    .map(|block| (block.block_type, block.name, block.named_by_hand))
+                    .map(|block| (block.block_type, block.name(), block.named_by_hand()))
             });
             let frame_size = embed
                 .large

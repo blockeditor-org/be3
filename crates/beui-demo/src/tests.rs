@@ -4,8 +4,10 @@ use block_ui_test::DocumentTest;
 
 use crate::{DemoApp, PAGES, Page};
 
+mod a_dialog_hangs_from_the_tab_that_opened_it;
 mod a_dialog_opens_on_the_screen_it_was_asked_for_from;
 mod a_docked_page_shown_fullscreen_covers_the_dock_until_escape;
+mod a_modal_dialog_blocks_its_tab_and_stacks_a_nested_one;
 mod a_sample_carries_the_source_it_was_written_with;
 mod a_sample_shows_its_code_when_asked;
 mod every_demo_page_paints_as_accepted;
@@ -15,6 +17,7 @@ mod holding_alt_moves_a_floating_demo_page_by_its_content;
 mod paused_edits_wait_for_a_send_and_carry_presence;
 mod swiping_back_on_a_phone_shows_the_catalog_behind_the_page;
 mod the_code_of_a_sample_can_be_selected;
+mod the_crash_notice_sample_reloads_from_its_button;
 mod the_demo_leaves_a_pane_saying_nothing_is_open;
 mod the_demo_opens_every_page_from_its_catalog;
 mod the_demo_pages_scroll_rather_than_spilling_off_a_small_window;
@@ -68,6 +71,21 @@ fn open(test: &mut DocumentTest, page: Page) {
         test.scroll_at(pos2(CATALOG_X, bottom / 2.0), Vec2::new(0.0, -REVEAL_STEP));
     }
     panic!("the catalog never showed {}", page.title());
+}
+
+fn reveal(test: &mut DocumentTest, test_id: &str) {
+    let page = pos2(test.size().x * 0.75, test.size().y / 2.0);
+    for _ in 0..REVEAL_TICKS {
+        if test.shows(test_id) && test.rect_of(test_id).bottom() <= test.size().y {
+            return;
+        }
+        test.scroll_at(page, Vec2::new(0.0, -REVEAL_STEP));
+    }
+    panic!("the page never showed {test_id}");
+}
+
+fn dialog_id(index: u64) -> String {
+    format!("dock.dialog.{}", crate::DIALOG_TABS + index)
 }
 
 fn paint_every_page(size: Vec2, suffix: &str) {

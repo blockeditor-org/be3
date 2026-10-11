@@ -102,14 +102,13 @@ impl Fixture {
         let mut profiles = Vec::new();
         for (name, editor) in sessions {
             let profile = Uuid::new_v4();
-            store.add_block(BlockInfo {
-                name: Some((*name).to_owned()),
-                ..BlockInfo::new(
-                    profile,
-                    EditorView::CONTENT_TYPE,
-                    BlockParent::Block(self.settings),
-                )
-            });
+            let mut info = BlockInfo::new(
+                profile,
+                EditorView::CONTENT_TYPE,
+                BlockParent::Block(self.settings),
+            );
+            info.set_name(*name);
+            store.add_block(info);
             store.hold(Some(profile), EditorView::document(*editor, None));
             settings.apply(&Settings::add_profile(*editor, self.client, profile));
             profiles.push(profile);
@@ -276,6 +275,7 @@ fn host_window(id: u64, focused: bool) -> HostWindow {
         title: format!("Program {id}"),
         app_id: "test".to_owned(),
         parent: None,
+        modal: false,
         size: Size {
             width: 320.0,
             height: 200.0,
@@ -283,6 +283,8 @@ fn host_window(id: u64, focused: bool) -> HostWindow {
         fullscreen: None,
         responding: true,
         focused,
+        icon: None,
+        raised: 0,
     }
 }
 

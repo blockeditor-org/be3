@@ -11,10 +11,13 @@ pub struct HostWindow {
     pub title: String,
     pub app_id: String,
     pub parent: Option<HostWindowId>,
+    pub modal: bool,
     pub size: Size,
     pub fullscreen: Option<ChildRect>,
     pub responding: bool,
     pub focused: bool,
+    pub icon: Option<HostImage>,
+    pub raised: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

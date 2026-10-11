@@ -1,5 +1,7 @@
+use std::any::Any;
 use std::error::Error;
 use std::future::Future;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::pin::Pin;
 use std::time::Duration;
 
@@ -122,6 +124,7 @@ pub struct Runner {
     output: Option<FrameOutput>,
     reports_screens: bool,
     exited: bool,
+    failure: Option<String>,
 }
 
 impl Runner {
@@ -157,6 +160,7 @@ impl Runner {
             output: None,
             reports_screens: false,
             exited: false,
+            failure: None,
         }
     }
 
@@ -230,13 +234,29 @@ impl Runner {
     pub fn exit(&mut self) {
         if !self.exited {
             self.exited = true;
-            self.app.exiting();
+            let app = &mut self.app;
+            if let Err(payload) = catch_unwind(AssertUnwindSafe(|| app.exiting())) {
+                self.failure
+                    .get_or_insert_with(|| format!("while exiting: {}", panic_message(&*payload)));
+            }
             self.app = Box::new(Exited);
         }
     }
 
     pub fn exited(&self) -> bool {
         self.exited
+    }
+
+    pub fn failure(&self) -> Option<&str> {
+        self.failure.as_deref()
+    }
+
+    pub fn finish(mut self) -> Result<(), Box<dyn Error>> {
+        self.exit();
+        match self.failure.take() {
+            Some(failure) => Err(format!("the app stopped after a panic: {failure}").into()),
+            None => Ok(()),
+        }
     }
 
     pub fn frame(
@@ -248,6 +268,27 @@ impl Runner {
         if self.exited {
             return None;
         }
+        self.contain(|runner| runner.run_frame(platform, pixels_per_point, safe_area))
+            .flatten()
+    }
+
+    fn contain<R>(&mut self, act: impl FnOnce(&mut Self) -> R) -> Option<R> {
+        match catch_unwind(AssertUnwindSafe(|| act(self))) {
+            Ok(done) => Some(done),
+            Err(payload) => {
+                self.failure.get_or_insert_with(|| panic_message(&*payload));
+                self.exit();
+                None
+            }
+        }
+    }
+
+    fn run_frame(
+        &mut self,
+        platform: &mut dyn Platform,
+        pixels_per_point: f32,
+        safe_area: SafeArea,
+    ) -> Option<Frame> {
         let renderers = self.renderers.as_mut()?;
         match renderers.recover() {
             Ok(false) => {}
@@ -463,6 +504,10 @@ impl Runner {
         if self.exited {
             return false;
         }
+        self.contain(Self::run_present).unwrap_or(false)
+    }
+
+    fn run_present(&mut self) -> bool {
         let background = self.app.clear_color();
         let Some(renderers) = self.renderers.as_mut() else {
             return false;
@@ -477,5 +522,16 @@ impl Runner {
             }
         }
         again
+    }
+}
+
+pub fn panic_message(payload: &(dyn Any + Send)) -> String {
+    match (
+        payload.downcast_ref::<&str>(),
+        payload.downcast_ref::<String>(),
+    ) {
+        (Some(message), _) => (*message).to_owned(),
+        (None, Some(message)) => message.clone(),
+        (None, None) => "a panic without a message".to_owned(),
     }
 }

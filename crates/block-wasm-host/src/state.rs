@@ -79,24 +79,28 @@ impl Wakes for Threaded {
     }
 }
 
+pub(crate) fn read(memory: &SharedMemory, pointer: u32, length: u32) -> Result<Vec<u8>, String> {
+    let data = memory.data();
+    let start = pointer as usize;
+    let end = start
+        .checked_add(length as usize)
+        .ok_or_else(|| "a plugin pointer overflowed".to_owned())?;
+    if end > data.len() {
+        return Err(format!(
+            "a plugin pointer ran past its memory: {start}..{end} of {}",
+            data.len()
+        ));
+    }
+    let mut bytes = vec![0u8; length as usize];
+    for (offset, byte) in bytes.iter_mut().enumerate() {
+        *byte = unsafe { *data[start + offset].get() };
+    }
+    Ok(bytes)
+}
+
 impl State {
     pub(crate) fn read(&self, pointer: u32, length: u32) -> Result<Vec<u8>, String> {
-        let data = self.memory.data();
-        let start = pointer as usize;
-        let end = start
-            .checked_add(length as usize)
-            .ok_or_else(|| "a plugin pointer overflowed".to_owned())?;
-        if end > data.len() {
-            return Err(format!(
-                "a plugin pointer ran past its memory: {start}..{end} of {}",
-                data.len()
-            ));
-        }
-        let mut bytes = vec![0u8; length as usize];
-        for (offset, byte) in bytes.iter_mut().enumerate() {
-            *byte = unsafe { *data[start + offset].get() };
-        }
-        Ok(bytes)
+        read(&self.memory, pointer, length)
     }
 
     pub(crate) fn read_words(&self, pointer: u32, count: u32) -> Result<Vec<u32>, String> {

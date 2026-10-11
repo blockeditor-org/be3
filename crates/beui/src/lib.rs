@@ -68,7 +68,7 @@ pub use beui_adapter_android::AndroidApp;
 pub use beui_adapter_web::accessibility_tree;
 #[cfg(all(feature = "window", not(target_os = "android")))]
 pub use beui_adapter_winit::winit;
-pub use beui_core::runner::{Adapter, Launch, Platform, RunOptions, Running};
+pub use beui_core::runner::{Adapter, Launch, Platform, RunOptions, Running, panic_message};
 #[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
 pub use web::{WebRenderer, run_web, web_adapter};
 

@@ -43,6 +43,7 @@ pub struct GlobalKeyPress {
     pub press: KeyPress,
     pub typing: bool,
     pub in_app: bool,
+    pub inhibited: bool,
     pub held: bool,
     pub tap: bool,
 }

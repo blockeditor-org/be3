@@ -510,7 +510,7 @@ store of its own: history is be-store objects and be-commit commits.
 - **Scopes.** A block's content stores the ids of the blocks it names, and
   those have to mean the same thing in every checkout, so they are *local* ids.
   A block copied into a checkout is created as `masked(local, scope_mask(checkout))`
-  and carries `BlockMetadata::local_id`; a block created inside a checkout, or
+  and carries the `LOCAL_ID` metadata key; a block created inside a checkout, or
   one that was adopted into it, keeps its own id as its local id. The host
   translates every block id that crosses the plugin protocol for an instance
   whose block is inside a checkout (`Instances::translate`, over
@@ -589,7 +589,7 @@ behind the event broadcast. `Query` (`Roots`, `Detached`,
 `Children`, `References`, `Backrefs`, `Parents`, `Block`) is how everything in
 the app asks it a question, and `be::graph_revision` says when to ask again.
 
-A change made here - `be::create`, `be::set_parent`, `be::set_metadata` - is
+A change made here - `be::create`, `be::set_parent`, `be::define` - is
 applied to the mirror straight away, so the file tree and every editor see it in
 the next frame, and counts as pending for that block. While a block has a
 pending change the mirror ignores the server's echoes for it, which would
@@ -597,29 +597,47 @@ otherwise show a state older than the one on screen; the worker settles the
 change when the server has answered, and refreshes the block from the server
 once nothing is pending.
 
-### Names and derived metadata
+### Metadata
 
-A block's name lives in its metadata (`be_block::BlockMetadata`: `name`,
-`named_by_hand`, `derived` and, for a dynamic artifact, the `ArtifactSource` it
-was made from), which the peer seals with the content key before the server
-stores it (`Peer::seal_metadata`). Metadata that does not decode is an error, never
-a default: the mirror marks that node `unreadable_metadata`, and
-`be::set_metadata` refuses to write over it. `be::set_name` names a block by hand, and
-clearing it hands the name back to the content, which renames the block the
-next time an editor sees a revision. `be::describe_implicitly` is the automatic
-name: whenever an instance that may edit a block is sent a new revision of it,
-the host derives `BlockContent::name` from the content and writes it, unless the
-name was set by hand. The file tree, the block picker and the tabs read the
-name out of the mirror, so a block nobody has open keeps the name it was last
-given.
+A block's metadata (`be_block::BlockMetadata`) is two maps from a key's UUID to a
+CBOR value: `defined`, what someone chose (a name typed by hand, the
+`ArtifactSource` a dynamic artifact was made from, a checkout copy's `LOCAL_ID`),
+and `derived`, what the content says about itself (`INTRINSIC_NAME`,
+`THUMBHASH`). A key is declared once as a typed constant,
+`MetaKey::defined(id, name)` or `MetaKey::derived(id, name)`, and read and
+written through it (`get`, `insert`, `remove`, or `definition` for a change to
+send), so a new key, including one a third-party block type declares, needs no
+change to the format. `BlockMetadata::name` is `NAME` when someone named the
+block and `INTRINSIC_NAME` otherwise. Plugins get both maps in `BlockInfo`, read
+them through its `name`, `thumbhash` and `artifact`, and set a defined key with
+`Blocks::define`; the host never lets a plugin set `LOCAL_ID`. A beui
+`unstyled::Picture` given an image's thumbhash as a `beui::Thumbhash` lays out
+at the image's size and paints the blurred placeholder until the image arrives.
 
-`DerivedMetadata` is written the same way, from
-`BlockContent::derived_metadata`, and is for what a block's content says about
-itself that others want before the content has loaded. An image's is its
-thumbhash and exact size, which the image editor records in the header when it
-decodes the image; it reaches plugins as `BlockInfo::thumbhash`, and a beui
-`unstyled::Picture` given it as a `beui::Thumbhash` lays out at the image's size and
-paints the blurred placeholder until the image arrives.
+Metadata travels with content. Every commit carries the encoded metadata of the
+content it saves, and `Publish` carries it sealed with the content key
+(`Peer::seal_metadata`), so the server stores it in the same step that moves the
+head and cannot keep metadata that belongs to a head it refused. A save takes
+`defined` from the head it builds on and recomputes `derived` from the content
+(`be_block::derived_metadata`: `BlockContent::name` and `BlockContent::describe`;
+a blob type describes itself from its header alone, so an image's thumbhash is
+copied out of `ImageHeader`, never computed again). A merge after a refused save
+merges `defined` key by key against the base commit
+(`BlockMetadata::merge_defined`, the head already published winning a clash) and
+derives the rest from the merged content; version control does the same, and a
+clash on `NAME` there is `ConflictKind::Name`. Defined keys a build does not
+know ride along unchanged; derived keys it does not know are dropped when it
+saves new content, since they describe the old content, and filled in again by
+the next build that knows them.
+
+`Peer::define` changes defined metadata: on a block with content it publishes a
+commit of the current content with the new metadata, which a live session then
+catches up with like any other publish from outside it; a block with no content
+yet takes it through `SetMetadata`, which the server refuses once the block has
+a head. In the app, `be::define` (and `be::set_name`, the `NAME` key) applies
+the change to the mirror at once and sends it. `be::describe_implicitly` keeps
+the derived metadata of an open block current in the mirror as its content
+changes (`Graph::derive`), until the save that publishes it.
 
 ### Content on the plugin protocol
 

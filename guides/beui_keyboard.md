@@ -124,8 +124,19 @@ and media keys. Inside an app only
 chords with Ctrl, Alt or Super, and media keys, are offered, since the app
 counts as a text field. A Wayland program's window is an app in the same way
 as a plugin's region (see One input path below), so it gets this offer and no
-other; modifier presses always reach it. keyboard-shortcuts-inhibit, for a
-program that wants these chords too, is not implemented.
+other; modifier presses always reach it.
+
+A forwarding catcher with `inhibits_shortcuts` set (an `Interactive` prop) is an
+app that wants every chord itself, such as a remote desktop or a virtual machine:
+while it has the focus, `GlobalKeyPress::inhibited` is set, intercepting actions
+leave its keys alone, taps are not offered and F6 does not move the focus, so
+all of them reach the app. Only actions built with `.escape_hatch()` (which
+implies `.intercepts()`) still answer, and only the host's own are ever offered
+an inhibited key: block-app's intercept handler hands a plugin nothing while it
+is set. The hatch is kept small and fixed: block-app's Super+L lock and
+be-wayland's Super+Escape, which takes the shortcuts back from the window (see
+guides/linux_desktop.md). An `on_global_key` handler of its own checks
+`inhibited` the same way.
 
 A document that runs inside a host - a plugin's - intercepts the same way. Its
 enabled intercepting actions' chords (never one that types) are

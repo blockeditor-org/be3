@@ -175,10 +175,7 @@ pub fn interact(
         claim_press(doc, claimant);
     } else if input.pressed_this_frame
         && let Some(pos) = input.pointer_pos
-        && let Some(captor) = doc
-            .pointer_layers(root)
-            .into_iter()
-            .find_map(|layer| captor(doc, rects, layer, pos))
+        && let Some(captor) = captor_at(doc, rects, root, pos)
     {
         doc.capture_pointer(captor);
     }
@@ -513,17 +510,30 @@ fn claimant(
         if let Some(found) = claiming(doc, rects, layer, pos, held) {
             return Some(found);
         }
-        if modal {
+        if modal || covers(doc, rects, root, layer, pos) {
             return None;
         }
-        let covers = layer != root
-            && doc
-                .arena
-                .kind_of::<crate::base::overlay::OverlayNode>(layer)
-                .and_then(|overlay| doc.overlay_content(overlay))
-                .and_then(|content| rects.visible(&content))
-                .is_some_and(|rect| rect.contains_half_open(pos));
-        if covers {
+    }
+    None
+}
+
+fn covers(doc: &Document, rects: &Rects, root: NodeId, layer: NodeId, pos: Pos2) -> bool {
+    layer != root
+        && doc
+            .arena
+            .kind_of::<crate::base::overlay::OverlayNode>(layer)
+            .and_then(|overlay| doc.overlay_content(overlay))
+            .and_then(|content| rects.visible(&content))
+            .is_some_and(|rect| rect.contains_half_open(pos))
+}
+
+fn captor_at(doc: &mut Document, rects: &Rects, root: NodeId, pos: Pos2) -> Option<NodeId> {
+    let modal = !doc.overlay_stack.is_empty();
+    for layer in doc.pointer_layers(root) {
+        if let Some(found) = captor(doc, rects, layer, pos) {
+            return Some(found);
+        }
+        if !modal && covers(doc, rects, root, layer, pos) {
             return None;
         }
     }
@@ -569,8 +579,6 @@ fn global_keys(doc: &mut Document, ctx: &Context) {
     }) {
         return;
     }
-    let in_app = forward::takes_keys(doc);
-    let typing = in_app || doc.focus_types();
     let mut keep = vec![true; events.len()];
     for (index, event) in events.iter().enumerate() {
         let (key, pressed, repeat, modifiers) = match *event {
@@ -590,6 +598,7 @@ fn global_keys(doc: &mut Document, ctx: &Context) {
                     press,
                     typing: true,
                     in_app: true,
+                    inhibited: false,
                     held: false,
                     tap: false,
                 });
@@ -607,6 +616,7 @@ fn global_keys(doc: &mut Document, ctx: &Context) {
                     },
                     typing: true,
                     in_app: true,
+                    inhibited: false,
                     held: false,
                     tap: true,
                 });
@@ -617,6 +627,9 @@ fn global_keys(doc: &mut Document, ctx: &Context) {
             _ => continue,
         };
         doc.set_modifiers(modifiers);
+        let in_app = forward::takes_keys(doc);
+        let inhibited = in_app && forward::shortcuts_inhibited(doc);
+        let typing = in_app || doc.focus_types();
         let press = KeyPress {
             key,
             pressed,
@@ -627,6 +640,7 @@ fn global_keys(doc: &mut Document, ctx: &Context) {
             press,
             typing,
             in_app,
+            inhibited,
             held: false,
             tap: false,
         };
@@ -650,7 +664,7 @@ fn global_keys(doc: &mut Document, ctx: &Context) {
                             ..offered
                         });
                     }
-                    None if pressed => {
+                    None if pressed && !inhibited => {
                         forward::cycle_focus(doc, cycle_step(modifiers));
                     }
                     None => {}
@@ -660,7 +674,7 @@ fn global_keys(doc: &mut Document, ctx: &Context) {
             None => {
                 let taker = match doc.global_taker(offered) {
                     Some(taker) => Some(Some(taker)),
-                    None if pressed && key == Key::F6 => {
+                    None if pressed && key == Key::F6 && !inhibited => {
                         forward::cycle_focus(doc, cycle_step(modifiers)).then_some(None)
                     }
                     None => None,
@@ -675,7 +689,7 @@ fn global_keys(doc: &mut Document, ctx: &Context) {
         if taken {
             drop_key(&mut keep, &events, index, pressed);
         }
-        if taps.contains(&index) {
+        if taps.contains(&index) && !inhibited {
             doc.key_global(GlobalKeyPress {
                 tap: true,
                 ..offered

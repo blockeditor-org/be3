@@ -102,7 +102,7 @@ fn name(&self) -> Option<String> {
 }
 ```
 
-Whenever an editor that may edit the block sees a new revision, the app writes this as the block's automatic name (`be::name_implicitly`). It never overrides a name someone set by hand. Leave `name` at its default, `None`, and the UI falls back to the type's display name.
+Every save records this as the block's `INTRINSIC_NAME` metadata, and the app shows it while an editor has the block open (`be::describe_implicitly`). A name someone set by hand (`NAME`) takes precedence. Anything else the content can say about itself that others want before it loads goes in `BlockContent::describe`, under a `MetaKey::derived` key. Leave `name` at its default, `None`, and the UI falls back to the type's display name.
 
 ## 5. Children
 

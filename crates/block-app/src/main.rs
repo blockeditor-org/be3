@@ -2032,6 +2032,11 @@ impl BlockApp {
 
     fn frame(&mut self, context: &beui::Context) {
         if self.error.is_none()
+            && let Some(report) = panic_guard::take_previous()
+        {
+            self.crashed_before(report);
+        }
+        if self.error.is_none()
             && let Some(report) = panic_guard::take()
         {
             self.crashed(report);
@@ -2083,8 +2088,30 @@ impl BlockApp {
     }
 
     fn crashed(&mut self, report: String) {
-        self.error = Some(report);
         let _ = self.app_state.clear_active_account();
+        #[cfg(target_os = "linux")]
+        if self.desktop.is_some() {
+            panic_guard::persist(&report);
+            std::panic::resume_unwind(Box::new(panic_guard::summary(&report).to_owned()));
+        }
+        panic_guard::forget();
+        self.error = Some(report);
+    }
+
+    fn crashed_before(&mut self, report: String) {
+        #[cfg(target_os = "linux")]
+        if self.desktop.is_some() {
+            let summary = panic_guard::summary(&report);
+            let message = match summary.lines().skip(1).collect::<Vec<_>>().join(" ") {
+                message if message.is_empty() => summary.to_owned(),
+                message => message,
+            };
+            notices::report(format!("The last session ended after an error: {message}"));
+            return;
+        }
+        self.crashed(format!(
+            "Block closed after this error the last time it ran.\n\n{report}"
+        ));
     }
 
     fn run_frame(&mut self, context: &beui::Context) {
@@ -2551,7 +2578,17 @@ impl BlockApp {
         be::flush();
         be::stop();
         match Self::new(Some(self.data_dir.clone())) {
-            Ok(fresh) => *self = fresh,
+            Ok(mut fresh) => {
+                fresh.root_settings = RootSettings::new(self.root_settings.shell());
+                #[cfg(target_os = "linux")]
+                {
+                    fresh.desktop = self.desktop.take();
+                    fresh.screen_lock = self.screen_lock.take();
+                    fresh.media = self.media.take();
+                    fresh.notifications = self.notifications.take();
+                }
+                *self = fresh;
+            }
             Err(error) => self.error = Some(error.to_string()),
         }
     }
@@ -2623,15 +2660,11 @@ fn discard_view(action: &PendingDestructiveAction) -> ui::DiscardView {
 }
 
 fn artifact_of(id: Uuid) -> Option<be_block::ArtifactSource> {
-    be::node(id)?.metadata.artifact
+    be::node(id)?.metadata.get(&be_block::ARTIFACT)
 }
 
 fn set_artifact(id: Uuid, artifact: Option<be_block::ArtifactSource>) {
-    let Some(mut metadata) = be::node(id).map(|node| node.metadata) else {
-        return;
-    };
-    metadata.artifact = artifact;
-    be::set_metadata(id, metadata);
+    be::define(id, vec![be_block::ARTIFACT.definition(artifact.as_ref())]);
 }
 
 fn drag_source(location: BlockLocation) -> SidebarDragSource {

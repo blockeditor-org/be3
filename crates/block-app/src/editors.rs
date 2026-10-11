@@ -56,7 +56,7 @@ pub fn editor_access_ceiling(id: Uuid) -> Access {
     let Some(node) = crate::be::node(id) else {
         return Access::Edit;
     };
-    match node.metadata.artifact.is_some() {
+    match node.metadata.contains(&be_block::ARTIFACT) {
         true => node.access.min(Access::View),
         false => node.access,
     }

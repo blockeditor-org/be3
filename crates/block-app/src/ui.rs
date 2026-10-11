@@ -16,6 +16,7 @@ use block_plugin_api::HostPanel;
 use uuid::Uuid;
 
 use crate::app_state::{SavedAccount, ServerLocation};
+use crate::wayland::WindowActions;
 
 pub(crate) use debug::{
     DebugCommand, DebugView, HostPanelSurface, Line, LineStyle, PerformanceRow, PluginsView,
@@ -338,6 +339,7 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                     on_revert={move || send(UiCommand::RevertDisplay(reverting.get_untracked()))}
                 />
                 <lock::SessionLock view={locking} />
+                <WindowActions />
             </List>
         </Frame>
     }

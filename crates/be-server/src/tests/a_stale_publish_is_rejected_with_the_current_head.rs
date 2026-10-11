@@ -24,6 +24,7 @@ async fn a_stale_publish_is_rejected_with_the_current_head() {
             pinned: false,
             references_added: Vec::new(),
             references_removed: Vec::new(),
+            metadata: Vec::new(),
         })
         .await;
 
@@ -42,6 +43,7 @@ async fn a_stale_publish_is_rejected_with_the_current_head() {
             pinned: false,
             references_added: Vec::new(),
             references_removed: Vec::new(),
+            metadata: Vec::new(),
         })
         .await;
     assert!(
@@ -61,6 +63,7 @@ async fn a_stale_publish_is_rejected_with_the_current_head() {
             pinned: false,
             references_added: Vec::new(),
             references_removed: Vec::new(),
+            metadata: Vec::new(),
         })
         .await;
     assert!(

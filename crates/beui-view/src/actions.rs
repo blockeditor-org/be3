@@ -183,6 +183,7 @@ struct ActionData {
     menu: bool,
     global: bool,
     intercepts: bool,
+    escape_hatch: bool,
     run: Rc<dyn Fn()>,
 }
 
@@ -212,6 +213,7 @@ impl Action {
             menu: false,
             global: false,
             intercepts: false,
+            escape_hatch: false,
             run: Rc::new(run),
         }
     }
@@ -264,6 +266,10 @@ impl Action {
         self.0.intercepts
     }
 
+    pub fn is_escape_hatch(&self) -> bool {
+        self.0.escape_hatch
+    }
+
     pub fn is_enabled(&self) -> bool {
         self.0.enabled.peek()
     }
@@ -287,6 +293,7 @@ pub struct ActionBuilder {
     menu: bool,
     global: bool,
     intercepts: bool,
+    escape_hatch: bool,
     run: Rc<dyn Fn()>,
 }
 
@@ -327,6 +334,11 @@ impl ActionBuilder {
         self
     }
 
+    pub fn escape_hatch(mut self) -> Self {
+        self.escape_hatch = true;
+        self.intercepts()
+    }
+
     fn into_action(self) -> Action {
         Action(Rc::new(ActionData {
             key: Cell::new(0),
@@ -339,6 +351,7 @@ impl ActionBuilder {
             menu: self.menu,
             global: self.global,
             intercepts: self.intercepts,
+            escape_hatch: self.escape_hatch,
             run: self.run,
         }))
     }
@@ -501,6 +514,7 @@ impl Registry {
                 press: unhandled.press,
                 typing: unhandled.typing,
                 in_app: false,
+                inhibited: false,
                 held: false,
                 tap: false,
             },
@@ -511,7 +525,8 @@ impl Registry {
         let actions = self.all();
         let live = actions
             .iter()
-            .filter(|action| action.is_global() && (action.intercepts() || !global.in_app));
+            .filter(|action| action.is_global() && (action.intercepts() || !global.in_app))
+            .filter(|action| !global.inhibited || action.is_escape_hatch());
         run_matching(live, global)
     }
 

@@ -10,10 +10,8 @@ fn a_checkout_copy_answers_to_its_local_id_only_in_its_own_scope() {
     let local = Uuid::new_v4();
     let mask = scope_mask(first);
     let copy = masked(local, mask);
-    let tagged = BlockMetadata {
-        local_id: Some(local),
-        ..BlockMetadata::default()
-    };
+    let mut tagged = BlockMetadata::default();
+    tagged.insert(&crate::LOCAL_ID, &local);
 
     assert_ne!(mask, 0);
     assert_eq!(mask, scope_mask(first));

@@ -1,10 +1,11 @@
 use std::rc::Rc;
 
 use beui::reactive::{
-    Drawing, Frame, Interactive, Layers, NodeRef, Prop, clone, component, component_rect,
+    Action, Chord, Drawing, Frame, Interactive, Layers, NodeRef, Prop, clone, component,
+    component_rect,
     create_effect, create_memo, draw_gpu, on_cleanup, view,
 };
-use beui::{Color32, ForwardedInput, NodeId, Pos2, Rect};
+use beui::{Color32, ForwardedInput, Key, NodeId, Pos2, Rect};
 
 use crate::state::WindowId;
 use crate::windows::Windows;
@@ -31,6 +32,12 @@ pub fn WindowView(
         }
     }));
     let list = windows.list();
+    let inhibits = create_memo(clone!(list -> move || {
+        list.with(|list| {
+            list.iter()
+                .any(|info| info.id == id && info.inhibits_shortcuts)
+        })
+    }));
     let dim = create_memo(move || {
         let responding = list.with(|list| {
             list.iter()
@@ -62,6 +69,7 @@ pub fn WindowView(
             on_focus_change={move |focused: bool| focus.focus(id, focused)}
             cursor
             on_forward={move |input: ForwardedInput| forward.forward(id, input)}
+            inhibits_shortcuts={inhibits}
             forward_at={takes}
         >
             <Layers>
@@ -70,4 +78,31 @@ pub fn WindowView(
             </Layers>
         </Interactive>
     }
+}
+
+pub const RESTORE_SHORTCUTS: Chord = Chord::logo(Key::Escape);
+
+pub fn register_restore_shortcuts(windows: &Windows) {
+    let list = windows.list();
+    let focus = windows.clone();
+    let inhibiting = create_memo(move || {
+        list.with(|list| {
+            list.iter().any(|info| {
+                info.inhibits_shortcuts
+                    && focus
+                        .signals(info.id)
+                        .is_some_and(|signals| signals.focused.get())
+            })
+        })
+    });
+    let restoring = windows.clone();
+    Action::new(
+        "wayland.restore_shortcuts",
+        "Restore keyboard shortcuts",
+        move || restoring.restore_shortcuts(),
+    )
+    .shortcut(RESTORE_SHORTCUTS)
+    .escape_hatch()
+    .enabled(inhibiting)
+    .register();
 }

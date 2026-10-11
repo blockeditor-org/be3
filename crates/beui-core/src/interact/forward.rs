@@ -47,25 +47,35 @@ pub fn wants_forward(element: &dyn Element) -> bool {
         .is_some_and(|catcher| !catcher.on_forward.is_empty())
 }
 
+enum Hit {
+    Sink(NodeId),
+    Blocked,
+}
+
 fn deepest(doc: &Document, rects: &Rects, id: NodeId, pos: Pos2) -> Option<NodeId> {
-    if !rects
-        .visible(&id)
-        .is_some_and(|rect| rect.contains_half_open(pos))
-    {
+    match hit(doc, rects, id, pos)? {
+        Hit::Sink(id) => Some(id),
+        Hit::Blocked => None,
+    }
+}
+
+fn hit(doc: &Document, rects: &Rects, id: NodeId, pos: Pos2) -> Option<Hit> {
+    let rect = rects.visible(&id)?;
+    if !rect.contains_half_open(pos) {
         return None;
     }
     let node = doc.arena.get(id);
     for child in node.children().into_iter().rev() {
-        if let Some(found) = deepest(doc, rects, child, pos) {
+        if let Some(found) = hit(doc, rects, child, pos) {
             return Some(found);
         }
     }
     let catcher = node.as_any().downcast_ref::<InteractiveNode>()?;
     if catcher.on_forward.is_empty() {
-        return None;
+        return catcher.capture_presses.then_some(Hit::Blocked);
     }
     let local = pos - rects.get(&id)?.min.to_vec2();
-    (catcher.forward_at.is_empty() || catcher.forward_at.call(local)).then_some(id)
+    (catcher.forward_at.is_empty() || catcher.forward_at.call(local)).then_some(Hit::Sink(id))
 }
 
 pub fn sink_at(doc: &Document, rects: &Rects, root: NodeId, pos: Pos2) -> Option<NodeId> {
@@ -135,6 +145,18 @@ fn button_mask(button: PointerButton) -> u8 {
 pub(super) fn takes_keys(doc: &Document) -> bool {
     doc.focused_node()
         .is_some_and(|focused| doc.arena.contains(focused) && wants_forward(doc.arena.get(focused)))
+}
+
+pub(super) fn shortcuts_inhibited(doc: &Document) -> bool {
+    doc.focused_node().is_some_and(|focused| {
+        doc.arena.contains(focused)
+            && doc
+                .arena
+                .get(focused)
+                .as_any()
+                .downcast_ref::<InteractiveNode>()
+                .is_some_and(|catcher| catcher.inhibits_shortcuts)
+    })
 }
 
 pub(super) fn route(

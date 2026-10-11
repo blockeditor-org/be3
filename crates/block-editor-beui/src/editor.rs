@@ -1246,8 +1246,12 @@ impl crate::root_settings::SettingsGraph for Editor {
     }
 
     fn create(&self, block_type: Uuid, content: Vec<u8>, parent: BlockParent) -> Uuid {
-        self.blocks()
-            .create_with(block_type, Some(content), parent, None, None)
+        self.blocks().create_with(
+            block_type,
+            Some(content),
+            parent,
+            be_block::BlockMetadata::default(),
+        )
     }
 
     fn edit_settings(&self, block: Uuid, edit: be_block::Edit) {

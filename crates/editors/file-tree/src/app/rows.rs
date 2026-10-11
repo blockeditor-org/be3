@@ -444,7 +444,7 @@ fn inspect(
     is_reference: bool,
     described: impl Fn(Uuid) -> String,
 ) -> Inspection {
-    let named = match block.named_by_hand {
+    let named = match block.named_by_hand() {
         true => name.to_owned(),
         false => format!("{name} (automatic)"),
     };
@@ -457,7 +457,7 @@ fn inspect(
         true => "Unknown".to_owned(),
         false => block.author.to_string(),
     };
-    let generated = block.artifact.as_ref().map_or_else(
+    let generated = block.artifact().map_or_else(
         || "No".to_owned(),
         |artifact| format!("From {}", type_name(types, artifact.source_type)),
     );

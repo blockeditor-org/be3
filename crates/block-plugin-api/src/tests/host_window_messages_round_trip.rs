@@ -7,6 +7,7 @@ fn host_window_messages_round_trip() {
         title: "Terminal".into(),
         app_id: "foot".into(),
         parent: Some(HostWindowId(3)),
+        modal: true,
         size: Size {
             width: 640.0,
             height: 480.0,
@@ -14,6 +15,12 @@ fn host_window_messages_round_trip() {
         fullscreen: None,
         responding: true,
         focused: false,
+        icon: Some(HostImage {
+            width: 1,
+            height: 1,
+            rgba: vec![1, 2, 3, 4],
+        }),
+        raised: 0,
     };
     host_value_round_trips::<HostWindows>(vec![window.clone()]);
     for action in [

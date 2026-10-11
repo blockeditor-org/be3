@@ -22,11 +22,15 @@ use smithay::wayland::drm_syncobj::{
     DrmSyncobjCachedState, DrmSyncobjHandler, DrmSyncobjState, supports_syncobj_eventfd,
 };
 
+use crate::activation::Activation;
 use crate::decoration::{Decorations, server_side};
 use crate::focus::KeyboardFocus;
 use crate::idle::Idle;
 use crate::selection::Selection;
+use crate::presentation::Presentation;
 use crate::server::{Waiter, readable};
+use crate::shortcuts_inhibit::Shortcuts;
+use crate::toplevel_icon::ToplevelIcons;
 use crate::xwayland::XWaylandState;
 use smithay::delegate_cursor_shape;
 use smithay::delegate_data_device;
@@ -70,6 +74,7 @@ use smithay::wayland::shell::xdg::{
 };
 use smithay::wayland::shm::{ShmHandler, ShmState};
 use smithay::wayland::viewporter::ViewporterState;
+use smithay::wayland::xdg_foreign::XdgForeignState;
 use smithay::xwayland::XWaylandClientData;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -90,6 +95,7 @@ pub enum ServerEvent {
     Changed(WindowId),
     Committed(WindowId),
     Fullscreen(WindowId, bool),
+    Activated(WindowId),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -131,6 +137,11 @@ pub struct State {
     syncobj: Option<DrmSyncobjState>,
     decorations: Decorations,
     pub(crate) idle: Idle,
+    pub(crate) foreign: XdgForeignState,
+    pub(crate) icons: ToplevelIcons,
+    pub(crate) shortcuts: Shortcuts,
+    pub(crate) presentation: Presentation,
+    pub(crate) activation: Activation,
     start: Instant,
     compositor: CompositorState,
     xdg_shell: XdgShellState,
@@ -173,11 +184,20 @@ impl State {
         loop_handle: LoopHandle<'static, State>,
     ) -> Self {
         let compositor = CompositorState::new::<Self>(handle);
-        let xdg_shell = XdgShellState::new::<Self>(handle);
+        let xdg_shell = XdgShellState::new_with_capabilities::<Self>(
+            handle,
+            [xdg_toplevel::WmCapabilities::Fullscreen],
+        );
         let shm = ShmState::new::<Self>(handle, Vec::new());
         let selection = Selection::new(handle);
         let decorations = Decorations::new(handle);
+        crate::dialog::create(handle);
         let idle = Idle::new(handle);
+        crate::content_type::create(handle);
+        crate::single_pixel::create(handle);
+        crate::tearing::create(handle);
+        let presentation = Presentation::new(handle);
+        let activation = Activation::new(handle);
         CursorShapeManagerState::new::<Self>(handle);
         ViewporterState::new::<Self>(handle);
         OutputManagerState::new_with_xdg_output::<Self>(handle);
@@ -206,6 +226,11 @@ impl State {
             syncobj: None,
             decorations,
             idle,
+            foreign: XdgForeignState::new::<Self>(handle),
+            icons: ToplevelIcons::new(handle),
+            shortcuts: Shortcuts::new(handle),
+            presentation,
+            activation,
             handle: handle.clone(),
             start: Instant::now(),
             compositor,
@@ -416,6 +441,10 @@ impl State {
         self.restore_keyboard_focus();
     }
 
+    pub(crate) fn push_event(&mut self, event: ServerEvent) {
+        self.events.push(event);
+    }
+
     pub fn take_events(&mut self) -> Vec<ServerEvent> {
         std::mem::take(&mut self.events)
     }
@@ -447,6 +476,14 @@ impl State {
                 .get::<XdgToplevelSurfaceData>()
                 .and_then(|data| data.lock().unwrap().app_id.clone())
         })
+    }
+
+    pub fn modal(&self, id: WindowId) -> bool {
+        if let Some(surface) = self.find(id).and_then(|window| window.window.x11_surface()) {
+            return surface.is_popup();
+        }
+        self.toplevel(id)
+            .is_some_and(|toplevel| crate::dialog::is_modal(&toplevel))
     }
 
     pub fn parent(&self, id: WindowId) -> Option<WindowId> {
@@ -507,6 +544,16 @@ impl State {
             .iter()
             .filter_map(|surface| Some(self.window_of_root(&self.root_of(surface))?.id))
             .collect()
+    }
+
+    pub(crate) fn window_of_surface(&self, surface: &WlSurface) -> Option<WindowId> {
+        Some(self.window_of_root(&self.root_of(surface))?.id)
+    }
+
+    pub(crate) fn changed(&mut self, id: WindowId) {
+        if !self.events.contains(&ServerEvent::Changed(id)) {
+            self.events.push(ServerEvent::Changed(id));
+        }
     }
 
     fn root_of(&self, surface: &WlSurface) -> WlSurface {
@@ -765,18 +812,21 @@ impl State {
         layers
     }
 
-    pub fn send_frames(&self, id: WindowId) {
+    pub(crate) fn output(&self) -> &Output {
+        &self.output
+    }
+
+    pub fn send_frames(&self, id: WindowId, time: Duration) {
         let Some(window) = self.find(id) else {
             return;
         };
         let output = self.output.clone();
-        window.window.send_frame(
-            &self.output,
-            self.start.elapsed(),
-            Some(Duration::ZERO),
-            |_, _| Some(output.clone()),
-        );
-        self.send_overlay_frames(id, self.start.elapsed());
+        window
+            .window
+            .send_frame(&self.output, time, Some(Duration::ZERO), |_, _| {
+                Some(output.clone())
+            });
+        self.send_overlay_frames(id, time);
     }
 
     fn time(&self) -> u32 {
@@ -787,7 +837,11 @@ impl State {
         self.seat.get_pointer().expect("the seat has a pointer")
     }
 
-    fn keyboard(&self) -> KeyboardHandle<Self> {
+    pub(crate) fn seat(&self) -> &Seat<Self> {
+        &self.seat
+    }
+
+    pub(crate) fn keyboard(&self) -> KeyboardHandle<Self> {
         self.seat.get_keyboard().expect("the seat has a keyboard")
     }
 
@@ -898,9 +952,11 @@ impl State {
         }
         self.dismiss_popups();
         self.keyboard_window = id;
+        self.activation.focus_moved();
         let focus = id.and_then(|id| self.keyboard_focus(id));
         let keyboard = self.keyboard();
         keyboard.set_focus(self, focus, SERIAL_COUNTER.next_serial());
+        self.settle_inhibitors();
         if let Some(id) = id {
             self.raise_x11(id);
         }
@@ -955,6 +1011,7 @@ impl State {
         };
         self.windows.remove(index);
         self.remove_overlays(id);
+        self.forget_icon(id);
         if self.keyboard_window == Some(id) {
             self.keyboard_window = None;
         }
@@ -1127,6 +1184,7 @@ impl CompositorHandler for State {
         self.committed.push(surface.clone());
         let root = self.root_of(surface);
         self.committed_window(&root);
+        self.icon_committed(&root);
     }
 }
 

@@ -62,6 +62,7 @@ pub fn Interactive(
     intercept_at: Callback<Pos2, bool>,
     on_forward: Callback<ForwardedInput>,
     forward_at: Callback<Pos2, bool>,
+    #[prop(default = false)] inhibits_shortcuts: Prop<bool>,
     #[prop(default = None)] claim_modifiers: Prop<Option<Modifiers>>,
     claim_at: Callback<(Pos2, Modifiers), bool>,
     on_press_outside: Callback<Pos2>,
@@ -199,6 +200,10 @@ pub fn Interactive(
     });
     create_effect(move || {
         with_document(|document| document.set_interactive_key_active(interactive, key_active.get()))
+    });
+    create_effect(move || {
+        let inhibits = inhibits_shortcuts.get();
+        with_document(|document| document.set_interactive_inhibits_shortcuts(interactive, inhibits))
     });
     create_effect(move || {
         let claimed = claim_modifiers.get();

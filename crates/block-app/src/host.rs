@@ -290,10 +290,6 @@ pub(crate) enum HostItem {
         text: String,
         spinner: bool,
     },
-    Error {
-        text: String,
-        restart: Option<String>,
-    },
     Fallback {
         name: String,
         automatic: bool,
