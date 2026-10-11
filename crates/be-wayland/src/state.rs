@@ -27,6 +27,7 @@ use crate::decoration::{Decorations, server_side};
 use crate::focus::KeyboardFocus;
 use crate::idle::Idle;
 use crate::presentation::Presentation;
+use crate::selection::Selection;
 use crate::server::{Waiter, readable};
 use crate::shortcuts_inhibit::Shortcuts;
 use crate::toplevel_icon::ToplevelIcons;
@@ -64,10 +65,7 @@ use smithay::wayland::compositor::{
 use smithay::wayland::cursor_shape::CursorShapeManagerState;
 use smithay::wayland::output::{OutputHandler, OutputManagerState};
 use smithay::wayland::seat::WaylandFocus;
-use smithay::wayland::selection::SelectionHandler;
-use smithay::wayland::selection::data_device::{
-    ClientDndGrabHandler, DataDeviceHandler, DataDeviceState, ServerDndGrabHandler,
-};
+use smithay::wayland::selection::data_device::ServerDndGrabHandler;
 use smithay::wayland::shell::PingError;
 use smithay::wayland::shell::xdg::ShellClient;
 use smithay::wayland::shell::xdg::{
@@ -149,8 +147,8 @@ pub struct State {
     xdg_shell: XdgShellState,
     shm: ShmState,
     seat_state: SeatState<State>,
-    data_device: DataDeviceState,
-    seat: Seat<State>,
+    pub(crate) selection: Selection,
+    pub(crate) seat: Seat<State>,
     pub(crate) output: Output,
     popups: PopupManager,
     popup_grab: Option<PopupGrab<State>>,
@@ -191,7 +189,7 @@ impl State {
             [xdg_toplevel::WmCapabilities::Fullscreen],
         );
         let shm = ShmState::new::<Self>(handle, Vec::new());
-        let data_device = DataDeviceState::new::<Self>(handle);
+        let selection = Selection::new(handle);
         let decorations = Decorations::new(handle);
         crate::dialog::create(handle);
         let idle = Idle::new(handle);
@@ -239,7 +237,7 @@ impl State {
             xdg_shell,
             shm,
             seat_state,
-            data_device,
+            selection,
             seat,
             output,
             popups: PopupManager::default(),
@@ -1405,6 +1403,11 @@ impl SeatHandler for State {
         smithay::wayland::selection::data_device::set_data_device_focus(
             &self.display_handle(),
             seat,
+            client.clone(),
+        );
+        smithay::wayland::selection::primary_selection::set_primary_focus(
+            &self.display_handle(),
+            seat,
             client,
         );
     }
@@ -1415,22 +1418,10 @@ impl State {
         surface.client()
     }
 
-    fn display_handle(&self) -> DisplayHandle {
+    pub(crate) fn display_handle(&self) -> DisplayHandle {
         self.handle.clone()
     }
 }
-
-impl SelectionHandler for State {
-    type SelectionUserData = ();
-}
-
-impl DataDeviceHandler for State {
-    fn data_device_state(&self) -> &DataDeviceState {
-        &self.data_device
-    }
-}
-
-impl ClientDndGrabHandler for State {}
 
 impl ServerDndGrabHandler for State {}
 

@@ -122,6 +122,7 @@ pub struct InputSettings {
     pub repeat_rate: Option<RepeatRate>,
     pub every_pointer: PointerSettings,
     pub pointers: Map<InputDevice, PointerSettings>,
+    pub middle_click_paste: Option<bool>,
 }
 
 impl InputSettings {
@@ -133,6 +134,14 @@ impl InputSettings {
     pub fn repeat_rate(&self) -> u32 {
         self.repeat_rate
             .map_or(DEFAULT_REPEAT_RATE, RepeatRate::per_second)
+    }
+
+    pub fn middle_click_paste(&self) -> bool {
+        self.middle_click_paste.unwrap_or(false)
+    }
+
+    pub fn set_middle_click_paste(on: Option<bool>) -> Edit {
+        Self::MIDDLE_CLICK_PASTE.set(ObjectId::ROOT, &on).into()
     }
 
     pub fn device_pointer(&self, device: &InputDevice) -> PointerSettings {
