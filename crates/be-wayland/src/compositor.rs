@@ -12,7 +12,7 @@ use smithay::backend::renderer::utils::with_renderer_surface_state;
 use smithay::input::pointer::{CursorImageStatus, CursorImageSurfaceData};
 use smithay::wayland::compositor::with_states;
 
-use crate::presentation::Presented;
+use crate::presentation::{Place, Presented};
 use crate::render::{Gpu, Textures, WindowDraw};
 use crate::server::{Server, Watch};
 use crate::state::{KeyboardConfig, ServerEvent, WindowId};
@@ -656,8 +656,13 @@ impl Compositor {
         self.server.state.presentation.awaits_flip()
     }
 
-    fn screen_of(&self, id: WindowId) -> Option<Rect> {
-        let rect = self.windows.rect(id)?;
+    fn place_of(&self, id: WindowId) -> Place {
+        let Some(rect) = self.windows.rect(id) else {
+            return Place::Anywhere;
+        };
+        if self.screens.is_empty() {
+            return Place::Anywhere;
+        }
         let area = |screen: &Rect| {
             let shared = screen.intersect(rect);
             shared.width().max(0.0) * shared.height().max(0.0)
@@ -667,6 +672,7 @@ impl Compositor {
             .copied()
             .filter(|screen| area(screen) > 0.0)
             .max_by(|left, right| area(left).total_cmp(&area(right)))
+            .map_or(Place::Nowhere, Place::On)
     }
 
     fn show_painted(&mut self, context: &Context) {
@@ -676,16 +682,16 @@ impl Compositor {
             presentation.painted(id);
         }
         presentation.forget_closed(&open);
-        let screens: Vec<_> = open.iter().map(|id| (*id, self.screen_of(*id))).collect();
+        let places: Vec<_> = open.iter().map(|id| (*id, self.place_of(*id))).collect();
         let shown = self
             .server
             .state
             .presentation
             .take_shown(context.now(), |id| {
-                screens
+                places
                     .iter()
                     .find(|(held, _)| *held == id)
-                    .and_then(|(_, screen)| *screen)
+                    .map_or(Place::Anywhere, |(_, place)| *place)
             });
         for shown in shown {
             self.server.state.present(shown);

@@ -37,6 +37,13 @@ impl Presented {
 
 type Callbacks = Vec<PresentationFeedbackCallback>;
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Place {
+    Anywhere,
+    On(Rect),
+    Nowhere,
+}
+
 pub(crate) struct Shown {
     pub(crate) id: WindowId,
     callbacks: Callbacks,
@@ -130,7 +137,7 @@ impl Presentation {
     pub(crate) fn take_shown(
         &mut self,
         now: Instant,
-        screen_of: impl Fn(WindowId) -> Option<Rect>,
+        place_of: impl Fn(WindowId) -> Place,
     ) -> Vec<Shown> {
         let flips = std::mem::take(&mut self.flips);
         if !self.paced {
@@ -152,12 +159,15 @@ impl Presentation {
         }
         let mut shown = Vec::new();
         let mut waiting = Vec::new();
-        for (id, callbacks) in std::mem::take(&mut self.painted) {
-            let screen = screen_of(id);
-            let flip = flips
-                .iter()
-                .rev()
-                .find(|(flipped, _)| screen.is_none_or(|screen| screen.contains(flipped.center())));
+        for (id, mut callbacks) in std::mem::take(&mut self.painted) {
+            let place = place_of(id);
+            if place == Place::Nowhere {
+                discard(std::mem::take(&mut callbacks));
+            }
+            let flip = flips.iter().rev().find(|(flipped, _)| match place {
+                Place::On(screen) => screen.contains(flipped.center()),
+                Place::Anywhere | Place::Nowhere => true,
+            });
             match flip {
                 Some((_, presented)) => shown.push(Shown {
                     id,
