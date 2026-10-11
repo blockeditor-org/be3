@@ -53,6 +53,7 @@ members = [
     "crates/buck-tools",
     "crates/build-id",
     "crates/cvl2",
+    "crates/deploy",
     "crates/editors/audio-block",
     "crates/editors/browser-tab",
     "crates/editors/calendar",

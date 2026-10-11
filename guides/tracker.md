@@ -108,10 +108,8 @@ them in the handoff.
   `BE3_TRACKER_AUTHORIZATION` secrets and the
   `BE3_SERVER`, `BE3_WORKSPACE` and status variables, writes them to
   `.tracker-credentials` and runs `./scripts/be` from the default branch.
-- **Releases.** Deploying be-server means publishing `be` from the same
-  checkout, uploaded to the mirror as `be/BUILD/be-TRIPLE/` under the server's
-  build id, and moving `be_release` and the `be_sha256_*` hashes in
-  `scripts/internal/common.sh` to match (guides/hosting.md).
+- **Releases.** `./scripts/deploy` (guides/hosting.md) uploads `be` with the
+  server it deploys and pins it in `scripts/internal/common.sh`.
 - **Proxies.** `be-client` tunnels `https` and `wss` through `HTTPS_PROXY` and
   trusts the certificates in `SSL_CERT_FILE` as well as the usual roots, which
   is what a cloud environment's proxy needs. That proxy may add the gateway's

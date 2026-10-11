@@ -41,15 +41,23 @@ How the server runs on a VPS for real notes. The files referred to are in
 4. Put `Caddyfile` (with the real domain) in Caddy's config and reload it.
 5. `journalctl -u be-server` shows its log; `RUST_LOG=debug` in the unit shows
    each connection.
-6. Publish `be` from the same checkout, since `./scripts/be` must be the
-   server's build (guides/tracker.md): for each triple, build
-   `./scripts/buck build //crates/be-cli:be -m release --out DIR-TRIPLE`
-   (`--target-platforms root//buck/platforms:linux_arm64`, `macos_arm64` or
-   `macos_x86_64` for the others), check that `DIR-TRIPLE/build-id` is the
-   server's, upload `DIR-TRIPLE` to
-   `https://lfs.pfg.pw/by-name/be3/be/BUILD/be-TRIPLE/`, where `BUILD` is what
-   `DIR/build-id` holds, and set `be_release` to `BUILD` and each `be_sha256_*`
-   to its `be`'s `sha256sum` in `scripts/internal/common.sh`.
+
+## Deploying
+
+`./scripts/deploy` builds be-server and `be` in release in one buck2 command
+(crates/deploy) and then, from that build:
+
+- uploads each `be` bundle (Linux x86_64 and arm64) to the storage zone as
+  `be/BUILD/be-TRIPLE/` (`BUNNY_STORAGE_KEY`), reads it back from
+  `lfs.pfg.pw` to check the hash, and pins it in `scripts/internal/common.sh`,
+  which `./scripts/be` must match the server by (guides/tracker.md);
+- copies `be-server` and its `build-id` to the VPS beside the running ones,
+  stops Caddy and be-server, moves them into place and starts both again.
+
+It refuses a working tree that differs from its commit, so every deployed build
+can be built again. Commit the pin it writes. `--dry-run` prints each step and
+changes nothing; `./scripts/deploy --help` lists the rest, and the environment
+that names the host, the directory there and the storage zone.
 
 ## Backups
 

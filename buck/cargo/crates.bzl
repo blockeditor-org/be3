@@ -8536,6 +8536,113 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/deploy": {
+        "binaries": [
+            {
+                "crate_root": "src/main.rs",
+                "name": "deploy",
+            },
+        ],
+        "edition": "2024",
+        "examples": [],
+        "library": None,
+        "name": "deploy",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {
+                    "deploy": [
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:ureq-2.12.1",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {
+                    "deploy": [
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:ureq-2.12.1",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {
+                    "deploy": [
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:ureq-2.12.1",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {
+                    "deploy": [
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:ureq-2.12.1",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {
+                    "deploy": [
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:ureq-2.12.1",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {
+                    "deploy": [
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:ureq-2.12.1",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {
+                    "deploy": [
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:ureq-2.12.1",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/editors/audio-block": {
         "binaries": [],
         "edition": "2024",
