@@ -13,7 +13,11 @@ pub(crate) fn before_commit(surface: &WlSurface) {
     let synced = is_sync_subsurface(surface);
     with_states(surface, |states| {
         let attached = matches!(
-            states.cached_state.get::<SurfaceAttributes>().current().buffer,
+            states
+                .cached_state
+                .get::<SurfaceAttributes>()
+                .current()
+                .buffer,
             Some(BufferAssignment::NewBuffer(_))
         );
         states.data_map.insert_if_missing_threadsafe(Held::default);
