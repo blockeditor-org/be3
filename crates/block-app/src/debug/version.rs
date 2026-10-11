@@ -81,7 +81,7 @@ pub(crate) fn view() -> VersionView {
     STATE.with(|state| {
         let state = state.borrow();
         VersionView {
-            commit: crate::COMMIT.to_owned(),
+            commit: crate::commit().to_owned(),
             can_install: cfg!(target_os = "android"),
             runs: match &state.runs {
                 None => VersionRuns::Loading,
@@ -119,7 +119,7 @@ fn run_view(run: &WorkflowRun, state: &State) -> RunView {
             None => run.status.clone(),
         },
         url: run.html_url.clone(),
-        current: run.head_sha == crate::COMMIT,
+        current: run.head_sha == crate::commit(),
         succeeded: run.conclusion.as_deref() == Some("success"),
         installing,
         error,

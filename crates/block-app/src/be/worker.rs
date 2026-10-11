@@ -26,7 +26,11 @@ const HISTORY_STEPS: usize = 200;
 type AccessReply = Box<dyn FnOnce(Result<Vec<AccessEntry>, String>) + Send>;
 
 pub(super) enum Command {
-    Open(Uuid, Uuid),
+    Open {
+        block: Uuid,
+        content_type: Uuid,
+        owned: bool,
+    },
     Close(Uuid),
     Operate(Uuid, Option<u64>, Vec<u8>),
     Duplicate {
@@ -119,6 +123,9 @@ pub(crate) struct Shared {
     pub(crate) versions: HashMap<Uuid, super::version::VersionState>,
     pub(crate) touched: std::collections::HashSet<Uuid>,
     pub(crate) pending: usize,
+    pub(crate) owned: std::collections::HashSet<Uuid>,
+    pub(crate) unreadable: HashMap<Uuid, String>,
+    pub(crate) stale_revision: u64,
 }
 
 impl Shared {
@@ -1006,14 +1013,68 @@ async fn rejoin(
     block: Uuid,
     content_type: Uuid,
 ) {
-    let Some(join) = super::join_for(content_type) else {
+    let Some(kind) = super::kind_of(content_type) else {
         return;
     };
-    match join(peer, block).await {
-        Ok(session) => {
+    let owned = !kind.frozen && shared.lock().unwrap().owned.contains(&block);
+    match (kind.join)(peer, block).await {
+        Ok(mut session) => {
+            set_unreadable(shared, block, None);
+            if owned && reshaped(shared, block, kind) {
+                match session.replace((kind.blank)()).await {
+                    Ok(()) => reset_notice(),
+                    Err(error) => record(shared, error),
+                }
+            }
             sessions.insert(block, session);
         }
+        Err(ClientError::Content(_)) if owned => {
+            if let Err(error) = (kind.replace)(peer, block, (kind.blank)()).await {
+                set_unreadable(shared, block, Some(error.to_string()));
+                return;
+            }
+            reset_notice();
+            match (kind.join)(peer, block).await {
+                Ok(session) => {
+                    set_unreadable(shared, block, None);
+                    sessions.insert(block, session);
+                }
+                Err(error) => set_unreadable(shared, block, Some(error.to_string())),
+            }
+        }
+        Err(ClientError::Content(error)) => set_unreadable(shared, block, Some(error.to_string())),
         Err(error) => record(shared, error),
+    }
+}
+
+fn reshaped(shared: &Arc<Mutex<Shared>>, block: Uuid, kind: &super::Kind) -> bool {
+    shared
+        .lock()
+        .unwrap()
+        .graph
+        .get(block)
+        .and_then(|node| node.metadata.get(&be_block::SCHEMA))
+        .is_some_and(|stamped| stamped != (kind.schema)())
+}
+
+fn reset_notice() {
+    crate::notices::report(
+        "Some of this device's settings were saved by another build of Block, so they were reset."
+            .to_owned(),
+    );
+}
+
+fn set_unreadable(shared: &Arc<Mutex<Shared>>, block: Uuid, error: Option<String>) {
+    let mut held = shared.lock().unwrap();
+    let changed = match error {
+        Some(error) => held.unreadable.insert(block, error.clone()) != Some(error),
+        None => held.unreadable.remove(&block).is_some(),
+    };
+    if changed {
+        held.stale_revision += 1;
+        held.touch(block);
+        drop(held);
+        crate::host::wake();
     }
 }
 
@@ -1093,7 +1154,14 @@ async fn apply(
             set_busy(shared, block, false, outcome.err());
             true
         }
-        Command::Open(block, content_type) => {
+        Command::Open {
+            block,
+            content_type,
+            owned,
+        } => {
+            if owned {
+                shared.lock().unwrap().owned.insert(block);
+            }
             open.insert(block, content_type);
             if sessions.contains_key(&block) {
                 return false;
@@ -1163,8 +1231,12 @@ async fn apply(
                     None => Ok(()),
                 },
             };
-            if let Err(error) = outcome {
-                record(shared, error);
+            match outcome {
+                Ok(()) if !sessions.contains_key(&block) && open.contains_key(&block) => {
+                    rejoin(peer, sessions, shared, block, content_type).await;
+                }
+                Ok(()) => {}
+                Err(error) => record(shared, error),
             }
             remember_head(peer, shared, block);
             false
@@ -1285,7 +1357,9 @@ async fn load_graph(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
     match peer.list_blocks().await {
         Ok(blocks) => {
             let nodes = blocks.iter().map(|block| node_of(peer, block)).collect();
-            shared.lock().unwrap().graph.load(nodes);
+            let mut held = shared.lock().unwrap();
+            held.graph.load(nodes);
+            held.stale_revision += 1;
         }
         Err(error) => record(shared, error),
     }
