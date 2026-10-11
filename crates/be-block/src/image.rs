@@ -39,6 +39,7 @@ impl BlobKind for ImageFile {
                 width,
                 height,
             }),
+            prefix: None,
         }
     }
 }

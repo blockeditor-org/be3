@@ -129,7 +129,7 @@ fn CellEditor(data: Data) -> NodeId {
         };
         data.rows.with(|rows| {
             rows.get(selection.row)
-                .map(|row| row.values().clone())
+                .map(|row| row.cells())
                 .unwrap_or_default()
         })
     }));

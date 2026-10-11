@@ -172,6 +172,7 @@ async fn board(tracker: &Tracker<MemoryStore>) -> Board {
         fields[2],
         DatabaseRelationOptions {
             database: Some(projects),
+            ..Default::default()
         },
     ));
     peer.save(schema, &content, head).await.unwrap();

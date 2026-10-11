@@ -260,7 +260,7 @@ fn Cell(
         field.with(|field| field.as_ref().map_or(0.0, |field| column_width(field.field_type)))
     }));
     let value = create_memo(clone!(entry -> move || {
-        entry.with(|entry| entry.as_ref().and_then(|entry| entry.row.value(id).cloned()))
+        entry.with(|entry| entry.as_ref().and_then(|entry| entry.row.get(id)))
     }));
     let text = create_memo(clone!(entry field data -> move || {
         let (Some(entry), Some(field)) = (entry.get(), field.get()) else {

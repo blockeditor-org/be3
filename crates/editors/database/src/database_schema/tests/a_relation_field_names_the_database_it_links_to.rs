@@ -18,6 +18,7 @@ fn a_relation_field_names_the_database_it_links_to() {
             project,
             DatabaseRelationOptions {
                 database: Some(projects),
+                ..Default::default()
             },
         ),
     ] {

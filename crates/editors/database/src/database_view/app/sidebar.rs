@@ -289,7 +289,7 @@ fn SelectedItem(data: Data) -> NodeId {
             return Default::default();
         };
         data.rows.with(|rows| {
-            rows.get(row).map(|row| row.values().clone()).unwrap_or_default()
+            rows.get(row).map(|row| row.cells()).unwrap_or_default()
         })
     }));
     let deselect = clone!(data -> move || data.deselect());

@@ -21,7 +21,8 @@ use block_editor_beui::beui::reactive::{
 };
 use block_editor_beui::block_ui::BlockLabel;
 use block_editor_beui::block_ui::database::DatabaseBlockPickRequest;
-use block_editor_beui::database::{relation_targets, watch_row_labels};
+use block_editor_beui::be_block::database::Inverse;
+use block_editor_beui::database::{relation_targets, watch_inverses, watch_row_labels};
 use block_editor_beui::{BlockFilter, ContentProjection, Editor, RelatedContent};
 use uuid::Uuid;
 
@@ -43,6 +44,7 @@ pub struct ViewData {
     set_error: WriteSignal<Option<String>>,
     pub schema_id: Memo<Option<Uuid>>,
     pub database_id: Memo<Option<Uuid>>,
+    pub inverses: Memo<Vec<Inverse>>,
     pub rows: Memo<Vec<DatabaseRow>>,
     pub row_ids: Memo<Vec<ObjectId>>,
     pub prefix: Memo<String>,
@@ -79,7 +81,6 @@ impl ViewData {
                 .map(|row| row.value.clone())
                 .collect::<Vec<DatabaseRow>>()
         });
-        let rows = create_memo(clone!(rows -> move || rows.get()));
         let row_ids = database.project(|database| {
             database
                 .root()
@@ -89,12 +90,32 @@ impl ViewData {
                 .collect::<Vec<ObjectId>>()
         });
         let row_ids = create_memo(clone!(row_ids -> move || row_ids.get()));
+        let inverses = watch_inverses(editor, database_id.clone());
+        let rows = create_memo(clone!(rows row_ids inverses -> move || {
+            let ids = row_ids.get();
+            let inverses = inverses.get();
+            rows.get()
+                .into_iter()
+                .zip(ids)
+                .map(|(row, id)| {
+                    inverses
+                        .iter()
+                        .fold(row, |row, inverse| inverse.shown_on(&row, id.as_uuid()))
+                })
+                .collect::<Vec<DatabaseRow>>()
+        }));
         let prefix = database.project(|database| database.root().prefix.clone());
         let prefix = create_memo(clone!(prefix -> move || prefix.get()));
         let title_field = schema.project(|schema| schema.root().title_field());
         let title_field = create_memo(clone!(title_field -> move || title_field.get()));
         let fields = schema.project(|schema| schema.root().fields());
-        let fields = create_memo(clone!(fields -> move || fields.get()));
+        let fields = create_memo(clone!(fields inverses -> move || {
+            let mut fields = fields.get();
+            fields.extend(inverses.with(|inverses| {
+                inverses.iter().map(Inverse::field).collect::<Vec<_>>()
+            }));
+            fields
+        }));
         let kind = view.project(|view| view.root().kind);
         let kind = create_memo(clone!(kind -> move || kind.get()));
         let sort = view.project(|view| view.root().sort);
@@ -132,6 +153,7 @@ impl ViewData {
             set_error,
             schema_id,
             database_id,
+            inverses,
             rows,
             row_ids,
             prefix,
@@ -244,8 +266,28 @@ impl ViewData {
     }
 
     pub fn set_value(&self, row: ObjectId, field: Uuid, value: Option<DatabaseValue>) {
-        self.database
-            .operate(Database::set_value(row, field, value.as_ref()));
+        let inverse = self
+            .inverses
+            .with_untracked(|inverses| inverses.iter().find(|inverse| inverse.id == field).cloned());
+        if let Some(inverse) = inverse {
+            self.set_inverse(&inverse, row, value);
+            return;
+        }
+        let edit = self.database.read(|database| {
+            let database = database.root();
+            match value {
+                Some(DatabaseValue::Links(targets)) => database.set_links(row, field, &targets),
+                None => Database::set_value(row, field, None)
+                    .0
+                    .into_iter()
+                    .chain(database.set_links(row, field, &[]).0)
+                    .collect(),
+                Some(value) => Database::set_value(row, field, Some(&value)),
+            }
+        });
+        if let Some(edit) = edit {
+            self.database.operate(edit);
+        }
     }
 
     pub fn set_prefix(&self, prefix: String) {
@@ -283,8 +325,43 @@ impl ViewData {
         self.database.operate(Database::remove_row(row));
     }
 
+    fn set_inverse(&self, inverse: &Inverse, row: ObjectId, value: Option<DatabaseValue>) {
+        let Some(database) = self.database_id.get_untracked() else {
+            return;
+        };
+        let wanted = match value {
+            Some(DatabaseValue::Links(links)) => links,
+            Some(DatabaseValue::Relation(link)) => vec![link],
+            _ => Vec::new(),
+        };
+        let target = RowRef {
+            database,
+            row: row.as_uuid(),
+        };
+        let source = self.editor.content_of::<DatabaseContent>(inverse.source);
+        let edit = source.read(|source| inverse.edits(&source.root(), target, &wanted));
+        if let Some(edit) = edit.filter(|edit| !edit.0.is_empty()) {
+            source.operate(edit);
+        }
+    }
+
     pub fn set_cell(&self, row_index: usize, field_id: Uuid, value: Option<DatabaseValue>) {
-        set_cell(&self.database, row_index, field_id, value);
+        let existing = self.row_ids.with_untracked(|ids| ids.get(row_index).copied());
+        match (existing, &value) {
+            (Some(row), Some(DatabaseValue::Links(_))) => self.set_value(row, field_id, value),
+            (None, Some(DatabaseValue::Links(_))) => {}
+            (existing, _) => {
+                if let Some(row) = existing.filter(|_| value.is_none()) {
+                    let unlinked = self
+                        .database
+                        .read(|database| database.root().set_links(row, field_id, &[]));
+                    if let Some(unlinked) = unlinked.filter(|edit| !edit.0.is_empty()) {
+                        self.database.operate(unlinked);
+                    }
+                }
+                set_cell(&self.database, row_index, field_id, value);
+            }
+        }
     }
 
     pub fn pick_value(&self, row: usize, request: DatabaseBlockPickRequest) {

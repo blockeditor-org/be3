@@ -37,6 +37,16 @@ pub enum DatabaseValue {
     Color(DatabaseColor),
     Datetime(i64),
     Relation(RowRef),
+    Links(Vec<RowRef>),
+}
+
+#[derive(
+    Clone, Copy, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize,
+)]
+#[serde(default)]
+pub struct RowLink {
+    pub field: Uuid,
+    pub target: RowRef,
 }
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
@@ -49,6 +59,7 @@ pub struct Database {
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct DatabaseRow {
     pub values: Map<Uuid, DatabaseValue>,
+    pub links: Map<RowLink, bool>,
     pub page: Option<BlockRef>,
 }
 
@@ -63,6 +74,172 @@ impl DatabaseRow {
 
     pub fn page(&self) -> Option<Uuid> {
         self.page.map(|page| page.0)
+    }
+
+    pub fn links_of(&self, field: Uuid) -> Vec<RowRef> {
+        self.links
+            .iter()
+            .filter(|(link, held)| **held && link.field == field)
+            .map(|(link, _)| link.target)
+            .collect()
+    }
+
+    pub fn get(&self, field: Uuid) -> Option<DatabaseValue> {
+        let links = self.links_of(field);
+        if !links.is_empty() {
+            return Some(DatabaseValue::Links(links));
+        }
+        self.values.get(&field).cloned()
+    }
+
+    pub fn cells(&self) -> BTreeMap<Uuid, DatabaseValue> {
+        let mut cells: BTreeMap<Uuid, DatabaseValue> = self
+            .values
+            .iter()
+            .map(|(field, value)| (*field, value.clone()))
+            .collect();
+        for (link, held) in self.links.iter() {
+            if !*held {
+                continue;
+            }
+            let entry = cells
+                .entry(link.field)
+                .or_insert_with(|| DatabaseValue::Links(Vec::new()));
+            if let DatabaseValue::Links(targets) = entry {
+                targets.push(link.target);
+            }
+        }
+        cells
+    }
+
+    pub fn links_to(&self, target: RowRef) -> Vec<Uuid> {
+        let mut fields: Vec<Uuid> = self
+            .links
+            .iter()
+            .filter(|(link, held)| **held && link.target == target)
+            .map(|(link, _)| link.field)
+            .chain(self.values.iter().filter_map(|(field, value)| {
+                (*value == DatabaseValue::Relation(target)).then_some(*field)
+            }))
+            .collect();
+        fields.sort();
+        fields.dedup();
+        fields
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Inverse {
+    pub id: Uuid,
+    pub name: String,
+    pub source: Uuid,
+    pub field: Uuid,
+    pub multiple: bool,
+    pub rows: BTreeMap<Uuid, Vec<RowRef>>,
+}
+
+pub fn inverse_id(source: Uuid, field: Uuid) -> Uuid {
+    Uuid::from_u128(source.as_u128().rotate_left(17) ^ field.as_u128() ^ 0x696e_7665_7273_6501)
+}
+
+pub fn inverses(
+    target: Uuid,
+    source: Uuid,
+    database: &Database,
+    schema: &crate::database_schema::DatabaseSchema,
+) -> Vec<Inverse> {
+    schema
+        .fields()
+        .into_iter()
+        .filter(|field| {
+            field.field_type == crate::database_schema::DatabaseFieldType::Relation
+                && field.relation_options.database == Some(target)
+                && !field.relation_options.inverse.trim().is_empty()
+        })
+        .map(|field| {
+            let mut rows: BTreeMap<Uuid, Vec<RowRef>> = BTreeMap::new();
+            for row in database.rows.iter() {
+                let linked = match row.get(field.id) {
+                    Some(DatabaseValue::Links(links)) => links,
+                    Some(DatabaseValue::Relation(link)) => vec![link],
+                    _ => Vec::new(),
+                };
+                for link in linked.into_iter().filter(|link| link.database == target) {
+                    rows.entry(link.row).or_default().push(RowRef {
+                        database: source,
+                        row: row.id.as_uuid(),
+                    });
+                }
+            }
+            Inverse {
+                id: inverse_id(source, field.id),
+                name: field.relation_options.inverse.trim().to_owned(),
+                source,
+                field: field.id,
+                multiple: field.relation_options.multiple,
+                rows,
+            }
+        })
+        .collect()
+}
+
+impl Inverse {
+    pub fn field(&self) -> crate::database_schema::DatabaseField {
+        crate::database_schema::DatabaseField {
+            id: self.id,
+            name: self.name.clone(),
+            field_type: crate::database_schema::DatabaseFieldType::Relation,
+            enum_options: Vec::new(),
+            number_options: Default::default(),
+            block_options: Default::default(),
+            relation_options: crate::database_schema::DatabaseRelationOptions {
+                database: Some(self.source),
+                multiple: true,
+                inverse: String::new(),
+            },
+        }
+    }
+
+    pub fn shown_on(&self, row: &DatabaseRow, id: Uuid) -> DatabaseRow {
+        let mut shown = row.clone();
+        shown.links = row
+            .links
+            .iter()
+            .map(|(link, held)| (*link, *held))
+            .chain(self.rows.get(&id).into_iter().flatten().map(|target| {
+                (
+                    RowLink {
+                        field: self.id,
+                        target: *target,
+                    },
+                    true,
+                )
+            }))
+            .collect();
+        shown
+    }
+
+    pub fn edits(&self, source: &Database, target: RowRef, wanted: &[RowRef]) -> Edit {
+        let current = self.rows.get(&target.row).cloned().unwrap_or_default();
+        let removed = current.iter().filter(|held| !wanted.contains(held));
+        let added = wanted.iter().filter(|link| !current.contains(link));
+        removed
+            .map(|link| (link, false))
+            .chain(added.map(|link| (link, true)))
+            .filter(|(link, _)| link.database == self.source)
+            .filter_map(|(link, linked)| {
+                let row = source.rows.get(ObjectId::from_uuid(link.row))?;
+                Some(match (linked, self.multiple) {
+                    (true, true) => Database::link(row.id, self.field, target),
+                    (false, true) => Database::unlink(row.id, self.field, target),
+                    (true, false) => {
+                        Database::set_value(row.id, self.field, Some(&DatabaseValue::Relation(target)))
+                    }
+                    (false, false) => Database::set_value(row.id, self.field, None),
+                })
+            })
+            .flat_map(|edit| edit.0)
+            .collect()
     }
 }
 
@@ -145,7 +322,7 @@ impl Database {
     pub fn add_row(values: impl IntoIterator<Item = (Uuid, DatabaseValue)>) -> (ObjectId, Edit) {
         let row = DatabaseRow {
             values: values.into_iter().collect(),
-            page: None,
+            ..DatabaseRow::default()
         };
         let (id, change) = Self::ROWS.insert(ObjectId::ROOT, Anchor::End, &row);
         (id, change.into())
@@ -153,6 +330,49 @@ impl Database {
 
     pub fn set_value(row: ObjectId, field: Uuid, value: Option<&DatabaseValue>) -> Edit {
         DatabaseRow::VALUES.put(row, &field, value).into()
+    }
+
+    pub fn link(row: ObjectId, field: Uuid, target: RowRef) -> Edit {
+        DatabaseRow::LINKS
+            .put(row, &RowLink { field, target }, Some(&true))
+            .into()
+    }
+
+    pub fn unlink(row: ObjectId, field: Uuid, target: RowRef) -> Edit {
+        DatabaseRow::LINKS
+            .put(row, &RowLink { field, target }, None)
+            .into()
+    }
+
+    pub fn set_links(&self, row: ObjectId, field: Uuid, targets: &[RowRef]) -> Edit {
+        let current = self
+            .rows
+            .get(row)
+            .map(|row| row.links_of(field))
+            .unwrap_or_default();
+        current
+            .iter()
+            .filter(|held| !targets.contains(held))
+            .map(|gone| DatabaseRow::LINKS.put(row, &RowLink { field, target: *gone }, None))
+            .chain(targets.iter().filter(|wanted| !current.contains(wanted)).map(|added| {
+                DatabaseRow::LINKS.put(
+                    row,
+                    &RowLink {
+                        field,
+                        target: *added,
+                    },
+                    Some(&true),
+                )
+            }))
+            .collect()
+    }
+
+    pub fn linking(&self, target: RowRef, field: Uuid) -> Vec<ObjectId> {
+        self.rows
+            .iter()
+            .filter(|row| row.links_to(target).contains(&field))
+            .map(|row| row.id)
+            .collect()
     }
 
     pub fn set_page(row: ObjectId, page: Option<Uuid>) -> Edit {
@@ -247,10 +467,36 @@ impl Root for Database {
                     });
                     let page = (row.page() == Some(old))
                         .then(|| DatabaseRow::PAGE.set(row.id, &new.map(BlockRef)));
-                    values.chain(page).collect::<Vec<_>>()
+                    let links = row
+                        .links
+                        .iter()
+                        .filter(|(link, held)| **held && link.target.database == old)
+                        .flat_map(|(link, _)| {
+                            let removed = DatabaseRow::LINKS.put(row.id, link, None);
+                            let added = new.map(|database| {
+                                let moved = RowLink {
+                                    field: link.field,
+                                    target: RowRef {
+                                        database,
+                                        row: link.target.row,
+                                    },
+                                };
+                                DatabaseRow::LINKS.put(row.id, &moved, Some(&true))
+                            });
+                            std::iter::once(removed).chain(added)
+                        })
+                        .collect::<Vec<_>>();
+                    values.chain(page).chain(links).collect::<Vec<_>>()
                 })
                 .collect(),
         )
+    }
+
+    fn derived_metadata(&self) -> crate::DerivedMetadata {
+        crate::DerivedMetadata {
+            prefix: Some(self.prefix.trim().to_owned()),
+            ..crate::DerivedMetadata::default()
+        }
     }
 
     fn references(&self) -> Vec<Uuid> {

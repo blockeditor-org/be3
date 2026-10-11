@@ -41,8 +41,8 @@ impl FilterCondition {
         match self {
             Self::IsSet => value.is_some(),
             Self::IsEmpty => value.is_none(),
-            Self::Is(wanted) => value == Some(wanted),
-            Self::IsNot(unwanted) => value != Some(unwanted),
+            Self::Is(wanted) => holds(value, wanted),
+            Self::IsNot(unwanted) => !holds(value, unwanted),
             Self::Contains(needle) => match value {
                 Some(DatabaseValue::String(text)) => {
                     text.to_lowercase().contains(&needle.to_lowercase())
@@ -50,6 +50,15 @@ impl FilterCondition {
                 _ => false,
             },
         }
+    }
+}
+
+fn holds(value: Option<&DatabaseValue>, wanted: &DatabaseValue) -> bool {
+    match (value, wanted) {
+        (Some(DatabaseValue::Links(targets)), DatabaseValue::Relation(target)) => {
+            targets.contains(target)
+        }
+        (value, wanted) => value == Some(wanted),
     }
 }
 
@@ -62,7 +71,7 @@ pub struct ViewFilter {
 impl ViewFilter {
     pub fn matches(&self, row: &DatabaseRow) -> bool {
         self.field
-            .is_none_or(|field| self.condition.matches(row.value(field)))
+            .is_none_or(|field| self.condition.matches(row.get(field).as_ref()))
     }
 }
 

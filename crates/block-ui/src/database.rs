@@ -59,8 +59,8 @@ impl ValueLabels {
 }
 
 pub fn cell_text(row: &DatabaseRow, field: &DatabaseField, labels: &ValueLabels) -> String {
-    match row.value(field.id) {
-        Some(value) => database_value_text(value, field, labels),
+    match row.get(field.id) {
+        Some(value) => database_value_text(&value, field, labels),
         None => String::new(),
     }
 }
@@ -86,6 +86,11 @@ pub fn database_value_text(
         ),
         DatabaseValue::Datetime(value) => format_datetime_utc(*value),
         DatabaseValue::Relation(link) => labels.row(link),
+        DatabaseValue::Links(links) => links
+            .iter()
+            .map(|link| labels.row(link))
+            .collect::<Vec<_>>()
+            .join(", "),
     }
 }
 

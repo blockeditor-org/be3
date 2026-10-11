@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
 
-use be_block::database::{DatabaseColor, DatabaseContent, DatabaseValue, RowRef};
+use be_block::database::{
+    DatabaseColor, DatabaseContent, DatabaseValue, Inverse, RowRef, inverses,
+};
 use be_block::database_schema::{
     DatabaseField, DatabaseFieldType, DatabaseNumberOptions, DatabaseNumberScale,
     DatabaseSchemaContent,
@@ -149,12 +151,17 @@ fn DatabaseValueControl(
     on_submit: Callback<Uuid>,
 ) -> NodeId {
     let kind = create_memo(clone!(field -> move || {
-        field.with(|field| field.as_ref().map(|field| field.field_type))
+        field.with(|field| {
+            field.as_ref().map(|field| match field.field_type {
+                DatabaseFieldType::Relation if field.relation_options.multiple => None,
+                other => Some(other),
+            })
+        })
     }));
     view! {
         <List spacing=0.0>
             <Dynamic value={kind}>
-                {move |kind: Option<DatabaseFieldType>| {
+                {move |kind: Option<Option<DatabaseFieldType>>| {
                     let field = field.clone();
                     let value = value.clone();
                     let labels = labels.clone();
@@ -167,7 +174,7 @@ fn DatabaseValueControl(
                         None => view! {
                             <Spacer />
                         },
-                        Some(DatabaseFieldType::String) => view! {
+                        Some(Some(DatabaseFieldType::String)) => view! {
                             <StringValue
                                 field={field}
                                 value={value}
@@ -177,7 +184,7 @@ fn DatabaseValueControl(
                                 on_submit={on_submit}
                             />
                         },
-                        Some(DatabaseFieldType::Number) => view! {
+                        Some(Some(DatabaseFieldType::Number)) => view! {
                             <NumberValue
                                 field={field}
                                 value={value}
@@ -186,7 +193,7 @@ fn DatabaseValueControl(
                                 on_change={on_change}
                             />
                         },
-                        Some(DatabaseFieldType::Enum) => view! {
+                        Some(Some(DatabaseFieldType::Enum)) => view! {
                             <EnumValue
                                 field={field}
                                 value={value}
@@ -195,7 +202,7 @@ fn DatabaseValueControl(
                                 on_change={on_change}
                             />
                         },
-                        Some(DatabaseFieldType::Boolean) => view! {
+                        Some(Some(DatabaseFieldType::Boolean)) => view! {
                             <BooleanValue
                                 field={field}
                                 value={value}
@@ -204,7 +211,7 @@ fn DatabaseValueControl(
                                 on_change={on_change}
                             />
                         },
-                        Some(DatabaseFieldType::Color) => view! {
+                        Some(Some(DatabaseFieldType::Color)) => view! {
                             <ColorValue
                                 field={field}
                                 value={value}
@@ -213,7 +220,7 @@ fn DatabaseValueControl(
                                 on_change={on_change}
                             />
                         },
-                        Some(DatabaseFieldType::Datetime) => view! {
+                        Some(Some(DatabaseFieldType::Datetime)) => view! {
                             <DatetimeValue
                                 field={field}
                                 value={value}
@@ -222,7 +229,17 @@ fn DatabaseValueControl(
                                 on_change={on_change}
                             />
                         },
-                        Some(DatabaseFieldType::Relation) => view! {
+                        Some(None) => view! {
+                            <LinksValue
+                                field={field}
+                                value={value}
+                                labels={labels}
+                                disabled={disabled}
+                                id={test_id}
+                                on_change={on_change}
+                            />
+                        },
+                        Some(Some(DatabaseFieldType::Relation)) => view! {
                             <RelationValue
                                 field={field}
                                 value={value}
@@ -232,7 +249,7 @@ fn DatabaseValueControl(
                                 on_change={on_change}
                             />
                         },
-                        Some(DatabaseFieldType::Block) => view! {
+                        Some(Some(DatabaseFieldType::Block)) => view! {
                             <BlockValue
                                 field={field}
                                 value={value}
@@ -590,6 +607,199 @@ fn RelationValue(
             />
         </List>
     }
+}
+
+#[component]
+fn LinksValue(
+    field: Memo<Option<DatabaseField>>,
+    value: Memo<Option<DatabaseValue>>,
+    labels: Memo<ValueLabels>,
+    disabled: Memo<bool>,
+    id: String,
+    on_change: Callback<DatabaseValueChange>,
+) -> NodeId {
+    let linked = create_memo(clone!(value -> move || match value.get() {
+        Some(DatabaseValue::Links(links)) => links,
+        Some(DatabaseValue::Relation(link)) => vec![link],
+        _ => Vec::new(),
+    }));
+    let target = create_memo(clone!(field -> move || {
+        field.with(|field| field.as_ref().and_then(|field| field.relation_options.database))
+    }));
+    let addable = create_memo(clone!(target labels linked -> move || {
+        let Some(database) = target.get() else {
+            return Vec::new();
+        };
+        let held = linked.get();
+        labels.with(|labels| {
+            labels
+                .rows_of(database)
+                .into_iter()
+                .filter(|(link, _)| !held.contains(link))
+                .collect::<Vec<_>>()
+        })
+    }));
+    let add_keys = create_memo(clone!(addable -> move || {
+        addable.with(|rows| rows.iter().map(|(link, _)| *link).collect::<Vec<RowRef>>())
+    }));
+    let emit = clone!(field on_change -> move |links: Vec<RowRef>| {
+        let Some(field_id) = field.with_untracked(|field| field.as_ref().map(|field| field.id))
+        else {
+            return;
+        };
+        on_change.call(DatabaseValueChange {
+            field_id,
+            value: (!links.is_empty()).then_some(DatabaseValue::Links(links)),
+            continuous: false,
+        });
+    });
+    let added = clone!(addable linked emit -> move |index: Option<usize>| {
+        let Some(link) = index.and_then(|index| {
+            addable.with_untracked(|rows| rows.get(index).map(|(link, _)| *link))
+        }) else {
+            return;
+        };
+        let mut links = linked.get_untracked();
+        links.push(link);
+        emit(links);
+    });
+    let names = addable.clone();
+    let chip_labels = labels.clone();
+    let add_id = format!("{id}.add");
+    let add_off = disabled.clone();
+    view! {
+        <List spacing=SPACING>
+            <ForEach keys={linked.clone()}>
+                {move |link: RowRef| {
+                    let disabled = disabled.clone();
+                    let remove_id = format!("{id}.remove.{}", link.row);
+                    let label = create_memo(clone!(chip_labels -> move || {
+                        chip_labels.with(|labels| labels.row(&link))
+                    }));
+                    let remove = clone!(linked emit -> move || {
+                        let links = linked
+                            .get_untracked()
+                            .into_iter()
+                            .filter(|held| *held != link)
+                            .collect();
+                        emit(links);
+                    });
+                    view! {
+                        <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                            <Body @sizing=ItemSize::Percent(100.0) content={label} />
+                            <IconButton
+                                glyph={ICON_CLEAR.to_owned()}
+                                label="Remove link"
+                                disabled={disabled}
+                                @test_id={remove_id}
+                                on_click={remove}
+                            />
+                        </List>
+                    }
+                }}
+            </ForEach>
+            <Select
+                options={view! {
+                    <ForEach keys={add_keys}>
+                        {move |link: RowRef| {
+                            let label = create_memo(clone!(names -> move || {
+                                names.with(|rows| {
+                                    rows.iter()
+                                        .find(|(held, _)| *held == link)
+                                        .map_or_else(String::new, |(_, label)| label.clone())
+                                })
+                            }));
+                            view! {
+                                <ChoiceOption label={label} />
+                            }
+                        }}
+                    </ForEach>
+                }}
+                selected={None}
+                label="Add a link"
+                disabled={add_off}
+                @test_id={add_id}
+                on_change={added}
+            />
+        </List>
+    }
+}
+
+pub fn watch_inverses(
+    editor: &crate::Editor,
+    database: Memo<Option<Uuid>>,
+) -> Memo<Vec<Inverse>> {
+    let (found, set_found) = create_signal(Vec::<Inverse>::new());
+    let editor = editor.clone();
+    let watched: std::cell::RefCell<Option<(Uuid, crate::BlockList)>> =
+        std::cell::RefCell::new(None);
+    create_effect(move || {
+        let Some(target) = database.get() else {
+            set_found.set(Vec::new());
+            return;
+        };
+        let mut held = watched.borrow_mut();
+        if held.as_ref().is_none_or(|(id, _)| *id != target) {
+            *held = Some((
+                target,
+                editor.blocks().watch(crate::BlockQuery::Backrefs(target)),
+            ));
+        }
+        let mut sources: Vec<Uuid> = held
+            .as_ref()
+            .map(|(_, list)| list.read())
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|info| info.block_type == <DatabaseSchemaContent as be_block::BlockContent>::CONTENT_TYPE)
+            .filter_map(|info| match info.parent {
+                crate::BlockParent::Block(parent) => Some(parent),
+                _ => None,
+            })
+            .collect();
+        drop(held);
+        sources.sort();
+        sources.dedup();
+        let watched_sources: Vec<ReadSignal<Vec<Inverse>>> = sources
+            .into_iter()
+            .map(|source| source_inverses(&editor, target, source))
+            .collect();
+        let set_found = set_found.clone();
+        create_effect(move || {
+            set_found.set(
+                watched_sources
+                    .iter()
+                    .flat_map(|inverses| inverses.get())
+                    .collect(),
+            );
+        });
+    });
+    create_memo(move || found.get())
+}
+
+fn source_inverses(
+    editor: &crate::Editor,
+    target: Uuid,
+    source: Uuid,
+) -> ReadSignal<Vec<Inverse>> {
+    let content = editor.content_of::<DatabaseContent>(source);
+    let schema_id = content.project(|content| content.root().schema);
+    let (found, set_found) = create_signal(Vec::new());
+    let editor = editor.clone();
+    create_effect(move || {
+        let Some(schema) = schema_id.get() else {
+            set_found.set(Vec::new());
+            return;
+        };
+        let schema = editor
+            .content_of::<DatabaseSchemaContent>(schema)
+            .project(|schema| schema.root());
+        let database = content.project(|content| content.root());
+        let set_found = set_found.clone();
+        create_effect(move || {
+            set_found.set(inverses(target, source, &database.get(), &schema.get()));
+        });
+    });
+    found
 }
 
 pub fn relation_targets(fields: &[DatabaseField]) -> Vec<Uuid> {

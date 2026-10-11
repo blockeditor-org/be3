@@ -21,6 +21,7 @@ use uuid::Uuid;
 use crate::database_view::app::{DatabaseViewApp, value_block_filter};
 use crate::database_view::sort::{BlockLabels, compare_database_values};
 
+mod a_blocked_row_lists_its_blockers_and_they_list_it_as_blocking;
 mod a_filter_hides_the_rows_it_rejects;
 mod a_list_shows_each_row_by_its_short_id_and_opens_it_beside_the_list;
 mod a_new_view_starts_as_a_spreadsheet;

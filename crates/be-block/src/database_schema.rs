@@ -67,11 +67,13 @@ pub struct DatabaseBlockOptions {
     pub block_type: Option<Uuid>,
 }
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(default)]
 pub struct DatabaseRelationOptions {
     #[serde(with = "be_model::references::block_ref::option")]
     pub database: Option<Uuid>,
+    pub multiple: bool,
+    pub inverse: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -129,7 +131,7 @@ impl DatabaseSchema {
                     .collect(),
                 number_options: field.number_options,
                 block_options: field.block_options,
-                relation_options: field.relation_options,
+                relation_options: field.relation_options.clone(),
             })
             .collect()
     }

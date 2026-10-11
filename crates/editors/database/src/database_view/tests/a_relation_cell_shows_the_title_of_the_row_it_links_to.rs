@@ -26,6 +26,7 @@ fn a_relation_cell_shows_the_title_of_the_row_it_links_to() {
             project,
             DatabaseRelationOptions {
                 database: Some(projects),
+                ..Default::default()
             },
         ),
     );

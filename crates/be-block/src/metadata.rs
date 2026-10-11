@@ -15,6 +15,7 @@ pub struct BlockMetadata {
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct DerivedMetadata {
     pub thumbhash: Option<Thumbhash>,
+    pub prefix: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]

@@ -24,6 +24,10 @@ pub trait Root: Model + Send + Sync + 'static {
         let _ = change;
         None
     }
+
+    fn derived_metadata(&self) -> crate::DerivedMetadata {
+        crate::DerivedMetadata::default()
+    }
 }
 
 impl<R: Root> BlockContent for Document<R> {
@@ -47,6 +51,10 @@ impl<R: Root> BlockContent for Document<R> {
 
     fn references_in(&self, workspace: Uuid) -> Vec<Uuid> {
         joined(self.root().references_in(workspace), self.block_refs())
+    }
+
+    fn derived_metadata(&self) -> crate::DerivedMetadata {
+        self.root().derived_metadata()
     }
 }
 

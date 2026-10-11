@@ -644,8 +644,17 @@ fn RelationOptions(
             }),
         }
     }));
-    let choose = clone!(editor schema -> move || {
+    let options = create_memo(clone!(field -> move || {
+        field.with(|field| {
+            field
+                .as_ref()
+                .map(|field| field.relation_options.clone())
+                .unwrap_or_default()
+        })
+    }));
+    let choose = clone!(editor schema options -> move || {
         let schema = schema.clone();
+        let current = options.get_untracked();
         editor.pick_block(
             BlockFilter {
                 name: "Linked database".to_owned(),
@@ -660,24 +669,68 @@ fn RelationOptions(
                         id,
                         DatabaseRelationOptions {
                             database: Some(picked.id),
+                            ..current.clone()
                         },
                     ));
                 }
             },
         );
     });
+    let multiple = create_memo(clone!(options -> move || options.get().multiple));
+    let inverse = create_memo(clone!(options -> move || options.get().inverse));
+    let remultiplied = clone!(schema options -> move |multiple: bool| {
+        schema.operate(DatabaseSchema::set_relation_options(
+            id,
+            DatabaseRelationOptions {
+                multiple,
+                ..options.get_untracked()
+            },
+        ));
+    });
+    let renamed = clone!(schema options -> move |inverse: String| {
+        schema.operate(DatabaseSchema::set_relation_options(
+            id,
+            DatabaseRelationOptions {
+                inverse,
+                ..options.get_untracked()
+            },
+        ));
+    });
+    let (multiple_off, inverse_off) = (read_only.clone(), read_only.clone());
     view! {
         <Frame padding_left={INDENT + ROW_SPACING}>
-            <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                <Body content="Links to" />
-                <Button
-                    label={label}
-                    variant=ButtonVariant::Secondary
-                    disabled={read_only}
-                    @test_id={format!("database-schema.relation.{id}.database")}
-                    on_click={choose}
-                />
-                <Spacer @sizing=ItemSize::Percent(100.0) />
+            <List spacing=ROW_SPACING>
+                <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
+                    <Body content="Links to" />
+                    <Button
+                        label={label}
+                        variant=ButtonVariant::Secondary
+                        disabled={read_only}
+                        @test_id={format!("database-schema.relation.{id}.database")}
+                        on_click={choose}
+                    />
+                    <Checkbox
+                        label="Several rows"
+                        checked={multiple}
+                        disabled={multiple_off}
+                        @test_id={format!("database-schema.relation.{id}.multiple")}
+                        on_change={remultiplied}
+                    />
+                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                </List>
+                <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
+                    <Body content="Shown on the linked rows as" />
+                    <Frame width=NAME_WIDTH>
+                        <TextInput
+                            value={inverse}
+                            placeholder="No column"
+                            disabled={inverse_off}
+                            @test_id={format!("database-schema.relation.{id}.inverse")}
+                            on_change={renamed}
+                        />
+                    </Frame>
+                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                </List>
             </List>
         </Frame>
     }

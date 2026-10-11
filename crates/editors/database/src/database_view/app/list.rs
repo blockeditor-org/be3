@@ -171,7 +171,15 @@ fn ListLine(data: Data, row: ObjectId) -> NodeId {
                             DatabaseFieldType::Enum | DatabaseFieldType::Relation
                         )
                     })
-                    .map(|field| cell_text(&entry, field, labels))
+                    .map(|field| {
+                        let text = cell_text(&entry, field, labels);
+                        match (field.field_type, text.is_empty()) {
+                            (DatabaseFieldType::Relation, false) => {
+                                format!("{}: {text}", field.name)
+                            }
+                            _ => text,
+                        }
+                    })
                     .filter(|text| !text.is_empty())
                     .collect::<Vec<String>>()
                     .join(" · ")
@@ -238,7 +246,7 @@ fn RowPage(data: Data, row: ObjectId) -> NodeId {
         let Some(index) = index.get() else {
             return Default::default();
         };
-        data.rows.with(|rows| rows.get(index).map(|row| row.values().clone()).unwrap_or_default())
+        data.rows.with(|rows| rows.get(index).map(|row| row.cells()).unwrap_or_default())
     }));
     let page = create_memo(clone!(data index -> move || {
         let index = index.get()?;
