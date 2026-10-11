@@ -168,7 +168,9 @@ fn nearest(images: Vec<xcursor::parser::Image>, pixels: u32) -> Option<Image> {
         ),
         rgba: image
             .pixels_rgba
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .flat_map(|bgra| [bgra[2], bgra[1], bgra[0], bgra[3]])
             .collect(),
     })
@@ -180,7 +182,10 @@ fn inherits(index: &Path) -> Vec<String> {
     };
     let mut section = "";
     for line in text.lines().map(str::trim) {
-        if let Some(name) = line.strip_prefix('[').and_then(|line| line.strip_suffix(']')) {
+        if let Some(name) = line
+            .strip_prefix('[')
+            .and_then(|line| line.strip_suffix(']'))
+        {
             section = name;
             continue;
         }
@@ -204,3 +209,6 @@ fn inherits(index: &Path) -> Vec<String> {
 
 #[cfg(test)]
 pub(crate) mod tests;
+
+#[cfg(test)]
+mod tests;

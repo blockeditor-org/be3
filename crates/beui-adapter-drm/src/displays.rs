@@ -87,9 +87,9 @@ impl Displays {
 
     fn replace_pointer(&mut self) {
         self.look = self.look();
-        let placed = self.extent(self.look).map(|(size, hotspot)| {
-            Rect::from_min_size(self.pointer - hotspot, size).expand(1.0)
-        });
+        let placed = self
+            .extent(self.look)
+            .map(|(size, hotspot)| Rect::from_min_size(self.pointer - hotspot, size).expand(1.0));
         for output in &mut self.outputs {
             let rect = output.screen.rect;
             if [self.placed, placed]

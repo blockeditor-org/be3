@@ -3,7 +3,10 @@ use super::*;
 #[test]
 fn a_cursor_missing_from_a_theme_is_found_in_the_themes_it_inherits() {
     let icons = Icons::new("inherits");
-    icons.index("mine", "[Icon Theme]\nName=Mine\nInherits=missing, parent\n");
+    icons.index(
+        "mine",
+        "[Icon Theme]\nName=Mine\nInherits=missing, parent\n",
+    );
     icons.index("parent", "[Icon Theme]\nInherits=mine\n");
     icons.cursor("mine", "default", &[drawn(24, (1, 1), 0xff00_0000)]);
     icons.cursor("parent", "text", &[drawn(24, (12, 12), 0xffff_ffff)]);

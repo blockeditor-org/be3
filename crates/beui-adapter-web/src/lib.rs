@@ -821,7 +821,6 @@ fn pointer_button(button: i16) -> Option<PointerButton> {
     }
 }
 
-
 fn key(code: &str) -> Option<Key> {
     let key = match code {
         "ArrowDown" => Key::ArrowDown,
