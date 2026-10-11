@@ -252,7 +252,7 @@ impl Serialize for BlockMetadata {
 
 impl<'de> Deserialize<'de> for BlockMetadata {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let bytes = <Vec<u8>>::deserialize(deserializer)?;
+        let bytes = be_model::bytes::deserialize(deserializer)?;
         Self::decode(&bytes).map_err(serde::de::Error::custom)
     }
 }

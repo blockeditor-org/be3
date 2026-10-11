@@ -46,6 +46,7 @@ pub enum ServerError {
     Io(io::Error),
     Database(rusqlite::Error),
     Store(be_store::StoreError),
+    Schema(sqlite_schema::SchemaError),
     Socket(String),
 }
 
@@ -53,7 +54,9 @@ impl ServerError {
     pub fn code(&self) -> ErrorCode {
         match self {
             Self::Refused(code, _) => *code,
-            Self::Corrupt | Self::Database(_) | Self::Store(_) | Self::Io(_) => ErrorCode::Storage,
+            Self::Corrupt | Self::Database(_) | Self::Store(_) | Self::Schema(_) | Self::Io(_) => {
+                ErrorCode::Storage
+            }
             Self::Socket(_) => ErrorCode::InvalidRequest,
         }
     }
@@ -67,6 +70,7 @@ impl fmt::Display for ServerError {
             Self::Io(error) => write!(formatter, "server io failed: {error}"),
             Self::Database(error) => write!(formatter, "server database failed: {error}"),
             Self::Store(error) => write!(formatter, "object store failed: {error}"),
+            Self::Schema(error) => write!(formatter, "server database failed: {error}"),
             Self::Socket(message) => write!(formatter, "websocket failed: {message}"),
         }
     }
@@ -83,6 +87,12 @@ impl From<io::Error> for ServerError {
 impl From<rusqlite::Error> for ServerError {
     fn from(error: rusqlite::Error) -> Self {
         Self::Database(error)
+    }
+}
+
+impl From<sqlite_schema::SchemaError> for ServerError {
+    fn from(error: sqlite_schema::SchemaError) -> Self {
+        Self::Schema(error)
     }
 }
 
@@ -539,6 +549,7 @@ impl Connection {
                 block,
                 commit,
                 expected,
+                parents,
                 chunks,
                 time,
                 pinned,
@@ -555,6 +566,7 @@ impl Connection {
                         block,
                         commit,
                         expected,
+                        parents,
                         chunks,
                         time,
                         pinned,

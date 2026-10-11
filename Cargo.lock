@@ -737,6 +737,7 @@ version = "0.1.0"
 dependencies = [
  "be-commit",
  "be-model-derive",
+ "be-store",
  "ciborium",
  "postcard",
  "sequence",
@@ -782,6 +783,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "sha2",
+ "sqlite-schema",
  "tokio",
  "tokio-tungstenite",
  "tracing",
@@ -806,7 +808,7 @@ name = "be-store"
 version = "0.1.0"
 dependencies = [
  "chacha20poly1305",
- "postcard",
+ "ciborium",
  "rand 0.9.4",
  "serde",
  "sha2",
@@ -820,7 +822,6 @@ dependencies = [
  "be-block",
  "be-commit",
  "be-store",
- "postcard",
  "serde",
  "uuid",
 ]
@@ -1246,6 +1247,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
+ "sqlite-schema",
  "tokio",
  "ureq",
  "uuid",
@@ -6668,6 +6670,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9571ea910ebd84c86af4b3ed27f9dbdc6ad06f17c5f96146b2b671e2976744f"
 dependencies = [
  "bitflags 2.12.1",
+]
+
+[[package]]
+name = "sqlite-schema"
+version = "0.1.0"
+dependencies = [
+ "rusqlite",
 ]
 
 [[package]]

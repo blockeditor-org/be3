@@ -194,6 +194,7 @@ pub enum ClientMessage {
         block: Uuid,
         commit: CommitId,
         expected: Option<CommitId>,
+        parents: Vec<CommitId>,
         chunks: Vec<Hash>,
         time: i64,
         pinned: bool,
@@ -378,6 +379,7 @@ impl ClientMessage {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct HistoryEntry {
     pub commit: CommitId,
+    pub parents: Vec<CommitId>,
     pub time: i64,
     pub pinned: bool,
 }

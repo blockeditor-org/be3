@@ -82,6 +82,7 @@ beui = { path = "../beui", features = ["window"] }
 block-wasm-host = { path = "../block-wasm-host" }
 directories-next = "2"
 rusqlite = { version = "0.32", features = ["bundled"] }
+sqlite-schema = { path = "../sqlite-schema" }
 tokio = { version = "1", features = ["net", "rt", "rt-multi-thread", "sync", "time"] }
 ureq = { version = "2", features = ["gzip"] }
 # rodio (via cpal) reaches ALSA/CoreAudio/WASAPI on desktop and Oboe on
