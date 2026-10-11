@@ -11,28 +11,24 @@ use crate::painter::Painter;
 
 use crate::callback::{Callback, ClickCallback};
 use crate::document::Document;
-use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeId, NodeOf, Rects};
 
 pub struct InteractiveNode {
     pub child: Option<NodeId>,
     pub focus: Option<Focus>,
     pub cursor: Option<CursorIcon>,
     pub scroll_axis: Option<Direction>,
-    pub armed: bool,
     pub capture_presses: bool,
     pub repeat_drag: bool,
     pub touch_drags: bool,
     pub touch_drag_axis: Option<Direction>,
     pub claims_touch: bool,
     pub key_active: bool,
+    pub armed: bool,
     pub hovered: bool,
     pub hover_pos: Option<Pos2>,
     pub active: bool,
-    pub dragged: Option<Pos2>,
     pub pan_active: bool,
-    pub middle_dragged: Option<Pos2>,
-    pub middle_armed: bool,
-    pub secondary_dragged: Option<Pos2>,
     pub on_click: ClickCallback,
     pub on_click_at: Callback<PointerPress>,
     pub on_hover_change: Callback<bool>,
@@ -51,9 +47,8 @@ pub struct InteractiveNode {
     pub on_autoscroll: Callback<AutoscrollGesture>,
     pub on_zoom: Callback<ZoomGesture>,
     pub capture_at: Callback<Pos2, bool>,
-    pub intercept_at: Callback<Pos2, bool>,
+    pub hit_at: Callback<Pos2, bool>,
     pub on_forward: Callback<crate::interact::forward::ForwardedInput>,
-    pub forward_at: Callback<Pos2, bool>,
     pub inhibits_shortcuts: bool,
     pub claim_modifiers: Option<Modifiers>,
     pub claim_at: Callback<(Pos2, Modifiers), bool>,
@@ -67,35 +62,23 @@ impl Default for InteractiveNode {
 }
 
 impl InteractiveNode {
-    fn declines(&self, input: &InteractInput, rect: Rect) -> bool {
-        !self.on_forward.is_empty()
-            && !self.forward_at.is_empty()
-            && input
-                .pointer_pos
-                .is_some_and(|pos| !self.forward_at.call(pos - rect.min.to_vec2()))
-    }
-
     pub fn new() -> Self {
         Self {
             child: None,
             focus: None,
             cursor: None,
             scroll_axis: None,
-            armed: false,
             capture_presses: false,
             repeat_drag: false,
             touch_drags: false,
             touch_drag_axis: None,
             claims_touch: true,
             key_active: false,
+            armed: false,
             hovered: false,
             hover_pos: None,
             active: false,
-            dragged: None,
             pan_active: false,
-            middle_dragged: None,
-            middle_armed: false,
-            secondary_dragged: None,
             on_click: ClickCallback::empty(),
             on_click_at: Callback::empty(),
             on_hover_change: Callback::empty(),
@@ -114,14 +97,17 @@ impl InteractiveNode {
             on_autoscroll: Callback::empty(),
             on_zoom: Callback::empty(),
             capture_at: Callback::empty(),
-            intercept_at: Callback::empty(),
+            hit_at: Callback::empty(),
             on_forward: Callback::empty(),
-            forward_at: Callback::empty(),
             inhibits_shortcuts: false,
             claim_modifiers: None,
             claim_at: Callback::empty(),
             on_press_outside: Callback::empty(),
         }
+    }
+
+    pub fn hits(&self, pos: Pos2, rect: Rect) -> bool {
+        self.hit_at.is_empty() || self.hit_at.call(pos - rect.min.to_vec2())
     }
 
     pub fn claims(&self, pos: Pos2, rect: Rect, held: Modifiers) -> bool {
@@ -131,12 +117,35 @@ impl InteractiveNode {
         whole || (!self.claim_at.is_empty() && self.claim_at.call((pos, held)))
     }
 
+    pub fn captures(&self, pos: Pos2, rect: Rect) -> bool {
+        (self.capture_presses && rect.contains_half_open(pos))
+            || (!self.capture_at.is_empty() && self.capture_at.call(pos))
+    }
+
+    pub fn forwards(&self) -> bool {
+        !self.on_forward.is_empty()
+    }
+
     pub fn takes_presses(&self) -> bool {
         self.capture_presses
             || !self.on_click.is_empty()
             || !self.on_click_at.is_empty()
             || !self.on_press.is_empty()
             || !self.on_secondary_press.is_empty()
+    }
+
+    pub fn holds_presses(&self) -> bool {
+        self.takes_presses()
+            || !self.on_drag.is_empty()
+            || !self.on_cancel.is_empty()
+            || !self.on_active_change.is_empty()
+            || !self.capture_at.is_empty()
+            || !self.claim_at.is_empty()
+            || self.claim_modifiers.is_some()
+    }
+
+    pub fn takes_secondary(&self) -> bool {
+        !self.on_secondary_press.is_empty() || !self.on_secondary_drag.is_empty()
     }
 
     pub fn claims_touches(&self) -> bool {
@@ -152,7 +161,10 @@ impl InteractiveNode {
     }
 
     pub fn claims_middle(&self) -> bool {
-        self.wants_autoscroll() || !self.on_pan_drag.is_empty() || !self.on_middle_click.is_empty()
+        self.wants_autoscroll()
+            || !self.on_pan_drag.is_empty()
+            || !self.on_middle_click.is_empty()
+            || self.forwards()
     }
 
     pub fn wants_wheel(&self, wheel: Vec2) -> bool {
@@ -160,10 +172,13 @@ impl InteractiveNode {
     }
 
     pub fn catches_drag(&self, direction: Direction) -> bool {
-        self.touch_drags
-            || self.touch_drag_axis == Some(direction)
+        self.holds_drag(direction)
             || (!self.on_scroll_drag.is_empty()
                 && self.scroll_axis.is_none_or(|axis| axis == direction))
+    }
+
+    pub fn holds_drag(&self, direction: Direction) -> bool {
+        self.touch_drags || self.touch_drag_axis == Some(direction)
     }
 
     fn along(&self, wheel: Vec2) -> bool {
@@ -177,96 +192,34 @@ impl InteractiveNode {
         self.armed || self.key_active
     }
 
-    fn report_active(&mut self) {
+    pub(crate) fn arm(&mut self, armed: bool) -> Option<(Callback<bool>, bool)> {
+        self.armed = armed;
+        self.report_active()
+    }
+
+    fn report_active(&mut self) -> Option<(Callback<bool>, bool)> {
         let active = self.is_active();
-        if active != self.active {
-            self.active = active;
-            self.on_active_change.call(active);
+        if active == self.active {
+            return None;
         }
+        self.active = active;
+        Some((self.on_active_change.clone(), active))
     }
+}
 
-    fn pan_drag(&mut self, input: &InteractInput, id: NodeId, contains_pointer: bool) {
-        if input.middle_pressed_this_frame && contains_pointer {
-            self.middle_dragged = input.pointer_pos;
-        }
-        if !input.middle_down {
-            self.middle_dragged = None;
-        }
-        let fingers = input.zoom_target == Some(id);
-        let active = self.middle_dragged.is_some() || fingers;
-        if active != self.pan_active {
-            self.pan_active = active;
-            self.on_pan_active_change.call(active);
-        }
-        if let Some(previous) = self.middle_dragged
-            && let Some(pos) = input.pointer_pos
-            && pos != previous
-        {
-            self.middle_dragged = Some(pos);
-            self.on_pan_drag.call(pos - previous);
-        }
-        if fingers && input.touch_pan != Vec2::ZERO {
-            self.on_pan_drag.call(input.touch_pan);
-        }
-    }
-
-    fn middle_click(&mut self, input: &InteractInput, contains_pointer: bool) {
-        if self.on_middle_click.is_empty() {
-            return;
-        }
-        if input.middle_pressed_this_frame {
-            self.middle_armed = contains_pointer;
-        }
-        if input.middle_released_this_frame {
-            if self.middle_armed && contains_pointer {
-                self.on_middle_click.call();
-            }
-            self.middle_armed = false;
-        }
-    }
-
-    fn secondary_drag(&mut self, input: &InteractInput, rect: Rect) {
-        if self.on_secondary_drag.is_empty() {
-            return;
-        }
-        let Some(drag) = input.secondary_drag else {
-            if let Some(pos) = self.secondary_dragged.take() {
-                self.on_secondary_drag.call(SecondaryDrag {
-                    from: pos,
-                    pos,
-                    started: false,
-                    ended: false,
-                    cancelled: true,
-                    modifiers: input.modifiers,
-                });
-            }
-            return;
-        };
-        if drag.started && input.over(rect, drag.from) {
-            self.secondary_dragged = Some(drag.from);
-            self.on_secondary_drag.call(drag);
-        } else if self.secondary_dragged.is_some()
-            && (drag.ended || drag.cancelled || self.secondary_dragged != Some(drag.pos))
-        {
-            self.secondary_dragged = Some(drag.pos);
-            self.on_secondary_drag.call(drag);
-        }
-        if drag.ended || drag.cancelled {
-            self.secondary_dragged = None;
-        }
-    }
-
-    fn press(&self, input: &InteractInput, rect: Rect, pos: Pos2) -> PointerPress {
-        PointerPress {
-            pos,
-            fraction: fraction(rect, pos),
-            clicks: input.clicks,
-            modifiers: input.modifiers,
-            touch: input.touch_started
-                || input.touch_active
-                || input.touch_ended
-                || input.touch_cancelled,
-        }
+pub fn press_at(
+    rect: Rect,
+    pos: Pos2,
+    clicks: u32,
+    modifiers: Modifiers,
+    touch: bool,
+) -> PointerPress {
+    PointerPress {
+        pos,
+        fraction: fraction(rect, pos),
+        clicks,
+        modifiers,
+        touch,
     }
 }
 
@@ -312,192 +265,6 @@ impl Element for InteractiveNode {
         false
     }
 
-    fn engaged(&self) -> bool {
-        self.armed
-            || self.key_active
-            || self.active
-            || self.hovered
-            || self.hover_pos.is_some()
-            || self.dragged.is_some()
-            || self.pan_active
-            || self.middle_dragged.is_some()
-            || self.middle_armed
-            || self.secondary_dragged.is_some()
-    }
-
-    fn disengage(&mut self, _doc: &mut Document) {
-        self.hover_pos = None;
-        if self.hovered {
-            self.hovered = false;
-            self.on_hover_change.call(false);
-        }
-    }
-
-    fn captures(&mut self, _doc: &mut Document, pos: Pos2, rect: Rect) -> bool {
-        (self.capture_presses && rect.contains_half_open(pos)) || self.capture_at.call(pos)
-    }
-
-    fn intercepts(&mut self, _doc: &mut Document, pos: Pos2, _rect: Rect) -> bool {
-        self.intercept_at.call(pos)
-    }
-
-    fn interact(
-        &mut self,
-        doc: &mut Document,
-        painter: &Painter,
-        input: &InteractInput,
-        id: NodeId,
-        rect: Rect,
-        focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        if let Some(focus) = self.focus.as_ref()
-            && input.pointer_over(rect)
-            && ((input.pressed_this_frame && !input.touch_started)
-                || (input.touch_ended && !input.touch_dragged && !input.touch_cancelled))
-            && !self.declines(input, rect)
-        {
-            *focus_target = match focus.press_focus {
-                true => Some(id),
-                false => doc.focused_node(),
-            };
-        }
-        if !input.pointer_down && !input.released_this_frame {
-            self.armed = false;
-            self.dragged = None;
-        }
-        let captured = doc.pointer_capture == Some(id);
-        let yielded = doc.pointer_capture.is_some_and(|captor| captor != id);
-        if yielded {
-            self.armed = false;
-            self.dragged = None;
-        }
-        let contains_pointer = input.pointer_over(rect);
-        if input.pressed_this_frame
-            && !yielded
-            && let Some(pos) = input.press_pos.or(input.pointer_pos)
-            && (input.over(rect, pos) || captured)
-        {
-            self.armed = true;
-            let press = self.press(input, rect, pos);
-            self.on_press.call(press);
-            self.report_active();
-        }
-        let secondary_yielded = doc.secondary_claim.is_some_and(|claimant| claimant != id);
-        if contains_pointer
-            && input.secondary_pressed_this_frame
-            && !secondary_yielded
-            && let Some(pos) = input.pointer_pos
-        {
-            let press = self.press(input, rect, pos);
-            self.on_secondary_press.call(press);
-        }
-        let holds_drag = captured
-            || self.touch_drags
-            || (self.touch_drag_axis.is_some() && input.touch_scroll_target == Some(id));
-        if input.touch_cancelled || (input.touch_scrolling && !holds_drag) {
-            if self.armed {
-                self.on_cancel.call();
-            }
-            self.armed = false;
-            self.dragged = None;
-        }
-        if input.released_this_frame
-            && self.armed
-            && !input.touch_cancelled
-            && (!input.touch_scrolling || holds_drag)
-            && let Some(pos) = input.pointer_pos
-            && self.dragged.or(input.press_pos) != Some(pos)
-        {
-            self.dragged = Some(pos);
-            let press = self.press(input, rect, pos);
-            self.on_drag.call(press);
-        }
-        if input.released_this_frame {
-            if self.armed
-                && (contains_pointer || captured || input.touch_ended)
-                && !input.touch_dragged
-                && !input.touch_cancelled
-            {
-                self.on_click.call();
-                if let Some(pos) = input.pointer_pos {
-                    let press = self.press(input, rect, pos);
-                    self.on_click_at.call(press);
-                }
-            }
-            self.armed = false;
-            self.dragged = None;
-        }
-        let hovered = contains_pointer && !input.touch_active && !input.touch_ended;
-        if (hovered || self.is_active())
-            && let Some(cursor) = self.cursor
-        {
-            painter.ctx().set_cursor_icon(cursor);
-        }
-        if hovered != self.hovered {
-            self.hovered = hovered;
-            self.on_hover_change.call(hovered);
-        }
-        let at = hovered.then_some(input.pointer_pos).flatten();
-        if at != self.hover_pos {
-            self.hover_pos = at;
-            if let Some(pos) = at {
-                let press = self.press(input, rect, pos);
-                self.on_hover_move.call(press);
-            }
-        }
-        self.report_active();
-        if self.armed
-            && input.pointer_down
-            && (!input.touch_scrolling || holds_drag)
-            && let Some(pos) = input.pointer_pos
-            && (self.repeat_drag || self.dragged != Some(pos))
-        {
-            self.dragged = Some(pos);
-            if self.repeat_drag {
-                painter.ctx().request_repaint();
-            }
-            let press = self.press(input, rect, pos);
-            self.on_drag.call(press);
-        }
-        self.middle_click(input, contains_pointer);
-        self.pan_drag(input, id, contains_pointer);
-        if !secondary_yielded {
-            self.secondary_drag(input, rect);
-        }
-        if input.wheel_target == Some(id)
-            && (input.scroll != Vec2::ZERO || input.scroll_fling != Vec2::ZERO)
-            && let Some(pos) = input.pointer_pos
-        {
-            self.on_scroll.call(ScrollGesture {
-                delta: input.scroll,
-                fling: input.scroll_fling,
-                pos,
-                modifiers: input.modifiers,
-            });
-        }
-        if input.touch_scroll_target == Some(id) {
-            self.on_scroll_drag.call(DragGesture {
-                started: input.touch_started,
-                ended: input.touch_ended,
-                cancelled: input.touch_cancelled,
-                delta: input.touch_scroll_delta,
-                velocity: input.touch_velocity,
-            });
-        }
-        if input.zoom_target == Some(id)
-            && input.zoom != 1.0
-            && let Some(pos) = input.zoom_pos
-        {
-            self.on_zoom.call(ZoomGesture {
-                factor: input.zoom,
-                pos,
-            });
-        }
-
-        children.extend(self.child);
-    }
-
     fn children(&self) -> Vec<NodeId> {
         self.child.into_iter().collect()
     }
@@ -538,7 +305,6 @@ impl Element for InteractiveNode {
             (self.active, "active"),
             (self.armed, "armed"),
             (self.key_active, "key active"),
-            (self.dragged.is_some(), "dragged"),
             (self.pan_active, "panning"),
         ]
         .into_iter()
@@ -599,22 +365,6 @@ impl Document {
         self.arena.insert(node)
     }
 
-    pub fn capture_pointer(&mut self, captor: NodeId) {
-        self.pointer_capture = Some(captor);
-        let scrolls = |direction| {
-            self.arena.contains(captor)
-                && self
-                    .arena
-                    .get(captor)
-                    .as_any()
-                    .downcast_ref::<InteractiveNode>()
-                    .is_some_and(|catcher| catcher.catches_drag(direction))
-        };
-        let (vertical, horizontal) = (scrolls(Direction::Vertical), scrolls(Direction::Horizontal));
-        self.touch_scroll_vertical = vertical.then_some(captor);
-        self.touch_scroll_horizontal = horizontal.then_some(captor);
-    }
-
     pub fn set_interactive_child(&mut self, interactive: NodeOf<InteractiveNode>, child: NodeId) {
         if self.arena.get_as::<InteractiveNode>(interactive).child == Some(child) {
             return;
@@ -656,7 +406,7 @@ impl Document {
 
     pub fn set_interactive_touch_drags(&mut self, id: NodeOf<InteractiveNode>, touch_drags: bool) {
         if self.arena.get_as::<InteractiveNode>(id).touch_drags != touch_drags {
-            self.arena.get_mut_as::<InteractiveNode>(id).touch_drags = touch_drags;
+            self.arena.touch_mut_as::<InteractiveNode>(id).touch_drags = touch_drags;
         }
     }
 
@@ -666,7 +416,9 @@ impl Document {
         axis: Option<Direction>,
     ) {
         if self.arena.get_as::<InteractiveNode>(id).touch_drag_axis != axis {
-            self.arena.get_mut_as::<InteractiveNode>(id).touch_drag_axis = axis;
+            self.arena
+                .touch_mut_as::<InteractiveNode>(id)
+                .touch_drag_axis = axis;
         }
     }
 
@@ -676,7 +428,7 @@ impl Document {
         claims_touch: bool,
     ) {
         if self.arena.get_as::<InteractiveNode>(id).claims_touch != claims_touch {
-            self.arena.get_mut_as::<InteractiveNode>(id).claims_touch = claims_touch;
+            self.arena.touch_mut_as::<InteractiveNode>(id).claims_touch = claims_touch;
         }
     }
 
@@ -687,7 +439,7 @@ impl Document {
     ) {
         if self.arena.get_as::<InteractiveNode>(id).inhibits_shortcuts != inhibits {
             self.arena
-                .get_mut_as::<InteractiveNode>(id)
+                .touch_mut_as::<InteractiveNode>(id)
                 .inhibits_shortcuts = inhibits;
         }
     }
@@ -700,10 +452,26 @@ impl Document {
         if self.arena.get_as::<InteractiveNode>(id).claim_modifiers == claimed {
             return;
         }
-        self.arena.get_mut_as::<InteractiveNode>(id).claim_modifiers = claimed;
-        match claimed {
-            Some(_) => self.press_claimants.insert(id.id()),
-            None => self.press_claimants.remove(&id.id()),
+        let node = self.arena.touch_mut_as::<InteractiveNode>(id);
+        node.claim_modifiers = claimed;
+        let claims = claimed.is_some() || !node.claim_at.is_empty();
+        match claims {
+            true => self.press_claimants.insert(id.id()),
+            false => self.press_claimants.remove(&id.id()),
+        };
+    }
+
+    pub fn set_interactive_claim_at(
+        &mut self,
+        id: NodeOf<InteractiveNode>,
+        claim_at: Callback<(Pos2, Modifiers), bool>,
+    ) {
+        let node = self.arena.touch_mut_as::<InteractiveNode>(id);
+        node.claim_at = claim_at;
+        let claims = !node.claim_at.is_empty() || node.claim_modifiers.is_some();
+        match claims {
+            true => self.press_claimants.insert(id.id()),
+            false => self.press_claimants.remove(&id.id()),
         };
     }
 
@@ -717,7 +485,7 @@ impl Document {
             false => self.outside_watchers.insert(id.id()),
         };
         self.arena
-            .get_mut_as::<InteractiveNode>(id)
+            .touch_mut_as::<InteractiveNode>(id)
             .on_press_outside = on_press_outside;
     }
 

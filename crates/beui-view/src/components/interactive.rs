@@ -59,9 +59,8 @@ pub fn Interactive(
     on_autoscroll: Callback<AutoscrollGesture>,
     on_zoom: Callback<ZoomGesture>,
     capture_at: Callback<Pos2, bool>,
-    intercept_at: Callback<Pos2, bool>,
+    hit_at: Callback<Pos2, bool>,
     on_forward: Callback<ForwardedInput>,
-    forward_at: Callback<Pos2, bool>,
     #[prop(default = false)] inhibits_shortcuts: Prop<bool>,
     #[prop(default = None)] claim_modifiers: Prop<Option<Modifiers>>,
     claim_at: Callback<(Pos2, Modifiers), bool>,
@@ -116,10 +115,9 @@ pub fn Interactive(
         node.on_autoscroll = on_autoscroll;
         node.on_zoom = on_zoom;
         node.capture_at = capture_at;
-        node.intercept_at = intercept_at;
+        node.hit_at = hit_at;
         node.on_forward = on_forward;
-        node.forward_at = forward_at;
-        node.claim_at = claim_at;
+        document.set_interactive_claim_at(interactive, claim_at);
         document.set_interactive_on_press_outside(interactive, on_press_outside);
         if let Some(child) = children {
             document.set_interactive_child(interactive, child);

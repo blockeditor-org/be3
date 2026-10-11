@@ -1437,7 +1437,7 @@ fn Editing(field: Field) -> NodeId {
             }}
             cursor
             repeat_drag={autoscroll}
-            capture_at={move |pos: Pos2| {
+            claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
                 !capture_cx.disabled.get_untracked() && capture_cx.handle_at(pos).is_some()
             }}
             on_press={move |event: PointerPress| press(&press_cx, event)}

@@ -1,9 +1,9 @@
 use std::any::Any;
 
-use crate::base::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
+use crate::base::child_list::{ChildHost, ChildList, NodeChildren};
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
-use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects, SpaceId};
+use crate::node::{Element, NodeId, NodeOf, Rects, SpaceId};
 use crate::painter::Painter;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -141,19 +141,6 @@ impl Element for CanvasNode {
         }
     }
 
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        children.extend(self.items.iter().map(ChildItem::node));
-    }
-
     fn children(&self) -> Vec<NodeId> {
         self.items.nodes()
     }
@@ -204,19 +191,6 @@ impl Element for CanvasItemNode {
         if let Some(child) = self.child {
             crate::paint::paint(doc, painter, rects, child);
         }
-    }
-
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        children.extend(self.child);
     }
 
     fn children(&self) -> Vec<NodeId> {

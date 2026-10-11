@@ -836,6 +836,8 @@ pub fn Sheet(
     let shifted = create_memo(move || vec2(0.0, shift.get()));
     let axis = create_memo(|| Some(Direction::Vertical));
     let (tapped, stopped) = (motion.clone(), motion.clone());
+    let catcher = NodeRef::new();
+    let catcher_rect = catcher.clone();
     let (wheeled, dragged) = (motion.clone(), motion.clone());
     let (pressed, handled) = (motion.clone(), motion.clone());
     let (cancelled, released) = (motion.clone(), motion.clone());
@@ -852,7 +854,10 @@ pub fn Sheet(
                         <Frame>
                             <Interactive
                                 scroll_axis={axis}
-                                intercept_at={move |_: Pos2| tapped.flinging()}
+                                @node_ref=&catcher
+                                claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
+                                    tapped.flinging() && super::scroll::under(&catcher_rect, pos)
+                                }}
                                 on_press={move |_: PointerPress| stopped.stop_fling()}
                                 on_scroll={move |gesture: ScrollGesture| wheeled.wheel(gesture)}
                                 on_scroll_drag={move |gesture: DragGesture| dragged.drag(gesture)}

@@ -2,8 +2,7 @@ use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::marker::PhantomData;
 
-use crate::geometry::{Pos2, Rect, Vec2};
-use crate::input::{Modifiers, SecondaryDrag};
+use crate::geometry::{Rect, Vec2};
 use crate::painter::Painter;
 
 use crate::document::Document;
@@ -76,49 +75,6 @@ impl NodeId {
     }
 }
 
-#[derive(Clone, Copy)]
-pub struct InteractInput {
-    pub pointer_pos: Option<Pos2>,
-    pub press_pos: Option<Pos2>,
-    pub pointer_down: bool,
-    pub pressed_this_frame: bool,
-    pub released_this_frame: bool,
-    pub secondary_pressed_this_frame: bool,
-    pub secondary_drag: Option<SecondaryDrag>,
-    pub middle_down: bool,
-    pub middle_pressed_this_frame: bool,
-    pub middle_released_this_frame: bool,
-    pub scroll: Vec2,
-    pub scroll_fling: Vec2,
-    pub zoom: f32,
-    pub touch_pan: Vec2,
-    pub zoom_pos: Option<Pos2>,
-    pub wheel_target: Option<NodeId>,
-    pub zoom_target: Option<NodeId>,
-    pub touch_started: bool,
-    pub touch_active: bool,
-    pub touch_ended: bool,
-    pub touch_cancelled: bool,
-    pub touch_dragged: bool,
-    pub touch_scrolling: bool,
-    pub touch_scroll_delta: Vec2,
-    pub touch_velocity: Vec2,
-    pub touch_scroll_target: Option<NodeId>,
-    pub clicks: u32,
-    pub modifiers: Modifiers,
-    pub visible: Rect,
-}
-
-impl InteractInput {
-    pub fn over(&self, rect: Rect, pos: Pos2) -> bool {
-        rect.contains_half_open(pos) && self.visible.contains_half_open(pos)
-    }
-
-    pub fn pointer_over(&self, rect: Rect) -> bool {
-        self.pointer_pos.is_some_and(|pos| self.over(rect, pos))
-    }
-}
-
 pub type Handler<V, R = ()> = Box<dyn FnMut(V) -> R>;
 pub type ClickHandler = Box<dyn FnMut()>;
 
@@ -149,34 +105,13 @@ pub trait Element: Any {
         false
     }
 
-    fn engaged(&self) -> bool {
-        false
-    }
-
-    fn disengage(&mut self, _doc: &mut Document) {}
-
-    fn captures(&mut self, _doc: &mut Document, _pos: Pos2, _rect: Rect) -> bool {
-        false
-    }
-
-    fn intercepts(&mut self, _doc: &mut Document, _pos: Pos2, _rect: Rect) -> bool {
-        false
-    }
-
-    fn interact(
-        &mut self,
-        doc: &mut Document,
-        painter: &Painter,
-        input: &InteractInput,
-        id: NodeId,
-        rect: Rect,
-        focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    );
-
     fn children(&self) -> Vec<NodeId>;
 
     fn live_children(&self) -> Vec<NodeId> {
+        self.children()
+    }
+
+    fn pointer_children(&self) -> Vec<NodeId> {
         self.children()
     }
 
@@ -599,6 +534,10 @@ impl Arena {
         let id = id.into();
         self.invalidate_node(id);
         self.element_mut(id)
+    }
+
+    pub fn state_mut(&mut self, id: impl Into<NodeId>) -> &mut dyn Element {
+        self.element_mut(id.into())
     }
 
     pub fn paint_mut_as<T: Element>(&mut self, node: NodeOf<T>) -> &mut T {

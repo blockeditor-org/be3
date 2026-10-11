@@ -7,7 +7,7 @@ use crate::painter::Painter;
 
 use crate::callback::Callback;
 use crate::document::Document;
-use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects, SpaceId};
+use crate::node::{Element, NodeId, NodeOf, Rects, SpaceId};
 use ::reactive::settle;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -238,19 +238,6 @@ impl Element for OffsetNode {
         }
         let entered = painter.shifted(Some(SpaceId::inside(host, 1)), self.translation, rect);
         crate::paint::paint(doc, &entered, rects, self.child);
-    }
-
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        children.push(self.child);
     }
 
     fn children(&self) -> Vec<NodeId> {
