@@ -165,7 +165,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
     setup.provide(display_control.clone());
     let problems = Problems::default();
     setup.provide(problems.clone());
-    let flips = Flips::default();
+    let flips = displays.borrow().flips.clone();
     setup.provide(flips.clone());
     runner.start(
         vec![Loaded {

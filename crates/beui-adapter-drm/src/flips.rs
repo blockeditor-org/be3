@@ -29,6 +29,13 @@ impl Flips {
         self.0.borrow_mut().watched = watched;
     }
 
+    pub(crate) fn drawn(&self, screen: &str) {
+        self.0
+            .borrow_mut()
+            .flips
+            .retain(|held| held.screen != screen);
+    }
+
     pub(crate) fn shown(&self, flip: Flip) -> bool {
         let mut shown = self.0.borrow_mut();
         shown.flips.retain(|held| held.screen != flip.screen);
@@ -36,3 +43,6 @@ impl Flips {
         shown.watched
     }
 }
+
+#[cfg(test)]
+mod tests;

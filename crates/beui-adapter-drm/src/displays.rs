@@ -8,6 +8,7 @@ use beui::{
 use beui_core::renderer::Renderer;
 
 use crate::arrow;
+use crate::flips::Flips;
 use crate::gpu::{Gpu, SoftwareCursor, Sprite};
 use crate::layout::bounds;
 use crate::output::Output;
@@ -19,6 +20,7 @@ pub struct Displays {
     pub scale: f32,
     pub icon: CursorIcon,
     pub gpu: Rc<Gpu>,
+    pub flips: Flips,
     cursor: SoftwareCursor,
     arrow: Sprite,
 }
@@ -28,6 +30,7 @@ impl Displays {
         let arrow = gpu.rgba(arrow::WIDTH, arrow::HEIGHT, &arrow::pixels());
         Self {
             outputs: Vec::new(),
+            flips: Flips::default(),
             pointer: Pos2::ZERO,
             scale,
             icon: CursorIcon::Default,
@@ -89,6 +92,7 @@ impl Displays {
                     hotspot: Vec2::ZERO,
                 },
             };
+            self.flips.drawn(output.id());
             let drawn = output.render(
                 &gpu,
                 Frame {
