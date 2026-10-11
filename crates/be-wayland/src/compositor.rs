@@ -450,20 +450,32 @@ impl Compositor {
                 continue;
             }
             if let Some(dialog) = self.windows.blocked_by(id) {
-                self.refuse(id, dialog, &input);
+                self.refuse(id, dialog, &input, now);
                 continue;
             }
             self.deliver(id, &input, now);
         }
     }
 
-    fn refuse(&mut self, id: WindowId, dialog: WindowId, input: &ForwardedInput) {
+    fn refuse(&mut self, id: WindowId, dialog: WindowId, input: &ForwardedInput, now: Instant) {
         let pressed = input
             .events
             .iter()
             .any(|event| matches!(event, Event::PointerButton { pressed: true, .. }));
         if pressed {
             self.raise = Some(dialog);
+        }
+        if self.server.state.buttons_held() && self.server.state.pointer_window() == Some(id) {
+            let releases = ForwardedInput {
+                events: input
+                    .events
+                    .iter()
+                    .filter(|event| matches!(event, Event::PointerButton { pressed: false, .. }))
+                    .cloned()
+                    .collect(),
+                ..input.clone()
+            };
+            self.deliver(id, &releases, now);
         }
         let state = &mut self.server.state;
         if !state.buttons_held() && state.pointer_window() == Some(id) {
