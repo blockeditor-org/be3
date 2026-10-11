@@ -13,9 +13,9 @@ use block_editor_beui::beui::reactive::{
 };
 use block_editor_beui::beui::styled::{Caption, use_theme};
 use block_editor_beui::beui::unstyled::{
-    DockEntry, DockNode, DockPane, DockTab, DockWindow, DockingLayout, TabId,
+    DockDialog, DockEntry, DockNode, DockPane, DockTab, DockWindow, DockingLayout, TabId,
 };
-use block_editor_beui::beui::{NodeId, Rect, pos2, vec2};
+use block_editor_beui::beui::{NodeId, Rect, Vec2, pos2, vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
     AccessLevel, BlockFilter, BlockPick, ChildState, Editor, EditorHost, FocusedBlock, HostPanel,
@@ -31,7 +31,7 @@ use super::picker::{Pick, PickAction, PickOutcome};
 use super::saved::{self, LAYOUT};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
-use super::window::{WindowPanel, dialog_window, tab_window, window_tab, window_title};
+use super::window::{WindowPanel, floating_window, tab_window, window_tab, window_title};
 
 pub const FILES: TabId = TabId::new(1);
 const FIRST_BLOCK_TAB: u64 = 2;
@@ -227,14 +227,26 @@ impl Workspace {
         })
     }
 
-    pub fn windows(&self, dialogs: bool) -> Memo<Vec<HostWindowId>> {
+    pub fn windows(&self) -> Memo<Vec<HostWindowId>> {
         let windows = self.windows.clone();
         create_memo(move || {
             windows.with(|windows| {
                 windows
                     .iter()
-                    .filter(|window| window.parent.is_some() == dialogs)
+                    .filter(|window| window.parent.is_none())
                     .map(|window| window.id)
+                    .collect::<Vec<_>>()
+            })
+        })
+    }
+
+    pub fn dialogs(&self) -> Memo<Vec<(HostWindowId, HostWindowId)>> {
+        let windows = self.windows.clone();
+        create_memo(move || {
+            windows.with(|windows| {
+                windows
+                    .iter()
+                    .filter_map(|window| Some((window.id, window.parent?)))
                     .collect::<Vec<_>>()
             })
         })
@@ -1032,13 +1044,13 @@ pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<Ta
 }
 
 #[component]
-pub fn DialogWindow(workspace: Rc<Workspace>, window: HostWindowId) -> DockNode<TabId> {
+pub fn FloatingWindow(workspace: Rc<Workspace>, window: HostWindowId) -> DockNode<TabId> {
     let rect = workspace
         .windows
         .get_untracked()
         .iter()
         .find(|listed| listed.id == window)
-        .map(dialog_window)
+        .map(floating_window)
         .unwrap_or_else(|| panel_window(HostPanel::BlockStack));
     let key = format!("window.{}", window.0);
     view! {
@@ -1047,6 +1059,53 @@ pub fn DialogWindow(workspace: Rc<Workspace>, window: HostWindowId) -> DockNode<
                 <WindowTab workspace window />
             </DockPane>
         </DockWindow>
+    }
+}
+
+#[component]
+pub fn AttachedWindow(
+    workspace: Rc<Workspace>,
+    window: HostWindowId,
+    parent: HostWindowId,
+) -> DockNode<TabId> {
+    let listed = workspace.windows.clone();
+    let info = create_memo(move || {
+        listed.with(|windows| windows.iter().find(|listed| listed.id == window).cloned())
+    });
+    let title = create_memo(clone!(info -> move || {
+        info.get().map_or_else(|| "Window".to_owned(), |info| window_title(&info))
+    }));
+    let size = create_memo(clone!(info -> move || {
+        info.get()
+            .map_or(Vec2::ZERO, |info| vec2(info.size.width, info.size.height))
+    }));
+    let modal = create_memo(clone!(info -> move || info.get().is_some_and(|info| info.modal)));
+    let responding = create_memo(clone!(info -> move || {
+        info.get().is_none_or(|info| info.responding)
+    }));
+    let focused = create_memo(clone!(info -> move || info.get().is_some_and(|info| info.focused)));
+    let fullscreen = create_memo(|| None);
+    let closing = Rc::clone(&workspace);
+    let editor = workspace.editor().clone();
+    view! {
+        <DockDialog
+            id={window_tab(window)}
+            parent={window_tab(parent)}
+            title={title.clone()}
+            icon=ICON_WEB_ASSET
+            size
+            modal
+            on_close={move || closing.close(window_tab(window))}
+        >
+            <WindowPanel
+                editor={editor.clone()}
+                window
+                fullscreen={fullscreen.clone()}
+                name={title.clone()}
+                responding={responding.clone()}
+                focused={focused.clone()}
+            />
+        </DockDialog>
     }
 }
 

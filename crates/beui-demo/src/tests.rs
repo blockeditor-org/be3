@@ -4,8 +4,10 @@ use block_ui_test::DocumentTest;
 
 use crate::{DemoApp, PAGES, Page};
 
+mod a_dialog_hangs_from_the_tab_that_opened_it;
 mod a_dialog_opens_on_the_screen_it_was_asked_for_from;
 mod a_docked_page_shown_fullscreen_covers_the_dock_until_escape;
+mod a_modal_dialog_blocks_its_tab_and_stacks_a_nested_one;
 mod a_sample_carries_the_source_it_was_written_with;
 mod a_sample_shows_its_code_when_asked;
 mod every_demo_page_paints_as_accepted;
@@ -68,6 +70,21 @@ fn open(test: &mut DocumentTest, page: Page) {
         test.scroll_at(pos2(CATALOG_X, bottom / 2.0), Vec2::new(0.0, -REVEAL_STEP));
     }
     panic!("the catalog never showed {}", page.title());
+}
+
+fn reveal(test: &mut DocumentTest, test_id: &str) {
+    let page = pos2(test.size().x * 0.75, test.size().y / 2.0);
+    for _ in 0..REVEAL_TICKS {
+        if test.shows(test_id) && test.rect_of(test_id).bottom() <= test.size().y {
+            return;
+        }
+        test.scroll_at(page, Vec2::new(0.0, -REVEAL_STEP));
+    }
+    panic!("the page never showed {test_id}");
+}
+
+fn dialog_id(index: u64) -> String {
+    format!("dock.dialog.{}", crate::DIALOG_TABS + index)
 }
 
 fn paint_every_page(size: Vec2, suffix: &str) {

@@ -698,6 +698,8 @@ impl Dispatch<ext_idle_notification_v1::ExtIdleNotificationV1, ()> for Received 
 wayland_client::delegate_noop!(Received: ignore zwp_linux_dmabuf_v1::ZwpLinuxDmabufV1);
 wayland_client::delegate_noop!(Received: ignore zwp_linux_buffer_params_v1::ZwpLinuxBufferParamsV1);
 wayland_client::delegate_noop!(Received: ignore xdg_positioner::XdgPositioner);
+wayland_client::delegate_noop!(Received: ignore wayland_protocols::xdg::dialog::v1::client::xdg_wm_dialog_v1::XdgWmDialogV1);
+wayland_client::delegate_noop!(Received: ignore wayland_protocols::xdg::dialog::v1::client::xdg_dialog_v1::XdgDialogV1);
 impl Dispatch<xdg_popup::XdgPopup, ()> for Received {
     fn event(
         state: &mut Self,

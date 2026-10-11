@@ -1,3 +1,4 @@
+mod dialog;
 mod docking;
 mod modifier_drag;
 pub mod state;
@@ -44,9 +45,11 @@ use beui_view::reactive::{
     with_document,
 };
 
+pub use dialog::DockDialogHandle;
+use dialog::{DialogParts, DockDialogs};
 pub use docking::{
-    DockEntry, DockGroup, DockKey, DockNode, DockPane, DockSplit, DockTab, DockWindow, Docking,
-    DockingLayout, DockingSnapshot,
+    DockDialog, DockEntry, DockGroup, DockKey, DockNode, DockPane, DockSplit, DockTab, DockWindow,
+    Docking, DockingLayout, DockingSnapshot,
 };
 use modifier_drag::{Resized, modifier_resize};
 pub use state::{
@@ -214,13 +217,35 @@ impl DockTabControl {
     }
 
     pub fn focused(&self) -> bool {
-        self.state
-            .with(|state| state.focused_tab() == Some(self.tab))
+        let Some(dock) = self.dock.upgrade() else {
+            return self
+                .state
+                .with(|state| state.focused_tab() == Some(self.tab));
+        };
+        match dock.dialog_focus.get() {
+            Some(dialog) => dialog == self.tab,
+            None => self
+                .state
+                .with(|state| state.focused_tab() == Some(self.tab)),
+        }
+    }
+
+    pub fn attention(&self) -> Option<u64> {
+        let dock = self.dock.upgrade()?;
+        dock.attention
+            .with(|(count, target)| (*target == Some(self.tab)).then_some(*count))
     }
 
     pub fn show(&self) {
-        if let Some(dock) = self.dock.upgrade() {
-            dock.show(self.tab);
+        let Some(dock) = self.dock.upgrade() else {
+            return;
+        };
+        match dock.is_dialog(self.tab) {
+            true => dock.focus_dialog(self.tab),
+            false => {
+                dock.show(self.tab);
+                dock.release_dialog_focus();
+            }
         }
     }
 }
@@ -343,6 +368,16 @@ struct State {
     stack: Option<RenderFn<DockStackHandle>>,
     switcher: Option<RenderFn<DockSwitcherHandle>>,
     switch: Option<RenderFn<DockSwitchHandle>>,
+    mode: Memo<DockMode>,
+    dialogs: Memo<Vec<(TabId, TabId)>>,
+    dialog: Func<TabId, Option<DialogParts>>,
+    dialog_chrome: RenderFn<DockDialogHandle>,
+    dialog_frames: RefCell<HashMap<TabId, NodeRef>>,
+    dialog_bodies: RefCell<HashMap<TabId, NodeRef>>,
+    dialog_focus: ReadSignal<Option<TabId>>,
+    set_dialog_focus: WriteSignal<Option<TabId>>,
+    attention: ReadSignal<(u64, Option<TabId>)>,
+    set_attention: WriteSignal<(u64, Option<TabId>)>,
 }
 
 type Handle = Rc<State>;
@@ -996,6 +1031,9 @@ pub(crate) struct DockConfig {
     pub(crate) stack: Option<RenderFn<DockStackHandle>>,
     pub(crate) switcher: Option<RenderFn<DockSwitcherHandle>>,
     pub(crate) switch: Option<RenderFn<DockSwitchHandle>>,
+    pub(crate) dialogs: Memo<Vec<(TabId, TabId)>>,
+    pub(crate) dialog: Func<TabId, Option<DialogParts>>,
+    pub(crate) dialog_chrome: Option<RenderFn<DockDialogHandle>>,
 }
 
 #[component]
@@ -1028,7 +1066,13 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         stack,
         switcher,
         switch,
+        dialogs,
+        dialog,
+        dialog_chrome,
     } = config;
+    let mode = create_memo(move || mode.get());
+    let (dialog_focus, set_dialog_focus) = create_signal(None);
+    let (attention, set_attention) = create_signal((0, None));
     let (current, set_current) = create_signal(state.peek());
     let (actions, set_actions) = create_signal(HashMap::new());
     let (menus, set_menu) = create_signal(DockMenus::new());
@@ -1058,6 +1102,17 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         stack,
         switcher,
         switch,
+        mode: mode.clone(),
+        dialogs,
+        dialog,
+        dialog_chrome: dialog_chrome
+            .unwrap_or_else(|| RenderFn::new(|handle: DockDialogHandle| handle.body)),
+        dialog_frames: RefCell::default(),
+        dialog_bodies: RefCell::default(),
+        dialog_focus,
+        set_dialog_focus,
+        attention,
+        set_attention,
         thickness: splitter_thickness,
         group_inset,
         rect: component_rect(),
@@ -1123,9 +1178,9 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         dock.keep_panels(&tabs);
     }));
     on_cleanup(clone!(dock -> move || dock.keep_panels(&[])));
-    let mode = create_memo(move || mode.get());
     let fullscreen_dock = dock.clone();
     let switch_dock = dock.clone();
+    let dialog_dock = dock.clone();
     view! {
         <List spacing=0.0>
             <Frame
@@ -1150,6 +1205,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 </List>
             </Frame>
             <DockFullscreenView dock={fullscreen_dock} />
+            <DockDialogs dock={dialog_dock} />
             <DockSwitchView dock={switch_dock} />
         </List>
     }
@@ -1660,6 +1716,7 @@ fn DockPanelView(dock: Handle, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeI
                     .is_some_and(|inner| inner.contains(press.pos));
                 if !inside {
                     pressed.edit(|state| state.focus(leaf));
+                    pressed.release_dialog_focus();
                 }
             }}
         >
@@ -1857,6 +1914,7 @@ fn DockTabBar(dock: Handle, leaf: LeafId, vertical: bool) -> NodeId {
                         state.set_active_index(leaf, index);
                         state.focus(leaf);
                     });
+                    changed.release_dialog_focus();
                 }}
             >
                 {move |handle: ChoiceOptionHandle| {
@@ -2435,6 +2493,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                         state.focus(leaf);
                                     }
                                 });
+                                pressed.release_dialog_focus();
                             }}
                             on_drag={move |press: PointerPress| {
                                 let Some((start, from)) = grabbed.get() else {

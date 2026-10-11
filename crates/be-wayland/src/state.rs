@@ -168,6 +168,7 @@ impl State {
         let shm = ShmState::new::<Self>(handle, Vec::new());
         let data_device = DataDeviceState::new::<Self>(handle);
         let decorations = Decorations::new(handle);
+        crate::dialog::create(handle);
         let idle = Idle::new(handle);
         CursorShapeManagerState::new::<Self>(handle);
         ViewporterState::new::<Self>(handle);
@@ -438,6 +439,11 @@ impl State {
                 .get::<XdgToplevelSurfaceData>()
                 .and_then(|data| data.lock().unwrap().app_id.clone())
         })
+    }
+
+    pub fn modal(&self, id: WindowId) -> bool {
+        self.toplevel(id)
+            .is_some_and(|toplevel| crate::dialog::is_modal(&toplevel))
     }
 
     pub fn parent(&self, id: WindowId) -> Option<WindowId> {

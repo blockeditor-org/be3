@@ -1,5 +1,6 @@
 mod compositor;
 mod decoration;
+mod dialog;
 mod idle;
 pub mod programs;
 mod render;

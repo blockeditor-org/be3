@@ -123,7 +123,97 @@ pub(crate) fn DockingPage() -> NodeId {
             <Sample title="Moving windows by their content" code={vec![ContentDrag::SOURCE]}>
                 <ContentDrag />
             </Sample>
+            <Sample
+                title="Dialogs attached to a tab"
+                code={vec![AttachedDialogs::SOURCE, AttachedDialog::SOURCE]}
+            >
+                <AttachedDialogs />
+            </Sample>
         </ScrollPage>
+    }
+}
+
+#[sample]
+#[component]
+fn AttachedDialogs() -> NodeId {
+    let dialogs = use_context::<DemoDialogs>();
+    let tab = use_dock_tab().map(|control| control.tab());
+    let modeless = dialogs.clone();
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal spacing=ROW_SPACING>
+                <Button
+                    @test_id="demo.dialog.open"
+                    label="Open a dialog"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || {
+                        if let (Some(dialogs), Some(tab)) = (modeless.as_ref(), tab) {
+                            dialogs.open(tab, false);
+                        }
+                    }}
+                />
+                <Button
+                    @test_id="demo.dialog.modal"
+                    label="Open a modal dialog"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || {
+                        if let (Some(dialogs), Some(tab)) = (dialogs.as_ref(), tab) {
+                            dialogs.open(tab, true);
+                        }
+                    }}
+                />
+            </List>
+            <Caption
+                content="A dialog hangs from the tab that opened it: it floats in the middle of \
+                 that tab, hides when another tab is shown in its place and comes back with it, \
+                 and is never a tab of its own. A modal one takes every press and key meant \
+                 for its tab until it closes, and the focus goes back to the tab when it does."
+                wrap=true
+            />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+pub(crate) fn AttachedDialog(modal: bool) -> NodeId {
+    let dialogs = use_context::<DemoDialogs>();
+    let control = use_dock_tab();
+    let nesting = dialogs.clone();
+    let tab = control.as_ref().map(DockTabControl::tab);
+    let message = match modal {
+        true => "This tab cannot be used until this dialog closes.",
+        false => "The tab under this dialog can still be used.",
+    };
+    let id = tab.map_or(0, TabId::value);
+    view! {
+        <Frame padding_horizontal=PAGE_PADDING padding_vertical=PAGE_PADDING>
+            <List spacing=SECTION_SPACING>
+                <Body content={message} />
+                <List direction=Direction::Horizontal spacing=ROW_SPACING>
+                    <Button
+                        @test_id={format!("demo.dialog.{id}.nested")}
+                        label="Open a modal dialog over this one"
+                        variant=ButtonVariant::Secondary
+                        on_click={move || {
+                            if let (Some(dialogs), Some(tab)) = (nesting.as_ref(), tab) {
+                                dialogs.open(tab, true);
+                            }
+                        }}
+                    />
+                    <Button
+                        @test_id={format!("demo.dialog.{id}.close")}
+                        label="Close"
+                        variant=ButtonVariant::Primary
+                        on_click={move || {
+                            if let (Some(dialogs), Some(tab)) = (dialogs.as_ref(), tab) {
+                                dialogs.close(tab);
+                            }
+                        }}
+                    />
+                </List>
+            </List>
+        </Frame>
     }
 }
 

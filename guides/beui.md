@@ -915,7 +915,12 @@ it describes must not become hovering the tooltip.
 A **floating** one is painted above everything and answers the pointer where it
 actually is. Only the part of the document it covers is shut out, so a press
 that lands on it does not also land on what is underneath, and everything
-around it stays live. `unstyled::Floating` is the one to reach for: it pins its
+around it stays live. A floating or passive overlay anchored to a node inside
+another one rises with it whenever that one opens or is raised
+(`Document::raise_overlay`), so something pinned to a dock window stays above
+it. An open overlay given `blocks` (a `NodeRef`) is modal to that node alone:
+the focus cannot enter it, Tab skips it, and focusing something inside it
+focuses the overlay's first focusable instead. `unstyled::Floating` is the one to reach for: it pins its
 child to the top or the bottom edge of a node named by `NodeRef`, taking no
 space in the layout around it.
 
@@ -1223,6 +1228,33 @@ Each window and each docked pane claims those presses (`claim_modifiers`), so
 neither the tabs nor the content see them. The code is
 `dock/modifier_drag.rs`; linux-desktop sets Super, and the demo's Docking page
 has a switch for Alt.
+
+A `DockDialog`, declared beside the dock's other children, is a window attached
+to a tab: `<DockDialog id parent title size modal on_close>content</DockDialog>`
+hangs over the tab named by `parent` (or over another dialog, so dialogs of
+dialogs stack), centred on the parent's panel at the `size` its content asks
+for and kept on the parent's screen (`Placement::CenterOn`), in the
+`dialog_chrome` render prop (styled: a bordered card with a title bar and a
+close button, `dock.dialog.<tab>` naming its body). It is not part of the
+`DockState`: it is never a tab, nothing drags it into the dock, a key declared
+as both a dialog and a tab is only a dialog, and it is not saved with the
+layout. It shows exactly while its parent tab does (`DockState::is_shown`),
+so it hides when another tab takes the parent's place and returns with it,
+and it rises with the window its parent is in, since a floating overlay
+anchored inside another rises with it. A new dialog takes the focus. The
+dock tracks which dialog has it beside the focused tab: pressing a dialog
+gives it the focus, pressing the parent's pane or tab bar takes it back, and
+when a dialog closes the focus returns to its parent (the overlay's focus
+restore). The content's `use_dock_tab()` is a `DockTabControl` for the
+dialog, whose `focused` follows that and whose `show` focuses the dialog.
+`modal` blocks the parent until the dialog closes or stops being modal: a
+floating shield (`Placement::Cover`) over the parent takes its pointer, and a
+press on it focuses the innermost modal dialog and flashes it (the handle's
+`attention`, and `DockTabControl::attention` for content in another document,
+such as a program's window, to take the keyboard itself); the dialog's overlay
+`blocks` the parent's panel, so the focus cannot move into it (Tab skips it,
+and focusing it lands in the dialog); and while the parent's tab is focused
+the focus goes to its innermost modal dialog.
 
 One tab at a time can be fullscreen: `DockState::set_fullscreen` with a
 `DockFullscreen` naming the tab and an area (a rect in document coordinates, or
