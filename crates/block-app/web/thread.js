@@ -39,6 +39,11 @@ function imports(module, memory) {
             group[wanted.name] = environment[wanted.name];
         } else if (wanted.module === "be3_host" && wanted.name === "host_wake") {
             group[wanted.name] = () => self.postMessage({ kind: "wake" });
+        } else if (wanted.module === "be3_host" && wanted.name === "host_panic") {
+            group[wanted.name] = (pointer, length) => {
+                const bytes = new Uint8Array(memory.buffer).slice(pointer, pointer + length);
+                throw new Error(new TextDecoder().decode(bytes));
+            };
         } else {
             group[wanted.name] = stub(wanted.module, wanted.name);
         }

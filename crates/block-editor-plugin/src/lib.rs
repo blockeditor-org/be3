@@ -27,16 +27,16 @@ pub use block_plugin_api::{
     CreationProgress, CursorIcon, DataListing, DescribedAction, Displays, EditorCapabilities,
     EditorInstanceId, EditorRegion, FetchResult, FileSave, FrameChrome, FrameSpec, HostAction,
     HostDisplay, HostDisplayMode, HostImage, HostInputDevice, HostNotificationAction, HostPanel,
-    HostProgram, HostReply, HostRequest, HostValue, HostWindow, HostWindowId, HostWindows,
-    IncomingNotification, InputDevices, InputEvent, InteractionMode, Key, KeyChord, Media,
-    MediaLevel, MediaLevels, MediaRequest, MenuEntry, Modifiers, NodeValue,
+    HostProgram, HostReply, HostRequest, HostTrayItem, HostValue, HostWindow, HostWindowId,
+    HostWindows, IncomingNotification, InputDevices, InputEvent, InteractionMode, Key, KeyChord,
+    Media, MediaLevel, MediaLevels, MediaRequest, MenuEntry, Modifiers, NodeValue,
     NotificationCloseReason, NotificationInbox, NotificationReport, NotificationRequest,
     NotificationSignal, NotificationUrgency, Notifications, Occluder, PlayerCommand, PointerButton,
     Power, PowerAction, PowerAvailability, ProgramAction, Programs, ResizeMode, ScreenLocked,
     ScreenPlacement, SettingsProgress, ShellDialog, SurfaceRect, TemplateCategory,
-    TemplateDescriptor, Toggled, TopBar, TouchPhase, VersionBranch, VersionChange,
-    VersionChangeKind, VersionCommand, VersionCommit, VersionStatus, ViewChange, WebViewCommand,
-    WebViewEvent, WebViewId, WheelUnit, WindowAction,
+    TemplateDescriptor, Toggled, TopBar, TouchPhase, Tray, TrayMenuEntry, TrayRequest, TrayStatus,
+    TrayToggle, VersionBranch, VersionChange, VersionChangeKind, VersionCommand, VersionCommit,
+    VersionStatus, ViewChange, WebViewCommand, WebViewEvent, WebViewId, WheelUnit, WindowAction,
 };
 pub use block_ui;
 pub use clock::{frame_time, pin_wall_clock, utc_offset, wall_clock};
@@ -106,6 +106,7 @@ pub mod __private {
 
     #[cfg(target_arch = "wasm32")]
     pub fn start_wasm(manifest: &str, apps: Vec<App>) {
+        crate::wasm::report_panics();
         let identity = identity(manifest);
         let mut declared = declared_block_types(manifest);
         let mut implemented: Vec<_> = apps.iter().map(|app| app.block_type).collect();

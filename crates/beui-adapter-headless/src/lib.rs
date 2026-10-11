@@ -89,6 +89,5 @@ fn run(headless: Headless, launch: Launch) -> Result<(), Box<dyn Error>> {
         }
         while receiver.try_recv().is_ok() {}
     }
-    runner.exit();
-    Ok(())
+    runner.finish()
 }

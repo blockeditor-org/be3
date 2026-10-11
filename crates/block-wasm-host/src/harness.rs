@@ -165,6 +165,7 @@ impl Host {
             .map_err(|error| format!("the test memory could not be linked: {error}"))?;
         gpu::link(&mut linker)?;
         transport::link(&mut linker)?;
+        crate::panic::link(&mut linker)?;
         threads::link(&mut linker)?;
         wake::link(&mut linker)?;
         linker

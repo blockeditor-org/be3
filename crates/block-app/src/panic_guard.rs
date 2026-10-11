@@ -1,43 +1,91 @@
+use std::cell::Cell;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Mutex;
 
 static LAST_PANIC: Mutex<Option<String>> = Mutex::new(None);
+static PREVIOUS_PANIC: Mutex<Option<String>> = Mutex::new(None);
 
 #[cfg(not(target_arch = "wasm32"))]
 static REPORT_FILE: Mutex<Option<std::path::PathBuf>> = Mutex::new(None);
 
+thread_local! {
+    static CONTAINING: Cell<u32> = const { Cell::new(0) };
+}
+
 pub(crate) fn install() {
-    let previous = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |info| {
-        let report = format!("{info}\n\n{}", backtrace());
-        #[cfg(target_arch = "wasm32")]
-        web_sys::console::error_1(&format!("Block panicked: {report}").into());
-        #[cfg(not(target_arch = "wasm32"))]
-        if let Some(path) = &*lock(&REPORT_FILE) {
-            let _ = std::fs::write(path, &report);
-        }
-        *lock(&LAST_PANIC) = Some(report);
-        previous(info);
-    }));
+    std::panic::set_hook(Box::new(hook));
+}
+
+fn hook(info: &std::panic::PanicHookInfo<'_>) {
+    let report = format!("{info}\n\n{}", backtrace());
+    let contained = CONTAINING.with(Cell::get) > 0;
+    let thread = std::thread::current();
+    let name = thread.name().unwrap_or("unnamed");
+    let what = match contained {
+        true => "panicked, and the panic was contained",
+        false => "panicked",
+    };
+    #[cfg(target_arch = "wasm32")]
+    web_sys::console::error_1(&format!("Block's thread '{name}' {what}: {report}").into());
+    #[cfg(not(target_arch = "wasm32"))]
+    eprintln!("block-app: thread '{name}' {what}: {report}");
+    if contained {
+        return;
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    if let Some(path) = &*lock(&REPORT_FILE) {
+        let _ = std::fs::write(path, &report);
+    }
+    *lock(&LAST_PANIC) = Some(report);
+}
+
+pub(crate) fn contain<R>(run: impl FnOnce() -> R) -> Result<R, String> {
+    CONTAINING.with(|depth| depth.set(depth.get() + 1));
+    let ran = catch_unwind(AssertUnwindSafe(run));
+    CONTAINING.with(|depth| depth.set(depth.get() - 1));
+    ran.map_err(|payload| beui::panic_message(&*payload))
+}
+
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub(crate) fn summary(report: &str) -> &str {
+    report.split("\n\n").next().unwrap_or(report)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn report_in(data_dir: &std::path::Path) {
     let path = data_dir.join("last-panic.txt");
     if let Ok(report) = std::fs::read_to_string(&path) {
-        lock(&LAST_PANIC).get_or_insert(format!(
-            "Block closed after this error the last time it ran.\n\n{report}"
-        ));
+        lock(&PREVIOUS_PANIC).get_or_insert(report);
     }
     *lock(&REPORT_FILE) = Some(path);
 }
 
 pub(crate) fn take() -> Option<String> {
-    let report = lock(&LAST_PANIC).take()?;
+    lock(&LAST_PANIC).take()
+}
+
+pub(crate) fn take_previous() -> Option<String> {
+    let report = lock(&PREVIOUS_PANIC).take()?;
+    forget();
+    Some(report)
+}
+
+#[cfg_attr(
+    any(not(target_os = "linux"), target_arch = "wasm32"),
+    allow(dead_code, unused_variables)
+)]
+pub(crate) fn persist(report: &str) {
+    #[cfg(not(target_arch = "wasm32"))]
+    if let Some(path) = &*lock(&REPORT_FILE) {
+        let _ = std::fs::write(path, report);
+    }
+}
+
+pub(crate) fn forget() {
     #[cfg(not(target_arch = "wasm32"))]
     if let Some(path) = &*lock(&REPORT_FILE) {
         let _ = std::fs::remove_file(path);
     }
-    Some(report)
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -76,3 +124,18 @@ fn library_offset(line: &str) -> Option<String> {
     let name = file.rsplit('/').next().unwrap_or(&file);
     Some(format!("({name}+{:#x})", address - info.dli_fbase as usize))
 }
+
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub(crate) async fn contain_task(
+    task: impl std::future::Future<Output = ()>,
+) -> Result<(), String> {
+    let mut task = std::pin::pin!(task);
+    std::future::poll_fn(|context| match contain(|| task.as_mut().poll(context)) {
+        Ok(polled) => polled.map(Ok),
+        Err(panic) => std::task::Poll::Ready(Err(panic)),
+    })
+    .await
+}
+
+#[cfg(test)]
+mod tests;

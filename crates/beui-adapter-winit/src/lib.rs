@@ -116,7 +116,7 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
     event_loop.run_app(&mut runner)?;
     match runner.error {
         Some(error) => Err(error.into()),
-        None => Ok(()),
+        None => runner.runner.finish(),
     }
 }
 
@@ -287,6 +287,10 @@ impl Runner {
             .frame(&mut platform, pixels_per_point, SafeArea::default())
         else {
             self.next_update = None;
+            if let Some(failure) = self.runner.failure() {
+                self.error = Some(format!("the app stopped after a panic: {failure}"));
+                event_loop.exit();
+            }
             return false;
         };
         self.next_update = Instant::now().checked_add(frame.repaint_after);
@@ -785,6 +789,24 @@ fn cursor(icon: CursorIcon) -> Option<winit::window::CursorIcon> {
         CursorIcon::Progress => winit::window::CursorIcon::Progress,
         CursorIcon::Help => winit::window::CursorIcon::Help,
         CursorIcon::Alias => winit::window::CursorIcon::Alias,
+        CursorIcon::ContextMenu => winit::window::CursorIcon::ContextMenu,
+        CursorIcon::Cell => winit::window::CursorIcon::Cell,
+        CursorIcon::VerticalText => winit::window::CursorIcon::VerticalText,
+        CursorIcon::Copy => winit::window::CursorIcon::Copy,
+        CursorIcon::NoDrop => winit::window::CursorIcon::NoDrop,
+        CursorIcon::AllScroll => winit::window::CursorIcon::AllScroll,
+        CursorIcon::ZoomIn => winit::window::CursorIcon::ZoomIn,
+        CursorIcon::ZoomOut => winit::window::CursorIcon::ZoomOut,
+        CursorIcon::ResizeColumn => winit::window::CursorIcon::ColResize,
+        CursorIcon::ResizeRow => winit::window::CursorIcon::RowResize,
+        CursorIcon::ResizeNorth => winit::window::CursorIcon::NResize,
+        CursorIcon::ResizeEast => winit::window::CursorIcon::EResize,
+        CursorIcon::ResizeSouth => winit::window::CursorIcon::SResize,
+        CursorIcon::ResizeWest => winit::window::CursorIcon::WResize,
+        CursorIcon::ResizeNorthEast => winit::window::CursorIcon::NeResize,
+        CursorIcon::ResizeNorthWest => winit::window::CursorIcon::NwResize,
+        CursorIcon::ResizeSouthEast => winit::window::CursorIcon::SeResize,
+        CursorIcon::ResizeSouthWest => winit::window::CursorIcon::SwResize,
         CursorIcon::None => return None,
     })
 }

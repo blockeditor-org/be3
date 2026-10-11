@@ -19,6 +19,7 @@ mod a_canvas_lays_out_only_the_items_the_view_can_see;
 mod a_canvas_places_its_items_at_the_view_it_is_given;
 mod a_canvas_without_a_view_places_its_items_from_its_own_corner;
 mod a_capturing_button_takes_the_press_from_the_row_it_sits_in;
+mod a_capturing_catcher_over_a_forwarding_one_keeps_the_press_from_it;
 mod a_catcher_in_a_dialog_hears_a_press_on_it;
 mod a_catcher_that_lost_its_release_lets_go_of_the_pointer;
 mod a_catcher_under_a_dialog_that_is_under_another_hears_no_pointer;
@@ -51,6 +52,7 @@ mod a_date_segment_reads_and_steps_as_a_spin_button;
 mod a_deadline_repaint_only_damages_the_element_that_asked_for_it;
 mod a_dialog_gives_the_focus_back_to_the_control_that_opened_it;
 mod a_dialog_gives_the_focus_back_to_the_forwarding_catcher_that_had_it;
+mod a_dialog_of_a_dock_dialog_stacks_over_it;
 mod a_dialog_opened_from_a_context_menu_stays_open_when_the_menu_closes;
 mod a_dialog_opens_in_the_middle_and_escape_dismisses_it;
 mod a_dialogs_scrim_dims_what_comes_after_it_in_the_tree;
@@ -59,6 +61,8 @@ mod a_disabled_button_prop_tracks_a_signal_and_blocks_clicks_while_true;
 mod a_disabled_checkbox_ignores_clicks_and_keeps_its_state;
 mod a_disabled_select_does_not_open_when_its_trigger_is_clicked;
 mod a_disabled_text_input_ignores_typing_and_reads_as_dimmed;
+mod a_dock_dialog_floats_over_its_parent_and_hides_with_its_tab;
+mod a_dock_dialog_is_never_a_tab;
 mod a_dock_stacked_by_narrowing_its_container_leaves_the_hidden_panel_unplaced;
 mod a_dock_tab_in_a_window_opens_its_menu_over_the_window;
 mod a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names;
@@ -145,6 +149,7 @@ mod a_menu_opened_at_the_pointer_is_a_sheet_after_a_tap_and_a_dropdown_after_a_c
 mod a_menu_row_with_a_submenu_shows_an_arrow_the_leaf_rows_do_not;
 mod a_middle_click_on_a_dock_tab_closes_it;
 mod a_middle_drag_on_a_pan_zoom_in_a_scroll_pans_it_rather_than_autoscrolling;
+mod a_modal_dock_dialog_blocks_its_parent_until_it_closes;
 mod a_modal_sheet_fits_its_content_and_a_tap_above_it_closes_it;
 mod a_modal_sheet_slides_in_and_out;
 mod a_modifier_drag_moves_a_floating_window_by_its_content_or_its_tab_bar;
@@ -174,6 +179,8 @@ mod a_press_a_catcher_declines_focuses_the_catcher_beneath;
 mod a_press_and_release_in_one_frame_on_a_submenu_item_selects_it_once;
 mod a_press_claimed_by_its_modifiers_goes_to_the_claimant_and_not_the_catcher_beneath;
 mod a_press_inside_a_color_wheels_triangle_picks_saturation_and_value;
+mod a_press_just_beside_a_split_divider_moves_it;
+mod a_press_just_outside_a_windows_border_resizes_it;
 mod a_press_outside_an_interactive_is_reported_to_it;
 mod a_press_that_dismisses_an_overlay_does_not_reach_the_catcher_beneath;
 mod a_pressed_forwarding_catcher_keeps_the_pointer_until_it_is_released;
@@ -191,6 +198,7 @@ mod a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose;
 mod a_row_pushed_down_by_the_row_above_it_is_neither_laid_out_nor_painted_again;
 mod a_row_replaced_by_narrower_rows_leaves_nothing_of_it_behind_the_copy;
 mod a_row_that_leaves_a_virtual_list_moves_the_rows_below_it_by_a_copy;
+mod a_runner_whose_app_panics_lets_the_app_exit_and_reports_why;
 mod a_scroll_in_a_dialog_copies_what_it_showed_over_the_page_beneath;
 mod a_scroll_in_a_dialog_follows_the_wheel;
 mod a_scroll_inside_a_scroll_lays_out_the_rows_it_holds;
@@ -2066,6 +2074,9 @@ impl Driven {
             1.0,
             beui_core::app::SafeArea::default(),
         );
+        if let Some(failure) = self.runner.failure() {
+            panic!("the driven app panicked: {failure}");
+        }
     }
 
     pub(crate) fn ask(&mut self, words: &[&str]) -> Result<String, String> {
@@ -2085,5 +2096,131 @@ impl Driven {
             }
         }
         panic!("the app never answered {words:?}");
+    }
+}
+
+pub(crate) type Dialogs = Vec<(u64, u64, bool)>;
+
+pub(crate) struct DialogDock {
+    pub(crate) document: Document,
+    pub(crate) dock: NodeId,
+    pub(crate) layout: unstyled::DockingLayout<u64>,
+    pub(crate) pressed: Rc<RefCell<Vec<u64>>>,
+    pub(crate) keyed: Rc<RefCell<Vec<u64>>>,
+    pub(crate) set_dialogs: crate::reactive::WriteSignal<Dialogs>,
+}
+
+pub(crate) fn dialog_size(id: u64) -> Vec2 {
+    match id {
+        10 => Vec2::new(300.0, 200.0),
+        _ => Vec2::new(160.0, 90.0),
+    }
+}
+
+pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
+    let dock = NodeRef::new();
+    let built = dock.clone();
+    let pressed = Rc::new(RefCell::new(Vec::new()));
+    let keyed = Rc::new(RefCell::new(Vec::new()));
+    let layout = unstyled::DockingLayout::new();
+    let (listed, set_dialogs) = create_signal(dialogs);
+    let (pressing, keying, laid) = (Rc::clone(&pressed), Rc::clone(&keyed), layout.clone());
+    let document = build(move || {
+        let flags = listed.clone();
+        let keys = crate::reactive::create_memo(move || {
+            listed.with(|listed| {
+                listed
+                    .iter()
+                    .map(|(id, parent, _)| (*id, *parent))
+                    .collect::<Vec<_>>()
+            })
+        });
+        let (tab_presses, tab_keys) = (Rc::clone(&pressing), Rc::clone(&keying));
+        let (dialog_presses, dialog_keys) = (Rc::clone(&pressing), Rc::clone(&keying));
+        let layout = laid.clone();
+        view! {
+            <styled::Docking @node_ref=&built layout>
+                <unstyled::DockPane id="tabs">
+                    <ForEach keys={tabs.clone()}>
+                        {move |id: u64| {
+                            let (pressed, keyed) = (Rc::clone(&tab_presses), Rc::clone(&tab_keys));
+                            view! {
+                                <unstyled::DockTab id title={format!("Tab {id}")}>
+                                    <FocusPanel
+                                        name={format!("content.{id}")}
+                                        owner=id
+                                        pressed={Rc::clone(&pressed)}
+                                        keyed={Rc::clone(&keyed)}
+                                        size={None}
+                                    />
+                                </unstyled::DockTab>
+                            }
+                        }}
+                    </ForEach>
+                </unstyled::DockPane>
+                <ForEach keys>
+                    {move |(id, parent): (u64, u64)| {
+                        let (pressed, keyed) =
+                            (Rc::clone(&dialog_presses), Rc::clone(&dialog_keys));
+                        let flags = flags.clone();
+                        let modal = crate::reactive::create_memo(move || {
+                            flags.with(|listed| listed.iter().any(|(held, _, modal)| *held == id && *modal))
+                        });
+                        view! {
+                            <unstyled::DockDialog
+                                id
+                                parent
+                                modal
+                                title={format!("Dialog {id}")}
+                                size={dialog_size(id)}
+                            >
+                                <FocusPanel
+                                    name={format!("dialog.{id}.field")}
+                                    owner=id
+                                    pressed={Rc::clone(&pressed)}
+                                    keyed={Rc::clone(&keyed)}
+                                    size={Some(dialog_size(id))}
+                                />
+                            </unstyled::DockDialog>
+                        }
+                    }}
+                </ForEach>
+            </styled::Docking>
+        }
+    });
+    DialogDock {
+        document,
+        dock: dock.get(),
+        layout,
+        pressed,
+        keyed,
+        set_dialogs,
+    }
+}
+
+#[component]
+fn FocusPanel(
+    name: String,
+    owner: u64,
+    pressed: Rc<RefCell<Vec<u64>>>,
+    keyed: Rc<RefCell<Vec<u64>>>,
+    size: Option<Vec2>,
+) -> NodeId {
+    let width = size.map(|size| size.x);
+    let height = size.map(|size| size.y);
+    view! {
+        <Interactive
+            focusable=true
+            @test_id={name}
+            on_press={move |_: crate::input::PointerPress| pressed.borrow_mut().push(owner)}
+            on_key={move |press: crate::input::KeyPress| {
+                if press.pressed {
+                    keyed.borrow_mut().push(owner);
+                }
+                true
+            }}
+        >
+            <Frame width height />
+        </Interactive>
     }
 }

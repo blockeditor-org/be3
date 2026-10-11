@@ -230,7 +230,7 @@ direction:
 | `beui-renderer-wgpu` | the wgpu renderer, its shaders and filters, and presenting to a surface |
 | `beui-renderer-dom` | the DOM renderer: the display tree as nested absolutely positioned elements |
 | `beui-adapter-winit`, `beui-adapter-android`, `beui-adapter-web` | each platform's `Adapter` and `Platform`: its event loop, window or view, input, IME, clipboard, file picker and accessibility adapter |
-| `beui-adapter-drm` | Linux's displays and input devices through DRM/KMS and libinput: an `Adapter`, `Platform` and `Renderer` whose screens each keep a retained frame and are drawn when their display flips, handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers run it with `beui::run_on` |
+| `beui-adapter-drm` | Linux's displays and input devices through DRM/KMS and libinput: an `Adapter`, `Platform` and `Renderer` whose screens each keep a retained frame and are drawn when their display flips (the app's frames are paced to the flips too, by `pacing.rs`: at most one per flip, none while nothing changes), handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers run it with `beui::run_on` |
 | `beui-adapter-plugin` | the `Adapter`, `Platform` and `Renderer` for one region of a block editor plugin, which the plugin framework drives frame by frame (guides/adding_a_plugin_editor.md); it depends on the plugin framework, so the facade does not offer it |
 
 Core cannot see the crates above it, so the few places it used to reach up are
@@ -261,6 +261,12 @@ hooks the higher crates fill in:
   lock, IME, fullscreen and back handling, only when one of them changed.
   A new platform implements those two traits and hands its window or element
   to the renderer loader the facade gives it.
+  A panic out of the app's `update` stops the runner rather than unwinding
+  through the event loop: the app hears `exiting`, `frame` returns `None` from
+  then on, `Runner::failure` says why, and the adapter ends its loop and
+  returns that as an error (`Runner::finish`), so whatever owns the screen is
+  let go of in order. An app that can carry on after a panic in one part
+  catches it there itself.
 - Every adapter draws through `beui_core::renderer::Renderer` trait objects and
   names no renderer crate: wgpu's `WindowSurface` (native windows),
   `CanvasSurface` (a browser canvas) and `DomRenderer` implement it, and the
@@ -915,7 +921,12 @@ it describes must not become hovering the tooltip.
 A **floating** one is painted above everything and answers the pointer where it
 actually is. Only the part of the document it covers is shut out, so a press
 that lands on it does not also land on what is underneath, and everything
-around it stays live. `unstyled::Floating` is the one to reach for: it pins its
+around it stays live. A floating or passive overlay anchored to a node inside
+another one rises with it whenever that one opens or is raised
+(`Document::raise_overlay`), so something pinned to a dock window stays above
+it. An open overlay given `blocks` (a `NodeRef`) is modal to that node alone:
+the focus cannot enter it, Tab skips it, and focusing something inside it
+focuses the overlay's first focusable instead. `unstyled::Floating` is the one to reach for: it pins its
 child to the top or the bottom edge of a node named by `NodeRef`, taking no
 space in the layout around it.
 
@@ -1158,7 +1169,11 @@ that pane's tabs into a sidebar beside its body (`DockState::set_vertical`),
 whose edge drags or arrows to a new width (`set_sidebar_width`); a window in
 that mode has no title bar, only the sidebar with the grip and the close button
 at its top. Windows resize from any of
-their eight grips and are raised by whatever takes the focus inside them. A
+their eight grips and are raised by whatever takes the focus inside them. The grips, and
+the bar between two panes, reach `HANDLE_REACH` points past what they draw: a window's
+overlay is that much larger than the window on every side, and a splitter's item that much
+wider than its face on both sides, so they can be grabbed without changing how they look,
+and they capture the press over whatever lies beneath. A
 split keeps each side at least `MIN_PANE_LENGTH` where the area has room for
 both, and a window is drawn no larger than the dock, so a layout made on a wide
 screen stays usable on a phone. Ctrl+Tab and Ctrl+Shift+Tab walk the tabs of the pane the focus is in,
@@ -1223,6 +1238,33 @@ Each window and each docked pane claims those presses (`claim_modifiers`), so
 neither the tabs nor the content see them. The code is
 `dock/modifier_drag.rs`; linux-desktop sets Super, and the demo's Docking page
 has a switch for Alt.
+
+A `DockDialog`, declared beside the dock's other children, is a window attached
+to a tab: `<DockDialog id parent title size modal on_close>content</DockDialog>`
+hangs over the tab named by `parent` (or over another dialog, so dialogs of
+dialogs stack), centred on the parent's panel at the `size` its content asks
+for and kept on the parent's screen (`Placement::CenterOn`), in the
+`dialog_chrome` render prop (styled: a bordered card with a title bar and a
+close button, `dock.dialog.<tab>` naming its body). It is not part of the
+`DockState`: it is never a tab, nothing drags it into the dock, a key declared
+as both a dialog and a tab is only a dialog, and it is not saved with the
+layout. It shows exactly while its parent tab does (`DockState::is_shown`),
+so it hides when another tab takes the parent's place and returns with it,
+and it rises with the window its parent is in, since a floating overlay
+anchored inside another rises with it. A new dialog takes the focus. The
+dock tracks which dialog has it beside the focused tab: pressing a dialog
+gives it the focus, pressing the parent's pane or tab bar takes it back, and
+when a dialog closes the focus returns to its parent (the overlay's focus
+restore). The content's `use_dock_tab()` is a `DockTabControl` for the
+dialog, whose `focused` follows that and whose `show` focuses the dialog.
+`modal` blocks the parent until the dialog closes or stops being modal: a
+floating shield (`Placement::Cover`) over the parent takes its pointer, and a
+press on it focuses the innermost modal dialog and flashes it (the handle's
+`attention`, and `DockTabControl::attention` for content in another document,
+such as a program's window, to take the keyboard itself); the dialog's overlay
+`blocks` the parent's panel, so the focus cannot move into it (Tab skips it,
+and focusing it lands in the dialog); and while the parent's tab is focused
+the focus goes to its innermost modal dialog.
 
 One tab at a time can be fullscreen: `DockState::set_fullscreen` with a
 `DockFullscreen` naming the tab and an area (a rect in document coordinates, or
@@ -2016,7 +2058,9 @@ must win a press, or that reacts to presses outside its own rect, captures it:
 `capture_presses` claims presses inside the catcher and `capture_at` claims
 presses at positions its callback accepts. Before any node handles a press the
 document asks the topmost nodes first, and only the captor receives it: focus
-stays where it is, touch scrolling does not start, and no other catcher arms.
+stays where it is, touch scrolling does not start, and no other catcher arms. The search
+stops at a floating overlay that covers the press, so a captor under one never takes it, and a
+captor over a forwarding catcher (a plugin's region) keeps the forwarded press from it too.
 Paint such parts with `Painter::on_top`, which draws above the rest of the
 document, or of the overlay being painted, or from a `CanvasItem` with
 `clip=false`, which a canvas paints without cutting it to its own rectangle.

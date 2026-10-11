@@ -43,6 +43,7 @@ mod the_power_menu_asks_before_ending_the_session;
 mod the_power_menu_locks_the_screen_without_asking;
 mod the_power_menu_offers_only_what_the_host_allows;
 mod the_programs_button_opens_the_launcher_on_the_programs_the_host_lists;
+mod the_tray_shows_its_items_and_answers_their_clicks_and_menus;
 mod the_volume_in_the_bar_follows_the_host_and_opens_its_controls;
 mod the_volume_popup_asks_the_host_for_a_level_a_mute_and_an_output;
 mod the_volume_shows_on_every_monitor;
@@ -275,6 +276,7 @@ fn host_window(id: u64, focused: bool) -> HostWindow {
         title: format!("Program {id}"),
         app_id: "test".to_owned(),
         parent: None,
+        modal: false,
         size: Size {
             width: 320.0,
             height: 200.0,
@@ -282,6 +284,7 @@ fn host_window(id: u64, focused: bool) -> HostWindow {
         fullscreen: None,
         responding: true,
         focused,
+        raised: 0,
     }
 }
 

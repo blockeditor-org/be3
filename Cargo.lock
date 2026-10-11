@@ -916,6 +916,7 @@ dependencies = [
  "rustix 1.1.4",
  "smithay",
  "wgpu",
+ "xcursor",
 ]
 
 [[package]]
@@ -6553,6 +6554,7 @@ dependencies = [
  "drm",
  "drm-ffi",
  "drm-fourcc",
+ "encoding_rs",
  "errno",
  "gbm",
  "indexmap",
@@ -6563,6 +6565,7 @@ dependencies = [
  "profiling",
  "rand 0.9.4",
  "rustix 1.1.4",
+ "scopeguard",
  "sha2",
  "smallvec",
  "tempfile",
@@ -6573,6 +6576,7 @@ dependencies = [
  "wayland-protocols-misc",
  "wayland-protocols-wlr",
  "wayland-server",
+ "x11rb",
  "xkbcommon",
 ]
 

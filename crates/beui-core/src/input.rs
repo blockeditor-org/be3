@@ -438,7 +438,7 @@ pub struct ImeArea {
     pub keyboard: bool,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Default, Debug)]
 pub enum CursorIcon {
     #[default]
     Default,
@@ -458,6 +458,108 @@ pub enum CursorIcon {
     Progress,
     Help,
     Alias,
+    ContextMenu,
+    Cell,
+    VerticalText,
+    Copy,
+    NoDrop,
+    AllScroll,
+    ZoomIn,
+    ZoomOut,
+    ResizeColumn,
+    ResizeRow,
+    ResizeNorth,
+    ResizeEast,
+    ResizeSouth,
+    ResizeWest,
+    ResizeNorthEast,
+    ResizeNorthWest,
+    ResizeSouthEast,
+    ResizeSouthWest,
+}
+
+impl CursorIcon {
+    pub const ALL: [CursorIcon; 35] = [
+        CursorIcon::Default,
+        CursorIcon::ContextMenu,
+        CursorIcon::Help,
+        CursorIcon::PointingHand,
+        CursorIcon::Progress,
+        CursorIcon::Wait,
+        CursorIcon::Cell,
+        CursorIcon::Crosshair,
+        CursorIcon::Text,
+        CursorIcon::VerticalText,
+        CursorIcon::Alias,
+        CursorIcon::Copy,
+        CursorIcon::Move,
+        CursorIcon::NoDrop,
+        CursorIcon::NotAllowed,
+        CursorIcon::Grab,
+        CursorIcon::Grabbing,
+        CursorIcon::ResizeEast,
+        CursorIcon::ResizeNorth,
+        CursorIcon::ResizeNorthEast,
+        CursorIcon::ResizeNorthWest,
+        CursorIcon::ResizeSouth,
+        CursorIcon::ResizeSouthEast,
+        CursorIcon::ResizeSouthWest,
+        CursorIcon::ResizeWest,
+        CursorIcon::ResizeHorizontal,
+        CursorIcon::ResizeVertical,
+        CursorIcon::ResizeNeSw,
+        CursorIcon::ResizeNwSe,
+        CursorIcon::ResizeColumn,
+        CursorIcon::ResizeRow,
+        CursorIcon::AllScroll,
+        CursorIcon::ZoomIn,
+        CursorIcon::ZoomOut,
+        CursorIcon::None,
+    ];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            CursorIcon::Default => "default",
+            CursorIcon::ContextMenu => "context-menu",
+            CursorIcon::Help => "help",
+            CursorIcon::PointingHand => "pointer",
+            CursorIcon::Progress => "progress",
+            CursorIcon::Wait => "wait",
+            CursorIcon::Cell => "cell",
+            CursorIcon::Crosshair => "crosshair",
+            CursorIcon::Text => "text",
+            CursorIcon::VerticalText => "vertical-text",
+            CursorIcon::Alias => "alias",
+            CursorIcon::Copy => "copy",
+            CursorIcon::Move => "move",
+            CursorIcon::NoDrop => "no-drop",
+            CursorIcon::NotAllowed => "not-allowed",
+            CursorIcon::Grab => "grab",
+            CursorIcon::Grabbing => "grabbing",
+            CursorIcon::ResizeEast => "e-resize",
+            CursorIcon::ResizeNorth => "n-resize",
+            CursorIcon::ResizeNorthEast => "ne-resize",
+            CursorIcon::ResizeNorthWest => "nw-resize",
+            CursorIcon::ResizeSouth => "s-resize",
+            CursorIcon::ResizeSouthEast => "se-resize",
+            CursorIcon::ResizeSouthWest => "sw-resize",
+            CursorIcon::ResizeWest => "w-resize",
+            CursorIcon::ResizeHorizontal => "ew-resize",
+            CursorIcon::ResizeVertical => "ns-resize",
+            CursorIcon::ResizeNeSw => "nesw-resize",
+            CursorIcon::ResizeNwSe => "nwse-resize",
+            CursorIcon::ResizeColumn => "col-resize",
+            CursorIcon::ResizeRow => "row-resize",
+            CursorIcon::AllScroll => "all-scroll",
+            CursorIcon::ZoomIn => "zoom-in",
+            CursorIcon::ZoomOut => "zoom-out",
+            CursorIcon::None => "none",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<CursorIcon> {
+        Self::ALL.into_iter().find(|icon| icon.name() == name)
+    }
 }
 
 #[derive(Clone, Default, Debug)]
@@ -1173,3 +1275,6 @@ impl Pointer {
         self.middle_released
     }
 }
+
+#[cfg(test)]
+mod tests;

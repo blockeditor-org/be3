@@ -194,7 +194,7 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
     runner.run(&receiver);
     match runner.error {
         Some(error) => Err(error.into()),
-        None => Ok(()),
+        None => runner.runner.finish(),
     }
 }
 
@@ -654,6 +654,9 @@ impl Runner {
             .frame(&mut self.platform, self.density, self.safe_area)
         else {
             self.next_update = None;
+            if let Some(failure) = self.runner.failure() {
+                self.error = Some(format!("the app stopped after a panic: {failure}"));
+            }
             return false;
         };
         self.next_update = Instant::now().checked_add(frame.repaint_after);

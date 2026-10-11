@@ -11,9 +11,9 @@ use crate::text::{Body, IconSized};
 use crate::theme::{CARD_RADIUS, FOCUS_RING_WIDTH, FONT_BODY, RADIUS, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    DockBarHandle, DockChromeHandle, DockDragged, DockGripHandle, DockKey, DockMode, DockNode,
-    DockPreviewHandle, DockSplitterHandle, DockStackHandle, DockSwitchHandle, DockSwitcherHandle,
-    DockTabHandle, DockingLayout, Entry, MenuItem,
+    DockBarHandle, DockChromeHandle, DockDialogHandle, DockDragged, DockGripHandle, DockKey,
+    DockMode, DockNode, DockPreviewHandle, DockSplitterHandle, DockStackHandle, DockSwitchHandle,
+    DockSwitcherHandle, DockTabHandle, DockingLayout, Entry, MenuItem,
 };
 use beui_core::base::{Align, Direction, ItemSize, Justify};
 use beui_core::color::Color32;
@@ -32,7 +32,7 @@ const TAB_HEIGHT: f32 = 33.0;
 const TAB_SPACING: f32 = 6.0;
 const BAR_PADDING: f32 = 4.0;
 const BAR_SPACING: f32 = 4.0;
-const WINDOW_BAR_PADDING: f32 = 5.0;
+const CONTROL_PADDING: f32 = 5.0;
 const GRIP_WIDTH: f32 = 22.0;
 const GRIP_PADDING: f32 = 3.0;
 const GRIP_GLYPH: f32 = 16.0;
@@ -43,7 +43,7 @@ const GROUP_INSET: f32 = 6.0;
 pub const DOCK_INSET: f32 = 8.0;
 pub const WINDOW_CHROME: beui_core::geometry::Vec2 = beui_core::geometry::Vec2::new(
     2.0 * CHROME_BORDER,
-    TAB_HEIGHT + 2.0 * WINDOW_BAR_PADDING + CHROME_BORDER,
+    TAB_HEIGHT + 2.0 * BAR_PADDING + 3.0 * CHROME_BORDER,
 );
 const DROP_ALPHA: u8 = 64;
 const PREVIEW_ALPHA: u8 = 235;
@@ -96,6 +96,9 @@ where
             }}
             switch={move |handle: DockSwitchHandle| view! {
                 <DockSwitchPanel handle />
+            }}
+            dialog_chrome={move |handle: DockDialogHandle| view! {
+                <DockDialogFace handle />
             }}
             tab={move |handle: DockTabHandle| view! {
                 <DockTabFace handle />
@@ -275,6 +278,83 @@ fn DockChromeFace(handle: DockChromeHandle) -> NodeId {
 }
 
 #[component]
+fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
+    let DockDialogHandle {
+        tab,
+        title,
+        icon,
+        size,
+        focused,
+        attention,
+        closable,
+        close,
+        body,
+        ..
+    } = handle;
+    let theme = use_theme();
+    let outline = create_memo(clone!(theme focused -> move || {
+        match (attention.get(), focused.get()) {
+            (true, _) => theme.danger.get(),
+            (false, true) => theme.accent.get(),
+            (false, false) => theme.border.get(),
+        }
+    }));
+    let pictured = create_memo(clone!(icon -> move || !icon.get().is_empty()));
+    let width = create_memo(move || size.get().x + 2.0 * CHROME_BORDER);
+    view! {
+        <Frame
+            width
+            color={theme.background.clone()}
+            outline={outline}
+            outline_width=CHROME_BORDER
+            outline_visible=true
+            radius=CARD_RADIUS
+            padding_horizontal=CHROME_BORDER
+            padding_vertical=CHROME_BORDER
+        >
+            <List spacing=0.0>
+                <Frame
+                    color={theme.surface.clone()}
+                    height=TAB_HEIGHT
+                    padding_horizontal=TAB_PADDING_HORIZONTAL
+                >
+                    <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
+                        <Show condition={pictured}>
+                            <IconSized
+                                glyph={icon.clone()}
+                                font_size=GROUP_GLYPH
+                                color={theme.text_muted.clone()}
+                            />
+                        </Show>
+                        <Text
+                            string={title}
+                            font_size=FONT_BODY
+                            color={theme.text.clone()}
+                            clip=true
+                            @sizing=ItemSize::Percent(100.0)
+                        />
+                        <Show condition={closable}>
+                            {move || clone!(close -> view! {
+                                <IconButton
+                                    @test_id={format!("dock.dialog.{}.close", tab.value())}
+                                    glyph=ICON_CLOSE
+                                    label="Close"
+                                    size=IconButtonSize::Compact
+                                    variant=ButtonVariant::Ghost
+                                    capture_presses=true
+                                    on_click={move || close.call()}
+                                />
+                            })}
+                        </Show>
+                    </List>
+                </Frame>
+                {body}
+            </List>
+        </Frame>
+    }
+}
+
+#[component]
 fn DockBarFace(handle: DockBarHandle) -> NodeId {
     let DockBarHandle {
         vertical,
@@ -309,21 +389,24 @@ fn DockTitleBar(
     let theme = use_theme();
     let titled = tabs.is_none();
     view! {
-        <Frame
-            color={theme.surface.clone()}
-            padding_vertical=BAR_PADDING
-            padding_horizontal=BAR_PADDING
-        >
-            <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
-                {grip}
-                {tabs} @sizing=ItemSize::Percent(100.0)
-                <Show condition={titled}>
-                    <Body content={title.clone()} @sizing=ItemSize::Percent(100.0) />
-                </Show>
-                <DockMenu menu />
-                <DockClose closable close={move || close.call()} />
-            </List>
-        </Frame>
+        <List spacing=0.0>
+            <Frame
+                color={theme.surface.clone()}
+                padding_vertical=BAR_PADDING
+                padding_horizontal=BAR_PADDING
+            >
+                <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
+                    {grip}
+                    {tabs} @sizing=ItemSize::Percent(100.0)
+                    <Show condition={titled}>
+                        <Body content={title.clone()} @sizing=ItemSize::Percent(100.0) />
+                    </Show>
+                    <DockMenu menu />
+                    <DockClose closable close={move || close.call()} />
+                </List>
+            </Frame>
+            <Frame color={theme.border.clone()} height=CHROME_BORDER />
+        </List>
     }
 }
 
@@ -339,10 +422,12 @@ fn DockSideBar(
     let theme = use_theme();
     let titled = tabs.is_none();
     view! {
+        <List direction=Direction::Horizontal spacing=0.0>
         <Frame
             color={theme.surface.clone()}
             padding_vertical=BAR_PADDING
             padding_horizontal=BAR_PADDING
+            @sizing=ItemSize::Percent(100.0)
         >
             <List spacing=BAR_SPACING>
                 <List
@@ -363,6 +448,8 @@ fn DockSideBar(
                 </Show>
             </List>
         </Frame>
+        <Frame color={theme.border.clone()} width=CHROME_BORDER />
+        </List>
     }
 }
 
@@ -409,7 +496,7 @@ pub(crate) fn DockMenu(
 #[component]
 fn DockClose(closable: Memo<bool>, close: ClickCallback) -> NodeId {
     view! {
-        <Frame padding_horizontal=WINDOW_BAR_PADDING visible={closable}>
+        <Frame padding_horizontal=CONTROL_PADDING visible={closable}>
             <IconButton
                 glyph=ICON_CLOSE
                 label="Close pane"
@@ -431,7 +518,7 @@ fn DockGrip(handle: DockGripHandle) -> NodeId {
         false => theme.border.get(),
     }));
     view! {
-        <Frame width=GRIP_WIDTH padding_vertical=WINDOW_BAR_PADDING padding_horizontal=GRIP_PADDING>
+        <Frame width=GRIP_WIDTH padding_vertical=CONTROL_PADDING padding_horizontal=GRIP_PADDING>
             <IconSized glyph=ICON_DRAG_INDICATOR font_size=GRIP_GLYPH color={color} />
         </Frame>
     }

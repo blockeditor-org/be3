@@ -1,3 +1,4 @@
+mod environment;
 mod install;
 mod lock;
 mod log;
@@ -6,13 +7,13 @@ mod pam;
 mod power;
 mod sleep;
 
-use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::mpsc::Receiver;
 use std::time::Duration;
 
 use block_plugin_api::{PowerAction, PowerAvailability};
 
 use crate::host::{WakingSender, waking_channel};
+pub(crate) use environment::export as export_environment;
 pub(crate) use install::install;
 use lock::{Authenticate, Lock, Verdict};
 pub(crate) use lock::{LockState, Password, Trigger};
@@ -146,9 +147,9 @@ impl Authenticate for Pam {
         let spawned = std::thread::Builder::new()
             .name("authenticate".to_owned())
             .spawn(move || {
-                let checked = catch_unwind(AssertUnwindSafe(|| {
+                let checked = crate::panic_guard::contain(|| {
                     pam::authenticate(service, &user, password.as_str())
-                }));
+                });
                 let verdict = checked.unwrap_or_else(|_| {
                     Verdict::Failed("the check stopped unexpectedly".to_owned())
                 });
