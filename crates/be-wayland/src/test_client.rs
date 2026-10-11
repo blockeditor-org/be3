@@ -409,7 +409,12 @@ impl TestClient {
             .create_surface(&self.handle, ())
     }
 
-    pub(crate) fn attach_surface(&mut self, surface: &wl_surface::WlSurface, width: i32, height: i32) {
+    pub(crate) fn attach_surface(
+        &mut self,
+        surface: &wl_surface::WlSurface,
+        width: i32,
+        height: i32,
+    ) {
         let length = (width * 4 * height) as usize;
         self.attach_surface_pixels(surface, width, height, &vec![0xff; length]);
     }
