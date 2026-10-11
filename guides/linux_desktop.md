@@ -240,8 +240,8 @@ unlocks it. Under `:dev` the app runs as the VM's user, so that user needs a pas
 (`passwd`) for the lock to be tried.
 
 While it is locked, two things keep input from everything behind it: the lock is a beui
-`Overlay` with `locks` set, which nothing dismisses, which stays above every other overlay and keeps
-the focus and the pointer, and while it is open `Document::key_global` hears only media keys (no other global action, no plugin's
+`Overlay` at `LayerLevel::Lock`, which nothing dismisses, which stays above every other layer and keeps
+the focus and the pointer, and while it is open the host and window key listeners hear only media keys (no other window action, no plugin's
 intercepted chord, no Alt+Tab); and the app menu is closed. Windows need nothing
 of their own for it: each is a forwarding catcher like a plugin's region, so with the focus and the
 pointer held by the lock none is forwarded anything. `be_wayland::Compositor::set_locked` only lets
@@ -308,7 +308,7 @@ buffers are drawn as one-pixel textures.
 A program that holds a `zwp_keyboard_shortcuts_inhibitor_v1` on its window (a remote
 desktop, a virtual machine) gets the desktop's shortcuts itself while its window has the
 keyboard: the window's `WindowView` sets `inhibits_shortcuts`, and beui keeps every
-intercepting action, tap and F6 from it (guides/beui_keyboard.md). Two chords always work:
+window listener - capturing actions, taps and F6 - from it (guides/beui_keyboard.md). Two chords always work, as host actions:
 Super+L locks the screen, and Super+Escape (`register_restore_shortcuts`, registered by
 block-app's `WindowActions`) takes the shortcuts back from the focused window until it
 loses the keyboard and gets it again. The inhibitor is told it is active only while its

@@ -50,7 +50,6 @@ pub enum Placement {
     InsideTopEnd,
     InsideBottom,
     InsideBottomEnd,
-    Cover,
     CenterOn,
 }
 
@@ -144,9 +143,6 @@ fn resolve_rect(
     if placement == Placement::Around {
         return Rect::from_center_size(anchor_rect.center(), content_size);
     }
-    if placement == Placement::Cover {
-        return anchor_rect;
-    }
     if placement == Placement::CenterOn {
         let size = content_size.min(viewport.size()).max(Vec2::ZERO);
         let centred = Rect::from_center_size(anchor_rect.center(), size);
@@ -234,7 +230,6 @@ fn resolve_rect(
         | Placement::InsideTopEnd
         | Placement::InsideBottom
         | Placement::InsideBottomEnd
-        | Placement::Cover
         | Placement::CenterOn => {
             unreachable!("a centred or pinned overlay is placed above")
         }

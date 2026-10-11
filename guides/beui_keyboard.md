@@ -26,32 +26,62 @@ The styled controls follow the keyboard conventions in the [W3C Authoring Practi
 The inspector panel is a document of its own, so Ctrl+Shift+F moves focus into
 it and back, and Escape inside it returns focus to the inspected document.
 
-A chord that belongs to a whole region rather than to whatever has the focus is
-registered with `on_shortcut`, which is offered every key press before the
-focused control sees it, and answers `true` for the ones it takes. Shortcuts
-are consulted only while no menu or dialog is open, since those take the
-document over. That is how the dock's Ctrl+Tab reaches it from inside a text
-input.
+## How a key travels
 
-`on_global_key` goes further: it is offered every key press and release
-before anything else, including while a menu or dialog is open. It is handed a
-`GlobalKeyPress`, whose `in_app` says the focus is in an app (a plugin editor's
-region, or a Wayland program in a desktop session) that would otherwise get
-the key. A handler takes such a key only when it means to intercept it from
-the app. A press it answers `true` for goes nowhere else, and neither do its
-physical key, the text it typed, its repeats or its release: those are offered
-to the handler that took the press alone, with `held` set, wherever the focus
-has gone since. That is the one record of taken keys; nothing else keeps its
-own.
+Every key press, repeat and release takes one trip along the focus path, the
+way a DOM event does. The path runs from the host, through the window, down the
+tree from the document root to the focused node (the target), and back up
+again; with nothing focused, the target is the topmost layer that traps focus,
+or the root. Listeners sit at positions on it (`KeyAt`):
+
+- `KeyAt::Host` and `KeyAt::Window` are above the tree, on every path.
+- `KeyAt::Root` and `KeyAt::Node(node_ref)` are tree nodes, on the path only
+  when the focus is inside them. With nothing focused, every listener in the
+  topmost trapping layer hears the key, as if the focus could be anywhere in it.
+
+and each listens in the capture phase, on the way down before the target, or the
+bubble phase, on the way back up after it (`on_key(at, phase, handler)`). The
+trip is: host and window capture listeners, F6, tree capture listeners from the
+root down, the target (its `on_key`, then its own activation and arrow
+stepping), then on the way up each ancestor's `on_ancestor_key` and bubble
+listeners, the window and host bubble listeners, and last the built-in keys:
+Tab, Escape (a dismiss request, see the beui guide) and Back. The first
+listener to answer `true` ends the trip.
+
+Boundaries cut the path, and they replace what used to be flags:
+
+- A layer that traps focus (a menu, a dialog, a popover) is a boundary for the
+  tree: with the focus inside it, nodes outside the layer are not on the path,
+  so shortcuts and actions outside a dialog do not hear keys typed in it. The
+  host and window still do.
+- An app - a forwarding catcher with the focus, such as a plugin's region or a
+  Wayland program - is the target, and it takes every key that reaches it, so
+  nothing bubbles. Only host and window capture listeners hear a key bound for
+  an app; tree listeners do not. An app with `inhibits_shortcuts` cuts the
+  window too, so only the host hears.
+- The lock screen cuts the host and window for every key but media keys.
+
+`on_shortcut(handler)` is a tree capture listener at the component that
+registers it (or the root outside a component), offered every press before the
+focused control sees it: that is how the dock's Ctrl+Tab reaches it from inside
+a text input in a panel, and why it does not while a dialog is open.
+
+`on_global_key(handler)` is a window capture listener. It is handed a
+`KeyEvent`: the `input` (a `KeyPress` or a modifier `Tap`), the `phase`, and the
+`target` (`node`, and whether it `typing`s text or is an `app`). A listener
+that takes a press in the capture phase holds its key: the physical key, the
+text it typed, its repeats and its release go to that listener alone, with
+`phase` `Held`, wherever the focus has gone since, and nowhere else. That is
+the one record of taken keys; nothing else keeps its own.
 `held_modifiers()` is a signal of the modifiers held now, which changes on
 modifier presses alone. Shortcuts that are not chords, such as a hold-and-release
 switcher, are built from those two.
 
 The modifier keys themselves arrive as `Key::Shift`, `Key::Ctrl`, `Key::Alt` and
 `Key::Logo` presses and releases (`Key::is_modifier`), alongside the
-`Event::Modifiers` they cause. They reach `on_global_key` and forwarded regions
-(plugins and Wayland programs), but not the focused control's `on_key`, shortcuts or
-actions, which read the state from `KeyPress::modifiers` or `held_modifiers()`; nor
+`Event::Modifiers` they cause. They reach host and window capture listeners
+and forwarded regions (plugins and Wayland programs), but not the tree,
+the focused control's `on_key` or actions, which read the state from `KeyPress::modifiers` or `held_modifiers()`; nor
 do they show the focus ring or end autoscroll, and the runners drop their repeats.
 Something that reacts to the modifier key rather
 than to the state, such as tapping Super alone, is a global action with a
@@ -60,7 +90,8 @@ modifier pressed and let go with no other key, press, scroll or loss of focus
 between as a tap, judged from the key events alone (the runners do not agree on
 whether `Event::Modifiers` comes before or after the key's own event, and winit
 on X11 can report a modifier state that reverts before the key arrives), and
-offers it on the release with `GlobalKeyPress::tap` set. The release still goes
+offers it on the release to the host and window capture listeners as a
+`KeyInput::Tap`. The release still goes
 on to whatever it would have reached. linux-desktop's program launcher opens
 that way. An intercepting tap action (see below) is named among the document's
 intercepted keys as a `KeyChord` with `tap` set, and a host that hears that tap
@@ -100,52 +131,50 @@ while it is, show its first shortcut in their tooltip, and run it when pressed;
 a `ToggleButton` is pressed while the action is `checked`. An action's `run`
 does nothing while it is disabled.
 
-`action_scope(&node_ref)` makes a scope that is live while the focus is inside
-the node, so an action registered under it - an editor's, or a text area's -
-only answers while the focus is there. A key press the focused control does not
-handle (its `on_key` answers `false`) goes to the live actions, innermost scope
-first, and the first enabled one with a matching `Chord` runs. With nothing
-focused, every scope is live. A chord without Ctrl, Alt or Super (and not on a
-media key) does not reach actions while the focus is in a text field, so typing
-a letter into a field never switches a canvas tool. Actions are consulted only
-while no menu or dialog is open.
+An action is a listener too. `action_scope(&node_ref)` makes a scope that
+listens in the bubble phase at that node, so an action registered under it - an
+editor's, or a text area's - only answers while the focus is inside the node,
+and a key the focused control does not handle reaches the innermost scope
+first. An action registered under no scope listens at the root. With the focus
+on a node no scope holds, every scope is live; with nothing focused, every
+scope in the topmost trapping layer is. A chord without Ctrl, Alt or Super (and
+not on a media key) does not reach actions while the target types text or is
+an app, so typing a letter into a field never switches a canvas tool.
 
-An action built with `.global()` is consulted through `on_global_key` instead:
-before the focused control, wherever it was registered, and while menus and
-dialogs are open. The command palette lists global actions wherever it opens.
-A global action still leaves an app's keys alone: while a plugin editor or a
-Wayland program has the focus, the key goes to it and the action does not run.
+`.at(KeyAt::Window)` moves an action above the tree: it hears what nothing on
+the way up took, wherever the focus is, dialogs included, and the command
+palette lists it wherever it opens. Since an app takes every key that reaches
+it, such an action leaves an app's keys alone.
 
-`.intercepts()` (which implies `.global()`) is the opt-in to take a key away
-from a focused app: the action is offered the press before the app, and a
-press it takes never reaches the app, nor does its release. Reserve it for
-shortcuts that must work over anything, such as linux-desktop's Super+F
-and media keys. Inside an app only
-chords with Ctrl, Alt or Super, and media keys, are offered, since the app
-counts as a text field. A Wayland program's window is an app in the same way
-as a plugin's region (see One input path below), so it gets this offer and no
-other; modifier presses always reach it.
+`.at(KeyAt::Window).capture()` is the opt-in to take a key away from a
+focused app: the action is offered the press before anything on the tree and
+before the app, and a press it takes never reaches the app, nor does its
+release. Reserve it for shortcuts that must work over anything, such as
+linux-desktop's Super+F and media keys. Inside an app only chords with Ctrl,
+Alt or Super, and media keys, are offered, since the app counts as a text
+field. A Wayland program's window is an app in the same way as a plugin's
+region (see One input path below), so it gets this offer and no other;
+modifier presses always reach it.
 
 A forwarding catcher with `inhibits_shortcuts` set (an `Interactive` prop) is an
 app that wants every chord itself, such as a remote desktop or a virtual machine:
-while it has the focus, `GlobalKeyPress::inhibited` is set, intercepting actions
-leave its keys alone, taps are not offered and F6 does not move the focus, so
-all of them reach the app. Only actions built with `.escape_hatch()` (which
-implies `.intercepts()`) still answer, and only the host's own are ever offered
-an inhibited key: block-app's intercept handler hands a plugin nothing while it
-is set. The hatch is kept small and fixed: block-app's Super+L lock and
-be-wayland's Super+Escape, which takes the shortcuts back from the window (see
-guides/linux_desktop.md). An `on_global_key` handler of its own checks
-`inhibited` the same way.
+while it has the focus, the window is cut from the path, so window listeners
+and taps leave its keys alone and F6 does not move the focus, and all of them
+reach the app. Only host listeners - `.at(KeyAt::Host).capture()` actions -
+still answer, and only the host's own are ever offered an inhibited key:
+block-app's intercept handler is a window listener, so it hands a plugin
+nothing while it is set. The host is kept small and fixed: block-app's Super+L
+lock and be-wayland's Super+Escape, which takes the shortcuts back from the
+window (see guides/linux_desktop.md).
 
-A document that runs inside a host - a plugin's - intercepts the same way. Its
-enabled intercepting actions' chords (never one that types) are
+A document that runs inside a host - a plugin's - intercepts the same way. The
+chords of its enabled capturing host and window actions (never one that types) are
 `Document::intercepted_keys`, which reach the runner as
 `FrameOutput::intercepted_keys` and `Platform::set_intercepted_keys`; a host
-offers the chords it was handed to its own global keys ahead of the focused app,
-and hands each press it takes, its repeats and its release back as an
-`Event::InterceptedKey`, which the document offers to `on_global_key` as a key
-from an app and which reaches nothing else. The host goes on sending the held
+offers the chords it was handed to its own window listeners ahead of the focused
+app, and hands each press it takes, its repeats and its release back as an
+`Event::InterceptedKey`, which the document offers to its host and window
+capture listeners as a key bound for an app and which reaches nothing else. The host goes on sending the held
 modifiers until those of the chord are let go, so `held_modifiers()` sees Alt
 released while a Wayland program has the keyboard; that is how linux-desktop's
 Alt+Tab works over any window. block-app takes intercepted keys only from the
@@ -154,8 +183,8 @@ chord goes the same way as `InputEvent::InterceptedTap`, but only while the
 region does not have the keyboard itself, since it then hears the key and
 counts the tap on its own; the release still reaches whatever had the focus.
 
-A document with a modal overlay open (`Document::modal_open`, such as a
-dialog or the launcher) reports `FrameOutput::wants_keyboard`, which reaches the
+A document with a layer open that traps focus or blocks everything
+(`Document::modal_open`, such as a dialog or the launcher) reports `FrameOutput::wants_keyboard`, which reaches the
 runner as `Platform::set_wants_keyboard`. A plugin passes it on as
 `FrameReport::wants_keyboard`, and block-app's region then takes the focus from
 whatever had it (a program's window, another editor) and gives it back when
@@ -196,24 +225,24 @@ What one event goes through, in order:
    `Event::PhysicalKey` (the scan code, for Wayland programs) just before the
    `Event::Key` and any `Event::Text` it made.
 2. `interact`: the document counts the frame as input (`Document::input_frames`,
-   which the compositor's idle time reads), dismisses light overlays, finds a
-   modifier claim (`claim_modifiers`, `claim_at`) or a capture for a press,
-   dispatches each pointer's events, and moves the focus. A lock overlay keeps the focus and every press.
-3. Global keys: taps, then `on_global_key` handlers (global and intercepting
-   actions among them, and in block-app the shell plugin's intercepted chords,
-   `compositor/intercept.rs`), then F6 and Shift+F6, which move the focus
-   between forwarding catchers. A key one of them takes is gone from the frame
-   along with its physical key and text, and so are its repeats and release
-   when they come.
+   which the compositor's idle time reads), hit tests each press over the
+   layers, asks the layers it is outside of to close, finds a modifier claim
+   (`claim_modifiers`, `claim_at`) or a capture for a press, dispatches each
+   pointer's events, and moves the focus.
+3. Keys, one at a time along the focus path (How a key travels, above): host
+   and window listeners first (capturing actions, and in block-app the shell
+   plugin's intercepted chords, `compositor/intercept.rs`), then F6 and
+   Shift+F6, which move the focus between forwarding catchers. A key one of
+   them takes is gone from the frame along with its physical key and text, and
+   so are its repeats and release when they come. A key bound for an app goes
+   no further; any other key goes on down the tree and back up.
 4. `forward::route`: the pointer goes to the catcher under it (`hit_at`
    says no where something else is drawn over it), a press stays with the
    catcher its pointer's down reached until every button is let go, a claimed
    press goes to its claimant, wheel and drop events to the catcher under the pointer, and
-   keys, text and IME to the focused catcher. A catcher outside an open lock
-   loses its capture. Each catcher is also told when it gains or loses the
+   keys, text and IME to the focused catcher. A catcher beneath a layer that
+   blocks everything loses its capture. Each catcher is also told when it gains or loses the
    hover or the focus.
-5. What is left is the document's own: shortcuts, the focused control's
-   `on_key`, actions, Tab and Escape.
 
 So no editor reads the frame's events itself, and nothing gives a key a
 meaning outside an action, a shortcut or a control.
