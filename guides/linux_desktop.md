@@ -207,7 +207,7 @@ program can also be started against the socket directly:
 
     WAYLAND_DISPLAY=/tmp/be-wayland-<the app's pid> foot
 
-Each window opens as a tab of the workspace, except a window with a parent (`xdg_toplevel.set_parent`), which hangs over its parent's tab as a dock dialog (see the dock in guides/beui.md), showing and hiding with it. `xdg-dialog-v1` (be-wayland's `dialog.rs`) lets a program mark such a window modal: `WindowInfo::modal` is set, and `Windows::blocked_by` names the innermost modal dialog of a window, to which be-wayland gives the keyboard whenever the parent would get it, and for which it drops the parent's pointer input. `weston-simple-shm` (from the `weston` package)
+Each window opens as a tab of the workspace, except a window with a parent (`xdg_toplevel.set_parent`), which hangs over its parent's tab as a dock dialog (see the dock in guides/beui.md), showing and hiding with it. `xdg-dialog-v1` (be-wayland's `dialog.rs`) lets a program mark such a window modal (an XWayland window's parent is its `WM_TRANSIENT_FOR` and its modal flag `_NET_WM_STATE_MODAL`, which smithay's `X11Surface::is_popup` reads): `WindowInfo::modal` is set, and `Windows::blocked_by` names the innermost modal dialog of a window, to which be-wayland gives the keyboard whenever the parent would get it, and for which it drops the parent's pointer input. `weston-simple-shm` (from the `weston` package)
 and `foot` are small clients to try it with. `foot --fullscreen` starts one fullscreen, and in the desktop shell Super+F toggles fullscreen on the focused
 window (linux-desktop's `desktop.fullscreen` action, which sends `WindowAction::Fullscreen`). Under `--session` and `--desktop`, Super+drag anywhere on a floating window, its bar
 included, moves the window, and Super+right-drag resizes it from its nearest edge or corner,
@@ -222,6 +222,39 @@ goes to, and `Compositor::after` turns what each window was forwarded into `wl_p
 `wl_keyboard` events, keys by their scan codes (`Event::PhysicalKey`). Where the shell draws over a
 window (a floating window's tab, say) the window takes nothing (`occluders`, from the region's
 occlusion), and a press keeps going to the window or plugin it began on until it is let go.
+
+A `WindowView` that changes size configures its client with the new size in that same frame.
+Until the client commits a buffer of that size, its last one is drawn at its own size from the
+view's top-left corner, clipped to the view, never stretched to fit; the size a surface is
+drawn at is its buffer's size over its buffer scale, or the destination it set through
+viewporter. `render.rs` draws it, `a_resized_window_is_drawn_unscaled_until_it_commits_the_new_size`
+checks the pixels.
+
+### X11 programs
+
+`be_wayland::Server::start_xwayland`, which block-app calls once the server is up, starts
+`Xwayland` (the `xwayland` package; without it X11 programs just do not run) on the first free
+display, with smithay's `X11Wm` as its window manager (`crates/be-wayland/src/xwayland.rs`).
+It starts with the compositor rather than when an X11 client first connects: smithay creates
+the Xwayland client and its X11 sockets only inside `XWayland::spawn`, which starts the server
+at once. Programs the compositor launches get `DISPLAY`, and under `--session` both it and
+`WAYLAND_DISPLAY` go to D-Bus's activation environment and systemd's user manager
+(`src/session/environment.rs`). If Xwayland dies, its windows close and it starts again on the
+same display, up to three times. To try it under `:dev`, the app's log names the display:
+
+    DISPLAY=:0 xterm
+    DISPLAY=:0 GDK_BACKEND=x11 xfce4-terminal --disable-server
+
+An X11 toplevel is one more kind of window behind the same `WindowId`: `ClientWindow` holds a
+smithay `desktop::Window`, which is either an xdg toplevel or an `X11Surface`, so it is listed,
+docked, focused, resized, fullscreened and closed (`WM_DELETE_WINDOW`) like any other, and its
+input goes through the same forwarding. The keyboard focus is `focus::KeyboardFocus`, which for
+an X11 window also sets the X input focus. X11 has no ping here, so an X11 window is always
+responding. Each X11 window is configured at its place on the screen (`State::place`), so X
+coordinates are the screen's; an override-redirect window (a menu, tooltip or dropdown)
+positions itself in those coordinates and is drawn and hit-tested as a layer of the toplevel it
+belongs to (its `WM_TRANSIENT_FOR`, else the X11 window under the pointer or with the
+keyboard), clipped to that window like an xdg popup.
 
 The compositor pings a window's client when it is clicked, typed into, focused or asked to
 close, and a client that has not answered within `PING_TIMEOUT` (be-wayland's `state.rs`) is listed as
