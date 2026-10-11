@@ -16,7 +16,9 @@ fn with_middle_click_paste_off_a_selection_is_cancelled_and_offered_to_no_one() 
         .serial
         .expect("the click carried a serial");
 
-    harness.client.select(&device, "selected in a window", serial);
+    harness
+        .client
+        .select(&device, "selected in a window", serial);
     harness.settle();
     assert!(
         client::primary_cancelled(),

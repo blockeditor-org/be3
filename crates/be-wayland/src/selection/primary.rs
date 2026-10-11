@@ -33,9 +33,6 @@ use smithay::wayland::selection::wlr_data_control::{
 
 use crate::state::State;
 
-// While middle-click paste is off, the primary selection stays advertised but can never be set:
-// a program that finds no primary selection protocol emulates one (Firefox pastes the clipboard
-// on a middle click), so an empty one is what keeps every program from pasting.
 macro_rules! gated {
     ($device:ty, $data:ty, $state:ty, $set:path) => {
         impl Dispatch<$device, $data> for State {

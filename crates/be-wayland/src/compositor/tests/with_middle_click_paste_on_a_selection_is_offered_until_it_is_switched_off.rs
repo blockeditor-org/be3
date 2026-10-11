@@ -17,7 +17,9 @@ fn with_middle_click_paste_on_a_selection_is_offered_until_it_is_switched_off() 
         .serial
         .expect("the click carried a serial");
 
-    harness.client.select(&device, "selected in a window", serial);
+    harness
+        .client
+        .select(&device, "selected in a window", serial);
     harness.settle();
     assert!(!client::primary_cancelled());
     let offer = client::primary().expect("the window is offered its selection");
