@@ -29,6 +29,7 @@ pub struct CursorImage {
     pub size: Vec2,
     pub hotspot: Vec2,
     pub opaque: bool,
+    pub revision: u64,
 }
 
 pub struct Compositor {
@@ -49,6 +50,8 @@ pub struct Compositor {
     input_frames: u64,
     forced: bool,
     locked: bool,
+    cursor_surface: Option<smithay::reexports::wayland_server::protocol::wl_surface::WlSurface>,
+    cursor_revision: u64,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -78,6 +81,8 @@ impl Compositor {
             input_frames: 0,
             forced: false,
             locked: false,
+            cursor_surface: None,
+            cursor_revision: 0,
         }
     }
 
@@ -282,8 +287,18 @@ impl Compositor {
         self.server.dispatch();
         self.watch_pings(context);
         let events = self.server.state.take_events();
+        let cursor = match self.server.state.cursor() {
+            CursorImageStatus::Surface(surface) => Some(surface.clone()),
+            _ => None,
+        };
+        let mut cursor_changed = cursor != self.cursor_surface;
         for surface in self.server.state.take_committed() {
             self.textures.borrow_mut().upload(&surface);
+            cursor_changed |= cursor.as_ref() == Some(&surface);
+        }
+        if cursor_changed {
+            self.cursor_surface = cursor;
+            self.cursor_revision += 1;
         }
         self.textures.borrow_mut().prune();
         let mut redraw = Vec::new();
@@ -430,6 +445,7 @@ impl Compositor {
             size: beui::vec2(size.w as f32, size.h as f32),
             hotspot: beui::vec2(hotspot.x as f32, hotspot.y as f32),
             opaque: current.texture.opaque(),
+            revision: self.cursor_revision,
         })
     }
 
@@ -734,29 +750,7 @@ fn button_code(button: PointerButton) -> u32 {
 }
 
 fn cursor_icon(icon: smithay::input::pointer::CursorIcon) -> CursorIcon {
-    use smithay::input::pointer::CursorIcon as Named;
-    match icon {
-        Named::Crosshair => CursorIcon::Crosshair,
-        Named::Grab => CursorIcon::Grab,
-        Named::Grabbing => CursorIcon::Grabbing,
-        Named::NotAllowed | Named::NoDrop => CursorIcon::NotAllowed,
-        Named::Pointer => CursorIcon::PointingHand,
-        Named::EwResize | Named::EResize | Named::WResize | Named::ColResize => {
-            CursorIcon::ResizeHorizontal
-        }
-        Named::NsResize | Named::NResize | Named::SResize | Named::RowResize => {
-            CursorIcon::ResizeVertical
-        }
-        Named::NeswResize | Named::NeResize | Named::SwResize => CursorIcon::ResizeNeSw,
-        Named::NwseResize | Named::NwResize | Named::SeResize => CursorIcon::ResizeNwSe,
-        Named::Text | Named::VerticalText => CursorIcon::Text,
-        Named::Wait => CursorIcon::Wait,
-        Named::Move | Named::AllScroll => CursorIcon::Move,
-        Named::Progress => CursorIcon::Progress,
-        Named::Help => CursorIcon::Help,
-        Named::Alias => CursorIcon::Alias,
-        _ => CursorIcon::Default,
-    }
+    CursorIcon::from_name(icon.name()).unwrap_or_default()
 }
 
 #[cfg(test)]

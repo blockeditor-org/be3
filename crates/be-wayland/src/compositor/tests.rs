@@ -2,6 +2,7 @@ use super::*;
 
 mod a_click_on_beui_dismisses_a_grabbed_popup;
 mod a_closed_window_leaves_the_list;
+mod a_cursor_shape_a_client_names_is_shown_over_its_window;
 mod a_dialog_that_closes_gives_the_keyboard_back_to_the_window_that_had_it;
 mod a_dmabuf_window_samples_the_clients_pixels;
 mod a_drag_begun_on_the_ui_over_a_window_never_reaches_the_window;
@@ -35,6 +36,7 @@ mod only_an_input_idle_notification_ignores_inhibitors;
 mod super_f_toggles_fullscreen_on_the_focused_window;
 mod the_f_of_super_f_released_elsewhere_is_not_held_against_the_next;
 mod the_lock_time_runs_on_its_own_and_ignores_inhibitors_once_locked;
+mod the_pointer_shows_the_cursor_surface_a_client_sets_over_its_window;
 mod the_session_idles_after_the_blank_time_and_wakes_on_input;
 mod the_ui_can_make_a_window_fullscreen_and_take_it_back;
 
