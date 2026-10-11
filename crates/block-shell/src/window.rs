@@ -12,9 +12,9 @@ use block_editor_beui::{
 };
 
 const WINDOW_TABS: u64 = 1 << 41;
-const DIALOG_ORIGIN: f32 = 80.0;
-const DIALOG_CASCADE: f32 = 32.0;
-const DIALOG_CASCADES: u64 = 8;
+const WINDOW_ORIGIN: f32 = 80.0;
+const WINDOW_CASCADE: f32 = 32.0;
+const WINDOW_CASCADES: u64 = 8;
 const BANNER_PADDING: f32 = 12.0;
 const BANNER_SPACING: f32 = 12.0;
 const BANNER_RADIUS: u8 = 8;
@@ -27,10 +27,10 @@ pub(crate) fn tab_window(tab: TabId) -> Option<HostWindowId> {
     tab.value().checked_sub(WINDOW_TABS).map(HostWindowId)
 }
 
-pub(crate) fn dialog_window(window: &HostWindow) -> Rect {
-    let step = (window.id.0 % DIALOG_CASCADES) as f32 * DIALOG_CASCADE;
+pub(crate) fn floating_window(window: &HostWindow) -> Rect {
+    let step = (window.id.0 % WINDOW_CASCADES) as f32 * WINDOW_CASCADE;
     Rect::from_min_size(
-        pos2(DIALOG_ORIGIN + step, DIALOG_ORIGIN + step),
+        pos2(WINDOW_ORIGIN + step, WINDOW_ORIGIN + step),
         vec2(window.size.width, window.size.height) + WINDOW_CHROME,
     )
 }
@@ -71,6 +71,13 @@ pub(crate) fn WindowPanel(
             Some(area) => tab.enter_fullscreen(Some(area)),
             None => untrack(|| tab.leave_fullscreen()),
         }));
+        let called = create_memo(clone!(tab -> move || tab.attention()));
+        let host = editor.host().clone();
+        create_effect(move || {
+            if called.get().is_some() {
+                host.act(WindowAction::Focus(window));
+            }
+        });
         let shown = create_memo(clone!(tab -> move || tab.fullscreen()));
         let host = editor.host().clone();
         create_effect(move || {

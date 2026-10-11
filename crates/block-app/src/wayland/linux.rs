@@ -231,6 +231,7 @@ pub(crate) fn listed() -> Vec<HostWindow> {
             title: info.title,
             app_id: info.app_id,
             parent: info.parent.map(|parent| HostWindowId(parent.0)),
+            modal: info.modal,
             size: Size {
                 width: info.size.x,
                 height: info.size.y,

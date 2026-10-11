@@ -33,9 +33,10 @@ use beui::styled::{
     Tooltip, Tree, TreeRowFace, use_theme,
 };
 use beui::unstyled::{
-    ChoiceOption, Container, DateTimeParts, DockMode, DockPane, DockSplit, DockTab, DockingLayout,
-    MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView, PopoverHandle, SliderScale,
-    SyntaxColors, TabId, TextAreaState, TreeItem, dock_actions, narrower_than, use_dock_tab,
+    ChoiceOption, Container, DateTimeParts, DockDialog, DockMode, DockPane, DockSplit, DockTab,
+    DockTabControl, DockingLayout, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView,
+    PopoverHandle, SliderScale, SyntaxColors, TabId, TextAreaState, TreeItem, dock_actions,
+    narrower_than, use_dock_tab,
 };
 use beui::{
     Color32, Context, Direction, Document, FontId, Image, ItemSize, Key, Modifiers, NodeId, Rect,
@@ -47,9 +48,9 @@ use sample::{Sample, ScrollPage};
 use std::rc::Rc;
 use std::sync::Arc;
 use styled_pages::{
-    ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockingPage, EditorPage, InputsPage,
-    LabelledSwitch, LayoutPage, MenusPage, OverlaysPage, PickersPage, RowsPage, TextPage,
-    ThemesPage, TreePage,
+    AttachedDialog, ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockingPage, EditorPage,
+    InputsPage, LabelledSwitch, LayoutPage, MenusPage, OverlaysPage, PickersPage, RowsPage,
+    TextPage, ThemesPage, TreePage,
 };
 use text_editor_core::{
     EditorCommand, Highlighter, Language, MarkdownCommand, TextBuffer, TextLanguage,
@@ -65,6 +66,9 @@ mod styled_pages;
 mod unstyled_pages;
 
 const CATALOG: TabId = TabId::new(1);
+const DIALOG_TABS: u64 = 1 << 40;
+const DIALOG_SIZE: beui::Vec2 = beui::Vec2::new(460.0, 120.0);
+const NESTED_DIALOG_INSET: beui::Vec2 = beui::Vec2::new(56.0, 16.0);
 const PAGE_SHARE: f32 = 0.76;
 const SHELL_PADDING: f32 = 10.0;
 const TOOLBAR_SPACING: f32 = 8.0;
@@ -366,6 +370,68 @@ struct DragModifier {
     set: WriteSignal<Option<Modifiers>>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+struct DemoDialog {
+    id: TabId,
+    parent: TabId,
+    modal: bool,
+    depth: u8,
+}
+
+impl DemoDialog {
+    fn size(self) -> beui::Vec2 {
+        DIALOG_SIZE - NESTED_DIALOG_INSET * f32::from(self.depth)
+    }
+}
+
+#[derive(Clone)]
+struct DemoDialogs {
+    open: ReadSignal<Vec<DemoDialog>>,
+    set_open: WriteSignal<Vec<DemoDialog>>,
+    next: Rc<std::cell::Cell<u64>>,
+}
+
+impl DemoDialogs {
+    fn new() -> Self {
+        let (open, set_open) = create_signal(Vec::new());
+        Self {
+            open,
+            set_open,
+            next: Rc::new(std::cell::Cell::new(DIALOG_TABS)),
+        }
+    }
+
+    fn open(&self, parent: TabId, modal: bool) {
+        let id = TabId::new(self.next.get());
+        self.next.set(self.next.get() + 1);
+        self.set_open.update(|open| {
+            let depth = open
+                .iter()
+                .find(|dialog| dialog.id == parent)
+                .map_or(0, |dialog| dialog.depth + 1);
+            open.push(DemoDialog {
+                id,
+                parent,
+                modal,
+                depth,
+            });
+        });
+    }
+
+    fn close(&self, id: TabId) {
+        self.set_open.update(|open| {
+            let mut closing = vec![id];
+            while let Some(child) = open
+                .iter()
+                .find(|dialog| closing.contains(&dialog.parent) && !closing.contains(&dialog.id))
+            {
+                closing.push(child.id);
+            }
+            open.retain(|dialog| !closing.contains(&dialog.id));
+        });
+    }
+}
+
 #[derive(Clone)]
 struct Pages {
     layout: DockingLayout<TabId>,
@@ -494,6 +560,9 @@ fn DemoShell() -> NodeId {
         held: drag_modifier.clone(),
         set: set_drag_modifier,
     });
+    let dialogs = DemoDialogs::new();
+    provide_context(dialogs.clone());
+    let attached = dialogs.open.clone();
     view! {
         <Frame color={theme.background.clone()}>
             <List spacing=0.0>
@@ -532,6 +601,24 @@ fn DemoShell() -> NodeId {
                             </ForEach>
                         </DockPane>
                     </DockSplit>
+                    <ForEach keys={attached}>
+                        {move |dialog: DemoDialog| clone!(dialogs -> view! {
+                            <DockDialog
+                                id={dialog.id}
+                                parent={dialog.parent}
+                                modal={dialog.modal}
+                                title={match dialog.modal {
+                                    true => "Modal dialog",
+                                    false => "Dialog",
+                                }}
+                                icon=ICON_OPEN_IN_NEW
+                                size={dialog.size()}
+                                on_close={move || dialogs.close(dialog.id)}
+                            >
+                                <AttachedDialog modal={dialog.modal} />
+                            </DockDialog>
+                        })}
+                    </ForEach>
                 </Docking>
             </List>
         </Frame>

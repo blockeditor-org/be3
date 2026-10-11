@@ -184,6 +184,7 @@ impl State {
         let shm = ShmState::new::<Self>(handle, Vec::new());
         let data_device = DataDeviceState::new::<Self>(handle);
         let decorations = Decorations::new(handle);
+        crate::dialog::create(handle);
         let idle = Idle::new(handle);
         let presentation = Presentation::new(handle);
         let activation = Activation::new(handle);
@@ -462,6 +463,14 @@ impl State {
                 .get::<XdgToplevelSurfaceData>()
                 .and_then(|data| data.lock().unwrap().app_id.clone())
         })
+    }
+
+    pub fn modal(&self, id: WindowId) -> bool {
+        if let Some(surface) = self.find(id).and_then(|window| window.window.x11_surface()) {
+            return surface.is_popup();
+        }
+        self.toplevel(id)
+            .is_some_and(|toplevel| crate::dialog::is_modal(&toplevel))
     }
 
     pub fn parent(&self, id: WindowId) -> Option<WindowId> {

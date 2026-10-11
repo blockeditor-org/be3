@@ -13,6 +13,7 @@ pub struct WindowInfo {
     pub title: String,
     pub app_id: String,
     pub parent: Option<WindowId>,
+    pub modal: bool,
     pub size: Vec2,
     pub fullscreen: Option<Rect>,
     pub responding: bool,
@@ -134,6 +135,7 @@ impl Windows {
     }
 
     pub(crate) fn raise(&self, id: WindowId) {
+        let id = self.blocked_by(id).unwrap_or(id);
         let Some(signals) = self.signals(id) else {
             return;
         };
@@ -144,6 +146,12 @@ impl Windows {
 
     pub fn raised(&self, id: WindowId) -> u64 {
         self.0.raised.borrow().get(&id).copied().unwrap_or_default()
+    }
+
+    pub fn blocked_by(&self, id: WindowId) -> Option<WindowId> {
+        self.0
+            .list
+            .with_untracked(|list| crate::dialog::modal_dialog(list, id))
     }
 
     pub fn close(&self, id: WindowId) {
@@ -254,6 +262,9 @@ impl Windows {
     }
 
     pub(crate) fn focus(&self, id: WindowId, focused: bool) {
+        if focused && let Some(dialog) = self.blocked_by(id) {
+            self.raise(dialog);
+        }
         if let Some(signals) = self.signals(id)
             && signals.focused.get_untracked() != focused
         {

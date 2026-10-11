@@ -276,6 +276,7 @@ fn host_window(id: u64, focused: bool) -> HostWindow {
         title: format!("Program {id}"),
         app_id: "test".to_owned(),
         parent: None,
+        modal: false,
         size: Size {
             width: 320.0,
             height: 200.0,

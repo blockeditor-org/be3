@@ -1,6 +1,7 @@
 mod activation;
 mod compositor;
 mod decoration;
+mod dialog;
 mod focus;
 mod idle;
 mod presentation;

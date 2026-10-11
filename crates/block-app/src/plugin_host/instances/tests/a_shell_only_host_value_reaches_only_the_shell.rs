@@ -10,6 +10,7 @@ fn a_shell_only_host_value_reaches_only_the_shell() {
         title: "Terminal".to_owned(),
         app_id: "foot".to_owned(),
         parent: None,
+        modal: false,
         size: Size {
             width: 640.0,
             height: 480.0,

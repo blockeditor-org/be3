@@ -402,6 +402,7 @@ impl Compositor {
                     title: state.title(id).unwrap_or_default(),
                     app_id: state.app_id(id).unwrap_or_default(),
                     parent: state.parent(id),
+                    modal: state.modal(id),
                     fullscreen: self.fullscreen_area(id),
                     responding: state.responding(id),
                 })
@@ -475,9 +476,40 @@ impl Compositor {
 
     fn input(&mut self, now: Instant) {
         for (id, input) in self.windows.take_input() {
-            if self.server.state.windows().contains(&id) {
-                self.deliver(id, &input, now);
+            if !self.server.state.windows().contains(&id) {
+                continue;
             }
+            if let Some(dialog) = self.windows.blocked_by(id) {
+                self.refuse(id, dialog, &input, now);
+                continue;
+            }
+            self.deliver(id, &input, now);
+        }
+    }
+
+    fn refuse(&mut self, id: WindowId, dialog: WindowId, input: &ForwardedInput, now: Instant) {
+        let pressed = input
+            .events
+            .iter()
+            .any(|event| matches!(event, Event::PointerButton { pressed: true, .. }));
+        if pressed {
+            self.raise = Some(dialog);
+        }
+        if self.server.state.buttons_held() && self.server.state.pointer_window() == Some(id) {
+            let releases = ForwardedInput {
+                events: input
+                    .events
+                    .iter()
+                    .filter(|event| matches!(event, Event::PointerButton { pressed: false, .. }))
+                    .cloned()
+                    .collect(),
+                ..input.clone()
+            };
+            self.deliver(id, &releases, now);
+        }
+        let state = &mut self.server.state;
+        if !state.buttons_held() && state.pointer_window() == Some(id) {
+            state.pointer_motion(None);
         }
     }
 
@@ -525,7 +557,10 @@ impl Compositor {
     }
 
     fn focus(&mut self, now: Instant) {
-        let focused = self.windows.focused();
+        let focused = self
+            .windows
+            .focused()
+            .map(|id| self.windows.blocked_by(id).unwrap_or(id));
         if self.server.state.keyboard_window() == focused {
             return;
         }
