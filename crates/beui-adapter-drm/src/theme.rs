@@ -209,6 +209,3 @@ fn inherits(index: &Path) -> Vec<String> {
 
 #[cfg(test)]
 pub(crate) mod tests;
-
-#[cfg(test)]
-mod tests;
