@@ -21,10 +21,9 @@ pub(crate) fn profile() -> Option<PathBuf> {
 fn directory() -> PathBuf {
     match std::env::var_os("XDG_RUNTIME_DIR") {
         Some(runtime) => Path::new(&runtime).join("be-wayland"),
-        None => std::env::temp_dir().join(format!(
-            "be-wayland-{}",
-            rustix::process::getuid().as_raw()
-        )),
+        None => {
+            std::env::temp_dir().join(format!("be-wayland-{}", rustix::process::getuid().as_raw()))
+        }
     }
 }
 
@@ -47,7 +46,9 @@ fn database_contents() -> Result<Vec<u8>> {
     let mut locks = HashTableBuilder::with_path_separator(None);
     locks.insert_string(BUTTON_LAYOUT, "").map_err(invalid)?;
     let mut table = HashTableBuilder::new();
-    table.insert_string(BUTTON_LAYOUT, LAYOUT).map_err(invalid)?;
+    table
+        .insert_string(BUTTON_LAYOUT, LAYOUT)
+        .map_err(invalid)?;
     table.insert_table(".locks", locks).map_err(invalid)?;
     FileWriter::new()
         .write_to_vec_with_table(table)
@@ -86,30 +87,4 @@ fn profile_file(name: &OsStr) -> Option<PathBuf> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_layout_is_locked_on_top_of_the_users_profile() {
-        let dir = std::env::temp_dir().join(format!("be-wayland-gtk-test-{}", std::process::id()));
-        let base = dir.join("base");
-        std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(&base, "user-db:user\nsystem-db:local\n").unwrap();
-        let own = dir.join("dconf.profile");
-        assert_eq!(
-            base_profile(&own, Some(base.as_os_str())),
-            "user-db:user\nsystem-db:local\n"
-        );
-        let profile = write(&dir).unwrap();
-        assert!(base_profile(&own, Some(profile.as_os_str())).starts_with("user-db:user"));
-
-        let contents = database_contents().unwrap();
-        let file = gvdb::read::File::from_bytes(contents.into()).unwrap();
-        let table = file.hash_table().unwrap();
-        let layout: String = table.get(BUTTON_LAYOUT).unwrap();
-        assert_eq!(layout, LAYOUT);
-        let locks = table.get_hash_table(".locks").unwrap();
-        assert!(locks.keys().any(|key| key.unwrap() == BUTTON_LAYOUT));
-        std::fs::remove_dir_all(&dir).unwrap();
-    }
-}
+mod tests;
