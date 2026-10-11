@@ -31,7 +31,9 @@ use super::picker::{Pick, PickAction, PickOutcome};
 use super::saved::{self, LAYOUT};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
-use super::window::{WindowPanel, floating_window, tab_window, window_picture, window_tab, window_title};
+use super::window::{
+    WindowPanel, floating_window, tab_window, window_picture, window_tab, window_title,
+};
 
 pub const FILES: TabId = TabId::new(1);
 const FIRST_BLOCK_TAB: u64 = 2;
