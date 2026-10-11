@@ -13,7 +13,7 @@ use crate::state::State;
 #[derive(Clone, Debug, PartialEq)]
 pub enum KeyboardFocus {
     Surface(WlSurface),
-    X11(X11Surface, WlSurface),
+    X11(Box<X11Surface>, WlSurface),
 }
 
 impl KeyboardFocus {
@@ -69,14 +69,14 @@ impl KeyboardTarget<State> for KeyboardFocus {
     ) {
         match self {
             Self::Surface(surface) => KeyboardTarget::enter(surface, seat, data, keys, serial),
-            Self::X11(window, _) => KeyboardTarget::enter(window, seat, data, keys, serial),
+            Self::X11(window, _) => KeyboardTarget::enter(&**window, seat, data, keys, serial),
         }
     }
 
     fn leave(&self, seat: &Seat<State>, data: &mut State, serial: Serial) {
         match self {
             Self::Surface(surface) => KeyboardTarget::leave(surface, seat, data, serial),
-            Self::X11(window, _) => KeyboardTarget::leave(window, seat, data, serial),
+            Self::X11(window, _) => KeyboardTarget::leave(&**window, seat, data, serial),
         }
     }
 
@@ -94,7 +94,7 @@ impl KeyboardTarget<State> for KeyboardFocus {
                 KeyboardTarget::key(surface, seat, data, key, state, serial, time);
             }
             Self::X11(window, _) => {
-                KeyboardTarget::key(window, seat, data, key, state, serial, time);
+                KeyboardTarget::key(&**window, seat, data, key, state, serial, time);
             }
         }
     }
@@ -111,7 +111,7 @@ impl KeyboardTarget<State> for KeyboardFocus {
                 KeyboardTarget::modifiers(surface, seat, data, modifiers, serial);
             }
             Self::X11(window, _) => {
-                KeyboardTarget::modifiers(window, seat, data, modifiers, serial);
+                KeyboardTarget::modifiers(&**window, seat, data, modifiers, serial);
             }
         }
     }

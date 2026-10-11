@@ -24,12 +24,9 @@ use smithay::wayland::drm_syncobj::{
 
 use crate::decoration::{Decorations, server_side};
 use crate::focus::KeyboardFocus;
-use smithay::wayland::seat::WaylandFocus;
-use crate::xwayland::XWaylandState;
-use smithay::reexports::calloop::LoopHandle;
-use smithay::xwayland::XWaylandClientData;
 use crate::idle::Idle;
 use crate::server::{Waiter, readable};
+use crate::xwayland::XWaylandState;
 use smithay::delegate_cursor_shape;
 use smithay::delegate_data_device;
 use smithay::delegate_output;
@@ -47,6 +44,7 @@ use smithay::input::pointer::{
 };
 use smithay::input::{Seat, SeatHandler, SeatState};
 use smithay::output::{Mode, Output, PhysicalProperties, Scale, Subpixel};
+use smithay::reexports::calloop::LoopHandle;
 use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel;
 use smithay::reexports::wayland_server::backend::{ClientData, ClientId, DisconnectReason};
 use smithay::reexports::wayland_server::protocol::wl_buffer::WlBuffer;
@@ -61,6 +59,7 @@ use smithay::wayland::compositor::{
 };
 use smithay::wayland::cursor_shape::CursorShapeManagerState;
 use smithay::wayland::output::{OutputHandler, OutputManagerState};
+use smithay::wayland::seat::WaylandFocus;
 use smithay::wayland::selection::SelectionHandler;
 use smithay::wayland::selection::data_device::{
     ClientDndGrabHandler, DataDeviceHandler, DataDeviceState, ServerDndGrabHandler,
@@ -73,6 +72,7 @@ use smithay::wayland::shell::xdg::{
 };
 use smithay::wayland::shm::{ShmHandler, ShmState};
 use smithay::wayland::viewporter::ViewporterState;
+use smithay::xwayland::XWaylandClientData;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct WindowId(pub u64);
@@ -495,9 +495,12 @@ impl State {
     }
 
     fn window_of_root(&self, root: &WlSurface) -> Option<&ClientWindow> {
-        self.windows
-            .iter()
-            .find(|window| window.window.wl_surface().is_some_and(|surface| *surface == *root))
+        self.windows.iter().find(|window| {
+            window
+                .window
+                .wl_surface()
+                .is_some_and(|surface| *surface == *root)
+        })
     }
 
     pub fn inhibiting_windows(&mut self) -> Vec<WindowId> {
@@ -533,7 +536,7 @@ impl State {
         let window = &self.find(id)?.window;
         let surface = window.wl_surface()?.into_owned();
         Some(match window.x11_surface() {
-            Some(x11) => KeyboardFocus::X11(x11.clone(), surface),
+            Some(x11) => KeyboardFocus::X11(Box::new(x11.clone()), surface),
             None => KeyboardFocus::Surface(surface),
         })
     }
@@ -999,7 +1002,11 @@ fn set_state(
     }
 }
 
-pub(crate) fn collect_layers(surface: &WlSurface, location: Point<i32, Logical>, layers: &mut Vec<Layer>) {
+pub(crate) fn collect_layers(
+    surface: &WlSurface,
+    location: Point<i32, Logical>,
+    layers: &mut Vec<Layer>,
+) {
     with_surface_tree_downward(
         surface,
         location,
@@ -1194,8 +1201,8 @@ impl XdgShellHandler for State {
         let owns = |focus: Option<WlSurface>| {
             focus.is_some_and(|focus| focus.id().same_client_as(&root.id()))
         };
-        let focused = owns(keyboard.current_focus().map(WlSurface::from))
-            || owns(pointer.current_focus());
+        let focused =
+            owns(keyboard.current_focus().map(WlSurface::from)) || owns(pointer.current_focus());
         if !focused || self.window_of_root(&root).is_none() {
             let _ = PopupManager::dismiss_popup(&root, &popup);
             return;
