@@ -48,6 +48,14 @@ impl Activation {
             .retain_tokens(|token, _| grants.contains_key(token));
     }
 
+    pub(crate) fn focus_moved(&mut self) {
+        self.grants
+            .retain(|_, grant| matches!(grant.origin, Origin::Launch));
+        let grants = &self.grants;
+        self.state
+            .retain_tokens(|token, _| grants.contains_key(token));
+    }
+
     pub(crate) fn launch_token(&mut self, now: Instant) -> String {
         self.tick(now);
         let token = self.state.create_external_token(None).0.clone();
@@ -78,7 +86,7 @@ impl State {
         let keyboard = self.keyboard();
         let focused = keyboard
             .current_focus()
-            .and_then(|surface| surface.client())
+            .and_then(|focus| focus.surface().client())
             .map(|client| client.id());
         focused.is_some()
             && focused == data.client_id

@@ -1,3 +1,4 @@
+mod environment;
 mod install;
 mod lock;
 mod log;
@@ -13,6 +14,7 @@ use std::time::Duration;
 use block_plugin_api::{PowerAction, PowerAvailability};
 
 use crate::host::{WakingSender, waking_channel};
+pub(crate) use environment::export as export_environment;
 pub(crate) use install::install;
 use lock::{Authenticate, Lock, Verdict};
 pub(crate) use lock::{LockState, Password, Trigger};
