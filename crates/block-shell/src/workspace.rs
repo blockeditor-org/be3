@@ -202,19 +202,21 @@ impl Workspace {
     }
 
     fn show_raised(&self, seen: &mut HashMap<HostWindowId, u64>) {
-        let (raised, parents): (HashMap<HostWindowId, u64>, HashMap<HostWindowId, HostWindowId>) =
-            self.windows.with(|windows| {
-                (
-                    windows
-                        .iter()
-                        .map(|window| (window.id, window.raised))
-                        .collect(),
-                    windows
-                        .iter()
-                        .filter_map(|window| Some((window.id, window.parent?)))
-                        .collect(),
-                )
-            });
+        let (raised, parents): (
+            HashMap<HostWindowId, u64>,
+            HashMap<HostWindowId, HostWindowId>,
+        ) = self.windows.with(|windows| {
+            (
+                windows
+                    .iter()
+                    .map(|window| (window.id, window.raised))
+                    .collect(),
+                windows
+                    .iter()
+                    .filter_map(|window| Some((window.id, window.parent?)))
+                    .collect(),
+            )
+        });
         let forward: Vec<HostWindowId> = raised
             .iter()
             .filter(|(window, count)| seen.get(window).copied().unwrap_or_default() < **count)
