@@ -12,12 +12,9 @@ fn info(block: Uuid, parent: Uuid, references: Vec<Uuid>) -> BlockInfo {
         block_type: TextContent::CONTENT_TYPE.into_bytes(),
         author: [0; 16],
         parent: BlockLocation::Block(parent.into_bytes()),
-        name: None,
-        named_by_hand: false,
         references: references.into_iter().map(Uuid::into_bytes).collect(),
         access: block_plugin_api::AccessLevel::Edit,
-        artifact: None,
-        thumbhash: None,
+        metadata: block_plugin_api::BlockMetadata::default(),
     }
 }
 
@@ -38,9 +35,10 @@ fn an_instance_inside_a_checkout_speaks_in_its_local_ids() {
         copy,
         TextContent::CONTENT_TYPE,
         BlockParent::Block(checkout),
-        BlockMetadata {
-            local_id: Some(local),
-            ..BlockMetadata::default()
+        {
+            let mut metadata = BlockMetadata::default();
+            metadata.insert(&be_block::LOCAL_ID, &local);
+            metadata
         },
         None,
     );
@@ -74,8 +72,7 @@ fn an_instance_inside_a_checkout_speaks_in_its_local_ids() {
         block_id: fresh.into_bytes(),
         content_type: TextContent::CONTENT_TYPE.into_bytes(),
         parent: BlockLocation::Block(local.into_bytes()),
-        name: None,
-        artifact: None,
+        defined: block_plugin_api::MetadataEntries::new(),
         content: None,
     });
     instances.translate(&mut created, true);
@@ -86,8 +83,7 @@ fn an_instance_inside_a_checkout_speaks_in_its_local_ids() {
             block_id: fresh.into_bytes(),
             content_type: TextContent::CONTENT_TYPE.into_bytes(),
             parent: BlockLocation::Block(copy.into_bytes()),
-            name: None,
-            artifact: None,
+            defined: block_plugin_api::MetadataEntries::new(),
             content: None,
         })
     );

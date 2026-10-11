@@ -174,7 +174,7 @@ pub(crate) fn export(tools: &Rc<Tools>) {
     let name = editor
         .blocks()
         .info(editor.block_id())
-        .and_then(|info| info.name)
+        .and_then(|info| info.name())
         .unwrap_or_else(|| "Pixel Art".to_owned());
     let Some(art) = tools.artwork() else {
         return;

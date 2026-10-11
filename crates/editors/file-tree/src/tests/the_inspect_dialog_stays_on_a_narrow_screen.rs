@@ -10,7 +10,7 @@ fn the_inspect_dialog_stays_on_a_narrow_screen() {
     let mut fixture = editor_sized(Some(Vec2::new(WIDTH, 700.0)));
     let block = Uuid::from_u128(2);
     let mut listed = BlockInfo::new(block, Uuid::from_u128(1), BlockParent::Root);
-    listed.name = Some("Notes".to_owned());
+    listed.set_intrinsic_name("Notes".to_owned());
     fixture.host.set_blocks(BlockQuery::Roots, vec![listed]);
     fixture.settle();
 

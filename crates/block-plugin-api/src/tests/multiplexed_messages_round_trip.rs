@@ -13,16 +13,12 @@ fn multiplexed_messages_round_trip() {
             block_type: [2; 16],
             author: [3; 16],
             parent: BlockLocation::Root,
-            name: Some("Notes".to_owned()),
-            named_by_hand: true,
             references: vec![[4; 16]],
             access: AccessLevel::Edit,
-            artifact: None,
-            thumbhash: Some(Thumbhash {
-                hash: vec![5, 6, 7],
-                width: 640,
-                height: 480,
-            }),
+            metadata: BlockMetadata {
+                defined: [([8; 16], ByteBuf::from(b"Notes".to_vec()))].into(),
+                derived: [([9; 16], ByteBuf::from(vec![5, 6, 7]))].into(),
+            },
         }],
     });
     assert_eq!(

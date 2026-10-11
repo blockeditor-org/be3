@@ -17,7 +17,12 @@ fn a_diff_names_what_was_added_removed_and_changed() {
     ]);
     let mut current = base.clone();
     current.entries.get_mut(&moved).unwrap().parent = Some(kept);
-    current.entries.get_mut(&kept).unwrap().metadata.name = Some("derived".into());
+    current
+        .entries
+        .get_mut(&kept)
+        .unwrap()
+        .metadata
+        .insert(&be_block::INTRINSIC_NAME, &"derived".to_owned());
     current.entries.remove(&removed);
     current
         .entries

@@ -5,6 +5,7 @@ use std::{cell, collections::BTreeMap, fmt, marker::PhantomData};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+mod byte_string;
 mod field;
 mod grid;
 mod history;
@@ -18,6 +19,7 @@ mod text;
 mod tree;
 
 pub use be_model_derive::Model;
+pub use byte_string::{Bytes, bytes};
 pub use field::{Count, Field, FieldRef, Item, List, Map, Register};
 pub use grid::{Bounds, Cell, Cells, Grid, Paint};
 pub use history::Step;
@@ -26,7 +28,7 @@ pub use latest::{Latest, LatestMap, Stamp, Stamped};
 pub use references::BlockRef;
 pub use schema::{Kind, Property, Shape};
 pub use sequence::{LOADED, Pos, SeqOp, Sequence, Span, Splice};
-pub use stored::{BLOB_REF, BLOCK_REF, CRITICAL, Stored};
+pub use stored::{BLOB_REF, BLOCK_REF, CRITICAL, Stored, decode as from_cbor, encode as to_cbor};
 pub use text::Text;
 pub use tree::Tree;
 

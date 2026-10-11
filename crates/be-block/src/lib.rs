@@ -67,7 +67,10 @@ pub use kinds::{PanZoomContent, Scene3dContent, TriangleContent};
 pub use logic_game::{LogicGameContent, LogicGameProgress};
 pub use logic_grid::{LogicGridContent, LogicGridDocument};
 pub use map::{Map, MapContent};
-pub use metadata::{ArtifactSource, BlockMetadata, DerivedMetadata, Thumbhash};
+pub use metadata::{
+    ARTIFACT, ArtifactSource, BlockMetadata, Definition, Entries, INTRINSIC_NAME, LOCAL_ID,
+    MetaKey, NAME, Origin, THUMBHASH, Thumbhash,
+};
 pub use model::Root;
 pub use paint::{PaintReview, PaintReviewContent, PaintSnapshotContent, PaintSnapshotHeader};
 pub use pdf::{PdfContent, PdfHeader};
@@ -124,9 +127,18 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
         None
     }
 
-    fn derived_metadata(&self) -> DerivedMetadata {
-        DerivedMetadata::default()
+    fn describe(&self, metadata: &mut BlockMetadata) {
+        let _ = metadata;
     }
+}
+
+pub fn derived_metadata<C: BlockContent>(content: &C) -> Entries {
+    let mut metadata = BlockMetadata::default();
+    if let Some(name) = content.name() {
+        metadata.insert(&INTRINSIC_NAME, &name);
+    }
+    content.describe(&mut metadata);
+    metadata.derived
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

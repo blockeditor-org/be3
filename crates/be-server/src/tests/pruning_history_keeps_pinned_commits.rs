@@ -25,6 +25,7 @@ async fn pruning_history_keeps_pinned_commits() {
             pinned: true,
             references_added: Vec::new(),
             references_removed: Vec::new(),
+            metadata: Vec::new(),
         })
         .await;
     client

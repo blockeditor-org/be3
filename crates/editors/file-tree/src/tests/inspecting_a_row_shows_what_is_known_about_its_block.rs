@@ -8,8 +8,7 @@ fn inspecting_a_row_shows_what_is_known_about_its_block() {
     let block_type = Uuid::from_u128(1);
     let block = Uuid::from_u128(2);
     let mut listed = BlockInfo::new(block, block_type, BlockParent::Root);
-    listed.name = Some("Notes".to_owned());
-    listed.named_by_hand = true;
+    listed.set_name("Notes".to_owned());
     listed.references = vec![Uuid::from_u128(3), Uuid::from_u128(4)];
     fixture.host.set_blocks(BlockQuery::Roots, vec![listed]);
     fixture.settle();

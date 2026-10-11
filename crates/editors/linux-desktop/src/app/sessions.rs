@@ -77,7 +77,7 @@ fn listed(workspace: &Workspace, settings: Option<Uuid>) -> Vec<Session> {
             profile,
             name: workspace
                 .info(profile)
-                .and_then(|info| info.name)
+                .and_then(|info| info.name())
                 .unwrap_or_else(|| "Session".to_owned()),
         })
         .collect();

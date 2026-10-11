@@ -11,7 +11,7 @@ use crate::{
 };
 
 pub enum PublishOutcome {
-    Published(CommitId),
+    Published(CommitId, bool),
     Rejected(Option<CommitId>),
 }
 
@@ -124,6 +124,12 @@ impl ServerStore {
     ) -> Result<BlockSummary, ServerError> {
         self.with_graph(identity.workspace, move |graph, database| {
             require_edit(graph, &visibility(graph, identity), block)?;
+            if let Some(head) = graph.head(block) {
+                return Err(ServerError::Refused(
+                    ErrorCode::BlockHasContent,
+                    format!("block {block} has content at {head}, so its metadata is published with it"),
+                ));
+            }
             database.execute(
                 "UPDATE blocks SET metadata = ?3, version = version + 1 WHERE workspace_id = ?1 AND id = ?2",
                 params![identity.workspace.to_string(), block.to_string(), metadata],
@@ -218,6 +224,7 @@ impl ServerStore {
         pinned: bool,
         references_added: Vec<Uuid>,
         references_removed: Vec<Uuid>,
+        metadata: Vec<u8>,
     ) -> Result<PublishOutcome, ServerError> {
         let mut held = vec![commit.hash()];
         held.extend(chunks.iter().copied());
@@ -236,8 +243,11 @@ impl ServerStore {
                 return Ok(PublishOutcome::Rejected(current));
             }
             if current == Some(commit) {
-                return Ok(PublishOutcome::Published(commit));
+                return Ok(PublishOutcome::Published(commit, false));
             }
+            let redescribed = graph
+                .get(block)
+                .is_some_and(|node| node.metadata != metadata);
             let transaction = database.unchecked_transaction()?;
             let workspace = identity.workspace.to_string();
             let existing: Option<i64> = transaction
@@ -279,8 +289,14 @@ impl ServerStore {
                 persist_refs(&transaction, &refs, &held)?;
             }
             transaction.execute(
-                "UPDATE blocks SET head = ?3, version = version + 1 WHERE workspace_id = ?1 AND id = ?2",
-                params![workspace, block.to_string(), commit.hash().to_hex()],
+                "UPDATE blocks SET head = ?3, metadata = ?4, version = version + 1
+                 WHERE workspace_id = ?1 AND id = ?2",
+                params![
+                    workspace,
+                    block.to_string(),
+                    commit.hash().to_hex(),
+                    metadata
+                ],
             )?;
             for reference in &references_removed {
                 transaction.execute(
@@ -299,8 +315,9 @@ impl ServerStore {
             transaction.commit()?;
             graph.apply_references(block, &references_added, &references_removed)?;
             graph.set_head(block, commit)?;
+            graph.set_metadata(block, metadata)?;
             graph.touch(block)?;
-            Ok(PublishOutcome::Published(commit))
+            Ok(PublishOutcome::Published(commit, redescribed))
         })
         .await
     }

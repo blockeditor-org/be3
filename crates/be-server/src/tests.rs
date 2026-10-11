@@ -30,6 +30,7 @@ mod an_unauthenticated_connection_cannot_touch_blocks;
 mod blocks_publish_and_read_back_through_the_server;
 mod every_graph_change_advances_a_blocks_version;
 mod every_member_connection_hears_how_the_graph_changes;
+mod metadata_travels_with_the_content_once_a_block_has_any;
 mod objects_a_block_holds_outlive_its_commits_until_it_is_collected;
 mod old_database_backups_thin_out_by_age;
 mod pairing_messages_reach_only_the_same_accounts_other_connections;
@@ -292,6 +293,7 @@ impl TestClient {
             pinned: false,
             references_added: Vec::new(),
             references_removed: Vec::new(),
+            metadata: Vec::new(),
         })
         .await
     }

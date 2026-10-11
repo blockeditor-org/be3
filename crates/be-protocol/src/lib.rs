@@ -97,6 +97,7 @@ pub enum ErrorCode {
     RegistrationDisabled,
     InvitationNotFound,
     LoginDisabled,
+    BlockHasContent,
 }
 
 impl fmt::Display for ErrorCode {
@@ -198,6 +199,8 @@ pub enum ClientMessage {
         pinned: bool,
         references_added: Vec<Uuid>,
         references_removed: Vec<Uuid>,
+        #[serde(with = "serde_bytes")]
+        metadata: Vec<u8>,
     },
     HoldObjects {
         request: u64,

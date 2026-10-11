@@ -90,7 +90,7 @@ pub(crate) fn thumbhash(editor: &Editor) -> Memo<Option<Thumbhash>> {
         info.get()?
             .into_iter()
             .next()
-            .and_then(|info| info.thumbhash)
+            .and_then(|info| info.thumbhash())
             .map(|thumbhash| Thumbhash {
                 hash: thumbhash.hash,
                 width: thumbhash.width,

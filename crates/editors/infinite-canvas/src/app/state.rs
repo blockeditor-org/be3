@@ -1824,7 +1824,7 @@ impl CanvasState {
         let thumbhashes: HashMap<Uuid, Thumbhash> = dependencies
             .iter()
             .filter_map(|reference| {
-                let thumbhash = reference.thumbhash.clone()?;
+                let thumbhash = reference.thumbhash()?;
                 Some((
                     reference.id,
                     Thumbhash {

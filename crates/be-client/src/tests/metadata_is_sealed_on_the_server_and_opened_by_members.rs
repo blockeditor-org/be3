@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{BlockMetadata, CounterContent};
+use be_block::{CounterContent, NAME};
 
 #[tokio::test]
 async fn metadata_is_sealed_on_the_server_and_opened_by_members() {
@@ -13,7 +13,9 @@ async fn metadata_is_sealed_on_the_server_and_opened_by_members() {
         .unwrap();
 
     let named = phone
-        .set_metadata(block, &BlockMetadata::named("Groceries"))
+        .define(block, |metadata| {
+            metadata.insert(&NAME, &"Groceries".to_owned())
+        })
         .await
         .unwrap();
     assert!(
@@ -27,7 +29,7 @@ async fn metadata_is_sealed_on_the_server_and_opened_by_members() {
     let listed = laptop.list_blocks().await.unwrap();
     let summary = listed.iter().find(|summary| summary.id == block).unwrap();
     assert_eq!(
-        laptop.metadata(summary).unwrap().name.as_deref(),
+        laptop.metadata(summary).unwrap().name().as_deref(),
         Some("Groceries")
     );
 

@@ -13,6 +13,7 @@ pub struct EditorView {
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ViewState {
+    #[serde(with = "be_model::bytes")]
     pub bytes: Vec<u8>,
     pub refs: Vec<Uuid>,
 }
