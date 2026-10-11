@@ -23,11 +23,11 @@ fn a_window_that_stops_responding_offers_to_wait_or_force_close() {
     fixture.settle();
     let resting = fixture.test.occluders().len();
     assert!(
-        fixture
-            .test
-            .occluders()
-            .iter()
-            .all(|occluder| occluder.rect.width.min(occluder.rect.height) <= 16.0),
+        fixture.test.occluders().iter().all(|occluder| occluder
+            .rect
+            .width
+            .min(occluder.rect.height)
+            <= 16.0),
         "a responding window is left alone but for the split handle along its edge"
     );
 
