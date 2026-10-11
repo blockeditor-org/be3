@@ -248,7 +248,14 @@ While working on one editor, run its tests alone:
 
 The first compares, the second accepts. A panic aborts a wasm guest, so a failing test ends
 its binary's run; the runner then lists the tests and runs each in an instance of its own, and
-reports every one that failed, each with its panic message, at the end of the output. A single test is a filter handed through to the
+reports every one that failed, each with its panic message, at the end of the output.
+Until then the module's tests run one after another, in name order, on one thread, so what a
+crate keeps per thread (the frame clock, the pinned wall clock) carries from one test into the
+next, and anything that starts afresh with each harness must be reset when it does
+(HeadlessPlugin::new restarts the frame clock). A test that fails only after others ran passes
+alone, and in the runner's rerun too; reproduce it by running the whole module, with no filter,
+through ./scripts/buck test, which runs it again every time where ./scripts/verify's cached
+:test_run does not. A single test is a filter handed through to the
 test binary: ./scripts/test some_test_name finds the crate and runs it, and
 ./scripts/buck test //crates/editors/checklist:test -- --test-arg=some_test_name is the same by hand.
 
