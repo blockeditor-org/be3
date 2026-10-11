@@ -9,6 +9,7 @@ const FALLBACK_THEME: &str = "hicolor";
 const DEFAULT_THEMES: [&str; 2] = ["Adwaita", "breeze"];
 const EXTENSIONS: [&str; 2] = ["png", "svg"];
 const MAX_INHERITED: usize = 16;
+const MAX_ICON_BYTES: u64 = 8 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Kind {
@@ -245,7 +246,16 @@ fn gtk_theme(config: &Path) -> Option<String> {
 }
 
 pub fn load_icon(path: &Path, pixels: u32) -> Option<Image> {
-    let data = std::fs::read(path).ok()?;
+    let metadata = std::fs::metadata(path).ok()?;
+    if !metadata.is_file() || metadata.len() > MAX_ICON_BYTES {
+        return None;
+    }
+    let mut data = Vec::new();
+    std::io::Read::read_to_end(
+        &mut std::io::Read::take(std::fs::File::open(path).ok()?, MAX_ICON_BYTES),
+        &mut data,
+    )
+    .ok()?;
     match path.extension().and_then(|extension| extension.to_str()) {
         Some("svg") => render_svg(&data, pixels),
         _ => {
