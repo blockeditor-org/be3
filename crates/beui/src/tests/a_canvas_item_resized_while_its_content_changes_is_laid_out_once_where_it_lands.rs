@@ -1,7 +1,7 @@
 use super::*;
 use crate::reactive::{
-    Layers, NodeRef, Overlay, OverlayAnchor, ReadSignal, clone, component, component_rect, create_memo,
-    create_signal, with_reactive_scope,
+    Layers, NodeRef, Overlay, OverlayAnchor, ReadSignal, clone, component, component_rect,
+    create_memo, create_signal, with_reactive_scope,
 };
 
 #[test]
@@ -45,7 +45,9 @@ fn a_canvas_item_resized_while_its_content_changes_is_laid_out_once_where_it_lan
 #[component]
 fn Anchored(item: NodeRef, inset: ReadSignal<f32>) -> NodeId {
     let rect = component_rect();
-    let anchor = create_memo(clone!(inset -> move || OverlayAnchor::Point(rect.get().max + vec2(inset.get(), 0.0))));
+    let anchor = create_memo(
+        clone!(inset -> move || OverlayAnchor::Point(rect.get().max + vec2(inset.get(), 0.0))),
+    );
     view! {
         <Layers>
             <Frame padding_horizontal={inset}>

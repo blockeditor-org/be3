@@ -56,7 +56,11 @@ fn closing_a_fullscreen_tab_leaves_the_tab_beside_it_in_its_window() {
     let set_keys = setter.borrow_mut().take().expect("the tabs were built");
     with_reactive_scope(harness.document_mut(), move || set_keys.set(vec![2]));
     harness.settle();
-    assert_eq!(layout.fullscreen(), None, "the closed tab is no longer fullscreen");
+    assert_eq!(
+        layout.fullscreen(),
+        None,
+        "the closed tab is no longer fullscreen"
+    );
     let state = dock_state(harness.document(), dock);
     let window = state.windows()[0];
     let before = state.window_rect(window).expect("the window is open");
