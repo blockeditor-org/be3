@@ -62,7 +62,11 @@ fn a_panic_while_the_app_runs_a_plugin_stops_only_that_plugin() {
         })
         .expect("the crash is reported as a toast");
     assert!(
-        toast.danger && toast.actions.iter().any(|action| action.key == crate::notices::COPY_REPORT),
+        toast.danger
+            && toast
+                .actions
+                .iter()
+                .any(|action| action.key == crate::notices::COPY_REPORT),
         "the toast is an error, which stays until dismissed, and offers its report to copy"
     );
     assert_eq!(
