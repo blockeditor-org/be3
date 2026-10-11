@@ -99,7 +99,7 @@ pub struct Layer {
     pub surface: WlSurface,
     pub rect: Rectangle<f64, Logical>,
     pub source: Rectangle<f64, Logical>,
-    pub size: Size<f64, Logical>,
+    pub buffer: Size<f64, Logical>,
 }
 
 pub(crate) struct ClientWindow {
@@ -1022,7 +1022,7 @@ pub(crate) fn collect_layers(
                 return;
             };
             let data = data.lock().unwrap();
-            let (Some(view), Some(size)) = (data.view(), data.surface_size()) else {
+            let (Some(view), Some(buffer)) = (data.view(), data.buffer_size()) else {
                 return;
             };
             let origin = *location + view.offset;
@@ -1030,7 +1030,7 @@ pub(crate) fn collect_layers(
                 surface: surface.clone(),
                 rect: Rectangle::new(origin.to_f64(), view.dst.to_f64()),
                 source: view.src,
-                size: size.to_f64(),
+                buffer: buffer.to_f64(),
             });
         },
         |_, _, _| true,

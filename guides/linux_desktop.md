@@ -223,6 +223,13 @@ goes to, and `Compositor::after` turns what each window was forwarded into `wl_p
 window (a floating window's tab, say) the window takes nothing (`occluders`, from the region's
 occlusion), and a press keeps going to the window or plugin it began on until it is let go.
 
+A `WindowView` that changes size configures its client with the new size in that same frame.
+Until the client commits a buffer of that size, its last one is drawn at its own size from the
+view's top-left corner, clipped to the view, never stretched to fit; the size a surface is
+drawn at is its buffer's size over its buffer scale, or the destination it set through
+viewporter. `render.rs` draws it, `a_resized_window_is_drawn_unscaled_until_it_commits_the_new_size`
+checks the pixels.
+
 ### X11 programs
 
 `be_wayland::Server::start_xwayland`, which block-app calls once the server is up, starts
