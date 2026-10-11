@@ -94,6 +94,15 @@ fi
 step 'Installing buck2'
 "$internal/install-buck2.sh"
 
+# The tracker's command line tool, ./scripts/be (guides/tracker.md), is a
+# pinned release too, built from the same commit as the tracker's server.
+step 'Installing be'
+if [[ -n "$be_release" ]]; then
+    "$internal/install-be.sh"
+else
+    echo 'No be release is pinned yet, so ./scripts/be is not installed.'
+fi
+
 end_step
 echo ''
 echo 'Setup finished. The first time ./scripts/buck runs, it asks which build server'

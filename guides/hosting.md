@@ -32,6 +32,14 @@ How the server runs on a VPS for real notes. The files referred to are in
 4. Put `Caddyfile` (with the real domain) in Caddy's config and reload it.
 5. `journalctl -u be-server` shows its log; `RUST_LOG=debug` in the unit shows
    each connection.
+6. Publish `be` from the same commit, since `./scripts/be` must match the
+   server it talks to (guides/tracker.md): for each triple, build
+   `./scripts/buck build //crates/be-cli:be -m release --out be-TRIPLE`
+   (`--target-platforms root//buck/platforms:linux_arm64`, `macos_arm64` or
+   `macos_x86_64` for the others), upload it to
+   `https://lfs.pfg.pw/by-name/be3/be/COMMIT/be-TRIPLE`, and set `be_release`
+   to `COMMIT` and each `be_sha256_*` to its file's `sha256sum` in
+   `scripts/internal/common.sh`.
 
 ## Backups
 

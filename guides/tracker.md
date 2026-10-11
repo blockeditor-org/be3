@@ -7,19 +7,28 @@ a Milestones database, kept in a workspace of their own. Agents read and change 
 
 ## Using it from an agent
 
-`be` needs the agent's credentials in the environment. In a Claude cloud
-environment they are its secrets:
+Run it as `./scripts/be ARGS`; `./scripts/be help` lists everything. That
+script runs the `be` release pinned in `scripts/internal/common.sh`, built from
+the same commit as the server, since a client and server from different builds
+may not understand each other. It reads the agent's credentials from
+`.tracker-credentials` at the root of the checkout, which git ignores, and
+passes them to `be` as the `BE3_*` variables:
 
-- `BE3_TOKEN`: the agent's token. Without it the connection must be signed in
-  by a proxy that adds `Authorization: Bearer TOKEN` to the websocket upgrade.
-- `BE3_RECOVERY_PHRASE`: opens the workspace key the server keeps sealed for the
-  agent. Content never reaches the server unencrypted, so without it nothing can
-  be read.
-- `BE3_WORKSPACE`: the workspace, when the agent is in more than one.
-- `BE3_SERVER`: the server, `https://blocks.pfg.pw` unless set.
+```text
+server=https://blocks.pfg.pw
+workspace=<the tracker workspace, when the agent is in more than one>
+token=<the agent's token>
+recovery_phrase=<opens the workspace key the server keeps sealed for the agent>
+```
 
-Run it with `./scripts/buck run //crates/be-cli:be -- ARGS`; `be help` lists
-everything. A command names a target and then a verb, and the verbs depend on
+`be` itself reads only the variables, never that file, so a `be` built from
+the checkout (`./scripts/buck run //crates/be-cli:be -- ARGS`) reaches the real
+server only if someone sets them; point it at the dev app's server instead when
+testing a change to it. Without `BE3_TOKEN` the connection must be signed in by
+a proxy that adds `Authorization: Bearer TOKEN` to the websocket upgrade, and
+`BE3_SERVER` is `https://blocks.pfg.pw` unless set.
+
+A command names a target and then a verb, and the verbs depend on
 what the target is:
 
 ```text
@@ -96,8 +105,12 @@ them in the handoff.
   review) when the pull request opens, with a link on the page, and to
   `BE3_DONE_STATUS` (Done) when it merges. It reads the
   `BE3_TRACKER_TOKEN` and `BE3_TRACKER_RECOVERY_PHRASE` secrets and the
-  `BE3_SERVER`, `BE3_WORKSPACE` and status variables, and builds `be` from the
-  default branch.
+  `BE3_SERVER`, `BE3_WORKSPACE` and status variables, writes them to
+  `.tracker-credentials` and runs `./scripts/be` from the default branch.
+- **Releases.** Deploying be-server means publishing `be` from the same commit:
+  `./scripts/buck build //crates/be-cli:be -m release --out be-TRIPLE` for each
+  triple, uploaded to the mirror as `be/RELEASE/be-TRIPLE`, then `be_release`
+  and the `be_sha256_*` hashes in `scripts/internal/common.sh` updated to match.
 - **Proxies.** `be-client` tunnels `wss` through `HTTPS_PROXY` and trusts the
   certificates in `SSL_CERT_FILE` as well as the usual roots, which is what a
   cloud environment's proxy needs.

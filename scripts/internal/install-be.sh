@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+#
+# Installs the pinned be release into the checkout, where ./scripts/be runs it
+# from: target/tools/be-<release>/be. ./scripts/setup runs this, and
+# ./scripts/be runs it by itself when that file is not there yet. The release
+# and the hashes it is checked against are common.sh's.
+#
+# Usage:
+#   install-be.sh
+
+set -euo pipefail
+
+source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+
+if [[ $# -ne 0 ]]; then
+    echo 'Usage: install-be.sh' >&2
+    exit 1
+fi
+
+if [[ -z "$be_release" ]]; then
+    echo 'No be release is pinned yet (be_release in scripts/internal/common.sh).' >&2
+    exit 1
+fi
+
+destination="$(be_path)"
+if [[ -x "$destination" ]]; then
+    echo "be $be_release is already installed at $destination"
+    exit 0
+fi
+
+triple="$(buck2_triple)"
+sha256="$(buck2_release_sha256 be "$triple")"
+url="$download_mirror/be/$be_release/be-$triple"
+directory="$(dirname "$destination")"
+
+echo "Downloading be $be_release from $url..." >&2
+mkdir -p "$directory"
+download_verified "$url" "$destination.partial" "$sha256"
+chmod +x "$destination.partial"
+mv -f "$destination.partial" "$destination"
+echo "Installed be $be_release at $destination" >&2

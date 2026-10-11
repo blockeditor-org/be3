@@ -7,7 +7,8 @@ name: Tracker
 # whose token and recovery phrase are the repository's BE3_TRACKER_TOKEN and
 # BE3_TRACKER_RECOVERY_PHRASE secrets; without them the job does nothing.
 #
-# be is built from the default branch rather than from the pull request: this
+# be is the release ./scripts/be pins on the default branch, built from the
+# same commit as the server, rather than anything the pull request brings: this
 # workflow holds the agent's credentials, so it runs no code a pull request
 # brings, and a pull request opened before be existed is still moved.
 on:
@@ -41,23 +42,26 @@ jobs:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
 
-      - uses: ./.github/actions/buck2
-        if: ${{ steps.credentials.outputs.present == 'true' }}
-
-      - name: Build be
-        if: ${{ steps.credentials.outputs.present == 'true' }}
-        env:
-          BE3_NAMESPACE_TOKEN: ${{ secrets.BE3_NAMESPACE_TOKEN }}
-        run: ./scripts/buck build //crates/be-cli:be --out "$RUNNER_TEMP/be"
-
-      - name: Move the rows the pull request names
+      - name: Write the tracker's credentials
         if: ${{ steps.credentials.outputs.present == 'true' }}
         env:
           BE3_SERVER: ${{ vars.BE3_SERVER }}
           BE3_WORKSPACE: ${{ vars.BE3_WORKSPACE }}
+          BE3_TOKEN: ${{ secrets.BE3_TRACKER_TOKEN }}
+          BE3_RECOVERY_PHRASE: ${{ secrets.BE3_TRACKER_RECOVERY_PHRASE }}
+        run: |
+          umask 077
+          {
+            if [ -n "$BE3_SERVER" ]; then echo "server=$BE3_SERVER"; fi
+            if [ -n "$BE3_WORKSPACE" ]; then echo "workspace=$BE3_WORKSPACE"; fi
+            echo "token=$BE3_TOKEN"
+            echo "recovery_phrase=$BE3_RECOVERY_PHRASE"
+          } > .tracker-credentials
+
+      - name: Move the rows the pull request names
+        if: ${{ steps.credentials.outputs.present == 'true' }}
+        env:
           BE3_STATUS_FIELD: ${{ vars.BE3_STATUS_FIELD }}
           BE3_REVIEW_STATUS: ${{ vars.BE3_REVIEW_STATUS }}
           BE3_DONE_STATUS: ${{ vars.BE3_DONE_STATUS }}
-          BE3_TOKEN: ${{ secrets.BE3_TRACKER_TOKEN }}
-          BE3_RECOVERY_PHRASE: ${{ secrets.BE3_TRACKER_RECOVERY_PHRASE }}
-        run: '"$RUNNER_TEMP/be" pull-request "$GITHUB_EVENT_PATH"'
+        run: ./scripts/be pull-request "$GITHUB_EVENT_PATH"
