@@ -2254,7 +2254,11 @@ reads the field. `get_mut_as` is for anything `measure` or `layout` reads: the
 node and its ancestors are measured and laid out again. `paint_mut_as` is for
 what only `paint` reads - a colour, a tint, a drawing: that node alone paints
 again and nothing is laid out. `touch_mut_as` is for what neither reads -
-handlers, a cursor, a tab stop: only the accessibility tree hears of it. A field
+handlers, a cursor, a tab stop: only the accessibility tree hears of it.
+`state_mut` is for state the pointer dispatcher keeps on an `Interactive` -
+hovered, armed, panning - which nothing laid out, painted or published reads,
+so no one hears of it; what that state changes reaches the screen through the
+callbacks it calls. A field
 `paint` reads through something `layout` computed, like the origin a `Text`
 places from its alignment, counts as layout. Only call them when the value
 actually changes.

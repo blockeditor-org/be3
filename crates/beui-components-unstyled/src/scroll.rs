@@ -438,6 +438,8 @@ fn Scrolling(
     let (wheeled, dragged) = (motion.clone(), motion.clone());
     let autoscrolled = motion.clone();
     let (tapped, stopped) = (motion.clone(), motion.clone());
+    let catcher = NodeRef::new();
+    let catcher_rect = catcher.clone();
     let (origin, set_origin) = create_signal(None::<Pos2>);
     let marked = create_memo(clone!(origin -> move || origin.get().is_some()));
     let anchor = create_memo(clone!(origin -> move || {
@@ -456,7 +458,10 @@ fn Scrolling(
                 on_key={move |press: KeyPress| keyed.key(press)}
                 on_ancestor_key={move |press: KeyPress| ancestor_keyed.key(press)}
                 scroll_axis={axis}
-                claim_at={move |_: (Pos2, beui_core::input::Modifiers)| tapped.flinging()}
+                @node_ref=&catcher
+                claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
+                    tapped.flinging() && under(&catcher_rect, pos)
+                }}
                 on_press={move |_: PointerPress| stopped.stop_fling()}
                 on_scroll={move |gesture: ScrollGesture| wheeled.wheel(gesture)}
                 on_scroll_drag={move |gesture: DragGesture| dragged.drag(gesture)}
@@ -627,5 +632,11 @@ fn across(direction: &Prop<Direction>) -> Memo<Direction> {
     create_memo(move || match direction.get() {
         Direction::Horizontal => Direction::Vertical,
         Direction::Vertical => Direction::Horizontal,
+    })
+}
+
+pub(crate) fn under(node: &NodeRef, pos: Pos2) -> bool {
+    node.try_get().is_some_and(|node| {
+        with_document(|document| document.node_rect(node)).is_some_and(|rect| rect.contains(pos))
     })
 }

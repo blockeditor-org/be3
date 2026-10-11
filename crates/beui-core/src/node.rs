@@ -536,6 +536,10 @@ impl Arena {
         self.element_mut(id)
     }
 
+    pub fn state_mut(&mut self, id: impl Into<NodeId>) -> &mut dyn Element {
+        self.element_mut(id.into())
+    }
+
     pub fn paint_mut_as<T: Element>(&mut self, node: NodeOf<T>) -> &mut T {
         self.repaint_node(node.id);
         self.downcast_mut(node)

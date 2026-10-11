@@ -406,7 +406,7 @@ impl Document {
 
     pub fn set_interactive_touch_drags(&mut self, id: NodeOf<InteractiveNode>, touch_drags: bool) {
         if self.arena.get_as::<InteractiveNode>(id).touch_drags != touch_drags {
-            self.arena.get_mut_as::<InteractiveNode>(id).touch_drags = touch_drags;
+            self.arena.touch_mut_as::<InteractiveNode>(id).touch_drags = touch_drags;
         }
     }
 
@@ -416,7 +416,9 @@ impl Document {
         axis: Option<Direction>,
     ) {
         if self.arena.get_as::<InteractiveNode>(id).touch_drag_axis != axis {
-            self.arena.get_mut_as::<InteractiveNode>(id).touch_drag_axis = axis;
+            self.arena
+                .touch_mut_as::<InteractiveNode>(id)
+                .touch_drag_axis = axis;
         }
     }
 
@@ -426,7 +428,7 @@ impl Document {
         claims_touch: bool,
     ) {
         if self.arena.get_as::<InteractiveNode>(id).claims_touch != claims_touch {
-            self.arena.get_mut_as::<InteractiveNode>(id).claims_touch = claims_touch;
+            self.arena.touch_mut_as::<InteractiveNode>(id).claims_touch = claims_touch;
         }
     }
 
@@ -437,7 +439,7 @@ impl Document {
     ) {
         if self.arena.get_as::<InteractiveNode>(id).inhibits_shortcuts != inhibits {
             self.arena
-                .get_mut_as::<InteractiveNode>(id)
+                .touch_mut_as::<InteractiveNode>(id)
                 .inhibits_shortcuts = inhibits;
         }
     }
@@ -450,7 +452,7 @@ impl Document {
         if self.arena.get_as::<InteractiveNode>(id).claim_modifiers == claimed {
             return;
         }
-        let node = self.arena.get_mut_as::<InteractiveNode>(id);
+        let node = self.arena.touch_mut_as::<InteractiveNode>(id);
         node.claim_modifiers = claimed;
         let claims = claimed.is_some() || !node.claim_at.is_empty();
         match claims {
@@ -464,7 +466,7 @@ impl Document {
         id: NodeOf<InteractiveNode>,
         claim_at: Callback<(Pos2, Modifiers), bool>,
     ) {
-        let node = self.arena.get_mut_as::<InteractiveNode>(id);
+        let node = self.arena.touch_mut_as::<InteractiveNode>(id);
         node.claim_at = claim_at;
         let claims = !node.claim_at.is_empty() || node.claim_modifiers.is_some();
         match claims {
@@ -483,7 +485,7 @@ impl Document {
             false => self.outside_watchers.insert(id.id()),
         };
         self.arena
-            .get_mut_as::<InteractiveNode>(id)
+            .touch_mut_as::<InteractiveNode>(id)
             .on_press_outside = on_press_outside;
     }
 

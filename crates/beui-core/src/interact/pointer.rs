@@ -212,7 +212,7 @@ fn node_mut(doc: &mut Document, id: NodeId) -> Option<&mut InteractiveNode> {
         return None;
     }
     doc.arena
-        .get_mut(id)
+        .state_mut(id)
         .as_any_mut()
         .downcast_mut::<InteractiveNode>()
 }
