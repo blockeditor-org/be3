@@ -11,7 +11,8 @@ use crate::input::{
     PointerId, PointerPhase, PointerPress, PointerSample, ScrollGesture, SecondaryDrag,
     TOUCH_DRAG_THRESHOLD, TOUCH_VELOCITY_WINDOW, TouchId, ZoomGesture,
 };
-use crate::node::{NodeId, Rects};
+use crate::base::overlay::OverlayNode;
+use crate::node::{NodeId, NodeOf, Rects};
 
 use super::hit::{self, Hit, interactive};
 use super::{WHEEL_LATCH_SLOP, WHEEL_LATCH_TIMEOUT, autoscroll};
@@ -72,6 +73,7 @@ struct Session {
     dragged_this_frame: bool,
     samples: VecDeque<(Instant, Pos2)>,
     velocity: Vec2,
+    outside: Option<Vec<NodeOf<OverlayNode>>>,
 }
 
 impl Session {
@@ -195,7 +197,7 @@ pub(crate) fn dispatch(
     hover(doc, &frame, mouse);
     wheel_sink(doc, &frame, mouse);
     if let Some(fingers) = doc.pointers.fingers.tap
-        && doc.overlay_stack.is_empty()
+        && !doc.modal_open()
     {
         doc.finger_tap(fingers);
     }
@@ -254,13 +256,6 @@ fn down(doc: &mut Document, frame: &Frame, event: PointerEvent, button: PointerB
         (false, _, PointerButton::Middle) => Role::Middle,
         _ => Role::Other,
     };
-    if matches!(role, Role::Press | Role::Secondary) {
-        doc.dismiss_light_overlays(event.pos);
-        ::reactive::settle(|| {});
-    }
-    if role == Role::Press {
-        doc.pressed_outside(frame.rects, event.pos);
-    }
     let hit = hit::hit(
         doc,
         frame.rects,
@@ -271,6 +266,9 @@ fn down(doc: &mut Document, frame: &Frame, event: PointerEvent, button: PointerB
     let pos = event.pos + hit.shift;
     if matches!(role, Role::Press | Role::Secondary) {
         doc.acted = Acted::Pointer(pos);
+        if !touch {
+            pressed_outside(doc, frame, event.pos, &hit.outside, role == Role::Press);
+        }
     }
     let claimant = match role {
         Role::Press | Role::Secondary => {
@@ -315,17 +313,36 @@ fn down(doc: &mut Document, frame: &Frame, event: PointerEvent, button: PointerB
         dragged_this_frame: false,
         samples: VecDeque::from([(frame.now, pos)]),
         velocity: Vec2::ZERO,
+        outside: match touch && role == Role::Press {
+            true => Some(hit.outside.clone()),
+            false => None,
+        },
     };
     if let PointerId::Touch(id) = event.pointer {
         finger_down(doc, frame, id, pos);
     }
     match role {
-        Role::Press => press(doc, frame, &mut session, claimant, &hit.scrims),
+        _ if hit.blocked => {}
+        Role::Press => press(doc, frame, &mut session, claimant),
         Role::Secondary => secondary(doc, frame, &mut session, claimant),
         Role::Middle => middle(doc, frame, &mut session, &hit),
         Role::Finger | Role::Other => {}
     }
     doc.pointers.sessions.push(session);
+}
+
+fn pressed_outside(
+    doc: &mut Document,
+    frame: &Frame,
+    pos: Pos2,
+    layers: &[NodeOf<OverlayNode>],
+    watchers: bool,
+) {
+    doc.press_outside(layers);
+    if watchers {
+        doc.pressed_outside(frame.rects, pos);
+    }
+    ::reactive::settle(|| {});
 }
 
 fn reached(doc: &Document, rects: &Rects, path: &[NodeId], pos: Pos2) -> (Vec<NodeId>, bool) {
@@ -364,7 +381,6 @@ fn press(
     frame: &Frame,
     session: &mut Session,
     claimant: Option<NodeId>,
-    scrims: &[NodeId],
 ) {
     let pos = session.pos;
     let (reached, captured) = match claimant {
@@ -375,7 +391,6 @@ fn press(
         .iter()
         .copied()
         .filter(|id| interactive(doc, *id).is_some_and(InteractiveNode::holds_presses))
-        .chain(scrims.iter().copied())
         .collect();
     session.focus = match captured {
         true => doc.focused_node(),
@@ -740,6 +755,12 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, cancelled: bool)
             if session.touch() && !session.dragged && !cancelled && doc.focused_node() == focused {
                 doc.press_focus(session.focus);
             }
+            if let Some(outside) = session.outside.take()
+                && !session.dragged
+                && !cancelled
+            {
+                pressed_outside(doc, frame, session.origin - session.shift, &outside, true);
+            }
             if doc.dragging() {
                 match cancelled {
                     true => doc.drag_board().end(None),
@@ -810,10 +831,10 @@ fn long_presses(doc: &mut Document, frame: &Frame) {
         }
         let session = &doc.pointers.sessions[index];
         let (pos, clicks, modifiers) = (session.pos, session.clicks, session.modifiers);
-        doc.dismiss_light_overlays(pos);
-        ::reactive::settle(|| {});
         doc.acted = Acted::Pointer(pos);
         let hit = hit::hit(doc, frame.rects, frame.root, pos, false);
+        doc.press_outside(&hit.outside);
+        ::reactive::settle(|| {});
         for id in hit.path.iter().rev() {
             if !over(frame.rects, *id, pos) {
                 continue;

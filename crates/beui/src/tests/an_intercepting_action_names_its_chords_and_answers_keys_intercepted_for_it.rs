@@ -1,4 +1,5 @@
 use super::*;
+use crate::KeyAt;
 use crate::KeyPress;
 use crate::reactive::{
     Action, Chord, build, create_memo, create_signal, view, with_reactive_scope,
@@ -16,17 +17,17 @@ fn an_intercepting_action_names_its_chords_and_answers_keys_intercepted_for_it()
         })
         .shortcut(Chord::key(Key::Tab).alt())
         .shortcut(Chord::key(Key::Tab))
-        .intercepts()
+        .at(KeyAt::Window).capture()
         .register();
         let open = create_memo(move || open.get());
         Action::new("test.cancel", "Cancel", || {})
             .shortcut(Chord::key(Key::Escape).alt())
             .enabled(open)
-            .intercepts()
+            .at(KeyAt::Window).capture()
             .register();
         Action::new("test.global", "Global", || {})
             .shortcut(Chord::ctrl(Key::G))
-            .global()
+            .at(KeyAt::Window)
             .register();
         view! {
             <List spacing=0.0>

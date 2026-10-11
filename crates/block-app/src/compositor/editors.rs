@@ -10,7 +10,7 @@ use beui::reactive::{
     ReadSignal, Show, WriteSignal, clone, component, component_rect, create_effect, create_memo,
     create_signal, on_cleanup, on_global_key, provide_context, use_context, view,
 };
-use beui::{GlobalKeyPress, Key, NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2};
+use beui::{Key, KeyEvent, NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2};
 use block_plugin_api::{
     BarAction, ChildId, ChildMode, ChildRect, CreationProgress, EditorInstanceId, EditorRegion,
     FrameChrome, FrameSpec, HostPanel, HostWindowId, SettingsProgress, TopBar, ViewChange,
@@ -492,12 +492,14 @@ pub(crate) fn PresentingSurface() -> NodeId {
 }
 
 fn stop_on_escape(stop: impl Fn() + 'static) {
-    on_global_key(move |global: GlobalKeyPress| {
-        let press = global.press;
-        if global.held {
+    on_global_key(move |event: KeyEvent| {
+        if event.held() {
             return true;
         }
-        if global.tap || press.key != Key::Escape || !press.pressed {
+        let Some(press) = event.press() else {
+            return false;
+        };
+        if press.key != Key::Escape || !press.pressed {
             return false;
         }
         stop();

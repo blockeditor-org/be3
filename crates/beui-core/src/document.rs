@@ -16,7 +16,7 @@ use crate::file_picker::{FileFilter, FilePick, FilePickId};
 use crate::flash::FlashLog;
 use crate::font::{FontId, Galley, TextLayout};
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
-use crate::input::{Key, KeyChord, KeyPress, Modifiers};
+use crate::input::{Key, KeyChord, Modifiers};
 
 use crate::display::Display;
 use crate::interact::{self, Keys};
@@ -30,30 +30,10 @@ use crate::screen_simulation::{self, Placement};
 use crate::screens::Screen;
 use crate::sight::Sight;
 
-pub type Shortcut = dyn Fn(KeyPress) -> bool;
 type PickedCallback = Box<dyn FnOnce(FilePick)>;
 pub type FingerTap = dyn Fn(usize) -> bool;
-pub type UnhandledKey = dyn Fn(UnhandledKeyPress) -> bool;
 
 pub type ActionsHook = dyn Fn(&Context, &[NodeId]);
-pub type GlobalKey = dyn Fn(GlobalKeyPress) -> bool;
-
-#[derive(Clone, Copy, Debug)]
-pub struct GlobalKeyPress {
-    pub press: KeyPress,
-    pub typing: bool,
-    pub in_app: bool,
-    pub inhibited: bool,
-    pub held: bool,
-    pub tap: bool,
-}
-
-#[derive(Clone, Debug)]
-pub struct UnhandledKeyPress {
-    pub press: KeyPress,
-    pub focus_path: Vec<NodeId>,
-    pub typing: bool,
-}
 
 pub trait Tools: Any {
     fn show(&mut self, document: &mut Document, ctx: &Context, rect: Rect);
@@ -88,10 +68,10 @@ pub struct Document {
     pub acted: Acted,
     placement: Option<(Rect, Option<Placement>)>,
     pub portal_holders: std::collections::HashMap<NodeId, NodeOf<crate::base::portal::PortalNode>>,
-    pub overlay_stack: Vec<NodeOf<crate::base::overlay::OverlayNode>>,
-    pub passive_overlays: Vec<NodeOf<crate::base::overlay::OverlayNode>>,
+    pub(crate) layer_state: crate::layer::OpenLayers,
+    pub(crate) focus_dirty: bool,
     pub back_handlers: Vec<NodeOf<crate::base::back::BackNode>>,
-    pub back_gesture: Option<NodeId>,
+    pub(crate) back_gesture: Option<crate::layer::DismissTarget>,
     timers: RefCell<crate::timer::Timers>,
     scale: (::reactive::ReadSignal<f32>, ::reactive::WriteSignal<f32>),
     attached: (::reactive::ReadSignal<u64>, ::reactive::WriteSignal<u64>),
@@ -103,12 +83,9 @@ pub struct Document {
     offered_screens: Option<Vec<Screen>>,
     rescreened: RefCell<Option<Vec<Screen>>>,
     reattached: Cell<bool>,
-    shortcuts: RefCell<Vec<Weak<Shortcut>>>,
     finger_taps: RefCell<Vec<Weak<FingerTap>>>,
-    unhandled_keys: RefCell<Vec<Weak<UnhandledKey>>>,
-    global_keys: RefCell<Vec<Weak<GlobalKey>>>,
+    pub keys: crate::keys::KeyListeners,
     actions_hooks: RefCell<Vec<Weak<ActionsHook>>>,
-    pub(crate) globally_held: Vec<(Key, Option<Rc<GlobalKey>>)>,
     pub(crate) tapping: Option<Key>,
     input_frames: u64,
     modifiers: (
@@ -304,8 +281,8 @@ impl Document {
             acted: Acted::Nothing,
             placement: None,
             portal_holders: std::collections::HashMap::new(),
-            overlay_stack: Vec::new(),
-            passive_overlays: Vec::new(),
+            layer_state: Default::default(),
+            focus_dirty: false,
             back_handlers: Vec::new(),
             back_gesture: None,
             timers: RefCell::new(Vec::new()),
@@ -316,12 +293,9 @@ impl Document {
             offered_screens: None,
             rescreened: RefCell::new(None),
             reattached: Cell::new(false),
-            shortcuts: RefCell::new(Vec::new()),
             finger_taps: RefCell::new(Vec::new()),
-            unhandled_keys: RefCell::new(Vec::new()),
-            global_keys: RefCell::new(Vec::new()),
+            keys: Default::default(),
             actions_hooks: RefCell::new(Vec::new()),
-            globally_held: Vec::new(),
             tapping: None,
             input_frames: 0,
             modifiers: ::reactive::create_signal(Modifiers::NONE),
@@ -498,10 +472,6 @@ impl Document {
         self.focus_visible.1.set(visible);
     }
 
-    pub fn register_shortcut(&self, shortcut: Weak<Shortcut>) {
-        self.shortcuts.borrow_mut().push(shortcut);
-    }
-
     pub fn register_finger_tap(&self, tap: Weak<FingerTap>) {
         self.finger_taps.borrow_mut().push(tap);
     }
@@ -514,10 +484,6 @@ impl Document {
         live.into_iter().any(|tap| tap(fingers))
     }
 
-    pub fn register_unhandled_key(&self, handler: Weak<UnhandledKey>) {
-        self.unhandled_keys.borrow_mut().push(handler);
-    }
-
     pub fn focus_ancestry(&self) -> Vec<NodeId> {
         let mut path = Vec::new();
         let mut next = self.focused_node();
@@ -526,22 +492,6 @@ impl Document {
             next = self.arena.parent(id);
         }
         path
-    }
-
-    pub fn key_unhandled(&self, press: KeyPress) -> bool {
-        let mut handlers = self.unhandled_keys.borrow_mut();
-        handlers.retain(|handler| handler.strong_count() > 0);
-        let live: Vec<Rc<UnhandledKey>> = handlers.iter().filter_map(Weak::upgrade).collect();
-        drop(handlers);
-        if live.is_empty() {
-            return false;
-        }
-        let unhandled = UnhandledKeyPress {
-            press,
-            focus_path: self.focus_ancestry(),
-            typing: self.focus_types(),
-        };
-        live.into_iter().any(|handler| handler(unhandled.clone()))
     }
 
     pub fn register_actions(&self, hook: Weak<ActionsHook>) {
@@ -559,23 +509,13 @@ impl Document {
         }
     }
 
-    pub fn register_global_key(&self, handler: Weak<GlobalKey>) {
-        self.global_keys.borrow_mut().push(handler);
-    }
-
-    pub fn key_global(&self, global: GlobalKeyPress) -> bool {
-        self.global_taker(global).is_some()
-    }
-
-    pub(crate) fn global_taker(&self, global: GlobalKeyPress) -> Option<Rc<GlobalKey>> {
-        if self.locked() && !global.press.key.is_media() {
-            return None;
-        }
-        let mut handlers = self.global_keys.borrow_mut();
-        handlers.retain(|handler| handler.strong_count() > 0);
-        let live: Vec<Rc<GlobalKey>> = handlers.iter().filter_map(Weak::upgrade).collect();
-        drop(handlers);
-        live.into_iter().find(|handler| handler(global))
+    pub fn listen_keys(
+        &self,
+        at: crate::keys::KeyAt,
+        phase: crate::keys::KeyPhase,
+        handler: Weak<crate::keys::KeyHandler>,
+    ) {
+        self.keys.listen(at, phase, handler);
     }
 
     pub fn input_frames(&self) -> u64 {
@@ -602,14 +542,6 @@ impl Document {
         if self.modifiers.0.get_untracked() != modifiers {
             self.modifiers.1.set(modifiers);
         }
-    }
-
-    pub fn key_shortcut(&self, press: KeyPress) -> bool {
-        let mut shortcuts = self.shortcuts.borrow_mut();
-        shortcuts.retain(|shortcut| shortcut.strong_count() > 0);
-        let live: Vec<Rc<Shortcut>> = shortcuts.iter().filter_map(Weak::upgrade).collect();
-        drop(shortcuts);
-        live.into_iter().any(|shortcut| shortcut(press))
     }
 
     fn run_timers(&self) {
@@ -659,38 +591,6 @@ impl Document {
 
     pub fn children(&self, id: NodeId) -> Vec<NodeId> {
         self.arena.get(id).children()
-    }
-
-    pub fn overlay_layers(&self) -> Vec<(Vec<usize>, Rect)> {
-        self.overlays_bottom_up()
-            .into_iter()
-            .enumerate()
-            .filter_map(|(index, overlay)| Some((vec![index + 1], self.overlay_occluder(overlay)?)))
-            .collect()
-    }
-
-    pub fn paint_order(&self, node: NodeId) -> Vec<usize> {
-        let overlays = self.overlays_bottom_up();
-        let mut path = Vec::new();
-        let mut current = node;
-        let layer = loop {
-            if let Some(layer) = overlays.iter().position(|overlay| overlay.id() == current) {
-                break layer + 1;
-            }
-            let Some(parent) = self.arena.parent(current) else {
-                break 0;
-            };
-            let index = self
-                .children(parent)
-                .iter()
-                .position(|child| *child == current)
-                .unwrap_or_default();
-            path.push(index);
-            current = parent;
-        };
-        path.push(layer);
-        path.reverse();
-        path
     }
 
     pub fn open_child_slot<H: ChildHost>(&mut self, node: NodeOf<H>) -> SlotId {
@@ -941,8 +841,8 @@ impl Document {
         element.detached();
         self.arena.put_back(id, element);
         self.arena.remove(id);
-        self.overlay_stack.retain(|overlay| overlay.id() != id);
-        self.passive_overlays.retain(|overlay| overlay.id() != id);
+        self.forget_layer(id);
+        self.forget_back_gesture(id);
         self.back_handlers.retain(|handler| handler.id() != id);
         self.paint_cache.borrow_mut().forget(id);
         self.sizes.remove(&id);
@@ -1310,7 +1210,7 @@ impl Document {
             paint::paint(self, &painter, &self.rects, root);
             roots.push(root);
         }
-        for overlay in self.overlays_bottom_up() {
+        for overlay in self.layers().iter().filter_map(|layer| layer.overlay) {
             let scrim = self.overlay_scrim(overlay);
             let content = self.overlay_content(overlay);
             for layer in [Some(scrim), content].into_iter().flatten() {

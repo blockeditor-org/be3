@@ -1,8 +1,10 @@
+use beui::KeyAt;
+use beui::reactive::LayerPolicy;
 use std::rc::Rc;
 
 use beui::reactive::{
     Action, Chord, Drawing, Frame, Interactive, Layers, NodeRef, Overlay, OverlayAnchor,
-    OverlayMode, Placement, Prop, clone, component, component_rect, create_effect, create_memo,
+    Placement, Prop, clone, component, component_rect, create_effect, create_memo,
     draw_gpu, on_cleanup, view,
 };
 use beui::{Color32, ForwardedInput, Key, NodeId, Pos2, Rect};
@@ -114,7 +116,7 @@ pub fn WindowView(
             <Overlay
                 anchor={anchor}
                 placement=Placement::At
-                mode=OverlayMode::Floating
+                policy=LayerPolicy::Pass
                 traps_focus=false
                 open={open}
             >
@@ -165,7 +167,7 @@ pub fn register_restore_shortcuts(windows: &Windows) {
         move || restoring.restore_shortcuts(),
     )
     .shortcut(RESTORE_SHORTCUTS)
-    .escape_hatch()
+    .at(KeyAt::Host).capture()
     .enabled(inhibiting)
     .register();
 }

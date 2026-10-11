@@ -1,18 +1,19 @@
 use super::*;
 use crate::base::overlay::{OverlayAnchor, Placement};
 use crate::reactive::{Frame, Overlay, build, view};
+use crate::{Dismiss, LayerPolicy};
 
 #[test]
-fn a_light_overlay_occludes_only_its_content() {
+fn a_passing_overlay_occludes_only_its_content() {
     let document = build(|| {
         view! {
             <Frame>
                 <Overlay
                     anchor=OverlayAnchor::Point(pos2(10.0, 10.0))
                     placement=Placement::BelowStart
-                    light=true
+                    policy=LayerPolicy::Pass
                     open=true
-                    on_dismiss={|| {}}
+                    on_dismiss={|_: Dismiss| {}}
                 >
                     <Frame width=40.0 height=30.0 />
                 </Overlay>
@@ -27,6 +28,6 @@ fn a_light_overlay_occludes_only_its_content() {
     let (_, occluder) = layers[0];
     assert!(
         occluder.width() <= 40.0 && occluder.height() <= 30.0,
-        "a light overlay lets the pointer through outside its content, so only the content occludes: {occluder:?}"
+        "a passing layer lets the pointer through outside its content, so only the content occludes: {occluder:?}"
     );
 }

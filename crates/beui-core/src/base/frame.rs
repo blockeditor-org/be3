@@ -505,6 +505,7 @@ impl Document {
     pub fn set_visible(&mut self, frame: NodeOf<FrameNode>, visible: bool) {
         if self.arena.get_as::<FrameNode>(frame).visible != visible {
             self.arena.get_mut_as::<FrameNode>(frame).visible = visible;
+            self.focus_dirty = true;
         }
     }
 }

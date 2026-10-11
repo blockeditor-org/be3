@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::*;
+use crate::KeyAt;
 use crate::ForwardedInput;
 use crate::reactive::{Action, Canvas, CanvasItem, Chord, Frame, Interactive, build, view};
 
@@ -17,13 +18,13 @@ fn a_focused_app_keeps_its_keys_from_global_actions_that_do_not_intercept() {
                 global.borrow_mut().push("global")
             })
             .shortcut(Chord::logo(Key::G))
-            .global()
+            .at(KeyAt::Window)
             .register();
             Action::new("test.intercepting", "Intercepting", move || {
                 intercepting.borrow_mut().push("intercepting")
             })
             .shortcut(Chord::logo(Key::H))
-            .intercepts()
+            .at(KeyAt::Window).capture()
             .register();
             view! {
                 <Canvas>

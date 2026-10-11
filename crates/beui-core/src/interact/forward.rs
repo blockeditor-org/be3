@@ -42,7 +42,7 @@ fn sink_at(doc: &mut Document, rects: &Rects, root: NodeId, pos: Pos2) -> Option
     hit::sink(doc, rects, &hit.path, pos)
 }
 
-pub(super) fn cycle_focus(doc: &mut Document, step: isize) -> bool {
+pub(crate) fn cycle_focus(doc: &mut Document, step: isize) -> bool {
     let sinks: Vec<NodeId> = doc
         .focusables()
         .into_iter()
@@ -64,12 +64,12 @@ pub(super) fn cycle_focus(doc: &mut Document, step: isize) -> bool {
     true
 }
 
-pub(super) fn takes_keys(doc: &Document) -> bool {
+pub(crate) fn takes_keys(doc: &Document) -> bool {
     doc.focused_node()
         .is_some_and(|focused| doc.arena.contains(focused) && wants_forward(doc.arena.get(focused)))
 }
 
-pub(super) fn shortcuts_inhibited(doc: &Document) -> bool {
+pub(crate) fn shortcuts_inhibited(doc: &Document) -> bool {
     doc.focused_node().is_some_and(|focused| {
         doc.arena.contains(focused)
             && doc
@@ -103,6 +103,12 @@ pub(super) fn route(
     let hovered = position.and_then(|pos| sink_at(doc, rects, root, pos));
     let wheeled = alive(doc, doc.pointers.wheel_sink);
     let routed = doc.pointers.routed.clone();
+    let layers = doc.layers();
+    let blocking = layers.blocking();
+    let reachable = |doc: &Document, sink: NodeId| {
+        doc.layer_of(&layers, sink)
+            .is_some_and(|layer| layer >= blocking)
+    };
     let mut deliveries: Vec<(NodeId, Vec<Event>)> = Vec::new();
     let mut deliver = |to: Option<NodeId>, event: &Event| {
         let Some(to) = to else {
@@ -126,10 +132,7 @@ pub(super) fn route(
                     .iter()
                     .find(|(source, _)| *source == index)
                     .and_then(|(_, sink)| *sink)
-                    .filter(|sink| {
-                        doc.lock()
-                            .is_none_or(|lock| doc.is_within(*sink, lock.id()))
-                    });
+                    .filter(|sink| reachable(doc, *sink));
                 deliver(alive(doc, to), event);
             }
             Event::Scroll(_) | Event::ScrollEnded | Event::Zoom(_) => deliver(wheeled, event),

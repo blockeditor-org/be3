@@ -1,4 +1,5 @@
 use super::*;
+use crate::KeyAt;
 use crate::KeyPress;
 use crate::reactive::{Action, Chord, build, on_shortcut, view};
 
@@ -10,7 +11,8 @@ fn a_global_key_whose_release_was_lost_does_not_swallow_the_next_press() {
         move || {
             Action::new("test.global", "Global", || {})
                 .shortcut(Chord::logo(Key::G))
-                .global()
+                .at(KeyAt::Window)
+                .capture()
                 .register();
             on_shortcut(move |press: KeyPress| {
                 seen.borrow_mut().push((press.key, press.pressed));

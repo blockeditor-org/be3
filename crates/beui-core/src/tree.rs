@@ -23,10 +23,24 @@ struct NodeBindings {
     size: RefCell<Option<(ReadSignal<Vec2>, WriteSignal<Vec2>)>>,
     placement: RefCell<Option<(ReadSignal<Rect>, WriteSignal<Rect>)>>,
     placed: RefCell<Option<(ReadSignal<bool>, WriteSignal<bool>)>>,
+    node: RefCell<Option<crate::callback::NodeRef>>,
 }
 
 fn bindings() -> Rc<NodeBindings> {
     current_component().extension::<NodeBindings>()
+}
+
+pub fn component_node() -> crate::callback::NodeRef {
+    let bindings = bindings();
+    if let Some(node) = bindings.node.borrow().as_ref() {
+        return node.clone();
+    }
+    let node = crate::callback::NodeRef::new();
+    if let Some(target) = bindings.target.get() {
+        node.fill(target);
+    }
+    bindings.node.replace(Some(node.clone()));
+    node
 }
 
 pub fn component_size() -> ReadSignal<Vec2> {
@@ -107,6 +121,9 @@ impl ChildValue for NodeId {
         let size = bindings.size.take();
         let placement = bindings.placement.take();
         let placed = bindings.placed.take();
+        if let Some(node) = bindings.node.borrow().as_ref() {
+            node.fill(root);
+        }
         if let Some((_, write)) = placed {
             let watched = with_document(|document| document.watch_placed(root));
             scope.run(|| create_effect(move || write.set(watched.get())));

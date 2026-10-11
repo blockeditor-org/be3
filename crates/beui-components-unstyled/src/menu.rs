@@ -1,3 +1,4 @@
+use beui_core::layer::Dismiss;
 use accesskit::Role;
 use beui_core::base::overlay::Placement;
 use beui_core::document::Document;
@@ -335,7 +336,7 @@ fn MenuRow(
                         anchor=&button
                         placement=Placement::RightStart
                         open={submenu_open.clone()}
-                        on_dismiss={move || dismiss.set(false)}
+                        on_dismiss={move |_: Dismiss| dismiss.set(false)}
                     >
                         {panel.call(view! {
                             <MenuList

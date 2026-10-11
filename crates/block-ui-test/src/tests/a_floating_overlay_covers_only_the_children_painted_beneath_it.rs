@@ -1,5 +1,5 @@
 use beui::pos2;
-use beui::reactive::{List, Overlay, OverlayAnchor, OverlayMode};
+use beui::reactive::{LayerPolicy, List, Overlay, OverlayAnchor};
 
 use super::*;
 
@@ -25,7 +25,7 @@ fn Window(editor: Editor) -> NodeId {
         <List spacing=0.0>
             <Overlay
                 anchor={OverlayAnchor::Point(pos2(40.0, 40.0))}
-                mode=OverlayMode::Floating
+                policy=LayerPolicy::Pass
                 open=true
             >
                 <Frame width=200.0 height=120.0>

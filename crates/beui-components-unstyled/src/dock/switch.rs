@@ -1,4 +1,5 @@
-use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
+use beui_core::layer::{Dismiss, LayerPolicy};
+use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::geometry::Pos2;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
@@ -62,10 +63,10 @@ pub(super) fn DockSwitchView(dock: Handle) -> NodeId {
         <Overlay
             anchor={OverlayAnchor::Point(Pos2::ZERO)}
             placement=Placement::Center
-            mode=OverlayMode::Floating
+            policy=LayerPolicy::Pass
             traps_focus=false
             open
-            on_dismiss={move || cancelled.edit(DockState::cancel_switch)}
+            on_dismiss={move |_: Dismiss| cancelled.edit(DockState::cancel_switch)}
         >
             <Frame @test_id="dock.switch">{body}</Frame>
         </Overlay>

@@ -23,7 +23,7 @@ pub use beui_core::context::{
 };
 pub use beui_core::damage::Region;
 pub use beui_core::document::{
-    Document, GlobalKeyPress, OverRepaint, Tools, detect_over_repaint, take_over_repaints,
+    Document, OverRepaint, Tools, detect_over_repaint, take_over_repaints,
     verify_paint,
 };
 pub use beui_core::draw::{Quad, Quads, Turn, quads};
@@ -44,6 +44,8 @@ pub use beui_core::input::{
     TouchPhase, ZoomGesture,
 };
 pub use beui_core::interact::forward::ForwardedInput;
+pub use beui_core::keys::{KeyAt, KeyEvent, KeyInput, KeyPhase, KeyTarget};
+pub use beui_core::layer::{Dismiss, LayerLevel, LayerPolicy};
 pub use beui_core::node::{ClickHandler, Handler, NodeId, NodeOf};
 pub use beui_core::page::{Page, PageShape};
 pub use beui_core::painter::{Corners, Painter, Shape};

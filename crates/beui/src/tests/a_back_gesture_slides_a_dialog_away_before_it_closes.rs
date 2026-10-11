@@ -12,13 +12,17 @@ fn a_back_gesture_slides_a_dialog_away_before_it_closes() {
     let body_ref = body.clone();
     let document = build({
         let open = open.clone();
+        let closing = set_open.clone();
         move || {
             view! {
                 <List spacing=0.0>
                     <Dialog
                         open={open}
                         width=300.0
-                        on_dismiss={move || reports.set(reports.get() + 1)}
+                        on_dismiss={move || {
+                            reports.set(reports.get() + 1);
+                            closing.set(false);
+                        }}
                     >
                         <Text
                             string="Body"
@@ -86,9 +90,6 @@ fn a_back_gesture_slides_a_dialog_away_before_it_closes() {
     assert_eq!(dismissed.get(), 1);
     assert!(!harness.frame(Vec::new()).handles_back);
 
-    let closing = set_open.clone();
-    with_reactive_scope(harness.document_mut(), move || closing.set(false));
-    harness.frame(Vec::new());
     with_reactive_scope(harness.document_mut(), move || set_open.set(true));
     harness.frame(Vec::new());
     harness.frame(Vec::new());

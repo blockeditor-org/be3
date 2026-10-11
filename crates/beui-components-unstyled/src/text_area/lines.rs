@@ -1,9 +1,10 @@
+use beui_core::layer::LayerPolicy;
 use std::rc::Rc;
 
 use beui_macros::{component, view};
 
 use beui_core::base::ItemSize;
-use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
+use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::base::text::TextNode;
 use beui_core::color::Color32;
 use beui_core::font::{FontId, TextAlign};
@@ -682,7 +683,7 @@ fn WidgetPopup(anchor: NodeRef, render: RenderFn<usize>, index: usize) -> NodeId
         <Overlay
             anchor={OverlayAnchor::Node(anchor)}
             placement=Placement::BelowStart
-            mode=OverlayMode::Floating
+            policy=LayerPolicy::Pass
             traps_focus=false
             open=true
         >

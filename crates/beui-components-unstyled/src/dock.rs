@@ -6,6 +6,7 @@ mod switch;
 #[cfg(test)]
 mod tests;
 
+use beui_core::layer::LayerPolicy;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -29,7 +30,7 @@ use crate::context_menu::ContextMenu;
 use crate::menu::MenuItem;
 use crate::menu_popup::MenuStyle;
 use crate::rubber_band::{Band, WINDOW_SPRING};
-use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
+use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::base::{Direction, ItemSize};
 use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
@@ -1269,7 +1270,7 @@ fn DockFullscreenView(dock: Handle) -> NodeId {
         <Portal node={panel} />
     });
     view! {
-        <Overlay anchor placement mode=OverlayMode::Floating traps_focus=false open>
+        <Overlay anchor placement policy=LayerPolicy::Pass traps_focus=false open>
             <Frame @test_id="dock.fullscreen" width height>{body}</Frame>
         </Overlay>
     }
@@ -2500,7 +2501,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
             @node_ref=&overlay
             anchor={anchor}
             placement=Placement::At
-            mode=OverlayMode::Floating
+            policy=LayerPolicy::Pass
             traps_focus=false
             open=true
         >
@@ -2735,7 +2736,7 @@ fn DockDragLayer(dock: Handle) -> NodeId {
             <Overlay
                 anchor={marker_anchor}
                 placement=Placement::BelowStart
-                mode=OverlayMode::Passive
+                policy=LayerPolicy::Inert
                 traps_focus=false
                 open={marking}
             >

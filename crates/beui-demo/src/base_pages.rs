@@ -1,3 +1,4 @@
+use beui::reactive::Dismiss;
 use super::*;
 use beui::KeyPress;
 use beui::Sides;
@@ -629,7 +630,7 @@ fn AnchoredOverlay() -> NodeId {
                 anchor=&anchor
                 placement=Placement::BelowStart
                 open={open}
-                on_dismiss={move || dismiss.set(false)}
+                on_dismiss={move |_: Dismiss| dismiss.set(false)}
             >
                 <Frame padding_vertical=4.0>
                     <Frame

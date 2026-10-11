@@ -1,3 +1,4 @@
+use beui_core::layer::Dismiss;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -119,7 +120,7 @@ pub fn CommandPalette(
             placement=Placement::Center
             scrim
             open
-            on_dismiss={move || dismiss(&dismiss_state)}
+            on_dismiss={move |_: Dismiss| dismiss(&dismiss_state)}
         >
             {panel.call(view! {
                 <List spacing=6.0>

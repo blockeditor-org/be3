@@ -1,3 +1,4 @@
+use beui::KeyAt;
 use super::*;
 
 const COLUMN_SPACING: f32 = 20.0;
@@ -1199,12 +1200,12 @@ fn GlobalActions() -> NodeId {
     })
     .glyph(ICON_LOCK)
     .shortcut(Chord::logo(Key::L))
-    .intercepts()
+    .at(KeyAt::Window).capture()
     .register();
     let opening = set_open.clone();
     let palette = Action::new("demo.palette", "Command palette", move || opening.set(true))
         .shortcut(Chord::logo(Key::P))
-        .global()
+        .at(KeyAt::Window)
         .register();
     let lock_keys = lock.shortcut_label().unwrap_or_default();
     let palette_keys = palette.shortcut_label().unwrap_or_default();

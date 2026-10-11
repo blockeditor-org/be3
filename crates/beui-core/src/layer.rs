@@ -1,0 +1,775 @@
+use crate::base::back::BackNode;
+use crate::base::frame::FrameNode;
+use crate::base::overlay::OverlayNode;
+use crate::document::Document;
+use crate::geometry::{Pos2, Rect};
+use crate::input::BackGesture;
+use crate::node::{NodeId, NodeOf};
+
+use crate::node::ANCESTOR_LIMIT;
+
+#[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
+pub enum LayerPolicy {
+    Inert,
+    Pass,
+    BlocksParent,
+    #[default]
+    BlocksAll,
+}
+
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub enum LayerLevel {
+    #[default]
+    Normal,
+    Top,
+    Lock,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Dismiss {
+    Escape,
+    Back,
+    OutsidePress,
+    WithParent,
+}
+
+#[derive(Default)]
+pub struct OpenLayers {
+    open: Vec<Opened>,
+    next: u64,
+}
+
+struct Opened {
+    overlay: NodeOf<OverlayNode>,
+    seq: u64,
+    returns_to: Option<NodeId>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Layer {
+    pub overlay: Option<NodeOf<OverlayNode>>,
+    pub parent: Option<usize>,
+    pub hangs_from: Option<NodeId>,
+    pub content: Option<NodeId>,
+    pub policy: LayerPolicy,
+    pub level: LayerLevel,
+    pub traps: bool,
+    pub dismissable: bool,
+}
+
+impl Layer {
+    pub fn blocks_all(&self) -> bool {
+        self.policy == LayerPolicy::BlocksAll
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum DismissTarget {
+    Handler(NodeOf<BackNode>),
+    Overlay(NodeOf<OverlayNode>),
+}
+
+impl DismissTarget {
+    fn id(self) -> NodeId {
+        match self {
+            DismissTarget::Handler(handler) => handler.id(),
+            DismissTarget::Overlay(overlay) => overlay.id(),
+        }
+    }
+}
+
+pub struct Layers(Vec<Layer>);
+
+impl std::ops::Deref for Layers {
+    type Target = [Layer];
+
+    fn deref(&self) -> &[Layer] {
+        &self.0
+    }
+}
+
+impl Layers {
+    pub fn index_of(&self, overlay: NodeOf<OverlayNode>) -> Option<usize> {
+        self.0
+            .iter()
+            .position(|layer| layer.overlay == Some(overlay))
+    }
+
+    pub fn keyboard(&self) -> usize {
+        self.0.iter().rposition(|layer| layer.traps).unwrap_or(0)
+    }
+
+    pub fn blocking(&self) -> usize {
+        self.0.iter().rposition(Layer::blocks_all).unwrap_or(0)
+    }
+
+    pub fn locked(&self) -> bool {
+        self.0
+            .iter()
+            .any(|layer| layer.blocks_all() && layer.level == LayerLevel::Lock)
+    }
+
+    pub fn locks_window(&self) -> bool {
+        self.0[self.blocking()].level == LayerLevel::Lock && self.blocking() > 0
+    }
+
+    pub fn within(&self, index: usize, ancestor: usize) -> bool {
+        let mut current = Some(index);
+        while let Some(at) = current {
+            if at == ancestor {
+                return true;
+            }
+            current = self.0[at].parent;
+        }
+        false
+    }
+}
+
+impl Document {
+    pub(crate) fn open_overlays(&self) -> Vec<NodeOf<OverlayNode>> {
+        self.layer_state
+            .open
+            .iter()
+            .map(|opened| opened.overlay)
+            .filter(|overlay| self.contains(*overlay) && self.arena.get_as(*overlay).open)
+            .collect()
+    }
+
+    pub(crate) fn layers_changed(&mut self) {
+        self.focus_dirty = true;
+        for overlay in self.open_overlays() {
+            self.arena.invalidate_node(overlay);
+        }
+    }
+
+    pub(crate) fn is_within(&self, node: NodeId, ancestor: NodeId) -> bool {
+        let mut current = node;
+        for _ in 0..ANCESTOR_LIMIT {
+            if current == ancestor {
+                return true;
+            }
+            if Some(current) == self.root {
+                return false;
+            }
+            match self.arena.parent(current) {
+                Some(parent) => current = parent,
+                None => return self.holds(ancestor, node),
+            }
+        }
+        false
+    }
+
+    fn holds(&self, ancestor: NodeId, node: NodeId) -> bool {
+        let mut pending = vec![ancestor];
+        while let Some(id) = pending.pop() {
+            if id == node {
+                return true;
+            }
+            if self.contains(id) {
+                pending.extend(self.arena.get(id).children());
+            }
+        }
+        false
+    }
+
+    fn host_layer(
+        &self,
+        start: Option<NodeId>,
+        own: NodeOf<OverlayNode>,
+        open: &[NodeOf<OverlayNode>],
+    ) -> Option<NodeOf<OverlayNode>> {
+        let mut current = start;
+        for _ in 0..ANCESTOR_LIMIT {
+            let id = current?;
+            if id != own.id()
+                && let Some(found) = open.iter().find(|overlay| overlay.id() == id)
+            {
+                return Some(*found);
+            }
+            current = self.arena.parent(id);
+        }
+        None
+    }
+
+    pub fn layers(&self) -> Layers {
+        let open = self.open_overlays();
+        let mut entries: Vec<(NodeOf<OverlayNode>, Option<NodeOf<OverlayNode>>, Option<NodeId>)> =
+            Vec::with_capacity(open.len());
+        for overlay in &open {
+            let node = self.arena.get_as::<OverlayNode>(*overlay);
+            let hangs_from = node
+                .anchor_node()
+                .filter(|anchor| self.contains(*anchor))
+                .or_else(|| self.arena.parent(overlay.id()));
+            let parent = self.host_layer(hangs_from, *overlay, &open);
+            entries.push((*overlay, parent, hangs_from));
+        }
+        let seq_of = |overlay: NodeOf<OverlayNode>| {
+            self.layer_state
+                .open
+                .iter()
+                .find(|opened| opened.overlay == overlay)
+                .map_or(0, |opened| opened.seq)
+        };
+        let parent_of = |overlay: NodeOf<OverlayNode>| {
+            entries
+                .iter()
+                .find(|(id, _, _)| *id == overlay)
+                .and_then(|(_, parent, _)| *parent)
+        };
+        let mut keyed: Vec<((LayerLevel, Vec<u64>), usize)> = Vec::with_capacity(entries.len());
+        for (index, (overlay, _, _)) in entries.iter().enumerate() {
+            let mut chain = vec![*overlay];
+            let mut current = parent_of(*overlay);
+            while let Some(parent) = current {
+                if chain.contains(&parent) || chain.len() > open.len() {
+                    break;
+                }
+                chain.push(parent);
+                current = parent_of(parent);
+            }
+            chain.reverse();
+            let level = chain
+                .iter()
+                .map(|overlay| self.arena.get_as::<OverlayNode>(*overlay).level)
+                .max()
+                .unwrap_or_default();
+            let seqs = chain.iter().map(|overlay| seq_of(*overlay)).collect();
+            keyed.push(((level, seqs), index));
+        }
+        keyed.sort();
+        let mut layers = Vec::with_capacity(keyed.len() + 1);
+        layers.push(Layer {
+            overlay: None,
+            parent: None,
+            hangs_from: None,
+            content: self.root,
+            policy: LayerPolicy::Pass,
+            level: LayerLevel::Normal,
+            traps: false,
+            dismissable: false,
+        });
+        for ((level, _), index) in &keyed {
+            let (overlay, _, hangs_from) = entries[*index];
+            let node = self.arena.get_as::<OverlayNode>(overlay);
+            layers.push(Layer {
+                overlay: Some(overlay),
+                parent: None,
+                hangs_from,
+                content: node.content,
+                policy: node.policy,
+                level: *level,
+                traps: node.traps_focus && node.policy != LayerPolicy::Inert,
+                dismissable: !node.on_dismiss.is_empty() && node.level != LayerLevel::Lock,
+            });
+        }
+        for at in 1..layers.len() {
+            let overlay = layers[at].overlay.expect("only the root layer has no overlay");
+            layers[at].parent = Some(
+                parent_of(overlay)
+                    .and_then(|parent| layers.iter().position(|layer| layer.overlay == Some(parent)))
+                    .unwrap_or(0),
+            );
+        }
+        Layers(layers)
+    }
+
+    pub fn layer_of(&self, layers: &Layers, node: NodeId) -> Option<usize> {
+        let mut current = Some(node);
+        for _ in 0..ANCESTOR_LIMIT {
+            let id = current?;
+            if let Some(overlay) = self.arena.kind_of::<OverlayNode>(id) {
+                return match layers.index_of(overlay) {
+                    Some(index) => Some(index),
+                    None => None,
+                };
+            }
+            if Some(id) == self.root {
+                return Some(0);
+            }
+            current = self.arena.parent(id);
+        }
+        None
+    }
+
+    pub fn locked(&self) -> bool {
+        self.layers().locked()
+    }
+
+    pub fn modal_open(&self) -> bool {
+        self.layers()
+            .iter()
+            .skip(1)
+            .any(|layer| layer.traps || layer.blocks_all())
+    }
+
+    pub fn open_overlay(&mut self, overlay: NodeOf<OverlayNode>) {
+        if self.arena.get_as::<OverlayNode>(overlay).open {
+            return;
+        }
+        let screen = self.opening_screen(overlay);
+        let returns_to = match self.focused {
+            Some(focused) if self.is_within(focused, overlay.id()) => self
+                .focus_before
+                .filter(|before| !self.is_within(*before, overlay.id())),
+            focused => focused,
+        };
+        let node = self.arena.get_mut_as::<OverlayNode>(overlay);
+        node.open = true;
+        node.screen = screen;
+        self.layer_state.open.retain(|opened| opened.overlay != overlay);
+        self.layer_state.open.push(Opened {
+            overlay,
+            seq: 0,
+            returns_to,
+        });
+        self.raise_layer(overlay);
+        self.layers_changed();
+        self.redirect_blocked_focus();
+    }
+
+    pub fn raise_overlay(&mut self, overlay: NodeId) {
+        if let Some(overlay) = self.arena.kind_of::<OverlayNode>(overlay)
+            && self.is_overlay_open(overlay.id())
+        {
+            self.raise_layer(overlay);
+        }
+    }
+
+    fn raise_layer(&mut self, overlay: NodeOf<OverlayNode>) {
+        let layers = self.layers();
+        let Some(index) = layers.index_of(overlay) else {
+            return;
+        };
+        let mut chain = vec![];
+        let mut current = Some(index);
+        while let Some(at) = current.filter(|at| *at > 0) {
+            chain.push(layers[at].overlay.expect("not the root layer"));
+            if layers[index].policy == LayerPolicy::Inert {
+                break;
+            }
+            current = layers[at].parent;
+        }
+        for raised in chain.into_iter().rev() {
+            let next = self.layer_state.next;
+            self.layer_state.next += 1;
+            if let Some(opened) = self
+                .layer_state
+                .open
+                .iter_mut()
+                .find(|opened| opened.overlay == raised)
+                && opened.seq != next
+            {
+                opened.seq = next;
+                self.arena.invalidate_node(raised);
+            }
+        }
+    }
+
+    pub fn close_overlay(&mut self, overlay: NodeOf<OverlayNode>) {
+        self.end_layer(overlay);
+    }
+
+    fn end_layer(&mut self, overlay: NodeOf<OverlayNode>) {
+        if !self.contains(overlay) || !self.arena.get_as::<OverlayNode>(overlay).open {
+            return;
+        }
+        let nested: Vec<NodeOf<OverlayNode>> = self
+            .open_overlays()
+            .into_iter()
+            .filter(|other| *other != overlay && self.is_within(other.id(), overlay.id()))
+            .collect();
+        let traps = self.arena.get_as::<OverlayNode>(overlay).traps_focus;
+        let returns_to = self
+            .layer_state
+            .open
+            .iter()
+            .find(|opened| opened.overlay == overlay)
+            .and_then(|opened| opened.returns_to);
+        for id in std::iter::once(overlay).chain(nested.iter().copied()) {
+            self.arena.get_mut_as::<OverlayNode>(id).open = false;
+            self.arena.invalidate_node(id);
+        }
+        self.layer_state
+            .open
+            .retain(|opened| opened.overlay != overlay && !nested.contains(&opened.overlay));
+        self.layers_changed();
+        let takes_back = match self.focused {
+            Some(focused) => self.is_within(focused, overlay.id()),
+            None => traps,
+        };
+        if takes_back {
+            let target = returns_to.filter(|target| self.focus_valid(*target));
+            if target.is_some() || self.focused.is_some() {
+                self.update_focus(target);
+            }
+        }
+        for id in nested {
+            self.call_overlay_dismiss(id, Dismiss::WithParent);
+        }
+    }
+
+    pub(crate) fn note_focus_outside_layers(&mut self, focus: NodeId) {
+        let outside: Vec<NodeOf<OverlayNode>> = self
+            .open_overlays()
+            .into_iter()
+            .filter(|overlay| !self.is_within(focus, overlay.id()))
+            .collect();
+        for opened in &mut self.layer_state.open {
+            if outside.contains(&opened.overlay) {
+                opened.returns_to = Some(focus);
+            }
+        }
+    }
+
+    pub(crate) fn forget_layer(&mut self, id: NodeId) {
+        self.layer_state.open.retain(|opened| opened.overlay.id() != id);
+    }
+
+    pub(crate) fn returns_on_removal(&self, removed: NodeId) -> Option<NodeId> {
+        if self.layer_state.open.is_empty() {
+            return None;
+        }
+        self.layer_state
+            .open
+            .iter()
+            .filter(|opened| {
+                self.contains(opened.overlay) && self.is_within(opened.overlay.id(), removed)
+            })
+            .filter(|opened| match self.focused {
+                Some(focused) => self.is_within(focused, opened.overlay.id()),
+                None => self.arena.get_as(opened.overlay).traps_focus,
+            })
+            .find_map(|opened| {
+                opened
+                    .returns_to
+                    .filter(|target| !self.is_within(*target, removed))
+            })
+    }
+
+    pub(crate) fn return_removed_focus(&mut self, target: NodeId) {
+        if self.focused.is_none() && self.contains(target) && self.focus_valid(target) {
+            self.update_focus(Some(target));
+        }
+    }
+
+    fn call_overlay_dismiss(&mut self, id: NodeOf<OverlayNode>, reason: Dismiss) {
+        if !self.contains(id) {
+            return;
+        }
+        let handler = self.arena.get_as::<OverlayNode>(id).on_dismiss.clone();
+        if !handler.is_empty() {
+            handler.call(reason);
+        }
+    }
+
+    fn back_handler_in(&self, layers: &Layers, index: usize) -> Option<NodeOf<BackNode>> {
+        self.back_handlers.iter().rev().copied().find(|handler| {
+            self.contains(handler.id())
+                && self.arena.get_as(*handler).enabled
+                && self.live(handler.id())
+                && self.layer_of(layers, handler.id()) == Some(index)
+        })
+    }
+
+    pub(crate) fn live(&self, node: NodeId) -> bool {
+        let mut current = Some(node);
+        for _ in 0..ANCESTOR_LIMIT {
+            let Some(id) = current else {
+                return false;
+            };
+            if Some(id) == self.root {
+                return true;
+            }
+            let element = self.arena.get(id);
+            if element
+                .as_any()
+                .downcast_ref::<FrameNode>()
+                .is_some_and(|frame| !frame.visible)
+                || element
+                    .as_any()
+                    .downcast_ref::<OverlayNode>()
+                    .is_some_and(|overlay| !overlay.open)
+            {
+                return false;
+            }
+            current = self.arena.parent(id);
+        }
+        false
+    }
+
+    fn deliver_to(&self, layers: &Layers, index: usize) -> Option<DismissTarget> {
+        if let Some(handler) = self.back_handler_in(layers, index) {
+            return Some(DismissTarget::Handler(handler));
+        }
+        let layer = &layers[index];
+        match (layer.overlay, layer.dismissable) {
+            (Some(overlay), true) => Some(DismissTarget::Overlay(overlay)),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn dismiss_target(&self, reason: Dismiss) -> Option<DismissTarget> {
+        let layers = self.layers();
+        match reason {
+            Dismiss::Back => {
+                for index in (0..layers.len()).rev() {
+                    let layer = &layers[index];
+                    if layer.policy == LayerPolicy::Inert {
+                        continue;
+                    }
+                    if let Some(handler) = self.back_handler_in(&layers, index) {
+                        return Some(DismissTarget::Handler(handler));
+                    }
+                    if let (Some(overlay), true) = (layer.overlay, layer.dismissable) {
+                        return Some(DismissTarget::Overlay(overlay));
+                    }
+                    if layer.blocks_all() {
+                        return None;
+                    }
+                }
+                None
+            }
+            Dismiss::Escape => {
+                let mut current = match self.focused.and_then(|focused| self.layer_of(&layers, focused))
+                {
+                    Some(index) => Some(index),
+                    None => Some(layers.keyboard()),
+                };
+                while let Some(index) = current.filter(|index| *index > 0) {
+                    if layers[index].dismissable {
+                        return self.deliver_to(&layers, index);
+                    }
+                    current = layers[index].parent;
+                }
+                None
+            }
+            Dismiss::OutsidePress | Dismiss::WithParent => None,
+        }
+    }
+
+    pub fn handles_back(&self) -> bool {
+        self.dismiss_target(Dismiss::Back).is_some()
+    }
+
+    pub fn dismiss(&mut self, reason: Dismiss) -> bool {
+        let Some(target) = self.dismiss_target(reason) else {
+            return false;
+        };
+        self.deliver_dismiss(target, reason);
+        true
+    }
+
+    pub fn request_dismiss(&mut self, overlay: NodeOf<OverlayNode>, reason: Dismiss) {
+        let layers = self.layers();
+        let Some(index) = layers.index_of(overlay) else {
+            return;
+        };
+        if !layers[index].dismissable {
+            return;
+        }
+        if let Some(target) = self.deliver_to(&layers, index) {
+            self.deliver_dismiss(target, reason);
+        }
+    }
+
+    fn deliver_dismiss(&mut self, target: DismissTarget, reason: Dismiss) {
+        match target {
+            DismissTarget::Overlay(overlay) => self.call_overlay_dismiss(overlay, reason),
+            DismissTarget::Handler(handler) => {
+                let node = self.arena.get_as(handler);
+                let (on_gesture, on_back) = (node.on_gesture.clone(), node.on_back.clone());
+                match on_gesture.is_empty() {
+                    false => on_gesture.call(BackGesture::Invoked),
+                    true => on_back.call(),
+                }
+            }
+        }
+    }
+
+    pub fn back(&mut self, gesture: BackGesture) {
+        let target = match (gesture, self.back_gesture) {
+            (BackGesture::Started { .. }, _) | (_, None) => self.dismiss_target(Dismiss::Back),
+            (_, Some(target)) => Some(target),
+        };
+        self.back_gesture = match gesture {
+            BackGesture::Started { .. } => target,
+            BackGesture::Progressed(_) => self.back_gesture,
+            BackGesture::Cancelled | BackGesture::Invoked => None,
+        };
+        let Some(target) = target.filter(|target| self.contains(target.id())) else {
+            return;
+        };
+        match target {
+            DismissTarget::Handler(handler) => {
+                let node = self.arena.get_as(handler);
+                let (on_gesture, on_back) = (node.on_gesture.clone(), node.on_back.clone());
+                if !on_gesture.is_empty() {
+                    on_gesture.call(match gesture {
+                        BackGesture::Progressed(progress) => {
+                            BackGesture::Progressed(progress.clamp(0.0, 1.0))
+                        }
+                        gesture => gesture,
+                    });
+                } else if gesture == BackGesture::Invoked {
+                    on_back.call();
+                }
+            }
+            DismissTarget::Overlay(overlay) => {
+                if gesture == BackGesture::Invoked {
+                    self.call_overlay_dismiss(overlay, Dismiss::Back);
+                }
+            }
+        }
+    }
+
+    pub(crate) fn forget_back_gesture(&mut self, id: NodeId) {
+        if self.back_gesture.is_some_and(|target| target.id() == id) {
+            self.back_gesture = None;
+        }
+    }
+
+    pub fn press_outside(&mut self, layers: &[NodeOf<OverlayNode>]) {
+        for overlay in layers {
+            if self.is_overlay_open(overlay.id()) {
+                self.request_dismiss(*overlay, Dismiss::OutsidePress);
+            }
+        }
+    }
+
+    pub fn blocked_focus_redirect(&self, layers: &Layers, node: NodeId) -> Option<Option<NodeId>> {
+        let mut node = node;
+        let mut visited = Vec::new();
+        loop {
+            let blocker = layers.iter().find(|layer| {
+                layer.policy == LayerPolicy::BlocksParent
+                    && layer.hangs_from.is_some_and(|blocked| self.is_within(node, blocked))
+                    && layer
+                        .overlay
+                        .is_some_and(|overlay| !self.is_within(node, overlay.id()))
+            })?;
+            let overlay = blocker.overlay?;
+            if visited.contains(&overlay) {
+                return Some(None);
+            }
+            visited.push(overlay);
+            let Some(content) = self.overlay_content(overlay) else {
+                return Some(None);
+            };
+            match self.focusables_within(content).first().copied() {
+                Some(first) => node = first,
+                None => return Some(None),
+            }
+            if !layers.iter().any(|layer| {
+                layer.policy == LayerPolicy::BlocksParent
+                    && layer.hangs_from.is_some_and(|blocked| self.is_within(node, blocked))
+                    && layer
+                        .overlay
+                        .is_some_and(|overlay| !self.is_within(node, overlay.id()))
+            }) {
+                return Some(Some(node));
+            }
+        }
+    }
+
+    pub(crate) fn blocked_roots(&self, layers: &Layers) -> Vec<NodeId> {
+        layers
+            .iter()
+            .filter(|layer| layer.policy == LayerPolicy::BlocksParent)
+            .filter_map(|layer| layer.hangs_from)
+            .collect()
+    }
+
+    fn redirect_blocked_focus(&mut self) {
+        let Some(focused) = self.focused else {
+            return;
+        };
+        let layers = self.layers();
+        if let Some(redirect) = self.blocked_focus_redirect(&layers, focused) {
+            self.update_focus(redirect);
+        }
+    }
+
+    pub fn layer_cover(&self, layer: &Layer) -> Option<Rect> {
+        let content = self.node_rect(layer.content?)?;
+        let cover = match (layer.blocks_all(), layer.overlay) {
+            (true, Some(overlay)) => self
+                .node_rect(self.overlay_scrim(overlay))
+                .map_or(content, |scrim| scrim.union(content)),
+            _ => content,
+        };
+        cover.is_positive().then_some(cover)
+    }
+
+    pub fn overlay_rects(&self) -> Vec<Rect> {
+        self.layers()
+            .iter()
+            .skip(1)
+            .filter_map(|layer| self.layer_cover(layer))
+            .collect()
+    }
+
+    pub fn floating_rects(&self) -> Vec<Rect> {
+        self.layers()
+            .iter()
+            .skip(1)
+            .filter(|layer| layer.policy == LayerPolicy::Pass)
+            .filter_map(|layer| self.node_rect(layer.content?))
+            .collect()
+    }
+
+    pub fn overlay_layers(&self) -> Vec<(Vec<usize>, Rect)> {
+        self.layers()
+            .iter()
+            .enumerate()
+            .skip(1)
+            .filter_map(|(index, layer)| Some((vec![index], self.layer_cover(layer)?)))
+            .collect()
+    }
+
+    pub fn paint_order(&self, node: NodeId) -> Vec<usize> {
+        let layers = self.layers();
+        let mut path = Vec::new();
+        let mut current = node;
+        let layer = loop {
+            if let Some(overlay) = self.arena.kind_of::<OverlayNode>(current)
+                && let Some(index) = layers.index_of(overlay)
+            {
+                break index;
+            }
+            let Some(parent) = self.arena.parent(current) else {
+                break 0;
+            };
+            let index = self
+                .children(parent)
+                .iter()
+                .position(|child| *child == current)
+                .unwrap_or_default();
+            path.push(index);
+            current = parent;
+        };
+        path.push(layer);
+        path.reverse();
+        path
+    }
+
+    pub fn in_blocked(&self, layers: &Layers, at: usize, node: Option<NodeId>, pos: Pos2) -> Option<NodeOf<OverlayNode>> {
+        layers.iter().enumerate().skip(at + 1).find_map(|(_, layer)| {
+            if layer.policy != LayerPolicy::BlocksParent {
+                return None;
+            }
+            let blocked = layer.hangs_from?;
+            let inside = match node {
+                Some(node) => self.is_within(node, blocked),
+                None => {
+                    self.layer_of(layers, blocked) == Some(at)
+                        && self
+                            .rects
+                            .visible(&blocked)
+                            .is_some_and(|rect| rect.contains_half_open(pos))
+                }
+            };
+            inside.then_some(layer.overlay?)
+        })
+    }
+}

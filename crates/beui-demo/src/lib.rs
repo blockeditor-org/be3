@@ -1,3 +1,4 @@
+use beui::KeyAt;
 use base_pages::{
     ControlFlowPage, FramesPage, InteractionPage, LayeringPage, ListsPage, TextNodesPage,
 };
@@ -515,7 +516,7 @@ fn switch_tabs_with_alt_q(layout: &DockingLayout<TabId>) {
         })
         .glyph(ICON_FLIP_TO_FRONT)
         .shortcut(chord)
-        .global()
+        .at(KeyAt::Window)
         .register();
     }
     let open = create_memo(clone!(layout -> move || layout.switching()));
@@ -526,7 +527,7 @@ fn switch_tabs_with_alt_q(layout: &DockingLayout<TabId>) {
     .shortcut(Chord::key(Key::Escape).alt())
     .shortcut(Chord::key(Key::Escape).alt().shift())
     .enabled(open)
-    .global()
+    .at(KeyAt::Window)
     .register();
     let committing = layout.clone();
     create_effect(move || {

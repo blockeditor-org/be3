@@ -1,3 +1,4 @@
+use beui_core::layer::{LayerLevel, LayerPolicy};
 use std::cell::Cell;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -7,7 +8,7 @@ use beui_macros::{component, view};
 
 use crate::text::IconSized;
 use crate::theme::{BORDER_WIDTH, CARD_RADIUS, use_theme};
-use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
+use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
 use beui_core::geometry::{Rect, pos2};
 use beui_core::node::NodeId;
@@ -102,7 +103,8 @@ pub fn LevelOsd(
                         <Overlay
                             anchor={anchored}
                             placement=Placement::Around
-                            mode=OverlayMode::Passive
+                            policy=LayerPolicy::Inert
+                            level=LayerLevel::Top
                             traps_focus=false
                             open={open}
                         >

@@ -1,3 +1,4 @@
+use beui_core::layer::{LayerLevel, LayerPolicy};
 use std::any::Any;
 use std::cell::Cell;
 use std::rc::Rc;
@@ -5,7 +6,7 @@ use std::rc::Rc;
 use beui_macros::{component, view};
 
 use beui_core::base::Direction;
-use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
+use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::drag_board::{Board, DragPoint, Pending, Target};
 use beui_core::geometry::{Pos2, Vec2};
 use beui_core::input::CursorIcon;
@@ -158,7 +159,8 @@ where
                 <Overlay
                     anchor={anchor}
                     placement=Placement::BelowStart
-                    mode=OverlayMode::Passive
+                    policy=LayerPolicy::Inert
+                    level=LayerLevel::Top
                     traps_focus=false
                     open={dragging}
                 >

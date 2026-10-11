@@ -452,6 +452,7 @@ pub struct Arena {
     relaid: Vec<NodeId>,
     repaints: Vec<NodeId>,
     everything: bool,
+    reparented: bool,
 }
 
 impl Arena {
@@ -690,6 +691,11 @@ impl Arena {
         }
         self.parents[slot] = parent;
         self.marked = None;
+        self.reparented = true;
+    }
+
+    pub fn take_reparented(&mut self) -> bool {
+        std::mem::take(&mut self.reparented)
     }
 
     pub fn parent(&self, id: NodeId) -> Option<NodeId> {

@@ -1,5 +1,5 @@
 use super::*;
-use crate::GlobalKeyPress;
+use crate::{Dismiss, KeyEvent, LayerLevel};
 use crate::base::overlay::{OverlayAnchor, OverlayNode, Placement};
 use crate::input::{BackGesture, KeyPress};
 use crate::reactive::{
@@ -19,9 +19,9 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
         let (globals, dismissed, typed) = (globals.clone(), dismissed.clone(), typed.clone());
         let (lock, popup) = (lock.clone(), popup.clone());
         move || {
-            on_global_key(move |global: GlobalKeyPress| {
+            on_global_key(move |event: KeyEvent| {
                 globals.set(globals.get() + 1);
-                global.press.modifiers.ctrl
+                event.press().is_some_and(|press| press.modifiers.ctrl)
             });
             view! {
                 <List spacing=0.0>
@@ -39,9 +39,9 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
                         anchor=OverlayAnchor::Point(Pos2::ZERO)
                         placement=Placement::Fill
                         scrim=Color32::BLACK
-                        locks=true
+                        level=LayerLevel::Lock
                         open={locked}
-                        on_dismiss={move || dismissed.set(dismissed.get() + 1)}
+                        on_dismiss={move |_: Dismiss| dismissed.set(dismissed.get() + 1)}
                     >
                         <Frame width=200.0 height=40.0>
                             <TextInput
@@ -76,7 +76,7 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
     harness.click(pos2(VIEWPORT.x - 5.0, VIEWPORT.y - 5.0));
     harness.frame(vec![Event::Back(BackGesture::Invoked)]);
     with_reactive_scope(harness.document_mut(), || {
-        with_document(|document| document.dismiss_overlay(lock));
+        with_document(|document| document.request_dismiss(lock, Dismiss::Back));
     });
     harness.frame(Vec::new());
     assert!(
@@ -110,8 +110,8 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
     set(&mut harness, &set_menu, true);
     assert!(harness.document().is_overlay_open(popup.id()));
     assert_eq!(
-        harness.document().overlays_bottom_up().last(),
-        Some(&lock),
+        harness.document().layers().last().and_then(|layer| layer.overlay),
+        Some(lock),
         "an overlay opened while locked opens beneath the lock"
     );
     harness.click(harness.center(harness.find("password")));

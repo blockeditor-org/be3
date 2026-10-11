@@ -1,3 +1,4 @@
+use beui::KeyAt;
 use std::rc::Rc;
 
 use block_editor_beui::beui::icons::ICON_APPS;
@@ -83,7 +84,7 @@ pub(super) fn ProgramLauncherOverlay(launcher: ProgramLauncher) -> NodeId {
     })
     .glyph(ICON_APPS)
     .shortcut(Chord::tap(Key::Logo))
-    .intercepts()
+    .at(KeyAt::Window).capture()
     .register();
     let programs = launcher.editor.host_value::<Programs>();
     let items = create_memo(move || {

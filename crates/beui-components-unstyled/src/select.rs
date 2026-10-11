@@ -1,3 +1,4 @@
+use beui_core::layer::Dismiss;
 use crate as unstyled;
 use crate::ChoiceOption;
 use crate::button::ButtonHandle;
@@ -228,7 +229,7 @@ pub fn Select(
                 anchor={&state.trigger}
                 placement=Placement::BelowStart
                 open={is_open.clone()}
-                on_dismiss={move || dismiss(&dismiss_state)}
+                on_dismiss={move |_: Dismiss| dismiss(&dismiss_state)}
             >
                 {popup.call(view! {
                     <List spacing=6.0>

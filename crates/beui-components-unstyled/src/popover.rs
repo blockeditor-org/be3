@@ -1,3 +1,4 @@
+use beui_core::layer::{Dismiss, LayerPolicy};
 use accesskit::{HasPopup, Node, Role};
 use beui_macros::{component, view};
 
@@ -143,10 +144,10 @@ pub fn Popover(
             <Overlay
                 anchor=&anchor
                 placement
-                light=true
+                policy=LayerPolicy::Pass
                 trigger={trigger_ref.clone()}
                 open={open.clone()}
-                on_dismiss={clone!(set_open -> move || {
+                on_dismiss={clone!(set_open -> move |_: Dismiss| {
                     set_open.set(false);
                     if refocus_trigger.get_untracked() {
                         set_refocus.set(true);
