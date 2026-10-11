@@ -97,7 +97,10 @@ pub fn hit(doc: &mut Document, rects: &Rects, root: NodeId, pos: Pos2, touch: bo
         }
     }
     match scrims.pop() {
-        Some(scrim) => found(within(doc, rects, scrim, pos, false).unwrap_or_default(), scrims),
+        Some(scrim) => found(
+            within(doc, rects, scrim, pos, false).unwrap_or_default(),
+            scrims,
+        ),
         None => Hit::default(),
     }
 }

@@ -29,10 +29,6 @@ pub struct Pointers {
 }
 
 impl Pointers {
-    pub fn holding(&self) -> bool {
-        !self.sessions.is_empty()
-    }
-
     pub(crate) fn sink_of(&self, pointer: PointerId) -> Option<NodeId> {
         self.sessions
             .iter()
@@ -250,7 +246,7 @@ fn down(doc: &mut Document, frame: &Frame, event: PointerEvent, button: PointerB
         end(doc, frame, stale, true);
     }
     let touch = event.pointer.is_touch();
-    let finger = touch && doc.pointers.sessions.iter().any(|session| session.touch());
+    let finger = touch && primary_touch(doc).is_some();
     let role = match (touch, finger, button) {
         (true, true, _) => Role::Finger,
         (_, _, PointerButton::Primary) => Role::Press,
@@ -399,6 +395,7 @@ fn press(
     }
     if session.touch() {
         session.long_press = Some(frame.now + frame.long_press);
+        frame.ctx.request_repaint_after(frame.long_press);
     } else if doc.focused_node() == focused {
         doc.press_focus(session.focus);
     }
