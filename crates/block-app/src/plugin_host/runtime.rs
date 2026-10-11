@@ -479,7 +479,7 @@ impl Runtime {
             return;
         }
         let first = error.lines().next().unwrap_or_default();
-        crate::notices::report(format!("{} stopped: {first}", self.name()));
+        crate::notices::report_with(format!("{} stopped: {first}", self.name()), error.clone());
         self.error = Some(error);
         let _ = crate::panic_guard::contain(|| self.backend.shutdown());
         mark(&self.plugin.identity.id);

@@ -58,7 +58,9 @@ and the output of every program the app starts, go to `$XDG_STATE_HOME/block/ses
 `session.previous.log`. Problems a person should see at once also show as toasts in the
 corner of the screen: `beui_adapter_drm::Problems` carries the display and input ones,
 `be_wayland::Compositor::on_failure` a program that could not be run, and `notices::report`
-puts each in front of the person. The host draws these itself, so they show before any shell
+puts each in front of the person, as an error toast that stays until it is dismissed;
+`notices::report_with` also keeps a full report (a crashed plugin's error, or the backtrace of
+the panic that ended the last session) behind the toast's Copy report button. The host draws these itself, so they show before any shell
 plugin runs (signing in, choosing a workspace) and over either shell; they stack in the
 top-right corner (`Toasts` with `edge=Edge::TopEnd`), clear of linux-desktop's bar and its
 notification toasts at the bottom.
