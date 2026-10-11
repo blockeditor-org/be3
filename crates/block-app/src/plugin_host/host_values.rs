@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use block_plugin_api::{
     Displays, EditorInstanceId, EditorMessage, HostAction, HostValue, HostWindows, InputDevices,
     Media, MediaRequest, Message, NotificationReport, Notifications, Power, PowerAction,
-    ProgramAction, Programs, ScreenLocked, WindowAction,
+    ProgramAction, Programs, ScreenLocked, Tray, TrayRequest, WindowAction,
 };
 
 pub(super) const MAX_ACTIONS: usize = 64;
@@ -23,6 +23,7 @@ const VALUES: &[(&str, Access)] = &[
     (Notifications::KEY, Access::Shell),
     (ScreenLocked::KEY, Access::Anyone),
     (Programs::KEY, Access::Shell),
+    (Tray::KEY, Access::Shell),
 ];
 
 const ACTIONS: &[(&str, Access)] = &[
@@ -31,6 +32,7 @@ const ACTIONS: &[(&str, Access)] = &[
     (MediaRequest::KEY, Access::Shell),
     (NotificationReport::KEY, Access::Shell),
     (ProgramAction::KEY, Access::Shell),
+    (TrayRequest::KEY, Access::Shell),
 ];
 
 fn allowed(table: &[(&str, Access)], key: &str, shell: bool) -> bool {

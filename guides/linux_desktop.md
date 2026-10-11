@@ -127,6 +127,36 @@ signals.
 closes. `dbus-run-session` does not suit `:dev`, since its bus goes away when the launcher
 returns.
 
+## The tray
+
+Programs such as Discord, Steam and Nextcloud show tray icons as StatusNotifierItems. The
+desktop shell serves `org.kde.StatusNotifierWatcher` on the session bus from block-app's
+`src/tray/` and is its `StatusNotifierHost`; under another desktop whose watcher already owns
+the name it registers with that one as a host instead. `client.rs` is one task on the D-Bus
+thread that every change reaches as an `Event`: registrations, `NameOwnerChanged` (an item
+goes with its program), the items' `New*` signals (which read the item's properties again) and
+`com.canonical.dbusmenu`'s `LayoutUpdated` and `ItemsPropertiesUpdated` (which read its whole
+menu again with `GetLayout`). Reading runs in tasks of its own, ticketed so a slow answer never
+replaces a newer one. `icons.rs` picks the picture: when the item needs attention its attention
+icon, then `IconName` (in `IconThemePath`, then the icon themes through be-wayland's
+`IconThemes`) before `IconPixmap`, scaled to at most 48 pixels. `model.rs` is the pure part and
+where to test parsing: services, pixmaps (ARGB in network order), properties and menus
+(hidden entries dropped, `_` mnemonics removed).
+
+The shell watches the `Tray` host value, the items as `HostTrayItem`s with each menu a tree of
+`TrayMenuEntry`s, and answers with `TrayRequest`s. linux-desktop's `src/app/tray.rs` shows each
+item that is not `Passive` as a `PictureMenuButton` in the bar: a click is `Activate` (or opens
+the menu of an `ItemIsMenu` item), a right click opens the menu, a middle click is
+`SecondaryActivate` and the wheel `Scroll`s, 120 to a notch. Opening the menu sends
+`MenuOpened`, which the host turns into `AboutToShow` and the `opened` event, or into the item's
+own `ContextMenu` when it has no dbusmenu; choosing an entry is the `clicked` event.
+
+The tests run a private bus with the test runtime's `dbus-daemon` (`BE3_DBUS_DAEMON`). To try it
+in the dev app, start a bus as for notifications and run a tray program against it with the
+compositor's socket, for example a Python script using `gir1.2-ayatanaappindicator3-0.1`:
+
+    DBUS_SESSION_BUS_ADDRESS=ADDRESS WAYLAND_DISPLAY=/tmp/be-wayland-PID python3 indicator.py
+
 ## Media and hardware keys
 
 linux-desktop binds the volume, mute, mic mute, brightness and media transport keys

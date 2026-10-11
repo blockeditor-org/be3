@@ -19,6 +19,7 @@ use super::notifications::{DesktopNotifications, NotificationsButton};
 use super::popup::BarPopup;
 use super::power::PowerMenu;
 use super::sessions::Sessions;
+use super::tray::TrayItems;
 use super::volume::VolumeButton;
 
 const BAR_PADDING: f32 = 6.0;
@@ -61,6 +62,7 @@ pub(crate) fn DesktopBar(
     let editor = workspace.editor().clone();
     let power = editor.clone();
     let sounding = editor.clone();
+    let tray = editor.clone();
     let levels = editor.host_value::<Media>();
     let audible =
         create_memo(clone!(levels -> move || levels.with(|levels| levels.output.is_some())));
@@ -141,6 +143,7 @@ pub(crate) fn DesktopBar(
                         on_select={chose}
                     />
                     <Spacer @sizing=ItemSize::Percent(100.0) />
+                    <TrayItems editor={tray} />
                     <Show condition={audible}>
                         <VolumeButton editor={sounding.clone()} levels={levels.clone()} />
                     </Show>
