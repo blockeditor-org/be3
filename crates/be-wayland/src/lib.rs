@@ -1,6 +1,7 @@
 mod compositor;
 mod content_type;
 mod decoration;
+mod focus;
 mod foreign;
 mod idle;
 pub mod programs;
@@ -13,6 +14,7 @@ mod tearing;
 mod toplevel_icon;
 mod view;
 mod windows;
+mod xwayland;
 
 pub use compositor::{Compositor, CursorImage};
 pub use server::Server;
