@@ -203,7 +203,7 @@ impl Regeneration {
             .read()
             .into_iter()
             .next()
-            .and_then(|info| info.name)
+            .and_then(|info| info.name())
             .unwrap_or_else(|| "Pixel Art".to_owned());
         let generated = generate(&source, &name, &self.settings);
         Some(generated.map(|image| self.host.replace_content(self.target, &image)))

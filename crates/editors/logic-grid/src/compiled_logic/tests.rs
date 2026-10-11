@@ -68,8 +68,9 @@ fn editor_on(source: Uuid, name: Option<&str>) -> BeuiTest<CompiledLogicApp> {
     let editor = Editor::new(host.clone(), block);
     let mut editor = BeuiTest::new(editor);
     let mut grid = BlockInfo::new(source, LogicGridContent::CONTENT_TYPE, BlockParent::Root);
-    grid.name = name.map(str::to_owned);
-    grid.named_by_hand = name.is_some();
+    if let Some(name) = name {
+        grid.set_name(name);
+    }
     editor.store().add_block(grid);
     editor.hold(
         None,

@@ -20,7 +20,7 @@ const UUID: u64 = 37;
 const KIND: &str = "$kind";
 const ID: &str = "$id";
 
-pub(crate) fn encode<T: Serialize + ?Sized>(value: &T) -> Vec<u8> {
+pub fn encode<T: Serialize + ?Sized>(value: &T) -> Vec<u8> {
     let mut out = Vec::new();
     match ciborium::into_writer(value, &mut out) {
         Ok(()) => out,
@@ -28,7 +28,7 @@ pub(crate) fn encode<T: Serialize + ?Sized>(value: &T) -> Vec<u8> {
     }
 }
 
-pub(crate) fn decode<T: DeserializeOwned>(bytes: &[u8]) -> Option<T> {
+pub fn decode<T: DeserializeOwned>(bytes: &[u8]) -> Option<T> {
     ciborium::from_reader(bytes).ok()
 }
 

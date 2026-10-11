@@ -8,7 +8,7 @@ use beui::styled::Link;
 use beui::styled::theme::FONT_BODY;
 use block_ui::{BlockLabel, BlockTypes};
 
-use crate::{BlockList, BlockQuery, ChildTarget, Editor};
+use crate::{BlockInfo, BlockList, BlockQuery, ChildTarget, Editor};
 
 #[derive(Clone, Default, PartialEq)]
 pub struct BlockDisplay {
@@ -47,8 +47,8 @@ pub fn watch_block_label(
         let label = BlockLabel::new(
             types.as_ref(),
             next.block_type,
-            info.as_ref().and_then(|info| info.name.as_deref()),
-            info.as_ref().is_some_and(|info| info.named_by_hand),
+            info.as_ref().and_then(BlockInfo::name).as_deref(),
+            info.as_ref().is_some_and(BlockInfo::named_by_hand),
         );
         let display = BlockDisplay {
             name: label.name,

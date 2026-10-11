@@ -3,7 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use be_block::{LiveEdit, Merge};
+use be_block::{BlockMetadata, Entries, LiveEdit, Merge};
 use be_commit::{CommitId, MergeResult};
 use be_protocol::{ClientId, ServerMessage, SessionState};
 use be_session::{Follower, Resume, Sequencer, SessionMessage, SessionOp, resume};
@@ -814,8 +814,9 @@ impl<S: ObjectStore, C: LiveEdit + Merge + Clone + Default> Live<S, C> {
                             theirs: to,
                             count: conflicts,
                         });
+                        let defined = self.merged_defined(self.base, self.base, to).await?;
                         self.peer
-                            .save_merge(self.block, &value, Some(to), vec![ours])
+                            .save_merge(self.block, &value, Some(to), vec![ours], defined)
                             .await?
                     }
                 };
@@ -831,6 +832,7 @@ impl<S: ObjectStore, C: LiveEdit + Merge + Clone + Default> Live<S, C> {
                 let theirs_content = self.peer.open_commit::<C>(theirs).await?;
                 let merged = C::merge3(&ancestor, &ours_content, &theirs_content);
                 let (value, outcome) = split(merged);
+                let defined = self.merged_defined(base, Some(ours), theirs).await?;
                 let mut ours = ours;
                 if let MergeResult::Conflicted { conflicts, .. } = outcome {
                     if unsealed {
@@ -847,7 +849,7 @@ impl<S: ObjectStore, C: LiveEdit + Merge + Clone + Default> Live<S, C> {
                 }
                 let saved = self
                     .peer
-                    .save_merge(self.block, &value, Some(theirs), vec![ours])
+                    .save_merge(self.block, &value, Some(theirs), vec![ours], defined)
                     .await?;
                 self.take_merged(value, saved.published()).await?;
                 Ok(outcome)
@@ -857,6 +859,23 @@ impl<S: ObjectStore, C: LiveEdit + Merge + Clone + Default> Live<S, C> {
 
     pub fn take_conflicts(&mut self) -> Vec<Conflict> {
         std::mem::take(&mut self.conflicts)
+    }
+
+    async fn merged_defined(
+        &self,
+        base: Option<CommitId>,
+        ours: Option<CommitId>,
+        theirs: CommitId,
+    ) -> Result<Entries, ClientError> {
+        let mut sides = Vec::new();
+        for commit in [base, ours] {
+            sides.push(match commit {
+                Some(commit) => self.peer.metadata_of(commit).await?,
+                None => BlockMetadata::default(),
+            });
+        }
+        let theirs = self.peer.metadata_of(theirs).await?;
+        Ok(BlockMetadata::merge_defined(&sides[0], &theirs, &sides[1]).0)
     }
 
     async fn open_or_default(&self, commit: Option<CommitId>) -> Result<C, ClientError> {

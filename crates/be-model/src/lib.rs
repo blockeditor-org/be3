@@ -26,7 +26,7 @@ pub use latest::{Latest, LatestMap, Stamp, Stamped};
 pub use references::BlockRef;
 pub use schema::{Kind, Property, Shape};
 pub use sequence::{LOADED, Pos, SeqOp, Sequence, Span, Splice};
-pub use stored::{BLOB_REF, BLOCK_REF, CRITICAL, Stored};
+pub use stored::{BLOB_REF, BLOCK_REF, CRITICAL, Stored, decode as from_cbor, encode as to_cbor};
 pub use text::Text;
 pub use tree::Tree;
 

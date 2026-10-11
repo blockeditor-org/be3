@@ -163,7 +163,7 @@ impl RootSettings {
                     return None;
                 }
                 let name = be::node(profile)
-                    .and_then(|node| node.metadata.name)
+                    .and_then(|node| node.metadata.name())
                     .unwrap_or_else(|| "Profile".to_owned());
                 Some(ProfileEntry {
                     id: profile,

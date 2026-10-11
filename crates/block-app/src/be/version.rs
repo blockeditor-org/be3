@@ -77,17 +77,15 @@ fn scope(checkout: Uuid) -> Scope {
 }
 
 fn stripped(metadata: &BlockMetadata) -> BlockMetadata {
-    BlockMetadata {
-        local_id: None,
-        ..metadata.clone()
-    }
+    let mut metadata = metadata.clone();
+    metadata.remove(&be_block::LOCAL_ID);
+    metadata
 }
 
-fn named(metadata: &BlockMetadata) -> Option<&str> {
+fn tagged(metadata: &BlockMetadata, block: Uuid, local: Uuid) -> BlockMetadata {
+    let mut metadata = metadata.clone();
+    metadata.put(&be_block::LOCAL_ID, (block != local).then_some(&local));
     metadata
-        .named_by_hand
-        .then_some(metadata.name.as_deref())
-        .flatten()
 }
 
 impl Versions {
@@ -299,8 +297,7 @@ impl Versions {
         let checkout = Uuid::new_v4();
         let name = node
             .metadata
-            .name
-            .clone()
+            .name()
             .map_or_else(|| "Checkout".to_owned(), |name| format!("{name} checkout"));
         create(
             context,
@@ -441,10 +438,14 @@ impl Versions {
         let mut plan = be_vcs::merge(&base, &working.tree, &theirs_tree);
         let mut versions = Vec::new();
         for merge in std::mem::take(&mut plan.contents) {
-            let (manifest, references, conflicted) = merge_content(context.peer, &merge).await?;
+            let (manifest, references, derived, conflicted) =
+                merge_content(context.peer, &merge).await?;
             if let Some(entry) = plan.tree.entries.get_mut(&merge.block) {
                 entry.content = manifest;
                 entry.references = references;
+                if let Some(derived) = derived {
+                    entry.metadata.derived = derived;
+                }
             }
             if conflicted {
                 plan.conflicts.push(be_vcs::Conflict {
@@ -476,7 +477,7 @@ impl Versions {
                     .tree
                     .entries
                     .get(&conflict.block)
-                    .and_then(|entry| entry.metadata.name.clone())
+                    .and_then(|entry| entry.metadata.name())
                     .unwrap_or_else(|| "Block".to_owned());
                 let sides = [
                     (&merge.base, &base, "base"),
@@ -558,7 +559,20 @@ impl Versions {
             && let Some(head) = context.peer.remote_head(side).await.map_err(failed)?
         {
             let commit = self.commit_of(context.peer, head).await?;
-            publish(context, block, Some(commit.manifest), commit.references).await?;
+            let taken =
+                BlockMetadata::decode(&commit.metadata).map_err(|error| error.to_string())?;
+            let metadata = with_graph(context.shared, |graph| graph.get(block).cloned())
+                .map(|node| node.metadata)
+                .unwrap_or_default()
+                .with_derived(taken.derived);
+            publish(
+                context,
+                block,
+                Some(commit.manifest),
+                commit.references,
+                &metadata,
+            )
+            .await?;
         }
         for version in conflict.versions() {
             set_parent(context, version, BlockParent::Detached).await?;
@@ -586,8 +600,7 @@ impl Versions {
         let fork = Uuid::new_v4();
         let name = node
             .metadata
-            .name
-            .clone()
+            .name()
             .map_or_else(|| "Fork".to_owned(), |name| format!("{name} fork"));
         create(
             context,
@@ -930,7 +943,7 @@ fn changes(graph: &Graph, scanned: &[Scanned], base: &Tree, checkout: Uuid) -> V
             Some(_) if !block.clean => Some(VersionChangeKind::Modified),
             Some(entry)
                 if entry.parent != block.parent
-                    || named(&entry.metadata) != named(&block.metadata) =>
+                    || entry.metadata.defined != block.metadata.defined =>
             {
                 Some(VersionChangeKind::Moved)
             }
@@ -940,7 +953,7 @@ fn changes(graph: &Graph, scanned: &[Scanned], base: &Tree, checkout: Uuid) -> V
             changes.push(VersionChange {
                 block_id: block.real.into_bytes(),
                 block_type: block.content_type.into_bytes(),
-                name: block.metadata.name.clone(),
+                name: block.metadata.name(),
                 kind,
             });
         }
@@ -953,7 +966,7 @@ fn changes(graph: &Graph, scanned: &[Scanned], base: &Tree, checkout: Uuid) -> V
                     .to_real(scope, *local, BlockIdRole::Existing)
                     .into_bytes(),
                 block_type: entry.content_type.into_bytes(),
-                name: entry.metadata.name.clone(),
+                name: entry.metadata.name(),
                 kind: VersionChangeKind::Removed,
             });
         }
@@ -1066,7 +1079,7 @@ async fn create(
                 .map_err(failed)?;
             context
                 .peer
-                .set_metadata(block, &metadata)
+                .define(block, |held| held.defined.clone_from(&metadata.defined))
                 .await
                 .map_err(failed)?
         }
@@ -1098,11 +1111,19 @@ async fn publish(
     block: Uuid,
     manifest: Option<Manifest>,
     references: Vec<Uuid>,
+    metadata: &BlockMetadata,
 ) -> Result<Option<CommitId>, String> {
-    let mut expected = context.peer.remote_head(block).await.map_err(failed)?;
     let Some(manifest) = manifest else {
-        return Ok(expected);
+        let summary = context
+            .peer
+            .define(block, |held| held.defined.clone_from(&metadata.defined))
+            .await
+            .map_err(failed)?;
+        let node = node_of(context.peer, &summary);
+        context.shared.lock().unwrap().graph.put(node);
+        return Ok(summary.head);
     };
+    let mut expected = context.peer.remote_head(block).await.map_err(failed)?;
     for _ in 0..4 {
         match context
             .peer
@@ -1114,17 +1135,16 @@ async fn publish(
                 now_milliseconds(),
                 false,
                 Vec::new(),
+                metadata,
             )
             .await
             .map_err(failed)?
         {
             Saved::Published(head) | Saved::Unchanged(head) => {
                 settle(context, block, head).await?;
-                if !references.is_empty() {
-                    let summary = context.peer.summary(block).await.map_err(failed)?;
-                    let node = node_of(context.peer, &summary);
-                    context.shared.lock().unwrap().graph.put(node);
-                }
+                let summary = context.peer.summary(block).await.map_err(failed)?;
+                let node = node_of(context.peer, &summary);
+                context.shared.lock().unwrap().graph.put(node);
                 return Ok(Some(head));
             }
             Saved::Rejected { head } => expected = head,
@@ -1170,29 +1190,21 @@ async fn materialize(
                 if current.parent != entry.parent {
                     set_parent(context, block, parent).await?;
                 }
-                if named(&current.metadata) != named(&entry.metadata) {
-                    let metadata = BlockMetadata {
-                        local_id: (block != local).then_some(local),
-                        ..entry.metadata.clone()
-                    };
-                    context
-                        .peer
-                        .set_metadata(block, &metadata)
-                        .await
-                        .map_err(failed)?;
-                }
-                match current.content == entry.content {
+                let metadata = tagged(&entry.metadata, block, local);
+                match current.content == entry.content
+                    && current.metadata.defined == entry.metadata.defined
+                {
                     true => working.heads.get(&block).copied().flatten(),
-                    false => publish(context, block, entry.content.clone(), references).await?,
+                    false => {
+                        publish(context, block, entry.content.clone(), references, &metadata)
+                            .await?
+                    }
                 }
             }
             None => {
-                let metadata = BlockMetadata {
-                    local_id: (block != local).then_some(local),
-                    ..entry.metadata.clone()
-                };
-                create(context, block, entry.content_type, parent, metadata).await?;
-                publish(context, block, entry.content.clone(), references).await?
+                let metadata = tagged(&entry.metadata, block, local);
+                create(context, block, entry.content_type, parent, metadata.clone()).await?;
+                publish(context, block, entry.content.clone(), references, &metadata).await?
             }
         };
         if let Some(head) = head {
@@ -1224,7 +1236,7 @@ fn placement_order(tree: &Tree) -> Vec<Uuid> {
 async fn merge_content(
     peer: &Peer<Store>,
     merge: &be_vcs::ContentMerge,
-) -> Result<(Option<Manifest>, Vec<Uuid>, bool), String> {
+) -> Result<(Option<Manifest>, Vec<Uuid>, Option<be_block::Entries>, bool), String> {
     let mut sides = Vec::new();
     for manifest in [&merge.base, &merge.ours, &merge.theirs] {
         sides.push(match manifest {
@@ -1248,7 +1260,7 @@ async fn merge_content(
         )
     });
     let Some((bytes, conflicted)) = merged else {
-        return Ok((merge.ours.clone(), Vec::new(), true));
+        return Ok((merge.ours.clone(), Vec::new(), None, true));
     };
     let manifest = peer
         .commits()
@@ -1258,7 +1270,8 @@ async fn merge_content(
     let references = super::references_for(merge.content_type)
         .map(|references| references(&bytes, peer.workspace()))
         .unwrap_or_default();
-    Ok((Some(manifest), references, conflicted))
+    let derived = super::derived_for(merge.content_type, &bytes);
+    Ok((Some(manifest), references, derived, conflicted))
 }
 
 async fn version_block(
@@ -1271,18 +1284,33 @@ async fn version_block(
     name: String,
 ) -> Result<Option<Uuid>, String> {
     let block = Uuid::new_v4();
+    let mut metadata = BlockMetadata::named(name);
+    if let Some(manifest) = &manifest {
+        context
+            .peer
+            .fetch(&manifest.chunk_hashes())
+            .await
+            .map_err(failed)?;
+        let bytes = context
+            .peer
+            .commits()
+            .vault()
+            .read(manifest)
+            .map_err(|error| error.to_string())?;
+        metadata.derived = super::derived_for(content_type, &bytes).unwrap_or_default();
+    }
     create(
         context,
         block,
         content_type,
         BlockParent::Block(checkout),
-        BlockMetadata::named(name),
+        metadata.clone(),
     )
     .await?;
     let references = references
         .iter()
         .map(|reference| real.get(reference).copied().unwrap_or(*reference))
         .collect();
-    publish(context, block, manifest, references).await?;
+    publish(context, block, manifest, references, &metadata).await?;
     Ok(Some(block))
 }

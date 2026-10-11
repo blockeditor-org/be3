@@ -363,7 +363,7 @@ impl GameCreation {
                     watched
                         .as_ref()
                         .and_then(|list| list.read().into_iter().next())
-                        .and_then(|info| info.name)
+                        .and_then(|info| info.name())
                         .unwrap_or_else(|| "Game module".to_owned()),
                 )
             }

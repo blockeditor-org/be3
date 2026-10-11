@@ -859,9 +859,17 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn take_renames(&mut self) -> Vec<(Uuid, Option<String>)> {
         self.take_where(|message| match message {
-            EditorMessage::SetName { block_id, name, .. } => {
-                Some((Uuid::from_bytes(*block_id), name.clone()))
-            }
+            EditorMessage::Define {
+                block_id,
+                key,
+                value,
+                ..
+            } if *key == block_editor_beui::be_block::NAME.id.into_bytes() => Some((
+                Uuid::from_bytes(*block_id),
+                value
+                    .as_ref()
+                    .and_then(|value| block_editor_beui::be_block::be_model::from_cbor(value)),
+            )),
             _ => None,
         })
     }

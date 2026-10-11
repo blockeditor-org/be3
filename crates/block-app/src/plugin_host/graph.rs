@@ -1,4 +1,4 @@
-use block_plugin_api::{AccessLevel, ArtifactSource, BlockInfo, BlockLocation, BlockQuery};
+use block_plugin_api::{AccessLevel, BlockInfo, BlockLocation, BlockQuery, MetadataEntries};
 use uuid::Uuid;
 
 use crate::be::{Node, Query};
@@ -77,25 +77,12 @@ pub(crate) fn info_of(node: &Node) -> BlockInfo {
         block_type: node.content_type.into_bytes(),
         author: node.author.into_bytes(),
         parent: location_of(node.parent),
-        name: node.metadata.name.clone(),
-        named_by_hand: node.metadata.named_by_hand,
         references: node.references.iter().map(|id| id.into_bytes()).collect(),
         access: level_of(node.access),
-        artifact: node
-            .metadata
-            .artifact
-            .as_ref()
-            .map(|artifact| ArtifactSource {
-                source_type: artifact.source_type.into_bytes(),
-                data: artifact.data.clone(),
-            }),
-        thumbhash: node.metadata.derived.thumbhash.as_ref().map(|thumbhash| {
-            block_plugin_api::Thumbhash {
-                hash: thumbhash.hash.clone(),
-                width: thumbhash.width,
-                height: thumbhash.height,
-            }
-        }),
+        metadata: block_plugin_api::BlockMetadata {
+            defined: wire_entries(&node.metadata.defined),
+            derived: wire_entries(&node.metadata.derived),
+        },
     }
 }
 
@@ -104,5 +91,24 @@ pub(crate) fn answer(query: BlockQuery) -> Vec<BlockInfo> {
         .iter()
         .filter(|node| node.access.can_know_exists())
         .map(info_of)
+        .collect()
+}
+
+pub(crate) fn wire_entries(entries: &be_block::Entries) -> MetadataEntries {
+    entries
+        .iter()
+        .map(|(key, value)| {
+            (
+                key.into_bytes(),
+                block_plugin_api::ByteBuf::from(value.clone()),
+            )
+        })
+        .collect()
+}
+
+pub(crate) fn entries_of(entries: MetadataEntries) -> be_block::Entries {
+    entries
+        .into_iter()
+        .map(|(key, value)| (Uuid::from_bytes(key), value.into_vec()))
         .collect()
 }
