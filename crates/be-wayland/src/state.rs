@@ -104,6 +104,7 @@ pub struct Layer {
     pub rect: Rectangle<f64, Logical>,
     pub source: Rectangle<f64, Logical>,
     pub buffer: Size<f64, Logical>,
+    pub popup: bool,
 }
 
 pub(crate) struct ClientWindow {
@@ -113,6 +114,7 @@ pub(crate) struct ClientWindow {
     pub(crate) fullscreen: bool,
     pub(crate) maximized: bool,
     pub(crate) position: Point<i32, Logical>,
+    pub(crate) chosen: Option<Size<i32, Logical>>,
 }
 
 #[derive(Default)]
@@ -159,6 +161,7 @@ pub struct State {
     cursor: CursorImageStatus,
     pub(crate) scale: i32,
     size: Size<i32, Logical>,
+    screens: Vec<Rectangle<i32, Logical>>,
     pub(crate) pointer_window: Option<WindowId>,
     buttons: Vec<u32>,
     pub(crate) keyboard_window: Option<WindowId>,
@@ -249,6 +252,7 @@ impl State {
             cursor: CursorImageStatus::default_named(),
             scale: 1,
             size: Size::from((1280, 800)),
+            screens: Vec::new(),
             pointer_window: None,
             buttons: Vec::new(),
             keyboard_window: None,
@@ -525,6 +529,25 @@ impl State {
         }
     }
 
+    pub fn set_screens(&mut self, screens: Vec<Rectangle<i32, Logical>>) {
+        self.screens = screens;
+    }
+
+    fn screen_of(&self, window: Rectangle<i32, Logical>) -> Rectangle<i32, Logical> {
+        let output = Rectangle::from_size(self.size);
+        let shown = |screen: &Rectangle<i32, Logical>| {
+            screen
+                .intersection(window)
+                .map_or(0, |overlap| overlap.size.w * overlap.size.h)
+        };
+        self.screens
+            .iter()
+            .copied()
+            .max_by_key(shown)
+            .filter(|screen| shown(screen) > 0)
+            .unwrap_or(output)
+    }
+
     pub(crate) fn find(&self, id: WindowId) -> Option<&ClientWindow> {
         self.windows.iter().find(|window| window.id == id)
     }
@@ -659,12 +682,25 @@ impl State {
             return;
         };
         let (fullscreen, maximized) = (self.fullscreen(id), self.maximized(id));
+        let screen = self
+            .find(id)
+            .map(|window| {
+                self.screen_of(Rectangle::new(
+                    window.position,
+                    window.window.geometry().size,
+                ))
+            })
+            .unwrap_or_else(|| Rectangle::from_size(self.size));
         toplevel.with_pending_state(|state| {
             set_state(state, xdg_toplevel::State::Fullscreen, fullscreen);
             set_state(state, xdg_toplevel::State::Maximized, maximized);
-            if let Some(size) = size {
-                state.size = Some(size);
-                state.bounds = Some(size);
+            match size {
+                Some(size) => {
+                    state.size = Some(size);
+                    state.bounds = Some(size);
+                }
+                None if state.size.is_none() => state.bounds = Some(screen.size),
+                None => {}
             }
             for tiled in [
                 xdg_toplevel::State::TiledLeft,
@@ -672,7 +708,7 @@ impl State {
                 xdg_toplevel::State::TiledTop,
                 xdg_toplevel::State::TiledBottom,
             ] {
-                state.states.set(tiled);
+                set_state(state, tiled, state.size.is_some());
             }
             set_state(state, xdg_toplevel::State::Activated, activated);
         });
@@ -681,12 +717,16 @@ impl State {
         }
     }
 
+    pub(crate) fn own_size(&self, id: WindowId) -> Option<Size<i32, Logical>> {
+        self.find(id)?.chosen
+    }
+
     pub fn mapped_size(&self, id: WindowId) -> Option<beui::Vec2> {
         let window = self.find(id)?;
         if self.layers(id).is_empty() {
             return None;
         }
-        let size = window.window.geometry().size;
+        let size = window.chosen.unwrap_or(window.window.geometry().size);
         (size.w > 0 && size.h > 0).then(|| beui::vec2(size.w as f32, size.h as f32))
     }
 
@@ -803,10 +843,10 @@ impl State {
         };
         let mut layers = Vec::new();
         let origin = Point::from((0, 0)) - window.window.geometry().loc;
-        collect_layers(&surface, origin, &mut layers);
+        collect_layers(&surface, origin, false, &mut layers);
         for (popup, offset) in PopupManager::popups_for_surface(&surface) {
             let location = offset - popup.geometry().loc;
-            collect_layers(popup.wl_surface(), location, &mut layers);
+            collect_layers(popup.wl_surface(), location, true, &mut layers);
         }
         self.overlay_layers(id, &mut layers);
         layers
@@ -992,6 +1032,12 @@ impl State {
     }
 
     fn opened(&mut self, toplevel: ToplevelSurface) {
+        let screen = self
+            .screens
+            .first()
+            .copied()
+            .unwrap_or_else(|| Rectangle::from_size(self.size));
+        toplevel.with_pending_state(|state| state.bounds = Some(screen.size));
         let id = WindowId(self.next_window);
         self.next_window += 1;
         self.windows.push(ClientWindow {
@@ -1001,6 +1047,7 @@ impl State {
             fullscreen: false,
             maximized: false,
             position: Point::default(),
+            chosen: None,
         });
         self.events.push(ServerEvent::Opened(id));
     }
@@ -1039,6 +1086,20 @@ impl State {
         {
             toplevel.send_configure();
         }
+        let size = window.window.geometry().size;
+        let asked = window
+            .window
+            .toplevel()
+            .and_then(|toplevel| toplevel.current_state().size);
+        let chosen = (size.w > 0 && size.h > 0 && asked != Some(size)).then_some(size);
+        if let Some(chosen) = chosen
+            && window.chosen != Some(chosen)
+        {
+            if let Some(window) = self.windows.iter_mut().find(|window| window.id == id) {
+                window.chosen = Some(chosen);
+            }
+            self.events.push(ServerEvent::Changed(id));
+        }
         if !self.events.contains(&ServerEvent::Committed(id)) {
             self.events.push(ServerEvent::Committed(id));
         }
@@ -1060,6 +1121,7 @@ fn set_state(
 pub(crate) fn collect_layers(
     surface: &WlSurface,
     location: Point<i32, Logical>,
+    popup: bool,
     layers: &mut Vec<Layer>,
 ) {
     with_surface_tree_downward(
@@ -1086,6 +1148,7 @@ pub(crate) fn collect_layers(
                 rect: Rectangle::new(origin.to_f64(), view.dst.to_f64()),
                 source: view.src,
                 buffer: buffer.to_f64(),
+                popup,
             });
         },
         |_, _, _| true,
@@ -1245,6 +1308,7 @@ impl XdgShellHandler for State {
             state.positioner = positioner;
         });
         surface.send_repositioned(token);
+        let _ = surface.send_configure();
     }
 
     fn grab(&mut self, surface: PopupSurface, _seat: WlSeat, serial: Serial) {
@@ -1356,12 +1420,13 @@ impl State {
         let Some(window) = self.window_of_root(&root) else {
             return positioner.get_geometry();
         };
-        let geometry = window.window.geometry();
+        let shown = Rectangle::new(window.position, window.window.geometry().size);
         let parent = popup
             .get_parent_surface()
             .map(|parent| parent_offset(&parent, &root))
             .unwrap_or_default();
-        let target = Rectangle::new(Point::default() - parent, geometry.size);
+        let screen = self.screen_of(shown);
+        let target = Rectangle::new(screen.loc - window.position - parent, screen.size);
         positioner.get_unconstrained_geometry(target)
     }
 }

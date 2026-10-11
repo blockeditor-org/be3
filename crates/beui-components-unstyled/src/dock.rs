@@ -252,6 +252,24 @@ impl DockTabControl {
             }
         }
     }
+
+    pub fn resize_window(&self, size: Vec2) {
+        let tab = self.tab;
+        let Some(dock) = self.dock.upgrade() else {
+            return;
+        };
+        dock.edit(|state| {
+            let Some(surface) = state.find(tab).map(|position| position.surface) else {
+                return;
+            };
+            if state.surface_tabs(surface) != [tab] {
+                return;
+            }
+            if let Some(rect) = state.window_rect(surface) {
+                state.set_window_rect(surface, Rect::from_min_size(rect.min, size));
+            }
+        });
+    }
 }
 
 pub fn use_dock_tab() -> Option<DockTabControl> {

@@ -50,12 +50,13 @@ pub fn wants_forward(element: &dyn Element) -> bool {
 enum Hit {
     Sink(NodeId),
     Blocked,
+    Declined,
 }
 
 fn deepest(doc: &Document, rects: &Rects, id: NodeId, pos: Pos2) -> Option<NodeId> {
     match hit(doc, rects, id, pos)? {
         Hit::Sink(id) => Some(id),
-        Hit::Blocked => None,
+        Hit::Blocked | Hit::Declined => None,
     }
 }
 
@@ -65,17 +66,35 @@ fn hit(doc: &Document, rects: &Rects, id: NodeId, pos: Pos2) -> Option<Hit> {
         return None;
     }
     let node = doc.arena.get(id);
+    let mut declined = false;
     for child in node.children().into_iter().rev() {
-        if let Some(found) = hit(doc, rects, child, pos) {
-            return Some(found);
+        match hit(doc, rects, child, pos) {
+            Some(Hit::Declined) => declined = true,
+            Some(found) => return Some(found),
+            None => {}
         }
     }
+    let own = caught(node, rects, id, pos);
+    match (own, declined) {
+        (None, true) => Some(Hit::Declined),
+        (own, _) => own,
+    }
+}
+
+fn caught(node: &dyn Element, rects: &Rects, id: NodeId, pos: Pos2) -> Option<Hit> {
     let catcher = node.as_any().downcast_ref::<InteractiveNode>()?;
     if catcher.on_forward.is_empty() {
         return catcher.capture_presses.then_some(Hit::Blocked);
     }
     let local = pos - rects.get(&id)?.min.to_vec2();
-    (catcher.forward_at.is_empty() || catcher.forward_at.call(local)).then_some(Hit::Sink(id))
+    match catcher.forward_at.is_empty() || catcher.forward_at.call(local) {
+        true => Some(Hit::Sink(id)),
+        false => Some(Hit::Declined),
+    }
+}
+
+pub(crate) fn floating_hole(doc: &Document, rects: &Rects, content: NodeId, pos: Pos2) -> bool {
+    matches!(hit(doc, rects, content, pos), Some(Hit::Declined))
 }
 
 pub fn sink_at(doc: &Document, rects: &Rects, root: NodeId, pos: Pos2) -> Option<NodeId> {
@@ -104,7 +123,11 @@ pub fn sink_at(doc: &Document, rects: &Rects, root: NodeId, pos: Pos2) -> Option
             .visible(&content)
             .is_some_and(|rect| rect.contains_half_open(pos))
         {
-            return deepest(doc, rects, content, pos);
+            match hit(doc, rects, content, pos) {
+                Some(Hit::Sink(id)) => return Some(id),
+                Some(Hit::Declined) => continue,
+                Some(Hit::Blocked) | None => return None,
+            }
         }
     }
     deepest(doc, rects, root, pos)

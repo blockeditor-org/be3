@@ -6,7 +6,7 @@ use block_editor_beui::beui::reactive::{
 };
 use block_editor_beui::beui::styled::{Body, Button, ButtonVariant, WINDOW_CHROME, use_theme};
 use block_editor_beui::beui::unstyled::{Edge, Floating, TabId, use_dock_tab};
-use block_editor_beui::beui::{Image, NodeId, Rect, pos2, vec2};
+use block_editor_beui::beui::{Image, NodeId, Rect, Vec2, pos2, vec2};
 use block_editor_beui::{
     ChildMode, Editor, HostImage, HostWindow, HostWindowId, Subregion, SubregionContent,
     WindowAction,
@@ -19,6 +19,8 @@ const WINDOW_CASCADES: u64 = 8;
 const BANNER_PADDING: f32 = 12.0;
 const BANNER_SPACING: f32 = 12.0;
 const BANNER_RADIUS: u8 = 8;
+const PLACEHOLDER_EDGE: f32 = 1.0;
+const PLACEHOLDER_SIZE: Vec2 = Vec2::new(800.0, 500.0);
 
 pub(crate) fn window_tab(window: HostWindowId) -> TabId {
     TabId::new(WINDOW_TABS + window.0)
@@ -30,10 +32,19 @@ pub(crate) fn tab_window(tab: TabId) -> Option<HostWindowId> {
 
 pub(crate) fn floating_window(window: &HostWindow) -> Rect {
     let step = (window.id.0 % WINDOW_CASCADES) as f32 * WINDOW_CASCADE;
+    let size = vec2(window.size.width, window.size.height);
     Rect::from_min_size(
         pos2(WINDOW_ORIGIN + step, WINDOW_ORIGIN + step),
-        vec2(window.size.width, window.size.height) + WINDOW_CHROME,
+        shown_size(size) + WINDOW_CHROME,
     )
+}
+
+pub(crate) fn shown_size(size: Vec2) -> Vec2 {
+    own_size(size).unwrap_or(PLACEHOLDER_SIZE)
+}
+
+pub(crate) fn own_size(size: Vec2) -> Option<Vec2> {
+    (size.x > PLACEHOLDER_EDGE && size.y > PLACEHOLDER_EDGE).then_some(size)
 }
 
 pub(crate) fn window_picture(icon: &HostImage) -> Option<Image> {
@@ -57,8 +68,14 @@ pub(crate) fn WindowPanel(
     name: Memo<String>,
     responding: Memo<bool>,
     focused: Memo<bool>,
+    size: Memo<Option<Vec2>>,
 ) -> NodeId {
     if let Some(tab) = use_dock_tab() {
+        create_effect(clone!(tab -> move || {
+            if let Some(size) = size.get().and_then(own_size) {
+                untrack(|| tab.resize_window(size + WINDOW_CHROME));
+            }
+        }));
         create_effect(clone!(tab focused -> move || {
             if focused.get() {
                 untrack(|| tab.show());

@@ -20,6 +20,22 @@ plugin instead of workspace-ui. Two flags start it that way:
 `./scripts/buck run //crates/block-app:dev -- --desktop` runs the desktop shell headless, to
 drive like any other run (guides/running/drive.md).
 
+## Program windows
+
+be-wayland (`crates/be-wayland`) is the compositor; a program's toplevel is a `WindowView`, a
+forwarding catcher the shell places like any other node. A floating window (every window under
+the desktop shell, and dialogs under workspace-ui) owns its size: a new one is configured 0×0,
+`WindowInfo::size` is the size it last chose for itself (a commit that is not the answer to a
+size the compositor asked for), the shell's `DialogWindow` follows that size through
+`DockTabControl::resize_window`, and a window shown at its own size is never told a size, so it
+stays free to resize itself. Only when the person resizes it, or it is docked, is it configured
+with a size, and then with the tiled states too. A 1×1 placeholder, which Firefox commits for its
+server-side-decorated windows and never grows on its own, opens at a default size instead.
+
+Popups (xdg-popup, and Xwayland's override-redirect windows) are fitted to the screen their window
+is on, not to the window, as the protocol intends, and are drawn and take input in a floating
+overlay above the document, so a menu can reach past its window's edge.
+
 ## Installing it as a session
 
     ./scripts/buck run //crates/block-app:install-session [-- PREFIX]
@@ -341,7 +357,7 @@ responding. Each X11 window is configured at its place on the screen (`State::pl
 coordinates are the screen's; an override-redirect window (a menu, tooltip or dropdown)
 positions itself in those coordinates and is drawn and hit-tested as a layer of the toplevel it
 belongs to (its `WM_TRANSIENT_FOR`, else the X11 window under the pointer or with the
-keyboard), clipped to that window like an xdg popup.
+keyboard), drawn past that window's edge like an xdg popup (see Program windows above).
 
 The compositor pings a window's client when it is clicked, typed into, focused or asked to
 close, and a client that has not answered within `PING_TIMEOUT` (be-wayland's `state.rs`) is listed as

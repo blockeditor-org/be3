@@ -1,8 +1,9 @@
 use std::rc::Rc;
 
 use beui::reactive::{
-    Action, Chord, Drawing, Frame, Interactive, Layers, NodeRef, Prop, clone, component,
-    component_rect, create_effect, create_memo, draw_gpu, on_cleanup, view,
+    Action, Chord, Drawing, Frame, Interactive, Layers, NodeRef, Overlay, OverlayAnchor,
+    OverlayMode, Placement, Prop, clone, component, component_rect, create_effect, create_memo,
+    draw_gpu, on_cleanup, view,
 };
 use beui::{Color32, ForwardedInput, Key, NodeId, Pos2, Rect};
 
@@ -24,10 +25,14 @@ pub fn WindowView(
     };
     let rect = component_rect();
     let catcher = NodeRef::new();
-    create_effect(clone!(windows rect catcher -> move || {
+    let popup_catcher = NodeRef::new();
+    create_effect(clone!(windows rect catcher popup_catcher -> move || {
         windows.placed(id, rect.get());
         if let Some(node) = catcher.try_get() {
             windows.caught_by(id, node);
+        }
+        if let Some(node) = popup_catcher.try_get() {
+            windows.popups_caught_by(id, node);
         }
     }));
     let list = windows.list();
@@ -51,31 +56,90 @@ pub fn WindowView(
     let cursor = windows.cursor();
     let focus = windows.clone();
     let forward = windows.clone();
+    let placed = rect.clone();
     let takes = move |local: Pos2| {
-        let position = local + rect.get_untracked().min.to_vec2();
+        let position = local + placed.get_untracked().min.to_vec2();
         !occluders
             .peek()
             .iter()
             .any(|occluder| occluder.contains(position))
     };
+    let popups = signals.popups.clone();
+    let shown = create_memo(clone!(popups -> move || popups.with(|popups| {
+        popups.as_ref().map(|popups| popups.rect)
+    })));
+    let open = create_memo(clone!(shown -> move || shown.get().is_some()));
+    let anchor = create_memo(clone!(shown rect -> move || {
+        let at = shown.get().unwrap_or(Rect::ZERO);
+        OverlayAnchor::Rect(at.translate(rect.get().min.to_vec2()))
+    }));
+    let width = create_memo(clone!(shown -> move || shown.get().map(|at| at.width())));
+    let height = create_memo(clone!(shown -> move || shown.get().map(|at| at.height())));
+    let reach = windows.clone();
+    let into_window = move |mut input: ForwardedInput| {
+        let at = shown.get_untracked().unwrap_or(Rect::ZERO);
+        input.rect = input.rect.translate(-at.min.to_vec2());
+        reach.forward(id, input);
+    };
+    let popup_cursor = windows.cursor();
+    let areas = signals.popups.clone();
+    let on_popup = move |local: Pos2| {
+        areas.with_untracked(|popups| {
+            popups
+                .as_ref()
+                .is_some_and(|popups| popups.areas.iter().any(|area| area.contains(local)))
+        })
+    };
     on_cleanup(move || windows.unplaced(id));
     view! {
-        <Interactive
-            @node_ref={&catcher}
-            focusable=true
-            @test_id={format!("wayland.window.{}", id.0)}
-            focused={signals.focused}
-            on_focus_change={move |focused: bool| focus.focus(id, focused)}
-            cursor
-            on_forward={move |input: ForwardedInput| forward.forward(id, input)}
-            inhibits_shortcuts={inhibits}
-            forward_at={takes}
-        >
-            <Layers>
-                <Drawing draw={Prop::Dynamic(Rc::new(move || draw_gpu(signals.drawing.get())))} />
-                <Frame color={dim} />
-            </Layers>
-        </Interactive>
+        <Layers>
+            <Interactive
+                @node_ref={&catcher}
+                focusable=true
+                @test_id={format!("wayland.window.{}", id.0)}
+                focused={signals.focused}
+                on_focus_change={move |focused: bool| focus.focus(id, focused)}
+                cursor
+                on_forward={move |input: ForwardedInput| forward.forward(id, input)}
+                inhibits_shortcuts={inhibits}
+                forward_at={takes}
+            >
+                <Layers>
+                    <Drawing
+                        draw={Prop::Dynamic(Rc::new(move || draw_gpu(signals.drawing.get())))}
+                    />
+                    <Frame color={dim} />
+                </Layers>
+            </Interactive>
+            <Overlay
+                anchor={anchor}
+                placement=Placement::At
+                mode=OverlayMode::Floating
+                traps_focus=false
+                open={open}
+            >
+                <Frame width height>
+                    <Interactive
+                        @node_ref={&popup_catcher}
+                        focusable=true
+                        press_focus=false
+                        tab_stop=false
+                        @test_id={format!("wayland.popups.{}", id.0)}
+                        cursor={popup_cursor}
+                        on_forward={into_window}
+                        forward_at={on_popup}
+                    >
+                        <Drawing
+                            draw={Prop::Dynamic(Rc::new(move || {
+                                draw_gpu(popups.with(|popups| {
+                                    popups.as_ref().map(|popups| popups.drawing.clone())
+                                }))
+                            }))}
+                        />
+                    </Interactive>
+                </Frame>
+            </Overlay>
+        </Layers>
     }
 }
 

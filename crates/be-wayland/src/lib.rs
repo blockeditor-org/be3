@@ -25,7 +25,7 @@ pub use presentation::Presented;
 pub use server::Server;
 pub use state::{KeyboardConfig, WindowId};
 pub use view::{WindowView, register_restore_shortcuts};
-pub use windows::{Launch, WindowInfo, Windows};
+pub use windows::{Launch, Popups, WindowInfo, Windows};
 
 #[cfg(test)]
 mod test_client;
