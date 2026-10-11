@@ -64,6 +64,7 @@ pub(crate) fn window_title(window: &HostWindow) -> String {
 pub(crate) fn WindowPanel(
     editor: Editor,
     window: HostWindowId,
+    offers_fullscreen: bool,
     fullscreen: Memo<Option<Rect>>,
     name: Memo<String>,
     responding: Memo<bool>,
@@ -71,6 +72,9 @@ pub(crate) fn WindowPanel(
     size: Memo<Option<Vec2>>,
 ) -> NodeId {
     if let Some(tab) = use_dock_tab() {
+        if offers_fullscreen {
+            tab.offer_fullscreen();
+        }
         create_effect(clone!(tab -> move || {
             if let Some(size) = size.get().and_then(own_size) {
                 untrack(|| tab.resize_window(size + WINDOW_CHROME));

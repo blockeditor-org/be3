@@ -24,9 +24,9 @@ use super::state::{
     DockFullscreen, DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow,
 };
 use super::{
-    Dock, DockBarHandle, DockChromeHandle, DockConfig, DockGripHandle, DockMode, DockPreviewHandle,
-    DockSplitterHandle, DockStackHandle, DockState, DockSwitchHandle, DockSwitcherHandle,
-    DockTabHandle, GroupId, LeafId, SIDEBAR_WIDTH, SPLITTER_THICKNESS, TabId,
+    Dock, DockAwayHandle, DockBarHandle, DockChromeHandle, DockConfig, DockGripHandle, DockMode,
+    DockPreviewHandle, DockSplitterHandle, DockStackHandle, DockState, DockSwitchHandle,
+    DockSwitcherHandle, DockTabHandle, GroupId, LeafId, SIDEBAR_WIDTH, SPLITTER_THICKNESS, TabId,
 };
 use crate::menu_popup::MenuStyle;
 
@@ -683,6 +683,7 @@ pub fn Docking<K>(
     tab: RenderFn<DockTabHandle>,
     frame: Option<RenderFn<NodeId>>,
     fullscreen: Option<RenderFn<NodeId>>,
+    away: Option<RenderFn<DockAwayHandle>>,
     chrome: Option<RenderFn<DockChromeHandle>>,
     bar: Option<RenderFn<DockBarHandle>>,
     splitter: Option<RenderFn<DockSplitterHandle>>,
@@ -818,6 +819,7 @@ where
                 content,
                 empty,
                 fullscreen,
+                away,
                 chrome,
                 bar,
                 splitter,

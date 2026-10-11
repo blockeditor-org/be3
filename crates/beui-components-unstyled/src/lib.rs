@@ -81,9 +81,9 @@ pub use date_time_picker::{
 };
 pub use disclosure::{Disclosure, DisclosureHandle, disclosure_open};
 pub use dock::{
-    DockBarHandle, DockChromeHandle, DockDialog, DockDialogHandle, DockDragged, DockDrop,
-    DockEntry, DockFullscreen, DockGripHandle, DockGroup, DockKey, DockLayout, DockMenus, DockMode,
-    DockNode, DockPane, DockPreviewHandle, DockSplit, DockSplitter, DockSplitterHandle,
+    DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialog, DockDialogHandle, DockDragged,
+    DockDrop, DockEntry, DockFullscreen, DockGripHandle, DockGroup, DockKey, DockLayout, DockMenus,
+    DockMode, DockNode, DockPane, DockPreviewHandle, DockSplit, DockSplitter, DockSplitterHandle,
     DockStackHandle, DockState, DockSwitch, DockSwitchHandle, DockSwitchRowHandle,
     DockSwitcherCardHandle, DockSwitcherHandle, DockTab, DockTabControl, DockTabHandle,
     DockTabMenu, DockTree, DockTreeEntry, DockWindow, Docking, DockingLayout, DockingSnapshot,

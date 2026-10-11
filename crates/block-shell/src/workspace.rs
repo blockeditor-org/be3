@@ -1022,7 +1022,11 @@ pub fn BlockTab(workspace: Rc<Workspace>, tab: TabId) -> DockEntry<TabId> {
 }
 
 #[component]
-pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<TabId> {
+pub fn WindowTab(
+    workspace: Rc<Workspace>,
+    window: HostWindowId,
+    #[prop(default = false)] offers_fullscreen: bool,
+) -> DockEntry<TabId> {
     let windows = workspace.windows.clone();
     let name = create_memo(move || {
         windows.with(|windows| {
@@ -1099,6 +1103,7 @@ pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<Ta
             <WindowPanel
                 editor={editor.clone()}
                 window
+                offers_fullscreen
                 fullscreen={fullscreen.clone()}
                 name={name.clone()}
                 responding={responding.clone()}
@@ -1122,7 +1127,7 @@ pub fn FloatingWindow(workspace: Rc<Workspace>, window: HostWindowId) -> DockNod
     view! {
         <DockWindow id={key.clone()} rect>
             <DockPane id={key}>
-                <WindowTab workspace window />
+                <WindowTab workspace window offers_fullscreen=true />
             </DockPane>
         </DockWindow>
     }
@@ -1168,6 +1173,7 @@ pub fn AttachedWindow(
             <WindowPanel
                 editor={editor.clone()}
                 window
+                offers_fullscreen=false
                 fullscreen={fullscreen.clone()}
                 name={title.clone()}
                 responding={responding.clone()}

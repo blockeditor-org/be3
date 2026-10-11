@@ -1283,6 +1283,13 @@ document there, and nothing under it hears the pointer, while the rest of the
 document stays live. Leaving puts the panel back in its pane without rebuilding
 it. The dock binds no key to leave: whoever enters fullscreen offers the way out,
 as the demo's Escape does. Fullscreen is not part of the saved layout.
+Showing or focusing the fullscreen tab (`DockingLayout::show`, the switcher, a press anywhere on
+its content) raises the fullscreen overlay above the floating windows rather than the window
+its pane is in, so a window brought in front of it and then left goes behind it again. The pane
+it left draws Docking's `away` render prop (styled: a note that it is full screen and a Leave
+full screen button), seen where the fullscreen area does not cover it, such as another screen.
+A tab's content calls `DockTabControl::offer_fullscreen` to add Full screen / Leave full screen
+to the tab's right-click menu; only content that has its own way out should.
 
 ### Spinners
 
