@@ -10,7 +10,10 @@ How the server runs on a VPS for real notes. The files referred to are in
 - Caddy terminates TLS for the domain, passes `/api*` to be-server, and serves
   the web bundle from `/srv/be3-web` if it is wanted (`Caddyfile`; build it
   with `./scripts/buck build //crates/block-app:web --out DIR`).
-- Data lives in `/var/lib/be-server`: `metadata.sqlite` and `objects/`.
+- Data lives in `/var/lib/be-server`: `metadata.sqlite` and `objects/`. On
+  start the server checks `metadata.sqlite` against the schema it declares,
+  adding missing tables, indexes and defaulted columns, and refuses to start on
+  anything else.
 - Sign-ins with a password are off, so only devices that are already signed
   in connect, with the session tokens they hold. To sign in a new device,
   put `BE_SERVER_FLAGS=--allow-login` in `/etc/be-server/server.env`, restart
@@ -23,23 +26,25 @@ How the server runs on a VPS for real notes. The files referred to are in
 
 ## Install
 
-1. Build `//crates/be-server:be-server-bin` for the VPS
-   (`./scripts/buck build //crates/be-server:be-server-bin --out be-server`) and
-   copy it to `/usr/local/bin/be-server`.
+1. Build `//crates/block-app:dist` for the VPS
+   (`./scripts/buck build //crates/block-app:dist --out DIR`), copy `DIR/be-server`
+   to `/usr/local/bin/be-server` and `DIR/build-id` to `/etc/be-server/build-id`.
+   The server refuses clients of any other build, so upgrade it together with
+   the web bundle and every device, all from one commit.
 2. `useradd --system --home /var/lib/be-server be-server`.
 3. Copy `be-server.service`, `be-backup.service` and `be-backup.timer` to
    `/etc/systemd/system/`, then `systemctl enable --now be-server be-backup.timer`.
 4. Put `Caddyfile` (with the real domain) in Caddy's config and reload it.
 5. `journalctl -u be-server` shows its log; `RUST_LOG=debug` in the unit shows
    each connection.
-6. Publish `be` from the same commit, since `./scripts/be` must match the
-   server it talks to (guides/tracker.md): for each triple, build
+6. Publish `be` from the same checkout, since `./scripts/be` must be the
+   server's build (guides/tracker.md): for each triple, build
    `./scripts/buck build //crates/be-cli:be -m release --out be-TRIPLE`
    (`--target-platforms root//buck/platforms:linux_arm64`, `macos_arm64` or
    `macos_x86_64` for the others), upload it to
-   `https://lfs.pfg.pw/by-name/be3/be/COMMIT/be-TRIPLE`, and set `be_release`
-   to `COMMIT` and each `be_sha256_*` to its file's `sha256sum` in
-   `scripts/internal/common.sh`.
+   `https://lfs.pfg.pw/by-name/be3/be/BUILD/be-TRIPLE`, where `BUILD` is what
+   `DIR/build-id` holds, and set `be_release` to `BUILD` and each `be_sha256_*`
+   to its file's `sha256sum` in `scripts/internal/common.sh`.
 
 ## Backups
 

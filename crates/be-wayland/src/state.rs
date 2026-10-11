@@ -27,7 +27,10 @@ use crate::decoration::{Decorations, server_side};
 use crate::focus::KeyboardFocus;
 use crate::idle::Idle;
 use crate::presentation::Presentation;
+use crate::selection::Selection;
 use crate::server::{Waiter, readable};
+use crate::shortcuts_inhibit::Shortcuts;
+use crate::toplevel_icon::ToplevelIcons;
 use crate::xwayland::XWaylandState;
 use smithay::delegate_cursor_shape;
 use smithay::delegate_data_device;
@@ -57,15 +60,12 @@ use smithay::utils::{Logical, Point, Rectangle, SERIAL_COUNTER, Serial, Size, Tr
 use smithay::wayland::buffer::BufferHandler;
 use smithay::wayland::compositor::{
     CompositorClientState, CompositorHandler, CompositorState, TraversalAction, get_parent,
-    send_surface_state, with_states, with_surface_tree_downward,
+    send_surface_state, with_states, with_surface_tree_upward,
 };
 use smithay::wayland::cursor_shape::CursorShapeManagerState;
 use smithay::wayland::output::{OutputHandler, OutputManagerState};
 use smithay::wayland::seat::WaylandFocus;
-use smithay::wayland::selection::SelectionHandler;
-use smithay::wayland::selection::data_device::{
-    ClientDndGrabHandler, DataDeviceHandler, DataDeviceState, ServerDndGrabHandler,
-};
+use smithay::wayland::selection::data_device::ServerDndGrabHandler;
 use smithay::wayland::shell::PingError;
 use smithay::wayland::shell::xdg::ShellClient;
 use smithay::wayland::shell::xdg::{
@@ -74,6 +74,7 @@ use smithay::wayland::shell::xdg::{
 };
 use smithay::wayland::shm::{ShmHandler, ShmState};
 use smithay::wayland::viewporter::ViewporterState;
+use smithay::wayland::xdg_foreign::XdgForeignState;
 use smithay::xwayland::XWaylandClientData;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -103,6 +104,7 @@ pub struct Layer {
     pub rect: Rectangle<f64, Logical>,
     pub source: Rectangle<f64, Logical>,
     pub buffer: Size<f64, Logical>,
+    pub popup: bool,
 }
 
 pub(crate) struct ClientWindow {
@@ -112,6 +114,7 @@ pub(crate) struct ClientWindow {
     pub(crate) fullscreen: bool,
     pub(crate) maximized: bool,
     pub(crate) position: Point<i32, Logical>,
+    pub(crate) chosen: Option<Size<i32, Logical>>,
 }
 
 #[derive(Default)]
@@ -136,6 +139,9 @@ pub struct State {
     syncobj: Option<DrmSyncobjState>,
     decorations: Decorations,
     pub(crate) idle: Idle,
+    pub(crate) foreign: XdgForeignState,
+    pub(crate) icons: ToplevelIcons,
+    pub(crate) shortcuts: Shortcuts,
     pub(crate) presentation: Presentation,
     pub(crate) activation: Activation,
     start: Instant,
@@ -143,8 +149,8 @@ pub struct State {
     xdg_shell: XdgShellState,
     shm: ShmState,
     seat_state: SeatState<State>,
-    data_device: DataDeviceState,
-    seat: Seat<State>,
+    pub(crate) selection: Selection,
+    pub(crate) seat: Seat<State>,
     pub(crate) output: Output,
     popups: PopupManager,
     popup_grab: Option<PopupGrab<State>>,
@@ -155,6 +161,7 @@ pub struct State {
     cursor: CursorImageStatus,
     pub(crate) scale: i32,
     size: Size<i32, Logical>,
+    screens: Vec<Rectangle<i32, Logical>>,
     pub(crate) pointer_window: Option<WindowId>,
     buttons: Vec<u32>,
     pub(crate) keyboard_window: Option<WindowId>,
@@ -180,12 +187,18 @@ impl State {
         loop_handle: LoopHandle<'static, State>,
     ) -> Self {
         let compositor = CompositorState::new::<Self>(handle);
-        let xdg_shell = XdgShellState::new::<Self>(handle);
+        let xdg_shell = XdgShellState::new_with_capabilities::<Self>(
+            handle,
+            [xdg_toplevel::WmCapabilities::Fullscreen],
+        );
         let shm = ShmState::new::<Self>(handle, Vec::new());
-        let data_device = DataDeviceState::new::<Self>(handle);
+        let selection = Selection::new(handle);
         let decorations = Decorations::new(handle);
         crate::dialog::create(handle);
         let idle = Idle::new(handle);
+        crate::content_type::create(handle);
+        crate::single_pixel::create(handle);
+        crate::tearing::create(handle);
         let presentation = Presentation::new(handle);
         let activation = Activation::new(handle);
         CursorShapeManagerState::new::<Self>(handle);
@@ -216,6 +229,9 @@ impl State {
             syncobj: None,
             decorations,
             idle,
+            foreign: XdgForeignState::new::<Self>(handle),
+            icons: ToplevelIcons::new(handle),
+            shortcuts: Shortcuts::new(handle),
             presentation,
             activation,
             handle: handle.clone(),
@@ -224,7 +240,7 @@ impl State {
             xdg_shell,
             shm,
             seat_state,
-            data_device,
+            selection,
             seat,
             output,
             popups: PopupManager::default(),
@@ -236,6 +252,7 @@ impl State {
             cursor: CursorImageStatus::default_named(),
             scale: 1,
             size: Size::from((1280, 800)),
+            screens: Vec::new(),
             pointer_window: None,
             buttons: Vec::new(),
             keyboard_window: None,
@@ -512,6 +529,25 @@ impl State {
         }
     }
 
+    pub fn set_screens(&mut self, screens: Vec<Rectangle<i32, Logical>>) {
+        self.screens = screens;
+    }
+
+    fn screen_of(&self, window: Rectangle<i32, Logical>) -> Rectangle<i32, Logical> {
+        let output = Rectangle::from_size(self.size);
+        let shown = |screen: &Rectangle<i32, Logical>| {
+            screen
+                .intersection(window)
+                .map_or(0, |overlap| overlap.size.w * overlap.size.h)
+        };
+        self.screens
+            .iter()
+            .copied()
+            .max_by_key(shown)
+            .filter(|screen| shown(screen) > 0)
+            .unwrap_or(output)
+    }
+
     pub(crate) fn find(&self, id: WindowId) -> Option<&ClientWindow> {
         self.windows.iter().find(|window| window.id == id)
     }
@@ -535,6 +571,12 @@ impl State {
 
     pub(crate) fn window_of_surface(&self, surface: &WlSurface) -> Option<WindowId> {
         Some(self.window_of_root(&self.root_of(surface))?.id)
+    }
+
+    pub(crate) fn changed(&mut self, id: WindowId) {
+        if !self.events.contains(&ServerEvent::Changed(id)) {
+            self.events.push(ServerEvent::Changed(id));
+        }
     }
 
     fn root_of(&self, surface: &WlSurface) -> WlSurface {
@@ -640,12 +682,25 @@ impl State {
             return;
         };
         let (fullscreen, maximized) = (self.fullscreen(id), self.maximized(id));
+        let screen = self
+            .find(id)
+            .map(|window| {
+                self.screen_of(Rectangle::new(
+                    window.position,
+                    window.window.geometry().size,
+                ))
+            })
+            .unwrap_or_else(|| Rectangle::from_size(self.size));
         toplevel.with_pending_state(|state| {
             set_state(state, xdg_toplevel::State::Fullscreen, fullscreen);
             set_state(state, xdg_toplevel::State::Maximized, maximized);
-            if let Some(size) = size {
-                state.size = Some(size);
-                state.bounds = Some(size);
+            match size {
+                Some(size) => {
+                    state.size = Some(size);
+                    state.bounds = Some(size);
+                }
+                None if state.size.is_none() => state.bounds = Some(screen.size),
+                None => {}
             }
             for tiled in [
                 xdg_toplevel::State::TiledLeft,
@@ -653,7 +708,7 @@ impl State {
                 xdg_toplevel::State::TiledTop,
                 xdg_toplevel::State::TiledBottom,
             ] {
-                state.states.set(tiled);
+                set_state(state, tiled, state.size.is_some());
             }
             set_state(state, xdg_toplevel::State::Activated, activated);
         });
@@ -662,12 +717,16 @@ impl State {
         }
     }
 
+    pub(crate) fn own_size(&self, id: WindowId) -> Option<Size<i32, Logical>> {
+        self.find(id)?.chosen
+    }
+
     pub fn mapped_size(&self, id: WindowId) -> Option<beui::Vec2> {
         let window = self.find(id)?;
         if self.layers(id).is_empty() {
             return None;
         }
-        let size = window.window.geometry().size;
+        let size = window.chosen.unwrap_or(window.window.geometry().size);
         (size.w > 0 && size.h > 0).then(|| beui::vec2(size.w as f32, size.h as f32))
     }
 
@@ -784,10 +843,10 @@ impl State {
         };
         let mut layers = Vec::new();
         let origin = Point::from((0, 0)) - window.window.geometry().loc;
-        collect_layers(&surface, origin, &mut layers);
+        collect_layers(&surface, origin, false, &mut layers);
         for (popup, offset) in PopupManager::popups_for_surface(&surface) {
             let location = offset - popup.geometry().loc;
-            collect_layers(popup.wl_surface(), location, &mut layers);
+            collect_layers(popup.wl_surface(), location, true, &mut layers);
         }
         self.overlay_layers(id, &mut layers);
         layers
@@ -937,6 +996,7 @@ impl State {
         let focus = id.and_then(|id| self.keyboard_focus(id));
         let keyboard = self.keyboard();
         keyboard.set_focus(self, focus, SERIAL_COUNTER.next_serial());
+        self.settle_inhibitors();
         if let Some(id) = id {
             self.raise_x11(id);
         }
@@ -972,6 +1032,12 @@ impl State {
     }
 
     fn opened(&mut self, toplevel: ToplevelSurface) {
+        let screen = self
+            .screens
+            .first()
+            .copied()
+            .unwrap_or_else(|| Rectangle::from_size(self.size));
+        toplevel.with_pending_state(|state| state.bounds = Some(screen.size));
         let id = WindowId(self.next_window);
         self.next_window += 1;
         self.windows.push(ClientWindow {
@@ -981,6 +1047,7 @@ impl State {
             fullscreen: false,
             maximized: false,
             position: Point::default(),
+            chosen: None,
         });
         self.events.push(ServerEvent::Opened(id));
     }
@@ -991,6 +1058,7 @@ impl State {
         };
         self.windows.remove(index);
         self.remove_overlays(id);
+        self.forget_icon(id);
         if self.keyboard_window == Some(id) {
             self.keyboard_window = None;
         }
@@ -1018,6 +1086,20 @@ impl State {
         {
             toplevel.send_configure();
         }
+        let size = window.window.geometry().size;
+        let asked = window
+            .window
+            .toplevel()
+            .and_then(|toplevel| toplevel.current_state().size);
+        let chosen = (size.w > 0 && size.h > 0 && asked != Some(size)).then_some(size);
+        if let Some(chosen) = chosen
+            && window.chosen != Some(chosen)
+        {
+            if let Some(window) = self.windows.iter_mut().find(|window| window.id == id) {
+                window.chosen = Some(chosen);
+            }
+            self.events.push(ServerEvent::Changed(id));
+        }
         if !self.events.contains(&ServerEvent::Committed(id)) {
             self.events.push(ServerEvent::Committed(id));
         }
@@ -1039,9 +1121,10 @@ fn set_state(
 pub(crate) fn collect_layers(
     surface: &WlSurface,
     location: Point<i32, Logical>,
+    popup: bool,
     layers: &mut Vec<Layer>,
 ) {
-    with_surface_tree_downward(
+    with_surface_tree_upward(
         surface,
         location,
         |_, states, location| {
@@ -1065,6 +1148,7 @@ pub(crate) fn collect_layers(
                 rect: Rectangle::new(origin.to_f64(), view.dst.to_f64()),
                 source: view.src,
                 buffer: buffer.to_f64(),
+                popup,
             });
         },
         |_, _, _| true,
@@ -1163,6 +1247,7 @@ impl CompositorHandler for State {
         self.committed.push(surface.clone());
         let root = self.root_of(surface);
         self.committed_window(&root);
+        self.icon_committed(&root);
     }
 }
 
@@ -1223,6 +1308,7 @@ impl XdgShellHandler for State {
             state.positioner = positioner;
         });
         surface.send_repositioned(token);
+        let _ = surface.send_configure();
     }
 
     fn grab(&mut self, surface: PopupSurface, _seat: WlSeat, serial: Serial) {
@@ -1334,12 +1420,13 @@ impl State {
         let Some(window) = self.window_of_root(&root) else {
             return positioner.get_geometry();
         };
-        let geometry = window.window.geometry();
+        let shown = Rectangle::new(window.position, window.window.geometry().size);
         let parent = popup
             .get_parent_surface()
             .map(|parent| parent_offset(&parent, &root))
             .unwrap_or_default();
-        let target = Rectangle::new(Point::default() - parent, geometry.size);
+        let screen = self.screen_of(shown);
+        let target = Rectangle::new(screen.loc - window.position - parent, screen.size);
         positioner.get_unconstrained_geometry(target)
     }
 }
@@ -1381,6 +1468,11 @@ impl SeatHandler for State {
         smithay::wayland::selection::data_device::set_data_device_focus(
             &self.display_handle(),
             seat,
+            client.clone(),
+        );
+        smithay::wayland::selection::primary_selection::set_primary_focus(
+            &self.display_handle(),
+            seat,
             client,
         );
     }
@@ -1391,22 +1483,10 @@ impl State {
         surface.client()
     }
 
-    fn display_handle(&self) -> DisplayHandle {
+    pub(crate) fn display_handle(&self) -> DisplayHandle {
         self.handle.clone()
     }
 }
-
-impl SelectionHandler for State {
-    type SelectionUserData = ();
-}
-
-impl DataDeviceHandler for State {
-    fn data_device_state(&self) -> &DataDeviceState {
-        &self.data_device
-    }
-}
-
-impl ClientDndGrabHandler for State {}
 
 impl ServerDndGrabHandler for State {}
 

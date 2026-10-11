@@ -31,7 +31,9 @@ use super::picker::{Pick, PickAction, PickOutcome};
 use super::saved::{self, LAYOUT};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
-use super::window::{WindowPanel, floating_window, tab_window, window_tab, window_title};
+use super::window::{
+    WindowPanel, floating_window, shown_size, tab_window, window_picture, window_tab, window_title,
+};
 
 pub const FILES: TabId = TabId::new(1);
 const FIRST_BLOCK_TAB: u64 = 2;
@@ -1064,6 +1066,26 @@ pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<Ta
                 .any(|listed| listed.id == window && listed.focused)
         })
     });
+    let listed = workspace.windows.clone();
+    let size = create_memo(move || {
+        listed.with(|windows| {
+            windows
+                .iter()
+                .find(|listed| listed.id == window)
+                .map(|listed| vec2(listed.size.width, listed.size.height))
+        })
+    });
+    let listed = workspace.windows.clone();
+    let icon = create_memo(move || {
+        listed.with(|windows| {
+            windows
+                .iter()
+                .find(|listed| listed.id == window)?
+                .icon
+                .clone()
+        })
+    });
+    let picture = create_memo(move || icon.get().as_ref().and_then(window_picture));
     let closing = Rc::clone(&workspace);
     let editor = workspace.editor().clone();
     view! {
@@ -1071,6 +1093,7 @@ pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<Ta
             id={window_tab(window)}
             title
             icon=ICON_WEB_ASSET
+            picture
             on_close={move || closing.close(window_tab(window))}
         >
             <WindowPanel
@@ -1080,6 +1103,7 @@ pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<Ta
                 name={name.clone()}
                 responding={responding.clone()}
                 focused={focused.clone()}
+                size={size.clone()}
             />
         </DockTab>
     }
@@ -1118,9 +1142,11 @@ pub fn AttachedWindow(
         info.get().map_or_else(|| "Window".to_owned(), |info| window_title(&info))
     }));
     let size = create_memo(clone!(info -> move || {
-        info.get()
-            .map_or(Vec2::ZERO, |info| vec2(info.size.width, info.size.height))
+        info.get().map_or(Vec2::ZERO, |info| {
+            shown_size(vec2(info.size.width, info.size.height))
+        })
     }));
+    let followed = create_memo(|| None);
     let modal = create_memo(clone!(info -> move || info.get().is_some_and(|info| info.modal)));
     let responding = create_memo(clone!(info -> move || {
         info.get().is_none_or(|info| info.responding)
@@ -1146,6 +1172,7 @@ pub fn AttachedWindow(
                 name={title.clone()}
                 responding={responding.clone()}
                 focused={focused.clone()}
+                size={followed.clone()}
             />
         </DockDialog>
     }

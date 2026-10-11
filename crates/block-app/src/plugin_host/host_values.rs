@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use block_plugin_api::{
     Displays, EditorInstanceId, EditorMessage, HostAction, HostValue, HostWindows, InputDevices,
-    Media, MediaRequest, Message, NotificationReport, Notifications, Power, PowerAction,
+    LinkBase, Media, MediaRequest, Message, NotificationReport, Notifications, Power, PowerAction,
     ProgramAction, Programs, ScreenLocked, Tray, TrayRequest, WindowAction,
 };
 
@@ -24,6 +24,7 @@ const VALUES: &[(&str, Access)] = &[
     (ScreenLocked::KEY, Access::Anyone),
     (Programs::KEY, Access::Shell),
     (Tray::KEY, Access::Shell),
+    (LinkBase::KEY, Access::Anyone),
 ];
 
 const ACTIONS: &[(&str, Access)] = &[

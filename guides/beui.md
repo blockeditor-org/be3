@@ -259,6 +259,11 @@ hooks the higher crates fill in:
   app, publishes accessibility, and tells the adapter's `Platform` (another
   trait object) to copy, paste, pick a file, or change the cursor, pointer
   lock, IME, fullscreen and back handling, only when one of them changed.
+  The clipboard is the platform's: `Context::copy_text` and `request_paste`
+  write it and paste it into the focus, `Context::read_clipboard` asks for its
+  text (answered by `take_clipboard_read` from the next frame), and
+  `Context::watch_copies` hears every copy, which is how be-wayland hands the
+  app's copies to Wayland programs.
   A new platform implements those two traits and hands its window or element
   to the renderer loader the facade gives it.
   A panic out of the app's `update` stops the runner rather than unwinding
@@ -1024,7 +1029,8 @@ most of that node is on, one anchored to a point on that point's screen, and one
 anchored to a rect (`OverlayAnchor::Rect`, in document coordinates) on the screen
 most of that rect is on, placed against the rect as it would be against a node.
 `styled::Toasts` takes any anchor this way, so linux-desktop stacks its toasts in the
-corner of a screen above its bar.
+corner of a screen above its bar. A toast goes after its `duration` unless it is `sticky` or
+`danger`: an error stays until it is dismissed, so it cannot be missed.
 `Fill`, `At` and `Around` use the whole document, so something meant for every
 screen - `styled::KeepChanges`, `styled::LockScreen`, `styled::LevelOsd` - lays
 out one card per entry of `use_screens()`, which is a single card everywhere

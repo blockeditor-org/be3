@@ -16,6 +16,7 @@ pub struct HostWindow {
     pub fullscreen: Option<ChildRect>,
     pub responding: bool,
     pub focused: bool,
+    pub icon: Option<HostImage>,
     pub raised: u64,
 }
 

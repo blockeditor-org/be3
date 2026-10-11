@@ -16,7 +16,7 @@ use crate::presentation::{Place, Presented};
 use crate::render::{Gpu, Textures, WindowDraw};
 use crate::server::{Server, Watch};
 use crate::state::{KeyboardConfig, ServerEvent, WindowId};
-use crate::windows::{Command, Launch, WindowInfo, Windows};
+use crate::windows::{Command, Launch, Popups, WindowInfo, Windows};
 
 const BUTTON_LEFT: u32 = 0x110;
 const BUTTON_RIGHT: u32 = 0x111;
@@ -51,6 +51,8 @@ pub struct Compositor {
     input_frames: u64,
     forced: bool,
     locked: bool,
+    clipboard: clipboard::Clipboard,
+    gtk_profile: Option<std::path::PathBuf>,
     cursor_surface: Option<smithay::reexports::wayland_server::protocol::wl_surface::WlSurface>,
     cursor_revision: u64,
 }
@@ -64,6 +66,9 @@ struct Configured {
 
 impl Compositor {
     pub fn new(server: Server, windows: Windows) -> Self {
+        let gtk_profile = server
+            .socket_name()
+            .and_then(|_| crate::gtk_settings::profile());
         Self {
             server,
             windows,
@@ -82,6 +87,8 @@ impl Compositor {
             input_frames: 0,
             forced: false,
             locked: false,
+            clipboard: clipboard::Clipboard::default(),
+            gtk_profile,
             cursor_surface: None,
             cursor_revision: 0,
         }
@@ -217,6 +224,16 @@ impl Compositor {
             .map(|display| format!(":{display}"))
     }
 
+    pub fn environment(&self) -> Vec<(&'static str, String)> {
+        let wayland = self.socket().map(|socket| ("WAYLAND_DISPLAY", socket));
+        let x11 = self.x11_display().map(|display| ("DISPLAY", display));
+        let gtk = self
+            .gtk_profile
+            .as_ref()
+            .map(|profile| ("DCONF_PROFILE", profile.to_string_lossy().into_owned()));
+        wayland.into_iter().chain(x11).chain(gtk).collect()
+    }
+
     fn launch(&mut self, launch: &Launch, now: Instant) {
         let Some((program, arguments)) = launch.arguments.split_first() else {
             return;
@@ -228,11 +245,11 @@ impl Compositor {
         }
         process
             .args(arguments)
-            .env("WAYLAND_DISPLAY", self.socket().unwrap_or_default())
             .env("XDG_ACTIVATION_TOKEN", &token)
             .env("DESKTOP_STARTUP_ID", &token)
+            .env_remove("WAYLAND_DISPLAY")
             .env_remove("DISPLAY")
-            .envs(self.x11_display().map(|display| ("DISPLAY", display)))
+            .envs(self.environment())
             .env_remove("BEUI_AUTOMATION")
             .env_remove("BEUI_HEADLESS")
             .env_remove("BEUI_HEADLESS_SCREEN")
@@ -286,6 +303,7 @@ impl Compositor {
     fn receive(&mut self, context: &Context, document: &mut Document) {
         self.server.state.activation.tick(context.now());
         self.server.dispatch();
+        self.sync_clipboard(context);
         self.watch_pings(context);
         let events = self.server.state.take_events();
         let cursor = match self.server.state.cursor() {
@@ -405,6 +423,8 @@ impl Compositor {
                     modal: state.modal(id),
                     fullscreen: self.fullscreen_area(id),
                     responding: state.responding(id),
+                    icon: state.icon(id),
+                    inhibits_shortcuts: state.inhibits_shortcuts(id),
                 })
             })
             .collect()
@@ -421,8 +441,8 @@ impl Compositor {
         }
         let store = self.windows.clone();
         with_reactive_scope(document, || {
-            for (id, drawing) in drawings {
-                store.draw(id, drawing);
+            for (id, (drawing, popups)) in drawings {
+                store.draw(id, drawing, popups);
             }
         });
     }
@@ -455,35 +475,78 @@ impl Compositor {
         })
     }
 
-    fn drawing(&self, id: WindowId) -> Option<beui::Drawing> {
+    fn drawing(&self, id: WindowId) -> (Option<beui::Drawing>, Option<Popups>) {
         let textures = self.textures.borrow();
-        let gpu = textures.gpu()?;
-        let signals = self.windows.signals(id)?;
-        let layers = self
+        let (Some(gpu), Some(signals)) = (textures.gpu(), self.windows.signals(id)) else {
+            return (None, None);
+        };
+        let (popups, own): (Vec<_>, Vec<_>) = self
             .server
             .state
             .layers(id)
             .into_iter()
             .filter_map(|layer| Some((textures.get(&layer.surface)?, layer)))
-            .collect();
-        Some(WindowDraw::drawing(
-            gpu,
-            layers,
+            .partition(|(_, layer)| layer.popup);
+        let drawing = WindowDraw::drawing(
+            gpu.clone(),
+            own,
             signals.painted.clone(),
             self.waker.clone(),
-        ))
+        );
+        let bounds = popups
+            .iter()
+            .map(|(_, layer)| layer.rect)
+            .reduce(|bounds, rect| bounds.merge(rect));
+        let popups = bounds.map(|bounds| {
+            let areas = popups
+                .iter()
+                .map(|(_, layer)| {
+                    let at = layer.rect.loc - bounds.loc;
+                    Rect::from_min_size(
+                        Pos2::new(at.x as f32, at.y as f32),
+                        Vec2::new(layer.rect.size.w as f32, layer.rect.size.h as f32),
+                    )
+                })
+                .collect();
+            let layers = popups
+                .into_iter()
+                .map(|(texture, mut layer)| {
+                    layer.rect.loc -= bounds.loc;
+                    (texture, layer)
+                })
+                .collect();
+            Popups {
+                areas,
+                rect: Rect::from_min_size(
+                    Pos2::new(bounds.loc.x as f32, bounds.loc.y as f32),
+                    Vec2::new(bounds.size.w as f32, bounds.size.h as f32),
+                ),
+                drawing: WindowDraw::drawing(
+                    gpu,
+                    layers,
+                    signals.painted.clone(),
+                    self.waker.clone(),
+                ),
+            }
+        });
+        (Some(drawing), popups)
     }
 
     fn input(&mut self, now: Instant) {
-        for (id, input) in self.windows.take_input() {
+        let inputs = self.windows.take_input();
+        for (id, input) in &inputs {
+            let id = *id;
             if !self.server.state.windows().contains(&id) {
                 continue;
             }
             if let Some(dialog) = self.windows.blocked_by(id) {
-                self.refuse(id, dialog, &input, now);
+                self.refuse(id, dialog, input, now);
                 continue;
             }
-            self.deliver(id, &input, now);
+            let hovered = inputs
+                .iter()
+                .any(|(other, input)| *other == id && input.hovered);
+            self.deliver(id, input, hovered, now);
         }
     }
 
@@ -505,7 +568,7 @@ impl Compositor {
                     .collect(),
                 ..input.clone()
             };
-            self.deliver(id, &releases, now);
+            self.deliver(id, &releases, false, now);
         }
         let state = &mut self.server.state;
         if !state.buttons_held() && state.pointer_window() == Some(id) {
@@ -513,13 +576,24 @@ impl Compositor {
         }
     }
 
-    fn deliver(&mut self, id: WindowId, input: &ForwardedInput, now: Instant) {
+    fn deliver(&mut self, id: WindowId, input: &ForwardedInput, hovered: bool, now: Instant) {
         let state = &mut self.server.state;
-        let at = |pos: Pos2| {
-            let local = pos - input.rect.min;
+        let dragging = state.dragging();
+        let windows = &self.windows;
+        let at = |index: usize, pos: Pos2| {
+            let (id, rect) = match dragging {
+                true => {
+                    let under = input.under.get(index).copied().flatten()?;
+                    windows
+                        .caught_at(under)
+                        .filter(|(target, _)| windows.blocked_by(*target).is_none())?
+                }
+                false => (id, input.rect),
+            };
+            let local = pos - rect.min;
             Some((id, (f64::from(local.x), f64::from(local.y)).into()))
         };
-        for event in &input.events {
+        for (index, event) in input.events.iter().enumerate() {
             match *event {
                 Event::PhysicalKey { code, pressed } if state.keyboard_window() == Some(id) => {
                     if pressed {
@@ -527,14 +601,14 @@ impl Compositor {
                     }
                     state.key(code, pressed);
                 }
-                Event::PointerMoved(pos) => state.pointer_motion(at(pos)),
+                Event::PointerMoved(pos) => state.pointer_motion(at(index, pos)),
                 Event::PointerButton {
                     pos,
                     button,
                     pressed,
                     ..
                 } => {
-                    state.pointer_motion(at(pos));
+                    state.pointer_motion(at(index, pos));
                     if pressed {
                         state.ping(id, now);
                     }
@@ -544,14 +618,14 @@ impl Compositor {
                     if state.pointer_window() != Some(id)
                         && let Some(pos) = input.pointer
                     {
-                        state.pointer_motion(at(pos));
+                        state.pointer_motion(at(index, pos));
                     }
                     state.pointer_axis((-f64::from(delta.x), -f64::from(delta.y)));
                 }
                 _ => {}
             }
         }
-        if !input.hovered && !state.buttons_held() && state.pointer_window() == Some(id) {
+        if !hovered && !state.buttons_held() && state.pointer_window() == Some(id) {
             state.pointer_motion(None);
         }
     }
@@ -596,7 +670,11 @@ impl Compositor {
                                 (area.width().round() as i32, area.height().round() as i32)
                             })
                         });
-                    let Some(size) = size.filter(|size| size.0 >= 1 && size.1 >= 1) else {
+                    let own = !self.configured.contains_key(&id)
+                        && size.is_some_and(|size| {
+                            self.server.state.own_size(id) == Some(size.into())
+                        });
+                    let Some(size) = size.filter(|size| size.0 >= 1 && size.1 >= 1 && !own) else {
                         self.server
                             .state
                             .configure_sized(id, None, focused == Some(id));
@@ -620,6 +698,10 @@ impl Compositor {
                     self.server.state.ping(id, now);
                 }
                 Command::Close(id) => self.force_close(id),
+                Command::RestoreShortcuts(id) => {
+                    self.server.state.restore_shortcuts(id);
+                    self.forced = true;
+                }
                 Command::Launch(launch) => self.launch(&launch, now),
             }
         }
@@ -740,6 +822,23 @@ impl Compositor {
         let size = (rect.width().round() as i32, rect.height().round() as i32);
         self.server.state.set_scale(scale, size.into());
         self.area = rect;
+        let screens = self
+            .screens
+            .iter()
+            .map(|screen| screen.intersect(rect).translate(-rect.min.to_vec2()))
+            .filter(|screen| screen.width() > 0.0 && screen.height() > 0.0)
+            .map(|screen| {
+                smithay::utils::Rectangle::new(
+                    (screen.min.x.round() as i32, screen.min.y.round() as i32).into(),
+                    (
+                        screen.width().round() as i32,
+                        screen.height().round() as i32,
+                    )
+                        .into(),
+                )
+            })
+            .collect();
+        self.server.state.set_screens(screens);
         self.publish(document);
     }
 
@@ -844,6 +943,8 @@ fn button_code(button: PointerButton) -> u32 {
 fn cursor_icon(icon: smithay::input::pointer::CursorIcon) -> CursorIcon {
     CursorIcon::from_name(icon.name()).unwrap_or_default()
 }
+
+mod clipboard;
 
 #[cfg(test)]
 mod tests;

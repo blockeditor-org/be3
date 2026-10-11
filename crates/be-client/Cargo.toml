@@ -11,6 +11,7 @@ be-graph = { path = "../be-graph" }
 be-protocol = { path = "../be-protocol" }
 be-session = { path = "../be-session" }
 be-store = { path = "../be-store" }
+build-id = { path = "../build-id" }
 futures-util = "0.3"
 # Only the synchronisation primitives are shared with the browser build: they
 # carry no runtime of their own, and the socket and the executor come from

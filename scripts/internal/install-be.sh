@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
 # Installs the pinned be release into the checkout, where ./scripts/be runs it
-# from: target/tools/be-<release>/be. ./scripts/setup runs this, and
+# from: target/tools/be-<release>/be, with a build-id file beside it naming the
+# release, which is the build the server must be. ./scripts/setup runs this, and
 # ./scripts/be runs it by itself when that file is not there yet. The release
 # and the hashes it is checked against are common.sh's.
 #
@@ -23,7 +24,8 @@ if [[ -z "$be_release" ]]; then
 fi
 
 destination="$(be_path)"
-if [[ -x "$destination" ]]; then
+directory="$(dirname "$destination")"
+if [[ -x "$destination" && -f "$directory/build-id" ]]; then
     echo "be $be_release is already installed at $destination"
     exit 0
 fi
@@ -31,11 +33,11 @@ fi
 triple="$(buck2_triple)"
 sha256="$(buck2_release_sha256 be "$triple")"
 url="$download_mirror/be/$be_release/be-$triple"
-directory="$(dirname "$destination")"
 
 echo "Downloading be $be_release from $url..." >&2
 mkdir -p "$directory"
 download_verified "$url" "$destination.partial" "$sha256"
 chmod +x "$destination.partial"
+printf '%s\n' "$be_release" > "$directory/build-id"
 mv -f "$destination.partial" "$destination"
 echo "Installed be $be_release at $destination" >&2

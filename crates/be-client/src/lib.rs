@@ -33,6 +33,7 @@ pub enum ClientError {
     Encoding(String),
     Contended,
     Unexpected,
+    Incompatible { ours: String, theirs: String },
 }
 
 impl fmt::Display for ClientError {
@@ -56,6 +57,10 @@ impl fmt::Display for ClientError {
                 formatter.write_str("someone else kept changing the block at the same time")
             }
             Self::Unexpected => formatter.write_str("the server answered with the wrong message"),
+            Self::Incompatible { ours, theirs } => write!(
+                formatter,
+                "this app is build {ours} and the server is build {theirs}; update them to the same build"
+            ),
         }
     }
 }

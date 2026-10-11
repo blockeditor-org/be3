@@ -18,6 +18,7 @@ fn a_shell_only_host_value_reaches_only_the_shell() {
         fullscreen: None,
         responding: true,
         focused: false,
+        icon: None,
         raised: 0,
     }];
     instances.next_screens(PASS);

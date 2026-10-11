@@ -6,6 +6,7 @@ use tokio::net::TcpListener;
 const USAGE: &str = "\
 Usage:
   be-server [--addr ADDR] [--data-dir DIR] [--allow-login] [--allow-registration]
+            [--build-id-file FILE]
   be-server [--data-dir DIR] --add-account EMAIL NAME WORKSPACE < password
   be-server backup-key > KEY-FILE
   be-server backup [--data-dir DIR] --to TARGET --key-file KEY-FILE
@@ -18,6 +19,8 @@ Usage:
                             already signed in can connect, with the tokens they hold
   --allow-registration      Let anyone who reaches the server make an account; without it,
                             accounts are made with --add-account
+  --build-id-file FILE      The build this server is, which every client must match; by
+                            default the build-id file beside the executable
   --add-account             Make an account that owns a new workspace, reading its password
                             from the first line of standard input
 
@@ -82,6 +85,11 @@ async fn run() -> Result<(), Box<dyn Error>> {
             }
             "--allow-registration" => config.allow_registration = true,
             "--allow-login" => config.allow_login = true,
+            "--build-id-file" => {
+                build_id::install_from(&PathBuf::from(
+                    arguments.next().ok_or("--build-id-file needs a value")?,
+                ))?;
+            }
             "--add-account" => {
                 let email = arguments.next().ok_or("--add-account needs an email")?;
                 let display_name = arguments.next().ok_or("--add-account needs a name")?;
@@ -113,6 +121,7 @@ async fn run() -> Result<(), Box<dyn Error>> {
         data = %data_dir.display(),
         login = config.allow_login,
         registration = config.allow_registration,
+        build = build_id::current(),
         "be-server listening"
     );
     be_server::serve_with_config(listener, data_dir, config, shutdown()).await?;

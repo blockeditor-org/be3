@@ -20,6 +20,22 @@ plugin instead of workspace-ui. Two flags start it that way:
 `./scripts/buck run //crates/block-app:dev -- --desktop` runs the desktop shell headless, to
 drive like any other run (guides/running/drive.md).
 
+## Program windows
+
+be-wayland (`crates/be-wayland`) is the compositor; a program's toplevel is a `WindowView`, a
+forwarding catcher the shell places like any other node. A floating window (every window under
+the desktop shell, and dialogs under workspace-ui) owns its size: a new one is configured 0×0,
+`WindowInfo::size` is the size it last chose for itself (a commit that is not the answer to a
+size the compositor asked for), the shell's `DialogWindow` follows that size through
+`DockTabControl::resize_window`, and a window shown at its own size is never told a size, so it
+stays free to resize itself. Only when the person resizes it, or it is docked, is it configured
+with a size, and then with the tiled states too. A 1×1 placeholder, which Firefox commits for its
+server-side-decorated windows and never grows on its own, opens at a default size instead.
+
+Popups (xdg-popup, and Xwayland's override-redirect windows) are fitted to the screen their window
+is on, not to the window, as the protocol intends, and are drawn and take input in a floating
+overlay above the document, so a menu can reach past its window's edge.
+
 ## Installing it as a session
 
     ./scripts/buck run //crates/block-app:install-session [-- PREFIX]
@@ -42,7 +58,9 @@ and the output of every program the app starts, go to `$XDG_STATE_HOME/block/ses
 `session.previous.log`. Problems a person should see at once also show as toasts in the
 corner of the screen: `beui_adapter_drm::Problems` carries the display and input ones,
 `be_wayland::Compositor::on_failure` a program that could not be run, and `notices::report`
-puts each in front of the person. The host draws these itself, so they show before any shell
+puts each in front of the person, as an error toast that stays until it is dismissed;
+`notices::report_with` also keeps a full report (a crashed plugin's error, or the backtrace of
+the panic that ended the last session) behind the toast's Copy report button. The host draws these itself, so they show before any shell
 plugin runs (signing in, choosing a workspace) and over either shell; they stack in the
 top-right corner (`Toasts` with `edge=Edge::TopEnd`), clear of linux-desktop's bar and its
 notification toasts at the bottom.
@@ -264,6 +282,38 @@ goes to, and `Compositor::after` turns what each window was forwarded into `wl_p
 window (a floating window's tab, say) the window takes nothing (`occluders`, from the region's
 occlusion), and a press keeps going to the window or plugin it began on until it is let go.
 
+A window's tab shows the icon its program set with `xdg-toplevel-icon-v1`: be-wayland
+reads the pixels it was handed (the smallest at least 64 pixels, shrunk to 64) or looks the
+name up in the icon theme, and it reaches the shell as `HostWindow::icon` beside the title,
+which block-shell's `WindowTab` hands the dock as its `DockTab` `picture`. Without one the
+tab shows a generic glyph. `xdg-foreign` v2 lets a program parent its window to another
+program's, as a portal does with its file chooser: the child's `HostWindow::parent` is the
+exported window, and it is shown as that window's child like any other dialog. The xdg shell offers only the
+fullscreen capability (`wm_capabilities`): a tab has nowhere to minimize to, and its size is
+the dock's, so maximizing would change nothing (a request to maximize is still answered
+with the maximized state, for programs that ask anyway). GTK ignores those capabilities
+before 4.20 and from then on only greys the buttons out; its header bar lays out its window
+buttons from GSettings' `org.gnome.desktop.wm.preferences button-layout`. So the compositor
+(`src/gtk_settings.rs`) writes a dconf profile into `$XDG_RUNTIME_DIR/be-wayland`: the
+profile dconf would otherwise use, plus a database of its own that sets and locks that key to
+`appmenu:` (no window buttons); the lock makes it win over the user's own value. Programs
+it launches get it as `DCONF_PROFILE` (`Compositor::environment`), so they read and write
+every other setting as before and the user's settings outside the session never change.
+Flatpak programs read the setting through the portal instead, which sees it only if it
+started after a `--session` exported the variable. `wp-content-type-v1` and
+`wp-tearing-control-v1` hints are kept per surface (`State::content_type`,
+`State::tearing`) and do not change how anything is drawn yet; `wp-single-pixel-buffer-v1`
+buffers are drawn as one-pixel textures.
+
+A program that holds a `zwp_keyboard_shortcuts_inhibitor_v1` on its window (a remote
+desktop, a virtual machine) gets the desktop's shortcuts itself while its window has the
+keyboard: the window's `WindowView` sets `inhibits_shortcuts`, and beui keeps every
+intercepting action, tap and F6 from it (guides/beui_keyboard.md). Two chords always work:
+Super+L locks the screen, and Super+Escape (`register_restore_shortcuts`, registered by
+block-app's `WindowActions`) takes the shortcuts back from the focused window until it
+loses the keyboard and gets it again. The inhibitor is told it is active only while its
+window has the keyboard.
+
 Under `--session` the DRM adapter draws the pointer into each output's frame, redrawing only the
 outputs the cursor moved off or onto. beui's `CursorIcon`s (every CSS cursor; `name()` is the CSS
 name) come from the XCursor theme (`XCURSOR_THEME`, `XCURSOR_SIZE`, `XCURSOR_PATH` or the XDG
@@ -317,7 +367,7 @@ responding. Each X11 window is configured at its place on the screen (`State::pl
 coordinates are the screen's; an override-redirect window (a menu, tooltip or dropdown)
 positions itself in those coordinates and is drawn and hit-tested as a layer of the toplevel it
 belongs to (its `WM_TRANSIENT_FOR`, else the X11 window under the pointer or with the
-keyboard), clipped to that window like an xdg popup.
+keyboard), drawn past that window's edge like an xdg popup (see Program windows above).
 
 The compositor pings a window's client when it is clicked, typed into, focused or asked to
 close, and a client that has not answered within `PING_TIMEOUT` (be-wayland's `state.rs`) is listed as
@@ -325,3 +375,34 @@ not responding: its window is dimmed and its tab offers Wait and Force close. Cl
 that is not responding forces it: the compositor kills the process if it launched it (or one
 of its descendants) and disconnects the client either way. `kill -STOP` on a client's pid
 freezes it to try this, and `kill -CONT` brings it back.
+
+### Clipboard and drag and drop
+
+The app's clipboard (beui's, through the runner's `Platform`) and the Wayland clipboard are one
+(be-wayland's `selection.rs` and `compositor/clipboard.rs`). A program that sets the selection,
+through `wl_data_device` or the data-control protocols (`ext-data-control-v1` and
+`zwlr-data-control-v1`, which clipboard managers, `wl-copy` and `wl-paste` use), is asked for its
+text, which the compositor reads without blocking and hands to the app with `Context::copy_text`;
+the program's own selection stays, with all its types. Everything the app copies
+(`Context::watch_copies`) becomes a selection the compositor serves as text. Plugins paste
+through `Context::read_clipboard`, so both work in a session, where the platform's clipboard is
+the DRM adapter's own. A selection that only offers images is not handed to the app.
+
+Middle-click paste (`zwp_primary_selection_device_manager_v1`, and the primary selection of the
+data-control protocols) is off unless the input settings' "Middle-click paste" is on. The globals are always
+advertised, because a program that finds no primary selection protocol emulates one (Firefox
+then pastes the clipboard on a middle click). While the setting is off the primary selection
+just stays empty: `selection/primary.rs` answers every `set_selection` on a primary device, and
+`set_primary_selection` on a data-control device, by cancelling the source, and switching it
+off clears the current one, so it takes effect at once in running programs. X11 programs keep
+their own `PRIMARY` in Xwayland, which nothing bridges to Wayland, so they can still
+middle-click paste among themselves.
+
+To try them, run `wl-copy TEXT` and `wl-paste` (the `wl-clipboard` package) with
+`WAYLAND_DISPLAY` set to the app's socket, and copy or paste in the app with `drive key ctrl+c`
+and `ctrl+v`.
+
+A window's drag (`wl_data_device.start_drag`) goes to the window under the pointer: the press
+stays with the window it began in, and while the drag lasts the compositor moves it to the
+window beui finds under the pointer (`ForwardedInput::under`). Only a shown window can be dropped on: a
+dock tab does not switch under a drag, and the drag's icon is not drawn (BE3-296).

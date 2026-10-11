@@ -37,6 +37,13 @@ pub(crate) fn launch(_command: String) -> bool {
 }
 
 #[component]
+pub(crate) fn WindowActions() -> NodeId {
+    view! {
+        <Frame />
+    }
+}
+
+#[component]
 pub(crate) fn WindowSurface(window: HostWindowId) -> NodeId {
     let _ = window;
     view! {

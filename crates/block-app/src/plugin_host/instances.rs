@@ -48,6 +48,7 @@ pub(super) struct Instances {
     epoch: u64,
     graph_seen: Option<u64>,
     pasted: HashSet<EditorInstanceId>,
+    pastes: Pastes,
     audio_changes: AudioChanges,
     published: Published,
     shell: Option<EditorInstanceId>,
@@ -59,6 +60,18 @@ struct AudioChanges {
 }
 
 impl Default for AudioChanges {
+    fn default() -> Self {
+        let (sender, receiver) = host::waking_channel();
+        Self { sender, receiver }
+    }
+}
+
+struct Pastes {
+    sender: host::WakingSender<(u64, EditorInstanceId, String)>,
+    receiver: std::sync::mpsc::Receiver<(u64, EditorInstanceId, String)>,
+}
+
+impl Default for Pastes {
     fn default() -> Self {
         let (sender, receiver) = host::waking_channel();
         Self { sender, receiver }
@@ -2161,6 +2174,17 @@ impl Instances {
                 }));
             }
         }
+        while let Ok((epoch, instance, text)) = self.pastes.receiver.try_recv() {
+            if epoch != self.epoch {
+                continue;
+            }
+            if let Some(entry) = self.entries.get_mut(&instance) {
+                entry
+                    .text_pastes
+                    .extend(block_plugin_api::paste_events(&text));
+                self.pasted.insert(instance);
+            }
+        }
         let mut pasted: Vec<_> = std::mem::take(&mut self.pasted).into_iter().collect();
         pasted.sort_by_key(|instance| instance.0);
         for instance in pasted {
@@ -2699,16 +2723,17 @@ impl Instances {
                 false
             }
             EditorMessage::PasteText { instance } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
+                if !self.entries.contains_key(&instance) {
                     return false;
-                };
-                if let Some(text) = super::clipboard::read_clipboard_text() {
-                    entry
-                        .text_pastes
-                        .extend(block_plugin_api::paste_events(&text));
                 }
-                self.pasted.insert(instance);
-                true
+                let sender = self.pastes.sender.clone();
+                let epoch = self.epoch;
+                host::read_clipboard(move |text| {
+                    if let Some(text) = text {
+                        let _ = sender.send((epoch, instance, text));
+                    }
+                });
+                false
             }
             EditorMessage::ChildReplaced {
                 instance,

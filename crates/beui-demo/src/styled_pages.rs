@@ -1495,6 +1495,9 @@ pub(crate) fn OverlaysPage() -> NodeId {
             <Sample title="Crash notice" code={vec![CrashedEditor::SOURCE]}>
                 <CrashedEditor />
             </Sample>
+            <Sample title="Stale notice" code={vec![StaleBlock::SOURCE]}>
+                <StaleBlock />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -1513,6 +1516,23 @@ fn CrashedEditor() -> NodeId {
             title="Counter stopped"
             detail={detail}
             on_reload={move || set_reloads.update(|reloads| *reloads += 1)}
+        />
+    }
+}
+
+#[sample]
+#[component]
+fn StaleBlock() -> NodeId {
+    let (outcome, set_outcome) = create_signal("Saved by another build".to_owned());
+    let reset = set_outcome.clone();
+    let delete = set_outcome.clone();
+    view! {
+        <StaleNotice
+            title={outcome}
+            detail="This build cannot read what another build saved here."
+            on_reset={move || reset.set("Reset to empty".to_owned())}
+            on_delete={move || delete.set("Deleted".to_owned())}
+            on_try={move || set_outcome.set("Opened anyway".to_owned())}
         />
     }
 }

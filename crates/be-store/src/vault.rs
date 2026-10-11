@@ -215,8 +215,7 @@ impl<S: ObjectStore> Vault<S> {
     }
 
     pub fn put_value<T: Serialize>(&self, value: &T) -> Result<Hash, StoreError> {
-        let encoded = postcard::to_stdvec(value).map_err(|_| StoreError::Encoding)?;
-        self.store.put(&self.seal(&encoded))
+        self.store.put(&self.seal(&encode_value(value)?))
     }
 
     pub fn get_value<T: DeserializeOwned>(&self, hash: Hash) -> Result<T, StoreError> {
@@ -224,11 +223,20 @@ impl<S: ObjectStore> Vault<S> {
             .store
             .get(hash)?
             .ok_or(StoreError::MissingObject(hash))?;
-        let plain = self.open(&sealed)?;
-        postcard::from_bytes(&plain).map_err(|_| StoreError::Encoding)
+        decode_value(&self.open(&sealed)?)
     }
 
     pub fn has_value(&self, hash: Hash) -> Result<bool, StoreError> {
         self.store.has(hash)
     }
+}
+
+pub fn encode_value<T: Serialize>(value: &T) -> Result<Vec<u8>, StoreError> {
+    let mut encoded = Vec::new();
+    ciborium::into_writer(value, &mut encoded).map_err(|_| StoreError::Encoding)?;
+    Ok(encoded)
+}
+
+pub fn decode_value<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, StoreError> {
+    ciborium::from_reader(bytes).map_err(|_| StoreError::Encoding)
 }

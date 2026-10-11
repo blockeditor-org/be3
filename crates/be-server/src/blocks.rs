@@ -219,6 +219,7 @@ impl ServerStore {
         block: Uuid,
         commit: CommitId,
         expected: Option<CommitId>,
+        parents: Vec<CommitId>,
         chunks: Vec<Hash>,
         time: i64,
         pinned: bool,
@@ -260,12 +261,14 @@ impl ServerStore {
                 .optional()?;
             if existing.is_none() {
                 transaction.execute(
-                    "INSERT INTO block_commits (workspace_id, block_id, commit_id, time, pinned)
-                     VALUES (?1, ?2, ?3, ?4, ?5)",
+                    "INSERT INTO block_commits
+                        (workspace_id, block_id, commit_id, parents, time, pinned)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                     params![
                         workspace,
                         block.to_string(),
                         commit.hash().to_hex(),
+                        encode_parents(&parents),
                         time,
                         pinned
                     ],
@@ -651,22 +654,24 @@ fn read_history(
     block: Uuid,
 ) -> Result<Vec<HistoryEntry>, ServerError> {
     let mut statement = connection.prepare(
-        "SELECT commit_id, time, pinned FROM block_commits
+        "SELECT commit_id, parents, time, pinned FROM block_commits
          WHERE workspace_id = ?1 AND block_id = ?2
          ORDER BY time DESC",
     )?;
     let rows = statement.query_map(params![workspace.to_string(), block.to_string()], |row| {
         Ok((
             row.get::<_, String>(0)?,
-            row.get::<_, i64>(1)?,
-            row.get::<_, bool>(2)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, i64>(2)?,
+            row.get::<_, bool>(3)?,
         ))
     })?;
     let mut entries = Vec::new();
     for row in rows {
-        let (commit, time, pinned) = row?;
+        let (commit, parents, time, pinned) = row?;
         entries.push(HistoryEntry {
-            commit: CommitId::from_hash(Hash::from_hex(&commit).ok_or(ServerError::Corrupt)?),
+            commit: parse_commit(&commit)?,
+            parents: decode_parents(&parents)?,
             time,
             pinned,
         });
@@ -773,4 +778,22 @@ fn persist_refs(
         }
     }
     Ok(())
+}
+
+fn parse_commit(hex: &str) -> Result<CommitId, ServerError> {
+    Hash::from_hex(hex)
+        .map(CommitId::from_hash)
+        .ok_or(ServerError::Corrupt)
+}
+
+fn encode_parents(parents: &[CommitId]) -> String {
+    parents
+        .iter()
+        .map(|parent| parent.hash().to_hex())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn decode_parents(parents: &str) -> Result<Vec<CommitId>, ServerError> {
+    parents.split_whitespace().map(parse_commit).collect()
 }

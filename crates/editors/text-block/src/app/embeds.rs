@@ -115,12 +115,13 @@ pub(crate) fn resolve_embeds(state: &State) -> Vec<ResolvedEmbed> {
 }
 
 pub(crate) fn image_embed_directive(
+    link_base: &str,
     workspace_id: Uuid,
     reference: &Uuid,
     source_name: &str,
     markdown: bool,
 ) -> String {
-    let url = block_url(workspace_id, *reference);
+    let url = block_url(link_base, workspace_id, *reference);
     if markdown {
         format!("![{source_name}]({url})")
     } else {

@@ -27,7 +27,16 @@ async fn an_agent_signs_in_with_its_token_alone_until_it_is_removed() {
     request
         .headers_mut()
         .insert("authorization", format!("Bearer {token}").parse().unwrap());
-    let (socket, _) = connect_async(request).await.unwrap();
+    let (mut socket, _) = connect_async(request).await.unwrap();
+    socket.send(WsMessage::Binary(hello(BUILD))).await.unwrap();
+    assert_eq!(
+        next_binary(&mut socket)
+            .await
+            .as_deref()
+            .and_then(read_hello)
+            .as_deref(),
+        Some(BUILD)
+    );
     let mut bot = TestClient {
         socket,
         next: 0,

@@ -163,6 +163,7 @@ impl State {
             fullscreen: false,
             maximized: false,
             position: Point::default(),
+            chosen: None,
         });
         self.events.push(ServerEvent::Opened(id));
         self.events.push(ServerEvent::Titled(id, title));
@@ -294,7 +295,7 @@ impl State {
             if let (Some(surface), Some(origin)) =
                 (overlay.surface.wl_surface(), self.overlay_origin(overlay))
             {
-                collect_layers(&surface, origin, layers);
+                collect_layers(&surface, origin, true, layers);
             }
         }
     }

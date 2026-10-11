@@ -27,13 +27,11 @@ pub struct Entry {
 
 impl Tree {
     pub fn write<S: ObjectStore>(&self, vault: &Vault<S>) -> Result<Manifest, StoreError> {
-        let encoded = postcard::to_stdvec(self).map_err(|_| StoreError::Encoding)?;
-        vault.write(TREE_CONTENT_TYPE, &encoded)
+        vault.write(TREE_CONTENT_TYPE, &be_store::encode_value(self)?)
     }
 
     pub fn read<S: ObjectStore>(vault: &Vault<S>, manifest: &Manifest) -> Result<Self, StoreError> {
-        let bytes = vault.read(manifest)?;
-        postcard::from_bytes(&bytes).map_err(|_| StoreError::Encoding)
+        be_store::decode_value(&vault.read(manifest)?)
     }
 
     pub fn objects(&self) -> BTreeSet<Hash> {

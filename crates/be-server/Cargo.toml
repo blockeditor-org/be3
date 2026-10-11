@@ -12,11 +12,13 @@ be-graph = { path = "../be-graph" }
 be-protocol = { path = "../be-protocol" }
 be-session = { path = "../be-session" }
 be-store = { path = "../be-store" }
+build-id = { path = "../build-id" }
 futures-util = "0.3"
 rand = "0.9"
 rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"
+sqlite-schema = { path = "../sqlite-schema" }
 tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-tungstenite = "0.23"
 tracing = "0.1"

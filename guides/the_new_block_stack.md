@@ -84,11 +84,19 @@ Content-addressed, encrypted object storage.
   `chunks_in_range` are the streaming primitives.
 - `ObjectStore` is `MemoryStore` or `FileStore`. It is synchronous on purpose;
   network fetching is explicit (see `Peer::fetch`), so nothing blocks inside it.
+- `Vault::put_value` stores a value (a commit, a version-control tree) as a
+  CBOR map by field name (`encode_value`), so a later build can add a field to
+  one, with `#[serde(default)]`, without a migration. Commits are encrypted, so
+  only a client could ever rewrite one, and rewriting one changes its hash and
+  every id that names it: an encrypted format is read as it was written,
+  forever. A hash is a CBOR byte string.
 
 ### be-commit
 
-- `Commit` is `{parents, manifest, author, time, kind, references}`, stored as an
-  encrypted object whose hash is its `CommitId`. Several parents means a merge.
+- `Commit` is `{parents, manifest, author, time, kind, references, metadata}`,
+  stored as an encrypted object whose hash is its `CommitId`. Several parents
+  means a merge. `Publish` also tells the server the parents in plaintext, so
+  the server knows the history graph of every block without reading a commit.
 - `references` is the edge set derived from the **sealed** state, recorded once
   per commit. This is what makes the reference graph correct: it always describes
   content that was actually stored.
@@ -137,6 +145,21 @@ and sweep. Do not reintroduce one.
 SQLite for metadata, a `FileStore` for objects, and a websocket carrying
 postcard frames.
 
+- The database's schema is a list of `CREATE` statements (`schema.rs`), and
+  `sqlite_schema::ensure` checks a database against it on open: it adds a
+  missing table or index and a missing column that has a default, and refuses
+  anything else (a column gone, retyped or unknown), so a schema only grows.
+  Values that may grow (a role, an access level, a parent kind) have no `CHECK`,
+  since SQLite rebuilds a table to change one. The app's own `app.sqlite3`
+  is checked the same way, and recreated (signing the device out) when it
+  does not match.
+- A connection starts with a greeting outside the protocol: each side sends
+  `be_protocol::hello` with its build id (`build_id::current()`, read from the
+  `build-id` file beside the executable, or `--build-id-file`), and the server
+  closes the connection when the ids differ and neither is `unknown`
+  (`ClientError::Incompatible` on the client). Server and clients are upgraded
+  together from one commit, so the protocol itself is postcard and never
+  versioned.
 - A publish is a compare-and-swap on the head. A publish against a stale head
   comes back `Rejected` with the head to merge against, rather than being
   silently ordered after it.
@@ -184,6 +207,8 @@ A block's content is a set of traits a type opts into.
 ```rust
 trait BlockContent {                    // durable form and the edges it declares
     const CONTENT_TYPE: Uuid;
+    const FROZEN: bool = false;
+    fn schema() -> String { String::new() }
     fn encode(&self) -> Vec<u8>;
     fn decode(bytes: &[u8]) -> Result<Self, ContentError>;
     fn references(&self) -> Vec<Uuid> { Vec::new() }
@@ -230,7 +255,13 @@ streamed.
 calls when it records a commit's references (`Root::references_in` for a
 document). Text uses it: a block URL names its workspace, and a URL pasted from
 another workspace is a link, not a reference.
-The URL format itself lives in `be_block::block_url`.
+The URL format itself lives in `be_block::block_url`: a block URL is
+`<base>#block/<workspace>/<block>`, where the base is the URL of the server the
+workspace is on (the `LinkBase` host value), sub-path and all, or nothing for
+the device's own server. Text stores these bytes, so the format is read
+forever: a reference is found by its fragment alone, whatever host comes before
+it, and the link it belongs to starts at the `http://` or `https://` directly
+before the `#`.
 
 ### be-client
 
@@ -375,7 +406,8 @@ The format is meant to change without migrations:
   every one, including those inside properties this build does not know. The
   content's references are those plus `Root::references`.
 
-Freezing a version: `be_model::schema::freeze(&document)` returns Rust source
+Freezing a version: set `Root::FROZEN` (or `BlobKind::FROZEN`), which turns off
+the stale-block handling below for the type. `be_model::schema::freeze(&document)` returns Rust source
 holding the type's registry (`Kind::describe`: every kind, property, shape,
 register default and old name) and the document's bytes. Keep it as a module
 of the block's tests, and test it with `schema::check_frozen::<Root>(REGISTRY,
@@ -580,6 +612,24 @@ naming the type: join a session, copy, seed, replace, derive a name with
 content type is not in `KINDS` has no content in the app: the host opens
 nothing for it and refuses content written to it.
 
+### Blocks saved by another build
+
+Until a content type is frozen its format changes freely, so a block may hold
+what an older build saved. Every save stamps the derived `SCHEMA` key with
+`schema_fingerprint::<C>()`, a hash of `BlockContent::schema()`: be-model's
+`Kind::describe` for a document, and `blob N` for a blob, whose kind bumps
+`BlobKind::SCHEMA` when its header changes in a way old headers would be read
+wrongly. `be::staleness` calls an unfrozen block stale when the worker could
+not decode it (`Shared::unreadable`) or its stamp is another schema's; a block
+with no stamp is not stale. A stale block's frame shows `StaleNotice`
+(`surfaces::StaleBlock`) instead of its editor: Reset publishes the type's
+default content (`be::reset`), Delete deletes it as the shell would, and Try
+anyway shows the editor for the rest of the session (`be::try_anyway`). A block
+the app holds itself (`be::hold`: settings, the shell's profile) is reset by
+the worker without asking, with a notice, since the app needs it to work. The
+app also deletes its local caches (`be-objects/`, `plugin-cache/`) whenever its
+build id changes; when the app becomes offline-first, those will have to stay.
+
 `crates/block-app/src/be/worker.rs` is the peer's loop, with a `Live` session
 per open block behind the `Session` trait, so the loop never names a content
 type; `be/native.rs` runs it on a thread of its own with a `FileStore` under it,
@@ -612,7 +662,7 @@ A block's metadata (`be_block::BlockMetadata`) is two maps from a key's UUID to 
 CBOR value: `defined`, what someone chose (a name typed by hand, the
 `ArtifactSource` a dynamic artifact was made from, a checkout copy's `LOCAL_ID`),
 and `derived`, what the content says about itself (`INTRINSIC_NAME`,
-`THUMBHASH`). A key is declared once as a typed constant,
+`THUMBHASH`, `SCHEMA`). A key is declared once as a typed constant,
 `MetaKey::defined(id, name)` or `MetaKey::derived(id, name)`, and read and
 written through it (`get`, `insert`, `remove`, or `definition` for a change to
 send), so a new key, including one a third-party block type declares, needs no

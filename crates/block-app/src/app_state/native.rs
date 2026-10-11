@@ -9,49 +9,104 @@ pub struct AppStateStore {
     connection: Connection,
 }
 
+const SCHEMA: &str = "
+    CREATE TABLE saved_accounts (
+        server_key        TEXT NOT NULL,
+        server_url        TEXT,
+        account_id        TEXT NOT NULL,
+        email             TEXT NOT NULL,
+        display_name      TEXT NOT NULL,
+        token             TEXT NOT NULL,
+        last_workspace_id TEXT,
+        PRIMARY KEY (server_key, account_id)
+    );
+    CREATE TABLE app_settings (
+        key   TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+    );
+    CREATE TABLE workspace_keys (
+        server_key   TEXT NOT NULL,
+        account_id   TEXT NOT NULL,
+        workspace_id TEXT NOT NULL,
+        key          BLOB NOT NULL,
+        PRIMARY KEY (server_key, account_id, workspace_id)
+    );
+    CREATE TABLE input_settings (
+        id      INTEGER PRIMARY KEY CHECK (id = 0),
+        content BLOB NOT NULL
+    );
+    CREATE TABLE display_settings (
+        id      INTEGER PRIMARY KEY CHECK (id = 0),
+        content BLOB NOT NULL
+    );
+";
+
+enum Opened {
+    Incompatible(String),
+    Failed(AppStateError),
+}
+
+impl Opened {
+    fn into_error(self) -> AppStateError {
+        match self {
+            Self::Incompatible(problems) => AppStateError::from(problems),
+            Self::Failed(error) => error,
+        }
+    }
+}
+
+impl From<rusqlite::Error> for Opened {
+    fn from(error: rusqlite::Error) -> Self {
+        Self::Failed(error.into())
+    }
+}
+
+impl From<sqlite_schema::SchemaError> for Opened {
+    fn from(error: sqlite_schema::SchemaError) -> Self {
+        match error {
+            sqlite_schema::SchemaError::Mismatch(problems) => {
+                Self::Incompatible(problems.join("; "))
+            }
+            sqlite_schema::SchemaError::Database(error) => error.into(),
+        }
+    }
+}
+
 impl AppStateStore {
     pub fn open(path: impl AsRef<Path>) -> Result<Self, AppStateError> {
-        Self::with_connection(Connection::open(path)?)
+        let path = path.as_ref();
+        match Self::with_connection(Connection::open(path)?) {
+            Err(Opened::Incompatible(problems)) => {
+                for stale in [
+                    path.to_owned(),
+                    path.with_extension("sqlite3-wal"),
+                    path.with_extension("sqlite3-shm"),
+                ] {
+                    match std::fs::remove_file(&stale) {
+                        Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
+                            return Err(AppStateError::from(error.to_string()));
+                        }
+                        _ => {}
+                    }
+                }
+                crate::notices::report(format!(
+                    "This device's saved sign-ins came from an incompatible build of Block, so they were cleared: {problems}"
+                ));
+                Self::with_connection(Connection::open(path)?).map_err(Opened::into_error)
+            }
+            opened => opened.map_err(Opened::into_error),
+        }
     }
 
     pub(crate) fn placeholder() -> Self {
         Self::with_connection(Connection::open_in_memory().expect("in-memory sqlite always opens"))
+            .ok()
             .expect("in-memory sqlite always initializes")
     }
 
-    fn with_connection(connection: Connection) -> Result<Self, AppStateError> {
+    fn with_connection(connection: Connection) -> Result<Self, Opened> {
         connection.pragma_update(None, "foreign_keys", true)?;
-        connection.execute_batch(
-            "CREATE TABLE IF NOT EXISTS saved_accounts (
-                server_key        TEXT NOT NULL,
-                server_url        TEXT,
-                account_id        TEXT NOT NULL,
-                email             TEXT NOT NULL,
-                display_name      TEXT NOT NULL,
-                token             TEXT NOT NULL,
-                last_workspace_id TEXT,
-                PRIMARY KEY (server_key, account_id)
-            );
-            CREATE TABLE IF NOT EXISTS app_settings (
-                key   TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS workspace_keys (
-                server_key   TEXT NOT NULL,
-                account_id   TEXT NOT NULL,
-                workspace_id TEXT NOT NULL,
-                key          BLOB NOT NULL,
-                PRIMARY KEY (server_key, account_id, workspace_id)
-            );
-            CREATE TABLE IF NOT EXISTS input_settings (
-                id      INTEGER PRIMARY KEY CHECK (id = 0),
-                content BLOB NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS display_settings (
-                id      INTEGER PRIMARY KEY CHECK (id = 0),
-                content BLOB NOT NULL
-            );",
-        )?;
+        sqlite_schema::ensure(&connection, SCHEMA)?;
         Ok(Self { connection })
     }
 

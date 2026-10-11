@@ -262,7 +262,7 @@ fn AboutPanel() -> NodeId {
                 <Caption content="Version" />
                 <Code content={env!("CARGO_PKG_VERSION").to_owned()} />
                 <Caption content="Commit" />
-                <Code content={crate::COMMIT.to_owned()} />
+                <Code content={crate::commit().to_owned()} />
             </List>
         </Frame>
     }

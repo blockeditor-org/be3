@@ -151,6 +151,9 @@ async fn workspace_key(
 pub fn explain(error: ClientError) -> String {
     match error {
         ClientError::Refused(_, message) => message,
+        ClientError::Incompatible { ours, theirs } => format!(
+            "this be is build {ours} and the server is build {theirs}; ./scripts/be runs the release pinned in scripts/internal/common.sh, which must be the server's build"
+        ),
         other => other.to_string(),
     }
 }

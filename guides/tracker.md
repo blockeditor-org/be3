@@ -8,9 +8,9 @@ a Milestones database, kept in a workspace of their own. Agents read and change 
 ## Using it from an agent
 
 Run it as `./scripts/be ARGS`; `./scripts/be help` lists everything. That
-script runs the `be` release pinned in `scripts/internal/common.sh`, built from
-the same commit as the server, since a client and server from different builds
-may not understand each other. It reads the agent's credentials from
+script runs the `be` release pinned in `scripts/internal/common.sh`, with a
+`build-id` file beside it naming the server's build, so the server refuses it
+once it is deployed from another build and the pin has to move with it. It reads the agent's credentials from
 `.tracker-credentials` at the root of the checkout, which git ignores, and
 passes them to `be` as the `BE3_*` variables:
 
@@ -107,10 +107,10 @@ them in the handoff.
   `BE3_TRACKER_TOKEN` and `BE3_TRACKER_RECOVERY_PHRASE` secrets and the
   `BE3_SERVER`, `BE3_WORKSPACE` and status variables, writes them to
   `.tracker-credentials` and runs `./scripts/be` from the default branch.
-- **Releases.** Deploying be-server means publishing `be` from the same commit:
-  `./scripts/buck build //crates/be-cli:be -m release --out be-TRIPLE` for each
-  triple, uploaded to the mirror as `be/RELEASE/be-TRIPLE`, then `be_release`
-  and the `be_sha256_*` hashes in `scripts/internal/common.sh` updated to match.
+- **Releases.** Deploying be-server means publishing `be` from the same
+  checkout, uploaded to the mirror as `be/BUILD/be-TRIPLE` under the server's
+  build id, and moving `be_release` and the `be_sha256_*` hashes in
+  `scripts/internal/common.sh` to match (guides/hosting.md).
 - **Proxies.** `be-client` tunnels `wss` through `HTTPS_PROXY` and trusts the
   certificates in `SSL_CERT_FILE` as well as the usual roots, which is what a
   cloud environment's proxy needs.

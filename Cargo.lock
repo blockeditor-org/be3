@@ -666,6 +666,7 @@ dependencies = [
  "be-server",
  "be-session",
  "be-store",
+ "build-id",
  "futures-channel",
  "futures-util",
  "js-sys",
@@ -757,6 +758,7 @@ version = "0.1.0"
 dependencies = [
  "be-commit",
  "be-model-derive",
+ "be-store",
  "ciborium",
  "postcard",
  "sequence",
@@ -796,12 +798,14 @@ dependencies = [
  "be-protocol",
  "be-session",
  "be-store",
+ "build-id",
  "chacha20poly1305",
  "futures-util",
  "rand 0.9.4",
  "rusqlite",
  "serde",
  "sha2",
+ "sqlite-schema",
  "tokio",
  "tokio-tungstenite",
  "tracing",
@@ -826,7 +830,7 @@ name = "be-store"
 version = "0.1.0"
 dependencies = [
  "chacha20poly1305",
- "postcard",
+ "ciborium",
  "rand 0.9.4",
  "serde",
  "sha2",
@@ -840,7 +844,6 @@ dependencies = [
  "be-block",
  "be-commit",
  "be-store",
- "postcard",
  "serde",
  "uuid",
 ]
@@ -852,6 +855,7 @@ dependencies = [
  "be-dmabuf",
  "beui",
  "bytemuck",
+ "gvdb",
  "image",
  "resvg",
  "rustix 1.1.4",
@@ -1250,6 +1254,7 @@ dependencies = [
  "block-editor-plugin",
  "block-plugin-api",
  "block-wasm-host",
+ "build-id",
  "bytemuck",
  "directories-next",
  "futures-util",
@@ -1266,6 +1271,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
+ "sqlite-schema",
  "tokio",
  "ureq",
  "uuid",
@@ -1486,6 +1492,10 @@ dependencies = [
  "toml 0.9.12+spec-1.1.0",
  "zip",
 ]
+
+[[package]]
+name = "build-id"
+version = "0.1.0"
 
 [[package]]
 name = "bumpalo"
@@ -3535,6 +3545,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "gvdb"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c28284f834fe0083db924efe590a684fe81c661c6269fc536ae964ab01adc111"
+dependencies = [
+ "serde",
+ "zerocopy",
+ "zvariant",
 ]
 
 [[package]]
@@ -6688,6 +6709,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9571ea910ebd84c86af4b3ed27f9dbdc6ad06f17c5f96146b2b671e2976744f"
 dependencies = [
  "bitflags 2.12.1",
+]
+
+[[package]]
+name = "sqlite-schema"
+version = "0.1.0"
+dependencies = [
+ "rusqlite",
 ]
 
 [[package]]

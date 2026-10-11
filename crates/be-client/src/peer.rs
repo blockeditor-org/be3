@@ -630,7 +630,7 @@ impl<S: ObjectStore> Peer<S> {
             be_commit::CommitKind::Autosave
         };
         let commit = Commit::new(manifest.clone(), self.account, time)
-            .with_parents(parents)
+            .with_parents(parents.clone())
             .with_kind(kind)
             .with_references(references.clone())
             .with_metadata(encoded);
@@ -652,6 +652,7 @@ impl<S: ObjectStore> Peer<S> {
                 block,
                 commit: id,
                 expected,
+                parents,
                 chunks: chunks.clone(),
                 time,
                 pinned,

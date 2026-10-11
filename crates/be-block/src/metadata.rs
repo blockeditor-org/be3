@@ -18,6 +18,9 @@ pub const THUMBHASH: MetaKey<Thumbhash> =
 pub const ROW_PREFIX: MetaKey<String> =
     MetaKey::derived(0x6be3_6d65_7461_5000_8a1e_7072_6566_0001, "row_prefix");
 
+pub const SCHEMA: MetaKey<String> =
+    MetaKey::derived(0x6be3_6d65_7461_5300_8a1e_7363_6865_0001, "schema");
+
 pub const ARTIFACT: MetaKey<ArtifactSource> =
     MetaKey::defined(0x6be3_6d65_7461_4100_8a1e_6172_7469_0001, "artifact");
 
@@ -255,7 +258,7 @@ impl Serialize for BlockMetadata {
 
 impl<'de> Deserialize<'de> for BlockMetadata {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let bytes = <Vec<u8>>::deserialize(deserializer)?;
+        let bytes = be_model::bytes::deserialize(deserializer)?;
         Self::decode(&bytes).map_err(serde::de::Error::custom)
     }
 }

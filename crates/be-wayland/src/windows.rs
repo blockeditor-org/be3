@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use beui::reactive::{ReadSignal, WriteSignal, create_signal};
-use beui::{CursorIcon, Drawing, ForwardedInput, Rect, Vec2};
+use beui::{CursorIcon, Drawing, ForwardedInput, Image, NodeId, Rect, Vec2};
 
 use crate::state::WindowId;
 
@@ -17,12 +17,15 @@ pub struct WindowInfo {
     pub size: Vec2,
     pub fullscreen: Option<Rect>,
     pub responding: bool,
+    pub icon: Option<Image>,
+    pub inhibits_shortcuts: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Command {
     Configure(WindowId),
     Close(WindowId),
+    RestoreShortcuts(WindowId),
     Launch(Launch),
 }
 
@@ -32,10 +35,19 @@ pub struct Launch {
     pub working_dir: Option<String>,
 }
 
+#[derive(Clone, PartialEq)]
+pub struct Popups {
+    pub rect: Rect,
+    pub areas: Vec<Rect>,
+    pub drawing: Drawing,
+}
+
 #[derive(Clone)]
 pub struct WindowSignals {
     pub drawing: ReadSignal<Option<Drawing>>,
     set_drawing: WriteSignal<Option<Drawing>>,
+    pub popups: ReadSignal<Option<Popups>>,
+    set_popups: WriteSignal<Option<Popups>>,
     pub focused: ReadSignal<bool>,
     set_focused: WriteSignal<bool>,
     pub(crate) painted: Rc<Cell<bool>>,
@@ -44,6 +56,8 @@ pub struct WindowSignals {
 #[derive(Clone, Copy, Default, PartialEq)]
 struct View {
     rect: Option<Rect>,
+    catcher: Option<NodeId>,
+    popups: Option<NodeId>,
 }
 
 struct Inner {
@@ -158,6 +172,12 @@ impl Windows {
         self.push(Command::Close(id));
     }
 
+    pub fn restore_shortcuts(&self) {
+        if let Some(id) = self.focused() {
+            self.push(Command::RestoreShortcuts(id));
+        }
+    }
+
     pub fn launch(&self, line: String) {
         self.run(Launch {
             arguments: vec!["sh".to_owned(), "-c".to_owned(), line],
@@ -177,12 +197,15 @@ impl Windows {
 
     pub(crate) fn open(&self, id: WindowId) {
         let (drawing, set_drawing) = create_signal(None);
+        let (popups, set_popups) = create_signal(None);
         let (focused, set_focused) = create_signal(true);
         self.0.windows.borrow_mut().insert(
             id,
             WindowSignals {
                 drawing,
                 set_drawing,
+                popups,
+                set_popups,
                 focused,
                 set_focused,
                 painted: Rc::new(Cell::new(false)),
@@ -210,9 +233,10 @@ impl Windows {
         self.0.list.get_untracked().iter().any(|info| info.id == id)
     }
 
-    pub(crate) fn draw(&self, id: WindowId, drawing: Option<Drawing>) {
+    pub(crate) fn draw(&self, id: WindowId, drawing: Option<Drawing>, popups: Option<Popups>) {
         if let Some(signals) = self.signals(id) {
             signals.set_drawing.set(drawing);
+            signals.set_popups.set(popups);
         }
     }
 
@@ -243,6 +267,23 @@ impl Windows {
         if changed {
             self.push(Command::Configure(id));
         }
+    }
+
+    pub(crate) fn caught_by(&self, id: WindowId, catcher: NodeId) {
+        self.0.views.borrow_mut().entry(id).or_default().catcher = Some(catcher);
+    }
+
+    pub(crate) fn popups_caught_by(&self, id: WindowId, catcher: NodeId) {
+        self.0.views.borrow_mut().entry(id).or_default().popups = Some(catcher);
+    }
+
+    pub(crate) fn caught_at(&self, catcher: NodeId) -> Option<(WindowId, Rect)> {
+        self.0
+            .views
+            .borrow()
+            .iter()
+            .find(|(_, view)| view.catcher == Some(catcher) || view.popups == Some(catcher))
+            .and_then(|(id, view)| Some((*id, view.rect?)))
     }
 
     pub(crate) fn unplaced(&self, id: WindowId) {

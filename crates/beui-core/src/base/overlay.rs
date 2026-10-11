@@ -584,9 +584,11 @@ impl Document {
             return false;
         }
         self.floating_overlays().into_iter().any(|overlay| {
-            self.overlay_content(overlay)
-                .and_then(|content| self.node_rect(content))
-                .is_some_and(|rect| rect.contains_half_open(pos))
+            self.overlay_content(overlay).is_some_and(|content| {
+                self.node_rect(content)
+                    .is_some_and(|rect| rect.contains_half_open(pos))
+                    && !crate::interact::forward::floating_hole(self, &self.rects, content, pos)
+            })
         })
     }
 

@@ -20,6 +20,7 @@ async fn pruning_history_keeps_pinned_commits() {
             block,
             commit: first,
             expected: None,
+            parents: Vec::new(),
             chunks: first_chunks.clone(),
             time: 1_000,
             pinned: true,

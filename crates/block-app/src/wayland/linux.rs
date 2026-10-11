@@ -89,14 +89,12 @@ fn with<R>(act: impl FnOnce(&mut Running) -> R) -> Option<R> {
 
 pub(crate) fn environment() -> Vec<(String, String)> {
     with(|running| {
-        let compositor = &running.compositor;
-        let wayland = compositor
-            .socket()
-            .map(|socket| ("WAYLAND_DISPLAY".to_owned(), socket));
-        let x11 = compositor
-            .x11_display()
-            .map(|display| ("DISPLAY".to_owned(), display));
-        wayland.into_iter().chain(x11).collect()
+        running
+            .compositor
+            .environment()
+            .into_iter()
+            .map(|(name, value)| (name.to_owned(), value))
+            .collect()
     })
     .unwrap_or_default()
 }
@@ -191,6 +189,10 @@ pub(crate) fn set_locked(locked: bool) {
     with(|running| running.compositor.set_locked(locked));
 }
 
+pub(crate) fn set_primary_selection(on: bool) {
+    with(|running| running.compositor.set_primary_selection(on));
+}
+
 pub(crate) fn set_keyboard(keyboard: &be_wayland::KeyboardConfig) -> bool {
     with(|running| running.compositor.set_keyboard(keyboard)).unwrap_or(true)
 }
@@ -244,6 +246,11 @@ pub(crate) fn listed() -> Vec<HostWindow> {
             }),
             responding: info.responding,
             focused: windows.focused() == Some(info.id),
+            icon: info.icon.map(|icon| HostImage {
+                width: icon.width(),
+                height: icon.height(),
+                rgba: icon.pixels().to_vec(),
+            }),
             raised: windows.raised(info.id),
         })
         .collect()
@@ -409,6 +416,16 @@ impl Programs {
         });
         crate::host::wake();
         true
+    }
+}
+
+#[component]
+pub(crate) fn WindowActions() -> NodeId {
+    if let Some(windows) = windows() {
+        be_wayland::register_restore_shortcuts(&windows);
+    }
+    view! {
+        <Frame />
     }
 }
 

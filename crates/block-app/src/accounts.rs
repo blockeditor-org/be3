@@ -44,6 +44,14 @@ impl std::fmt::Display for AccountError {
 
 pub(crate) use be_client::socket_url;
 
+pub(crate) fn link_base(server_url: &str) -> String {
+    match server_url.split_once("://") {
+        Some(("ws", rest)) => format!("http://{rest}"),
+        Some(("wss", rest)) => format!("https://{rest}"),
+        _ => server_url.to_owned(),
+    }
+}
+
 fn session_of(response: ServerMessage) -> Result<Session, AccountError> {
     match response {
         ServerMessage::Authenticated {
