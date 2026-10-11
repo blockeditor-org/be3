@@ -35,22 +35,26 @@ pub(crate) fn report_with(message: String, report: String) {
 fn show(message: String, report: Option<String>) {
     {
         let mut notices = notices();
-        if notices
-            .shown
-            .iter()
-            .any(|notice| notice.toast.message == message)
-        {
-            return;
-        }
-        notices.next += 1;
-        let id = notices.next;
-        let actions = report
+        let actions: Vec<ToastAction> = report
             .iter()
             .map(|_| ToastAction {
                 key: COPY_REPORT.to_owned(),
                 label: "Copy report".to_owned(),
             })
             .collect();
+        if let Some(notice) = notices
+            .shown
+            .iter_mut()
+            .find(|notice| notice.toast.message == message)
+        {
+            if report.is_some() {
+                notice.report = report;
+                notice.toast.actions = actions;
+            }
+            return;
+        }
+        notices.next += 1;
+        let id = notices.next;
         notices.shown.push(Notice {
             toast: Toast {
                 id,
@@ -84,3 +88,6 @@ pub(crate) fn shown() -> Vec<Toast> {
         .map(|notice| notice.toast.clone())
         .collect()
 }
+
+#[cfg(test)]
+mod tests;
