@@ -32,7 +32,7 @@ fi
 
 triple="$(buck2_triple)"
 sha256="$(buck2_release_sha256 be "$triple")"
-url="$download_mirror/be/$be_release/be-$triple"
+url="$download_mirror/be/$be_release/be-$triple/be"
 
 echo "Downloading be $be_release from $url..." >&2
 mkdir -p "$directory"

@@ -327,12 +327,12 @@ buck2_release_sha256() {
 # (guides/tracker.md), built from the same commit as the be-server the tracker
 # lives on. The release is that server's build id (its build-id file), which
 # install-be.sh writes beside be, so the server refuses this be once it is
-# deployed from another build. The binaries are uploaded to the mirror as
-# be/<release>/be-<triple>, by the same triple buck2's releases are named
-# after, and checked against these hashes. An empty hash is a platform with no
+# deployed from another build. Each platform's :be bundle is uploaded to the
+# mirror as be/<release>/be-<triple>/, by the same triple buck2's releases are
+# named after, and its be is checked against these hashes. An empty hash is a platform with no
 # release uploaded yet.
-be_release=''
-be_sha256_x86_64_unknown_linux_gnu=''
+be_release='147e044bd9addd0ff55b6e4b0c01b054a2647d28'
+be_sha256_x86_64_unknown_linux_gnu='88bb8cdfc2a47711b5eae38544bebc3fb69f0d7d7cf7084c725d17b5ef43fdf5'
 be_sha256_aarch64_unknown_linux_gnu=''
 be_sha256_x86_64_apple_darwin=''
 be_sha256_aarch64_apple_darwin=''
