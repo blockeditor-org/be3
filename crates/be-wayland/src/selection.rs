@@ -17,13 +17,12 @@ use smithay::wayland::selection::ext_data_control::{
     DataControlHandler as ExtDataControlHandler, DataControlState as ExtDataControlState,
 };
 use smithay::wayland::selection::primary_selection::{
-    PrimarySelectionHandler, PrimarySelectionState,
+    PrimarySelectionHandler, PrimarySelectionState, clear_primary_selection,
 };
 use smithay::wayland::selection::wlr_data_control::{
     DataControlHandler as WlrDataControlHandler, DataControlState as WlrDataControlState,
 };
 use smithay::wayland::selection::{SelectionHandler, SelectionSource, SelectionTarget};
-use smithay::{delegate_data_control, delegate_ext_data_control, delegate_primary_selection};
 
 use crate::server::Waiter;
 use crate::state::State;
@@ -43,9 +42,8 @@ pub(crate) type HostText = Arc<str>;
 pub(crate) struct Selection {
     data_device: DataDeviceState,
     primary: PrimarySelectionState,
-    primary_on: Arc<AtomicBool>,
-    ext_with_primary: ExtDataControlState,
-    _ext_without_primary: ExtDataControlState,
+    primary_on: bool,
+    ext: ExtDataControlState,
     wlr: WlrDataControlState,
     offered: Option<Vec<String>>,
     reading: Option<Reading>,
@@ -66,27 +64,14 @@ enum Progress {
 
 impl Selection {
     pub(crate) fn new(handle: &DisplayHandle) -> Self {
-        let primary_on = Arc::new(AtomicBool::new(false));
-        let shown = primary_on.clone();
-        let primary = PrimarySelectionState::new_with_filter::<State, _>(handle, move |_| {
-            shown.load(Ordering::SeqCst)
-        });
-        let with = primary_on.clone();
-        let without = primary_on.clone();
-        let ext_with_primary =
-            ExtDataControlState::new::<State, _>(handle, Some(&primary), move |_| {
-                with.load(Ordering::SeqCst)
-            });
-        let ext_without_primary = ExtDataControlState::new::<State, _>(handle, None, move |_| {
-            !without.load(Ordering::SeqCst)
-        });
+        let primary = PrimarySelectionState::new::<State>(handle);
+        let ext = ExtDataControlState::new::<State, _>(handle, Some(&primary), |_| true);
         let wlr = WlrDataControlState::new::<State, _>(handle, Some(&primary), |_| true);
         Self {
             data_device: DataDeviceState::new::<State>(handle),
             primary,
-            primary_on,
-            ext_with_primary,
-            _ext_without_primary: ext_without_primary,
+            primary_on: false,
+            ext,
             wlr,
             offered: None,
             reading: None,
@@ -95,8 +80,8 @@ impl Selection {
         }
     }
 
-    pub(crate) fn set_primary(&self, on: bool) {
-        self.primary_on.store(on, Ordering::SeqCst);
+    pub(crate) fn primary_on(&self) -> bool {
+        self.primary_on
     }
 
     fn offered(&mut self, mime_types: Option<Vec<String>>) {
@@ -208,7 +193,11 @@ fn send_text(fd: OwnedFd, text: HostText) {
 
 impl State {
     pub fn set_primary_selection(&mut self, on: bool) {
-        self.selection.set_primary(on);
+        self.selection.primary_on = on;
+        if !on {
+            let handle = self.display_handle();
+            clear_primary_selection(&handle, &self.seat);
+        }
     }
 
     pub(crate) fn fetch_selection(&mut self) {
@@ -288,7 +277,7 @@ impl PrimarySelectionHandler for State {
 
 impl ExtDataControlHandler for State {
     fn data_control_state(&self) -> &ExtDataControlState {
-        &self.selection.ext_with_primary
+        &self.selection.ext
     }
 }
 
@@ -298,9 +287,7 @@ impl WlrDataControlHandler for State {
     }
 }
 
-delegate_primary_selection!(State);
-delegate_data_control!(State);
-delegate_ext_data_control!(State);
+mod primary;
 
 #[cfg(test)]
 pub(crate) mod client;

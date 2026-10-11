@@ -58,6 +58,8 @@ mod the_lock_time_runs_on_its_own_and_ignores_inhibitors_once_locked;
 mod the_pointer_shows_the_cursor_surface_a_client_sets_over_its_window;
 mod the_session_idles_after_the_blank_time_and_wakes_on_input;
 mod the_ui_can_make_a_window_fullscreen_and_take_it_back;
+mod with_middle_click_paste_off_a_selection_is_cancelled_and_offered_to_no_one;
+mod with_middle_click_paste_on_a_selection_is_offered_until_it_is_switched_off;
 
 use beui::reactive::{
     ForEach, Frame, Interactive, List, Overlay, OverlayAnchor, Placement, WriteSignal, build,

@@ -379,9 +379,14 @@ through `Context::read_clipboard`, so both work in a session, where the platform
 the DRM adapter's own. A selection that only offers images is not handed to the app.
 
 Middle-click paste (`zwp_primary_selection_device_manager_v1`, and the primary selection of the
-data-control protocols) is off unless the input settings' "Middle-click paste" is on; while it
-is off the global is not advertised, so programs have no primary selection. Like any global it
-is offered when a program connects, so the setting reaches programs started after it changes.
+data-control protocols) is off unless the input settings' "Middle-click paste" is on. The globals are always
+advertised, because a program that finds no primary selection protocol emulates one (Firefox
+then pastes the clipboard on a middle click). While the setting is off the primary selection
+just stays empty: `selection/primary.rs` answers every `set_selection` on a primary device, and
+`set_primary_selection` on a data-control device, by cancelling the source, and switching it
+off clears the current one, so it takes effect at once in running programs. X11 programs keep
+their own `PRIMARY` in Xwayland, which nothing bridges to Wayland, so they can still
+middle-click paste among themselves.
 
 To try them, run `wl-copy TEXT` and `wl-paste` (the `wl-clipboard` package) with
 `WAYLAND_DISPLAY` set to the app's socket, and copy or paste in the app with `drive key ctrl+c`
