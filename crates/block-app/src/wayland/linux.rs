@@ -89,14 +89,12 @@ fn with<R>(act: impl FnOnce(&mut Running) -> R) -> Option<R> {
 
 pub(crate) fn environment() -> Vec<(String, String)> {
     with(|running| {
-        let compositor = &running.compositor;
-        let wayland = compositor
-            .socket()
-            .map(|socket| ("WAYLAND_DISPLAY".to_owned(), socket));
-        let x11 = compositor
-            .x11_display()
-            .map(|display| ("DISPLAY".to_owned(), display));
-        wayland.into_iter().chain(x11).collect()
+        running
+            .compositor
+            .environment()
+            .into_iter()
+            .map(|(name, value)| (name.to_owned(), value))
+            .collect()
     })
     .unwrap_or_default()
 }

@@ -832,6 +832,7 @@ dependencies = [
  "be-dmabuf",
  "beui",
  "bytemuck",
+ "gvdb",
  "image",
  "resvg",
  "rustix 1.1.4",
@@ -3515,6 +3516,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "gvdb"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c28284f834fe0083db924efe590a684fe81c661c6269fc536ae964ab01adc111"
+dependencies = [
+ "serde",
+ "zerocopy",
+ "zvariant",
 ]
 
 [[package]]
