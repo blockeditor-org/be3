@@ -28,7 +28,8 @@ use beui::styled::{
     IconButtonSize, IconSized, KeepChanges, Launcher, LauncherItem, LevelOsd, Link, ListRow,
     Listbox, LockAction, LockScreen, MenuButton, ModalSheet, NumberInput, OklchColorWheel,
     OsdLevel, Paragraph, PictureMenuButton, Popover, Progress, RadioGroup, ResponsiveTabs, Scroll,
-    Select, SelectableText, Separator, Shortcut, Slider, Spinner, SplitButton, Stack, Switch, Tabs,
+    Select, SelectableText, Separator, Shortcut, Slider, Spinner, SplitButton, Stack, StaleNotice,
+    Switch, Tabs,
     TextArea, TextInput, Theme, ThemeProvider, Title, Toast, ToastAction, Toasts, ToggleButton,
     Tooltip, Tree, TreeRowFace, use_theme,
 };

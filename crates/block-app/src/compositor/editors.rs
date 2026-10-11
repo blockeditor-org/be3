@@ -27,7 +27,7 @@ use crate::editors::{
 };
 use crate::host::HostItem;
 use crate::plugin_host::{self, ChildCommit, EditorView, HostChild, HostChildStatus, HostContent};
-use crate::surfaces::{HostItemFace, HostedRegion, HostedSurface, SurfaceId};
+use crate::surfaces::{HostItemFace, HostedRegion, HostedSurface, StaleBlock, SurfaceId};
 use crate::ui::HostPanelSurface;
 
 const MIN_ZOOM: f32 = 1.0 / 64.0;
@@ -813,6 +813,7 @@ enum Resolution {
     NoAccess,
     Missing,
     Unsupported(Uuid),
+    Stale(Uuid, crate::be::Stale),
     Ready { region: RegionKey, access: Access },
 }
 
@@ -848,6 +849,9 @@ fn BlockFrameBody(
         let Some(handle) = editors.handle(block) else {
             return Resolution::Missing;
         };
+        if let Some(stale) = crate::be::staleness(block) {
+            return Resolution::Stale(handle.block_type, stale);
+        }
         match region_key(&editors, block, false) {
             Some(region) => Resolution::Ready { region, access },
             None => Resolution::Unsupported(handle.block_type),
@@ -876,6 +880,9 @@ fn BlockFrameBody(
                                 <Notice item />
                             }
                         }
+                        Resolution::Stale(block_type, stale) => view! {
+                            <StaleBlock block block_type stale />
+                        },
                         Resolution::Ready { access, .. } => {
                             let editors = self::editors();
                             let Some(handle) = editors.handle(block) else {

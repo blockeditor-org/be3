@@ -19,6 +19,7 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
+                    "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
@@ -27,9 +28,7 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
-                    "//crates/be-store:be-store",
-                ],
+                "test_deps": [],
                 "test_features": [],
             },
             "linux-arm64": {
@@ -37,6 +36,7 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
+                    "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
@@ -45,9 +45,7 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
-                    "//crates/be-store:be-store",
-                ],
+                "test_deps": [],
                 "test_features": [],
             },
             "linux-x86_64": {
@@ -55,6 +53,7 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
+                    "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
@@ -63,9 +62,7 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
-                    "//crates/be-store:be-store",
-                ],
+                "test_deps": [],
                 "test_features": [],
             },
             "macos-arm64": {
@@ -73,6 +70,7 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
+                    "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
@@ -81,9 +79,7 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
-                    "//crates/be-store:be-store",
-                ],
+                "test_deps": [],
                 "test_features": [],
             },
             "macos-x86_64": {
@@ -91,6 +87,7 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
+                    "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
@@ -99,9 +96,7 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
-                    "//crates/be-store:be-store",
-                ],
+                "test_deps": [],
                 "test_features": [],
             },
             "wasi": {
@@ -109,6 +104,7 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
+                    "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
@@ -125,6 +121,7 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
+                    "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
@@ -141,6 +138,7 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
+                    "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
@@ -149,9 +147,7 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
-                    "//crates/be-store:be-store",
-                ],
+                "test_deps": [],
                 "test_features": [],
             },
             "windows-x86_64": {
@@ -159,6 +155,7 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
+                    "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
@@ -167,9 +164,7 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
-                    "//crates/be-store:be-store",
-                ],
+                "test_deps": [],
                 "test_features": [],
             },
         },

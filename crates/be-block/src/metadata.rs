@@ -15,6 +15,9 @@ pub const INTRINSIC_NAME: MetaKey<String> =
 pub const THUMBHASH: MetaKey<Thumbhash> =
     MetaKey::derived(0x6be3_6d65_7461_5400_8a1e_7468_756d_0001, "thumbhash");
 
+pub const SCHEMA: MetaKey<String> =
+    MetaKey::derived(0x6be3_6d65_7461_5300_8a1e_7363_6865_0001, "schema");
+
 pub const ARTIFACT: MetaKey<ArtifactSource> =
     MetaKey::defined(0x6be3_6d65_7461_4100_8a1e_6172_7469_0001, "artifact");
 
