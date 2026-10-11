@@ -260,7 +260,7 @@ impl Document {
 
     pub fn focusables_within(&self, root: NodeId) -> Vec<NodeId> {
         let mut out = Vec::new();
-        self.collect_focusables(root, &mut out);
+        self.collect_focusables(root, &mut out, &self.blocked_focus_roots());
         out
     }
 
@@ -312,12 +312,15 @@ impl Document {
             .map(NodeOf::id)
             .or(self.root);
         if let Some(start) = start {
-            self.collect_focusables(start, &mut out);
+            self.collect_focusables(start, &mut out, &self.blocked_focus_roots());
         }
         out
     }
 
-    fn collect_focusables(&self, id: NodeId, out: &mut Vec<NodeId>) {
+    fn collect_focusables(&self, id: NodeId, out: &mut Vec<NodeId>, blocked: &[NodeId]) {
+        if blocked.contains(&id) {
+            return;
+        }
         let element = self.arena.get(id);
         if element
             .as_any()
@@ -337,7 +340,7 @@ impl Document {
             out.push(id);
         }
         for child in element.children() {
-            self.collect_focusables(child, out);
+            self.collect_focusables(child, out, blocked);
         }
     }
 
@@ -364,6 +367,15 @@ impl Document {
             if leaves {
                 return;
             }
+        }
+        if let Some(new) = new_focus
+            && let Some(overlay) = self.focus_blocked_by(new)
+        {
+            let redirect = self.blocked_focus_redirect(overlay);
+            if redirect.is_some() && redirect != self.focused {
+                self.update_focus(redirect);
+            }
+            return;
         }
         let old = self.focused;
         self.composed.clear();

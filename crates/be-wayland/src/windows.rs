@@ -13,6 +13,7 @@ pub struct WindowInfo {
     pub title: String,
     pub app_id: String,
     pub parent: Option<WindowId>,
+    pub modal: bool,
     pub size: Vec2,
     pub fullscreen: Option<Rect>,
     pub responding: bool,
@@ -56,6 +57,7 @@ struct Inner {
     fullscreen_requests: RefCell<Vec<(WindowId, bool)>>,
     activate: Cell<Option<WindowId>>,
     focused: Cell<Option<WindowId>>,
+    raised: RefCell<HashMap<WindowId, u64>>,
     list: ReadSignal<Vec<WindowInfo>>,
     set_list: WriteSignal<Vec<WindowInfo>>,
     revision: Cell<u64>,
@@ -81,6 +83,7 @@ impl Windows {
             fullscreen_requests: RefCell::new(Vec::new()),
             activate: Cell::new(None),
             focused: Cell::new(None),
+            raised: RefCell::new(HashMap::new()),
             list,
             set_list,
             revision: Cell::new(0),
@@ -135,9 +138,23 @@ impl Windows {
     }
 
     pub(crate) fn raise(&self, id: WindowId) {
-        if let Some(signals) = self.signals(id) {
-            signals.set_focused.set(true);
-        }
+        let id = self.blocked_by(id).unwrap_or(id);
+        let Some(signals) = self.signals(id) else {
+            return;
+        };
+        signals.set_focused.set(true);
+        *self.0.raised.borrow_mut().entry(id).or_default() += 1;
+        self.0.revision.set(self.0.revision.get() + 1);
+    }
+
+    pub fn raised(&self, id: WindowId) -> u64 {
+        self.0.raised.borrow().get(&id).copied().unwrap_or_default()
+    }
+
+    pub fn blocked_by(&self, id: WindowId) -> Option<WindowId> {
+        self.0
+            .list
+            .with_untracked(|list| crate::dialog::modal_dialog(list, id))
     }
 
     pub fn close(&self, id: WindowId) {
@@ -185,6 +202,7 @@ impl Windows {
     pub(crate) fn forget(&self, id: WindowId) {
         self.0.windows.borrow_mut().remove(&id);
         self.0.views.borrow_mut().remove(&id);
+        self.0.raised.borrow_mut().remove(&id);
         if self.0.focused.get() == Some(id) {
             self.0.focused.set(None);
         }
@@ -253,6 +271,9 @@ impl Windows {
     }
 
     pub(crate) fn focus(&self, id: WindowId, focused: bool) {
+        if focused && let Some(dialog) = self.blocked_by(id) {
+            self.raise(dialog);
+        }
         if let Some(signals) = self.signals(id)
             && signals.focused.get_untracked() != focused
         {

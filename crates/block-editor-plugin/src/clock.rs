@@ -20,6 +20,10 @@ pub(crate) fn set_frame_time(now: Duration) {
     });
 }
 
+pub(crate) fn restart() {
+    FRAME.with(|frame| frame.set(None));
+}
+
 pub fn frame_time() -> Option<Instant> {
     FRAME.with(|frame| frame.get().map(|(epoch, now)| epoch + now))
 }

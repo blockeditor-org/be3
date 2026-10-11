@@ -47,6 +47,17 @@ plugin runs (signing in, choosing a workspace) and over either shell; they stack
 top-right corner (`Toasts` with `edge=Edge::TopEnd`), clear of linux-desktop's bar and its
 notification toasts at the bottom.
 
+A panic must not take every program's window with it, so block-app's `panic_guard` sorts
+panics by where they happen. Every panic is logged with its backtrace. One inside
+`panic_guard::contain` is contained: a plugin, or the host's work for one, stops only that
+plugin (guides/adding_a_plugin_editor.md), the shell included, while the compositor and its
+clients keep running; a D-Bus task (`dbus::spawn`) ends alone with a toast; a
+password check that panics fails. Any other panic, on the UI thread or on a thread nothing
+contains (the block stack's, say), is the app's own: in a window the app shows its error
+screen, and under `--session` it ends the session instead, through beui's runner and
+`beui_adapter_drm`'s `Session::end`, so the console comes back and the display manager takes
+over rather than a frozen screen.
+
 The screens turn off after the display settings' "Turn off screens after" (ten minutes by
 default). `be_wayland::Compositor` counts the idle time on the frame clock from the frames that
 carried input (`Document::input_frames`), held back while a window that is shown has a `zwp_idle_inhibitor_v1`, and answers
@@ -126,6 +137,36 @@ signals.
 `notify-send` with an action waits, and prints the action taken, until the notification
 closes. `dbus-run-session` does not suit `:dev`, since its bus goes away when the launcher
 returns.
+
+## The tray
+
+Programs such as Discord, Steam and Nextcloud show tray icons as StatusNotifierItems. The
+desktop shell serves `org.kde.StatusNotifierWatcher` on the session bus from block-app's
+`src/tray/` and is its `StatusNotifierHost`; under another desktop whose watcher already owns
+the name it registers with that one as a host instead. `client.rs` is one task on the D-Bus
+thread that every change reaches as an `Event`: registrations, `NameOwnerChanged` (an item
+goes with its program), the items' `New*` signals (which read the item's properties again) and
+`com.canonical.dbusmenu`'s `LayoutUpdated` and `ItemsPropertiesUpdated` (which read its whole
+menu again with `GetLayout`). Reading runs in tasks of its own, ticketed so a slow answer never
+replaces a newer one. `icons.rs` picks the picture: when the item needs attention its attention
+icon, then `IconName` (in `IconThemePath`, then the icon themes through be-wayland's
+`IconThemes`) before `IconPixmap`, scaled to at most 48 pixels. `model.rs` is the pure part and
+where to test parsing: services, pixmaps (ARGB in network order), properties and menus
+(hidden entries dropped, `_` mnemonics removed).
+
+The shell watches the `Tray` host value, the items as `HostTrayItem`s with each menu a tree of
+`TrayMenuEntry`s, and answers with `TrayRequest`s. linux-desktop's `src/app/tray.rs` shows each
+item that is not `Passive` as a `PictureMenuButton` in the bar: a click is `Activate` (or opens
+the menu of an `ItemIsMenu` item), a right click opens the menu, a middle click is
+`SecondaryActivate` and the wheel `Scroll`s, 120 to a notch. Opening the menu sends
+`MenuOpened`, which the host turns into `AboutToShow` and the `opened` event, or into the item's
+own `ContextMenu` when it has no dbusmenu; choosing an entry is the `clicked` event.
+
+The tests run a private bus with the test runtime's `dbus-daemon` (`BE3_DBUS_DAEMON`). To try it
+in the dev app, start a bus as for notifications and run a tray program against it with the
+compositor's socket, for example a Python script using `gir1.2-ayatanaappindicator3-0.1`:
+
+    DBUS_SESSION_BUS_ADDRESS=ADDRESS WAYLAND_DISPLAY=/tmp/be-wayland-PID python3 indicator.py
 
 ## Media and hardware keys
 
@@ -207,7 +248,7 @@ program can also be started against the socket directly:
 
     WAYLAND_DISPLAY=/tmp/be-wayland-<the app's pid> foot
 
-Each window opens as a tab of the workspace. `weston-simple-shm` (from the `weston` package)
+A top-level window opens as a tab in the workspace shell and floats in a dock window of its own in the desktop shell. A window with a parent (`xdg_toplevel.set_parent`) instead hangs over its parent's tab as a dock dialog (see the dock in guides/beui.md), showing and hiding with it. `xdg-dialog-v1` (be-wayland's `dialog.rs`) lets a program mark such a window modal (an XWayland window's parent is its `WM_TRANSIENT_FOR` and its modal flag `_NET_WM_STATE_MODAL`, which smithay's `X11Surface::is_popup` reads): `WindowInfo::modal` is set, and `Windows::blocked_by` names the innermost modal dialog of a window, to which be-wayland gives the keyboard whenever the parent would get it, and for which it drops the parent's pointer input. `weston-simple-shm` (from the `weston` package)
 and `foot` are small clients to try it with. `foot --fullscreen` starts one fullscreen, and in the desktop shell Super+F toggles fullscreen on the focused
 window (linux-desktop's `desktop.fullscreen` action, which sends `WindowAction::Fullscreen`). Under `--session` and `--desktop`, Super+drag anywhere on a floating window, its bar
 included, moves the window, and Super+right-drag resizes it from its nearest edge or corner,
@@ -229,7 +270,7 @@ name up in the icon theme, and it reaches the shell as `HostWindow::icon` beside
 which block-shell's `WindowTab` hands the dock as its `DockTab` `picture`. Without one the
 tab shows a generic glyph. `xdg-foreign` v2 lets a program parent its window to another
 program's, as a portal does with its file chooser: the child's `HostWindow::parent` is the
-exported window and it opens as that window's dialog. The xdg shell offers only the
+exported window, and it is shown as that window's child like any other dialog. The xdg shell offers only the
 fullscreen capability (`wm_capabilities`), so GTK 4 and libadwaita leave out the minimize
 and maximize buttons: a tab has nowhere to minimize to, and its size is the dock's, so
 maximizing would change nothing (a request to maximize is still answered with the
@@ -247,12 +288,34 @@ block-app's `WindowActions`) takes the shortcuts back from the focused window un
 loses the keyboard and gets it again. The inhibitor is told it is active only while its
 window has the keyboard.
 
+Under `--session` the DRM adapter draws the pointer into each output's frame, redrawing only the
+outputs the cursor moved off or onto. beui's `CursorIcon`s (every CSS cursor; `name()` is the CSS
+name) come from the XCursor theme (`XCURSOR_THEME`, `XCURSOR_SIZE`, `XCURSOR_PATH` or the XDG
+icon directories, following `Inherits`), looked up by CSS name and then the old X11 names
+(`cursors.rs`), at the size the scale needs; without a theme the built-in arrow is drawn. Over a
+window, a `wp_cursor_shape_v1` shape becomes the window's `CursorIcon` (`Windows::cursor`, which
+the winit backend shows too), and a `wl_pointer.set_cursor` surface reaches the adapter through
+`beui_adapter_drm::SoftwareCursor` (block-app's `wayland/linux.rs`), redrawn whenever the client
+commits to it; a null cursor hides the pointer.
+
+Under `--session` the app runs a frame only when an output has flipped since the last one (`beui-adapter-drm`'s `pacing.rs`), and a window's `wl_surface.frame` callbacks and `wp_presentation_feedback` are answered by the flip of the screen it mostly covers, with the flip's time, refresh and sequence: the adapter reports each flip through `beui_adapter_drm::Flips`, which block-app hands to `Compositor::presented` (`presentation.rs`). Elsewhere there are no flips, so they are answered as soon as the window is painted, at the frame clock's time.
+
 A `WindowView` that changes size configures its client with the new size in that same frame.
 Until the client commits a buffer of that size, its last one is drawn at its own size from the
 view's top-left corner, clipped to the view, never stretched to fit; the size a surface is
 drawn at is its buffer's size over its buffer scale, or the destination it set through
 viewporter. `render.rs` draws it, `a_resized_window_is_drawn_unscaled_until_it_commits_the_new_size`
 checks the pixels.
+A program brings one of its windows forward, or another program's (a link opened in a browser
+that is already running), with `xdg_activation_v1` (be-wayland's `activation.rs`). A client is
+given a token only while it has the keyboard and only for the serial of an input event since it
+got it; the token works once, within `TOKEN_LIFETIME` on the frame clock, and only while the
+keyboard is still where it was when the token was made. Every program the compositor starts
+(`Windows::run`, which the launcher and `ProgramAction::Run` use) gets a fresh token of the
+compositor's own as `XDG_ACTIVATION_TOKEN` and `DESKTOP_STARTUP_ID`, honoured whatever has the
+keyboard. An honoured request goes through `Windows::activate`, as `WindowAction::Focus` does,
+which bumps the window's `raised` count so the shell shows its tab. Anything else is ignored;
+the dock has no way yet to mark a tab as wanting attention.
 
 ### X11 programs
 

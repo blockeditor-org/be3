@@ -66,7 +66,7 @@ impl State {
     }
 
     pub(crate) fn icon_committed(&mut self, root: &WlSurface) {
-        let Some(id) = self.window_id_of(root) else {
+        let Some(id) = self.window_of_surface(root) else {
             return;
         };
         let (name, buffers) = with_states(root, |states| {

@@ -981,7 +981,22 @@ fn aggregator_declares(path: &Path, module: &str) -> Result<bool, Box<dyn Error>
 fn has_plain_module(source: &str, module: &str) -> bool {
     source
         .lines()
-        .any(|line| line.trim() == format!("mod {module};"))
+        .any(|line| without_visibility(line.trim()) == format!("mod {module};"))
+}
+
+fn without_visibility(line: &str) -> &str {
+    let Some(rest) = line.strip_prefix("pub") else {
+        return line;
+    };
+    let rest = match rest.trim_start().strip_prefix('(') {
+        Some(scoped) => match scoped.find(')') {
+            Some(end) => &scoped[end + 1..],
+            None => return line,
+        },
+        None if rest.starts_with(char::is_whitespace) => rest,
+        None => return line,
+    };
+    rest.trim_start()
 }
 
 fn declared_modules(source: &str) -> Vec<String> {

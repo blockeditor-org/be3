@@ -53,6 +53,8 @@ pub enum Placement {
     InsideTopEnd,
     InsideBottom,
     InsideBottomEnd,
+    Cover,
+    CenterOn,
 }
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
@@ -84,6 +86,7 @@ pub struct OverlayNode {
     mode: OverlayMode,
     locks: bool,
     returns_to: Option<NodeId>,
+    blocks: Option<NodeRef>,
     on_dismiss: Option<ClickHandler>,
 }
 
@@ -109,6 +112,7 @@ impl OverlayNode {
             mode: OverlayMode::Modal,
             locks: false,
             returns_to: None,
+            blocks: None,
             on_dismiss: None,
         }
     }
@@ -158,6 +162,22 @@ fn resolve_rect(
     }
     if placement == Placement::Around {
         return Rect::from_center_size(anchor_rect.center(), content_size);
+    }
+    if placement == Placement::Cover {
+        return anchor_rect;
+    }
+    if placement == Placement::CenterOn {
+        let size = content_size.min(viewport.size()).max(Vec2::ZERO);
+        let centred = Rect::from_center_size(anchor_rect.center(), size);
+        let x = centred
+            .left()
+            .min(viewport.right() - size.x)
+            .max(viewport.left());
+        let y = centred
+            .top()
+            .min(viewport.bottom() - size.y)
+            .max(viewport.top());
+        return Rect::from_min_size(pos2(x, y), size);
     }
     if let Placement::Fill | Placement::FillScreen = placement {
         return viewport;
@@ -232,7 +252,9 @@ fn resolve_rect(
         | Placement::InsideTop
         | Placement::InsideTopEnd
         | Placement::InsideBottom
-        | Placement::InsideBottomEnd => {
+        | Placement::InsideBottomEnd
+        | Placement::Cover
+        | Placement::CenterOn => {
             unreachable!("a centred or pinned overlay is placed above")
         }
     };
@@ -349,6 +371,7 @@ impl Element for OverlayNode {
             ("traps focus", self.traps_focus.to_string()),
             ("light dismiss", self.light.to_string()),
             ("locks", self.locks.to_string()),
+            ("blocks", self.blocks.is_some().to_string()),
         ]
     }
 
@@ -575,12 +598,161 @@ impl Document {
         else {
             return;
         };
-        if index + 1 == self.passive_overlays.len() {
+        let raised = self.passive_overlays[index];
+        if index + 1 < self.passive_overlays.len() {
+            self.passive_overlays.remove(index);
+            self.passive_overlays.push(raised);
+            self.arena.invalidate_node(raised);
+        }
+        self.lift_anchored(raised);
+    }
+
+    fn lift_anchored(&mut self, overlay: NodeOf<OverlayNode>) {
+        let anchored: Vec<(NodeOf<OverlayNode>, NodeId)> = self
+            .passive_overlays
+            .iter()
+            .copied()
+            .filter(|candidate| *candidate != overlay && self.contains(*candidate))
+            .filter_map(
+                |candidate| match &self.arena.get_as::<OverlayNode>(candidate).anchor {
+                    OverlayAnchor::Node(node) => Some((candidate, node.try_get()?)),
+                    OverlayAnchor::Point(_) | OverlayAnchor::Rect(_) => None,
+                },
+            )
+            .collect();
+        if anchored.is_empty() {
             return;
         }
-        let raised = self.passive_overlays.remove(index);
-        self.passive_overlays.push(raised);
-        self.arena.invalidate_node(raised);
+        let mut lifted: Vec<NodeOf<OverlayNode>> = Vec::new();
+        let mut pending = vec![overlay];
+        while let Some(holder) = pending.pop() {
+            let waiting: Vec<(NodeOf<OverlayNode>, NodeId)> = anchored
+                .iter()
+                .copied()
+                .filter(|(candidate, _)| !lifted.contains(candidate))
+                .collect();
+            for found in self.anchored_within(holder.id(), &waiting) {
+                lifted.push(found);
+                pending.push(found);
+            }
+        }
+        if lifted.is_empty() {
+            return;
+        }
+        let ordered: Vec<NodeOf<OverlayNode>> = self
+            .passive_overlays
+            .iter()
+            .copied()
+            .filter(|id| lifted.contains(id))
+            .collect();
+        self.passive_overlays.retain(|id| !lifted.contains(id));
+        let at = self
+            .passive_overlays
+            .iter()
+            .position(|id| *id == overlay)
+            .map_or(self.passive_overlays.len(), |at| at + 1);
+        for (offset, id) in ordered.into_iter().enumerate() {
+            self.passive_overlays.insert(at + offset, id);
+            self.arena.invalidate_node(id);
+        }
+    }
+
+    fn anchored_within(
+        &self,
+        root: NodeId,
+        candidates: &[(NodeOf<OverlayNode>, NodeId)],
+    ) -> Vec<NodeOf<OverlayNode>> {
+        let mut found = Vec::new();
+        if candidates.is_empty() || !self.contains(root) {
+            return found;
+        }
+        let mut pending = self.arena.get(root).children();
+        while let Some(node) = pending.pop() {
+            if !self.contains(node) {
+                continue;
+            }
+            for (candidate, anchor) in candidates {
+                if *anchor == node && !found.contains(candidate) {
+                    found.push(*candidate);
+                }
+            }
+            if found.len() == candidates.len() {
+                break;
+            }
+            pending.extend(self.arena.get(node).children());
+        }
+        found
+    }
+
+    pub fn set_overlay_blocks(&mut self, overlay: NodeOf<OverlayNode>, blocks: Option<NodeRef>) {
+        if self.arena.get_as::<OverlayNode>(overlay).blocks == blocks {
+            return;
+        }
+        self.arena.get_mut_as::<OverlayNode>(overlay).blocks = blocks;
+        self.enforce_focus_blocks();
+    }
+
+    fn focus_blocks(&self) -> Vec<(NodeOf<OverlayNode>, NodeId)> {
+        self.overlay_stack
+            .iter()
+            .chain(self.passive_overlays.iter())
+            .copied()
+            .filter(|overlay| self.contains(*overlay))
+            .filter_map(|overlay| {
+                let node = self.arena.get_as::<OverlayNode>(overlay);
+                let blocked = node.blocks.as_ref()?.try_get()?;
+                (node.open && self.contains(blocked)).then_some((overlay, blocked))
+            })
+            .collect()
+    }
+
+    pub(crate) fn blocked_focus_roots(&self) -> Vec<NodeId> {
+        if self.overlay_stack.is_empty() && self.passive_overlays.is_empty() {
+            return Vec::new();
+        }
+        self.focus_blocks()
+            .into_iter()
+            .map(|(_, blocked)| blocked)
+            .collect()
+    }
+
+    pub(crate) fn focus_blocked_by(&self, node: NodeId) -> Option<NodeOf<OverlayNode>> {
+        if self.overlay_stack.is_empty() && self.passive_overlays.is_empty() {
+            return None;
+        }
+        self.focus_blocks()
+            .into_iter()
+            .find(|(overlay, blocked)| {
+                self.is_within(node, *blocked) && !self.is_within(node, overlay.id())
+            })
+            .map(|(overlay, _)| overlay)
+    }
+
+    pub(crate) fn blocked_focus_redirect(&self, overlay: NodeOf<OverlayNode>) -> Option<NodeId> {
+        let mut overlay = overlay;
+        let mut visited = vec![overlay];
+        loop {
+            let content = self.overlay_content(overlay)?;
+            match self.focus_blocked_by(content) {
+                Some(next) if !visited.contains(&next) => {
+                    visited.push(next);
+                    overlay = next;
+                }
+                Some(_) => return None,
+                None => return self.focusables_within(content).first().copied(),
+            }
+        }
+    }
+
+    fn enforce_focus_blocks(&mut self) {
+        let Some(focused) = self.focused else {
+            return;
+        };
+        let Some(overlay) = self.focus_blocked_by(focused) else {
+            return;
+        };
+        let redirect = self.blocked_focus_redirect(overlay);
+        self.update_focus(redirect);
     }
 
     pub fn overlay_traps_focus(&self, overlay: NodeOf<OverlayNode>) -> bool {
@@ -684,6 +856,10 @@ impl Document {
             false => self.passive_overlays.push(overlay),
         }
         self.arena.invalidate_node(overlay);
+        if !self.arena.get_as::<OverlayNode>(overlay).mode.stacked() {
+            self.lift_anchored(overlay);
+        }
+        self.enforce_focus_blocks();
     }
 
     fn opening_screen(&self, overlay: NodeOf<OverlayNode>) -> Option<String> {

@@ -123,7 +123,97 @@ pub(crate) fn DockingPage() -> NodeId {
             <Sample title="Moving windows by their content" code={vec![ContentDrag::SOURCE]}>
                 <ContentDrag />
             </Sample>
+            <Sample
+                title="Dialogs attached to a tab"
+                code={vec![AttachedDialogs::SOURCE, AttachedDialog::SOURCE]}
+            >
+                <AttachedDialogs />
+            </Sample>
         </ScrollPage>
+    }
+}
+
+#[sample]
+#[component]
+fn AttachedDialogs() -> NodeId {
+    let dialogs = use_context::<DemoDialogs>();
+    let tab = use_dock_tab().map(|control| control.tab());
+    let modeless = dialogs.clone();
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal spacing=ROW_SPACING>
+                <Button
+                    @test_id="demo.dialog.open"
+                    label="Open a dialog"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || {
+                        if let (Some(dialogs), Some(tab)) = (modeless.as_ref(), tab) {
+                            dialogs.open(tab, false);
+                        }
+                    }}
+                />
+                <Button
+                    @test_id="demo.dialog.modal"
+                    label="Open a modal dialog"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || {
+                        if let (Some(dialogs), Some(tab)) = (dialogs.as_ref(), tab) {
+                            dialogs.open(tab, true);
+                        }
+                    }}
+                />
+            </List>
+            <Caption
+                content="A dialog hangs from the tab that opened it: it floats in the middle of \
+                 that tab, hides when another tab is shown in its place and comes back with it, \
+                 and is never a tab of its own. A modal one takes every press and key meant \
+                 for its tab until it closes, and the focus goes back to the tab when it does."
+                wrap=true
+            />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+pub(crate) fn AttachedDialog(modal: bool) -> NodeId {
+    let dialogs = use_context::<DemoDialogs>();
+    let control = use_dock_tab();
+    let nesting = dialogs.clone();
+    let tab = control.as_ref().map(DockTabControl::tab);
+    let message = match modal {
+        true => "This tab cannot be used until this dialog closes.",
+        false => "The tab under this dialog can still be used.",
+    };
+    let id = tab.map_or(0, TabId::value);
+    view! {
+        <Frame padding_horizontal=PAGE_PADDING padding_vertical=PAGE_PADDING>
+            <List spacing=SECTION_SPACING>
+                <Body content={message} />
+                <List direction=Direction::Horizontal spacing=ROW_SPACING>
+                    <Button
+                        @test_id={format!("demo.dialog.{id}.nested")}
+                        label="Open a modal dialog over this one"
+                        variant=ButtonVariant::Secondary
+                        on_click={move || {
+                            if let (Some(dialogs), Some(tab)) = (nesting.as_ref(), tab) {
+                                dialogs.open(tab, true);
+                            }
+                        }}
+                    />
+                    <Button
+                        @test_id={format!("demo.dialog.{id}.close")}
+                        label="Close"
+                        variant=ButtonVariant::Primary
+                        on_click={move || {
+                            if let (Some(dialogs), Some(tab)) = (dialogs.as_ref(), tab) {
+                                dialogs.close(tab);
+                            }
+                        }}
+                    />
+                </List>
+            </List>
+        </Frame>
     }
 }
 
@@ -1086,6 +1176,9 @@ pub(crate) fn MenusPage() -> NodeId {
             <Sample title="Menu buttons" code={vec![SortMenus::SOURCE]}>
                 <SortMenus />
             </Sample>
+            <Sample title="Picture menu buttons" code={vec![TrayIcons::SOURCE, badge::SOURCE]}>
+                <TrayIcons />
+            </Sample>
             <Sample title="Split buttons" code={vec![RunButtons::SOURCE]}>
                 <RunButtons />
             </Sample>
@@ -1201,6 +1294,79 @@ fn CardMenu() -> NodeId {
                 </Card>
             </ContextMenu>
             <Caption content={menu_text} />
+        </List>
+    }
+}
+
+#[sample]
+fn badge(color: Color32) -> Image {
+    const SIDE: u32 = 32;
+    let center = (SIDE as f32 - 1.0) / 2.0;
+    let pixels = (0..SIDE * SIDE)
+        .flat_map(|at| {
+            let (x, y) = ((at % SIDE) as f32 - center, (at / SIDE) as f32 - center);
+            match x * x + y * y <= center * center {
+                true => color.to_array(),
+                false => [0, 0, 0, 0],
+            }
+        })
+        .collect();
+    Image::from_rgba(SIDE, SIDE, pixels)
+}
+
+#[sample]
+#[component]
+fn TrayIcons() -> NodeId {
+    let (outcome, set_outcome) = create_signal("Nothing done yet".to_owned());
+    let (opened, clicked, middled, scrolled, chose) = (
+        set_outcome.clone(),
+        set_outcome.clone(),
+        set_outcome.clone(),
+        set_outcome.clone(),
+        set_outcome,
+    );
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <PictureMenuButton
+                    label="Chat"
+                    image={Some(badge(Color32::from_rgb(0x58, 0x65, 0xf2)))}
+                    click_opens=false
+                    items={view! {
+                        <unstyled::MenuItem label="Open" />
+                        <unstyled::MenuItem label="Quit" separated=true />
+                    }}
+                    on_click={move || clicked.set("Clicked Chat".to_owned())}
+                    on_middle_click={move || middled.set("Middle-clicked Chat".to_owned())}
+                    on_scroll={move |_: ScrollGesture| scrolled.set("Scrolled over Chat".to_owned())}
+                    on_select={move |path: Vec<usize>| {
+                        let label = match path.as_slice() {
+                            [0] => "Open",
+                            _ => "Quit",
+                        };
+                        chose.set(format!("Chose {label}"));
+                    }}
+                />
+                <PictureMenuButton
+                    label="Sync"
+                    image={None}
+                    glyph=ICON_WIDGETS
+                    items={view! {
+                        <unstyled::MenuItem label="Pause syncing" />
+                    }}
+                    on_open_change={move |open: bool| {
+                        if open {
+                            opened.set("Opened the Sync menu".to_owned());
+                        }
+                    }}
+                />
+            </List>
+            <Caption
+                content="A picture, or a glyph without one. Chat activates on a click and shows \
+                 its menu on a right click; Sync shows its menu on either."
+                wrap=true
+            />
+            <Caption content={outcome} />
         </List>
     }
 }
@@ -1326,7 +1492,28 @@ pub(crate) fn OverlaysPage() -> NodeId {
             <Sample title="Toasts" code={vec![ToastArea::SOURCE]}>
                 <ToastArea />
             </Sample>
+            <Sample title="Crash notice" code={vec![CrashedEditor::SOURCE]}>
+                <CrashedEditor />
+            </Sample>
         </ScrollPage>
+    }
+}
+
+#[sample]
+#[component]
+fn CrashedEditor() -> NodeId {
+    let (reloads, set_reloads) = create_signal(0_u32);
+    let detail = create_memo(move || match reloads.get() {
+        0 => "the count overflowed\n(at src/counter.rs:12:9)".to_owned(),
+        1 => "It stopped again after a reload.".to_owned(),
+        reloads => format!("It stopped again after {reloads} reloads."),
+    });
+    view! {
+        <CrashNotice
+            title="Counter stopped"
+            detail={detail}
+            on_reload={move || set_reloads.update(|reloads| *reloads += 1)}
+        />
     }
 }
 

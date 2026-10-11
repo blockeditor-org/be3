@@ -28,7 +28,7 @@ impl State {
         if !surface.is_alive() {
             return None;
         }
-        self.window_id_of(surface)
+        self.window_of_surface(surface)
     }
 
     pub fn inhibits_shortcuts(&self, id: WindowId) -> bool {

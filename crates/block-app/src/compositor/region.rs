@@ -9,6 +9,7 @@ use beui::reactive::{
     Interactive, Layers, List, Memo, NodeRef, Prop, Show, clone, component, create_effect,
     create_memo, draw_gpu, on_cleanup, try_with_document, untrack, use_context, use_screens, view,
 };
+use beui::styled::CrashNotice;
 use beui::unstyled::{DragPoint, DropHandle, DropTarget};
 use beui::{
     Align, CursorIcon, ForwardedInput, ImeCursor, Modifiers, NodeId, Pos2, Rect, Region, Vec2, pos2,
@@ -22,6 +23,13 @@ use crate::plugin_host::{
     RegionView,
 };
 use crate::surfaces::HostItemFace;
+
+#[derive(Clone, Debug, PartialEq)]
+struct Failure {
+    title: String,
+    detail: String,
+    restart: Option<String>,
+}
 
 #[derive(Clone)]
 pub(crate) struct RegionEditor {
@@ -71,6 +79,8 @@ pub(crate) fn PluginRegion(
 ) -> NodeId {
     let instance = editor.instance;
     let plugin_id = editor.plugin_id().to_owned();
+    let name = editor.plugin.identity.name.clone();
+    let crash_id = format!("{plugin_id}.{}.{region:?}.crashed", instance.0);
     let block = editor.role.block().map(|block| block.id);
     plugin_host::mount_region(RegionSlot {
         plugin: &editor.plugin,
@@ -253,8 +263,12 @@ pub(crate) fn PluginRegion(
     }));
     let failure = create_memo(clone!(state plugin_id -> move || {
         state.with(|view| {
-            view.error.as_ref().map(|(text, restart)| HostItem::Error {
-                text: text.clone(),
+            view.error.as_ref().map(|(text, restart)| Failure {
+                title: match restart {
+                    true => format!("{name} stopped"),
+                    false => format!("{name} could not start"),
+                },
+                detail: text.clone(),
                 restart: restart.then(|| plugin_id.clone()),
             })
         })
@@ -335,7 +349,7 @@ pub(crate) fn PluginRegion(
                             </Embed>
                         </Interactive>
                     </BackHandler>
-                    <Notices loading failure />
+                    <Notices loading failure id={crash_id.clone()} />
                     <RegionChildren state rect child_view={above} below=false />
                     <Drawing draw={floating} />
                 </Layers>
@@ -393,17 +407,24 @@ fn take_keyboard(state: &Memo<RegionView>, catcher: &NodeRef) {
 }
 
 #[component]
-fn Notices(loading: Memo<bool>, failure: Memo<Option<HostItem>>) -> NodeId {
+fn Notices(loading: Memo<bool>, failure: Memo<Option<Failure>>, id: String) -> NodeId {
     let failed = create_memo(clone!(failure -> move || failure.get().is_some()));
     let still_loading = create_memo(clone!(failure loading -> move || {
         loading.get() && failure.get().is_none()
     }));
-    let failure_item = create_memo(move || {
-        failure.get().unwrap_or(HostItem::Error {
-            text: String::new(),
-            restart: None,
-        })
-    });
+    let title = create_memo(clone!(failure -> move || {
+        failure.get().map(|failure| failure.title).unwrap_or_default()
+    }));
+    let detail = create_memo(clone!(failure -> move || {
+        failure.get().map(|failure| failure.detail).unwrap_or_default()
+    }));
+    let restart = create_memo(move || failure.get().and_then(|failure| failure.restart));
+    let reloadable = create_memo(clone!(restart -> move || restart.get().is_some()));
+    let reload = move || {
+        if let Some(plugin) = restart.get_untracked() {
+            crate::host::push_command(crate::host::HostCommand::RestartPlugin(plugin));
+        }
+    };
     let loading_item = create_memo(|| HostItem::Notice {
         text: "Loading plugin…".to_owned(),
         spinner: true,
@@ -412,7 +433,13 @@ fn Notices(loading: Memo<bool>, failure: Memo<Option<HostItem>>) -> NodeId {
         <Frame align_horizontal=Align::Center align_vertical=Align::Center>
             <List spacing=0.0>
                 <Show condition={failed}>
-                    <HostItemFace content={failure_item.clone()} />
+                    <CrashNotice
+                        title={title.clone()}
+                        detail={detail.clone()}
+                        reloadable={reloadable.clone()}
+                        on_reload={reload.clone()}
+                        id={id.clone()}
+                    />
                 </Show>
                 <Show condition={still_loading}>
                     <HostItemFace content={loading_item.clone()} />

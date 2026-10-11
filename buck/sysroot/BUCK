@@ -28,9 +28,11 @@ wanted = [
     "libudev-dev",
 ]
 
-# What only tests load: the Vulkan loader, lavapipe and the XKB keymaps. A set
-# of its own, so that changing it leaves every compile's key alone.
+# What only tests load: the Vulkan loader, lavapipe, the XKB keymaps and a D-Bus
+# daemon for a private bus. A set of its own, so that changing it leaves every
+# compile's key alone.
 test_runtime = [
+    "dbus-daemon",
     "libvulkan1",
     "mesa-vulkan-drivers",
     "xkb-data",
@@ -76,6 +78,7 @@ deb_sysroot(
     name = "amd64-test",
     keep_xkb = True,
     packages = [":test-" + name.replace("+", "p") + ".deb" for name, _, _, _ in packages.get("amd64-test", [])],
+    programs = ["usr/bin/dbus-daemon"],
     visibility = ["PUBLIC"],
 )
 

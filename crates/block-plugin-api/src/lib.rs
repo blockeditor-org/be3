@@ -11,11 +11,12 @@ pub use block_ids::BlockIdRole;
 pub use host_value::{HostAction, HostImage, HostValue, decode_host, encode_host};
 pub use linux::{
     AudioOutput, Displays, HostDisplay, HostDisplayMode, HostInputDevice, HostNotificationAction,
-    HostProgram, HostWindow, HostWindowId, HostWindows, IncomingNotification, InputDevices, Media,
-    MediaLevel, MediaLevels, MediaRequest, NotificationCloseReason, NotificationInbox,
-    NotificationReport, NotificationRequest, NotificationSignal, NotificationUrgency,
-    Notifications, PlayerCommand, Power, PowerAction, PowerAvailability, ProgramAction, Programs,
-    ScreenLocked, WindowAction,
+    HostProgram, HostTrayItem, HostWindow, HostWindowId, HostWindows, IncomingNotification,
+    InputDevices, Media, MediaLevel, MediaLevels, MediaRequest, NotificationCloseReason,
+    NotificationInbox, NotificationReport, NotificationRequest, NotificationSignal,
+    NotificationUrgency, Notifications, PlayerCommand, Power, PowerAction, PowerAvailability,
+    ProgramAction, Programs, ScreenLocked, Tray, TrayMenuEntry, TrayRequest, TrayStatus,
+    TrayToggle, WindowAction,
 };
 pub use manifest::{
     EditorDocument, ManifestDocument, TemplateDocument, Templates, manifest_from_json,
@@ -1282,6 +1283,25 @@ pub enum CursorIcon {
     ResizeVertical,
     ResizeNeSw,
     ResizeNwSe,
+    Alias,
+    ContextMenu,
+    Cell,
+    VerticalText,
+    Copy,
+    NoDrop,
+    AllScroll,
+    ZoomIn,
+    ZoomOut,
+    ResizeColumn,
+    ResizeRow,
+    ResizeNorth,
+    ResizeEast,
+    ResizeSouth,
+    ResizeWest,
+    ResizeNorthEast,
+    ResizeNorthWest,
+    ResizeSouthEast,
+    ResizeSouthWest,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

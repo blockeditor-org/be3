@@ -19,7 +19,13 @@ pub(crate) fn spawn(task: impl Future<Output = ()> + Send + 'static) {
             eprintln!("block-app: the D-Bus thread did not start: {error}");
         }
     });
-    EXECUTOR.spawn(task).detach();
+    EXECUTOR
+        .spawn(async move {
+            if let Err(panic) = crate::panic_guard::contain_task(task).await {
+                crate::notices::report(format!("A part of the desktop stopped: {panic}"));
+            }
+        })
+        .detach();
 }
 
 pub(crate) async fn system() -> Option<Connection> {

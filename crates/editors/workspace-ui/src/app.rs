@@ -17,7 +17,7 @@ use block_editor_beui::{
     NARROW_WIDTH, TopBar,
 };
 use block_shell::{
-    BlockTab, DialogWindow, FILES, Failure, PanelStatus, PanelWindow, PickerDialogs, WindowTab,
+    AttachedWindow, BlockTab, FILES, Failure, PanelStatus, PanelWindow, PickerDialogs, WindowTab,
     Workspace, WorkspaceDialogs,
 };
 
@@ -76,8 +76,8 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
     let failed = create_memo(clone!(failure -> move || failure.get().is_some()));
     let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
     let block_tabs = workspace.block_tabs();
-    let top_windows = workspace.windows(false);
-    let dialog_windows = workspace.windows(true);
+    let top_windows = workspace.windows();
+    let dialog_windows = workspace.dialogs();
     let panels = workspace.panels();
     let files = Rc::clone(&workspace);
     let blocks = Rc::clone(&workspace);
@@ -122,8 +122,8 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
                         }}
                     </ForEach>
                     <ForEach keys={dialog_windows}>
-                        {move |window: HostWindowId| view! {
-                            <DialogWindow workspace={Rc::clone(&dialogs)} window />
+                        {move |(window, parent): (HostWindowId, HostWindowId)| view! {
+                            <AttachedWindow workspace={Rc::clone(&dialogs)} window parent />
                         }}
                     </ForEach>
                 </Docking>

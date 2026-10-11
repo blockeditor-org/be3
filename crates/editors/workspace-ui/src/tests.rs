@@ -12,6 +12,7 @@ mod a_block_tab_asks_its_editor_for_the_top_bar;
 mod a_closed_tab_gives_up_its_view_block;
 mod a_failed_creation_is_shown_and_dismissing_it_cancels_the_pick;
 mod a_host_panel_the_host_asks_for_is_placed_in_its_own_window;
+mod a_modal_window_sends_presses_on_its_parent_to_itself;
 mod a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches;
 mod a_placing_pick_names_and_places_the_block_it_creates;
 mod a_profile_keeps_its_tabs_as_view_blocks_and_reopens_them;
@@ -22,8 +23,9 @@ mod a_template_without_a_dialog_is_created_and_answers_the_pick;
 mod a_window_tab_shows_the_icon_its_program_set;
 mod a_window_that_stops_responding_offers_to_wait_or_force_close;
 mod a_window_the_host_makes_fullscreen_covers_the_workspace_until_it_leaves;
+mod a_window_the_host_raises_brings_its_hidden_tab_forward;
 mod a_window_the_host_runs_gets_a_tab_until_its_program_closes_it;
-mod a_window_with_a_parent_floats_at_the_size_it_drew;
+mod a_window_with_a_parent_hangs_over_it_and_hides_with_its_tab;
 mod an_open_menu_is_withheld_from_the_block_under_it;
 mod closing_a_window_tab_asks_its_program_to_close;
 mod closing_the_only_tab_leaves_the_blank_workspace;
@@ -128,6 +130,7 @@ fn window(id: u64, title: &str, parent: Option<u64>) -> block_editor_beui::HostW
         title: title.to_owned(),
         app_id: "test".to_owned(),
         parent: parent.map(block_editor_beui::HostWindowId),
+        modal: false,
         size: block_plugin_api::Size {
             width: 320.0,
             height: 200.0,
@@ -136,6 +139,7 @@ fn window(id: u64, title: &str, parent: Option<u64>) -> block_editor_beui::HostW
         responding: true,
         focused: false,
         icon: None,
+        raised: 0,
     }
 }
 
