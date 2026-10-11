@@ -8,7 +8,9 @@ mod workspace;
 use std::cell::RefCell;
 
 use be_protocol::WorkspaceRole;
-use beui::reactive::{Dynamic, Frame, List, NodeRef, Store, clone, component, create_memo, view};
+use beui::reactive::{
+    Dynamic, Frame, List, NodeRef, Store, clone, component, copy_text, create_memo, view,
+};
 use beui::styled::{KeepChanges, Toast, Toasts, use_theme};
 use beui::unstyled::Edge;
 use beui::{ItemSize, NodeId};
@@ -328,6 +330,13 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                     edge=Edge::TopEnd
                     toasts={toasts}
                     on_dismiss={move |id: u64| send(UiCommand::DismissToast(id))}
+                    on_action={move |(id, key): (u64, String)| {
+                        if key == crate::notices::COPY_REPORT
+                            && let Some(report) = crate::notices::report_of(id)
+                        {
+                            copy_text(report);
+                        }
+                    }}
                 />
                 <KeepChanges
                     open={asking}

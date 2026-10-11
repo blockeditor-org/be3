@@ -12,6 +12,10 @@ use crate::{
 pub trait BlobKind: Send + Sync + 'static {
     const CONTENT_TYPE: Uuid;
 
+    const FROZEN: bool = false;
+
+    const SCHEMA: u32 = 0;
+
     type Header: Clone
         + Debug
         + Default
@@ -95,6 +99,12 @@ impl<K: BlobKind> Debug for Blob<K> {
 
 impl<K: BlobKind> BlockContent for Blob<K> {
     const CONTENT_TYPE: Uuid = K::CONTENT_TYPE;
+
+    const FROZEN: bool = K::FROZEN;
+
+    fn schema() -> String {
+        format!("blob {}", K::SCHEMA)
+    }
 
     fn encode(&self) -> Vec<u8> {
         encode_streamed(&self.header, &self.data)

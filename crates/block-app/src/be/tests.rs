@@ -6,6 +6,7 @@ use uuid::Uuid;
 use super::*;
 use crate::platform;
 
+mod a_block_another_build_saved_is_offered_for_reset_and_a_held_one_is_reset;
 mod a_block_named_before_it_arrives_is_created_with_that_name;
 mod a_checklist_and_a_counter_are_held_by_one_peer;
 mod a_child_moved_into_a_block_is_added_to_its_content;

@@ -7,6 +7,7 @@ license.workspace = true
 [dependencies]
 be-commit = { path = "../be-commit" }
 be-model = { path = "../be-model" }
+be-store = { path = "../be-store" }
 logicgame = { path = "../logicgame" }
 memchr = "2"
 postcard = { version = "1", features = ["use-std"] }
@@ -17,4 +18,3 @@ uuid = { version = "1", features = ["serde", "v4"] }
 workspace = true
 
 [dev-dependencies]
-be-store = { path = "../be-store" }

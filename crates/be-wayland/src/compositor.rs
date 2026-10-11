@@ -53,6 +53,7 @@ pub struct Compositor {
     listed: u64,
     locked: bool,
     clipboard: clipboard::Clipboard,
+    gtk_profile: Option<std::path::PathBuf>,
     cursor_surface: Option<smithay::reexports::wayland_server::protocol::wl_surface::WlSurface>,
     cursor_revision: u64,
 }
@@ -66,6 +67,9 @@ struct Configured {
 
 impl Compositor {
     pub fn new(server: Server, windows: Windows) -> Self {
+        let gtk_profile = server
+            .socket_name()
+            .and_then(|_| crate::gtk_settings::profile());
         Self {
             server,
             windows,
@@ -86,6 +90,7 @@ impl Compositor {
             listed: 0,
             locked: false,
             clipboard: clipboard::Clipboard::default(),
+            gtk_profile,
             cursor_surface: None,
             cursor_revision: 0,
         }
@@ -221,6 +226,16 @@ impl Compositor {
             .map(|display| format!(":{display}"))
     }
 
+    pub fn environment(&self) -> Vec<(&'static str, String)> {
+        let wayland = self.socket().map(|socket| ("WAYLAND_DISPLAY", socket));
+        let x11 = self.x11_display().map(|display| ("DISPLAY", display));
+        let gtk = self
+            .gtk_profile
+            .as_ref()
+            .map(|profile| ("DCONF_PROFILE", profile.to_string_lossy().into_owned()));
+        wayland.into_iter().chain(x11).chain(gtk).collect()
+    }
+
     fn launch(&mut self, launch: &Launch, now: Instant) {
         let Some((program, arguments)) = launch.arguments.split_first() else {
             return;
@@ -232,11 +247,11 @@ impl Compositor {
         }
         process
             .args(arguments)
-            .env("WAYLAND_DISPLAY", self.socket().unwrap_or_default())
             .env("XDG_ACTIVATION_TOKEN", &token)
             .env("DESKTOP_STARTUP_ID", &token)
+            .env_remove("WAYLAND_DISPLAY")
             .env_remove("DISPLAY")
-            .envs(self.x11_display().map(|display| ("DISPLAY", display)))
+            .envs(self.environment())
             .env_remove("BEUI_AUTOMATION")
             .env_remove("BEUI_HEADLESS")
             .env_remove("BEUI_HEADLESS_SCREEN")

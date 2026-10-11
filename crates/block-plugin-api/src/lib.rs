@@ -9,7 +9,7 @@ mod linux;
 mod manifest;
 mod session;
 pub use block_ids::BlockIdRole;
-pub use host_value::{HostAction, HostImage, HostValue, decode_host, encode_host};
+pub use host_value::{HostAction, HostImage, HostValue, LinkBase, decode_host, encode_host};
 pub use linux::{
     AudioOutput, Displays, HostDisplay, HostDisplayMode, HostInputDevice, HostNotificationAction,
     HostProgram, HostTrayItem, HostWindow, HostWindowId, HostWindows, IncomingNotification,

@@ -4,9 +4,10 @@ use beui::reactive::{
     ForEach, Frame, Layers, List, Memo, ReadSignal, Show, Text, WriteSignal, clone, component,
     create_memo, create_signal, view,
 };
-use beui::styled::{Caption, Heading, Icon, Spinner, use_theme};
+use beui::styled::{Caption, Heading, Icon, Spinner, StaleNotice, use_theme};
 use beui::{Align, Color32, NodeId, TextAlign};
-use block_plugin_api::{EditorInstanceId, EditorRegion, FrameSpec};
+use block_plugin_api::{BlockCommand, BlockLocation, EditorInstanceId, EditorRegion, FrameSpec};
+use uuid::Uuid;
 
 use crate::compositor::{ChildView, PluginRegion, RegionEditor, ShellSurface};
 use crate::host::HostItem;
@@ -220,6 +221,50 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
                     <Spinner />
                 </Show>
             </List>
+        </Frame>
+    }
+}
+
+#[component]
+pub(crate) fn StaleBlock(block: Uuid, block_type: Uuid, stale: crate::be::Stale) -> NodeId {
+    let can_try = matches!(stale, crate::be::Stale::Reshaped);
+    let detail = match stale {
+        crate::be::Stale::Unreadable(error) => {
+            format!("This build cannot read what another build saved here: {error}")
+        }
+        crate::be::Stale::Reshaped => {
+            "Another build saved this block in a shape this build may read wrongly.".to_owned()
+        }
+    };
+    let delete = move || {
+        let source =
+            crate::be::node(block).map_or(BlockLocation::Detached, |node| match node.parent {
+                be_graph::BlockParent::Root => BlockLocation::Root,
+                be_graph::BlockParent::Detached => BlockLocation::Detached,
+                be_graph::BlockParent::Block(parent) => BlockLocation::Block(parent.into_bytes()),
+            });
+        crate::compositor::act(
+            None,
+            crate::editors::EditorAction::Command {
+                id: block,
+                command: BlockCommand::Delete {
+                    block_type: block_type.into_bytes(),
+                    source,
+                    is_reference: false,
+                },
+            },
+        );
+    };
+    view! {
+        <Frame align_horizontal=Align::Center align_vertical=Align::Center>
+            <StaleNotice
+                title="Saved by another build"
+                detail={detail}
+                can_try
+                on_reset={move || crate::be::reset(block)}
+                on_delete={delete}
+                on_try={move || crate::be::try_anyway(block)}
+            />
         </Frame>
     }
 }

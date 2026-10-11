@@ -26,6 +26,7 @@ thread_local! {
     static ACTIONS: RefCell<Vec<(Option<uuid::Uuid>, EditorAction)>> = const { RefCell::new(Vec::new()) };
     static ANY: RefCell<Option<(ReadSignal<u64>, WriteSignal<u64>)>> = const { RefCell::new(None) };
     static CHANGED: Cell<bool> = const { Cell::new(false) };
+    static STALE: Cell<u64> = const { Cell::new(0) };
     static PENDING_SHELL: Cell<Option<Option<uuid::Uuid>>> = const { Cell::new(None) };
     static SHELL: RefCell<Option<ShellSignal>> = const { RefCell::new(None) };
 }
@@ -108,6 +109,10 @@ pub(crate) fn notify() {
 }
 
 pub(crate) fn notify_plugins() {
+    let stale = crate::be::stale_revision();
+    if STALE.with(|seen| seen.replace(stale)) != stale {
+        changed();
+    }
     let changed = crate::plugin_host::take_changed();
     if (!changed.is_empty() || CHANGED.with(|flag| flag.replace(false)))
         && let Some((_, write)) = ANY.with(|any| any.borrow().clone())

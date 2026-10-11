@@ -51,7 +51,7 @@ impl Folder {
 }
 
 impl Root for Folder {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x626c_6f63_6b2d_6170_702d_696e_6465_7802);
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0xd4e3_67ab_db73_4419_bffc_b913_1288_c2e7);
 
     fn child_edit(&self, change: ChildChange) -> Option<Edit> {
         Some(match change {

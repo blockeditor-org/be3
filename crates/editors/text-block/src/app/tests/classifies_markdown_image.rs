@@ -2,7 +2,7 @@ use super::{BLOCK_ID, WORKSPACE_ID, block_url, parse_embeds};
 
 #[test]
 fn classifies_markdown_image() {
-    let url = block_url(WORKSPACE_ID, BLOCK_ID);
+    let url = block_url("https://example.com/", WORKSPACE_ID, BLOCK_ID);
     let markdown_image = format!("![link]({url})");
 
     let image = parse_embeds(markdown_image.as_bytes(), WORKSPACE_ID, true);

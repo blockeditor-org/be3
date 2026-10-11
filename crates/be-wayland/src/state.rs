@@ -60,7 +60,7 @@ use smithay::utils::{Logical, Point, Rectangle, SERIAL_COUNTER, Serial, Size, Tr
 use smithay::wayland::buffer::BufferHandler;
 use smithay::wayland::compositor::{
     CompositorClientState, CompositorHandler, CompositorState, TraversalAction, get_parent,
-    send_surface_state, with_states, with_surface_tree_downward,
+    send_surface_state, with_states, with_surface_tree_upward,
 };
 use smithay::wayland::cursor_shape::CursorShapeManagerState;
 use smithay::wayland::output::{OutputHandler, OutputManagerState};
@@ -1124,7 +1124,7 @@ pub(crate) fn collect_layers(
     popup: bool,
     layers: &mut Vec<Layer>,
 ) {
-    with_surface_tree_downward(
+    with_surface_tree_upward(
         surface,
         location,
         |_, states, location| {

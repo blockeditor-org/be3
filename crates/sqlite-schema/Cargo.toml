@@ -1,0 +1,11 @@
+[package]
+name = "sqlite-schema"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+[lints]
+workspace = true
