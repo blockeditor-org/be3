@@ -2,8 +2,7 @@ use std::rc::Rc;
 
 use beui::reactive::{
     Action, Chord, Drawing, Frame, Interactive, Layers, NodeRef, Prop, clone, component,
-    component_rect,
-    create_effect, create_memo, draw_gpu, on_cleanup, view,
+    component_rect, create_effect, create_memo, draw_gpu, on_cleanup, view,
 };
 use beui::{Color32, ForwardedInput, Key, NodeId, Pos2, Rect};
 
