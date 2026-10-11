@@ -66,7 +66,7 @@ pub use switch::{DockSwitchHandle, DockSwitchRowHandle};
 pub const SPLITTER_THICKNESS: f32 = 6.0;
 const EDGE_ZONE: f32 = 0.22;
 const HANDLE_REACH: f32 = 8.0;
-const GRIP_CORNER: f32 = 16.0;
+const GRIP_CORNER: f32 = 24.0;
 const MARKER_WIDTH: f32 = 3.0;
 const SPLIT_STEP: f32 = 0.02;
 const SIDEBAR_STEP: f32 = 16.0;
