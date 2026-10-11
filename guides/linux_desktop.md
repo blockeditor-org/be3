@@ -259,6 +259,16 @@ view's top-left corner, clipped to the view, never stretched to fit; the size a 
 drawn at is its buffer's size over its buffer scale, or the destination it set through
 viewporter. `render.rs` draws it, `a_resized_window_is_drawn_unscaled_until_it_commits_the_new_size`
 checks the pixels.
+A program brings one of its windows forward, or another program's (a link opened in a browser
+that is already running), with `xdg_activation_v1` (be-wayland's `activation.rs`). A client is
+given a token only while it has the keyboard and only for the serial of an input event since it
+got it; the token works once, within `TOKEN_LIFETIME` on the frame clock, and only while the
+keyboard is still where it was when the token was made. Every program the compositor starts
+(`Windows::run`, which the launcher and `ProgramAction::Run` use) gets a fresh token of the
+compositor's own as `XDG_ACTIVATION_TOKEN` and `DESKTOP_STARTUP_ID`, honoured whatever has the
+keyboard. An honoured request goes through `Windows::activate`, as `WindowAction::Focus` does,
+which bumps the window's `raised` count so the shell shows its tab. Anything else is ignored;
+the dock has no way yet to mark a tab as wanting attention.
 
 ### X11 programs
 

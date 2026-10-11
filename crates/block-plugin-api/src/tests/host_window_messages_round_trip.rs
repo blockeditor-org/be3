@@ -14,6 +14,7 @@ fn host_window_messages_round_trip() {
         fullscreen: None,
         responding: true,
         focused: false,
+        raised: 0,
     };
     host_value_round_trips::<HostWindows>(vec![window.clone()]);
     for action in [

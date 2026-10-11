@@ -191,7 +191,34 @@ impl Workspace {
                 workspace.watch_artifacts();
             }
         });
+        let raising = Rc::downgrade(&workspace);
+        let seen = RefCell::new(HashMap::new());
+        create_effect(move || {
+            if let Some(workspace) = raising.upgrade() {
+                workspace.show_raised(&mut seen.borrow_mut());
+            }
+        });
         workspace
+    }
+
+    fn show_raised(&self, seen: &mut HashMap<HostWindowId, u64>) {
+        let raised: HashMap<HostWindowId, u64> = self.windows.with(|windows| {
+            windows
+                .iter()
+                .map(|window| (window.id, window.raised))
+                .collect()
+        });
+        let forward: Vec<HostWindowId> = raised
+            .iter()
+            .filter(|(window, count)| seen.get(window).copied().unwrap_or_default() < **count)
+            .map(|(window, _)| *window)
+            .collect();
+        *seen = raised;
+        untrack(|| {
+            for window in forward {
+                self.layout.show(&window_tab(window));
+            }
+        });
     }
 
     pub fn editor(&self) -> &Editor {
