@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::*;
-use crate::KeyAt;
 use crate::ForwardedInput;
+use crate::KeyAt;
 use crate::reactive::{
     Action, Canvas, CanvasItem, Chord, Frame, Interactive, WriteSignal, build, create_signal, view,
     with_reactive_scope,
@@ -23,13 +23,15 @@ fn an_app_that_inhibits_shortcuts_gets_every_chord_but_the_escape_hatch() {
                 intercepting.borrow_mut().push("intercepting")
             })
             .shortcut(Chord::logo(Key::H))
-            .at(KeyAt::Window).capture()
+            .at(KeyAt::Window)
+            .capture()
             .register();
             Action::new("test.hatch", "Escape hatch", move || {
                 hatch.borrow_mut().push("hatch")
             })
             .shortcut(Chord::logo(Key::L))
-            .at(KeyAt::Host).capture()
+            .at(KeyAt::Host)
+            .capture()
             .register();
             let (inhibits, set_inhibits) = create_signal(true);
             *setter.borrow_mut() = Some(set_inhibits);

@@ -330,7 +330,10 @@ fn key_press(doc: &mut Document, press: KeyPress) -> Fate {
     if press.pressed && !press.modifiers.ctrl && !press.modifiers.alt {
         doc.set_focus_visible(true);
     }
-    let target = route.target.node.filter(|node| route.nodes.first() == Some(node));
+    let target = route
+        .target
+        .node
+        .filter(|node| route.nodes.first() == Some(node));
     let ancestors = match target {
         Some(_) => &route.nodes[1..],
         None => &route.nodes[..],

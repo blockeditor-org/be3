@@ -1,7 +1,7 @@
-use beui::reactive::Dismiss;
 use super::*;
 use beui::KeyPress;
 use beui::Sides;
+use beui::reactive::Dismiss;
 use beui::reactive::{
     Dynamic, Fade, Grid, GridCell, Interactive, Layers, NodeRef, Overlay, Placement, Shift, Track,
 };

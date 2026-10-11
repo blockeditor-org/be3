@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::*;
-use crate::KeyAt;
 use crate::ForwardedInput;
+use crate::KeyAt;
 use crate::reactive::{Action, Canvas, CanvasItem, Chord, Frame, Interactive, build, view};
 
 fn key(key: Key, pressed: bool, modifiers: Modifiers) -> Event {
@@ -24,7 +24,8 @@ fn super_tapped_alone_runs_its_tap_action_and_still_reaches_the_app() {
         move || {
             Action::new("test.tap", "Tap", move || taps.set(taps.get() + 1))
                 .shortcut(Chord::tap(Key::Logo))
-                .at(KeyAt::Window).capture()
+                .at(KeyAt::Window)
+                .capture()
                 .register();
             view! {
                 <Canvas>

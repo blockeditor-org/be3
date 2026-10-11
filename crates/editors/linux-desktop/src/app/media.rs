@@ -173,7 +173,8 @@ pub(super) fn MediaKeys(editor: Editor) -> NodeId {
         })
         .glyph(media_key.glyph())
         .shortcut(Chord::key(key))
-        .at(KeyAt::Window).capture()
+        .at(KeyAt::Window)
+        .capture()
         .register();
     }
     let level = create_memo(move || osd_level(shown.get()?, levels.get()));

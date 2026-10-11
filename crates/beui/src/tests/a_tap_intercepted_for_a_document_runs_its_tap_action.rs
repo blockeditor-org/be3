@@ -12,7 +12,8 @@ fn a_tap_intercepted_for_a_document_runs_its_tap_action() {
             counted.set(counted.get() + 1)
         })
         .shortcut(Chord::tap(Key::Logo))
-        .at(KeyAt::Window).capture()
+        .at(KeyAt::Window)
+        .capture()
         .register();
         view! {
             <List spacing=0.0 />

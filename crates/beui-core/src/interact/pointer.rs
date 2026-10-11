@@ -3,6 +3,7 @@ use std::time::{Duration, Instant};
 
 use crate::base::interactive::{InteractiveNode, press_at};
 use crate::base::list::Direction;
+use crate::base::overlay::OverlayNode;
 use crate::context::Context;
 use crate::document::{Acted, Document};
 use crate::geometry::{Pos2, Rect, Vec2, vec2};
@@ -11,7 +12,6 @@ use crate::input::{
     PointerId, PointerPhase, PointerPress, PointerSample, ScrollGesture, SecondaryDrag,
     TOUCH_DRAG_THRESHOLD, TOUCH_VELOCITY_WINDOW, TouchId, ZoomGesture,
 };
-use crate::base::overlay::OverlayNode;
 use crate::node::{NodeId, NodeOf, Rects};
 
 use super::hit::{self, Hit, interactive};
@@ -376,12 +376,7 @@ fn focus_target(doc: &Document, rects: &Rects, reached: &[NodeId], pos: Pos2) ->
     None
 }
 
-fn press(
-    doc: &mut Document,
-    frame: &Frame,
-    session: &mut Session,
-    claimant: Option<NodeId>,
-) {
+fn press(doc: &mut Document, frame: &Frame, session: &mut Session, claimant: Option<NodeId>) {
     let pos = session.pos;
     let (reached, captured) = match claimant {
         Some(claimant) => (vec![claimant], true),

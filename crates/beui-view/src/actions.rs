@@ -264,11 +264,12 @@ impl Action {
     }
 
     fn listens(&self, at: &KeyAt, phase: KeyPhase) -> bool {
-        let same = match (&self.0.at, at) {
-            (Some(KeyAt::Window), KeyAt::Window) | (Some(KeyAt::Host), KeyAt::Host) => true,
-            (None, KeyAt::Root) => true,
-            _ => false,
-        };
+        let same = matches!(
+            (&self.0.at, at),
+            (Some(KeyAt::Window), KeyAt::Window)
+                | (Some(KeyAt::Host), KeyAt::Host)
+                | (None, KeyAt::Root)
+        );
         same && (self.0.capture == (phase != KeyPhase::Bubble))
     }
 
@@ -522,7 +523,9 @@ impl Registry {
     fn outer_key(&self, at: &KeyAt, event: KeyEvent) -> bool {
         let actions = self.all();
         run_matching(
-            actions.iter().filter(|action| action.listens(at, event.phase)),
+            actions
+                .iter()
+                .filter(|action| action.listens(at, event.phase)),
             event,
         )
     }

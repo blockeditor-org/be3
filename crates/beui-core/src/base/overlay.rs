@@ -251,7 +251,6 @@ fn resolve_rect(
     Rect::from_min_size(origin, content_size)
 }
 
-
 impl Element for OverlayNode {
     fn measure(&self, _doc: &mut Document, _painter: &Painter, _available: Vec2) -> Vec2 {
         Vec2::ZERO

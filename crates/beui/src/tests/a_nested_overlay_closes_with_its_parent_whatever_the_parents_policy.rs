@@ -71,7 +71,9 @@ fn a_nested_overlay_closes_with_its_parent_whatever_the_parents_policy() {
         "changing the parent's policy leaves the nested overlay open"
     );
     let layers = harness.document().layers();
-    let nested = layers.index_of(inner).expect("the nested overlay is a layer");
+    let nested = layers
+        .index_of(inner)
+        .expect("the nested overlay is a layer");
     assert_eq!(
         layers[nested].parent,
         layers.index_of(outer),

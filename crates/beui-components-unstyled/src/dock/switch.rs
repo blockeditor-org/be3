@@ -1,6 +1,6 @@
-use beui_core::layer::{Dismiss, LayerPolicy};
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::geometry::Pos2;
+use beui_core::layer::{Dismiss, LayerPolicy};
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;

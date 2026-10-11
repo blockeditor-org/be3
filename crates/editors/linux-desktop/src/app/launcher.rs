@@ -84,7 +84,8 @@ pub(super) fn ProgramLauncherOverlay(launcher: ProgramLauncher) -> NodeId {
     })
     .glyph(ICON_APPS)
     .shortcut(Chord::tap(Key::Logo))
-    .at(KeyAt::Window).capture()
+    .at(KeyAt::Window)
+    .capture()
     .register();
     let programs = launcher.editor.host_value::<Programs>();
     let items = create_memo(move || {

@@ -73,7 +73,11 @@ fn an_overlay_reports_a_dismiss_only_when_the_user_closes_it() {
     open_outer(&mut harness);
     harness.key(Key::Escape, Modifiers::NONE);
     assert!(!harness.document().is_overlay_open(outer.id()));
-    assert_eq!(*dismissed.borrow(), [Dismiss::Escape], "Escape asks it to close");
+    assert_eq!(
+        *dismissed.borrow(),
+        [Dismiss::Escape],
+        "Escape asks it to close"
+    );
 
     open_outer(&mut harness);
     harness.click(pos2(VIEWPORT.x - 5.0, VIEWPORT.y - 5.0));
@@ -88,12 +92,20 @@ fn an_overlay_reports_a_dismiss_only_when_the_user_closes_it() {
     open_outer(&mut harness);
     harness.frame(vec![Event::Back(BackGesture::Invoked)]);
     assert!(!harness.document().is_overlay_open(outer.id()));
-    assert_eq!(dismissed.borrow().last(), Some(&Dismiss::Back), "back asks it to close");
+    assert_eq!(
+        dismissed.borrow().last(),
+        Some(&Dismiss::Back),
+        "back asks it to close"
+    );
 
     open_outer(&mut harness);
     set(&mut harness, &set_open, false);
     assert!(!harness.document().is_overlay_open(outer.id()));
-    assert_eq!(dismissed.borrow().len(), 3, "its owner closing it is no dismiss");
+    assert_eq!(
+        dismissed.borrow().len(),
+        3,
+        "its owner closing it is no dismiss"
+    );
 
     open_outer(&mut harness);
     set(&mut harness, &set_nested_open, true);

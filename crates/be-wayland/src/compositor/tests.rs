@@ -1,6 +1,6 @@
+use super::*;
 use beui::KeyAt;
 use beui::reactive::LayerLevel;
-use super::*;
 
 mod a_click_on_beui_dismisses_a_grabbed_popup;
 mod a_closed_window_leaves_the_list;
@@ -104,7 +104,8 @@ fn Shown(windows: Windows) -> NodeId {
             });
         })
         .shortcut(beui::reactive::Chord::logo(Key::F))
-        .at(KeyAt::Window).capture()
+        .at(KeyAt::Window)
+        .capture()
         .register();
         beui::reactive::Action::new("test.global", "Global", || {
             GLOBAL_RAN.with(|ran| ran.set(ran.get() + 1))

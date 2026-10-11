@@ -866,9 +866,10 @@ parent is the layer holding the node it hangs from, which is its anchor when it
 is anchored to a node and otherwise the overlay node itself, and the document
 root is the bottom layer. `Document::layers()` is that tree as one ordered
 list, bottom to top, and paint, hit testing, focus, Escape, back and the key
-dispatch all walk that same list. Siblings are ordered by when they were opened
-or raised (`Document::raise_overlay`), children sit above their parent and rise
-with it, and a `level` (`LayerLevel`) puts a layer and everything above it over
+dispatch all walk that same list. Siblings that block everything sit above
+those that do not, and otherwise are ordered by when they were opened or raised
+(`Document::raise_overlay`), so raising a window never lifts it over a dialog;
+children sit above their parent and rise with it, and a `level` (`LayerLevel`) puts a layer and everything above it over
 every layer of a lower level: `Top` for things that must float over every
 window, such as a drag preview or a volume OSD, and `Lock` for the lock screen.
 Opening a layer raises it and every layer it hangs in, so a menu opened in a
@@ -911,7 +912,10 @@ dismissed. There is one request for each reason, sent to one layer:
 - A press outside goes to every dismissable layer it is outside of, from the
   top down, until it lands in one or is shut out by one that blocks everything
   (and then to the chain of blocking layers that one is nested in, so a press
-  outside a submenu closes the whole menu). A mouse asks on the press; a finger
+  outside a submenu closes the whole menu). A layer that blocks everything
+  still lets the pointer reach the blocking layers it is nested in, so the
+  rows of a menu stay hovered and pressable under its open submenu, and a
+  press on one closes the submenu. A mouse asks on the press; a finger
   on the tap, so a scroll that starts outside a layer leaves it open.
 
 Inside the layer it is sent to, a request goes to the most recently made

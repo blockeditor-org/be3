@@ -1,9 +1,9 @@
 use std::time::Duration;
 
 use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::layer::{Dismiss, LayerPolicy};
 use beui_core::geometry::Vec2;
 use beui_core::input::PointerPress;
+use beui_core::layer::{Dismiss, LayerPolicy};
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;

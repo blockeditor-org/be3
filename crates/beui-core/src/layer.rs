@@ -78,6 +78,14 @@ impl DismissTarget {
     }
 }
 
+type StackKey = (LayerLevel, Vec<(bool, u64)>);
+
+type Hanging = (
+    NodeOf<OverlayNode>,
+    Option<NodeOf<OverlayNode>>,
+    Option<NodeId>,
+);
+
 pub struct Layers(Vec<Layer>);
 
 impl std::ops::Deref for Layers {
@@ -193,8 +201,7 @@ impl Document {
 
     pub fn layers(&self) -> Layers {
         let open = self.open_overlays();
-        let mut entries: Vec<(NodeOf<OverlayNode>, Option<NodeOf<OverlayNode>>, Option<NodeId>)> =
-            Vec::with_capacity(open.len());
+        let mut entries: Vec<Hanging> = Vec::with_capacity(open.len());
         for overlay in &open {
             let node = self.arena.get_as::<OverlayNode>(*overlay);
             let hangs_from = node
@@ -217,7 +224,7 @@ impl Document {
                 .find(|(id, _, _)| *id == overlay)
                 .and_then(|(_, parent, _)| *parent)
         };
-        let mut keyed: Vec<((LayerLevel, Vec<u64>), usize)> = Vec::with_capacity(entries.len());
+        let mut keyed: Vec<(StackKey, usize)> = Vec::with_capacity(entries.len());
         for (index, (overlay, _, _)) in entries.iter().enumerate() {
             let mut chain = vec![*overlay];
             let mut current = parent_of(*overlay);
@@ -234,7 +241,14 @@ impl Document {
                 .map(|overlay| self.arena.get_as::<OverlayNode>(*overlay).level)
                 .max()
                 .unwrap_or_default();
-            let seqs = chain.iter().map(|overlay| seq_of(*overlay)).collect();
+            let seqs = chain
+                .iter()
+                .map(|overlay| {
+                    let blocks =
+                        self.arena.get_as::<OverlayNode>(*overlay).policy == LayerPolicy::BlocksAll;
+                    (blocks, seq_of(*overlay))
+                })
+                .collect();
             keyed.push(((level, seqs), index));
         }
         keyed.sort();
@@ -264,10 +278,16 @@ impl Document {
             });
         }
         for at in 1..layers.len() {
-            let overlay = layers[at].overlay.expect("only the root layer has no overlay");
+            let overlay = layers[at]
+                .overlay
+                .expect("only the root layer has no overlay");
             layers[at].parent = Some(
                 parent_of(overlay)
-                    .and_then(|parent| layers.iter().position(|layer| layer.overlay == Some(parent)))
+                    .and_then(|parent| {
+                        layers
+                            .iter()
+                            .position(|layer| layer.overlay == Some(parent))
+                    })
                     .unwrap_or(0),
             );
         }
@@ -279,10 +299,7 @@ impl Document {
         for _ in 0..ANCESTOR_LIMIT {
             let id = current?;
             if let Some(overlay) = self.arena.kind_of::<OverlayNode>(id) {
-                return match layers.index_of(overlay) {
-                    Some(index) => Some(index),
-                    None => None,
-                };
+                return layers.index_of(overlay);
             }
             if Some(id) == self.root {
                 return Some(0);
@@ -317,7 +334,9 @@ impl Document {
         let node = self.arena.get_mut_as::<OverlayNode>(overlay);
         node.open = true;
         node.screen = screen;
-        self.layer_state.open.retain(|opened| opened.overlay != overlay);
+        self.layer_state
+            .open
+            .retain(|opened| opened.overlay != overlay);
         self.layer_state.open.push(Opened {
             overlay,
             seq: 0,
@@ -423,7 +442,9 @@ impl Document {
     }
 
     pub(crate) fn forget_layer(&mut self, id: NodeId) {
-        self.layer_state.open.retain(|opened| opened.overlay.id() != id);
+        self.layer_state
+            .open
+            .retain(|opened| opened.overlay.id() != id);
     }
 
     pub(crate) fn returns_on_removal(&self, removed: NodeId) -> Option<NodeId> {
@@ -531,7 +552,9 @@ impl Document {
                 None
             }
             Dismiss::Escape => {
-                let mut current = match self.focused.and_then(|focused| self.layer_of(&layers, focused))
+                let mut current = match self
+                    .focused
+                    .and_then(|focused| self.layer_of(&layers, focused))
                 {
                     Some(index) => Some(index),
                     None => Some(layers.keyboard()),
@@ -568,7 +591,11 @@ impl Document {
         if !layers[index].dismissable {
             return;
         }
-        if let Some(target) = self.deliver_to(&layers, index) {
+        let target = match reason {
+            Dismiss::OutsidePress => layers[index].overlay.map(DismissTarget::Overlay),
+            _ => self.deliver_to(&layers, index),
+        };
+        if let Some(target) = target {
             self.deliver_dismiss(target, reason);
         }
     }
@@ -643,7 +670,9 @@ impl Document {
         loop {
             let blocker = layers.iter().find(|layer| {
                 layer.policy == LayerPolicy::BlocksParent
-                    && layer.hangs_from.is_some_and(|blocked| self.is_within(node, blocked))
+                    && layer
+                        .hangs_from
+                        .is_some_and(|blocked| self.is_within(node, blocked))
                     && layer
                         .overlay
                         .is_some_and(|overlay| !self.is_within(node, overlay.id()))
@@ -662,7 +691,9 @@ impl Document {
             }
             if !layers.iter().any(|layer| {
                 layer.policy == LayerPolicy::BlocksParent
-                    && layer.hangs_from.is_some_and(|blocked| self.is_within(node, blocked))
+                    && layer
+                        .hangs_from
+                        .is_some_and(|blocked| self.is_within(node, blocked))
                     && layer
                         .overlay
                         .is_some_and(|overlay| !self.is_within(node, overlay.id()))
@@ -753,23 +784,29 @@ impl Document {
         path
     }
 
-    pub fn in_blocked(&self, layers: &Layers, at: usize, node: Option<NodeId>, pos: Pos2) -> Option<NodeOf<OverlayNode>> {
-        layers.iter().enumerate().skip(at + 1).find_map(|(_, layer)| {
-            if layer.policy != LayerPolicy::BlocksParent {
-                return None;
-            }
-            let blocked = layer.hangs_from?;
-            let inside = match node {
-                Some(node) => self.is_within(node, blocked),
-                None => {
-                    self.layer_of(layers, blocked) == Some(at)
+    pub fn in_blocked(
+        &self,
+        layers: &Layers,
+        at: usize,
+        node: Option<NodeId>,
+        pos: Pos2,
+    ) -> Option<NodeOf<OverlayNode>> {
+        layers
+            .iter()
+            .enumerate()
+            .skip(at + 1)
+            .find_map(|(_, layer)| {
+                if layer.policy != LayerPolicy::BlocksParent {
+                    return None;
+                }
+                let blocked = layer.hangs_from?;
+                let inside = node.is_some_and(|node| self.is_within(node, blocked))
+                    || (self.layer_of(layers, blocked) == Some(at)
                         && self
                             .rects
                             .visible(&blocked)
-                            .is_some_and(|rect| rect.contains_half_open(pos))
-                }
-            };
-            inside.then_some(layer.overlay?)
-        })
+                            .is_some_and(|rect| rect.contains_half_open(pos)));
+                inside.then_some(layer.overlay?)
+            })
     }
 }

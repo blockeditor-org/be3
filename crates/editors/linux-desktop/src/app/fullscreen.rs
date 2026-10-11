@@ -23,6 +23,7 @@ pub(super) fn bind_fullscreen(editor: &Editor) {
     })
     .glyph(ICON_FULLSCREEN)
     .shortcut(Chord::logo(Key::F))
-    .at(KeyAt::Window).capture()
+    .at(KeyAt::Window)
+    .capture()
     .register();
 }

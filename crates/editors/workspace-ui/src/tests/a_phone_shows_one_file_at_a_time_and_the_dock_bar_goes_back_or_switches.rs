@@ -79,6 +79,7 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
     assert_eq!(fixture.open_tabs(), 0, "a phone draws no tab bars");
     fixture.test.back();
     fixture.settle();
+    fixture.test.settle();
     assert!(
         !fixture.test.shown("dock.switcher.home"),
         "the back gesture closes the switcher"

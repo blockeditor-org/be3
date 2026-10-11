@@ -1,5 +1,5 @@
-use beui::KeyAt;
 use super::*;
+use beui::KeyAt;
 
 const COLUMN_SPACING: f32 = 20.0;
 const COLUMNS_BREAKPOINT: f32 = 460.0;
@@ -1200,7 +1200,8 @@ fn GlobalActions() -> NodeId {
     })
     .glyph(ICON_LOCK)
     .shortcut(Chord::logo(Key::L))
-    .at(KeyAt::Window).capture()
+    .at(KeyAt::Window)
+    .capture()
     .register();
     let opening = set_open.clone();
     let palette = Action::new("demo.palette", "Command palette", move || opening.set(true))

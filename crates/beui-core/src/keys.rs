@@ -105,10 +105,17 @@ pub(crate) enum Stop {
 
 impl KeyListeners {
     pub fn listen(&self, at: KeyAt, phase: KeyPhase, handler: Weak<KeyHandler>) {
-        self.listeners.borrow_mut().push(Listener { at, phase, handler });
+        self.listeners
+            .borrow_mut()
+            .push(Listener { at, phase, handler });
     }
 
-    pub(crate) fn at(&self, stop: Stop, phase: KeyPhase, root: Option<NodeId>) -> Vec<Rc<KeyHandler>> {
+    pub(crate) fn at(
+        &self,
+        stop: Stop,
+        phase: KeyPhase,
+        root: Option<NodeId>,
+    ) -> Vec<Rc<KeyHandler>> {
         let mut listeners = self.listeners.borrow_mut();
         listeners.retain(|listener| listener.handler.strong_count() > 0);
         listeners
@@ -123,7 +130,11 @@ impl KeyListeners {
             .collect()
     }
 
-    pub(crate) fn placed(&self, phase: KeyPhase, root: Option<NodeId>) -> Vec<(NodeId, Rc<KeyHandler>)> {
+    pub(crate) fn placed(
+        &self,
+        phase: KeyPhase,
+        root: Option<NodeId>,
+    ) -> Vec<(NodeId, Rc<KeyHandler>)> {
         let mut listeners = self.listeners.borrow_mut();
         listeners.retain(|listener| listener.handler.strong_count() > 0);
         listeners

@@ -36,7 +36,8 @@ pub(super) fn bind_window_switcher(layout: &DockingLayout<TabId>) {
         })
         .glyph(ICON_FLIP_TO_FRONT)
         .shortcut(chord)
-        .at(KeyAt::Window).capture()
+        .at(KeyAt::Window)
+        .capture()
         .register();
     }
     let open = create_memo(clone!(layout -> move || layout.switching()));
@@ -53,7 +54,8 @@ pub(super) fn bind_window_switcher(layout: &DockingLayout<TabId>) {
     .shortcut(escape)
     .shortcut(escape.shift())
     .enabled(open)
-    .at(KeyAt::Window).capture()
+    .at(KeyAt::Window)
+    .capture()
     .register();
     let committing = layout.clone();
     create_effect(move || {

@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::*;
-use crate::KeyAt;
 use crate::ForwardedInput;
+use crate::KeyAt;
 use crate::reactive::{Action, Canvas, CanvasItem, Chord, Frame, Interactive, build, view};
 
 #[test]
@@ -24,7 +24,8 @@ fn a_focused_app_keeps_its_keys_from_global_actions_that_do_not_intercept() {
                 intercepting.borrow_mut().push("intercepting")
             })
             .shortcut(Chord::logo(Key::H))
-            .at(KeyAt::Window).capture()
+            .at(KeyAt::Window)
+            .capture()
             .register();
             view! {
                 <Canvas>

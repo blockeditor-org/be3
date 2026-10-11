@@ -1,4 +1,3 @@
-use beui_core::layer::Dismiss;
 use crate as unstyled;
 use crate::ChoiceOption;
 use crate::button::ButtonHandle;
@@ -7,6 +6,7 @@ use crate::text_input::{TextInputHandle, TextInputStyle};
 use beui_core::base::overlay::Placement;
 use beui_core::document::Document;
 use beui_core::input::{Key, KeyPress};
+use beui_core::layer::Dismiss;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;

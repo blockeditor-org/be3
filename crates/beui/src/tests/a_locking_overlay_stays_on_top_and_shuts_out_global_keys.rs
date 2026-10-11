@@ -1,11 +1,11 @@
 use super::*;
-use crate::{Dismiss, KeyEvent, LayerLevel};
 use crate::base::overlay::{OverlayAnchor, OverlayNode, Placement};
 use crate::input::{BackGesture, KeyPress};
 use crate::reactive::{
     Overlay, WriteSignal, build, create_signal, on_global_key, view, with_reactive_scope,
 };
 use crate::styled::TextInput;
+use crate::{Dismiss, KeyEvent, LayerLevel};
 
 #[test]
 fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
@@ -110,7 +110,11 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
     set(&mut harness, &set_menu, true);
     assert!(harness.document().is_overlay_open(popup.id()));
     assert_eq!(
-        harness.document().layers().last().and_then(|layer| layer.overlay),
+        harness
+            .document()
+            .layers()
+            .last()
+            .and_then(|layer| layer.overlay),
         Some(lock),
         "an overlay opened while locked opens beneath the lock"
     );

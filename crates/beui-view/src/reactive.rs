@@ -112,12 +112,14 @@ pub fn on_shortcut(shortcut: impl Fn(beui_core::input::KeyPress) -> bool + 'stat
         Some(_) => beui_core::keys::KeyAt::Node(beui_core::tree::component_node()),
         None => beui_core::keys::KeyAt::Root,
     };
-    on_key(at, beui_core::keys::KeyPhase::Capture, move |event| {
-        match (event.press(), event.phase) {
+    on_key(
+        at,
+        beui_core::keys::KeyPhase::Capture,
+        move |event| match (event.press(), event.phase) {
             (Some(press), beui_core::keys::KeyPhase::Capture) => shortcut(press),
             _ => false,
-        }
-    });
+        },
+    );
 }
 
 pub fn on_global_key(handler: impl Fn(beui_core::keys::KeyEvent) -> bool + 'static) {
