@@ -13,6 +13,11 @@ use wayland_protocols::ext::data_control::v1::client::{
     ext_data_control_source_v1,
 };
 
+use wayland_protocols::wp::primary_selection::zv1::client::{
+    zwp_primary_selection_device_manager_v1, zwp_primary_selection_device_v1,
+    zwp_primary_selection_offer_v1, zwp_primary_selection_source_v1,
+};
+
 use crate::test_client::{Received, TestClient};
 
 pub(crate) const TEXT: &str = "text/plain;charset=utf-8";
@@ -21,6 +26,7 @@ pub(crate) const TEXT: &str = "text/plain;charset=utf-8";
 pub(crate) enum Offer {
     Data(wl_data_offer::WlDataOffer),
     Control(ext_data_control_offer_v1::ExtDataControlOfferV1),
+    Primary(zwp_primary_selection_offer_v1::ZwpPrimarySelectionOfferV1),
 }
 
 impl Offer {
@@ -28,6 +34,7 @@ impl Offer {
         match self {
             Self::Data(offer) => offer.id(),
             Self::Control(offer) => offer.id(),
+            Self::Primary(offer) => offer.id(),
         }
     }
 
@@ -35,6 +42,7 @@ impl Offer {
         match self {
             Self::Data(offer) => offer.receive(mime.to_owned(), fd),
             Self::Control(offer) => offer.receive(mime.to_owned(), fd),
+            Self::Primary(offer) => offer.receive(mime.to_owned(), fd),
         }
     }
 }
@@ -45,6 +53,9 @@ struct Clipboard {
     selection: Option<Offer>,
     copied: String,
     cancelled: bool,
+    primary: Option<Offer>,
+    control_primary: Option<Offer>,
+    primary_cancelled: bool,
     entered: Option<wayland_client::protocol::wl_surface::WlSurface>,
     dropped: Option<wayland_client::protocol::wl_surface::WlSurface>,
 }
@@ -63,7 +74,33 @@ pub(crate) struct DataDevice {
     device: wl_data_device::WlDataDevice,
 }
 
+pub(crate) struct PrimaryDevice {
+    manager: zwp_primary_selection_device_manager_v1::ZwpPrimarySelectionDeviceManagerV1,
+    device: zwp_primary_selection_device_v1::ZwpPrimarySelectionDeviceV1,
+}
+
 impl TestClient {
+    pub(crate) fn primary_device(&self) -> PrimaryDevice {
+        let manager: zwp_primary_selection_device_manager_v1::ZwpPrimarySelectionDeviceManagerV1 =
+            self.bind("zwp_primary_selection_device_manager_v1", 1);
+        let device = manager.get_device(self.seat.as_ref().unwrap(), &self.handle, ());
+        PrimaryDevice { manager, device }
+    }
+
+    pub(crate) fn select(&self, device: &PrimaryDevice, text: &str, serial: u32) {
+        let source = device.manager.create_source(&self.handle, ());
+        source.offer(TEXT.to_owned());
+        CLIPBOARD.with(|clipboard| clipboard.borrow_mut().copied = text.to_owned());
+        device.device.set_selection(Some(&source), serial);
+    }
+
+    pub(crate) fn select_with_control(&self, control: &DataControl, text: &str) {
+        let source = control.manager.create_data_source(&self.handle, ());
+        source.offer(TEXT.to_owned());
+        CLIPBOARD.with(|clipboard| clipboard.borrow_mut().copied = text.to_owned());
+        control.device.set_primary_selection(Some(&source));
+    }
+
     pub(crate) fn data_control(&self) -> DataControl {
         let manager: ext_data_control_manager_v1::ExtDataControlManagerV1 =
             self.bind("ext_data_control_manager_v1", 1);
@@ -111,6 +148,18 @@ impl TestClient {
 
 pub(crate) fn selection() -> Option<Offer> {
     CLIPBOARD.with(|clipboard| clipboard.borrow().selection.clone())
+}
+
+pub(crate) fn primary() -> Option<Offer> {
+    CLIPBOARD.with(|clipboard| clipboard.borrow().primary.clone())
+}
+
+pub(crate) fn control_primary() -> Option<Offer> {
+    CLIPBOARD.with(|clipboard| clipboard.borrow().control_primary.clone())
+}
+
+pub(crate) fn primary_cancelled() -> bool {
+    CLIPBOARD.with(|clipboard| clipboard.borrow().primary_cancelled)
 }
 
 pub(crate) fn drop_target() -> Option<wayland_client::protocol::wl_surface::WlSurface> {
@@ -257,8 +306,16 @@ impl Dispatch<ext_data_control_device_v1::ExtDataControlDeviceV1, ()> for Receiv
         _: &Connection,
         _: &QueueHandle<Self>,
     ) {
-        if let ext_data_control_device_v1::Event::Selection { id } = event {
-            selected(id.map(Offer::Control));
+        match event {
+            ext_data_control_device_v1::Event::Selection { id } => {
+                selected(id.map(Offer::Control));
+            }
+            ext_data_control_device_v1::Event::PrimarySelection { id } => {
+                CLIPBOARD.with(|clipboard| {
+                    clipboard.borrow_mut().control_primary = id.map(Offer::Control);
+                });
+            }
+            _ => {}
         }
     }
 
@@ -300,6 +357,61 @@ impl Dispatch<ext_data_control_source_v1::ExtDataControlSourceV1, ()> for Receiv
         }
     }
 }
+
+impl Dispatch<zwp_primary_selection_device_v1::ZwpPrimarySelectionDeviceV1, ()> for Received {
+    fn event(
+        _: &mut Self,
+        _: &zwp_primary_selection_device_v1::ZwpPrimarySelectionDeviceV1,
+        event: zwp_primary_selection_device_v1::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let zwp_primary_selection_device_v1::Event::Selection { id } = event {
+            CLIPBOARD.with(|clipboard| clipboard.borrow_mut().primary = id.map(Offer::Primary));
+        }
+    }
+
+    event_created_child!(Received, zwp_primary_selection_device_v1::ZwpPrimarySelectionDeviceV1, [
+        zwp_primary_selection_device_v1::EVT_DATA_OFFER_OPCODE => (zwp_primary_selection_offer_v1::ZwpPrimarySelectionOfferV1, ()),
+    ]);
+}
+
+impl Dispatch<zwp_primary_selection_offer_v1::ZwpPrimarySelectionOfferV1, ()> for Received {
+    fn event(
+        _: &mut Self,
+        offer: &zwp_primary_selection_offer_v1::ZwpPrimarySelectionOfferV1,
+        event: zwp_primary_selection_offer_v1::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let zwp_primary_selection_offer_v1::Event::Offer { mime_type } = event {
+            offered(offer.id(), mime_type);
+        }
+    }
+}
+
+impl Dispatch<zwp_primary_selection_source_v1::ZwpPrimarySelectionSourceV1, ()> for Received {
+    fn event(
+        _: &mut Self,
+        _: &zwp_primary_selection_source_v1::ZwpPrimarySelectionSourceV1,
+        event: zwp_primary_selection_source_v1::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        match event {
+            zwp_primary_selection_source_v1::Event::Send { fd, .. } => send(fd),
+            zwp_primary_selection_source_v1::Event::Cancelled => {
+                CLIPBOARD.with(|clipboard| clipboard.borrow_mut().primary_cancelled = true);
+            }
+            _ => {}
+        }
+    }
+}
+
+wayland_client::delegate_noop!(Received: ignore zwp_primary_selection_device_manager_v1::ZwpPrimarySelectionDeviceManagerV1);
 
 wayland_client::delegate_noop!(Received: ignore wl_data_device_manager::WlDataDeviceManager);
 wayland_client::delegate_noop!(Received: ignore ext_data_control_manager_v1::ExtDataControlManagerV1);

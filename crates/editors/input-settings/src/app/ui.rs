@@ -151,7 +151,7 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
                                 }}
                             />
                             <Caption
-                                content="Lets programs paste the text last selected in them with the middle button. Programs started after it changes follow it."
+                                content="Lets programs paste the text last selected in them with the middle button."
                             />
                         </List>
                     </List>
