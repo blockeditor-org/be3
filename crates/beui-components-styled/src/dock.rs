@@ -32,7 +32,7 @@ const TAB_HEIGHT: f32 = 33.0;
 const TAB_SPACING: f32 = 6.0;
 const BAR_PADDING: f32 = 4.0;
 const BAR_SPACING: f32 = 4.0;
-const WINDOW_BAR_PADDING: f32 = 5.0;
+const CONTROL_PADDING: f32 = 5.0;
 const GRIP_WIDTH: f32 = 22.0;
 const GRIP_PADDING: f32 = 3.0;
 const GRIP_GLYPH: f32 = 16.0;
@@ -416,7 +416,7 @@ pub(crate) fn DockMenu(
 #[component]
 fn DockClose(closable: Memo<bool>, close: ClickCallback) -> NodeId {
     view! {
-        <Frame padding_horizontal=WINDOW_BAR_PADDING visible={closable}>
+        <Frame padding_horizontal=CONTROL_PADDING visible={closable}>
             <IconButton
                 glyph=ICON_CLOSE
                 label="Close pane"
@@ -438,7 +438,7 @@ fn DockGrip(handle: DockGripHandle) -> NodeId {
         false => theme.border.get(),
     }));
     view! {
-        <Frame width=GRIP_WIDTH padding_vertical=WINDOW_BAR_PADDING padding_horizontal=GRIP_PADDING>
+        <Frame width=GRIP_WIDTH padding_vertical=CONTROL_PADDING padding_horizontal=GRIP_PADDING>
             <IconSized glyph=ICON_DRAG_INDICATOR font_size=GRIP_GLYPH color={color} />
         </Frame>
     }
