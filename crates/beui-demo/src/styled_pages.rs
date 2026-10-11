@@ -1086,6 +1086,9 @@ pub(crate) fn MenusPage() -> NodeId {
             <Sample title="Menu buttons" code={vec![SortMenus::SOURCE]}>
                 <SortMenus />
             </Sample>
+            <Sample title="Picture menu buttons" code={vec![TrayIcons::SOURCE, badge::SOURCE]}>
+                <TrayIcons />
+            </Sample>
             <Sample title="Split buttons" code={vec![RunButtons::SOURCE]}>
                 <RunButtons />
             </Sample>
@@ -1201,6 +1204,79 @@ fn CardMenu() -> NodeId {
                 </Card>
             </ContextMenu>
             <Caption content={menu_text} />
+        </List>
+    }
+}
+
+#[sample]
+fn badge(color: Color32) -> Image {
+    const SIDE: u32 = 32;
+    let center = (SIDE as f32 - 1.0) / 2.0;
+    let pixels = (0..SIDE * SIDE)
+        .flat_map(|at| {
+            let (x, y) = ((at % SIDE) as f32 - center, (at / SIDE) as f32 - center);
+            match x * x + y * y <= center * center {
+                true => color.to_array(),
+                false => [0, 0, 0, 0],
+            }
+        })
+        .collect();
+    Image::from_rgba(SIDE, SIDE, pixels)
+}
+
+#[sample]
+#[component]
+fn TrayIcons() -> NodeId {
+    let (outcome, set_outcome) = create_signal("Nothing done yet".to_owned());
+    let (opened, clicked, middled, scrolled, chose) = (
+        set_outcome.clone(),
+        set_outcome.clone(),
+        set_outcome.clone(),
+        set_outcome.clone(),
+        set_outcome,
+    );
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <PictureMenuButton
+                    label="Chat"
+                    image={Some(badge(Color32::from_rgb(0x58, 0x65, 0xf2)))}
+                    click_opens=false
+                    items={view! {
+                        <unstyled::MenuItem label="Open" />
+                        <unstyled::MenuItem label="Quit" separated=true />
+                    }}
+                    on_click={move || clicked.set("Clicked Chat".to_owned())}
+                    on_middle_click={move || middled.set("Middle-clicked Chat".to_owned())}
+                    on_scroll={move |_: ScrollGesture| scrolled.set("Scrolled over Chat".to_owned())}
+                    on_select={move |path: Vec<usize>| {
+                        let label = match path.as_slice() {
+                            [0] => "Open",
+                            _ => "Quit",
+                        };
+                        chose.set(format!("Chose {label}"));
+                    }}
+                />
+                <PictureMenuButton
+                    label="Sync"
+                    image={None}
+                    glyph=ICON_WIDGETS
+                    items={view! {
+                        <unstyled::MenuItem label="Pause syncing" />
+                    }}
+                    on_open_change={move |open: bool| {
+                        if open {
+                            opened.set("Opened the Sync menu".to_owned());
+                        }
+                    }}
+                />
+            </List>
+            <Caption
+                content="A picture, or a glyph without one. Chat activates on a click and shows \
+                 its menu on a right click; Sync shows its menu on either."
+                wrap=true
+            />
+            <Caption content={outcome} />
         </List>
     }
 }

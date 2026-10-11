@@ -27,7 +27,8 @@ use beui::styled::{
     DateTimeField, Dialog, Display, Docking, FocusRing, Fullscreen, Heading, Icon, IconButton,
     IconButtonSize, IconSized, KeepChanges, Launcher, LauncherItem, LevelOsd, Link, ListRow,
     Listbox, LockAction, LockScreen, MenuButton, ModalSheet, NumberInput, OklchColorWheel,
-    OsdLevel, Paragraph, Popover, Progress, RadioGroup, ResponsiveTabs, Scroll, Select,
+    OsdLevel, Paragraph, PictureMenuButton, Popover, Progress, RadioGroup, ResponsiveTabs, Scroll,
+    Select,
     SelectableText, Separator, Shortcut, Slider, Spinner, SplitButton, Stack, Switch, Tabs,
     TextArea, TextInput, Theme, ThemeProvider, Title, Toast, ToastAction, Toasts, ToggleButton,
     Tooltip, Tree, TreeRowFace, use_theme,
@@ -39,7 +40,7 @@ use beui::unstyled::{
 };
 use beui::{
     Color32, Context, Direction, Document, FontId, Image, ItemSize, Key, Modifiers, NodeId, Rect,
-    TextAlign, unstyled,
+    ScrollGesture, TextAlign, unstyled,
 };
 use beui_macros::{component, sample};
 use collaboration::CollaborationPage;
