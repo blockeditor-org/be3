@@ -19,28 +19,42 @@ environment they are its secrets:
 - `BE3_SERVER`: the server, `https://blocks.pfg.pw` unless set.
 
 Run it with `./scripts/buck run //crates/be-cli:be -- ARGS`; `be help` lists
-the commands.
+everything. A command names a target and then a verb, and the verbs depend on
+what the target is:
 
 ```text
-be databases
-be list Issues Status!=Done Project=Launch
-be show BE-7K3Q2M
-be new Issues "Fix the login" Status="To do" Project=Launch --body "Steps..."
-be set BE-7K3Q2M Status=Done --append "Fixed in #412."
+be ls                                   the blocks at the root, each with a short id
+be a1f3 ls                              a block's children
+be Issues rows Status!=Done Project=Launch
+be BE-7K3Q2M                            a row: its fields and its page
+be Issues new "Fix the login" Status="To do" "Blocked by=BE-4HV8ND" --body "Steps..."
+be BE-7K3Q2M set Status=Done "Blocked by-=BE-4HV8ND" --append "Fixed in #412."
+be BE-7K3Q2M page edit                  its page in $EDITOR, merged with any change since
+be BE-7K3Q2M delete
+be 3fa9 cat                             a text block, reached directly
+be Issues schema
+be Issues add-column "Blocked by" relation --links Issues --multiple --inverse Blocking
+be new-database Milestones --prefix MS --in a1f3
+be Issues import issues.csv             Linear's export, or any CSV
 ```
 
-A row's id is its database's prefix and six characters made from the row's own
-id, so it never changes and needs no coordination. Field values are matched by
-name, case aside: an option's name for an Enum column, a row's title or id for
-a Relation. The title is the first text column. `--body` replaces the row's page
-and `--append` adds a paragraph to it; `-` reads either from standard input, and
-`be edit` opens the page in `$EDITOR` and merges the edit with whatever changed
-meanwhile. `--json` prints JSON. `be import Issues issues.csv` adds a row for
-each line of a CSV file such as Linear's export: its Title column is the title,
-Description the page, and every column named like a field sets it, adding the
-options an Enum column lacks.
+A target is a block, by the start of its id as `be ls` prints it, its full id
+or its name (a database view and the database inside it share a name, and the
+name means the database), or a row by its id. A row's id is its database's
+prefix and six characters made from the row's own id, so it never changes and
+needs no coordination; the prefix is kept in the database's sealed metadata,
+which is how `be` finds the database without opening the others, and two
+databases with one prefix are refused. Field values are matched by name, case
+aside: an option's name for an Enum column, a row's title or id for a Relation.
+A relation of several rows takes `FIELD=A,B`, `FIELD+=A` and `FIELD-=A`, and so
+does its inverse column (`Blocking+=BE-…` writes `Blocked by` on that row). The
+title is the first text column. `--body` replaces the row's page and `--append`
+adds a paragraph to it; `-` reads either from standard input. `--json` prints
+JSON. An import's Title column is the title, Description the page, and every
+column named like a field sets it, adding the options an Enum column lacks and
+the rows a Relation column names that its database lacks.
 
-When a task names a row, read it with `be show` first, and put its id in the
+When a task names a row, read it with `be ID` first, and put its id in the
 pull request's title or body (or the branch name) so GitHub moves it. File the
 small problems you notice but do not fix as new rows rather than only listing
 them in the handoff.
@@ -51,7 +65,12 @@ them in the handoff.
   edits to different cells merge. `DatabaseRow::page` links the row's page, a
   text block created under the database the first time someone asks for one.
   `DatabaseValue::Relation(RowRef)` links a row of another database; the
-  schema's `DatabaseRelationOptions` names which. `short_id` and
+  schema's `DatabaseRelationOptions` names which. A relation of several rows
+  keeps each link as its own key of `DatabaseRow::links`, so links added at once
+  both stay, and `DatabaseRow::get` reads them as `DatabaseValue::Links`. A
+  relation can name an inverse column: `inverses` works out, for the database a
+  relation points at, which rows link to each of its rows, and both the editor
+  and `be` show and edit it as a column of its own. `short_id` and
   `Database::find_short_id` make and resolve ids.
 - **Views.** `DatabaseView::filters` hide the rows any filter rejects, in every
   view kind. The List kind is a line per row with a new-item box above, and a
@@ -67,7 +86,9 @@ them in the handoff.
 - **Writes.** `be` is a peer without a session: it opens a block, applies the
   same `Edit` the editor would, and publishes against the head it read; a
   rejected publish is retried on the new head. An app editing the same block
-  merges it in as it would any publish from outside its session.
+  merges it in as it would any publish from outside its session: rows, cells and
+  links by id, and text line by line. A text write changes only the span that
+  differs.
 - **GitHub.** `.github/workflows/tracker.yml` runs `be pull-request` on the
   event: ids in the branch, title or body move to `BE3_REVIEW_STATUS` (In
   review) when the pull request opens, with a link on the page, and to

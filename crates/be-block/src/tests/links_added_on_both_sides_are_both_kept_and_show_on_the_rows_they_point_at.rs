@@ -27,7 +27,10 @@ fn links_added_on_both_sides_are_both_kept_and_show_on_the_rows_they_point_at() 
     let (login, add_login) = named("Fix the login");
     let (retry, add_retry) = named("Retry");
     let (banner, add_banner) = named("Banner");
-    let base = edited(&DatabaseContent::default(), [add_login, add_retry, add_banner]);
+    let base = edited(
+        &DatabaseContent::default(),
+        [add_login, add_retry, add_banner],
+    );
     let link = |row: ObjectId| RowRef {
         database,
         row: row.as_uuid(),
@@ -52,16 +55,30 @@ fn links_added_on_both_sides_are_both_kept_and_show_on_the_rows_they_point_at() 
     assert_eq!(found.len(), 1);
     let blocking = &found[0];
     assert_eq!(blocking.name, "Blocking");
-    assert_eq!(blocking.rows.get(&login.as_uuid()), Some(&vec![link(banner)]));
+    assert_eq!(
+        blocking.rows.get(&login.as_uuid()),
+        Some(&vec![link(banner)])
+    );
     let shown = blocking.shown_on(root.rows.get(login).unwrap(), login.as_uuid());
-    assert_eq!(shown.get(blocking.id), Some(DatabaseValue::Links(vec![link(banner)])));
+    assert_eq!(
+        shown.get(blocking.id),
+        Some(DatabaseValue::Links(vec![link(banner)]))
+    );
 
     let unblocked = edited(&merged, [blocking.edits(&root, link(login), &[])]);
     assert_eq!(
-        unblocked.root().rows.get(banner).unwrap().links_of(blocked_by),
+        unblocked
+            .root()
+            .rows
+            .get(banner)
+            .unwrap()
+            .links_of(blocked_by),
         [link(retry)]
     );
-    let set = edited(&merged, [root.set_links(banner, blocked_by, &[link(retry)])]);
+    let set = edited(
+        &merged,
+        [root.set_links(banner, blocked_by, &[link(retry)])],
+    );
     assert_eq!(
         set.root().rows.get(banner).unwrap().links_of(blocked_by),
         [link(retry)]

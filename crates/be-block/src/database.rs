@@ -232,9 +232,11 @@ impl Inverse {
                 Some(match (linked, self.multiple) {
                     (true, true) => Database::link(row.id, self.field, target),
                     (false, true) => Database::unlink(row.id, self.field, target),
-                    (true, false) => {
-                        Database::set_value(row.id, self.field, Some(&DatabaseValue::Relation(target)))
-                    }
+                    (true, false) => Database::set_value(
+                        row.id,
+                        self.field,
+                        Some(&DatabaseValue::Relation(target)),
+                    ),
                     (false, false) => Database::set_value(row.id, self.field, None),
                 })
             })
@@ -353,17 +355,31 @@ impl Database {
         current
             .iter()
             .filter(|held| !targets.contains(held))
-            .map(|gone| DatabaseRow::LINKS.put(row, &RowLink { field, target: *gone }, None))
-            .chain(targets.iter().filter(|wanted| !current.contains(wanted)).map(|added| {
+            .map(|gone| {
                 DatabaseRow::LINKS.put(
                     row,
                     &RowLink {
                         field,
-                        target: *added,
+                        target: *gone,
                     },
-                    Some(&true),
+                    None,
                 )
-            }))
+            })
+            .chain(
+                targets
+                    .iter()
+                    .filter(|wanted| !current.contains(wanted))
+                    .map(|added| {
+                        DatabaseRow::LINKS.put(
+                            row,
+                            &RowLink {
+                                field,
+                                target: *added,
+                            },
+                            Some(&true),
+                        )
+                    }),
+            )
             .collect()
     }
 

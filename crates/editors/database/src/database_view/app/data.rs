@@ -8,6 +8,7 @@ use block_editor_beui::BlockQuery;
 use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::be_block::Edit;
 use block_editor_beui::be_block::ObjectId;
+use block_editor_beui::be_block::database::Inverse;
 use block_editor_beui::be_block::database::{
     Database, DatabaseContent, DatabaseRow, DatabaseValue, RowRef,
 };
@@ -21,7 +22,6 @@ use block_editor_beui::beui::reactive::{
 };
 use block_editor_beui::block_ui::BlockLabel;
 use block_editor_beui::block_ui::database::DatabaseBlockPickRequest;
-use block_editor_beui::be_block::database::Inverse;
 use block_editor_beui::database::{relation_targets, watch_inverses, watch_row_labels};
 use block_editor_beui::{BlockFilter, ContentProjection, Editor, RelatedContent};
 use uuid::Uuid;
@@ -266,9 +266,9 @@ impl ViewData {
     }
 
     pub fn set_value(&self, row: ObjectId, field: Uuid, value: Option<DatabaseValue>) {
-        let inverse = self
-            .inverses
-            .with_untracked(|inverses| inverses.iter().find(|inverse| inverse.id == field).cloned());
+        let inverse = self.inverses.with_untracked(|inverses| {
+            inverses.iter().find(|inverse| inverse.id == field).cloned()
+        });
         if let Some(inverse) = inverse {
             self.set_inverse(&inverse, row, value);
             return;
@@ -346,7 +346,9 @@ impl ViewData {
     }
 
     pub fn set_cell(&self, row_index: usize, field_id: Uuid, value: Option<DatabaseValue>) {
-        let existing = self.row_ids.with_untracked(|ids| ids.get(row_index).copied());
+        let existing = self
+            .row_ids
+            .with_untracked(|ids| ids.get(row_index).copied());
         match (existing, &value) {
             (Some(row), Some(DatabaseValue::Links(_))) => self.set_value(row, field_id, value),
             (None, Some(DatabaseValue::Links(_))) => {}

@@ -51,7 +51,7 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
     let seen = agent.databases().await.unwrap();
     assert_eq!(
         seen.iter()
-            .map(|database| database.name.as_str())
+            .map(|database| database.label())
             .collect::<Vec<_>>(),
         ["Issues"]
     );
@@ -61,7 +61,7 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
         .create(
             board.database,
             "Found by the agent",
-            &[("Status".into(), "To do".into())],
+            &[set("Status", "To do")],
             Body::Replace("Steps to reproduce.".into()),
         )
         .await

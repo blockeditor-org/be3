@@ -1,7 +1,7 @@
 use std::io::Read;
 use std::process::ExitCode;
 
-use be_cli::cli::{self, Command, USAGE};
+use be_cli::cli::{self, Outcome, USAGE};
 use be_cli::session::{Settings, connect};
 use be_cli::tracker::Tracker;
 
@@ -29,18 +29,17 @@ async fn run() -> Result<String, String> {
             .map_err(|error| format!("could not read standard input: {error}"))?;
         Ok(text)
     })?;
-    if invocation.command == Command::Help {
+    if invocation.target.is_none() && invocation.verb == "help" {
         return Ok(USAGE.to_owned());
     }
     let settings = Settings::from_env()?;
     let tracker = Tracker::new(connect(&settings).await?);
-    let Command::Edit { id } = &invocation.command else {
-        return cli::run(&tracker, &invocation).await;
+    let (block, label, base) = match cli::run(&tracker, &invocation).await? {
+        Outcome::Print(text) => return Ok(text),
+        Outcome::Edit { block, label, base } => (block, label, base),
     };
-    let row = tracker.show(id).await?;
-    let base = row.body.clone().unwrap_or_default();
-    let path = std::env::temp_dir().join(format!("{}.md", row.id));
-    std::fs::write(&path, cli::edit_document(&row))
+    let path = std::env::temp_dir().join(format!("be-{}.md", block.simple()));
+    std::fs::write(&path, cli::edit_document(&label, &base))
         .map_err(|error| format!("could not write {}: {error}", path.display()))?;
     let editor = std::env::var("VISUAL")
         .or_else(|_| std::env::var("EDITOR"))
@@ -62,10 +61,10 @@ async fn run() -> Result<String, String> {
     if body == base {
         return Ok("unchanged".to_owned());
     }
-    match tracker.rewrite_page(id, &base, &body).await? {
-        true => Ok(format!("saved {id}")),
+    match tracker.rewrite_text(block, &base, &body).await? {
+        true => Ok(format!("saved {label}")),
         false => Ok(format!(
-            "saved {id}, with conflict markers where someone else changed the same lines"
+            "saved {label}, with conflict markers where someone else changed the same lines"
         )),
     }
 }

@@ -725,10 +725,7 @@ fn LinksValue(
     }
 }
 
-pub fn watch_inverses(
-    editor: &crate::Editor,
-    database: Memo<Option<Uuid>>,
-) -> Memo<Vec<Inverse>> {
+pub fn watch_inverses(editor: &crate::Editor, database: Memo<Option<Uuid>>) -> Memo<Vec<Inverse>> {
     let (found, set_found) = create_signal(Vec::<Inverse>::new());
     let editor = editor.clone();
     let watched: std::cell::RefCell<Option<(Uuid, crate::BlockList)>> =
@@ -750,7 +747,9 @@ pub fn watch_inverses(
             .map(|(_, list)| list.read())
             .unwrap_or_default()
             .into_iter()
-            .filter(|info| info.block_type == <DatabaseSchemaContent as be_block::BlockContent>::CONTENT_TYPE)
+            .filter(|info| {
+                info.block_type == <DatabaseSchemaContent as be_block::BlockContent>::CONTENT_TYPE
+            })
             .filter_map(|info| match info.parent {
                 crate::BlockParent::Block(parent) => Some(parent),
                 _ => None,
@@ -776,11 +775,7 @@ pub fn watch_inverses(
     create_memo(move || found.get())
 }
 
-fn source_inverses(
-    editor: &crate::Editor,
-    target: Uuid,
-    source: Uuid,
-) -> ReadSignal<Vec<Inverse>> {
+fn source_inverses(editor: &crate::Editor, target: Uuid, source: Uuid) -> ReadSignal<Vec<Inverse>> {
     let content = editor.content_of::<DatabaseContent>(source);
     let schema_id = content.project(|content| content.root().schema);
     let (found, set_found) = create_signal(Vec::new());

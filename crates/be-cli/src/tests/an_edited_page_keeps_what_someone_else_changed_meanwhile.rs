@@ -15,6 +15,7 @@ async fn an_edited_page_keeps_what_someone_else_changed_meanwhile() {
         .await
         .unwrap();
     let base = made.body.clone().unwrap();
+    let page = made.page.unwrap();
 
     tracker
         .update(
@@ -25,7 +26,7 @@ async fn an_edited_page_keeps_what_someone_else_changed_meanwhile() {
         .await
         .unwrap();
     let clean = tracker
-        .rewrite_page(&made.id, &base, "ONE\ntwo\nthree\n")
+        .rewrite_text(page, &base, "ONE\ntwo\nthree\n")
         .await
         .unwrap();
 

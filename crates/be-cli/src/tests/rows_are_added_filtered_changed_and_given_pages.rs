@@ -10,21 +10,20 @@ async fn rows_are_added_filtered_changed_and_given_pages() {
         .create(
             board.database,
             "Fix the login",
-            &[
-                ("Status".into(), "to do".into()),
-                ("Project".into(), "Launch".into()),
-            ],
+            &[set("Status", "to do"), set("Project", "Launch")],
             Body::Replace("It fails on a slow network.".into()),
         )
         .await
         .unwrap();
     assert!(made.id.starts_with("BE-"), "{}", made.id);
     assert_eq!(made.title, "Fix the login");
+    let launch = made.field("Project").unwrap().links[0].0.clone();
+    assert!(launch.starts_with("PR-"), "{launch}");
     assert_eq!(
-        made.fields,
+        pairs(&made),
         [
             ("Status".to_owned(), "To do".to_owned()),
-            ("Project".to_owned(), "Launch".to_owned()),
+            ("Project".to_owned(), format!("{launch} Launch")),
         ]
     );
     assert_eq!(made.body.as_deref(), Some("It fails on a slow network."));
@@ -33,41 +32,39 @@ async fn rows_are_added_filtered_changed_and_given_pages() {
         .await
         .unwrap();
 
-    let open = cli::run(
-        &tracker,
-        &invocation(Command::List {
-            database: "be".into(),
-            filters: vec![Filter::parse("Status=To do").unwrap()],
-        }),
-    )
-    .await
-    .unwrap();
+    let open = run(&tracker, "Issues rows Status=To_do Project=Launch")
+        .await
+        .unwrap();
     assert_eq!(
         open,
         format!(
-            "{}\tFix the login\t[Status: To do; Project: Launch]",
+            "{}\tFix the login\t[Status: To do; Project: {launch} Launch]",
             made.id
         )
+    );
+    assert_eq!(
+        run(&tracker, &format!("{} show", made.id)).await.unwrap(),
+        {
+            let shown = tracker.show(&made.id).await.unwrap();
+            cli::row_text(&shown)
+        }
     );
 
     let changed = tracker
         .update(
             &made.id.to_lowercase(),
-            &[
-                ("Status".into(), "Done".into()),
-                ("Project".into(), String::new()),
-            ],
+            &[set("Status", "Done"), set("Project", "")],
             Body::Append("Fixed by retrying.".into()),
         )
         .await
         .unwrap();
-    assert_eq!(changed.fields, [("Status".to_owned(), "Done".to_owned())]);
+    assert_eq!(pairs(&changed), [("Status".to_owned(), "Done".to_owned())]);
     assert_eq!(
         changed.body.as_deref(),
         Some("It fails on a slow network.\nFixed by retrying.")
     );
     let refused = tracker
-        .update(&made.id, &[("Status".into(), "Maybe".into())], Body::Keep)
+        .update(&made.id, &[set("Status", "Maybe")], Body::Keep)
         .await
         .unwrap_err();
     assert!(refused.contains("To do, Done"), "{refused}");
@@ -89,6 +86,18 @@ async fn rows_are_added_filtered_changed_and_given_pages() {
     assert_eq!(
         tracker.peer().metadata(&summary).unwrap().name.as_deref(),
         Some("Fix the login")
+    );
+    assert_eq!(
+        run(&tracker, &format!("{} page", made.id)).await.unwrap(),
+        "It fails on a slow network.\nFixed by retrying."
+    );
+
+    let deleted = run(&tracker, &format!("{} delete", made.id)).await.unwrap();
+    assert!(deleted.starts_with("deleted"), "{deleted}");
+    assert!(tracker.show(&made.id).await.is_err());
+    assert_eq!(
+        tracker.peer().summary(page).await.unwrap().parent,
+        BlockParent::Detached
     );
 
     harness.stop().await;

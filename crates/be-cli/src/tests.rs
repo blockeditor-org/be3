@@ -11,15 +11,18 @@ use be_store::{ContentKey, MemoryStore};
 use tokio::{net::TcpListener, sync::oneshot};
 use uuid::Uuid;
 
-use crate::cli::{self, Command, Invocation};
-use crate::tracker::{Body, Condition, Filter, Tracker};
+use crate::cli::{self, Invocation, Outcome};
+use crate::tracker::{Assignment, Body, RowView, Tracker};
 
 mod a_csv_export_is_imported_as_rows_with_pages;
 mod a_pull_request_moves_the_rows_it_names;
+mod a_row_blocked_by_another_shows_as_blocking_there;
 mod an_agent_reads_and_writes_the_rows_shared_with_it;
 mod an_edited_page_keeps_what_someone_else_changed_meanwhile;
 mod arguments_parse_into_commands;
+mod blocks_are_listed_and_found_by_short_id_or_name;
 mod rows_are_added_filtered_changed_and_given_pages;
+mod two_databases_with_one_prefix_are_refused;
 
 const KEY: [u8; 32] = [9; 32];
 
@@ -176,6 +179,7 @@ async fn board(tracker: &Tracker<MemoryStore>) -> Board {
         },
     ));
     peer.save(schema, &content, head).await.unwrap();
+    tracker.invalidate().await;
     Board {
         database: issues,
         status: fields[1],
@@ -183,9 +187,24 @@ async fn board(tracker: &Tracker<MemoryStore>) -> Board {
     }
 }
 
-fn invocation(command: Command) -> Invocation {
-    Invocation {
-        command,
-        json: false,
+fn pairs(row: &RowView) -> Vec<(String, String)> {
+    row.fields
+        .iter()
+        .map(|field| (field.name.clone(), field.text.clone()))
+        .collect()
+}
+
+fn set(field: &str, value: &str) -> Assignment {
+    Assignment::parse(&format!("{field}={value}")).unwrap()
+}
+
+async fn run(tracker: &Tracker<MemoryStore>, line: &str) -> Result<String, String> {
+    let invocation: Invocation = cli::parse(
+        line.split(' ').map(|word| word.replace('_', " ")).collect(),
+        || Ok(String::new()),
+    )?;
+    match cli::run(tracker, &invocation).await? {
+        Outcome::Print(text) => Ok(text),
+        Outcome::Edit { .. } => Err("the command wanted an editor".to_owned()),
     }
 }

@@ -32,8 +32,16 @@ fn a_blocked_row_lists_its_blockers_and_they_list_it_as_blocking() {
     info.references = vec![database];
     fixture.harness.store().add_block(info);
     fixture.set(0, title, DatabaseValue::String("Fix the login".into()));
-    fixture.set(1, title, DatabaseValue::String("Retry on slow networks".into()));
-    fixture.set(2, title, DatabaseValue::String("Show a retry banner".into()));
+    fixture.set(
+        1,
+        title,
+        DatabaseValue::String("Retry on slow networks".into()),
+    );
+    fixture.set(
+        2,
+        title,
+        DatabaseValue::String("Show a retry banner".into()),
+    );
     let rows = fixture.database();
     let id = |index: usize| rows.rows.get_index(index).unwrap().id;
     let link = |index: usize| RowRef {
@@ -52,13 +60,15 @@ fn a_blocked_row_lists_its_blockers_and_they_list_it_as_blocking() {
     fixture
         .harness
         .click(&format!("database-view.list.row.{}", id(0).as_uuid()));
-    fixture.harness.settle_until("the blocking row to show", |harness| {
-        harness.shown(&format!(
-            "database-view.detail.field.{}.remove.{}",
-            block_editor_beui::be_block::database::inverse_id(database, blocked_by),
-            id(2).as_uuid()
-        ))
-    });
+    fixture
+        .harness
+        .settle_until("the blocking row to show", |harness| {
+            harness.shown(&format!(
+                "database-view.detail.field.{}.remove.{}",
+                block_editor_beui::be_block::database::inverse_id(database, blocked_by),
+                id(2).as_uuid()
+            ))
+        });
     fixture
         .harness
         .snapshot("a_blocked_row_lists_its_blockers_and_they_list_it_as_blocking");
@@ -70,7 +80,12 @@ fn a_blocked_row_lists_its_blockers_and_they_list_it_as_blocking() {
     ));
     fixture.settle();
     assert_eq!(
-        fixture.database().rows.get(id(2)).unwrap().links_of(blocked_by),
+        fixture
+            .database()
+            .rows
+            .get(id(2))
+            .unwrap()
+            .links_of(blocked_by),
         [link(1)]
     );
 }

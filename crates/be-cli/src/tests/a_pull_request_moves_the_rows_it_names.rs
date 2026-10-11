@@ -30,6 +30,7 @@ async fn a_pull_request_moves_the_rows_it_names() {
     let head = peer.local_head(schema);
     content.apply(&DatabaseSchema::add_enum_option(board.status, "In review").1);
     peer.save(schema, &content, head).await.unwrap();
+    tracker.invalidate().await;
     let made = tracker
         .create(board.database, "Fix the login", &[], Body::Keep)
         .await
@@ -58,7 +59,7 @@ async fn a_pull_request_moves_the_rows_it_names() {
         .unwrap();
     let opened = tracker.show(&made.id).await.unwrap();
     assert_eq!(
-        opened.fields,
+        pairs(&opened),
         [("Status".to_owned(), "In review".to_owned())]
     );
     assert_eq!(
@@ -73,7 +74,7 @@ async fn a_pull_request_moves_the_rows_it_names() {
         .await
         .unwrap();
     let merged = tracker.show(&made.id).await.unwrap();
-    assert_eq!(merged.fields, [("Status".to_owned(), "Done".to_owned())]);
+    assert_eq!(pairs(&merged), [("Status".to_owned(), "Done".to_owned())]);
     assert_eq!(merged.body, opened.body, "the link is added once");
     harness.stop().await;
 }
