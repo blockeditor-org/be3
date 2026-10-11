@@ -1,5 +1,5 @@
 use beui::reactive::{Frame, NodeRef, build, view};
-use beui::styled::{Toast, Toasts, use_theme};
+use beui::styled::{Toast, ToastAction, Toasts, use_theme};
 use beui::unstyled::Edge;
 
 use super::*;
@@ -10,12 +10,25 @@ fn toasts_on_the_top_edge_stack_in_the_top_corner() {
     let document = build(move || {
         let theme = use_theme();
         let area = NodeRef::new();
-        let toasts = vec![Toast {
-            id: 1,
-            message: "Terminal did not start: No such file or directory".to_owned(),
-            danger: true,
-            ..Toast::default()
-        }];
+        let toasts = vec![
+            Toast {
+                id: 1,
+                message: "Terminal did not start: No such file or directory".to_owned(),
+                danger: true,
+                ..Toast::default()
+            },
+            Toast {
+                id: 2,
+                message: "The last session ended after an error: the host lost track of a screen"
+                    .to_owned(),
+                danger: true,
+                actions: vec![ToastAction {
+                    key: "copy-report".to_owned(),
+                    label: "Copy report".to_owned(),
+                }],
+                ..Toast::default()
+            },
+        ];
         view! {
             <Frame @node_ref=&area color={theme.background.clone()}>
                 <Toasts

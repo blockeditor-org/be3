@@ -2106,7 +2106,10 @@ impl BlockApp {
                 message if message.is_empty() => summary.to_owned(),
                 message => message,
             };
-            notices::report(format!("The last session ended after an error: {message}"));
+            notices::report_with(
+                format!("The last session ended after an error: {message}"),
+                report,
+            );
             return;
         }
         self.crashed(format!(
