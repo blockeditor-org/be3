@@ -21,6 +21,7 @@ mod a_program_that_is_not_found_is_reported;
 mod a_resized_window_is_drawn_unscaled_until_it_commits_the_new_size;
 mod a_shown_dmabuf_is_released_once_a_newer_one_is_painted;
 mod a_shown_window_that_inhibits_idle_keeps_the_session_awake;
+mod a_single_pixel_buffer_fills_its_window_with_one_color;
 mod a_stale_or_foreign_token_does_not_take_the_focus;
 mod a_token_from_a_click_in_the_focused_window_brings_another_window_forward;
 mod a_token_is_lost_once_the_keyboard_leaves_its_window;
@@ -32,6 +33,7 @@ mod a_window_on_no_screen_has_its_presentation_discarded;
 mod a_window_that_moves_without_resizing_is_not_configured_again;
 mod a_window_that_stops_answering_pings_is_not_responding_until_it_answers;
 mod activating_a_window_with_a_modal_dialog_raises_the_dialog;
+mod an_app_that_inhibits_shortcuts_gets_super_chords_until_super_escape;
 mod an_inhibitor_on_a_window_that_is_not_shown_does_not_keep_the_session_awake;
 mod closing_a_window_that_is_not_responding_disconnects_its_client;
 mod idle_notifications_tell_clients_when_the_user_idles_and_resumes;
@@ -94,6 +96,7 @@ fn Shown(windows: Windows) -> NodeId {
         .shortcut(beui::reactive::Chord::logo(Key::G))
         .global()
         .register();
+        crate::view::register_restore_shortcuts(&windows);
         let (text, set_text) = create_signal(String::new());
         let (locked, set_locked) = create_signal(false);
         LOCK.with(|lock| *lock.borrow_mut() = Some(set_locked));
@@ -414,6 +417,7 @@ fn flip(seconds: u64) -> crate::presentation::Presented {
 
 const KEY_F: u32 = 33;
 const KEY_G: u32 = 34;
+const KEY_ESC: u32 = 1;
 const KEY_LEFTMETA: u32 = 125;
 
 thread_local! {

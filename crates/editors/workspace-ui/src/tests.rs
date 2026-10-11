@@ -20,6 +20,7 @@ mod a_reopened_phone_goes_back_through_the_files_in_the_order_they_were_shown;
 mod a_shown_block_is_remembered_in_the_recents;
 mod a_shown_block_is_reported_as_focused;
 mod a_template_without_a_dialog_is_created_and_answers_the_pick;
+mod a_window_tab_shows_the_icon_its_program_set;
 mod a_window_that_stops_responding_offers_to_wait_or_force_close;
 mod a_window_the_host_makes_fullscreen_covers_the_workspace_until_it_leaves;
 mod a_window_the_host_raises_brings_its_hidden_tab_forward;
@@ -137,6 +138,7 @@ fn window(id: u64, title: &str, parent: Option<u64>) -> block_editor_beui::HostW
         fullscreen: None,
         responding: true,
         focused: false,
+        icon: None,
         raised: 0,
     }
 }

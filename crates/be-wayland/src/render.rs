@@ -209,6 +209,47 @@ impl Textures {
             .get(surface)
             .filter(|current| current.buffer.is_none())
             .map(|current| current.texture.clone());
+        if let Some((rgba, opaque)) = crate::single_pixel::color(&buffer) {
+            let format = match gpu.srgb {
+                true => wgpu::TextureFormat::Rgba8UnormSrgb,
+                false => wgpu::TextureFormat::Rgba8Unorm,
+            };
+            let size = wgpu::Extent3d {
+                width: 1,
+                height: 1,
+                depth_or_array_layers: 1,
+            };
+            let texture = previous
+                .filter(|texture| {
+                    texture.texture.size() == size
+                        && texture.texture.format() == format
+                        && texture.opaque == opaque
+                })
+                .unwrap_or_else(|| Rc::new(gpu.texture(size, format, opaque)));
+            gpu.queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &texture.texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                &rgba,
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(4),
+                    rows_per_image: Some(1),
+                },
+                size,
+            );
+            self.surfaces.insert(
+                surface.clone(),
+                Current {
+                    texture,
+                    buffer: None,
+                },
+            );
+            return;
+        }
         let uploaded = with_buffer_contents(&buffer, |pointer, length, data| {
             let (format, opaque) = match (data.format, gpu.srgb) {
                 (wl_shm::Format::Argb8888, true) => (wgpu::TextureFormat::Bgra8UnormSrgb, false),

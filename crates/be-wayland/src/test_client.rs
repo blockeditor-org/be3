@@ -33,6 +33,7 @@ use wayland_protocols::wp::idle_inhibit::zv1::client::{
     zwp_idle_inhibit_manager_v1, zwp_idle_inhibitor_v1,
 };
 
+mod protocols;
 use wayland_protocols::wp::presentation_time::client::{wp_presentation, wp_presentation_feedback};
 use wayland_protocols::xdg::activation::v1::client::{xdg_activation_token_v1, xdg_activation_v1};
 
@@ -74,6 +75,7 @@ pub(crate) struct Received {
     pub(crate) ignores_pings: bool,
     pub(crate) pings: Vec<u32>,
     pub(crate) idle: Vec<bool>,
+    pub(crate) protocols: protocols::Protocols,
     pub(crate) clock: Option<u32>,
     pub(crate) presented: Vec<Feedback>,
     pub(crate) discarded: usize,
@@ -585,6 +587,15 @@ impl Dispatch<xdg_toplevel::XdgToplevel, ()> for Received {
             state.activated = has(xdg_toplevel::State::Activated);
             state.fullscreen = has(xdg_toplevel::State::Fullscreen);
             state.maximized = has(xdg_toplevel::State::Maximized);
+        } else if let xdg_toplevel::Event::WmCapabilities { capabilities } = event {
+            state.protocols.wm_capabilities = Some(
+                capabilities
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .map(|chunk| u32::from_ne_bytes(*chunk))
+                    .collect(),
+            );
         }
     }
 }

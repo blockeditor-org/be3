@@ -64,7 +64,7 @@ pub(crate) fn SessionLock(view: AppViewStore) -> NodeId {
     })
     .glyph(ICON_LOCK)
     .shortcut(Chord::logo(Key::L))
-    .intercepts()
+    .escape_hatch()
     .enabled(available)
     .register();
     let clock = wall_clock();

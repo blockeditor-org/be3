@@ -244,6 +244,11 @@ pub(crate) fn listed() -> Vec<HostWindow> {
             }),
             responding: info.responding,
             focused: windows.focused() == Some(info.id),
+            icon: info.icon.map(|icon| HostImage {
+                width: icon.width(),
+                height: icon.height(),
+                rgba: icon.pixels().to_vec(),
+            }),
             raised: windows.raised(info.id),
         })
         .collect()
@@ -409,6 +414,16 @@ impl Programs {
         });
         crate::host::wake();
         true
+    }
+}
+
+#[component]
+pub(crate) fn WindowActions() -> NodeId {
+    if let Some(windows) = windows() {
+        be_wayland::register_restore_shortcuts(&windows);
+    }
+    view! {
+        <Frame />
     }
 }
 

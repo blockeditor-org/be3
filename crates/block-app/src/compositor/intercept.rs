@@ -17,6 +17,9 @@ pub(super) fn intercept_keys(
     let held = Rc::new(Cell::new(Modifiers::NONE));
     on_global_key(clone!(plugin_id held -> move |global: GlobalKeyPress| {
         let press = global.press;
+        if global.inhibited && !global.held {
+            return false;
+        }
         if global.tap {
             let asked = chords.with_untracked(|chords| {
                 chords.iter().any(|chord| chord.tap && chord.key == press.key)

@@ -264,6 +264,30 @@ goes to, and `Compositor::after` turns what each window was forwarded into `wl_p
 window (a floating window's tab, say) the window takes nothing (`occluders`, from the region's
 occlusion), and a press keeps going to the window or plugin it began on until it is let go.
 
+A window's tab shows the icon its program set with `xdg-toplevel-icon-v1`: be-wayland
+reads the pixels it was handed (the smallest at least 64 pixels, shrunk to 64) or looks the
+name up in the icon theme, and it reaches the shell as `HostWindow::icon` beside the title,
+which block-shell's `WindowTab` hands the dock as its `DockTab` `picture`. Without one the
+tab shows a generic glyph. `xdg-foreign` v2 lets a program parent its window to another
+program's, as a portal does with its file chooser: the child's `HostWindow::parent` is the
+exported window, and it is shown as that window's child like any other dialog. The xdg shell offers only the
+fullscreen capability (`wm_capabilities`), so GTK 4 and libadwaita leave out the minimize
+and maximize buttons: a tab has nowhere to minimize to, and its size is the dock's, so
+maximizing would change nothing (a request to maximize is still answered with the
+maximized state, for programs that ask anyway). `wp-content-type-v1` and
+`wp-tearing-control-v1` hints are kept per surface (`State::content_type`,
+`State::tearing`) and do not change how anything is drawn yet; `wp-single-pixel-buffer-v1`
+buffers are drawn as one-pixel textures.
+
+A program that holds a `zwp_keyboard_shortcuts_inhibitor_v1` on its window (a remote
+desktop, a virtual machine) gets the desktop's shortcuts itself while its window has the
+keyboard: the window's `WindowView` sets `inhibits_shortcuts`, and beui keeps every
+intercepting action, tap and F6 from it (guides/beui_keyboard.md). Two chords always work:
+Super+L locks the screen, and Super+Escape (`register_restore_shortcuts`, registered by
+block-app's `WindowActions`) takes the shortcuts back from the focused window until it
+loses the keyboard and gets it again. The inhibitor is told it is active only while its
+window has the keyboard.
+
 Under `--session` the DRM adapter draws the pointer into each output's frame, redrawing only the
 outputs the cursor moved off or onto. beui's `CursorIcon`s (every CSS cursor; `name()` is the CSS
 name) come from the XCursor theme (`XCURSOR_THEME`, `XCURSOR_SIZE`, `XCURSOR_PATH` or the XDG

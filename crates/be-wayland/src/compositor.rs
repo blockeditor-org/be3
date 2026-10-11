@@ -405,6 +405,8 @@ impl Compositor {
                     modal: state.modal(id),
                     fullscreen: self.fullscreen_area(id),
                     responding: state.responding(id),
+                    icon: state.icon(id),
+                    inhibits_shortcuts: state.inhibits_shortcuts(id),
                 })
             })
             .collect()
@@ -620,6 +622,10 @@ impl Compositor {
                     self.server.state.ping(id, now);
                 }
                 Command::Close(id) => self.force_close(id),
+                Command::RestoreShortcuts(id) => {
+                    self.server.state.restore_shortcuts(id);
+                    self.forced = true;
+                }
                 Command::Launch(launch) => self.launch(&launch, now),
             }
         }

@@ -33,6 +33,7 @@ use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
 use beui_core::base::{Direction, ItemSize};
 use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
+use beui_core::image::Image;
 use beui_core::input::{CursorIcon, Key, KeyPress, Modifiers, PointerPress};
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
@@ -92,6 +93,7 @@ pub struct DockTabHandle {
     pub vertical: bool,
     pub title: Memo<String>,
     pub icon: Memo<String>,
+    pub picture: Memo<Option<Image>>,
     pub tabs: Memo<Vec<TabId>>,
     pub has_next: Memo<bool>,
     pub selected: Memo<bool>,
@@ -341,6 +343,7 @@ struct State {
     title: Func<TabId, String>,
     group_title: Func<GroupId, Option<String>>,
     icon: Func<TabId, String>,
+    picture: Func<TabId, Option<Image>>,
     closable: Func<TabId, bool>,
     menu: MenuStyle,
     home: Memo<Option<TabId>>,
@@ -409,6 +412,13 @@ impl State {
 
     fn icon(&self, tab: TabId) -> String {
         self.icon.call(tab)
+    }
+
+    fn entry_picture(&self, entry: Entry) -> Option<Image> {
+        match entry {
+            Entry::Tab(tab) => self.picture.call(tab),
+            Entry::Group(_) => None,
+        }
     }
 
     fn entry_icon(&self, entry: Entry) -> String {
@@ -1014,6 +1024,7 @@ pub(crate) struct DockConfig {
     pub(crate) title: Func<TabId, String>,
     pub(crate) group_title: Func<GroupId, Option<String>>,
     pub(crate) icon: Func<TabId, String>,
+    pub(crate) picture: Func<TabId, Option<Image>>,
     pub(crate) closable: Func<TabId, bool>,
     pub(crate) menu: MenuStyle,
     pub(crate) mode: Prop<DockMode>,
@@ -1049,6 +1060,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         title,
         group_title,
         icon,
+        picture,
         closable,
         menu,
         mode,
@@ -1095,6 +1107,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         title,
         group_title,
         icon,
+        picture,
         closable,
         menu,
         home: create_memo(move || home.get()),
@@ -1959,6 +1972,7 @@ fn DockTabView(
     let state = dock.state.clone();
     let title = create_memo(clone!(dock -> move || dock.entry_title(entry)));
     let icon = create_memo(clone!(dock -> move || dock.entry_icon(entry)));
+    let picture = create_memo(clone!(dock -> move || dock.entry_picture(entry)));
     let tabs = create_memo(clone!(state -> move || state.with(|state| state.entry_tabs(entry))));
     let has_next = create_memo(clone!(state -> move || {
         state.with(|state| {
@@ -2035,6 +2049,7 @@ fn DockTabView(
         vertical,
         title: title.clone(),
         icon: icon.clone(),
+        picture,
         tabs,
         has_next: has_next.clone(),
         selected,

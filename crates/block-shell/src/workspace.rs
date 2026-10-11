@@ -31,7 +31,9 @@ use super::picker::{Pick, PickAction, PickOutcome};
 use super::saved::{self, LAYOUT};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
-use super::window::{WindowPanel, floating_window, tab_window, window_tab, window_title};
+use super::window::{
+    WindowPanel, floating_window, tab_window, window_picture, window_tab, window_title,
+};
 
 pub const FILES: TabId = TabId::new(1);
 const FIRST_BLOCK_TAB: u64 = 2;
@@ -1064,6 +1066,17 @@ pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<Ta
                 .any(|listed| listed.id == window && listed.focused)
         })
     });
+    let listed = workspace.windows.clone();
+    let icon = create_memo(move || {
+        listed.with(|windows| {
+            windows
+                .iter()
+                .find(|listed| listed.id == window)?
+                .icon
+                .clone()
+        })
+    });
+    let picture = create_memo(move || icon.get().as_ref().and_then(window_picture));
     let closing = Rc::clone(&workspace);
     let editor = workspace.editor().clone();
     view! {
@@ -1071,6 +1084,7 @@ pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<Ta
             id={window_tab(window)}
             title
             icon=ICON_WEB_ASSET
+            picture
             on_close={move || closing.close(window_tab(window))}
         >
             <WindowPanel
