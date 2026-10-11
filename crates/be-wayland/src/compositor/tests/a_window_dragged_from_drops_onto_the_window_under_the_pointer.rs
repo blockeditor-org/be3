@@ -40,12 +40,19 @@ fn a_window_dragged_from_drops_onto_the_window_under_the_pointer() {
         "the drag enters the window under the pointer, not the one it began in"
     );
 
-    harness.frame(vec![Event::PointerButton {
-        pos: end,
-        button: PointerButton::Primary,
-        pressed: false,
-        modifiers: beui::Modifiers::NONE,
-    }]);
+    harness.frame(vec![
+        Event::PointerButton {
+            pos: end,
+            button: PointerButton::Primary,
+            pressed: false,
+            modifiers: beui::Modifiers::NONE,
+        },
+        Event::PointerMoved(start),
+    ]);
     harness.settle();
-    assert!(client::dropped());
+    assert_eq!(
+        client::dropped_on().as_ref(),
+        Some(&onto.surface),
+        "the drop lands where the button was let go, though the pointer moved on in the same frame"
+    );
 }

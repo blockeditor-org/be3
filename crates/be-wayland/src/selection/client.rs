@@ -46,7 +46,7 @@ struct Clipboard {
     copied: String,
     cancelled: bool,
     entered: Option<wayland_client::protocol::wl_surface::WlSurface>,
-    dropped: bool,
+    dropped: Option<wayland_client::protocol::wl_surface::WlSurface>,
 }
 
 thread_local! {
@@ -117,8 +117,8 @@ pub(crate) fn drop_target() -> Option<wayland_client::protocol::wl_surface::WlSu
     CLIPBOARD.with(|clipboard| clipboard.borrow().entered.clone())
 }
 
-pub(crate) fn dropped() -> bool {
-    CLIPBOARD.with(|clipboard| clipboard.borrow().dropped)
+pub(crate) fn dropped_on() -> Option<wayland_client::protocol::wl_surface::WlSurface> {
+    CLIPBOARD.with(|clipboard| clipboard.borrow().dropped.clone())
 }
 
 pub(crate) fn source_cancelled() -> bool {
@@ -200,7 +200,7 @@ impl Dispatch<wl_data_device::WlDataDevice, ()> for Received {
                     }
                 }
                 wl_data_device::Event::Leave => clipboard.entered = None,
-                wl_data_device::Event::Drop => clipboard.dropped = true,
+                wl_data_device::Event::Drop => clipboard.dropped = clipboard.entered.clone(),
                 _ => {}
             }
         });

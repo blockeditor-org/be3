@@ -456,18 +456,20 @@ impl Compositor {
 
     fn deliver(&mut self, id: WindowId, input: &ForwardedInput, now: Instant) {
         let state = &mut self.server.state;
-        let dropping_on = state
-            .dragging()
-            .then(|| input.under.and_then(|node| self.windows.caught_at(node)));
-        let at = |pos: Pos2| {
-            let (id, rect) = match dropping_on {
-                Some(target) => target?,
-                None => (id, input.rect),
+        let dragging = state.dragging();
+        let windows = &self.windows;
+        let at = |index: usize, pos: Pos2| {
+            let (id, rect) = match dragging {
+                true => {
+                    let under = input.under.get(index).copied().flatten()?;
+                    windows.caught_at(under)?
+                }
+                false => (id, input.rect),
             };
             let local = pos - rect.min;
             Some((id, (f64::from(local.x), f64::from(local.y)).into()))
         };
-        for event in &input.events {
+        for (index, event) in input.events.iter().enumerate() {
             match *event {
                 Event::PhysicalKey { code, pressed } if state.keyboard_window() == Some(id) => {
                     if pressed {
@@ -475,14 +477,14 @@ impl Compositor {
                     }
                     state.key(code, pressed);
                 }
-                Event::PointerMoved(pos) => state.pointer_motion(at(pos)),
+                Event::PointerMoved(pos) => state.pointer_motion(at(index, pos)),
                 Event::PointerButton {
                     pos,
                     button,
                     pressed,
                     ..
                 } => {
-                    state.pointer_motion(at(pos));
+                    state.pointer_motion(at(index, pos));
                     if pressed {
                         state.ping(id, now);
                     }
@@ -492,7 +494,7 @@ impl Compositor {
                     if state.pointer_window() != Some(id)
                         && let Some(pos) = input.pointer
                     {
-                        state.pointer_motion(at(pos));
+                        state.pointer_motion(at(index, pos));
                     }
                     state.pointer_axis((-f64::from(delta.x), -f64::from(delta.y)));
                 }
