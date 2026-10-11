@@ -1158,7 +1158,11 @@ that pane's tabs into a sidebar beside its body (`DockState::set_vertical`),
 whose edge drags or arrows to a new width (`set_sidebar_width`); a window in
 that mode has no title bar, only the sidebar with the grip and the close button
 at its top. Windows resize from any of
-their eight grips and are raised by whatever takes the focus inside them. A
+their eight grips and are raised by whatever takes the focus inside them. The grips, and
+the bar between two panes, reach `HANDLE_REACH` points past what they draw: a window's
+overlay is that much larger than the window on every side, and a splitter's item that much
+wider than its face on both sides, so they can be grabbed without changing how they look,
+and they capture the press over whatever lies beneath. A
 split keeps each side at least `MIN_PANE_LENGTH` where the area has room for
 both, and a window is drawn no larger than the dock, so a layout made on a wide
 screen stays usable on a phone. Ctrl+Tab and Ctrl+Shift+Tab walk the tabs of the pane the focus is in,
@@ -2016,7 +2020,9 @@ must win a press, or that reacts to presses outside its own rect, captures it:
 `capture_presses` claims presses inside the catcher and `capture_at` claims
 presses at positions its callback accepts. Before any node handles a press the
 document asks the topmost nodes first, and only the captor receives it: focus
-stays where it is, touch scrolling does not start, and no other catcher arms.
+stays where it is, touch scrolling does not start, and no other catcher arms. The search
+stops at a floating overlay that covers the press, so a captor under one never takes it, and a
+captor over a forwarding catcher (a plugin's region) keeps the forwarded press from it too.
 Paint such parts with `Painter::on_top`, which draws above the rest of the
 document, or of the overlay being painted, or from a `CanvasItem` with
 `clip=false`, which a canvas paints without cutting it to its own rectangle.
