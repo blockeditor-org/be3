@@ -95,7 +95,7 @@ pub fn Toasts(
                             let on_dismiss = on_dismiss.clone();
                             let on_action = on_action.clone();
                             let on_activate = on_activate.clone();
-                            let duration = match toast.sticky {
+                            let duration = match toast.sticky || toast.danger {
                                 true => None,
                                 false => duration.peek(),
                             };

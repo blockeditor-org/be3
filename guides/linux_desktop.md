@@ -58,7 +58,9 @@ and the output of every program the app starts, go to `$XDG_STATE_HOME/block/ses
 `session.previous.log`. Problems a person should see at once also show as toasts in the
 corner of the screen: `beui_adapter_drm::Problems` carries the display and input ones,
 `be_wayland::Compositor::on_failure` a program that could not be run, and `notices::report`
-puts each in front of the person. The host draws these itself, so they show before any shell
+puts each in front of the person, as an error toast that stays until it is dismissed;
+`notices::report_with` also keeps a full report (a crashed plugin's error, or the backtrace of
+the panic that ended the last session) behind the toast's Copy report button. The host draws these itself, so they show before any shell
 plugin runs (signing in, choosing a workspace) and over either shell; they stack in the
 top-right corner (`Toasts` with `edge=Edge::TopEnd`), clear of linux-desktop's bar and its
 notification toasts at the bottom.
@@ -287,10 +289,18 @@ which block-shell's `WindowTab` hands the dock as its `DockTab` `picture`. Witho
 tab shows a generic glyph. `xdg-foreign` v2 lets a program parent its window to another
 program's, as a portal does with its file chooser: the child's `HostWindow::parent` is the
 exported window, and it is shown as that window's child like any other dialog. The xdg shell offers only the
-fullscreen capability (`wm_capabilities`), so GTK 4 and libadwaita leave out the minimize
-and maximize buttons: a tab has nowhere to minimize to, and its size is the dock's, so
-maximizing would change nothing (a request to maximize is still answered with the
-maximized state, for programs that ask anyway). `wp-content-type-v1` and
+fullscreen capability (`wm_capabilities`): a tab has nowhere to minimize to, and its size is
+the dock's, so maximizing would change nothing (a request to maximize is still answered
+with the maximized state, for programs that ask anyway). GTK ignores those capabilities
+before 4.20 and from then on only greys the buttons out; its header bar lays out its window
+buttons from GSettings' `org.gnome.desktop.wm.preferences button-layout`. So the compositor
+(`src/gtk_settings.rs`) writes a dconf profile into `$XDG_RUNTIME_DIR/be-wayland`: the
+profile dconf would otherwise use, plus a database of its own that sets and locks that key to
+`appmenu:` (no window buttons); the lock makes it win over the user's own value. Programs
+it launches get it as `DCONF_PROFILE` (`Compositor::environment`), so they read and write
+every other setting as before and the user's settings outside the session never change.
+Flatpak programs read the setting through the portal instead, which sees it only if it
+started after a `--session` exported the variable. `wp-content-type-v1` and
 `wp-tearing-control-v1` hints are kept per surface (`State::content_type`,
 `State::tearing`) and do not change how anything is drawn yet; `wp-single-pixel-buffer-v1`
 buffers are drawn as one-pixel textures.

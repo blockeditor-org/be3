@@ -257,6 +257,25 @@ buck2_path() {
     echo "$repository/target/tools/buck2-$buck2_version/buck2$(buck2_binary_suffix)"
 }
 
+# Which build this checkout makes, for buck/app's build-id file: the commit, and
+# when the working tree differs from it, a + and the start of the tree's hash.
+# The tree is hashed through a throwaway index, so untracked files count and
+# ignored ones do not, and the same tree always gives the same id.
+build_id() {
+    local commit index tree
+    commit="$(git -C "$repository" rev-parse HEAD 2> /dev/null)" || { echo unknown; return; }
+    index="$(mktemp)"
+    cp "$(git -C "$repository" rev-parse --path-format=absolute --git-path index)" "$index" 2> /dev/null || true
+    tree="$(GIT_INDEX_FILE="$index" git -C "$repository" add -A 2> /dev/null &&
+        GIT_INDEX_FILE="$index" git -C "$repository" write-tree 2> /dev/null)" || tree=''
+    rm -f "$index"
+    if [[ -z "$tree" || "$tree" == "$(git -C "$repository" rev-parse 'HEAD^{tree}')" ]]; then
+        echo "$commit"
+    else
+        echo "$commit+${tree:0:12}"
+    fi
+}
+
 # The target platform in buck/platforms for this machine, for what
 # ./scripts/buck runs here. Builds are for Linux on x86_64 wherever they are
 # asked for; something that is to run on this machine is built for it instead.

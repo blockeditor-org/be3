@@ -27,9 +27,11 @@ mod a_watcher_is_told_when_the_head_moves;
 mod an_editor_sees_only_the_blocks_it_made_or_was_given;
 mod an_invited_account_joins_the_workspace_and_a_logout_ends_the_session;
 mod an_unauthenticated_connection_cannot_touch_blocks;
+mod another_build_is_greeted_and_turned_away;
 mod blocks_publish_and_read_back_through_the_server;
 mod every_graph_change_advances_a_blocks_version;
 mod every_member_connection_hears_how_the_graph_changes;
+mod history_records_each_commits_parents;
 mod metadata_travels_with_the_content_once_a_block_has_any;
 mod objects_a_block_holds_outlive_its_commits_until_it_is_collected;
 mod old_database_backups_thin_out_by_age;
@@ -41,6 +43,8 @@ mod shared_chunks_survive_until_the_last_commit_releases_them;
 mod workspace_keys_are_sealed_per_member_and_never_overwritten;
 
 const CONTENT: Uuid = Uuid::from_u128(0x7465_7874);
+
+const BUILD: &str = "a test build";
 
 struct Harness {
     url: String,
@@ -55,6 +59,7 @@ impl Harness {
     }
 
     async fn at(directory: PathBuf) -> Self {
+        build_id::install(BUILD);
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let (shutdown, receiver) = oneshot::channel();
@@ -71,13 +76,11 @@ impl Harness {
     }
 
     async fn client(&self) -> TestClient {
-        let (socket, _) = connect_async(&self.url).await.unwrap();
-        TestClient {
-            socket,
-            next: 0,
-            notifications: Vec::new(),
-            token: String::new(),
-        }
+        TestClient::connect(&self.url).await
+    }
+
+    async fn greeted(&self, build: &str) -> Socket {
+        greeted(&self.url, build).await
     }
 
     async fn member(&self, email: &str) -> TestClient {
@@ -115,13 +118,32 @@ impl Harness {
 }
 
 struct TestClient {
-    socket: WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>,
+    socket: Socket,
     next: u64,
     notifications: Vec<ServerMessage>,
     token: String,
 }
 
 impl TestClient {
+    async fn connect(url: &str) -> Self {
+        let mut socket = greeted(url, BUILD).await;
+        assert_eq!(
+            next_binary(&mut socket)
+                .await
+                .as_deref()
+                .and_then(read_hello)
+                .as_deref(),
+            Some(BUILD),
+            "the server did not greet a client of its own build"
+        );
+        Self {
+            socket,
+            next: 0,
+            notifications: Vec::new(),
+            token: String::new(),
+        }
+    }
+
     async fn send(&mut self, build: impl FnOnce(u64) -> ClientMessage) -> ServerMessage {
         self.next += 1;
         let request = self.next;
@@ -288,6 +310,7 @@ impl TestClient {
             block,
             commit,
             expected,
+            parents: expected.into_iter().collect(),
             chunks,
             time,
             pinned: false,
@@ -352,5 +375,23 @@ impl Author {
         let mut hashes = vec![commit.hash()];
         hashes.extend_from_slice(chunks);
         hashes
+    }
+}
+
+type Socket = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
+
+async fn greeted(url: &str, build: &str) -> Socket {
+    let (mut socket, _) = connect_async(url).await.unwrap();
+    socket.send(WsMessage::Binary(hello(build))).await.unwrap();
+    socket
+}
+
+async fn next_binary(socket: &mut Socket) -> Option<Vec<u8>> {
+    loop {
+        match socket.next().await? {
+            Ok(WsMessage::Binary(bytes)) => return Some(bytes),
+            Ok(WsMessage::Close(_)) | Err(_) => return None,
+            Ok(_) => {}
+        }
     }
 }

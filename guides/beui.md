@@ -1029,7 +1029,8 @@ most of that node is on, one anchored to a point on that point's screen, and one
 anchored to a rect (`OverlayAnchor::Rect`, in document coordinates) on the screen
 most of that rect is on, placed against the rect as it would be against a node.
 `styled::Toasts` takes any anchor this way, so linux-desktop stacks its toasts in the
-corner of a screen above its bar.
+corner of a screen above its bar. A toast goes after its `duration` unless it is `sticky` or
+`danger`: an error stays until it is dismissed, so it cannot be missed.
 `Fill`, `At` and `Around` use the whole document, so something meant for every
 screen - `styled::KeepChanges`, `styled::LockScreen`, `styled::LevelOsd` - lays
 out one card per entry of `use_screens()`, which is a single card everywhere

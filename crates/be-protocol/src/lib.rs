@@ -194,6 +194,7 @@ pub enum ClientMessage {
         block: Uuid,
         commit: CommitId,
         expected: Option<CommitId>,
+        parents: Vec<CommitId>,
         chunks: Vec<Hash>,
         time: i64,
         pinned: bool,
@@ -378,6 +379,7 @@ impl ClientMessage {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct HistoryEntry {
     pub commit: CommitId,
+    pub parents: Vec<CommitId>,
     pub time: i64,
     pub pinned: bool,
 }
@@ -540,4 +542,15 @@ pub fn encode<T: Serialize>(message: &T) -> Result<Vec<u8>, postcard::Error> {
 
 pub fn decode<T: for<'a> Deserialize<'a>>(bytes: &[u8]) -> Result<T, postcard::Error> {
     postcard::from_bytes(bytes)
+}
+
+const HELLO: &[u8] = b"be3 hello\n";
+
+pub fn hello(build: &str) -> Vec<u8> {
+    [HELLO, build.as_bytes()].concat()
+}
+
+pub fn read_hello(frame: &[u8]) -> Option<String> {
+    let build = frame.strip_prefix(HELLO)?;
+    String::from_utf8(build.to_vec()).ok()
 }

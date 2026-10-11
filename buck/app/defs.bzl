@@ -112,3 +112,17 @@ app = rule(
     },
     impl = _app_impl,
 )
+
+# The build-id file a program reads beside its executable: the commit, and when
+# the tree differs from it a hash of the tree after a +. scripts/buck passes it
+# as be3.build_id; only this action and the ones that copy its output read it,
+# so a new id rebuilds nothing else.
+def _build_id_impl(ctx: AnalysisContext) -> list[Provider]:
+    return [DefaultInfo(default_output = ctx.actions.write("build-id", ctx.attrs.id + "\n"))]
+
+build_id = rule(
+    attrs = {
+        "id": attrs.string(),
+    },
+    impl = _build_id_impl,
+)

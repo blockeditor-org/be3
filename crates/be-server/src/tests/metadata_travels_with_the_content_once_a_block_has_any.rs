@@ -34,6 +34,7 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
             block,
             commit: head,
             expected: None,
+            parents: Vec::new(),
             chunks,
             time: 1_000,
             pinned: false,

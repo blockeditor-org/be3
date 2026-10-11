@@ -6,6 +6,9 @@ use super::Plugins;
 const INDEX: &str = "plugins.json";
 
 pub(crate) async fn load() {
+    if let Ok(id) = get(build_id::FILE).await {
+        build_id::install(&id);
+    }
     let mut plugins = Plugins::default();
     match get(INDEX).await {
         Ok(document) => match serde_json::from_str::<Vec<String>>(&document) {

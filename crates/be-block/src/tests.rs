@@ -29,6 +29,7 @@ use logicgame::grid::{
 use uuid::Uuid;
 
 mod a_block_added_to_a_folder_by_both_sides_is_listed_once;
+mod a_block_link_is_found_by_its_fragment_whatever_its_host;
 mod a_browser_tab_is_named_after_its_page;
 mod a_browser_tab_push_discards_forward_history;
 mod a_calendar_undo_keeps_what_someone_else_changed_since;
@@ -81,6 +82,7 @@ mod compiling_a_grid_derives_ports_from_its_inputs_and_outputs;
 mod compiling_an_empty_grid_is_refused;
 mod components_added_by_two_peers_at_once_are_both_kept;
 mod components_added_on_both_sides_offline_are_both_kept;
+mod content_is_stamped_with_the_shape_it_was_saved_in;
 mod defined_metadata_merges_key_by_key;
 mod deleting_or_replacing_a_linked_block_rewrites_the_cells_that_link_it;
 mod entities_brought_forward_on_both_sides_merge_to_both_moves;

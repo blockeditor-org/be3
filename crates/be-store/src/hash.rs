@@ -1,9 +1,9 @@
 use std::fmt;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use sha2::{Digest, Sha256};
 
-#[derive(Clone, Copy, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Hash([u8; 32]);
 
 impl Hash {
@@ -63,5 +63,20 @@ impl fmt::Debug for Hash {
 impl fmt::Display for Hash {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(&self.to_hex())
+    }
+}
+
+impl Serialize for Hash {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        crate::bytes::serialize(&self.0, serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for Hash {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let bytes = crate::bytes::deserialize(deserializer)?;
+        <[u8; 32]>::try_from(bytes.as_slice())
+            .map(Self)
+            .map_err(|_| de::Error::invalid_length(bytes.len(), &"32 bytes"))
     }
 }
