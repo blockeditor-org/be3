@@ -1,4 +1,4 @@
-use wayland_client::protocol::{wl_buffer, wl_surface};
+use wayland_client::protocol::{wl_buffer, wl_subcompositor, wl_subsurface, wl_surface};
 use wayland_client::{Connection, Dispatch, QueueHandle};
 use wayland_protocols::wp::content_type::v1::client::{
     wp_content_type_manager_v1, wp_content_type_v1,
@@ -28,6 +28,19 @@ pub(crate) struct Protocols {
 }
 
 impl TestClient {
+    pub(crate) fn subsurface(
+        &self,
+        parent: &wl_surface::WlSurface,
+        at: (i32, i32),
+    ) -> (wl_surface::WlSurface, wl_subsurface::WlSubsurface) {
+        let subcompositor: wl_subcompositor::WlSubcompositor = self.bind("wl_subcompositor", 1);
+        let surface = self.surface();
+        let subsurface = subcompositor.get_subsurface(&surface, parent, &self.handle, ());
+        subsurface.set_position(at.0, at.1);
+        subsurface.set_desync();
+        (surface, subsurface)
+    }
+
     pub(crate) fn inhibit_shortcuts(
         &self,
         surface: &wl_surface::WlSurface,
@@ -170,3 +183,5 @@ wayland_client::delegate_noop!(Received: ignore zxdg_exporter_v2::ZxdgExporterV2
 wayland_client::delegate_noop!(Received: ignore zxdg_importer_v2::ZxdgImporterV2);
 wayland_client::delegate_noop!(Received: ignore zxdg_imported_v2::ZxdgImportedV2);
 wayland_client::delegate_noop!(Received: ignore xdg_toplevel_icon_v1::XdgToplevelIconV1);
+wayland_client::delegate_noop!(Received: ignore wl_subcompositor::WlSubcompositor);
+wayland_client::delegate_noop!(Received: ignore wl_subsurface::WlSubsurface);
