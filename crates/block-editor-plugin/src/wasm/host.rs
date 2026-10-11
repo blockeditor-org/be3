@@ -5,6 +5,23 @@ unsafe extern "C" {
     fn host_send(pointer: u32, length: u32);
     fn host_receive(pointer: u32, capacity: u32) -> i64;
     fn host_wake();
+    fn host_panic(pointer: u32, length: u32);
+}
+
+pub(crate) fn report_panics() {
+    std::panic::set_hook(Box::new(|info| {
+        let message = info.payload_as_str().unwrap_or("a panic without a message");
+        let report = match info.location() {
+            Some(at) => format!(
+                "{message}\n(at {}:{}:{})",
+                at.file(),
+                at.line(),
+                at.column()
+            ),
+            None => message.to_owned(),
+        };
+        unsafe { host_panic(report.as_ptr() as u32, report.len() as u32) };
+    }));
 }
 
 pub(crate) fn send(frame: &[u8]) {

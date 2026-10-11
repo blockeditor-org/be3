@@ -194,6 +194,7 @@ mod a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose;
 mod a_row_pushed_down_by_the_row_above_it_is_neither_laid_out_nor_painted_again;
 mod a_row_replaced_by_narrower_rows_leaves_nothing_of_it_behind_the_copy;
 mod a_row_that_leaves_a_virtual_list_moves_the_rows_below_it_by_a_copy;
+mod a_runner_whose_app_panics_lets_the_app_exit_and_reports_why;
 mod a_scroll_in_a_dialog_copies_what_it_showed_over_the_page_beneath;
 mod a_scroll_in_a_dialog_follows_the_wheel;
 mod a_scroll_inside_a_scroll_lays_out_the_rows_it_holds;
@@ -2069,6 +2070,9 @@ impl Driven {
             1.0,
             beui_core::app::SafeArea::default(),
         );
+        if let Some(failure) = self.runner.failure() {
+            panic!("the driven app panicked: {failure}");
+        }
     }
 
     pub(crate) fn ask(&mut self, words: &[&str]) -> Result<String, String> {

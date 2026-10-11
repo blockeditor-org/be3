@@ -98,6 +98,7 @@ pub struct TextNode {
 #[derive(Clone, Copy, PartialEq)]
 struct MeasuredKey {
     font: FontId,
+    align: TextAlign,
     line_height: Option<f32>,
     scale: f32,
     generation: u64,
@@ -363,6 +364,7 @@ impl TextNode {
             self.font(),
             TextLayout {
                 wrap_width: self.wrap_width(available_width),
+                align: self.horizontal,
                 line_height: self.line_height,
                 ..TextLayout::DEFAULT
             },
@@ -373,6 +375,7 @@ impl TextNode {
         let ctx = painter.ctx();
         let key = MeasuredKey {
             font: self.font(),
+            align: self.horizontal,
             line_height: self.line_height,
             scale: ctx.pixels_per_point(),
             generation: ctx.font_generation(),
