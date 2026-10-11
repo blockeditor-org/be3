@@ -595,10 +595,13 @@ impl Compositor {
                     pressed,
                     ..
                 } => {
-                    state.pointer_motion(at(index, pos));
+                    let target = at(index, pos);
+                    state.pointer_motion(target);
                     if pressed {
                         state.ping(id, now);
-                        windows.pressed(id);
+                        if let Some((target, _)) = target {
+                            windows.pressed(target);
+                        }
                     }
                     state.pointer_button(button_code(button), pressed);
                 }
