@@ -1083,7 +1083,9 @@ impl Editor {
             .collect();
         records.sort_by(|(left, _), (right, _)| left.cmp(right));
         let unscale = self.ratio().recip();
-        let overlays = document.overlay_layers();
+        let mut overlays = document.overlay_layers();
+        overlays.extend(document.press_captor_layers());
+        overlays.sort_by(|(left, _), (right, _)| left.cmp(right));
         let mut overlays = overlays.iter().peekable();
         for (order, record) in records {
             while let Some((_, rect)) = overlays.next_if(|(layer, _)| *layer < order) {

@@ -1076,7 +1076,9 @@ view! {
 `DockPane` holds `DockTab`s and `DockGroup`s (a tab holding a tree of its own,
 `pinned` to keep its tabs in it), names its starting `active` tab, and can start
 with its tabs in a sidebar (`vertical`, `sidebar_width`). `DockWindow` floats one
-tree at a `rect`. A tab's key is any `Clone + Eq + Hash` type; a key that is a
+tree at a `rect`, in an overlay of its own; the dock keeps those overlays in the order
+`DockState::windows` stacks them (focusing a window puts it last), however the state got
+that order. A tab's key is any `Clone + Eq + Hash` type; a key that is a
 `TabId` or a `u64` names the tab's `TabId` too, which is what the test ids of its
 close button and switcher row carry. Every container has an `id`, saved with the
 layout, so that a layout saved by older code still finds its panes.

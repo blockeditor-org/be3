@@ -158,6 +158,14 @@ impl Windows {
         self.0.revision.set(self.0.revision.get() + 1);
     }
 
+    pub(crate) fn pressed(&self, id: WindowId) {
+        if self.signals(id).is_none() {
+            return;
+        }
+        *self.0.raised.borrow_mut().entry(id).or_default() += 1;
+        self.0.revision.set(self.0.revision.get() + 1);
+    }
+
     pub fn raised(&self, id: WindowId) -> u64 {
         self.0.raised.borrow().get(&id).copied().unwrap_or_default()
     }

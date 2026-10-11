@@ -50,6 +50,7 @@ pub struct Compositor {
     relist: bool,
     input_frames: u64,
     forced: bool,
+    listed: u64,
     locked: bool,
     clipboard: clipboard::Clipboard,
     cursor_surface: Option<smithay::reexports::wayland_server::protocol::wl_surface::WlSurface>,
@@ -82,6 +83,7 @@ impl Compositor {
             relist: false,
             input_frames: 0,
             forced: false,
+            listed: 0,
             locked: false,
             clipboard: clipboard::Clipboard::default(),
             cursor_surface: None,
@@ -596,6 +598,7 @@ impl Compositor {
                     state.pointer_motion(at(index, pos));
                     if pressed {
                         state.ping(id, now);
+                        windows.pressed(id);
                     }
                     state.pointer_button(button_code(button), pressed);
                 }
@@ -825,6 +828,7 @@ impl Compositor {
             .collect();
         self.server.state.set_screens(screens);
         self.publish(document);
+        self.listed = self.windows.revision();
     }
 
     fn watch_idle(&mut self, context: &Context, document: &mut Document) {
@@ -863,7 +867,7 @@ impl Compositor {
         self.apply(now, document);
         self.server.flush();
         self.watch_pings(context);
-        if std::mem::take(&mut self.forced) {
+        if std::mem::take(&mut self.forced) || self.windows.revision() != self.listed {
             context.request_repaint();
         }
         if let Some(watch) = &self.watch {

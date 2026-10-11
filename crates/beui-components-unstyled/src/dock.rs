@@ -42,7 +42,7 @@ use beui_view::reactive::{
     Interactive, IntoProp, List, Memo, NodeRef, Portal, Prop, ReadSignal, RenderFn, ScopeContext,
     Show, WriteSignal, clone, component_accessibility, component_rect, component_size,
     create_effect, create_memo, create_signal, create_timer, node_scope, on_cleanup, on_shortcut,
-    owner_scope, provide_context, set_component_state, try_with_document, use_context,
+    owner_scope, provide_context, set_component_state, try_with_document, untrack, use_context,
     with_document,
 };
 
@@ -375,6 +375,7 @@ struct State {
     rect: ReadSignal<Rect>,
     panes: RefCell<HashMap<Tree, NodeRef>>,
     windows: RefCell<HashMap<SurfaceId, NodeRef>>,
+    window_overlays: RefCell<HashMap<SurfaceId, NodeRef>>,
     bars: RefCell<HashMap<LeafId, TabBar>>,
     panels: RefCell<HashMap<TabId, NodeId>>,
     owner: Option<ScopeContext>,
@@ -529,6 +530,35 @@ impl State {
     fn pane_rect(&self, tree: Tree) -> Option<Rect> {
         let node = self.panes.borrow().get(&tree)?.try_get()?;
         with_document(|document| document.node_rect(node))
+    }
+
+    fn restack_windows(&self) {
+        let wanted: Vec<NodeId> = {
+            let overlays = self.window_overlays.borrow();
+            self.state
+                .with_untracked(DockState::windows)
+                .iter()
+                .filter_map(|surface| overlays.get(surface)?.try_get())
+                .collect()
+        };
+        try_with_document(|document| {
+            let stacked = document.overlays_bottom_up();
+            let shown: Vec<NodeId> = stacked
+                .iter()
+                .map(|overlay| overlay.id())
+                .filter(|overlay| wanted.contains(overlay))
+                .collect();
+            let wanted: Vec<NodeId> = wanted
+                .into_iter()
+                .filter(|overlay| shown.contains(overlay))
+                .collect();
+            let Some(first) = (0..wanted.len()).find(|at| shown.get(*at) != Some(&wanted[*at])) else {
+                return;
+            };
+            for overlay in &wanted[first..] {
+                document.raise_overlay(*overlay);
+            }
+        });
     }
 
     fn surface_rect(&self, surface: SurfaceId) -> Option<Rect> {
@@ -1115,6 +1145,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
     let dock: Handle = Rc::new(State {
         state: current.clone(),
         windows: RefCell::default(),
+        window_overlays: RefCell::default(),
         panels: RefCell::default(),
         owner: owner_scope(),
         set_state: set_current,
@@ -1487,6 +1518,11 @@ fn DockTiles(dock: Handle) -> NodeId {
     let current = dock.state.clone();
     let main = create_memo(clone!(current -> move || current.with(DockState::main)));
     let windows = create_memo(clone!(current -> move || current.with(DockState::windows)));
+    let stacking = dock.clone();
+    create_effect(clone!(windows -> move || {
+        windows.with(|_| ());
+        untrack(|| stacking.restack_windows());
+    }));
     let panes = dock.clone();
     let floating = dock.clone();
     let over = dock.clone();
@@ -2476,14 +2512,9 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
     let marker = dock.clone();
     let grip_rect = placed.clone();
     let overlay = NodeRef::new();
-    create_effect(clone!(focused overlay -> move || {
-        if !focused.get() {
-            return;
-        }
-        let Some(overlay) = overlay.try_get() else {
-            return;
-        };
-        with_document(|document| document.raise_overlay(overlay));
+    dock.window_overlays.borrow_mut().insert(surface, overlay.clone());
+    on_cleanup(clone!(dock -> move || {
+        dock.window_overlays.borrow_mut().remove(&surface);
     }));
     let grabbed: Rc<Cell<Option<(Rect, Pos2)>>> = Rc::new(Cell::new(None));
     let bar_rect = placed.clone();
@@ -2495,7 +2526,8 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
     let set_stretch = set_overshoot;
     let claimed = dock.drag_modifier.clone();
     let resized = modifier_resize(&dock, Resized::Window(surface));
-    view! {
+    let stacking = dock.clone();
+    let shown = view! {
         <Overlay
             @node_ref=&overlay
             anchor={anchor}
@@ -2697,7 +2729,9 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                 </Canvas>
             </Frame>
         </Overlay>
-    }
+    };
+    create_effect(move || stacking.restack_windows());
+    shown
 }
 
 fn grip_reach(frame: &NodeRef, grip: &NodeRef) -> f32 {
