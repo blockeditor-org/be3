@@ -273,6 +273,7 @@ impl beui::App for Shell {
         #[cfg(target_os = "linux")]
         if self.app.desktop.is_none() && session::owns_a_seat(setup) {
             self.app.desktop = Some(session::DesktopSession::start());
+            session::export_environment(wayland::environment());
         }
         display::start(setup);
         self.app.input.boot(&self.app.app_state);
