@@ -1,4 +1,4 @@
-use be_model::{Anchor, Document, Edit, List, Model, ObjectId};
+use be_model::{Anchor, Bytes, Document, Edit, List, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -47,7 +47,7 @@ pub struct DeterministicGame {
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
 pub struct GameMove {
     pub actor: Uuid,
-    pub action: Vec<u8>,
+    pub action: Bytes,
 }
 
 impl DeterministicGame {
@@ -60,7 +60,14 @@ impl DeterministicGame {
 
     pub fn play(actor: Uuid, action: Vec<u8>) -> Edit {
         Self::MOVES
-            .insert(ObjectId::ROOT, Anchor::End, &GameMove { actor, action })
+            .insert(
+                ObjectId::ROOT,
+                Anchor::End,
+                &GameMove {
+                    actor,
+                    action: action.into(),
+                },
+            )
             .1
             .into()
     }

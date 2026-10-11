@@ -96,7 +96,7 @@ async fn rows_are_added_filtered_changed_and_given_pages() {
     let summary = tracker.peer().summary(page).await.unwrap();
     assert_eq!(summary.parent, BlockParent::Block(board.database));
     assert_eq!(
-        tracker.peer().metadata(&summary).unwrap().name.as_deref(),
+        tracker.peer().metadata(&summary).unwrap().name().as_deref(),
         Some("Fix the login")
     );
     assert_eq!(

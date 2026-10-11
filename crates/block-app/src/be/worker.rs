@@ -66,9 +66,9 @@ pub(super) enum Command {
         block: Uuid,
         parent: BlockParent,
     },
-    SetMetadata {
+    Define {
         block: Uuid,
-        metadata: BlockMetadata,
+        changes: Vec<be_block::Definition>,
     },
     SetAccess {
         block: Uuid,
@@ -1112,6 +1112,7 @@ async fn apply(
             let _ = peer.leave_session(block).await;
             let mut held = shared.lock().unwrap();
             held.blocks.remove(&block);
+            held.graph.forget_derived(block);
             held.histories.remove(&block);
             held.presence.remove(&block);
             held.touch(block);
@@ -1236,9 +1237,18 @@ async fn apply(
             }
             true
         }
-        Command::SetMetadata { block, metadata } => {
-            let changed = peer.set_metadata(block, &metadata).await;
-            if let Err(error) = settled(peer, shared, block, changed).await {
+        Command::Define { block, changes } => {
+            let defined = peer
+                .define(block, |metadata| metadata.define(&changes))
+                .await;
+            if let Ok(summary) = &defined
+                && let Some(head) = summary.head
+                && let Some(session) = sessions.get_mut(&block)
+                && let Err(error) = session.published_elsewhere(head).await
+            {
+                record(shared, error);
+            }
+            if let Err(error) = settled(peer, shared, block, defined).await {
                 record(shared, error);
             }
             true
@@ -1323,7 +1333,6 @@ pub(super) fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
         parent: summary.parent,
         access: summary.access,
         references: summary.references.clone(),
-        unreadable_metadata: metadata.is_err(),
         metadata: metadata.unwrap_or_default(),
         head: summary.head,
         version: summary.version,

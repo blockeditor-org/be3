@@ -16,8 +16,8 @@ fn a_block_named_before_it_arrives_is_created_with_that_name() {
     );
 
     let metadata = node(block).expect("the block is in the graph").metadata;
-    assert_eq!(metadata.name.as_deref(), Some("Plan"));
-    assert!(metadata.named_by_hand, "a name chosen for it is its own");
+    assert_eq!(metadata.name().as_deref(), Some("Plan"));
+    assert!(metadata.named_by_hand(), "a name chosen for it is its own");
 
     let later = Uuid::new_v4();
     create(
@@ -30,7 +30,7 @@ fn a_block_named_before_it_arrives_is_created_with_that_name() {
     name_when_created(later, "Ideas".to_owned());
     let metadata = node(later).expect("the block is in the graph").metadata;
     assert_eq!(
-        metadata.name.as_deref(),
+        metadata.name().as_deref(),
         Some("Ideas"),
         "a block already here is named straight away"
     );

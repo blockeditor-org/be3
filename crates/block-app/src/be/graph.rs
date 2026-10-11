@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use be_block::{
-    BlockMetadata,
+    BlockMetadata, Entries,
     version_control::{local_id, masked, scope_mask},
 };
 use be_commit::CommitId;
@@ -18,7 +18,6 @@ pub(crate) struct Node {
     pub(crate) access: Access,
     pub(crate) references: Vec<Uuid>,
     pub(crate) metadata: BlockMetadata,
-    pub(crate) unreadable_metadata: bool,
     pub(crate) head: Option<CommitId>,
     pub(crate) version: u64,
 }
@@ -47,6 +46,7 @@ pub(crate) struct Graph {
     pub(crate) revision: u64,
     nodes: HashMap<Uuid, Node>,
     pending: HashMap<Uuid, u32>,
+    derived: HashMap<Uuid, Entries>,
 }
 
 impl Graph {
@@ -58,6 +58,11 @@ impl Graph {
                 Some(node) => loaded.insert(*block, node),
                 None => loaded.remove(block),
             };
+        }
+        for (block, derived) in &self.derived {
+            if let Some(node) = loaded.get_mut(block) {
+                node.metadata.derived.clone_from(derived);
+            }
         }
         self.nodes = loaded;
         self.loaded = true;
@@ -99,7 +104,24 @@ impl Graph {
         false
     }
 
-    fn insert(&mut self, node: Node) {
+    pub(crate) fn derive(&mut self, block: Uuid, derived: Entries) {
+        if let Some(node) = self.nodes.get_mut(&block)
+            && node.metadata.derived != derived
+        {
+            node.metadata.derived.clone_from(&derived);
+            self.revision += 1;
+        }
+        self.derived.insert(block, derived);
+    }
+
+    pub(crate) fn forget_derived(&mut self, block: Uuid) {
+        self.derived.remove(&block);
+    }
+
+    fn insert(&mut self, mut node: Node) {
+        if let Some(derived) = self.derived.get(&node.id) {
+            node.metadata.derived.clone_from(derived);
+        }
         if self.nodes.get(&node.id) != Some(&node) {
             self.nodes.insert(node.id, node);
             self.revision += 1;
@@ -185,7 +207,7 @@ impl Graph {
         }
         let copy = masked(local, scope.mask);
         match self.nodes.get(&copy) {
-            Some(node) if node.metadata.local_id == Some(local) => copy,
+            Some(node) if node.metadata.get(&be_block::LOCAL_ID) == Some(local) => copy,
             _ => local,
         }
     }

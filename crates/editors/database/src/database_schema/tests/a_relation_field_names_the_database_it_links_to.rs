@@ -9,7 +9,7 @@ fn a_relation_field_names_the_database_it_links_to() {
     let mut harness = editor();
     let projects = Uuid::new_v4();
     let mut info = BlockInfo::new(projects, DatabaseContent::CONTENT_TYPE, BlockParent::Root);
-    info.name = Some("Projects".into());
+    info.set_name("Projects");
     harness.store().add_block(info);
     let (project, add_project) = DatabaseSchema::add_field("Project", DatabaseFieldType::Relation);
     for edit in [

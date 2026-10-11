@@ -540,11 +540,8 @@ impl Root for Database {
         )
     }
 
-    fn derived_metadata(&self) -> crate::DerivedMetadata {
-        crate::DerivedMetadata {
-            prefix: Some(self.prefix.trim().to_owned()),
-            ..crate::DerivedMetadata::default()
-        }
+    fn describe(&self, metadata: &mut crate::BlockMetadata) {
+        metadata.insert(&crate::metadata::ROW_PREFIX, &self.prefix.trim().to_owned());
     }
 
     fn references(&self) -> Vec<Uuid> {

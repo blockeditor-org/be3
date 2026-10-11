@@ -11,7 +11,7 @@ use be_block::database_schema::{
 };
 use be_block::database_view::{DatabaseView, DatabaseViewContent, DatabaseViewKind};
 use be_block::text::{TextBlock, TextContent};
-use be_block::{BlockContent, BlockMetadata, DerivedMetadata, LiveEdit, ObjectId};
+use be_block::{BlockContent, BlockMetadata, LiveEdit, ObjectId};
 use be_client::{Live, Peer, Saved};
 use be_graph::BlockParent;
 use be_store::ObjectStore;
@@ -316,8 +316,8 @@ impl<S: ObjectStore> Tracker<S> {
                 short: String::new(),
                 block_type: summary.content_type,
                 parent: summary.parent,
-                name: metadata.name,
-                prefix: metadata.derived.prefix,
+                name: metadata.name(),
+                prefix: metadata.get(&be_block::ROW_PREFIX),
                 references: summary.references,
                 access: summary.access,
             });
@@ -771,10 +771,7 @@ impl<S: ObjectStore> Tracker<S> {
             .await
             .map_err(explain)?;
         let mut held = BlockMetadata::named(name);
-        held.derived = DerivedMetadata {
-            prefix: Some(prefix.clone()),
-            ..DerivedMetadata::default()
-        };
+        held.insert(&be_block::ROW_PREFIX, &prefix);
         self.peer
             .create_block(
                 database,
@@ -962,7 +959,7 @@ impl<S: ObjectStore> Tracker<S> {
         let page = loaded.database.rows.get(row).and_then(|row| row.page());
         if let (Some(title), Some(page)) = (&retitled, page) {
             self.peer
-                .set_metadata(page, &BlockMetadata::named(title.clone()))
+                .define(page, |metadata| metadata.insert(&be_block::NAME, title))
                 .await
                 .map_err(explain)?;
         }
@@ -1054,7 +1051,9 @@ impl<S: ObjectStore> Tracker<S> {
             .collect();
         let by_id: Vec<RowRef> = rows
             .iter()
-            .filter(|(link, _)| code.len() == 6 && short_id("", link.row).eq_ignore_ascii_case(code))
+            .filter(|(link, _)| {
+                code.len() == 6 && short_id("", link.row).eq_ignore_ascii_case(code)
+            })
             .map(|(link, _)| *link)
             .collect();
         let titled: Vec<RowRef> = rows

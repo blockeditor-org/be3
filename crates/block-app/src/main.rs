@@ -471,7 +471,10 @@ enum WorkspaceResult {
     Created(Workspace),
     Responded,
     Invited,
-    Agents(Option<Vec<be_protocol::Agent>>, Option<accounts::AgentCredentials>),
+    Agents(
+        Option<Vec<be_protocol::Agent>>,
+        Option<accounts::AgentCredentials>,
+    ),
 }
 
 type WorkspaceRequestError = AccountError;
@@ -2743,15 +2746,11 @@ fn discard_view(action: &PendingDestructiveAction) -> ui::DiscardView {
 }
 
 fn artifact_of(id: Uuid) -> Option<be_block::ArtifactSource> {
-    be::node(id)?.metadata.artifact
+    be::node(id)?.metadata.get(&be_block::ARTIFACT)
 }
 
 fn set_artifact(id: Uuid, artifact: Option<be_block::ArtifactSource>) {
-    let Some(mut metadata) = be::node(id).map(|node| node.metadata) else {
-        return;
-    };
-    metadata.artifact = artifact;
-    be::set_metadata(id, metadata);
+    be::define(id, vec![be_block::ARTIFACT.definition(artifact.as_ref())]);
 }
 
 fn drag_source(location: BlockLocation) -> SidebarDragSource {

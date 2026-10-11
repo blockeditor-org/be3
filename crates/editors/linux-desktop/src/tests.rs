@@ -102,14 +102,13 @@ impl Fixture {
         let mut profiles = Vec::new();
         for (name, editor) in sessions {
             let profile = Uuid::new_v4();
-            store.add_block(BlockInfo {
-                name: Some((*name).to_owned()),
-                ..BlockInfo::new(
-                    profile,
-                    EditorView::CONTENT_TYPE,
-                    BlockParent::Block(self.settings),
-                )
-            });
+            let mut info = BlockInfo::new(
+                profile,
+                EditorView::CONTENT_TYPE,
+                BlockParent::Block(self.settings),
+            );
+            info.set_name(*name);
+            store.add_block(info);
             store.hold(Some(profile), EditorView::document(*editor, None));
             settings.apply(&Settings::add_profile(*editor, self.client, profile));
             profiles.push(profile);

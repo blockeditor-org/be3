@@ -25,8 +25,8 @@ pub trait Root: Model + Send + Sync + 'static {
         None
     }
 
-    fn derived_metadata(&self) -> crate::DerivedMetadata {
-        crate::DerivedMetadata::default()
+    fn describe(&self, metadata: &mut crate::BlockMetadata) {
+        let _ = metadata;
     }
 }
 
@@ -53,8 +53,8 @@ impl<R: Root> BlockContent for Document<R> {
         joined(self.root().references_in(workspace), self.block_refs())
     }
 
-    fn derived_metadata(&self) -> crate::DerivedMetadata {
-        self.root().derived_metadata()
+    fn describe(&self, metadata: &mut crate::BlockMetadata) {
+        self.root().describe(metadata);
     }
 }
 

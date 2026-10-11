@@ -20,7 +20,7 @@ fn an_image_still_loading_is_drawn_as_its_thumbhash() {
         .collect();
     let mut info = BlockInfo::new(picture, ImageContent::CONTENT_TYPE, BlockParent::Detached);
     let thumbhash = Image::from_rgba(32, 24, pixels).thumbhash();
-    info.thumbhash = Some(Thumbhash {
+    info.set_thumbhash(&Thumbhash {
         hash: thumbhash.hash,
         width: thumbhash.width,
         height: thumbhash.height,

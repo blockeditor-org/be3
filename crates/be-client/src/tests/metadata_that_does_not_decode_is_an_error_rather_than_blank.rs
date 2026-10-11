@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{BlockMetadata, CounterContent};
+use be_block::{BlockMetadata, CounterContent, NAME};
 
 #[tokio::test]
 async fn metadata_that_does_not_decode_is_an_error_rather_than_blank() {
@@ -11,7 +11,9 @@ async fn metadata_that_does_not_decode_is_an_error_rather_than_blank() {
         .await
         .unwrap();
     let mut summary = phone
-        .set_metadata(block, &BlockMetadata::named("Groceries"))
+        .define(block, |metadata| {
+            metadata.insert(&NAME, &"Groceries".to_owned())
+        })
         .await
         .unwrap();
 

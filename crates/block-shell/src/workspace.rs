@@ -330,11 +330,11 @@ impl Workspace {
             "type": info.block_type.to_string(),
             "author": info.author.to_string(),
             "parent": parent,
-            "name": info.name,
-            "named_by_hand": info.named_by_hand,
+            "name": info.name(),
+            "named_by_hand": info.named_by_hand(),
             "references": info.references.iter().map(Uuid::to_string).collect::<Vec<_>>(),
             "access": info.access.label(),
-            "artifact_source": info.artifact.as_ref().map(|artifact| artifact.source_type.to_string()),
+            "artifact_source": info.artifact().map(|artifact| artifact.source_type.to_string()),
         });
         serde_json::to_string(&data).ok()
     }
@@ -542,8 +542,7 @@ impl Workspace {
             EditorViewContent::CONTENT_TYPE,
             Some(EditorView::document(editor, content).encode()),
             BlockParent::Block(profile),
-            None,
-            None,
+            block_editor_beui::be_block::BlockMetadata::default(),
         ))
     }
 

@@ -1,5 +1,6 @@
 use bincode::Options;
 use serde::{Deserialize, Serialize};
+pub use serde_bytes::ByteBuf;
 use std::fmt;
 
 mod block_ids;
@@ -1136,8 +1137,7 @@ pub enum EditorMessage {
         block_id: [u8; 16],
         content_type: [u8; 16],
         parent: BlockLocation,
-        name: Option<String>,
-        artifact: Option<ArtifactSource>,
+        defined: MetadataEntries,
         content: Option<serde_bytes::ByteBuf>,
     },
     SetParent {
@@ -1145,10 +1145,11 @@ pub enum EditorMessage {
         block_id: [u8; 16],
         parent: BlockLocation,
     },
-    SetName {
+    Define {
         instance: EditorInstanceId,
         block_id: [u8; 16],
-        name: Option<String>,
+        key: [u8; 16],
+        value: Option<serde_bytes::ByteBuf>,
     },
     VersionControl {
         instance: EditorInstanceId,
@@ -1244,7 +1245,7 @@ impl EditorMessage {
             | Self::Blocks { instance, .. }
             | Self::CreateBlock { instance, .. }
             | Self::SetParent { instance, .. }
-            | Self::SetName { instance, .. }
+            | Self::Define { instance, .. }
             | Self::VersionControl { instance, .. }
             | Self::VersionStatus { instance, .. } => *instance,
         }
@@ -1341,11 +1342,12 @@ pub enum BlockQuery {
     Block([u8; 16]),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ArtifactSource {
-    pub source_type: [u8; 16],
-    #[serde(with = "serde_bytes")]
-    pub data: Vec<u8>,
+pub type MetadataEntries = std::collections::BTreeMap<[u8; 16], serde_bytes::ByteBuf>;
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BlockMetadata {
+    pub defined: MetadataEntries,
+    pub derived: MetadataEntries,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1354,19 +1356,9 @@ pub struct BlockInfo {
     pub block_type: [u8; 16],
     pub author: [u8; 16],
     pub parent: BlockLocation,
-    pub name: Option<String>,
-    pub named_by_hand: bool,
     pub references: Vec<[u8; 16]>,
     pub access: AccessLevel,
-    pub artifact: Option<ArtifactSource>,
-    pub thumbhash: Option<Thumbhash>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Thumbhash {
-    pub hash: Vec<u8>,
-    pub width: u32,
-    pub height: u32,
+    pub metadata: BlockMetadata,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -1862,7 +1854,7 @@ impl EditorMessage {
             | Self::SetParent { .. }
             | Self::WatchHostValue { .. }
             | Self::HostAction { .. }
-            | Self::SetName { .. } => Direction::ToHost,
+            | Self::Define { .. } => Direction::ToHost,
         }
     }
 }
@@ -2657,33 +2649,21 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
                 return Err(DecodeError::LimitExceeded("block list"));
             }
             for block in blocks {
-                if let Some(name) = &block.name {
-                    string(name)?;
-                }
                 collection(block.references.len())?;
-                if let Some(artifact) = &block.artifact {
-                    descriptor(&artifact.data)?;
-                }
+                metadata(&block.metadata.defined)?;
+                metadata(&block.metadata.derived)?;
             }
             Ok(())
         }
         EditorMessage::CreateBlock {
-            name,
-            artifact,
-            content,
-            ..
+            defined, content, ..
         } => {
-            if let Some(name) = name {
-                string(name)?;
-            }
-            if let Some(artifact) = artifact {
-                descriptor(&artifact.data)?;
-            }
+            metadata(defined)?;
             content.as_ref().map_or(Ok(()), |content| blob(content))
         }
-        EditorMessage::SetName {
-            name: Some(name), ..
-        } => string(name),
+        EditorMessage::Define {
+            value: Some(value), ..
+        } => descriptor(value),
         EditorMessage::VersionControl { command, .. } => match command {
             VersionCommand::Commit { message: value }
             | VersionCommand::Switch { branch: value }
@@ -2834,6 +2814,11 @@ fn descriptor(data: &[u8]) -> Result<(), DecodeError> {
     } else {
         Ok(())
     }
+}
+
+fn metadata(entries: &MetadataEntries) -> Result<(), DecodeError> {
+    collection(entries.len())?;
+    entries.values().try_for_each(|value| descriptor(value))
 }
 
 fn menu(entries: &[MenuEntry]) -> Result<(), DecodeError> {

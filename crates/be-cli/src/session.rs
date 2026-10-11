@@ -54,7 +54,9 @@ fn secure_or_local(url: &str) -> bool {
     let authority = rest.split('/').next().unwrap_or_default();
     let host = match authority.strip_prefix('[') {
         Some(bracketed) => bracketed.split(']').next().unwrap_or_default(),
-        None => authority.rsplit_once(':').map_or(authority, |(host, _)| host),
+        None => authority
+            .rsplit_once(':')
+            .map_or(authority, |(host, _)| host),
     };
     matches!(host, "localhost" | "127.0.0.1" | "::1")
 }

@@ -566,6 +566,7 @@ impl Connection {
                 pinned,
                 references_added,
                 references_removed,
+                metadata,
             } => {
                 let identity = self.identity()?;
                 let relinked = !references_added.is_empty() || !references_removed.is_empty();
@@ -581,13 +582,16 @@ impl Connection {
                         pinned,
                         references_added,
                         references_removed,
+                        metadata,
                     )
                     .await?;
-                if relinked && matches!(outcome, PublishOutcome::Published(_)) {
+                if let PublishOutcome::Published(_, redescribed) = outcome
+                    && (relinked || redescribed)
+                {
                     self.reannounce(identity, vec![block], false).await;
                 }
                 Ok(match outcome {
-                    PublishOutcome::Published(head) => {
+                    PublishOutcome::Published(head, _) => {
                         self.hub
                             .broadcast(
                                 block,

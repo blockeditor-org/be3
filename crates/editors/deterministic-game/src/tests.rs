@@ -92,7 +92,7 @@ fn moves(harness: &BeuiTest<DeterministicGameApp>) -> Vec<GameAction> {
         .iter()
         .map(|played| GameAction {
             actor: played.actor,
-            action: played.action.clone(),
+            action: played.action.to_vec(),
         })
         .collect()
 }

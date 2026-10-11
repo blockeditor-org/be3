@@ -31,6 +31,7 @@ async fn a_watcher_is_told_when_the_head_moves() {
             pinned: false,
             references_added: Vec::new(),
             references_removed: Vec::new(),
+            metadata: Vec::new(),
         })
         .await;
 
