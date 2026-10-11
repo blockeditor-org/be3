@@ -23,6 +23,7 @@ fn notices() -> MutexGuard<'static, Notices> {
     NOTICES.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub(crate) fn report(message: String) {
     show(message, None);
 }
