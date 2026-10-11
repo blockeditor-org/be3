@@ -9,6 +9,7 @@ use crate::app::InputSettingsApp;
 
 mod a_device_follows_its_default_until_it_is_overridden;
 mod every_pointer_reads_as_mixed_until_it_is_set;
+mod middle_click_paste_is_off_until_it_is_switched_on;
 mod resetting_a_layout_returns_it_to_the_default;
 mod typing_a_layout_stores_it;
 

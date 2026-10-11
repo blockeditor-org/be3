@@ -9,6 +9,7 @@ mod idle;
 mod presentation;
 pub mod programs;
 mod render;
+mod selection;
 mod server;
 mod shortcuts_inhibit;
 mod single_pixel;

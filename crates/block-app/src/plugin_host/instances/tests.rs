@@ -57,6 +57,7 @@ fn forwarded(
         hovered: pointer.is_some_and(|pointer| rect.contains(pointer)),
         focused,
         pointer,
+        under: Vec::new(),
         modifiers: beui::Modifiers::NONE,
     }
 }

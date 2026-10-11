@@ -35,13 +35,3 @@ pub(crate) fn read_clipboard_image() -> ClipboardImage {
 pub(crate) fn read_clipboard_image() -> ClipboardImage {
     ClipboardImage::Empty
 }
-
-#[cfg(not(any(target_os = "android", target_arch = "wasm32")))]
-pub(crate) fn read_clipboard_text() -> Option<String> {
-    arboard::Clipboard::new().ok()?.get_text().ok()
-}
-
-#[cfg(any(target_os = "android", target_arch = "wasm32"))]
-pub(crate) fn read_clipboard_text() -> Option<String> {
-    None
-}

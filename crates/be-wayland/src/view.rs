@@ -1,9 +1,9 @@
 use std::rc::Rc;
 
 use beui::reactive::{
-    Action, Chord, Drawing, Frame, Interactive, Layers, Overlay, OverlayAnchor, OverlayMode,
-    Placement, Prop, clone, component, component_rect, create_effect, create_memo, draw_gpu,
-    on_cleanup, view,
+    Action, Chord, Drawing, Frame, Interactive, Layers, NodeRef, Overlay, OverlayAnchor,
+    OverlayMode, Placement, Prop, clone, component, component_rect, create_effect, create_memo,
+    draw_gpu, on_cleanup, view,
 };
 use beui::{Color32, ForwardedInput, Key, NodeId, Pos2, Rect};
 
@@ -24,7 +24,17 @@ pub fn WindowView(
         };
     };
     let rect = component_rect();
-    create_effect(clone!(windows rect -> move || windows.placed(id, rect.get())));
+    let catcher = NodeRef::new();
+    let popup_catcher = NodeRef::new();
+    create_effect(clone!(windows rect catcher popup_catcher -> move || {
+        windows.placed(id, rect.get());
+        if let Some(node) = catcher.try_get() {
+            windows.caught_by(id, node);
+        }
+        if let Some(node) = popup_catcher.try_get() {
+            windows.popups_caught_by(id, node);
+        }
+    }));
     let list = windows.list();
     let inhibits = create_memo(clone!(list -> move || {
         list.with(|list| {
@@ -76,6 +86,7 @@ pub fn WindowView(
     view! {
         <Layers>
             <Interactive
+                @node_ref={&catcher}
                 focusable=true
                 @test_id={format!("wayland.window.{}", id.0)}
                 focused={signals.focused}
@@ -101,6 +112,7 @@ pub fn WindowView(
             >
                 <Frame width height>
                     <Interactive
+                        @node_ref={&popup_catcher}
                         focusable=true
                         press_focus=false
                         tab_stop=false

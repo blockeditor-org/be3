@@ -14,6 +14,7 @@ pub struct ForwardedInput {
     pub hovered: bool,
     pub focused: bool,
     pub pointer: Option<Pos2>,
+    pub under: Vec<Option<NodeId>>,
     pub modifiers: Modifiers,
 }
 
@@ -319,12 +320,20 @@ pub(super) fn route(
         else {
             continue;
         };
+        let under = events
+            .iter()
+            .map(|event| match event {
+                Event::PointerMoved(pos) | Event::PointerButton { pos, .. } => at(doc, *pos),
+                _ => hovered,
+            })
+            .collect();
         let raw = ForwardedInput {
             events,
             rect: rects.get(&sink).unwrap_or(Rect::NOTHING),
             hovered: hovered == Some(sink),
             focused: focused == Some(sink),
             pointer: position.filter(|_| hovered == Some(sink)),
+            under,
             modifiers,
         };
         on_forward.call(raw);

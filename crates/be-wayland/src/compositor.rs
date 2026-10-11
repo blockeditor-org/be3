@@ -51,6 +51,7 @@ pub struct Compositor {
     input_frames: u64,
     forced: bool,
     locked: bool,
+    clipboard: clipboard::Clipboard,
     cursor_surface: Option<smithay::reexports::wayland_server::protocol::wl_surface::WlSurface>,
     cursor_revision: u64,
 }
@@ -82,6 +83,7 @@ impl Compositor {
             input_frames: 0,
             forced: false,
             locked: false,
+            clipboard: clipboard::Clipboard::default(),
             cursor_surface: None,
             cursor_revision: 0,
         }
@@ -286,6 +288,7 @@ impl Compositor {
     fn receive(&mut self, context: &Context, document: &mut Document) {
         self.server.state.activation.tick(context.now());
         self.server.dispatch();
+        self.sync_clipboard(context);
         self.watch_pings(context);
         let events = self.server.state.take_events();
         let cursor = match self.server.state.cursor() {
@@ -549,11 +552,22 @@ impl Compositor {
 
     fn deliver(&mut self, id: WindowId, input: &ForwardedInput, hovered: bool, now: Instant) {
         let state = &mut self.server.state;
-        let at = |pos: Pos2| {
-            let local = pos - input.rect.min;
+        let dragging = state.dragging();
+        let windows = &self.windows;
+        let at = |index: usize, pos: Pos2| {
+            let (id, rect) = match dragging {
+                true => {
+                    let under = input.under.get(index).copied().flatten()?;
+                    windows
+                        .caught_at(under)
+                        .filter(|(target, _)| windows.blocked_by(*target).is_none())?
+                }
+                false => (id, input.rect),
+            };
+            let local = pos - rect.min;
             Some((id, (f64::from(local.x), f64::from(local.y)).into()))
         };
-        for event in &input.events {
+        for (index, event) in input.events.iter().enumerate() {
             match *event {
                 Event::PhysicalKey { code, pressed } if state.keyboard_window() == Some(id) => {
                     if pressed {
@@ -561,14 +575,14 @@ impl Compositor {
                     }
                     state.key(code, pressed);
                 }
-                Event::PointerMoved(pos) => state.pointer_motion(at(pos)),
+                Event::PointerMoved(pos) => state.pointer_motion(at(index, pos)),
                 Event::PointerButton {
                     pos,
                     button,
                     pressed,
                     ..
                 } => {
-                    state.pointer_motion(at(pos));
+                    state.pointer_motion(at(index, pos));
                     if pressed {
                         state.ping(id, now);
                     }
@@ -578,7 +592,7 @@ impl Compositor {
                     if state.pointer_window() != Some(id)
                         && let Some(pos) = input.pointer
                     {
-                        state.pointer_motion(at(pos));
+                        state.pointer_motion(at(index, pos));
                     }
                     state.pointer_axis((-f64::from(delta.x), -f64::from(delta.y)));
                 }
@@ -903,6 +917,8 @@ fn button_code(button: PointerButton) -> u32 {
 fn cursor_icon(icon: smithay::input::pointer::CursorIcon) -> CursorIcon {
     CursorIcon::from_name(icon.name()).unwrap_or_default()
 }
+
+mod clipboard;
 
 #[cfg(test)]
 mod tests;
