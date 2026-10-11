@@ -36,7 +36,7 @@ pub(crate) fn start(setup: &Setup) {
     let (Some(windows), Some(gpu)) = (windows(), setup.get::<beui::GpuSetup>()) else {
         return;
     };
-    let server = match Server::new() {
+    let mut server = match Server::new() {
         Ok(server) => server,
         Err(error) => {
             eprintln!("block-app: the Wayland server did not start: {error}");
@@ -46,6 +46,12 @@ pub(crate) fn start(setup: &Setup) {
             return;
         }
     };
+    match server.start_xwayland() {
+        Ok(display) => eprintln!("block-app: X11 programs run on Xwayland at :{display}"),
+        Err(error) => {
+            eprintln!("block-app: Xwayland did not start, so X11 programs cannot run: {error}")
+        }
+    }
     let mut compositor = Compositor::new(server, windows);
     compositor.on_failure(crate::notices::report);
     let defaults = be_block::DisplaySettings::default();
@@ -73,6 +79,20 @@ pub(crate) fn start(setup: &Setup) {
 
 fn with<R>(act: impl FnOnce(&mut Running) -> R) -> Option<R> {
     RUNNING.with(|running| running.borrow_mut().as_mut().map(act))
+}
+
+pub(crate) fn environment() -> Vec<(String, String)> {
+    with(|running| {
+        let compositor = &running.compositor;
+        let wayland = compositor
+            .socket()
+            .map(|socket| ("WAYLAND_DISPLAY".to_owned(), socket));
+        let x11 = compositor
+            .x11_display()
+            .map(|display| ("DISPLAY".to_owned(), display));
+        wayland.into_iter().chain(x11).collect()
+    })
+    .unwrap_or_default()
 }
 
 pub(crate) fn running() -> bool {

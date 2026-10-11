@@ -388,7 +388,18 @@ impl TestClient {
     }
 
     pub(crate) fn attach_unsent(&mut self, window: &TestWindow, width: i32, height: i32) {
-        self.attach_surface(&window.surface, width, height);
+        let length = (width * 4 * height) as usize;
+        self.attach_pixels_unsent(window, width, height, &vec![0xff; length]);
+    }
+
+    pub(crate) fn attach_pixels_unsent(
+        &mut self,
+        window: &TestWindow,
+        width: i32,
+        height: i32,
+        pixels: &[u8],
+    ) {
+        self.attach_surface_pixels(&window.surface, width, height, pixels);
     }
 
     pub(crate) fn surface(&self) -> wl_surface::WlSurface {
@@ -398,19 +409,25 @@ impl TestClient {
             .create_surface(&self.handle, ())
     }
 
-    pub(crate) fn attach_surface(
+    pub(crate) fn attach_surface(&mut self, surface: &wl_surface::WlSurface, width: i32, height: i32) {
+        let length = (width * 4 * height) as usize;
+        self.attach_surface_pixels(surface, width, height, &vec![0xff; length]);
+    }
+
+    pub(crate) fn attach_surface_pixels(
         &mut self,
         surface: &wl_surface::WlSurface,
         width: i32,
         height: i32,
+        pixels: &[u8],
     ) {
         let stride = width * 4;
         let length = (stride * height) as usize;
+        assert_eq!(pixels.len(), length, "the pixels fill the buffer");
         let fd = rustix::fs::memfd_create("buffer", rustix::fs::MemfdFlags::CLOEXEC)
             .expect("a memfd opens");
         let mut file = std::fs::File::from(fd);
-        file.write_all(&vec![0xff; length])
-            .expect("the buffer is written");
+        file.write_all(pixels).expect("the buffer is written");
         let pool = self.shm.as_ref().unwrap().create_pool(
             std::os::fd::AsFd::as_fd(&file),
             length as i32,

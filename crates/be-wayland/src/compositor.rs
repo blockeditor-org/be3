@@ -210,6 +210,12 @@ impl Compositor {
             .map(|name| name.to_string_lossy().into_owned())
     }
 
+    pub fn x11_display(&self) -> Option<String> {
+        self.server
+            .x11_display()
+            .map(|display| format!(":{display}"))
+    }
+
     fn launch(&mut self, launch: &Launch) {
         let Some((program, arguments)) = launch.arguments.split_first() else {
             return;
@@ -222,6 +228,7 @@ impl Compositor {
             .args(arguments)
             .env("WAYLAND_DISPLAY", self.socket().unwrap_or_default())
             .env_remove("DISPLAY")
+            .envs(self.x11_display().map(|display| ("DISPLAY", display)))
             .env_remove("BEUI_AUTOMATION")
             .env_remove("BEUI_HEADLESS")
             .env_remove("BEUI_HEADLESS_SCREEN")
@@ -523,6 +530,13 @@ impl Compositor {
         for command in self.windows.take_commands() {
             match command {
                 Command::Configure(id) => {
+                    if let Some(rect) = self.windows.rect(id) {
+                        let position = rect.min - self.area.min;
+                        self.server.state.place(
+                            id,
+                            (position.x.round() as i32, position.y.round() as i32).into(),
+                        );
+                    }
                     let size = self
                         .windows
                         .rect(id)

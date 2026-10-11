@@ -11,7 +11,7 @@ Guides:
 - guides/buck2.md
 - guides/build_server.md
 - guides/hosting.md
-- guides/linux_desktop.md: block-app as a Linux desktop: the session, notifications, media keys, the lock screen, Wayland programs
+- guides/linux_desktop.md: block-app as a Linux desktop: the session, notifications, media keys, the lock screen, Wayland and X11 programs
 - guides/pan_and_zoom.md: the camera a plugin editor is handed by its host
 - guides/reactive.md: the reactive graph under beui
 - guides/running/drive.md: how to run and test any app; read this first
