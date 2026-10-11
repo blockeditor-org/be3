@@ -1178,20 +1178,31 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn click_at(&mut self, pos: Pos2) {
+        self.click_button_at(pos, PointerButton::Primary);
+    }
+
+    pub fn click_button(&mut self, test_id: &str, button: PointerButton) {
+        self.click_button_at(self.point_of(test_id), button);
+    }
+
+    pub fn click_button_at(&mut self, pos: Pos2, button: PointerButton) {
         let modifiers = self.input.held();
         self.hover_at(pos);
-        self.push(Event::PointerButton {
-            pos,
-            button: PointerButton::Primary,
-            pressed: true,
-            modifiers,
-        });
-        self.push(Event::PointerButton {
-            pos,
-            button: PointerButton::Primary,
-            pressed: false,
-            modifiers,
-        });
+        for pressed in [true, false] {
+            self.push(Event::PointerButton {
+                pos,
+                button,
+                pressed,
+                modifiers,
+            });
+        }
+    }
+
+    pub fn scroll(&mut self, test_id: &str, delta: Vec2) {
+        self.hover_at(self.point_of(test_id));
+        self.push(Event::Scroll(delta));
+        self.next_frame();
+        self.push(Event::ScrollEnded);
     }
 
     pub fn drag(&mut self, from: Pos2, to: Pos2) {

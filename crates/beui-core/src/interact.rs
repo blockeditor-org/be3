@@ -175,10 +175,7 @@ pub fn interact(
         claim_press(doc, claimant);
     } else if input.pressed_this_frame
         && let Some(pos) = input.pointer_pos
-        && let Some(captor) = doc
-            .pointer_layers(root)
-            .into_iter()
-            .find_map(|layer| captor(doc, rects, layer, pos))
+        && let Some(captor) = captor_at(doc, rects, root, pos)
     {
         doc.capture_pointer(captor);
     }
@@ -513,17 +510,30 @@ fn claimant(
         if let Some(found) = claiming(doc, rects, layer, pos, held) {
             return Some(found);
         }
-        if modal {
+        if modal || covers(doc, rects, root, layer, pos) {
             return None;
         }
-        let covers = layer != root
-            && doc
-                .arena
-                .kind_of::<crate::base::overlay::OverlayNode>(layer)
-                .and_then(|overlay| doc.overlay_content(overlay))
-                .and_then(|content| rects.visible(&content))
-                .is_some_and(|rect| rect.contains_half_open(pos));
-        if covers {
+    }
+    None
+}
+
+fn covers(doc: &Document, rects: &Rects, root: NodeId, layer: NodeId, pos: Pos2) -> bool {
+    layer != root
+        && doc
+            .arena
+            .kind_of::<crate::base::overlay::OverlayNode>(layer)
+            .and_then(|overlay| doc.overlay_content(overlay))
+            .and_then(|content| rects.visible(&content))
+            .is_some_and(|rect| rect.contains_half_open(pos))
+}
+
+fn captor_at(doc: &mut Document, rects: &Rects, root: NodeId, pos: Pos2) -> Option<NodeId> {
+    let modal = !doc.overlay_stack.is_empty();
+    for layer in doc.pointer_layers(root) {
+        if let Some(found) = captor(doc, rects, layer, pos) {
+            return Some(found);
+        }
+        if !modal && covers(doc, rects, root, layer, pos) {
             return None;
         }
     }

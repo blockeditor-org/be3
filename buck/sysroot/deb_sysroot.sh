@@ -1,9 +1,10 @@
 #!/bin/sh
 #
 # deb_sysroot's action (defs.bzl): the packages unpacked and laid out as a
-# sysroot in OUT. --keep-xkb also keeps the XKB keymaps.
+# sysroot in OUT. --keep-xkb also keeps the XKB keymaps, and each --keep FILE
+# that file, such as a program a test runs.
 #
-# Usage: deb_sysroot.sh OUT [--keep-xkb] PACKAGE...
+# Usage: deb_sysroot.sh OUT [--keep-xkb] [--keep FILE]... PACKAGE...
 set -eu
 out="$1"
 shift
@@ -12,6 +13,11 @@ if [ "${1:-}" = --keep-xkb ]; then
     xkb=usr/share/X11/xkb
     shift
 fi
+programs=''
+while [ "${1:-}" = --keep ]; do
+    programs="$programs $2"
+    shift 2
+done
 unpacked="$(mktemp -d)"
 for package; do dpkg-deb -x "$package" "$unpacked"; done
 for directory in lib lib64; do
@@ -22,8 +28,8 @@ for directory in lib lib64; do
 done
 mkdir -p "$out/usr/lib"
 for kept in usr/include usr/lib64 usr/lib/gcc usr/lib/pkgconfig usr/share/pkgconfig \
-    usr/lib/x86_64-linux-gnu usr/lib/aarch64-linux-gnu $xkb; do
-    if [ -d "$unpacked/$kept" ]; then
+    usr/lib/x86_64-linux-gnu usr/lib/aarch64-linux-gnu $xkb $programs; do
+    if [ -e "$unpacked/$kept" ]; then
         mkdir -p "$out/$(dirname "$kept")"
         cp -a "$unpacked/$kept" "$out/$kept"
     fi

@@ -3,16 +3,27 @@ use std::rc::Rc;
 
 use beui::{
     Color32, CursorIcon, FrameOutput, GpuSetup, Pos2, Rect, RendererInfo, Repainting, Screen,
-    Setup, Vec2, vec2,
+    Setup, Vec2,
 };
 use beui_core::renderer::Renderer;
 
-use crate::arrow;
+use crate::cursors::{Cursors, Shape};
+use crate::gpu::{Gpu, SoftwareCursor};
 use crate::flips::Flips;
-use crate::gpu::{Gpu, SoftwareCursor, Sprite};
 use crate::layout::bounds;
 use crate::output::Output;
 use crate::screen::{FORMAT, Frame, Pointer};
+use crate::theme::Theme;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Look {
+    Icon(CursorIcon),
+    Client {
+        revision: u64,
+        size: Vec2,
+        hotspot: Vec2,
+    },
+}
 
 pub struct Displays {
     pub outputs: Vec<Output>,
@@ -22,12 +33,13 @@ pub struct Displays {
     pub gpu: Rc<Gpu>,
     pub flips: Flips,
     cursor: SoftwareCursor,
-    arrow: Sprite,
+    cursors: Cursors,
+    look: Look,
+    placed: Option<Rect>,
 }
 
 impl Displays {
     pub fn new(gpu: Rc<Gpu>, cursor: SoftwareCursor, scale: f32) -> Self {
-        let arrow = gpu.rgba(arrow::WIDTH, arrow::HEIGHT, &arrow::pixels());
         Self {
             outputs: Vec::new(),
             flips: Flips::default(),
@@ -36,7 +48,9 @@ impl Displays {
             icon: CursorIcon::Default,
             gpu,
             cursor,
-            arrow,
+            cursors: Cursors::new(Theme::from_env(), scale),
+            look: Look::Icon(CursorIcon::Default),
+            placed: None,
         }
     }
 
@@ -48,12 +62,54 @@ impl Displays {
     }
 
     pub fn moved_pointer(&mut self) {
-        for output in &mut self.outputs {
-            output.screen.cursor = true;
+        self.replace_pointer();
+    }
+
+    fn look(&self) -> Look {
+        self.cursor
+            .with(|image| {
+                image.map(|image| Look::Client {
+                    revision: image.revision,
+                    size: image.size,
+                    hotspot: image.hotspot,
+                })
+            })
+            .unwrap_or(Look::Icon(self.icon))
+    }
+
+    fn shape(&mut self, icon: CursorIcon) -> Option<Rc<Shape>> {
+        self.cursors.get(&self.gpu, icon)
+    }
+
+    fn extent(&mut self, look: Look) -> Option<(Vec2, Vec2)> {
+        match look {
+            Look::Client { size, hotspot, .. } => Some((size, hotspot)),
+            Look::Icon(icon) => self.shape(icon).map(|shape| (shape.size, shape.hotspot)),
         }
     }
 
+    fn replace_pointer(&mut self) {
+        self.look = self.look();
+        let placed = self
+            .extent(self.look)
+            .map(|(size, hotspot)| Rect::from_min_size(self.pointer - hotspot, size).expand(1.0));
+        for output in &mut self.outputs {
+            let rect = output.screen.rect;
+            if [self.placed, placed]
+                .into_iter()
+                .flatten()
+                .any(|cursor| cursor.intersects(rect))
+            {
+                output.screen.cursor = true;
+            }
+        }
+        self.placed = placed;
+    }
+
     fn prepare(&mut self, frame: &FrameOutput, scale: f32, background: Color32) -> bool {
+        if self.look() != self.look {
+            self.replace_pointer();
+        }
         let repaint = frame.changed.then(|| frame.repaint(background));
         for output in &mut self.outputs {
             if let Some(repaint) = repaint {
@@ -75,22 +131,26 @@ impl Displays {
                 )
             })
         });
+        let themed = match client {
+            Some(_) => None,
+            None => self.shape(self.icon),
+        };
         for output in &mut self.outputs {
             if !output.wants_frame() {
                 continue;
             }
-            let sprite = match (&client, self.icon) {
+            let sprite = match (&client, &themed) {
                 (Some((sprite, size, hotspot)), _) => Pointer::Sprite {
                     sprite,
                     size: *size,
                     hotspot: *hotspot,
                 },
-                (None, CursorIcon::None) => Pointer::Hidden,
-                (None, _) => Pointer::Sprite {
-                    sprite: &self.arrow,
-                    size: vec2(arrow::WIDTH as f32, arrow::HEIGHT as f32),
-                    hotspot: Vec2::ZERO,
+                (None, Some(shape)) => Pointer::Sprite {
+                    sprite: &shape.sprite,
+                    size: shape.size,
+                    hotspot: shape.hotspot,
                 },
+                (None, None) => Pointer::Hidden,
             };
             self.flips.drawn(output.id());
             let drawn = output.render(

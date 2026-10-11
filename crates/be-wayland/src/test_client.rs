@@ -26,11 +26,15 @@ use wayland_protocols::wp::linux_dmabuf::zv1::client::{
 use wayland_protocols::ext::idle_notify::v1::client::{
     ext_idle_notification_v1, ext_idle_notifier_v1,
 };
+use wayland_protocols::wp::cursor_shape::v1::client::{
+    wp_cursor_shape_device_v1, wp_cursor_shape_manager_v1,
+};
 use wayland_protocols::wp::idle_inhibit::zv1::client::{
     zwp_idle_inhibit_manager_v1, zwp_idle_inhibitor_v1,
 };
 
 use wayland_protocols::wp::presentation_time::client::{wp_presentation, wp_presentation_feedback};
+use wayland_protocols::xdg::activation::v1::client::{xdg_activation_token_v1, xdg_activation_v1};
 
 const ARGB8888: u32 = u32::from_le_bytes(*b"AR24");
 use crate::state::{ServerEvent, WindowId};
@@ -59,6 +63,7 @@ pub(crate) struct Received {
     pub(crate) repeat: Option<(i32, i32)>,
     pub(crate) pointer_entered: Option<(f64, f64)>,
     pub(crate) pointer_surface: Option<wl_surface::WlSurface>,
+    pub(crate) pointer_serial: Option<u32>,
     pub(crate) buttons: Vec<(u32, bool)>,
     pub(crate) scrolled: f64,
     pub(crate) frames: usize,
@@ -72,6 +77,7 @@ pub(crate) struct Received {
     pub(crate) clock: Option<u32>,
     pub(crate) presented: Vec<Feedback>,
     pub(crate) discarded: usize,
+    pub(crate) token: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -266,6 +272,27 @@ impl TestClient {
         }
     }
 
+    pub(crate) fn request_token(
+        &self,
+        serial: Option<u32>,
+        surface: Option<&wl_surface::WlSurface>,
+    ) {
+        let activation: xdg_activation_v1::XdgActivationV1 = self.bind("xdg_activation_v1", 1);
+        let token = activation.get_activation_token(&self.handle, ());
+        if let Some(serial) = serial {
+            token.set_serial(serial, self.seat.as_ref().unwrap());
+        }
+        if let Some(surface) = surface {
+            token.set_surface(surface);
+        }
+        token.commit();
+    }
+
+    pub(crate) fn activate(&self, token: &str, surface: &wl_surface::WlSurface) {
+        let activation: xdg_activation_v1::XdgActivationV1 = self.bind("xdg_activation_v1", 1);
+        activation.activate(token.to_owned(), surface);
+    }
+
     pub(crate) fn flush(&mut self) {
         if self.disconnected() {
             return;
@@ -416,6 +443,33 @@ impl TestClient {
         height: i32,
         pixels: &[u8],
     ) {
+        self.attach_surface_pixels(&window.surface, width, height, pixels);
+    }
+
+    pub(crate) fn surface(&self) -> wl_surface::WlSurface {
+        self.compositor
+            .as_ref()
+            .unwrap()
+            .create_surface(&self.handle, ())
+    }
+
+    pub(crate) fn attach_surface(
+        &mut self,
+        surface: &wl_surface::WlSurface,
+        width: i32,
+        height: i32,
+    ) {
+        let length = (width * 4 * height) as usize;
+        self.attach_surface_pixels(surface, width, height, &vec![0xff; length]);
+    }
+
+    pub(crate) fn attach_surface_pixels(
+        &mut self,
+        surface: &wl_surface::WlSurface,
+        width: i32,
+        height: i32,
+        pixels: &[u8],
+    ) {
         let stride = width * 4;
         let length = (stride * height) as usize;
         assert_eq!(pixels.len(), length, "the pixels fill the buffer");
@@ -438,9 +492,9 @@ impl TestClient {
             &self.handle,
             (),
         );
-        window.surface.attach(Some(&buffer), 0, 0);
-        window.surface.damage_buffer(0, 0, width, height);
-        window.surface.commit();
+        surface.attach(Some(&buffer), 0, 0);
+        surface.damage_buffer(0, 0, width, height);
+        surface.commit();
     }
 
     pub(crate) fn keyboard(&mut self) -> wl_keyboard::WlKeyboard {
@@ -586,12 +640,13 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Received {
     ) {
         match event {
             wl_pointer::Event::Enter {
+                serial,
                 surface,
                 surface_x,
                 surface_y,
-                ..
             } => {
                 state.pointer_entered = Some((surface_x, surface_y));
+                state.pointer_serial = Some(serial);
                 state.pointer_surface = Some(surface);
             }
             wl_pointer::Event::Leave { .. } => state.pointer_surface = None,
@@ -730,6 +785,8 @@ impl Dispatch<ext_idle_notification_v1::ExtIdleNotificationV1, ()> for Received 
 wayland_client::delegate_noop!(Received: ignore zwp_linux_dmabuf_v1::ZwpLinuxDmabufV1);
 wayland_client::delegate_noop!(Received: ignore zwp_linux_buffer_params_v1::ZwpLinuxBufferParamsV1);
 wayland_client::delegate_noop!(Received: ignore xdg_positioner::XdgPositioner);
+wayland_client::delegate_noop!(Received: ignore wp_cursor_shape_manager_v1::WpCursorShapeManagerV1);
+wayland_client::delegate_noop!(Received: ignore wp_cursor_shape_device_v1::WpCursorShapeDeviceV1);
 impl Dispatch<xdg_popup::XdgPopup, ()> for Received {
     fn event(
         state: &mut Self,
@@ -746,6 +803,22 @@ impl Dispatch<xdg_popup::XdgPopup, ()> for Received {
 }
 
 pub(crate) use be_dmabuf::testing::{pattern, read, vulkan_device};
+
+wayland_client::delegate_noop!(Received: ignore xdg_activation_v1::XdgActivationV1);
+impl Dispatch<xdg_activation_token_v1::XdgActivationTokenV1, ()> for Received {
+    fn event(
+        received: &mut Self,
+        _: &xdg_activation_token_v1::XdgActivationTokenV1,
+        event: xdg_activation_token_v1::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let xdg_activation_token_v1::Event::Done { token } = event {
+            received.token = Some(token);
+        }
+    }
+}
 
 impl Dispatch<wp_presentation::WpPresentation, ()> for Received {
     fn event(

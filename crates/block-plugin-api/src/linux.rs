@@ -15,6 +15,7 @@ pub struct HostWindow {
     pub fullscreen: Option<ChildRect>,
     pub responding: bool,
     pub focused: bool,
+    pub raised: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -210,6 +211,60 @@ impl ProgramAction {
     pub const MAX_ICON_SIZE: u32 = 256;
 }
 
+#[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TrayStatus {
+    Passive,
+    #[default]
+    Active,
+    NeedsAttention,
+}
+
+#[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TrayToggle {
+    #[default]
+    None,
+    Check(bool),
+    Radio(bool),
+}
+
+#[derive(Clone, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TrayMenuEntry {
+    pub id: i32,
+    pub label: String,
+    pub separator: bool,
+    pub enabled: bool,
+    pub toggle: TrayToggle,
+    pub children: Vec<TrayMenuEntry>,
+}
+
+#[derive(Clone, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HostTrayItem {
+    pub id: String,
+    pub title: String,
+    pub tooltip: String,
+    pub status: TrayStatus,
+    pub icon: Option<HostImage>,
+    pub item_is_menu: bool,
+    pub menu: Vec<TrayMenuEntry>,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TrayRequest {
+    Activate(String),
+    SecondaryActivate(String),
+    Scroll {
+        item: String,
+        delta: i32,
+        horizontal: bool,
+    },
+    MenuOpened(String),
+    MenuClosed(String),
+    MenuChosen {
+        item: String,
+        entry: i32,
+    },
+}
+
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WindowAction {
     Focus(HostWindowId),
@@ -274,6 +329,17 @@ pub enum Programs {}
 impl HostValue for Programs {
     const KEY: &'static str = "programs";
     type Value = Vec<HostProgram>;
+}
+
+pub enum Tray {}
+
+impl HostValue for Tray {
+    const KEY: &'static str = "tray";
+    type Value = Vec<HostTrayItem>;
+}
+
+impl HostAction for TrayRequest {
+    const KEY: &'static str = "tray";
 }
 
 impl HostAction for ProgramAction {

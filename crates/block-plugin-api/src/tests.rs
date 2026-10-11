@@ -131,6 +131,7 @@ mod shell_dialog_and_access_messages_round_trip;
 mod show_block_request_round_trips;
 mod theme_messages_round_trip;
 mod touch_input_round_trips;
+mod tray_messages_round_trip;
 mod version_control_messages_round_trip;
 mod view_messages_round_trip;
 mod web_view_messages_round_trip;

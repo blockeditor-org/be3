@@ -30,6 +30,7 @@ pub struct CursorImage {
     pub size: Vec2,
     pub hotspot: Vec2,
     pub opaque: bool,
+    pub revision: u64,
 }
 
 pub struct Compositor {
@@ -50,6 +51,8 @@ pub struct Compositor {
     input_frames: u64,
     forced: bool,
     locked: bool,
+    cursor_surface: Option<smithay::reexports::wayland_server::protocol::wl_surface::WlSurface>,
+    cursor_revision: u64,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -79,6 +82,8 @@ impl Compositor {
             input_frames: 0,
             forced: false,
             locked: false,
+            cursor_surface: None,
+            cursor_revision: 0,
         }
     }
 
@@ -212,10 +217,11 @@ impl Compositor {
             .map(|display| format!(":{display}"))
     }
 
-    fn launch(&mut self, launch: &Launch) {
+    fn launch(&mut self, launch: &Launch, now: Instant) {
         let Some((program, arguments)) = launch.arguments.split_first() else {
             return;
         };
+        let token = self.server.state.activation.launch_token(now);
         let mut process = Process::new(program);
         if let Some(dir) = &launch.working_dir {
             process.current_dir(dir);
@@ -223,6 +229,8 @@ impl Compositor {
         process
             .args(arguments)
             .env("WAYLAND_DISPLAY", self.socket().unwrap_or_default())
+            .env("XDG_ACTIVATION_TOKEN", &token)
+            .env("DESKTOP_STARTUP_ID", &token)
             .env_remove("DISPLAY")
             .envs(self.x11_display().map(|display| ("DISPLAY", display)))
             .env_remove("BEUI_AUTOMATION")
@@ -276,16 +284,28 @@ impl Compositor {
     }
 
     fn receive(&mut self, context: &Context, document: &mut Document) {
+        self.server.state.activation.tick(context.now());
         self.server.dispatch();
         self.watch_pings(context);
         let events = self.server.state.take_events();
+        let cursor = match self.server.state.cursor() {
+            CursorImageStatus::Surface(surface) => Some(surface.clone()),
+            _ => None,
+        };
+        let mut cursor_changed = cursor != self.cursor_surface;
         for surface in self.server.state.take_committed() {
             self.textures.borrow_mut().upload(&surface);
+            cursor_changed |= cursor.as_ref() == Some(&surface);
+        }
+        if cursor_changed {
+            self.cursor_surface = cursor;
+            self.cursor_revision += 1;
         }
         self.textures.borrow_mut().prune();
         let mut redraw = Vec::new();
         let mut changed = false;
         let mut fullscreen = Vec::new();
+        let mut activated = None;
         let windows = self.windows.clone();
         with_reactive_scope(document, || {
             for event in events {
@@ -297,6 +317,7 @@ impl Compositor {
                     }
                     ServerEvent::Titled(..) | ServerEvent::Changed(_) => changed = true,
                     ServerEvent::Fullscreen(id, on) => fullscreen.push((id, on)),
+                    ServerEvent::Activated(id) => activated = Some(id),
                     ServerEvent::Committed(id) => {
                         if !windows.listed(id) {
                             changed = true;
@@ -310,6 +331,9 @@ impl Compositor {
         });
         for (id, on) in fullscreen {
             self.set_fullscreen(id, on);
+        }
+        if let Some(id) = activated {
+            self.windows.activate(id);
         }
         let open = self.server.state.windows();
         self.configured.retain(|id, _| open.contains(id));
@@ -426,6 +450,7 @@ impl Compositor {
             size: beui::vec2(size.w as f32, size.h as f32),
             hotspot: beui::vec2(hotspot.x as f32, hotspot.y as f32),
             opaque: current.texture.opaque(),
+            revision: self.cursor_revision,
         })
     }
 
@@ -560,7 +585,7 @@ impl Compositor {
                     self.server.state.ping(id, now);
                 }
                 Command::Close(id) => self.force_close(id),
-                Command::Launch(launch) => self.launch(&launch),
+                Command::Launch(launch) => self.launch(&launch, now),
             }
         }
         let cursor = match self.server.state.cursor() {
@@ -776,29 +801,7 @@ fn button_code(button: PointerButton) -> u32 {
 }
 
 fn cursor_icon(icon: smithay::input::pointer::CursorIcon) -> CursorIcon {
-    use smithay::input::pointer::CursorIcon as Named;
-    match icon {
-        Named::Crosshair => CursorIcon::Crosshair,
-        Named::Grab => CursorIcon::Grab,
-        Named::Grabbing => CursorIcon::Grabbing,
-        Named::NotAllowed | Named::NoDrop => CursorIcon::NotAllowed,
-        Named::Pointer => CursorIcon::PointingHand,
-        Named::EwResize | Named::EResize | Named::WResize | Named::ColResize => {
-            CursorIcon::ResizeHorizontal
-        }
-        Named::NsResize | Named::NResize | Named::SResize | Named::RowResize => {
-            CursorIcon::ResizeVertical
-        }
-        Named::NeswResize | Named::NeResize | Named::SwResize => CursorIcon::ResizeNeSw,
-        Named::NwseResize | Named::NwResize | Named::SeResize => CursorIcon::ResizeNwSe,
-        Named::Text | Named::VerticalText => CursorIcon::Text,
-        Named::Wait => CursorIcon::Wait,
-        Named::Move | Named::AllScroll => CursorIcon::Move,
-        Named::Progress => CursorIcon::Progress,
-        Named::Help => CursorIcon::Help,
-        Named::Alias => CursorIcon::Alias,
-        _ => CursorIcon::Default,
-    }
+    CursorIcon::from_name(icon.name()).unwrap_or_default()
 }
 
 #[cfg(test)]
