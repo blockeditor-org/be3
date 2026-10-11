@@ -49,7 +49,7 @@ fn a_control_drawn_over_a_child_is_withheld_from_the_child() {
     assert_eq!(children, 1, "the child is placed");
     let occluder = session
         .occluders(EditorRegion::Frame)
-        .into_iter()
+        .iter()
         .find(|occluder| occluder.after as usize >= children)
         .expect("a control drawn over the child must keep its presses from the child");
     assert_eq!(

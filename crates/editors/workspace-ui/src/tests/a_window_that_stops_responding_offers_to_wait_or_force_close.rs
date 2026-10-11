@@ -21,9 +21,14 @@ fn a_window_that_stops_responding_offers_to_wait_or_force_close() {
         .host
         .set_host_value::<HostWindows>(&vec![window(3, "Terminal", None)]);
     fixture.settle();
+    let resting = fixture.test.occluders().len();
     assert!(
-        fixture.test.occluders().is_empty(),
-        "a responding window is left alone"
+        fixture
+            .test
+            .occluders()
+            .iter()
+            .all(|occluder| occluder.rect.width.min(occluder.rect.height) <= 16.0),
+        "a responding window is left alone but for the split handle along its edge"
     );
 
     fixture
@@ -35,7 +40,7 @@ fn a_window_that_stops_responding_offers_to_wait_or_force_close() {
         "the tab says the window is not responding"
     );
     assert!(
-        !fixture.test.occluders().is_empty(),
+        fixture.test.occluders().len() > resting,
         "a banner covers part of the window"
     );
     fixture
@@ -45,7 +50,7 @@ fn a_window_that_stops_responding_offers_to_wait_or_force_close() {
     fixture.test.click("workspace.window.wait");
     fixture.settle();
     assert!(
-        fixture.test.occluders().is_empty(),
+        fixture.test.occluders().len() == resting,
         "waiting puts the banner away"
     );
     assert!(!force_closed(&fixture));
@@ -63,7 +68,7 @@ fn a_window_that_stops_responding_offers_to_wait_or_force_close() {
         .set_host_value::<HostWindows>(&vec![frozen(3, "Terminal")]);
     fixture.settle();
     assert!(
-        !fixture.test.occluders().is_empty(),
+        fixture.test.occluders().len() > resting,
         "freezing again brings the banner back"
     );
 

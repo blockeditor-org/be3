@@ -24,11 +24,19 @@ fn a_press_on_a_window_reports_it_raised_even_when_it_has_the_keyboard() {
     let (_first, first) = harness.open();
     let (_second, second) = harness.open();
     let windows = harness.app.windows();
-    assert_eq!(windows.focused(), Some(second), "the window opened last has the keyboard");
+    assert_eq!(
+        windows.focused(),
+        Some(second),
+        "the window opened last has the keyboard"
+    );
 
     let center = harness.window(first).center();
     press(&mut harness, center);
-    assert_eq!(windows.focused(), Some(first), "the press gave the window the keyboard");
+    assert_eq!(
+        windows.focused(),
+        Some(first),
+        "the press gave the window the keyboard"
+    );
     assert!(
         harness.output.as_ref().is_some_and(|output| output.repaint),
         "the frame that changed the list asks for another, so the host hears of it"

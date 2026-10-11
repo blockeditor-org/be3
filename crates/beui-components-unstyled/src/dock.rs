@@ -552,7 +552,8 @@ impl State {
                 .into_iter()
                 .filter(|overlay| shown.contains(overlay))
                 .collect();
-            let Some(first) = (0..wanted.len()).find(|at| shown.get(*at) != Some(&wanted[*at])) else {
+            let Some(first) = (0..wanted.len()).find(|at| shown.get(*at) != Some(&wanted[*at]))
+            else {
                 return;
             };
             for overlay in &wanted[first..] {
@@ -2512,7 +2513,9 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
     let marker = dock.clone();
     let grip_rect = placed.clone();
     let overlay = NodeRef::new();
-    dock.window_overlays.borrow_mut().insert(surface, overlay.clone());
+    dock.window_overlays
+        .borrow_mut()
+        .insert(surface, overlay.clone());
     on_cleanup(clone!(dock -> move || {
         dock.window_overlays.borrow_mut().remove(&surface);
     }));

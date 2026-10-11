@@ -22,11 +22,16 @@ fn Program(id: u64) -> unstyled::DockNode<u64> {
 fn drawn_bottom_up(harness: &Harness) -> Vec<u64> {
     let document = harness.document();
     let mut programs = vec![1, 2, 3];
-    programs.sort_by_key(|program| document.paint_order(harness.find(&format!("program.{program}"))));
+    programs
+        .sort_by_key(|program| document.paint_order(harness.find(&format!("program.{program}"))));
     programs
 }
 
-fn stacked_bottom_up(harness: &Harness, dock: NodeId, layout: &unstyled::DockingLayout<u64>) -> Vec<u64> {
+fn stacked_bottom_up(
+    harness: &Harness,
+    dock: NodeId,
+    layout: &unstyled::DockingLayout<u64>,
+) -> Vec<u64> {
     let state = unstyled::dock_state(harness.document(), dock);
     state
         .windows()
@@ -71,7 +76,11 @@ fn a_floating_window_the_dock_puts_on_top_is_drawn_on_top() {
         edit(&mut harness, move || layout.show(&program));
     }
     assert_eq!(stacked_bottom_up(&harness, dock, &layout), vec![2, 3, 1]);
-    assert_eq!(drawn_bottom_up(&harness), vec![2, 3, 1], "focusing a window raises it");
+    assert_eq!(
+        drawn_bottom_up(&harness),
+        vec![2, 3, 1],
+        "focusing a window raises it"
+    );
     let saved = layout.snapshot();
 
     for program in [2, 1] {
