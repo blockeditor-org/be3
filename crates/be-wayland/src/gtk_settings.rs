@@ -1,6 +1,6 @@
 use std::ffi::OsStr;
 use std::io::{Error, ErrorKind, Result};
-use std::os::unix::fs::DirBuilderExt;
+use std::os::unix::fs::{DirBuilderExt, MetadataExt};
 use std::path::{Path, PathBuf};
 
 use gvdb::write::{FileWriter, HashTableBuilder};
@@ -9,7 +9,7 @@ const BUTTON_LAYOUT: &str = "/org/gnome/desktop/wm/preferences/button-layout";
 const LAYOUT: &str = "appmenu:";
 
 pub(crate) fn profile() -> Option<PathBuf> {
-    match write(&directory()) {
+    match write(&directory(), std::env::var_os("DCONF_PROFILE").as_deref()) {
         Ok(profile) => Some(profile),
         Err(error) => {
             eprintln!("be-wayland: GTK programs keep their own window buttons: {error}");
@@ -27,15 +27,25 @@ fn directory() -> PathBuf {
     }
 }
 
-fn write(directory: &Path) -> Result<PathBuf> {
+fn write(directory: &Path, named: Option<&OsStr>) -> Result<PathBuf> {
     std::fs::DirBuilder::new()
         .recursive(true)
         .mode(0o700)
         .create(directory)?;
+    let metadata = std::fs::symlink_metadata(directory)?;
+    if !metadata.is_dir()
+        || metadata.uid() != rustix::process::getuid().as_raw()
+        || metadata.mode() & 0o077 != 0
+    {
+        return Err(Error::new(
+            ErrorKind::PermissionDenied,
+            format!("{} is not a private directory of ours", directory.display()),
+        ));
+    }
     let database = directory.join("gtk.db");
     let profile = directory.join("dconf.profile");
     replace(&database, &database_contents()?)?;
-    let base = base_profile(&profile, std::env::var_os("DCONF_PROFILE").as_deref());
+    let base = base_profile(&profile, named);
     let layered = format!("{}\nfile-db:{}\n", base.trim_end(), database.display());
     replace(&profile, layered.as_bytes())?;
     Ok(profile)
