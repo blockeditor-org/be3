@@ -39,9 +39,10 @@ How the server runs on a VPS for real notes. The files referred to are in
    each connection.
 6. Publish `be` from the same checkout, since `./scripts/be` must be the
    server's build (guides/tracker.md): for each triple, build
-   `./scripts/buck build //crates/be-cli:be -m release --out be-TRIPLE`
+   `./scripts/buck build //crates/be-cli:be -m release --out DIR-TRIPLE`
    (`--target-platforms root//buck/platforms:linux_arm64`, `macos_arm64` or
-   `macos_x86_64` for the others), upload it to
+   `macos_x86_64` for the others), check that `DIR-TRIPLE/build-id` is the
+   server's, upload `DIR-TRIPLE/be` to
    `https://lfs.pfg.pw/by-name/be3/be/BUILD/be-TRIPLE`, where `BUILD` is what
    `DIR/build-id` holds, and set `be_release` to `BUILD` and each `be_sha256_*`
    to its file's `sha256sum` in `scripts/internal/common.sh`.

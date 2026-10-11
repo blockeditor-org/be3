@@ -44,9 +44,9 @@ crypto crates), which `crates.bzl` carries as each crate's rustc flags.
 
 Which build a program is lives in a file beside it, never in its code:
 `//buck/app:build-id` writes `be3.build_id` into a file named `build-id`, and
-every bundle (`:app`, `:dist`, `:web`, `:web-dist`, the APK's assets) carries
-it. A client and a server refuse each other unless their ids match (or one has
-none), and the app shows the id's commit as its version. Since only that file
+every bundle (`:app`, `:dist`, `:web`, `:web-dist`, the APK's assets, be-cli's
+`:be`) carries it. A client and a server refuse each other unless their ids
+match, a program that finds no id refuses to connect or serve, and the app shows the id's commit as its version. Since only that file
 and the bundles read the id, a new commit rebuilds nothing else.
 
 ## What `./scripts/buck` does

@@ -156,8 +156,10 @@ postcard frames.
 - A connection starts with a greeting outside the protocol: each side sends
   `be_protocol::hello` with its build id (`build_id::current()`, read from the
   `build-id` file beside the executable, or `--build-id-file`), and the server
-  closes the connection when the ids differ and neither is `unknown`
-  (`ClientError::Incompatible` on the client). Server and clients are upgraded
+  closes the connection when the ids differ (`ClientError::Incompatible` on the
+  client). A program with no id is an error, not a wildcard: the client fails
+  with `ClientError::NoBuild`, the server does not start, and a test installs
+  one with `build_id::install`. Server and clients are upgraded
   together from one commit, so the protocol itself is postcard and never
   versioned.
 - A publish is a compare-and-swap on the head. A publish against a stale head

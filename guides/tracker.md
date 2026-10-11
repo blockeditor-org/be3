@@ -21,10 +21,10 @@ token=<the agent's token>
 recovery_phrase=<opens the workspace key the server keeps sealed for the agent>
 ```
 
-`be` itself reads only the variables, never that file, so a `be` built from
-the checkout (`./scripts/buck run //crates/be-cli:be -- ARGS`) reaches the real
-server only if someone sets them; point it at the dev app's server instead when
-testing a change to it. Without `BE3_TOKEN` the connection must be signed in by
+`be` itself reads only the variables, never that file. A `be` built from the
+checkout (`./scripts/buck run //crates/be-cli:be -- ARGS`) carries that
+checkout's build id, so it talks to the dev app built from the same tree, and
+the real server refuses it. Without `BE3_TOKEN` the connection must be signed in by
 a proxy that adds `Authorization: Bearer TOKEN` to the websocket upgrade, and
 `BE3_SERVER` is `https://blocks.pfg.pw` unless set.
 

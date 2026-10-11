@@ -32,6 +32,7 @@ async fn run() -> Result<String, String> {
     if invocation.target.is_none() && invocation.verb == "help" {
         return Ok(USAGE.to_owned());
     }
+    build_id::current()?;
     let settings = Settings::from_env()?;
     let tracker = Tracker::new(connect(&settings).await?);
     let (block, label, base) = match cli::run(&tracker, &invocation).await? {

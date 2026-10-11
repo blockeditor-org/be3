@@ -250,7 +250,7 @@ async fn greet<S>(
 where
     S: AsyncRead + AsyncWrite + Unpin + Send,
 {
-    let ours = build_id::current();
+    let ours = build_id::current().map_err(ServerError::Socket)?;
     let greeting = async {
         loop {
             match source.next().await {

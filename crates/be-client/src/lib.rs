@@ -34,6 +34,7 @@ pub enum ClientError {
     Contended,
     Unexpected,
     Incompatible { ours: String, theirs: String },
+    NoBuild(String),
 }
 
 impl fmt::Display for ClientError {
@@ -61,6 +62,7 @@ impl fmt::Display for ClientError {
                 formatter,
                 "this app is build {ours} and the server is build {theirs}; update them to the same build"
             ),
+            Self::NoBuild(why) => write!(formatter, "this program does not know its build: {why}"),
         }
     }
 }

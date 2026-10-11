@@ -69,7 +69,7 @@ use uuid::Uuid;
 const APP_ID: &str = "Block";
 
 pub(crate) fn commit() -> &'static str {
-    build_id::commit(build_id::current())
+    build_id::current().map_or("no build id", build_id::commit)
 }
 
 fn run_options() -> beui::RunOptions {
@@ -524,7 +524,7 @@ const CACHES: [&str; 2] = ["be-objects", "plugin-cache"];
 #[cfg(not(target_arch = "wasm32"))]
 fn forget_caches_of_other_builds(data_dir: &Path) -> io::Result<()> {
     let stamp = data_dir.join(build_id::FILE);
-    let current = build_id::current();
+    let current = build_id::current().map_err(io::Error::other)?;
     if std::fs::read_to_string(&stamp).is_ok_and(|cached| cached == current) {
         return Ok(());
     }

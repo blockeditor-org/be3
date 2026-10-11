@@ -650,6 +650,7 @@ dependencies = [
  "be-server",
  "be-store",
  "block-ui",
+ "build-id",
  "serde_json",
  "tokio",
  "uuid",
