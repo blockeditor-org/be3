@@ -177,6 +177,8 @@ way for the test to fail.
   request CI does the same, and when that writes a painting it fails the run and pushes the
   painting to the pull request's branch as a commit. Everywhere else CI runs ./scripts/ci --check, which sets nothing,
   so a painting that was never committed fails there.
+- Git never merges a painting: when two branches change one, it conflicts. Take either side
+  (`git checkout --theirs` or `--ours` on it) and let ./scripts/verify repaint it.
 - ./scripts/verify also fails on a painting that a test names with a literal, snapshot("name"),
   but that snapshots/ does not hold once it is done: the test failed, or returned, before
   painting it.
