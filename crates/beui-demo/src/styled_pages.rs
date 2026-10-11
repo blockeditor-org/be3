@@ -1492,7 +1492,28 @@ pub(crate) fn OverlaysPage() -> NodeId {
             <Sample title="Toasts" code={vec![ToastArea::SOURCE]}>
                 <ToastArea />
             </Sample>
+            <Sample title="Crash notice" code={vec![CrashedEditor::SOURCE]}>
+                <CrashedEditor />
+            </Sample>
         </ScrollPage>
+    }
+}
+
+#[sample]
+#[component]
+fn CrashedEditor() -> NodeId {
+    let (reloads, set_reloads) = create_signal(0_u32);
+    let detail = create_memo(move || match reloads.get() {
+        0 => "the count overflowed\n(at src/counter.rs:12:9)".to_owned(),
+        1 => "It stopped again after a reload.".to_owned(),
+        reloads => format!("It stopped again after {reloads} reloads."),
+    });
+    view! {
+        <CrashNotice
+            title="Counter stopped"
+            detail={detail}
+            on_reload={move || set_reloads.update(|reloads| *reloads += 1)}
+        />
     }
 }
 

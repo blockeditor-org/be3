@@ -141,6 +141,7 @@ pub(crate) fn after(context: &Context, document: &mut Document) {
                     size: image.size,
                     hotspot: image.hotspot,
                     opaque: image.opaque,
+                    revision: image.revision,
                 }
             }));
         }
@@ -216,6 +217,7 @@ pub(crate) fn listed() -> Vec<HostWindow> {
             }),
             responding: info.responding,
             focused: windows.focused() == Some(info.id),
+            raised: windows.raised(info.id),
         })
         .collect()
 }

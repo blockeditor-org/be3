@@ -19,6 +19,7 @@ mod a_canvas_lays_out_only_the_items_the_view_can_see;
 mod a_canvas_places_its_items_at_the_view_it_is_given;
 mod a_canvas_without_a_view_places_its_items_from_its_own_corner;
 mod a_capturing_button_takes_the_press_from_the_row_it_sits_in;
+mod a_capturing_catcher_over_a_forwarding_one_keeps_the_press_from_it;
 mod a_catcher_in_a_dialog_hears_a_press_on_it;
 mod a_catcher_that_lost_its_release_lets_go_of_the_pointer;
 mod a_catcher_under_a_dialog_that_is_under_another_hears_no_pointer;
@@ -178,6 +179,8 @@ mod a_press_a_catcher_declines_focuses_the_catcher_beneath;
 mod a_press_and_release_in_one_frame_on_a_submenu_item_selects_it_once;
 mod a_press_claimed_by_its_modifiers_goes_to_the_claimant_and_not_the_catcher_beneath;
 mod a_press_inside_a_color_wheels_triangle_picks_saturation_and_value;
+mod a_press_just_beside_a_split_divider_moves_it;
+mod a_press_just_outside_a_windows_border_resizes_it;
 mod a_press_outside_an_interactive_is_reported_to_it;
 mod a_press_that_dismisses_an_overlay_does_not_reach_the_catcher_beneath;
 mod a_pressed_forwarding_catcher_keeps_the_pointer_until_it_is_released;
@@ -195,6 +198,7 @@ mod a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose;
 mod a_row_pushed_down_by_the_row_above_it_is_neither_laid_out_nor_painted_again;
 mod a_row_replaced_by_narrower_rows_leaves_nothing_of_it_behind_the_copy;
 mod a_row_that_leaves_a_virtual_list_moves_the_rows_below_it_by_a_copy;
+mod a_runner_whose_app_panics_lets_the_app_exit_and_reports_why;
 mod a_scroll_in_a_dialog_copies_what_it_showed_over_the_page_beneath;
 mod a_scroll_in_a_dialog_follows_the_wheel;
 mod a_scroll_inside_a_scroll_lays_out_the_rows_it_holds;
@@ -2070,6 +2074,9 @@ impl Driven {
             1.0,
             beui_core::app::SafeArea::default(),
         );
+        if let Some(failure) = self.runner.failure() {
+            panic!("the driven app panicked: {failure}");
+        }
     }
 
     pub(crate) fn ask(&mut self, words: &[&str]) -> Result<String, String> {

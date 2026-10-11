@@ -106,6 +106,7 @@ pub mod __private {
 
     #[cfg(target_arch = "wasm32")]
     pub fn start_wasm(manifest: &str, apps: Vec<App>) {
+        crate::wasm::report_panics();
         let identity = identity(manifest);
         let mut declared = declared_block_types(manifest);
         let mut implemented: Vec<_> = apps.iter().map(|app| app.block_type).collect();
