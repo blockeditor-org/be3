@@ -372,12 +372,17 @@ struct Run {
 struct Emitted {
     instances: Vec<Instance>,
     background: Vec<Run>,
+    cleared: Vec<Run>,
     filters: usize,
 }
 
 enum Step {
     Runs(Vec<Run>),
-    Filter { index: usize, steps: Vec<Step> },
+    Filter {
+        index: usize,
+        bottom: bool,
+        steps: Vec<Step>,
+    },
 }
 
 fn push_run(steps: &mut Vec<Step>, run: Run) {
@@ -1135,6 +1140,18 @@ impl Renderer {
                 });
             }
         }
+        let mut cleared = Vec::new();
+        for region in frame.damaged.unwrap_or_default() {
+            Run::push(&mut cleared, frame_run(true, None, 0, instances.len()));
+            instances.push(Instance {
+                rect: *region,
+                clip: *region,
+                uv: [0.0; 4],
+                color: [0.0, 0.0, 0.0, 1.0],
+                params: [0.0, 0.0, 0.0, 0.0],
+                turn: turn(Turn::NONE),
+            });
+        }
         let mut steps = vec![Step::Runs(runs.clone())];
         let at = Walk {
             factor: frame.pixels_per_point,
@@ -1148,9 +1165,10 @@ impl Renderer {
         let mut emitted = Emitted {
             instances,
             background: runs,
+            cleared,
             filters: 0,
         };
-        self.emit_layers(frame, &output.layers, at, &mut emitted, &mut steps);
+        self.emit_layers(frame, &output.layers, at, &mut emitted, &mut steps, true);
         (emitted.instances, steps)
     }
 
@@ -1161,9 +1179,11 @@ impl Renderer {
         at: Walk,
         emitted: &mut Emitted,
         steps: &mut Vec<Step>,
+        bottom: bool,
     ) {
         let mut quads = Vec::new();
-        for layer in layers {
+        for (index, layer) in layers.iter().enumerate() {
+            let bottom = bottom && index == 0;
             match layer {
                 Layer::Shape(shape) => {
                     let shape = placed_shape(shape, at.offset, at.clip);
@@ -1211,10 +1231,15 @@ impl Renderer {
                 Layer::Group(Group::Filter(_), inner) => {
                     let index = emitted.filters;
                     emitted.filters += 1;
-                    let mut filtered = vec![Step::Runs(emitted.background.clone())];
-                    self.emit_layers(frame, inner, at, emitted, &mut filtered);
+                    let beneath = match bottom {
+                        true => emitted.background.clone(),
+                        false => emitted.cleared.clone(),
+                    };
+                    let mut filtered = vec![Step::Runs(beneath)];
+                    self.emit_layers(frame, inner, at, emitted, &mut filtered, bottom);
                     steps.push(Step::Filter {
                         index,
+                        bottom,
                         steps: filtered,
                     });
                 }
@@ -1222,7 +1247,7 @@ impl Renderer {
                     let within = at.group(group, &mut |origin, bound, fade| {
                         frame.space(origin, bound, fade)
                     });
-                    self.emit_layers(frame, inner, within, emitted, steps);
+                    self.emit_layers(frame, inner, within, emitted, steps, false);
                 }
             }
         }
@@ -1708,6 +1733,7 @@ impl Renderer {
         scissor: Option<[u32; 4]>,
         steps: &[Step],
     ) {
+        let initial = load;
         let mut load = load;
         let mut loaded = false;
         for step in steps {
@@ -1721,6 +1747,7 @@ impl Renderer {
                 }
                 Step::Filter {
                     index,
+                    bottom,
                     steps: filtered,
                 } => {
                     let Some(scene) = self.effects.get(*index).and_then(filter::Effects::scene)
@@ -1728,9 +1755,10 @@ impl Renderer {
                         continue;
                     };
                     let scene = scene.clone();
-                    let scene_load = match self.whole {
-                        true => wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                        false => wgpu::LoadOp::Load,
+                    let scene_load = match (self.whole, initial) {
+                        (true, wgpu::LoadOp::Clear(color)) if *bottom => wgpu::LoadOp::Clear(color),
+                        (true, _) => wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        (false, _) => wgpu::LoadOp::Load,
                     };
                     self.render_steps(
                         device, queue, encoder, &scene, scene_load, scissor, filtered,

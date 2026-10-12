@@ -48,8 +48,11 @@ fn compose(input: Full) -> @location(0) vec4<f32> {
     }
     let spread = textureSampleLevel(blurred, scene_sampler, clamp(input.uv, region.xy, region.zw), 0.0);
     let sampled = mix(untouched, spread, combine.params.z);
+    if sampled.a <= 0.0 {
+        return vec4<f32>(0.0);
+    }
     let stored_linear = combine.params.y > 0.5;
-    var linear = clamp(sampled.rgb, vec3<f32>(0.0), vec3<f32>(1.0));
+    var linear = clamp(sampled.rgb / sampled.a, vec3<f32>(0.0), vec3<f32>(1.0));
     if !stored_linear {
         linear = to_linear(linear);
     }
@@ -72,5 +75,5 @@ fn compose(input: Full) -> @location(0) vec4<f32> {
     if stored_linear {
         result = to_linear(encoded);
     }
-    return vec4<f32>(result, sampled.a);
+    return vec4<f32>(result * sampled.a, sampled.a);
 }

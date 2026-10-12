@@ -1813,11 +1813,15 @@ document paints - a plugin's beui pane included - is filtered the same way.
 
 `Context::apply_filter` is what turns them on. It takes a `Filter` (the region
 in points, a blur radius, a contrast multiplier, and a `ColorVision`) and wraps
-everything painted so far in a filter group (`Group::Filter`), so everything
-painted before the call goes through the filter and everything painted after it
-lands on top of the result untouched. Filters are groups like any other, so a
-second call filters the first one's result again rather than replacing it, and
-the wgpu renderer draws each filter group into a scene texture of its own. The inspector calls it once a frame,
+everything painted so far - since the innermost `Context::clipped` or
+`Context::scaled` it is called in - in a filter group (`Group::Filter`), so
+what was painted before the call goes through the filter and what is painted
+after it lands on top of the result untouched. Filters are groups like any
+other, so a second call filters the first one's result again rather than
+replacing it. The wgpu renderer draws each filter group into a scene texture of
+its own, starting transparent, filters it and lays it over what lies beneath; a
+filter at the very bottom of the frame holds the background too, so it filters
+the whole picture. The inspector calls it once a frame,
 after the document, the panel, the overlays and the screen reader's focus
 outline, and before the reader's readout - so the reader's outline blurs with
 the page it marks while the words it is saying stay readable. The region is the

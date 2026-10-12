@@ -317,7 +317,7 @@ impl Painter {
         let by = -state.origin;
         self.grouped(
             PainterState {
-                clip: Rect::EVERYTHING,
+                clip: state.clip.translate(-by),
                 space_clip: state.space_clip.intersect(state.clip).translate(-by),
                 origin: Vec2::ZERO,
                 space: None,

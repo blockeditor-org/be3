@@ -33,6 +33,7 @@ struct Inner {
     fonts: RefCell<Fonts>,
     input: RefCell<InputState>,
     layers: RefCell<Vec<Layer>>,
+    grouping: RefCell<Vec<usize>>,
     paint_stack: RefCell<Vec<PaintFrame>>,
     space_read: Cell<bool>,
     damage: RefCell<Vec<Rect>>,
@@ -239,6 +240,7 @@ impl Context {
                 fonts: RefCell::new(Fonts::boxed(fonts)),
                 input: RefCell::new(InputState::default()),
                 layers: RefCell::new(Vec::new()),
+                grouping: RefCell::new(Vec::new()),
                 paint_stack: RefCell::new(Vec::new()),
                 space_read: Cell::new(false),
                 damage: RefCell::new(Vec::new()),
@@ -427,6 +429,7 @@ impl Context {
         }
         self.inner.input.borrow_mut().begin_frame(raw, now);
         self.inner.layers.borrow_mut().clear();
+        self.inner.grouping.borrow_mut().clear();
         self.inner.paint_stack.borrow_mut().clear();
         self.inner.damage.borrow_mut().clear();
         self.inner.moves.borrow_mut().clear();
@@ -847,6 +850,13 @@ impl Context {
         );
     }
 
+    fn grouping<R>(&self, layers: usize, content: impl FnOnce() -> R) -> R {
+        self.inner.grouping.borrow_mut().push(layers);
+        let result = content();
+        self.inner.grouping.borrow_mut().pop();
+        result
+    }
+
     fn group_since(&self, layers: usize, group: Group) {
         let mut held = self.inner.layers.borrow_mut();
         let inner: Rc<[Layer]> = held.drain(layers..).collect();
@@ -953,7 +963,7 @@ impl Context {
         let layers = self.inner.layers.borrow().len();
         let damage = self.inner.damage.borrow().len();
         let moves = self.inner.moves.borrow().len();
-        let result = content();
+        let result = self.grouping(layers, content);
         self.unmove(moves);
         self.group_since(layers, Group::Clip(clip));
         for rect in self.inner.damage.borrow_mut().iter_mut().skip(damage) {
@@ -1008,7 +1018,7 @@ impl Context {
         let fragments = self.inner.accessibility.borrow().len();
         let test_ids = self.inner.test_ids.take();
         let ime = self.inner.ime.take();
-        let result = content();
+        let result = self.grouping(layers, content);
         self.unmove(moves);
         let scaled_ime = self.inner.ime.replace(ime);
         if let Some(area) = scaled_ime {
@@ -1096,7 +1106,8 @@ impl Context {
         if filter.changes_nothing() || !filter.region.is_positive() {
             return;
         }
-        self.group_since(0, Group::Filter(filter));
+        let from = self.inner.grouping.borrow().last().copied().unwrap_or(0);
+        self.group_since(from, Group::Filter(filter));
     }
 }
 
