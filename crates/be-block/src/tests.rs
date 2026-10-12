@@ -129,6 +129,11 @@ mod unpinning_a_component_removes_it_from_every_folder;
 mod video_clips_attach_ripple_and_refuse_cycles;
 mod visiting_a_block_puts_it_first_in_the_recents_once;
 mod wires_drawn_on_each_side_that_meet_join_into_one;
+mod a_view_hides_closed_choices_and_matches_any_of_several_values;
+mod databases_saved_by_the_first_tracker_build_still_load;
+mod frozen_database;
+mod frozen_database_schema;
+mod frozen_database_view;
 
 fn header(name: &str) -> ImageHeader {
     ImageHeader {
