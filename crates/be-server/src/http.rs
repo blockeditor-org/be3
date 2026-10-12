@@ -20,6 +20,7 @@ use crate::{Client, HANDSHAKE_TIMEOUT, IDLE_TIMEOUT, ServerError, Services, gree
 const PATH_SUFFIX: &str = "/http";
 const SESSION_HEADER: &str = "be3-session";
 const MAX_HEAD_BYTES: usize = 16 * 1024;
+const MAX_BODY_BYTES: usize = 2 * MAX_FRAME_BYTES;
 const MAX_HEADERS: usize = 64;
 
 #[derive(Default)]
@@ -124,7 +125,7 @@ async fn serve(
 ) -> Result<(), ServerError> {
     loop {
         let head = Head::parse(&buffer)?;
-        if head.length > MAX_FRAME_BYTES + 64 {
+        if head.length > MAX_BODY_BYTES {
             return respond(&mut stream, 413, None, b"the frame is too large").await;
         }
         let mut body = buffer.split_off(head.size);
@@ -169,8 +170,17 @@ async fn answer(
     body: &[u8],
     services: &Services,
 ) -> Result<Answer, ServerError> {
+    let Some(frames) = unframed(body) else {
+        return Ok(Answer {
+            status: 400,
+            session: None,
+            body: b"the body is not a list of frames".to_vec(),
+            keep: false,
+        });
+    };
     let Some(id) = session else {
-        let (ours, compatible) = greeting(read_hello(body).as_deref())?;
+        let theirs = frames.first().and_then(|frame| read_hello(frame));
+        let (ours, compatible) = greeting(theirs.as_deref())?;
         let session = match compatible {
             true => Some(services.http.insert(Client::open(services).await)),
             false => None,
@@ -196,18 +206,29 @@ async fn answer(
     let Some(client) = held.client.as_mut() else {
         return Ok(gone);
     };
-    let frames = client
-        .answer(body)
-        .await
-        .iter()
-        .map(|message| encode(message).map_err(|_| ServerError::Corrupt))
-        .collect::<Result<Vec<_>, _>>()?;
+    let mut answers = Vec::new();
+    for frame in frames {
+        for message in client.answer(frame).await {
+            answers.push(encode(&message).map_err(|_| ServerError::Corrupt)?);
+        }
+    }
     Ok(Answer {
         status: 200,
         session: None,
-        body: framed(&frames),
+        body: framed(&answers),
         keep: true,
     })
+}
+
+fn unframed(body: &[u8]) -> Option<Vec<&[u8]>> {
+    let mut frames = Vec::new();
+    let mut rest = body;
+    while !rest.is_empty() {
+        let size = u32::from_be_bytes(rest.get(..4)?.try_into().ok()?) as usize;
+        frames.push(rest.get(4..4 + size)?);
+        rest = &rest[4 + size..];
+    }
+    Some(frames)
 }
 
 fn framed(frames: &[Vec<u8>]) -> Vec<u8> {
@@ -227,6 +248,7 @@ async fn respond(
 ) -> Result<(), ServerError> {
     let reason = match status {
         200 => "OK",
+        400 => "Bad Request",
         404 => "Not Found",
         413 => "Payload Too Large",
         _ => "Error",

@@ -51,10 +51,11 @@ TEXT given as - is read from standard input. --json prints JSON.
 
 Environment:
   BE3_RECOVERY_PHRASE   The recovery phrase the app showed when it added this agent
-  BE3_TOKEN             The agent's token; without it the connection must be signed in
-                        by a proxy that adds an Authorization: Bearer header
+  BE3_TOKEN             The agent's token
   BE3_WORKSPACE         The workspace, when the account is in more than one
-  BE3_SERVER            The server (default: https://blocks.pfg.pw)";
+  BE3_SERVER            The server (default: https://blocks.pfg.pw)
+  BE3_AUTHORIZATION     An Authorization header a gateway in front of the server wants
+  BE3_CACHE             Where it keeps the objects it reads (default: ~/.cache/be3/be)";
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Options {

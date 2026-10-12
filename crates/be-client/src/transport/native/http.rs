@@ -12,6 +12,7 @@ const SESSION_HEADER: &str = "be3-session";
 const REQUEST_WAIT: Duration = Duration::from_secs(120);
 const MAX_HEAD_BYTES: usize = 16 * 1024;
 const MAX_HEADERS: usize = 64;
+const BATCH_BYTES: usize = be_protocol::MAX_FRAME_BYTES;
 
 trait Io: AsyncRead + AsyncWrite + Unpin + Send {}
 
@@ -36,7 +37,14 @@ pub(super) async fn connect(
     let (posts, mut outgoing) = mpsc::unbounded_channel::<Vec<u8>>();
     let (incoming, frames) = mpsc::unbounded_channel();
     tokio::spawn(async move {
-        while let Some(body) = outgoing.recv().await {
+        while let Some(first) = outgoing.recv().await {
+            let mut body = framed(&first);
+            while body.len() < BATCH_BYTES {
+                let Ok(next) = outgoing.try_recv() else {
+                    break;
+                };
+                body.extend_from_slice(&framed(&next));
+            }
             let answered = tokio::time::timeout(REQUEST_WAIT, client.post(&body))
                 .await
                 .unwrap_or_else(|_| Err("the server did not answer in time".to_owned()));
@@ -335,6 +343,13 @@ async fn dechunk(stream: &mut Box<dyn Io>, mut pending: Vec<u8>) -> Result<Vec<u
         body.extend_from_slice(&pending[line_end + 2..line_end + 2 + size]);
         pending.drain(..line_end + 2 + size + 2);
     }
+}
+
+fn framed(frame: &[u8]) -> Vec<u8> {
+    let mut body = Vec::with_capacity(frame.len() + 4);
+    body.extend_from_slice(&(frame.len() as u32).to_be_bytes());
+    body.extend_from_slice(frame);
+    body
 }
 
 fn frames(body: &[u8]) -> Result<Vec<Vec<u8>>, String> {

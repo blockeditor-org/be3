@@ -5,8 +5,13 @@ use super::*;
 async fn post(
     stream: &mut tokio::net::TcpStream,
     session: Option<&str>,
-    body: &[u8],
+    frames: &[&[u8]],
 ) -> (u16, Option<String>, Vec<Vec<u8>>) {
+    let mut body = Vec::new();
+    for frame in frames {
+        body.extend_from_slice(&(frame.len() as u32).to_be_bytes());
+        body.extend_from_slice(frame);
+    }
     let mut head = format!(
         "POST /api/be/http HTTP/1.1\r\nHost: test\r\nContent-Length: {}\r\n",
         body.len()
@@ -16,7 +21,7 @@ async fn post(
     }
     head.push_str("\r\n");
     stream.write_all(head.as_bytes()).await.unwrap();
-    stream.write_all(body).await.unwrap();
+    stream.write_all(&body).await.unwrap();
 
     let mut received = Vec::new();
     let mut chunk = [0u8; 4096];
@@ -60,7 +65,7 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
     let address = harness.url.trim_start_matches("ws://").to_owned();
     let mut stream = tokio::net::TcpStream::connect(&address).await.unwrap();
 
-    let (status, session, frames) = post(&mut stream, None, &hello(BUILD)).await;
+    let (status, session, frames) = post(&mut stream, None, &[&hello(BUILD)]).await;
     assert_eq!(status, 200);
     assert_eq!(read_hello(&frames[0]).as_deref(), Some(BUILD));
     let session = session.expect("a greeting of the same build opens a session");
@@ -72,7 +77,7 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
         password: "a long enough password".into(),
     })
     .unwrap();
-    let (_, _, frames) = post(&mut stream, Some(&session), &register).await;
+    let (_, _, frames) = post(&mut stream, Some(&session), &[&register]).await;
     let response: ServerMessage = be_protocol::decode(frames.last().unwrap()).unwrap();
     assert!(
         matches!(response, ServerMessage::Authenticated { request: 1, .. }),
@@ -80,18 +85,25 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
     );
 
     let list = encode(&ClientMessage::ListWorkspaces { request: 2 }).unwrap();
-    let (_, _, frames) = post(&mut stream, Some(&session), &list).await;
-    let response: ServerMessage = be_protocol::decode(frames.last().unwrap()).unwrap();
-    assert!(
-        matches!(response, ServerMessage::Workspaces { request: 2, .. }),
-        "the session did not stay signed in between posts: {response:?}"
+    let again = encode(&ClientMessage::ListWorkspaces { request: 3 }).unwrap();
+    let (_, _, frames) = post(&mut stream, Some(&session), &[&list, &again]).await;
+    let requests: Vec<Option<u64>> = frames
+        .iter()
+        .map(|frame| be_protocol::decode::<ServerMessage>(frame).unwrap())
+        .filter(|response| matches!(response, ServerMessage::Workspaces { .. }))
+        .map(|response| response.request())
+        .collect();
+    assert_eq!(
+        requests,
+        [Some(2), Some(3)],
+        "two frames in one post were not both answered, in order, signed in"
     );
 
-    let (status, _, _) = post(&mut stream, Some("not-a-session"), &list).await;
+    let (status, _, _) = post(&mut stream, Some("not-a-session"), &[&list]).await;
     assert_eq!(status, 404);
 
     let mut stranger = tokio::net::TcpStream::connect(&address).await.unwrap();
-    let (status, session, frames) = post(&mut stranger, None, &hello("another build")).await;
+    let (status, session, frames) = post(&mut stranger, None, &[&hello("another build")]).await;
     assert_eq!(status, 200);
     assert_eq!(read_hello(&frames[0]).as_deref(), Some(BUILD));
     assert_eq!(session, None, "another build was given a session");

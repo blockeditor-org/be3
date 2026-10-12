@@ -47,6 +47,7 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
         token,
         phrase: phrase.to_string(),
         authorization: None,
+        cache: std::env::temp_dir().join(format!("be-cli-cache-{}", Uuid::new_v4())),
     };
     let agent = Tracker::new(connect(&settings).await.unwrap());
     let seen = agent.databases().await.unwrap();

@@ -349,23 +349,26 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn fetch(&self, hashes: &[Hash]) -> Result<(), ClientError> {
+        let mut missing = Vec::new();
         for hash in hashes {
-            if self.commits.vault().store().has(*hash)? {
-                continue;
+            if !self.commits.vault().store().has(*hash)? && !missing.contains(hash) {
+                missing.push(*hash);
             }
-            let response = self
-                .connection
-                .request(|request| ClientMessage::GetObject {
-                    request,
-                    hash: *hash,
-                })
-                .await?;
-            let ServerMessage::Object { bytes, .. } = response else {
+        }
+        let responses = futures_util::future::join_all(missing.iter().map(|hash| {
+            self.connection.request(|request| ClientMessage::GetObject {
+                request,
+                hash: *hash,
+            })
+        }))
+        .await;
+        for (hash, response) in missing.into_iter().zip(responses) {
+            let ServerMessage::Object { bytes, .. } = response? else {
                 return Err(ClientError::Unexpected);
             };
-            let bytes = bytes.ok_or(ClientError::MissingObject(*hash))?;
-            if self.commits.vault().store().put(&bytes)? != *hash {
-                return Err(ClientError::Tampered(*hash));
+            let bytes = bytes.ok_or(ClientError::MissingObject(hash))?;
+            if self.commits.vault().store().put(&bytes)? != hash {
+                return Err(ClientError::Tampered(hash));
             }
         }
         Ok(())

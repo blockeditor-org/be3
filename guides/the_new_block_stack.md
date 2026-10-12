@@ -146,8 +146,10 @@ SQLite for metadata, a `FileStore` for objects, and a websocket carrying
 postcard frames. Where a websocket cannot get through (a proxy that refuses the
 upgrade), `POST .../http` carries the same frames (`http.rs`): the first body is
 the greeting, whose answer names a session in a `Be3-Session` header; each
-later post with that header is one client frame, answered with the frames the
-server has for the client then, each after a four-byte big-endian length. A
+later post with that header carries client frames, answered in order with the
+frames the server has for the client then; a body is frames each after a
+four-byte big-endian length. The client sends whatever is queued in one post,
+and `Peer::fetch` asks for every missing object at once. A
 session is a connection like a websocket's, kept until it is idle for the same
 time, so notifications wait for the next post.
 

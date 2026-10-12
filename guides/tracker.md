@@ -27,7 +27,10 @@ checkout (`./scripts/buck run //crates/be-cli:be -- ARGS`) carries that
 checkout's build id, so it talks to the dev app built from the same tree, and
 the real server refuses it. `BE3_SERVER` is `https://blocks.pfg.pw` unless
 set. `be` speaks to the server over HTTP posts (`/api/be/http`), since a cloud
-environment's proxy refuses websockets.
+environment's proxy refuses websockets; requests made together share one post.
+It keeps the objects it reads in `~/.cache/be3/be/WORKSPACE` (`BE3_CACHE`),
+still encrypted and named by their hash, so a later run reads only what
+changed.
 
 A command names a target and then a verb, and the verbs depend on
 what the target is:

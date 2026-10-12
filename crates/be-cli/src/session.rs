@@ -1,6 +1,8 @@
+use std::path::PathBuf;
+
 use be_client::{ClientError, Connection, Credentials, Peer, PeerConfig, authorize, http_url};
 use be_protocol::{ClientMessage, ServerMessage};
-use be_store::{ContentKey, MemoryStore};
+use be_store::{ContentKey, FileStore};
 use uuid::Uuid;
 
 pub const DEFAULT_SERVER: &str = "https://blocks.pfg.pw";
@@ -12,6 +14,7 @@ pub struct Settings {
     pub token: String,
     pub phrase: String,
     pub authorization: Option<String>,
+    pub cache: PathBuf,
 }
 
 impl Settings {
@@ -40,6 +43,15 @@ impl Settings {
             token,
             phrase,
             authorization: read("BE3_AUTHORIZATION"),
+            cache: read("BE3_CACHE")
+                .map(PathBuf::from)
+                .or_else(|| {
+                    read("XDG_CACHE_HOME")
+                        .map(PathBuf::from)
+                        .or_else(|| read("HOME").map(|home| PathBuf::from(home).join(".cache")))
+                        .map(|cache| cache.join("be3").join("be"))
+                })
+                .ok_or("set BE3_CACHE to a directory be can keep the objects it reads in")?,
         })
     }
 
@@ -62,7 +74,7 @@ fn secure_or_local(url: &str) -> bool {
     matches!(host, "localhost" | "127.0.0.1" | "::1")
 }
 
-pub async fn connect(settings: &Settings) -> Result<Peer<MemoryStore>, String> {
+pub async fn connect(settings: &Settings) -> Result<Peer<FileStore>, String> {
     let url = http_url(&settings.server);
     authorize(&url, settings.authorization.clone());
     if !secure_or_local(&url) {
@@ -90,7 +102,12 @@ pub async fn connect(settings: &Settings) -> Result<Peer<MemoryStore>, String> {
     Peer::connect(
         PeerConfig::new(url, ContentKey::from_bytes(key), settings.credentials())
             .workspace(Some(workspace)),
-        MemoryStore::new(),
+        FileStore::open(settings.cache.join(workspace.simple().to_string())).map_err(|error| {
+            format!(
+                "cannot keep objects in {}: {error}",
+                settings.cache.display()
+            )
+        })?,
     )
     .await
     .map_err(explain)
