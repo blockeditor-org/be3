@@ -43,6 +43,15 @@ fn main() -> Result<(), String> {
     let (Some(root), Some(name)) = (arguments.next(), arguments.next()) else {
         return Err("usage: freeze SNAPSHOTS-DIRECTORY NAME, such as 2026_10_12".to_owned());
     };
+    if name.is_empty()
+        || !name
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
+    {
+        return Err(format!(
+            "{name:?} is not a snapshot name; use lowercase letters, digits and _, such as 2026_10_12"
+        ));
+    }
     let root = PathBuf::from(root);
     let archive_path = root.join(format!("{name}.zip"));
     let module = root.join(format!("s{name}.rs"));
@@ -54,39 +63,15 @@ fn main() -> Result<(), String> {
     }
     build_id::install("freeze");
     let data = std::env::temp_dir().join(format!("be-freeze-{}", Uuid::new_v4()));
-    let written = tokio::runtime::Runtime::new()
-        .map_err(text)?
-        .block_on(serve_scene(&data))?;
-    settle(&data.join("metadata.sqlite"))?;
-
     let target = data.with_extension("backup");
-    let backup_key = BackupKey::generate();
-    let report = backup::backup(
-        &data,
-        &Directory(target.clone()),
-        &backup_key,
-        SystemTime::now(),
-    )
-    .map_err(text)?;
-    for entry in fs::read_dir(&data).map_err(text)? {
-        let path = entry.map_err(text)?.path();
-        if path.extension().is_some_and(|extension| extension == "txt") {
-            fs::remove_file(path).map_err(text)?;
-        }
-    }
-
-    let mut archive = zip::ZipWriter::new(fs::File::create(&archive_path).map_err(text)?);
-    pack(&mut archive, &data, "data")?;
-    let snapshot = format!("backup/databases/{}", report.snapshot);
-    add(
-        &mut archive,
-        &snapshot,
-        &target.join(&snapshot["backup/".len()..]),
-    )?;
-    archive.finish().map_err(text)?;
-    fs::write(&module, source(&name, &written, &backup_key)).map_err(text)?;
+    let frozen = freeze(&name, &data, &target, &archive_path, &module);
     let _ = fs::remove_dir_all(&data);
     let _ = fs::remove_dir_all(&target);
+    if frozen.is_err() {
+        let _ = fs::remove_file(&archive_path);
+        let _ = fs::remove_file(&module);
+    }
+    frozen?;
     println!(
         "wrote {} and {}; add `mod s{name};` and `&s{name}::SNAPSHOT` to SNAPSHOTS in {}",
         archive_path.display(),
@@ -94,6 +79,45 @@ fn main() -> Result<(), String> {
         root.with_extension("rs").display()
     );
     Ok(())
+}
+
+fn freeze(
+    name: &str,
+    data: &Path,
+    target: &Path,
+    archive_path: &Path,
+    module: &Path,
+) -> Result<(), String> {
+    let written = tokio::runtime::Runtime::new()
+        .map_err(text)?
+        .block_on(serve_scene(data))?;
+    settle(&data.join("metadata.sqlite"))?;
+
+    let backup_key = BackupKey::generate();
+    let report = backup::backup(
+        data,
+        &Directory(target.to_path_buf()),
+        &backup_key,
+        SystemTime::now(),
+    )
+    .map_err(text)?;
+    for entry in fs::read_dir(data).map_err(text)? {
+        let path = entry.map_err(text)?.path();
+        if path.extension().is_some_and(|extension| extension == "txt") {
+            fs::remove_file(path).map_err(text)?;
+        }
+    }
+
+    let mut archive = zip::ZipWriter::new(fs::File::create(archive_path).map_err(text)?);
+    pack(&mut archive, data, "data")?;
+    let snapshot = format!("backup/databases/{}", report.snapshot);
+    add(
+        &mut archive,
+        &snapshot,
+        &target.join(&snapshot["backup/".len()..]),
+    )?;
+    archive.finish().map_err(text)?;
+    fs::write(module, source(name, &written, &backup_key)).map_err(text)
 }
 
 async fn serve_scene(data: &Path) -> Result<Written, String> {
