@@ -20,7 +20,7 @@ async fn another_build_is_greeted_and_turned_away() {
         "the server kept talking to another build"
     );
 
-    let mut unversioned = harness.greeted(build_id::UNKNOWN).await;
+    let mut unversioned = harness.greeted("unknown").await;
     assert_eq!(
         next_binary(&mut unversioned)
             .await
@@ -29,15 +29,10 @@ async fn another_build_is_greeted_and_turned_away() {
             .as_deref(),
         Some(BUILD)
     );
-    unversioned
-        .send(WsMessage::Binary(
-            encode(&ClientMessage::ListWorkspaces { request: 1 }).unwrap(),
-        ))
-        .await
-        .unwrap();
-    assert!(
-        next_binary(&mut unversioned).await.is_some(),
-        "a build without an id was not served"
+    assert_eq!(
+        next_binary(&mut unversioned).await,
+        None,
+        "the server talked to a build that does not know its id"
     );
 
     harness.stop().await;

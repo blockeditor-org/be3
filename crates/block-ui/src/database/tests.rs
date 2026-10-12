@@ -10,6 +10,7 @@ fn field(field_type: DatabaseFieldType) -> DatabaseField {
         enum_options: Vec::new(),
         number_options: Default::default(),
         block_options: Default::default(),
+        relation_options: Default::default(),
     }
 }
 mod color_datetime_and_boolean_text_round_trip;

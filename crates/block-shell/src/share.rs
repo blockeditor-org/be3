@@ -161,10 +161,15 @@ impl Share {
 }
 
 fn member(grant: &AccessGrant, me: Uuid) -> Member {
-    let fixed = match (grant.administrator, grant.account == me.into_bytes()) {
-        (true, _) => Some("Administrators can open every block"),
-        (false, true) => Some("This is you"),
-        (false, false) => None,
+    let fixed = match (
+        grant.administrator,
+        grant.account == me.into_bytes(),
+        grant.author,
+    ) {
+        (true, _, _) => Some("Administrators can open every block"),
+        (false, true, _) => Some("This is you"),
+        (false, false, true) => Some("Made this block"),
+        (false, false, false) => None,
     };
     Member {
         id: Uuid::from_bytes(grant.account),

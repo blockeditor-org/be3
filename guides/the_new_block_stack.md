@@ -143,7 +143,15 @@ and sweep. Do not reintroduce one.
 ### be-server
 
 SQLite for metadata, a `FileStore` for objects, and a websocket carrying
-postcard frames.
+postcard frames. Where a websocket cannot get through (a proxy that refuses the
+upgrade), `POST .../http` carries the same frames (`http.rs`): the first body is
+the greeting, whose answer names a session in a `Be3-Session` header; each
+later post with that header carries client frames, answered in order with the
+frames the server has for the client then; a body is frames each after a
+four-byte big-endian length. The client sends whatever is queued in one post,
+and `Peer::fetch` asks for every missing object at once. A
+session is a connection like a websocket's, kept until it is idle for the same
+time, so notifications wait for the next post.
 
 - The database's schema is a list of `CREATE` statements (`schema.rs`), and
   `sqlite_schema::ensure` checks a database against it on open: it adds a
@@ -156,8 +164,10 @@ postcard frames.
 - A connection starts with a greeting outside the protocol: each side sends
   `be_protocol::hello` with its build id (`build_id::current()`, read from the
   `build-id` file beside the executable, or `--build-id-file`), and the server
-  closes the connection when the ids differ and neither is `unknown`
-  (`ClientError::Incompatible` on the client). Server and clients are upgraded
+  closes the connection when the ids differ (`ClientError::Incompatible` on the
+  client). A program with no id is an error, not a wildcard: the client fails
+  with `ClientError::NoBuild`, the server does not start, and a test installs
+  one with `build_id::install`. Server and clients are upgraded
   together from one commit, so the protocol itself is postcard and never
   versioned.
 - A publish is a compare-and-swap on the head. A publish against a stale head
@@ -188,6 +198,14 @@ postcard frames.
   checks run off the database lock, a few at a time, and an email with five
   failed sign-ins in a row is locked out for a time that doubles with each
   further failure.
+  The server never reads `Authorization`, which is left to a gateway in front
+  of it. An administrator's `CreateAgent` makes an agent: an
+  editor account with no password, its workspace key sealed to a recovery key
+  the caller made for it, and a token, all answered once (guides/tracker.md).
+- An object is served only to a member who can view a block that holds it, by
+  a commit (`commit_objects`) or by `HoldObjects`; anything else reads as
+  missing. A merge commit holds its extra parents' objects, so a `stash` that
+  was never a head stays readable.
 - The graph is cached per workspace in memory and dropped on any error so it
   reloads from the database rather than drifting.
 
@@ -259,7 +277,11 @@ before the `#`.
 `Peer` is a local object store plus a connection. `transport/` is what makes
 that connection portable: a `Writer` and a `Reader` per platform - tokio and
 tokio-tungstenite natively, the browser's own `WebSocket` in `web.rs` - plus the
-`spawn` each one's executor wants. `Connection` above it is the same code
+`spawn` each one's executor wants. Natively, an `http(s)://` URL (`http_url`)
+takes the server's HTTP posts instead of a websocket (`transport/native/http.rs`),
+and both go through `HTTPS_PROXY`. `be_client::authorize` registers an
+`Authorization` header for a server's origin, which every native connection to
+it sends; a browser cannot add one to a websocket. `Connection` above it is the same code
 everywhere, and it waits on its command channel and its socket rather than
 polling either.
 

@@ -10,6 +10,7 @@ fn sharing_a_block_grants_the_people_added_and_lists_them_again() {
     let (mut fixture, block) = editor();
     let me = fixture.host.account_id();
     let friend = Uuid::new_v4();
+    let maker = Uuid::new_v4();
     fixture.test.show_dialog(block, ShellDialog::Share);
     fixture.settle();
 
@@ -26,6 +27,7 @@ fn sharing_a_block_grants_the_people_added_and_lists_them_again() {
         email: format!("{name}@example.org"),
         display_name: name.to_owned(),
         administrator: false,
+        author: false,
         granted,
         effective: granted.unwrap_or(AccessLevel::None),
     };
@@ -34,10 +36,19 @@ fn sharing_a_block_grants_the_people_added_and_lists_them_again() {
         HostReply::AccessListed(AccessListing::Listed(vec![
             grant(me, "Me", Some(AccessLevel::Edit)),
             grant(friend, "Friend", None),
+            AccessGrant {
+                author: true,
+                effective: AccessLevel::Edit,
+                ..grant(maker, "Maker", None)
+            },
         ])),
     );
     fixture.settle();
     assert!(fixture.says("This is you"));
+    assert!(
+        fixture.says("Made this block") && !fixture.says("Inherited"),
+        "the block's author is listed as its author, not as inheriting access"
+    );
     assert!(
         !fixture.says("Friend"),
         "people without access are only offered once searched for"

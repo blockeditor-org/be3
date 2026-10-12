@@ -277,16 +277,18 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
     let (register, set_register) = create_signal(false);
     let (remote, set_remote) = create_signal(!platform::HAS_EMBEDDED_SERVER);
     let (remote_url, set_remote_url) = create_signal(String::new());
+    let (authorization, set_authorization) = create_signal(String::new());
     let (email, set_email) = create_signal(String::new());
     let (display_name, set_display_name) = create_signal(String::new());
     let (password, set_password) = create_signal(String::new());
     create_effect(clone!(
-        set_register set_remote set_remote_url set_email set_display_name set_password -> move || {
+        set_register set_remote set_remote_url set_authorization set_email set_display_name set_password -> move || {
             generation.get();
             untrack(|| {
                 set_register.set(false);
                 set_remote.set(!platform::HAS_EMBEDDED_SERVER);
                 set_remote_url.set(String::new());
+                set_authorization.set(String::new());
                 set_email.set(String::new());
                 set_display_name.set(String::new());
                 set_password.set(String::new());
@@ -308,7 +310,7 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
     }));
     let register_index = create_memo(clone!(register -> move || usize::from(register.get())));
     let remote_index = create_memo(clone!(remote -> move || usize::from(remote.get())));
-    let submit = clone!(ready register remote remote_url email display_name password -> move || {
+    let submit = clone!(ready register remote remote_url authorization email display_name password -> move || {
         if !ready.get_untracked() {
             return;
         }
@@ -316,6 +318,7 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
             register: register.get_untracked(),
             remote: remote.get_untracked(),
             remote_url: remote_url.get_untracked(),
+            authorization: authorization.get_untracked(),
             email: email.get_untracked(),
             display_name: display_name.get_untracked(),
             password: password.get_untracked(),
@@ -352,13 +355,26 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
                     })}
                 </Show>
                 <Show condition={remote}>
-                    {move || clone!(set_remote_url -> view! {
-                        <TextInput
-                            value={remote_url.clone()}
-                            placeholder="https://example.com"
-                            label="Server address"
-                            on_change={move |value: String| set_remote_url.set(value)}
-                        />
+                    {move || clone!(remote_url set_remote_url authorization set_authorization -> view! {
+                        <List spacing=10.0>
+                            <TextInput
+                                value={remote_url.clone()}
+                                placeholder="https://example.com"
+                                label="Server address"
+                                on_change={move |value: String| set_remote_url.set(value)}
+                            />
+                            <Show condition={platform::SENDS_HEADERS}>
+                                {move || clone!(authorization set_authorization -> view! {
+                                    <TextInput
+                                        value={authorization}
+                                        placeholder="Authorization header (optional)"
+                                        label="Authorization header"
+                                        password=true
+                                        on_change={move |value: String| set_authorization.set(value)}
+                                    />
+                                })}
+                            </Show>
+                        </List>
                     })}
                 </Show>
                 <Caption content="Email address" />

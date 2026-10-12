@@ -98,6 +98,7 @@ fn Column(data: Data, status: Memo<Option<DatabaseField>>, column: ColumnKey) ->
     let field_id = create_memo(clone!(status -> move || {
         status.with(|status| status.as_ref().map(|status| status.id))
     }));
+    let shown = data.clone();
     let keys = create_memo(clone!(rows field_id -> move || {
         let Some(field_id) = field_id.get() else {
             return Vec::new();
@@ -105,6 +106,7 @@ fn Column(data: Data, status: Memo<Option<DatabaseField>>, column: ColumnKey) ->
         rows.with(|rows| {
             rows.iter()
                 .enumerate()
+                .filter(|(_, row)| shown.shows(row))
                 .filter(|(_, row)| match row.value(field_id) {
                     Some(DatabaseValue::Enum(id)) => option == Some(*id),
                     _ => option.is_none(),

@@ -111,6 +111,7 @@ app(
     precompile = False,
     precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
     wasm_bindgen = "//buck/cargo:wasm-bindgen",
+    visibility = ["//crates/deploy:"],
 )
 
 # What CI publishes: the bundle without the plugins, which :plugins builds once

@@ -1,8 +1,9 @@
-use be_model::{Document, Edit, Model, ObjectId};
+use be_model::{Anchor, Change, Document, Edit, List, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::Root;
+use crate::database::{DatabaseRow, DatabaseValue};
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub enum SortDirection {
@@ -22,9 +23,59 @@ pub enum DatabaseViewKind {
     Spreadsheet,
     Kanban,
     Scatter,
+    List,
 }
 
-#[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+pub enum FilterCondition {
+    #[default]
+    IsSet,
+    IsEmpty,
+    Is(DatabaseValue),
+    IsNot(DatabaseValue),
+    Contains(String),
+}
+
+impl FilterCondition {
+    pub fn matches(&self, value: Option<&DatabaseValue>) -> bool {
+        match self {
+            Self::IsSet => value.is_some(),
+            Self::IsEmpty => value.is_none(),
+            Self::Is(wanted) => holds(value, wanted),
+            Self::IsNot(unwanted) => !holds(value, unwanted),
+            Self::Contains(needle) => match value {
+                Some(DatabaseValue::String(text)) => {
+                    text.to_lowercase().contains(&needle.to_lowercase())
+                }
+                _ => false,
+            },
+        }
+    }
+}
+
+fn holds(value: Option<&DatabaseValue>, wanted: &DatabaseValue) -> bool {
+    match (value, wanted) {
+        (Some(DatabaseValue::Links(targets)), DatabaseValue::Relation(target)) => {
+            targets.contains(target)
+        }
+        (value, wanted) => value == Some(wanted),
+    }
+}
+
+#[derive(Clone, Debug, Default, Model, PartialEq)]
+pub struct ViewFilter {
+    pub field: Option<Uuid>,
+    pub condition: FilterCondition,
+}
+
+impl ViewFilter {
+    pub fn matches(&self, row: &DatabaseRow) -> bool {
+        self.field
+            .is_none_or(|field| self.condition.matches(row.get(field).as_ref()))
+    }
+}
+
+#[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct DatabaseView {
     pub database: Option<Uuid>,
     pub sort: Option<DatabaseViewSort>,
@@ -32,6 +83,7 @@ pub struct DatabaseView {
     pub kanban_field: Option<Uuid>,
     pub scatter_x: Option<Uuid>,
     pub scatter_y: Option<Uuid>,
+    pub filters: List<ViewFilter>,
 }
 
 impl DatabaseView {
@@ -64,6 +116,28 @@ impl DatabaseView {
 
     pub fn set_scatter_y(field: Option<Uuid>) -> Edit {
         Self::SCATTER_Y.set(ObjectId::ROOT, &field).into()
+    }
+
+    pub fn shows(&self, row: &DatabaseRow) -> bool {
+        self.filters.iter().all(|filter| filter.matches(row))
+    }
+
+    pub fn add_filter(field: Option<Uuid>, condition: FilterCondition) -> (ObjectId, Edit) {
+        let filter = ViewFilter { field, condition };
+        let (id, change) = Self::FILTERS.insert(ObjectId::ROOT, Anchor::End, &filter);
+        (id, change.into())
+    }
+
+    pub fn set_filter_field(filter: ObjectId, field: Option<Uuid>) -> Edit {
+        ViewFilter::FIELD.set(filter, &field).into()
+    }
+
+    pub fn set_filter_condition(filter: ObjectId, condition: &FilterCondition) -> Edit {
+        ViewFilter::CONDITION.set(filter, condition).into()
+    }
+
+    pub fn remove_filter(filter: ObjectId) -> Edit {
+        Change::remove(filter).into()
     }
 }
 
