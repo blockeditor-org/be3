@@ -1,7 +1,7 @@
 use std::any::Any;
 use std::cell::Cell;
 
-use ::reactive::{ReadSignal, WriteSignal};
+use ::reactive::{ReadSignal, ScopeContext, WriteSignal};
 
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2, vec2};
@@ -15,6 +15,7 @@ enum Builds {
 
 pub struct LayoutBuilderNode {
     child: Option<NodeId>,
+    content: Option<ScopeContext>,
     builds: Builds,
     offered: Cell<Vec2>,
 }
@@ -40,6 +41,27 @@ impl LayoutBuilderNode {
     }
 }
 
+impl LayoutBuilderNode {
+    fn rebuild(&self, doc: &mut Document, painter: &Painter, set_size: WriteSignal<Vec2>, size: Vec2) {
+        let (Some(builder), Some(content)) = (doc.laying_out(), self.content.clone()) else {
+            doc.report_after_layout(move || set_size.set(size));
+            return;
+        };
+        doc.build_within(builder, move || {
+            set_size.set(size);
+            content.flush_owned();
+        });
+        let (Some(child), offered) = (self.child, self.offered.get()) else {
+            return;
+        };
+        if let Some(measured) = doc.measured(builder, offered)
+            && crate::layout::measure(doc, painter, child, offered) != measured
+        {
+            doc.invalidate_after_layout(builder);
+        }
+    }
+}
+
 impl Element for LayoutBuilderNode {
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         match self.child {
@@ -54,7 +76,7 @@ impl Element for LayoutBuilderNode {
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         if let Some((set_size, size)) = self.given(rect.size()) {
-            doc.report_after_layout(move || set_size.set(size));
+            self.rebuild(doc, painter, set_size, size);
         }
         if let Some(child) = self.child {
             crate::layout::layout(doc, painter, child, rect, out);
@@ -119,6 +141,7 @@ impl Document {
     ) -> NodeOf<LayoutBuilderNode> {
         self.arena.insert(LayoutBuilderNode {
             child: None,
+            content: None,
             builds: Builds::Size(size, set_size),
             offered: Cell::new(Vec2::ZERO),
         })
@@ -131,6 +154,7 @@ impl Document {
     ) -> NodeOf<LayoutBuilderNode> {
         let builder = self.arena.insert(LayoutBuilderNode {
             child: None,
+            content: None,
             builds: Builds::Placement(placed.clone()),
             offered: Cell::new(Vec2::ZERO),
         });
@@ -142,6 +166,14 @@ impl Document {
         if self.arena.get_as(builder).child != Some(child) {
             self.arena.get_mut_as(builder).child = Some(child);
         }
+    }
+
+    pub fn set_layout_builder_content(
+        &mut self,
+        builder: NodeOf<LayoutBuilderNode>,
+        content: ScopeContext,
+    ) {
+        self.arena.touch_mut_as(builder).content = Some(content);
     }
 
     pub(crate) fn note_offer(&self, id: NodeId, available: Vec2) {

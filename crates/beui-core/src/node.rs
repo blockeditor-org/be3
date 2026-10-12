@@ -91,12 +91,6 @@ pub trait Element: Any {
 
     fn unplaced(&mut self, _doc: &mut Document) {}
 
-    fn take_builds(&mut self) -> Vec<Box<dyn FnOnce()>> {
-        Vec::new()
-    }
-
-    fn plan_builds(&mut self, _doc: &mut Document, _painter: &Painter) {}
-
     fn detached(&mut self) {}
 
     fn paints(&self) -> bool {
@@ -449,6 +443,7 @@ pub struct Arena {
     owners: Vec<Option<::reactive::ScopeContext>>,
     removed: Vec<bool>,
     removals: std::rc::Rc<RefCell<Vec<NodeId>>>,
+    fence: Option<NodeId>,
     adopting: RefCell<Vec<NodeId>>,
     stale: Vec<bool>,
     unplaced: Vec<bool>,
@@ -709,6 +704,9 @@ impl Arena {
             let Some((node, slot)) = current.and_then(|node| Some((node, self.slot(node)?))) else {
                 return;
             };
+            if self.fence == Some(node) {
+                return;
+            }
             if node != id
                 && self.nodes[slot]
                     .as_deref()
@@ -722,6 +720,11 @@ impl Arena {
             self.unplaced[slot] = true;
             current = self.parents.get_mut()[slot];
         }
+    }
+
+    pub(crate) fn fence(&mut self, fence: Option<NodeId>) -> Option<NodeId> {
+        self.marked = None;
+        std::mem::replace(&mut self.fence, fence)
     }
 
     pub fn take_boundaries(&mut self) -> Vec<NodeId> {

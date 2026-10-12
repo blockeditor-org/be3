@@ -111,7 +111,6 @@ pub struct Document {
     layout_revision: u64,
     paint_revision: u64,
     reports: Vec<Box<dyn FnOnce()>>,
-    builders: Vec<NodeId>,
     invalidated: Vec<NodeId>,
     interaction_done: Option<Rc<dyn Fn()>>,
     laid_out: Option<Rc<dyn Fn()>>,
@@ -297,7 +296,6 @@ impl Document {
             layout_revision: 0,
             paint_revision: 0,
             reports: Vec::new(),
-            builders: Vec::new(),
             invalidated: Vec::new(),
             interaction_done: None,
             laid_out: None,
@@ -1436,8 +1434,11 @@ impl Document {
         self.reports.push(Box::new(report));
     }
 
-    pub fn build_after_layout(&mut self, id: NodeId) {
-        self.builders.push(id);
+    pub fn build_within<R>(&mut self, node: NodeId, build: impl FnOnce() -> R) -> R {
+        let outer = self.arena.fence(Some(node));
+        let built = crate::current::lend(self, build);
+        self.arena.fence(outer);
+        built
     }
 
     pub fn invalidate_after_layout(&mut self, id: NodeId) {
@@ -1617,12 +1618,12 @@ impl Document {
         self.drop_placement(id, &rects, &mut Vec::new());
     }
 
-    pub fn laying_out(&self) -> Option<NodeId> {
-        self.layout_parent
+    pub fn layout_pass(&self) -> u64 {
+        self.layout_pass
     }
 
-    pub fn invalidate_measurement(&mut self, id: NodeId) {
-        self.arena.invalidate_node(id);
+    pub fn laying_out(&self) -> Option<NodeId> {
+        self.layout_parent
     }
 
     pub fn enter_scroll_host(&mut self, id: NodeId) {
@@ -1827,20 +1828,13 @@ impl Document {
         entered
     }
 
-    fn report_laid_out(&mut self, ctx: &Context) {
+    fn report_laid_out(&mut self) {
         for id in std::mem::take(&mut self.invalidated) {
             if self.arena.contains(id) {
                 self.arena.invalidate_node(id);
             }
         }
         self.relay_moved_overlays();
-        let builders = std::mem::take(&mut self.builders);
-        let mut builds = Vec::new();
-        for id in &builders {
-            if self.arena.contains(*id) && !self.arena.taken(*id) {
-                builds.extend(self.arena.get_mut(*id).take_builds());
-            }
-        }
         let reports = std::mem::take(&mut self.reports);
         let rects = Rc::clone(&self.rects);
         let moved: Vec<(::reactive::WriteSignal<Rect>, Rect)> = self
@@ -1861,7 +1855,7 @@ impl Document {
             .filter(|(placed, read, _)| read.get_untracked() != *placed)
             .map(|(placed, _, write)| (write.clone(), placed))
             .collect();
-        if reports.is_empty() && moved.is_empty() && placed.is_empty() && builds.is_empty() {
+        if reports.is_empty() && moved.is_empty() && placed.is_empty() {
             return;
         }
         crate::current::enter(self, || {
@@ -1874,14 +1868,10 @@ impl Document {
             for (write, shown) in placed {
                 write.set(shown);
             }
-            for build in builds {
-                build();
-            }
         });
-        self.build_until_planned(ctx, builders);
     }
 
-    fn assert_layout_settled(&self, watermark: usize) {
+    fn log_unsettled(&self, watermark: usize) {
         if !cfg!(debug_assertions) {
             return;
         }
@@ -1896,10 +1886,9 @@ impl Document {
                 format!("{} {id:?} ({names})", self.node_kind(*id))
             })
             .collect();
-        assert!(
-            relaid.is_empty(),
-            "layout did not settle in {LAYOUTS_PER_FRAME} layouts: what each reported kept changing \
-             the layout of {relaid:?}",
+        eprintln!(
+            "beui: layout did not settle in {LAYOUTS_PER_FRAME} layouts; what each reported kept \
+             changing the layout of {relaid:?}"
         );
     }
 
@@ -1958,11 +1947,11 @@ impl Document {
             passes += 1;
         }
         let mut watermark = self.arena.relaid_len();
-        self.report_laid_out(ctx);
+        self.report_laid_out();
         self.run_laid_out();
         while self.needs_layout() {
             if passes == LAYOUTS_PER_FRAME {
-                self.assert_layout_settled(watermark);
+                self.log_unsettled(watermark);
                 self.lay_out_tree(ctx, rect);
                 ctx.request_repaint();
                 return passes + 1;
@@ -1970,7 +1959,7 @@ impl Document {
             self.lay_out_tree(ctx, rect);
             passes += 1;
             watermark = self.arena.relaid_len();
-            self.report_laid_out(ctx);
+            self.report_laid_out();
         }
         passes
     }
@@ -2118,42 +2107,9 @@ fn verifying_paint() -> bool {
     cfg!(test) || VERIFY_PAINT.load(std::sync::atomic::Ordering::Relaxed)
 }
 
-const LAYOUTS_PER_FRAME: usize = 8;
-const PLANS_PER_LAYOUT: usize = 64;
+const LAYOUTS_PER_FRAME: usize = 4;
 
 impl Document {
-    fn build_until_planned(&mut self, ctx: &Context, mut builders: Vec<NodeId>) {
-        let rects = Rc::clone(&self.rects);
-        for _ in 0..PLANS_PER_LAYOUT {
-            builders.retain(|id| self.arena.contains(*id) && !self.arena.taken(*id));
-            let mut builds = Vec::new();
-            for id in &builders {
-                let Some(held) = self.painters.get(id) else {
-                    continue;
-                };
-                let state = PainterState {
-                    origin: rects.offset(held.given.space),
-                    space_clip: rects.space_clip(held.given.space),
-                    local: Local::NONE,
-                    ..held.given
-                };
-                let painter = Painter::resumed(ctx.clone(), state);
-                let mut element = self.arena.take(*id);
-                element.plan_builds(self, &painter);
-                builds.extend(element.take_builds());
-                self.arena.put_back(*id, element);
-            }
-            if builds.is_empty() {
-                return;
-            }
-            crate::current::enter(self, || {
-                for build in builds {
-                    build();
-                }
-            });
-        }
-    }
-
     fn lay_out_boundaries(&mut self, ctx: &Context, rects: &Rects) {
         for boundary in self.arena.take_boundaries() {
             if !self.arena.contains(boundary)

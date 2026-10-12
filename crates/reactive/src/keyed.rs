@@ -190,6 +190,18 @@ impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
         value
     }
 
+    pub fn entry_owned(&self, key: K) -> V {
+        if let Some(value) = self.get(&key) {
+            return value;
+        }
+        let built = self.build_scoped(key.clone());
+        let value = built.0.clone();
+        let scope = built.1.context();
+        self.entries.borrow_mut().insert((key, 0), built);
+        scope.flush_owned();
+        value
+    }
+
     fn build_scoped(&self, key: K) -> (V, Scope) {
         let scope = Scope::detached();
         let built = scope.context().run(|| (self.build)(key));

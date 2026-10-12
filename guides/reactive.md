@@ -743,7 +743,9 @@ effects that woke up rebuild before it lays out what they changed again, so a
 size-driven change is visible in the frame that caused it rather than one frame
 later. The signal reads `Vec2::ZERO` until the first layout.
 
-`unstyled::container` ties the two together: it is a `LayoutBuilder`, provides
+`unstyled::container` ties the two together: it is a `LayoutBuilder`, which
+builds its content in a scope of its own under the caller's, the way `Show`
+and `Dynamic` do, so context the caller provides still reaches it. It provides
 the size it is laid out at as `ContainerSize`, and hands the signal to its `content`
 render prop. Anything below it can then ask `container_size()`, or
 `narrower_than(width)` for a `Memo<bool>` that is true when the nearest container
@@ -797,9 +799,14 @@ document (and enters its scope, so a `Prop` bound to a signal can create its
 effect) for the duration of the tree-building closure. `Document::show` installs
 itself for each event it dispatches and flushes the effects that event queued
 before the next one, outside any walk, so a signal write from a click handler
-is visible in the same frame and to the events after it. There is no way to
-flush in the middle of a batch: a write inside one is seen by effects when the
-outermost batch ends, never sooner.
+is visible in the same frame and to the events after it. A write inside a
+batch is seen by effects when the outermost batch ends, with one exception:
+`ScopeContext::flush_owned` (and `Scope::flush_owned`) runs, there and then,
+the queued effects owned by that scope and the scopes under it, and leaves
+every other effect queued. `KeyedItems::entry_owned` builds an entry and
+flushes its scope that way. This is what a node uses to build its own subtree
+during layout (see "One layout per frame" in the beui guide); nothing else
+should need it.
 
 Disposing a scope never removes its nodes on the spot. Each node's cleanup
 queues its id with the document that made it, and the document removes them

@@ -165,6 +165,10 @@ impl Computation {
         }
     }
 
+    pub(crate) fn owned_within(&self, root: &Owner) -> bool {
+        self.owner.upgrade().is_some_and(|owner| owner.within(root))
+    }
+
     pub(crate) fn closed_gate(&self) -> Option<Rc<Gate>> {
         if self.source.is_some() {
             return None;
