@@ -1,6 +1,7 @@
 use beui_macros::{component, view};
 
 use crate::scroll::scrollbar_style;
+use crate::text::Icon;
 use crate::text_input::text_input_style;
 use crate::theme::{
     BORDER_WIDTH, FOCUS_RING_WIDTH, FONT_BODY, RADIUS, ThemeStore, field_border, use_theme,
@@ -12,9 +13,11 @@ use beui_components_unstyled::{
 use beui_core::base::TextAlign;
 use beui_core::color::Color32;
 use beui_core::document::Document;
+use beui_core::icons::ICON_ARROW_DROP_DOWN;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Child, Children, Frame, Memo, Prop, Text, clone, create_memo, focus_ring,
+    Align, Callback, Child, Children, Direction, Frame, ItemSize, List, Memo, Prop, Text, clone,
+    create_memo, focus_ring,
 };
 
 const TRIGGER_MAX_WIDTH: f32 = 220.0;
@@ -24,6 +27,7 @@ const HEIGHT: f32 = 34.0;
 const PADDING_HORIZONTAL: f32 = 10.0;
 const OPTION_PADDING_VERTICAL: f32 = 6.0;
 const FOCUS_RING_OFFSET: f32 = 3.0;
+const ARROW_SPACING: f32 = 4.0;
 
 #[component]
 pub fn Select(
@@ -93,6 +97,10 @@ fn SelectTrigger(handle: SelectTriggerHandle, placeholder: Memo<String>) -> Node
             false => theme.text.get(),
         }),
     );
+    let arrow_color = create_memo(clone!(theme disabled -> move || match disabled.get() {
+        true => theme.text_muted.get(),
+        false => theme.text.get(),
+    }));
     view! {
         <Frame
             max_width=TRIGGER_MAX_WIDTH
@@ -111,13 +119,17 @@ fn SelectTrigger(handle: SelectTriggerHandle, placeholder: Memo<String>) -> Node
                 outline_visible=true
                 padding_horizontal=PADDING_HORIZONTAL
             >
-                <Text
-                    string={label_text}
-                    font_size=FONT_BODY
-                    color={text_color}
-                    align=TextAlign::Start
-                    clip=true
-                />
+                <List direction=Direction::Horizontal align=Align::Center spacing=ARROW_SPACING>
+                    <Text
+                        string={label_text}
+                        font_size=FONT_BODY
+                        color={text_color}
+                        align=TextAlign::Start
+                        clip=true
+                        @sizing=ItemSize::Percent(100.0)
+                    />
+                    <Icon glyph={ICON_ARROW_DROP_DOWN.to_owned()} color={arrow_color} />
+                </List>
             </Frame>
         </Frame>
     }
