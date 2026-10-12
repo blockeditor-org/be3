@@ -275,7 +275,7 @@ impl Page {
             Page::Editor => "A markdown text area",
             Page::Collaboration => "Two editors over a simulated network",
             Page::Canvas => "A pannable, zoomable stage",
-            Page::Themes => "The dark and e-ink themes",
+            Page::Themes => "The built-in themes",
             Page::Pressing => "Pressables, buttons, toggles and rows",
             Page::Values => "Sliders, text and number inputs, colors",
             Page::Selecting => "Choices, disclosures, trees, text menus",
@@ -718,7 +718,7 @@ fn PageView(page: Page) -> NodeId {
 
 #[component]
 fn DemoToolbar(pages: Pages, mobile: ReadSignal<bool>, set_mobile: WriteSignal<bool>) -> NodeId {
-    let (eink, set_eink) = create_signal(false);
+    let (selected_theme, set_selected_theme) = create_signal(Some(0));
     let narrow = narrower_than(NARROW_WIDTH);
     let wide = create_memo(clone!(narrow -> move || !narrow.get()));
     view! {
@@ -737,16 +737,23 @@ fn DemoToolbar(pages: Pages, mobile: ReadSignal<bool>, set_mobile: WriteSignal<b
                     />
                 })}
             </Show>
-            <LabelledSwitch
-                label="E-ink"
-                on={eink}
-                on_change={move |on: bool| {
-                    set_eink.set(on);
-                    let theme = match on {
-                        true => Theme::EINK,
-                        false => Theme::DARK,
-                    };
-                    with_document(|document| document.set_theme(theme));
+            <Select
+                label="Theme"
+                options={view! {
+                    <ForEach
+                        keys={Theme::BUILT_IN.iter().map(|(label, _)| *label).collect::<Vec<_>>()}
+                    >
+                        {|label: &'static str| view! {
+                            <ChoiceOption label />
+                        }}
+                    </ForEach>
+                }}
+                selected={selected_theme}
+                on_change={move |index: Option<usize>| {
+                    if let Some((_, theme)) = index.and_then(|index| Theme::BUILT_IN.get(index)) {
+                        set_selected_theme.set(index);
+                        with_document(|document| document.set_theme(*theme));
+                    }
                 }}
             />
             <IconButton
