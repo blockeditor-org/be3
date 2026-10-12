@@ -21,7 +21,7 @@ use beui_core::context::Context;
 use beui_core::file_picker::FilePickRequest;
 use beui_core::geometry::{Pos2, Rect, pos2, vec2};
 use beui_core::input::{
-    CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, Modifiers, PointerButton, TouchId,
+    CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, KeyPress, Modifiers, PointerButton, TouchId,
     TouchPhase,
 };
 use beui_core::renderer::Loaded;
@@ -657,12 +657,12 @@ fn listen(
         );
         let key = key(&event.code());
         if let Some(key) = key.filter(|key| !(event.repeat() && key.is_modifier())) {
-            push(Event::Key {
+            push(Event::key(KeyPress {
                 key,
                 pressed: true,
                 repeat: event.repeat(),
                 modifiers,
-            });
+            }));
         }
         let clipboard = modifiers.ctrl && matches!(key, Some(Key::C | Key::V | Key::X));
         let printable = event.key().chars().count() == 1 && !modifiers.command();
@@ -682,12 +682,7 @@ fn listen(
             event.shift_key(),
         );
         if let Some(key) = key(&event.code()) {
-            push(Event::Key {
-                key,
-                pressed: false,
-                repeat: false,
-                modifiers,
-            });
+            push(Event::key(KeyPress::up(key, modifiers)));
         }
     })?;
     on(agent_target, "input", {

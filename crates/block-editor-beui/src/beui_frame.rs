@@ -385,15 +385,10 @@ pub(crate) fn FrameMenu(
 
 pub(crate) fn escaped(context: &Context) -> bool {
     context.input(|input| {
-        input.events.iter().any(|event| {
-            matches!(
-                event,
-                beui::Event::Key {
-                    key: Key::Escape,
-                    pressed: true,
-                    ..
-                }
-            )
-        })
+        input
+            .events
+            .iter()
+            .filter_map(beui::Event::press)
+            .any(|press| press.key == Key::Escape && press.pressed)
     })
 }

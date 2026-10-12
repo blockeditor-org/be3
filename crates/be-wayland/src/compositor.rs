@@ -595,11 +595,15 @@ impl Compositor {
         };
         for (index, event) in input.events.iter().enumerate() {
             match *event {
-                Event::PhysicalKey { code, pressed } if state.keyboard_window() == Some(id) => {
-                    if pressed {
+                Event::Key {
+                    press,
+                    code: Some(code),
+                    ..
+                } if !press.repeat && state.keyboard_window() == Some(id) => {
+                    if press.pressed {
                         state.ping(id, now);
                     }
-                    state.key(code, pressed);
+                    state.key(code, press.pressed);
                 }
                 Event::PointerMoved(pos) => state.pointer_motion(at(index, pos)),
                 Event::PointerButton {

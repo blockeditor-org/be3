@@ -41,12 +41,7 @@ fn a_focused_forwarding_catcher_takes_the_keys_from_the_document() {
     assert!(focused.is_some());
     keys.borrow_mut().clear();
 
-    let tab = Event::Key {
-        key: Key::Tab,
-        pressed: true,
-        repeat: false,
-        modifiers: Modifiers::NONE,
-    };
+    let tab = Event::key(beui::KeyPress { key: Key::Tab, pressed: true, repeat: false, modifiers: Modifiers::NONE });
     harness.frame(vec![tab.clone(), Event::Text("a".to_owned())]);
 
     assert_eq!(*keys.borrow(), [tab, Event::Text("a".to_owned())]);

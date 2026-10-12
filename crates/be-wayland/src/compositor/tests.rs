@@ -338,16 +338,7 @@ impl Harness {
     }
 
     fn key(&mut self, code: u32) {
-        self.frame(vec![
-            Event::PhysicalKey {
-                code,
-                pressed: true,
-            },
-            Event::PhysicalKey {
-                code,
-                pressed: false,
-            },
-        ]);
+        self.frame(vec![physical(code, true), physical(code, false)]);
         self.settle();
     }
 
@@ -444,8 +435,21 @@ thread_local! {
     static CLAIMED: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }
 
+fn stroke(key: Key, code: u32, pressed: bool, modifiers: beui::Modifiers) -> Event {
+    Event::Key {
+        press: beui::KeyPress {
+            key,
+            pressed,
+            repeat: false,
+            modifiers,
+        },
+        code: Some(code),
+        text: None,
+    }
+}
+
 fn physical(code: u32, pressed: bool) -> Event {
-    Event::PhysicalKey { code, pressed }
+    stroke(Key::Unidentified, code, pressed, beui::Modifiers::NONE)
 }
 
 fn super_key(pressed: bool) -> Vec<Event> {
@@ -453,19 +457,14 @@ fn super_key(pressed: bool) -> Vec<Event> {
         true => beui::Modifiers::LOGO,
         false => beui::Modifiers::NONE,
     };
-    vec![physical(KEY_LEFTMETA, pressed), Event::Modifiers(held)]
+    vec![
+        stroke(Key::Logo, KEY_LEFTMETA, pressed, held),
+        Event::Modifiers(held),
+    ]
 }
 
 fn f_key(pressed: bool, modifiers: beui::Modifiers) -> Vec<Event> {
-    vec![
-        physical(KEY_F, pressed),
-        Event::Key {
-            key: Key::F,
-            pressed,
-            repeat: false,
-            modifiers,
-        },
-    ]
+    vec![stroke(Key::F, KEY_F, pressed, modifiers)]
 }
 
 fn outside() -> Pos2 {

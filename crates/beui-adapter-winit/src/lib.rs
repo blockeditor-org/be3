@@ -32,7 +32,7 @@ use beui_core::file_picker::FilePickRequest;
 use beui_core::geometry::Vec2;
 use beui_core::geometry::{Pos2, pos2, vec2};
 use beui_core::input::{
-    CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, Modifiers, PointerButton, TouchId,
+    CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, KeyPress, Modifiers, PointerButton, TouchId,
     TouchPhase,
 };
 use beui_core::renderer::{Loaded, WindowHandle};
@@ -574,12 +574,12 @@ impl ApplicationHandler<UserEvent> for Runner {
             WindowEvent::KeyboardInput { event, .. } => {
                 let pressed = event.state == ElementState::Pressed;
                 #[cfg(target_os = "linux")]
-                if !event.repeat {
+                let code = {
                     use winit::platform::scancode::PhysicalKeyExtScancode;
-                    if let Some(code) = event.physical_key.to_scancode() {
-                        self.push(Event::PhysicalKey { code, pressed });
-                    }
-                }
+                    event.physical_key.to_scancode()
+                };
+                #[cfg(not(target_os = "linux"))]
+                let code = None;
                 let named = match logical_key(&event.key_without_modifiers()) {
                     Logical::Key(key) => Some(key),
                     Logical::Ignored => None,
@@ -596,20 +596,31 @@ impl ApplicationHandler<UserEvent> for Runner {
                 {
                     self.push(Event::Text(text));
                 }
-                if let Some(key) = named.filter(|key| !(event.repeat && key.is_modifier())) {
-                    self.push(Event::Key {
-                        key,
-                        pressed,
-                        repeat: event.repeat,
-                        modifiers: self.modifiers,
-                    });
-                }
-                if pressed
-                    && !self.modifiers.command()
-                    && let Some(text) = event.text
-                    && !text.chars().any(char::is_control)
-                {
-                    self.push(Event::Text(text.to_string()));
+                let text = event
+                    .text
+                    .filter(|text| {
+                        pressed
+                            && !self.modifiers.command()
+                            && !text.chars().any(char::is_control)
+                    })
+                    .map(|text| text.to_string());
+                match named.or(code.map(|_| Key::Unidentified)) {
+                    Some(key) if event.repeat && key.is_modifier() => {}
+                    Some(key) => self.push(Event::Key {
+                        press: KeyPress {
+                            key,
+                            pressed,
+                            repeat: event.repeat,
+                            modifiers: self.modifiers,
+                        },
+                        code,
+                        text,
+                    }),
+                    None => {
+                        if let Some(text) = text {
+                            self.push(Event::Text(text));
+                        }
+                    }
                 }
             }
             WindowEvent::Ime(Ime::Enabled) => self.push(Event::Ime(ImeEvent::Enabled)),

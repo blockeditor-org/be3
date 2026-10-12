@@ -2,17 +2,7 @@ use super::*;
 
 fn super_chord(harness: &mut Harness, code: u32, key: Key) {
     let logo = beui::Modifiers::LOGO;
-    let chord = |pressed: bool| {
-        vec![
-            physical(code, pressed),
-            Event::Key {
-                key,
-                pressed,
-                repeat: false,
-                modifiers: logo,
-            },
-        ]
-    };
+    let chord = |pressed: bool| vec![stroke(key, code, pressed, logo)];
     harness.frame([super_key(true), chord(true), chord(false), super_key(false)].concat());
     harness.settle();
 }

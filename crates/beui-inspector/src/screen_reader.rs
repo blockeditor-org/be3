@@ -544,15 +544,8 @@ pub fn claims(event: &Event) -> bool {
 }
 
 fn shortcut(event: &Event) -> Option<Command> {
-    let Event::Key {
-        key,
-        pressed: true,
-        modifiers,
-        ..
-    } = event
-    else {
-        return None;
-    };
+    let press = event.press().filter(|press| press.pressed)?;
+    let (key, modifiers) = (&press.key, &press.modifiers);
     if modifiers.ctrl || !modifiers.alt {
         return None;
     }

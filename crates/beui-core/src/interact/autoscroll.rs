@@ -49,11 +49,9 @@ pub(crate) fn frame(doc: &mut Document, ctx: &Context, enabled: bool) -> Tracked
     let mut ended = !enabled;
     for event in ctx.input(|input| input.events.clone()) {
         match event {
-            Event::Key {
-                key, pressed: true, ..
-            } if !key.is_modifier() => {
+            Event::Key { press, .. } if press.pressed && !press.key.is_modifier() => {
                 ended = true;
-                tracked.swallows_escape |= key == Key::Escape;
+                tracked.swallows_escape |= press.key == Key::Escape;
             }
             Event::Focus(false) => ended = true,
             _ => {}

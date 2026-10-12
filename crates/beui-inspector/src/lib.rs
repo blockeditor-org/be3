@@ -1152,14 +1152,9 @@ fn entry_label(entry: &Entry) -> String {
 }
 
 fn cancelled(event: &Event) -> bool {
-    matches!(
-        event,
-        Event::Key {
-            key: InputKey::Escape,
-            pressed: true,
-            ..
-        }
-    )
+    event
+        .press()
+        .is_some_and(|press| press.key == InputKey::Escape && press.pressed)
 }
 
 fn nothing_selected() -> String {
@@ -1283,16 +1278,8 @@ impl Tools for InspectorTools {
 
 fn chord_pressed(ctx: &Context, chord: InputKey) -> bool {
     ctx.input(|input| {
-        input.events.iter().any(|event| {
-            matches!(
-                event,
-                Event::Key {
-                    key,
-                    pressed: true,
-                    modifiers,
-                    ..
-                } if *key == chord && modifiers.ctrl && modifiers.shift
-            )
+        input.events.iter().filter_map(Event::press).any(|press| {
+            press.pressed && press.key == chord && press.modifiers.ctrl && press.modifiers.shift
         })
     })
 }

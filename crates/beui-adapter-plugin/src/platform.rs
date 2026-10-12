@@ -79,7 +79,7 @@ impl Platform for HostPlatform {
     fn set_intercepted_keys(&mut self, chords: &[KeyChord]) {
         self.intercepted_keys = chords
             .iter()
-            .map(|chord| beui_plugin_input::protocol_chord(*chord))
+            .filter_map(|chord| beui_plugin_input::protocol_chord(*chord))
             .collect();
     }
 

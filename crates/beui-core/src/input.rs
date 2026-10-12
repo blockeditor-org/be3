@@ -116,6 +116,7 @@ pub enum Key {
     Ctrl,
     Alt,
     Logo,
+    Unidentified,
 }
 
 impl Key {
@@ -205,6 +206,26 @@ pub struct KeyChord {
     pub key: Key,
     pub modifiers: Modifiers,
     pub tap: bool,
+}
+
+impl KeyPress {
+    pub const fn down(key: Key, modifiers: Modifiers) -> Self {
+        Self {
+            key,
+            pressed: true,
+            repeat: false,
+            modifiers,
+        }
+    }
+
+    pub const fn up(key: Key, modifiers: Modifiers) -> Self {
+        Self {
+            key,
+            pressed: false,
+            repeat: false,
+            modifiers,
+        }
+    }
 }
 
 impl KeyChord {
@@ -312,10 +333,9 @@ pub enum Event {
     Focus(bool),
     Modifiers(Modifiers),
     Key {
-        key: Key,
-        pressed: bool,
-        repeat: bool,
-        modifiers: Modifiers,
+        press: KeyPress,
+        code: Option<u32>,
+        text: Option<String>,
     },
     PointerButton {
         pos: Pos2,
@@ -328,10 +348,6 @@ pub enum Event {
     PointerMoved(Pos2),
     Scroll(Vec2),
     ScrollEnded,
-    PhysicalKey {
-        code: u32,
-        pressed: bool,
-    },
     Text(String),
     Touch {
         id: TouchId,
@@ -347,6 +363,23 @@ pub enum Event {
     Back(BackGesture),
     InterceptedKey(KeyPress),
     InterceptedTap(Key),
+}
+
+impl Event {
+    pub fn key(press: KeyPress) -> Self {
+        Self::Key {
+            press,
+            code: None,
+            text: None,
+        }
+    }
+
+    pub fn press(&self) -> Option<KeyPress> {
+        match self {
+            Self::Key { press, .. } => Some(*press),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -695,9 +728,8 @@ impl InputState {
                 Event::Scroll(delta) => self.scroll_delta += *delta,
                 Event::ScrollEnded => scroll_ended = true,
                 Event::Zoom(factor) => self.zoom_factor *= *factor,
-                Event::Key { modifiers, .. } | Event::Modifiers(modifiers) => {
-                    self.modifiers = *modifiers;
-                }
+                Event::Key { press, .. } => self.modifiers = press.modifiers,
+                Event::Modifiers(modifiers) => self.modifiers = *modifiers,
                 Event::Touch {
                     id,
                     phase,

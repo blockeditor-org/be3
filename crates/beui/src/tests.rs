@@ -1304,12 +1304,7 @@ impl Harness {
 }
 
 fn key_event(key: Key, pressed: bool, modifiers: Modifiers) -> Event {
-    Event::Key {
-        key,
-        pressed,
-        repeat: false,
-        modifiers,
-    }
+    Event::key(beui_core::input::KeyPress { key, pressed, repeat: false, modifiers })
 }
 
 pub(crate) fn with_installed<R>(document: &mut Document, f: impl FnOnce(&mut Document) -> R) -> R {

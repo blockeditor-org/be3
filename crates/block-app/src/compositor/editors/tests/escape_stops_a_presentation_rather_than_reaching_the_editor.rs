@@ -33,12 +33,7 @@ fn escape_stops_a_presentation_rather_than_reaching_the_editor() {
     };
     frame(&mut document, Vec::new());
     document.focus_focusable(catcher.get());
-    let key = |key, pressed| Event::Key {
-        key,
-        pressed,
-        repeat: false,
-        modifiers: Modifiers::NONE,
-    };
+    let key = |key, pressed| Event::key(beui::KeyPress { key, pressed, repeat: false, modifiers: Modifiers::NONE });
 
     frame(&mut document, vec![key(Key::A, true), key(Key::A, false)]);
     assert_eq!(stopped.get(), 0, "other keys leave the presentation alone");
@@ -53,13 +48,11 @@ fn escape_stops_a_presentation_rather_than_reaching_the_editor() {
     frame(&mut document, vec![key(Key::Escape, false)]);
     assert_eq!(stopped.get(), 1, "Escape stops presenting");
     assert!(
-        !heard.borrow().iter().any(|event| matches!(
-            event,
-            Event::Key {
-                key: Key::Escape,
-                ..
-            }
-        )),
+        !heard
+            .borrow()
+            .iter()
+            .filter_map(Event::press)
+            .any(|press| press.key == Key::Escape),
         "and neither its press nor its release reaches the editor: {:?}",
         heard.borrow()
     );

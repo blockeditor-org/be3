@@ -871,11 +871,12 @@ impl Instances {
         else {
             return Vec::new();
         };
+        let Some(key) = beui_plugin_input::protocol_key(key) else {
+            return Vec::new();
+        };
         vec![Message::Input(block_plugin_api::InputBatch {
             screen: screen.request.screen,
-            events: vec![block_plugin_api::InputEvent::InterceptedTap {
-                key: beui_plugin_input::protocol_key(key),
-            }],
+            events: vec![block_plugin_api::InputEvent::InterceptedTap { key }],
         })]
     }
 
@@ -925,16 +926,11 @@ impl Instances {
             )
         });
         let escaped = input.focused
-            && input.events.iter().any(|event| {
-                matches!(
-                    event,
-                    beui::Event::Key {
-                        key: beui::Key::Escape,
-                        pressed: true,
-                        ..
-                    }
-                )
-            });
+            && input
+                .events
+                .iter()
+                .filter_map(beui::Event::press)
+                .any(|press| press.key == beui::Key::Escape && press.pressed);
         let mut messages = screen.input.forward(input, id);
         let files = super::input::file_drop(input, screen.file_dropping);
         messages.extend(self.file_drop(instance, region, files));

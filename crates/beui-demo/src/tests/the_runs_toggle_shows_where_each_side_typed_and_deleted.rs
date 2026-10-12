@@ -4,12 +4,7 @@ use beui::{Event, Key, Modifiers};
 fn key(key: Key) -> Vec<Event> {
     [true, false]
         .into_iter()
-        .map(|pressed| Event::Key {
-            key,
-            pressed,
-            repeat: false,
-            modifiers: Modifiers::NONE,
-        })
+        .map(|pressed| Event::key(beui::KeyPress { key, pressed, repeat: false, modifiers: Modifiers::NONE }))
         .collect()
 }
 

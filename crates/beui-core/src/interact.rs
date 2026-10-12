@@ -64,7 +64,7 @@ pub fn interact(
     let typed = !keys.ignored()
         && events
             .iter()
-            .any(|event| matches!(event, Event::Key { pressed: true, .. }));
+            .any(|event| event.press().is_some_and(|press| press.pressed));
     let moved = events
         .iter()
         .any(|event| matches!(event, Event::PointerMoved(_)));
@@ -106,10 +106,8 @@ fn key_events(
     for (index, event) in events.iter().enumerate() {
         ::reactive::settle(|| {});
         doc.validate_focus();
-        if let Event::Modifiers(modifiers) | Event::Key { modifiers, .. } = event {
-            doc.set_modifiers(*modifiers);
-        }
         match event {
+            Event::Modifiers(modifiers) => doc.set_modifiers(*modifiers),
             Event::Focus(false) => {
                 doc.keys.held.clear();
                 doc.cancel_focus_activation();
@@ -127,40 +125,35 @@ fn key_events(
                 offer_from_app(doc, KeyInput::Tap(*key));
                 taken[index] = true;
             }
-            Event::Key {
-                key: Key::Escape, ..
-            } if swallows_escape => taken[index] = true,
+            Event::Key { press, .. } if press.key == Key::Escape && swallows_escape => {
+                doc.set_modifiers(press.modifiers);
+                taken[index] = true;
+            }
             Event::Key { .. } if keys.claimed(event) => {}
-            Event::Key {
-                key,
-                pressed,
-                repeat,
-                modifiers,
-            } => {
-                let press = KeyPress {
-                    key: *key,
-                    pressed: *pressed,
-                    repeat: *repeat,
-                    modifiers: *modifiers,
-                };
-                let fate = key_press(doc, press);
+            Event::Key { press, text, .. } => {
+                doc.set_modifiers(press.modifiers);
+                let fate = key_press(doc, *press);
                 match fate {
-                    Fate::Taken => drop_key(&mut taken, events, index, press.pressed),
+                    Fate::Taken => taken[index] = true,
                     Fate::App => {}
-                    Fate::Handled { reveal: true } => {
-                        doc.reveal_focus(painter);
-                        keep_off(&mut keep, events, index);
+                    Fate::Handled { reveal } => {
+                        keep[index] = false;
+                        if reveal {
+                            doc.reveal_focus(painter);
+                        }
                     }
-                    Fate::Handled { reveal: false } | Fate::Unheard => {
-                        keep_off(&mut keep, events, index);
-                    }
+                    Fate::Unheard => keep[index] = false,
                 }
                 ::reactive::settle(|| {});
+                if let Some(text) = text.as_ref().filter(|_| !matches!(fate, Fate::Taken | Fate::App)) {
+                    doc.text_focused(text);
+                    doc.reveal_focus(painter);
+                }
                 if taps.contains(&index) && fate != Fate::Taken {
-                    offer_tap(doc, *key);
+                    offer_tap(doc, press.key);
                 }
             }
-            Event::Text(text) if !taken[index] => match forward::takes_keys(doc) {
+            Event::Text(text) => match forward::takes_keys(doc) {
                 true => {}
                 false => {
                     keep[index] = false;
@@ -168,7 +161,7 @@ fn key_events(
                     doc.reveal_focus(painter);
                 }
             },
-            Event::Ime(ime) if !taken[index] => match forward::takes_keys(doc) {
+            Event::Ime(ime) => match forward::takes_keys(doc) {
                 true => {}
                 false => {
                     let reveals = !matches!(ime, ImeEvent::Enabled | ImeEvent::Disabled);
@@ -189,20 +182,6 @@ fn key_events(
         *keep &= !taken;
     }
     keep
-}
-
-fn keep_off(keep: &mut [bool], events: &[Event], index: usize) {
-    keep[index] = false;
-    for before in (0..index).rev() {
-        match events[before] {
-            Event::Modifiers(_) | Event::Text(_) => {}
-            Event::PhysicalKey { .. } => {
-                keep[before] = false;
-                break;
-            }
-            _ => break,
-        }
-    }
 }
 
 struct Route {
@@ -324,7 +303,7 @@ fn key_press(doc: &mut Document, press: KeyPress) -> Fate {
     if route.target.app {
         return Fate::App;
     }
-    if press.key.is_modifier() {
+    if press.key.is_modifier() || press.key == Key::Unidentified {
         return Fate::Unheard;
     }
     if press.pressed && !press.modifiers.ctrl && !press.modifiers.alt {
@@ -524,7 +503,6 @@ fn is_activity(event: &Event) -> bool {
             | Event::PointerMotion(_)
             | Event::PointerMoved(_)
             | Event::Scroll(_)
-            | Event::PhysicalKey { .. }
             | Event::Text(_)
             | Event::Touch { .. }
             | Event::Zoom(_)
@@ -538,48 +516,20 @@ fn cycle_step(modifiers: Modifiers) -> isize {
     }
 }
 
-fn drop_key(taken: &mut [bool], events: &[Event], index: usize, pressed: bool) {
-    taken[index] = true;
-    for before in (0..index).rev() {
-        match events[before] {
-            Event::Modifiers(_) | Event::Text(_) => {}
-            Event::PhysicalKey {
-                pressed: physical, ..
-            } if physical == pressed => {
-                taken[before] = true;
-                break;
-            }
-            _ => break,
-        }
-    }
-    for after in index + 1..events.len() {
-        match events[after] {
-            Event::Text(_) => taken[after] = true,
-            _ => break,
-        }
-    }
-}
-
 fn taps(doc: &mut Document, events: &[Event]) -> Vec<usize> {
     let mut taps = Vec::new();
     for (index, event) in events.iter().enumerate() {
         match *event {
-            Event::Key {
-                key,
-                pressed: true,
-                repeat: false,
-                modifiers,
-            } => doc.tapping = (key.is_modifier() && alone(key, modifiers)).then_some(key),
-            Event::Key {
-                key,
-                pressed: false,
-                ..
-            } if doc.tapping == Some(key) => {
+            Event::Key { press, .. } if press.pressed && !press.repeat => {
+                doc.tapping = (press.key.is_modifier() && alone(press.key, press.modifiers))
+                    .then_some(press.key);
+            }
+            Event::Key { press, .. } if !press.pressed && doc.tapping == Some(press.key) => {
                 doc.tapping = None;
                 taps.push(index);
             }
-            Event::Key { pressed: true, .. }
-            | Event::PointerButton { pressed: true, .. }
+            Event::Key { press, .. } if press.pressed => doc.tapping = None,
+            Event::PointerButton { pressed: true, .. }
             | Event::Scroll(_)
             | Event::Focus(false)
             | Event::Touch {

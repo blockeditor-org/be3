@@ -140,7 +140,6 @@ pub(super) fn route(
                 deliver(hovered, event)
             }
             Event::Key { .. }
-            | Event::PhysicalKey { .. }
             | Event::Text(_)
             | Event::Ime(_)
             | Event::Modifiers(_)

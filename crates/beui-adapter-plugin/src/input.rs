@@ -111,16 +111,20 @@ impl Input {
                 key,
                 pressed,
                 repeat,
-            } => {
-                if let Some(key) = beui_plugin_input::beui_key(*key) {
-                    events.push(Event::Key {
+                text,
+            } => match beui_plugin_input::beui_key(*key) {
+                Some(key) => events.push(Event::Key {
+                    press: KeyPress {
                         key,
                         pressed: *pressed,
                         repeat: *repeat,
                         modifiers: self.modifiers,
-                    });
-                }
-            }
+                    },
+                    code: None,
+                    text: text.clone(),
+                }),
+                None => events.extend(text.clone().map(Event::Text)),
+            },
             InputEvent::Text(text) | InputEvent::Paste(text) => {
                 events.push(Event::Text(text.clone()));
             }

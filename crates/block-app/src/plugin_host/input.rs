@@ -198,18 +198,17 @@ impl InputAdapter {
                     });
                 }
             }
-            Event::Key {
-                key,
-                pressed,
-                repeat,
-                modifiers,
-            } => {
-                push_modifiers(&mut self.modifiers, *modifiers, output);
-                output.push(InputEvent::Key {
-                    key: beui_plugin_input::protocol_key(*key),
-                    pressed: *pressed,
-                    repeat: *repeat,
-                });
+            Event::Key { press, text, .. } => {
+                push_modifiers(&mut self.modifiers, press.modifiers, output);
+                match beui_plugin_input::protocol_key(press.key) {
+                    Some(key) => output.push(InputEvent::Key {
+                        key,
+                        pressed: press.pressed,
+                        repeat: press.repeat,
+                        text: text.clone(),
+                    }),
+                    None => output.extend(text.clone().map(InputEvent::Text)),
+                }
             }
             Event::Modifiers(modifiers) => push_modifiers(&mut self.modifiers, *modifiers, output),
             Event::Text(text) => output.push(InputEvent::Text(text.clone())),
@@ -232,9 +231,11 @@ impl InputAdapter {
     ) -> Vec<InputEvent> {
         let mut output = Vec::new();
         push_modifiers(&mut self.modifiers, modifiers, &mut output);
-        if let Some(press) = press {
+        if let Some(press) = press
+            && let Some(key) = beui_plugin_input::protocol_key(press.key)
+        {
             output.push(InputEvent::InterceptedKey {
-                key: beui_plugin_input::protocol_key(press.key),
+                key,
                 pressed: press.pressed,
                 repeat: press.repeat,
             });

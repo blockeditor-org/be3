@@ -1291,18 +1291,8 @@ impl<A: BeuiApp> BeuiTest<A> {
         if modifiers != held {
             self.push(Event::Modifiers(modifiers));
         }
-        self.push(Event::Key {
-            key,
-            pressed: true,
-            repeat: false,
-            modifiers,
-        });
-        self.push(Event::Key {
-            key,
-            pressed: false,
-            repeat: false,
-            modifiers,
-        });
+        self.push(Event::key(KeyPress::down(key, modifiers)));
+        self.push(Event::key(KeyPress::up(key, modifiers)));
         if modifiers != held {
             self.push(Event::Modifiers(held));
         }
