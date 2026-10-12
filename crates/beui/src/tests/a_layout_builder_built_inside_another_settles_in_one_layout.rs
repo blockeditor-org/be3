@@ -1,5 +1,7 @@
 use super::*;
-use crate::reactive::{LayoutBuilder, List, ReadSignal, Show, build, clone, create_effect, create_memo, view};
+use crate::reactive::{
+    LayoutBuilder, List, ReadSignal, Show, build, clone, create_effect, create_memo, view,
+};
 
 #[test]
 fn a_layout_builder_built_inside_another_settles_in_one_layout() {
@@ -22,7 +24,9 @@ fn a_layout_builder_built_inside_another_settles_in_one_layout() {
                                                     {move |inner: ReadSignal<Vec2>| {
                                                         let seen = Rc::clone(&seen);
                                                         create_effect(move || seen.borrow_mut().push(inner.get().x));
-                                                        view! { <Frame height=20.0 /> }
+                                                        view! {
+                                                            <Frame height=20.0 />
+                                                        }
                                                     }}
                                                 </LayoutBuilder>
                                             })}

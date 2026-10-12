@@ -19,7 +19,10 @@ impl<T: Copy + 'static> Drop for Restore<T> {
 
 pub(crate) fn lend<R>(document: &mut Document, f: impl FnOnce() -> R) -> R {
     let lent: *mut Document = document;
-    let _lent = Restore(&LENT_DOCUMENT, LENT_DOCUMENT.with(|cell| cell.replace(lent)));
+    let _lent = Restore(
+        &LENT_DOCUMENT,
+        LENT_DOCUMENT.with(|cell| cell.replace(lent)),
+    );
     let _in_use = Restore(&LENT_IN_USE, LENT_IN_USE.with(|cell| cell.replace(false)));
     f()
 }

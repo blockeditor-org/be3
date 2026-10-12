@@ -1,5 +1,7 @@
 use super::*;
-use crate::reactive::{ItemSize, List, NodeRef, Offset, Spacer, VirtualList, build, view, with_document};
+use crate::reactive::{
+    ItemSize, List, NodeRef, Offset, Spacer, VirtualList, build, view, with_document,
+};
 
 const ROWS: usize = 1000;
 const ESTIMATE: f32 = 20.0;
@@ -62,7 +64,10 @@ fn a_virtual_list_scrolled_to_rows_of_unestimated_heights_fills_its_window_in_on
         .map(|row| harness.rect(row))
         .collect();
     rects.sort_by(|a, b| a.top().total_cmp(&b.top()));
-    assert!(rects[0].top() <= 0.0, "the rows reach the top, got {rects:?}");
+    assert!(
+        rects[0].top() <= 0.0,
+        "the rows reach the top, got {rects:?}"
+    );
     assert!(
         rects.last().unwrap().bottom() >= VIEWPORT.y,
         "the rows reach the bottom, got {rects:?}"

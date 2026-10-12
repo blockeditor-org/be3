@@ -42,7 +42,13 @@ impl LayoutBuilderNode {
 }
 
 impl LayoutBuilderNode {
-    fn rebuild(&self, doc: &mut Document, painter: &Painter, set_size: WriteSignal<Vec2>, size: Vec2) {
+    fn rebuild(
+        &self,
+        doc: &mut Document,
+        painter: &Painter,
+        set_size: WriteSignal<Vec2>,
+        size: Vec2,
+    ) {
         let (Some(builder), Some(content)) = (doc.laying_out(), self.content.clone()) else {
             doc.report_after_layout(move || set_size.set(size));
             return;
