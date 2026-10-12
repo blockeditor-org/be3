@@ -4,9 +4,9 @@ use std::rc::Rc;
 
 use crate::callback::NodeRef;
 use crate::document::Document;
-use crate::node::Rects;
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::{Modifiers, PointerPress};
+use crate::node::Rects;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct DragPoint {

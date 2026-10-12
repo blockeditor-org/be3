@@ -1,11 +1,11 @@
 use block_editor_beui::be_block::database::{DatabaseRow, DatabaseValue};
 use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
 use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, ForEach, Frame, Interactive, ItemSize, List, Memo, Show, clone, component,
-    component_size, create_memo, view,
+    Canvas, CanvasItem, ForEach, Frame, Interactive, ItemSize, LayoutBuilder, List, Memo,
+    ReadSignal, Show, clone, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::{Caption, use_theme};
-use block_editor_beui::beui::{NodeId, Pos2, TextAlign};
+use block_editor_beui::beui::{NodeId, Pos2, TextAlign, Vec2};
 use uuid::Uuid;
 
 use crate::database_view::app::data::Data;
@@ -55,107 +55,127 @@ pub fn Scatter(data: Data) -> NodeId {
 
 #[component]
 fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeId {
-    let size = component_size();
-    let bounds = create_memo(clone!(data axes -> move || {
-        let (x_field, y_field) = axes.get()?;
-        data.rows.with(|rows| plot_bounds(rows, x_field.id, y_field.id))
-    }));
-    let placed = create_memo(clone!(data axes bounds size -> move || {
-        let (Some((x_field, y_field)), Some(bounds)) = (axes.get(), bounds.get()) else {
-            return Vec::new();
-        };
-        let area = size.get();
-        data.rows.with(|rows| {
-            place_points(rows, x_field.id, y_field.id, bounds, plot_area(area))
-        })
-    }));
-    let keys = create_memo(clone!(placed -> move || {
-        placed.with(|placed| placed.iter().map(|point| point.row).collect::<Vec<usize>>())
-    }));
-    let empty = create_memo(clone!(placed -> move || placed.with(Vec::is_empty)));
-    let plot_height = create_memo(clone!(size -> move || plot_area(size.get()).1));
-    let plot_width = create_memo(clone!(size -> move || plot_area(size.get()).0));
-    let rule_top = create_memo(clone!(plot_height -> move || AXIS_TOP + plot_height.get()));
-    let x_low = create_memo(clone!(bounds -> move || {
-        bounds.get().map_or_else(String::new, |bounds| format_axis_value(bounds.0))
-    }));
-    let x_high = create_memo(clone!(bounds -> move || {
-        bounds.get().map_or_else(String::new, |bounds| format_axis_value(bounds.1))
-    }));
-    let y_low = create_memo(clone!(bounds -> move || {
-        bounds.get().map_or_else(String::new, |bounds| format_axis_value(bounds.2))
-    }));
-    let y_high = create_memo(clone!(bounds -> move || {
-        bounds.get().map_or_else(String::new, |bounds| format_axis_value(bounds.3))
-    }));
-    let x_name = create_memo(clone!(axes -> move || {
-        axes.get().map_or_else(String::new, |(x_field, _)| x_field.name)
-    }));
-    let y_name = create_memo(clone!(axes -> move || {
-        axes.get().map_or_else(String::new, |(_, y_field)| y_field.name)
-    }));
-    let x_label_x =
-        create_memo(clone!(plot_width -> move || AXIS_LEFT + plot_width.get() * 0.5 - 60.0));
-    let x_high_x = create_memo(clone!(plot_width -> move || AXIS_LEFT + plot_width.get() - 60.0));
-    let x_label_y = create_memo(clone!(rule_top -> move || rule_top.get() + LABEL_HEIGHT));
-    let value_y = create_memo(clone!(rule_top -> move || rule_top.get() + 2.0));
-    let y_low_y = create_memo(clone!(rule_top -> move || rule_top.get() - LABEL_HEIGHT));
-    let pick = clone!(data placed -> move |at: Pos2| {
-        let chosen = placed.with_untracked(|placed| nearest(placed, at));
-        match chosen {
-            Some(row) => data.select(row, None),
-            None => data.deselect(),
-        }
-    });
-    let theme = use_theme();
-    let axis_color = theme.border.clone();
-    let rule_color = theme.border.clone();
     view! {
-        <Interactive
-            @test_id={"database-view.scatter"}
-            on_click_at={move |press: block_editor_beui::beui::PointerPress| pick(press.local)}
-        >
-            <Canvas>
-                <CanvasItem x=AXIS_LEFT y=AXIS_TOP width=RULE height={plot_height}>
-                    <Frame color={axis_color} />
-                </CanvasItem>
-                <CanvasItem x=AXIS_LEFT y={rule_top} width={plot_width} height=RULE>
-                    <Frame color={rule_color} />
-                </CanvasItem>
-                <CanvasItem x=AXIS_LEFT y={value_y.clone()} width=60.0 height=LABEL_HEIGHT>
-                    <Caption content={x_low} />
-                </CanvasItem>
-                <CanvasItem x={x_high_x} y={value_y} width=60.0 height=LABEL_HEIGHT>
-                    <Caption content={x_high} align=TextAlign::End />
-                </CanvasItem>
-                <CanvasItem x={x_label_x} y={x_label_y} width=120.0 height=LABEL_HEIGHT>
-                    <Caption content={x_name} align=TextAlign::Center />
-                </CanvasItem>
-                <CanvasItem x=0.0 y={y_low_y} width={AXIS_LEFT - 4.0} height=LABEL_HEIGHT>
-                    <Caption content={y_low} align=TextAlign::End />
-                </CanvasItem>
-                <CanvasItem x=0.0 y=AXIS_TOP width={AXIS_LEFT - 4.0} height=LABEL_HEIGHT>
-                    <Caption content={y_high} align=TextAlign::End />
-                </CanvasItem>
-                <CanvasItem x=0.0 y=0.0 width={AXIS_LEFT * 2.0} height=LABEL_HEIGHT>
-                    <Caption content={y_name} />
-                </CanvasItem>
-                <ForEach keys={keys}>
-                    {move |row: usize| {
-                        let placed = placed.clone();
-                        let data = data.clone();
-                        view! {
-                            <Dot placed={placed} data={data} row={row} />
-                        }
-                    }}
-                </ForEach>
-                <Show condition={empty}>
-                    <CanvasItem x=AXIS_LEFT y=AXIS_TOP width=260.0 height=LABEL_HEIGHT>
-                        <Caption content="No rows have both fields set" />
-                    </CanvasItem>
-                </Show>
-            </Canvas>
-        </Interactive>
+        <LayoutBuilder>
+            {move |size: ReadSignal<Vec2>| {
+                let bounds = create_memo(clone!(data axes -> move || {
+                    let (x_field, y_field) = axes.get()?;
+                    data.rows.with(|rows| plot_bounds(rows, x_field.id, y_field.id))
+                }));
+                let placed = create_memo(clone!(data axes bounds size -> move || {
+                    let (Some((x_field, y_field)), Some(bounds)) = (axes.get(), bounds.get()) else {
+                        return Vec::new();
+                    };
+                    let area = size.get();
+                    data.rows.with(|rows| {
+                        place_points(rows, x_field.id, y_field.id, bounds, plot_area(area))
+                    })
+                }));
+                let keys = create_memo(clone!(placed -> move || {
+                    placed.with(|placed| placed.iter().map(|point| point.row).collect::<Vec<usize>>())
+                }));
+                let empty = create_memo(clone!(placed -> move || placed.with(Vec::is_empty)));
+                let plot_height = create_memo(clone!(size -> move || plot_area(size.get()).1));
+                let plot_width = create_memo(clone!(size -> move || plot_area(size.get()).0));
+                let rule_top = create_memo(clone!(plot_height -> move || AXIS_TOP + plot_height.get()));
+                let x_low = create_memo(clone!(bounds -> move || {
+                    bounds.get().map_or_else(String::new, |bounds| format_axis_value(bounds.0))
+                }));
+                let x_high = create_memo(clone!(bounds -> move || {
+                    bounds.get().map_or_else(String::new, |bounds| format_axis_value(bounds.1))
+                }));
+                let y_low = create_memo(clone!(bounds -> move || {
+                    bounds.get().map_or_else(String::new, |bounds| format_axis_value(bounds.2))
+                }));
+                let y_high = create_memo(clone!(bounds -> move || {
+                    bounds.get().map_or_else(String::new, |bounds| format_axis_value(bounds.3))
+                }));
+                let x_name = create_memo(clone!(axes -> move || {
+                    axes.get().map_or_else(String::new, |(x_field, _)| x_field.name)
+                }));
+                let y_name = create_memo(clone!(axes -> move || {
+                    axes.get().map_or_else(String::new, |(_, y_field)| y_field.name)
+                }));
+                let x_label_x =
+                    create_memo(clone!(plot_width -> move || AXIS_LEFT + plot_width.get() * 0.5 - 60.0));
+                let x_high_x = create_memo(clone!(plot_width -> move || AXIS_LEFT + plot_width.get() - 60.0));
+                let x_label_y = create_memo(clone!(rule_top -> move || rule_top.get() + LABEL_HEIGHT));
+                let value_y = create_memo(clone!(rule_top -> move || rule_top.get() + 2.0));
+                let y_low_y = create_memo(clone!(rule_top -> move || rule_top.get() - LABEL_HEIGHT));
+                let pick = clone!(data placed -> move |at: Pos2| {
+                    let chosen = placed.with_untracked(|placed| nearest(placed, at));
+                    match chosen {
+                        Some(row) => data.select(row, None),
+                        None => data.deselect(),
+                    }
+                });
+                let theme = use_theme();
+                let axis_color = theme.border.clone();
+                let rule_color = theme.border.clone();
+                view! {
+                    <Interactive
+                        @test_id={"database-view.scatter"}
+                        on_click_at={move |press: block_editor_beui::beui::PointerPress| pick(press.local)}
+                    >
+                        <Canvas>
+                            <CanvasItem x=AXIS_LEFT y=AXIS_TOP width=RULE height={plot_height}>
+                                <Frame color={axis_color} />
+                            </CanvasItem>
+                            <CanvasItem x=AXIS_LEFT y={rule_top} width={plot_width} height=RULE>
+                                <Frame color={rule_color} />
+                            </CanvasItem>
+                            <CanvasItem
+                                x=AXIS_LEFT
+                                y={value_y.clone()}
+                                width=60.0
+                                height=LABEL_HEIGHT
+                            >
+                                <Caption content={x_low} />
+                            </CanvasItem>
+                            <CanvasItem x={x_high_x} y={value_y} width=60.0 height=LABEL_HEIGHT>
+                                <Caption content={x_high} align=TextAlign::End />
+                            </CanvasItem>
+                            <CanvasItem x={x_label_x} y={x_label_y} width=120.0 height=LABEL_HEIGHT>
+                                <Caption content={x_name} align=TextAlign::Center />
+                            </CanvasItem>
+                            <CanvasItem
+                                x=0.0
+                                y={y_low_y}
+                                width={AXIS_LEFT - 4.0}
+                                height=LABEL_HEIGHT
+                            >
+                                <Caption content={y_low} align=TextAlign::End />
+                            </CanvasItem>
+                            <CanvasItem
+                                x=0.0
+                                y=AXIS_TOP
+                                width={AXIS_LEFT - 4.0}
+                                height=LABEL_HEIGHT
+                            >
+                                <Caption content={y_high} align=TextAlign::End />
+                            </CanvasItem>
+                            <CanvasItem x=0.0 y=0.0 width={AXIS_LEFT * 2.0} height=LABEL_HEIGHT>
+                                <Caption content={y_name} />
+                            </CanvasItem>
+                            <ForEach keys={keys}>
+                                {move |row: usize| {
+                                    let placed = placed.clone();
+                                    let data = data.clone();
+                                    view! {
+                                        <Dot placed={placed} data={data} row={row} />
+                                    }
+                                }}
+                            </ForEach>
+                            <Show condition={empty}>
+                                <CanvasItem x=AXIS_LEFT y=AXIS_TOP width=260.0 height=LABEL_HEIGHT>
+                                    <Caption content="No rows have both fields set" />
+                                </CanvasItem>
+                            </Show>
+                        </Canvas>
+                    </Interactive>
+                }
+            }}
+        </LayoutBuilder>
     }
 }
 

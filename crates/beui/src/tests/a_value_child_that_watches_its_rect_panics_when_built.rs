@@ -1,21 +1,21 @@
 use super::*;
-use crate::reactive::{build, component, component_size, view};
+use crate::reactive::{build, component, component_rect, view};
 use crate::unstyled::MenuItem;
 
 #[component]
-fn SizedItem() -> MenuItem {
-    let _ = component_size();
+fn PlacedItem() -> MenuItem {
+    let _ = component_rect();
     view! {
-        <MenuItem label="sized" />
+        <MenuItem label="placed" />
     }
 }
 
 #[test]
 #[should_panic(expected = "returns a value that is no node")]
-fn a_value_child_that_watches_its_size_panics_when_built() {
+fn a_value_child_that_watches_its_rect_panics_when_built() {
     let _ = build(|| {
         let _ = view! {
-            <SizedItem />
+            <PlacedItem />
         };
         view! {
             <Frame />

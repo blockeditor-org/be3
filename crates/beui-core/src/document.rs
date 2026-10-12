@@ -15,7 +15,7 @@ use crate::damage::{Damage, Region};
 use crate::file_picker::{FileFilter, FilePick, FilePickId};
 use crate::flash::FlashLog;
 use crate::font::{FontId, Galley, TextLayout};
-use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
+use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::input::{Key, KeyChord, Modifiers};
 
 use crate::display::Display;
@@ -141,7 +141,6 @@ pub struct Document {
     extensions: HashMap<std::any::TypeId, Box<dyn Any>>,
     node_scopes: HashMap<NodeId, Vec<::reactive::Scope>>,
     node_refs: HashMap<NodeId, Vec<Weak<Cell<Option<NodeId>>>>>,
-    sizes: NodeMap<Vec<SizeWatcher>>,
     placements: NodeMap<Vec<PlacementWatcher>>,
     placed: NodeMap<(::reactive::ReadSignal<bool>, ::reactive::WriteSignal<bool>)>,
     component_states: HashMap<NodeId, Vec<Box<dyn Any>>>,
@@ -167,11 +166,6 @@ struct Placing {
     culled: bool,
 }
 
-struct SizeWatcher {
-    read: ::reactive::ReadSignal<Vec2>,
-    write: ::reactive::WriteSignal<Vec2>,
-}
-
 const REMEMBERED_MEASUREMENTS: usize = 4;
 
 fn same_size(left: Vec2, right: Vec2) -> bool {
@@ -191,19 +185,6 @@ fn axis_still_fits(offered: f32, size: f32, available: f32) -> bool {
         true => available.is_finite() && size <= available && available <= offered,
         false => available.to_bits() == size.to_bits(),
     }
-}
-
-fn constrained(held: Vec2, available: Vec2) -> Vec2 {
-    vec2(
-        match available.x.is_finite() {
-            true => available.x,
-            false => held.x,
-        },
-        match available.y.is_finite() {
-            true => available.y,
-            false => held.y,
-        },
-    )
 }
 
 #[derive(Default)]
@@ -347,7 +328,6 @@ impl Document {
             extensions: HashMap::new(),
             node_scopes: HashMap::new(),
             node_refs: HashMap::new(),
-            sizes: NodeMap::default(),
             placements: NodeMap::default(),
             placed: NodeMap::default(),
             component_states: HashMap::new(),
@@ -849,7 +829,6 @@ impl Document {
         self.forget_back_gesture(id);
         self.back_handlers.retain(|handler| handler.id() != id);
         self.paint_cache.borrow_mut().forget(id);
-        self.sizes.remove(&id);
         self.placements.remove(&id);
         self.placed.remove(&id);
         self.measurements.remove(&id);
@@ -1398,19 +1377,6 @@ impl Document {
         }
     }
 
-    pub fn watch_size(&mut self, id: NodeId) -> ::reactive::ReadSignal<Vec2> {
-        if let Some(watcher) = self.sizes.get(&id).and_then(|watchers| watchers.first()) {
-            return watcher.read.clone();
-        }
-        let size = self.rects.get(&id).map_or(Vec2::ZERO, |rect| rect.size());
-        let (read, write) = ::reactive::create_signal(size);
-        self.sizes.get_or_default(id).push(SizeWatcher {
-            read: read.clone(),
-            write,
-        });
-        read
-    }
-
     pub fn watch_placement(&mut self, id: NodeId) -> ::reactive::ReadSignal<Rect> {
         if let Some(watcher) = self
             .placements
@@ -1439,17 +1405,6 @@ impl Document {
             .push(PlacementWatcher { read, write });
     }
 
-    pub fn register_size_watcher(
-        &mut self,
-        id: NodeId,
-        read: ::reactive::ReadSignal<Vec2>,
-        write: ::reactive::WriteSignal<Vec2>,
-    ) {
-        self.sizes
-            .get_or_default(id)
-            .push(SizeWatcher { read, write });
-    }
-
     pub fn name_component(&mut self, id: NodeId, name: &'static str) {
         self.component_names.entry(id).or_default().push(name);
     }
@@ -1472,37 +1427,16 @@ impl Document {
             .unwrap_or_else(|| panic!("component has no {} state", std::any::type_name::<T>()))
     }
 
-    pub fn deliver_constraint(&mut self, id: NodeId, available: Vec2) {
-        if !self.delivering {
-            return;
+    pub fn offer_measured_constraint(&mut self, id: NodeId, available: Vec2) {
+        if self.offer_constraint(id, available) {
+            self.constrained.insert(id);
         }
-        let Some(watchers) = self.sizes.get(&id) else {
-            return;
-        };
-        self.constrained.insert(id);
-        let writes: Vec<(::reactive::WriteSignal<Vec2>, Vec2)> = watchers
-            .iter()
-            .filter_map(|watcher| {
-                let held = watcher.read.get_untracked();
-                let offered = constrained(held, available);
-                (offered != held).then(|| (watcher.write.clone(), offered))
-            })
-            .collect();
-        if writes.is_empty() {
-            return;
-        }
-        ::reactive::settle(|| {
-            for (write, size) in writes {
-                write.set(size);
-            }
-        });
     }
 
     pub fn deliver_unmeasured_constraint(&mut self, id: NodeId, available: Vec2) {
-        if self.constrained.contains(&id) {
-            return;
+        if !self.constrained.contains(&id) {
+            self.offer_constraint(id, available);
         }
-        self.deliver_constraint(id, available);
     }
 
     pub fn deliver_placement(&mut self, id: NodeId, rect: Rect) {

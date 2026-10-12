@@ -40,11 +40,10 @@ use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Action, Callback, Canvas, CanvasItem, Child, ClickCallback, Dynamic, ForEach, Frame, Func,
-    Interactive, IntoProp, List, Memo, NodeRef, Portal, Prop, ReadSignal, RenderFn, ScopeContext,
-    Show, WriteSignal, clone, component_accessibility, component_rect, component_size,
-    create_effect, create_memo, create_signal, create_timer, node_scope, on_cleanup, on_shortcut,
-    owner_scope, provide_context, set_component_state, try_with_document, use_context,
-    with_document,
+    Interactive, IntoProp, LayoutBuilder, List, Memo, NodeRef, Portal, Prop, ReadSignal, RenderFn,
+    ScopeContext, Show, WriteSignal, clone, component_accessibility, component_rect, create_effect,
+    create_memo, create_signal, create_timer, node_scope, on_cleanup, on_shortcut, owner_scope,
+    provide_context, set_component_state, try_with_document, use_context, with_document,
 };
 
 pub use dialog::DockDialogHandle;
@@ -1599,82 +1598,87 @@ fn DockTreeView(
             panes.remove(&tree);
         }
     }));
-    let size = component_size();
-    let placement = component_rect();
-    let thickness = dock.thickness;
-    let state = dock.state.clone();
-    let layout = create_memo(clone!(state -> move || {
-        let area = Rect::from_min_size(Pos2::ZERO, size.get());
-        state.with(|state| layout_tree(state, tree, area, thickness))
-    }));
-    let leaves = create_memo(clone!(layout -> move || {
-        layout.with(|layout| layout.leaves.iter().map(|(leaf, _)| *leaf).collect::<Vec<_>>())
-    }));
-    let splits = create_memo(clone!(layout -> move || {
-        layout.with(|layout| layout.splitters.iter().map(|splitter| splitter.id).collect::<Vec<_>>())
-    }));
-    let hoisted = hoisted.peek();
-    let panels = dock.clone();
-    let panel_layout = layout.clone();
-    let splitters = dock.clone();
-    let splitter_layout = layout.clone();
-    let marked = dock.clone();
-    let marked_surface = match tree {
-        Tree::Surface(surface) => state
-            .with_untracked(|state| state.window_rect(surface).is_none())
-            .then_some(surface),
-        Tree::Group(_) => None,
-    };
-    let pane_origin = create_memo(clone!(placement -> move || placement.get().min));
     view! {
-        <Canvas @node_ref=&canvas>
-            <ForEach keys={leaves}>
-                {move |leaf: LeafId| {
-                    let dock = panels.clone();
-                    let layout = panel_layout.clone();
-                    let rect = create_memo(clone!(layout -> move || {
-                        layout.with(|layout| layout.leaf_rect(leaf)).unwrap_or(Rect::ZERO)
-                    }));
-                    let x = create_memo(clone!(rect -> move || rect.get().min.x));
-                    let y = create_memo(clone!(rect -> move || rect.get().min.y));
-                    let width = create_memo(clone!(rect -> move || rect.get().width()));
-                    let height = create_memo(clone!(rect -> move || rect.get().height()));
-                    let hoisted = hoisted == Some(leaf);
-                    view! {
-                        <CanvasItem x={x} y={y} width={width} height={height}>
-                            <DockPanelView dock tree leaf hoisted />
-                        </CanvasItem>
-                    }
-                }}
-            </ForEach>
-            <ForEach keys={splits}>
-                {move |split: SplitId| {
-                    let dock = splitters.clone();
-                    let layout = splitter_layout.clone();
-                    let rect = create_memo(clone!(layout -> move || {
-                        layout.with(|layout| layout.splitter(split)).map_or(Rect::ZERO, |splitter| {
-                            splitter.handle.expand2(splitter.direction.axes(HANDLE_REACH, 0.0))
-                        })
-                    }));
-                    let x = create_memo(clone!(rect -> move || rect.get().min.x));
-                    let y = create_memo(clone!(rect -> move || rect.get().min.y));
-                    let width = create_memo(clone!(rect -> move || rect.get().width()));
-                    let height = create_memo(clone!(rect -> move || rect.get().height()));
-                    view! {
-                        <CanvasItem x={x} y={y} width={width} height={height}>
-                            <DockSplitterView dock tree split />
-                        </CanvasItem>
-                    }
-                }}
-            </ForEach>
-            <Show condition={marked_surface.is_some()}>
-                <DockDropMarker
-                    dock={marked.clone()}
-                    surface={marked_surface.unwrap_or_else(|| unreachable!())}
-                    origin={pane_origin.clone()}
-                />
-            </Show>
-        </Canvas>
+        <LayoutBuilder>
+            {move |size: ReadSignal<Vec2>| {
+                let placement = component_rect();
+                let thickness = dock.thickness;
+                let state = dock.state.clone();
+                let layout = create_memo(clone!(state -> move || {
+                    let area = Rect::from_min_size(Pos2::ZERO, size.get());
+                    state.with(|state| layout_tree(state, tree, area, thickness))
+                }));
+                let leaves = create_memo(clone!(layout -> move || {
+                    layout.with(|layout| layout.leaves.iter().map(|(leaf, _)| *leaf).collect::<Vec<_>>())
+                }));
+                let splits = create_memo(clone!(layout -> move || {
+                    layout.with(|layout| layout.splitters.iter().map(|splitter| splitter.id).collect::<Vec<_>>())
+                }));
+                let hoisted = hoisted.peek();
+                let panels = dock.clone();
+                let panel_layout = layout.clone();
+                let splitters = dock.clone();
+                let splitter_layout = layout.clone();
+                let marked = dock.clone();
+                let marked_surface = match tree {
+                    Tree::Surface(surface) => state
+                        .with_untracked(|state| state.window_rect(surface).is_none())
+                        .then_some(surface),
+                    Tree::Group(_) => None,
+                };
+                let pane_origin = create_memo(clone!(placement -> move || placement.get().min));
+                view! {
+                    <Canvas @node_ref=&canvas>
+                        <ForEach keys={leaves}>
+                            {move |leaf: LeafId| {
+                                let dock = panels.clone();
+                                let layout = panel_layout.clone();
+                                let rect = create_memo(clone!(layout -> move || {
+                                    layout.with(|layout| layout.leaf_rect(leaf)).unwrap_or(Rect::ZERO)
+                                }));
+                                let x = create_memo(clone!(rect -> move || rect.get().min.x));
+                                let y = create_memo(clone!(rect -> move || rect.get().min.y));
+                                let width = create_memo(clone!(rect -> move || rect.get().width()));
+                                let height = create_memo(clone!(rect -> move || rect.get().height()));
+                                let hoisted = hoisted == Some(leaf);
+                                view! {
+                                    <CanvasItem x={x} y={y} width={width} height={height}>
+                                        <DockPanelView dock tree leaf hoisted />
+                                    </CanvasItem>
+                                }
+                            }}
+                        </ForEach>
+                        <ForEach keys={splits}>
+                            {move |split: SplitId| {
+                                let dock = splitters.clone();
+                                let layout = splitter_layout.clone();
+                                let rect = create_memo(clone!(layout -> move || {
+                                    layout.with(|layout| layout.splitter(split)).map_or(Rect::ZERO, |splitter| {
+                                        splitter.handle.expand2(splitter.direction.axes(HANDLE_REACH, 0.0))
+                                    })
+                                }));
+                                let x = create_memo(clone!(rect -> move || rect.get().min.x));
+                                let y = create_memo(clone!(rect -> move || rect.get().min.y));
+                                let width = create_memo(clone!(rect -> move || rect.get().width()));
+                                let height = create_memo(clone!(rect -> move || rect.get().height()));
+                                view! {
+                                    <CanvasItem x={x} y={y} width={width} height={height}>
+                                        <DockSplitterView dock tree split />
+                                    </CanvasItem>
+                                }
+                            }}
+                        </ForEach>
+                        <Show condition={marked_surface.is_some()}>
+                            <DockDropMarker
+                                dock={marked.clone()}
+                                surface={marked_surface.unwrap_or_else(|| unreachable!())}
+                                origin={pane_origin.clone()}
+                            />
+                        </Show>
+                    </Canvas>
+                }
+            }}
+        </LayoutBuilder>
     }
 }
 

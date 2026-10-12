@@ -9,7 +9,7 @@ pub fn measure(doc: &mut Document, painter: &Painter, id: NodeId, available: Vec
         return Vec2::ZERO;
     }
     doc.note_parent(id);
-    doc.deliver_constraint(id, available);
+    doc.offer_measured_constraint(id, available);
     if !doc.arena.contains(id) {
         return Vec2::ZERO;
     }

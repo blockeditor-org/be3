@@ -4,12 +4,12 @@ use std::rc::Rc;
 pub use beui_core::base::{Align, Direction, ItemSize, Justify, Sizing, Track};
 pub use beui_core::tree::{
     AcceptsSizing, BuildsNode, ListChild, NodeSlot, WithSizing, component_accessibility,
-    component_placed, component_rect, component_size, set_component_state, with_sizing,
+    component_placed, component_rect, set_component_state, with_sizing,
 };
 pub use beui_tree::reactive::*;
 
 use beui_core::document::Document;
-use beui_core::geometry::{Rect, Vec2};
+use beui_core::geometry::Rect;
 use beui_core::node::NodeId;
 
 pub use beui_core::callback::NodeRef;
@@ -45,10 +45,6 @@ pub fn build(f: impl FnOnce() -> NodeId) -> Document {
     let root = enter(&mut document, f);
     document.set_root(root);
     document
-}
-
-pub fn node_size(node: NodeId) -> ReadSignal<Vec2> {
-    with_document(|document| document.watch_size(node))
 }
 
 pub fn node_rect(node: NodeId) -> ReadSignal<Rect> {
@@ -215,6 +211,7 @@ pub use crate::components::frame::Frame;
 pub use crate::components::grid::{Grid, GridCell};
 pub use crate::components::interactive::Interactive;
 pub use crate::components::layers::{Layer, Layers};
+pub use crate::components::layout_builder::LayoutBuilder;
 pub use crate::components::offset::Offset;
 pub use crate::components::overlay::Overlay;
 pub use crate::components::portal::Portal;

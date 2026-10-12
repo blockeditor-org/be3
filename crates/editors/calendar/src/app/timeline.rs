@@ -1,11 +1,11 @@
 use block_editor_beui::be_block::ObjectId;
-use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::TextAlign;
 use block_editor_beui::beui::reactive::{
-    Callback, Canvas, CanvasItem, Direction, ForEach, Frame, Interactive, ItemSize, List, Memo,
-    clone, component, component_size, create_memo, view,
+    Callback, Canvas, CanvasItem, Direction, ForEach, Frame, Interactive, ItemSize, LayoutBuilder,
+    List, Memo, ReadSignal, clone, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::{Body, Caption, ListRow, Scroll, use_theme};
+use block_editor_beui::beui::{NodeId, Vec2};
 use block_ui::datetime::civil_from_days;
 
 use super::model::{
@@ -93,82 +93,95 @@ fn Grid(
     on_pick_slot: Callback<(i64, u8)>,
     on_pick_event: Callback<Shown>,
 ) -> NodeId {
-    let size = component_size();
-    let column_width = create_memo(clone!(size -> move || {
-        ((size.get().x - GUTTER) / days as f32).max(MIN_COLUMN_WIDTH)
-    }));
-    let hours = create_memo(|| (0..=24u8).collect::<Vec<u8>>());
-    let rules = create_memo(move || (0..=days).collect::<Vec<usize>>());
-    let placed = placements(first_day.clone(), days, events, column_width.clone());
-    let keys = create_memo(clone!(placed -> move || {
-        placed.with(|placed| placed.iter().map(|item| item.key).collect::<Vec<_>>())
-    }));
-    let slot = clone!(column_width first_day on_pick_slot -> move |at: block_editor_beui::beui::Pos2| {
-        let x = at.x - GUTTER;
-        if x < 0.0 {
-            return;
-        }
-        let column = (x / column_width.get_untracked()).floor() as i64;
-        let hour = (at.y / HOUR_HEIGHT).floor().clamp(0.0, 23.0) as u8;
-        let day = first_day.get_untracked() + column.min(days as i64 - 1);
-        on_pick_slot.call((day, hour));
-    });
-    let theme = use_theme();
-    let hour_border = theme.border.clone();
-    let rule_border = theme.border.clone();
-    let rule_width = column_width.clone();
     view! {
-        <Frame height=CONTENT_HEIGHT>
-            <Interactive on_click_at={move |press| slot(press.local)}>
-                <Canvas>
-                    <ForEach keys={hours.clone()}>
-                        {move |hour: u8| {
-                            let top = f32::from(hour) * HOUR_HEIGHT;
-                            let color = hour_border.clone();
-                            view! {
-                                <CanvasItem x=0.0 y={top} width=10000.0 height=RULE>
-                                    <Frame color={color} radius=0 />
-                                </CanvasItem>
-                            }
-                        }}
-                    </ForEach>
-                    <ForEach keys={hours}>
-                        {move |hour: u8| {
-                            let top = f32::from(hour) * HOUR_HEIGHT + 2.0;
-                            let label = match hour < 24 {
-                                true => format!("{hour:02}:00"),
-                                false => String::new(),
-                            };
-                            view! {
-                                <CanvasItem x=4.0 y={top} width=GUTTER height=16.0>
-                                    <Caption content={label} />
-                                </CanvasItem>
-                            }
-                        }}
-                    </ForEach>
-                    <ForEach keys={rules}>
-                        {move |index: usize| {
-                            let width = rule_width.clone();
-                            let x = create_memo(move || GUTTER + index as f32 * width.get());
-                            let color = rule_border.clone();
-                            view! {
-                                <CanvasItem x={x} y=0.0 width=RULE height=CONTENT_HEIGHT>
-                                    <Frame color={color} radius=0 />
-                                </CanvasItem>
-                            }
-                        }}
-                    </ForEach>
-                    <ForEach keys={keys}>
-                        {move |key: (ObjectId, i64)| {
-                            let item = item_of(placed.clone(), key);
-                            view! {
-                                <EventBlock item={item} on_pick={forward(on_pick_event.clone())} />
-                            }
-                        }}
-                    </ForEach>
-                </Canvas>
-            </Interactive>
-        </Frame>
+        <LayoutBuilder>
+            {move |size: ReadSignal<Vec2>| {
+                let column_width = create_memo(clone!(size -> move || {
+                    ((size.get().x - GUTTER) / days as f32).max(MIN_COLUMN_WIDTH)
+                }));
+                let hours = create_memo(|| (0..=24u8).collect::<Vec<u8>>());
+                let rules = create_memo(move || (0..=days).collect::<Vec<usize>>());
+                let placed = placements(first_day.clone(), days, events, column_width.clone());
+                let keys = create_memo(clone!(placed -> move || {
+                    placed.with(|placed| placed.iter().map(|item| item.key).collect::<Vec<_>>())
+                }));
+                let slot = clone!(column_width first_day on_pick_slot -> move |at: block_editor_beui::beui::Pos2| {
+                    let x = at.x - GUTTER;
+                    if x < 0.0 {
+                        return;
+                    }
+                    let column = (x / column_width.get_untracked()).floor() as i64;
+                    let hour = (at.y / HOUR_HEIGHT).floor().clamp(0.0, 23.0) as u8;
+                    let day = first_day.get_untracked() + column.min(days as i64 - 1);
+                    on_pick_slot.call((day, hour));
+                });
+                let theme = use_theme();
+                let hour_border = theme.border.clone();
+                let rule_border = theme.border.clone();
+                let rule_width = column_width.clone();
+                view! {
+                    <Frame height=CONTENT_HEIGHT>
+                        <Interactive on_click_at={move |press| slot(press.local)}>
+                            <Canvas>
+                                <ForEach keys={hours.clone()}>
+                                    {move |hour: u8| {
+                                        let top = f32::from(hour) * HOUR_HEIGHT;
+                                        let color = hour_border.clone();
+                                        view! {
+                                            <CanvasItem x=0.0 y={top} width=10000.0 height=RULE>
+                                                <Frame color={color} radius=0 />
+                                            </CanvasItem>
+                                        }
+                                    }}
+                                </ForEach>
+                                <ForEach keys={hours}>
+                                    {move |hour: u8| {
+                                        let top = f32::from(hour) * HOUR_HEIGHT + 2.0;
+                                        let label = match hour < 24 {
+                                            true => format!("{hour:02}:00"),
+                                            false => String::new(),
+                                        };
+                                        view! {
+                                            <CanvasItem x=4.0 y={top} width=GUTTER height=16.0>
+                                                <Caption content={label} />
+                                            </CanvasItem>
+                                        }
+                                    }}
+                                </ForEach>
+                                <ForEach keys={rules}>
+                                    {move |index: usize| {
+                                        let width = rule_width.clone();
+                                        let x = create_memo(move || GUTTER + index as f32 * width.get());
+                                        let color = rule_border.clone();
+                                        view! {
+                                            <CanvasItem
+                                                x={x}
+                                                y=0.0
+                                                width=RULE
+                                                height=CONTENT_HEIGHT
+                                            >
+                                                <Frame color={color} radius=0 />
+                                            </CanvasItem>
+                                        }
+                                    }}
+                                </ForEach>
+                                <ForEach keys={keys}>
+                                    {move |key: (ObjectId, i64)| {
+                                        let item = item_of(placed.clone(), key);
+                                        view! {
+                                            <EventBlock
+                                                item={item}
+                                                on_pick={forward(on_pick_event.clone())}
+                                            />
+                                        }
+                                    }}
+                                </ForEach>
+                            </Canvas>
+                        </Interactive>
+                    </Frame>
+                }
+            }}
+        </LayoutBuilder>
     }
 }
 
