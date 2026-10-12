@@ -28,9 +28,9 @@ which implements `block_app_lib::extension::Extension`. block-app calls the exte
 points of its own frame (`view` while its document is built, for what is drawn over the app -
 here the lock screen; `setup`, `before`, `frame`, `after`, `exiting`; `ends_on_crash`), and
 `block_app_lib::extension` is everything else block-desktop may reach: publishing host values
-and taking host actions, allowing their keys (`allow_value`, `allow_action`), applying the
-display and input settings (`apply_display_with`, `apply_input_with`, while block-app keeps
-syncing their blocks and asking to keep a display mode), drawing a program's window where a
+and taking host actions, allowing their keys (`allow_value`, `allow_action`), reading and
+editing the settings blocks (the `App` handed to `setup` and `frame`, which also keeps their
+startup copy; guides/the_new_block_stack.md), drawing a program's window where a
 plugin places one (`show_windows_with`), and block-app's waking channel, frame clock, toasts and
 panic containment. Anything block-desktop needs from block-app goes there, as a hook block-app
 calls rather than a check for the desktop inside block-app. block-desktop chooses the runner:

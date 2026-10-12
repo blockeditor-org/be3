@@ -804,30 +804,35 @@ worker copies what the source's session shows, or its head when it is not open,
 into the copy's id before anything opens the copy.
 
 The app can read a block itself, not only through an editor: the zoom in
-`sync_ui_settings` comes from the UI settings block's content, and
-`sync_local_settings` hands the input settings block (keymap, key repeat, and
-pointer settings for every pointer with per-device overrides) and the display
-settings block (a mode per monitor, keyed by the monitor's EDID make, model and
-serial, or by its connector when it has no EDID) to whatever applies them
-(`extension::apply_input_with` and `apply_display_with`): block-desktop hands
-them to the `--session` seat's pointers and outputs through
-`beui_adapter_drm::InputControl` and `DisplayControl`, which switches mode live,
-and to its Wayland clients' keyboard. block-app alone applies neither. Every setting is an `Option`, and an unset one means the default:
+`sync_ui_settings` comes from the UI settings block's content. block-desktop
+reads two more through block-app's `extension`: `App::settings_block` names the
+block the account's settings choose for this device (its own, else the account's
+fallback, so a new machine starts from the account's settings) once a workspace
+is open, and `hold`, `content`, `content_revision` and `operate` read and edit
+it. Its `SettingsSync` hands the input settings block (keymap, key repeat, and
+pointer settings for every pointer with per-device overrides) to the `--session`
+seat's pointers through `beui_adapter_drm::InputControl` and to its Wayland
+clients' keyboard, and the display settings block (a mode per monitor, keyed by
+the monitor's EDID make, model and serial, or by its connector when it has no
+EDID) to the seat's outputs through `DisplayControl`, which switches mode live.
+block-app alone applies neither. Every setting is an `Option`, and an unset one means the default:
 libinput's own for a pointer setting, which the seat reports per device and an
 editor reads as the `InputDevices` host value, and for a monitor its preferred
 resolution at the fastest refresh rate it offers there, which the seat reports
 with the monitor's modes and an editor reads as the `Displays` host value
-(guides/adding_a_plugin_editor.md says how host values reach a plugin). Because the seat runs before anyone signs in, the app
-keeps a copy of the last settings of each kind it applied in `app_state` and
-applies that at startup; the block stays the source of truth. A kind of setting
-the app applies itself implements `local_settings::LocalSettings` and is kept by
-a `SettingsSync`; its `apply` answers whether the settings may be saved now.
+(guides/adding_a_plugin_editor.md says how host values reach a plugin). Because the seat runs before anyone signs in, block-desktop
+keeps a copy of the last settings of each kind it applied in block-app's
+`app_state` (`App::cache_copy` and `cached_copy`, keyed by the kind's name) and
+applies that at startup; the block stays the source of truth, and the copy only
+ever holds what the block said. A kind of setting block-desktop applies
+implements its `local_settings::LocalSettings` and is kept by a `SettingsSync`;
+its `apply` answers whether the settings may be saved now.
 Display settings may not until someone keeps them: a change that moves what a
 connected monitor shows, or a monitor started at a fastest rate other than its
-preferred mode that it was never kept at, opens the host's "Keep these display
-settings?" prompt (`styled::KeepChanges`, a card on every screen) in
-`display::guard`. It is the host's because it must work before any shell plugin
-runs. Each change is a round (`Guard::prompt`): another change while asking
+preferred mode that it was never kept at, opens block-desktop's "Keep these display
+settings?" prompt (`styled::KeepChanges`, a card on every screen, drawn in its
+extension's view) from `display::guard`. It is the host's because it must work
+before any shell plugin runs. Each change is a round (`Guard::prompt`): another change while asking
 starts a new round and a full countdown, and an answer counts only for the
 round it was given in. Keep saves, storing a kept default as the monitor's mode;
 Revert, Escape or 15 seconds of the frame clock, which the guard counts itself,

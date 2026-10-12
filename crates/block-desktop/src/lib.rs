@@ -3,6 +3,7 @@
 mod dbus;
 mod display;
 mod input;
+mod local_settings;
 mod lock_screen;
 mod media;
 mod notifications;
@@ -12,19 +13,32 @@ mod session;
 mod tray;
 mod wayland;
 
+use std::cell::RefCell;
 use std::error::Error;
 
-use beui::reactive::{List, WriteSignal, create_signal, view};
+use be_block::{DisplaySettings, InputSettings};
+use beui::reactive::{List, ReadSignal, WriteSignal, create_memo, create_signal, view};
+use beui::styled::KeepChanges;
 use beui::{Context, Document, NodeId, Rect, Setup};
 use block_app_lib::Launch;
-use block_app_lib::extension::{self, Access, Extension, allow_action, allow_value};
+use block_app_lib::extension::{self, Access, App, Extension, allow_action, allow_value};
 use block_plugin_api::{
     Displays, HostWindows, InputDevices, Media, MediaRequest, NotificationReport, Notifications,
     Power, PowerAction, PowerAvailability, ProgramAction, Programs, ScreenLocked, Tray,
     TrayRequest, WindowAction,
 };
 
+use local_settings::SettingsSync;
 use lock_screen::{LockCommand, LockView};
+
+thread_local! {
+    static DISPLAY_ANSWERS: RefCell<Vec<(u64, bool)>> = const { RefCell::new(Vec::new()) };
+}
+
+fn answer_display(round: u64, keep: bool) {
+    DISPLAY_ANSWERS.with(|answers| answers.borrow_mut().push((round, keep)));
+    extension::request_repaint();
+}
 
 pub fn run() -> Result<(), Box<dyn Error>> {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
@@ -85,12 +99,14 @@ struct Desktop {
     programs: programs::Programs,
     windows_sent: Option<u64>,
     lock_view: Option<(LockView, WriteSignal<LockView>)>,
+    input: SettingsSync<InputSettings>,
+    display: SettingsSync<DisplaySettings>,
+    display_round: Option<u64>,
+    keep_display: Option<WriteSignal<Option<u64>>>,
 }
 
 impl Desktop {
     fn new() -> Self {
-        extension::apply_display_with(display::apply);
-        extension::apply_input_with(input::apply);
         Self {
             session: None,
             lock: session::ScreenLock::start(),
@@ -102,6 +118,50 @@ impl Desktop {
             programs: programs::Programs::default(),
             windows_sent: None,
             lock_view: None,
+            input: SettingsSync::default(),
+            display: SettingsSync::default(),
+            display_round: None,
+            keep_display: None,
+        }
+    }
+
+    fn run_settings(&mut self, document: &mut Document, app: &mut App) {
+        self.input.sync(app);
+        self.display.sync(app);
+        for (round, keep) in
+            DISPLAY_ANSWERS.with(|answers| std::mem::take(&mut *answers.borrow_mut()))
+        {
+            let display::Prompt::Asking { round: asked, .. } = display::prompt(extension::now())
+            else {
+                continue;
+            };
+            if asked != round {
+                continue;
+            }
+            let edits = match keep {
+                true => display::keep(),
+                false => display::revert(),
+            };
+            self.display.commit(app, edits);
+        }
+        let now = extension::now();
+        let mut prompt = display::prompt(now);
+        if prompt == display::Prompt::Expired {
+            self.display.commit(app, display::revert());
+            prompt = display::prompt(now);
+        }
+        let round = match prompt {
+            display::Prompt::Asking { round, left } => {
+                extension::request_repaint_after(left);
+                Some(round)
+            }
+            display::Prompt::Settled | display::Prompt::Expired => None,
+        };
+        if round != self.display_round {
+            self.display_round = round;
+            if let Some(set) = self.keep_display.clone() {
+                beui::reactive::with_reactive_scope(document, move || set.set(round));
+            }
         }
     }
 
@@ -243,15 +303,18 @@ impl Extension for Desktop {
         });
         let (lock, set_lock) = create_signal(LockView::default());
         self.lock_view = Some((LockView::default(), set_lock));
+        let (keep_display, set_keep_display) = create_signal(None);
+        self.keep_display = Some(set_keep_display);
         view! {
             <List spacing=0.0>
+                <KeepDisplay round={keep_display} />
                 <lock_screen::SessionLock lock />
                 <wayland::WindowActions />
             </List>
         }
     }
 
-    fn setup(&mut self, setup: &Setup) {
+    fn setup(&mut self, setup: &Setup, app: &mut App) {
         wayland::start(setup);
         input::start(setup);
         if let Some(problems) = setup.get::<beui_adapter_drm::Problems>() {
@@ -262,6 +325,8 @@ impl Extension for Desktop {
             session::export_environment(wayland::environment());
         }
         display::start(setup);
+        self.input.boot(app);
+        self.display.boot(app);
     }
 
     fn renderer_replaced(&mut self, setup: &Setup) {
@@ -272,7 +337,8 @@ impl Extension for Desktop {
         wayland::before(context, rect, document);
     }
 
-    fn frame(&mut self, context: &Context, document: &mut Document) {
+    fn frame(&mut self, context: &Context, document: &mut Document, app: &mut App) {
+        self.run_settings(document, app);
         if let Some(notifications) = &mut self.notifications {
             notifications.frame();
         }
@@ -304,5 +370,27 @@ impl Extension for Desktop {
 
     fn ends_on_crash(&self) -> bool {
         self.session.is_some()
+    }
+}
+
+#[beui::reactive::component]
+fn KeepDisplay(round: ReadSignal<Option<u64>>) -> NodeId {
+    let asking = create_memo({
+        let round = round.clone();
+        move || round.get().is_some()
+    });
+    let shown = create_memo(move || round.get().unwrap_or_default());
+    let keeping = shown.clone();
+    let reverting = shown.clone();
+    view! {
+        <KeepChanges
+            open={asking}
+            title="Keep these display settings?"
+            timeout=display::ANSWER_WITHIN
+            round={shown}
+            id="display.keep"
+            on_keep={move || answer_display(keeping.get_untracked(), true)}
+            on_revert={move || answer_display(reverting.get_untracked(), false)}
+        />
     }
 }

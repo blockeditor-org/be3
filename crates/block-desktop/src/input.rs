@@ -7,6 +7,8 @@ use be_wayland::KeyboardConfig;
 use beui_adapter_drm::{DeviceId, InputConfig, InputControl, PointerConfig, PointerDevice};
 use block_plugin_api::HostInputDevice;
 
+use crate::local_settings::LocalSettings;
+
 thread_local! {
     static CONTROL: RefCell<Option<InputControl>> = const { RefCell::new(None) };
 }
@@ -23,7 +25,16 @@ pub(crate) fn start(setup: &beui::Setup) {
     CONTROL.with(|slot| *slot.borrow_mut() = control);
 }
 
-pub(crate) fn apply(settings: &InputSettings) {
+impl LocalSettings for InputSettings {
+    const NAME: &'static str = "input settings";
+
+    fn apply(&self) -> bool {
+        apply(self);
+        true
+    }
+}
+
+fn apply(settings: &InputSettings) {
     CONTROL.with(|control| {
         if let Some(control) = control.borrow().as_ref() {
             control.set(seat(settings));

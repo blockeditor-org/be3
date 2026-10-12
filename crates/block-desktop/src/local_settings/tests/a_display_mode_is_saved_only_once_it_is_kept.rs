@@ -2,13 +2,13 @@ use super::*;
 
 #[test]
 fn a_display_mode_is_saved_only_once_it_is_kept() {
-    let store = Store::open();
+    let store = Store::default();
     let mut sync = SettingsSync::<DisplaySettings>::default();
-    sync.receive(&store.store, showing(SLOW));
+    sync.receive(&store, showing(SLOW));
     connect_monitor();
     assert!(!display::asking());
 
-    sync.receive(&store.store, showing(FAST));
+    sync.receive(&store, showing(FAST));
     assert!(display::asking(), "the new mode asks to be kept");
     assert_eq!(
         store.saved(),
@@ -16,7 +16,7 @@ fn a_display_mode_is_saved_only_once_it_is_kept() {
         "the new mode is not saved yet"
     );
 
-    sync.commit(&store.store, display::keep());
+    sync.commit(&store, display::keep());
     assert!(!display::asking());
     assert_eq!(store.saved(), Some(showing(FAST)), "keeping saves it");
 }

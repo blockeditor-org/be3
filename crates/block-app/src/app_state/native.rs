@@ -31,12 +31,8 @@ const SCHEMA: &str = "
         key          BLOB NOT NULL,
         PRIMARY KEY (server_key, account_id, workspace_id)
     );
-    CREATE TABLE input_settings (
-        id      INTEGER PRIMARY KEY CHECK (id = 0),
-        content BLOB NOT NULL
-    );
-    CREATE TABLE display_settings (
-        id      INTEGER PRIMARY KEY CHECK (id = 0),
+    CREATE TABLE cached_copies (
+        key     TEXT PRIMARY KEY,
         content BLOB NOT NULL
     );
 ";
@@ -298,36 +294,23 @@ impl AppStateStore {
         Ok(id)
     }
 
-    pub fn input_settings(&self) -> Result<Option<Vec<u8>>, AppStateError> {
+    pub fn cached_copy(&self, key: &str) -> Result<Option<Vec<u8>>, AppStateError> {
         let content = self
             .connection
-            .query_row("SELECT content FROM input_settings", [], |row| row.get(0))
+            .query_row(
+                "SELECT content FROM cached_copies WHERE key = ?1",
+                params![key],
+                |row| row.get(0),
+            )
             .optional()?;
         Ok(content)
     }
 
-    pub fn set_input_settings(&self, content: &[u8]) -> Result<(), AppStateError> {
+    pub fn cache_copy(&self, key: &str, content: &[u8]) -> Result<(), AppStateError> {
         self.connection.execute(
-            "INSERT INTO input_settings (id, content) VALUES (0, ?1)
-             ON CONFLICT(id) DO UPDATE SET content = excluded.content",
-            params![content],
-        )?;
-        Ok(())
-    }
-
-    pub fn display_settings(&self) -> Result<Option<Vec<u8>>, AppStateError> {
-        let content = self
-            .connection
-            .query_row("SELECT content FROM display_settings", [], |row| row.get(0))
-            .optional()?;
-        Ok(content)
-    }
-
-    pub fn set_display_settings(&self, content: &[u8]) -> Result<(), AppStateError> {
-        self.connection.execute(
-            "INSERT INTO display_settings (id, content) VALUES (0, ?1)
-             ON CONFLICT(id) DO UPDATE SET content = excluded.content",
-            params![content],
+            "INSERT INTO cached_copies (key, content) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET content = excluded.content",
+            params![key, content],
         )?;
         Ok(())
     }

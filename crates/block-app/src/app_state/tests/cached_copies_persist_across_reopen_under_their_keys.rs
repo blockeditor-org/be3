@@ -1,23 +1,23 @@
 use super::*;
 
 #[test]
-fn display_settings_persist_across_reopen() {
+fn cached_copies_persist_across_reopen_under_their_keys() {
     let path = std::env::temp_dir().join(format!("block-app-state-{}.sqlite3", Uuid::new_v4()));
     let content = vec![4, 5, 6, 0, 255];
     {
         let store = AppStateStore::open(&path).unwrap();
-        assert_eq!(store.display_settings().unwrap(), None);
-        store.set_display_settings(&content).unwrap();
-        store.set_display_settings(&content[1..]).unwrap();
+        assert_eq!(store.cached_copy("display settings").unwrap(), None);
+        store.cache_copy("display settings", &content).unwrap();
+        store.cache_copy("display settings", &content[1..]).unwrap();
         assert_eq!(
-            store.input_settings().unwrap(),
+            store.cached_copy("input settings").unwrap(),
             None,
-            "display and input settings are kept apart"
+            "each key is kept apart"
         );
     }
     let store = AppStateStore::open(&path).unwrap();
     assert_eq!(
-        store.display_settings().unwrap(),
+        store.cached_copy("display settings").unwrap(),
         Some(content[1..].to_vec())
     );
     drop(store);

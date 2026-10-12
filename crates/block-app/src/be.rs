@@ -446,7 +446,7 @@ pub(crate) fn close(block: Uuid) {
     }
 }
 
-pub(crate) fn hold(block: Uuid, content_type: Uuid) {
+pub fn hold(block: Uuid, content_type: Uuid) {
     if !is_known(content_type) {
         return;
     }
@@ -509,7 +509,7 @@ pub(crate) fn is_versioned(content_type: Uuid) -> bool {
         || content_type == <be_block::Repository as be_block::Root>::CONTENT_TYPE
 }
 
-pub(crate) fn operate(block: Uuid, operation: Vec<u8>) {
+pub fn operate(block: Uuid, operation: Vec<u8>) {
     send(Command::Operate(block, None, operation));
 }
 
@@ -598,7 +598,7 @@ pub(crate) fn content(block: Uuid) -> Option<Content> {
     with_shared(|shared| shared.blocks.get(&block).cloned())?
 }
 
-pub(crate) fn content_revision(block: Uuid) -> Option<u64> {
+pub fn content_revision(block: Uuid) -> Option<u64> {
     with_shared(|shared| shared.blocks.get(&block).map(|content| content.revision))?
 }
 

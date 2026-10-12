@@ -1,4 +1,5 @@
-use std::path::PathBuf;
+use std::cell::RefCell;
+use std::collections::HashMap;
 
 use be_block::DisplaySettings;
 use be_block::display_settings::DisplayMode;
@@ -22,32 +23,34 @@ const FAST: DisplayMode = DisplayMode {
     refresh_millihertz: 143_998,
 };
 
+#[derive(Default)]
 struct Store {
-    path: PathBuf,
-    store: AppStateStore,
+    copies: RefCell<HashMap<String, Vec<u8>>>,
+}
+
+impl Cache for Store {
+    fn cached_copy(&self, key: &str) -> Result<Option<Vec<u8>>, String> {
+        Ok(self.copies.borrow().get(key).cloned())
+    }
+
+    fn cache_copy(&self, key: &str, content: &[u8]) -> Result<(), String> {
+        self.copies
+            .borrow_mut()
+            .insert(key.to_owned(), content.to_vec());
+        Ok(())
+    }
 }
 
 impl Store {
-    fn open() -> Self {
-        let path =
-            std::env::temp_dir().join(format!("block-app-settings-{}.sqlite3", Uuid::new_v4()));
-        let store = AppStateStore::open(&path).expect("the app state opens");
-        Self { path, store }
-    }
-
     fn saved(&self) -> Option<DisplaySettings> {
-        let content = self.store.display_settings().expect("the store reads")?;
+        let content = self
+            .cached_copy(DisplaySettings::NAME)
+            .expect("the copy reads")?;
         Some(
             Document::<DisplaySettings>::decode(&content)
                 .expect("the saved settings decode")
                 .root(),
         )
-    }
-}
-
-impl Drop for Store {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.path);
     }
 }
 

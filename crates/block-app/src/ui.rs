@@ -7,10 +7,8 @@ mod workspace;
 use std::cell::RefCell;
 
 use be_protocol::WorkspaceRole;
-use beui::reactive::{
-    Child, Dynamic, Frame, List, NodeRef, Store, clone, component, copy_text, create_memo, view,
-};
-use beui::styled::{KeepChanges, Toast, Toasts, use_theme};
+use beui::reactive::{Child, Dynamic, Frame, List, NodeRef, Store, component, copy_text, view};
+use beui::styled::{Toast, Toasts, use_theme};
 use beui::unstyled::Edge;
 use beui::{ItemSize, NodeId};
 use block_plugin_api::HostPanel;
@@ -206,7 +204,6 @@ pub(crate) struct AppView {
     pub(crate) presenting: bool,
     pub(crate) debug: DebugView,
     pub(crate) toasts: Vec<Toast>,
-    pub(crate) keep_display: Option<u64>,
 }
 
 #[derive(Clone, Debug)]
@@ -257,8 +254,6 @@ pub(crate) enum UiCommand {
     ApprovePairing(u64, String),
     DismissPairing(u64),
     DismissToast(u64),
-    KeepDisplay(u64),
-    RevertDisplay(u64),
 }
 
 #[component]
@@ -266,11 +261,6 @@ pub(crate) fn Root(view: AppViewStore, children: Child) -> NodeId {
     let theme = use_theme();
     let screen = view.screen.clone();
     let toasts = view.toasts.clone();
-    let keep_display = view.keep_display.clone();
-    let asking = create_memo(clone!(keep_display -> move || keep_display.get().is_some()));
-    let round = create_memo(move || keep_display.get().unwrap_or_default());
-    let keeping = round.clone();
-    let reverting = round.clone();
     let area = NodeRef::new();
     view! {
         <Frame @node_ref=&area color={theme.background.clone()}>
@@ -318,15 +308,6 @@ pub(crate) fn Root(view: AppViewStore, children: Child) -> NodeId {
                             copy_text(report);
                         }
                     }}
-                />
-                <KeepChanges
-                    open={asking}
-                    title="Keep these display settings?"
-                    timeout=crate::display::ANSWER_WITHIN
-                    round={round}
-                    id="display.keep"
-                    on_keep={move || send(UiCommand::KeepDisplay(keeping.get_untracked()))}
-                    on_revert={move || send(UiCommand::RevertDisplay(reverting.get_untracked()))}
                 />
                 {children}
             </List>

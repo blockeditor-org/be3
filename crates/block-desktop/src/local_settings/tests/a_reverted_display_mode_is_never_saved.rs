@@ -2,15 +2,15 @@ use super::*;
 
 #[test]
 fn a_reverted_display_mode_is_never_saved() {
-    let store = Store::open();
+    let store = Store::default();
     let mut sync = SettingsSync::<DisplaySettings>::default();
-    sync.receive(&store.store, showing(SLOW));
+    sync.receive(&store, showing(SLOW));
     connect_monitor();
 
-    sync.receive(&store.store, showing(FAST));
+    sync.receive(&store, showing(FAST));
     assert!(display::asking());
 
-    sync.commit(&store.store, display::revert());
+    sync.commit(&store, display::revert());
     assert!(!display::asking());
     assert_eq!(store.saved(), Some(showing(SLOW)));
     assert_eq!(

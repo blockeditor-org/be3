@@ -1,12 +1,12 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use be_block::{DisplaySettings, InputSettings};
 use beui::reactive::{Frame, Memo, component, create_memo, view};
 use beui::{Context, Document, NodeId, Rect, Setup};
 use block_plugin_api::HostWindowId;
+use uuid::Uuid;
 
-pub use crate::display::{Screen, set_screens};
+pub use crate::be::{content_revision, hold, operate};
 pub use crate::host::{
     WakingSender, now, request_repaint, request_repaint_after, wake, waking_channel,
 };
@@ -16,16 +16,50 @@ pub use crate::platform::utc_offset;
 pub use crate::plugin_host::{Access, allow_action, allow_value, publish, take_actions, watched};
 pub use crate::{APP_ID, commit};
 
+pub fn content(block: Uuid) -> Option<Vec<u8>> {
+    crate::be::content(block).map(|content| content.bytes)
+}
+
+pub struct App<'a> {
+    app: &'a mut crate::BlockApp,
+}
+
+impl<'a> App<'a> {
+    pub(crate) fn new(app: &'a mut crate::BlockApp) -> Self {
+        Self { app }
+    }
+
+    pub fn settings_block(&mut self, content_type: Uuid) -> Option<Uuid> {
+        self.app.settings_block(content_type)
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn cached_copy(&self, key: &str) -> Result<Option<Vec<u8>>, String> {
+        self.app
+            .app_state
+            .cached_copy(key)
+            .map_err(|error| error.to_string())
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn cache_copy(&self, key: &str, content: &[u8]) -> Result<(), String> {
+        self.app
+            .app_state
+            .cache_copy(key, content)
+            .map_err(|error| error.to_string())
+    }
+}
+
 pub trait Extension {
     fn view(&mut self) -> NodeId;
 
-    fn setup(&mut self, _setup: &Setup) {}
+    fn setup(&mut self, _setup: &Setup, _app: &mut App) {}
 
     fn renderer_replaced(&mut self, _setup: &Setup) {}
 
     fn before(&mut self, _context: &Context, _rect: Rect, _document: &mut Document) {}
 
-    fn frame(&mut self, _context: &Context, _document: &mut Document) {}
+    fn frame(&mut self, _context: &Context, _document: &mut Document, _app: &mut App) {}
 
     fn after(&mut self, _context: &Context, _document: &mut Document) {}
 
@@ -47,13 +81,10 @@ impl Extension for NoExtension {
 }
 
 type WindowView = Rc<dyn Fn(HostWindowId, Memo<Vec<Rect>>) -> NodeId>;
-type Apply<T> = Rc<dyn Fn(&T)>;
 
 #[derive(Default)]
 struct Hooks {
     window: Option<WindowView>,
-    display: Option<Apply<DisplaySettings>>,
-    input: Option<Apply<InputSettings>>,
 }
 
 thread_local! {
@@ -62,26 +93,6 @@ thread_local! {
 
 pub fn show_windows_with(view: impl Fn(HostWindowId, Memo<Vec<Rect>>) -> NodeId + 'static) {
     HOOKS.with(|hooks| hooks.borrow_mut().window = Some(Rc::new(view)));
-}
-
-pub fn apply_display_with(apply: impl Fn(&DisplaySettings) + 'static) {
-    HOOKS.with(|hooks| hooks.borrow_mut().display = Some(Rc::new(apply)));
-}
-
-pub fn apply_input_with(apply: impl Fn(&InputSettings) + 'static) {
-    HOOKS.with(|hooks| hooks.borrow_mut().input = Some(Rc::new(apply)));
-}
-
-pub(crate) fn apply_display(settings: &DisplaySettings) {
-    if let Some(apply) = HOOKS.with(|hooks| hooks.borrow().display.clone()) {
-        apply(settings);
-    }
-}
-
-pub(crate) fn apply_input(settings: &InputSettings) {
-    if let Some(apply) = HOOKS.with(|hooks| hooks.borrow().input.clone()) {
-        apply(settings);
-    }
 }
 
 pub fn close_app_menu() {

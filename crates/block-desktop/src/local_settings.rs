@@ -1,19 +1,29 @@
 use be_block::be_model::{Document, Edit};
-use be_block::settings::Settings;
 use be_block::{BlockContent, LiveEdit, Root};
 use uuid::Uuid;
 
-use crate::app_state::{AppStateError, AppStateStore};
-use crate::be;
+use block_app_lib::extension::{self, App};
 
 pub(crate) trait LocalSettings: Root + Clone + Default + PartialEq {
     const NAME: &'static str;
 
-    fn load(store: &AppStateStore) -> Result<Option<Vec<u8>>, AppStateError>;
-
-    fn save(store: &AppStateStore, content: &[u8]) -> Result<(), AppStateError>;
-
     fn apply(&self) -> bool;
+}
+
+pub(crate) trait Cache {
+    fn cached_copy(&self, key: &str) -> Result<Option<Vec<u8>>, String>;
+
+    fn cache_copy(&self, key: &str, content: &[u8]) -> Result<(), String>;
+}
+
+impl Cache for App<'_> {
+    fn cached_copy(&self, key: &str) -> Result<Option<Vec<u8>>, String> {
+        App::cached_copy(self, key)
+    }
+
+    fn cache_copy(&self, key: &str, content: &[u8]) -> Result<(), String> {
+        App::cache_copy(self, key, content)
+    }
 }
 
 pub(crate) struct SettingsSync<R> {
@@ -90,36 +100,23 @@ impl<R> Default for SettingsSync<R> {
 }
 
 impl<R: LocalSettings> SettingsSync<R> {
-    pub(crate) fn boot(&mut self, store: &AppStateStore) {
+    pub(crate) fn boot(&mut self, cache: &impl Cache) {
         let name = R::NAME;
-        match R::load(store) {
+        match cache.cached_copy(name) {
             Ok(Some(content)) => match Document::<R>::decode(&content) {
                 Ok(content) => {
                     let settings = content.root();
                     settings.apply();
                     self.applied = Some(settings);
                 }
-                Err(error) => eprintln!("block-app: the saved {name} are unreadable: {error}"),
+                Err(error) => eprintln!("block-desktop: the saved {name} are unreadable: {error}"),
             },
             Ok(None) => {}
-            Err(error) => eprintln!("block-app: the saved {name} were not read: {error}"),
+            Err(error) => eprintln!("block-desktop: the saved {name} were not read: {error}"),
         }
     }
 
-    pub(crate) fn block(&self) -> Option<Uuid> {
-        self.block
-    }
-
-    pub(crate) fn resolve(&mut self, settings: &Settings, client_id: Uuid) {
-        if self.block.is_none() {
-            let block = settings.resolve(R::CONTENT_TYPE, client_id);
-            if block.is_some() {
-                self.set_block(block);
-            }
-        }
-    }
-
-    pub(crate) fn set_block(&mut self, block: Option<Uuid>) {
+    fn set_block(&mut self, block: Option<Uuid>) {
         if self.block.is_some() && self.block != block {
             self.outbox.clear();
         }
@@ -127,12 +124,16 @@ impl<R: LocalSettings> SettingsSync<R> {
         self.seen = None;
     }
 
-    pub(crate) fn sync(&mut self, store: &AppStateStore) {
-        let Some(block) = self.block else {
+    pub(crate) fn sync(&mut self, app: &mut App) {
+        let block = app.settings_block(R::CONTENT_TYPE);
+        if block != self.block {
+            self.set_block(block);
+        }
+        let Some(block) = block else {
             return;
         };
-        be::hold(block, R::CONTENT_TYPE);
-        let Some(revision) = be::content_revision(block) else {
+        extension::hold(block, R::CONTENT_TYPE);
+        let Some(revision) = extension::content_revision(block) else {
             return;
         };
         Self::write(block, self.outbox.send(revision));
@@ -140,33 +141,33 @@ impl<R: LocalSettings> SettingsSync<R> {
             return;
         }
         let Some(content) =
-            be::content(block).and_then(|content| Document::<R>::decode(&content.bytes).ok())
+            extension::content(block).and_then(|content| Document::<R>::decode(&content).ok())
         else {
             return;
         };
         self.seen = Some((block, revision));
         let (settings, resend) = self.outbox.overlay(revision, content.root());
         Self::write(block, resend);
-        self.receive(store, settings);
+        self.receive(&*app, settings);
     }
 
-    fn receive(&mut self, store: &AppStateStore, settings: R) {
+    fn receive(&mut self, cache: &impl Cache, settings: R) {
         if self.applied.as_ref() == Some(&settings) {
             return;
         }
         if settings.apply() {
-            self.save(store, &settings);
+            self.save(cache, &settings);
         }
         self.applied = Some(settings);
     }
 
-    pub(crate) fn commit(&mut self, store: &AppStateStore, edits: Vec<Edit>) {
+    pub(crate) fn commit(&mut self, cache: &impl Cache, edits: Vec<Edit>) {
         let settings = edited(&self.applied.clone().unwrap_or_default(), &edits);
-        self.save(store, &settings);
+        self.save(cache, &settings);
         self.applied = Some(settings);
         self.outbox.queue(edits);
         if let Some(block) = self.block
-            && let Some(revision) = be::content_revision(block)
+            && let Some(revision) = extension::content_revision(block)
         {
             Self::write(block, self.outbox.send(revision));
         }
@@ -174,14 +175,14 @@ impl<R: LocalSettings> SettingsSync<R> {
 
     fn write(block: Uuid, edits: Vec<Edit>) {
         for edit in edits {
-            be::operate(block, Document::<R>::encode_operation(&edit));
+            extension::operate(block, Document::<R>::encode_operation(&edit));
         }
     }
 
-    fn save(&self, store: &AppStateStore, settings: &R) {
-        if let Err(error) = R::save(store, &Document::new(settings).encode()) {
+    fn save(&self, cache: &impl Cache, settings: &R) {
+        if let Err(error) = cache.cache_copy(R::NAME, &Document::new(settings).encode()) {
             eprintln!(
-                "block-app: the {} were not saved on this device: {error}",
+                "block-desktop: the {} were not saved on this device: {error}",
                 R::NAME
             );
         }

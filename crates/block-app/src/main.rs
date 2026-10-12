@@ -4,13 +4,10 @@ mod be;
 mod block_label;
 mod compositor;
 mod debug;
-mod display;
 mod editors;
 pub mod extension;
 mod host;
-mod input;
 mod keys;
-mod local_settings;
 mod notices;
 mod panic_guard;
 mod performance;
@@ -36,7 +33,7 @@ use std::{
 
 use accounts::{AccountError, Session};
 use app_state::{AppStateStore, SavedAccount, ServerLocation};
-use be_block::{BlockContent, DisplaySettings, InputSettings, UiSettingsContent, WORKSPACE_EDITOR};
+use be_block::{BlockContent, UiSettingsContent, WORKSPACE_EDITOR};
 use be_graph::{Access, BlockParent};
 use be_protocol::{Workspace, WorkspaceInvitation, WorkspaceRole};
 use beui::Document;
@@ -47,7 +44,6 @@ use editors::{
     ArtifactSession, ArtifactStatus, EditorAction, EditorRegistry, PluginEditor, SidebarDragSource,
     plugin::PickSource,
 };
-use local_settings::SettingsSync;
 use root_settings::RootSettings;
 use surfaces::SurfaceId;
 use ui::{AccountForm, AppView, AppViewStore, ErrorAction, UiCommand};
@@ -247,9 +243,8 @@ impl beui::App for Shell {
     fn setup(&mut self, setup: &beui::Setup) {
         host::install_waker(setup.waker.clone());
         plugin_host::install(setup);
-        self.extension.setup(setup);
-        self.app.input.boot(&self.app.app_state);
-        self.app.display.boot(&self.app.app_state);
+        self.extension
+            .setup(setup, &mut extension::App::new(&mut self.app));
         #[cfg(all(
             feature = "web-view",
             not(target_os = "android"),
@@ -271,7 +266,11 @@ impl beui::App for Shell {
         self.extension.before(context, rect, &mut self.document);
         self.app.ends_on_crash = self.extension.ends_on_crash();
         self.app.frame(context);
-        self.extension.frame(context, &mut self.document);
+        self.extension.frame(
+            context,
+            &mut self.document,
+            &mut extension::App::new(&mut self.app),
+        );
         if let Some(open) = self.app.inspector_requested.take()
             && open
         {
@@ -360,9 +359,7 @@ struct BlockApp {
     focus_reports: HashMap<Uuid, editors::FocusReport>,
     artifact_watches: HashMap<Uuid, Vec<Uuid>>,
     ui_settings: Option<Uuid>,
-    input: SettingsSync<InputSettings>,
-    display: SettingsSync<DisplaySettings>,
-    display_round: Option<u64>,
+    settings_blocks: HashMap<Uuid, Uuid>,
     block_types: HashMap<Uuid, Uuid>,
     registry: Rc<EditorRegistry>,
     editors: compositor::Editors,
@@ -564,9 +561,7 @@ impl BlockApp {
             artifact_watches: HashMap::new(),
             next_pick: 0,
             ui_settings: None,
-            input: SettingsSync::default(),
-            display: SettingsSync::default(),
-            display_round: None,
+            settings_blocks: HashMap::new(),
             block_types: HashMap::new(),
             registry,
             editors,
@@ -981,8 +976,7 @@ impl BlockApp {
         self.choosing_profile = false;
         self.shell = None;
         self.ui_settings = None;
-        self.input.set_block(None);
-        self.display.set_block(None);
+        self.settings_blocks.clear();
         self.keys.cancel_pairing();
         self.workspace_key = match self.app_state.workspace_key(&self.account, workspace.id) {
             Ok(key) => key,
@@ -1086,8 +1080,7 @@ impl BlockApp {
         self.choosing_profile = false;
         self.shell = None;
         self.ui_settings = None;
-        self.input.set_block(None);
-        self.display.set_block(None);
+        self.settings_blocks.clear();
         self.keys = keys::KeyState::default();
         self.workspace_key = None;
         self.account = account;
@@ -1862,38 +1855,6 @@ impl BlockApp {
                 );
             }
         }
-        self.run_display_prompt();
-    }
-
-    fn run_display_prompt(&mut self) {
-        let now = host::now();
-        let mut prompt = display::prompt(now);
-        if prompt == display::Prompt::Expired {
-            self.display.commit(&self.app_state, display::revert());
-            prompt = display::prompt(now);
-        }
-        self.display_round = match prompt {
-            display::Prompt::Asking { round, left } => {
-                host::request_repaint_after(left);
-                Some(round)
-            }
-            display::Prompt::Settled | display::Prompt::Expired => None,
-        };
-    }
-
-    fn answer_display(&mut self, round: u64, keep: bool) {
-        let display::Prompt::Asking { round: asked, .. } = display::prompt(host::now()) else {
-            return;
-        };
-        if asked != round {
-            return;
-        }
-        let edits = match keep {
-            true => display::keep(),
-            false => display::revert(),
-        };
-        self.display.commit(&self.app_state, edits);
-        self.display_round = None;
     }
 
     fn crashed(&mut self, report: String) {
@@ -1959,7 +1920,6 @@ impl BlockApp {
             return;
         }
         self.sync_ui_settings(context);
-        self.sync_local_settings();
         self.sync_be_stack();
         self.poll_workspace_request();
         self.poll_reauth_request();
@@ -2009,16 +1969,24 @@ impl BlockApp {
         });
     }
 
-    fn sync_local_settings(&mut self) {
-        if self.input.block().is_none() || self.display.block().is_none() {
-            let settings = self.root_settings.find().and_then(root_settings::settings);
-            if let Some(settings) = settings {
-                self.input.resolve(&settings, self.client_id);
-                self.display.resolve(&settings, self.client_id);
-            }
+    fn settings_block(&mut self, content_type: Uuid) -> Option<Uuid> {
+        if self.error.is_some()
+            || !self.signed_in
+            || self.workspace.is_none()
+            || self.workspace_key.is_none()
+        {
+            return None;
         }
-        self.input.sync(&self.app_state);
-        self.display.sync(&self.app_state);
+        if let Some(block) = self.settings_blocks.get(&content_type) {
+            return Some(*block);
+        }
+        let settings = self
+            .root_settings
+            .find()
+            .and_then(root_settings::settings)?;
+        let block = settings.resolve(content_type, self.client_id)?;
+        self.settings_blocks.insert(content_type, block);
+        Some(block)
     }
 
     fn sync_ui_settings(&mut self, context: &beui::Context) {
@@ -2169,8 +2137,6 @@ impl BlockApp {
             UiCommand::About(open) => self.about_open = open,
             UiCommand::AppMenu(open) => self.app_menu_open = open,
             UiCommand::DismissToast(id) => notices::dismiss(id),
-            UiCommand::KeepDisplay(round) => self.answer_display(round, true),
-            UiCommand::RevertDisplay(round) => self.answer_display(round, false),
             UiCommand::SendInvite(email, role) => {
                 if let Some(workspace) = &self.workspace
                     && !email.trim().is_empty()
@@ -2352,7 +2318,6 @@ impl BlockApp {
                 .with(|open| open.values().any(PluginEditor::presenting_now)),
             debug: debug::view(),
             toasts: notices::shown(),
-            keep_display: self.display_round,
         }
     }
 

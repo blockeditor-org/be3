@@ -1,14 +1,63 @@
 use std::cell::RefCell;
+use std::time::Duration;
 
 use be_block::DisplaySettings;
+use be_block::be_model::Edit;
 use be_block::display_settings::DisplayMode as SavedMode;
 use beui_adapter_drm::{DisplayConfig, DisplayControl, DisplayMode, Monitor};
 use block_plugin_api::{HostDisplay, HostDisplayMode};
 
-use block_app_lib::extension::Screen;
+use crate::local_settings::LocalSettings;
+
+mod guard;
+
+use guard::Guard;
+pub(crate) use guard::{ANSWER_WITHIN, Prompt, Screen};
 
 thread_local! {
     static CONTROL: RefCell<Option<DisplayControl>> = const { RefCell::new(None) };
+    static GUARD: RefCell<Guard> = RefCell::new(Guard::default());
+}
+
+pub(crate) fn set_screens(screens: Vec<Screen>) {
+    GUARD.with(|guard| guard.borrow_mut().set_screens(screens));
+}
+
+#[cfg(test)]
+pub(crate) fn asking() -> bool {
+    GUARD.with(|guard| guard.borrow().asking())
+}
+
+pub(crate) fn prompt(now: Duration) -> Prompt {
+    GUARD.with(|guard| guard.borrow_mut().prompt(now))
+}
+
+pub(crate) fn keep() -> Vec<Edit> {
+    settle(Guard::keep)
+}
+
+pub(crate) fn revert() -> Vec<Edit> {
+    settle(Guard::revert)
+}
+
+fn settle(answer: impl FnOnce(&mut Guard) -> Vec<Edit>) -> Vec<Edit> {
+    let (edits, applied) = GUARD.with(|guard| {
+        let mut guard = guard.borrow_mut();
+        let edits = answer(&mut guard);
+        (edits, guard.applied().clone())
+    });
+    apply(&applied);
+    edits
+}
+
+impl LocalSettings for DisplaySettings {
+    const NAME: &'static str = "display settings";
+
+    fn apply(&self) -> bool {
+        let settled = GUARD.with(|guard| guard.borrow_mut().take(self.clone()));
+        apply(self);
+        settled
+    }
 }
 
 pub(crate) fn start(setup: &beui::Setup) {
@@ -18,7 +67,7 @@ pub(crate) fn start(setup: &beui::Setup) {
             block_app_lib::extension::publish::<block_plugin_api::Displays>(
                 &monitors.iter().map(host_display).collect(),
             );
-            block_app_lib::extension::set_screens(monitors.iter().map(screen).collect());
+            set_screens(monitors.iter().map(screen).collect());
             block_app_lib::extension::wake();
         });
     }
@@ -30,7 +79,7 @@ pub(crate) fn stop() {
     drop(control);
 }
 
-pub(crate) fn apply(settings: &DisplaySettings) {
+fn apply(settings: &DisplaySettings) {
     CONTROL.with(|control| {
         if let Some(control) = control.borrow().as_ref() {
             control.set(config(settings));
