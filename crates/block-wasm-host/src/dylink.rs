@@ -299,8 +299,12 @@ pub(crate) fn instantiate<T>(
         .map_err(|error| format!("the plugin could not be instantiated: {error}"))?;
     for (name, entry) in own {
         let offset = exported_i32(&instance, store, &name, "plugin")?;
+        let address = layout
+            .memory_base
+            .checked_add_signed(offset)
+            .ok_or_else(|| format!("{name} lies past a 32-bit address space"))?;
         entry
-            .set(&mut *store, Val::I32(layout.memory_base as i32 + offset))
+            .set(&mut *store, Val::I32(address as i32))
             .map_err(|error| format!("{name} could not be relocated: {error}"))?;
     }
     for (slot, name) in &layout.plugin_slots {
@@ -338,8 +342,11 @@ pub(crate) fn place_thread_locals<T>(
 ) -> Result<(), String> {
     let start = layout.reserve;
     if layout.tls_size > start {
-        let image = crate::state::read(memory, layout.image + start, layout.tls_size - start)?;
-        write(memory, base + start, &image)?;
+        let overflow = || "the plugin's thread-locals lie past a 32-bit address space".to_owned();
+        let from = layout.image.checked_add(start).ok_or_else(overflow)?;
+        let to = base.checked_add(start).ok_or_else(overflow)?;
+        let image = crate::state::read(memory, from, layout.tls_size - start)?;
+        write(memory, to, &image)?;
     }
     plugin
         .get_global(&mut *store, TLS_BASE)
@@ -356,6 +363,9 @@ pub(crate) fn spawned_thread_locals(
     memory: &SharedMemory,
     start_argument: i32,
 ) -> Result<u32, String> {
-    let bytes = crate::state::read(memory, start_argument as u32 + START_ARGUMENT_TLS, 4)?;
+    let at = (start_argument as u32)
+        .checked_add(START_ARGUMENT_TLS)
+        .ok_or("a spawned thread's start argument lies past a 32-bit address space")?;
+    let bytes = crate::state::read(memory, at, 4)?;
     Ok(u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
 }
