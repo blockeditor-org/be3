@@ -32,7 +32,7 @@ Commands (builds run on the build server; see guides/buck2.md and guides/build_s
 - `./scripts/buck run //crates/block-app:smoke`: a bounded launch test; run it for changes that could affect native startup.
 - `./scripts/buck build //crates/block-app:web`: for web-specific changes; `./scripts/buck run //crates/block-app:web-serve` serves it on http://127.0.0.1:8080 (guides/running/web.md).
 - `./scripts/buck run //crates/block-app:android`: for Android-specific changes; builds the APK (guides/running/android.md).
-- `./scripts/be BE-7K3Q2M`: read or change a tracker row (guides/tracker.md); needs `.tracker-credentials`.
+- `./scripts/be BE-7K3Q2M`: read or change a tracker row (guides/tracker.md); needs `external/.tracker-credentials`, which `./scripts/setup` fetches.
 
 Do:
 - Use commit messages of the form `type: message`, ending with a Co-Authored-By line naming your model.

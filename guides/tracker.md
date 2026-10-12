@@ -11,7 +11,9 @@ Run it as `./scripts/be ARGS`; `./scripts/be help` lists everything. That
 script runs the `be` release pinned in `scripts/internal/common.sh`, with a
 `build-id` file beside it naming the server's build, so the server refuses it
 once it is deployed from another build and the pin has to move with it. It reads the agent's credentials from
-`.tracker-credentials` at the root of the checkout, which git ignores, and
+`external/.tracker-credentials`, which git ignores and `./scripts/setup`
+fetches from `https://blocks.pfg.pw/authorized-storage/tracker-credentials`
+(behind the gateway, so only where the proxy adds its header), and
 passes them to `be` as the `BE3_*` variables:
 
 ```text
@@ -110,7 +112,7 @@ them in the handoff.
   `BE3_TRACKER_TOKEN`, `BE3_TRACKER_RECOVERY_PHRASE` and (for a gateway)
   `BE3_TRACKER_AUTHORIZATION` secrets and the
   `BE3_SERVER`, `BE3_WORKSPACE` and status variables, writes them to
-  `.tracker-credentials` and runs `./scripts/be` from the default branch.
+  `external/.tracker-credentials` and runs `./scripts/be` from the default branch.
 - **Releases.** `./scripts/deploy` (guides/hosting.md) uploads `be` with the
   server it deploys and pins it in `scripts/internal/common.sh`.
 - **Proxies.** `be-client` tunnels `https` and `wss` through `HTTPS_PROXY` and

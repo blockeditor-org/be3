@@ -103,6 +103,21 @@ else
     echo 'No be release is pinned yet, so ./scripts/be is not installed.'
 fi
 
+# Its credentials, from behind the server's gateway: a cloud environment's proxy
+# adds the header the gateway wants, and anywhere else they come by hand.
+credentials="$repository/external/.tracker-credentials"
+if [[ ! -s "$credentials" ]]; then
+    mkdir -p "$(dirname "$credentials")"
+    if (umask 077 && curl -sSf --max-time 30 -o "$credentials.partial" \
+        https://blocks.pfg.pw/authorized-storage/tracker-credentials); then
+        mv -f "$credentials.partial" "$credentials"
+        echo "Fetched the tracker's credentials into $credentials."
+    else
+        rm -f "$credentials.partial"
+        echo "Could not fetch the tracker's credentials; ./scripts/be needs them in $credentials."
+    fi
+fi
+
 end_step
 echo ''
 echo 'Setup finished. The first time ./scripts/buck runs, it asks which build server'

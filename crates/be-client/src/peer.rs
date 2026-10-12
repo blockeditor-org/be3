@@ -18,6 +18,7 @@ use uuid::Uuid;
 
 use crate::{ClientError, connection::Connection};
 
+#[derive(Clone)]
 pub enum Credentials {
     Register {
         email: String,
@@ -119,11 +120,21 @@ impl<S: ObjectStore> Peer<S> {
     pub async fn connect(config: PeerConfig, store: S) -> Result<Self, ClientError> {
         let connection = Connection::connect(&config.url).await?;
         let response = connection
-            .request(|request| config.credentials.message(request))
+            .request(|request| config.credentials.clone().message(request))
             .await?;
         let ServerMessage::Authenticated { account, token, .. } = response else {
             return Err(ClientError::Unexpected);
         };
+        Self::signed_in(connection, account, token, config, store).await
+    }
+
+    pub async fn signed_in(
+        connection: Arc<Connection>,
+        account: Uuid,
+        token: String,
+        config: PeerConfig,
+        store: S,
+    ) -> Result<Self, ClientError> {
         let workspace = match config.workspace {
             Some(workspace) => workspace,
             None => {

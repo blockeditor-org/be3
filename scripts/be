@@ -4,8 +4,8 @@
 # scripts/internal/common.sh, which is built from the same commit as the server
 # the tracker lives on. Arguments go to be unchanged.
 #
-# The credentials are read from .tracker-credentials at the root of the
-# checkout, which git ignores, and handed to this one process as the BE3_*
+# The credentials are read from external/.tracker-credentials, which git
+# ignores and ./scripts/setup fetches, and handed to this one process as the BE3_*
 # variables be reads. be itself never reads that file, so a be built from a
 # checkout to test a change cannot reach the real server by accident; point
 # one of those at a dev server with the BE3_* variables instead. The file holds
@@ -25,7 +25,7 @@ set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/internal/common.sh"
 
-credentials="$repository/.tracker-credentials"
+credentials="$repository/external/.tracker-credentials"
 if [[ ! -f "$credentials" ]]; then
     echo "No tracker credentials at $credentials." >&2
     echo 'An administrator adds an agent from the app menu (Agents), and the four values it' >&2

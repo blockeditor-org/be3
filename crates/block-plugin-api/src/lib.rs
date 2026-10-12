@@ -425,6 +425,7 @@ pub struct AccessGrant {
     pub email: String,
     pub display_name: String,
     pub administrator: bool,
+    pub author: bool,
     pub granted: Option<AccessLevel>,
     pub effective: AccessLevel,
 }

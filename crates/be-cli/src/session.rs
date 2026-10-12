@@ -91,15 +91,18 @@ pub async fn connect(settings: &Settings) -> Result<Peer<FileStore>, String> {
         })
         .await
         .map_err(|error| format!("the server refused BE3_TOKEN: {}", explain(error)))?;
-    if !matches!(signed_in, ServerMessage::Authenticated { .. }) {
+    let ServerMessage::Authenticated { account, token, .. } = signed_in else {
         return Err("the server did not sign this connection in".to_owned());
-    }
+    };
     let workspace = match settings.workspace {
         Some(workspace) => workspace,
         None => only_workspace(&connection).await?,
     };
     let key = workspace_key(&connection, workspace, &settings.phrase).await?;
-    Peer::connect(
+    Peer::signed_in(
+        connection,
+        account,
+        token,
         PeerConfig::new(url, ContentKey::from_bytes(key), settings.credentials())
             .workspace(Some(workspace)),
         FileStore::open(settings.cache.join(workspace.simple().to_string())).map_err(|error| {

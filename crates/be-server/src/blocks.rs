@@ -638,6 +638,7 @@ impl ServerStore {
                     email,
                     display_name,
                     role,
+                    author: node.author == account,
                     granted: node.grants.get(&account).copied(),
                     effective: Visibility::of(graph, account, role).access(graph, block),
                 });

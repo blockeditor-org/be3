@@ -175,10 +175,8 @@ async fn database_code<S: ObjectStore>(
     row: be_block::ObjectId,
 ) -> Result<String, String> {
     let content = tracker
-        .peer()
-        .open::<DatabaseContent>(database)
-        .await
-        .map_err(crate::session::explain)?
+        .read::<DatabaseContent>(database)
+        .await?
         .ok_or("the database is empty")?;
     Ok(content.root().short_id(row))
 }

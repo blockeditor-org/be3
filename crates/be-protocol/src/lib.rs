@@ -76,6 +76,7 @@ pub struct AccessEntry {
     pub email: String,
     pub display_name: String,
     pub role: WorkspaceRole,
+    pub author: bool,
     pub granted: Option<Access>,
     pub effective: Access,
 }

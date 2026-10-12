@@ -18,6 +18,7 @@ pub struct Entry {
     pub prefix: Option<String>,
     pub references: Vec<Uuid>,
     pub access: Access,
+    pub head: Option<be_commit::CommitId>,
 }
 
 impl Entry {

@@ -54,13 +54,14 @@ jobs:
           BE3_AUTHORIZATION: ${{ secrets.BE3_TRACKER_AUTHORIZATION }}
         run: |
           umask 077
+          mkdir -p external
           {
             if [ -n "$BE3_SERVER" ]; then echo "server=$BE3_SERVER"; fi
             if [ -n "$BE3_WORKSPACE" ]; then echo "workspace=$BE3_WORKSPACE"; fi
             echo "token=$BE3_TOKEN"
             echo "recovery_phrase=$BE3_RECOVERY_PHRASE"
             if [ -n "$BE3_AUTHORIZATION" ]; then echo "authorization=$BE3_AUTHORIZATION"; fi
-          } > .tracker-credentials
+          } > external/.tracker-credentials
 
       - name: Move the rows the pull request names
         if: ${{ steps.credentials.outputs.present == 'true' }}

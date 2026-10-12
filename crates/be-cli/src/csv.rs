@@ -13,10 +13,10 @@ pub fn parse(text: &str) -> Result<Vec<Vec<String>>, String> {
             (true, '"') => quoted = false,
             (true, other) => field.push(other),
             (false, '"') if field.is_empty() => quoted = true,
-            (false, ',') => record.push(std::mem::take(&mut field)),
+            (false, ',') => record.push(unescaped(std::mem::take(&mut field))),
             (false, '\r') if characters.peek() == Some(&'\n') => {}
             (false, '\n') => {
-                record.push(std::mem::take(&mut field));
+                record.push(unescaped(std::mem::take(&mut field)));
                 records.push(std::mem::take(&mut record));
             }
             (false, other) => field.push(other),
@@ -26,8 +26,16 @@ pub fn parse(text: &str) -> Result<Vec<Vec<String>>, String> {
         return Err("a quoted field never ends".to_owned());
     }
     if !field.is_empty() || !record.is_empty() {
-        record.push(field);
+        record.push(unescaped(field));
         records.push(record);
     }
     Ok(records)
+}
+
+fn unescaped(field: String) -> String {
+    let mut characters = field.chars();
+    match (characters.next(), characters.next()) {
+        (Some('\''), Some('=' | '+' | '-' | '@' | '\t' | '\r')) => field[1..].to_owned(),
+        _ => field,
+    }
 }

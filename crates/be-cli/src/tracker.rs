@@ -318,11 +318,23 @@ impl<S: ObjectStore> Tracker<S> {
                 prefix: metadata.get(&be_block::ROW_PREFIX),
                 references: summary.references,
                 access: summary.access,
+                head: summary.head,
             });
         }
         let index = Index::new(entries);
         *held = Some(index.clone());
         Ok(index)
+    }
+
+    pub async fn read<C: BlockContent>(&self, block: Uuid) -> Result<Option<C>, String> {
+        let head = self.index().await?.get(block).map(|entry| entry.head);
+        match head {
+            Some(Some(head)) => Ok(Some(
+                self.peer.open_commit::<C>(head).await.map_err(explain)?,
+            )),
+            Some(None) => Ok(None),
+            None => self.peer.open::<C>(block).await.map_err(explain),
+        }
     }
 
     pub async fn invalidate(&self) {
@@ -351,10 +363,8 @@ impl<S: ObjectStore> Tracker<S> {
         }
         if entry.block_type == DatabaseViewContent::CONTENT_TYPE {
             let view = self
-                .peer
-                .open::<DatabaseViewContent>(entry.id)
-                .await
-                .map_err(explain)?
+                .read::<DatabaseViewContent>(entry.id)
+                .await?
                 .map(|content| content.root())
                 .unwrap_or_default();
             return view
@@ -384,10 +394,8 @@ impl<S: ObjectStore> Tracker<S> {
             return Ok(prefix.clone());
         }
         Ok(self
-            .peer
-            .open::<DatabaseContent>(entry.id)
-            .await
-            .map_err(explain)?
+            .read::<DatabaseContent>(entry.id)
+            .await?
             .map(|content| content.root().prefix)
             .unwrap_or_default())
     }
@@ -453,18 +461,14 @@ impl<S: ObjectStore> Tracker<S> {
 
     async fn load_plain(&self, id: Uuid) -> Result<(Database, DatabaseSchema), String> {
         let database = self
-            .peer
-            .open::<DatabaseContent>(id)
-            .await
-            .map_err(explain)?
+            .read::<DatabaseContent>(id)
+            .await?
             .map(|content| content.root())
             .unwrap_or_default();
         let schema = match database.schema {
             Some(schema) => self
-                .peer
-                .open::<DatabaseSchemaContent>(schema)
-                .await
-                .map_err(explain)?
+                .read::<DatabaseSchemaContent>(schema)
+                .await?
                 .map(|content| content.root())
                 .unwrap_or_default(),
             None => DatabaseSchema::default(),
@@ -1129,10 +1133,8 @@ impl<S: ObjectStore> Tracker<S> {
 
     pub async fn text(&self, block: Uuid) -> Result<String, String> {
         Ok(self
-            .peer
-            .open::<TextContent>(block)
-            .await
-            .map_err(explain)?
+            .read::<TextContent>(block)
+            .await?
             .map(|content| TextBlock::text(&content))
             .unwrap_or_default())
     }
@@ -1517,7 +1519,10 @@ impl<S: ObjectStore> Tracker<S> {
                 .map_err(explain)?
             {
                 Saved::Rejected { .. } => continue,
-                Saved::Published(_) | Saved::Unchanged(_) => return Ok(content),
+                Saved::Published(_) | Saved::Unchanged(_) => {
+                    self.invalidate().await;
+                    return Ok(content);
+                }
             }
         }
         Err(format!(
