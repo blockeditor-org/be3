@@ -134,6 +134,8 @@ impl TextBlock {
 impl Root for TextBlock {
     const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6f4d_8f85_7991_4cdf_ae41_b526_30df_014b);
 
+    const FROZEN: bool = true;
+
     fn name(&self) -> Option<String> {
         let line = self.body.split(|byte| *byte == b'\n').next()?;
         let mut name = String::new();

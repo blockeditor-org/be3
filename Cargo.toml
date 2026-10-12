@@ -6,6 +6,7 @@ members = [
     "crates/be-commit",
     "crates/be-dmabuf",
     "crates/be-drive",
+    "crates/be-frozen",
     "crates/be-graph",
     "crates/be-keys",
     "crates/be-launcher",
