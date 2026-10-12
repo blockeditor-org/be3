@@ -62,8 +62,6 @@ app(
     data = ["//{}:data".format(package) for package in editor_packages()],
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
-    precompile = False,
-    precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
     sdk = "//crates/block-plugin-sdk:module",
 )
 
@@ -77,8 +75,6 @@ app(
     files = ["//buck/app:build-id"],
     manifests = [],
     modules = [],
-    precompile = False,
-    precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
 )
 
 # The web bundle: the app for wasi and the gpu shim for wasm32, each through
@@ -111,11 +107,9 @@ app(
     index = True,
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
-    precompile = False,
-    precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
     sdk = "//crates/block-plugin-sdk:module",
     wasm_bindgen = "//buck/cargo:wasm-bindgen",
-    visibility = ["//crates/deploy:"],
+    visibility = ["//crates/local-tools:"],
 )
 
 # What CI publishes: the bundle without the plugins, which :plugins builds once
@@ -128,8 +122,6 @@ app(
     index = True,
     manifests = [],
     modules = [],
-    precompile = False,
-    precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
     wasm_bindgen = "//buck/cargo:wasm-bindgen",
 )
 

@@ -38,9 +38,10 @@ def _precompile(ctx: AnalysisContext, wasm: Artifact) -> Artifact:
 
 # The app as it runs (buck/app/stage.sh): the executable under cargo's name, and
 # beside it every plugin, each module precompiled for precompile_target in an
-# action of its own by plugin-test-runner, block-wasm-host's own engine, which
-# runs on the workers whatever the app is built for, and the plugin SDK they
-# are linked against (guides/plugin_sdk.md), with its .cwasm. With no binary it
+# action of its own by the precompiler, plugin-test-runner as the workers run
+# it, whatever the app is built for, and the plugin SDK they are linked against
+# (guides/plugin_sdk.md), with its .cwasm; with no precompiler, each plugin is
+# its module alone. With no binary it
 # is the plugins alone. The web bundle is this rule too: `bindgen` runs
 # wasm-bindgen over each module, and `index` writes the plugins.json a browser
 # finds the plugins through.
@@ -62,7 +63,7 @@ def _app_impl(ctx: AnalysisContext) -> list[Provider]:
     if ctx.attrs.sdk:
         sdk = ctx.attrs.sdk[DefaultInfo].default_outputs[0]
         command.add(cmd_args("--sdk=", sdk, delimiter = ""))
-        if ctx.attrs.precompile:
+        if ctx.attrs.precompiler:
             command.add(cmd_args("--sdk-artifact=", _precompile(ctx, sdk), delimiter = ""))
     data = ctx.attrs.data or [None] * len(ctx.attrs.manifests)
     for manifest, module, files in zip(ctx.attrs.manifests, ctx.attrs.modules, data):
@@ -70,7 +71,7 @@ def _app_impl(ctx: AnalysisContext) -> list[Provider]:
         command.add(cmd_args(manifest, wasm, delimiter = "="))
         if files:
             command.add(cmd_args("--data=", files, delimiter = ""))
-        if ctx.attrs.precompile:
+        if ctx.attrs.precompiler:
             command.add(cmd_args("--artifact=", _precompile(ctx, wasm), delimiter = ""))
     for module in ctx.attrs.bindgen:
         wasm = module[DefaultInfo].default_outputs[0]
@@ -113,9 +114,8 @@ app = rule(
         "index": attrs.bool(default = False),
         "manifests": attrs.list(attrs.source()),
         "modules": attrs.list(attrs.dep()),
-        "precompile": attrs.bool(default = True),
         "precompile_target": attrs.string(default = "x86_64-unknown-linux-gnu"),
-        "precompiler": attrs.dep(providers = [RunInfo]),
+        "precompiler": attrs.option(attrs.dep(providers = [RunInfo]), default = None),
         # The plugin SDK the modules are linked against, staged under the name
         # they find it by.
         "sdk": attrs.option(attrs.dep(), default = None),

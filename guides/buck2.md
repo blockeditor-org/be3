@@ -121,6 +121,8 @@ It also lets `test` put tests on the workers (below).
   through the cache.
 - `crates/buck-tools`: the build's own helpers (the `crates.bzl` generator, the
   sysroot resolver, the APK packer, clippy's fixer and `//:rust-project`).
+- `crates/local-tools`: what runs on this machine after a buck2 command,
+  built for it in that command: `verify`, `deploy` and `fuzz`.
 - `buck/wasm`: editors, plugin tests and the rules that build wasm modules.
 - `buck/app`, `buck/android`: how the app, the web bundle and the APK are
   laid out.
@@ -304,11 +306,13 @@ extension ships: the toolchain's panics on this workspace.
   without it buck2 sends a HEAD request per download on every new daemon.
 - **`./scripts/verify`** is one `buck2 bxl` of `buck/dev/verify.bxl`, which
   builds everything with `--keep-going` and prints what is read after: the
-  generated files, the paintings, each crate's fixes, and `crates/verify`,
-  built for this machine, which the script then runs to read the rest and
-  write it into the checkout. Anything after the build belongs in
-  `crates/verify` rather than in bash, so it works the same on Linux, macOS
-  and Git Bash on Windows. The autofixes are actions (`buck/dev/fix.sh`), one
+  generated files, the paintings, each crate's fixes, and
+  `crates/local-tools`, built for this machine, whose `verify` the script then
+  runs to read the rest and write it into the checkout. Anything that runs on
+  this machine after a buck2 command belongs in `crates/local-tools`, as a
+  subcommand, rather than in bash or a crate of its own, so it works the same
+  on Linux, macOS and Git Bash on Windows and builds once: `verify`, `deploy`
+  (`./scripts/deploy`) and `fuzz` (a fuzz target's runner). The autofixes are actions (`buck/dev/fix.sh`), one
   a crate: clippy's machine-applicable suggestions from every target's
   `[clippy.json]`, then fix-rust-source, then rustfmt, on a copy of the
   crate's sources, output as the files that changed. A fix that makes another

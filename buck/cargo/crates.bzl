@@ -1030,6 +1030,313 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/be-frozen": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [
+            {
+                "crate_root": "examples/freeze.rs",
+                "name": "freeze",
+            },
+        ],
+        "library": {
+            "crate": "be_frozen",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "be-frozen",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {
+                    "freeze": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
+                },
+                "features": [],
+                "test_deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-cli:be-cli",
+                    "//crates/be-client:be-client",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-server:be-server",
+                    "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
+                    "//third-party/rust:rusqlite-0.32.1",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:zip-8.6.0",
+                ],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {
+                    "freeze": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
+                },
+                "features": [],
+                "test_deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-cli:be-cli",
+                    "//crates/be-client:be-client",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-server:be-server",
+                    "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
+                    "//third-party/rust:rusqlite-0.32.1",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:zip-8.6.0",
+                ],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {
+                    "freeze": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
+                },
+                "features": [],
+                "test_deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-cli:be-cli",
+                    "//crates/be-client:be-client",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-server:be-server",
+                    "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
+                    "//third-party/rust:rusqlite-0.32.1",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:zip-8.6.0",
+                ],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {
+                    "freeze": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
+                },
+                "features": [],
+                "test_deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-cli:be-cli",
+                    "//crates/be-client:be-client",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-server:be-server",
+                    "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
+                    "//third-party/rust:rusqlite-0.32.1",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:zip-8.6.0",
+                ],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {
+                    "freeze": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
+                },
+                "features": [],
+                "test_deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-cli:be-cli",
+                    "//crates/be-client:be-client",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-server:be-server",
+                    "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
+                    "//third-party/rust:rusqlite-0.32.1",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:zip-8.6.0",
+                ],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {
+                    "freeze": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
+                },
+                "features": [],
+                "test_deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-cli:be-cli",
+                    "//crates/be-client:be-client",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-server:be-server",
+                    "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
+                    "//third-party/rust:rusqlite-0.32.1",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:zip-8.6.0",
+                ],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {
+                    "freeze": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
+                },
+                "features": [],
+                "test_deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-cli:be-cli",
+                    "//crates/be-client:be-client",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-server:be-server",
+                    "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
+                    "//third-party/rust:rusqlite-0.32.1",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:zip-8.6.0",
+                ],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/be-graph": {
         "binaries": [],
         "edition": "2024",
@@ -8698,113 +9005,6 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
-    "crates/deploy": {
-        "binaries": [
-            {
-                "crate_root": "src/main.rs",
-                "name": "deploy",
-            },
-        ],
-        "edition": "2024",
-        "examples": [],
-        "library": None,
-        "name": "deploy",
-        "platforms": {
-            "android-arm64": {
-                "binaries": {
-                    "deploy": [
-                        "//third-party/rust:sha2-0.10.9",
-                        "//third-party/rust:ureq-2.12.1",
-                    ],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "linux-arm64": {
-                "binaries": {
-                    "deploy": [
-                        "//third-party/rust:sha2-0.10.9",
-                        "//third-party/rust:ureq-2.12.1",
-                    ],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "linux-x86_64": {
-                "binaries": {
-                    "deploy": [
-                        "//third-party/rust:sha2-0.10.9",
-                        "//third-party/rust:ureq-2.12.1",
-                    ],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "macos-arm64": {
-                "binaries": {
-                    "deploy": [
-                        "//third-party/rust:sha2-0.10.9",
-                        "//third-party/rust:ureq-2.12.1",
-                    ],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "macos-x86_64": {
-                "binaries": {
-                    "deploy": [
-                        "//third-party/rust:sha2-0.10.9",
-                        "//third-party/rust:ureq-2.12.1",
-                    ],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "windows-arm64": {
-                "binaries": {
-                    "deploy": [
-                        "//third-party/rust:sha2-0.10.9",
-                        "//third-party/rust:ureq-2.12.1",
-                    ],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "windows-x86_64": {
-                "binaries": {
-                    "deploy": [
-                        "//third-party/rust:sha2-0.10.9",
-                        "//third-party/rust:ureq-2.12.1",
-                    ],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-        },
-        "profile_flags": [],
-        "version": "0.1.0",
-    },
     "crates/editors/audio-block": {
         "binaries": [],
         "edition": "2024",
@@ -9823,106 +10023,6 @@ crates = {
         ],
         "version": "0.1.0",
     },
-    "crates/fuzz-runner": {
-        "binaries": [
-            {
-                "crate_root": "src/main.rs",
-                "name": "fuzz-runner",
-            },
-        ],
-        "edition": "2024",
-        "examples": [],
-        "library": None,
-        "name": "fuzz-runner",
-        "platforms": {
-            "android-arm64": {
-                "binaries": {
-                    "fuzz-runner": [
-                        "//third-party/rust:libc-0.2.186",
-                    ],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "linux-arm64": {
-                "binaries": {
-                    "fuzz-runner": [
-                        "//third-party/rust:libc-0.2.186",
-                    ],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "linux-x86_64": {
-                "binaries": {
-                    "fuzz-runner": [
-                        "//third-party/rust:libc-0.2.186",
-                    ],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "macos-arm64": {
-                "binaries": {
-                    "fuzz-runner": [
-                        "//third-party/rust:libc-0.2.186",
-                    ],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "macos-x86_64": {
-                "binaries": {
-                    "fuzz-runner": [
-                        "//third-party/rust:libc-0.2.186",
-                    ],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "windows-arm64": {
-                "binaries": {
-                    "fuzz-runner": [
-                        "//third-party/rust:libc-0.2.186",
-                    ],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "windows-x86_64": {
-                "binaries": {
-                    "fuzz-runner": [
-                        "//third-party/rust:libc-0.2.186",
-                    ],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-        },
-        "profile_flags": [],
-        "version": "0.1.0",
-    },
     "crates/geometry": {
         "binaries": [],
         "edition": "2024",
@@ -10089,6 +10189,118 @@ crates = {
                 "test_deps": [
                     "//third-party/rust:serde_json-1.0.150",
                 ],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/local-tools": {
+        "binaries": [
+            {
+                "crate_root": "src/main.rs",
+                "name": "local-tools",
+            },
+        ],
+        "edition": "2024",
+        "examples": [],
+        "library": None,
+        "name": "local-tools",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {
+                    "local-tools": [
+                        "//third-party/rust:libc-0.2.186",
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:ureq-2.12.1",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {
+                    "local-tools": [
+                        "//third-party/rust:libc-0.2.186",
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:ureq-2.12.1",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {
+                    "local-tools": [
+                        "//third-party/rust:libc-0.2.186",
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:ureq-2.12.1",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {
+                    "local-tools": [
+                        "//third-party/rust:libc-0.2.186",
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:ureq-2.12.1",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {
+                    "local-tools": [
+                        "//third-party/rust:libc-0.2.186",
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:ureq-2.12.1",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {
+                    "local-tools": [
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:ureq-2.12.1",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {
+                    "local-tools": [
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:ureq-2.12.1",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
                 "test_features": [],
             },
         },
@@ -12473,92 +12685,6 @@ crates = {
                     "//third-party/rust:tree-sitter-zig-1.1.2",
                     "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-        },
-        "profile_flags": [],
-        "version": "0.1.0",
-    },
-    "crates/verify": {
-        "binaries": [
-            {
-                "crate_root": "src/main.rs",
-                "name": "verify",
-            },
-        ],
-        "edition": "2024",
-        "examples": [],
-        "library": None,
-        "name": "verify",
-        "platforms": {
-            "android-arm64": {
-                "binaries": {
-                    "verify": [],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "linux-arm64": {
-                "binaries": {
-                    "verify": [],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "linux-x86_64": {
-                "binaries": {
-                    "verify": [],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "macos-arm64": {
-                "binaries": {
-                    "verify": [],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "macos-x86_64": {
-                "binaries": {
-                    "verify": [],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "windows-arm64": {
-                "binaries": {
-                    "verify": [],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "windows-x86_64": {
-                "binaries": {
-                    "verify": [],
-                },
-                "deps": [],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -24617,48 +24743,60 @@ third_party = {
                 "deps": [
                     ":crc32fast-1.5.0",
                     ":miniz_oxide-0.8.9",
+                    ":zlib-rs-0.6.7",
                 ],
                 "features": [
                     "any_impl",
+                    "any_zlib",
                     "default",
                     "miniz_oxide",
                     "rust_backend",
+                    "zlib-rs",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
                     ":crc32fast-1.5.0",
                     ":miniz_oxide-0.8.9",
+                    ":zlib-rs-0.6.7",
                 ],
                 "features": [
                     "any_impl",
+                    "any_zlib",
                     "default",
                     "miniz_oxide",
                     "rust_backend",
+                    "zlib-rs",
                 ],
             },
             "macos-arm64": {
                 "deps": [
                     ":crc32fast-1.5.0",
                     ":miniz_oxide-0.8.9",
+                    ":zlib-rs-0.6.7",
                 ],
                 "features": [
                     "any_impl",
+                    "any_zlib",
                     "default",
                     "miniz_oxide",
                     "rust_backend",
+                    "zlib-rs",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
                     ":crc32fast-1.5.0",
                     ":miniz_oxide-0.8.9",
+                    ":zlib-rs-0.6.7",
                 ],
                 "features": [
                     "any_impl",
+                    "any_zlib",
                     "default",
                     "miniz_oxide",
                     "rust_backend",
+                    "zlib-rs",
                 ],
             },
             "wasi": {
@@ -24689,24 +24827,30 @@ third_party = {
                 "deps": [
                     ":crc32fast-1.5.0",
                     ":miniz_oxide-0.8.9",
+                    ":zlib-rs-0.6.7",
                 ],
                 "features": [
                     "any_impl",
+                    "any_zlib",
                     "default",
                     "miniz_oxide",
                     "rust_backend",
+                    "zlib-rs",
                 ],
             },
             "windows-x86_64": {
                 "deps": [
                     ":crc32fast-1.5.0",
                     ":miniz_oxide-0.8.9",
+                    ":zlib-rs-0.6.7",
                 ],
                 "features": [
                     "any_impl",
+                    "any_zlib",
                     "default",
                     "miniz_oxide",
                     "rust_backend",
+                    "zlib-rs",
                 ],
             },
         },
@@ -66783,10 +66927,14 @@ third_party = {
                     ":indexmap-2.14.0",
                     ":memchr-2.8.1",
                     ":typed-path-0.12.3",
+                    ":zopfli-0.8.3",
                 ],
                 "features": [
                     "_deflate-any",
+                    "deflate",
                     "deflate-flate2",
+                    "deflate-flate2-zlib-rs",
+                    "deflate-zopfli",
                 ],
             },
             "linux-x86_64": {
@@ -66796,10 +66944,14 @@ third_party = {
                     ":indexmap-2.14.0",
                     ":memchr-2.8.1",
                     ":typed-path-0.12.3",
+                    ":zopfli-0.8.3",
                 ],
                 "features": [
                     "_deflate-any",
+                    "deflate",
                     "deflate-flate2",
+                    "deflate-flate2-zlib-rs",
+                    "deflate-zopfli",
                 ],
             },
             "macos-arm64": {
@@ -66809,10 +66961,14 @@ third_party = {
                     ":indexmap-2.14.0",
                     ":memchr-2.8.1",
                     ":typed-path-0.12.3",
+                    ":zopfli-0.8.3",
                 ],
                 "features": [
                     "_deflate-any",
+                    "deflate",
                     "deflate-flate2",
+                    "deflate-flate2-zlib-rs",
+                    "deflate-zopfli",
                 ],
             },
             "macos-x86_64": {
@@ -66822,10 +66978,14 @@ third_party = {
                     ":indexmap-2.14.0",
                     ":memchr-2.8.1",
                     ":typed-path-0.12.3",
+                    ":zopfli-0.8.3",
                 ],
                 "features": [
                     "_deflate-any",
+                    "deflate",
                     "deflate-flate2",
+                    "deflate-flate2-zlib-rs",
+                    "deflate-zopfli",
                 ],
             },
             "windows-arm64": {
@@ -66835,10 +66995,14 @@ third_party = {
                     ":indexmap-2.14.0",
                     ":memchr-2.8.1",
                     ":typed-path-0.12.3",
+                    ":zopfli-0.8.3",
                 ],
                 "features": [
                     "_deflate-any",
+                    "deflate",
                     "deflate-flate2",
+                    "deflate-flate2-zlib-rs",
+                    "deflate-zopfli",
                 ],
             },
             "windows-x86_64": {
@@ -66848,10 +67012,14 @@ third_party = {
                     ":indexmap-2.14.0",
                     ":memchr-2.8.1",
                     ":typed-path-0.12.3",
+                    ":zopfli-0.8.3",
                 ],
                 "features": [
                     "_deflate-any",
+                    "deflate",
                     "deflate-flate2",
+                    "deflate-flate2-zlib-rs",
+                    "deflate-zopfli",
                 ],
             },
         },
@@ -66881,6 +67049,42 @@ third_party = {
         "name": "zlib-rs",
         "platforms": {
             "android-arm64": {
+                "features": [
+                    "rust-allocator",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "rust-allocator",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "rust-allocator",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "rust-allocator",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "rust-allocator",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "rust-allocator",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
                 "features": [
                     "rust-allocator",
                     "std",
@@ -66951,6 +67155,90 @@ third_party = {
         "name": "zopfli",
         "platforms": {
             "android-arm64": {
+                "deps": [
+                    ":bumpalo-3.20.3",
+                    ":crc32fast-1.5.0",
+                    ":log-0.4.31",
+                    ":simd-adler32-0.3.9",
+                ],
+                "features": [
+                    "default",
+                    "gzip",
+                    "std",
+                    "zlib",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":bumpalo-3.20.3",
+                    ":crc32fast-1.5.0",
+                    ":log-0.4.31",
+                    ":simd-adler32-0.3.9",
+                ],
+                "features": [
+                    "default",
+                    "gzip",
+                    "std",
+                    "zlib",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bumpalo-3.20.3",
+                    ":crc32fast-1.5.0",
+                    ":log-0.4.31",
+                    ":simd-adler32-0.3.9",
+                ],
+                "features": [
+                    "default",
+                    "gzip",
+                    "std",
+                    "zlib",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":bumpalo-3.20.3",
+                    ":crc32fast-1.5.0",
+                    ":log-0.4.31",
+                    ":simd-adler32-0.3.9",
+                ],
+                "features": [
+                    "default",
+                    "gzip",
+                    "std",
+                    "zlib",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bumpalo-3.20.3",
+                    ":crc32fast-1.5.0",
+                    ":log-0.4.31",
+                    ":simd-adler32-0.3.9",
+                ],
+                "features": [
+                    "default",
+                    "gzip",
+                    "std",
+                    "zlib",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":bumpalo-3.20.3",
+                    ":crc32fast-1.5.0",
+                    ":log-0.4.31",
+                    ":simd-adler32-0.3.9",
+                ],
+                "features": [
+                    "default",
+                    "gzip",
+                    "std",
+                    "zlib",
+                ],
+            },
+            "windows-x86_64": {
                 "deps": [
                     ":bumpalo-3.20.3",
                     ":crc32fast-1.5.0",

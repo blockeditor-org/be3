@@ -40,10 +40,10 @@ command_alias(
     ],
 )
 
-# Every fuzz target, taking turns, until it is stopped (crates/fuzz-runner).
+# Every fuzz target, taking turns, until it is stopped (crates/local-tools).
 command_alias(
     name = "fuzz",
-    args = ["$(location //crates/fuzz-runner:fuzz-runner-bin)", "--all"],
+    args = ["$(location //crates/local-tools:local-tools-bin)", "fuzz", "--all"],
 )
 
 command_alias(

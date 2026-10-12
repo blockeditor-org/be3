@@ -112,8 +112,7 @@ them in the handoff.
 - **Formats.** `Database`, `DatabaseSchema` and `DatabaseView` are frozen
   (`Root::FROZEN`): be-block's tests hold the format the first tracker build
   saved (`tests/frozen_database*.rs`) and check it still loads, so a change to
-  these types only adds fields, variants and kinds (guides/the_new_block_stack.md,
-  "The stored form").
+  these types only adds fields, variants and kinds (guides/frozen_formats.md).
 - **Agents.** An administrator adds one from the app menu (Agents). The app
   makes a recovery phrase for it and seals the workspace key to it, the server
   makes an editor account with no password and a token (`CreateAgent`), and
