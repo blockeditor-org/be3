@@ -94,10 +94,25 @@ them in the handoff.
   relation points at, which rows link to each of its rows, and both the editor
   and `be` show and edit it as a column of its own. `short_id` and
   `Database::find_short_id` make and resolve ids.
+- **Choices.** An Enum column's options (`EnumOption`) carry a `ChoiceColor`, a
+  `ChoiceIcon` (a fixed set the editor maps to icon-library glyphs) and
+  `closed`, which marks a row finished; `SchemaField::default_option` is what
+  new rows start with. Filters match `IsOpen`/`IsClosed` against `closed`, and
+  `AnyOf`/`NoneOf` against several values.
 - **Views.** `DatabaseView::filters` hide the rows any filter rejects, in every
-  view kind. The List kind is a line per row with a new-item box above, and a
-  selected row opens beside it with its fields and its page, the page's own
+  view kind. A view groups its rows by `group_by` (an Enum or single-relation
+  column, stored under the old `kanban_field` name; the board's columns), folds
+  closed groups until opened, and hides the columns in `hidden_fields` from its
+  rows. The editor's header holds the views of the same database as tabs (the
+  view blocks that reference it), search, New, filter chips and a Display menu
+  for everything else; a selected row opens beside the list, board or scatter
+  (over it on a phone) with its fields, its links and its page, the page's own
   editor embedded live.
+- **Formats.** `Database`, `DatabaseSchema` and `DatabaseView` are frozen
+  (`Root::FROZEN`): be-block's tests hold the format the first tracker build
+  saved (`tests/frozen_database*.rs`) and check it still loads, so a change to
+  these types only adds fields, variants and kinds (guides/the_new_block_stack.md,
+  "The stored form").
 - **Agents.** An administrator adds one from the app menu (Agents). The app
   makes a recovery phrase for it and seals the workspace key to it, the server
   makes an editor account with no password and a token (`CreateAgent`), and
