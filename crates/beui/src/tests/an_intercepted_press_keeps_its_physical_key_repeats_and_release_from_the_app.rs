@@ -9,17 +9,29 @@ use crate::reactive::{Action, Canvas, CanvasItem, Chord, Frame, Interactive, bui
 const KEY_F: u32 = 33;
 const KEY_LEFTMETA: u32 = 125;
 
-fn f(pressed: bool, repeat: bool, modifiers: Modifiers) -> Event {
+fn stroke(key: Key, code: u32, pressed: bool, repeat: bool, modifiers: Modifiers) -> Event {
     Event::Key {
-        key: Key::F,
-        pressed,
-        repeat,
-        modifiers,
+        press: KeyPress {
+            key,
+            pressed,
+            repeat,
+            modifiers,
+        },
+        code: Some(code),
+        text: None,
     }
 }
 
-fn physical(code: u32, pressed: bool) -> Event {
-    Event::PhysicalKey { code, pressed }
+fn f(pressed: bool, repeat: bool, modifiers: Modifiers) -> Event {
+    stroke(Key::F, KEY_F, pressed, repeat, modifiers)
+}
+
+fn logo(pressed: bool) -> Event {
+    let held = match pressed {
+        true => Modifiers::LOGO,
+        false => Modifiers::NONE,
+    };
+    stroke(Key::Logo, KEY_LEFTMETA, pressed, false, held)
 }
 
 #[test]
@@ -42,7 +54,7 @@ fn an_intercepted_press_keeps_its_physical_key_repeats_and_release_from_the_app(
                         <Interactive
                             focusable=true
                             on_forward={move |input: ForwardedInput| {
-                                forwarded.borrow_mut().extend(input.events);
+                                forwarded.borrow_mut().extend(flattened(input));
                             }}
                         >
                             <Frame />
@@ -63,46 +75,36 @@ fn an_intercepted_press_keeps_its_physical_key_repeats_and_release_from_the_app(
     forwarded.borrow_mut().clear();
 
     harness.frame(vec![
-        physical(KEY_LEFTMETA, true),
+        logo(true),
         Event::Modifiers(Modifiers::LOGO),
-        physical(KEY_F, true),
         f(true, false, Modifiers::LOGO),
     ]);
     harness.frame(vec![f(true, true, Modifiers::LOGO)]);
     assert_eq!(ran.get(), 2, "the press and its repeat run the action");
     harness.click(pos2(250.0, 50.0));
-    harness.frame(vec![
-        physical(KEY_F, false),
-        f(false, false, Modifiers::LOGO),
-    ]);
+    harness.frame(vec![f(false, false, Modifiers::LOGO)]);
     harness.click(pos2(50.0, 50.0));
-    harness.frame(vec![
-        physical(KEY_LEFTMETA, false),
-        Event::Modifiers(Modifiers::NONE),
-    ]);
+    harness.frame(vec![logo(false), Event::Modifiers(Modifiers::NONE)]);
     let keys: Vec<Event> = forwarded
         .borrow()
         .iter()
-        .filter(|event| matches!(event, Event::PhysicalKey { .. } | Event::Key { .. }))
+        .filter(|event| matches!(event, Event::Key { .. }))
         .cloned()
         .collect();
     assert_eq!(
         keys,
-        [physical(KEY_LEFTMETA, true), physical(KEY_LEFTMETA, false)],
+        [logo(true), logo(false)],
         "the app hears Super, but no part of the F that ran the action"
     );
 
     forwarded.borrow_mut().clear();
-    harness.frame(vec![physical(KEY_F, true), f(true, false, Modifiers::NONE)]);
-    harness.frame(vec![
-        physical(KEY_F, false),
-        f(false, false, Modifiers::NONE),
-    ]);
+    harness.frame(vec![f(true, false, Modifiers::NONE)]);
+    harness.frame(vec![f(false, false, Modifiers::NONE)]);
     assert!(
         forwarded
             .borrow()
             .iter()
-            .filter(|event| matches!(event, Event::PhysicalKey { .. }))
+            .filter(|event| matches!(event, Event::Key { code: Some(_), .. }))
             .count()
             == 2,
         "a plain F after the action reaches the app whole: {:?}",

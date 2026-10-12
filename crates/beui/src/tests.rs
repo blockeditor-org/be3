@@ -32,6 +32,7 @@ mod a_clean_sibling_keeps_its_measurement_when_the_one_beside_it_changes;
 mod a_clearable_text_input_empties_from_its_clear_button;
 mod a_click_catcher_that_takes_touch_drags_keeps_a_vertical_finger_drag;
 mod a_click_handler_can_mutate_the_tree_in_the_current_frame;
+mod a_click_on_the_inspector_grip_does_not_leave_it_grabbed;
 mod a_click_outside_an_open_color_input_closes_it_and_lands_on_what_was_clicked;
 mod a_clicked_number_input_selects_its_text_until_enter;
 mod a_closed_sheet_gives_its_space_back;
@@ -109,6 +110,7 @@ mod a_focused_text_input_asks_for_the_keyboard;
 mod a_for_each_keeps_its_rows_between_the_children_beside_it;
 mod a_for_each_places_the_items_of_a_canvas;
 mod a_for_each_row_picks_and_changes_its_own_size;
+mod a_forwarding_catcher_hears_the_pointer_leave_once_no_press_holds_it;
 mod a_fragment_sits_beside_the_children_written_around_it;
 mod a_frame_keeps_its_size_between_its_min_and_max;
 mod a_frame_pads_each_side_on_its_own;
@@ -155,6 +157,7 @@ mod a_modal_sheet_fits_its_content_and_a_tap_above_it_closes_it;
 mod a_modal_sheet_slides_in_and_out;
 mod a_modifier_drag_moves_a_floating_window_by_its_content_or_its_tab_bar;
 mod a_modifier_drag_on_a_docked_pane_moves_nothing_and_reaches_nothing;
+mod a_mouse_away_from_a_held_finger_still_moves_the_pointer;
 mod a_multi_root_view_fills_a_children_prop_in_order;
 mod a_narrow_inspector_puts_its_close_button_beside_its_tabs;
 mod a_narrow_window_shows_the_inspector_below_a_tab_bar;
@@ -282,6 +285,7 @@ mod a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate;
 mod a_virtual_list_scrolled_out_of_view_releases_its_rows;
 mod a_virtual_scroll_only_builds_the_items_in_view;
 mod a_virtual_scroll_row_can_build_reactive_content_during_dispatch;
+mod a_wheel_turned_before_the_pointer_moves_on_scrolls_what_it_was_over;
 mod a_window_dragged_far_away_keeps_its_grip_in_the_dock;
 mod a_window_larger_than_the_dock_is_drawn_no_larger_than_it;
 mod a_window_released_past_the_edge_of_the_dock_springs_back_and_comes_to_rest;
@@ -417,6 +421,7 @@ mod enter_on_an_inspector_row_selects_it_without_collapsing_it;
 mod enter_toggles_the_focused_checkbox;
 mod escape_and_back_reach_a_layers_back_handler_and_a_press_outside_its_on_dismiss;
 mod escape_closes_an_open_select_popup_and_returns_focus_to_the_trigger;
+mod escape_closes_an_overlay_before_a_window_listener_hears_it;
 mod escape_closes_the_emoji_menu_until_the_colon_is_typed_again;
 mod escape_discards_what_was_typed_into_a_number_input;
 mod escape_then_tab_moves_the_focus_out_of_a_text_area_that_takes_tab;
@@ -676,6 +681,33 @@ const TALL_VIEWPORT: Vec2 = Vec2::new(1000.0, 1400.0);
 const VIRTUAL_ITEM_COUNT: usize = 10_000;
 const VIRTUAL_ITEM_HEIGHT: f32 = 20.0;
 const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
+
+fn flattened(input: crate::ForwardedInput) -> Vec<Event> {
+    use crate::input::{PointerId, PointerPhase};
+    input
+        .events
+        .into_iter()
+        .filter_map(|forwarded| match forwarded {
+            crate::Forwarded::Input(event) => Some(event),
+            crate::Forwarded::Pointer { event, .. } if event.pointer == PointerId::Mouse => {
+                match event.phase {
+                    PointerPhase::Move => Some(Event::PointerMoved(event.pos)),
+                    PointerPhase::Down(button) | PointerPhase::Up(button) => {
+                        Some(Event::PointerButton {
+                            pos: event.pos,
+                            button,
+                            pressed: matches!(event.phase, PointerPhase::Down(_)),
+                            modifiers: event.modifiers,
+                        })
+                    }
+                    PointerPhase::Gone => Some(Event::PointerGone),
+                    _ => None,
+                }
+            }
+            _ => None,
+        })
+        .collect()
+}
 
 fn touch_event(finger: u64, phase: TouchPhase, pos: Pos2) -> Event {
     Event::Touch {
@@ -1304,12 +1336,12 @@ impl Harness {
 }
 
 fn key_event(key: Key, pressed: bool, modifiers: Modifiers) -> Event {
-    Event::Key {
+    Event::key(beui_core::input::KeyPress {
         key,
         pressed,
         repeat: false,
         modifiers,
-    }
+    })
 }
 
 pub(crate) fn with_installed<R>(document: &mut Document, f: impl FnOnce(&mut Document) -> R) -> R {

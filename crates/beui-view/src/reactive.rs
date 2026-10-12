@@ -102,8 +102,25 @@ pub fn on_key(
     phase: beui_core::keys::KeyPhase,
     handler: impl Fn(beui_core::keys::KeyEvent) -> bool + 'static,
 ) {
+    listen(at, phase, true, handler);
+}
+
+pub fn on_scroll_key(
+    at: beui_core::keys::KeyAt,
+    phase: beui_core::keys::KeyPhase,
+    handler: impl Fn(beui_core::keys::KeyEvent) -> bool + 'static,
+) {
+    listen(at, phase, false, handler);
+}
+
+fn listen(
+    at: beui_core::keys::KeyAt,
+    phase: beui_core::keys::KeyPhase,
+    reveal: bool,
+    handler: impl Fn(beui_core::keys::KeyEvent) -> bool + 'static,
+) {
     let handler: Rc<beui_core::keys::KeyHandler> = Rc::new(handler);
-    with_document(|document| document.listen_keys(at, phase, Rc::downgrade(&handler)));
+    with_document(|document| document.listen_keys(at, phase, reveal, Rc::downgrade(&handler)));
     on_cleanup(move || drop(handler));
 }
 

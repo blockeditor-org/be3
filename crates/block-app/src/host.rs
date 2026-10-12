@@ -8,7 +8,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use beui::{ClipboardReadId, Document, FileFilter, FilePick, FilePickId, PointerButton, Waker};
+use beui::{ClipboardReadId, Document, FileFilter, FilePick, FilePickId, Waker};
 use uuid::Uuid;
 
 static WAKER: OnceLock<Waker> = OnceLock::new();
@@ -272,16 +272,6 @@ pub(crate) fn push_command(command: HostCommand) {
 
 pub(crate) fn take_commands() -> Vec<HostCommand> {
     with(|host| std::mem::take(&mut host.commands))
-}
-
-pub(crate) fn pointer_button_index(button: PointerButton) -> u8 {
-    match button {
-        PointerButton::Primary => 0,
-        PointerButton::Secondary => 1,
-        PointerButton::Middle => 2,
-        PointerButton::Back => 3,
-        PointerButton::Forward => 4,
-    }
 }
 
 #[derive(Clone, Debug, PartialEq)]

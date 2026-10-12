@@ -43,9 +43,11 @@ fn an_app_that_inhibits_shortcuts_gets_every_chord_but_the_escape_hatch() {
                             inhibits_shortcuts={inhibits}
                             on_forward={move |input: ForwardedInput| {
                                 if input.focused {
-                                    forwarded.borrow_mut().extend(input.events.iter().filter_map(
+                                    forwarded.borrow_mut().extend(input.inputs().filter_map(
                                         |event| match event {
-                                            Event::Key { key, pressed: true, .. } => Some(*key),
+                                            Event::Key { press, .. } if press.pressed => {
+                                                Some(press.key)
+                                            }
                                             _ => None,
                                         },
                                     ));

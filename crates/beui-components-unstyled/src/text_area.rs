@@ -913,10 +913,10 @@ fn ime(cx: &Context, event: ImeEvent, key: impl Fn(KeyPress) -> bool) {
     cx.state.reveal_cursor();
 }
 
-fn field_key(cx: &Context, on_key_override: &Callback<KeyPress, bool>, press: KeyPress) -> bool {
+fn field_key(cx: &Context, press: KeyPress) -> bool {
     !cx.disabled.get_untracked()
         && !keys::leaves_on_tab(cx, press)
-        && (cx.completion_key(press) || on_key_override.call(press) || keys::key(cx, press))
+        && (cx.completion_key(press) || keys::key(cx, press))
 }
 
 fn gutter_width(line_count: usize) -> f32 {
@@ -946,7 +946,6 @@ struct Field {
     keyboard_on_focus: bool,
     ime_cursor: Memo<Option<ImeCursor>>,
     ime_text: Memo<Option<ImeText>>,
-    on_key_override: Callback<KeyPress, bool>,
     on_focus_change: Callback<bool>,
     on_hover_change: Callback<bool>,
 }
@@ -977,7 +976,6 @@ pub fn TextArea(
     completion_menu: Option<CompletionMenu>,
     on_widget_press: Callback<usize, bool>,
     on_menu: Callback<Pos2>,
-    on_key_override: Callback<KeyPress, bool>,
     on_submit: ClickCallback,
     on_focus_change: Callback<bool>,
     on_hover_change: Callback<bool>,
@@ -1300,7 +1298,6 @@ pub fn TextArea(
         keyboard_on_focus,
         ime_cursor,
         ime_text,
-        on_key_override,
         on_focus_change,
         on_hover_change,
     };
@@ -1396,12 +1393,10 @@ fn Editing(field: Field) -> NodeId {
         keyboard_on_focus,
         ime_cursor,
         ime_text,
-        on_key_override,
         on_focus_change,
         on_hover_change,
     } = field;
     let ime_cx = cx.clone();
-    let ime_override = on_key_override.clone();
     let focused = cx.focused.clone();
     let set_focused = cx.set_focused.clone();
     let (blur_cx, text_cx, key_cx, capture_cx) = (cx.clone(), cx.clone(), cx.clone(), cx.clone());
@@ -1429,11 +1424,11 @@ fn Editing(field: Field) -> NodeId {
             }}
             on_text={move |typed: String| insert_text(&text_cx, &typed)}
             on_ime={move |event: ImeEvent| {
-                ime(&ime_cx, event, |press| field_key(&ime_cx, &ime_override, press))
+                ime(&ime_cx, event, |press| field_key(&ime_cx, press))
             }}
             on_key={move |press: KeyPress| {
                 key_cx.state.core().composition().is_some()
-                    || field_key(&key_cx, &on_key_override, press)
+                    || field_key(&key_cx, press)
             }}
             cursor
             repeat_drag={autoscroll}

@@ -30,7 +30,8 @@ use beui_core::app::{SafeArea, Setup, Waker};
 use beui_core::file_picker::{FilePick, FilePickId, FilePickRequest, PickedFile};
 use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
 use beui_core::input::{
-    BackEdge, BackGesture, Event, ImeArea, ImeEvent, ImeText, Key, Modifiers, TouchId, TouchPhase,
+    BackEdge, BackGesture, Event, ImeArea, ImeEvent, ImeText, Key, KeyPress, Modifiers, TouchId,
+    TouchPhase,
 };
 use beui_core::renderer::{Loaded, WindowHandle};
 use beui_core::runner::{Adapter, Launch, Platform, Running};
@@ -561,19 +562,24 @@ impl Runner {
                 {
                     self.runner.push(Event::Text(text));
                 }
-                if let Some(key) = key.filter(|key| !(repeat && key.is_modifier())) {
-                    self.runner.push(Event::Key {
-                        key,
-                        pressed,
-                        repeat,
-                        modifiers,
-                    });
-                }
-                if pressed
-                    && !modifiers.command()
-                    && let Some(text) = text
-                {
-                    self.runner.push(Event::Text(text));
+                let text = text.filter(|_| pressed && !modifiers.command());
+                match key {
+                    Some(key) if repeat && key.is_modifier() => {}
+                    Some(key) => self.runner.push(Event::Key {
+                        press: KeyPress {
+                            key,
+                            pressed,
+                            repeat,
+                            modifiers,
+                        },
+                        code: None,
+                        text,
+                    }),
+                    None => {
+                        if let Some(text) = text {
+                            self.runner.push(Event::Text(text));
+                        }
+                    }
                 }
             }
             Message::Ime { event, serial } => {

@@ -16,7 +16,7 @@ fn a_pressed_forwarding_catcher_keeps_the_pointer_until_it_is_released() {
                     <CanvasItem x=0.0 y=0.0 width=100.0 height=100.0>
                         <Interactive
                             on_forward={move |input: ForwardedInput| {
-                                log.borrow_mut().extend(input.events)
+                                log.borrow_mut().extend(flattened(input))
                             }}
                         >
                             <Frame />

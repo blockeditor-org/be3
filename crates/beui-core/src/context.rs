@@ -14,7 +14,7 @@ use crate::file_picker::{FileFilter, FilePick, FilePickId, FilePickRequest};
 use crate::filter::Filter;
 use crate::font::{FontBackend, FontId, Fonts, Galley, TextLayout};
 use crate::geometry::{Rect, pos2};
-use crate::input::{CursorIcon, Event, ImeArea, InputState, KeyChord, RawInput};
+use crate::input::{CursorIcon, ImeArea, InputState, KeyChord, RawInput};
 use crate::node::NodeId;
 use crate::paint::{Item, Recorded};
 use crate::painter::{Entry, Painter, Shape};
@@ -562,10 +562,6 @@ impl Context {
         reader(&self.inner.input.borrow())
     }
 
-    pub fn retain_events(&self, keep: impl FnMut(&Event) -> bool) {
-        self.inner.input.borrow_mut().events.retain(keep);
-    }
-
     pub fn set_ime_area(&self, area: Option<ImeArea>) {
         self.inner.ime.set(area);
     }
@@ -990,14 +986,6 @@ impl Context {
         }
     }
 
-    pub fn screen_input<R>(&self, reader: impl FnOnce(&InputState) -> R) -> R {
-        let scale = self.screen_scale();
-        if scale == 1.0 {
-            return self.input(reader);
-        }
-        reader(&self.inner.input.borrow().scaled(scale.recip()))
-    }
-
     pub fn set_screen_simulation(&self, simulation: Option<ScreenSimulation>) {
         self.inner.screen_simulation.set(simulation);
     }
@@ -1039,6 +1027,18 @@ impl Context {
             .simulated_pixels_per_point()
             .unwrap_or_else(|| self.native_pixels_per_point() * self.zoom_factor());
         self.inner.pixels_per_point.set(pixels_per_point);
+    }
+
+    pub fn with_input<R>(
+        &self,
+        input: impl FnOnce(&InputState) -> InputState,
+        content: impl FnOnce() -> R,
+    ) -> R {
+        let given = input(&self.inner.input.borrow());
+        let held = self.inner.input.replace(given);
+        let result = content();
+        self.inner.input.replace(held);
+        result
     }
 
     pub fn scaled<R>(&self, scale: f32, content: impl FnOnce() -> R) -> R {

@@ -6,6 +6,7 @@ use crate::text_input::{TextInputHandle, TextInputStyle};
 use beui_core::base::overlay::Placement;
 use beui_core::document::Document;
 use beui_core::input::{Key, KeyPress};
+use beui_core::keys::{KeyAt, KeyPhase};
 use beui_core::layer::Dismiss;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
@@ -13,7 +14,7 @@ use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Callback, Child, Children, Frame, IntoProp, ItemSize, List, Memo, NodeRef, Prop, ReadSignal,
     Render, RenderFn, Run, Selector, WriteSignal, clone, create_effect, create_memo,
-    create_selector, create_signal, set_component_state,
+    create_selector, create_signal, on_key, set_component_state,
 };
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -213,6 +214,15 @@ pub fn Select(
         state.clone(),
         state.clone(),
     );
+    on_key(
+        KeyAt::Node(state.search.clone()),
+        KeyPhase::Capture,
+        move |event| {
+            event
+                .press()
+                .is_some_and(|press| navigate(&navigate_state, press))
+        },
+    );
     let search_blur = state.clone();
 
     view! {
@@ -248,7 +258,6 @@ pub fn Select(
                                     confirm(&submit_state, index);
                                 }
                             }}
-                            on_key_override={move |press: KeyPress| navigate(&navigate_state, press)}
                         />
                         <unstyled::Scroll
                             @sizing=ItemSize::Fixed(OPTIONS_MAX_HEIGHT)

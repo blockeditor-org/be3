@@ -42,11 +42,21 @@ or the root. Listeners sit at positions on it (`KeyAt`):
 and each listens in the capture phase, on the way down before the target, or the
 bubble phase, on the way back up after it (`on_key(at, phase, handler)`). The
 trip is: host and window capture listeners, F6, tree capture listeners from the
-root down, the target (its `on_key`, then its own activation and arrow
-stepping), then on the way up each ancestor's `on_ancestor_key` and bubble
-listeners, the window and host bubble listeners, and last the built-in keys:
-Tab, Escape (a dismiss request, see the beui guide) and Back. The first
-listener to answer `true` ends the trip.
+root down to the target, the target itself (its `on_key`, then its own
+activation and arrow stepping), tree bubble listeners from the target up, the
+layers (Escape asks the innermost dismissable layer around the focus to close,
+see the beui guide), the window and host bubble listeners, and last the
+built-in keys: Tab, Escape (which cancels a held activation) and Back. The
+first listener to answer `true` ends the trip. So a window listener for Escape
+hears it only when no layer took it.
+
+A listener at the focused node itself is on the path in both phases, which is
+how a compound control steers keys before the control inside it handles them:
+the command palette and select put a capture listener on their search box
+(`@node_ref` on the `TextInput`) for the arrows, and a scroll area puts a bubble
+listener on itself for the arrows its children leave. Answering a key scrolls
+the focus into view; `on_scroll_key` registers a listener whose keys move the
+view themselves and so do not.
 
 Boundaries cut the path, and they replace what used to be flags:
 
@@ -206,11 +216,17 @@ button.
 Every embedded editor - a plugin's region, and in `block-app --session` and
 `--desktop` each Wayland program's window - is a forwarding catcher: an
 `Interactive` with `on_forward` (and `hit_at` for the points it takes),
-handed the events beui routes to it as a `ForwardedInput`. The host knows
-nothing of the editor behind it beyond turning those events into its own
-protocol (`plugin_host::forward_region` for a plugin, `be_wayland::Compositor`
-for a window), so press capture, hover, claims, overlays, focus, intercepting
-actions and the lock apply to both by the same rules. The only one outside it
+handed what beui routes to it as a `ForwardedInput`: the pointer events beui
+resolved for it (`Forwarded::Pointer`, with `over`, the catcher under the
+event whatever holds the press, which a drag between Wayland windows needs),
+`Forwarded::Left` once the pointer is neither over it nor held by a press in
+it, `Forwarded::Focus` when it gains or loses the focus, and the keys, text,
+IME and file drops meant for it (`Forwarded::Input`). The host knows nothing
+of the editor behind it beyond turning those into its own protocol
+(`plugin_host::forward_region` for a plugin, `be_wayland::Compositor` for a
+window) and keeps no capture or hover of its own, so press capture, hover,
+claims, overlays, focus, intercepting actions and the lock apply to both by
+the same rules. The only one outside it
 is the browser tab's web view (crates/editors/browser-tab), a native view placed
 over the window that takes its input from the platform rather than from beui.
 
@@ -221,31 +237,45 @@ What one event goes through, in order:
    (`wake.rs`, see guides/linux_desktop.md). That has to happen there: it is
    decided on libinput's own clock before the keymap sees the key, and nothing
    about it is the document's to judge. The keymap's own actions (switching
-   terminals, Ctrl+Alt+Backspace) are the adapter's too. Each key arrives as
-   `Event::PhysicalKey` (the scan code, for Wayland programs) just before the
-   `Event::Key` and any `Event::Text` it made.
-2. `interact`: the document counts the frame as input (`Document::input_frames`,
-   which the compositor's idle time reads), hit tests each press over the
-   layers, asks the layers it is outside of to close, finds a modifier claim
-   (`claim_modifiers`, `claim_at`) or a capture for a press, dispatches each
-   pointer's events, and moves the focus.
-3. Keys, one at a time along the focus path (How a key travels, above): host
+   terminals, Ctrl+Alt+Backspace) are the adapter's too. A key is one
+   `Event::Key`: the `KeyPress`, the scan code (`code`, for Wayland programs,
+   and on its own as `Key::Unidentified` for a key beui has no name for) and
+   the text it typed. `Event::Text` is text that came without a key, such as a
+   paste.
+2. `InputState::begin_frame` turns the frame's events into `PointerEvent`s:
+   moves, presses, releases, cancels, wheel turns and zooms, each where the
+   pointer was at that moment. A mouse event that lands on a finger is the
+   platform's copy of the touch and is dropped.
+3. `interact`: the document counts the frame as input (`Document::input_frames`,
+   which the compositor's idle time reads), and for each pointer event hit
+   tests it over the layers once, asks the layers it is outside of to close,
+   finds a modifier claim (`claim_modifiers`, `claim_at`) or a capture for a
+   press, hands it to the pointer's session (one per pointer and button, which
+   also counts the fingers for pinches and two-finger gestures), and moves the
+   focus.
+4. Keys, one at a time along the focus path (How a key travels, above): host
    and window listeners first (capturing actions, and in block-app the shell
    plugin's intercepted chords, `compositor/intercept.rs`), then F6 and
    Shift+F6, which move the focus between forwarding catchers. A key one of
-   them takes is gone from the frame along with its physical key and text, and
-   so are its repeats and release when they come. A key bound for an app goes
-   no further; any other key goes on down the tree and back up.
-4. `forward::route`: the pointer goes to the catcher under it (`hit_at`
+   them takes is gone, code and text with it, and so are its repeats and
+   release when they come. A key bound for an app goes no further; any other
+   key goes on down the tree and back up, and types its text unless something
+   on the way took it.
+5. `forward::route`: the pointer goes to the catcher under it (`hit_at`
    says no where something else is drawn over it), a press stays with the
    catcher its pointer's down reached until every button is let go, a claimed
    press goes to its claimant, wheel and drop events to the catcher under the pointer, and
    keys, text and IME to the focused catcher. A catcher beneath a layer that
-   blocks everything loses its capture. Each catcher is also told when it gains or loses the
-   hover or the focus.
+   blocks everything loses its capture.
 
 So no editor reads the frame's events itself, and nothing gives a key a
-meaning outside an action, a shortcut or a control.
+meaning outside an action, a shortcut or a control. A host that shows several
+documents in one frame, as the inspector does beside the app, gives each the
+input it may see through `Context::with_input`: `InputState::only` keeps some
+events, `without_pointer` takes the pointer away (telling the document the
+pointer left, the frame it starts), and a `Focus(false)` before and
+`Focus(true)` after the time the document's keys go elsewhere, the same as a
+window losing the keyboard, which also stops it claiming the IME.
 
 ## Control props
 
@@ -309,11 +339,9 @@ instead of querying the control's state back afterwards.
 `tab_stop` is a prop on `<unstyled::Button>` and a focusable `<Interactive>`: set it to
 `false` to keep a control reachable by pointer and programmatic focus while
 removing it from sequential Tab navigation, which is how single-Tab-stop groups
-work. `on_key` returns `true` only for keys it handled. `<unstyled::TextInput>`
-also takes `on_key_override`, which lets a compound control (such as select's
-search box) intercept arrows before the text input's own key handling runs;
-returning `false` falls through to the normal behavior. `Document::focused_node`
-reports the current focus.
+work. `on_key` returns `true` only for keys it handled; a control that needs
+keys before a text input inside it sees them listens at it (How a key travels,
+above). `Document::focused_node` reports the current focus.
 
 Use `@node_ref=&a_node_ref` on any tag when an enclosing component needs the
 `NodeId` of something nested inside its tree; `NodeRef::get` reads it back once
@@ -349,9 +377,9 @@ beyond either end of a scroll view is resisted before springing back. Touch
 contacts do not hover controls, and focus is assigned only after a gesture
 resolves as a tap. Horizontal gestures remain available to controls such as
 sliders. The touch pointer disappears after release, so touch does not leave
-hover styling behind. Platform integrations may provide synthesized pointer
-events alongside touch events; beui suppresses those duplicates while the
-touch is active.
+hover styling behind. Platforms may send a mouse event of their own for each
+touch; beui drops a mouse event that lands on a finger, so a real mouse
+elsewhere goes on working while a finger is down.
 
 Standalone apps receive winit touch events automatically. Open the inspector
 with Ctrl+Shift+I and enable “Emulate touch with mouse” to turn the primary

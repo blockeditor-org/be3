@@ -34,9 +34,11 @@ fn a_focused_app_keeps_its_keys_from_global_actions_that_do_not_intercept() {
                             focusable=true
                             on_forward={move |input: ForwardedInput| {
                                 if input.focused {
-                                    forwarded.borrow_mut().extend(input.events.iter().filter_map(
+                                    forwarded.borrow_mut().extend(input.inputs().filter_map(
                                         |event| match event {
-                                            Event::Key { key, pressed: true, .. } => Some(*key),
+                                            Event::Key { press, .. } if press.pressed => {
+                                                Some(press.key)
+                                            }
                                             _ => None,
                                         },
                                     ));

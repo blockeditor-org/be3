@@ -4,7 +4,8 @@ use block_editor_beui::be_block::pixel_art::{PixelArtOperation, PixelColor, Pixe
 use block_editor_beui::beui::icons::ICON_ARROW_FORWARD;
 use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, CanvasView, ForEach, Frame, Interactive, ItemSize, List, Memo, NodeRef,
-    ReadSignal, WriteSignal, clone, component, component_rect, create_effect, create_memo, view,
+    ReadSignal, WriteSignal, clone, component, component_rect, create_effect, create_memo,
+    held_modifiers, untrack, view,
 };
 use block_editor_beui::beui::styled::{Code, use_theme};
 use block_editor_beui::beui::unstyled::Picture;
@@ -52,6 +53,13 @@ pub(crate) fn ArtworkCanvas(
             height,
         )
     }));
+
+    let held = held_modifiers();
+    let constraining = Rc::clone(&tools);
+    create_effect(move || {
+        let shift = held.get().shift;
+        untrack(|| constraining.set_constrained.set(shift));
+    });
 
     let pressing = Rc::clone(&tools);
     let press_size = size.clone();
@@ -206,7 +214,6 @@ pub(crate) fn ArtworkCanvas(
                 focusable=true
                 on_key={on_key}
                 cursor=CursorIcon::Crosshair
-                repeat_drag=true
                 on_press={on_press}
                 on_drag={on_drag}
                 on_click_at={on_click_at}

@@ -14,7 +14,6 @@ use beui_core::base::ItemSize;
 use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::geometry::Pos2;
-use beui_core::input::KeyPress;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Callback, Frame, List, NodeRef, Prop, RenderFn, create_memo, set_component_state,
@@ -37,7 +36,6 @@ pub fn TextArea(
     selected_widget: Option<RenderFn<usize>>,
     #[prop(default = true)] emoji: bool,
     on_widget_press: Callback<usize, bool>,
-    on_key_override: Callback<KeyPress, bool>,
     on_focus_change: Callback<bool>,
 ) -> NodeId {
     let theme = use_theme();
@@ -75,7 +73,6 @@ pub fn TextArea(
                         show_runs
                         client_colors
                         on_widget_press={move |widget: usize| on_widget_press.call(widget)}
-                        on_key_override={move |press: KeyPress| on_key_override.call(press)}
                         on_focus_change={move |focused: bool| on_focus_change.call(focused)}
                         on_menu={move |at: Pos2| open_menu.call(at)}
                         block={block}

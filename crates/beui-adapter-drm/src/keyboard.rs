@@ -1,4 +1,4 @@
-use beui::{Event, Modifiers};
+use beui::{Event, Key, KeyPress, Modifiers};
 use smithay::input::keyboard::{keysyms, xkb};
 
 use super::input::InputConfig;
@@ -42,7 +42,6 @@ impl Keyboard {
     pub fn key(&mut self, code: u32, pressed: bool) -> Pressed {
         let keycode = xkb::Keycode::new(code + 8);
         let mut out = Pressed::default();
-        out.events.push(Event::PhysicalKey { code, pressed });
         let sym = self.state.key_get_one_sym(keycode).raw();
         let text = self.state.key_get_utf8(keycode);
         self.state.update_key(
@@ -68,25 +67,23 @@ impl Keyboard {
             out.quit = held.ctrl && held.alt && sym == keysyms::KEY_BackSpace;
         }
         let mut repeated = Vec::new();
-        if let Some(key) = key(sym) {
-            out.events.push(Event::Key {
+        let text = Some(text).filter(|text| {
+            pressed && !held.command() && !text.is_empty() && !text.chars().any(char::is_control)
+        });
+        let key = key(sym).unwrap_or(Key::Unidentified);
+        let stroke = |pressed: bool, repeat: bool, text: Option<String>| Event::Key {
+            press: KeyPress {
                 key,
                 pressed,
-                repeat: false,
+                repeat,
                 modifiers: held,
-            });
-            if !key.is_modifier() {
-                repeated.push(Event::Key {
-                    key,
-                    pressed: true,
-                    repeat: true,
-                    modifiers: held,
-                });
-            }
-        }
-        if pressed && !held.command() && !text.is_empty() && !text.chars().any(char::is_control) {
-            out.events.push(Event::Text(text.clone()));
-            repeated.push(Event::Text(text));
+            },
+            code: Some(code),
+            text,
+        };
+        out.events.push(stroke(pressed, false, text.clone()));
+        if !key.is_modifier() {
+            repeated.push(stroke(true, true, text));
         }
         if pressed && !repeated.is_empty() && out.terminal.is_none() {
             out.repeat = Some(repeated);

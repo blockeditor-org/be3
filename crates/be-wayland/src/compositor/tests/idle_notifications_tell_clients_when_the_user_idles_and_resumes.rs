@@ -29,9 +29,6 @@ fn idle_notifications_tell_clients_when_the_user_idles_and_resumes() {
         "idled is sent once"
     );
 
-    harness.frame(vec![Event::PhysicalKey {
-        code: 30,
-        pressed: true,
-    }]);
+    harness.frame(vec![physical(30, true)]);
     assert_eq!(harness.client.received.idle, vec![true, false]);
 }

@@ -24,14 +24,18 @@ fn a_key_carries_the_modifiers_held_before_it() {
             key: Key::C,
             pressed: true,
             repeat: false,
+            text: None,
         },
     );
     assert!(
         matches!(
             events.as_slice(),
             [Event::Key {
-                modifiers: beui_core::input::Modifiers { ctrl: true, .. },
-                pressed: true,
+                press: beui_core::input::KeyPress {
+                    modifiers: beui_core::input::Modifiers { ctrl: true, .. },
+                    pressed: true,
+                    ..
+                },
                 ..
             }]
         ),

@@ -630,7 +630,7 @@ fn registry() -> Registry {
                     }
                 })
             });
-            document.listen_keys(at, phase, Rc::downgrade(&handler));
+            document.listen_keys(at, phase, true, Rc::downgrade(&handler));
             registry.0.listeners.borrow_mut().push(handler);
         };
         listen(KeyAt::Root, KeyPhase::Bubble);

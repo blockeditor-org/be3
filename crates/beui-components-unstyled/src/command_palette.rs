@@ -8,13 +8,14 @@ use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::geometry::Pos2;
 use beui_core::input::{Key, KeyPress};
+use beui_core::keys::{KeyAt, KeyPhase};
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Action, Child, ClickCallback, ForEach, ItemSize, List, Memo, NodeRef, Prop, ReadSignal, Render,
     RenderFn, Selector, WriteSignal, active_actions_from, clone, create_effect, create_memo,
-    create_selector, create_signal, set_component_state, untrack, with_document,
+    create_selector, create_signal, on_key, set_component_state, untrack, with_document,
 };
 
 use crate as unstyled;
@@ -108,6 +109,15 @@ pub fn CommandPalette(
         state.clone(),
         state.clone(),
     );
+    on_key(
+        KeyAt::Node(state.search.clone()),
+        KeyPhase::Capture,
+        move |event| {
+            event
+                .press()
+                .is_some_and(|press| navigate(&key_state, press))
+        },
+    );
     let accessibility = create_memo(|| {
         let mut node = Node::new(Role::Dialog);
         node.set_label("Command palette");
@@ -139,7 +149,6 @@ pub fn CommandPalette(
                                 confirm(&submit_state, key);
                             }
                         }}
-                        on_key_override={move |press: KeyPress| navigate(&key_state, press)}
                     />
                     <unstyled::Scroll
                         @sizing={list_height.map(ItemSize::Fixed)}
