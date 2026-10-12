@@ -264,8 +264,30 @@ hooks the higher crates fill in:
   text (answered by `take_clipboard_read` from the next frame), and
   `Context::watch_copies` hears every copy, which is how be-wayland hands the
   app's copies to Wayland programs.
+  `Platform`'s methods all have defaults (no clipboard, no file picker), so a
+  platform implements only what it has.
   A new platform implements those two traits and hands its window or element
   to the renderer loader the facade gives it.
+- An adapter only translates: it hands `Runner::push` a `runner::Input`, which
+  is an `Event` with its positions and deltas in physical pixels, a
+  `Keystroke` (the key, its text and scancode, with no modifiers), or a
+  `ScrollDelta` in pixels, lines (`SCROLL_LINE` points) or pages
+  (`SCROLL_PAGE`). It may send `Event::Modifiers` on every event; the runner
+  passes it on only when it changes. At the start of each frame the runner
+  turns its input into points. It stamps keys, pointer buttons and
+  intercepted keys with the modifiers held, and drops a held modifier's
+  repeats and the text of a shortcut. It turns the primary mouse button into
+  a finger while `Context::touch_emulation` is on, holds `PointerGone` back
+  while a button is held, and lets go of the modifiers, buttons and emulated
+  touch when focus is lost. On Ctrl+V it pastes `Platform::paste` unless
+  `Platform::delivers_paste_shortcut` says the platform sends that paste
+  itself (the browser and a plugin's host do).
+- `Platform::pick_file` gets a `FilePickAnswer`, which can be sent from any
+  thread and wakes the runner; the pick reaches the app at the next frame.
+  Accessibility trees are published only between
+  `Runner::accessibility_requested` and `accessibility_deactivated`.
+  `Frame::wait` is how long the adapter may sleep before the next frame
+  (`None` until something wakes it).
   A panic out of the app's `update` stops the runner rather than unwinding
   through the event loop: the app hears `exiting`, `frame` returns `None` from
   then on, `Runner::failure` says why, and the adapter ends its loop and
@@ -1448,10 +1470,11 @@ and bytes) or with why it could not be read; a cancelled pick only clears
 `picking`. `pick_file(filter, picked)` is the one-shot form underneath, handed
 the raw `FilePick`. Nothing blocks while the dialog is open: the document queues
 the request, `Context` hands it to the runner in `FrameOutput::file_picks`, and
-the runner answers with `Context::file_picked` whenever the person is done -
-winit from a thread that runs the native dialog, the web runner from an
-`<input type=file>`, Android from `BeuiActivity`, and a plugin through the host
-it runs in. The document delivers the answer at the start of a later frame,
+the runner hands each to `Platform::pick_file` with a `FilePickAnswer` that the
+platform sends whenever the person is done - winit from a thread that runs the
+native dialog, the web runner from an `<input type=file>`, Android from
+`BeuiActivity`, and a plugin through the host it runs in; a platform without a
+picker answers that it has none. The document delivers the answer at the start of a later frame,
 inside its reactive scope, so `picked` can write signals like an event handler.
 A host that runs beui itself does the same with the requests in `file_picks`.
 
@@ -1687,9 +1710,11 @@ frames.
 from a driver (guides/running/drive.md); the native run functions fill it
 from `BEUI_AUTOMATION` and switch to `beui::Headless` for `BEUI_HEADLESS`, and
 block-app's web build fills it from its `automate` export. The runner keeps the
-accessibility tree as text, publishes test ids and the action registry's
-actions, takes the next command at the start of a frame, turns input commands
-into `Event`s (`automation/keys.rs` names the keys), and answers once a frame
+accessibility tree as text, publishes test ids (no other runner does, except
+a plugin's) and the action registry's actions, takes
+the next command at the start of a frame, turns input commands into `Event`s
+already in points, which skip the adapters' intake (`automation/keys.rs` names
+the keys), and answers once a frame
 asks for no other and the app is not `busy`. Under `Runner::simulate`, which
 the headless adapter calls, the runner is the window as well: it owns its size,
 scale, focus and clipboard, grows it to the screen for fullscreen, and holds

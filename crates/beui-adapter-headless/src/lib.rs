@@ -6,7 +6,6 @@ use std::time::{Duration, Instant};
 
 use beui_core::app::automation::{Simulation, WindowSize};
 use beui_core::app::{SafeArea, Setup, Waker};
-use beui_core::file_picker::FilePickRequest;
 use beui_core::geometry::Vec2;
 use beui_core::renderer::Loaded;
 use beui_core::runner::{Adapter, Launch, Platform, Runner, Running};
@@ -33,15 +32,7 @@ impl Adapter for Headless {
 
 struct Offscreen;
 
-impl Platform for Offscreen {
-    fn copy(&mut self, _text: String) {}
-
-    fn paste(&mut self) -> Option<String> {
-        None
-    }
-
-    fn pick_file(&mut self, _request: FilePickRequest) {}
-}
+impl Platform for Offscreen {}
 
 fn run(headless: Headless, launch: Launch) -> Result<(), Box<dyn Error>> {
     let simulation = Simulation::new(headless.window, headless.screen);
@@ -68,10 +59,11 @@ fn run(headless: Headless, launch: Launch) -> Result<(), Box<dyn Error>> {
                     break;
                 }
                 let again = runner.present();
-                if frame.again() || again {
-                    Some(started + FRAME_INTERVAL)
-                } else {
-                    started.checked_add(frame.repaint_after)
+                match frame.wait() {
+                    _ if again => Some(started + FRAME_INTERVAL),
+                    Some(Duration::ZERO) => Some(started + FRAME_INTERVAL),
+                    Some(wait) => started.checked_add(wait),
+                    None => None,
                 }
             }
             None if runner.exited() => break,

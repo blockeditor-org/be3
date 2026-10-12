@@ -3,6 +3,7 @@ use std::error::Error;
 use std::future::Future;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::pin::Pin;
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::Duration;
 
 use accesskit::TreeUpdate;
@@ -11,10 +12,17 @@ use crate::app::accessibility_dump::AccessibilityDump;
 use crate::app::automation::{Automation, Inbox, Settled, Simulation, View, World};
 use crate::app::{App, SafeArea, Setup, Waker, next_batch, safe_rect};
 use crate::context::{ActionGroup, Context, FrameOutput};
-use crate::file_picker::FilePickRequest;
+use crate::file_picker::{FilePick, FilePickAnswer, FilePickId, FilePickRequest};
 use crate::geometry::Vec2;
 use crate::input::{CursorIcon, Event, ImeArea, KeyChord, RawInput};
 use crate::renderer::{Loaded, Renderers};
+
+mod intake;
+
+use intake::{Drain, Intake};
+pub use intake::{Input, Keystroke, SCROLL_LINE, SCROLL_PAGE, ScrollDelta};
+
+type Answered = (FilePickId, FilePick);
 
 pub struct RunOptions {
     pub title: String,
@@ -51,11 +59,20 @@ pub trait Adapter {
 }
 
 pub trait Platform {
-    fn copy(&mut self, text: String);
+    fn copy(&mut self, _text: String) {}
 
-    fn paste(&mut self) -> Option<String>;
+    fn paste(&mut self) -> Option<String> {
+        None
+    }
 
-    fn pick_file(&mut self, request: FilePickRequest);
+    fn pick_file(&mut self, request: FilePickRequest, answer: FilePickAnswer) {
+        let _ = request;
+        answer.send(Err("Choosing a file is unavailable here".to_owned()));
+    }
+
+    fn delivers_paste_shortcut(&self) -> bool {
+        false
+    }
 
     fn set_cursor(&mut self, _icon: CursorIcon, _touch_emulation: bool) {}
 
@@ -86,6 +103,13 @@ impl Frame {
     pub fn again(&self) -> bool {
         self.deferred || self.repaint || self.repaint_after.is_zero()
     }
+
+    pub fn wait(&self) -> Option<Duration> {
+        match self.again() {
+            true => Some(Duration::ZERO),
+            false => (self.repaint_after != Duration::MAX).then_some(self.repaint_after),
+        }
+    }
 }
 
 struct Exited;
@@ -112,7 +136,10 @@ pub struct Runner {
     renderers: Option<Renderers>,
     waker: Option<Waker>,
     events: Vec<Event>,
+    intake: Intake,
+    picks: (Sender<Answered>, Receiver<Answered>),
     accessibility: Option<AccessibilityDump>,
+    publishing_accessibility: bool,
     automation: Option<Automation>,
     simulation: Option<Simulation>,
     simulated_size: Option<(u32, u32)>,
@@ -135,8 +162,8 @@ impl Runner {
             app,
         } = launch;
         let automation = options.automation.map(Automation::new);
+        context.set_test_ids_published(automation.is_some());
         if automation.is_some() {
-            context.set_test_ids_published(true);
             context.set_automated(true);
         }
         let accessibility =
@@ -148,7 +175,10 @@ impl Runner {
             renderers: None,
             waker: None,
             events: Vec::new(),
+            intake: Intake::default(),
+            picks: mpsc::channel(),
             accessibility,
+            publishing_accessibility: false,
             automation,
             simulation: None,
             simulated_size: None,
@@ -192,12 +222,30 @@ impl Runner {
         self.renderers.as_mut()
     }
 
-    pub fn push(&mut self, event: Event) {
-        self.events.push(event);
+    pub fn push(&mut self, input: impl Into<Input>) {
+        self.intake.incoming.push(input.into());
+    }
+
+    pub fn pointer_button(
+        &mut self,
+        pos: crate::geometry::Pos2,
+        button: crate::input::PointerButton,
+        pressed: bool,
+    ) {
+        self.push(Event::PointerButton {
+            pos,
+            button,
+            pressed,
+            modifiers: crate::input::Modifiers::NONE,
+        });
+    }
+
+    pub fn modifiers(&self) -> crate::input::Modifiers {
+        self.intake.modifiers()
     }
 
     pub fn has_events(&self) -> bool {
-        !self.events.is_empty()
+        !self.events.is_empty() || !self.intake.incoming.is_empty()
     }
 
     pub fn take_output(&mut self) -> Option<FrameOutput> {
@@ -213,6 +261,19 @@ impl Runner {
             self.accessibility = Some(AccessibilityDump::new());
             self.context.reset_accessibility();
         }
+    }
+
+    pub fn accessibility_requested(&mut self) {
+        self.publishing_accessibility = true;
+        self.context.reset_accessibility();
+    }
+
+    pub fn accessibility_deactivated(&mut self) {
+        self.publishing_accessibility = false;
+    }
+
+    pub fn accessibility_action(&mut self, request: accesskit::ActionRequest) {
+        self.context.accessibility_action(request);
     }
 
     pub fn accessibility(&self) -> Option<&AccessibilityDump> {
@@ -301,6 +362,9 @@ impl Runner {
             }
             Err(error) => panic!("beui: the GPU was lost and could not be reopened: {error}"),
         }
+        while let Ok((id, pick)) = self.picks.1.try_recv() {
+            self.context.file_picked(id, pick);
+        }
         if let Err(error) = renderers.follow_choice(&self.context) {
             eprintln!("beui: could not switch renderers: {error}");
         }
@@ -340,10 +404,25 @@ impl Runner {
         };
         let Some(physical) = renderers.physical() else {
             self.events.clear();
+            self.intake.incoming.clear();
             return None;
         };
         self.context.set_pixels_per_point(pixels_per_point);
         let scale = self.context.pixels_per_point();
+        let simulation = &self.simulation;
+        let delivers_paste = platform.delivers_paste_shortcut();
+        self.intake.drain(
+            &mut Drain {
+                pixels_per_point: scale,
+                touch_emulation: self.context.touch_emulation(),
+                paste: &mut || match simulation {
+                    Some(simulation) => simulation.clipboard.clone(),
+                    None if delivers_paste => None,
+                    None => platform.paste(),
+                },
+            },
+            &mut self.events,
+        );
         let screen = physical / scale;
         match renderers.screens() {
             Some(screens) => {
@@ -368,7 +447,9 @@ impl Runner {
             app.update(context, safe_rect(screen, safe_area, scale));
         });
         let title = &self.title;
-        platform.publish_accessibility(&mut || output.accessibility_tree(title, screen));
+        if self.publishing_accessibility {
+            platform.publish_accessibility(&mut || output.accessibility_tree(title, screen));
+        }
         if let Some(dump) = &mut self.accessibility {
             dump.update(output.accessibility_tree(title, screen));
         }
@@ -397,7 +478,9 @@ impl Runner {
                     platform.copy(text.clone());
                 }
                 for request in std::mem::take(&mut output.file_picks) {
-                    platform.pick_file(request);
+                    let answer =
+                        FilePickAnswer::new(request.id, self.picks.0.clone(), self.waker.clone());
+                    platform.pick_file(request, answer);
                 }
                 if output.paste_requested
                     && let Some(text) = platform.paste()

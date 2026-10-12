@@ -36,15 +36,7 @@ impl Renderer for Screen {
 
 struct Nowhere;
 
-impl Platform for Nowhere {
-    fn copy(&mut self, _text: String) {}
-
-    fn paste(&mut self) -> Option<String> {
-        None
-    }
-
-    fn pick_file(&mut self, _request: FilePickRequest) {}
-}
+impl Platform for Nowhere {}
 
 struct Failing {
     log: Log,

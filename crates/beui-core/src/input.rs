@@ -3,6 +3,8 @@ use std::time::{Duration, Instant};
 
 use crate::geometry::{Pos2, Vec2};
 
+mod names;
+
 const MULTI_CLICK_DELAY: f32 = 0.3;
 const MULTI_CLICK_DISTANCE: f32 = 6.0;
 const MULTI_CLICK_LIMIT: u32 = 4;
