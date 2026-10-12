@@ -16,7 +16,5 @@ app(
     files = ["//buck/app:build-id"],
     manifests = [],
     modules = [],
-    precompile = False,
-    precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
     visibility = ["//crates/local-tools:"],
 )

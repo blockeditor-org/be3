@@ -61,8 +61,6 @@ app(
     data = ["//{}:data".format(package) for package in editor_packages()],
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
-    precompile = False,
-    precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
 )
 
 # What CI ships per platform: the app and server under cargo's names; the
@@ -75,8 +73,6 @@ app(
     files = ["//buck/app:build-id"],
     manifests = [],
     modules = [],
-    precompile = False,
-    precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
 )
 
 # The web bundle: the app for wasi and the gpu shim for wasm32, each through
@@ -108,8 +104,6 @@ app(
     index = True,
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
-    precompile = False,
-    precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
     wasm_bindgen = "//buck/cargo:wasm-bindgen",
     visibility = ["//crates/local-tools:"],
 )
@@ -124,8 +118,6 @@ app(
     index = True,
     manifests = [],
     modules = [],
-    precompile = False,
-    precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
     wasm_bindgen = "//buck/cargo:wasm-bindgen",
 )
 
