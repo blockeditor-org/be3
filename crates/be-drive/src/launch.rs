@@ -146,7 +146,7 @@ impl Launch {
                 .map_err(|error| format!("{error}{see}"))
         })();
         if let Err(error) = answered {
-            let _ = child.kill();
+            kill_group(child.id());
             let _ = child.wait();
             return Err(error);
         }
@@ -198,7 +198,7 @@ pub fn run_script(arguments: &[String]) -> Result<(), String> {
         .map_err(|error| format!("could not create {}: {error}", dir.display()))?;
     let mut child = launch.start(&dir, None)?;
     if let Err(error) = crate::script(&dir.join("automation.sock"), &[], crate::TIMEOUT) {
-        let _ = child.kill();
+        kill_group(child.id());
         let _ = child.wait();
         return Err(error);
     }
@@ -215,13 +215,19 @@ pub fn run_script(arguments: &[String]) -> Result<(), String> {
         Ok(Ok(status)) => Err(format!("{name} exited with {status}")),
         Ok(Err(error)) => Err(format!("could not wait for {name}: {error}")),
         Err(_) => {
-            let _ = Command::new("kill").args(["-9", &pid.to_string()]).status();
+            kill_group(pid);
             Err(format!(
                 "{name} did not exit within {} seconds of the last command; end the commands with close",
                 EXIT.as_secs()
             ))
         }
     }
+}
+
+fn kill_group(pid: u32) {
+    let _ = Command::new("kill")
+        .args(["-9", "--", &format!("-{pid}")])
+        .status();
 }
 
 fn quoted(path: &Path) -> String {
