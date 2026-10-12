@@ -2479,5 +2479,4 @@ is the full check, and CI runs it on a pull request and pushes whatever it chang
 the pull request's branch; it runs the workspace tests, lints, formatting, project structure checks, snapshot updates, and the formatter for
 `view!` bodies that rustfmt cannot handle. Use a package-scoped Cargo command
 only as a narrow diagnostic after one of the supported scripts has exposed a
-failure. Run `./scripts/buck run //crates/block-app:smoke` as well when a change can affect native
-startup or runtime integration.
+failure.
