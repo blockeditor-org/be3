@@ -208,6 +208,9 @@ export async function boot(shimUrl, moduleUrl, wake) {
     const identity = dylink.sdkIdentity(plugin);
     const sdkBytes =
         identity === null ? null : await fetched(new URL(dylink.sdkFileName(identity), moduleUrl));
+    if (sdkBytes !== null) {
+        await dylink.checkSdk(sdkBytes, identity);
+    }
     const first = sdkBytes === null ? plugin : await WebAssembly.compile(sdkBytes);
     const memory = new WebAssembly.Memory({ ...memoryLimits(sdkBytes ?? bytes), shared: true });
     wasi.bindMemory(memory);

@@ -31,6 +31,9 @@ with an exported global named `__be3_sdk_<identity>`, and the SDK is staged besi
 `sdk-<identity>.wasm` (and `.cwasm` where plugins are precompiled; `buck/app/stage.sh`), so any
 number of plugins built against one SDK share one file and one compiled module.
 
+Both hosts hash an SDK's `.wasm` before using it and refuse one whose SHA-256 is not the name it
+was found by. A `.cwasm` cannot be checked that way and is trusted as it is found.
+
 ## How the links are made
 
 Every wasm link runs through `crates/wasm-link` (the toolchain's linker in `buck/tools`), which

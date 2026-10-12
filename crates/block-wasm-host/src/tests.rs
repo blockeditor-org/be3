@@ -103,9 +103,15 @@ fn sdk() -> &'static str {
     )"#
 }
 
-const SDK_IDENTITY: &str = "5d1f0e3c9a7b2846c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7";
+fn sdk_identity() -> String {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(sdk().as_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
 
-fn linked_plugin() -> String {
+fn linked_plugin(identity: &str) -> String {
     r#"(module
         (import "env" "memory" (memory 1 4 shared))
         (import "env" "__indirect_function_table" (table 0 funcref))
@@ -155,7 +161,7 @@ fn linked_plugin() -> String {
                     (i32.load (global.get $own_value))))
             (call $wake))
     )"#
-    .replace("{IDENTITY}", SDK_IDENTITY)
+    .replace("{IDENTITY}", identity)
 }
 
 fn settled(plugin: &mut Plugin, wanted: u8) -> Result<bool, String> {
@@ -181,6 +187,7 @@ mod a_guest_that_reaches_the_gpu_without_a_device_is_told_why;
 mod a_plugin_linked_against_the_sdk_runs_on_it_in_every_thread;
 mod a_plugin_runs_its_constructors_before_it_starts;
 mod a_plugin_runs_on_a_thread_of_its_own;
+mod a_plugin_sdk_that_is_not_what_it_is_named_is_refused;
 mod a_plugin_that_panics_reports_its_panic_message;
 mod a_spawned_guest_thread_may_not_reach_the_gpu;
 mod a_spawned_guest_thread_shares_the_memory_it_was_given;

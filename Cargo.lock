@@ -1433,6 +1433,7 @@ dependencies = [
  "block-plugin-api",
  "bytes",
  "rustc-demangle",
+ "sha2",
  "tokio",
  "wasmtime",
  "wasmtime-wasi",

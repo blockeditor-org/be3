@@ -34,6 +34,15 @@ export function sdkIdentity(module) {
     return null;
 }
 
+/** Refuses SDK bytes whose SHA-256 is not the identity they were fetched by. */
+export async function checkSdk(bytes, identity) {
+    const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+    const hex = Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
+    if (hex !== identity) {
+        throw new Error(`the plugin SDK ${identity} could not be loaded: its SHA-256 is ${hex}`);
+    }
+}
+
 export function sdkFileName(identity) {
     return `sdk-${identity}.wasm`;
 }

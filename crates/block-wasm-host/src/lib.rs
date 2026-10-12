@@ -27,6 +27,7 @@ use wasmtime::{
 use wasmtime_wasi::{WasiCtxBuilder, p1};
 
 use dylink::Program;
+use sha2::{Digest, Sha256};
 use state::Device;
 use threads::Spawner;
 use wake::Wake;
@@ -103,7 +104,7 @@ impl Host {
             let sdk = directory.join(sdk_file_name(identity));
             match precompiled_beside(&self.engine, &sdk) {
                 Some(module) => Ok(module),
-                None => module(&self.engine, &read(&sdk)?),
+                None => sdk_module(&self.engine, identity, &read(&sdk)?),
             }
         })
     }
@@ -122,7 +123,9 @@ impl Host {
         sdk: impl FnOnce(&str) -> Result<Vec<u8>, String>,
     ) -> Result<Plugin, String> {
         let plugin = module(&self.engine, bytes)?;
-        self.link(plugin, |identity| module(&self.engine, &sdk(identity)?))
+        self.link(plugin, |identity| {
+            sdk_module(&self.engine, identity, &sdk(identity)?)
+        })
     }
 
     fn link(
@@ -370,6 +373,21 @@ fn module(engine: &Engine, bytes: &[u8]) -> Result<Module, String> {
     }
     Module::new(engine, bytes)
         .map_err(|error| format!("the plugin module could not be compiled: {error}"))
+}
+
+fn sdk_module(engine: &Engine, identity: &str, bytes: &[u8]) -> Result<Module, String> {
+    if Engine::detect_precompiled(bytes).is_none() {
+        let digest: String = Sha256::digest(bytes)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        if digest != identity {
+            return Err(format!(
+                "its SHA-256 is {digest}, not the {identity} it is named by"
+            ));
+        }
+    }
+    module(engine, bytes)
 }
 
 fn precompiled_beside(engine: &Engine, path: &Path) -> Option<Module> {
