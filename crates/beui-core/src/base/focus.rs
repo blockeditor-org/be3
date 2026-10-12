@@ -359,7 +359,9 @@ impl Document {
         if blocked.contains(&id) {
             return;
         }
-        let element = self.arena.get(id);
+        let Some(element) = self.arena.try_get(id) else {
+            return;
+        };
         if element
             .as_any()
             .downcast_ref::<FrameNode>()

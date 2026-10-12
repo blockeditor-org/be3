@@ -25,7 +25,6 @@ struct DomElement {
     tag: &'static str,
     text: RefCell<String>,
     children: RefCell<ChildList<DomNode>>,
-    scopes: RefCell<Vec<Scope>>,
 }
 
 #[derive(Clone)]
@@ -39,7 +38,6 @@ impl DomNode {
             tag,
             text: RefCell::new(String::new()),
             children: RefCell::new(ChildList::default()),
-            scopes: RefCell::new(Vec::new()),
         }))
     }
 
@@ -48,20 +46,11 @@ impl DomNode {
         let (id, tag) = (self.0.id, self.0.tag);
         format!("<{tag} id={id}>{}{children}</{tag}>", self.0.text.borrow())
     }
-
-    fn release(&self) {
-        let scopes = self.0.scopes.take();
-        drop(scopes);
-        let children: Vec<DomNode> = self.0.children.borrow().iter().cloned().collect();
-        for child in children {
-            child.release();
-        }
-    }
 }
 
 impl ChildValue for DomNode {
     fn adopt_scope(&mut self, scope: Scope) {
-        self.0.scopes.borrow_mut().push(scope);
+        scope.into_parent();
     }
 }
 
@@ -72,10 +61,6 @@ impl SlotChild for DomNode {
 
     fn store(self) -> DomNode {
         self
-    }
-
-    fn discard(stored: &DomNode) {
-        stored.release();
     }
 }
 
@@ -104,10 +89,6 @@ impl SlotHost<DomNode> for DomHost {
 
     fn fill(&self, slot: SlotId, items: Vec<DomNode>) {
         self.with(|element| element.children.borrow_mut().fill(slot, items));
-    }
-
-    fn adopt_scope(&self, scope: Scope) {
-        self.with(|element| element.scopes.borrow_mut().push(scope));
     }
 }
 
