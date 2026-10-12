@@ -359,6 +359,10 @@ impl AndroidPlatform {
             return;
         };
         let id = request.id;
+        PICKS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(answer);
         let started = self
             .vm
             .attach_current_thread(|env| -> Result<(), JniError> {
@@ -374,12 +378,10 @@ impl AndroidPlatform {
                 )?;
                 Ok(())
             });
-        match started {
-            Ok(()) => PICKS
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .push(answer),
-            Err(error) => answer.send(Err(format!("Could not open a file picker: {error}"))),
+        if let Err(error) = started
+            && let Some(answer) = take_pick(id)
+        {
+            answer.send(Err(format!("Could not open a file picker: {error}")));
         }
     }
 
@@ -1080,15 +1082,13 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeFilePicked<'local>(
             Err("The chosen file could not be read".to_owned())
         }
     };
-    let id = FilePickId(id.cast_unsigned());
-    let answer = {
-        let mut picks = PICKS.lock().unwrap_or_else(PoisonError::into_inner);
-        picks
-            .iter()
-            .position(|answer| answer.id() == id)
-            .map(|index| picks.swap_remove(index))
-    };
-    if let Some(answer) = answer {
+    if let Some(answer) = take_pick(FilePickId(id.cast_unsigned())) {
         answer.send(pick);
     }
+}
+
+fn take_pick(id: FilePickId) -> Option<FilePickAnswer> {
+    let mut picks = PICKS.lock().unwrap_or_else(PoisonError::into_inner);
+    let index = picks.iter().position(|answer| answer.id() == id)?;
+    Some(picks.swap_remove(index))
 }

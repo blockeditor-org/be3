@@ -79,10 +79,10 @@ impl Intake {
     }
 
     pub(crate) fn drain(&mut self, drain: &mut Drain<'_>, events: &mut Vec<Event>) {
+        if !drain.touch_emulation && std::mem::take(&mut self.emulated_touch) {
+            events.push(self.touch(TouchPhase::Cancel));
+        }
         for incoming in std::mem::take(&mut self.incoming) {
-            if !drain.touch_emulation && std::mem::take(&mut self.emulated_touch) {
-                events.push(self.touch(TouchPhase::Cancel));
-            }
             match incoming {
                 Input::Event(event) => self.event(event, drain, events),
                 Input::Key(stroke) => self.key(stroke, drain, events),

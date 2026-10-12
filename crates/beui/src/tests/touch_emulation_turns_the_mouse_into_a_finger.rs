@@ -41,13 +41,14 @@ fn touch_emulation_turns_the_mouse_into_a_finger() {
         .pointer_button(pos2(20.0, 40.0), PointerButton::Primary, true);
     intaken.frame(2.0, []);
     intaken.runner.context().set_touch_emulation(false);
-    let seen = intaken.frame(2.0, [Event::PointerMoved(pos2(22.0, 40.0)).into()]);
     assert_eq!(
-        seen,
-        [
-            finger(TouchPhase::Cancel, pos2(10.0, 20.0)),
-            Event::PointerMoved(pos2(11.0, 20.0)),
-        ],
-        "turning emulation off mid-touch cancels the finger"
+        intaken.frame(2.0, []),
+        [finger(TouchPhase::Cancel, pos2(10.0, 20.0))],
+        "turning emulation off mid-touch cancels the finger at the next frame"
+    );
+    assert_eq!(
+        intaken.frame(2.0, [Event::PointerMoved(pos2(22.0, 40.0)).into()]),
+        [Event::PointerMoved(pos2(11.0, 20.0))],
+        "after which the mouse is a mouse again"
     );
 }

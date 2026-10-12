@@ -2323,12 +2323,15 @@ impl Intaken {
         for input in inputs {
             self.runner.push(input);
         }
-        while self.runner.has_events() {
+        loop {
             self.runner.frame(
                 &mut self.platform,
                 pixels_per_point,
                 beui_core::app::SafeArea::default(),
             );
+            if !self.runner.has_events() {
+                break;
+            }
         }
         self.seen.take()
     }
