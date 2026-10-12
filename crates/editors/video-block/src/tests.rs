@@ -13,6 +13,7 @@ use crate::timeline::timecode;
 mod an_empty_video_has_nothing_at_the_playhead;
 mod clicking_a_clip_selects_it_for_the_effects_panel;
 mod dragging_a_clip_past_the_next_one_reorders_the_base_track;
+mod dragging_a_trim_handle_lengthens_its_clip_by_how_far_it_moved;
 mod timecode_counts_minutes_seconds_and_frames;
 
 struct Fixture {

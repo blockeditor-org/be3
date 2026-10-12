@@ -1,9 +1,11 @@
 use super::*;
 use beui::KeyPress;
 use beui::Sides;
+use beui::Vec2;
 use beui::reactive::Dismiss;
 use beui::reactive::{
-    Dynamic, Fade, Grid, GridCell, Interactive, Layers, NodeRef, Overlay, Placement, Shift, Track,
+    Dynamic, Fade, Grid, GridCell, Interactive, Layers, LayoutBuilder, NodeRef, Overlay, Placement,
+    ReadSignal, Shift, Track,
 };
 
 const SWATCH: f32 = 72.0;
@@ -243,6 +245,9 @@ pub(crate) fn ListsPage() -> NodeId {
             <Sample title="Grid" code={vec![TrackGrid::SOURCE, Tile::SOURCE]}>
                 <TrackGrid />
             </Sample>
+            <Sample title="LayoutBuilder" code={vec![ColumnsForWidth::SOURCE, Tile::SOURCE]}>
+                <ColumnsForWidth />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -261,6 +266,29 @@ fn Tile(label: Prop<String>) -> NodeId {
         >
             <Text string={label} color={theme.text.clone()} />
         </Frame>
+    }
+}
+
+#[sample]
+#[component]
+fn ColumnsForWidth() -> NodeId {
+    view! {
+        <LayoutBuilder>
+            {move |size: ReadSignal<Vec2>| {
+                let wide = create_memo(clone!(size -> move || size.get().x >= 480.0));
+                let direction = create_memo(clone!(wide -> move || match wide.get() {
+                    true => Direction::Horizontal,
+                    false => Direction::Vertical,
+                }));
+                let label = create_memo(move || format!("{:.0} wide", size.get().x));
+                view! {
+                    <List direction spacing=8.0>
+                        <Tile @sizing=ItemSize::Percent(100.0) label />
+                        <Tile @sizing=ItemSize::Percent(100.0) label="Side by side from 480" />
+                    </List>
+                }
+            }}
+        </LayoutBuilder>
     }
 }
 

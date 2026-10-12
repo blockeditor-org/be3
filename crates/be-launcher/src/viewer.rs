@@ -1,7 +1,7 @@
 use beui::icons::{ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_CLOSE, ICON_OPEN_IN_NEW};
 use beui::reactive::{
-    Align, ClickCallback, Direction, Frame, Interactive, ItemSize, List, Memo, Prop, Show, clone,
-    component, component_size, create_memo, create_signal, view,
+    Align, ClickCallback, Direction, Frame, Interactive, ItemSize, LayoutBuilder, List, Memo, Prop,
+    ReadSignal, Show, clone, component, create_memo, create_signal, view,
 };
 use beui::styled::{Caption, Fullscreen, IconButton, Scroll, use_theme};
 use beui::unstyled::Picture;
@@ -142,66 +142,86 @@ pub(crate) fn ViewerBar(
 
 #[component]
 fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
-    let size = component_size();
-    let natural = create_memo(clone!(picture -> move || {
-        picture.get().map_or(Vec2::ZERO, |image| image.size())
-    }));
-    let shrunk = create_memo(clone!(natural -> move || {
-        let natural = natural.get();
-        let room = size.get() - Vec2::new(0.0, HINT_HEIGHT);
-        natural.x > room.x || natural.y > room.y
-    }));
-    let (actual, set_actual) = create_signal(false);
-    let zoomed = create_memo(clone!(actual shrunk -> move || actual.get() && shrunk.get()));
-    let fitted = create_memo(clone!(zoomed -> move || !zoomed.get()));
-    let cursor = create_memo(clone!(shrunk -> move || match shrunk.get() {
-        true => CursorIcon::PointingHand,
-        false => CursorIcon::Default,
-    }));
-    let hint = create_memo(clone!(zoomed shrunk -> move || {
-        match (zoomed.get(), shrunk.get()) {
-            (true, _) => "100% · click to fit it to the window",
-            (false, true) => "Scaled down to fit · click for 100%",
-            (false, false) => "100%",
-        }
-        .to_owned()
-    }));
-    let width = create_memo(clone!(natural -> move || Some(natural.get().x)));
-    let height = create_memo(clone!(natural -> move || Some(natural.get().y)));
-    let zoom_in = clone!(set_actual shrunk -> move || {
-        if shrunk.get_untracked() {
-            set_actual.set(true);
-        }
-    });
-    let zoom_out = move || set_actual.set(false);
-    let whole = picture.clone();
     view! {
-        <List spacing=8.0>
-            <Show condition={fitted}>
-                {move || clone!(shrunk whole -> view! {
-                    <Interactive
-                        @sizing=ItemSize::Percent(100.0)
-                        cursor={cursor.clone()}
-                        on_click={zoom_in.clone()}
-                    >
-                        <Picture image={whole} fit=ImageFit::ScaleDown smooth={shrunk.clone()} />
-                    </Interactive>
-                })}
-            </Show>
-            <Show condition={zoomed}>
-                {move || clone!(height picture width zoom_out -> view! {
-                    <Scroll @sizing=ItemSize::Percent(100.0)>
-                        <Scroll direction=Direction::Horizontal>
-                            <Interactive cursor=CursorIcon::PointingHand on_click={zoom_out}>
-                                <Frame width={width} height={height}>
-                                    <Picture image={picture} fit=ImageFit::Fill smooth=false />
-                                </Frame>
-                            </Interactive>
-                        </Scroll>
-                    </Scroll>
-                })}
-            </Show>
-            <Caption @sizing=ItemSize::Fixed(HINT_HEIGHT) content={hint} align=TextAlign::Center />
-        </List>
+        <LayoutBuilder>
+            {move |size: ReadSignal<Vec2>| {
+                let natural = create_memo(clone!(picture -> move || {
+                    picture.get().map_or(Vec2::ZERO, |image| image.size())
+                }));
+                let shrunk = create_memo(clone!(natural -> move || {
+                    let natural = natural.get();
+                    let room = size.get() - Vec2::new(0.0, HINT_HEIGHT);
+                    natural.x > room.x || natural.y > room.y
+                }));
+                let (actual, set_actual) = create_signal(false);
+                let zoomed = create_memo(clone!(actual shrunk -> move || actual.get() && shrunk.get()));
+                let fitted = create_memo(clone!(zoomed -> move || !zoomed.get()));
+                let cursor = create_memo(clone!(shrunk -> move || match shrunk.get() {
+                    true => CursorIcon::PointingHand,
+                    false => CursorIcon::Default,
+                }));
+                let hint = create_memo(clone!(zoomed shrunk -> move || {
+                    match (zoomed.get(), shrunk.get()) {
+                        (true, _) => "100% · click to fit it to the window",
+                        (false, true) => "Scaled down to fit · click for 100%",
+                        (false, false) => "100%",
+                    }
+                    .to_owned()
+                }));
+                let width = create_memo(clone!(natural -> move || Some(natural.get().x)));
+                let height = create_memo(clone!(natural -> move || Some(natural.get().y)));
+                let zoom_in = clone!(set_actual shrunk -> move || {
+                    if shrunk.get_untracked() {
+                        set_actual.set(true);
+                    }
+                });
+                let zoom_out = move || set_actual.set(false);
+                let whole = picture.clone();
+                view! {
+                    <List spacing=8.0>
+                        <Show condition={fitted}>
+                            {move || clone!(shrunk whole -> view! {
+                                <Interactive
+                                    @sizing=ItemSize::Percent(100.0)
+                                    cursor={cursor.clone()}
+                                    on_click={zoom_in.clone()}
+                                >
+                                    <Picture
+                                        image={whole}
+                                        fit=ImageFit::ScaleDown
+                                        smooth={shrunk.clone()}
+                                    />
+                                </Interactive>
+                            })}
+                        </Show>
+                        <Show condition={zoomed}>
+                            {move || clone!(height picture width zoom_out -> view! {
+                                <Scroll @sizing=ItemSize::Percent(100.0)>
+                                    <Scroll direction=Direction::Horizontal>
+                                        <Interactive
+                                            cursor=CursorIcon::PointingHand
+                                            on_click={zoom_out}
+                                        >
+                                            <Frame width={width} height={height}>
+                                                <Picture
+                                                    image={picture}
+                                                    fit=ImageFit::Fill
+                                                    smooth=false
+                                                />
+                                            </Frame>
+                                        </Interactive>
+                                    </Scroll>
+                                </Scroll>
+                            })}
+                        </Show>
+                        <Caption
+                            @sizing=ItemSize::Fixed(HINT_HEIGHT)
+                            content={hint}
+                            align=TextAlign::Center
+                        />
+                    </List>
+                }
+            }}
+        </LayoutBuilder>
     }
 }

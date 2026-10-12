@@ -4,7 +4,7 @@ use block_editor_beui::be_block::pixel_art::{PixelArtOperation, PixelColor, Pixe
 use block_editor_beui::beui::icons::ICON_ARROW_FORWARD;
 use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, CanvasView, ForEach, Frame, Interactive, ItemSize, List, Memo, NodeRef,
-    ReadSignal, WriteSignal, clone, component, component_rect, create_effect, create_memo,
+    PlacementBuilder, ReadSignal, WriteSignal, clone, component, create_effect, create_memo,
     held_modifiers, untrack, view,
 };
 use block_editor_beui::beui::styled::{Code, use_theme};
@@ -39,201 +39,206 @@ pub(crate) fn ArtworkCanvas(
     let editor = tools.editor().clone();
     let view = editor.canvas();
     let scale = editor.scale();
-    let placed = component_rect();
-    let world = editor.world();
-    let artwork = create_memo(clone!(size world placed -> move || {
-        let (width, height) = size.get();
-        if width == 0 || height == 0 {
-            return Rect::ZERO;
-        }
-        let available = world.get().unwrap_or_else(|| placed.get().size());
-        canvas_rect(
-            Rect::from_min_size(Pos2::ZERO, available.max(Vec2::new(1.0, 1.0))),
-            width,
-            height,
-        )
-    }));
-
-    let held = held_modifiers();
-    let constraining = Rc::clone(&tools);
-    create_effect(move || {
-        let shift = held.get().shift;
-        untrack(|| constraining.set_constrained.set(shift));
-    });
-
-    let pressing = Rc::clone(&tools);
-    let press_size = size.clone();
-    let press_view = view.clone();
-    let press_artwork = artwork.clone();
-    let press_editor = editor.clone();
-    let on_press = move |press: PointerPress| {
-        let (width, height) = press_size.get_untracked();
-        if width == 0 || pressing.busy() || !pressing.editable() {
-            return;
-        }
-        pressing.set_constrained.set(press.modifiers.shift);
-        let Some(pixel) = pixel_of(
-            press.pos,
-            press_view.get_untracked(),
-            press_editor.content_rect(),
-            press_artwork.get_untracked(),
-            width,
-            height,
-        ) else {
-            return;
-        };
-        begin(&pressing, pixel);
-    };
-
-    let dragging = Rc::clone(&tools);
-    let drag_size = size.clone();
-    let drag_view = view.clone();
-    let drag_artwork = artwork.clone();
-    let drag_editor = editor.clone();
-    let on_drag = move |press: PointerPress| {
-        let (width, height) = drag_size.get_untracked();
-        if width == 0 || dragging.busy() || !dragging.editable() {
-            return;
-        }
-        dragging.set_constrained.set(press.modifiers.shift);
-        let Some(pixel) = pixel_of(
-            press.pos,
-            drag_view.get_untracked(),
-            drag_editor.content_rect(),
-            drag_artwork.get_untracked(),
-            width,
-            height,
-        ) else {
-            return;
-        };
-        dragging.draw(|drawing| {
-            if let Some(drawing) = drawing.as_mut() {
-                drawing.extend(pixel);
-            }
-        });
-    };
-
-    let releasing = Rc::clone(&tools);
-    let release_size = size.clone();
-    let release_view = view.clone();
-    let release_artwork = artwork.clone();
-    let release_editor = editor.clone();
-    let on_click_at = move |press: PointerPress| {
-        let (width, height) = release_size.get_untracked();
-        if width == 0 || releasing.busy() || !releasing.editable() {
-            return;
-        }
-        releasing.set_constrained.set(press.modifiers.shift);
-        if let Some(pixel) = pixel_of(
-            press.pos,
-            release_view.get_untracked(),
-            release_editor.content_rect(),
-            release_artwork.get_untracked(),
-            width,
-            height,
-        ) {
-            finish(&releasing, pixel, width, height);
-        }
-    };
-
-    let sampling = Rc::clone(&tools);
-    let sample_size = size.clone();
-    let sample_view = view.clone();
-    let sample_artwork = artwork.clone();
-    let sample_editor = editor.clone();
-    let on_secondary = move |press: PointerPress| {
-        let (width, height) = sample_size.get_untracked();
-        if width == 0 {
-            return;
-        }
-        if let Some(pixel) = pixel_of(
-            press.pos,
-            sample_view.get_untracked(),
-            sample_editor.content_rect(),
-            sample_artwork.get_untracked(),
-            width,
-            height,
-        ) {
-            sample(&sampling, pixel);
-        }
-    };
-
-    let moving = Rc::clone(&tools);
-    let hover_size = size.clone();
-    let hover_view = view.clone();
-    let hover_artwork = artwork.clone();
-    let hover_editor = editor.clone();
-    let set_hover = set_hovered.clone();
-    let on_hover_move = move |press: PointerPress| {
-        let (width, height) = hover_size.get_untracked();
-        if width == 0 {
-            return;
-        }
-        moving.set_constrained.set(press.modifiers.shift);
-        set_hover.set(pixel_of(
-            press.pos,
-            hover_view.get_untracked(),
-            hover_editor.content_rect(),
-            hover_artwork.get_untracked(),
-            width,
-            height,
-        ));
-    };
-    let left = set_hovered.clone();
-    let on_hover_change = move |hovered: bool| {
-        if !hovered {
-            left.set(None);
-        }
-    };
-
-    let refreshing = Rc::clone(&tools);
-    let refreshed = Rc::clone(&pane);
-    let hover = hovered.clone();
-    let frame_size = size.clone();
-    let theme = use_theme();
-    let background = theme.background.clone();
-    create_effect(move || {
-        let (width, height) = frame_size.get();
-        if width == 0 {
-            return;
-        }
-        let (pixels, color) = pending(&refreshing, hover.get(), width, height);
-        let dark = is_dark(background.get());
-        refreshed.refresh(refreshing.block(), dark, &pixels, color);
-    });
-
-    let keys = Rc::clone(&tools);
-    let key_editor = editor.clone();
-    let on_key = move |press: KeyPress| shortcut(&keys, &key_editor, press);
-
-    let content = NodeRef::new();
-    editor.content(&content);
     view! {
-        <Frame @node_ref={&content} @test_id={"pixel-art.canvas"}>
-            <Interactive
-                focusable=true
-                on_key={on_key}
-                cursor=CursorIcon::Crosshair
-                on_press={on_press}
-                on_drag={on_drag}
-                on_click_at={on_click_at}
-                on_secondary_press={on_secondary}
-                on_hover_move={on_hover_move}
-                on_hover_change={on_hover_change}
-            >
-                <List spacing=0.0>
-                    <Artwork
-                        @sizing=ItemSize::Percent(100.0)
-                        shown={shown}
-                        view={view}
-                        scale={scale}
-                        artwork={artwork}
-                        show_grid={tools.show_grid.clone()}
-                        hovered={hovered}
-                    />
-                </List>
-            </Interactive>
-        </Frame>
+        <PlacementBuilder>
+            {move |placed: ReadSignal<Rect>| {
+                let world = editor.world();
+                let artwork = create_memo(clone!(size world placed -> move || {
+                    let (width, height) = size.get();
+                    if width == 0 || height == 0 {
+                        return Rect::ZERO;
+                    }
+                    let available = world.get().unwrap_or_else(|| placed.get().size());
+                    canvas_rect(
+                        Rect::from_min_size(Pos2::ZERO, available.max(Vec2::new(1.0, 1.0))),
+                        width,
+                        height,
+                    )
+                }));
+
+                let held = held_modifiers();
+                let constraining = Rc::clone(&tools);
+                create_effect(move || {
+                    let shift = held.get().shift;
+                    untrack(|| constraining.set_constrained.set(shift));
+                });
+
+                let pressing = Rc::clone(&tools);
+                let press_size = size.clone();
+                let press_view = view.clone();
+                let press_artwork = artwork.clone();
+                let press_editor = editor.clone();
+                let on_press = move |press: PointerPress| {
+                    let (width, height) = press_size.get_untracked();
+                    if width == 0 || pressing.busy() || !pressing.editable() {
+                        return;
+                    }
+                    pressing.set_constrained.set(press.modifiers.shift);
+                    let Some(pixel) = pixel_of(
+                        press.pos,
+                        press_view.get_untracked(),
+                        press_editor.content_rect(),
+                        press_artwork.get_untracked(),
+                        width,
+                        height,
+                    ) else {
+                        return;
+                    };
+                    begin(&pressing, pixel);
+                };
+
+                let dragging = Rc::clone(&tools);
+                let drag_size = size.clone();
+                let drag_view = view.clone();
+                let drag_artwork = artwork.clone();
+                let drag_editor = editor.clone();
+                let on_drag = move |press: PointerPress| {
+                    let (width, height) = drag_size.get_untracked();
+                    if width == 0 || dragging.busy() || !dragging.editable() {
+                        return;
+                    }
+                    dragging.set_constrained.set(press.modifiers.shift);
+                    let Some(pixel) = pixel_of(
+                        press.pos,
+                        drag_view.get_untracked(),
+                        drag_editor.content_rect(),
+                        drag_artwork.get_untracked(),
+                        width,
+                        height,
+                    ) else {
+                        return;
+                    };
+                    dragging.draw(|drawing| {
+                        if let Some(drawing) = drawing.as_mut() {
+                            drawing.extend(pixel);
+                        }
+                    });
+                };
+
+                let releasing = Rc::clone(&tools);
+                let release_size = size.clone();
+                let release_view = view.clone();
+                let release_artwork = artwork.clone();
+                let release_editor = editor.clone();
+                let on_click_at = move |press: PointerPress| {
+                    let (width, height) = release_size.get_untracked();
+                    if width == 0 || releasing.busy() || !releasing.editable() {
+                        return;
+                    }
+                    releasing.set_constrained.set(press.modifiers.shift);
+                    if let Some(pixel) = pixel_of(
+                        press.pos,
+                        release_view.get_untracked(),
+                        release_editor.content_rect(),
+                        release_artwork.get_untracked(),
+                        width,
+                        height,
+                    ) {
+                        finish(&releasing, pixel, width, height);
+                    }
+                };
+
+                let sampling = Rc::clone(&tools);
+                let sample_size = size.clone();
+                let sample_view = view.clone();
+                let sample_artwork = artwork.clone();
+                let sample_editor = editor.clone();
+                let on_secondary = move |press: PointerPress| {
+                    let (width, height) = sample_size.get_untracked();
+                    if width == 0 {
+                        return;
+                    }
+                    if let Some(pixel) = pixel_of(
+                        press.pos,
+                        sample_view.get_untracked(),
+                        sample_editor.content_rect(),
+                        sample_artwork.get_untracked(),
+                        width,
+                        height,
+                    ) {
+                        sample(&sampling, pixel);
+                    }
+                };
+
+                let moving = Rc::clone(&tools);
+                let hover_size = size.clone();
+                let hover_view = view.clone();
+                let hover_artwork = artwork.clone();
+                let hover_editor = editor.clone();
+                let set_hover = set_hovered.clone();
+                let on_hover_move = move |press: PointerPress| {
+                    let (width, height) = hover_size.get_untracked();
+                    if width == 0 {
+                        return;
+                    }
+                    moving.set_constrained.set(press.modifiers.shift);
+                    set_hover.set(pixel_of(
+                        press.pos,
+                        hover_view.get_untracked(),
+                        hover_editor.content_rect(),
+                        hover_artwork.get_untracked(),
+                        width,
+                        height,
+                    ));
+                };
+                let left = set_hovered.clone();
+                let on_hover_change = move |hovered: bool| {
+                    if !hovered {
+                        left.set(None);
+                    }
+                };
+
+                let refreshing = Rc::clone(&tools);
+                let refreshed = Rc::clone(&pane);
+                let hover = hovered.clone();
+                let frame_size = size.clone();
+                let theme = use_theme();
+                let background = theme.background.clone();
+                create_effect(move || {
+                    let (width, height) = frame_size.get();
+                    if width == 0 {
+                        return;
+                    }
+                    let (pixels, color) = pending(&refreshing, hover.get(), width, height);
+                    let dark = is_dark(background.get());
+                    refreshed.refresh(refreshing.block(), dark, &pixels, color);
+                });
+
+                let keys = Rc::clone(&tools);
+                let key_editor = editor.clone();
+                let on_key = move |press: KeyPress| shortcut(&keys, &key_editor, press);
+
+                let content = NodeRef::new();
+                editor.content(&content);
+                view! {
+                    <Frame @node_ref={&content} @test_id={"pixel-art.canvas"}>
+                        <Interactive
+                            focusable=true
+                            on_key={on_key}
+                            cursor=CursorIcon::Crosshair
+                            on_press={on_press}
+                            on_drag={on_drag}
+                            on_click_at={on_click_at}
+                            on_secondary_press={on_secondary}
+                            on_hover_move={on_hover_move}
+                            on_hover_change={on_hover_change}
+                        >
+                            <List spacing=0.0>
+                                <Artwork
+                                    @sizing=ItemSize::Percent(100.0)
+                                    shown={shown}
+                                    view={view}
+                                    scale={scale}
+                                    artwork={artwork}
+                                    show_grid={tools.show_grid.clone()}
+                                    hovered={hovered}
+                                />
+                            </List>
+                        </Interactive>
+                    </Frame>
+                }
+            }}
+        </PlacementBuilder>
     }
 }
 

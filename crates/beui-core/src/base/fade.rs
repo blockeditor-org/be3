@@ -76,10 +76,6 @@ impl Document {
     }
 
     pub fn set_fade(&mut self, fade: NodeOf<FadeNode>, edges: Sides) {
-        if self.delivering() {
-            self.deferred_fades.push((fade, edges));
-            return;
-        }
         if self.arena.get_as::<FadeNode>(fade).edges != edges {
             self.arena.paint_mut_as::<FadeNode>(fade).edges = edges;
         }

@@ -40,8 +40,8 @@ inputs changes. `./scripts/verify` reports a function outside an
 `impl` that writes a `view!` and returns a node or a child value without the
 attribute. `#[component]` is also what makes the function usable as a tag,
 gives it `@test_id`, `@node_ref` and `@sizing`, and makes
-`component_state`, `component_accessibility`, `component_size`,
-`component_rect` and `component_placed` available inside it.
+`component_state`, `component_accessibility` and `component_placed`
+available inside it.
 
 A component that returns its own type implements `ChildValue` to hand the
 scope to the node it hangs on, and `IntoChild` for the slot that takes it, as
@@ -54,7 +54,7 @@ the owner tree does the rest. That is how an item made of data rather than
 nodes — a label, a key, a callback — can still be a component, with its own
 scope, context, memos and cleanups, and still be written as a tag. Such a
 component has nothing for `component_state`, `component_accessibility`,
-`component_size`, `component_rect` or `component_placed` to watch, so calling any of them in its body
+or `component_placed` to watch, so calling any of them in its body
 panics when it is built, and `@test_id` and `@node_ref` on its tag do not compile,
 because they only take a component whose output implements `BuildsNode`.
 `unstyled::MenuItem` is one: a menu item is a label, an icon, a detail, a
@@ -697,7 +697,10 @@ the thumb it would paint, drags the thumb with the pointer, pages by a viewport
 towards a press on the track either side of it, and hands its content a
 `ScrollbarHandle` of `hovered` and `dragging` so the styled bar can paint those
 states. `thumb_start` and `thumb_length` are the same fractions both layers
-work in, so what is painted and what is pressed cannot drift apart. The styled
+work in, so what is painted and what is pressed cannot drift apart.
+`ScrollbarThumb` paints the thumb at those fractions of its rect rather than
+laying it out, so a scroll's new position reaches its bar without laying
+anything out again; a bar of your own puts one inside its track. The styled
 bar paints its track inset by `SCROLLBAR_INSET` from the scroll's outer edge and
 from both ends, so it does not touch the separators around a panel; the inset at
 the ends sits outside the unstyled bar, keeping those fractions measured over
@@ -1964,42 +1967,60 @@ without rebuilding their children.
 
 A frame is input, then layout, then paint. Input is dispatched against the rects
 the previous frame painted, which is what the reader was looking at when they
-clicked, and the tree is laid out exactly once afterwards.
+clicked, and the tree is laid out once afterwards.
+
+Layout is a function of the tree and the constraints it is offered: nothing
+the walk does writes a signal outside the node being laid out. Two nodes build
+their children inside their own layout, so whatever reacts rebuilds within
+their subtree and the walk carries on with the rebuilt tree:
+
+- `LayoutBuilder` hands its render prop a `ReadSignal<Vec2>` of the constraint
+  it is offered (the finite axes of it; an unbounded axis keeps its last
+  value), written before its child is measured. Use it for a component that
+  needs the space it was given, such as one that wraps text or switches between
+  a row and a column.
+- `PlacementBuilder` hands its render prop a `ReadSignal<Rect>` of where it was
+  placed, in the document's coordinates, written as it is laid out and before
+  its child is. Use it for anything that positions content in document
+  coordinates (a canvas camera, an overlay anchored at a point) or needs the
+  size it ended up with rather than the one it was offered. It is laid out
+  again whenever it moves, scrolling included.
+
+The rule both rest on is the one container queries settle on: a component may
+query the space it was given, but must not be the thing that decides that
+space on the axis it queries. Laying a node out changing an ancestor or an
+already-placed sibling is caught by a debug assertion.
+
+Everything else layout decides is told to the tree after the walk: a `Scroll`'s
+position, `component_placed`, `node_rect` and `node_placed` for watching other
+nodes, and `Document::on_laid_out`, the callback block-app waits for its plugins
+in. A node with something to report queues it with
+`Document::report_after_layout`. If what they change touches layout, the frame
+is laid out again and reports again until nothing changes, so a frame is never
+painted from a layout the tree no longer has; a debug assertion names what is
+still changing after four layouts. Each of those extra layouts is a cost the
+frame pays, so keep what a report drives to painting where you can: a
+scrollbar's thumb is painted where the position says rather than laid out,
+which keeps scrolling to one layout a frame. Reach for a report only for what
+depends on how other nodes ended up, such as `TreeReveal`'s button appearing
+once the selected row has scrolled out of view.
+
+Pointer callbacks are handed positions in the coordinates of the node that
+hears them as well as the document's: `PointerPress`, `ScrollGesture` and
+`ZoomGesture` carry `local` and `size` beside `pos`, and a drop target's
+`DragPoint` is in its own coordinates. A component that only needs to know
+where on itself it was pressed reads those rather than its rect.
 
 `Document::on_interacted` runs a callback once the frame's input has been
 dispatched and before anything is laid out, for an app that wants work started
-by that input under way while the document lays out. The one exception to the
-single layout is `Document::on_laid_out`, a callback that runs inside the
-document's reactive scope between layout and paint, for an app that has to
-answer something layout decided: block-app waits there for its plugins to draw
-at the sizes they were just given. Whatever it changes is laid out again before
-the frame is painted, and a layout that moved something runs the callback again,
-a few rounds at most.
+by that input under way while the document lays out.
 
-That holds even though `component_size` and `component_rect` feed measurements
-back into the tree, because both are delivered during the layout walk rather
-than after it. `component_size` reports the space a component's parent offered
-it, handed over before the component is measured; `component_rect` reports where
-it was placed, handed over before its subtree is laid out. Both flow downward,
-so a component that rebuilds from either is rebuilt before anything under it is
-placed, and the pass that caused the change absorbs it.
-
-The contract this rests on is that laying a node out only ever changes that node
-and the tree below it. Changing an ancestor or an already-placed sibling would
-leave that node holding a rect computed from a tree that no longer exists; a
-debug assertion catches it. The practical form of the rule is the one container
-queries on the web settle on: a component may query the space it was given, but
-it must not be the thing that decides that space on the axis it queries. A
-`Container` sized by its own contents on the axis it reports is a cycle, and
-beui resolves it in favour of the constraint its parent offered.
-
-A signal written while the tree is being laid out has to take effect before the
-walk moves on, so anything a node writes as it is laid out — a `Scroll`
-reporting its position to a sibling scrollbar, a row built into a virtual list —
-is written inside `settle`. A write left queued lands at whatever the next
-`settle` happens to be, by which time the node that reads it may already have
-been placed, and it is then laid out from the previous frame's value. The layout
-walk settles after every node and blames the node that left something queued.
+Revealing something in a scroll is resolved inside the scroll's own layout:
+`reveal_node` and `reveal_focus` leave a request on each enclosing `Offset`,
+which lays its content out, finds the target (or its nearest placed ancestor)
+and moves itself until the target is in view. A node's parent is the node whose
+`children` lists it; the arena learns it when that node changes, not from the
+layout walk.
 
 ### Update a document from outside its events
 
@@ -2345,7 +2366,7 @@ content space inside their own (`Document::enter_space`, and `Painter::shifted`
 when painting), which carries the scroll offset or the pan: scrolling or panning
 changes only that translation, so the rows keep their rects and their shapes and
 neither is laid out nor painted again. `Document::node_rect`,
-`node_rect`/`component_rect`, the rect `interact` is handed and a `CanvasView`'s
+`node_rect`, `PlacementBuilder`'s rect, the rect `interact` is handed and a `CanvasView`'s
 origin are in the document's coordinates. A node that needs to know where it sits
 in them asks the painter: `painter.origin()` is where its space starts, and
 `painter.clip_rect()` is what of it is visible, in its own space. Asking either

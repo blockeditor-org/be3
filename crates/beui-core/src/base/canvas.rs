@@ -114,9 +114,7 @@ impl Element for CanvasNode {
                     _ => &unclipped,
                 };
                 crate::layout::layout(doc, painter, *item, placed, out);
-                continue;
             }
-            doc.note_parent(*item);
         }
     }
 

@@ -18,7 +18,7 @@ use text_editor_core::{EditorCommand, MarkdownCommand};
 use crate::{Toggle, ToggleHandle};
 use beui_view::reactive::{
     Callback, Canvas, CanvasItem, ForEach, Frame, List, Memo, NodeRef, Portal, RenderFn, Show,
-    Text, TextItem, VirtualList, clone, component_rect, create_effect, create_memo, on_cleanup,
+    Text, TextItem, VirtualList, clone, component_placed, create_effect, create_memo, on_cleanup,
     untrack, with_document,
 };
 
@@ -270,7 +270,7 @@ fn RowText(
     #[prop(default = Layer::All)] layer: Layer,
 ) -> NodeId {
     let node = NodeRef::new();
-    let placed = component_rect();
+    let placed = component_placed();
     create_effect(clone!(node text -> move || {
         placed.get();
         if layer != Layer::Handles

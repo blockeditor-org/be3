@@ -6,8 +6,8 @@ use std::{
 
 use be_graph::Access;
 use beui::reactive::{
-    Canvas, CanvasItem, Dynamic, ForEach, Frame, Interactive, Layers, Memo, Portal, Prop,
-    ReadSignal, Show, WriteSignal, clone, component, component_rect, create_effect, create_memo,
+    Canvas, CanvasItem, Dynamic, ForEach, Frame, Interactive, Layers, Memo, PlacementBuilder,
+    Portal, Prop, ReadSignal, Show, WriteSignal, clone, component, create_effect, create_memo,
     create_signal, on_cleanup, on_global_key, provide_context, use_context, view,
 };
 use beui::{Key, KeyEvent, NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2};
@@ -946,203 +946,208 @@ fn BlockFrameView(
         plugin_host::hold(&plugin_id, instance, EditorRegion::Frame);
     }));
     let revision = super::listen(&plugin_id);
-    let rect = component_rect();
-    let read_only = !access.can_edit();
-    let placed = embedded || content.peek().is_some();
-    let pan_and_zoom = handle.pan_and_zoom && !placed;
-    let max_zoom = handle.max_zoom.map_or(MAX_ZOOM, |zoom| zoom as f32);
-    let (viewport, set_viewport) = create_signal(
-        VIEWPORTS
-            .with(|viewports| viewports.borrow().get(&block).copied())
-            .unwrap_or_default(),
-    );
-    create_effect(clone!(viewport -> move || {
-        let state = viewport.get();
-        VIEWPORTS.with(|viewports| viewports.borrow_mut().insert(block, state));
-    }));
-    let viewport_rect = create_memo(clone!(plugin_id revision rect -> move || {
-        revision.get();
-        let rect = rect.get();
-        plugin_host::frame_rects(&plugin_id, instance)
-            .map(|rects| rects.content.translate(rect.min.to_vec2()))
-            .filter(Rect::is_positive)
-            .unwrap_or(rect)
-    }));
-    let content_size = create_memo(clone!(plugin_id revision viewport_rect -> move || {
-        revision.get();
-        let size = viewport_rect.get().size().max(Vec2::splat(1.0));
-        let intrinsic = plugin_host::intrinsic_size(&plugin_id, instance)
-            .unwrap_or(vec2(420.0, 240.0));
-        vec2(size.x.max(intrinsic.x), size.y.max(intrinsic.y))
-    }));
-    let command: Rc<dyn Fn(Command)> = Rc::new(
-        clone!(viewport set_viewport viewport_rect content_size on_view_change -> move |command: Command| {
-            if !pan_and_zoom {
-                if let Some(report) = &on_view_change {
-                    report(match command {
-                        Command::Pan(delta) => ViewChange::Pan { x: delta.x, y: delta.y },
-                        Command::Zoom { factor, anchor } => ViewChange::Zoom {
-                            factor,
-                            anchor: anchor.map(|anchor| (anchor.x, anchor.y)),
-                        },
-                        Command::Fit => ViewChange::Fit,
-                        Command::ResumeAutoFit => ViewChange::ResumeAutoFit,
-                    });
-                }
-                return;
-            }
-            let mut state = viewport.get_untracked();
-            settle(&mut state, command, viewport_rect.get_untracked(), content_size.get_untracked(), max_zoom);
-            if state != viewport.get_untracked() {
-                set_viewport.set(state);
-            }
-        }),
-    );
-    create_effect(
-        clone!(viewport set_viewport viewport_rect content_size -> move || {
-            if !pan_and_zoom {
-                return;
-            }
-            let rect = viewport_rect.get();
-            let content = content_size.get();
-            let mut state = viewport.get_untracked();
-            if let Some(previous) = state.center.replace(rect.center()) {
-                state.pan += previous - rect.center();
-            }
-            if state.auto_fit.is_none() {
-                state.auto_fit = Some(true);
-            }
-            if state.auto_fit == Some(true) {
-                fit(&mut state, rect.size().max(Vec2::splat(1.0)), content);
-            }
-            if state != viewport.get_untracked() {
-                set_viewport.set(state);
-            }
-        }),
-    );
-    create_effect(
-        clone!(plugin_id revision command on_bar_action rect -> move || {
-            revision.get();
-            let rect = rect.get_untracked();
-            for change in plugin_host::take_view_changes(&plugin_id, instance) {
-                command(match change {
-                    ViewChange::Pan { x, y } => Command::Pan(vec2(x, y)),
-                    ViewChange::Zoom { factor, anchor } => Command::Zoom {
-                        factor,
-                        anchor: anchor.map(|(x, y)| rect.min + vec2(x, y)),
-                    },
-                    ViewChange::Fit => Command::Fit,
-                    ViewChange::ResumeAutoFit => Command::ResumeAutoFit,
-                });
-            }
-            let actions = plugin_host::take_bar_actions(&plugin_id, instance);
-            if let Some(report) = &on_bar_action {
-                for action in actions {
-                    report(action);
-                }
-            }
-        }),
-    );
-    if let Some(tab) = use_context::<TabContext>() {
-        create_effect(clone!(plugin_id revision -> move || {
-            revision.get();
-            if plugin_host::take_leaving(&plugin_id, instance) {
-                (tab.exit)();
-            }
-        }));
-    }
-    let content_rect = create_memo(clone!(viewport viewport_rect content_size -> move || {
-        let state = viewport.get();
-        Rect::from_center_size(
-            viewport_rect.get().center() + state.pan,
-            content_size.get() * state.zoom,
-        )
-    }));
-    let editor_view = create_memo(
-        clone!(plugin_id revision rect content content_rect viewport -> move || {
-            if !handle.pan_and_zoom {
-                return None;
-            }
-            let origin = rect.get().min;
-            if !placed {
-                return Some(EditorView {
-                    rect: content_rect.get().translate(-origin.to_vec2()),
-                    scale: viewport.get().zoom,
-                });
-            }
-            revision.get();
-            let shown = content.get().unwrap_or(rect.get());
-            let scale = plugin_host::intrinsic_size(&plugin_id, instance)
-                .filter(|intrinsic| intrinsic.x > 0.0 && intrinsic.y > 0.0)
-                .map_or(1.0, |intrinsic| {
-                    (shown.width() / intrinsic.x).min(shown.height() / intrinsic.y)
-                });
-            Some(EditorView {
-                rect: shown.translate(-origin.to_vec2()),
-                scale,
-            })
-        }),
-    );
-    let frame = create_memo(clone!(chrome content top_bar rect -> move || {
-        let origin = rect.get().min;
-        Some(FrameSpec {
-            chrome: match chrome.get() {
-                Chrome::Drawn => FrameChrome::Drawn,
-                Chrome::None => FrameChrome::None,
-            },
-            content: content.get().map(|content| {
-                let content = content.translate(-origin.to_vec2());
-                ChildRect {
-                    x: content.min.x,
-                    y: content.min.y,
-                    width: content.width(),
-                    height: content.height(),
-                }
-            }),
-            top_bar: top_bar.get(),
-        })
-    }));
-    let gestures = pan_and_zoom || on_view_change.is_some() && handle.pan_and_zoom;
-    let steered = create_memo(clone!(content_rect -> move || {
-        (!read_only && !handle.pan_and_zoom).then(|| content_rect.get())
-    }));
-    let scroll = clone!(command steered -> move |gesture: ScrollGesture| {
-        if !gestures || steered.get_untracked().is_some_and(|rect| rect.contains(gesture.pos)) {
-            return;
-        }
-        match gesture.modifiers.ctrl && gesture.delta.y != 0.0 {
-            true => command(Command::Zoom {
-                factor: (gesture.delta.y * 0.002).exp(),
-                anchor: Some(gesture.pos),
-            }),
-            false => command(Command::Pan(gesture.delta)),
-        }
-    });
-    let zoom = clone!(command -> move |gesture: ZoomGesture| {
-        if gestures {
-            command(Command::Zoom {
-                factor: gesture.factor,
-                anchor: Some(gesture.pos),
-            });
-        }
-    });
-    let pan = clone!(command -> move |delta: Vec2| {
-        if gestures {
-            command(Command::Pan(delta));
-        }
-    });
-    let child_view = child_view(block, EditorRegion::Frame);
     view! {
-        <Interactive on_scroll={scroll} on_zoom={zoom} on_pan_drag={pan}>
-            <PluginRegion
-                editor={region_editor}
-                region=EditorRegion::Frame
-                frame={frame}
-                view={editor_view}
-                passive={passive}
-                child_view
-            />
-        </Interactive>
+        <PlacementBuilder>
+            {move |rect: ReadSignal<Rect>| {
+                let read_only = !access.can_edit();
+                let placed = embedded || content.peek().is_some();
+                let pan_and_zoom = handle.pan_and_zoom && !placed;
+                let max_zoom = handle.max_zoom.map_or(MAX_ZOOM, |zoom| zoom as f32);
+                let (viewport, set_viewport) = create_signal(
+                    VIEWPORTS
+                        .with(|viewports| viewports.borrow().get(&block).copied())
+                        .unwrap_or_default(),
+                );
+                create_effect(clone!(viewport -> move || {
+                    let state = viewport.get();
+                    VIEWPORTS.with(|viewports| viewports.borrow_mut().insert(block, state));
+                }));
+                let viewport_rect = create_memo(clone!(plugin_id revision rect -> move || {
+                    revision.get();
+                    let rect = rect.get();
+                    plugin_host::frame_rects(&plugin_id, instance)
+                        .map(|rects| rects.content.translate(rect.min.to_vec2()))
+                        .filter(Rect::is_positive)
+                        .unwrap_or(rect)
+                }));
+                let content_size = create_memo(clone!(plugin_id revision viewport_rect -> move || {
+                    revision.get();
+                    let size = viewport_rect.get().size().max(Vec2::splat(1.0));
+                    let intrinsic = plugin_host::intrinsic_size(&plugin_id, instance)
+                        .unwrap_or(vec2(420.0, 240.0));
+                    vec2(size.x.max(intrinsic.x), size.y.max(intrinsic.y))
+                }));
+                let command: Rc<dyn Fn(Command)> = Rc::new(
+                    clone!(viewport set_viewport viewport_rect content_size on_view_change -> move |command: Command| {
+                        if !pan_and_zoom {
+                            if let Some(report) = &on_view_change {
+                                report(match command {
+                                    Command::Pan(delta) => ViewChange::Pan { x: delta.x, y: delta.y },
+                                    Command::Zoom { factor, anchor } => ViewChange::Zoom {
+                                        factor,
+                                        anchor: anchor.map(|anchor| (anchor.x, anchor.y)),
+                                    },
+                                    Command::Fit => ViewChange::Fit,
+                                    Command::ResumeAutoFit => ViewChange::ResumeAutoFit,
+                                });
+                            }
+                            return;
+                        }
+                        let mut state = viewport.get_untracked();
+                        settle(&mut state, command, viewport_rect.get_untracked(), content_size.get_untracked(), max_zoom);
+                        if state != viewport.get_untracked() {
+                            set_viewport.set(state);
+                        }
+                    }),
+                );
+                create_effect(
+                    clone!(viewport set_viewport viewport_rect content_size -> move || {
+                        if !pan_and_zoom {
+                            return;
+                        }
+                        let rect = viewport_rect.get();
+                        let content = content_size.get();
+                        let mut state = viewport.get_untracked();
+                        if let Some(previous) = state.center.replace(rect.center()) {
+                            state.pan += previous - rect.center();
+                        }
+                        if state.auto_fit.is_none() {
+                            state.auto_fit = Some(true);
+                        }
+                        if state.auto_fit == Some(true) {
+                            fit(&mut state, rect.size().max(Vec2::splat(1.0)), content);
+                        }
+                        if state != viewport.get_untracked() {
+                            set_viewport.set(state);
+                        }
+                    }),
+                );
+                create_effect(
+                    clone!(plugin_id revision command on_bar_action rect -> move || {
+                        revision.get();
+                        let rect = rect.get_untracked();
+                        for change in plugin_host::take_view_changes(&plugin_id, instance) {
+                            command(match change {
+                                ViewChange::Pan { x, y } => Command::Pan(vec2(x, y)),
+                                ViewChange::Zoom { factor, anchor } => Command::Zoom {
+                                    factor,
+                                    anchor: anchor.map(|(x, y)| rect.min + vec2(x, y)),
+                                },
+                                ViewChange::Fit => Command::Fit,
+                                ViewChange::ResumeAutoFit => Command::ResumeAutoFit,
+                            });
+                        }
+                        let actions = plugin_host::take_bar_actions(&plugin_id, instance);
+                        if let Some(report) = &on_bar_action {
+                            for action in actions {
+                                report(action);
+                            }
+                        }
+                    }),
+                );
+                if let Some(tab) = use_context::<TabContext>() {
+                    create_effect(clone!(plugin_id revision -> move || {
+                        revision.get();
+                        if plugin_host::take_leaving(&plugin_id, instance) {
+                            (tab.exit)();
+                        }
+                    }));
+                }
+                let content_rect = create_memo(clone!(viewport viewport_rect content_size -> move || {
+                    let state = viewport.get();
+                    Rect::from_center_size(
+                        viewport_rect.get().center() + state.pan,
+                        content_size.get() * state.zoom,
+                    )
+                }));
+                let editor_view = create_memo(
+                    clone!(plugin_id revision rect content content_rect viewport -> move || {
+                        if !handle.pan_and_zoom {
+                            return None;
+                        }
+                        let origin = rect.get().min;
+                        if !placed {
+                            return Some(EditorView {
+                                rect: content_rect.get().translate(-origin.to_vec2()),
+                                scale: viewport.get().zoom,
+                            });
+                        }
+                        revision.get();
+                        let shown = content.get().unwrap_or(rect.get());
+                        let scale = plugin_host::intrinsic_size(&plugin_id, instance)
+                            .filter(|intrinsic| intrinsic.x > 0.0 && intrinsic.y > 0.0)
+                            .map_or(1.0, |intrinsic| {
+                                (shown.width() / intrinsic.x).min(shown.height() / intrinsic.y)
+                            });
+                        Some(EditorView {
+                            rect: shown.translate(-origin.to_vec2()),
+                            scale,
+                        })
+                    }),
+                );
+                let frame = create_memo(clone!(chrome content top_bar rect -> move || {
+                    let origin = rect.get().min;
+                    Some(FrameSpec {
+                        chrome: match chrome.get() {
+                            Chrome::Drawn => FrameChrome::Drawn,
+                            Chrome::None => FrameChrome::None,
+                        },
+                        content: content.get().map(|content| {
+                            let content = content.translate(-origin.to_vec2());
+                            ChildRect {
+                                x: content.min.x,
+                                y: content.min.y,
+                                width: content.width(),
+                                height: content.height(),
+                            }
+                        }),
+                        top_bar: top_bar.get(),
+                    })
+                }));
+                let gestures = pan_and_zoom || on_view_change.is_some() && handle.pan_and_zoom;
+                let steered = create_memo(clone!(content_rect -> move || {
+                    (!read_only && !handle.pan_and_zoom).then(|| content_rect.get())
+                }));
+                let scroll = clone!(command steered -> move |gesture: ScrollGesture| {
+                    if !gestures || steered.get_untracked().is_some_and(|rect| rect.contains(gesture.pos)) {
+                        return;
+                    }
+                    match gesture.modifiers.ctrl && gesture.delta.y != 0.0 {
+                        true => command(Command::Zoom {
+                            factor: (gesture.delta.y * 0.002).exp(),
+                            anchor: Some(gesture.pos),
+                        }),
+                        false => command(Command::Pan(gesture.delta)),
+                    }
+                });
+                let zoom = clone!(command -> move |gesture: ZoomGesture| {
+                    if gestures {
+                        command(Command::Zoom {
+                            factor: gesture.factor,
+                            anchor: Some(gesture.pos),
+                        });
+                    }
+                });
+                let pan = clone!(command -> move |delta: Vec2| {
+                    if gestures {
+                        command(Command::Pan(delta));
+                    }
+                });
+                let child_view = child_view(block, EditorRegion::Frame);
+                view! {
+                    <Interactive on_scroll={scroll} on_zoom={zoom} on_pan_drag={pan}>
+                        <PluginRegion
+                            editor={region_editor}
+                            region=EditorRegion::Frame
+                            frame={frame}
+                            view={editor_view}
+                            passive={passive}
+                            child_view
+                        />
+                    </Interactive>
+                }
+            }}
+        </PlacementBuilder>
     }
 }
 
