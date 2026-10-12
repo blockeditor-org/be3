@@ -53,7 +53,6 @@ members = [
     "crates/buck-tools",
     "crates/build-id",
     "crates/cvl2",
-    "crates/deploy",
     "crates/editors/audio-block",
     "crates/editors/browser-tab",
     "crates/editors/calendar",
@@ -85,9 +84,9 @@ members = [
     "crates/editors/workspace-index",
     "crates/editors/workspace-ui",
     "crates/fix-rust-source",
-    "crates/fuzz-runner",
     "crates/geometry",
     "crates/ghostty-vt",
+    "crates/local-tools",
     "crates/logicgame",
     "crates/paint-snapshot",
     "crates/plugin-test-runner",
@@ -105,7 +104,6 @@ members = [
     "crates/tabletop-games/rules/crazy-8s",
     "crates/tabletop-games/rules/tic-tac-toe",
     "crates/text-editor-core",
-    "crates/verify",
     "crates/wasi-threads",
 ]
 resolver = "3"

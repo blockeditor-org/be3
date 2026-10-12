@@ -3,8 +3,8 @@
 # What ./scripts/verify and ./scripts/ci run. One buck2 command,
 # buck/dev/verify.bxl, builds everything: the generated rules and Cargo.lock,
 # the sysroot's lockfile, the autofixes, the tests and the plugin tests, for CI
-# the Android builds and the paint preview renderer, and crates/verify for this
-# machine. crates/verify then reads what was built, without buck2: it writes
+# the Android builds and the paint preview renderer, and local-tools verify for this
+# machine. local-tools verify then reads what was built, without buck2: it writes
 # the fixes, the generated files and the paintings that changed into the
 # checkout, or with --check reports them and fails, and fails if anything did
 # not build or pass. Only what has to happen before the build is here.
@@ -63,7 +63,7 @@ while IFS=$'\t' read -r kind path; do
 done < "$manifest"
 if [[ -z "$verify" || ! -e "$verify" ]]; then
     echo
-    echo 'Verification failed: crates/verify did not build.'
+    echo 'Verification failed: crates/local-tools did not build.'
     exit 1
 fi
-exec "$verify" "$manifest" ${arguments[@]+"${arguments[@]}"}
+exec "$verify" verify "$manifest" ${arguments[@]+"${arguments[@]}"}

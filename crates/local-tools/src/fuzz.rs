@@ -4,7 +4,7 @@ use std::process::{Command, ExitCode, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::{env, fs};
 
-const USAGE: &str = "usage: fuzz-runner (--all | --list FILE) [LIBFUZZER-FLAG... | INPUT...]";
+const USAGE: &str = "usage: local-tools fuzz (--all | --list FILE) [LIBFUZZER-FLAG... | INPUT...]";
 
 const FUZZED: [i32; 4] = [0, 70, 71, 77];
 
@@ -18,8 +18,8 @@ struct Target {
     binary: PathBuf,
 }
 
-fn main() -> ExitCode {
-    match run(env::args().skip(1).collect()) {
+pub fn main(arguments: Vec<String>) -> ExitCode {
+    match run(arguments) {
         Ok(code) => code,
         Err(message) => {
             eprintln!("{message}");

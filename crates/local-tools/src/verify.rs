@@ -4,7 +4,7 @@ use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 
-const USAGE: &str = "usage: verify MANIFEST [--build-failed] [--check] [--lint] [--tests] [--plugin-tests] [--android DIR] [--previews BASE OUT]";
+const USAGE: &str = "usage: local-tools verify MANIFEST [--build-failed] [--check] [--lint] [--tests] [--plugin-tests] [--android DIR] [--previews BASE OUT]";
 
 const EXECUTABLE: &[&str] = &[
     "scripts/internal/install-be.sh",
@@ -28,8 +28,8 @@ struct Run {
     failed: bool,
 }
 
-fn main() -> ExitCode {
-    let options = match parse(std::env::args().skip(1)) {
+pub fn main(arguments: Vec<String>) -> ExitCode {
+    let options = match parse(arguments.into_iter()) {
         Ok(options) => options,
         Err(message) => {
             eprintln!("{message}\n{USAGE}");

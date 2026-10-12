@@ -8557,113 +8557,6 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
-    "crates/deploy": {
-        "binaries": [
-            {
-                "crate_root": "src/main.rs",
-                "name": "deploy",
-            },
-        ],
-        "edition": "2024",
-        "examples": [],
-        "library": None,
-        "name": "deploy",
-        "platforms": {
-            "android-arm64": {
-                "binaries": {
-                    "deploy": [
-                        "//third-party/rust:sha2-0.10.9",
-                        "//third-party/rust:ureq-2.12.1",
-                    ],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "linux-arm64": {
-                "binaries": {
-                    "deploy": [
-                        "//third-party/rust:sha2-0.10.9",
-                        "//third-party/rust:ureq-2.12.1",
-                    ],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "linux-x86_64": {
-                "binaries": {
-                    "deploy": [
-                        "//third-party/rust:sha2-0.10.9",
-                        "//third-party/rust:ureq-2.12.1",
-                    ],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "macos-arm64": {
-                "binaries": {
-                    "deploy": [
-                        "//third-party/rust:sha2-0.10.9",
-                        "//third-party/rust:ureq-2.12.1",
-                    ],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "macos-x86_64": {
-                "binaries": {
-                    "deploy": [
-                        "//third-party/rust:sha2-0.10.9",
-                        "//third-party/rust:ureq-2.12.1",
-                    ],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "windows-arm64": {
-                "binaries": {
-                    "deploy": [
-                        "//third-party/rust:sha2-0.10.9",
-                        "//third-party/rust:ureq-2.12.1",
-                    ],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "windows-x86_64": {
-                "binaries": {
-                    "deploy": [
-                        "//third-party/rust:sha2-0.10.9",
-                        "//third-party/rust:ureq-2.12.1",
-                    ],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-        },
-        "profile_flags": [],
-        "version": "0.1.0",
-    },
     "crates/editors/audio-block": {
         "binaries": [],
         "edition": "2024",
@@ -9682,106 +9575,6 @@ crates = {
         ],
         "version": "0.1.0",
     },
-    "crates/fuzz-runner": {
-        "binaries": [
-            {
-                "crate_root": "src/main.rs",
-                "name": "fuzz-runner",
-            },
-        ],
-        "edition": "2024",
-        "examples": [],
-        "library": None,
-        "name": "fuzz-runner",
-        "platforms": {
-            "android-arm64": {
-                "binaries": {
-                    "fuzz-runner": [
-                        "//third-party/rust:libc-0.2.186",
-                    ],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "linux-arm64": {
-                "binaries": {
-                    "fuzz-runner": [
-                        "//third-party/rust:libc-0.2.186",
-                    ],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "linux-x86_64": {
-                "binaries": {
-                    "fuzz-runner": [
-                        "//third-party/rust:libc-0.2.186",
-                    ],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "macos-arm64": {
-                "binaries": {
-                    "fuzz-runner": [
-                        "//third-party/rust:libc-0.2.186",
-                    ],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "macos-x86_64": {
-                "binaries": {
-                    "fuzz-runner": [
-                        "//third-party/rust:libc-0.2.186",
-                    ],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "windows-arm64": {
-                "binaries": {
-                    "fuzz-runner": [
-                        "//third-party/rust:libc-0.2.186",
-                    ],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "windows-x86_64": {
-                "binaries": {
-                    "fuzz-runner": [
-                        "//third-party/rust:libc-0.2.186",
-                    ],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-        },
-        "profile_flags": [],
-        "version": "0.1.0",
-    },
     "crates/geometry": {
         "binaries": [],
         "edition": "2024",
@@ -9948,6 +9741,118 @@ crates = {
                 "test_deps": [
                     "//third-party/rust:serde_json-1.0.150",
                 ],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/local-tools": {
+        "binaries": [
+            {
+                "crate_root": "src/main.rs",
+                "name": "local-tools",
+            },
+        ],
+        "edition": "2024",
+        "examples": [],
+        "library": None,
+        "name": "local-tools",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {
+                    "local-tools": [
+                        "//third-party/rust:libc-0.2.186",
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:ureq-2.12.1",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {
+                    "local-tools": [
+                        "//third-party/rust:libc-0.2.186",
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:ureq-2.12.1",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {
+                    "local-tools": [
+                        "//third-party/rust:libc-0.2.186",
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:ureq-2.12.1",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {
+                    "local-tools": [
+                        "//third-party/rust:libc-0.2.186",
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:ureq-2.12.1",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {
+                    "local-tools": [
+                        "//third-party/rust:libc-0.2.186",
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:ureq-2.12.1",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {
+                    "local-tools": [
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:ureq-2.12.1",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {
+                    "local-tools": [
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:ureq-2.12.1",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
                 "test_features": [],
             },
         },
@@ -12332,92 +12237,6 @@ crates = {
                     "//third-party/rust:tree-sitter-zig-1.1.2",
                     "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-        },
-        "profile_flags": [],
-        "version": "0.1.0",
-    },
-    "crates/verify": {
-        "binaries": [
-            {
-                "crate_root": "src/main.rs",
-                "name": "verify",
-            },
-        ],
-        "edition": "2024",
-        "examples": [],
-        "library": None,
-        "name": "verify",
-        "platforms": {
-            "android-arm64": {
-                "binaries": {
-                    "verify": [],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "linux-arm64": {
-                "binaries": {
-                    "verify": [],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "linux-x86_64": {
-                "binaries": {
-                    "verify": [],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "macos-arm64": {
-                "binaries": {
-                    "verify": [],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "macos-x86_64": {
-                "binaries": {
-                    "verify": [],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "windows-arm64": {
-                "binaries": {
-                    "verify": [],
-                },
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "windows-x86_64": {
-                "binaries": {
-                    "verify": [],
-                },
-                "deps": [],
                 "examples": {},
                 "features": [],
                 "test_deps": [],

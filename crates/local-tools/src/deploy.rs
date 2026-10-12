@@ -41,8 +41,8 @@ struct Options {
     skip_web: bool,
 }
 
-fn main() -> ExitCode {
-    match parse(std::env::args().skip(1)).and_then(|options| run(&options)) {
+pub fn main(arguments: Vec<String>) -> ExitCode {
+    match parse(arguments.into_iter()).and_then(|options| run(&options)) {
         Ok(()) => ExitCode::SUCCESS,
         Err(message) => {
             eprintln!("deploy: {message}");
