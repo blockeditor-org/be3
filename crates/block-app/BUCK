@@ -1,7 +1,7 @@
 load("@root//buck/android:defs.bzl", "android_apk", "signed_apk")
-load("@root//buck/app:defs.bzl", "app")
+load("@root//buck/app:defs.bzl", "app", "smoke_test")
 load("@root//buck/app:drive.bzl", "headless")
-load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test", "editor_packages")
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test", "editor_packages", "test_run")
 load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
 load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_app_module")
 
@@ -51,6 +51,7 @@ app(
     modules = ["//{}:module".format(package) for package in editor_packages()],
     precompile_target = per_cross_platform("x86_64-unknown-linux-gnu", cross_triple),
     precompiler = "//crates/plugin-test-runner:precompiler",
+    sdk = "//crates/block-plugin-sdk:module",
 )
 
 # The plugins alone: every editor's manifest and module, for CI to ship once
@@ -61,8 +62,7 @@ app(
     data = ["//{}:data".format(package) for package in editor_packages()],
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
-    precompile = False,
-    precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
+    sdk = "//crates/block-plugin-sdk:module",
 )
 
 # What CI ships per platform: the app and server under cargo's names; the
@@ -75,8 +75,6 @@ app(
     files = ["//buck/app:build-id"],
     manifests = [],
     modules = [],
-    precompile = False,
-    precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
 )
 
 # The web bundle: the app for wasi and the gpu shim for wasm32, each through
@@ -90,14 +88,15 @@ wasi_app_module(
 
 web_files = glob(["web/*.html", "web/*.js"]) + ["//buck/app:build-id"]
 
-# The WASI and wasi-threads shims, which beui-web-demo needs too.
+# The WASI and wasi-threads shims, which beui-web-demo needs too, with what
+# thread.js imports.
 [
     export_file(
         name = shim,
         src = "web/" + shim,
         visibility = ["//crates/beui-web-demo:"],
     )
-    for shim in ["wasi.js", "threads.js", "thread.js"]
+    for shim in ["wasi.js", "threads.js", "thread.js", "dylink.js", "env.js"]
 ]
 
 app(
@@ -108,10 +107,9 @@ app(
     index = True,
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
-    precompile = False,
-    precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
+    sdk = "//crates/block-plugin-sdk:module",
     wasm_bindgen = "//buck/cargo:wasm-bindgen",
-    visibility = ["//crates/deploy:"],
+    visibility = ["//crates/local-tools:"],
 )
 
 # What CI publishes: the bundle without the plugins, which :plugins builds once
@@ -124,8 +122,6 @@ app(
     index = True,
     manifests = [],
     modules = [],
-    precompile = False,
-    precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
     wasm_bindgen = "//buck/cargo:wasm-bindgen",
 )
 
@@ -185,6 +181,7 @@ app(
     modules = ["//{}:module".format(package) for package in editor_packages()],
     precompile_target = "aarch64-linux-android",
     precompiler = "//crates/plugin-test-runner:precompiler",
+    sdk = "//crates/block-plugin-sdk:module",
 )
 
 [
@@ -236,20 +233,36 @@ export_file(
     visibility = ["//crates/be-launcher:"],
 )
 
-# The native startup smoke check: the app for ten seconds in a virtual display,
-# and :smoke-desktop the same with the desktop shell in its window.
+# The native smoke test, which ./scripts/verify runs through :smoke_run: the
+# app headless on a worker with the dev workspace open, closed once its shell's
+# plugins have drawn; it fails unless the app exits cleanly. :smoke-desktop is
+# the same with the desktop shell. It draws through lavapipe from the test
+# runtime, and the Wayland compositor's keyboard takes the test runtime's keymaps.
 [
-    command_alias(
-        name = name,
-        args = [
-            "sh",
-            "$(location //buck/app:smoke.sh)",
-            "$(location :app)/block-app",
-            "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
-        ]
-        + flags,
+    (
+        smoke_test(
+            name = name,
+            app = ":app",
+            args = args,
+            drive = "//crates/be-drive:be-drive-bin",
+            env = {
+                "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
+                "XKB_CONFIG_ROOT": "$(location //buck/sysroot:amd64-test)/usr/share/X11/xkb",
+            },
+            executable = "block-app",
+            library_path = "$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
+            target_compatible_with = ["prelude//os:linux", "prelude//cpu:x86_64"],
+            wait = wait,
+        ),
+        test_run(
+            name = name + "_run",
+            test = ":" + name,
+        ),
     )
-    for name, flags in [("smoke", []), ("smoke-desktop", ["--desktop"])]
+    for name, args, wait in [
+        ("smoke", [], 'Pane "Files"'),
+        ("smoke-desktop", ["--desktop"], 'Pane "Linux desktop"'),
+    ]
 ]
 
 # The app with its plugins installed under /usr/local (or the prefix given after

@@ -38,6 +38,11 @@ A program's output goes to `~/.cache/be3/NAME/app.log`. `BE_DRIVE_DIR` moves the
 for two copies of one program at once; `drive --socket=PATH` or `BE_DRIVE_SOCKET` picks the
 program a command goes to.
 
+`be-drive run` takes the same options and is for tests: it starts the program with fresh data
+and its output on its own, runs the commands on its standard input as `drive -` does, then
+waits for the program to exit, and fails unless every command succeeded and the program exited
+cleanly. block-app's smoke test (buck/app/smoke.sh) is `wait` for its shell's pane, then `close`.
+
 ## Reading the screen
 
 `drive tree` is the accessibility tree, one node per line, indented under its parent:
@@ -157,6 +162,8 @@ real one:
 - `drive grab FILE...` drags files in from outside, over the pointer; `drive move` carries
   them, to try what hovering with them shows, `drive drop [TARGET]` drops them and
   `drive ungrab` takes them away again.
+- `drive close` asks the window to close, as its close button does, in a window too. The app
+  then exits, or stays open, to ask about unsaved changes, and answers with what changed.
 
 ## How it works
 

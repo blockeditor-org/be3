@@ -25,11 +25,11 @@ app(
         "//crates/block-app:wasi.js",
         "//crates/block-app:threads.js",
         "//crates/block-app:thread.js",
+        "//crates/block-app:dylink.js",
+        "//crates/block-app:env.js",
     ],
     manifests = [],
     modules = [],
-    precompile = False,
-    precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
     wasm_bindgen = "//buck/cargo:wasm-bindgen",
 )
 

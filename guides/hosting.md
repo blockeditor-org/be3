@@ -20,7 +20,8 @@ How the server runs on a VPS for real notes. The files referred to are in
 - Data lives in `/var/lib/be-server`: `metadata.sqlite` and `objects/`. On
   start the server checks `metadata.sqlite` against the schema it declares,
   adding missing tables, indexes and defaulted columns, and refuses to start on
-  anything else.
+  anything else. The directory and its backups are frozen formats
+  (guides/frozen_formats.md): every later server reads them.
 - Sign-ins with a password are off, so only devices that are already signed
   in connect, with the session tokens they hold. To sign in a new device,
   put `BE_SERVER_FLAGS=--allow-login` in `/etc/be-server/server.env`, restart
@@ -48,7 +49,7 @@ How the server runs on a VPS for real notes. The files referred to are in
 ## Deploying
 
 `./scripts/deploy` builds be-server and `be` in release in one buck2 command
-(crates/deploy) and then, from that build:
+(local-tools deploy, in crates/local-tools) and then, from that build:
 
 - uploads each `be` bundle (Linux x86_64 and arm64) to the storage zone as
   `be/BUILD/be-TRIPLE/` (`BUNNY_STORAGE_KEY`), reads it back from

@@ -14,7 +14,7 @@ plugin instead of workspace-ui. Two flags start it that way:
   any windowed run. What needs the displays and input devices themselves, such as display
   modes, pointer settings and the power menu, is absent, since `beui-adapter-drm` is not
   running: the power actions start only when the DRM seat provides its `DisplayControl`.
-  `./scripts/buck run //crates/block-app:smoke-desktop` is its launch check.
+  `./scripts/buck test //crates/block-app:smoke-desktop` starts it headless and closes it.
 - `--install-session [PREFIX]` (Linux): see below.
 
 `./scripts/buck run //crates/block-app:dev -- --desktop` runs the desktop shell headless, to

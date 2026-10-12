@@ -11,7 +11,7 @@ pub(crate) use web::load;
 #[cfg(target_os = "android")]
 mod android;
 #[cfg(target_os = "android")]
-pub(crate) use android::load;
+pub(crate) use android::{Module, load};
 
 #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
 mod native;
@@ -23,8 +23,6 @@ pub(crate) type Location = std::path::PathBuf;
 
 #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
 pub(crate) type Module = std::path::PathBuf;
-#[cfg(target_os = "android")]
-pub(crate) type Module = Arc<Vec<u8>>;
 
 #[derive(Default)]
 pub(crate) struct Plugins {
@@ -32,7 +30,7 @@ pub(crate) struct Plugins {
     root: Location,
     errors: Vec<String>,
     #[cfg(target_os = "android")]
-    modules: std::collections::HashMap<String, Module>,
+    modules: std::collections::HashMap<String, Arc<Vec<u8>>>,
     #[cfg(target_os = "android")]
     app: Option<beui::AndroidApp>,
 }
@@ -166,7 +164,8 @@ pub(crate) fn module(plugin_id: &str, entry: &str) -> Option<Module> {
         .manifests
         .iter()
         .find(|manifest| manifest.identity.id == plugin_id)?;
-    plugins.modules.get(entry).cloned()
+    let bytes = plugins.modules.get(entry).cloned()?;
+    Some(Module::new(bytes, plugins.app.clone()?))
 }
 
 const DATA: &str = "data";

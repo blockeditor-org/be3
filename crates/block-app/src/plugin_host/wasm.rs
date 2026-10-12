@@ -370,7 +370,7 @@ fn open(host: &Host, module: &Module) -> Result<Plugin, String> {
     }
     #[cfg(target_os = "android")]
     {
-        host.load_bytes(module)
+        host.load_bytes_with_sdk(module.bytes(), |identity| module.sdk(identity))
     }
 }
 

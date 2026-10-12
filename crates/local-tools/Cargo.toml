@@ -1,0 +1,16 @@
+[package]
+name = "local-tools"
+description = "What runs on this machine after a buck2 command: verify, deploy and the fuzz runner"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+sha2 = "0.10"
+ureq = "2"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[lints]
+workspace = true

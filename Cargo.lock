@@ -713,6 +713,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-frozen"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-cli",
+ "be-client",
+ "be-graph",
+ "be-keys",
+ "be-protocol",
+ "be-server",
+ "be-store",
+ "build-id",
+ "rusqlite",
+ "tokio",
+ "uuid",
+ "zip",
+]
+
+[[package]]
 name = "be-graph"
 version = "0.1.0"
 dependencies = [
@@ -1382,6 +1401,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "block-plugin-sdk"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "block-editor-beui",
+ "block-editor-plugin",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "block-shell"
 version = "0.1.0"
 dependencies = [
@@ -1421,6 +1452,7 @@ dependencies = [
  "block-plugin-api",
  "bytes",
  "rustc-demangle",
+ "sha2",
  "tokio",
  "wasmtime",
  "wasmtime-wasi",
@@ -2423,14 +2455,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "deploy"
-version = "0.1.0"
-dependencies = [
- "sha2",
- "ureq",
-]
-
-[[package]]
 name = "deranged"
 version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3111,13 +3135,6 @@ dependencies = [
  "memchr",
  "pin-project-lite",
  "slab",
-]
-
-[[package]]
-name = "fuzz-runner"
-version = "0.1.0"
-dependencies = [
- "libc",
 ]
 
 [[package]]
@@ -4367,6 +4384,15 @@ name = "litrs"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
+
+[[package]]
+name = "local-tools"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "sha2",
+ "ureq",
+]
 
 [[package]]
 name = "lock_api"
@@ -7714,10 +7740,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 
 [[package]]
-name = "verify"
-version = "0.1.0"
-
-[[package]]
 name = "version-compare"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7870,6 +7892,13 @@ checksum = "7d8ad9f0a39050867bda22e6486c316e2e52d20a42154d5bc433934bf738d085"
 dependencies = [
  "leb128fmt",
  "wasmparser 0.257.1",
+]
+
+[[package]]
+name = "wasm-link"
+version = "0.1.0"
+dependencies = [
+ "sha2",
 ]
 
 [[package]]

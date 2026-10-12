@@ -81,6 +81,7 @@ mod a_driver_acts_on_a_slider_the_way_a_screen_reader_does;
 mod a_driver_answers_a_file_dialog_with_a_file;
 mod a_driver_carries_grabbed_files_and_drops_them;
 mod a_driver_clicks_a_button_by_its_label_and_hears_what_changed;
+mod a_driver_closes_the_window_once_the_app_lets_it;
 mod a_driver_composes_with_an_input_method_and_holds_a_key;
 mod a_driver_holds_a_back_gesture_part_way_and_cancels_it;
 mod a_driver_holds_a_press_across_a_pause_and_taps_with_a_finger;
@@ -372,6 +373,7 @@ mod clicking_the_padding_around_a_button_label_activates_it;
 mod clicking_the_scrollbar_track_pages_the_scroll_towards_the_click;
 mod clicking_the_start_of_a_text_input_puts_the_caret_before_the_text;
 mod closing_a_dock_tab_asks_its_owner_to_remove_it;
+mod closing_a_panes_last_tab_keeps_its_bar_tall_and_darkens_it_without_a_border;
 mod compacting_virtual_rows_clamps_the_scroll_anchor_at_the_end;
 mod copy_and_cut_export_only_selected_text_and_cut_can_be_undone;
 mod ctrl_a_selects_everything_so_typing_replaces_the_value;
@@ -2015,6 +2017,7 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
 pub(crate) struct Driven {
     runner: beui_core::runner::Runner,
     inbox: beui_core::app::automation::Inbox,
+    pub(crate) closed: bool,
 }
 
 struct DrivenScreen(Vec2);
@@ -2094,7 +2097,11 @@ impl Driven {
             )
             .expect("the screen loads");
         runner.context().stop_clock();
-        let mut driven = Self { runner, inbox };
+        let mut driven = Self {
+            runner,
+            inbox,
+            closed: false,
+        };
         driven.frame();
         driven
     }
@@ -2103,11 +2110,13 @@ impl Driven {
         self.runner
             .context()
             .advance_clock(Duration::from_micros(16_667));
-        self.runner.frame(
+        if let Some(frame) = self.runner.frame(
             &mut DrivenPlatform,
             1.0,
             beui_core::app::SafeArea::default(),
-        );
+        ) {
+            self.closed |= frame.close_requested;
+        }
         if let Some(failure) = self.runner.failure() {
             panic!("the driven app panicked: {failure}");
         }

@@ -19,7 +19,7 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck test //crates/editors/checklist:test -- --test-arg=adding` | only the tests whose names contain `adding`; `--test-arg` passes its value to the test binary, and a bare argument after `--` is an error |
 | `./scripts/test adding [--update]` | the tests whose full names, module path included, contain `adding` (or `media::tests`), in every crate that has one, with all their output; it finds each crate's `:test` and runs it with `BE3_VERBOSE=1` and `--nocapture` |
 | `./scripts/buck run //crates/block-app:app` | the app, with every plugin beside it |
-| `./scripts/buck run //crates/block-app:smoke` | the app for ten seconds in a virtual display; `:smoke-desktop` with `--desktop` |
+| `./scripts/buck test //crates/block-app:smoke` | the app headless on a worker, closed once its plugins have drawn, which it must exit cleanly from; `:smoke-desktop` with `--desktop` |
 | `./scripts/buck build //crates/block-app:dist --out DIR` | a platform's release: app and `be-server` |
 | `./scripts/buck build //crates/block-app:plugins --out DIR` | the plugins alone, shared by every platform |
 | `./scripts/buck build //crates/block-app:web --out DIR` | the web bundle with every plugin (`:web-dist` without) |
@@ -121,6 +121,8 @@ It also lets `test` put tests on the workers (below).
   through the cache.
 - `crates/buck-tools`: the build's own helpers (the `crates.bzl` generator, the
   sysroot resolver, the APK packer, clippy's fixer and `//:rust-project`).
+- `crates/local-tools`: what runs on this machine after a buck2 command,
+  built for it in that command: `verify`, `deploy` and `fuzz`.
 - `buck/wasm`: editors, plugin tests and the rules that build wasm modules.
 - `buck/app`, `buck/android`: how the app, the web bundle and the APK are
   laid out.
@@ -158,8 +160,9 @@ crate reads at compile time (default `src/**/*.rs`), `env`, `extra_deps`, or any
 rule attribute such as a test's `remote_execution = "disabled"`.
 
 **An editor**: `crates/editors/<name>/BUCK` is one `editor(name, module)` call
-from `buck/wasm/defs.bzl`, which makes the guest cdylib, its `:module`, its
-`:manifest` and its wasm `:test`. The app picks up every editor by itself.
+from `buck/wasm/defs.bzl`, which makes the guest cdylib, linked against the
+plugin SDK (guides/plugin_sdk.md), its `:module`, its `:manifest` and its wasm
+`:test`. The app picks up every editor by itself.
 
 **A fuzz target**: a file `fuzz/<name>.rs` in a crate whose `BUCK` calls
 `cargo_fuzz()` (with `extra_features` for the library's features it needs),
@@ -224,7 +227,7 @@ turns.
 | `windows_arm64`, `windows_x86_64` | MSVC runtime and Windows SDK via xwin | `lld-link`, `llvm-lib` |
 | `android_arm64` | NDK r29, API 26 | lld |
 | `wasi` | the WASI sysroot | rust-lld (block-app on the web) |
-| `wasi_guest` | the WASI sysroot | rust-lld (the plugins) |
+| `wasi_guest` | the WASI sysroot | rust-lld through crates/wasm-link (the plugins and their SDK) |
 | `wasm32` | nothing | rust-lld (the games, the gpu shim) |
 
 All of them build on the same Linux workers. CI builds and ships only the
@@ -245,7 +248,8 @@ A native target depends on a wasm one through a transition in
 ## Shipping
 
 - `:app` stages the executable as `block-app` and every editor's
-  manifest (`<id>.plugin.json`), data (`data/<id>/`), module and `.cwasm`, precompiled in an action
+  manifest (`<id>.plugin.json`), data (`data/<id>/`), module and `.cwasm`, and
+  the plugin SDK as `sdk-<SHA-256>.wasm` with its `.cwasm`, precompiled in an action
   per module for the platform the app is built for, by
   `//crates/plugin-test-runner:precompiler`, which is always the Linux x86_64
   build the workers can run.
@@ -302,11 +306,13 @@ extension ships: the toolchain's panics on this workspace.
   without it buck2 sends a HEAD request per download on every new daemon.
 - **`./scripts/verify`** is one `buck2 bxl` of `buck/dev/verify.bxl`, which
   builds everything with `--keep-going` and prints what is read after: the
-  generated files, the paintings, each crate's fixes, and `crates/verify`,
-  built for this machine, which the script then runs to read the rest and
-  write it into the checkout. Anything after the build belongs in
-  `crates/verify` rather than in bash, so it works the same on Linux, macOS
-  and Git Bash on Windows. The autofixes are actions (`buck/dev/fix.sh`), one
+  generated files, the paintings, each crate's fixes, and
+  `crates/local-tools`, built for this machine, whose `verify` the script then
+  runs to read the rest and write it into the checkout. Anything that runs on
+  this machine after a buck2 command belongs in `crates/local-tools`, as a
+  subcommand, rather than in bash or a crate of its own, so it works the same
+  on Linux, macOS and Git Bash on Windows and builds once: `verify`, `deploy`
+  (`./scripts/deploy`) and `fuzz` (a fuzz target's runner). The autofixes are actions (`buck/dev/fix.sh`), one
   a crate: clippy's machine-applicable suggestions from every target's
   `[clippy.json]`, then fix-rust-source, then rustfmt, on a copy of the
   crate's sources, output as the files that changed. A fix that makes another

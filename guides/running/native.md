@@ -15,9 +15,6 @@ guide is for what that does not cover.
   (guides/linux_desktop.md).
 
 `./scripts/buck run //crates/block-app:app` runs it in a window, with every plugin beside it.
-`./scripts/buck run //crates/block-app:smoke` (and `:smoke-desktop`) is the bounded launch
-check for changes that could affect native startup: the app for ten seconds in a virtual
-display.
 
 ## In a window
 
