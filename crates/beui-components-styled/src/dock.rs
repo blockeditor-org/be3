@@ -408,9 +408,9 @@ fn DockTitleBar(
     closable: Memo<bool>,
     close: ClickCallback,
 ) -> NodeId {
-    let theme = use_theme();
     let titled = tabs.is_none();
-    let fill = bar_fill(vacant);
+    let fill = bar_fill(vacant.clone());
+    let rule = bar_rule(vacant);
     view! {
         <List spacing=0.0>
             <Frame color={fill} padding_vertical=BAR_PADDING padding_horizontal=BAR_PADDING>
@@ -426,7 +426,7 @@ fn DockTitleBar(
                     </List>
                 </Frame>
             </Frame>
-            <Frame color={theme.border.clone()} height=CHROME_BORDER />
+            <Frame color={rule} height=CHROME_BORDER />
         </List>
     }
 }
@@ -441,9 +441,9 @@ fn DockSideBar(
     closable: Memo<bool>,
     close: ClickCallback,
 ) -> NodeId {
-    let theme = use_theme();
     let titled = tabs.is_none();
-    let fill = bar_fill(vacant);
+    let fill = bar_fill(vacant.clone());
+    let rule = bar_rule(vacant);
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
         <Frame
@@ -471,7 +471,7 @@ fn DockSideBar(
                 </Show>
             </List>
         </Frame>
-        <Frame color={theme.border.clone()} width=CHROME_BORDER />
+        <Frame color={rule} width=CHROME_BORDER />
         </List>
     }
 }
@@ -640,6 +640,14 @@ fn bar_fill(vacant: Memo<bool>) -> Memo<Color32> {
     create_memo(move || match vacant.get() {
         true => theme.background.get(),
         false => theme.surface.get(),
+    })
+}
+
+fn bar_rule(vacant: Memo<bool>) -> Memo<Color32> {
+    let theme = use_theme();
+    create_memo(move || match vacant.get() {
+        true => theme.background.get(),
+        false => theme.border.get(),
     })
 }
 

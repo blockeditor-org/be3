@@ -3,7 +3,7 @@ use crate::reactive::{Show, clone};
 use crate::styled::Theme;
 
 #[test]
-fn closing_a_panes_last_tab_keeps_its_bar_tall_and_darkens_it() {
+fn closing_a_panes_last_tab_keeps_its_bar_tall_and_darkens_it_without_a_border() {
     let document = build(move || {
         let layout = unstyled::DockingLayout::new();
         let (open, set_open) = create_signal(true);
@@ -32,8 +32,12 @@ fn closing_a_panes_last_tab_keeps_its_bar_tall_and_darkens_it() {
     let tabbed = harness.frame(Vec::new());
     let top = harness.rect(harness.find("content.1")).min.y;
     assert!(
-        surface_fills_above(&tabbed, top) > 0,
+        fills_above(&tabbed, top, Theme::DARK.surface) > 0,
         "a bar with tabs is the surface color"
+    );
+    assert!(
+        fills_above(&tabbed, top, Theme::DARK.border) > 0,
+        "a bar with tabs has a border under it"
     );
 
     let close = harness.center(harness.find("dock.tab.1.close"));
@@ -44,13 +48,18 @@ fn closing_a_panes_last_tab_keeps_its_bar_tall_and_darkens_it() {
     let body = harness.rect(harness.find("nothing_open"));
     assert_eq!(body.min.y, top, "the bar keeps its height with no tabs");
     assert_eq!(
-        surface_fills_above(&vacant, top),
+        fills_above(&vacant, top, Theme::DARK.surface),
         0,
         "a bar with no tabs is not the surface color"
     );
+    assert_eq!(
+        fills_above(&vacant, top, Theme::DARK.border),
+        0,
+        "a bar with no tabs has no border under it"
+    );
 }
 
-fn surface_fills_above(output: &crate::FrameOutput, top: f32) -> usize {
+fn fills_above(output: &crate::FrameOutput, top: f32, fill: crate::color::Color32) -> usize {
     output
         .shapes()
         .iter()
@@ -63,7 +72,7 @@ fn surface_fills_above(output: &crate::FrameOutput, top: f32) -> usize {
                     color,
                     ..
                 } if *stroke_width == 0.0
-                    && *color == Theme::DARK.surface
+                    && *color == fill
                     && rect.max.y <= top
             )
         })
