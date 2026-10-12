@@ -1975,45 +1975,59 @@ without rebuilding their children.
 
 ### One layout per frame
 
-A frame is input, then layout, then paint. Input is dispatched against the rects
-the previous frame painted, which is what the reader was looking at when they
-clicked, and the tree is laid out once afterwards.
+A frame runs in fixed phases: input, then builds, then layout, then paint.
+Input is dispatched against the rects the previous frame painted, which is what
+the reader was looking at when they clicked. Events are dispatched once, in the
+order they arrived, pointer and keyboard interleaved, and the effects an event's
+handlers woke run after that event and before the next one, so a key typed
+just after a click reaches whatever the click focused. Nothing flushes effects
+inside the dispatch of one event, and nothing flushes them inside the layout
+walk: effects only ever run between those steps, with no `&mut Document`
+borrowed, which is what keeps an effect from re-entering a walk.
 
-Layout is a function of the tree and the constraints it is offered: nothing
-the walk does writes a signal outside the node being laid out. Two nodes build
-their children inside their own layout, so whatever reacts rebuilds within
-their subtree and the walk carries on with the rebuilt tree:
+Layout is a function of the tree and the constraints it is offered. The walk
+cannot build anything: a node that needs something built for the space it is
+given records that and the document builds it after the walk, in one batch,
+then lays out again whatever the build changed. Three nodes do this:
 
-- `LayoutBuilder` hands its render prop a `ReadSignal<Vec2>` of the constraint
-  it is offered (the finite axes of it; an unbounded axis keeps its last
-  value), written before its child is measured. Use it for a component that
-  needs the space it was given, such as one that wraps text or switches between
-  a row and a column.
+- `LayoutBuilder` hands its render prop a `ReadSignal<Vec2>` of the size it is
+  laid out at, on each axis its parent bounds (an axis the parent measured it
+  unbounded on keeps its last value). Measuring it never rebuilds anything: a
+  parent that tries several sizes is answered by the child built for the last
+  one it was laid out at. Use it for a component that needs the space it was
+  given, such as one that wraps text or switches between a row and a column,
+  and give it that space from its parent (a stretch, a fixed or percent size)
+  on the axis it reads.
 - `PlacementBuilder` hands its render prop a `ReadSignal<Rect>` of where it was
-  placed, in the document's coordinates, written as it is laid out and before
-  its child is. Use it for anything that positions content in document
-  coordinates (a canvas camera, an overlay anchored at a point) or needs the
-  size it ended up with rather than the one it was offered. It is laid out
-  again whenever it moves, scrolling included.
+  placed, in the document's coordinates, written after each layout with the
+  other placement reports. Use it for anything that positions content in
+  document coordinates (a canvas camera, an overlay anchored at a point).
+  Moving it does not lay its content out again; only the effects that read the
+  rect run. A component that only needs where on itself it was pressed reads
+  the `local` position pointer events carry instead.
+- `VirtualList` places the rows it has, and asks for the ones its window needs
+  and does not have; they are built after the walk and placed in the next one.
 
-The rule both rest on is the one container queries settle on: a component may
-query the space it was given, but must not be the thing that decides that
-space on the axis it queries. Laying a node out changing an ancestor or an
-already-placed sibling is caught by a debug assertion.
+The rule all three rest on is the one container queries settle on: a component
+may query the space it was given, but must not be the thing that decides that
+space on the axis it queries.
 
 Everything else layout decides is told to the tree after the walk: a `Scroll`'s
 position, `component_placed`, `node_rect` and `node_placed` for watching other
 nodes, and `Document::on_laid_out`, the callback block-app waits for its plugins
 in. A node with something to report queues it with
-`Document::report_after_layout`. If what they change touches layout, the frame
-is laid out again and reports again until nothing changes, so a frame is never
-painted from a layout the tree no longer has; a debug assertion names what is
-still changing after four layouts. Each of those extra layouts is a cost the
-frame pays, so keep what a report drives to painting where you can: a
-scrollbar's thumb is painted where the position says rather than laid out,
-which keeps scrolling to one layout a frame. Reach for a report only for what
-depends on how other nodes ended up, such as `TreeReveal`'s button appearing
-once the selected row has scrolled out of view.
+`Document::report_after_layout`, and one whose own size changed while it was
+laid out with `Document::invalidate_after_layout`. The reports and the builds
+run together in one batch; whatever they changed is laid out again, which
+only walks the nodes that changed and their ancestors, until nothing changes,
+so a frame is never painted from a layout the tree no longer has. Builders
+nested in the content another one builds take a round each, and a debug
+assertion names what is still changing after eight. Each of those extra
+layouts is a cost the frame pays, so keep what a report drives to painting
+where you can: a scrollbar's thumb is painted where the position says rather
+than laid out, which keeps scrolling to one layout a frame. Reach for a report
+only for what depends on how other nodes ended up, such as `TreeReveal`'s
+button appearing once the selected row has scrolled out of view.
 
 Pointer callbacks are handed positions in the coordinates of the node that
 hears them as well as the document's: `PointerPress`, `ScrollGesture` and
@@ -2308,13 +2322,15 @@ another kind, and a query meant for such code takes a `NodeId` and answers
 `None` or `false` itself, as `is_overlay_open` does.
 
 `measure` takes `&self` and must not mutate; `layout` takes `&mut self` and may
-update the node's own retained state, which is how a `VirtualList` realises
-the rows its slice of the viewport calls for. Both receive `&mut Document` and are
-reached through `beui_core::layout::measure` and `beui_core::layout::layout`, which take
-the element out of the arena for the duration so an effect woken mid-walk cannot
-alias it. Reach children through those two functions rather than calling another
-element's methods directly, or the node you descend into is never handed its
-constraint.
+update the node's own retained state. Neither may build: no effect runs while
+the walk is under way, so a node that needs children built for the space it
+was given records what it needs, calls `Document::build_after_layout` with its
+own id, and hands the builds over from `Element::take_builds`, the way a
+`VirtualList` asks for the rows its slice of the viewport calls for. Both
+receive `&mut Document` and are reached through `beui_core::layout::measure`
+and `beui_core::layout::layout`, which take the element out of the arena for
+the duration. Reach children through those two functions rather than calling
+another element's methods directly.
 
 `unplaced` is the other half of `layout`. The layout calls it on every node it
 placed last pass and did not place this one - a child its parent now skips, and
@@ -2322,7 +2338,7 @@ everything under that child - so a node that keeps retained state for what is
 on screen can let it go. It runs in the same pass, after the dropped rects are
 gone, and it may remove the node's own children, which is how a `VirtualList`
 scrolled out of view releases its rows. A node that is laid out again gets
-`layout` as usual and rebuilds whatever it released.
+`layout` as usual and asks again for whatever it released.
 
 Measurements are memoised per available size and dropped whenever the node or
 something under it changes its layout, so measuring a child repeatedly within a

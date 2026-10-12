@@ -8,10 +8,7 @@ pub fn measure(doc: &mut Document, painter: &Painter, id: NodeId, available: Vec
     if !doc.arena.contains(id) {
         return Vec2::ZERO;
     }
-    doc.offer_measured_constraint(id, available);
-    if !doc.arena.contains(id) {
-        return Vec2::ZERO;
-    }
+    doc.note_offer(id, available);
     if let Some(size) = doc.measured(id, available) {
         doc.note_measured(true);
         return size;
@@ -62,10 +59,7 @@ pub fn layout(doc: &mut Document, painter: &Painter, id: NodeId, rect: Rect, out
     doc.note_placed_work(false);
     let culled = doc.culls(id, rect.size(), own.state());
     doc.record_placement(id, rect, state, own.state(), out, culled);
-    let watermark = doc.arena.relaid_len();
-    doc.deliver_unmeasured_constraint(id, rect.size());
-    doc.assert_confined(id, watermark);
-    if culled || !doc.arena.contains(id) {
+    if culled {
         return;
     }
     let mut element = doc.arena.take(id);

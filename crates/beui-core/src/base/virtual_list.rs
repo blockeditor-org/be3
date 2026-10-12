@@ -9,7 +9,7 @@ use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
 use crate::node::{Element, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
-use ::reactive::{KeyedItems, ScopeContext, numbered, owner_scope, settle};
+use ::reactive::{KeyedItems, ScopeContext, numbered, owner_scope};
 
 const ROW_LIMIT: usize = 4096;
 const ANCHOR_SLACK: f32 = 4.0;
@@ -98,6 +98,13 @@ impl Metrics {
         (index - at) as f32 * self.estimated + measured
     }
 
+    fn guess(&self) -> f32 {
+        match self.entries.len() {
+            0 => self.estimated,
+            count => self.estimated.min(self.measured / count as f32),
+        }
+    }
+
     fn total(&self) -> f32 {
         (self.count - self.entries.len()) as f32 * self.estimated + self.measured
     }
@@ -128,6 +135,8 @@ pub struct VirtualListNode<K> {
     owner: Option<ScopeContext>,
     placed: Vec<Row<K>>,
     origin: Option<(K, f32)>,
+    missing: Vec<K>,
+    planned: Option<((f32, f32), f32)>,
 }
 
 impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
@@ -142,6 +151,8 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
             owner: owner_scope(),
             placed: Vec::new(),
             origin: None,
+            missing: Vec::new(),
+            planned: None,
         }
     }
 
@@ -175,6 +186,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         }
         self.keys = keys;
         self.indices = indices;
+        self.missing.clear();
         let kept: Vec<K> = self.placed.iter().map(|row| row.key.clone()).collect();
         self.rows.retain(&kept);
     }
@@ -192,15 +204,12 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         (first, last)
     }
 
-    fn build(&self, key: K) -> NodeId {
-        if let Some(node) = self.rows.get(&key) {
-            return node;
+    fn existing(&mut self, key: &K) -> Option<NodeId> {
+        let node = self.rows.get(key);
+        if node.is_none() {
+            self.missing.push(key.clone());
         }
-        let rows = self.rows.clone();
-        match self.owner.as_ref().filter(|owner| owner.is_alive()) {
-            Some(owner) => settle(|| owner.run(|| rows.entry(key))),
-            None => settle(|| rows.entry(key)),
-        }
+        node
     }
 
     fn measured_row(
@@ -209,16 +218,16 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         painter: &Painter,
         index: usize,
         cross: f32,
-    ) -> (K, NodeId, f32) {
+    ) -> Option<(K, NodeId, f32)> {
         let key = self.keys[index].clone();
-        let node = self.build(key.clone());
+        let node = self.existing(&key)?;
         let offer = self.direction.axes(f32::INFINITY, cross);
         let length = self
             .direction
             .main(crate::layout::measure(doc, painter, node, offer));
         self.metrics.record(index, length);
         self.sizes.insert(key.clone(), length);
-        (key, node, length)
+        Some((key, node, length))
     }
 
     fn anchor(&mut self, window: (f32, f32)) -> (usize, f32) {
@@ -244,22 +253,24 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         cross: f32,
     ) -> f32 {
         let (first, last) = window;
+        self.missing.clear();
         if self.metrics.count == 0 || last <= first {
             self.origin = None;
             self.keep(Vec::new());
             return 0.0;
         }
         let (index, position) = self.anchor(window);
+        let guess = self.metrics.guess();
         let mut below = Vec::new();
         let (mut cursor, mut at, mut scanned) = (position, index, 0);
         while at < self.metrics.count && cursor < last && scanned < ROW_LIMIT {
             let estimate = self.metrics.height(at);
             let row = match cursor + estimate > first {
-                true => Some(self.measured_row(doc, painter, at, cross)),
-                false => None,
+                true => self.measured_row(doc, painter, at, cross).ok_or(guess),
+                false => Err(estimate),
             };
-            let length = row.as_ref().map_or(estimate, |(_, _, length)| *length);
-            if let Some((key, node, _)) = row
+            let length = row.as_ref().map_or_else(|guess| *guess, |(_, _, length)| *length);
+            if let Ok((key, node, _)) = row
                 && cursor + length > first
             {
                 below.push(Row {
@@ -281,12 +292,12 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
             scanned += 1;
             let estimate = self.metrics.height(at);
             let row = match cursor - estimate < last {
-                true => Some(self.measured_row(doc, painter, at, cross)),
-                false => None,
+                true => self.measured_row(doc, painter, at, cross).ok_or(guess),
+                false => Err(estimate),
             };
-            let length = row.as_ref().map_or(estimate, |(_, _, length)| *length);
+            let length = row.as_ref().map_or_else(|guess| *guess, |(_, _, length)| *length);
             cursor -= length;
-            if let Some((key, node, _)) = row
+            if let Ok((key, node, _)) = row
                 && cursor < last
             {
                 above.push(Row {
@@ -321,6 +332,43 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         };
         self.keep(rows);
         shift
+    }
+
+    fn plan(&mut self, doc: &mut Document, painter: &Painter) {
+        self.missing.clear();
+        let Some((window, cross)) = self.planned else {
+            return;
+        };
+        let (first, last) = window;
+        if self.metrics.count == 0 || last <= first {
+            return;
+        }
+        let (index, position) = self.anchor(window);
+        let guess = self.metrics.guess();
+        let (mut cursor, mut at, mut scanned) = (position, index, 0);
+        while at < self.metrics.count && cursor < last && scanned < ROW_LIMIT {
+            let estimate = self.metrics.height(at);
+            cursor += match cursor + estimate > first {
+                true => self
+                    .measured_row(doc, painter, at, cross)
+                    .map_or(guess, |(_, _, length)| length),
+                false => estimate,
+            };
+            at += 1;
+            scanned += 1;
+        }
+        let (mut cursor, mut at, mut scanned) = (position, index, 0);
+        while at > 0 && cursor > first && scanned < ROW_LIMIT {
+            at -= 1;
+            scanned += 1;
+            let estimate = self.metrics.height(at);
+            cursor -= match cursor - estimate < last {
+                true => self
+                    .measured_row(doc, painter, at, cross)
+                    .map_or(guess, |(_, _, length)| length),
+                false => estimate,
+            };
+        }
     }
 
     fn edge_shift(&self, rows: &[Row<K>], window: (f32, f32), main: f32) -> f32 {
@@ -365,6 +413,7 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
         let start = self.direction.main(rect.min.to_vec2());
         let total = self.metrics.total();
         let window = self.window(doc, painter, start, main);
+        self.planned = Some((window, cross));
         let shift = self.realize(doc, painter, window, main, cross);
         let grid = doc.pixel_grid();
         for row in &self.placed {
@@ -379,7 +428,10 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
         if let Some(node) = node {
             doc.arena.adopt_children(node);
             if self.metrics.total() != total {
-                doc.invalidate_measurement(node);
+                doc.invalidate_after_layout(node);
+            }
+            if !self.missing.is_empty() {
+                doc.build_after_layout(node);
             }
         }
         if shift != 0.0 {
@@ -387,8 +439,33 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
         }
     }
 
+    fn plan_builds(&mut self, doc: &mut Document, painter: &Painter) {
+        self.plan(doc, painter);
+    }
+
+    fn take_builds(&mut self) -> Vec<Box<dyn FnOnce()>> {
+        let owner = self.owner.clone().filter(ScopeContext::is_alive);
+        std::mem::take(&mut self.missing)
+            .into_iter()
+            .map(|key| {
+                let rows = self.rows.clone();
+                let owner = owner.clone();
+                Box::new(move || match owner {
+                    Some(owner) => {
+                        owner.run(|| rows.entry(key));
+                    }
+                    None => {
+                        rows.entry(key);
+                    }
+                }) as Box<dyn FnOnce()>
+            })
+            .collect()
+    }
+
     fn unplaced(&mut self, _doc: &mut Document) {
         self.origin = None;
+        self.missing.clear();
+        self.planned = None;
         self.keep(Vec::new());
     }
 

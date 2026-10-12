@@ -111,9 +111,10 @@ pub struct Document {
     layout_revision: u64,
     paint_revision: u64,
     reports: Vec<Box<dyn FnOnce()>>,
+    builders: Vec<NodeId>,
+    invalidated: Vec<NodeId>,
     interaction_done: Option<Rc<dyn Fn()>>,
     laid_out: Option<Rc<dyn Fn()>>,
-    constrained: HashSet<NodeId>,
     measurements: NodeMap<Vec<(Vec2, Vec2)>>,
     baselines: NodeMap<Vec<(Vec2, Option<f32>)>>,
     layout_parent: Option<NodeId>,
@@ -246,7 +247,7 @@ impl Document {
         let rects = Rc::new(Rects::default());
         let zone = NEXT_ZONE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         Self {
-            arena: Arena::in_zone(zone),
+            arena: Arena::default(),
             root: None,
             focused: None,
             focus_before: None,
@@ -296,9 +297,10 @@ impl Document {
             layout_revision: 0,
             paint_revision: 0,
             reports: Vec::new(),
+            builders: Vec::new(),
+            invalidated: Vec::new(),
             interaction_done: None,
             laid_out: None,
-            constrained: HashSet::new(),
             measurements: NodeMap::default(),
             baselines: NodeMap::default(),
             layout_parent: None,
@@ -772,6 +774,30 @@ impl Document {
         });
     }
 
+    pub(crate) fn drain_removals(&mut self) {
+        while self.arena.removals_pending() {
+            let context = self.reactive_scope().context();
+            let removals = self.arena.take_removals();
+            let guard = crate::current::install(self);
+            let installed = matches!(guard, crate::current::DocumentGuard::Installed(..));
+            match installed {
+                true => context.run(|| {
+                    crate::current::with_document(|document| {
+                        for id in removals {
+                            document.remove_node(id);
+                        }
+                    })
+                }),
+                false => {
+                    drop(guard);
+                    for id in removals {
+                        self.remove_node(id);
+                    }
+                }
+            }
+        }
+    }
+
     pub fn remove_node(&mut self, id: NodeId) {
         if !self.arena.contains(id) {
             return;
@@ -1003,28 +1029,17 @@ impl Document {
         FrameMeasurement::measure(&mut measurement.timings.accessibility, || {
             let actions = ctx.take_accessibility_actions(self.accessibility_id);
             if !actions.is_empty() {
-                let context = self.reactive_scope().context();
-                let _guard = crate::current::install(self);
-                context.run(|| {
-                    crate::current::with_document(|document| {
-                        for request in actions {
-                            document.handle_accessibility_action(request);
-                        }
-                    });
+                crate::current::run_in(self, |document| {
+                    for request in actions {
+                        document.handle_accessibility_action(request);
+                    }
                 });
             }
         });
 
-        {
-            let context = self.reactive_scope().context();
-            let _guard = crate::current::install(self);
-            context.run(|| crate::current::with_document(|document| document.run_timers()));
-        }
+        crate::current::run_in(self, |document| document.run_timers());
         if ctx.automated() {
-            let context = self.reactive_scope().context();
-            let _guard = crate::current::install(self);
-            context
-                .run(|| crate::current::with_document(|document| document.describe_actions(ctx)));
+            crate::current::run_in(self, |document| document.describe_actions(ctx));
         }
         self.deliver_file_picks(ctx);
 
@@ -1032,20 +1047,12 @@ impl Document {
             FrameMeasurement::measure(&mut measurement.timings.interaction, || {
                 if let Some(root) = self.root {
                     let rects = Rc::clone(&self.rects);
-                    let context = self.reactive_scope().context();
-                    let _guard = crate::current::install(self);
-                    context.run(|| {
-                        crate::current::with_document(|document| {
-                            interact::interact(document, ctx, &rects, root)
-                        });
-                    });
+                    interact::interact(self, ctx, &rects, root);
                 }
             });
         }
         if let Some(interacted) = self.interaction_done.clone() {
-            let context = self.reactive_scope().context();
-            let _guard = crate::current::install(self);
-            context.run(|| interacted());
+            crate::current::enter(self, || interacted());
         }
         if self.handles_back() {
             ctx.handle_back();
@@ -1392,6 +1399,17 @@ impl Document {
         read
     }
 
+    pub(crate) fn follow_placement(
+        &mut self,
+        id: NodeId,
+        read: ::reactive::ReadSignal<Rect>,
+        write: ::reactive::WriteSignal<Rect>,
+    ) {
+        self.placements
+            .get_or_default(id)
+            .push(PlacementWatcher { read, write });
+    }
+
     pub fn name_component(&mut self, id: NodeId, name: &'static str) {
         self.component_names.entry(id).or_default().push(name);
     }
@@ -1414,34 +1432,19 @@ impl Document {
             .unwrap_or_else(|| panic!("component has no {} state", std::any::type_name::<T>()))
     }
 
-    pub fn offer_measured_constraint(&mut self, id: NodeId, available: Vec2) {
-        if self.offer_constraint(id, available) {
-            self.constrained.insert(id);
-        }
-    }
-
-    pub fn deliver_unmeasured_constraint(&mut self, id: NodeId, available: Vec2) {
-        if !self.constrained.contains(&id) {
-            self.offer_constraint(id, available);
-        }
-    }
-
     pub fn report_after_layout(&mut self, report: impl FnOnce() + 'static) {
         self.reports.push(Box::new(report));
     }
 
-    pub fn assert_confined(&self, id: NodeId, watermark: usize) {
-        if cfg!(debug_assertions) {
-            for changed in self.arena.relaid_since(watermark) {
-                assert!(
-                    *changed == id || self.placed_pass.get(changed) != Some(&self.layout_pass),
-                    "laying out {id:?} ({}) restructured {changed:?} ({}), which this pass had already placed",
-                    self.node_kind(id),
-                    self.node_kind(*changed),
-                );
-            }
-        }
+    pub fn build_after_layout(&mut self, id: NodeId) {
+        self.builders.push(id);
     }
+
+    pub fn invalidate_after_layout(&mut self, id: NodeId) {
+        self.invalidated.push(id);
+    }
+
+
 
     pub fn measured(&mut self, id: NodeId, available: Vec2) -> Option<Vec2> {
         if self.arena.stale(id) {
@@ -1826,7 +1829,20 @@ impl Document {
         entered
     }
 
-    fn report_laid_out(&mut self) {
+    fn report_laid_out(&mut self, ctx: &Context) {
+        for id in std::mem::take(&mut self.invalidated) {
+            if self.arena.contains(id) {
+                self.arena.invalidate_node(id);
+            }
+        }
+        self.relay_moved_overlays();
+        let builders = std::mem::take(&mut self.builders);
+        let mut builds = Vec::new();
+        for id in &builders {
+            if self.arena.contains(*id) && !self.arena.taken(*id) {
+                builds.extend(self.arena.get_mut(*id).take_builds());
+            }
+        }
         let reports = std::mem::take(&mut self.reports);
         let rects = Rc::clone(&self.rects);
         let moved: Vec<(::reactive::WriteSignal<Rect>, Rect)> = self
@@ -1847,24 +1863,24 @@ impl Document {
             .filter(|(placed, read, _)| read.get_untracked() != *placed)
             .map(|(placed, _, write)| (write.clone(), placed))
             .collect();
-        if reports.is_empty() && moved.is_empty() && placed.is_empty() {
+        if reports.is_empty() && moved.is_empty() && placed.is_empty() && builds.is_empty() {
             return;
         }
-        let context = self.reactive_scope().context();
-        let _guard = crate::current::install(self);
-        context.run(|| {
-            ::reactive::settle(|| {
-                for report in reports {
-                    report();
-                }
-                for (write, rect) in moved {
-                    write.set(rect);
-                }
-                for (write, shown) in placed {
-                    write.set(shown);
-                }
-            });
+        crate::current::enter(self, || {
+            for report in reports {
+                report();
+            }
+            for (write, rect) in moved {
+                write.set(rect);
+            }
+            for (write, shown) in placed {
+                write.set(shown);
+            }
+            for build in builds {
+                build();
+            }
         });
+        self.build_until_planned(ctx, builders);
     }
 
     fn assert_layout_settled(&self, watermark: usize) {
@@ -1939,33 +1955,26 @@ impl Document {
 
     fn update_layout(&mut self, ctx: &Context, rect: Rect) -> usize {
         let mut passes = 0;
-        for round in 0..LAYOUTS_PER_FRAME {
-            if self.needs_layout() {
-                self.lay_out_pass(ctx, rect);
-                passes += 1;
-            }
-            let watermark = self.arena.relaid_len();
-            self.report_laid_out();
-            if round == 0 {
-                self.run_laid_out();
-            }
-            if !self.needs_layout() {
-                return passes;
-            }
-            if round + 1 == LAYOUTS_PER_FRAME {
-                self.assert_layout_settled(watermark);
-            }
-        }
-        self.lay_out_pass(ctx, rect);
-        ctx.request_repaint();
-        passes + 1
-    }
-
-    fn lay_out_pass(&mut self, ctx: &Context, rect: Rect) {
-        self.lay_out_tree(ctx, rect);
-        if self.relay_moved_overlays() {
+        if self.needs_layout() {
             self.lay_out_tree(ctx, rect);
+            passes += 1;
         }
+        let mut watermark = self.arena.relaid_len();
+        self.report_laid_out(ctx);
+        self.run_laid_out();
+        while self.needs_layout() {
+            if passes == LAYOUTS_PER_FRAME {
+                self.assert_layout_settled(watermark);
+                self.lay_out_tree(ctx, rect);
+                ctx.request_repaint();
+                return passes + 1;
+            }
+            self.lay_out_tree(ctx, rect);
+            passes += 1;
+            watermark = self.arena.relaid_len();
+            self.report_laid_out(ctx);
+        }
+        passes
     }
 
     fn lay_out_tree(&mut self, ctx: &Context, rect: Rect) {
@@ -1974,17 +1983,11 @@ impl Document {
         self.placing.clear();
         if let Some(root) = self.root {
             let painter = ctx.painter();
-            let context = self.reactive_scope().context();
             let placed = &*rects;
-            self.constrained.clear();
             self.layout_parent = None;
-            let _guard = crate::current::install(self);
-            context.run(|| {
-                crate::current::with_document(|document| {
-                    layout::layout(document, &painter, root, rect, placed);
-                    document.lay_out_boundaries(ctx, placed);
-                    ::reactive::settle(|| {});
-                });
+            crate::current::run_in(self, |document| {
+                layout::layout(document, &painter, root, rect, placed);
+                document.lay_out_boundaries(ctx, placed);
             });
         }
         self.placing.clear();
@@ -2117,9 +2120,42 @@ fn verifying_paint() -> bool {
     cfg!(test) || VERIFY_PAINT.load(std::sync::atomic::Ordering::Relaxed)
 }
 
-const LAYOUTS_PER_FRAME: usize = 4;
+const LAYOUTS_PER_FRAME: usize = 8;
+const PLANS_PER_LAYOUT: usize = 64;
 
 impl Document {
+    fn build_until_planned(&mut self, ctx: &Context, mut builders: Vec<NodeId>) {
+        let rects = Rc::clone(&self.rects);
+        for _ in 0..PLANS_PER_LAYOUT {
+            builders.retain(|id| self.arena.contains(*id) && !self.arena.taken(*id));
+            let mut builds = Vec::new();
+            for id in &builders {
+                let Some(held) = self.painters.get(id) else {
+                    continue;
+                };
+                let state = PainterState {
+                    origin: rects.offset(held.given.space),
+                    space_clip: rects.space_clip(held.given.space),
+                    local: Local::NONE,
+                    ..held.given
+                };
+                let painter = Painter::resumed(ctx.clone(), state);
+                let mut element = self.arena.take(*id);
+                element.plan_builds(self, &painter);
+                builds.extend(element.take_builds());
+                self.arena.put_back(*id, element);
+            }
+            if builds.is_empty() {
+                return;
+            }
+            crate::current::enter(self, || {
+                for build in builds {
+                    build();
+                }
+            });
+        }
+    }
+
     fn lay_out_boundaries(&mut self, ctx: &Context, rects: &Rects) {
         for boundary in self.arena.take_boundaries() {
             if !self.arena.contains(boundary)

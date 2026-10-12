@@ -93,13 +93,6 @@ pub fn batch<T>(f: impl FnOnce() -> T) -> T {
     result
 }
 
-pub fn settle<T>(f: impl FnOnce() -> T) -> T {
-    let result = batch(f);
-    let _guard = Reset::set(|runtime| &runtime.depth, 0);
-    flush();
-    result
-}
-
 pub(crate) fn next_sequence() -> u64 {
     RUNTIME.with(|runtime| {
         let next = runtime.sequence.get() + 1;

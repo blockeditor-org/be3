@@ -55,8 +55,18 @@ pub fn install(document: &mut Document) -> DocumentGuard<'_> {
 
 pub fn enter<R>(document: &mut Document, f: impl FnOnce() -> R) -> R {
     let context = document.reactive_scope().context();
-    let _guard = install(document);
-    context.run(f)
+    let guard = install(document);
+    let result = context.run(f);
+    let installed = matches!(guard, DocumentGuard::Installed(..));
+    drop(guard);
+    if installed {
+        document.drain_removals();
+    }
+    result
+}
+
+pub(crate) fn run_in<R>(document: &mut Document, f: impl FnOnce(&mut Document) -> R) -> R {
+    enter(document, || with_document(f))
 }
 
 pub fn with_reactive_scope<R>(document: &mut Document, f: impl FnOnce() -> R) -> R {

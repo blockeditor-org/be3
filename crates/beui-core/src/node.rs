@@ -91,6 +91,12 @@ pub trait Element: Any {
 
     fn unplaced(&mut self, _doc: &mut Document) {}
 
+    fn take_builds(&mut self) -> Vec<Box<dyn FnOnce()>> {
+        Vec::new()
+    }
+
+    fn plan_builds(&mut self, _doc: &mut Document, _painter: &Painter) {}
+
     fn detached(&mut self) {}
 
     fn paints(&self) -> bool {
@@ -442,7 +448,7 @@ pub struct Arena {
     parents: RefCell<Vec<Option<NodeId>>>,
     owners: Vec<Option<::reactive::ScopeContext>>,
     removed: Vec<bool>,
-    pub(crate) zone: u64,
+    removals: std::rc::Rc<RefCell<Vec<NodeId>>>,
     adopting: RefCell<Vec<NodeId>>,
     stale: Vec<bool>,
     unplaced: Vec<bool>,
@@ -461,13 +467,6 @@ pub struct Arena {
 }
 
 impl Arena {
-    pub(crate) fn in_zone(zone: u64) -> Self {
-        Self {
-            zone,
-            ..Self::default()
-        }
-    }
-
     pub fn len(&self) -> usize {
         self.live
     }
@@ -521,15 +520,17 @@ impl Arena {
         let Some(owner) = ::reactive::current_scope() else {
             return;
         };
-        let zone = self.zone;
-        ::reactive::on_cleanup(move || {
-            crate::current::try_with_document(|document| {
-                if document.zone() == zone {
-                    document.remove_node(id);
-                }
-            });
-        });
+        let removals = std::rc::Rc::clone(&self.removals);
+        ::reactive::on_cleanup(move || removals.borrow_mut().push(id));
         self.owners[id.index as usize] = Some(owner);
+    }
+
+    pub(crate) fn take_removals(&self) -> Vec<NodeId> {
+        std::mem::take(&mut *self.removals.borrow_mut())
+    }
+
+    pub(crate) fn removals_pending(&self) -> bool {
+        !self.removals.borrow().is_empty()
     }
 
     pub fn owner(&self, id: NodeId) -> Option<::reactive::ScopeContext> {
