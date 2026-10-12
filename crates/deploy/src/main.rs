@@ -8,15 +8,17 @@ use std::{
 use sha2::{Digest, Sha256};
 
 const USAGE: &str = "\
-usage: ./scripts/deploy [--dry-run] [--allow-dirty] [--skip-server] [--skip-be]
+usage: ./scripts/deploy [--dry-run] [--allow-dirty] [--skip-server] [--skip-be] [--skip-web]
 
-Builds be-server and be in release, uploads each be to the mirror, swaps the
-server on the VPS, and pins the uploaded be in scripts/internal/common.sh.
+Builds be-server, the web bundle and be in release, uploads each be to the
+mirror, swaps the server and the web bundle on the VPS, and pins the uploaded
+be in scripts/internal/common.sh.
 
   --dry-run      print what it would do, uploading and changing nothing
   --allow-dirty  deploy a working tree that differs from its commit
   --skip-server  only upload be and pin it
-  --skip-be      only swap the server
+  --skip-be      leave be as it is
+  --skip-web     leave the web bundle as it is
 
 Environment:
   BUNNY_STORAGE_KEY   the storage zone's password (needed to upload be)
@@ -24,7 +26,8 @@ Environment:
   BE3_DEPLOY_MIRROR   where it is read back from (https://lfs.pfg.pw/by-name/be3)
   BE3_DEPLOY_HOST     the server, for ssh and scp (ubuntu@blocks.pfg.pw)
   BE3_DEPLOY_DIR      the directory there that holds be-server (be-server)
-  BE3_DEPLOY_UNITS    the units stopped around the swap (caddy be-server)";
+  BE3_DEPLOY_UNITS    the units stopped around the swap (caddy be-server)
+  BE3_DEPLOY_WEB      where Caddy serves the web bundle from (/srv/be3-web)";
 
 struct Options {
     repository: PathBuf,
@@ -34,6 +37,8 @@ struct Options {
     allow_dirty: bool,
     skip_server: bool,
     skip_be: bool,
+    web: Option<PathBuf>,
+    skip_web: bool,
 }
 
 fn main() -> ExitCode {
@@ -55,6 +60,8 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Options, String>
         allow_dirty: false,
         skip_server: false,
         skip_be: false,
+        web: None,
+        skip_web: false,
     };
     while let Some(argument) = arguments.next() {
         let mut value = || {
@@ -76,6 +83,8 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Options, String>
             "--allow-dirty" => options.allow_dirty = true,
             "--skip-server" => options.skip_server = true,
             "--skip-be" => options.skip_be = true,
+            "--web" => options.web = Some(PathBuf::from(value()?)),
+            "--skip-web" => options.skip_web = true,
             "--help" | "-h" => return Err(USAGE.to_owned()),
             other => return Err(format!("unknown argument {other}\n\n{USAGE}")),
         }
@@ -167,6 +176,22 @@ fn run(options: &Options) -> Result<(), String> {
             .ok_or("no build-id to send")?;
         let server = options.server.display().to_string();
         let build_id = build_id.display().to_string();
+        let web = options.web.as_ref().filter(|_| !options.skip_web);
+        let served = setting("BE3_DEPLOY_WEB", "/srv/be3-web");
+        if let Some(web) = web {
+            let id = read_build(&web.join("build-id"))?;
+            if id != build {
+                return Err(format!("the web bundle is build {id}, not {build}"));
+            }
+            send_tree(
+                options,
+                web,
+                &host,
+                &format!(
+                    "rm -rf {directory}/web.new && mkdir -p {directory}/web.new && tar -xzf - -C {directory}/web.new"
+                ),
+            )?;
+        }
         shell(
             options,
             "scp",
@@ -187,9 +212,18 @@ fn run(options: &Options) -> Result<(), String> {
             "ssh",
             &[
                 &host,
-                &format!(
-                    "chmod +x {directory}/be-server.new && mv {directory}/be-server.new {directory}/be-server && mv {directory}/build-id.new {directory}/build-id"
-                ),
+                &[
+                    format!(
+                        "chmod +x {directory}/be-server.new && mv {directory}/be-server.new {directory}/be-server && mv {directory}/build-id.new {directory}/build-id"
+                    ),
+                    web.map(|_| {
+                        format!(
+                            " && sudo rm -rf {served}.old && {{ [ ! -e {served} ] || sudo mv {served} {served}.old; }} && sudo mv {directory}/web.new {served} && sudo chmod -R a+rX {served}"
+                        )
+                    })
+                    .unwrap_or_default(),
+                ]
+                .concat(),
             ],
         );
         let started = shell(
@@ -235,6 +269,31 @@ impl Agents {
             true => &self.proxied,
             false => &self.direct,
         }
+    }
+}
+
+fn send_tree(options: &Options, tree: &Path, host: &str, unpack: &str) -> Result<(), String> {
+    println!("tar -czf - -C {} . | ssh {host} {unpack}", tree.display());
+    if options.dry_run {
+        return Ok(());
+    }
+    let mut tar = Command::new("tar")
+        .args(["-czf", "-", "-C"])
+        .arg(tree)
+        .arg(".")
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|error| format!("could not run tar: {error}"))?;
+    let packed = tar.stdout.take().ok_or("tar gave no output")?;
+    let unpacked = Command::new("ssh")
+        .args([host, unpack])
+        .stdin(packed)
+        .status()
+        .map_err(|error| format!("could not run ssh: {error}"))?;
+    let packed = tar.wait().map_err(|error| format!("tar failed: {error}"))?;
+    match (packed.success(), unpacked.success()) {
+        (true, true) => Ok(()),
+        _ => Err(format!("sending {} to {host} failed", tree.display())),
     }
 }
 

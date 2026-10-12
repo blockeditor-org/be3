@@ -9,4 +9,5 @@ deploy(
     be_linux_x86_64 = "//crates/be-cli:be",
     server = "//crates/be-server:be-server-bin",
     tool = ":deploy-bin",
+    web = "//crates/block-app:web",
 )

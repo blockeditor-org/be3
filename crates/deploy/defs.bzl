@@ -30,6 +30,8 @@ def _deploy_impl(ctx: AnalysisContext) -> list[Provider]:
         cmd_args("x86_64-unknown-linux-gnu=", ctx.attrs.be_linux_x86_64[DefaultInfo].default_outputs[0], delimiter = ""),
         "--be",
         cmd_args("aarch64-unknown-linux-gnu=", ctx.attrs.be_linux_arm64[DefaultInfo].default_outputs[0], delimiter = ""),
+        "--web",
+        ctx.attrs.web[DefaultInfo].default_outputs[0],
     )
     return [DefaultInfo(), RunInfo(args = command)]
 
@@ -40,6 +42,9 @@ deploy = rule(
         "server": attrs.transition_dep(cfg = _linux_x86_64),
         # Run here, so built for this machine like the command itself.
         "tool": attrs.dep(providers = [RunInfo]),
+        # The web bundle with its plugins, which builds for wasm whatever the
+        # command is configured for.
+        "web": attrs.dep(),
     },
     impl = _deploy_impl,
 )
