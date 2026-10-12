@@ -136,7 +136,7 @@ fn hello_accepted() -> Message {
         surface: Some(block_plugin_api::SurfaceSpec {
             format: block_plugin_api::SurfaceFormat::Rgba8Unorm,
         }),
-        theme: block_plugin_api::Theme { dark: true },
+        theme: block_plugin_api::Theme::Dark,
     })
 }
 

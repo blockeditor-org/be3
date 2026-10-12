@@ -2263,9 +2263,12 @@ behavior for each control family.
 
 ### Themes
 
-`styled::Theme` holds the color tokens, and `Theme::DARK` and `Theme::EINK` are
-the built-in themes. Every `Document` owns a theme that styled components use
-when no provider covers them. Change it with `set_theme` and read it with
+`styled::Theme` holds the color tokens. The built-in themes are `Theme::DARK`,
+`Theme::OLED` (dark on pure black, so OLED screens leave most pixels off),
+`Theme::LIGHT`, and `Theme::EINK`; `Theme::BUILT_IN` lists them with their
+names. A theme's `kind` says which of these it is or derives from, for code
+that must tell them apart without comparing colors. Every `Document` owns a theme that styled components use when no provider
+covers them. Change it with `set_theme` and read it with
 `theme`, both from the `styled::DocumentTheme` trait, for example to pick an
 app's clear color. The
 inspector's Sim tab switches it at runtime.
