@@ -37,7 +37,7 @@ fn a_view_shows_only_the_rows_every_filter_matches() {
         database
             .rows
             .iter()
-            .filter(|row| view.shows(row))
+            .filter(|row| view.shows(row, &[]))
             .map(|row| database.title(row.id, Some(title)))
             .collect::<Vec<_>>()
     };

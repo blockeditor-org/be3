@@ -146,12 +146,12 @@ pub fn field_type_label(field_type: DatabaseFieldType) -> &'static str {
     match field_type {
         DatabaseFieldType::String => "Text",
         DatabaseFieldType::Number => "Number",
-        DatabaseFieldType::Enum => "Enum",
+        DatabaseFieldType::Enum => "Choice",
         DatabaseFieldType::Block => "Block",
-        DatabaseFieldType::Boolean => "Boolean",
+        DatabaseFieldType::Boolean => "Checkbox",
         DatabaseFieldType::Color => "Color",
-        DatabaseFieldType::Datetime => "Datetime",
-        DatabaseFieldType::Relation => "Relation",
+        DatabaseFieldType::Datetime => "Date and time",
+        DatabaseFieldType::Relation => "Link to rows",
     }
 }
 

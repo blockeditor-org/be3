@@ -24,7 +24,7 @@ fn the_scatter_plot_places_and_selects_a_point_for_each_row() {
     fixture.harness.click("database-view.point.1");
     fixture.settle();
 
-    assert!(fixture.harness.shown("database-view.deselect"));
+    assert!(fixture.harness.shown("database-view.detail.close"));
     assert!(
         fixture.harness.rect_of("database-view.point.1").width() > high.width(),
         "the selected point grows"

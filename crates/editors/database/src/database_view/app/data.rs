@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use block_editor_beui::BlockList;
@@ -10,11 +10,11 @@ use block_editor_beui::be_block::Edit;
 use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::be_block::database::Inverse;
 use block_editor_beui::be_block::database::{
-    Database, DatabaseContent, DatabaseRow, DatabaseValue, RowRef,
+    Database, DatabaseContent, DatabaseRow, DatabaseValue, RowRef, short_id,
 };
 use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseSchemaContent};
 use block_editor_beui::be_block::database_view::{
-    DatabaseViewContent, DatabaseViewKind, DatabaseViewSort, ViewFilter,
+    DatabaseView, DatabaseViewContent, DatabaseViewKind, DatabaseViewSort, ViewFilter,
 };
 use block_editor_beui::be_block::text::{TextBlock, TextContent};
 use block_editor_beui::beui::reactive::{
@@ -26,6 +26,7 @@ use block_editor_beui::database::{relation_targets, watch_inverses, watch_row_la
 use block_editor_beui::{BlockFilter, ContentProjection, Editor, RelatedContent};
 use uuid::Uuid;
 
+use crate::database_view::groups::{Group, GroupKey, group_rows, matches_search};
 use crate::database_view::sort::BlockLabels;
 
 pub type Data = Rc<ViewData>;
@@ -42,6 +43,8 @@ pub struct ViewData {
     database: Rc<RelatedContent<DatabaseContent>>,
     set_selected: WriteSignal<Option<Selection>>,
     set_error: WriteSignal<Option<String>>,
+    set_search: WriteSignal<String>,
+    set_toggled: WriteSignal<HashSet<GroupKey>>,
     pub schema_id: Memo<Option<Uuid>>,
     pub database_id: Memo<Option<Uuid>>,
     pub inverses: Memo<Vec<Inverse>>,
@@ -55,7 +58,15 @@ pub struct ViewData {
     pub sort: Memo<Option<DatabaseViewSort>>,
     pub filter_items: Memo<Vec<(ObjectId, ViewFilter)>>,
     pub filters: Memo<Vec<ViewFilter>>,
-    pub kanban_field: Memo<Option<Uuid>>,
+    pub group_by: Memo<Option<Uuid>>,
+    pub hidden_fields: Memo<Vec<Uuid>>,
+    pub show_empty_groups: Memo<bool>,
+    pub defaults: Memo<Vec<(Uuid, DatabaseValue)>>,
+    pub search: Memo<String>,
+    pub toggled: Memo<HashSet<GroupKey>>,
+    pub views: Memo<Vec<(Uuid, String)>>,
+    pub name: Memo<String>,
+    pub groups: Memo<Vec<Group>>,
     pub scatter_x: Memo<Option<Uuid>>,
     pub scatter_y: Memo<Option<Uuid>>,
     pub selected: Memo<Option<Selection>>,
@@ -120,8 +131,15 @@ impl ViewData {
         let kind = create_memo(clone!(kind -> move || kind.get()));
         let sort = view.project(|view| view.root().sort);
         let sort = create_memo(clone!(sort -> move || sort.get()));
-        let kanban_field = view.project(|view| view.root().kanban_field);
-        let kanban_field = create_memo(clone!(kanban_field -> move || kanban_field.get()));
+        let group_by = view.project(|view| view.root().group_by);
+        let group_by = create_memo(clone!(group_by -> move || group_by.get()));
+        let hidden_fields = view.project(|view| view.root().hidden_fields.clone());
+        let hidden_fields = create_memo(clone!(hidden_fields -> move || hidden_fields.get()));
+        let show_empty_groups = view.project(|view| view.root().show_empty_groups);
+        let show_empty_groups =
+            create_memo(clone!(show_empty_groups -> move || show_empty_groups.get()));
+        let defaults = schema.project(|schema| schema.root().defaults());
+        let defaults = create_memo(clone!(defaults -> move || defaults.get()));
         let scatter_x = view.project(|view| view.root().scatter_x);
         let scatter_x = create_memo(clone!(scatter_x -> move || scatter_x.get()));
         let scatter_y = view.project(|view| view.root().scatter_y);
@@ -135,7 +153,7 @@ impl ViewData {
         });
         let filter_items = create_memo(clone!(filter_items -> move || filter_items.get()));
         let filters = create_memo(clone!(filter_items -> move || {
-            filter_items.with(|items| items.iter().map(|(_, filter)| filter.clone()).collect())
+            filter_items.with(|items| items.iter().map(|(_, filter)| filter.clone()).collect::<Vec<ViewFilter>>())
         }));
         let targets =
             create_memo(clone!(fields -> move || fields.with(|fields| relation_targets(fields))));
@@ -144,6 +162,46 @@ impl ViewData {
 
         let (selected, set_selected) = create_signal(None::<Selection>);
         let (error, set_error) = create_signal(None::<String>);
+        let (search, set_search) = create_signal(String::new());
+        let (toggled, set_toggled) = create_signal(HashSet::<GroupKey>::new());
+        let views = watch_views(editor, database_id.clone());
+        let name = watch_name(editor, database_id.clone());
+        let search = create_memo(move || search.get());
+        let groups = create_memo(
+            clone!(search prefix row_ids title_field group_by show_empty_groups rows fields labels filters sort kind -> move || {
+                let search = search.get();
+                let prefix = prefix.get();
+                let ids = row_ids.get();
+                let title = title_field.get();
+                let group_by = group_by.get();
+                let show_empty = show_empty_groups.get() || kind.get() == DatabaseViewKind::Kanban;
+                let sort = sort.get();
+                rows.with(|rows| {
+                    fields.with(|fields| {
+                        labels.with(|labels| {
+                            filters.with(|filters| {
+                                let shown: Vec<usize> = crate::database_view::sort::display_rows(
+                                    rows, None, sort, filters, fields, labels,
+                                )
+                                .into_iter()
+                                .map(|row| row.index)
+                                .filter(|index| *index < rows.len())
+                                .filter(|index| {
+                                    let code = ids
+                                        .get(*index)
+                                        .map(|id| short_id(&prefix, id.as_uuid()))
+                                        .unwrap_or_default();
+                                    matches_search(&rows[*index], title, &code, &search)
+                                })
+                                .collect();
+                                let field = group_by.and_then(|id| fields.iter().find(|f| f.id == id));
+                                group_rows(rows, &shown, field, labels, show_empty)
+                            })
+                        })
+                    })
+                })
+            }),
+        );
 
         Rc::new(Self {
             editor: editor.clone(),
@@ -151,6 +209,8 @@ impl ViewData {
             database,
             set_selected,
             set_error,
+            set_search,
+            set_toggled,
             schema_id,
             database_id,
             inverses,
@@ -164,7 +224,15 @@ impl ViewData {
             sort,
             filter_items,
             filters,
-            kanban_field,
+            group_by,
+            hidden_fields,
+            show_empty_groups,
+            defaults,
+            search,
+            groups,
+            toggled: create_memo(move || toggled.get()),
+            views,
+            name,
             scatter_x,
             scatter_y,
             selected: create_memo(move || selected.get()),
@@ -225,8 +293,84 @@ impl ViewData {
     }
 
     pub fn shows(&self, row: &DatabaseRow) -> bool {
-        self.filters
-            .with(|filters| filters.iter().all(|filter| filter.matches(row)))
+        self.fields.with(|fields| {
+            self.filters
+                .with(|filters| filters.iter().all(|filter| filter.matches(row, fields)))
+        })
+    }
+
+    pub fn set_search(&self, query: String) {
+        self.set_search.set(query);
+    }
+
+    pub fn toggle_group(&self, key: GroupKey) {
+        self.set_toggled.update(|toggled| {
+            if !toggled.remove(&key) {
+                toggled.insert(key);
+            }
+        });
+    }
+
+    pub fn select_row(&self, row: ObjectId) {
+        if let Some(index) = self.index_of(row) {
+            self.select(index, self.title_field.get_untracked());
+        }
+    }
+
+    pub fn selected_row(&self) -> Option<ObjectId> {
+        let selection = self.selected.get()?;
+        self.row_ids.with(|ids| ids.get(selection.row).copied())
+    }
+
+    pub fn new_row(&self, mut values: Vec<(Uuid, DatabaseValue)>) -> ObjectId {
+        for (field, value) in self.defaults.get_untracked() {
+            if values.iter().all(|(set, _)| *set != field) {
+                values.push((field, value));
+            }
+        }
+        let before = self.row_ids.with_untracked(Vec::len);
+        let row = self.add_row(values);
+        let index = self.index_of(row).unwrap_or(before);
+        self.select(index, self.title_field.get_untracked());
+        row
+    }
+
+    pub fn new_view(&self) {
+        let Some(database) = self.database_id.get_untracked() else {
+            return;
+        };
+        let blocks = self.editor.blocks();
+        let parent = blocks
+            .info(self.editor.block_id())
+            .map_or(BlockParent::Detached, |info| info.parent);
+        let mut view = DatabaseView::of(database);
+        view.kind = DatabaseViewKind::List;
+        view.group_by = self.group_by.get_untracked();
+        let count = self.views.with_untracked(Vec::len);
+        let created = blocks.create_named(
+            &DatabaseViewContent::new(&view),
+            parent,
+            format!("View {}", count + 1),
+        );
+        self.editor
+            .host()
+            .open_block(created, DatabaseViewContent::CONTENT_TYPE);
+    }
+
+    pub fn open_view(&self, view: Uuid) {
+        if view != self.editor.block_id() {
+            self.editor
+                .host()
+                .open_block(view, DatabaseViewContent::CONTENT_TYPE);
+        }
+    }
+
+    pub fn open_schema(&self) {
+        if let Some(schema) = self.schema_id.get_untracked() {
+            self.editor
+                .host()
+                .open_block(schema, DatabaseSchemaContent::CONTENT_TYPE);
+        }
     }
 
     pub fn open_page(&self, index: usize) {
@@ -468,6 +612,72 @@ fn watch_labels(
         blocks: labels.get(),
         rows: row_labels.get(),
     })
+}
+
+fn watch_views(editor: &Editor, database_id: Memo<Option<Uuid>>) -> Memo<Vec<(Uuid, String)>> {
+    let (views, set_views) = create_signal(Vec::<(Uuid, String)>::new());
+    let watched: RefCell<Option<(Uuid, BlockList)>> = RefCell::new(None);
+    let client = editor.blocks();
+    let own = editor.block_id();
+    create_effect(move || {
+        let Some(database_id) = database_id.get() else {
+            return;
+        };
+        let mut watched = watched.borrow_mut();
+        if watched.as_ref().is_none_or(|(id, _)| *id != database_id) {
+            *watched = Some((database_id, client.watch(BlockQuery::Backrefs(database_id))));
+        }
+        let Some((_, backrefs)) = watched.as_ref() else {
+            return;
+        };
+        let mut found: Vec<(Uuid, String)> = backrefs
+            .read()
+            .into_iter()
+            .filter(|info| info.block_type == DatabaseViewContent::CONTENT_TYPE)
+            .map(|info| (info.id, info.name().unwrap_or_default()))
+            .collect();
+        if found.iter().all(|(id, _)| *id != own) {
+            found.insert(0, (own, String::new()));
+        }
+        found.sort_by_key(|(id, _)| *id != own);
+        let count = found.len();
+        for (index, (_, name)) in found.iter_mut().enumerate() {
+            if name.trim().is_empty() {
+                *name = match count {
+                    1 => "All".to_owned(),
+                    _ => format!("View {}", index + 1),
+                };
+            }
+        }
+        set_views.set(found);
+    });
+    create_memo(move || views.get())
+}
+
+fn watch_name(editor: &Editor, database_id: Memo<Option<Uuid>>) -> Memo<String> {
+    let (name, set_name) = create_signal(String::new());
+    let watched: RefCell<Option<(Uuid, BlockList)>> = RefCell::new(None);
+    let client = editor.blocks();
+    create_effect(move || {
+        let Some(database_id) = database_id.get() else {
+            return;
+        };
+        let mut watched = watched.borrow_mut();
+        if watched.as_ref().is_none_or(|(id, _)| *id != database_id) {
+            *watched = Some((database_id, client.watch(BlockQuery::Block(database_id))));
+        }
+        let Some((_, block)) = watched.as_ref() else {
+            return;
+        };
+        let named = block
+            .read()
+            .into_iter()
+            .next()
+            .and_then(|info| info.name())
+            .filter(|name| !name.trim().is_empty());
+        set_name.set(named.unwrap_or_else(|| "Database".to_owned()));
+    });
+    create_memo(move || name.get())
 }
 
 fn row_references(rows: &[DatabaseRow]) -> Vec<Uuid> {

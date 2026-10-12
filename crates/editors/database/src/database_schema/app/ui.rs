@@ -3,17 +3,30 @@ use std::rc::Rc;
 use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::be_block::database::DatabaseContent;
 use block_editor_beui::be_block::database_schema::{
-    DatabaseBlockOptions, DatabaseField, DatabaseFieldType, DatabaseNumberOptions,
-    DatabaseNumberScale, DatabaseRelationOptions, DatabaseSchema, DatabaseSchemaContent,
+    ChoiceColor, ChoiceIcon, DatabaseBlockOptions, DatabaseEnumOption, DatabaseField,
+    DatabaseFieldType, DatabaseNumberOptions, DatabaseNumberScale, DatabaseRelationOptions,
+    DatabaseSchema, DatabaseSchemaContent,
 };
-use block_editor_beui::beui::icons::{ICON_ADD, ICON_DELETE};
+use block_editor_beui::beui::styled::context_menu::menu_style;
+use block_editor_beui::beui::styled::{Caption, ToggleButton};
+use block_editor_beui::beui::unstyled::{self, MenuButtonHandle, MenuItem};
+use block_editor_beui::database::{
+    ChoiceMark, choice_color_label, choice_glyph, choice_icon_label,
+};
+
+use crate::database_view::app::controls::ControlFace;
+use block_editor_beui::beui::icons::{
+    ICON_ADD, ICON_ARROW_DOWNWARD, ICON_ARROW_DROP_DOWN_CIRCLE, ICON_ARROW_UPWARD,
+    ICON_CALENDAR_TODAY, ICON_CHECK_BOX, ICON_DELETE, ICON_LINK, ICON_NUMBERS, ICON_PALETTE,
+    ICON_SHORT_TEXT, ICON_WIDGETS,
+};
 use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, clone, component,
     create_effect, create_memo, view,
 };
 use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Checkbox, Heading, IconButton, NumberInput, Scroll, Select,
-    Separator, TextInput, use_theme,
+    Body, Button, ButtonVariant, Checkbox, Heading, IconButton, IconSized, NumberInput, Scroll,
+    Select, Separator, TextInput, use_theme,
 };
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{NodeId, Vec2};
@@ -34,14 +47,22 @@ const INTRINSIC_WIDTH: f32 = 600.0;
 const ROW_HEIGHT: f32 = 40.0;
 
 const FIELD_TYPES: [(DatabaseFieldType, &str, &str); 8] = [
-    (DatabaseFieldType::String, "String", "string"),
-    (DatabaseFieldType::Number, "Number", "number"),
-    (DatabaseFieldType::Enum, "Enum", "enum"),
-    (DatabaseFieldType::Block, "Block", "block"),
-    (DatabaseFieldType::Boolean, "Boolean", "boolean"),
-    (DatabaseFieldType::Color, "Color", "color"),
-    (DatabaseFieldType::Datetime, "Datetime", "datetime"),
-    (DatabaseFieldType::Relation, "Relation", "relation"),
+    (DatabaseFieldType::String, "Text", ICON_SHORT_TEXT),
+    (DatabaseFieldType::Number, "Number", ICON_NUMBERS),
+    (
+        DatabaseFieldType::Enum,
+        "Choice",
+        ICON_ARROW_DROP_DOWN_CIRCLE,
+    ),
+    (DatabaseFieldType::Block, "Block", ICON_WIDGETS),
+    (DatabaseFieldType::Boolean, "Checkbox", ICON_CHECK_BOX),
+    (DatabaseFieldType::Color, "Color", ICON_PALETTE),
+    (
+        DatabaseFieldType::Datetime,
+        "Date and time",
+        ICON_CALENDAR_TODAY,
+    ),
+    (DatabaseFieldType::Relation, "Link to rows", ICON_LINK),
 ];
 
 const NUMBER_SCALES: [(DatabaseNumberScale, &str); 2] = [
@@ -155,6 +176,36 @@ fn FieldRow(
     let remove = clone!(schema -> move || {
         schema.operate(DatabaseSchema::remove_field(id));
     });
+    let glyph = create_memo(clone!(kind -> move || {
+        kind.get()
+            .and_then(|kind| FIELD_TYPES.iter().find(|(value, _, _)| *value == kind))
+            .map_or("", |(_, _, glyph)| glyph)
+            .to_owned()
+    }));
+    let order = schema.project(|schema| {
+        schema
+            .root()
+            .fields
+            .iter()
+            .map(|field| field.id.as_uuid())
+            .collect::<Vec<Uuid>>()
+    });
+    let mover = clone!(schema order -> move |by: isize| {
+        let order = order.get_untracked();
+        let Some(at) = order.iter().position(|held| *held == id) else {
+            return;
+        };
+        let Some(to) = at.checked_add_signed(by).filter(|to| *to < order.len()) else {
+            return;
+        };
+        let mut moved = order.clone();
+        moved.remove(at);
+        let after = to.checked_sub(1).map(|before| moved[before]);
+        schema.operate(DatabaseSchema::move_field(id, after));
+    });
+    let (up, down) = (mover.clone(), mover);
+    let (up_off, down_off) = (read_only.clone(), read_only.clone());
+    let theme = use_theme();
     let type_keys = create_memo(|| (0..FIELD_TYPES.len()).collect::<Vec<usize>>());
     let (name_off, type_off, delete_off) =
         (read_only.clone(), read_only.clone(), read_only.clone());
@@ -178,6 +229,7 @@ fn FieldRow(
     view! {
         <List spacing=ROW_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
+                <IconSized glyph={glyph} font_size=20.0 color={theme.text_muted.clone()} />
                 <Frame width=NAME_WIDTH>
                     <TextInput
                         value={name}
@@ -202,6 +254,22 @@ fn FieldRow(
                     on_change={retyped}
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
+                <IconButton
+                    glyph={ICON_ARROW_UPWARD.to_owned()}
+                    label="Move up"
+                    variant=ButtonVariant::Ghost
+                    disabled={up_off}
+                    @test_id={format!("database-schema.up.{id}")}
+                    on_click={move || up(-1)}
+                />
+                <IconButton
+                    glyph={ICON_ARROW_DOWNWARD.to_owned()}
+                    label="Move down"
+                    variant=ButtonVariant::Ghost
+                    disabled={down_off}
+                    @test_id={format!("database-schema.down.{id}")}
+                    on_click={move || down(1)}
+                />
                 <IconButton
                     glyph={ICON_DELETE.to_owned()}
                     label="Delete field"
@@ -442,40 +510,30 @@ fn EnumOptions(
     field: Memo<Option<DatabaseField>>,
     read_only: Memo<bool>,
 ) -> NodeId {
-    let options = create_memo(clone!(field -> move || {
+    let keys = create_memo(clone!(field -> move || {
         field.with(|field| {
             field
                 .as_ref()
-                .map(|field| field.enum_options.clone())
+                .map(|field| field.enum_options.iter().map(|option| option.id).collect())
                 .unwrap_or_default()
         })
     }));
-    let keys = create_memo(clone!(options -> move || {
-        options.with(|options| options.iter().map(|option| option.id).collect::<Vec<Uuid>>())
-    }));
     let add_off = read_only.clone();
-    let add = clone!(schema -> move || {
-        schema.operate(DatabaseSchema::add_enum_option(id, "Option").1);
+    let add = clone!(schema field -> move || {
+        let count = field.with_untracked(|field| field.as_ref().map_or(0, |field| field.enum_options.len()));
+        schema.operate(DatabaseSchema::add_enum_option(id, format!("Option {}", count + 1)).1);
     });
     view! {
         <Frame padding_left={INDENT + ROW_SPACING}>
             <List spacing=ROW_SPACING>
                 <ForEach keys={keys}>
                     {move |option_id: Uuid| {
-                        let name = create_memo(clone!(options option_id -> move || {
-                            options.with(|options| {
-                                options
-                                    .iter()
-                                    .find(|option| option.id == option_id)
-                                    .map_or_else(String::new, |option| option.name.clone())
-                            })
-                        }));
                         view! {
                             <EnumOptionRow
                                 schema={schema.clone()}
                                 id={id}
                                 option_id={option_id}
-                                name={name}
+                                field={field.clone()}
                                 read_only={read_only.clone()}
                             />
                         }
@@ -492,6 +550,10 @@ fn EnumOptions(
                     <Body content="Add option" />
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                 </List>
+                <Caption
+                    content="A closed option marks a row finished: views can hide closed rows, the board folds their columns, and a merged pull request moves rows to the first one. New rows start at the default."
+                    wrap=true
+                />
             </List>
         </Frame>
     }
@@ -502,35 +564,180 @@ fn EnumOptionRow(
     schema: Schema,
     id: Uuid,
     option_id: Uuid,
-    name: Memo<String>,
+    field: Memo<Option<DatabaseField>>,
     read_only: Memo<bool>,
 ) -> NodeId {
+    let option = create_memo(clone!(field -> move || {
+        field.with(|field| field.as_ref()?.option(option_id).cloned())
+    }));
+    let name = create_memo(clone!(option -> move || {
+        option.with(|option| option.as_ref().map(|option| option.name.clone()).unwrap_or_default())
+    }));
+    let closed = create_memo(
+        clone!(option -> move || option.with(|option| option.as_ref().is_some_and(|option| option.closed))),
+    );
+    let default = create_memo(clone!(field -> move || {
+        field.with(|field| field.as_ref().and_then(|field| field.default_value()) == Some(option_id))
+    }));
     let renamed = clone!(schema -> move |name: String| {
         schema.operate(DatabaseSchema::rename_enum_option(option_id, name));
     });
     let remove = clone!(schema -> move || {
         schema.operate(DatabaseSchema::remove_enum_option(option_id));
     });
-    let (name_off, delete_off) = (read_only.clone(), read_only);
+    let close = clone!(schema -> move |on: bool| {
+        schema.operate(DatabaseSchema::set_option_closed(option_id, on));
+    });
+    let defaulted = clone!(schema -> move |on: bool| {
+        schema.operate(DatabaseSchema::set_default_option(id, on.then_some(option_id)));
+    });
+    let mover = clone!(schema field -> move |by: isize| {
+        let order: Vec<Uuid> = field.with_untracked(|field| {
+            field.as_ref().map(|field| field.enum_options.iter().map(|option| option.id).collect()).unwrap_or_default()
+        });
+        let Some(at) = order.iter().position(|held| *held == option_id) else {
+            return;
+        };
+        let Some(to) = at.checked_add_signed(by).filter(|to| *to < order.len()) else {
+            return;
+        };
+        let mut moved = order.clone();
+        moved.remove(at);
+        let after = to.checked_sub(1).map(|before| moved[before]);
+        schema.operate(DatabaseSchema::move_enum_option(id, option_id, after));
+    });
+    let (up, down) = (mover.clone(), mover);
+    let icon_keys = create_memo(|| (0..ChoiceIcon::ALL.len()).collect::<Vec<usize>>());
+    let color_keys = create_memo(|| (0..ChoiceColor::ALL.len()).collect::<Vec<usize>>());
+    let (icon_schema, color_schema) = (schema.clone(), schema);
+    let (name_off, delete_off, icon_off, color_off, closed_off, default_off, up_off, down_off) = (
+        read_only.clone(),
+        read_only.clone(),
+        read_only.clone(),
+        read_only.clone(),
+        read_only.clone(),
+        read_only.clone(),
+        read_only.clone(),
+        read_only,
+    );
+    let color_option = option.clone();
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
+        <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING wrap=true>
+            <unstyled::MenuButton
+                label="Icon"
+                disabled={icon_off}
+                menu={menu_style()}
+                @test_id={format!("database-schema.enum.{id}.{option_id}.icon")}
+                items={view! {
+                    <ForEach keys={icon_keys}>
+                        {move |index: usize| {
+                            let icon = ChoiceIcon::ALL[index];
+                            let schema = icon_schema.clone();
+                            view! {
+                                <MenuItem
+                                    label={choice_icon_label(icon)}
+                                    glyph={choice_glyph(icon).to_owned()}
+                                    row_test_id={format!("database-schema.enum.{id}.{option_id}.icon.{}", icon.name())}
+                                    on_click={move || schema.operate(DatabaseSchema::set_option_icon(option_id, icon))}
+                                />
+                            }
+                        }}
+                    </ForEach>
+                }}
+                trigger={move |handle: MenuButtonHandle| {
+                    let option = option.clone();
+                    view! {
+                        <ControlFace handle={handle.button}>
+                            <ChoiceMark option={option} size=18.0 />
+                        </ControlFace>
+                    }
+                }}
+            />
             <Frame width=NAME_WIDTH>
                 <TextInput
                     value={name}
                     label="Option name"
                     disabled={name_off}
+                    select_on_focus=true
                     @test_id={format!("database-schema.enum.{id}.{option_id}.name")}
                     on_change={renamed}
                 />
             </Frame>
+            <unstyled::MenuButton
+                label="Colour"
+                disabled={color_off}
+                menu={menu_style()}
+                @test_id={format!("database-schema.enum.{id}.{option_id}.color")}
+                items={view! {
+                    <ForEach keys={color_keys}>
+                        {move |index: usize| {
+                            let color = ChoiceColor::ALL[index];
+                            let schema = color_schema.clone();
+                            view! {
+                                <MenuItem
+                                    label={choice_color_label(color)}
+                                    row_test_id={format!("database-schema.enum.{id}.{option_id}.color.{}", color.name())}
+                                    on_click={move || schema.operate(DatabaseSchema::set_option_color(option_id, color))}
+                                />
+                            }
+                        }}
+                    </ForEach>
+                }}
+                trigger={move |handle: MenuButtonHandle| {
+                    let label = create_memo(clone!(color_option -> move || {
+                        color_option.with(|option| option.as_ref().map_or("", |option| choice_color_label(option.color)).to_owned())
+                    }));
+                    let dotted = create_memo(clone!(color_option -> move || {
+                        color_option.with(|option| option.as_ref().map(|option| DatabaseEnumOption { icon: ChoiceIcon::None, ..option.clone() }))
+                    }));
+                    view! {
+                        <ControlFace handle={handle.button}>
+                            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+                                <ChoiceMark option={dotted} size=16.0 />
+                                <Body content={label} />
+                            </List>
+                        </ControlFace>
+                    }
+                }}
+            />
+            <ToggleButton
+                label="Closed"
+                pressed={closed}
+                disabled={closed_off}
+                @test_id={format!("database-schema.enum.{id}.{option_id}.closed")}
+                on_change={close}
+            />
+            <ToggleButton
+                label="Default"
+                pressed={default}
+                disabled={default_off}
+                @test_id={format!("database-schema.enum.{id}.{option_id}.default")}
+                on_change={defaulted}
+            />
+            <IconButton
+                glyph={ICON_ARROW_UPWARD.to_owned()}
+                label="Move up"
+                variant=ButtonVariant::Ghost
+                disabled={up_off}
+                @test_id={format!("database-schema.enum.{id}.{option_id}.up")}
+                on_click={move || up(-1)}
+            />
+            <IconButton
+                glyph={ICON_ARROW_DOWNWARD.to_owned()}
+                label="Move down"
+                variant=ButtonVariant::Ghost
+                disabled={down_off}
+                @test_id={format!("database-schema.enum.{id}.{option_id}.down")}
+                on_click={move || down(1)}
+            />
             <IconButton
                 glyph={ICON_DELETE.to_owned()}
                 label="Delete option"
+                variant=ButtonVariant::Ghost
                 disabled={delete_off}
                 @test_id={format!("database-schema.enum.{id}.{option_id}.delete")}
                 on_click={remove}
             />
-            <Spacer @sizing=ItemSize::Percent(100.0) />
         </List>
     }
 }
