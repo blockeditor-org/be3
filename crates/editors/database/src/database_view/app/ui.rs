@@ -8,7 +8,7 @@ use block_editor_beui::beui::styled::{Body, use_theme};
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::block_ui::database::{DatabaseBlockPickRequest, DatabaseValueChange};
 use block_editor_beui::database::DatabaseValueEditor;
-use block_editor_beui::{Editor, Toolbar};
+use block_editor_beui::{Editor, Toolbar, narrow_chrome};
 use uuid::Uuid;
 
 use crate::database_view::app::data::{Data, ViewData};
@@ -40,7 +40,13 @@ pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
     }));
     let chrome = editor.chrome_shown();
     let toolbar_chrome = chrome.clone();
-    let header_shown = create_memo(clone!(chrome -> move || chrome.get()));
+    let narrow = narrow_chrome();
+    let header_shown = create_memo(clone!(chrome data narrow -> move || {
+        let covered = narrow.get()
+            && data.kind.get() != DatabaseViewKind::Spreadsheet
+            && data.selected_row().is_some();
+        chrome.get() && !covered
+    }));
     let content = NodeRef::new();
     editor.content(&content);
     let (bar, body, header) = (data.clone(), data.clone(), data);

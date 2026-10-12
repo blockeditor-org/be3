@@ -5,7 +5,7 @@ use block_editor_beui::be_block::database_schema::{
 };
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_DESCRIPTION, ICON_EXPAND_MORE, ICON_LINK};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, Show, VirtualList, clone,
+    Align, Direction, Dynamic, ForEach, Frame, ItemSize, Layers, List, Memo, Show, VirtualList, clone,
     component, create_memo, view,
 };
 use block_editor_beui::beui::styled::theme::{BORDER_WIDTH, FONT_SMALL};
@@ -131,7 +131,14 @@ pub fn RowBeside(data: Data, enabled: bool, children: block_editor_beui::beui::r
     let (side_row, full_row) = (selected.clone(), selected);
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <Frame @sizing=ItemSize::Percent(100.0) visible={main_shown}>{children}</Frame>
+            <Layers @sizing=ItemSize::Percent(100.0)>
+                <Frame visible={main_shown}>{children}</Frame>
+                <Show condition={instead}>
+                    {move || clone!(full full_row -> view! {
+                        <OpenRow data={full} row={full_row} />
+                    })}
+                </Show>
+            </Layers>
             <Show condition={beside}>
                 {move || clone!(side side_row -> view! {
                     <Frame @sizing=ItemSize::Fixed(PANEL_WIDTH)>
@@ -140,11 +147,6 @@ pub fn RowBeside(data: Data, enabled: bool, children: block_editor_beui::beui::r
                             <OpenRow @sizing=ItemSize::Percent(100.0) data={side} row={side_row} />
                         </List>
                     </Frame>
-                })}
-            </Show>
-            <Show condition={instead}>
-                {move || clone!(full full_row -> view! {
-                    <OpenRow @sizing=ItemSize::Percent(100.0) data={full} row={full_row} />
                 })}
             </Show>
         </List>
