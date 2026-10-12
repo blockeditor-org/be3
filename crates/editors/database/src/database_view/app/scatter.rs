@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::database::{DatabaseRow, DatabaseValue};
-use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
+use block_editor_beui::be_block::database_schema::DatabaseField;
 use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, ForEach, Frame, Interactive, ItemSize, LayoutBuilder, List, Memo,
     ReadSignal, Show, clone, component, create_memo, view,
@@ -219,19 +219,6 @@ pub fn axis_fields(data: &Data) -> Memo<Option<(DatabaseField, DatabaseField)>> 
             let x = fields.iter().find(|field| field.id == x)?;
             let y = fields.iter().find(|field| field.id == y)?;
             Some((x.clone(), y.clone()))
-        })
-    })
-}
-
-pub fn number_fields(data: &Data) -> Memo<Vec<DatabaseField>> {
-    let fields = data.fields.clone();
-    create_memo(move || {
-        fields.with(|fields| {
-            fields
-                .iter()
-                .filter(|field| field.field_type == DatabaseFieldType::Number)
-                .cloned()
-                .collect()
         })
     })
 }

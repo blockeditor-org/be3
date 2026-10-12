@@ -45,7 +45,7 @@ pub fn display_rows(
         .iter()
         .cloned()
         .enumerate()
-        .filter(|(_, row)| filters.iter().all(|filter| filter.matches(row)))
+        .filter(|(_, row)| filters.iter().all(|filter| filter.matches(row, fields)))
         .map(|(index, row)| DisplayRow { index, row })
         .collect();
     if let Some(sort) = sort

@@ -1420,6 +1420,7 @@ dependencies = [
  "block-gpu-host",
  "block-plugin-api",
  "bytes",
+ "rustc-demangle",
  "tokio",
  "wasmtime",
  "wasmtime-wasi",

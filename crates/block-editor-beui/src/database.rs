@@ -25,6 +25,10 @@ use block_ui::database::{
 };
 use uuid::Uuid;
 
+mod choice;
+
+pub use choice::{ChoiceMark, choice_color, choice_color_label, choice_glyph, choice_icon_label};
+
 const SPACING: f32 = 6.0;
 const FIELD_SPACING: f32 = 12.0;
 

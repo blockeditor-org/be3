@@ -23,21 +23,26 @@ use crate::database_view::sort::{BlockLabels, compare_database_values};
 
 mod a_blocked_row_lists_its_blockers_and_they_list_it_as_blocking;
 mod a_filter_hides_the_rows_it_rejects;
+mod a_list_groups_rows_by_status_and_folds_the_closed_ones;
 mod a_list_shows_each_row_by_its_short_id_and_opens_it_beside_the_list;
+mod a_new_row_takes_each_choices_default;
 mod a_new_view_starts_as_a_spreadsheet;
+mod a_phone_opens_a_row_over_the_list_and_back_returns_to_it;
 mod a_relation_cell_shows_the_title_of_the_row_it_links_to;
 mod adding_a_page_links_a_new_text_block_to_the_row;
 mod arrow_keys_walk_the_spreadsheet_and_enter_steps_down;
 mod block_values_sort_by_resolved_label_then_reference;
 mod cards_sit_in_the_kanban_column_their_status_names;
 mod dragging_a_kanban_card_moves_it_to_the_column_it_lands_in;
+mod new_starts_a_row_and_typing_names_it;
 mod new_type_cells_render_and_a_boolean_cell_toggles;
 mod new_values_sort_by_their_typed_order;
+mod searching_keeps_the_rows_whose_title_or_id_matches;
 mod selected_row_string_edit_updates_the_database;
 mod switching_to_kanban_stores_the_kind;
+mod the_filter_menu_keeps_only_the_rows_of_the_values_ticked;
 mod the_scatter_plot_places_and_selects_a_point_for_each_row;
 mod typing_a_prefix_puts_it_in_front_of_every_row_id;
-mod typing_in_the_new_item_box_adds_a_row_with_that_title;
 mod value_picker_filter_is_exact_and_never_includes_templates;
 
 struct Fixture {
@@ -129,5 +134,161 @@ fn field(field_type: DatabaseFieldType) -> DatabaseField {
         number_options: Default::default(),
         block_options: Default::default(),
         relation_options: Default::default(),
+        default_option: None,
+    }
+}
+
+struct Tracker {
+    fixture: Fixture,
+    title: Uuid,
+    status: Uuid,
+    project: Uuid,
+    backlog: Uuid,
+    review: Uuid,
+    done: Uuid,
+}
+
+impl Tracker {
+    fn row(&self, index: usize) -> block_editor_beui::be_block::ObjectId {
+        self.fixture.database().rows.get_index(index).unwrap().id
+    }
+
+    fn line(&self, index: usize) -> String {
+        format!("database-view.list.row.{}", self.row(index).as_uuid())
+    }
+}
+
+fn tracker() -> Tracker {
+    use block_editor_beui::be_block::database_schema::{ChoiceColor, ChoiceIcon};
+
+    let mut fixture = editor(&[
+        ("Title", DatabaseFieldType::String),
+        ("Status", DatabaseFieldType::Enum),
+        ("Priority", DatabaseFieldType::Enum),
+        ("Project", DatabaseFieldType::Enum),
+    ]);
+    let (title, status, priority, project) = (
+        fixture.fields[0],
+        fixture.fields[1],
+        fixture.fields[2],
+        fixture.fields[3],
+    );
+    let schema = fixture.schema;
+    let mut choice =
+        |field: Uuid, name: &str, icon: ChoiceIcon, color: ChoiceColor, closed: bool| {
+            let id = fixture.option(field, name);
+            for edit in [
+                DatabaseSchema::set_option_icon(id, icon),
+                DatabaseSchema::set_option_color(id, color),
+                DatabaseSchema::set_option_closed(id, closed),
+            ] {
+                fixture
+                    .harness
+                    .edit::<DatabaseSchemaContent>(Some(schema), &edit);
+            }
+            id
+        };
+    let backlog = choice(
+        status,
+        "Backlog",
+        ChoiceIcon::Backlog,
+        ChoiceColor::Gray,
+        false,
+    );
+    let started = choice(
+        status,
+        "In Progress",
+        ChoiceIcon::Started,
+        ChoiceColor::Yellow,
+        false,
+    );
+    let review = choice(
+        status,
+        "In Review",
+        ChoiceIcon::Review,
+        ChoiceColor::Green,
+        false,
+    );
+    let done = choice(status, "Done", ChoiceIcon::Done, ChoiceColor::Blue, true);
+    let urgent = choice(
+        priority,
+        "Urgent",
+        ChoiceIcon::Urgent,
+        ChoiceColor::Orange,
+        false,
+    );
+    let high = choice(priority, "High", ChoiceIcon::High, ChoiceColor::Gray, false);
+    let wayland = choice(
+        project,
+        "Wayland",
+        ChoiceIcon::None,
+        ChoiceColor::Blue,
+        false,
+    );
+    let beui = choice(
+        project,
+        "Beui",
+        ChoiceIcon::None,
+        ChoiceColor::Purple,
+        false,
+    );
+    fixture.harness.edit::<DatabaseSchemaContent>(
+        Some(schema),
+        &DatabaseSchema::set_default_option(status, Some(backlog)),
+    );
+    let rows = [
+        (
+            "Ctrl+Shift+I opens both the host's inspector and the plugin's",
+            started,
+            None,
+            None,
+        ),
+        ("small protocols", review, None, Some(wayland)),
+        (
+            "beui: Text always lays out from Span children, reshaping only spans that change",
+            review,
+            None,
+            Some(beui),
+        ),
+        ("freeze prep", backlog, Some(urgent), None),
+        (
+            "one wl_output per monitor",
+            backlog,
+            Some(high),
+            Some(wayland),
+        ),
+        ("fractional scaling", backlog, None, Some(wayland)),
+        (
+            "block-app --session: system tray",
+            done,
+            None,
+            Some(wayland),
+        ),
+    ];
+    for (index, (name, state, urgency, area)) in rows.into_iter().enumerate() {
+        fixture.set(index, title, DatabaseValue::String(name.into()));
+        fixture.set(index, status, DatabaseValue::Enum(state));
+        if let Some(urgency) = urgency {
+            fixture.set(index, priority, DatabaseValue::Enum(urgency));
+        }
+        if let Some(area) = area {
+            fixture.set(index, project, DatabaseValue::Enum(area));
+        }
+    }
+    let database = fixture.database;
+    fixture
+        .harness
+        .edit::<DatabaseContent>(Some(database), &Database::set_prefix("BE"));
+    fixture.edit_view(DatabaseView::set_kind(DatabaseViewKind::List));
+    fixture.edit_view(DatabaseView::set_group_by(Some(status)));
+    fixture.settle();
+    Tracker {
+        fixture,
+        title,
+        status,
+        project,
+        backlog,
+        review,
+        done,
     }
 }
