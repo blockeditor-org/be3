@@ -236,7 +236,7 @@ impl Element for OffsetNode {
         if !rects.contains_key(&self.child) {
             return;
         }
-        let entered = painter.shifted(Some(SpaceId::inside(host, 1)), self.translation, rect);
+        let entered = painter.shifted(SpaceId::inside(host, 1), self.translation, rect);
         crate::paint::paint(doc, &entered, rects, self.child);
     }
 

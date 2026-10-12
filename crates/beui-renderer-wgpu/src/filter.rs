@@ -227,13 +227,6 @@ impl Effects {
         };
     }
 
-    pub(super) fn release(&mut self) {
-        self.scene = None;
-        self.chain.clear();
-        self.combine_bind = None;
-        self.size = (0, 0);
-    }
-
     pub(super) fn scene(&self) -> Option<&wgpu::TextureView> {
         self.scene.as_ref().map(|layer| &layer.view)
     }

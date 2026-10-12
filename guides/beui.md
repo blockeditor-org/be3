@@ -719,11 +719,10 @@ as the content has scrolled, so a scroll whose rows happen to end exactly at
 its edge still reads as scrollable. The styled layer's scrollbar style fades by
 `theme::SCROLL_FADE`, so `styled::Scroll` and every styled control that scrolls
 fade. `unstyled::Scroll` works the widths out from the position its offset
-reports and wraps the offset in a base `Fade`, which puts them on the entry of
-its child (`Painter::faded`, `Entry::fade`) the same way a clip is put there:
-the wgpu renderer multiplies the alpha of everything in that space by it in the
-shader, and the DOM renderer masks the child's frame with a gradient. Shapes a
-node paints itself and custom `Drawing`s are not faded.
+reports and wraps the offset in a base `Fade`, which paints its child inside a
+mask group (`Painter::faded`, `Group::Mask`): the wgpu renderer multiplies the
+alpha of everything in that group by it in the shader, and the DOM renderer
+masks the group's element with a gradient. Custom `Drawing`s are not faded.
 
 Under both sits the base `Offset`, which is named for what
 it does rather than for what it is used for: it shows its one child along a
@@ -1653,7 +1652,8 @@ focused field into what is left, through every scroll it sits in.
   elements instead of wgpu. Layout, input and focus are beui's as everywhere
   else. Each `Display` in the frame's display tree keeps one element across
   frames (by `Display::key`), holding its shapes and its children's elements
-  placed and clipped by their `Entry`; a display whose `Rc` is unchanged is not
+  placed at their translations, and each group in it (a clip, a scroll, a
+  mask, a scale) is an element of its own; a display whose `Rc` is unchanged is not
   looked at, so scrolling moves the rows' elements and rewrites nothing
   inside them. Text is measured and drawn with the browser's fonts
   (`beui-font-browser`), and the browser fetches the icon font from the URL
@@ -1808,11 +1808,13 @@ screen reader simulation and of each other, and they need no cooperation from
 the document: they are a post-processing pass in `Renderer`, so whatever a
 document paints - a plugin's beui pane included - is filtered the same way.
 
-`Context::apply_filter` is what turns them on. It records a `Filter` (the region
-in points, a blur radius, a contrast multiplier, and a `ColorVision`) and how
-much of the frame has been painted so far, which splits the frame in two: everything
-painted before the call goes through the filter, everything painted after it
-lands on top of the result untouched. The inspector calls it once a frame,
+`Context::apply_filter` is what turns them on. It takes a `Filter` (the region
+in points, a blur radius, a contrast multiplier, and a `ColorVision`) and wraps
+everything painted so far in a filter group (`Group::Filter`), so everything
+painted before the call goes through the filter and everything painted after it
+lands on top of the result untouched. Filters are groups like any other, so a
+second call filters the first one's result again rather than replacing it, and
+the wgpu renderer draws each filter group into a scene texture of its own. The inspector calls it once a frame,
 after the document, the panel, the overlays and the screen reader's focus
 outline, and before the reader's readout - so the reader's outline blurs with
 the page it marks while the words it is saying stay readable. The region is the
@@ -1836,13 +1838,13 @@ filtered frame costs no more to repaint than an unfiltered one. Contrast and
 colour vision are per-pixel, so they need nothing beyond the region that
 changed; a blur spreads light out of it, so `Prepared::widen` grows the damage
 by the chain's reach - the sum of what every pass can move a sample - clipped to
-the filter's own region. The scene texture and the blur chain are retained the
+the filter's own region, once for each filter. The scene textures and the blur chains are retained the
 way the frame is, and every pass is scissored to the widened rectangle: what
 lies outside it was left correct by the frame before, because the reach bounds
 what a change can touch at every level. `Renderer::prepare` returns the repaint
-it settled on, and it upgrades a partial one to the whole frame when the filter
-itself changed - a new radius or a filter switched off restyles everything the
-region covers, damage or no damage.
+it settled on, and it upgrades a partial one to the whole frame when the filters
+themselves changed - a new radius or a filter switched off restyles everything the
+region covers, damage or no damage. A frame with a filter is never copied.
 
 ### The screen reader simulation
 
@@ -2168,12 +2170,12 @@ a forwarding catcher comes first, and stays latched to it for
 `WHEEL_LATCH_TIMEOUT` while the pointer holds still.
 
 Parts a catcher draws outside its own rectangle, such as the touch selection
-handles of `unstyled::TextArea`, take their presses with `claim_at`.
-Paint such parts with `Painter::on_top`, which draws above the rest of the
-document, or of the overlay being painted, or from a `CanvasItem` with
-`clip=false`, which a canvas paints without cutting it to its own rectangle.
-Those handles are carets with a handle, which `Text` paints on top; a
-single-line area paints them from an unclipped item.
+handles of `unstyled::TextArea`, take their presses with `claim_at`. Paint
+order is the tree's order, so paint such parts from a node that comes after
+whatever they must cover, or from a `CanvasItem` with `clip=false`, which a
+canvas paints without cutting it to its own rectangle. Those handles are carets
+with a handle, which `Text` paints after its text; a single-line area paints
+them from an unclipped item after the text's.
 
 Do not put theme colors, fixed visual spacing, typography choices, or decorative
 shapes in this layer. A new skin should be able to use the unstyled control
@@ -2362,9 +2364,21 @@ changed, or when a repaint it asked for falls due; otherwise the shapes it
 recorded last time stand, and its children are only visited when something
 under them has to paint. `paint` must therefore be a function of the node, its
 rectangle, the painter and the rectangles its own layout gave its children -
-anything else it reads goes unnoticed when it changes. What a node damages is
-where its shapes changed, so a repaint that paints the same thing costs no
-pixels. A `Drawing` whose content changed in part hands its `Drawing` node
+anything else it reads goes unnoticed when it changes.
+
+What a node records is a tree (`display.rs`): its own shapes, its children by
+id and translation, and group nodes around them - `Group::Clip`,
+`Group::Scroll`, `Group::Mask` (a fade), `Group::Transform` and
+`Group::Filter` - which a painter opens (`with_clip_rect` for the children it
+paints, `shifted`, `faded`, `in_document`) rather than writing them onto each
+child. When a node paints again its new tree is set against its old one by
+identity, never by guessing: its own shapes, if they changed at all, damage
+where they were and where they are; a child, matched by id, damages its old and
+new place when it was added, removed, moved or restacked, and nothing when it
+stayed; a mask whose fade changed damages its bands; and a scroll group, matched
+by the space it scrolls, whose offset changed is a copy of what it showed rather
+than damage. A repaint that paints the same thing therefore costs no pixels. A
+`Drawing` whose content changed in part hands its `Drawing` node
 `draw_gpu(Some(drawing.redrawn(region)))` rather than a new `Drawing`: only that region, in the
 drawing's own coordinates, is damaged (the plugin host does this with the
 rectangles each plugin frame reports it changed). beui's own tests, and every test that drives a plugin through
@@ -2375,19 +2389,19 @@ outside the damage. With `BEUI_OVER_REPAINT=1` in the environment (or
 every frame whose damage is more than four times the area of the shapes that
 changed, to stderr and to `beui::take_over_repaints`.
 
-What a node recorded is an immutable display list (`display.rs`) holding its own
-shapes and its children's lists, and a frame hands the renderer the lists of its
-roots rather than a flat list of shapes; `FrameOutput::shapes` flattens them on
-demand, for tests and software rasterising. `Renderer` encodes a list once and
-keeps its instances in a GPU buffer, only walks the lists that reach the damage,
-and draws a content space through a translation and clip of its own, so a
-scroll or a pan encodes nothing again. A scroll whose content only moved is not
-damaged whole either: the frame reports it as `FrameOutput::moved`, and a host
-that keeps its last frame, as `beui::run` does, copies that region by the
-scroll with `Renderer::shift` and repaints only what the copy cannot supply -
-the rows it exposes, and whatever else changed or does not move with the rows.
-Only one region is copied per frame: when several moved at once - a scroll and
-its scrollbar's thumb - the largest is copied and the rest are repainted.
+A frame hands the renderer these trees, with the frame's own groups around them
+(`Context::clipped`, `Context::scaled` and `Context::apply_filter` wrap what
+they cover), rather than a flat list of shapes; `FrameOutput::shapes` flattens
+them on demand, for tests and software rasterising. `Renderer` encodes a node's
+shapes once and keeps their instances in a GPU buffer, only walks the trees that
+reach the damage, and draws a scroll group through a translation and clip of its
+own, so a scroll or a pan encodes nothing again. A scroll whose offset changed
+reports its copy as `FrameOutput::moved`, and a host that keeps its last frame,
+as `beui::run` does, copies that region by the scroll with `Renderer::shift` and
+repaints only what the copy cannot supply - the rows it exposes, whatever
+changed, and whatever does not move with the rows, such as a fade's bands or a
+scrollbar drawn over them. Only one region is copied per frame: when several
+scrolls moved at once the largest is copied and the rest are repainted.
 `FrameOutput::repaint` covers the moved region for hosts that do not copy.
 
 Pointer input only visits a node when the pointer lies within the rects of it
