@@ -10,7 +10,6 @@ pub mod tree;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::time::Instant;
 
 use beui_core::context::{Context, RendererChoices};
 use beui_core::filter::{ColorVision, Filter};
@@ -1074,7 +1073,7 @@ impl Inspector {
 }
 
 fn flashes(painter: &Painter, target: &Document, scale: f32) {
-    let now = Instant::now();
+    let now = target.now();
     for (id, at) in target.change_flashes() {
         let Some(rect) = target.node_rect(id) else {
             continue;
