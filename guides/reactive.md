@@ -761,30 +761,34 @@ Measuring a node whose size depends on its own content — an intrinsically size
 container whose children react to its width — can oscillate. Give containers a
 width that comes from their parent.
 
-Each `Document` owns a root `reactive::Scope` (`Document::reactive_scope`), and
-every `#[component]` owns a scope of its own, registered against the base node
-it returns. Several component scopes can share a node when wrapper components
-return the same base node. A component's scope is a child of the scope that
-built it. `Document::remove_node` disposes every scope registered against the
-subtree it removes: the effects that were created while building those nodes
-stop, and the `on_cleanup` callbacks they registered run. Without that, an
-effect left alive by a removed component panics with "node was removed" the next
-time one of its inputs changes.
+Each `Document` owns a root `reactive::Scope` (`Document::reactive_scope`).
+Every node belongs to the scope that was current when it was created, just as an
+effect does, and disposing that scope removes the nodes it still owns: a scope's
+nodes, effects and `on_cleanup` callbacks go together. Every `#[component]`
+runs in a child scope of the scope that built it, which it hands back to that
+scope, so a component lives exactly as long as its caller. Code built directly
+in `build`'s closure belongs to the document's root scope and lives as long as
+the document.
 
-Effects created outside any component body — directly in `build`'s closure, for
-instance — belong to the document's root scope and live as long as the document.
-`show`, `dynamic`, `keyed`, `for_each`, and `VirtualList` open a scope per child they
-build, registered against that child's node, so dropping a row or scrolling one
-out of view disposes exactly that row's effects. Any other code that builds a subtree
-it will later remove on its own must do the same, with `in_new_scope`; building
-it in the enclosing component's scope instead leaves the subtree's effects alive
-after `remove_node` and they panic the next time an input changes.
+`Show`, `Dynamic`, `Keyed`, `ForEach` and `VirtualList` build each child in a
+scope of its own and drop that scope to drop the child: `Show` disposes its
+child's scope when it hides it, where `ShowKeepAlive` pauses it. Anything else
+that drops part of a view on its own keeps a `Scope` for it and drops that,
+as the dock does for each tab's panel; nothing removes nodes by hand.
 
-An effect that writes one particular node belongs to that node rather than to
-whichever scope is running: `bind(node, || ...)` creates it in a scope
-registered against the node, so removing the node stops it wherever it was
-written. A `NodeRef` lets go of its node when the node is removed, so an effect
-that reaches a node through `try_get` finds nothing rather than a removed id.
+The scope that owns a node and the node that holds it can differ. When a node is
+removed, its children that belong to another, still-live scope are detached
+rather than removed, and live on until their own scope goes, which is what lets
+a `Portal` show a subtree built elsewhere. The other way round, a node whose
+scope is disposed while a parent still holds it leaves that parent holding a
+removed id, so take a child out of its parent before dropping its scope, as the
+control-flow components do by filling their slot first.
+
+An effect that writes one particular node belongs with that node rather than
+with whichever scope is running: `bind(node, || ...)` creates it in the scope
+that owns the node, so it stops when the node goes, wherever it was written.
+A `NodeRef` lets go of its node when the node is removed, so an effect that
+reaches a node through `try_get` finds nothing rather than a removed id.
 
 None of these functions hold `&mut Document` across a call boundary: each reads
 it back out of a thread-local (`with_document`) installed by whichever ambient

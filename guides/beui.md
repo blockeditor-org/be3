@@ -31,21 +31,26 @@ These four cover most review comments on beui code.
 
 If a function returns a `NodeId`, or a value built around one such as a
 `CanvasItem`, annotate it `#[component]` and name it in `CamelCase`. The
-attribute is not decoration. It gives the function its own reactive scope,
-registered against the node it builds, so that removing that node disposes
-exactly the effects the function created. A plain helper that
-builds nodes leaves its effects in the caller's scope, where they outlive the
-subtree they bind and panic with "node was removed" the next time one of their
-inputs changes. `./scripts/verify` reports a function outside an
+attribute is what makes the function usable as a tag, gives it `@test_id`,
+`@node_ref` and `@sizing`, makes `component_state`, `component_accessibility`
+and `component_placed` available inside it, and gives it a scope of its own for
+the contexts it provides. `./scripts/verify` reports a function outside an
 `impl` that writes a `view!` and returns a node or a child value without the
-attribute. `#[component]` is also what makes the function usable as a tag,
-gives it `@test_id`, `@node_ref` and `@sizing`, and makes
-`component_state`, `component_accessibility` and `component_placed`
-available inside it.
+attribute.
 
-A component that returns its own type implements `ChildValue` to hand the
-scope to the node it hangs on, and `IntoChild` for the slot that takes it, as
-`beui-view`'s `components/canvas.rs` does for `CanvasItem`.
+Nodes and effects live and die together whether or not a function is a
+component: a node belongs to the reactive scope it was created in, and
+disposing that scope removes the nodes it still owns along with its effects
+(see "Effects, batches, and ownership" in guides/reactive.md). A subtree that
+must outlive the code that placed it, such as one shown through a `Portal`, is
+built in a scope that lives as long as it should.
+
+The child types of the node parents - `ListChild`, `GridCell`, `Layer`,
+`CanvasItem` and `TextItem` - are all `Placed<P>` for the parent's node type
+`P`, a node and the `P::Data` the parent keeps beside it (a `Sizing`, a span, or
+nothing), so each is a distinct type and a child built for one parent does not
+fit another. A new parent implements `ParentKind` for its node type, and
+`BareChild` too when a bare `NodeId` should go in it unchanged.
 
 A child needs no node at all. A `ChildValue` that is no node keeps a
 `ChildScope` field instead, which the component's scope is moved into, so
@@ -314,9 +319,9 @@ and the component crates declare `extern crate beui_view as beui;` so the
 `beui-tree` knows nothing of `Document`, layout or painting, so the same
 components and control flow can build any tree: a DOM, a 3D scene, a chat
 message with buttons. Such a tree gives its child type `ChildValue` (where a
-component's scope lives) and `SlotChild` (how a child is kept and discarded),
-and gives what keeps children `SlotHost` (appending, filling a slot a `Show` or
-`ForEach` holds, and owning their scopes) and `IntoSlotHost`, so a component
+component's scope lives) and `SlotChild` (how a child is kept), and gives what
+keeps children `SlotHost` (appending, and filling a slot a `Show` or `ForEach`
+holds) and `IntoSlotHost`, so a component
 can `children.mount(...)` into it. The macros need `::beui::reactive` to
 resolve: `beui-tree` names itself `beui` for its own tests, and a crate built on
 it does the same or re-exports `beui_tree::reactive` as a `reactive` module of
@@ -466,8 +471,7 @@ someone else: it takes a `NodeId`, lays it out and paints it where the portal
 stands, and leaves it alone when the portal goes away, so a subtree can move
 between places in the tree without being built again. Exactly one portal shows
 a given node - claiming it takes it from the portal that had it - and the
-subtree is kept alive by whoever built it, with `in_new_scope` or a scope of
-their own, until they remove it. `Embed` reserves a rectangle
+subtree lives as long as the scope that built it. `Embed` reserves a rectangle
 for something outside the document — an editor the host composites behind the
 surface — publishing the rectangle and the clip it was laid out in through the
 `EmbedSlot` it was given and cutting that rectangle out of the surface so what
