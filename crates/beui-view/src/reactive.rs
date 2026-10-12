@@ -4,7 +4,7 @@ use std::rc::Rc;
 pub use beui_core::base::{Align, Direction, ItemSize, Justify, Sizing, Track};
 pub use beui_core::tree::{
     AcceptsSizing, BuildsNode, ListChild, NodeSlot, WithSizing, component_accessibility,
-    component_placed, component_rect, set_component_state, with_sizing,
+    component_placed, set_component_state, with_sizing,
 };
 pub use beui_tree::reactive::*;
 
@@ -211,7 +211,7 @@ pub use crate::components::frame::Frame;
 pub use crate::components::grid::{Grid, GridCell};
 pub use crate::components::interactive::Interactive;
 pub use crate::components::layers::{Layer, Layers};
-pub use crate::components::layout_builder::LayoutBuilder;
+pub use crate::components::layout_builder::{LayoutBuilder, PlacementBuilder};
 pub use crate::components::offset::Offset;
 pub use crate::components::overlay::Overlay;
 pub use crate::components::portal::Portal;

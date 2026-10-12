@@ -12,7 +12,6 @@ use crate::base::child_list::ChildHost;
 use crate::base::list::{ListItem, ListNode};
 use crate::base::{ItemSize, Sizing};
 use crate::current::{try_with_document, with_document};
-use crate::geometry::Rect;
 use crate::node::{NodeId, NodeOf};
 
 #[derive(Default)]
@@ -20,7 +19,6 @@ struct NodeBindings {
     target: Cell<Option<NodeId>>,
     states: RefCell<Vec<Box<dyn Any>>>,
     accessibility: RefCell<Option<accesskit::Node>>,
-    placement: RefCell<Option<(ReadSignal<Rect>, WriteSignal<Rect>)>>,
     placed: RefCell<Option<(ReadSignal<bool>, WriteSignal<bool>)>>,
     node: RefCell<Option<crate::callback::NodeRef>>,
 }
@@ -52,19 +50,6 @@ pub fn component_placed() -> ReadSignal<bool> {
     }
     let (read, write) = create_signal(false);
     bindings.placed.replace(Some((read.clone(), write)));
-    read
-}
-
-pub fn component_rect() -> ReadSignal<Rect> {
-    let bindings = bindings();
-    if let Some(target) = bindings.target.get() {
-        return with_document(|document| document.watch_placement(target));
-    }
-    if let Some((read, _)) = bindings.placement.borrow().as_ref() {
-        return read.clone();
-    }
-    let (read, write) = create_signal(Rect::ZERO);
-    bindings.placement.replace(Some((read.clone(), write)));
     read
 }
 
@@ -104,7 +89,6 @@ impl ChildValue for NodeId {
         bindings.target.set(Some(root));
         let states = bindings.states.take();
         let accessibility = bindings.accessibility.take();
-        let placement = bindings.placement.take();
         let placed = bindings.placed.take();
         if let Some(node) = bindings.node.borrow().as_ref() {
             node.fill(root);
@@ -120,9 +104,6 @@ impl ChildValue for NodeId {
             }
             if let Some(node) = accessibility {
                 document.set_accessibility(root, node);
-            }
-            if let Some((read, write)) = placement {
-                document.register_placement_watcher(root, read, write);
             }
         });
     }

@@ -555,6 +555,10 @@ impl Arena {
         self.downcast_mut(node)
     }
 
+    pub fn touch(&mut self, id: NodeId) {
+        self.changed.push(id);
+    }
+
     pub fn touch_mut(&mut self, id: NodeId) -> &mut dyn Element {
         self.changed.push(id);
         self.element_mut(id)

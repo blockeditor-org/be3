@@ -4,11 +4,11 @@ use std::rc::Rc;
 use beui::icons::{ICON_BUILD, ICON_FIT_SCREEN, ICON_ZOOM_IN, ICON_ZOOM_OUT};
 use beui::reactive::{
     Canvas, CanvasItem, Direction, Drawing, ForEach, Frame, Interactive, ItemSize, List, Memo,
-    NodeRef, Prop, ReadSignal, Show, Spacer, Text, clone, component, component_rect, create_effect,
-    create_memo, draw_gpu, focus_takes_text, on_shortcut, view,
+    NodeRef, PlacementBuilder, Prop, ReadSignal, Show, Spacer, Text, clone, component,
+    create_effect, create_memo, draw_gpu, focus_takes_text, on_shortcut, view,
 };
 use beui::styled::{Body, Button, ButtonVariant, Caption, IconButton, Separator, use_theme};
-use beui::{CursorIcon, KeyPress, NodeId, PointerPress};
+use beui::{CursorIcon, KeyPress, NodeId, PointerPress, Rect};
 use block_editor_beui::{Editor, Side, Sidebar, Toolbar};
 
 use super::hotbar_ui::{HOTBAR_WIDTH, Hotbar, ToolSettings};
@@ -162,120 +162,132 @@ fn GridToolbar(session: Rc<Session>, shown: ReadSignal<bool>) -> NodeId {
 #[component]
 fn GridCanvas(session: Rc<Session>) -> NodeId {
     let editor = session.editor().clone();
-    let placed = component_rect();
-    let view = editor.canvas();
-    let world = editor.world();
-    let camera = create_memo(clone!(placed -> move || {
-        Camera::from_view(view.get(), world.get(), placed.get())
-    }));
-    create_effect(clone!(session camera -> move || {
-        let camera = camera.get();
-        session.set_camera(camera);
-    }));
-    let grid_view = create_memo(clone!(camera placed -> move || {
-        Some(camera.get().view(placed.get()))
-    }));
-    let width = create_memo(clone!(placed -> move || placed.get().width()));
-    let height = create_memo(clone!(placed -> move || placed.get().height()));
-
-    let scene = GridScene::default();
-    let pointer = session.pointer.clone();
-    let debug_hover = session.debug_hover.clone();
-    let graph_hover = session.graph_hover.clone();
-    let drawing = create_memo(clone!(session camera placed -> move || {
-        let camera = camera.get();
-        let size = placed.get().size();
-        let pointer = pointer.get();
-        let hovered = debug_hover.get();
-        let graph = graph_hover.get();
-        let frame = session.read(|model| model.render_frame(size, camera, pointer, hovered, &graph));
-        Some(scene.drawing(frame))
-    }));
-
-    let labels =
-        create_memo(clone!(session -> move || session.read(LogicGridEditor::component_labels)));
-    let label_keys = create_memo(clone!(labels -> move || {
-        labels.with(|labels| labels.iter().map(|label| label.key).collect::<Vec<_>>())
-    }));
-    let zoom = create_memo(clone!(camera -> move || camera.get().zoom));
-
-    let last = Rc::new(Cell::new(None::<[f32; 2]>));
-    let at = clone!(camera placed -> move |press: PointerPress| {
-        camera.get_untracked().screen_to_world(press.pos, placed.get_untracked())
-    });
-    let on_press = clone!(session at last -> move |press: PointerPress| {
-        let world = at(press);
-        last.set(Some(world));
-        session.set_pointer.set(Some(world));
-        let additive = press.modifiers.shift;
-        session.edit(|model| model.press(world, additive));
-    });
-    let on_drag = clone!(session at last -> move |press: PointerPress| {
-        let world = at(press);
-        last.set(Some(world));
-        session.set_pointer.set(Some(world));
-    });
-    let on_active_change = clone!(session last -> move |active: bool| {
-        if active {
-            return;
-        }
-        let Some(world) = last.take() else {
-            return;
-        };
-        if session.peek(|model| model.gesture.is_some()) {
-            session.update(|model| model.release(world));
-        }
-    });
-    let on_secondary = clone!(session at -> move |press: PointerPress| {
-        let world = at(press);
-        session.edit(|model| model.delete_wire_at(world));
-    });
-    let on_hover_move = clone!(session at -> move |press: PointerPress| {
-        session.set_pointer.set(Some(at(press)));
-    });
-    let on_hover_change = clone!(session last -> move |hovered: bool| {
-        if !hovered && last.get().is_none() {
-            session.set_pointer.set(None);
-        }
-    });
-
-    let content = NodeRef::new();
-    editor.content(&content);
     view! {
-        <Frame @node_ref={&content}>
-            <Interactive
-                cursor=CursorIcon::Crosshair
-                @test_id={"logic-grid.canvas"}
-                on_press={on_press}
-                on_drag={on_drag}
-                on_active_change={on_active_change}
-                on_secondary_press={on_secondary}
-                on_hover_move={on_hover_move}
-                on_hover_change={on_hover_change}
-            >
-                <Canvas>
-                    <CanvasItem x=0.0 y=0.0 width={width.clone()} height={height.clone()}>
-                        <Drawing draw={Prop::Dynamic(Rc::new(move || draw_gpu(drawing.get())))} />
-                    </CanvasItem>
-                    <CanvasItem x=0.0 y=0.0 width={width} height={height}>
-                        <Canvas view={grid_view}>
-                            <ForEach keys={label_keys}>
-                                {move |key: LabelKey| {
-                                    let label = create_memo(clone!(labels -> move || {
-                                        labels.with(|labels| {
-                                            labels.iter().find(|label| label.key == key).cloned()
-                                        })
-                                    }));
-                                    view! {
-                                        <GridLabel label={label} zoom={zoom.clone()} />
-                                    }
-                                }}
-                            </ForEach>
-                        </Canvas>
-                    </CanvasItem>
-                </Canvas>
-            </Interactive>
-        </Frame>
+        <PlacementBuilder>
+            {move |placed: ReadSignal<Rect>| {
+                let view = editor.canvas();
+                let world = editor.world();
+                let camera = create_memo(clone!(placed -> move || {
+                    Camera::from_view(view.get(), world.get(), placed.get())
+                }));
+                create_effect(clone!(session camera -> move || {
+                    let camera = camera.get();
+                    session.set_camera(camera);
+                }));
+                let grid_view = create_memo(clone!(camera placed -> move || {
+                    Some(camera.get().view(placed.get()))
+                }));
+                let width = create_memo(clone!(placed -> move || placed.get().width()));
+                let height = create_memo(clone!(placed -> move || placed.get().height()));
+
+                let scene = GridScene::default();
+                let pointer = session.pointer.clone();
+                let debug_hover = session.debug_hover.clone();
+                let graph_hover = session.graph_hover.clone();
+                let drawing = create_memo(clone!(session camera placed -> move || {
+                    let camera = camera.get();
+                    let size = placed.get().size();
+                    let pointer = pointer.get();
+                    let hovered = debug_hover.get();
+                    let graph = graph_hover.get();
+                    let frame = session.read(|model| model.render_frame(size, camera, pointer, hovered, &graph));
+                    Some(scene.drawing(frame))
+                }));
+
+                let labels =
+                    create_memo(clone!(session -> move || session.read(LogicGridEditor::component_labels)));
+                let label_keys = create_memo(clone!(labels -> move || {
+                    labels.with(|labels| labels.iter().map(|label| label.key).collect::<Vec<_>>())
+                }));
+                let zoom = create_memo(clone!(camera -> move || camera.get().zoom));
+
+                let last = Rc::new(Cell::new(None::<[f32; 2]>));
+                let at = clone!(camera placed -> move |press: PointerPress| {
+                    camera.get_untracked().screen_to_world(press.pos, placed.get_untracked())
+                });
+                let on_press = clone!(session at last -> move |press: PointerPress| {
+                    let world = at(press);
+                    last.set(Some(world));
+                    session.set_pointer.set(Some(world));
+                    let additive = press.modifiers.shift;
+                    session.edit(|model| model.press(world, additive));
+                });
+                let on_drag = clone!(session at last -> move |press: PointerPress| {
+                    let world = at(press);
+                    last.set(Some(world));
+                    session.set_pointer.set(Some(world));
+                });
+                let on_active_change = clone!(session last -> move |active: bool| {
+                    if active {
+                        return;
+                    }
+                    let Some(world) = last.take() else {
+                        return;
+                    };
+                    if session.peek(|model| model.gesture.is_some()) {
+                        session.update(|model| model.release(world));
+                    }
+                });
+                let on_secondary = clone!(session at -> move |press: PointerPress| {
+                    let world = at(press);
+                    session.edit(|model| model.delete_wire_at(world));
+                });
+                let on_hover_move = clone!(session at -> move |press: PointerPress| {
+                    session.set_pointer.set(Some(at(press)));
+                });
+                let on_hover_change = clone!(session last -> move |hovered: bool| {
+                    if !hovered && last.get().is_none() {
+                        session.set_pointer.set(None);
+                    }
+                });
+
+                let content = NodeRef::new();
+                editor.content(&content);
+                view! {
+                    <Frame @node_ref={&content}>
+                        <Interactive
+                            cursor=CursorIcon::Crosshair
+                            @test_id={"logic-grid.canvas"}
+                            on_press={on_press}
+                            on_drag={on_drag}
+                            on_active_change={on_active_change}
+                            on_secondary_press={on_secondary}
+                            on_hover_move={on_hover_move}
+                            on_hover_change={on_hover_change}
+                        >
+                            <Canvas>
+                                <CanvasItem
+                                    x=0.0
+                                    y=0.0
+                                    width={width.clone()}
+                                    height={height.clone()}
+                                >
+                                    <Drawing
+                                        draw={Prop::Dynamic(Rc::new(move || draw_gpu(drawing.get())))}
+                                    />
+                                </CanvasItem>
+                                <CanvasItem x=0.0 y=0.0 width={width} height={height}>
+                                    <Canvas view={grid_view}>
+                                        <ForEach keys={label_keys}>
+                                            {move |key: LabelKey| {
+                                                let label = create_memo(clone!(labels -> move || {
+                                                    labels.with(|labels| {
+                                                        labels.iter().find(|label| label.key == key).cloned()
+                                                    })
+                                                }));
+                                                view! {
+                                                    <GridLabel label={label} zoom={zoom.clone()} />
+                                                }
+                                            }}
+                                        </ForEach>
+                                    </Canvas>
+                                </CanvasItem>
+                            </Canvas>
+                        </Interactive>
+                    </Frame>
+                }
+            }}
+        </PlacementBuilder>
     }
 }
 

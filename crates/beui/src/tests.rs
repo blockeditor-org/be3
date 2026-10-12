@@ -176,6 +176,7 @@ mod a_picture_given_a_source_paints_only_that_part_of_the_image;
 mod a_picture_paints_the_image_it_is_given;
 mod a_picture_scaled_down_never_grows_past_its_own_pixels;
 mod a_picture_shows_its_thumbhash_until_the_image_arrives;
+mod a_placement_built_inside_a_scroll_follows_it_as_it_scrolls;
 mod a_plugin_description_reads_as_a_pane_under_the_window;
 mod a_pointer_lock_lets_go_when_the_window_loses_focus;
 mod a_pointer_lock_reports_motion_only_while_it_holds_the_pointer;
@@ -197,7 +198,6 @@ mod a_reactive_sizing_attribute_moves_a_child_between_fixed_and_percent;
 mod a_reactive_test_id_follows_its_signal;
 mod a_reactive_tree_can_nest_builder_calls_without_threading_the_document;
 mod a_rebuilt_panel_that_paints_the_same_is_reported_as_an_over_repaint;
-mod a_rect_watched_inside_a_scroll_follows_it_as_it_scrolls;
 mod a_redrawn_drawing_damages_only_the_part_it_names;
 mod a_released_sheet_springs_to_its_stop_or_closed;
 mod a_removed_nodes_slot_is_reused_under_a_new_id;
@@ -278,7 +278,7 @@ mod a_tree_row_decides_which_part_of_it_is_clickable;
 mod a_twelve_hour_time_field_types_the_afternoon_with_a_p;
 mod a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly;
 mod a_typed_shortcut_leaves_the_text_input_that_has_the_focus_alone;
-mod a_value_child_that_watches_its_rect_panics_when_built;
+mod a_value_child_that_watches_its_placement_panics_when_built;
 mod a_value_written_between_tags_takes_the_sizing_after_it;
 mod a_vertical_separator_rules_down_the_row_it_sits_in;
 mod a_virtual_list_in_a_box_taller_than_its_rows_builds_every_row;
@@ -534,6 +534,7 @@ mod right_dragging_over_a_click_catcher_reports_a_secondary_drag;
 mod scrolling_a_nested_scroll_leaves_the_one_around_it_alone;
 mod scrolling_a_pan_zoom_leaves_the_scroll_around_it_alone;
 mod scrolling_a_pan_zoom_pans_it;
+mod scrolling_a_scroll_with_a_scrollbar_lays_it_out_once_a_frame;
 mod scrolling_a_virtual_scroll_replaces_the_items_in_view;
 mod scrolling_a_virtual_scroll_reuses_overlapping_items;
 mod scrolling_back_up_a_virtual_list_keeps_its_rows_adjacent;
@@ -1562,6 +1563,22 @@ pub(crate) fn stacked_panels() -> StackedPanels {
         lower: kind_of(&document, lower.get()),
         document,
     }
+}
+
+pub(crate) fn painted_thumb(output: &crate::FrameOutput, track: Rect) -> Rect {
+    output
+        .shapes()
+        .iter()
+        .filter_map(|shape| match shape {
+            crate::painter::Shape::Rect { rect, .. }
+                if track.contains_rect(*rect) && *rect != track =>
+            {
+                Some(*rect)
+            }
+            _ => None,
+        })
+        .next()
+        .expect("the thumb is painted inside its track")
 }
 
 pub(crate) fn flashed(output: &crate::FrameOutput, bounds: Rect, color: Color32) -> bool {

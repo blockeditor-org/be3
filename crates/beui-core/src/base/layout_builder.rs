@@ -7,15 +7,22 @@ use crate::geometry::{Rect, Vec2, vec2};
 use crate::node::{Element, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 
+enum Builds {
+    Size(ReadSignal<Vec2>, WriteSignal<Vec2>),
+    Placement(ReadSignal<Rect>, WriteSignal<Rect>),
+}
+
 pub struct LayoutBuilderNode {
     child: Option<NodeId>,
-    size: ReadSignal<Vec2>,
-    set_size: WriteSignal<Vec2>,
+    builds: Builds,
 }
 
 impl LayoutBuilderNode {
     fn offered(&self, available: Vec2) -> Option<(WriteSignal<Vec2>, Vec2)> {
-        let held = self.size.get_untracked();
+        let Builds::Size(size, set_size) = &self.builds else {
+            return None;
+        };
+        let held = size.get_untracked();
         let offered = vec2(
             match available.x.is_finite() {
                 true => available.x,
@@ -26,7 +33,7 @@ impl LayoutBuilderNode {
                 false => held.y,
             },
         );
-        (offered != held).then(|| (self.set_size.clone(), offered))
+        (offered != held).then(|| (set_size.clone(), offered))
     }
 }
 
@@ -43,6 +50,13 @@ impl Element for LayoutBuilderNode {
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
+        if let Builds::Placement(placed, set_placed) = &self.builds {
+            let at = rect.translate(painter.origin());
+            if placed.get_untracked() != at {
+                let set_placed = set_placed.clone();
+                ::reactive::settle(move || set_placed.set(at));
+            }
+        }
         if let Some(child) = self.child {
             crate::layout::layout(doc, painter, child, rect, out);
         }
@@ -71,8 +85,22 @@ impl Element for LayoutBuilderNode {
     }
 
     fn detail(&self) -> Option<String> {
-        let size = self.size.get_untracked();
-        Some(format!("{:.0}x{:.0}", size.x, size.y))
+        Some(match &self.builds {
+            Builds::Size(size, _) => {
+                let size = size.get_untracked();
+                format!("{:.0}x{:.0}", size.x, size.y)
+            }
+            Builds::Placement(placed, _) => {
+                let rect = placed.get_untracked();
+                format!(
+                    "{:.0}x{:.0} at {:.0}, {:.0}",
+                    rect.width(),
+                    rect.height(),
+                    rect.min.x,
+                    rect.min.y
+                )
+            }
+        })
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -92,8 +120,18 @@ impl Document {
     ) -> NodeOf<LayoutBuilderNode> {
         self.arena.insert(LayoutBuilderNode {
             child: None,
-            size,
-            set_size,
+            builds: Builds::Size(size, set_size),
+        })
+    }
+
+    pub fn create_placement_builder(
+        &mut self,
+        placed: ReadSignal<Rect>,
+        set_placed: WriteSignal<Rect>,
+    ) -> NodeOf<LayoutBuilderNode> {
+        self.arena.insert(LayoutBuilderNode {
+            child: None,
+            builds: Builds::Placement(placed, set_placed),
         })
     }
 

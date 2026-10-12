@@ -34,8 +34,8 @@ use beui_core::node::{NodeId, Rects};
 use beui_core::rich::{CaretHandle, HANDLE_RADIUS, handle_center};
 use beui_view::reactive::{
     Callback, Canvas, CanvasItem, Child, ClickCallback, Frame, Interactive, LayoutBuilder, List,
-    Memo, NodeRef, Prop, ReadSignal, Render, RenderFn, Show, WriteSignal, action_scope, clone,
-    component_accessibility, component_rect, create_effect, create_memo, create_signal,
+    Memo, NodeRef, PlacementBuilder, Prop, ReadSignal, Render, RenderFn, Show, WriteSignal,
+    action_scope, clone, component_accessibility, create_effect, create_memo, create_signal,
     create_timer, in_new_scope, on_cleanup, pixels_per_point, set_component_state,
     try_with_document, untrack, with_document,
 };
@@ -986,418 +986,424 @@ pub fn TextArea(
     view! {
         <LayoutBuilder>
             {move |size: ReadSignal<Vec2>| {
-                let (field_rect, set_field_rect) = create_signal(Rect::ZERO);
-                let placed = match single_line {
-                    true => field_rect,
-                    false => component_rect(),
-                };
-                let scale = pixels_per_point();
-                let attached = with_document(|document| document.watch_context());
-                let (scroll, set_scroll) = create_signal(ScrollPosition::ZERO);
-                let (offset, set_offset) = create_signal(0.0_f32);
-                let (shift, set_shift) = create_signal(0.0_f32);
-                let (focused, set_focused) = create_signal(false);
-                let (autoscroll, set_autoscroll) = create_signal(false);
-                let viewport = NodeRef::new();
-                let (outer, inner) = match single_line {
-                    true => (NodeRef::new(), viewport.clone()),
-                    false => (viewport.clone(), NodeRef::new()),
-                };
-                let masked = create_memo(move || password.get());
-                let placeholder = create_memo(move || placeholder.get());
-                let disabled = create_memo(move || disabled.get());
-                let font_size = create_memo(move || font_size.get());
-                let padding = create_memo(move || padding.get());
-                let widgets = create_memo(move || widgets.get());
-                let colors = create_memo(move || colors.get());
-                let remote_cursors = create_memo(move || remote_cursors.get());
-                let drop_caret = create_memo(move || drop_caret.get());
-                let view_width = create_memo(clone!(placed -> move || placed.get().width()));
-                let client_colors = create_memo(move || client_colors.get());
-                create_effect(clone!(state -> move || {
-                    let shown = show_runs.get();
-                    untrack(|| state.set_show_runs(shown));
-                }));
-
-                let role = match single_line {
-                    true => Role::TextInput,
-                    false => Role::MultilineTextInput,
-                };
-                let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(role)));
-                let accessible = state.content();
-                let moved = state.cursors();
-                let described = create_memo(
-                    clone!(state accessible moved masked placeholder disabled -> move || {
-                        accessible.get();
-                        let bytes = state.bytes();
-                        if bytes.len() > ACCESSIBLE_TEXT_LIMIT {
-                            moved.get();
-                        }
-                        let caret = state.caret_indices().first().copied().unwrap_or(0);
-                        let mut node = accessibility.get();
-                        let value = String::from_utf8_lossy(&bytes[accessible_range(&bytes, caret)]).into_owned();
-                        node.set_value(match masked.get() {
-                            true => rows::mask(&value),
-                            false => value,
-                        });
-                        let placeholder = placeholder.get();
-                        if !placeholder.is_empty() {
-                            node.set_placeholder(placeholder);
-                        }
-                        match disabled.get() {
-                            true => node.set_disabled(),
-                            false => node.clear_disabled(),
-                        }
-                        node
-                    }),
-                );
-
-                let content = state.content();
-                let starts = create_memo(clone!(state content -> move || {
-                    content.get();
-                    state.with_snapshot(|snapshot| match snapshot.starts.is_empty() {
-                        true => Rc::new(vec![0]),
-                        false => Rc::clone(&snapshot.starts),
-                    })
-                }));
-                let visible = create_memo(clone!(state content starts -> move || {
-                    content.get();
-                    let starts = starts.get();
-                    state.with_snapshot(|snapshot| {
-                        starts
-                            .iter()
-                            .enumerate()
-                            .filter(|(_, start)| !snapshot.hidden.iter().any(|range| range.contains(*start)))
-                            .map(|(line, _)| line)
-                            .collect::<Vec<usize>>()
-                    })
-                }));
-                let gutter = create_memo(clone!(scale attached starts -> move || {
-                    scale.get();
-                    attached.get();
-                    match single_line {
-                        true => 0.0,
-                        false => gutter_width(starts.get().len()),
-                    }
-                }));
-                let wrap_width = create_memo(clone!(size gutter padding -> move || {
-                    (size.get().x - gutter.get() - padding.get().x * 2.0).max(1.0).round()
-                }));
-                let tables = create_memo(
-                    clone!(state content starts widgets colors masked font_size scale attached wrap_width -> move || {
-                        content.get();
-                        scale.get();
-                        attached.get();
-                        let wrap_width = wrap_width.get();
-                        let starts = starts.get();
-                        let widgets = widgets.get();
-                        let colors = colors.get();
-                        let options = RowOptions {
-                            body_size: font_size.get(),
-                            mask: masked.get(),
-                            single_line,
-                        };
-                        Rc::new(state.with_snapshot(|snapshot| match snapshot.loaded && !single_line {
-                            true => table_spacers(&rows::TableInputs {
-                                wrap_width,
-                                snapshot,
-                                widgets: &widgets,
-                                colors: &colors,
-                                options,
-                                starts: &starts,
-                            }),
-                            false => HashMap::new(),
-                        }))
-                    }),
-                );
-                let composition = create_memo(clone!(state -> move || {
-                    state.cursors().get();
-                    state.content().get();
-                    Some(Composition {
-                        range: state.core().composition()?,
-                    })
-                }));
-                let completion = create_memo(clone!(state focused -> move || {
-                    let trigger = trigger?;
-                    state.cursors().get();
-                    state.content().get();
-                    if !focused.get() || state.core().composition().is_some() {
-                        return None;
-                    }
-                    query(&state, trigger)
-                }));
-                let completions = create_memo(clone!(completion -> move || {
-                    match (&completion.get(), &search) {
-                        (Some(query), Some(search)) => search(&query.text),
-                        _ => Vec::new(),
-                    }
-                }));
-                let (dismissed, set_dismissed) = create_signal(None::<usize>);
-                let completing = create_memo(clone!(completion completions -> move || {
-                    let Some(query) = completion.get() else {
-                        return false;
-                    };
-                    dismissed.get() != Some(query.range.start) && !completions.get().is_empty()
-                }));
-                let (highlighted, set_highlighted) = create_signal(0_usize);
-                create_effect(clone!(completion set_highlighted set_dismissed -> move || {
-                    match completion.get() {
-                        Some(_) => set_highlighted.set(0),
-                        None => set_dismissed.set(None),
-                    }
-                }));
-                let anchor = in_new_scope(|| {
-                    view! {
-                        <Frame width=CARET_WIDTH />
-                    }
-                });
-                on_cleanup(move || {
-                    beui_core::current::try_with_document(|document| document.remove_node(anchor));
-                });
-
-                let cx: Context = Rc::new(Surface {
-                    state: state.clone(),
-                    single_line,
-                    rows: RefCell::new(BTreeMap::new()),
-                    registered: Cell::new(0),
-                    rects: with_document(|document| Rc::clone(&document.rects)),
-                    starts: starts.clone(),
-                    visible: visible.clone(),
-                    tables,
-                    widgets: widgets.clone(),
-                    client_colors,
-                    colors: colors.clone(),
-                    composition,
-                    placeholder: placeholder.clone(),
-                    font_size: font_size.clone(),
-                    metrics: create_memo(clone!(scale attached -> move || (scale.get(), attached.get()))),
-                    gutter: gutter.clone(),
-                    padding: padding.clone(),
-                    scroll: scroll.clone(),
-                    set_offset,
-                    shift: shift.clone(),
-                    set_shift: set_shift.clone(),
-                    view_width: view_width.clone(),
-                    view_height: create_memo(clone!(placed -> move || placed.get().height())),
-                    focused: focused.clone(),
-                    set_focused: set_focused.clone(),
-                    set_autoscroll,
-                    viewport: viewport.clone(),
-                    list: NodeRef::new(),
-                    anchor,
-                    masked: masked.clone(),
-                    disabled: disabled.clone(),
-                    remote_cursors,
-                    drop_caret,
-                    reveal_attempts: Cell::new(0),
-                    block,
-                    selected_widget,
-                    checkbox,
-                    completion,
-                    completions: completions.clone(),
-                    completing: completing.clone(),
-                    highlighted: highlighted.clone(),
-                    set_highlighted: set_highlighted.clone(),
-                    set_dismissed,
-                    on_widget_press,
-                    on_menu,
-                    on_submit,
-                });
-                state.publish_layout(TextAreaLayout::new(cx.clone()));
-
-                if single_line {
-                    let clamp_cx = cx.clone();
-                    create_effect(clone!(content view_width shift -> move || {
-                        content.get();
-                        view_width.get();
-                        let (room, width) = untrack(|| (clamp_cx.room(), clamp_cx.text_size().x));
-                        let most = (width - room).max(0.0);
-                        if shift.get_untracked() > most {
-                            set_shift.set(most);
-                        }
-                    }));
-                }
-
-                let ime_cursor = create_memo(clone!(state focused -> move || {
-                    state.cursors().get();
-                    if !focused.get() {
-                        return None;
-                    }
-                    Some(ImeCursor {
-                        node: anchor,
-                        rect: None,
-                    })
-                }));
-                let ime_text = create_memo(clone!(state focused -> move || {
-                    state.cursors().get();
-                    state.content().get();
-                    if !focused.get() {
-                        return None;
-                    }
-                    let surrounding = state.core().ime_state()?;
-                    Some(ImeText {
-                        start: surrounding.start,
-                        text: surrounding.text,
-                        selection: surrounding.selection,
-                        composing: surrounding.composing,
-                    })
-                }));
-
-                let focus_requests = state.focus_requests();
-                let focus_writer = set_focused.clone();
-                create_effect(move || {
-                    if focus_requests.get() > 0 {
-                        focus_writer.set(true);
-                    }
-                });
-                create_effect(clone!(set_focused -> move || set_focused.set(focus_request.get())));
-                let content = state.content();
-                let shown = create_memo(clone!(state masked placeholder -> move || {
-                    content.get();
-                    let value = String::from_utf8_lossy(&state.bytes()).into_owned();
-                    match (value.is_empty(), masked.get()) {
-                        (true, _) => placeholder.get(),
-                        (false, true) => rows::mask(&value),
-                        (false, false) => value,
-                    }
-                }));
-                set_component_state(Parts {
-                    cx: cx.clone(),
-                    shown,
-                });
-                let reveal_cx = cx.clone();
-                let revealing = create_timer(move || {
-                    reveal_cx.reveal_caret();
-                    None
-                });
-                let reveals = state.reveals();
-                create_effect(move || {
-                    reveals.get();
-                    revealing.start(Duration::ZERO);
-                });
-                let (hover_cursor, set_cursor) = create_signal(CursorIcon::Text);
-                let cursor = create_memo(clone!(disabled -> move || match disabled.get() {
-                    true => CursorIcon::Default,
-                    false => hover_cursor.get(),
-                }));
-                let tab_stop = create_memo(clone!(disabled -> move || !disabled.get()));
-                let surface_color = create_memo(clone!(colors -> move || colors.get().surface));
-                let outer_color = create_memo(clone!(surface_color -> move || match single_line {
-                    true => Color32::TRANSPARENT,
-                    false => surface_color.get(),
-                }));
-                let field = Field {
-                    described,
-                    frame: Rc::new(RefCell::new(frame)),
-                    inner,
-                    surface_color,
-                    set_field_rect,
-                    cx: cx.clone(),
-                    cursor,
-                    set_cursor,
-                    autoscroll,
-                    tab_stop,
-                    keyboard_on_focus,
-                    ime_cursor,
-                    ime_text,
-                    on_focus_change,
-                    on_hover_change,
-                };
-                let scrolled = field.clone();
-                let multi_line = !single_line;
-                let strip_width = create_memo(clone!(gutter -> move || gutter.get()));
-                let width = create_memo(clone!(size -> move || size.get().x));
-                let height = create_memo(clone!(size -> move || size.get().y));
-                let gutter_color = create_memo(clone!(colors -> move || colors.get().gutter));
-                let border_color = create_memo(clone!(colors -> move || colors.get().gutter_border));
-                let border_x = create_memo(clone!(gutter -> move || gutter.get() - 1.0));
-                let (strip_height, border_height, area_width, area_height) = (
-                    height.clone(),
-                    height.clone(),
-                    width.clone(),
-                    height.clone(),
-                );
-                let has_menu = completion_menu.is_some();
-                let menu = create_memo(clone!(completing -> move || has_menu && completing.get()));
-                let menu_cx = cx.clone();
-                let menu_render = completion_menu;
-                if multi_line {
-                    action_scope(&outer);
-                    actions::register(&state, &disabled);
-                }
-
                 view! {
-                    <Frame @node_ref=&outer color={outer_color}>
-                        <List spacing=0.0>
-                            <Show condition={single_line}>
-                                {move || view! {
-                                    <Editing
-                                        @sizing=ItemSize::Percent(100.0)
-                                        field={field.clone()}
-                                    />
-                                }}
-                            </Show>
-                            <Show condition={multi_line}>
-                                {move || {
-                                let (width, height, strip_width, strip_height) =
-                                    (width.clone(), height.clone(), strip_width.clone(), strip_height.clone());
-                                let (gutter_color, border_x, border_height, border_color) =
-                                    (gutter_color.clone(), border_x.clone(), border_height.clone(), border_color.clone());
-                                let (area_width, area_height, offset, set_scroll, scrolled) =
-                                    (area_width.clone(), area_height.clone(), offset.clone(), set_scroll.clone(), scrolled.clone());
-                                view! {
-                                    <Canvas
-                                        @sizing=ItemSize::Percent(100.0)
-                                        width={width}
-                                        height={height}
-                                    >
-                                        <CanvasItem
-                                            x=0.0
-                                            y=0.0
-                                            width={strip_width}
-                                            height={strip_height}
-                                        >
-                                            <Frame color={gutter_color} />
-                                        </CanvasItem>
-                                        <CanvasItem
-                                            x={border_x}
-                                            y=0.0
-                                            width=1.0
-                                            height={border_height}
-                                        >
-                                            <Frame color={border_color} />
-                                        </CanvasItem>
-                                        <CanvasItem
-                                            x=0.0
-                                            y=0.0
-                                            width={area_width}
-                                            height={area_height}
-                                        >
-                                            <Scroll
-                                                offset={offset}
-                                                focus_color={Color32::TRANSPARENT}
-                                                on_change={move |position: ScrollPosition| set_scroll.set(position)}
-                                            >
-                                                <Editing field={scrolled} />
-                                            </Scroll>
-                                        </CanvasItem>
-                                    </Canvas>
+                    <PlacementBuilder>
+                        {move |area: ReadSignal<Rect>| {
+                        let (field_rect, set_field_rect) = create_signal(Rect::ZERO);
+                        let placed = match single_line {
+                            true => field_rect,
+                            false => area,
+                        };
+                        let scale = pixels_per_point();
+                        let attached = with_document(|document| document.watch_context());
+                        let (scroll, set_scroll) = create_signal(ScrollPosition::ZERO);
+                        let (offset, set_offset) = create_signal(0.0_f32);
+                        let (shift, set_shift) = create_signal(0.0_f32);
+                        let (focused, set_focused) = create_signal(false);
+                        let (autoscroll, set_autoscroll) = create_signal(false);
+                        let viewport = NodeRef::new();
+                        let (outer, inner) = match single_line {
+                            true => (NodeRef::new(), viewport.clone()),
+                            false => (viewport.clone(), NodeRef::new()),
+                        };
+                        let masked = create_memo(move || password.get());
+                        let placeholder = create_memo(move || placeholder.get());
+                        let disabled = create_memo(move || disabled.get());
+                        let font_size = create_memo(move || font_size.get());
+                        let padding = create_memo(move || padding.get());
+                        let widgets = create_memo(move || widgets.get());
+                        let colors = create_memo(move || colors.get());
+                        let remote_cursors = create_memo(move || remote_cursors.get());
+                        let drop_caret = create_memo(move || drop_caret.get());
+                        let view_width = create_memo(clone!(placed -> move || placed.get().width()));
+                        let client_colors = create_memo(move || client_colors.get());
+                        create_effect(clone!(state -> move || {
+                            let shown = show_runs.get();
+                            untrack(|| state.set_show_runs(shown));
+                        }));
+
+                        let role = match single_line {
+                            true => Role::TextInput,
+                            false => Role::MultilineTextInput,
+                        };
+                        let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(role)));
+                        let accessible = state.content();
+                        let moved = state.cursors();
+                        let described = create_memo(
+                            clone!(state accessible moved masked placeholder disabled -> move || {
+                                accessible.get();
+                                let bytes = state.bytes();
+                                if bytes.len() > ACCESSIBLE_TEXT_LIMIT {
+                                    moved.get();
                                 }
-                                }}
-                            </Show>
-                            <Show condition={menu}>
-                                {move || {
-                                    let menu = menu_render
-                                        .clone()
-                                        .expect("a completion menu is only shown when the area was given one");
-                                    let cx = menu_cx.clone();
-                                    view! {
-                                        <Completions cx menu />
-                                    }
-                                }}
-                            </Show>
-                        </List>
-                    </Frame>
+                                let caret = state.caret_indices().first().copied().unwrap_or(0);
+                                let mut node = accessibility.get();
+                                let value = String::from_utf8_lossy(&bytes[accessible_range(&bytes, caret)]).into_owned();
+                                node.set_value(match masked.get() {
+                                    true => rows::mask(&value),
+                                    false => value,
+                                });
+                                let placeholder = placeholder.get();
+                                if !placeholder.is_empty() {
+                                    node.set_placeholder(placeholder);
+                                }
+                                match disabled.get() {
+                                    true => node.set_disabled(),
+                                    false => node.clear_disabled(),
+                                }
+                                node
+                            }),
+                        );
+
+                        let content = state.content();
+                        let starts = create_memo(clone!(state content -> move || {
+                            content.get();
+                            state.with_snapshot(|snapshot| match snapshot.starts.is_empty() {
+                                true => Rc::new(vec![0]),
+                                false => Rc::clone(&snapshot.starts),
+                            })
+                        }));
+                        let visible = create_memo(clone!(state content starts -> move || {
+                            content.get();
+                            let starts = starts.get();
+                            state.with_snapshot(|snapshot| {
+                                starts
+                                    .iter()
+                                    .enumerate()
+                                    .filter(|(_, start)| !snapshot.hidden.iter().any(|range| range.contains(*start)))
+                                    .map(|(line, _)| line)
+                                    .collect::<Vec<usize>>()
+                            })
+                        }));
+                        let gutter = create_memo(clone!(scale attached starts -> move || {
+                            scale.get();
+                            attached.get();
+                            match single_line {
+                                true => 0.0,
+                                false => gutter_width(starts.get().len()),
+                            }
+                        }));
+                        let wrap_width = create_memo(clone!(size gutter padding -> move || {
+                            (size.get().x - gutter.get() - padding.get().x * 2.0).max(1.0).round()
+                        }));
+                        let tables = create_memo(
+                            clone!(state content starts widgets colors masked font_size scale attached wrap_width -> move || {
+                                content.get();
+                                scale.get();
+                                attached.get();
+                                let wrap_width = wrap_width.get();
+                                let starts = starts.get();
+                                let widgets = widgets.get();
+                                let colors = colors.get();
+                                let options = RowOptions {
+                                    body_size: font_size.get(),
+                                    mask: masked.get(),
+                                    single_line,
+                                };
+                                Rc::new(state.with_snapshot(|snapshot| match snapshot.loaded && !single_line {
+                                    true => table_spacers(&rows::TableInputs {
+                                        wrap_width,
+                                        snapshot,
+                                        widgets: &widgets,
+                                        colors: &colors,
+                                        options,
+                                        starts: &starts,
+                                    }),
+                                    false => HashMap::new(),
+                                }))
+                            }),
+                        );
+                        let composition = create_memo(clone!(state -> move || {
+                            state.cursors().get();
+                            state.content().get();
+                            Some(Composition {
+                                range: state.core().composition()?,
+                            })
+                        }));
+                        let completion = create_memo(clone!(state focused -> move || {
+                            let trigger = trigger?;
+                            state.cursors().get();
+                            state.content().get();
+                            if !focused.get() || state.core().composition().is_some() {
+                                return None;
+                            }
+                            query(&state, trigger)
+                        }));
+                        let completions = create_memo(clone!(completion -> move || {
+                            match (&completion.get(), &search) {
+                                (Some(query), Some(search)) => search(&query.text),
+                                _ => Vec::new(),
+                            }
+                        }));
+                        let (dismissed, set_dismissed) = create_signal(None::<usize>);
+                        let completing = create_memo(clone!(completion completions -> move || {
+                            let Some(query) = completion.get() else {
+                                return false;
+                            };
+                            dismissed.get() != Some(query.range.start) && !completions.get().is_empty()
+                        }));
+                        let (highlighted, set_highlighted) = create_signal(0_usize);
+                        create_effect(clone!(completion set_highlighted set_dismissed -> move || {
+                            match completion.get() {
+                                Some(_) => set_highlighted.set(0),
+                                None => set_dismissed.set(None),
+                            }
+                        }));
+                        let anchor = in_new_scope(|| {
+                            view! {
+                                <Frame width=CARET_WIDTH />
+                            }
+                        });
+                        on_cleanup(move || {
+                            beui_core::current::try_with_document(|document| document.remove_node(anchor));
+                        });
+
+                        let cx: Context = Rc::new(Surface {
+                            state: state.clone(),
+                            single_line,
+                            rows: RefCell::new(BTreeMap::new()),
+                            registered: Cell::new(0),
+                            rects: with_document(|document| Rc::clone(&document.rects)),
+                            starts: starts.clone(),
+                            visible: visible.clone(),
+                            tables,
+                            widgets: widgets.clone(),
+                            client_colors,
+                            colors: colors.clone(),
+                            composition,
+                            placeholder: placeholder.clone(),
+                            font_size: font_size.clone(),
+                            metrics: create_memo(clone!(scale attached -> move || (scale.get(), attached.get()))),
+                            gutter: gutter.clone(),
+                            padding: padding.clone(),
+                            scroll: scroll.clone(),
+                            set_offset,
+                            shift: shift.clone(),
+                            set_shift: set_shift.clone(),
+                            view_width: view_width.clone(),
+                            view_height: create_memo(clone!(placed -> move || placed.get().height())),
+                            focused: focused.clone(),
+                            set_focused: set_focused.clone(),
+                            set_autoscroll,
+                            viewport: viewport.clone(),
+                            list: NodeRef::new(),
+                            anchor,
+                            masked: masked.clone(),
+                            disabled: disabled.clone(),
+                            remote_cursors,
+                            drop_caret,
+                            reveal_attempts: Cell::new(0),
+                            block,
+                            selected_widget,
+                            checkbox,
+                            completion,
+                            completions: completions.clone(),
+                            completing: completing.clone(),
+                            highlighted: highlighted.clone(),
+                            set_highlighted: set_highlighted.clone(),
+                            set_dismissed,
+                            on_widget_press,
+                            on_menu,
+                            on_submit,
+                        });
+                        state.publish_layout(TextAreaLayout::new(cx.clone()));
+
+                        if single_line {
+                            let clamp_cx = cx.clone();
+                            create_effect(clone!(content view_width shift -> move || {
+                                content.get();
+                                view_width.get();
+                                let (room, width) = untrack(|| (clamp_cx.room(), clamp_cx.text_size().x));
+                                let most = (width - room).max(0.0);
+                                if shift.get_untracked() > most {
+                                    set_shift.set(most);
+                                }
+                            }));
+                        }
+
+                        let ime_cursor = create_memo(clone!(state focused -> move || {
+                            state.cursors().get();
+                            if !focused.get() {
+                                return None;
+                            }
+                            Some(ImeCursor {
+                                node: anchor,
+                                rect: None,
+                            })
+                        }));
+                        let ime_text = create_memo(clone!(state focused -> move || {
+                            state.cursors().get();
+                            state.content().get();
+                            if !focused.get() {
+                                return None;
+                            }
+                            let surrounding = state.core().ime_state()?;
+                            Some(ImeText {
+                                start: surrounding.start,
+                                text: surrounding.text,
+                                selection: surrounding.selection,
+                                composing: surrounding.composing,
+                            })
+                        }));
+
+                        let focus_requests = state.focus_requests();
+                        let focus_writer = set_focused.clone();
+                        create_effect(move || {
+                            if focus_requests.get() > 0 {
+                                focus_writer.set(true);
+                            }
+                        });
+                        create_effect(clone!(set_focused -> move || set_focused.set(focus_request.get())));
+                        let content = state.content();
+                        let shown = create_memo(clone!(state masked placeholder -> move || {
+                            content.get();
+                            let value = String::from_utf8_lossy(&state.bytes()).into_owned();
+                            match (value.is_empty(), masked.get()) {
+                                (true, _) => placeholder.get(),
+                                (false, true) => rows::mask(&value),
+                                (false, false) => value,
+                            }
+                        }));
+                        set_component_state(Parts {
+                            cx: cx.clone(),
+                            shown,
+                        });
+                        let reveal_cx = cx.clone();
+                        let revealing = create_timer(move || {
+                            reveal_cx.reveal_caret();
+                            None
+                        });
+                        let reveals = state.reveals();
+                        create_effect(move || {
+                            reveals.get();
+                            revealing.start(Duration::ZERO);
+                        });
+                        let (hover_cursor, set_cursor) = create_signal(CursorIcon::Text);
+                        let cursor = create_memo(clone!(disabled -> move || match disabled.get() {
+                            true => CursorIcon::Default,
+                            false => hover_cursor.get(),
+                        }));
+                        let tab_stop = create_memo(clone!(disabled -> move || !disabled.get()));
+                        let surface_color = create_memo(clone!(colors -> move || colors.get().surface));
+                        let outer_color = create_memo(clone!(surface_color -> move || match single_line {
+                            true => Color32::TRANSPARENT,
+                            false => surface_color.get(),
+                        }));
+                        let field = Field {
+                            described,
+                            frame: Rc::new(RefCell::new(frame)),
+                            inner,
+                            surface_color,
+                            set_field_rect,
+                            cx: cx.clone(),
+                            cursor,
+                            set_cursor,
+                            autoscroll,
+                            tab_stop,
+                            keyboard_on_focus,
+                            ime_cursor,
+                            ime_text,
+                            on_focus_change,
+                            on_hover_change,
+                        };
+                        let scrolled = field.clone();
+                        let multi_line = !single_line;
+                        let strip_width = create_memo(clone!(gutter -> move || gutter.get()));
+                        let width = create_memo(clone!(size -> move || size.get().x));
+                        let height = create_memo(clone!(size -> move || size.get().y));
+                        let gutter_color = create_memo(clone!(colors -> move || colors.get().gutter));
+                        let border_color = create_memo(clone!(colors -> move || colors.get().gutter_border));
+                        let border_x = create_memo(clone!(gutter -> move || gutter.get() - 1.0));
+                        let (strip_height, border_height, area_width, area_height) = (
+                            height.clone(),
+                            height.clone(),
+                            width.clone(),
+                            height.clone(),
+                        );
+                        let has_menu = completion_menu.is_some();
+                        let menu = create_memo(clone!(completing -> move || has_menu && completing.get()));
+                        let menu_cx = cx.clone();
+                        let menu_render = completion_menu;
+                        if multi_line {
+                            action_scope(&outer);
+                            actions::register(&state, &disabled);
+                        }
+
+                        view! {
+                            <Frame @node_ref=&outer color={outer_color}>
+                                <List spacing=0.0>
+                                    <Show condition={single_line}>
+                                        {move || view! {
+                                            <Editing
+                                                @sizing=ItemSize::Percent(100.0)
+                                                field={field.clone()}
+                                            />
+                                        }}
+                                    </Show>
+                                    <Show condition={multi_line}>
+                                        {move || {
+                                        let (width, height, strip_width, strip_height) =
+                                            (width.clone(), height.clone(), strip_width.clone(), strip_height.clone());
+                                        let (gutter_color, border_x, border_height, border_color) =
+                                            (gutter_color.clone(), border_x.clone(), border_height.clone(), border_color.clone());
+                                        let (area_width, area_height, offset, set_scroll, scrolled) =
+                                            (area_width.clone(), area_height.clone(), offset.clone(), set_scroll.clone(), scrolled.clone());
+                                        view! {
+                                            <Canvas
+                                                @sizing=ItemSize::Percent(100.0)
+                                                width={width}
+                                                height={height}
+                                            >
+                                                <CanvasItem
+                                                    x=0.0
+                                                    y=0.0
+                                                    width={strip_width}
+                                                    height={strip_height}
+                                                >
+                                                    <Frame color={gutter_color} />
+                                                </CanvasItem>
+                                                <CanvasItem
+                                                    x={border_x}
+                                                    y=0.0
+                                                    width=1.0
+                                                    height={border_height}
+                                                >
+                                                    <Frame color={border_color} />
+                                                </CanvasItem>
+                                                <CanvasItem
+                                                    x=0.0
+                                                    y=0.0
+                                                    width={area_width}
+                                                    height={area_height}
+                                                >
+                                                    <Scroll
+                                                        offset={offset}
+                                                        focus_color={Color32::TRANSPARENT}
+                                                        on_change={move |position: ScrollPosition| set_scroll.set(position)}
+                                                    >
+                                                        <Editing field={scrolled} />
+                                                    </Scroll>
+                                                </CanvasItem>
+                                            </Canvas>
+                                        }
+                                        }}
+                                    </Show>
+                                    <Show condition={menu}>
+                                        {move || {
+                                            let menu = menu_render
+                                                .clone()
+                                                .expect("a completion menu is only shown when the area was given one");
+                                            let cx = menu_cx.clone();
+                                            view! {
+                                                <Completions cx menu />
+                                            }
+                                        }}
+                                    </Show>
+                                </List>
+                            </Frame>
+                        }
+                        }}
+                    </PlacementBuilder>
                 }
             }}
         </LayoutBuilder>
@@ -1555,10 +1561,15 @@ pub fn text_area_handles(document: &Document, area: NodeId) -> Vec<Pos2> {
 
 #[component]
 fn FieldFrame(color: Memo<Color32>, report: WriteSignal<Rect>, children: Child) -> NodeId {
-    let placed = component_rect();
-    create_effect(move || report.set(placed.get()));
     view! {
-        <Frame color>{children}</Frame>
+        <PlacementBuilder>
+            {move |placed: ReadSignal<Rect>| {
+                create_effect(move || report.set(placed.get()));
+                view! {
+                    <Frame color>{children}</Frame>
+                }
+            }}
+        </PlacementBuilder>
     }
 }
 

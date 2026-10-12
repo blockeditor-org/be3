@@ -729,7 +729,7 @@ impl Document {
     pub fn set_accessibility(&mut self, id: NodeId, node: Node) {
         if self.accessibility.get(&id) != Some(&node) {
             self.accessibility.insert(id, node);
-            self.arena.invalidate_node(id);
+            self.arena.touch(id);
         }
     }
 
@@ -1368,17 +1368,6 @@ impl Document {
         read
     }
 
-    pub fn register_placement_watcher(
-        &mut self,
-        id: NodeId,
-        read: ::reactive::ReadSignal<Rect>,
-        write: ::reactive::WriteSignal<Rect>,
-    ) {
-        self.placements
-            .get_or_default(id)
-            .push(PlacementWatcher { read, write });
-    }
-
     pub fn name_component(&mut self, id: NodeId, name: &'static str) {
         self.component_names.entry(id).or_default().push(name);
     }
@@ -1855,6 +1844,28 @@ impl Document {
         });
     }
 
+    fn assert_layout_settled(&self, watermark: usize) {
+        if !cfg!(debug_assertions) {
+            return;
+        }
+        let relaid: Vec<String> = self
+            .arena
+            .relaid_since(watermark)
+            .iter()
+            .filter(|id| self.arena.contains(**id))
+            .take(8)
+            .map(|id| {
+                let names = self.component_names(*id).join(" in ");
+                format!("{} {id:?} ({names})", self.node_kind(*id))
+            })
+            .collect();
+        assert!(
+            relaid.is_empty(),
+            "layout did not settle in {LAYOUTS_PER_FRAME} layouts: what each reported kept changing \
+             the layout of {relaid:?}",
+        );
+    }
+
     fn run_laid_out(&mut self) {
         if let Some(laid_out) = self.laid_out.clone() {
             let context = self.reactive_scope().context();
@@ -1905,18 +1916,26 @@ impl Document {
 
     fn update_layout(&mut self, ctx: &Context, rect: Rect) -> usize {
         let mut passes = 0;
-        if self.needs_layout() {
-            self.lay_out_pass(ctx, rect);
-            passes += 1;
+        for round in 0..LAYOUTS_PER_FRAME {
+            if self.needs_layout() {
+                self.lay_out_pass(ctx, rect);
+                passes += 1;
+            }
+            let watermark = self.arena.relaid_len();
+            self.report_laid_out();
+            if round == 0 {
+                self.run_laid_out();
+            }
+            if !self.needs_layout() {
+                return passes;
+            }
+            if round + 1 == LAYOUTS_PER_FRAME {
+                self.assert_layout_settled(watermark);
+            }
         }
-        self.report_laid_out();
-        self.run_laid_out();
-        if self.needs_layout() {
-            self.lay_out_pass(ctx, rect);
-            passes += 1;
-            ctx.request_repaint();
-        }
-        passes
+        self.lay_out_pass(ctx, rect);
+        ctx.request_repaint();
+        passes + 1
     }
 
     fn lay_out_pass(&mut self, ctx: &Context, rect: Rect) {
@@ -2076,6 +2095,8 @@ pub fn verify_paint(enabled: bool) {
 fn verifying_paint() -> bool {
     cfg!(test) || VERIFY_PAINT.load(std::sync::atomic::Ordering::Relaxed)
 }
+
+const LAYOUTS_PER_FRAME: usize = 4;
 
 impl Document {
     fn lay_out_boundaries(&mut self, ctx: &Context, rects: &Rects) {

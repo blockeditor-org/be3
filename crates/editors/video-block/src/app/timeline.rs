@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use block_editor_beui::beui::reactive::{
     Align, Canvas, CanvasItem, CanvasView, Direction, ForEach, Frame, Interactive, ItemSize, List,
-    Memo, ReadSignal, clone, component, component_rect, create_effect, create_memo,
+    Memo, PlacementBuilder, ReadSignal, clone, component, create_effect, create_memo,
     create_selector, create_signal, untrack, view,
 };
 use block_editor_beui::beui::styled::{Body, Caption, use_theme};
@@ -24,212 +24,222 @@ const CLIP_RADIUS: u8 = 4;
 
 #[component]
 pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
-    let placed = component_rect();
-    let fitting = Rc::clone(&state);
-    let fitted = placed.clone();
-    create_effect(move || fitting.fit_timeline(fitted.get().width().max(1.0)));
-
-    let rowed = Rc::clone(&state);
-    let clips = state.clips.clone();
-    let rows = create_memo(clone!(rowed clips -> move || {
-        let _ = clips.get();
-        rowed
-            .video()
-            .map(|video| {
-                timeline::lane_rows(&video)
-                    .into_iter()
-                    .map(|row| Lane {
-                        id: row.timing.id,
-                        lane: row.lane,
-                        start: row.timing.start,
-                        length: row.timing.length,
-                        depth: row.timing.depth,
-                    })
-                    .collect::<Vec<Lane>>()
-            })
-            .unwrap_or_default()
-    }));
-    let lanes = create_memo(clone!(rows -> move || {
-        rows.get().iter().map(|row| row.lane + 1).max().unwrap_or(1) + 1
-    }));
-
-    let (offset, set_offset) = create_signal(Vec2::ZERO);
-    let camera = create_memo(clone!(offset placed -> move || {
-        Some(CanvasView::new(placed.get().min - offset.get(), 1.0))
-    }));
-
-    let pixels_per_frame = state.pixels_per_frame.clone();
-    let duration = state.duration.clone();
-    let content = create_memo(clone!(duration pixels_per_frame lanes placed -> move || {
-        let viewport = placed.get().size().max(Vec2::new(1.0, 1.0));
-        Rect::from_min_size(
-            Pos2::ZERO,
-            Vec2::new(
-                (duration.get() as f32 * pixels_per_frame.get() + TAIL_PADDING).max(viewport.x),
-                (RULER_HEIGHT + lanes.get() as f32 * (LANE_HEIGHT + LANE_GAP)).max(viewport.y),
-            ),
-        )
-    }));
-
-    let scrolled = content.clone();
-    let scroll_placed = placed.clone();
-    let scroll_offset = offset.clone();
-    let on_scroll = move |gesture: ScrollGesture| {
-        let content = scrolled.get_untracked().size();
-        let viewport = scroll_placed.get_untracked().size();
-        let room = (content - viewport).max(Vec2::ZERO);
-        let next = scroll_offset.get_untracked() - gesture.delta;
-        set_offset.set(Vec2::new(
-            next.x.clamp(0.0, room.x),
-            next.y.clamp(0.0, room.y),
-        ));
-    };
-
-    let (pointer, set_pointer) = create_signal(None::<Pos2>);
-    let hover_offset = offset.clone();
-    let hover_pointer = set_pointer.clone();
-    let on_hover = move |press: PointerPress| {
-        hover_pointer.set(Some(press.local + hover_offset.get_untracked()));
-    };
-
-    let targeted = Rc::clone(&state);
-    let target_rows = rows.clone();
-    let target_scale = pixels_per_frame.clone();
-    let target_pointer = pointer.clone();
-    let target_drag = state.drag.clone();
-    let target_offset = offset.clone();
-    let target_placed = placed.clone();
-    let host_drag = state.editor().drag();
-    let content_rect = content.clone();
-    let target = create_memo(clone!(
-        targeted target_rows target_scale target_pointer target_drag host_drag content_rect
-        target_placed target_offset
-        -> move || {
-            let _ = target_rows.get();
-            let video = targeted.video()?;
-            let rows: Vec<ClipRow> = timeline::lane_rows(&video);
-            let content = content_rect.get();
-            let scale = target_scale.get();
-            if let Some(drag) = target_drag.get() {
-                let at = target_pointer.get()?;
-                return timeline::drop_target_at(&video, &rows, content, scale, at, Some(&drag));
-            }
-            let dragged = host_drag.get().filter(|drag| drag.block_id != targeted.block_id())?;
-            let at = dragged.position - target_placed.get_untracked().min.to_vec2()
-                + target_offset.get_untracked();
-            timeline::drop_target_at(&video, &rows, content, scale, at, None)
-        }
-    ));
-
-    let landing = Rc::clone(&state);
-    let landing_target = target.clone();
-    let landing_drag = state.editor().drag();
-    create_effect(move || {
-        let dragged = landing_drag.get();
-        untrack(|| land(&landing, &landing_target, dragged));
-    });
-
-    let dropped = Rc::clone(&state);
-    let dropped_target = target.clone();
-    let on_drop = move |_: (Uuid, DragPoint)| {
-        let Some(drag) = dropped.drag.get_untracked() else {
-            return;
-        };
-        let (Some(video), Some(target)) = (dropped.video(), dropped_target.get_untracked()) else {
-            return;
-        };
-        let mut operations = Vec::new();
-        timeline::apply_clip_drop(&video, drag.clip, target, &mut operations);
-        for operation in operations {
-            dropped.operate(operation);
-        }
-    };
-
-    let drag_offset = offset.clone();
-    let drag_pointer = set_pointer.clone();
-    let on_over = move |over: Option<(Uuid, DragPoint)>| {
-        if let Some((_, point)) = over {
-            drag_pointer.set(Some(point.local + drag_offset.get_untracked()));
-        }
-    };
-
-    let seeking = Rc::clone(&state);
-    let seek_offset = offset.clone();
-    let seek_scale = pixels_per_frame.clone();
-    let on_press = move |press: PointerPress| {
-        let x = press.local.x + seek_offset.get_untracked().x;
-        seeking.seek((x / seek_scale.get_untracked()).max(0.0) as u64);
-        seeking.select(None);
-    };
-
-    let ticks = create_memo(clone!(state content pixels_per_frame -> move || {
-        let rate = state.frame_rate.get();
-        let step = timeline::tick_seconds(rate, pixels_per_frame.get());
-        let per_second = (rate.frames_per_second() * f64::from(pixels_per_frame.get())) as f32;
-        let spacing = (step as f32 * per_second).max(1.0);
-        let count = (content.get().width() / spacing).ceil() as u32;
-        (0..=count)
-            .map(|tick| Tick {
-                index: tick,
-                x: tick as f32 * spacing,
-                seconds: (f64::from(tick) * step) as u64,
-            })
-            .collect::<Vec<Tick>>()
-    }));
-
-    let lane_keys = create_memo(clone!(lanes -> move || (0..lanes.get()).collect::<Vec<usize>>()));
-    let selection = create_selector(clone!(state -> move || state.selected.get()));
-    let rowed_state = Rc::clone(&state);
-    let row_scale = pixels_per_frame.clone();
-    let playhead = state.playhead.clone();
-    let playhead_x = create_memo(clone!(playhead pixels_per_frame -> move || {
-        playhead.get() as f32 * pixels_per_frame.get()
-    }));
-    let playhead_height = create_memo(clone!(content -> move || content.get().height()));
-    let theme = use_theme();
-
     view! {
-        <DropTarget on_over={on_over} on_drop={on_drop}>
-            {move |_: DropHandle| view! {
-                <Interactive
-                    cursor=CursorIcon::Default
-                    on_press={on_press}
-                    on_scroll={on_scroll}
-                    on_hover_move={on_hover}
-                    @test_id={"video.timeline"}
-                >
-                    <Canvas view={camera}>
-                        <ForEach keys={lane_keys}>
-                            {move |lane: usize| {
-                                let content = content.clone();
-                                view! {
-                                    <LaneStrip lane content />
-                                }
-                            }}
-                        </ForEach>
-                        <ForEach keys={ticks}>
-                            {move |tick: Tick| view! {
-                                <RulerTick tick />
-                            }}
-                        </ForEach>
-                        <ForEach keys={rows}>
-                            {move |row: Lane| {
-                                let state = Rc::clone(&rowed_state);
-                                let selected = selection.memo(Some(row.id));
-                                let scale = row_scale.clone();
-                                view! {
-                                    <Clip state row selected scale />
-                                }
-                            }}
-                        </ForEach>
-                        <DropMarker target={target} scale={pixels_per_frame.clone()} />
-                        <CanvasItem x={playhead_x} y=0.0 width=1.5 height={playhead_height}>
-                            <Frame color={theme.accent.clone()} />
-                        </CanvasItem>
-                    </Canvas>
-                </Interactive>
+        <PlacementBuilder>
+            {move |placed: ReadSignal<Rect>| {
+                let fitting = Rc::clone(&state);
+                let fitted = placed.clone();
+                create_effect(move || fitting.fit_timeline(fitted.get().width().max(1.0)));
+
+                let rowed = Rc::clone(&state);
+                let clips = state.clips.clone();
+                let rows = create_memo(clone!(rowed clips -> move || {
+                    let _ = clips.get();
+                    rowed
+                        .video()
+                        .map(|video| {
+                            timeline::lane_rows(&video)
+                                .into_iter()
+                                .map(|row| Lane {
+                                    id: row.timing.id,
+                                    lane: row.lane,
+                                    start: row.timing.start,
+                                    length: row.timing.length,
+                                    depth: row.timing.depth,
+                                })
+                                .collect::<Vec<Lane>>()
+                        })
+                        .unwrap_or_default()
+                }));
+                let lanes = create_memo(clone!(rows -> move || {
+                    rows.get().iter().map(|row| row.lane + 1).max().unwrap_or(1) + 1
+                }));
+
+                let (offset, set_offset) = create_signal(Vec2::ZERO);
+                let camera = create_memo(clone!(offset placed -> move || {
+                    Some(CanvasView::new(placed.get().min - offset.get(), 1.0))
+                }));
+
+                let pixels_per_frame = state.pixels_per_frame.clone();
+                let duration = state.duration.clone();
+                let content = create_memo(clone!(duration pixels_per_frame lanes placed -> move || {
+                    let viewport = placed.get().size().max(Vec2::new(1.0, 1.0));
+                    Rect::from_min_size(
+                        Pos2::ZERO,
+                        Vec2::new(
+                            (duration.get() as f32 * pixels_per_frame.get() + TAIL_PADDING).max(viewport.x),
+                            (RULER_HEIGHT + lanes.get() as f32 * (LANE_HEIGHT + LANE_GAP)).max(viewport.y),
+                        ),
+                    )
+                }));
+
+                let scrolled = content.clone();
+                let scroll_placed = placed.clone();
+                let scroll_offset = offset.clone();
+                let on_scroll = move |gesture: ScrollGesture| {
+                    let content = scrolled.get_untracked().size();
+                    let viewport = scroll_placed.get_untracked().size();
+                    let room = (content - viewport).max(Vec2::ZERO);
+                    let next = scroll_offset.get_untracked() - gesture.delta;
+                    set_offset.set(Vec2::new(
+                        next.x.clamp(0.0, room.x),
+                        next.y.clamp(0.0, room.y),
+                    ));
+                };
+
+                let (pointer, set_pointer) = create_signal(None::<Pos2>);
+                let hover_offset = offset.clone();
+                let hover_pointer = set_pointer.clone();
+                let on_hover = move |press: PointerPress| {
+                    hover_pointer.set(Some(press.local + hover_offset.get_untracked()));
+                };
+
+                let targeted = Rc::clone(&state);
+                let target_rows = rows.clone();
+                let target_scale = pixels_per_frame.clone();
+                let target_pointer = pointer.clone();
+                let target_drag = state.drag.clone();
+                let target_offset = offset.clone();
+                let target_placed = placed.clone();
+                let host_drag = state.editor().drag();
+                let content_rect = content.clone();
+                let target = create_memo(clone!(
+                    targeted target_rows target_scale target_pointer target_drag host_drag content_rect
+                    target_placed target_offset
+                    -> move || {
+                        let _ = target_rows.get();
+                        let video = targeted.video()?;
+                        let rows: Vec<ClipRow> = timeline::lane_rows(&video);
+                        let content = content_rect.get();
+                        let scale = target_scale.get();
+                        if let Some(drag) = target_drag.get() {
+                            let at = target_pointer.get()?;
+                            return timeline::drop_target_at(&video, &rows, content, scale, at, Some(&drag));
+                        }
+                        let dragged = host_drag.get().filter(|drag| drag.block_id != targeted.block_id())?;
+                        let at = dragged.position - target_placed.get_untracked().min.to_vec2()
+                            + target_offset.get_untracked();
+                        timeline::drop_target_at(&video, &rows, content, scale, at, None)
+                    }
+                ));
+
+                let landing = Rc::clone(&state);
+                let landing_target = target.clone();
+                let landing_drag = state.editor().drag();
+                create_effect(move || {
+                    let dragged = landing_drag.get();
+                    untrack(|| land(&landing, &landing_target, dragged));
+                });
+
+                let dropped = Rc::clone(&state);
+                let dropped_target = target.clone();
+                let on_drop = move |_: (Uuid, DragPoint)| {
+                    let Some(drag) = dropped.drag.get_untracked() else {
+                        return;
+                    };
+                    let (Some(video), Some(target)) = (dropped.video(), dropped_target.get_untracked()) else {
+                        return;
+                    };
+                    let mut operations = Vec::new();
+                    timeline::apply_clip_drop(&video, drag.clip, target, &mut operations);
+                    for operation in operations {
+                        dropped.operate(operation);
+                    }
+                };
+
+                let drag_offset = offset.clone();
+                let drag_pointer = set_pointer.clone();
+                let on_over = move |over: Option<(Uuid, DragPoint)>| {
+                    if let Some((_, point)) = over {
+                        drag_pointer.set(Some(point.local + drag_offset.get_untracked()));
+                    }
+                };
+
+                let seeking = Rc::clone(&state);
+                let seek_offset = offset.clone();
+                let seek_scale = pixels_per_frame.clone();
+                let on_press = move |press: PointerPress| {
+                    let x = press.local.x + seek_offset.get_untracked().x;
+                    seeking.seek((x / seek_scale.get_untracked()).max(0.0) as u64);
+                    seeking.select(None);
+                };
+
+                let ticks = create_memo(clone!(state content pixels_per_frame -> move || {
+                    let rate = state.frame_rate.get();
+                    let step = timeline::tick_seconds(rate, pixels_per_frame.get());
+                    let per_second = (rate.frames_per_second() * f64::from(pixels_per_frame.get())) as f32;
+                    let spacing = (step as f32 * per_second).max(1.0);
+                    let count = (content.get().width() / spacing).ceil() as u32;
+                    (0..=count)
+                        .map(|tick| Tick {
+                            index: tick,
+                            x: tick as f32 * spacing,
+                            seconds: (f64::from(tick) * step) as u64,
+                        })
+                        .collect::<Vec<Tick>>()
+                }));
+
+                let lane_keys = create_memo(clone!(lanes -> move || (0..lanes.get()).collect::<Vec<usize>>()));
+                let selection = create_selector(clone!(state -> move || state.selected.get()));
+                let rowed_state = Rc::clone(&state);
+                let row_scale = pixels_per_frame.clone();
+                let playhead = state.playhead.clone();
+                let playhead_x = create_memo(clone!(playhead pixels_per_frame -> move || {
+                    playhead.get() as f32 * pixels_per_frame.get()
+                }));
+                let playhead_height = create_memo(clone!(content -> move || content.get().height()));
+                let theme = use_theme();
+
+                view! {
+                    <DropTarget on_over={on_over} on_drop={on_drop}>
+                        {move |_: DropHandle| view! {
+                            <Interactive
+                                cursor=CursorIcon::Default
+                                on_press={on_press}
+                                on_scroll={on_scroll}
+                                on_hover_move={on_hover}
+                                @test_id={"video.timeline"}
+                            >
+                                <Canvas view={camera}>
+                                    <ForEach keys={lane_keys}>
+                                        {move |lane: usize| {
+                                            let content = content.clone();
+                                            view! {
+                                                <LaneStrip lane content />
+                                            }
+                                        }}
+                                    </ForEach>
+                                    <ForEach keys={ticks}>
+                                        {move |tick: Tick| view! {
+                                            <RulerTick tick />
+                                        }}
+                                    </ForEach>
+                                    <ForEach keys={rows}>
+                                        {move |row: Lane| {
+                                            let state = Rc::clone(&rowed_state);
+                                            let selected = selection.memo(Some(row.id));
+                                            let scale = row_scale.clone();
+                                            view! {
+                                                <Clip state row selected scale />
+                                            }
+                                        }}
+                                    </ForEach>
+                                    <DropMarker target={target} scale={pixels_per_frame.clone()} />
+                                    <CanvasItem
+                                        x={playhead_x}
+                                        y=0.0
+                                        width=1.5
+                                        height={playhead_height}
+                                    >
+                                        <Frame color={theme.accent.clone()} />
+                                    </CanvasItem>
+                                </Canvas>
+                            </Interactive>
+                        }}
+                    </DropTarget>
+                }
             }}
-        </DropTarget>
+        </PlacementBuilder>
     }
 }
 
