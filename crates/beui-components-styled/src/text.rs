@@ -24,9 +24,10 @@ pub fn Code(
     content: Prop<String>,
     #[prop(default = TextAlign::Start)] align: Prop<TextAlign>,
     #[prop(default = text_color())] color: Prop<Color32>,
+    #[prop(default = false)] wrap: Prop<bool>,
 ) -> NodeId {
     view! {
-        <Text string={content} font_size=FONT_SMALL color align monospace=true />
+        <Text string={content} font_size=FONT_SMALL color align wrap monospace=true />
     }
 }
 
@@ -107,9 +108,10 @@ pub fn Heading(
     content: Prop<String>,
     #[prop(default = TextAlign::Start)] align: Prop<TextAlign>,
     #[prop(default = text_color())] color: Prop<Color32>,
+    #[prop(default = false)] wrap: Prop<bool>,
 ) -> NodeId {
     view! {
-        <Line content font_size=FONT_HEADING color align />
+        <Line content font_size=FONT_HEADING color align wrap />
     }
 }
 

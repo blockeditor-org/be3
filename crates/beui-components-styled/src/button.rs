@@ -6,7 +6,7 @@ use crate::focus_ring::FocusRing;
 use crate::text::Icon;
 use crate::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
-use beui_core::base::TextAlign;
+use beui_core::base::{ItemSize, TextAlign};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Action, Align, ClickCallback, Direction, Frame, List, Prop, Show, Text, clone, create_memo,
@@ -128,10 +128,12 @@ pub fn ButtonFace(
                         <Icon glyph={glyph.clone()} color={icon_color.clone()} />
                     </Show>
                     <Text
+                        @sizing={ItemSize::Intrinsic.shrink(1.0)}
                         string={shown_label}
                         font_size=FONT_BODY
                         color={label_color}
                         align=TextAlign::Center
+                        ellipsis=true
                     />
                     <Show condition={has_trailing}>
                         <Icon glyph={trailing.clone()} color={trailing_color.clone()} />

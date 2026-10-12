@@ -159,7 +159,7 @@ fn CellEditor(data: Data) -> NodeId {
     view! {
         <Frame height=CELL_EDITOR_HEIGHT>
             <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
-                <Frame @sizing=ItemSize::Fixed(CELL_LABEL_WIDTH)>
+                <Frame @sizing={ItemSize::Intrinsic.min(CELL_LABEL_WIDTH)}>
                     <Body @test_id={"database-view.cell-editor.cell"} content={label} />
                 </Frame>
                 <Show condition={chosen}>

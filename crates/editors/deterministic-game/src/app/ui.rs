@@ -444,6 +444,7 @@ fn Sidebar(panel: Panel) -> NodeId {
                                 selected={playing}
                                 label="Playing as"
                                 @test_id={"game.player"}
+                                @sizing={ItemSize::Intrinsic.shrink(1.0)}
                                 on_change={seated}
                             />
                         </List>

@@ -116,7 +116,7 @@ fn SelectTrigger(handle: SelectTriggerHandle, placeholder: Memo<String>) -> Node
                     font_size=FONT_BODY
                     color={text_color}
                     align=TextAlign::Start
-                    clip=true
+                    ellipsis=true
                 />
             </Frame>
         </Frame>

@@ -60,6 +60,10 @@ const CLIPPED: u8 = 1;
 const UNCLIPPED: u8 = 2;
 
 impl CanvasNode {
+    pub fn pans(&self) -> bool {
+        self.view.is_some()
+    }
+
     fn shift(&self, doc: &Document, painter: &Painter) -> Vec2 {
         match self.view {
             Some(view) => doc

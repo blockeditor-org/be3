@@ -365,6 +365,7 @@ fn Cell(
                             content={text}
                             align={align}
                             color={theme.text.clone()}
+                            ellipsis=true
                         />
                     </List>
                 </Frame>

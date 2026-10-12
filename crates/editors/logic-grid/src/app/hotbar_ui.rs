@@ -5,7 +5,7 @@ use beui::reactive::{
     ReadSignal, Show, Spacer, Text, clone, component, create_memo, create_signal, view,
 };
 use beui::styled::{
-    Body, Button, ButtonVariant, Caption, ContextMenu, Dialog, IconButton, MenuButton, Tabs,
+    Body, Button, ButtonVariant, Caption, ContextMenu, Dialog, IconButton, MenuButton, Select,
     TextInput, Tooltip, use_theme,
 };
 use beui::unstyled::Picture;
@@ -452,7 +452,7 @@ fn SlotFace(shown: Memo<Option<SlotView>>, hovered: ReadSignal<bool>) -> NodeId 
                         color={text}
                         align=TextAlign::Center
                         vertical_align=TextAlign::Center
-                        clip=true
+                        ellipsis=true
                     />
                 </CanvasItem>
                 <CanvasItem x=SLOT_INSET y=SLOT_INSET width=BADGE_SIZE height=BADGE_SIZE>
@@ -574,11 +574,18 @@ fn ScalePicker(session: Rc<Session>, output: bool) -> NodeId {
             SCALES
                 .iter()
                 .position(|value| i64::from(*value) == scale.get())
-                .unwrap_or_default()
         })
     }));
-    let chose = move |index: usize| {
-        let Some(scale) = SCALES.get(index).and_then(|value| Scale::new(*value).ok()) else {
+    let label = match output {
+        true => "Output scale",
+        false => "Scale",
+    }
+    .to_owned();
+    let chose = move |index: Option<usize>| {
+        let Some(scale) = index
+            .and_then(|index| SCALES.get(index))
+            .and_then(|value| Scale::new(*value).ok())
+        else {
             return;
         };
         session.update(|model| match output {
@@ -587,7 +594,8 @@ fn ScalePicker(session: Rc<Session>, output: bool) -> NodeId {
         });
     };
     view! {
-        <Tabs
+        <Select
+            label
             options={view! {
                 <ForEach keys={SCALES.to_vec()}>
                     {move |value: u8| view! {
