@@ -6,7 +6,7 @@ fn refuses_to_draw_without_a_surface() {
     session.receive(Message::HelloAccepted(HelloAccepted {
         host_name: "test host".into(),
         surface: None,
-        theme: Theme { dark: true },
+        theme: Theme::Dark,
     }));
     assert_eq!(session.state(), State::Running);
     assert_eq!(session.surface(), None);

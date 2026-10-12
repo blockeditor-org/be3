@@ -10,7 +10,7 @@ fn accept(session: &mut ClientSession) {
         surface: Some(SurfaceSpec {
             format: SurfaceFormat::Rgba8Unorm,
         }),
-        theme: Theme { dark: true },
+        theme: Theme::Dark,
     }));
 }
 

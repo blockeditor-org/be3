@@ -1873,8 +1873,12 @@ pub struct HelloAccepted {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Theme {
-    pub dark: bool,
+pub enum Theme {
+    #[default]
+    Dark,
+    OledDark,
+    Light,
+    EInk,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

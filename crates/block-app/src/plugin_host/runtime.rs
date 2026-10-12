@@ -1438,7 +1438,7 @@ fn session() -> HostSession {
 }
 
 fn theme() -> Theme {
-    Theme { dark: host::dark() }
+    host::theme()
 }
 
 thread_local! {

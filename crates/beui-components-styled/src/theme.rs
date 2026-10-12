@@ -8,8 +8,17 @@ use beui_view::reactive::{
     with_document, with_reactive_scope,
 };
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ThemeKind {
+    Dark,
+    OledDark,
+    Light,
+    EInk,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Store)]
 pub struct Theme {
+    pub kind: ThemeKind,
     pub background: Color32,
     pub surface: Color32,
     pub surface_raised: Color32,
@@ -44,6 +53,7 @@ impl Theme {
     ];
 
     pub const DARK: Theme = Theme {
+        kind: ThemeKind::Dark,
         background: Color32::from_rgb(14, 17, 23),
         surface: Color32::from_rgb(22, 26, 34),
         surface_raised: Color32::from_rgb(31, 37, 48),
@@ -70,6 +80,7 @@ impl Theme {
     };
 
     pub const OLED: Theme = Theme {
+        kind: ThemeKind::OledDark,
         background: Color32::BLACK,
         surface: Color32::BLACK,
         surface_raised: Color32::from_rgb(18, 20, 24),
@@ -96,6 +107,7 @@ impl Theme {
     };
 
     pub const LIGHT: Theme = Theme {
+        kind: ThemeKind::Light,
         background: Color32::from_rgb(243, 245, 248),
         surface: Color32::WHITE,
         surface_raised: Color32::from_rgb(234, 237, 242),
@@ -122,6 +134,7 @@ impl Theme {
     };
 
     pub const EINK: Theme = Theme {
+        kind: ThemeKind::EInk,
         background: Color32::WHITE,
         surface: Color32::WHITE,
         surface_raised: Color32::WHITE,
