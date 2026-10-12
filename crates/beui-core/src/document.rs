@@ -21,7 +21,7 @@ use crate::interact;
 use crate::layout;
 use crate::node::{ANCESTOR_LIMIT, Arena, NodeId, NodeMap, NodeOf, Placed, Rects, SpaceId};
 use crate::paint::{self, PaintCache};
-use crate::painter::{Entry, Painter, PainterState, Shape};
+use crate::painter::{Local, Painter, PainterState, Shape};
 use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
 use crate::pixel_grid::PixelGrid;
 use crate::screen_simulation::{self, Placement};
@@ -127,7 +127,7 @@ pub struct Document {
     pub(crate) reveals: NodeMap<NodeId>,
     viewport: Option<(Context, Rect, f32)>,
     fonts_generation: u64,
-    painting: Vec<(Rc<Display>, Entry)>,
+    painting: Vec<(Rc<Display>, Vec2)>,
     pub paint_cache: RefCell<PaintCache>,
     pub verifies_paint: bool,
     pub copied_text: Option<String>,
@@ -1115,10 +1115,15 @@ impl Document {
             let previous = verifying.then(|| flatten(&self.painting));
             FrameMeasurement::measure(&mut measurement.timings.paint, || self.paint(ctx));
             self.paint_revision = self.arena.revision;
-            let moves = self.paint_cache.get_mut().take_moves();
+            let cache = self.paint_cache.get_mut();
+            let moves = cache.take_moves();
+            let stale = cache.take_stale();
             let everything = self.damage.is_everything();
             let region = self.damage.take(rect);
-            let (region, moved) = self.settle_moves(moves, region, rect);
+            let (region, moved) = match everything {
+                true => (region, None),
+                false => self.settle_moves(moves, stale, region, rect),
+            };
             if let Some(previous) = previous {
                 self.verify_paint(ctx, rect, &previous, &region, moved, everything);
             }
@@ -1188,6 +1193,7 @@ impl Document {
     fn settle_moves(
         &self,
         moves: Vec<paint::Move>,
+        stale: Vec<paint::Stale>,
         region: Region,
         viewport: Rect,
     ) -> (Region, Option<Moved>) {
@@ -1198,6 +1204,10 @@ impl Document {
         let Some(largest) = (0..moves.len())
             .max_by(|a, b| shown_area(&moves[*a]).total_cmp(&shown_area(&moves[*b])))
         else {
+            let mut region = region;
+            for stale in &stale {
+                region.add(stale.rect.intersect(viewport));
+            }
             return (region, None);
         };
         let mut region = region;
@@ -1208,24 +1218,27 @@ impl Document {
         }
         let only = &moves[largest];
         let visible = only.viewport.intersect(viewport);
-        let rooted = self.paint_cache.borrow().rooted();
-        let (fixed, inner) =
-            paint::fixed_damage(&rooted, only.node, &only.moving, visible, only.by);
+        let (fixed, inner) = paint::fixed_damage(&self.painting, only.space, visible, only.by);
         let shown = visible.intersect(inner);
         let landed = shown.intersect(shown.translate(only.by));
-        let damaged = region
-            .rects()
-            .iter()
-            .filter(|rect| {
-                !only
-                    .absorbed
-                    .iter()
-                    .any(|absorbed| absorbed.contains_rect(**rect))
-            })
-            .flat_map(|rect| [*rect, rect.translate(only.by).intersect(landed)])
-            .chain(only.damaged.clipped(viewport).rects().iter().copied())
-            .chain(fixed.rects().iter().copied())
-            .collect::<Vec<Rect>>();
+        let source = landed.translate(-only.by);
+        let cache = self.paint_cache.borrow();
+        let mut damaged: Vec<Rect> = region.rects().to_vec();
+        for stale in &stale {
+            let moved = stale.rect.intersect(source).translate(only.by);
+            match (
+                cache.scrolls_within(stale.scroll, only.space),
+                stale.settled,
+            ) {
+                (true, true) => damaged.push(stale.rect),
+                (true, false) => {
+                    damaged.extend(paint::uncovered(stale.rect, source));
+                    damaged.push(moved);
+                }
+                (false, _) => damaged.extend([stale.rect, moved]),
+            }
+        }
+        damaged.extend(fixed.rects().iter().copied());
         let mut settled = Region::NOTHING;
         for rect in paint::uncovered(visible, shown)
             .into_iter()
@@ -1249,7 +1262,7 @@ impl Document {
             return (settled, None);
         }
         let moved = Moved {
-            from: landed.translate(-only.by),
+            from: source,
             by: only.by,
         };
         (settled, Some(moved))
@@ -1272,26 +1285,32 @@ impl Document {
         let painting = std::mem::take(&mut self.painting);
         let damage = std::mem::take(&mut self.damage);
         self.paint(ctx);
-        let fresh = flatten(&std::mem::replace(&mut self.painting, painting));
+        let fresh = std::mem::replace(&mut self.painting, painting);
         self.paint_cache.replace(retained);
         self.damage = damage;
         self.work.painted_nodes.set(counted.0);
         self.work.replayed_nodes.set(counted.1);
         let shapes = flatten(&self.painting);
-        let differs = fresh
-            .iter()
-            .zip(&shapes)
-            .position(|(fresh, retained)| !paint::same_shape(fresh, retained));
         assert!(
-            fresh.len() == shapes.len() && differs.is_none(),
-            "the retained painting differs from painting from scratch: {} shapes against {}, first at {differs:?}: {:?} against {:?}",
-            fresh.len(),
-            shapes.len(),
-            differs.map(|at| crate::damage::bounds(&fresh[at])),
-            differs.map(|at| crate::damage::bounds(&shapes[at])),
+            fresh.len() == self.painting.len()
+                && fresh
+                    .iter()
+                    .zip(&self.painting)
+                    .all(|((fresh, at), (retained, held))| at == held && fresh.same_tree(retained)),
+            "the retained painting differs from painting from scratch: {:?} against {:?}",
+            flatten(&fresh)
+                .iter()
+                .zip(&shapes)
+                .position(|(fresh, retained)| !fresh.same_look(retained))
+                .map(|at| crate::damage::bounds(&shapes[at])),
+            fresh
+                .iter()
+                .map(|(display, at)| display.bounds.translate(*at))
+                .collect::<Vec<_>>(),
         );
-        let kept =
-            |old: &Shape, new: &Shape| old == new || paint::redrawn_in_place(old, new).is_some();
+        let kept = |old: &Shape, new: &Shape| {
+            old.same_look(new) || paint::redrawn_in_place(old, new).is_some()
+        };
         let prefix = previous
             .iter()
             .zip(&shapes)
@@ -1568,10 +1587,9 @@ impl Document {
             return;
         }
         self.painters.remove(&id);
-        let bounds = self.paint_cache.borrow().absolute_bounds(id);
         if out.remove(&id).is_some() {
             self.accessibility_tree.get_mut().mark(id, &self.arena);
-            self.damage.add(bounds);
+            self.paint_cache.get_mut().unplace(id);
         }
         dropped.push(id);
         for child in self.placed_children.remove(&id).unwrap_or_default() {
@@ -1794,7 +1812,7 @@ impl Document {
         out: &Rects,
     ) -> Painter {
         let space = SpaceId::inside(host, slot);
-        let entered = painter.shifted(Some(space), translation, clip);
+        let entered = painter.shifted(space, translation, clip);
         let state = painter.state();
         let kept = state.clip.intersect(clip);
         if out.set_space(space, state.space, translation, kept) {
@@ -2049,14 +2067,12 @@ fn same_fill(left: &Shape, right: &Shape) -> bool {
     )
 }
 
-fn flatten(painting: &[(Rc<Display>, Entry)]) -> Vec<Shape> {
-    let mut main = Vec::new();
-    let mut top = Vec::new();
-    for (display, entry) in painting {
-        display.flatten(*entry, &mut main, &mut top);
-        main.append(&mut top);
+fn flatten(painting: &[(Rc<Display>, Vec2)]) -> Vec<Shape> {
+    let mut shapes = Vec::new();
+    for (display, at) in painting {
+        display.flatten(*at, &mut shapes);
     }
-    main
+    shapes
 }
 
 const OVER_REPAINT_FACTOR: f32 = 4.0;
@@ -2115,7 +2131,7 @@ impl Document {
             let state = PainterState {
                 origin: rects.offset(held.given.space),
                 space_clip: rects.space_clip(held.given.space),
-                list: Entry::NONE,
+                local: Local::NONE,
                 ..held.given
             };
             let painter = Painter::resumed(ctx.clone(), state);

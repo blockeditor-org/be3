@@ -15,7 +15,7 @@ fn a_stroked_rect_is_a_border_and_a_filled_one_a_background() {
         clip: Rect::EVERYTHING,
     };
     let filled = rect(0.0);
-    let Some(style::Look::Box(css)) = style::look(&filled, 2.0, false, None) else {
+    let Some(style::Look::Box(css)) = style::look(&filled, 2.0, None) else {
         panic!("a rect is a box");
     };
     assert_eq!(
@@ -24,7 +24,7 @@ fn a_stroked_rect_is_a_border_and_a_filled_one_a_background() {
     );
 
     let stroked = rect(1.0);
-    let Some(style::Look::Box(css)) = style::look(&stroked, 2.0, false, None) else {
+    let Some(style::Look::Box(css)) = style::look(&stroked, 2.0, None) else {
         panic!("a rect is a box");
     };
     assert!(

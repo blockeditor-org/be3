@@ -12,6 +12,7 @@ mod a_drawing_repaints_only_within_each_damaged_region;
 mod a_faded_scroll_fades_its_content_toward_each_edge_with_more_beyond_it;
 mod a_fill_with_fractional_bounds_lands_on_whole_pixels;
 mod a_filled_rectangle_covers_its_bounds;
+mod a_filter_applied_inside_a_clip_filters_only_what_the_clip_holds;
 mod a_filter_leaves_the_painting_outside_its_region_alone;
 mod a_frame_paints_its_outline_over_its_fill;
 mod a_gpu_lost_mid_frame_is_reopened_and_paints_again;
@@ -35,6 +36,7 @@ mod rotated_text_lands_where_the_upright_run_was_turned_to;
 mod text_at_a_fractional_origin_lands_on_whole_pixels;
 mod text_paints_glyphs_over_the_background;
 mod turning_a_filter_off_repaints_the_frame_it_had_blurred;
+mod two_filters_each_change_the_region_they_cover;
 
 use std::cell::RefCell;
 

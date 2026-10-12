@@ -41,7 +41,7 @@ pub(crate) struct Surface {
     pub(crate) age: u32,
     pub(crate) laid: Rect,
     pub(crate) screens: Vec<Screen>,
-    look: Option<(Option<Filter>, f32, Rect)>,
+    look: Option<(Vec<Filter>, f32, Rect)>,
     pending: Option<Damage>,
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     history: VecDeque<Option<Damage>>,
@@ -91,8 +91,8 @@ impl Default for Surface {
 
 impl Surface {
     fn note(&mut self, output: &FrameOutput, scale: f32) {
-        let look = (output.filter(), scale, self.laid);
-        let moved = self.look != Some(look);
+        let look = (output.filters(), scale, self.laid);
+        let moved = self.look.as_ref() != Some(&look);
         self.look = Some(look);
         let damage = match output.damaged() {
             _ if moved => Damage::Everything,

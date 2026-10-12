@@ -8,14 +8,17 @@ fn the_simulate_tab_filters_the_document_without_the_screen_reader() {
     harness.click(harness.simulation_tab_center());
     harness.frame(Vec::new());
 
-    assert!(harness.frame(Vec::new()).filter().is_none());
+    assert!(harness.frame(Vec::new()).filters().is_empty());
 
     harness.drag_simulation_slider("blur", 1.0);
     harness.drag_simulation_slider("contrast", 0.5);
     harness.click(harness.color_vision_option_center(1));
     let output = harness.frame(Vec::new());
 
-    let filter = output.filter().expect("the simulate tab set no filter");
+    let filters = output.filters();
+    let [filter] = filters.as_slice() else {
+        panic!("the simulate tab set {} filters", filters.len());
+    };
     assert!(filter.blur > 0.0, "the blur slider read {}", filter.blur);
     assert!(
         filter.contrast < 1.0 && filter.contrast > 0.0,

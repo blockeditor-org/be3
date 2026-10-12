@@ -1,10 +1,12 @@
 use std::fmt::Write as _;
 
 use beui_core::color::Color32;
+use beui_core::display::Group;
 use beui_core::fade::Fade;
 use beui_core::font::Galley;
+use beui_core::geometry::Vec2;
 use beui_core::geometry::{Pos2, Rect, Rotation, vec2};
-use beui_core::painter::{Entry, Shape};
+use beui_core::painter::Shape;
 use beui_font_browser::css_font;
 
 const REACH: f64 = 1_000_000.0;
@@ -21,8 +23,8 @@ pub struct Line {
     pub css: String,
 }
 
-pub fn look(shape: &Shape, factor: f32, top: bool, image: Option<&str>) -> Option<Look> {
-    let mut look = match shape {
+pub fn look(shape: &Shape, factor: f32, image: Option<&str>) -> Option<Look> {
+    let look = match shape {
         Shape::Rect {
             rect,
             corner_radius,
@@ -127,11 +129,6 @@ pub fn look(shape: &Shape, factor: f32, top: bool, image: Option<&str>) -> Optio
         }
         Shape::Punch { .. } | Shape::Drawing { .. } => return None,
     };
-    if top {
-        match &mut look {
-            Look::Box(css) | Look::Text { css, .. } => css.push_str("z-index:1;"),
-        }
-    }
     Some(look)
 }
 
@@ -211,19 +208,57 @@ fn placed(rect: Rect, clip: Rect, rotation: Rotation) -> Option<String> {
     Some(css)
 }
 
-pub fn placement(entry: Entry, factor: f32) -> (String, String) {
-    let x = span(entry.clip.min.x, entry.clip.max.x, factor);
-    let y = span(entry.clip.min.y, entry.clip.max.y, factor);
-    let content = format!(
+pub fn placement(at: Vec2, factor: f32) -> String {
+    format!(
         "left:{}px;top:{}px;",
-        f64::from(snap(entry.translation.x, factor)) - x.map_or(0.0, |(min, _)| min),
-        f64::from(snap(entry.translation.y, factor)) - y.map_or(0.0, |(min, _)| min),
-    );
-    let mut frame = clipped(x, y);
-    if let (Some(x), Some(y)) = (x, y) {
-        frame.push_str(&masked(entry.fade, (x.0, y.0)));
+        snap(at.x, factor),
+        snap(at.y, factor)
+    )
+}
+
+pub fn group(group: Group, factor: f32) -> (String, String) {
+    let shown = |rect: Rect| {
+        (
+            span(rect.min.x, rect.max.x, factor),
+            span(rect.min.y, rect.max.y, factor),
+        )
+    };
+    let within = |x: Option<(f64, f64)>, y: Option<(f64, f64)>, by: Vec2| {
+        format!(
+            "left:{}px;top:{}px;",
+            f64::from(snap(by.x, factor)) - x.map_or(0.0, |(min, _)| min),
+            f64::from(snap(by.y, factor)) - y.map_or(0.0, |(min, _)| min),
+        )
+    };
+    match group {
+        Group::Clip(clip) => {
+            let (x, y) = shown(clip);
+            (clipped(x, y), within(x, y, Vec2::ZERO))
+        }
+        Group::Scroll {
+            viewport, offset, ..
+        } => {
+            let (x, y) = shown(viewport);
+            (clipped(x, y), within(x, y, offset))
+        }
+        Group::Mask(fade) => {
+            let (x, y) = shown(fade.rect);
+            let mut outer = clipped(x, y);
+            outer.push_str(&masked(
+                fade,
+                (x.map_or(0.0, |(min, _)| min), y.map_or(0.0, |(min, _)| min)),
+            ));
+            (outer, within(x, y, Vec2::ZERO))
+        }
+        Group::Transform { offset, scale } => {
+            let mut inner = within(None, None, offset);
+            if scale != 1.0 {
+                let _ = write!(inner, "transform:scale({scale});");
+            }
+            (String::new(), inner)
+        }
+        Group::Filter(_) => (String::new(), String::new()),
     }
-    (frame, content)
 }
 
 fn masked(fade: Fade, origin: (f64, f64)) -> String {
@@ -265,20 +300,6 @@ fn masked(fade: Fade, origin: (f64, f64)) -> String {
         css.push_str("mask-composite:intersect;-webkit-mask-composite:source-in;");
     }
     css
-}
-
-pub fn layer(clip: Rect, scale: f32, factor: f32) -> (String, String) {
-    let x = span(clip.min.x, clip.max.x, factor);
-    let y = span(clip.min.y, clip.max.y, factor);
-    let mut scaled = format!(
-        "left:{}px;top:{}px;",
-        -x.map_or(0.0, |(min, _)| min),
-        -y.map_or(0.0, |(min, _)| min),
-    );
-    if scale != 1.0 {
-        let _ = write!(scaled, "transform:scale({scale});");
-    }
-    (clipped(x, y), scaled)
 }
 
 fn clipped(x: Option<(f64, f64)>, y: Option<(f64, f64)>) -> String {
