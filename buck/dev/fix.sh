@@ -10,10 +10,11 @@
 # could not run, is not this checkout's fix.
 #
 # rust fixes one crate's Rust files: clippy's machine-applicable suggestions
-# from each CLIPPY_JSON, then fix-rust-source, then rustfmt. The findings clippy
-# had no fix for go in OUT/findings, a file each, named by their text, so that
-# the same finding reported by two crates is one file once both are copied
-# together. starlark formats the BUCK and .bzl files with starlark_fmt.
+# from each CLIPPY_JSON, none if the crate failed to compile (a view! that does
+# not parse leaves its imports looking unused), then fix-rust-source, then
+# rustfmt. The findings clippy had no fix for go in OUT/findings, a file each,
+# named by their text, so that the same finding reported by two crates is one
+# file once both are copied together. starlark formats the BUCK and .bzl files with starlark_fmt.
 #
 # Usage:
 #   fix.sh rust OUT SOURCES BUCK_TOOLS FIX_RUST_SOURCE RUSTFMT_SYSROOT [CLIPPY_JSON]...

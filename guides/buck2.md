@@ -314,7 +314,9 @@ extension ships: the toolchain's panics on this workspace.
   on Linux, macOS and Git Bash on Windows and builds once: `verify`, `deploy`
   (`./scripts/deploy`) and `fuzz` (a fuzz target's runner). The autofixes are actions (`buck/dev/fix.sh`), one
   a crate: clippy's machine-applicable suggestions from every target's
-  `[clippy.json]`, then fix-rust-source, then rustfmt, on a copy of the
+  `[clippy.json]` (none if the crate failed to compile, since a `view!` that
+  does not parse leaves its imports looking unused), then fix-rust-source,
+  then rustfmt, on a copy of the
   crate's sources, output as the files that changed. A fix that makes another
   possible shows up on the next run.
 - **Clippy** reads every target's `[clippy.json]` in the configurations
