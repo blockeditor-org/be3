@@ -37,7 +37,7 @@ mod selected_row_string_edit_updates_the_database;
 mod switching_to_kanban_stores_the_kind;
 mod the_scatter_plot_places_and_selects_a_point_for_each_row;
 mod typing_a_prefix_puts_it_in_front_of_every_row_id;
-mod typing_in_the_new_item_box_adds_a_row_with_that_title;
+mod new_starts_a_row_and_typing_names_it;
 mod value_picker_filter_is_exact_and_never_includes_templates;
 
 struct Fixture {
@@ -129,5 +129,6 @@ fn field(field_type: DatabaseFieldType) -> DatabaseField {
         number_options: Default::default(),
         block_options: Default::default(),
         relation_options: Default::default(),
+        default_option: None,
     }
 }

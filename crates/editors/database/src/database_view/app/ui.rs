@@ -8,14 +8,14 @@ use block_editor_beui::beui::styled::{Body, use_theme};
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::block_ui::database::{DatabaseBlockPickRequest, DatabaseValueChange};
 use block_editor_beui::database::DatabaseValueEditor;
-use block_editor_beui::{Editor, Sidebar, Toolbar};
+use block_editor_beui::{Editor, Toolbar};
 use uuid::Uuid;
 
 use crate::database_view::app::data::{Data, ViewData};
+use crate::database_view::app::header::ViewHeader;
 use crate::database_view::app::kanban::Kanban;
-use crate::database_view::app::list::ListView;
+use crate::database_view::app::list::{ListView, RowBeside};
 use crate::database_view::app::scatter::Scatter;
-use crate::database_view::app::sidebar::ViewSidebar;
 use crate::database_view::app::spreadsheet::Spreadsheet;
 use crate::database_view::sort::{ROW_HEADER_WIDTH, ROW_HEIGHT, column_name, column_width};
 
@@ -40,9 +40,10 @@ pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
     }));
     let chrome = editor.chrome_shown();
     let toolbar_chrome = chrome.clone();
+    let header_shown = create_memo(clone!(chrome -> move || chrome.get()));
     let content = NodeRef::new();
     editor.content(&content);
-    let (bar, body, panel) = (data.clone(), data.clone(), data);
+    let (bar, body, header) = (data.clone(), data.clone(), data);
     let theme = use_theme();
     view! {
         <Frame color={theme.background.clone()}>
@@ -54,14 +55,12 @@ pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
                         </Toolbar>
                     })}
                 </Show>
-                <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
-                    <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
-                        <Content data={body} />
-                    </Frame>
-                    <Sidebar shown={chrome}>
-                        <ViewSidebar data={panel} />
-                    </Sidebar>
-                </List>
+                <Show condition={header_shown}>
+                    {move || clone!(header -> view! { <ViewHeader data={header} /> })}
+                </Show>
+                <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
+                    <Content data={body} panels=true />
+                </Frame>
             </List>
         </Frame>
     }
@@ -73,15 +72,17 @@ pub fn DatabaseViewPreview(editor: Editor) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame color={theme.background.clone()}>
-            <Content data={data} />
+            <Content data={data} panels=false />
         </Frame>
     }
 }
 
 #[component]
-fn Content(data: Data) -> NodeId {
+fn Content(data: Data, panels: bool) -> NodeId {
     let kind = data.kind.clone();
+    let beside = data.clone();
     view! {
+        <RowBeside data={beside} enabled={panels}>
         <List spacing=0.0>
             <Dynamic value={kind}>
                 {move |kind: DatabaseViewKind| {
@@ -103,6 +104,7 @@ fn Content(data: Data) -> NodeId {
                 }}
             </Dynamic>
         </List>
+        </RowBeside>
     }
 }
 

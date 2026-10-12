@@ -13,7 +13,7 @@ fn cards_sit_in_the_kanban_column_their_status_names() {
     fixture.set(0, name, DatabaseValue::String("Write it".into()));
     fixture.set(1, status, DatabaseValue::Enum(done));
     fixture.set(1, name, DatabaseValue::String("Ship it".into()));
-    fixture.edit_view(DatabaseView::set_kanban_field(Some(status)));
+    fixture.edit_view(DatabaseView::set_group_by(Some(status)));
     fixture.edit_view(DatabaseView::set_kind(DatabaseViewKind::Kanban));
     fixture.settle();
 
@@ -28,7 +28,7 @@ fn cards_sit_in_the_kanban_column_their_status_names() {
     fixture.harness.click("database-view.card.1");
     fixture.settle();
 
-    assert!(fixture.harness.shown("database-view.deselect"));
+    assert!(fixture.harness.shown("database-view.detail.close"));
     fixture
         .harness
         .snapshot("cards_sit_in_the_kanban_column_their_status_names");

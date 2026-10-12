@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::database::DatabaseValue;
-use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
+use block_editor_beui::be_block::database_schema::DatabaseField;
 use block_editor_beui::beui::icons::ICON_ADD;
 use block_editor_beui::beui::reactive::{
     Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, clone, component, create_memo,
@@ -257,22 +257,10 @@ fn CardLines(data: Data, status: Memo<Option<Uuid>>, row: usize) -> NodeId {
 
 pub fn status_field(data: &Data) -> Memo<Option<DatabaseField>> {
     let fields = data.fields.clone();
-    let chosen = data.kanban_field.clone();
+    let chosen = data.group_by.clone();
     create_memo(move || {
         let chosen = chosen.get()?;
         fields.with(|fields| fields.iter().find(|field| field.id == chosen).cloned())
     })
 }
 
-pub fn enum_fields(data: &Data) -> Memo<Vec<DatabaseField>> {
-    let fields = data.fields.clone();
-    create_memo(move || {
-        fields.with(|fields| {
-            fields
-                .iter()
-                .filter(|field| field.field_type == DatabaseFieldType::Enum)
-                .cloned()
-                .collect()
-        })
-    })
-}

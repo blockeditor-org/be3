@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn typing_in_the_new_item_box_adds_a_row_with_that_title() {
+fn new_starts_a_row_and_typing_names_it() {
     let mut fixture = editor(&[
         ("Title", DatabaseFieldType::String),
         ("Status", DatabaseFieldType::Enum),
@@ -10,8 +10,8 @@ fn typing_in_the_new_item_box_adds_a_row_with_that_title() {
     fixture.edit_view(DatabaseView::set_kind(DatabaseViewKind::List));
     fixture.settle();
 
-    fixture.harness.click("database-view.list.new");
-    fixture.run();
+    fixture.harness.click("database-view.new");
+    fixture.settle();
     fixture.harness.text("Fix the login");
     fixture.run();
     fixture.harness.key_press(Key::Enter);
