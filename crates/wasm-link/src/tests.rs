@@ -33,6 +33,7 @@ const MAP: &str = "    Addr      Off     Size Out     In      Symbol
 
 mod a_plugin_link_has_the_sdk_thread_locals_first;
 mod a_plugin_link_leaves_out_what_the_sdk_links;
+mod a_plugin_thread_local_among_the_sdks_is_refused;
 mod a_response_file_is_split_as_lld_splits_it;
 mod an_import_the_sdk_does_not_export_is_reported;
 mod an_sdk_link_takes_every_rust_object_whole;

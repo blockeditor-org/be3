@@ -24,7 +24,11 @@ const START_ARGUMENT_TLS = 4;
 export function sdkIdentity(module) {
     for (const { name } of WebAssembly.Module.exports(module)) {
         if (name.startsWith(SDK_EXPORT_PREFIX)) {
-            return name.slice(SDK_EXPORT_PREFIX.length);
+            const identity = name.slice(SDK_EXPORT_PREFIX.length);
+            if (!/^[0-9a-f]{64}$/.test(identity)) {
+                throw new Error(`the plugin names ${identity} as its plugin SDK, which is not a SHA-256`);
+            }
+            return identity;
         }
     }
     return null;

@@ -515,18 +515,27 @@ pub fn check_thread_locals(
         .iter()
         .map(|local| local.name.as_str())
         .collect();
-    let needed = thread_locals
+    let own: Vec<&map::Placed> = thread_locals
         .symbols
         .iter()
         .filter(|symbol| !mirrored.contains(symbol.name.as_str()))
-        .map(|symbol| symbol.offset + symbol.size)
+        .collect();
+    if let Some(low) = own.iter().find(|symbol| symbol.offset < start) {
+        return Err(format!(
+            "the plugin's thread-local {} was laid out among the SDK's",
+            low.name
+        ));
+    }
+    let needed = own
+        .iter()
+        .map(|symbol| u64::from(symbol.offset) + u64::from(symbol.size))
         .max()
-        .unwrap_or(start);
-    if needed > start + size {
+        .unwrap_or(u64::from(start));
+    if needed > u64::from(start) + u64::from(size) {
         return Err(format!(
             "the plugin's thread-locals take {} bytes, more than the {size} the SDK reserves \
              for them (PLUGIN_TLS_SIZE in crates/wasm-link)",
-            needed - start
+            needed - u64::from(start)
         ));
     }
     Ok(())

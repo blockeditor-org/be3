@@ -20,6 +20,7 @@ const GOT_MEMORY: &str = "GOT.mem";
 const GOT_FUNCTION: &str = "GOT.func";
 const START_ARGUMENT_TLS: u32 = 4;
 const MAX_ALIGN_LOG2: u32 = 16;
+const IDENTITY_LENGTH: usize = 64;
 
 #[derive(Clone)]
 pub(crate) enum Program {
@@ -43,11 +44,19 @@ impl Program {
     }
 }
 
-pub fn sdk_identity(module: &Module) -> Option<String> {
+pub fn sdk_identity(module: &Module) -> Option<Result<String, String>> {
     module
         .exports()
         .find_map(|export| export.name().strip_prefix(SDK_EXPORT_PREFIX))
-        .map(str::to_owned)
+        .map(|identity| {
+            let valid = identity.len() == IDENTITY_LENGTH
+                && identity
+                    .bytes()
+                    .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte));
+            valid.then(|| identity.to_owned()).ok_or_else(|| {
+                format!("the plugin names {identity:?} as its plugin SDK, which is not a SHA-256")
+            })
+        })
 }
 
 pub fn sdk_file_name(identity: &str) -> String {
@@ -124,8 +133,8 @@ fn table<T>(sdk: &Instance, store: &mut Store<T>) -> Result<Table, String> {
         .ok_or_else(|| format!("the plugin SDK does not export {TABLE}"))
 }
 
-fn aligned(value: u32, align_log2: u32) -> u32 {
-    value.div_ceil(1 << align_log2) << align_log2
+fn aligned(value: u32, align_log2: u32) -> Option<u32> {
+    value.div_ceil(1 << align_log2).checked_mul(1 << align_log2)
 }
 
 fn write(memory: &SharedMemory, at: u32, bytes: &[u8]) -> Result<(), String> {
@@ -150,20 +159,25 @@ pub(crate) fn plan<T>(
     let malloc: TypedFunc<u32, u32> = sdk
         .get_typed_func(&mut *store, MALLOC)
         .map_err(|error| format!("the plugin SDK has no usable {MALLOC}: {error}"))?;
+    let too_big = || "the plugin asks for more than a 32-bit address space holds".to_owned();
+    let request = declared
+        .memory_size
+        .checked_add(1 << declared.memory_align)
+        .ok_or_else(too_big)?;
     let allocated = malloc
-        .call(
-            &mut *store,
-            declared.memory_size + (1 << declared.memory_align),
-        )
+        .call(&mut *store, request)
         .map_err(|error| format!("the plugin's memory could not be allocated: {error}"))?;
     if allocated == 0 {
         return Err("the plugin SDK could not allocate the plugin's memory".to_owned());
     }
-    let memory_base = aligned(allocated, declared.memory_align);
+    let memory_base = aligned(allocated, declared.memory_align).ok_or_else(too_big)?;
     write(memory, memory_base, &vec![0; declared.memory_size as usize])?;
     let size = table(sdk, store)?.size(&mut *store);
-    let table_base = aligned(size as u32, declared.table_align);
-    let mut next = u64::from(table_base + declared.table_size);
+    let table_base = u32::try_from(size)
+        .ok()
+        .and_then(|size| aligned(size, declared.table_align))
+        .ok_or_else(too_big)?;
+    let mut next = u64::from(table_base) + u64::from(declared.table_size);
     let mut sdk_slots = Vec::new();
     let mut plugin_slots = Vec::new();
     let mut data = Vec::new();

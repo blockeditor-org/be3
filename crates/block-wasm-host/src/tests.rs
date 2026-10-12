@@ -103,7 +103,9 @@ fn sdk() -> &'static str {
     )"#
 }
 
-fn linked_plugin() -> &'static str {
+const SDK_IDENTITY: &str = "5d1f0e3c9a7b2846c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7";
+
+fn linked_plugin() -> String {
     r#"(module
         (import "env" "memory" (memory 1 4 shared))
         (import "env" "__indirect_function_table" (table 0 funcref))
@@ -121,7 +123,7 @@ fn linked_plugin() -> &'static str {
         (global $tls (export "__tls_base") (mut i32) (i32.const 0))
         (global (export "__tls_size") i32 (i32.const 20))
         (global (export "own_value") i32 (i32.const 64))
-        (global (export "__be3_sdk_test") i32 (i32.const 0))
+        (global (export "__be3_sdk_{IDENTITY}") i32 (i32.const 0))
         (global (export "__be3_dylink_256_2_1_0") i32 (i32.const 0))
         (elem (global.get $table_base) func $worker)
         (start $initialize)
@@ -153,6 +155,7 @@ fn linked_plugin() -> &'static str {
                     (i32.load (global.get $own_value))))
             (call $wake))
     )"#
+    .replace("{IDENTITY}", SDK_IDENTITY)
 }
 
 fn settled(plugin: &mut Plugin, wanted: u8) -> Result<bool, String> {

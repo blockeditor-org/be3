@@ -133,6 +133,7 @@ impl Host {
         let Some(identity) = dylink::sdk_identity(&plugin) else {
             return Plugin::new(self, Program::Whole(plugin));
         };
+        let identity = identity?;
         let sdk = {
             let mut sdks = self
                 .sdks

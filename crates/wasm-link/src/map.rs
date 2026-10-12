@@ -40,8 +40,7 @@ pub fn thread_locals(map: &str) -> Result<ThreadLocals, String> {
         let Some(last) = tokens.last() else {
             continue;
         };
-        let at = line.len() - line.trim_start_matches(char::is_whitespace).len();
-        let starts = line.rfind(last).unwrap_or(at);
+        let starts = line.trim_end().len() - last.len();
         if starts == out {
             inside = *last == THREAD_LOCAL_SECTION;
             continue;
