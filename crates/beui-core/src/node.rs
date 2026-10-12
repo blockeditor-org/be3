@@ -121,6 +121,10 @@ pub trait Element: Any {
 
     fn kind(&self) -> &'static str;
 
+    fn ink(&self) -> Option<Rect> {
+        None
+    }
+
     fn detail(&self) -> Option<String> {
         None
     }
@@ -242,6 +246,14 @@ pub struct SpaceId {
 impl SpaceId {
     pub fn of(node: NodeId) -> Self {
         Self { node, slot: 0 }
+    }
+
+    pub fn node(self) -> NodeId {
+        self.node
+    }
+
+    pub fn slot(self) -> u8 {
+        self.slot
     }
 
     pub fn inside(node: NodeId, slot: u8) -> Self {
@@ -414,6 +426,22 @@ impl Rects {
             clips.get_or_default(id.node)[id.slot as usize] = Some((stamp, clip));
         }
         clip
+    }
+
+    pub fn clips_above(&self, id: &NodeId) -> Vec<(SpaceId, Rect)> {
+        let mut clips = Vec::new();
+        let mut current = Some(SpaceId::of(*id));
+        while let Some(id) = current {
+            let Some(space) = self.space(id) else {
+                break;
+            };
+            if clips.len() >= ANCESTOR_LIMIT {
+                break;
+            }
+            clips.push((id, space.clip.translate(self.offset(space.parent))));
+            current = space.parent;
+        }
+        clips
     }
 
     pub fn visible(&self, id: &NodeId) -> Option<Rect> {

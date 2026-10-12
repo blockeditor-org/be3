@@ -552,6 +552,12 @@ impl Element for TextNode {
         "text"
     }
 
+    fn ink(&self) -> Option<Rect> {
+        let placed = self.placed.borrow();
+        let placed = placed.as_ref().filter(|placed| placed.rich.is_none())?;
+        Some(Rect::from_min_size(placed.origin, placed.galley.size()))
+    }
+
     fn detail(&self) -> Option<String> {
         Some(format!("\"{}\"", self.content))
     }

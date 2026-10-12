@@ -106,7 +106,7 @@ fn SelectTrigger(handle: SelectTriggerHandle) -> NodeId {
                     font_size=FONT_BODY
                     color={text_color}
                     align=TextAlign::Start
-                    clip=true
+                    ellipsis=true
                 />
             </Frame>
         </Frame>

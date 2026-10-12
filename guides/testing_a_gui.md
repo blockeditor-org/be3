@@ -191,6 +191,14 @@ way for the test to fail.
   not git and a reviewer is not the tests: a painting nobody approved is new again the next
   time the block is opened, and one nobody had approved before it vanished is not reported
   at all.
+- snapshot(name), and every record() before it, also fails on what the frame shows out of
+  bounds (beui-core's `Document::overflows`): a node cut off by a clip that no scroll or
+  pannable canvas can move it out from under - the region's edge, a sidebar too narrow for a
+  row of controls - and text drawn outside its own box. Each line names the node, its nearest
+  ancestor with a test id, and the two rectangles. Fix the layout - wrap or ellipsize the text,
+  let the row shrink (`ItemSize::Intrinsic.shrink(1.0)`), scroll it - rather than the test. A
+  BeuiTest can allow_overflow(test_id) for that node and everything inside it, for a known
+  overflow the editor cannot fix by itself.
 - ./scripts/buck run //crates/paint-snapshot:rasterize-example -- snapshots/<crate>.<name>.paint out.png
   turns one into a PNG, and a trailing frame number or all picks which frames of a recording
   to write.

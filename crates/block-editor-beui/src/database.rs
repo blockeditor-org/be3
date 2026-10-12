@@ -526,6 +526,7 @@ fn BlockValue(
                 variant=ButtonVariant::Secondary
                 disabled={disabled}
                 @test_id={id}
+                @sizing={ItemSize::Intrinsic.shrink(1.0)}
                 on_click={choose}
             />
             <Spacer @sizing=ItemSize::Percent(100.0) />
