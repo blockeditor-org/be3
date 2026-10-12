@@ -38,7 +38,7 @@ async fn a_pull_request_moves_the_rows_it_names() {
     let statuses = Statuses {
         field: "Status".into(),
         review: "In review".into(),
-        done: "Done".into(),
+        done: Some("Done".into()),
     };
     let event = |action: &str, merged: bool| {
         json!({

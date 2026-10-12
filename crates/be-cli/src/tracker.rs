@@ -5,8 +5,8 @@ use be_block::database::{
     Database, DatabaseContent, DatabaseValue, Inverse, RowRef, inverses, short_id,
 };
 use be_block::database_schema::{
-    DatabaseField, DatabaseFieldType, DatabaseRelationOptions, DatabaseSchema,
-    DatabaseSchemaContent,
+    ChoiceColor, ChoiceIcon, DatabaseEnumOption, DatabaseField, DatabaseFieldType,
+    DatabaseRelationOptions, DatabaseSchema, DatabaseSchemaContent,
 };
 use be_block::database_view::{DatabaseView, DatabaseViewContent, DatabaseViewKind};
 use be_block::text::{TextBlock, TextContent};
@@ -748,7 +748,7 @@ impl<S: ObjectStore> Tracker<S> {
                     field
                         .enum_options
                         .iter()
-                        .map(|option| option.name.clone())
+                        .map(|option| option_text(&field, option))
                         .collect::<Vec<_>>()
                         .join(", ")
                 ),
@@ -909,6 +909,114 @@ impl<S: ObjectStore> Tracker<S> {
         Ok(())
     }
 
+    pub async fn set_option(
+        &self,
+        database: Uuid,
+        field: &str,
+        option: &str,
+        settings: &[Assignment],
+    ) -> Result<bool, String> {
+        let loaded = self.load(database).await?;
+        let schema = loaded
+            .database
+            .schema
+            .ok_or_else(|| format!("{} has no schema", loaded.name))?;
+        let field = loaded
+            .schema
+            .field_named(field)
+            .filter(|field| field.field_type == DatabaseFieldType::Enum)
+            .ok_or_else(|| format!("{} has no choice column called {field}", loaded.name))?;
+        let named = |name: &str| {
+            field
+                .enum_options
+                .iter()
+                .find(|option| option.name.eq_ignore_ascii_case(name.trim()))
+                .map(|option| option.id)
+                .ok_or_else(|| {
+                    format!(
+                        "{} is not one of {}: {}",
+                        name.trim(),
+                        field.name,
+                        option_names(&field)
+                    )
+                })
+        };
+        let mut edits = Vec::new();
+        let (id, added) = match named(option) {
+            Ok(id) => (id, false),
+            Err(_) if option.trim().is_empty() => {
+                return Err(format!("name an option of {}", field.name));
+            }
+            Err(_) => {
+                let (id, add) = DatabaseSchema::add_enum_option(field.id, option.trim());
+                edits.push(add);
+                (id, true)
+            }
+        };
+        for setting in settings {
+            let value = setting.value.trim();
+            if setting.change != Change::Set {
+                return Err(format!("an option takes {}=VALUE", setting.field));
+            }
+            let edit = match setting.field.to_ascii_lowercase().as_str() {
+                "color" | "colour" => DatabaseSchema::set_option_color(
+                    id,
+                    ChoiceColor::named(value).ok_or_else(|| {
+                        format!(
+                            "{value} is not a colour; use {}",
+                            ChoiceColor::ALL.map(ChoiceColor::name).join(", ")
+                        )
+                    })?,
+                ),
+                "icon" => DatabaseSchema::set_option_icon(
+                    id,
+                    ChoiceIcon::named(value).ok_or_else(|| {
+                        format!(
+                            "{value} is not an icon; use {}",
+                            ChoiceIcon::ALL.map(ChoiceIcon::name).join(", ")
+                        )
+                    })?,
+                ),
+                "closed" => DatabaseSchema::set_option_closed(id, yes(&setting.field, value)?),
+                "default" => match yes(&setting.field, value)? {
+                    true => DatabaseSchema::set_default_option(field.id, Some(id)),
+                    false if field.default_option == Some(id) => {
+                        DatabaseSchema::set_default_option(field.id, None)
+                    }
+                    false => continue,
+                },
+                "name" if value.is_empty() => return Err("an option needs a name".to_owned()),
+                "name" => DatabaseSchema::rename_enum_option(id, value),
+                "after" => match named(value)? {
+                    after if after == id => continue,
+                    after => DatabaseSchema::move_enum_option(field.id, id, Some(after)),
+                },
+                "first" => match yes(&setting.field, value)? {
+                    true => DatabaseSchema::move_enum_option(field.id, id, None),
+                    false => continue,
+                },
+                other => {
+                    return Err(format!(
+                        "an option takes color, icon, closed, default, name, after and first, not {other}"
+                    ));
+                }
+            };
+            edits.push(edit);
+        }
+        self.change::<DatabaseSchemaContent>(schema, |_| Ok(edits.clone()))
+            .await?;
+        self.invalidate().await;
+        Ok(added)
+    }
+
+    pub async fn closed_option(&self, code: &str, field: &str) -> Result<Option<String>, String> {
+        let (database, _) = self.find_row(code).await?;
+        let (_, schema) = self.load_plain(database).await?;
+        Ok(schema
+            .field_named(field)
+            .and_then(|field| field.first_closed().map(|option| option.name.clone())))
+    }
+
     pub async fn create(
         &self,
         database: Uuid,
@@ -923,8 +1031,21 @@ impl<S: ObjectStore> Tracker<S> {
         let title_field = loaded
             .title_field()
             .ok_or_else(|| format!("{} has no text column to hold a title", loaded.name))?;
-        let (row, add) =
-            Database::add_row([(title_field, DatabaseValue::String(title.to_owned()))]);
+        let named: Vec<Uuid> = assignments
+            .iter()
+            .filter_map(|assignment| match loaded.field(&assignment.field) {
+                Ok(Writable::Own(field)) => Some(field.id),
+                _ => None,
+            })
+            .collect();
+        let defaults = loaded
+            .schema
+            .defaults()
+            .into_iter()
+            .filter(|(field, _)| !named.contains(field));
+        let (row, add) = Database::add_row(
+            std::iter::once((title_field, DatabaseValue::String(title.to_owned()))).chain(defaults),
+        );
         self.change::<DatabaseContent>(database, |_| Ok(vec![add.clone()]))
             .await?;
         self.apply(database, row, assignments, body).await
@@ -1354,6 +1475,7 @@ impl<S: ObjectStore> Tracker<S> {
             ));
         }
         let mut labels = self.labels(&loaded).await?;
+        let defaults = loaded.schema.defaults();
         let mut edits = Vec::new();
         let mut later: Vec<(usize, ObjectId, DatabaseField, String)> = Vec::new();
         for (number, row) in rows.iter().enumerate() {
@@ -1382,6 +1504,9 @@ impl<S: ObjectStore> Tracker<S> {
                 }
             }
             values.insert(title_field, DatabaseValue::String(title.clone()));
+            for (field, value) in &defaults {
+                values.entry(*field).or_insert_with(|| value.clone());
+            }
             for (_, text) in values.iter().filter_map(|(field, value)| match value {
                 DatabaseValue::String(text) if !text.trim().is_empty() => Some((field, text)),
                 _ => None,
@@ -1518,17 +1643,9 @@ impl<S: ObjectStore> Tracker<S> {
         match value {
             Some(value) => Ok(Some(value)),
             None => Err(match field.field_type {
-                DatabaseFieldType::Enum => format!(
-                    "{} is not one of {}: {}",
-                    wanted,
-                    field.name,
-                    field
-                        .enum_options
-                        .iter()
-                        .map(|option| option.name.clone())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                ),
+                DatabaseFieldType::Enum => {
+                    format!("{} is not one of {}: {}", wanted, field.name, option_names(field))
+                }
                 _ => format!("{wanted} is not a value {} can hold", field.name),
             }),
         }
@@ -1569,6 +1686,37 @@ impl<S: ObjectStore> Tracker<S> {
         Err(format!(
             "block {block} kept changing while this was being saved; try again"
         ))
+    }
+}
+
+fn option_names(field: &DatabaseField) -> String {
+    field
+        .enum_options
+        .iter()
+        .map(|option| option.name.clone())
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn option_text(field: &DatabaseField, option: &DatabaseEnumOption) -> String {
+    let mut traits = vec![option.color.name().to_owned()];
+    if option.icon != ChoiceIcon::None {
+        traits.push(format!("icon {}", option.icon.name()));
+    }
+    if option.closed {
+        traits.push("closed".to_owned());
+    }
+    if field.default_value() == Some(option.id) {
+        traits.push("default".to_owned());
+    }
+    format!("{} ({})", option.name, traits.join(", "))
+}
+
+fn yes(setting: &str, value: &str) -> Result<bool, String> {
+    match value.to_ascii_lowercase().as_str() {
+        "yes" | "true" | "on" | "1" => Ok(true),
+        "no" | "false" | "off" | "0" => Ok(false),
+        _ => Err(format!("{setting} is yes or no, not {value}")),
     }
 }
 

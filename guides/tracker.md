@@ -48,7 +48,9 @@ be BE-7K3Q2M page edit                  its page in $EDITOR, merged with any cha
 be BE-7K3Q2M delete
 be 3fa9 delete                          a block and everything in it, to Recently Deleted
 be 3fa9 cat                             a text block, reached directly
-be Issues schema
+be Issues schema                        columns; each choice with its colour, icon, closed, default
+be Issues option Status Done closed=yes icon=done color=blue
+be Issues option Status Backlog default=yes first=yes
 be Issues add-column "Blocked by" relation --links Issues --multiple --inverse Blocking
 be new-database Milestones --prefix MS --in a1f3
 be Issues import issues.csv             Linear's export, or any CSV
@@ -62,6 +64,10 @@ needs no coordination; the prefix is kept in the database's sealed metadata,
 which is how `be` finds the database without opening the others, and two
 databases with one prefix are refused. Field values are matched by name, case
 aside: an option's name for an Enum column, a row's title or id for a Relation.
+`option FIELD OPTION` adds the option if the column lacks it and takes
+`color=`, `icon=`, `closed=yes|no` (a closed option marks a row finished),
+`default=yes|no`, `name=`, `after=OPTION` and `first=yes`. A new row, by `new`
+or `import`, takes each Enum column's default option unless it sets that column.
 A relation of several rows takes `FIELD=A,B`, `FIELD+=A` and `FIELD-=A`, and so
 does its inverse column (`Blocking+=BE-…` writes `Blocked by` on that row). The
 title is the first text column. `--body` replaces the row's page and `--append`
@@ -109,7 +115,8 @@ them in the handoff.
 - **GitHub.** `.github/workflows/tracker.yml` runs `be pull-request` on the
   event: ids in the branch, title or body move to `BE3_REVIEW_STATUS` (In
   review) when the pull request opens, with a link on the page, and to
-  `BE3_DONE_STATUS` (Done) when it merges. It reads the
+  `BE3_DONE_STATUS` when it merges, or, when that is unset, to the status
+  column's first closed option (Done if it has none). It reads the
   `BE3_TRACKER_TOKEN`, `BE3_TRACKER_RECOVERY_PHRASE` and (for a gateway)
   `BE3_TRACKER_AUTHORIZATION` secrets and the
   `BE3_SERVER`, `BE3_WORKSPACE` and status variables, writes them to

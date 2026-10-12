@@ -31,7 +31,12 @@ A database (or a view of one):
   rows [FILTER]...                    Its rows; FILTER is FIELD=VALUE, FIELD!=VALUE or FIELD~TEXT
   new TITLE [FIELD=VALUE]... [--body TEXT]
                                       Add a row, with a page when --body is given
-  schema                              Its columns
+  schema                              Its columns, and each choice's colour, icon, whether
+                                      it closes a row and which is the default
+  option FIELD OPTION [SETTING=VALUE]...
+                                      Change (or add) a choice: color=blue, icon=done,
+                                      closed=yes, default=yes, name=NEW, after=OPTION or
+                                      first=yes
   add-column NAME TYPE [--options A,B] [--links DATABASE] [--multiple] [--inverse NAME]
                                       TYPE is text, number, enum, boolean, date, color,
                                       block or relation
@@ -246,7 +251,9 @@ async fn command<S: ObjectStore>(
             let statuses = Statuses {
                 field: setting("BE3_STATUS_FIELD", "Status"),
                 review: setting("BE3_REVIEW_STATUS", "In review"),
-                done: setting("BE3_DONE_STATUS", "Done"),
+                done: std::env::var("BE3_DONE_STATUS")
+                    .ok()
+                    .filter(|value| !value.trim().is_empty()),
             };
             Ok(pull_request(tracker, &event, &statuses).await?.join("\n"))
         }
@@ -400,6 +407,22 @@ async fn block_verb<S: ObjectStore>(
             print(shown(&row, json))
         }
         ("schema", _, Some(database)) => print(tracker.schema(database).await?.join("\n")),
+        ("option", _, Some(database)) => {
+            let [field, option, settings @ ..] = arguments.as_slice() else {
+                return Err(format!(
+                    "usage: be {} option FIELD OPTION [SETTING=VALUE]...",
+                    entry.short
+                ));
+            };
+            let added = tracker
+                .set_option(database, field, option, &assignments(settings)?)
+                .await?;
+            let schema = tracker.schema(database).await?.join("\n");
+            print(match added {
+                true => format!("added {option} to {field}\n{schema}"),
+                false => schema,
+            })
+        }
         ("add-column", _, Some(database)) => {
             let [name, kind] = arguments.as_slice() else {
                 return Err(format!("usage: be {} add-column NAME TYPE", entry.short));
@@ -451,7 +474,7 @@ async fn block_verb<S: ObjectStore>(
             entry.kind(),
             match (is_text, database) {
                 (true, _) => "cat, write, append, edit, ls and info",
-                (false, Some(_)) => "rows, new, schema, add-column, import, ls and info",
+                (false, Some(_)) => "rows, new, schema, option, add-column, import, ls and info",
                 (false, None) => "ls and info",
             }
         ) + &format!(", not {verb}")),
@@ -606,7 +629,7 @@ pub fn edited_body(document: &str) -> String {
 pub struct Statuses {
     pub field: String,
     pub review: String,
-    pub done: String,
+    pub done: Option<String>,
 }
 
 pub async fn pull_request<S: ObjectStore>(
@@ -643,8 +666,19 @@ pub async fn pull_request<S: ObjectStore>(
             continue;
         };
         let (status, link) = match action.as_str() {
-            "closed" if merged => (Some(&statuses.done), false),
-            "opened" | "reopened" | "ready_for_review" if !draft => (Some(&statuses.review), true),
+            "closed" if merged => (
+                Some(match &statuses.done {
+                    Some(done) => done.clone(),
+                    None => tracker
+                        .closed_option(&row.id, &statuses.field)
+                        .await?
+                        .unwrap_or_else(|| "Done".to_owned()),
+                }),
+                false,
+            ),
+            "opened" | "reopened" | "ready_for_review" if !draft => {
+                (Some(statuses.review.clone()), true)
+            }
             _ => (None, false),
         };
         let Some(status) = status else {
@@ -656,7 +690,7 @@ pub async fn pull_request<S: ObjectStore>(
             false => Body::Keep,
         };
         match tracker
-            .update(&row.id, &[Assignment::set(&statuses.field, status)], body)
+            .update(&row.id, &[Assignment::set(&statuses.field, &status)], body)
             .await
         {
             Ok(_) => said.push(format!("{}: {} is now {status}", row.id, statuses.field)),
