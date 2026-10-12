@@ -157,7 +157,12 @@ impl Spawner {
 
     fn refuse_host_calls(&self, linker: &mut Linker<Threaded>) -> Result<(), String> {
         linker.allow_shadowing(true);
-        for import in self.program.modules().into_iter().flat_map(|module| module.imports()) {
+        for import in self
+            .program
+            .modules()
+            .into_iter()
+            .flat_map(|module| module.imports())
+        {
             if !matches!(import.module(), abi::GPU_MODULE | abi::HOST_MODULE) {
                 continue;
             }

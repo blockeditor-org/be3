@@ -50,8 +50,8 @@ app(
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
     precompile_target = per_cross_platform("x86_64-unknown-linux-gnu", cross_triple),
-    sdk = "//crates/block-plugin-sdk:module",
     precompiler = "//crates/plugin-test-runner:precompiler",
+    sdk = "//crates/block-plugin-sdk:module",
 )
 
 # The plugins alone: every editor's manifest and module, for CI to ship once
@@ -63,8 +63,8 @@ app(
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
     precompile = False,
-    sdk = "//crates/block-plugin-sdk:module",
     precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
+    sdk = "//crates/block-plugin-sdk:module",
 )
 
 # What CI ships per platform: the app and server under cargo's names; the
@@ -112,8 +112,8 @@ app(
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
     precompile = False,
-    sdk = "//crates/block-plugin-sdk:module",
     precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
+    sdk = "//crates/block-plugin-sdk:module",
     wasm_bindgen = "//buck/cargo:wasm-bindgen",
     visibility = ["//crates/deploy:"],
 )
@@ -188,8 +188,8 @@ app(
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
     precompile_target = "aarch64-linux-android",
-    sdk = "//crates/block-plugin-sdk:module",
     precompiler = "//crates/plugin-test-runner:precompiler",
+    sdk = "//crates/block-plugin-sdk:module",
 )
 
 [

@@ -138,7 +138,10 @@ pub fn custom<'a>(bytes: &'a [u8], wanted: &str) -> Result<Option<&'a [u8]>, Str
 }
 
 pub fn imports(bytes: &[u8]) -> Result<Vec<Import>, String> {
-    let Some(section) = sections(bytes)?.into_iter().find(|section| section.id == IMPORT) else {
+    let Some(section) = sections(bytes)?
+        .into_iter()
+        .find(|section| section.id == IMPORT)
+    else {
         return Ok(Vec::new());
     };
     let mut reader = Reader::new(section.contents);
@@ -173,7 +176,10 @@ pub fn imports(bytes: &[u8]) -> Result<Vec<Import>, String> {
 }
 
 pub fn exports(bytes: &[u8]) -> Result<Vec<Export>, String> {
-    let Some(section) = sections(bytes)?.into_iter().find(|section| section.id == EXPORT) else {
+    let Some(section) = sections(bytes)?
+        .into_iter()
+        .find(|section| section.id == EXPORT)
+    else {
         return Ok(Vec::new());
     };
     let mut reader = Reader::new(section.contents);
@@ -307,7 +313,10 @@ pub fn with_exported_globals(bytes: &[u8], globals: &[(String, i32)]) -> Result<
         new_globals.push(0x0b);
         name(export_name, &mut new_exports);
         new_exports.push(GLOBAL_KIND);
-        unsigned(u64::from(imported + defined + index as u32), &mut new_exports);
+        unsigned(
+            u64::from(imported + defined + index as u32),
+            &mut new_exports,
+        );
     }
     let added = globals.len() as u32;
     let global_contents = appended(defined, existing_globals, added, &new_globals);

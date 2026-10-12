@@ -110,7 +110,9 @@ impl Host {
 
     pub fn load_bytes(&self, bytes: &[u8]) -> Result<Plugin, String> {
         self.load_bytes_with_sdk(bytes, |identity| {
-            Err(format!("the plugin needs the plugin SDK {identity}, and none was given"))
+            Err(format!(
+                "the plugin needs the plugin SDK {identity}, and none was given"
+            ))
         })
     }
 
@@ -401,10 +403,14 @@ fn engine(cache: Option<&Path>) -> Result<(Engine, Sdks), String> {
     if let Some(directory) = cache {
         config.cache(Some(compilation_cache(directory)?));
     }
-    let engine =
-        Engine::new(&config).map_err(|error| format!("the wasm engine could not start: {error}"))?;
+    let engine = Engine::new(&config)
+        .map_err(|error| format!("the wasm engine could not start: {error}"))?;
     let sdks = Sdks::default();
-    engines.push((cache.map(Path::to_path_buf), engine.clone(), Arc::clone(&sdks)));
+    engines.push((
+        cache.map(Path::to_path_buf),
+        engine.clone(),
+        Arc::clone(&sdks),
+    ));
     Ok((engine, sdks))
 }
 

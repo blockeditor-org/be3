@@ -50,10 +50,46 @@ const PLUGIN_FLAGS: [&str; 7] = [
 const SDK_FLAGS: [&str; 3] = ["--export-all", "--export-table", "--growable-table"];
 const UNUSED_SECTIONS: [&str; 3] = [".rmeta", ".rmeta-link", "__wasm_bindgen_unstable"];
 const MATH: [&str; 40] = [
-    "acos", "acosh", "asin", "asinh", "atan", "atan2", "atanh", "cbrt", "ceil", "copysign",
-    "cos", "cosh", "erf", "erfc", "exp", "exp2", "expm1", "fdim", "floor", "fma", "fmax",
-    "fmin", "fmod", "frexp", "hypot", "ldexp", "lgamma", "log", "log10", "log1p", "log2",
-    "modf", "pow", "remainder", "round", "sin", "sinh", "sqrt", "tan", "tanh",
+    "acos",
+    "acosh",
+    "asin",
+    "asinh",
+    "atan",
+    "atan2",
+    "atanh",
+    "cbrt",
+    "ceil",
+    "copysign",
+    "cos",
+    "cosh",
+    "erf",
+    "erfc",
+    "exp",
+    "exp2",
+    "expm1",
+    "fdim",
+    "floor",
+    "fma",
+    "fmax",
+    "fmin",
+    "fmod",
+    "frexp",
+    "hypot",
+    "ldexp",
+    "lgamma",
+    "log",
+    "log10",
+    "log1p",
+    "log2",
+    "modf",
+    "pow",
+    "remainder",
+    "round",
+    "sin",
+    "sinh",
+    "sqrt",
+    "tan",
+    "tanh",
 ];
 
 #[derive(Debug, PartialEq, Eq)]
@@ -78,8 +114,9 @@ pub fn expand(arguments: Vec<String>) -> Result<Vec<String>, String> {
     for argument in arguments {
         match argument.strip_prefix('@') {
             Some(path) => {
-                let contents = std::fs::read_to_string(path)
-                    .map_err(|error| format!("the response file {path} could not be read: {error}"))?;
+                let contents = std::fs::read_to_string(path).map_err(|error| {
+                    format!("the response file {path} could not be read: {error}")
+                })?;
                 expanded.extend(expand(tokenize(&contents))?);
             }
             None => expanded.push(argument),
@@ -207,7 +244,10 @@ pub fn sdk_arguments(arguments: Vec<String>) -> (Vec<String>, Vec<String>) {
         rewritten.push(format!("--undefined={function}"));
         rewritten.push(format!("--undefined={function}f"));
     }
-    rewritten.extend(["--undefined=tgamma".to_owned(), "--undefined=tgammaf".to_owned()]);
+    rewritten.extend([
+        "--undefined=tgamma".to_owned(),
+        "--undefined=tgammaf".to_owned(),
+    ]);
     (rewritten, linked)
 }
 
@@ -217,18 +257,26 @@ fn scratch(out: &Path, suffix: &str) -> PathBuf {
     PathBuf::from(name)
 }
 
-fn link_mapped(linker: &str, mut arguments: Vec<String>, map: &Path) -> Result<map::ThreadLocals, String> {
+fn link_mapped(
+    linker: &str,
+    mut arguments: Vec<String>,
+    map: &Path,
+) -> Result<map::ThreadLocals, String> {
     arguments.push(format!("-Map={}", map.display()));
     let linked = link(linker, &arguments);
     let contents = std::fs::read_to_string(map);
     let _ = std::fs::remove_file(map);
     linked?;
-    map::thread_locals(&contents.map_err(|error| format!("the link map could not be read: {error}"))?)
+    map::thread_locals(
+        &contents.map_err(|error| format!("the link map could not be read: {error}"))?,
+    )
 }
 
 pub fn sdk_listing(linked: &[String], thread_locals: &map::ThreadLocals) -> Result<String, String> {
     let Some((reserve, shared)) = thread_locals.symbols.split_last() else {
-        return Err("the SDK has no thread-local storage, not even the plugins' reserve".to_owned());
+        return Err(
+            "the SDK has no thread-local storage, not even the plugins' reserve".to_owned(),
+        );
     };
     if reserve.name != PLUGIN_TLS {
         return Err(format!(
@@ -244,7 +292,10 @@ pub fn sdk_listing(linked: &[String], thread_locals: &map::ThreadLocals) -> Resu
     let mut seen = HashSet::new();
     for symbol in shared {
         if seen.insert(&symbol.name) {
-            listing.push_str(&format!("tls {} {} {}\n", symbol.offset, symbol.size, symbol.name));
+            listing.push_str(&format!(
+                "tls {} {} {}\n",
+                symbol.offset, symbol.size, symbol.name
+            ));
         }
     }
     listing.push_str(&format!("reserve {} {}\n", reserve.offset, reserve.size));
@@ -274,7 +325,10 @@ fn link_sdk(linker: &str, arguments: Vec<String>) -> Result<(), String> {
     let _ = std::fs::remove_file(&reserve);
     let listing = sdk_listing(&linked, &thread_locals?)?;
     let bytes = without_unused_sections(&read(&out)?)?;
-    write(&out, &module::with_custom(&bytes, SDK_SECTION, listing.as_bytes()))
+    write(
+        &out,
+        &module::with_custom(&bytes, SDK_SECTION, listing.as_bytes()),
+    )
 }
 
 pub struct ThreadLocal {
@@ -300,10 +354,10 @@ fn number(token: Option<&str>, line: &str) -> Result<u32, String> {
 
 impl Sdk {
     pub fn without_unused_sections(bytes: &[u8]) -> Result<Vec<u8>, String> {
-    module::without_custom(bytes, |name| UNUSED_SECTIONS.contains(&name))
-}
+        module::without_custom(bytes, |name| UNUSED_SECTIONS.contains(&name))
+    }
 
-fn read(path: &Path) -> Result<Self, String> {
+    fn read(path: &Path) -> Result<Self, String> {
         let bytes = read(path)?;
         Self::parse(&bytes).map_err(|error| format!("{}: {error}", path.display()))
     }
@@ -323,7 +377,9 @@ fn read(path: &Path) -> Result<Self, String> {
                 Some("tls") => {
                     let offset = number(tokens.next(), line)?;
                     let size = number(tokens.next(), line)?;
-                    let name = tokens.next().ok_or_else(|| format!("{line:?} names no symbol"))?;
+                    let name = tokens
+                        .next()
+                        .ok_or_else(|| format!("{line:?} names no symbol"))?;
                     thread_locals.push(ThreadLocal {
                         name: name.to_owned(),
                         offset,
@@ -430,7 +486,10 @@ pub fn describe(bytes: &[u8], sdk: &Sdk) -> Result<Vec<u8>, String> {
         "{LAYOUT_EXPORT_PREFIX}{}_{}_{}_{}",
         info.memory_size, info.memory_align, info.table_size, info.table_align
     );
-    let globals = [(format!("{SDK_EXPORT_PREFIX}{}", sdk.identity), 0), (layout, 0)];
+    let globals = [
+        (format!("{SDK_EXPORT_PREFIX}{}", sdk.identity), 0),
+        (layout, 0),
+    ];
     module::with_exported_globals(bytes, &globals)
 }
 
@@ -440,14 +499,22 @@ pub fn check_thread_locals(
     sdk: &Sdk,
 ) -> Result<(), String> {
     let mirror = mirror.display().to_string();
-    if thread_locals.inputs.first().is_some_and(|first| !first.starts_with(&mirror)) {
+    if thread_locals
+        .inputs
+        .first()
+        .is_some_and(|first| !first.starts_with(&mirror))
+    {
         return Err(format!(
             "the SDK's thread-locals were not laid out first in the plugin's ({})",
             thread_locals.inputs[0]
         ));
     }
     let (start, size) = sdk.reserve;
-    let mirrored: HashSet<&str> = sdk.thread_locals.iter().map(|local| local.name.as_str()).collect();
+    let mirrored: HashSet<&str> = sdk
+        .thread_locals
+        .iter()
+        .map(|local| local.name.as_str())
+        .collect();
     let needed = thread_locals
         .symbols
         .iter()

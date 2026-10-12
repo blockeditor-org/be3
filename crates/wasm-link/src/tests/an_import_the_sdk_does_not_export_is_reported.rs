@@ -15,8 +15,18 @@ fn an_import_the_sdk_does_not_export_is_reported() {
     let mut imports = vec![4];
     imports.extend(import("env", "sdk_function", module::FUNCTION, &[0]));
     imports.extend(import("env", "missing", module::FUNCTION, &[0]));
-    imports.extend(import("GOT.mem", "SDK_DATA", module::GLOBAL_KIND, &[0x7f, 1]));
-    imports.extend(import("env", "__memory_base", module::GLOBAL_KIND, &[0x7f, 0]));
+    imports.extend(import(
+        "GOT.mem",
+        "SDK_DATA",
+        module::GLOBAL_KIND,
+        &[0x7f, 1],
+    ));
+    imports.extend(import(
+        "env",
+        "__memory_base",
+        module::GLOBAL_KIND,
+        &[0x7f, 0],
+    ));
     let mut bytes = b"\0asm\x01\0\0\0".to_vec();
     bytes.extend([1, 4, 1, 0x60, 0, 0]);
     bytes.push(2);

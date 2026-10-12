@@ -73,7 +73,9 @@ fn declared(plugin: &Module) -> Result<Declared, String> {
         .collect::<Result<_, _>>()
         .map_err(|_| format!("the plugin's layout {layout} is not one this reads"))?;
     let [memory_size, memory_align, table_size, table_align] = numbers[..] else {
-        return Err(format!("the plugin's layout {layout} is not one this reads"));
+        return Err(format!(
+            "the plugin's layout {layout} is not one this reads"
+        ));
     };
     Ok(Declared {
         memory_size,
@@ -228,7 +230,9 @@ pub(crate) fn instantiate<T>(
         let resolved: Extern = match (module, name) {
             (ENV, TABLE) => table.into(),
             (ENV, STACK_POINTER) => stack_pointer.into(),
-            (ENV, MEMORY_BASE) => global(store, layout.memory_base as i32, Mutability::Const)?.into(),
+            (ENV, MEMORY_BASE) => {
+                global(store, layout.memory_base as i32, Mutability::Const)?.into()
+            }
             (ENV, TABLE_BASE) => global(store, layout.table_base as i32, Mutability::Const)?.into(),
             (GOT_FUNCTION, _) => {
                 let slot = layout
@@ -261,7 +265,9 @@ pub(crate) fn instantiate<T>(
                     .into(),
                 None => {
                     let signature = import.ty().func().cloned().ok_or_else(|| {
-                        format!("the plugin imports {module}.{name}, which its host does not answer")
+                        format!(
+                            "the plugin imports {module}.{name}, which its host does not answer"
+                        )
                     })?;
                     let refusal = format!(
                         "the plugin called {module}.{name}, which its host does not answer"

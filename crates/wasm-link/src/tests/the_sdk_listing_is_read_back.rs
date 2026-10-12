@@ -11,7 +11,10 @@ fn the_sdk_listing_is_read_back() {
     let listing = sdk_listing(&["libbeui-1.rlib".to_owned(), "-lc".to_owned()], &found).unwrap();
     let module = module::with_custom(b"\0asm\x01\0\0\0", SDK_SECTION, listing.as_bytes());
     let read = Sdk::parse(&module).unwrap();
-    assert_eq!(read.linked, HashSet::from(["libbeui-1.rlib".to_owned(), "-lc".to_owned()]));
+    assert_eq!(
+        read.linked,
+        HashSet::from(["libbeui-1.rlib".to_owned(), "-lc".to_owned()])
+    );
     assert_eq!(read.reserve, (16, PLUGIN_TLS_SIZE));
     assert_eq!(
         read.thread_locals

@@ -5,7 +5,10 @@ fn the_link_map_gives_the_thread_locals_in_order() {
     let found = map::thread_locals(MAP).unwrap();
     assert_eq!(
         found.inputs,
-        ["libsdk.rlib(sdk.o):(.tdata.LOCAL)", "libc.a(errno.o):(.tbss.errno)"]
+        [
+            "libsdk.rlib(sdk.o):(.tdata.LOCAL)",
+            "libc.a(errno.o):(.tbss.errno)"
+        ]
     );
     assert_eq!(
         found.symbols,

@@ -29,7 +29,9 @@ pub fn thread_locals(map: &str) -> Result<ThreadLocals, String> {
         column(header, "In "),
         column(header, "Symbol"),
     ) else {
-        return Err(format!("the link map's header is not one this reads: {header}"));
+        return Err(format!(
+            "the link map's header is not one this reads: {header}"
+        ));
     };
     let mut found = ThreadLocals::default();
     let mut inside = false;

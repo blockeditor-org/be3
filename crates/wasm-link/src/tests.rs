@@ -31,12 +31,12 @@ const MAP: &str = "    Addr      Off     Size Out     In      Symbol
   1000e0    a2185       16                 .Lanon.1
 ";
 
-mod a_response_file_is_split_as_lld_splits_it;
-mod a_plugin_link_leaves_out_what_the_sdk_links;
 mod a_plugin_link_has_the_sdk_thread_locals_first;
+mod a_plugin_link_leaves_out_what_the_sdk_links;
+mod a_response_file_is_split_as_lld_splits_it;
+mod an_import_the_sdk_does_not_export_is_reported;
 mod an_sdk_link_takes_every_rust_object_whole;
 mod exported_globals_are_added_to_a_module;
 mod the_link_map_gives_the_thread_locals_in_order;
 mod the_plugins_reserve_must_be_the_sdks_last_thread_local;
 mod the_sdk_listing_is_read_back;
-mod an_import_the_sdk_does_not_export_is_reported;

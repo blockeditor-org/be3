@@ -16,5 +16,9 @@ fn a_plugin_link_has_the_sdk_thread_locals_first() {
             size: 40,
         }],
     };
-    assert!(check_thread_locals(&placed, mirror, &sdk(&[])).unwrap_err().contains("more than the 32"));
+    assert!(
+        check_thread_locals(&placed, mirror, &sdk(&[]))
+            .unwrap_err()
+            .contains("more than the 32")
+    );
 }
