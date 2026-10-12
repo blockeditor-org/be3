@@ -122,9 +122,9 @@ impl Element for CanvasNode {
         let Some(host) = self.host else {
             return;
         };
-        let clipped = painter.shifted(Some(SpaceId::inside(host, CLIPPED)), self.shift, rect);
+        let clipped = painter.shifted(SpaceId::inside(host, CLIPPED), self.shift, rect);
         let unclipped = painter.shifted(
-            Some(SpaceId::inside(host, UNCLIPPED)),
+            SpaceId::inside(host, UNCLIPPED),
             self.shift,
             Rect::EVERYTHING,
         );

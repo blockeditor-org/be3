@@ -162,6 +162,7 @@ impl Effects {
             format,
             "beui downsample",
             "downsample",
+            None,
         );
         let upsample = pipeline(
             device,
@@ -170,6 +171,7 @@ impl Effects {
             format,
             "beui upsample",
             "upsample",
+            None,
         );
         let compose = pipeline(
             device,
@@ -178,6 +180,7 @@ impl Effects {
             format,
             "beui combine",
             "compose",
+            Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
         );
         Self {
             format,
@@ -225,13 +228,6 @@ impl Effects {
             true => None,
             false => Some(self.layer(device, size, "beui filter scene")),
         };
-    }
-
-    pub(super) fn release(&mut self) {
-        self.scene = None;
-        self.chain.clear();
-        self.combine_bind = None;
-        self.size = (0, 0);
     }
 
     pub(super) fn scene(&self) -> Option<&wgpu::TextureView> {
@@ -528,6 +524,7 @@ fn pipeline(
     format: wgpu::TextureFormat,
     label: &str,
     entry_point: &str,
+    blend: Option<wgpu::BlendState>,
 ) -> wgpu::RenderPipeline {
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some(label),
@@ -552,7 +549,7 @@ fn pipeline(
             compilation_options: Default::default(),
             targets: &[Some(wgpu::ColorTargetState {
                 format,
-                blend: None,
+                blend,
                 write_mask: wgpu::ColorWrites::ALL,
             })],
         }),

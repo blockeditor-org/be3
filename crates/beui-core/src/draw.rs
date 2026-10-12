@@ -114,7 +114,6 @@ impl Turn {
 
 pub struct Quads {
     pub list: Vec<Quad>,
-    pub filtered: usize,
 }
 
 pub fn quads(output: &FrameOutput, pixels_per_point: f32) -> Quads {
@@ -126,22 +125,11 @@ pub fn quads_within(
     pixels_per_point: f32,
     damaged: Option<&[[f32; 4]]>,
 ) -> Quads {
-    let (shapes, boundary) = output.filtered_shapes();
-    let mut filtered = 0;
     let mut quads = Vec::new();
-    for (index, shape) in shapes.iter().enumerate() {
-        if boundary == Some(index) {
-            filtered = quads.len();
-        }
-        push_quads(shape, pixels_per_point, damaged, &mut quads);
+    for shape in output.shapes() {
+        push_quads(&shape, pixels_per_point, damaged, &mut quads);
     }
-    if boundary.is_some_and(|boundary| boundary >= shapes.len()) {
-        filtered = quads.len();
-    }
-    Quads {
-        list: quads,
-        filtered,
-    }
+    Quads { list: quads }
 }
 
 pub fn push_quads(

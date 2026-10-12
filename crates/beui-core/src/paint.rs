@@ -1,21 +1,24 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::time::Instant;
 
 use crate::damage::Region;
-use crate::display::{Display, Item as DisplayItem, Part};
+use crate::display::{Display, Group, Part};
+use crate::document::Document;
 use crate::fade::Fade;
 use crate::geometry::{Pos2, Rect, Vec2};
-use crate::painter::{Entry, Painter, PainterState, Shape, placed_shape};
+use crate::node::{ANCESTOR_LIMIT, Arena, NodeId, NodeMap, Rects, SpaceId};
+use crate::painter::{Painter, PainterState, Scope, Shape, placed_shape};
 
-use crate::document::Document;
-use crate::node::{ANCESTOR_LIMIT, Arena, NodeId, NodeMap, Rects};
+pub struct Item {
+    pub scope: Option<Rc<Scope>>,
+    pub clip: Rect,
+    pub recording: Recording,
+}
 
-#[derive(Clone, PartialEq)]
-pub enum Item {
-    Main(Shape),
-    Top(Shape),
-    Child(NodeId, Entry),
+pub enum Recording {
+    Shape(Shape),
+    Child(NodeId, Vec2),
 }
 
 #[derive(Clone, Copy)]
@@ -27,17 +30,14 @@ struct Placement {
 
 pub struct Recorded {
     pub items: Vec<Item>,
-    pub own: Rect,
-    pub bounds: Rect,
     pub deadline: Option<Instant>,
     pub reads: bool,
 }
 
 struct Painted {
     placement: Placement,
-    entry: Entry,
+    at: Vec2,
     display: Rc<Display>,
-    own: Rect,
     reads: bool,
     below: bool,
 }
@@ -50,19 +50,23 @@ struct Dirt {
 }
 
 enum Visit {
-    Reuse(Rect),
+    Reuse,
     Descend(Vec<(NodeId, PainterState)>),
     Record,
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Move {
-    pub node: NodeId,
-    pub moving: Vec<NodeId>,
+    pub space: SpaceId,
     pub viewport: Rect,
     pub by: Vec2,
-    pub damaged: Region,
-    pub absorbed: Vec<Rect>,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Stale {
+    pub rect: Rect,
+    pub scroll: Option<SpaceId>,
+    pub settled: bool,
 }
 
 #[derive(Default)]
@@ -73,7 +77,9 @@ pub struct PaintCache {
     deadlines: HashMap<NodeId, Instant>,
     roots: Vec<(NodeId, Rect)>,
     places: HashMap<NodeId, (Vec2, Rect)>,
+    scrolls: HashMap<SpaceId, Option<SpaceId>>,
     damage: Region,
+    stale: Vec<Stale>,
     recorded: bool,
     batch: u64,
 }
@@ -89,6 +95,16 @@ impl PaintCache {
         self.entries.get(&id).map_or(Rect::NOTHING, |painted| {
             absolute(painted.display.bounds, painted.placement.own)
         })
+    }
+
+    pub fn unplace(&mut self, id: NodeId) {
+        if let Some(painted) = self.entries.get(&id) {
+            self.stale.push(Stale {
+                rect: absolute(painted.display.bounds, painted.placement.own),
+                scroll: painted.placement.own.scroll,
+                settled: false,
+            });
+        }
     }
 
     pub fn forget(&mut self, id: NodeId) {
@@ -193,6 +209,10 @@ impl PaintCache {
         std::mem::take(&mut self.damage)
     }
 
+    pub fn take_stale(&mut self) -> Vec<Stale> {
+        std::mem::take(&mut self.stale)
+    }
+
     pub fn take_moves(&mut self) -> Vec<Move> {
         std::mem::take(&mut self.moves)
     }
@@ -201,27 +221,29 @@ impl PaintCache {
         std::mem::take(&mut self.recorded)
     }
 
-    pub fn rooted(&self) -> Vec<(NodeId, Rc<Display>, Entry)> {
+    pub fn scrolls_within(&self, scroll: Option<SpaceId>, space: SpaceId) -> bool {
+        let mut current = scroll;
+        for _ in 0..ANCESTOR_LIMIT {
+            match current {
+                Some(held) if held == space => return true,
+                Some(held) => current = self.scrolls.get(&held).copied().flatten(),
+                None => return false,
+            }
+        }
+        false
+    }
+
+    pub fn painting(&self) -> Vec<(Rc<Display>, Vec2)> {
         self.roots
             .iter()
             .filter_map(|(root, _)| {
                 let painted = self.entries.get(root)?;
-                Some((*root, Rc::clone(&painted.display), painted.entry))
+                Some((Rc::clone(&painted.display), painted.at))
             })
             .collect()
     }
 
-    pub fn painting(&self) -> Vec<(Rc<Display>, Entry)> {
-        self.roots
-            .iter()
-            .filter_map(|(root, _)| {
-                let painted = self.entries.get(root)?;
-                Some((Rc::clone(&painted.display), painted.entry))
-            })
-            .collect()
-    }
-
-    fn visit(&mut self, id: NodeId, placement: Placement, entry: Entry) -> Visit {
+    fn visit(&mut self, id: NodeId, placement: Placement, at: Vec2) -> Visit {
         let dirt = self.dirt.remove(&id).unwrap_or_default();
         let Some(painted) = self.entries.get_mut(&id).filter(|painted| {
             !dirt.own
@@ -235,13 +257,14 @@ impl PaintCache {
             return Visit::Record;
         }
         painted.placement = placement;
-        painted.entry = entry;
+        painted.at = at;
         if !dirt.below && (sees || !painted.below) {
-            return Visit::Reuse(painted.display.bounds);
+            return Visit::Reuse;
         }
         let entered: Vec<NodeId> = painted
             .display
             .children()
+            .into_iter()
             .map(|(child, ..)| child)
             .collect();
         let mut children = Vec::new();
@@ -254,398 +277,438 @@ impl PaintCache {
         Visit::Descend(children)
     }
 
-    fn settle_descended(&mut self, id: NodeId) -> Rect {
+    fn settle_descended(&mut self, id: NodeId) {
         let Some(painted) = self.entries.get(&id) else {
-            return Rect::NOTHING;
+            return;
         };
         let held = Rc::clone(&painted.display);
-        let own = painted.own;
-        let mut changed = false;
-        let mut bounds = own;
-        let mut parts = Vec::with_capacity(held.parts.len());
-        for part in held.parts.iter() {
-            parts.push(match part {
-                Part::Shapes { top, start, end } => Part::Shapes {
-                    top: *top,
-                    start: *start,
-                    end: *end,
-                },
-                Part::Child(child, entry, display) => {
-                    let current = self.display(*child).unwrap_or_else(|| Rc::clone(display));
-                    changed |= !Rc::ptr_eq(&current, display);
-                    bounds = bounds.union(entry.place(current.bounds));
-                    Part::Child(*child, *entry, current)
-                }
-            });
-        }
+        let rebuilt = held.with_children(&|child| self.display(child));
         let below = self.reads_below(&held);
         if let Some(painted) = self.entries.get_mut(&id) {
-            if changed || bounds != held.bounds {
-                painted.display = Rc::new(held.with_children(parts, bounds));
+            if let Some(rebuilt) = rebuilt {
+                painted.display = Rc::new(rebuilt);
                 self.recorded = true;
             }
             painted.below = below;
         }
-        bounds
     }
 
     fn reads_below(&self, display: &Display) -> bool {
-        display.children().any(|(child, ..)| {
+        display.children().into_iter().any(|(child, ..)| {
             self.entries
                 .get(&child)
                 .is_some_and(|painted| painted.reads || painted.below)
         })
     }
 
-    fn store(&mut self, id: NodeId, placement: Placement, entry: Entry, recorded: Recorded) {
-        let (shapes, parts) = crate::display::parts(recorded.items, |child| self.display(child));
-        let display = Rc::new(Display::new(shapes, parts, recorded.bounds));
-        let below = self.reads_below(&display);
-        let painted = Painted {
-            placement,
-            entry,
-            display,
-            own: recorded.own,
-            reads: recorded.reads,
-            below,
-        };
-        let state = placement.own;
-        let old = self.entries.remove(&id);
-        let redrawn = old
-            .as_ref()
-            .and_then(|old| redrawn_damage(&old.display.items(), &painted.display.items()));
-        let damaged: Vec<Rect> = match old {
-            None => vec![painted.display.bounds],
-            Some(_) if redrawn.is_some() => redrawn.unwrap_or_default().rects().to_vec(),
-            Some(old) if children(&old.display).eq(children(&painted.display)) => {
-                changed_items(&old.display, &painted.display)
-            }
-            Some(old) => match scrolled(&old, &painted).or_else(|| reflowed(&old, &painted)) {
-                Some(Moving {
-                    by,
-                    viewport,
-                    damaged,
-                    moving,
-                    absorbed,
-                }) => {
-                    let mut region = Region::NOTHING;
-                    for rect in damaged {
-                        region.add(absolute(rect, state));
+    fn note_scrolls(&mut self, parts: &[Part], around: Option<SpaceId>) {
+        for part in parts {
+            if let Part::Group(group, inner) = part {
+                let within = match group {
+                    Group::Scroll { space, .. } => {
+                        self.scrolls.insert(*space, around);
+                        Some(*space)
                     }
-                    self.moves.push(Move {
-                        node: id,
-                        moving,
-                        viewport: absolute(viewport, state),
-                        by,
-                        damaged: region,
-                        absorbed: absorbed
-                            .into_iter()
-                            .map(|rect| absolute(rect, state))
-                            .collect(),
-                    });
-                    Vec::new()
-                }
-                None => changed_items(&old.display, &painted.display),
-            },
-        };
-        for rect in damaged {
-            self.damage.add(absolute(rect, state));
+                    _ => around,
+                };
+                self.note_scrolls(inner, within);
+            }
+        }
+    }
+
+    fn store(&mut self, id: NodeId, placement: Placement, at: Vec2, recorded: Recorded) {
+        let (shapes, parts) = build(recorded.items, |child| self.display(child));
+        let display = Rc::new(Display::new(shapes, parts));
+        self.note_scrolls(&display.parts, placement.own.scroll);
+        let below = self.reads_below(&display);
+        let old = self.entries.remove(&id);
+        match &old {
+            None => self.damage.add(absolute(display.bounds, placement.own)),
+            Some(old) => self.reconcile(old, placement.own, &display),
         }
         match recorded.deadline {
             Some(deadline) => self.deadlines.insert(id, deadline),
             None => self.deadlines.remove(&id),
         };
-        self.entries.insert(id, painted);
+        self.entries.insert(
+            id,
+            Painted {
+                placement,
+                at,
+                display,
+                reads: recorded.reads,
+                below,
+            },
+        );
         self.recorded = true;
     }
-}
 
-const SHAPE_REACH: usize = 8;
-
-fn placed_items(display: &Display) -> Vec<(DisplayItem<'_>, Rect)> {
-    let mut placed = Vec::new();
-    for part in display.parts.iter() {
-        match part {
-            Part::Shapes { top, start, end } => {
-                for shape in &display.shapes[*start as usize..*end as usize] {
-                    let item = match top {
-                        true => DisplayItem::Top(shape),
-                        false => DisplayItem::Main(shape),
-                    };
-                    placed.push((item, crate::damage::bounds(shape)));
-                }
-            }
-            Part::Child(id, entry, child) => {
-                placed.push((DisplayItem::Child(*id, *entry), entry.place(child.bounds)));
-            }
-        }
-    }
-    placed
-}
-
-fn changed_items(old: &Display, new: &Display) -> Vec<Rect> {
-    let (before, after) = (placed_items(old), placed_items(new));
-    let children: HashMap<NodeId, usize> = before
-        .iter()
-        .enumerate()
-        .filter_map(|(index, (item, _))| match item {
-            DisplayItem::Child(id, _) => Some((*id, index)),
-            _ => None,
-        })
-        .collect();
-    let mut damaged = Vec::new();
-    let mut next = 0;
-    for (item, bounds) in &after {
-        let found = match item {
-            DisplayItem::Child(id, _) => children
-                .get(id)
-                .copied()
-                .filter(|at| *at >= next && refaded(&before[*at].0, item).is_some()),
-            _ => (next..before.len().min(next + SHAPE_REACH)).find(|at| before[*at].0 == *item),
+    fn reconcile(&mut self, old: &Painted, now: PainterState, display: &Display) {
+        let still = old.placement.own.sees(now);
+        let after = Elements::of(display, now.scroll, &[]);
+        let before = Elements::of(&old.display, now.scroll, &after.scrolls);
+        let stale = |stale: &mut Vec<Stale>, (rect, scroll): (Rect, Option<SpaceId>)| {
+            stale.push(Stale {
+                rect: absolute(rect, now),
+                scroll,
+                settled: true,
+            });
         };
-        match found {
-            Some(at) => {
-                damaged.extend(before[next..at].iter().map(|(_, bounds)| *bounds));
-                if let Some((was, now)) = refaded(&before[at].0, item)
-                    && was != now
-                {
-                    damaged.extend(was.bands().into_iter().chain(now.bands()));
+        if !before.same_shapes(&after) {
+            match before.redrawn(&after) {
+                Some(region) => {
+                    for rect in region.rects() {
+                        self.damage.add(absolute(*rect, now));
+                    }
                 }
-                next = at + 1;
+                None => {
+                    for placed in before.shape_bounds() {
+                        stale(&mut self.stale, placed);
+                    }
+                    for (rect, _) in after.shape_bounds() {
+                        self.damage.add(absolute(rect, now));
+                    }
+                }
             }
-            None => damaged.push(*bounds),
         }
-    }
-    damaged.extend(before[next..].iter().map(|(_, bounds)| *bounds));
-    damaged
-}
-
-struct Moving {
-    by: Vec2,
-    viewport: Rect,
-    damaged: Vec<Rect>,
-    moving: Vec<NodeId>,
-    absorbed: Vec<Rect>,
-}
-
-fn reflowed(old: &Painted, new: &Painted) -> Option<Moving> {
-    if new.placement.own.space.is_none()
-        || !old.placement.own.sees(new.placement.own)
-        || !old.placement.own.settles(new.placement.own)
-    {
-        return None;
-    }
-    let (old, new) = (&old.display, &new.display);
-    if old.shapes != new.shapes {
-        return None;
-    }
-    let before: Vec<_> = old.children().collect();
-    let after: Vec<_> = new.children().collect();
-    let clip = after.first().or(before.first())?.1.clip;
-    if before
-        .iter()
-        .chain(after.iter())
-        .any(|(_, entry, _)| entry.clip != clip || entry.shift.is_some())
-    {
-        return None;
-    }
-    let kept: Vec<NodeId> = after
-        .iter()
-        .filter(|(id, ..)| before.iter().any(|(held, ..)| held == id))
-        .map(|(id, ..)| *id)
-        .collect();
-    let held: Vec<NodeId> = before
-        .iter()
-        .filter(|(id, ..)| kept.contains(id))
-        .map(|(id, ..)| *id)
-        .collect();
-    if kept != held {
-        return None;
-    }
-    let previous = |id: NodeId| {
-        before
+        let held: HashMap<NodeId, usize> = before
+            .children
             .iter()
-            .find(|(held, ..)| *held == id)
-            .map(|(_, entry, display)| (*entry, Rc::clone(display)))
-    };
-    let mut by = None;
-    let mut moving = Vec::new();
-    for (id, entry, _) in &after {
-        let Some((was, _)) = previous(*id) else {
-            continue;
+            .enumerate()
+            .map(|(index, child)| (child.id, index))
+            .collect();
+        let mut kept = Vec::new();
+        for (index, child) in after.children.iter().enumerate() {
+            let previous = held.get(&child.id).map(|index| &before.children[*index]);
+            match previous {
+                Some(previous)
+                    if previous.at == child.at
+                        && same_path(&before.paths[previous.path], &after.paths[child.path]) =>
+                {
+                    kept.push(index);
+                }
+                previous => {
+                    if let Some(previous) = previous {
+                        stale(&mut self.stale, (previous.placed, previous.scroll));
+                    }
+                    self.damage.add(absolute(child.placed, now));
+                }
+            }
+        }
+        let shown: HashSet<NodeId> = after.children.iter().map(|child| child.id).collect();
+        for child in &before.children {
+            if !shown.contains(&child.id) {
+                stale(&mut self.stale, (child.placed, child.scroll));
+            }
+        }
+        let stayed: HashSet<NodeId> = kept.iter().map(|index| after.children[*index].id).collect();
+        let order = before
+            .children
+            .iter()
+            .filter(|child| stayed.contains(&child.id));
+        if let Some(from) = order
+            .zip(&kept)
+            .position(|(was, now)| was.id != after.children[*now].id)
+        {
+            for index in &kept[from..] {
+                let child = &after.children[*index];
+                let previous = &before.children[held[&child.id]];
+                stale(&mut self.stale, (previous.placed, previous.scroll));
+                self.damage.add(absolute(child.placed, now));
+            }
+        }
+        if before.masks.len() == after.masks.len() {
+            for (was, now_mask) in before.masks.iter().zip(&after.masks) {
+                if was.1 == now_mask.1 {
+                    continue;
+                }
+                for band in was.1.bands() {
+                    stale(&mut self.stale, (before.place(was.0, band), was.2));
+                }
+                for band in now_mask.1.bands() {
+                    self.damage
+                        .add(absolute(after.place(now_mask.0, band), now));
+                }
+            }
+        }
+        for scroll in &after.scrolls {
+            let Some(previous) = before
+                .scrolls
+                .iter()
+                .find(|previous| previous.space == scroll.space)
+            else {
+                continue;
+            };
+            if previous.offset == scroll.offset {
+                continue;
+            }
+            let viewport = absolute(scroll.viewport, now);
+            match still && previous.viewport == scroll.viewport {
+                true => self.moves.push(Move {
+                    space: scroll.space,
+                    viewport,
+                    by: scroll.offset - previous.offset,
+                }),
+                false => {
+                    stale(&mut self.stale, (previous.viewport, previous.around));
+                    self.damage.add(viewport);
+                }
+            }
+        }
+    }
+}
+
+struct Elements<'a> {
+    display: &'a Display,
+    around: Option<SpaceId>,
+    paths: Vec<Vec<Group>>,
+    shapes: Vec<(usize, u32, u32, Rect)>,
+    children: Vec<Placed>,
+    scrolls: Vec<Scrolled>,
+    masks: Vec<(usize, Fade, Option<SpaceId>)>,
+}
+
+struct Placed {
+    id: NodeId,
+    path: usize,
+    at: Vec2,
+    placed: Rect,
+    scroll: Option<SpaceId>,
+}
+
+struct Scrolled {
+    space: SpaceId,
+    viewport: Rect,
+    offset: Vec2,
+    around: Option<SpaceId>,
+}
+
+impl<'a> Elements<'a> {
+    fn of(display: &'a Display, scroll: Option<SpaceId>, settled: &[Scrolled]) -> Self {
+        let mut elements = Self {
+            display,
+            around: scroll,
+            paths: vec![Vec::new()],
+            shapes: Vec::new(),
+            children: Vec::new(),
+            scrolls: Vec::new(),
+            masks: Vec::new(),
         };
-        let delta = entry.translation - was.translation;
-        if delta == Vec2::ZERO {
-            if !moving.is_empty() {
+        elements.walk(&display.parts, 0, scroll, settled);
+        elements
+    }
+
+    fn walk(&mut self, parts: &[Part], path: usize, scroll: Option<SpaceId>, settled: &[Scrolled]) {
+        for part in parts {
+            match part {
+                Part::Shapes { start, end, bounds } => {
+                    let placed = self.place(path, *bounds);
+                    self.shapes.push((path, *start, *end, placed));
+                }
+                Part::Child(id, at, child) => {
+                    let placed = self.place(path, child.bounds.translate(*at));
+                    self.children.push(Placed {
+                        id: *id,
+                        path,
+                        at: *at,
+                        placed,
+                        scroll,
+                    });
+                }
+                Part::Group(group, inner) => {
+                    let mut nested = self.paths[path].clone();
+                    nested.push(match *group {
+                        Group::Scroll {
+                            space, viewport, ..
+                        } => match settled.iter().find(|held| held.space == space) {
+                            Some(held) => Group::Scroll {
+                                space,
+                                viewport,
+                                offset: held.offset,
+                            },
+                            None => *group,
+                        },
+                        group => group,
+                    });
+                    self.paths.push(nested);
+                    let within = self.paths.len() - 1;
+                    if let Group::Mask(fade) = group {
+                        self.masks.push((path, *fade, scroll));
+                    }
+                    let scroll = match *group {
+                        Group::Scroll {
+                            space,
+                            viewport,
+                            offset,
+                        } => {
+                            if !self.scrolls.iter().any(|held| held.space == space) {
+                                let viewport = self.place(path, viewport);
+                                self.scrolls.push(Scrolled {
+                                    space,
+                                    viewport,
+                                    offset,
+                                    around: scroll,
+                                });
+                            }
+                            Some(space)
+                        }
+                        _ => scroll,
+                    };
+                    self.walk(inner, within, scroll, settled);
+                }
+            }
+        }
+    }
+
+    fn place(&self, path: usize, rect: Rect) -> Rect {
+        self.paths[path]
+            .iter()
+            .rev()
+            .fold(rect, |rect, group| group.place(rect))
+    }
+
+    fn scroll_of(&self, path: usize, around: Option<SpaceId>) -> Option<SpaceId> {
+        self.paths[path]
+            .iter()
+            .rev()
+            .find_map(|group| match group {
+                Group::Scroll { space, .. } => Some(*space),
+                _ => None,
+            })
+            .or(around)
+    }
+
+    fn own(&self) -> impl Iterator<Item = (usize, &Shape)> + '_ {
+        self.shapes.iter().flat_map(|(path, start, end, _)| {
+            self.display.shapes[*start as usize..*end as usize]
+                .iter()
+                .map(|shape| (*path, shape))
+        })
+    }
+
+    fn same_shapes(&self, other: &Self) -> bool {
+        self.own().count() == other.own().count()
+            && self
+                .own()
+                .zip(other.own())
+                .all(|((path, shape), (other_path, other_shape))| {
+                    shape == other_shape && same_path(&self.paths[path], &other.paths[other_path])
+                })
+    }
+
+    fn redrawn(&self, other: &Self) -> Option<Region> {
+        if self.own().count() != other.own().count() {
+            return None;
+        }
+        let mut region = Region::NOTHING;
+        for ((path, shape), (other_path, other_shape)) in self.own().zip(other.own()) {
+            if !same_path(&self.paths[path], &other.paths[other_path]) {
                 return None;
             }
-            continue;
-        }
-        if by.is_some_and(|by| by != delta) {
-            return None;
-        }
-        by = Some(delta);
-        moving.push(*id);
-    }
-    let by = by?;
-    if by.x != 0.0 && by.y != 0.0 {
-        return None;
-    }
-    let mut changed = Rect::NOTHING;
-    for (id, entry, child) in &after {
-        if !kept.contains(id) || moving.contains(id) {
-            changed = changed.union(entry.place(child.bounds));
-        }
-    }
-    for (id, entry, child) in &before {
-        if !kept.contains(id) || moving.contains(id) {
-            changed = changed.union(entry.place(child.bounds));
-        }
-    }
-    let viewport = changed.intersect(clip);
-    if !viewport.is_positive() {
-        return None;
-    }
-    let within = |rect: Rect| rect.intersect(viewport);
-    let mut damaged = uncovered(viewport, viewport.translate(by));
-    let mut absorbed = Vec::new();
-    for (id, entry, child) in &after {
-        let placed = entry.place(child.bounds);
-        match previous(*id) {
-            None => {
-                damaged.push(within(placed));
-                absorbed.push(placed);
-                moving.push(*id);
+            if shape == other_shape {
+                continue;
             }
-            Some((was, held)) if !Rc::ptr_eq(&held, child) => {
-                damaged.push(within(placed));
-                damaged.push(within(placed.translate(-by)));
-                damaged.push(within(was.place(held.bounds).translate(by)));
+            let redrawn = redrawn_in_place(shape, other_shape)?;
+            for rect in redrawn.rects() {
+                region.add(self.place(path, *rect));
             }
-            Some(_) if !moving.contains(id) => damaged.push(within(placed)),
-            Some(_) => {}
         }
+        Some(region)
     }
-    for (id, entry, child) in &before {
-        if !kept.contains(id) {
-            let placed = entry.place(child.bounds);
-            damaged.push(within(placed.translate(by)));
-            absorbed.push(placed);
-        }
+
+    fn shape_bounds(&self) -> Vec<(Rect, Option<SpaceId>)> {
+        self.shapes
+            .iter()
+            .map(|(path, _, _, placed)| (*placed, self.scroll_of(*path, self.around)))
+            .collect()
     }
-    Some(Moving {
-        by,
-        viewport,
-        damaged,
-        moving,
-        absorbed,
-    })
 }
 
-fn scrolled(old: &Painted, new: &Painted) -> Option<Moving> {
-    if !old.placement.own.sees(new.placement.own) || !old.placement.own.settles(new.placement.own) {
-        return None;
+fn same_path(left: &[Group], right: &[Group]) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right)
+            .all(|(left, right)| left.same_place(right))
+}
+
+fn build(
+    items: Vec<Item>,
+    child: impl Fn(NodeId) -> Option<Rc<Display>>,
+) -> (Vec<Shape>, Vec<Part>) {
+    let mut shapes = Vec::new();
+    let mut open: Vec<(Opened, Vec<Part>)> = vec![(Opened::Root, Vec::new())];
+    for item in items {
+        let mut wanted: Vec<Opened> = Scope::chain(&item.scope)
+            .into_iter()
+            .map(|scope| Opened::Scope(scope.id, scope.group))
+            .collect();
+        if matches!(item.recording, Recording::Child(..)) && item.clip != Rect::EVERYTHING {
+            wanted.push(Opened::Clip(item.clip));
+        }
+        let common = open[1..]
+            .iter()
+            .zip(&wanted)
+            .take_while(|((opened, _), wanted)| opened == *wanted)
+            .count();
+        while open.len() > common + 1 {
+            close(&mut open);
+        }
+        for opened in &wanted[common..] {
+            open.push((*opened, Vec::new()));
+        }
+        let parts = &mut open.last_mut().expect("the root stays open").1;
+        match item.recording {
+            Recording::Shape(shape) => {
+                let at = shapes.len() as u32;
+                let bounds = crate::damage::bounds(&shape);
+                shapes.push(shape);
+                match parts.last_mut() {
+                    Some(Part::Shapes {
+                        end, bounds: held, ..
+                    }) if *end == at => {
+                        *end = at + 1;
+                        *held = held.union(bounds);
+                    }
+                    _ => parts.push(Part::Shapes {
+                        start: at,
+                        end: at + 1,
+                        bounds,
+                    }),
+                }
+            }
+            Recording::Child(id, at) => {
+                if let Some(display) = child(id) {
+                    parts.push(Part::Child(id, at, display));
+                }
+            }
+        }
     }
-    let faded = [old.entry, new.entry]
-        .map(|entry| entry.fade.translate(-entry.translation).bands())
-        .concat();
-    let (old, new) = (&old.display, &new.display);
-    if unshifted(old) != unshifted(new) {
-        return None;
+    while open.len() > 1 {
+        close(&mut open);
     }
-    let content = |display: &Display| {
-        display
-            .children()
-            .filter_map(|(id, entry, child)| Some((id, entry, entry.shift?, Rc::clone(child))))
-            .collect::<Vec<_>>()
+    let (_, parts) = open.pop().expect("the root stays open");
+    (shapes, parts)
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum Opened {
+    Root,
+    Scope(u64, Group),
+    Clip(Rect),
+}
+
+fn close(open: &mut Vec<(Opened, Vec<Part>)>) {
+    let (opened, parts) = open.pop().expect("a group is open");
+    let group = match opened {
+        Opened::Scope(_, group) => group,
+        Opened::Clip(clip) => Group::Clip(clip),
+        Opened::Root => unreachable!("the root is never closed"),
     };
-    let (before, after) = (content(old), content(new));
-    let (first, last) = (before.first()?, after.first()?);
-    let (viewport, shift) = (first.1.clip, last.2);
-    let by = shift - first.2;
-    if by == Vec2::ZERO
-        || before
-            .iter()
-            .any(|(_, entry, held, _)| entry.clip != viewport || *held != first.2)
-        || after
-            .iter()
-            .any(|(_, entry, held, _)| entry.clip != viewport || *held != shift)
-    {
-        return None;
+    if !parts.is_empty() {
+        let into = &mut open.last_mut().expect("the root stays open").1;
+        into.push(Part::Group(group, parts.into_boxed_slice()));
     }
-    let kept: Vec<NodeId> = after
-        .iter()
-        .filter(|(id, ..)| before.iter().any(|(held, ..)| held == id))
-        .map(|(id, ..)| *id)
-        .collect();
-    let held: Vec<NodeId> = before
-        .iter()
-        .filter(|(id, ..)| kept.contains(id))
-        .map(|(id, ..)| *id)
-        .collect();
-    if kept.is_empty() || kept != held {
-        return None;
-    }
-    for (id, entry, ..) in &after {
-        if let Some((_, previous, ..)) = before.iter().find(|(held, ..)| held == id)
-            && entry.translation - previous.translation != by
-        {
-            return None;
-        }
-    }
-    let within = |rect: Rect| rect.intersect(viewport);
-    let mut damaged = uncovered(viewport, viewport.translate(by));
-    for (id, entry, _, child) in &after {
-        if !kept.contains(id) {
-            damaged.push(within(entry.place(child.bounds)));
-        }
-    }
-    for (id, entry, _, child) in &before {
-        if !kept.contains(id) {
-            damaged.push(within(entry.place(child.bounds).translate(by)));
-        }
-    }
-    for rect in fixed(new)
-        .into_iter()
-        .chain(first.1.fade.bands())
-        .chain(last.1.fade.bands())
-        .chain(faded)
-    {
-        damaged.push(within(rect));
-        damaged.push(within(rect.translate(by)));
-    }
-    Some(Moving {
-        by,
-        viewport,
-        damaged,
-        moving: after.iter().map(|(id, ..)| *id).collect(),
-        absorbed: Vec::new(),
-    })
-}
-
-fn unshifted(display: &Display) -> Vec<DisplayItem<'_>> {
-    display
-        .items()
-        .into_iter()
-        .filter(|item| !matches!(item, DisplayItem::Child(_, Entry { shift: Some(_), .. })))
-        .collect()
-}
-
-fn fixed(display: &Display) -> Vec<Rect> {
-    display
-        .parts
-        .iter()
-        .flat_map(|part| match part {
-            Part::Shapes { start, end, .. } => display.shapes[*start as usize..*end as usize]
-                .iter()
-                .map(crate::damage::bounds)
-                .collect::<Vec<_>>(),
-            Part::Child(_, entry, child) if entry.shift.is_none() => {
-                vec![entry.place(child.bounds)]
-            }
-            Part::Child(..) => Vec::new(),
-        })
-        .collect()
 }
 
 pub fn uncovered(rect: Rect, cover: Rect) -> Vec<Rect> {
@@ -680,62 +743,88 @@ pub fn uncovered(rect: Rect, cover: Rect) -> Vec<Rect> {
 }
 
 pub fn fixed_damage(
-    painting: &[(NodeId, Rc<Display>, Entry)],
-    scroll: NodeId,
-    moving: &[NodeId],
+    painting: &[(Rc<Display>, Vec2)],
+    scroll: SpaceId,
     viewport: Rect,
     by: Vec2,
 ) -> (Region, Rect) {
     let mut fixed = Fixed {
         scroll,
-        moving,
         viewport,
         by,
         damage: Region::NOTHING,
         inner: viewport,
     };
-    for (root, display, entry) in painting {
-        for top in [false, true] {
-            fixed.within(display, *entry, *root == scroll, top);
-        }
+    for (display, at) in painting {
+        fixed.display(display, *at, Rect::EVERYTHING);
     }
     (fixed.damage, fixed.inner)
 }
 
-struct Fixed<'a> {
-    scroll: NodeId,
-    moving: &'a [NodeId],
+struct Fixed {
+    scroll: SpaceId,
     viewport: Rect,
     by: Vec2,
     damage: Region,
     inner: Rect,
 }
 
-impl Fixed<'_> {
-    fn within(&mut self, display: &Display, at: Entry, scrolls: bool, top: bool) {
-        if !at.place(display.bounds).intersects(self.viewport) {
+impl Fixed {
+    fn display(&mut self, display: &Display, at: Vec2, clip: Rect) {
+        if !display
+            .bounds
+            .translate(at)
+            .intersect(clip)
+            .intersects(self.viewport)
+        {
             return;
         }
-        for part in display.parts.iter() {
+        self.parts(display, &display.parts, at, clip);
+    }
+
+    fn parts(&mut self, display: &Display, parts: &[Part], at: Vec2, clip: Rect) {
+        for part in parts {
             match part {
-                Part::Shapes {
-                    top: on_top,
-                    start,
-                    end,
-                } => {
-                    if *on_top != top {
-                        continue;
-                    }
+                Part::Shapes { start, end, .. } => {
                     for shape in &display.shapes[*start as usize..*end as usize] {
-                        self.shape(&placed_shape(shape, at.translation, at.clip));
+                        self.shape(&placed_shape(shape, at, clip));
                     }
                 }
-                Part::Child(id, _, _) if scrolls && self.moving.contains(id) => {}
-                Part::Child(id, entry, child) => {
-                    self.within(child, at.compose(*entry), *id == self.scroll, top);
-                }
+                Part::Child(_, translation, child) => self.display(child, at + *translation, clip),
+                Part::Group(group, inner) => match *group {
+                    Group::Scroll { space, .. } if space == self.scroll => {}
+                    Group::Scroll {
+                        viewport, offset, ..
+                    } => self.parts(
+                        display,
+                        inner,
+                        at + offset,
+                        clip.intersect(viewport.translate(at)),
+                    ),
+                    Group::Clip(rect) => {
+                        self.parts(display, inner, at, clip.intersect(rect.translate(at)))
+                    }
+                    Group::Transform { offset, scale: 1.0 } => {
+                        self.parts(display, inner, at + offset, clip)
+                    }
+                    Group::Mask(fade) => {
+                        for band in fade.translate(at).bands() {
+                            self.both(band.intersect(clip));
+                        }
+                        self.parts(display, inner, at, clip);
+                    }
+                    Group::Transform { .. } | Group::Filter(_) => {
+                        self.both(part.bounds().translate(at).intersect(clip));
+                    }
+                },
             }
         }
+    }
+
+    fn both(&mut self, rect: Rect) {
+        self.damage.add(rect.intersect(self.viewport));
+        self.damage
+            .add(rect.translate(self.by).intersect(self.viewport));
     }
 
     fn shape(&mut self, shape: &Shape) {
@@ -756,9 +845,7 @@ impl Fixed<'_> {
             return;
         }
         for rect in painted(shape, bounds) {
-            self.damage.add(rect.intersect(self.viewport));
-            self.damage
-                .add(rect.translate(self.by).intersect(self.viewport));
+            self.both(rect);
         }
     }
 }
@@ -819,24 +906,6 @@ fn kept(roots: &[(NodeId, Rect)], others: &[(NodeId, Rect)]) -> Vec<(NodeId, Rec
         .collect()
 }
 
-fn redrawn_damage(old: &[DisplayItem], new: &[DisplayItem]) -> Option<Region> {
-    if old.len() != new.len() {
-        return None;
-    }
-    let mut region = Region::NOTHING;
-    for pair in old.iter().zip(new) {
-        match pair {
-            (old, new) if old == new => {}
-            (DisplayItem::Main(old), DisplayItem::Main(new))
-            | (DisplayItem::Top(old), DisplayItem::Top(new)) => {
-                region = region.union(redrawn_in_place(old, new)?);
-            }
-            _ => return None,
-        }
-    }
-    Some(region)
-}
-
 pub fn redrawn_in_place(old: &Shape, new: &Shape) -> Option<Region> {
     let (
         Shape::Drawing {
@@ -865,30 +934,6 @@ pub fn redrawn_in_place(old: &Shape, new: &Shape) -> Option<Region> {
     Some(region)
 }
 
-fn children(display: &Display) -> impl Iterator<Item = (NodeId, Entry)> + '_ {
-    display
-        .children()
-        .map(|(child, entry, _)| (child, unfaded(entry)))
-}
-
-fn unfaded(entry: Entry) -> Entry {
-    Entry {
-        fade: Fade::NONE,
-        ..entry
-    }
-}
-
-fn refaded(old: &DisplayItem<'_>, new: &DisplayItem<'_>) -> Option<(Fade, Fade)> {
-    match (old, new) {
-        (DisplayItem::Child(was, before), DisplayItem::Child(now, after))
-            if was == now && unfaded(*before) == unfaded(*after) =>
-        {
-            Some((before.fade, after.fade))
-        }
-        _ => None,
-    }
-}
-
 pub fn paint(doc: &Document, painter: &Painter, rects: &Rects, id: NodeId) {
     if doc.is_culled(id) {
         return;
@@ -896,18 +941,15 @@ pub fn paint(doc: &Document, painter: &Painter, rects: &Rects, id: NodeId) {
     let rect = rects.placed(&id).expect("node was not placed").rect;
     let ctx = painter.ctx();
     let own = painter.entered(id, rect);
-    let entry = painter.entry(rect);
+    let at = rect.min.to_vec2();
     let placement = Placement {
         size: rect.size(),
         given: painter.state(),
         own: own.state(),
     };
-    let visit = doc.paint_cache.borrow_mut().visit(id, placement, entry);
-    let bounds = match visit {
-        Visit::Reuse(bounds) => {
-            doc.note_painted(true);
-            bounds
-        }
+    let visit = doc.paint_cache.borrow_mut().visit(id, placement, at);
+    match visit {
+        Visit::Reuse => doc.note_painted(true),
         Visit::Descend(children) => {
             doc.note_painted(true);
             ctx.measure_paint(|| {
@@ -917,7 +959,7 @@ pub fn paint(doc: &Document, painter: &Painter, rects: &Rects, id: NodeId) {
                     }
                 }
             });
-            doc.paint_cache.borrow_mut().settle_descended(id)
+            doc.paint_cache.borrow_mut().settle_descended(id);
         }
         Visit::Record => {
             doc.note_painted(false);
@@ -930,49 +972,10 @@ pub fn paint(doc: &Document, painter: &Painter, rects: &Rects, id: NodeId) {
                 reads,
                 ..ctx.exit_paint()
             };
-            let bounds = recorded.bounds;
             doc.paint_cache
                 .borrow_mut()
-                .store(id, placement, entry, recorded);
-            bounds
+                .store(id, placement, at, recorded);
         }
-    };
-    ctx.paint_child(id, entry, entry.place(bounds));
-}
-
-pub fn same_shape(left: &Shape, right: &Shape) -> bool {
-    match (left, right) {
-        (
-            Shape::Text {
-                origin,
-                galley,
-                color,
-                rotation,
-                clip,
-            },
-            Shape::Text {
-                origin: other_origin,
-                galley: other_galley,
-                color: other_color,
-                rotation: other_rotation,
-                clip: other_clip,
-            },
-        ) => {
-            origin == other_origin
-                && color == other_color
-                && rotation == other_rotation
-                && clip == other_clip
-                && galley.size() == other_galley.size()
-                && galley.glyphs().len() == other_galley.glyphs().len()
-        }
-        (
-            Shape::Drawing { rect, clip, .. },
-            Shape::Drawing {
-                rect: other_rect,
-                clip: other_clip,
-                ..
-            },
-        ) => rect == other_rect && clip == other_clip,
-        _ => left == right,
     }
+    painter.paint_child(id, at);
 }
