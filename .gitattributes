@@ -16,6 +16,5 @@ buck/sysroot/packages.bzl linguist-generated=true
 # branches that change one painting always conflict; ./scripts/verify repaints it.
 *.paint binary
 
-# A frozen server's files (crates/be-frozen/src/snapshots) are kept byte for
-# byte: its objects are sealed bytes that git could take for text.
-crates/be-frozen/src/snapshots/*/** binary
+# A frozen server's snapshot is kept byte for byte.
+crates/be-frozen/src/snapshots/*.zip binary

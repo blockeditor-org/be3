@@ -19,6 +19,7 @@ build-id = { path = "../build-id" }
 rusqlite = { version = "0.32", features = ["bundled"] }
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
 uuid = { version = "1", features = ["v4"] }
+zip = { version = "8", default-features = false, features = ["deflate"] }
 
 [lints]
 workspace = true

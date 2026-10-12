@@ -1,5 +1,6 @@
 use std::{
     fs,
+    io::Read,
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -75,17 +76,23 @@ fn unpack(snapshot: &Snapshot) -> Unpacked {
         backup: root.join("backup"),
         root,
     };
-    let write = |path: PathBuf, bytes: &[u8]| {
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(path, bytes).unwrap();
-    };
-    for (path, bytes) in snapshot.data {
-        write(unpacked.data.join(path), bytes);
-        if path.starts_with("objects/") {
-            write(unpacked.backup.join(path), bytes);
+    let mut archive = zip::ZipArchive::new(std::io::Cursor::new(snapshot.files)).unwrap();
+    for index in 0..archive.len() {
+        let mut file = archive.by_index(index).unwrap();
+        let name = file.enclosed_name().unwrap();
+        let mut bytes = Vec::new();
+        file.read_to_end(&mut bytes).unwrap();
+        let mut targets = vec![unpacked.root.join(&name)];
+        if let Ok(object) = name.strip_prefix("data")
+            && object.starts_with("objects")
+        {
+            targets.push(unpacked.backup.join(object));
+        }
+        for target in targets {
+            fs::create_dir_all(target.parent().unwrap()).unwrap();
+            fs::write(target, &bytes).unwrap();
         }
     }
-    write(unpacked.backup.join(snapshot.backup.0), snapshot.backup.1);
     unpacked
 }
 

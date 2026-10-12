@@ -2,6 +2,7 @@ use std::{
     fmt::Display,
     fmt::Write as _,
     fs,
+    io::Write as _,
     path::{Path, PathBuf},
     time::{Duration, SystemTime},
 };
@@ -43,12 +44,12 @@ fn main() -> Result<(), String> {
         return Err("usage: freeze SNAPSHOTS-DIRECTORY NAME, such as 2026_10_12".to_owned());
     };
     let root = PathBuf::from(root);
-    let directory = root.join(&name);
+    let archive_path = root.join(format!("{name}.zip"));
     let module = root.join(format!("s{name}.rs"));
-    if directory.exists() || module.exists() {
+    if archive_path.exists() || module.exists() {
         return Err(format!(
             "{} already exists, and a snapshot is never replaced",
-            directory.display()
+            archive_path.display()
         ));
     }
     build_id::install("freeze");
@@ -74,22 +75,21 @@ fn main() -> Result<(), String> {
         }
     }
 
-    let mut files = Vec::new();
-    copy_tree(&data, &directory.join("data"), "", &mut files)?;
-    let snapshot = format!("databases/{}", report.snapshot);
-    let backup_file = directory.join("backup").join(&snapshot);
-    fs::create_dir_all(backup_file.parent().ok_or("no parent")?).map_err(text)?;
-    fs::copy(target.join(&snapshot), &backup_file).map_err(text)?;
-    fs::write(
-        &module,
-        source(&name, &written, &backup_key, &snapshot, &files),
-    )
-    .map_err(text)?;
+    let mut archive = zip::ZipWriter::new(fs::File::create(&archive_path).map_err(text)?);
+    pack(&mut archive, &data, "data")?;
+    let snapshot = format!("backup/databases/{}", report.snapshot);
+    add(
+        &mut archive,
+        &snapshot,
+        &target.join(&snapshot["backup/".len()..]),
+    )?;
+    archive.finish().map_err(text)?;
+    fs::write(&module, source(&name, &written, &backup_key)).map_err(text)?;
     let _ = fs::remove_dir_all(&data);
     let _ = fs::remove_dir_all(&target);
     println!(
         "wrote {} and {}; add `mod s{name};` and `&s{name}::SNAPSHOT` to SNAPSHOTS in {}",
-        directory.display(),
+        archive_path.display(),
         module.display(),
         root.with_extension("rs").display()
     );
@@ -485,38 +485,34 @@ fn settle(database: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn copy_tree(from: &Path, to: &Path, prefix: &str, files: &mut Vec<String>) -> Result<(), String> {
+fn pack(archive: &mut zip::ZipWriter<fs::File>, from: &Path, prefix: &str) -> Result<(), String> {
     let mut entries: Vec<_> = fs::read_dir(from)
         .map_err(text)?
         .collect::<Result<_, _>>()
         .map_err(text)?;
     entries.sort_by_key(fs::DirEntry::file_name);
-    fs::create_dir_all(to).map_err(text)?;
     for entry in entries {
-        let name = entry.file_name().to_string_lossy().into_owned();
-        let relative = format!("{prefix}{name}");
+        let name = format!("{prefix}/{}", entry.file_name().to_string_lossy());
         if entry.file_type().map_err(text)?.is_dir() {
-            copy_tree(
-                &entry.path(),
-                &to.join(&name),
-                &format!("{relative}/"),
-                files,
-            )?;
+            pack(archive, &entry.path(), &name)?;
         } else {
-            fs::copy(entry.path(), to.join(&name)).map_err(text)?;
-            files.push(relative);
+            add(archive, &name, &entry.path())?;
         }
     }
     Ok(())
 }
 
-fn source(
-    name: &str,
-    written: &Written,
-    backup_key: &BackupKey,
-    snapshot: &str,
-    files: &[String],
-) -> String {
+fn add(archive: &mut zip::ZipWriter<fs::File>, name: &str, from: &Path) -> Result<(), String> {
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated)
+        .last_modified_time(zip::DateTime::default());
+    archive.start_file(name, options).map_err(text)?;
+    archive
+        .write_all(&fs::read(from).map_err(text)?)
+        .map_err(text)
+}
+
+fn source(name: &str, written: &Written, backup_key: &BackupKey) -> String {
     let mut out = format!(
         "use super::Snapshot;\n\npub const SNAPSHOT: Snapshot = Snapshot {{\n    name: \"{name}\",\n"
     );
@@ -534,17 +530,7 @@ fn source(
     for (label, block) in &written.blocks {
         field(label, block);
     }
-    let _ = writeln!(out, "    data: &[");
-    for file in files {
-        let _ = writeln!(
-            out,
-            "        (\"{file}\", include_bytes!(\"{name}/data/{file}\")),"
-        );
-    }
-    let _ = writeln!(
-        out,
-        "    ],\n    backup: (\"{snapshot}\", include_bytes!(\"{name}/backup/{snapshot}\")),\n}};"
-    );
+    let _ = writeln!(out, "    files: include_bytes!(\"{name}.zip\"),\n}};");
     out
 }
 

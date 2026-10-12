@@ -1064,6 +1064,7 @@ crates = {
                             "//third-party/rust:rusqlite-0.32.1",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
                         ],
                         "features": [],
                     },
@@ -1082,6 +1083,7 @@ crates = {
                     "//third-party/rust:rusqlite-0.32.1",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:zip-8.6.0",
                 ],
                 "test_features": [],
             },
@@ -1103,6 +1105,7 @@ crates = {
                             "//third-party/rust:rusqlite-0.32.1",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
                         ],
                         "features": [],
                     },
@@ -1121,6 +1124,7 @@ crates = {
                     "//third-party/rust:rusqlite-0.32.1",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:zip-8.6.0",
                 ],
                 "test_features": [],
             },
@@ -1142,6 +1146,7 @@ crates = {
                             "//third-party/rust:rusqlite-0.32.1",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
                         ],
                         "features": [],
                     },
@@ -1160,6 +1165,7 @@ crates = {
                     "//third-party/rust:rusqlite-0.32.1",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:zip-8.6.0",
                 ],
                 "test_features": [],
             },
@@ -1181,6 +1187,7 @@ crates = {
                             "//third-party/rust:rusqlite-0.32.1",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
                         ],
                         "features": [],
                     },
@@ -1199,6 +1206,7 @@ crates = {
                     "//third-party/rust:rusqlite-0.32.1",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:zip-8.6.0",
                 ],
                 "test_features": [],
             },
@@ -1220,6 +1228,7 @@ crates = {
                             "//third-party/rust:rusqlite-0.32.1",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
                         ],
                         "features": [],
                     },
@@ -1238,6 +1247,7 @@ crates = {
                     "//third-party/rust:rusqlite-0.32.1",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:zip-8.6.0",
                 ],
                 "test_features": [],
             },
@@ -1259,6 +1269,7 @@ crates = {
                             "//third-party/rust:rusqlite-0.32.1",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
                         ],
                         "features": [],
                     },
@@ -1277,6 +1288,7 @@ crates = {
                     "//third-party/rust:rusqlite-0.32.1",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:zip-8.6.0",
                 ],
                 "test_features": [],
             },
@@ -1298,6 +1310,7 @@ crates = {
                             "//third-party/rust:rusqlite-0.32.1",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
                         ],
                         "features": [],
                     },
@@ -1316,6 +1329,7 @@ crates = {
                     "//third-party/rust:rusqlite-0.32.1",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:zip-8.6.0",
                 ],
                 "test_features": [],
             },
@@ -24651,48 +24665,60 @@ third_party = {
                 "deps": [
                     ":crc32fast-1.5.0",
                     ":miniz_oxide-0.8.9",
+                    ":zlib-rs-0.6.7",
                 ],
                 "features": [
                     "any_impl",
+                    "any_zlib",
                     "default",
                     "miniz_oxide",
                     "rust_backend",
+                    "zlib-rs",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
                     ":crc32fast-1.5.0",
                     ":miniz_oxide-0.8.9",
+                    ":zlib-rs-0.6.7",
                 ],
                 "features": [
                     "any_impl",
+                    "any_zlib",
                     "default",
                     "miniz_oxide",
                     "rust_backend",
+                    "zlib-rs",
                 ],
             },
             "macos-arm64": {
                 "deps": [
                     ":crc32fast-1.5.0",
                     ":miniz_oxide-0.8.9",
+                    ":zlib-rs-0.6.7",
                 ],
                 "features": [
                     "any_impl",
+                    "any_zlib",
                     "default",
                     "miniz_oxide",
                     "rust_backend",
+                    "zlib-rs",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
                     ":crc32fast-1.5.0",
                     ":miniz_oxide-0.8.9",
+                    ":zlib-rs-0.6.7",
                 ],
                 "features": [
                     "any_impl",
+                    "any_zlib",
                     "default",
                     "miniz_oxide",
                     "rust_backend",
+                    "zlib-rs",
                 ],
             },
             "wasi": {
@@ -24723,24 +24749,30 @@ third_party = {
                 "deps": [
                     ":crc32fast-1.5.0",
                     ":miniz_oxide-0.8.9",
+                    ":zlib-rs-0.6.7",
                 ],
                 "features": [
                     "any_impl",
+                    "any_zlib",
                     "default",
                     "miniz_oxide",
                     "rust_backend",
+                    "zlib-rs",
                 ],
             },
             "windows-x86_64": {
                 "deps": [
                     ":crc32fast-1.5.0",
                     ":miniz_oxide-0.8.9",
+                    ":zlib-rs-0.6.7",
                 ],
                 "features": [
                     "any_impl",
+                    "any_zlib",
                     "default",
                     "miniz_oxide",
                     "rust_backend",
+                    "zlib-rs",
                 ],
             },
         },
@@ -66817,10 +66849,14 @@ third_party = {
                     ":indexmap-2.14.0",
                     ":memchr-2.8.1",
                     ":typed-path-0.12.3",
+                    ":zopfli-0.8.3",
                 ],
                 "features": [
                     "_deflate-any",
+                    "deflate",
                     "deflate-flate2",
+                    "deflate-flate2-zlib-rs",
+                    "deflate-zopfli",
                 ],
             },
             "linux-x86_64": {
@@ -66830,10 +66866,14 @@ third_party = {
                     ":indexmap-2.14.0",
                     ":memchr-2.8.1",
                     ":typed-path-0.12.3",
+                    ":zopfli-0.8.3",
                 ],
                 "features": [
                     "_deflate-any",
+                    "deflate",
                     "deflate-flate2",
+                    "deflate-flate2-zlib-rs",
+                    "deflate-zopfli",
                 ],
             },
             "macos-arm64": {
@@ -66843,10 +66883,14 @@ third_party = {
                     ":indexmap-2.14.0",
                     ":memchr-2.8.1",
                     ":typed-path-0.12.3",
+                    ":zopfli-0.8.3",
                 ],
                 "features": [
                     "_deflate-any",
+                    "deflate",
                     "deflate-flate2",
+                    "deflate-flate2-zlib-rs",
+                    "deflate-zopfli",
                 ],
             },
             "macos-x86_64": {
@@ -66856,10 +66900,14 @@ third_party = {
                     ":indexmap-2.14.0",
                     ":memchr-2.8.1",
                     ":typed-path-0.12.3",
+                    ":zopfli-0.8.3",
                 ],
                 "features": [
                     "_deflate-any",
+                    "deflate",
                     "deflate-flate2",
+                    "deflate-flate2-zlib-rs",
+                    "deflate-zopfli",
                 ],
             },
             "windows-arm64": {
@@ -66869,10 +66917,14 @@ third_party = {
                     ":indexmap-2.14.0",
                     ":memchr-2.8.1",
                     ":typed-path-0.12.3",
+                    ":zopfli-0.8.3",
                 ],
                 "features": [
                     "_deflate-any",
+                    "deflate",
                     "deflate-flate2",
+                    "deflate-flate2-zlib-rs",
+                    "deflate-zopfli",
                 ],
             },
             "windows-x86_64": {
@@ -66882,10 +66934,14 @@ third_party = {
                     ":indexmap-2.14.0",
                     ":memchr-2.8.1",
                     ":typed-path-0.12.3",
+                    ":zopfli-0.8.3",
                 ],
                 "features": [
                     "_deflate-any",
+                    "deflate",
                     "deflate-flate2",
+                    "deflate-flate2-zlib-rs",
+                    "deflate-zopfli",
                 ],
             },
         },
@@ -66915,6 +66971,42 @@ third_party = {
         "name": "zlib-rs",
         "platforms": {
             "android-arm64": {
+                "features": [
+                    "rust-allocator",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "rust-allocator",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "rust-allocator",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "rust-allocator",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "rust-allocator",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "rust-allocator",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
                 "features": [
                     "rust-allocator",
                     "std",
@@ -66985,6 +67077,90 @@ third_party = {
         "name": "zopfli",
         "platforms": {
             "android-arm64": {
+                "deps": [
+                    ":bumpalo-3.20.3",
+                    ":crc32fast-1.5.0",
+                    ":log-0.4.31",
+                    ":simd-adler32-0.3.9",
+                ],
+                "features": [
+                    "default",
+                    "gzip",
+                    "std",
+                    "zlib",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":bumpalo-3.20.3",
+                    ":crc32fast-1.5.0",
+                    ":log-0.4.31",
+                    ":simd-adler32-0.3.9",
+                ],
+                "features": [
+                    "default",
+                    "gzip",
+                    "std",
+                    "zlib",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bumpalo-3.20.3",
+                    ":crc32fast-1.5.0",
+                    ":log-0.4.31",
+                    ":simd-adler32-0.3.9",
+                ],
+                "features": [
+                    "default",
+                    "gzip",
+                    "std",
+                    "zlib",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":bumpalo-3.20.3",
+                    ":crc32fast-1.5.0",
+                    ":log-0.4.31",
+                    ":simd-adler32-0.3.9",
+                ],
+                "features": [
+                    "default",
+                    "gzip",
+                    "std",
+                    "zlib",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bumpalo-3.20.3",
+                    ":crc32fast-1.5.0",
+                    ":log-0.4.31",
+                    ":simd-adler32-0.3.9",
+                ],
+                "features": [
+                    "default",
+                    "gzip",
+                    "std",
+                    "zlib",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":bumpalo-3.20.3",
+                    ":crc32fast-1.5.0",
+                    ":log-0.4.31",
+                    ":simd-adler32-0.3.9",
+                ],
+                "features": [
+                    "default",
+                    "gzip",
+                    "std",
+                    "zlib",
+                ],
+            },
+            "windows-x86_64": {
                 "deps": [
                     ":bumpalo-3.20.3",
                     ":crc32fast-1.5.0",

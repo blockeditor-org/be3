@@ -17,8 +17,7 @@ pub struct Snapshot {
     pub long: &'static str,
     pub view: &'static str,
     pub database: &'static str,
-    pub data: &'static [(&'static str, &'static [u8])],
-    pub backup: (&'static str, &'static [u8]),
+    pub files: &'static [u8],
 }
 
 pub const SNAPSHOTS: &[&Snapshot] = &[&s2026_10_12::SNAPSHOT];

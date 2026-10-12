@@ -45,9 +45,10 @@ Only add:
 - be-block's `tests/frozen_*.rs` hold each frozen block type's registry and a
   document it saved, checked by `be_model::schema::check_frozen` (the stack
   guide's "Freezing a version").
-- `crates/be-frozen` holds snapshots of a whole server: a data directory and a
-  backup of it, in `src/snapshots/NAME/`, with the tokens, recovery phrases
-  and keys to open them in `src/snapshots/sNAME.rs`. The `freeze` example made
+- `crates/be-frozen` holds snapshots of a whole server: a data directory
+  (`data/`) and a backup of it (`backup/`, whose `objects/` are the data
+  directory's), zipped in `src/snapshots/NAME.zip`, with the tokens, recovery
+  phrases and keys to open them in `src/snapshots/sNAME.rs`. The `freeze` example made
   them by running a real server and writing `scene.rs`'s accounts and blocks
   through `be_client` and `be`'s tracker. The test serves each snapshot and
   reads it the way the app and `be` do: passwords, tokens and recovery phrases
