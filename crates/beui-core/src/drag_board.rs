@@ -2,15 +2,18 @@ use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use ::reactive::ReadSignal;
-
+use crate::callback::NodeRef;
 use crate::document::Document;
-use crate::geometry::{Pos2, Rect};
+use crate::node::Rects;
+use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::{Modifiers, PointerPress};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct DragPoint {
     pub pos: Pos2,
+    pub local: Pos2,
+    pub size: Vec2,
+    pub fraction: Vec2,
     pub modifiers: Modifiers,
 }
 
@@ -18,7 +21,30 @@ impl DragPoint {
     pub fn of(press: PointerPress) -> Self {
         Self {
             pos: press.pos,
+            local: press.local,
+            size: press.size,
+            fraction: press.fraction,
             modifiers: press.modifiers,
+        }
+    }
+
+    pub fn at(pos: Pos2, modifiers: Modifiers) -> Self {
+        Self {
+            pos,
+            local: pos,
+            size: Vec2::ZERO,
+            fraction: Vec2::ZERO,
+            modifiers,
+        }
+    }
+
+    pub fn within(self, rect: Rect) -> Self {
+        let press = crate::base::interactive::press_at(rect, self.pos, 0, self.modifiers, false);
+        Self {
+            local: press.local,
+            size: press.size,
+            fraction: press.fraction,
+            ..self
         }
     }
 }
@@ -31,7 +57,7 @@ pub type Pending = Rc<dyn Fn(DragPoint)>;
 pub struct Target {
     pub id: u64,
     pub depth: usize,
-    pub rect: ReadSignal<Rect>,
+    pub node: NodeRef,
     pub accepts: Accepts,
     pub carrying: Rc<dyn Fn(bool)>,
     pub over: Over,
@@ -45,8 +71,8 @@ pub struct Carried {
     pub follow: Rc<dyn Fn(Pos2)>,
 }
 
-#[derive(Default)]
 pub struct Board {
+    rects: Rc<Rects>,
     pressed: RefCell<Option<Pending>>,
     carried: RefCell<Option<Carried>>,
     targets: RefCell<Vec<Target>>,
@@ -54,6 +80,20 @@ pub struct Board {
 }
 
 impl Board {
+    pub fn new(rects: Rc<Rects>) -> Self {
+        Self {
+            rects,
+            pressed: RefCell::default(),
+            carried: RefCell::default(),
+            targets: RefCell::default(),
+            next: Cell::default(),
+        }
+    }
+
+    fn rect_of(&self, target: &Target) -> Option<Rect> {
+        self.rects.get(&target.node.try_get()?)
+    }
+
     pub fn register(&self, mut target: Target) -> u64 {
         let id = self.next.get();
         self.next.set(id + 1);
@@ -144,16 +184,17 @@ impl Board {
         self.end(last);
     }
 
-    pub fn under(&self, pos: Pos2) -> Option<(u64, Over)> {
+    pub fn under(&self, pos: Pos2) -> Option<(u64, Rect, Over)> {
         let carried = self.carried.borrow();
         let payload = carried.as_ref()?.payload.as_ref();
         self.targets
             .borrow()
             .iter()
-            .filter(|target| target.rect.get_untracked().contains_half_open(pos))
-            .filter(|target| (target.accepts)(payload))
-            .max_by_key(|target| (target.depth, target.id))
-            .map(|target| (target.id, Rc::clone(&target.over)))
+            .filter_map(|target| Some((self.rect_of(target)?, target)))
+            .filter(|(rect, _)| rect.contains_half_open(pos))
+            .filter(|(_, target)| (target.accepts)(payload))
+            .max_by_key(|(_, target)| (target.depth, target.id))
+            .map(|(rect, target)| (target.id, rect, Rc::clone(&target.over)))
     }
 
     pub fn over(&self, id: u64) -> Option<Over> {
@@ -164,16 +205,24 @@ impl Board {
             .map(|target| Rc::clone(&target.over))
     }
 
+    fn placed(&self, id: u64) -> Option<Rect> {
+        self.targets
+            .borrow()
+            .iter()
+            .find(|target| target.id == id)
+            .and_then(|target| self.rect_of(target))
+    }
+
     pub fn move_to(&self, point: DragPoint) {
         if !self.carrying() {
             return;
         }
         let under = self.under(point.pos);
         let previous = self.carried.borrow_mut().as_mut().and_then(|carried| {
-            std::mem::replace(&mut carried.over, under.as_ref().map(|(id, _)| *id))
+            std::mem::replace(&mut carried.over, under.as_ref().map(|(id, _, _)| *id))
         });
         if previous.is_some()
-            && previous != under.as_ref().map(|(id, _)| *id)
+            && previous != under.as_ref().map(|(id, _, _)| *id)
             && let Some(left) = previous.and_then(|id| self.over(id))
         {
             left(None);
@@ -183,8 +232,8 @@ impl Board {
             .borrow()
             .as_ref()
             .map(|carried| Rc::clone(&carried.payload));
-        if let (Some((_, entered)), Some(payload)) = (under, payload) {
-            entered(Some((payload.as_ref(), point)));
+        if let (Some((_, rect, entered)), Some(payload)) = (under, payload) {
+            entered(Some((payload.as_ref(), point.within(rect))));
         }
     }
 
@@ -211,12 +260,13 @@ impl Board {
         let mut drop = None;
         for (id, carrying, over, dropped) in targets {
             if carried.over == Some(id) {
-                drop = Some(dropped);
+                drop = Some((dropped, self.placed(id)));
             }
             over(None);
             carrying(false);
         }
-        if let (Some(dropped), Some(point)) = (drop, point) {
+        if let (Some((dropped, rect)), Some(point)) = (drop, point) {
+            let point = rect.map_or(point, |rect| point.within(rect));
             dropped(carried.payload.as_ref(), point);
         }
     }

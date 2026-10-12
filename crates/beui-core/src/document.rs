@@ -265,6 +265,7 @@ static NEXT_ZONE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::n
 
 impl Document {
     pub fn new() -> Self {
+        let rects = Rc::new(Rects::default());
         Self {
             arena: Arena::default(),
             root: None,
@@ -274,7 +275,8 @@ impl Document {
             keyboard_held: false,
             activated: None,
             activation_key: None,
-            rects: Rc::new(Rects::default()),
+            drags: Rc::new(crate::drag_board::Board::new(Rc::clone(&rects))),
+            rects,
             tools: None,
             inspector_requested: false,
             screen_pointer: None,
@@ -307,7 +309,6 @@ impl Document {
             outside_watchers: HashSet::new(),
             forward: Default::default(),
             pointers: Default::default(),
-            drags: Rc::default(),
             paste_requested: false,
             unsent_file_picks: Vec::new(),
             waiting_file_picks: Vec::new(),

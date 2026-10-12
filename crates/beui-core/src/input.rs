@@ -254,6 +254,8 @@ impl KeyChord {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct PointerPress {
     pub pos: Pos2,
+    pub local: Pos2,
+    pub size: Vec2,
     pub fraction: Vec2,
     pub clicks: u32,
     pub modifiers: Modifiers,
@@ -271,6 +273,8 @@ pub struct ScrollGesture {
     pub delta: Vec2,
     pub fling: Vec2,
     pub pos: Pos2,
+    pub local: Pos2,
+    pub size: Vec2,
     pub modifiers: Modifiers,
 }
 
@@ -304,6 +308,8 @@ pub struct SecondaryDrag {
 pub struct ZoomGesture {
     pub factor: f32,
     pub pos: Pos2,
+    pub local: Pos2,
+    pub size: Vec2,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

@@ -3,7 +3,7 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::TextAlign;
 use block_editor_beui::beui::reactive::{
     Callback, Canvas, CanvasItem, Direction, ForEach, Frame, Interactive, ItemSize, List, Memo,
-    clone, component, component_rect, component_size, create_memo, view,
+    clone, component, component_size, create_memo, view,
 };
 use block_editor_beui::beui::styled::{Body, Caption, ListRow, Scroll, use_theme};
 use block_ui::datetime::civil_from_days;
@@ -94,7 +94,6 @@ fn Grid(
     on_pick_event: Callback<Shown>,
 ) -> NodeId {
     let size = component_size();
-    let rect = component_rect();
     let column_width = create_memo(clone!(size -> move || {
         ((size.get().x - GUTTER) / days as f32).max(MIN_COLUMN_WIDTH)
     }));
@@ -104,14 +103,13 @@ fn Grid(
     let keys = create_memo(clone!(placed -> move || {
         placed.with(|placed| placed.iter().map(|item| item.key).collect::<Vec<_>>())
     }));
-    let slot = clone!(column_width first_day rect on_pick_slot -> move |at: block_editor_beui::beui::Pos2| {
-        let origin = rect.get_untracked().min;
-        let x = at.x - origin.x - GUTTER;
+    let slot = clone!(column_width first_day on_pick_slot -> move |at: block_editor_beui::beui::Pos2| {
+        let x = at.x - GUTTER;
         if x < 0.0 {
             return;
         }
         let column = (x / column_width.get_untracked()).floor() as i64;
-        let hour = ((at.y - origin.y) / HOUR_HEIGHT).floor().clamp(0.0, 23.0) as u8;
+        let hour = (at.y / HOUR_HEIGHT).floor().clamp(0.0, 23.0) as u8;
         let day = first_day.get_untracked() + column.min(days as i64 - 1);
         on_pick_slot.call((day, hour));
     });
@@ -121,7 +119,7 @@ fn Grid(
     let rule_width = column_width.clone();
     view! {
         <Frame height=CONTENT_HEIGHT>
-            <Interactive on_click_at={move |press| slot(press.pos)}>
+            <Interactive on_click_at={move |press| slot(press.local)}>
                 <Canvas>
                     <ForEach keys={hours.clone()}>
                         {move |hour: u8| {

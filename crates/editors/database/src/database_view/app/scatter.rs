@@ -2,7 +2,7 @@ use block_editor_beui::be_block::database::{DatabaseRow, DatabaseValue};
 use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
 use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, ForEach, Frame, Interactive, ItemSize, List, Memo, Show, clone, component,
-    component_rect, component_size, create_memo, view,
+    component_size, create_memo, view,
 };
 use block_editor_beui::beui::styled::{Caption, use_theme};
 use block_editor_beui::beui::{NodeId, Pos2, TextAlign};
@@ -56,7 +56,6 @@ pub fn Scatter(data: Data) -> NodeId {
 #[component]
 fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeId {
     let size = component_size();
-    let rect = component_rect();
     let bounds = create_memo(clone!(data axes -> move || {
         let (x_field, y_field) = axes.get()?;
         data.rows.with(|rows| plot_bounds(rows, x_field.id, y_field.id))
@@ -101,9 +100,7 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
     let x_label_y = create_memo(clone!(rule_top -> move || rule_top.get() + LABEL_HEIGHT));
     let value_y = create_memo(clone!(rule_top -> move || rule_top.get() + 2.0));
     let y_low_y = create_memo(clone!(rule_top -> move || rule_top.get() - LABEL_HEIGHT));
-    let pick = clone!(data placed rect -> move |at: Pos2| {
-        let origin = rect.get_untracked().min;
-        let at = Pos2::new(at.x - origin.x, at.y - origin.y);
+    let pick = clone!(data placed -> move |at: Pos2| {
         let chosen = placed.with_untracked(|placed| nearest(placed, at));
         match chosen {
             Some(row) => data.select(row, None),
@@ -116,7 +113,7 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
     view! {
         <Interactive
             @test_id={"database-view.scatter"}
-            on_click_at={move |press: block_editor_beui::beui::PointerPress| pick(press.pos)}
+            on_click_at={move |press: block_editor_beui::beui::PointerPress| pick(press.local)}
         >
             <Canvas>
                 <CanvasItem x=AXIS_LEFT y=AXIS_TOP width=RULE height={plot_height}>

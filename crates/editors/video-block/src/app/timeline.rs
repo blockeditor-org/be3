@@ -87,12 +87,9 @@ pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
 
     let (pointer, set_pointer) = create_signal(None::<Pos2>);
     let hover_offset = offset.clone();
-    let hover_placed = placed.clone();
     let hover_pointer = set_pointer.clone();
     let on_hover = move |press: PointerPress| {
-        hover_pointer.set(Some(
-            press.pos - hover_placed.get_untracked().min.to_vec2() + hover_offset.get_untracked(),
-        ));
+        hover_pointer.set(Some(press.local + hover_offset.get_untracked()));
     };
 
     let targeted = Rc::clone(&state);
@@ -149,22 +146,18 @@ pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
     };
 
     let drag_offset = offset.clone();
-    let drag_placed = placed.clone();
     let drag_pointer = set_pointer.clone();
     let on_over = move |over: Option<(Uuid, DragPoint)>| {
         if let Some((_, point)) = over {
-            drag_pointer.set(Some(
-                point.pos - drag_placed.get_untracked().min.to_vec2() + drag_offset.get_untracked(),
-            ));
+            drag_pointer.set(Some(point.local + drag_offset.get_untracked()));
         }
     };
 
     let seeking = Rc::clone(&state);
     let seek_offset = offset.clone();
-    let seek_placed = placed.clone();
     let seek_scale = pixels_per_frame.clone();
     let on_press = move |press: PointerPress| {
-        let x = press.pos.x - seek_placed.get_untracked().min.x + seek_offset.get_untracked().x;
+        let x = press.local.x + seek_offset.get_untracked().x;
         seeking.seek((x / seek_scale.get_untracked()).max(0.0) as u64);
         seeking.select(None);
     };
@@ -332,9 +325,6 @@ fn Clip(
     let chosen = Rc::clone(&state);
     let trimming = Rc::clone(&state);
     let trim_scale = scale.clone();
-    let clip_placed = component_rect();
-    let clip_left = create_memo(clone!(clip_placed -> move || clip_placed.get().left()));
-    let handle_left = clip_left.clone();
     let trimming_edge = Rc::clone(&state);
     let trim_edge_scale = scale.clone();
     let editor = state.editor().clone();
@@ -356,7 +346,7 @@ fn Clip(
                     }
                     let scale = trim_scale.get_untracked().max(f32::EPSILON);
                     let pressed = grabbed_at.get().map_or(0.0, |pos| pos.x);
-                    let offset = (pressed - clip_left.get_untracked()) / scale;
+                    let offset = pressed / scale;
                     trimming.begin_drag(Some(ClipDrag {
                         clip: row.id,
                         grab: offset.max(0.0) as u64,
@@ -365,7 +355,7 @@ fn Clip(
             >
                 {move |_: DragHandle| view! {
                     <Interactive
-                        on_press={move |press: PointerPress| grabbing.set(Some(press.pos))}
+                        on_press={move |press: PointerPress| grabbing.set(Some(press.local))}
                     >
                         <Frame
                             color={fill}
@@ -393,7 +383,6 @@ fn Clip(
                                     state={trimming_edge}
                                     row={row}
                                     scale={trim_edge_scale}
-                                    left={handle_left}
                                 />
                             </List>
                         </Frame>
@@ -455,7 +444,7 @@ fn DropMarker(target: Memo<Option<TimelineDropTarget>>, scale: ReadSignal<f32>) 
 }
 
 #[component]
-fn TrimHandle(state: Rc<VideoState>, row: Lane, scale: ReadSignal<f32>, left: Memo<f32>) -> NodeId {
+fn TrimHandle(state: Rc<VideoState>, row: Lane, scale: ReadSignal<f32>) -> NodeId {
     let clips = state.clips.clone();
     view! {
         <Interactive
@@ -471,7 +460,8 @@ fn TrimHandle(state: Rc<VideoState>, row: Lane, scale: ReadSignal<f32>, left: Me
                 else {
                     return;
                 };
-                let reach = (press.pos.x - left.get_untracked()) / scale;
+                let handle = clip.length as f32 * scale - THUMBNAIL_MARGIN - TRIM_HANDLE_WIDTH;
+                let reach = (handle + press.local.x) / scale;
                 let length = (reach.max(1.0) as u64).max(1);
                 if length != clip.length {
                     clip.length = length;
