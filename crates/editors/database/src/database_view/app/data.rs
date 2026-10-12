@@ -167,13 +167,13 @@ impl ViewData {
         let views = watch_views(editor, database_id.clone());
         let name = watch_name(editor, database_id.clone());
         let search = create_memo(move || search.get());
-        let groups = create_memo(clone!(search prefix row_ids title_field group_by show_empty_groups rows fields labels filters sort -> move || {
+        let groups = create_memo(clone!(search prefix row_ids title_field group_by show_empty_groups rows fields labels filters sort kind -> move || {
             let search = search.get();
             let prefix = prefix.get();
             let ids = row_ids.get();
             let title = title_field.get();
             let group_by = group_by.get();
-            let show_empty = show_empty_groups.get();
+            let show_empty = show_empty_groups.get() || kind.get() == DatabaseViewKind::Kanban;
             let sort = sort.get();
             rows.with(|rows| {
                 fields.with(|fields| {

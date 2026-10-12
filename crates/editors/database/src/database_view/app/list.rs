@@ -394,7 +394,7 @@ fn Marks(data: Data, entry: Memo<Option<DatabaseRow>>, marks: Memo<Vec<Uuid>>) -
 }
 
 #[component]
-fn Parts(parts: Memo<Vec<(Uuid, Part)>>, keys: Memo<Vec<Uuid>>) -> NodeId {
+pub fn Parts(parts: Memo<Vec<(Uuid, Part)>>, keys: Memo<Vec<Uuid>>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
             <ForEach keys={keys}>
