@@ -172,7 +172,6 @@ pub(crate) fn dispatch(
     ctx: &Context,
     rects: &Rects,
     root: NodeId,
-    enabled: bool,
 ) {
     let frame = Frame {
         ctx,
@@ -190,20 +189,7 @@ pub(crate) fn dispatch(
     for session in &mut doc.pointers.sessions {
         session.dragged_this_frame = false;
     }
-    autoscroll::frame(doc, ctx, enabled);
-    if !enabled {
-        let pointers: Vec<PointerId> = doc
-            .pointers
-            .sessions
-            .iter()
-            .map(|session| session.pointer)
-            .collect();
-        for pointer in pointers {
-            cancel(doc, &frame, pointer);
-        }
-        hover(doc, &frame, None);
-        return;
-    }
+    autoscroll::frame(doc, ctx);
     long_presses(doc, &frame);
     for (index, event) in events.into_iter().enumerate() {
         doc.pointers.current = index;

@@ -31,7 +31,7 @@ pub(crate) fn start(doc: &mut Document, target: NodeId, pos: Pos2) {
     report(doc, &autoscroll, false);
 }
 
-pub(crate) fn frame(doc: &mut Document, ctx: &Context, enabled: bool) {
+pub(crate) fn frame(doc: &mut Document, ctx: &Context) {
     let Some(autoscroll) = doc.autoscroll else {
         return;
     };
@@ -40,7 +40,7 @@ pub(crate) fn frame(doc: &mut Document, ctx: &Context, enabled: bool) {
         return;
     }
     let lost = ctx.input(|input| input.events.contains(&Event::Focus(false)));
-    if !enabled || lost {
+    if lost {
         finish(doc, &autoscroll);
     }
 }

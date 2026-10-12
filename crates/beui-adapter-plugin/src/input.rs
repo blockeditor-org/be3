@@ -149,7 +149,7 @@ impl Input {
                 events.push(Event::Focus(false));
             }
             InputEvent::Ime(ime) => events.push(Event::Ime(beui_plugin_input::beui_ime(ime))),
-            InputEvent::Focus(_) => {}
+            InputEvent::Focus(true) => events.push(Event::Focus(true)),
             InputEvent::InterceptedKey {
                 key,
                 pressed,

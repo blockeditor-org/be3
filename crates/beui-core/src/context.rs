@@ -1029,6 +1029,18 @@ impl Context {
         self.inner.pixels_per_point.set(pixels_per_point);
     }
 
+    pub fn with_input<R>(
+        &self,
+        input: impl FnOnce(&InputState) -> InputState,
+        content: impl FnOnce() -> R,
+    ) -> R {
+        let given = input(&self.inner.input.borrow());
+        let held = self.inner.input.replace(given);
+        let result = content();
+        self.inner.input.replace(held);
+        result
+    }
+
     pub fn scaled<R>(&self, scale: f32, content: impl FnOnce() -> R) -> R {
         if scale == 1.0 {
             return content();

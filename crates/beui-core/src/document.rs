@@ -19,7 +19,7 @@ use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use crate::input::{Key, KeyChord, Modifiers};
 
 use crate::display::Display;
-use crate::interact::{self, Keys};
+use crate::interact;
 use crate::layout;
 use crate::node::{ANCESTOR_LIMIT, Arena, NodeId, NodeMap, NodeOf, Placed, Rects, SpaceId};
 use crate::paint::{self, PaintCache};
@@ -87,6 +87,7 @@ pub struct Document {
     pub keys: crate::keys::KeyListeners,
     actions_hooks: RefCell<Vec<Weak<ActionsHook>>>,
     pub(crate) tapping: Option<Key>,
+    pub(crate) keyboard: bool,
     input_frames: u64,
     modifiers: (
         ::reactive::ReadSignal<Modifiers>,
@@ -297,6 +298,7 @@ impl Document {
             keys: Default::default(),
             actions_hooks: RefCell::new(Vec::new()),
             tapping: None,
+            keyboard: true,
             input_frames: 0,
             modifiers: ::reactive::create_signal(Modifiers::NONE),
             intercepted_keys: ::reactive::create_signal(Vec::new()),
@@ -897,7 +899,7 @@ impl Document {
         self.track_changes(false);
         self.track_damage(false);
         let content = trim_bottom(rect, ctx.measure_mouse_simulation(rect)).0;
-        self.show_screen(ctx, content, true, Keys::All);
+        self.show_screen(ctx, content);
         ctx.show_mouse_simulation(rect);
     }
 
@@ -925,7 +927,7 @@ impl Document {
         self.viewport = None;
     }
 
-    pub fn show_screen(&mut self, ctx: &Context, rect: Rect, pointer: bool, keys: Keys) {
+    pub fn show_screen(&mut self, ctx: &Context, rect: Rect) {
         if let Some(pos) = ctx
             .input(|input| input.pointer.pos)
             .filter(|pos| rect.contains(*pos))
@@ -959,11 +961,11 @@ impl Document {
                 }
                 ctx.clipped(shown.intersect(rect), || {
                     ctx.scaled(placement.scale, || {
-                        self.show_content(ctx, placement.screen, pointer, keys);
+                        self.show_content(ctx, placement.screen);
                     });
                 });
             }
-            None => self.show_content(ctx, rect, pointer, keys),
+            None => self.show_content(ctx, rect),
         }
     }
 
@@ -980,7 +982,7 @@ impl Document {
             .map_or(self.now, |context| context.now().max(self.now))
     }
 
-    pub fn show_content(&mut self, ctx: &Context, rect: Rect, pointer: bool, keys: Keys) {
+    pub fn show_content(&mut self, ctx: &Context, rect: Rect) {
         self.now = ctx.now();
         let mut measurement = FrameMeasurement::new();
         self.work.reset();
@@ -1048,7 +1050,7 @@ impl Document {
         }
         self.deliver_file_picks(ctx);
 
-        if pointer || !keys.ignored() {
+        {
             FrameMeasurement::measure(&mut measurement.timings.interaction, || {
                 if let Some(root) = self.root {
                     let rects = Rc::clone(&self.rects);
@@ -1057,7 +1059,7 @@ impl Document {
                     let _guard = crate::current::install(self);
                     context.run(|| {
                         crate::current::with_document(|document| {
-                            interact::interact(document, ctx, &painter, &rects, root, pointer, keys)
+                            interact::interact(document, ctx, &painter, &rects, root)
                         });
                     });
                 }
@@ -1109,7 +1111,7 @@ impl Document {
                 }
             }
         }
-        if !keys.ignored()
+        if self.keyboard
             && let Some(area) = self.focused_ime_area()
         {
             ctx.set_ime_area(Some(area));

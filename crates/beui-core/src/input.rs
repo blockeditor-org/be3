@@ -382,6 +382,32 @@ impl Event {
         }
     }
 
+    pub fn is_pointer(&self) -> bool {
+        matches!(
+            self,
+            Self::PointerButton { .. }
+                | Self::PointerGone
+                | Self::PointerMotion(_)
+                | Self::PointerMoved(_)
+                | Self::Scroll(_)
+                | Self::ScrollEnded
+                | Self::Touch { .. }
+                | Self::Zoom(_)
+        )
+    }
+
+    pub fn is_key(&self) -> bool {
+        matches!(
+            self,
+            Self::Key { .. }
+                | Self::Text(_)
+                | Self::Ime(_)
+                | Self::Modifiers(_)
+                | Self::InterceptedKey(_)
+                | Self::InterceptedTap(_)
+        )
+    }
+
     pub fn modifiers(&self) -> Option<Modifiers> {
         match self {
             Self::Key { press, .. } | Self::InterceptedKey(press) => Some(press.modifiers),
@@ -676,7 +702,6 @@ impl InputState {
             *pos = scale(*pos);
         }
         input.pointer.pos = input.pointer.pos.map(scale);
-        input.pointer.press_pos = input.pointer.press_pos.map(scale);
         input.pointer.motion *= factor;
         input.pointer.last_click = input
             .pointer
@@ -685,12 +710,66 @@ impl InputState {
         input
     }
 
+    pub fn only(&self, keep: impl Fn(&Event) -> bool) -> Self {
+        let mut input = self.clone();
+        let mut moved = Vec::with_capacity(self.events.len());
+        input.events.clear();
+        for event in &self.events {
+            match keep(event) {
+                true => {
+                    moved.push(Some(input.events.len()));
+                    input.events.push(event.clone());
+                }
+                false => moved.push(None),
+            }
+        }
+        input.pointer_events = self
+            .pointer_events
+            .iter()
+            .filter_map(|event| {
+                let source = moved.get(event.source).copied().flatten()?;
+                Some(PointerEvent { source, ..*event })
+            })
+            .collect();
+        input
+    }
+
+    pub fn with_event(&self, event: Event) -> Self {
+        let mut input = self.clone();
+        input.events.push(event);
+        input
+    }
+
+    pub fn without_pointer(&self, leaving: bool) -> Self {
+        let mut input = self.only(|event| !event.is_pointer());
+        input.pointer_events.clear();
+        if leaving {
+            let source = 0;
+            if let Some(pos) = self.pointer.pos.filter(|_| !self.pointer.from_touch) {
+                input.emit_at(source, PointerId::Mouse, PointerPhase::Gone, pos);
+            }
+            for (id, pos) in &self.touches {
+                input.emit_at(source, PointerId::Touch(*id), PointerPhase::Cancel, *pos);
+            }
+        }
+        input.pointer.pos = None;
+        input.pointer.motion = Vec2::ZERO;
+        input.touches.clear();
+        input
+    }
+
+    fn emit_at(&mut self, source: usize, pointer: PointerId, phase: PointerPhase, pos: Pos2) {
+        self.source = source;
+        self.force = None;
+        self.emit(pointer, phase, pos);
+    }
+
     pub fn touching(&self) -> bool {
         !self.touches.is_empty()
     }
 
     pub fn begin_frame(&mut self, raw: RawInput, now: Instant) {
-        self.pointer.begin_frame();
+        self.pointer.motion = Vec2::ZERO;
         if self.touches.is_empty() && self.pointer.from_touch {
             self.pointer.pos = None;
             self.pointer.from_touch = false;
@@ -724,7 +803,6 @@ impl InputState {
                     if self.pointer.from_touch {
                         self.pointer.from_touch = false;
                         self.pointer.pos = None;
-                        self.pointer.primary_down = false;
                     }
                     self.mouse_gone();
                 }
@@ -736,7 +814,9 @@ impl InputState {
                 } if !self.from_touch(*pos) => {
                     self.pointer.pos = Some(*pos);
                     self.pointer.from_touch = false;
-                    self.pointer.button(*button, *pressed, *pos, now);
+                    if *pressed && *button == PointerButton::Primary {
+                        self.pointer.count_click(*pos, now);
+                    }
                     let phase = match pressed {
                         true => PointerPhase::Down(*button),
                         false => PointerPhase::Up(*button),
@@ -807,10 +887,7 @@ impl InputState {
         }
         if !self.pointer.from_touch {
             self.pointer.pos = None;
-            self.pointer.primary_down = false;
         }
-        self.pointer.secondary_down = false;
-        self.pointer.middle_down = false;
     }
 
     fn touch(&mut self, id: TouchId, phase: TouchPhase, pos: Pos2, now: Instant) {
@@ -821,9 +898,6 @@ impl InputState {
                 if self.touches.is_empty() {
                     let pointer = &mut self.pointer;
                     pointer.pos = Some(pos);
-                    pointer.primary_down = true;
-                    pointer.primary_pressed = true;
-                    pointer.press_pos = Some(pos);
                     pointer.from_touch = true;
                     pointer.count_click(pos, now);
                 }
@@ -844,12 +918,7 @@ impl InputState {
             (TouchPhase::End | TouchPhase::Cancel, Some(index)) => {
                 self.touches.remove(index);
                 if first == Some(id) {
-                    self.pointer.primary_down = false;
-                    self.pointer.primary_released = true;
-                    self.pointer.pos = Some(pos);
-                    if phase == TouchPhase::Cancel {
-                        self.pointer.pos = None;
-                    }
+                    self.pointer.pos = Some(pos).filter(|_| phase != TouchPhase::Cancel);
                 }
                 let phase = match phase {
                     TouchPhase::End => PointerPhase::Up(PointerButton::Primary),
@@ -885,63 +954,13 @@ impl InputState {
 #[derive(Clone, Copy, Default, Debug)]
 pub struct Pointer {
     pub pos: Option<Pos2>,
-    pub press_pos: Option<Pos2>,
     pub motion: Vec2,
-    pub primary_down: bool,
-    pub primary_pressed: bool,
-    pub primary_released: bool,
-    pub secondary_down: bool,
-    pub secondary_pressed: bool,
-    pub secondary_released: bool,
-    pub middle_down: bool,
-    pub middle_pressed: bool,
-    pub middle_released: bool,
     clicks: u32,
     last_click: Option<(Instant, Pos2)>,
     from_touch: bool,
 }
 
 impl Pointer {
-    fn begin_frame(&mut self) {
-        self.primary_pressed = false;
-        self.primary_released = false;
-        self.secondary_pressed = false;
-        self.secondary_released = false;
-        self.middle_pressed = false;
-        self.middle_released = false;
-        self.motion = Vec2::ZERO;
-    }
-
-    fn button(&mut self, button: PointerButton, pressed: bool, pos: Pos2, now: Instant) {
-        match button {
-            PointerButton::Primary => {
-                self.primary_down = pressed;
-                if pressed {
-                    self.primary_pressed = true;
-                    self.press_pos = Some(pos);
-                    self.count_click(pos, now);
-                } else {
-                    self.primary_released = true;
-                }
-            }
-            PointerButton::Secondary => {
-                self.secondary_down = pressed;
-                match pressed {
-                    true => self.secondary_pressed = true,
-                    false => self.secondary_released = true,
-                }
-            }
-            PointerButton::Middle => {
-                self.middle_down = pressed;
-                match pressed {
-                    true => self.middle_pressed = true,
-                    false => self.middle_released = true,
-                }
-            }
-            PointerButton::Back | PointerButton::Forward => {}
-        }
-    }
-
     fn count_click(&mut self, pos: Pos2, now: Instant) {
         let repeated = self.last_click.is_some_and(|(when, at)| {
             now.duration_since(when).as_secs_f32() <= MULTI_CLICK_DELAY
@@ -965,30 +984,6 @@ impl Pointer {
 
     pub fn from_touch(&self) -> bool {
         self.from_touch
-    }
-
-    pub fn primary_pressed(&self) -> bool {
-        self.primary_pressed
-    }
-
-    pub fn primary_released(&self) -> bool {
-        self.primary_released
-    }
-
-    pub fn secondary_pressed(&self) -> bool {
-        self.secondary_pressed
-    }
-
-    pub fn secondary_released(&self) -> bool {
-        self.secondary_released
-    }
-
-    pub fn middle_pressed(&self) -> bool {
-        self.middle_pressed
-    }
-
-    pub fn middle_released(&self) -> bool {
-        self.middle_released
     }
 }
 

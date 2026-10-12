@@ -109,7 +109,6 @@ pub(crate) fn shortcuts_inhibited(doc: &Document) -> bool {
     })
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(super) fn route(
     doc: &mut Document,
     ctx: &Context,
@@ -117,23 +116,16 @@ pub(super) fn route(
     root: NodeId,
     events: &[Event],
     keep: &[bool],
-    pointer: bool,
-    keys: super::Keys,
 ) {
     doc.pointers.forget_hits();
     let modifiers = ctx.input(|input| input.modifiers);
-    let position = ctx
-        .input(|input| input.pointer.interact_pos())
-        .filter(|_| pointer);
+    let position = ctx.input(|input| input.pointer.interact_pos());
     let alive = |doc: &Document, id: Option<NodeId>| {
         id.filter(|id| doc.arena.contains(*id) && wants_forward(doc.arena.get(*id)))
     };
-    let focused = alive(doc, doc.focused_node()).filter(|_| !keys.ignored());
+    let focused = alive(doc, doc.focused_node());
     let hovered = position.and_then(|pos| sink_at(doc, rects, root, pos));
-    let pointer_events: Vec<PointerEvent> = match pointer {
-        true => ctx.input(|input| input.pointer_events.clone()),
-        false => Vec::new(),
-    };
+    let pointer_events = ctx.input(|input| input.pointer_events.clone());
     let routed = std::mem::take(&mut doc.pointers.routed);
     let layers = doc.layers();
     let blocking = layers.blocking();

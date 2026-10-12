@@ -22,26 +22,6 @@ pub const WHEEL_LATCH_TIMEOUT: Duration = Duration::from_millis(500);
 const WHEEL_LATCH_SLOP: f32 = 2.0;
 pub const TOUCH_REACH: f32 = 12.0;
 
-#[derive(Clone, Copy)]
-pub enum Keys {
-    Ignored,
-    All,
-    Except(fn(&Event) -> bool),
-}
-
-impl Keys {
-    pub fn ignored(self) -> bool {
-        matches!(self, Self::Ignored)
-    }
-
-    fn claimed(self, event: &Event) -> bool {
-        match self {
-            Self::Except(claimed) => claimed(event),
-            _ => false,
-        }
-    }
-}
-
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Fate {
     Taken,
@@ -56,33 +36,26 @@ pub fn interact(
     painter: &Painter,
     rects: &Rects,
     root: NodeId,
-    pointer: bool,
-    keys: Keys,
 ) {
     let events = ctx.input(|input| input.events.clone());
     if events.iter().any(is_activity) {
         doc.note_input();
     }
-    pointer::dispatch(doc, ctx, rects, root, pointer);
+    pointer::dispatch(doc, ctx, rects, root);
     doc.validate_focus();
-    let keep = match keys.ignored() {
-        true => vec![true; events.len()],
-        false => {
-            let taps = taps(doc, &events);
-            events
-                .iter()
-                .enumerate()
-                .map(|(index, event)| {
-                    ::reactive::settle(|| {
-                        doc.validate_focus();
-                        key_event(doc, ctx, painter, event, keys, taps.contains(&index))
-                    })
-                })
-                .collect()
-        }
-    };
-    forward::route(doc, ctx, rects, root, &events, &keep, pointer, keys);
-    if ctx.pointer_locked() && pointer && !keys.ignored() && !forward::takes_keys(doc) {
+    let taps = taps(doc, &events);
+    let keep: Vec<bool> = events
+        .iter()
+        .enumerate()
+        .map(|(index, event)| {
+            ::reactive::settle(|| {
+                doc.validate_focus();
+                key_event(doc, ctx, painter, event, taps.contains(&index))
+            })
+        })
+        .collect();
+    forward::route(doc, ctx, rects, root, &events, &keep);
+    if ctx.pointer_locked() && !forward::takes_keys(doc) {
         let motion = ctx.input(|input| input.pointer.motion);
         if motion != Vec2::ZERO {
             doc.motion_focused(motion);
@@ -96,14 +69,15 @@ fn key_event(
     ctx: &Context,
     painter: &Painter,
     event: &Event,
-    keys: Keys,
     tap: bool,
 ) -> bool {
     if let Some(modifiers) = event.modifiers().filter(|_| !matches!(event, Event::PointerButton { .. })) {
         doc.set_modifiers(modifiers);
     }
     match event {
+        Event::Focus(true) => doc.keyboard = true,
         Event::Focus(false) => {
+            doc.keyboard = false;
             doc.keys.held.clear();
             doc.cancel_focus_activation();
             if ctx.pointer_locked() {
@@ -119,7 +93,6 @@ fn key_event(
             offer_from_app(doc, KeyInput::Tap(*key));
             return false;
         }
-        Event::Key { .. } if keys.claimed(event) => {}
         Event::Key { press, text, .. } => {
             if press.pressed {
                 doc.acted = Acted::Keys;

@@ -16,8 +16,9 @@ use beui_core::context::{Context, RendererChoices};
 use beui_core::filter::{ColorVision, Filter};
 use beui_core::flash;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
-use beui_core::input::{BackGesture, CursorIcon, Event, Key as InputKey};
-use beui_core::interact::Keys;
+use beui_core::input::{
+    BackGesture, CursorIcon, Event, InputState, Key as InputKey, PointerButton, PointerPhase,
+};
 use beui_core::painter::Painter;
 
 use crate::screen_reader::{Command, ScreenReader};
@@ -565,14 +566,12 @@ impl Inspector {
             || self.state.screen_reader.get()
     }
 
-    pub fn keys(&self) -> Keys {
-        if self.state.picking.get() || self.grabbed.is_some() || self.resizing.is_some() {
-            return Keys::Ignored;
-        }
-        match self.state.screen_reader.get() {
-            true => Keys::Except(crate::screen_reader::claims),
-            false => Keys::All,
-        }
+    pub fn takes_keys(&self) -> bool {
+        self.state.picking.get() || self.grabbed.is_some() || self.resizing.is_some()
+    }
+
+    pub fn claims(&self, event: &Event) -> bool {
+        self.state.screen_reader.get() && crate::screen_reader::claims(event)
     }
 
     pub fn toggle_picking(&self) {
@@ -590,15 +589,15 @@ impl Inspector {
             pos2(edge - GRIP_WIDTH, rect.top()),
             pos2(edge + GRIP_WIDTH, rect.bottom()),
         );
-        if ctx.input(|input| input.pointer.primary_released()) {
+        if released(ctx) {
             self.grabbed = None;
         }
         let Some(pointer) = ctx.input(|input| input.pointer.interact_pos()) else {
             self.grip = false;
             return;
         };
-        if ctx.input(|input| input.pointer.primary_pressed()) && grip.contains(pointer) {
-            self.grabbed = Some(pointer.x - edge);
+        if let Some(pressed) = pressed(ctx).filter(|pressed| grip.contains(*pressed)) {
+            self.grabbed = Some(pressed.x - edge);
         }
         if let Some(grabbed) = self.grabbed {
             let maximum = (rect.width() / scale - NARROWEST_APP_WIDTH).max(MINIMUM_WIDTH);
@@ -633,13 +632,12 @@ impl Inspector {
         }
         let document = &mut self.document;
         if panel.is_positive() {
-            let focused = document.focused_node().is_some();
+            let keys = keyboard_interactive && document.focused_node().is_some();
             ctx.scaled(scale, || {
-                let keys = match keyboard_interactive && focused {
-                    true => Keys::All,
-                    false => Keys::Ignored,
-                };
-                document.show_content(ctx, panel.scaled(scale.recip()), true, keys);
+                ctx.with_input(
+                    |input| keyed(input, keys),
+                    || document.show_content(ctx, panel.scaled(scale.recip())),
+                );
             });
         } else {
             document.hide();
@@ -711,7 +709,7 @@ impl Inspector {
             self.handle = None;
             return;
         };
-        if ctx.input(|input| input.pointer.primary_released()) && self.resizing.take().is_some() {
+        if released(ctx) && self.resizing.take().is_some() {
             self.state.touch();
         }
         let pointer = ctx.input(|input| input.pointer.interact_pos());
@@ -730,8 +728,7 @@ impl Inspector {
             .zip(pointer)
             .filter(|_| !self.state.picking.get() && !self.toolbar.open())
             .and_then(|(placement, pointer)| handle_at(placement.shown(), content, pointer));
-        if let (Some(handle), Some(placement), Some(origin)) = (self.handle, placement, pointer)
-            && ctx.input(|input| input.pointer.primary_pressed())
+        if let (Some(handle), Some(placement), Some(origin)) = (self.handle, placement, pressed(ctx))
         {
             self.resizing = Some(Resize {
                 handle,
@@ -786,12 +783,10 @@ impl Inspector {
         if let Some(simulation) = self.state.screen_simulation.get() {
             with_reactive_scope(document, || set_screen.set(simulation));
         }
-        let keys = match focused {
-            true => Keys::All,
-            false => Keys::Ignored,
-        };
         let area = toolbar.union(content).scaled(scale.recip());
-        ctx.scaled(scale, || document.show_content(ctx, area, true, keys));
+        ctx.scaled(scale, || {
+            ctx.with_input(|input| keyed(input, focused), || document.show_content(ctx, area));
+        });
     }
 
     fn show_bar(&mut self, ctx: &Context, bar: Rect) {
@@ -807,7 +802,10 @@ impl Inspector {
         } = &mut self.bar;
         with_reactive_scope(document, || set_selected.set(selected));
         ctx.scaled(scale, || {
-            document.show_content(ctx, bar.scaled(scale.recip()), true, Keys::Ignored);
+            ctx.with_input(
+                |input| keyed(input, false),
+                || document.show_content(ctx, bar.scaled(scale.recip())),
+            );
         });
     }
 
@@ -1004,7 +1002,7 @@ impl Inspector {
             return;
         };
         self.state.hovered.set(Some(id));
-        if ctx.input(|input| input.pointer.primary_pressed()) {
+        if pressed(ctx).is_some() {
             self.state.stop_picking();
             self.state.app_shown.set(false);
             self.state.select(id);
@@ -1181,6 +1179,13 @@ fn bounds_label(rect: Rect) -> String {
 #[derive(Default)]
 pub struct InspectorTools {
     pub inspector: Option<Box<Inspector>>,
+    withheld: Withheld,
+}
+
+#[derive(Clone, Copy, Default, PartialEq)]
+struct Withheld {
+    pointer: bool,
+    keys: bool,
 }
 
 pub fn install(document: &mut Document) {
@@ -1236,11 +1241,15 @@ impl Tools for InspectorTools {
             .inspector
             .as_ref()
             .is_some_and(|inspector| inspector.has_focus());
-        let keys = match &self.inspector {
-            _ if inspector_has_focus => Keys::Ignored,
-            Some(inspector) => inspector.keys(),
-            None => Keys::All,
+        let withheld = Withheld {
+            pointer: intercepted,
+            keys: inspector_has_focus
+                || self
+                    .inspector
+                    .as_ref()
+                    .is_some_and(|inspector| inspector.takes_keys()),
         };
+        let was = std::mem::replace(&mut self.withheld, withheld);
         if let Some(inspector) = &self.inspector {
             for gesture in inspector.state.take_back_gestures() {
                 with_reactive_scope(document, || {
@@ -1249,7 +1258,21 @@ impl Tools for InspectorTools {
             }
         }
         if layout.app_visible {
-            document.show_screen(ctx, layout.content, !intercepted, keys);
+            let inspector = self.inspector.as_deref();
+            let given = |input: &InputState| {
+                let input = match withheld.pointer {
+                    true => input.without_pointer(!was.pointer),
+                    false => input.clone(),
+                };
+                let input = match (withheld.keys, was.keys) {
+                    (true, false) => input.only(|event| !event.is_key()).with_event(Event::Focus(false)),
+                    (true, true) => input.only(|event| !event.is_key() && *event != Event::Focus(false)),
+                    (false, true) => input.with_event(Event::Focus(true)),
+                    (false, false) => input,
+                };
+                input.only(|event| !inspector.is_some_and(|inspector| inspector.claims(event)))
+            };
+            ctx.with_input(given, || document.show_screen(ctx, layout.content));
         } else {
             document.hide();
         }
@@ -1281,5 +1304,31 @@ fn chord_pressed(ctx: &Context, chord: InputKey) -> bool {
         input.events.iter().filter_map(Event::press).any(|press| {
             press.pressed && press.key == chord && press.modifiers.ctrl && press.modifiers.shift
         })
+    })
+}
+
+fn keyed(input: &InputState, keys: bool) -> InputState {
+    match keys {
+        true => input.clone(),
+        false => input.only(|event| !event.is_key()),
+    }
+}
+
+fn pressed(ctx: &Context) -> Option<Pos2> {
+    ctx.input(|input| {
+        input
+            .pointer_events
+            .iter()
+            .find(|event| event.phase == PointerPhase::Down(PointerButton::Primary))
+            .map(|event| event.pos)
+    })
+}
+
+fn released(ctx: &Context) -> bool {
+    ctx.input(|input| {
+        input
+            .pointer_events
+            .iter()
+            .any(|event| event.phase == PointerPhase::Up(PointerButton::Primary))
     })
 }
