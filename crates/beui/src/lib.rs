@@ -27,7 +27,9 @@ pub use beui_core::document::{
 };
 pub use beui_core::draw::{Quad, Quads, Turn, quads};
 pub use beui_core::drawing::Drawing;
-pub use beui_core::file_picker::{FileFilter, FilePick, FilePickId, FilePickRequest, PickedFile};
+pub use beui_core::file_picker::{
+    FileFilter, FilePick, FilePickAnswer, FilePickId, FilePickRequest, PickedFile,
+};
 pub use beui_core::filter::{ColorVision, Filter, MAX_BLUR};
 pub use beui_core::font::{
     FontBackend, FontFamily, FontId, Galley, GalleyLine, Glyph, GlyphId, GlyphImage, Shaping,
@@ -70,7 +72,9 @@ pub use beui_adapter_android::AndroidApp;
 pub use beui_adapter_web::accessibility_tree;
 #[cfg(all(feature = "window", not(target_os = "android")))]
 pub use beui_adapter_winit::winit;
-pub use beui_core::runner::{Adapter, Launch, Platform, RunOptions, Running, panic_message};
+pub use beui_core::runner::{
+    Adapter, Input, Keystroke, Launch, Platform, RunOptions, Running, ScrollDelta, panic_message,
+};
 #[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
 pub use web::{WebRenderer, run_web, web_adapter};
 
