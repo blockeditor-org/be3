@@ -13,7 +13,6 @@ use crate::geometry::Vec2;
 use crate::input::{BackGesture, Event, ImeEvent, Key, KeyPress, Modifiers};
 use crate::keys::{AtNode, Holder, KeyEvent, KeyInput, KeyPhase, KeyTarget, Placed, Stop};
 use crate::layer::Dismiss;
-use crate::painter::Painter;
 
 use crate::document::{Acted, Document};
 use crate::node::{NodeId, Rects};
@@ -30,7 +29,7 @@ enum Fate {
     Unheard,
 }
 
-pub fn interact(doc: &mut Document, ctx: &Context, painter: &Painter, rects: &Rects, root: NodeId) {
+pub fn interact(doc: &mut Document, ctx: &Context, rects: &Rects, root: NodeId) {
     let events = ctx.input(|input| input.events.clone());
     if events.iter().any(is_activity) {
         doc.note_input();
@@ -44,7 +43,7 @@ pub fn interact(doc: &mut Document, ctx: &Context, painter: &Painter, rects: &Re
         .map(|(index, event)| {
             ::reactive::settle(|| {
                 doc.validate_focus();
-                key_event(doc, ctx, painter, event, taps.contains(&index))
+                key_event(doc, ctx, event, taps.contains(&index))
             })
         })
         .collect();
@@ -58,13 +57,7 @@ pub fn interact(doc: &mut Document, ctx: &Context, painter: &Painter, rects: &Re
     doc.validate_focus();
 }
 
-fn key_event(
-    doc: &mut Document,
-    ctx: &Context,
-    painter: &Painter,
-    event: &Event,
-    tap: bool,
-) -> bool {
+fn key_event(doc: &mut Document, ctx: &Context, event: &Event, tap: bool) -> bool {
     if let Some(modifiers) = event
         .modifiers()
         .filter(|_| !matches!(event, Event::PointerButton { .. }))
@@ -96,11 +89,11 @@ fn key_event(
             }
             let fate = ::reactive::settle(|| key_press(doc, *press));
             if let Fate::Handled { reveal: true } = fate {
-                doc.reveal_focus(painter);
+                doc.reveal_focus();
             }
             if let Some(text) = text.as_ref().filter(|_| fate.local()) {
                 doc.text_focused(text);
-                doc.reveal_focus(painter);
+                doc.reveal_focus();
             }
             if tap && fate != Fate::Taken {
                 ::reactive::settle(|| offer_tap(doc, press.key));
@@ -109,13 +102,13 @@ fn key_event(
         }
         Event::Text(text) if !forward::takes_keys(doc) => {
             doc.text_focused(text);
-            doc.reveal_focus(painter);
+            doc.reveal_focus();
             return false;
         }
         Event::Ime(ime) if !forward::takes_keys(doc) => {
             doc.ime_focused(ime.clone());
             if !matches!(ime, ImeEvent::Enabled | ImeEvent::Disabled) {
-                doc.reveal_focus(painter);
+                doc.reveal_focus();
             }
         }
         _ => {}

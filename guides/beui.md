@@ -1939,42 +1939,48 @@ without rebuilding their children.
 
 A frame is input, then layout, then paint. Input is dispatched against the rects
 the previous frame painted, which is what the reader was looking at when they
-clicked, and the tree is laid out exactly once afterwards.
+clicked, and the tree is laid out once afterwards.
+
+Layout is a function of the tree and the constraints it is offered: nothing
+the walk does writes a signal outside the node being laid out. A component that
+needs the space it was given wraps its view in `LayoutBuilder`, whose render
+prop takes a `ReadSignal<Vec2>` of the constraint the builder is offered (the
+finite axes of it; an unbounded axis keeps its last value). The builder writes
+that signal inside its own layout, before its child is measured, so whatever
+reacts to it rebuilds within the builder's subtree and the walk carries on with
+the rebuilt tree. That is the only rebuild layout allows, and the rule it rests
+on is the one container queries settle on: a component may query the space it
+was given, but must not be the thing that decides that space on the axis it
+queries. Laying a node out changing an ancestor or an already-placed sibling is
+caught by a debug assertion.
+
+Everything layout decides is told to the tree after the walk, not during it:
+`component_rect` and `component_placed`, a `Scroll`'s position (and with it a
+scrollbar or a fade that follows it), and `Document::on_laid_out`, the callback
+block-app waits for its plugins in. A node with something to report queues it
+with `Document::report_after_layout`. Whatever those reports change is laid out
+once more before the frame is painted, so a frame lays out at most twice; what
+that second layout would report waits for the next frame, which is requested.
+So `component_rect` is for painting, for positioning things in document
+coordinates (a canvas camera, an overlay), and for input, not for deciding a
+layout: build from a `LayoutBuilder` instead, or the result lags a frame.
+
+Pointer callbacks are handed positions in the coordinates of the node that
+hears them as well as the document's: `PointerPress`, `ScrollGesture` and
+`ZoomGesture` carry `local` and `size` beside `pos`, and a drop target's
+`DragPoint` is in its own coordinates. A component that only needs to know
+where on itself it was pressed reads those rather than its rect.
 
 `Document::on_interacted` runs a callback once the frame's input has been
 dispatched and before anything is laid out, for an app that wants work started
-by that input under way while the document lays out. The one exception to the
-single layout is `Document::on_laid_out`, a callback that runs inside the
-document's reactive scope between layout and paint, for an app that has to
-answer something layout decided: block-app waits there for its plugins to draw
-at the sizes they were just given. Whatever it changes is laid out again before
-the frame is painted, and a layout that moved something runs the callback again,
-a few rounds at most.
+by that input under way while the document lays out.
 
-That holds even though `component_size` and `component_rect` feed measurements
-back into the tree, because both are delivered during the layout walk rather
-than after it. `component_size` reports the space a component's parent offered
-it, handed over before the component is measured; `component_rect` reports where
-it was placed, handed over before its subtree is laid out. Both flow downward,
-so a component that rebuilds from either is rebuilt before anything under it is
-placed, and the pass that caused the change absorbs it.
-
-The contract this rests on is that laying a node out only ever changes that node
-and the tree below it. Changing an ancestor or an already-placed sibling would
-leave that node holding a rect computed from a tree that no longer exists; a
-debug assertion catches it. The practical form of the rule is the one container
-queries on the web settle on: a component may query the space it was given, but
-it must not be the thing that decides that space on the axis it queries. A
-`Container` sized by its own contents on the axis it reports is a cycle, and
-beui resolves it in favour of the constraint its parent offered.
-
-A signal written while the tree is being laid out has to take effect before the
-walk moves on, so anything a node writes as it is laid out — a `Scroll`
-reporting its position to a sibling scrollbar, a row built into a virtual list —
-is written inside `settle`. A write left queued lands at whatever the next
-`settle` happens to be, by which time the node that reads it may already have
-been placed, and it is then laid out from the previous frame's value. The layout
-walk settles after every node and blames the node that left something queued.
+Revealing something in a scroll is resolved inside the scroll's own layout:
+`reveal_node` and `reveal_focus` leave a request on each enclosing `Offset`,
+which lays its content out, finds the target (or its nearest placed ancestor)
+and moves itself until the target is in view. A node's parent is the node whose
+`children` lists it; the arena learns it when that node changes, not from the
+layout walk.
 
 ### Update a document from outside its events
 
