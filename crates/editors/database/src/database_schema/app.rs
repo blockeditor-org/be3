@@ -25,7 +25,7 @@ impl block_editor_beui::BeuiApp for DatabaseSchemaApp {
 
 pub fn field_line_count(field: &DatabaseField) -> usize {
     1 + match field.field_type {
-        DatabaseFieldType::Enum => field.enum_options.len() + 1,
+        DatabaseFieldType::Enum => field.enum_options.len() + 3,
         DatabaseFieldType::Number => 4,
         DatabaseFieldType::Block => 1,
         DatabaseFieldType::Relation => 2,
