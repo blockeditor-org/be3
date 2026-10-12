@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use crate::database_schema::app::DatabaseSchemaApp;
 
+mod a_choice_option_takes_an_icon_and_can_be_closed_and_the_default;
 mod a_relation_field_names_the_database_it_links_to;
 mod adding_a_field_appends_a_string_field;
 mod configured_fields_paint_on_separate_lines;

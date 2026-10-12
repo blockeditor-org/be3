@@ -1,88 +1,10 @@
-use crate::reactive::{
-    BuildsNode, Child, ChildSegment, ChildValue, Children, ComponentContext, IntoChild,
-    IntoSegment, NodeSlot, Prop, Scope, SlotChild, create_effect, with_document,
-};
-use beui_core::base::grid::{GridItem, GridNode, Track};
+use crate::reactive::{Child, Children, Placed, Prop, create_effect, with_document};
+use beui_core::base::grid::{GridNode, Track};
 use beui_core::document::Document;
 use beui_core::node::NodeId;
-use beui_core::tree::remove_stored_node;
 use beui_macros::component;
 
-pub struct GridCell {
-    node: NodeId,
-    span: Prop<usize>,
-}
-
-impl BuildsNode for GridCell {
-    fn built_node(&self) -> NodeId {
-        self.node
-    }
-}
-
-impl ChildValue for GridCell {
-    fn adopt_scope(&mut self, scope: Scope) {
-        self.node.adopt_scope(scope);
-    }
-
-    fn finish_component(&mut self, component: &ComponentContext, scope: &Scope) {
-        self.node.finish_component(component, scope);
-    }
-}
-
-crate::child_type!(GridCell);
-
-impl IntoChild<GridCell> for NodeId {
-    fn into_child(self) -> GridCell {
-        GridCell {
-            node: self,
-            span: Prop::Static(1),
-        }
-    }
-}
-
-impl IntoSegment<GridCell> for NodeId {
-    fn into_segment(self) -> ChildSegment<GridCell> {
-        ChildSegment::One(self.into_child())
-    }
-}
-
-impl SlotChild for GridCell {
-    type Stored = GridItem;
-
-    fn store(self) -> GridItem {
-        GridItem {
-            child: self.node,
-            span: self.span.peek(),
-        }
-    }
-
-    fn discard(stored: &GridItem) {
-        remove_stored_node(stored.child);
-    }
-}
-
-impl NodeSlot for GridCell {
-    type Host = GridNode;
-
-    fn store_in(self, parent: NodeId) -> GridItem {
-        let GridCell { node, span } = self;
-        let initial = span.peek();
-        if let Prop::Dynamic(read) = span {
-            create_effect(move || {
-                let span = read();
-                with_document(|document| {
-                    if let Some(grid) = document.arena.kind_of::<GridNode>(parent) {
-                        document.set_grid_span(grid, node, span);
-                    }
-                });
-            });
-        }
-        GridItem {
-            child: node,
-            span: initial,
-        }
-    }
-}
+pub type GridCell = Placed<GridNode>;
 
 #[component]
 pub fn Grid(
@@ -108,6 +30,6 @@ pub fn Grid(
 pub fn GridCell(#[prop(default = 1)] span: Prop<usize>, children: Child) -> GridCell {
     GridCell {
         node: children,
-        span,
+        data: span,
     }
 }

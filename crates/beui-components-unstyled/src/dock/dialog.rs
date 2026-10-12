@@ -273,7 +273,7 @@ fn DockDialogView(dock: Handle, tab: TabId, parent: TabId) -> NodeId {
         provide_context(control);
         content.call(())
     });
-    with_document(|document| document.register_node_scope(body, scope));
+    on_cleanup(move || drop(scope));
     let width = create_memo(clone!(size -> move || size.get().x));
     let height = create_memo(clone!(size -> move || size.get().y));
     let body = view! {

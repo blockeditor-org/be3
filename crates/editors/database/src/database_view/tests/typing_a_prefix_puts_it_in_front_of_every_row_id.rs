@@ -8,6 +8,8 @@ fn typing_a_prefix_puts_it_in_front_of_every_row_id() {
     fixture.edit_view(DatabaseView::set_kind(DatabaseViewKind::List));
     fixture.settle();
 
+    fixture.harness.click("database-view.display");
+    fixture.settle();
     fixture.harness.click("database-view.prefix");
     fixture.run();
     fixture.harness.text("BE");

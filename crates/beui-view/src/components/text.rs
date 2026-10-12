@@ -1,12 +1,8 @@
-use crate::reactive::{
-    BuildsNode, Child, ChildValue, Children, ComponentContext, NodeSlot, Prop, Scope, SlotChild,
-    create_effect, with_document,
-};
+use crate::reactive::{Child, Children, Placed, Prop, create_effect, with_document};
 use beui_core::base::text::TextNode;
 use beui_core::color::Color32;
 use beui_core::node::NodeId;
 use beui_core::rich::{TextCaret, TextMark, TextSpan};
-use beui_core::tree::remove_stored_node;
 
 use beui_core::base::text::DEFAULT_FONT_SIZE;
 use beui_core::font::TextAlign;
@@ -87,43 +83,7 @@ pub fn Text(
     node.id()
 }
 
-pub struct TextItem {
-    node: NodeId,
-}
-
-impl BuildsNode for TextItem {
-    fn built_node(&self) -> NodeId {
-        self.node
-    }
-}
-
-impl ChildValue for TextItem {
-    fn adopt_scope(&mut self, scope: Scope) {
-        self.node.adopt_scope(scope);
-    }
-
-    fn finish_component(&mut self, component: &ComponentContext, scope: &Scope) {
-        self.node.finish_component(component, scope);
-    }
-}
-
-crate::child_type!(TextItem);
-
-impl SlotChild for TextItem {
-    type Stored = NodeId;
-
-    fn store(self) -> NodeId {
-        self.node
-    }
-
-    fn discard(stored: &NodeId) {
-        remove_stored_node(*stored);
-    }
-}
-
-impl NodeSlot for TextItem {
-    type Host = TextNode;
-}
+pub type TextItem = Placed<TextNode>;
 
 #[component]
 pub fn TextItem(
@@ -138,5 +98,5 @@ pub fn TextItem(
         item
     });
     create_effect(move || with_document(|document| document.set_text_item_at(item, at.get())));
-    TextItem { node: item.id() }
+    TextItem::new(item.id(), ())
 }

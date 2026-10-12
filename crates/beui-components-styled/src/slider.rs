@@ -3,7 +3,7 @@ use beui_macros::{component, view};
 use beui_core::color::Color32;
 
 use crate::theme::{
-    BORDER_WIDTH, FOCUS_RING_WIDTH, RADIUS, ThemeStore, control_outline, control_outline_visible,
+    BORDER_WIDTH, FOCUS_RING_WIDTH, RADIUS, ThemeStore, knob_outline, knob_outline_visible,
     use_theme,
 };
 use beui_components_unstyled as unstyled;
@@ -93,9 +93,9 @@ fn SliderTrack(handle: SliderHandle) -> NodeId {
                     width=KNOB_SIZE
                     height=KNOB_SIZE
                     color={knob_color}
-                    outline={control_outline(&theme)}
+                    outline={knob_outline(&theme)}
                     outline_width=BORDER_WIDTH
-                    outline_visible={control_outline_visible(&theme)}
+                    outline_visible={knob_outline_visible(&theme)}
                     radius=KNOB_RADIUS
                 />
                 <Frame

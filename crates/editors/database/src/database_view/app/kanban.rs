@@ -1,47 +1,38 @@
-use block_editor_beui::be_block::database::DatabaseValue;
+use block_editor_beui::be_block::ObjectId;
+use block_editor_beui::be_block::database::{DatabaseValue, short_id};
 use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
-use block_editor_beui::beui::icons::ICON_ADD;
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::{ICON_ADD, ICON_UNFOLD_MORE};
 use block_editor_beui::beui::reactive::{
-    Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, clone, component, create_memo,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, clone, component, create_memo,
     view,
 };
 use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, Card, ListRow, Scroll, Separator, use_theme,
+    Body, ButtonVariant, Caption, IconButton, IconButtonSize, ListRow, Scroll, use_theme,
 };
 use block_editor_beui::beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
-use block_editor_beui::beui::{NodeId, TextAlign};
-use block_editor_beui::block_ui::database::cell_text;
+use block_editor_beui::database::ChoiceMark;
 use uuid::Uuid;
 
+use crate::database_view::app::controls::MARK_SIZE;
 use crate::database_view::app::data::Data;
+use crate::database_view::app::list::{Parts, group_test_key, row_parts, row_title};
+use crate::database_view::groups::{Group, GroupKey};
 
-const COLUMN_WIDTH: f32 = 240.0;
-const COLUMN_SPACING: f32 = 10.0;
-const CARD_SPACING: f32 = 6.0;
+const COLUMN_WIDTH: f32 = 272.0;
+const FOLDED_WIDTH: f32 = 48.0;
+const COLUMN_SPACING: f32 = 12.0;
+const CARD_SPACING: f32 = 8.0;
 const PADDING: f32 = 12.0;
 const DRAG_THRESHOLD: f32 = 6.0;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct ColumnKey(pub Option<Uuid>);
 
 #[component]
 pub fn Kanban(data: Data) -> NodeId {
     let status = status_field(&data);
     let missing = create_memo(clone!(status -> move || status.get().is_none()));
     let ready = create_memo(clone!(status -> move || status.get().is_some()));
-    let columns = create_memo(clone!(status -> move || {
-        let mut columns: Vec<ColumnKey> = status
-            .get()
-            .map(|field| {
-                field
-                    .enum_options
-                    .iter()
-                    .map(|option| ColumnKey(Some(option.id)))
-                    .collect()
-            })
-            .unwrap_or_default();
-        columns.push(ColumnKey(None));
-        columns
+    let columns = create_memo(clone!(data -> move || {
+        data.groups.with(|groups| groups.iter().map(|group| group.key).collect::<Vec<GroupKey>>())
     }));
     let theme = use_theme();
     view! {
@@ -49,24 +40,22 @@ pub fn Kanban(data: Data) -> NodeId {
             <List spacing=0.0>
                 <Show condition={missing}>
                     <Frame padding_horizontal=PADDING padding_vertical=PADDING>
-                        <Caption content="Choose a status field to use the kanban view." />
+                        <Caption
+                            content="Choose the choice field whose options make the columns, under Display."
+                            wrap=true
+                        />
                     </Frame>
                 </Show>
                 <Show condition={ready}>
-                    {move || clone!(columns data status -> view! {
+                    {move || clone!(columns data -> view! {
                         <Scroll @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal>
                             <Frame padding_horizontal=PADDING padding_vertical=PADDING>
                                 <List direction=Direction::Horizontal spacing=COLUMN_SPACING>
                                     <ForEach keys={columns}>
-                                        {move |column: ColumnKey| {
+                                        {move |key: GroupKey| {
                                             let data = data.clone();
-                                            let status = status.clone();
                                             view! {
-                                                <Column
-                                                    data={data}
-                                                    status={status}
-                                                    column={column}
-                                                />
+                                                <Column data={data} key={key} />
                                             }
                                         }}
                                     </ForEach>
@@ -81,98 +70,159 @@ pub fn Kanban(data: Data) -> NodeId {
 }
 
 #[component]
-fn Column(data: Data, status: Memo<Option<DatabaseField>>, column: ColumnKey) -> NodeId {
-    let option = column.0;
-    let title = create_memo(clone!(status -> move || {
-        let Some(option) = option else {
-            return "No status".to_owned();
-        };
-        status.with(|status| {
-            status
+fn Column(data: Data, key: GroupKey) -> NodeId {
+    let group = create_memo(clone!(data -> move || {
+        data.groups.with(|groups| groups.iter().find(|group| group.key == key).cloned())
+    }));
+    let folded = create_memo(clone!(data group -> move || {
+        let closed = group.with(|group| group.as_ref().is_some_and(|group| group.closed));
+        closed != data.toggled.with(|toggled| toggled.contains(&key))
+    }));
+    let open = create_memo(clone!(folded -> move || !folded.get()));
+    let (open_data, folded_data) = (data.clone(), data);
+    let (open_group, folded_group) = (group.clone(), group);
+    view! {
+        <List direction=Direction::Horizontal spacing=0.0>
+            <Show condition={open}>
+                {move || clone!(open_data open_group -> view! {
+                    <OpenColumn data={open_data} group={open_group} key={key} />
+                })}
+            </Show>
+            <Show condition={folded}>
+                {move || clone!(folded_data folded_group -> view! {
+                    <FoldedColumn data={folded_data} group={folded_group} key={key} />
+                })}
+            </Show>
+        </List>
+    }
+}
+
+#[component]
+fn FoldedColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
+    let option = create_memo(clone!(group -> move || {
+        group.with(|group| group.as_ref().and_then(|group| group.option.clone()))
+    }));
+    let count = create_memo(clone!(group -> move || {
+        group.with(|group| group.as_ref().map_or(0, |group| group.rows.len())).to_string()
+    }));
+    let name = create_memo(clone!(group -> move || {
+        group.with(|group| {
+            group
                 .as_ref()
-                .and_then(|status| status.enum_options.iter().find(|shown| shown.id == option))
-                .map_or_else(|| "Unknown".to_owned(), |shown| shown.name.clone())
+                .map(|group| format!("Show {}", group.label))
+                .unwrap_or_default()
         })
     }));
-    let rows = data.rows.clone();
-    let field_id = create_memo(clone!(status -> move || {
-        status.with(|status| status.as_ref().map(|status| status.id))
+    let unfold = clone!(data -> move || data.toggle_group(key));
+    let theme = use_theme();
+    view! {
+        <Frame width=FOLDED_WIDTH color={theme.surface.clone()} radius=10 padding_vertical=10.0>
+            <List align=Align::Center spacing=8.0>
+                <ChoiceMark option={option} size=MARK_SIZE />
+                <Caption content={count} />
+                <IconButton
+                    glyph={ICON_UNFOLD_MORE.to_owned()}
+                    label={name}
+                    variant=ButtonVariant::Ghost
+                    size=IconButtonSize::Compact
+                    @test_id={format!("database-view.kanban.unfold.{}", group_test_key(key))}
+                    on_click={unfold}
+                />
+            </List>
+        </Frame>
+    }
+}
+
+#[component]
+fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
+    let label = create_memo(clone!(group -> move || {
+        group.with(|group| group.as_ref().map(|group| group.label.clone()).unwrap_or_default())
     }));
-    let shown = data.clone();
-    let keys = create_memo(clone!(rows field_id -> move || {
-        let Some(field_id) = field_id.get() else {
-            return Vec::new();
-        };
-        rows.with(|rows| {
-            rows.iter()
-                .enumerate()
-                .filter(|(_, row)| shown.shows(row))
-                .filter(|(_, row)| match row.value(field_id) {
-                    Some(DatabaseValue::Enum(id)) => option == Some(*id),
-                    _ => option.is_none(),
-                })
-                .map(|(index, _)| index)
-                .collect::<Vec<usize>>()
-        })
+    let count = create_memo(clone!(group -> move || {
+        group.with(|group| group.as_ref().map_or(0, |group| group.rows.len())).to_string()
     }));
-    let add = clone!(data field_id -> move || {
-        let Some(field_id) = field_id.get_untracked() else {
+    let option = create_memo(clone!(group -> move || {
+        group.with(|group| group.as_ref().and_then(|group| group.option.clone()))
+    }));
+    let keys = create_memo(clone!(group -> move || {
+        group.with(|group| group.as_ref().map(|group| group.rows.clone()).unwrap_or_default())
+    }));
+    let value = create_memo(clone!(group -> move || {
+        group.with(|group| group.as_ref().and_then(Group::value))
+    }));
+    let add = clone!(data value -> move || {
+        let Some(field_id) = data.group_by.get_untracked() else {
             return;
         };
-        let row = data.rows.with_untracked(Vec::len);
-        data.select(row, None);
-        data.set_cell(row, field_id, option.map(DatabaseValue::Enum));
+        let mut values = Vec::new();
+        if let Some(value) = value.get_untracked() {
+            values.push((field_id, value));
+        }
+        if let Some(title) = data.title_field.get_untracked() {
+            values.push((title, DatabaseValue::String(String::new())));
+        }
+        data.new_row(values);
     });
     let read_only = data.read_only.clone();
     let cards = data.clone();
-    let key = option.map_or_else(|| "none".to_owned(), |option| option.to_string());
-    let dropped = clone!(data field_id -> move |(row, _): (usize, DragPoint)| {
-        let Some(field_id) = field_id.get_untracked() else {
+    let test_key = match key {
+        GroupKey::Option(option) => option.to_string(),
+        _ => "none".to_owned(),
+    };
+    let dropped = clone!(data value -> move |(row, _): (usize, DragPoint)| {
+        let Some(field_id) = data.group_by.get_untracked() else {
             return;
         };
-        data.set_cell(row, field_id, option.map(DatabaseValue::Enum));
-        data.select(row, None);
+        data.set_cell(row, field_id, value.get_untracked());
     });
     let theme = use_theme();
     view! {
         <DropTarget on_drop={dropped}>
             {move |handle: DropHandle| {
                 let DropHandle { over, .. } = handle;
+                let cards = cards.clone();
                 view! {
                     <Frame
                         width=COLUMN_WIDTH
+                        color={theme.surface.clone()}
                         outline={theme.accent.clone()}
                         outline_width=2.0
-                        outline_offset=2.0
                         radius=10
                         outline_visible={over}
+                        padding_horizontal=8.0
+                        padding_bottom={Some(8.0)}
                     >
-                        <Card>
-                            <List spacing=CARD_SPACING>
-                                <Body content={title} />
-                                <Separator />
-                                <ForEach keys={keys}>
-                                    {move |row: usize| {
-                                        let data = cards.clone();
-                                        let status = field_id.clone();
-                                        view! {
-                                            <KanbanCard data={data} status={status} row={row} />
-                                        }
-                                    }}
-                                </ForEach>
-                                <List direction=Direction::Horizontal spacing=0.0>
-                                    <Button
+                        <List spacing=CARD_SPACING>
+                            <Frame padding_left={Some(4.0)} padding_vertical=4.0>
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=8.0
+                                >
+                                    <ChoiceMark option={option.clone()} size=MARK_SIZE />
+                                    <Body content={label.clone()} />
+                                    <Caption content={count.clone()} />
+                                    <Frame @sizing=ItemSize::Percent(100.0) />
+                                    <IconButton
                                         glyph={ICON_ADD.to_owned()}
                                         label="Add card"
-                                        variant=ButtonVariant::Secondary
-                                        disabled={read_only}
-                                        @test_id={format!("database-view.kanban.add.{key}")}
-                                        on_click={add}
+                                        variant=ButtonVariant::Ghost
+                                        size=IconButtonSize::Compact
+                                        disabled={read_only.clone()}
+                                        @test_id={format!("database-view.kanban.add.{test_key}")}
+                                        on_click={add.clone()}
                                     />
-                                    <Spacer @sizing=ItemSize::Percent(100.0) />
                                 </List>
-                            </List>
-                        </Card>
+                            </Frame>
+                            <ForEach keys={keys.clone()}>
+                                {move |row: usize| {
+                                    let data = cards.clone();
+                                    view! {
+                                        <KanbanCard data={data} row={row} />
+                                    }
+                                }}
+                            </ForEach>
+                        </List>
                     </Frame>
                 }
             }}
@@ -181,21 +231,18 @@ fn Column(data: Data, status: Memo<Option<DatabaseField>>, column: ColumnKey) ->
 }
 
 #[component]
-fn KanbanCard(data: Data, status: Memo<Option<Uuid>>, row: usize) -> NodeId {
+fn KanbanCard(data: Data, row: usize) -> NodeId {
     let selected = create_memo(clone!(data -> move || {
         data.selected.get().is_some_and(|selection| selection.row == row)
     }));
     let pick = clone!(data -> move || data.select(row, None));
     let read_only = data.read_only.clone();
     let payload = create_memo(move || (!read_only.get()).then_some(row));
-    let ghost = clone!(data status -> move |row: usize| {
+    let ghost = clone!(data -> move |row: usize| {
         let data = data.clone();
-        let status = status.clone();
         view! {
-            <Frame width={COLUMN_WIDTH - PADDING * 2.0} @test_id="database-view.card-ghost">
-                <Card>
-                    <CardLines data={data} status={status} row={row} />
-                </Card>
+            <Frame width={COLUMN_WIDTH - 16.0} @test_id="database-view.card-ghost">
+                <CardFace data={data} row={row} />
             </Frame>
         }
     });
@@ -203,12 +250,12 @@ fn KanbanCard(data: Data, status: Memo<Option<Uuid>>, row: usize) -> NodeId {
         <Draggable payload={payload} threshold=DRAG_THRESHOLD preview={ghost}>
             {move |_: DragHandle| view! {
                 <ListRow
-                    selected={selected}
+                    selected={selected.clone()}
                     @test_id={format!("database-view.card.{row}")}
                     on_click={pick.clone()}
-                    on_activate={pick}
+                    on_activate={pick.clone()}
                 >
-                    <CardLines data={data} status={status} row={row} />
+                    <CardLines data={data.clone()} row={row} />
                 </ListRow>
             }}
         </Draggable>
@@ -216,63 +263,75 @@ fn KanbanCard(data: Data, status: Memo<Option<Uuid>>, row: usize) -> NodeId {
 }
 
 #[component]
-fn CardLines(data: Data, status: Memo<Option<Uuid>>, row: usize) -> NodeId {
-    let lines = create_memo(clone!(data status -> move || {
-        let status = status.get();
-        let Some(entry) = data.rows.with(|rows| rows.get(row).cloned()) else {
-            return Vec::new();
-        };
-        let shown = data.fields.with(|fields| {
-            data.labels.with(|labels| {
-                fields
-                    .iter()
-                    .filter(|field| Some(field.id) != status)
-                    .map(|field| cell_text(&entry, field, labels))
-                    .filter(|text| !text.is_empty())
-                    .collect::<Vec<String>>()
-            })
-        });
-        match shown.is_empty() {
-            true => vec![format!("Row {}", row + 1)],
-            false => shown,
-        }
-    }));
-    let keys =
-        create_memo(clone!(lines -> move || (0..lines.with(Vec::len)).collect::<Vec<usize>>()));
+fn CardFace(data: Data, row: usize) -> NodeId {
+    let theme = use_theme();
     view! {
-        <List spacing=2.0>
-            <ForEach keys={keys}>
-                {move |line: usize| {
-                    let text = create_memo(clone!(lines -> move || {
-                        lines.with(|lines| lines.get(line).cloned().unwrap_or_default())
-                    }));
-                    view! {
-                        <Caption content={text} align=TextAlign::Start wrap=true />
-                    }
-                }}
-            </ForEach>
+        <Frame
+            color={theme.surface_raised.clone()}
+            outline={theme.border.clone()}
+            outline_width=1.0
+            outline_visible=true
+            radius=8
+            padding_horizontal=10.0
+            padding_vertical=8.0
+        >
+            <CardLines data={data} row={row} />
+        </Frame>
+    }
+}
+
+#[component]
+fn CardLines(data: Data, row: usize) -> NodeId {
+    let entry = create_memo(clone!(data -> move || data.rows.with(|rows| rows.get(row).cloned())));
+    let code = create_memo(clone!(data -> move || {
+        data.row_ids
+            .with(|ids| ids.get(row).copied())
+            .map_or_else(String::new, |id: ObjectId| short_id(&data.prefix.get(), id.as_uuid()))
+    }));
+    let title = create_memo(clone!(data entry -> move || {
+        let field = data.title_field.get();
+        entry.with(|entry| row_title(entry.as_ref(), field))
+    }));
+    let parts = create_memo(clone!(data entry -> move || {
+        let title = data.title_field.get();
+        let column = data.group_by.get();
+        entry.with(|entry| {
+            let Some(entry) = entry else {
+                return Vec::new();
+            };
+            data.fields.with(|fields| {
+                data.hidden_fields.with(|hidden| {
+                    let mut hidden = hidden.clone();
+                    hidden.extend(column);
+                    data.labels.with(|labels| row_parts(entry, fields, &hidden, labels, title))
+                })
+            })
+        })
+    }));
+    let keys = create_memo(clone!(parts -> move || {
+        parts.with(|parts| parts.iter().map(|(key, _)| *key).collect::<Vec<Uuid>>())
+    }));
+    view! {
+        <List spacing=6.0>
+            <Caption content={code} />
+            <Body content={title} wrap=true />
+            <List direction=Direction::Horizontal spacing=0.0 wrap=true>
+                <Parts parts={parts} keys={keys} />
+            </List>
         </List>
     }
 }
 
 pub fn status_field(data: &Data) -> Memo<Option<DatabaseField>> {
     let fields = data.fields.clone();
-    let chosen = data.kanban_field.clone();
+    let chosen = data.group_by.clone();
     create_memo(move || {
         let chosen = chosen.get()?;
-        fields.with(|fields| fields.iter().find(|field| field.id == chosen).cloned())
-    })
-}
-
-pub fn enum_fields(data: &Data) -> Memo<Vec<DatabaseField>> {
-    let fields = data.fields.clone();
-    create_memo(move || {
         fields.with(|fields| {
             fields
                 .iter()
-                .filter(|field| field.field_type == DatabaseFieldType::Enum)
+                .find(|field| field.id == chosen && field.field_type == DatabaseFieldType::Enum)
                 .cloned()
-                .collect()
         })
     })
 }

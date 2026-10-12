@@ -10,7 +10,7 @@ fn fonts_from_the_host_reach_the_plugin_and_missing_characters_go_back() {
     plugin.receive(Message::HelloAccepted(HelloAccepted {
         host_name: "test host".into(),
         surface: None,
-        theme: Theme { dark: true },
+        theme: Theme::Dark,
     }));
     let heard = Rc::new(Cell::new(0));
     let listener = heard.clone();

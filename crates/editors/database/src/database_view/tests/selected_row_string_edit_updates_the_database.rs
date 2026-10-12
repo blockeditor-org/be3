@@ -11,7 +11,7 @@ fn selected_row_string_edit_updates_the_database() {
     fixture.run();
     fixture
         .harness
-        .click(&format!("database-view.selected-item.field.{field_id}"));
+        .click(&format!("database-view.cell-editor.field.{field_id}"));
     fixture.harness.text("alpha");
     fixture.run();
 

@@ -876,6 +876,18 @@ fn FruitSelect() -> NodeId {
                 }}
             />
             <Caption content={fruit_text} />
+            <Select
+                options={view! {
+                    <ForEach keys={FRUITS.to_vec()}>
+                        {|label: &'static str| view! {
+                            <ChoiceOption label />
+                        }}
+                    </ForEach>
+                }}
+                selected=None
+                label="Add a fruit"
+                placeholder="Add a fruit"
+            />
         </List>
     }
 }
@@ -2778,12 +2790,20 @@ fn ThemedSamples() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
             <Paragraph
-                content="E-ink, in the toolbar, changes the theme of the whole document. \
-                 A theme provider restyles only what it holds, as the two samples below show."
+                content="Theme, in the toolbar, changes the theme of the whole document. \
+                 A theme provider restyles only what it holds, as the samples below show."
             />
             <Stack spacing=COLUMN_SPACING breakpoint=COLUMNS_BREAKPOINT>
                 <ThemeProvider @sizing=ItemSize::Percent(50.0) theme=Theme::DARK>
                     <ThemeSample name="Dark" />
+                </ThemeProvider>
+                <ThemeProvider @sizing=ItemSize::Percent(50.0) theme=Theme::OLED>
+                    <ThemeSample name="OLED dark" />
+                </ThemeProvider>
+            </Stack>
+            <Stack spacing=COLUMN_SPACING breakpoint=COLUMNS_BREAKPOINT>
+                <ThemeProvider @sizing=ItemSize::Percent(50.0) theme=Theme::LIGHT>
+                    <ThemeSample name="Light" />
                 </ThemeProvider>
                 <ThemeProvider @sizing=ItemSize::Percent(50.0) theme=Theme::EINK>
                     <ThemeSample name="E-ink" />

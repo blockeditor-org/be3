@@ -468,6 +468,9 @@ pub struct Arena {
     generations: Vec<u32>,
     kinds: Vec<std::any::TypeId>,
     parents: RefCell<Vec<Option<NodeId>>>,
+    owners: Vec<Option<::reactive::ScopeContext>>,
+    removed: Vec<bool>,
+    pub(crate) zone: u64,
     adopting: RefCell<Vec<NodeId>>,
     stale: Vec<bool>,
     unplaced: Vec<bool>,
@@ -486,6 +489,13 @@ pub struct Arena {
 }
 
 impl Arena {
+    pub(crate) fn in_zone(zone: u64) -> Self {
+        Self {
+            zone,
+            ..Self::default()
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.live
     }
@@ -501,6 +511,8 @@ impl Arena {
                 self.nodes[slot] = Some(Box::new(element));
                 self.kinds[slot] = std::any::TypeId::of::<T>();
                 self.parents.get_mut()[slot] = None;
+                self.owners[slot] = None;
+                self.removed[slot] = false;
                 self.stale[slot] = true;
                 self.unplaced[slot] = true;
                 NodeId {
@@ -514,6 +526,8 @@ impl Arena {
                 self.generations.push(0);
                 self.kinds.push(std::any::TypeId::of::<T>());
                 self.parents.get_mut().push(None);
+                self.owners.push(None);
+                self.removed.push(false);
                 self.stale.push(true);
                 self.unplaced.push(true);
                 NodeId {
@@ -524,10 +538,38 @@ impl Arena {
         };
         self.live += 1;
         self.invalidate_node(id);
+        self.own(id);
         NodeOf {
             id,
             kind: PhantomData,
         }
+    }
+
+    fn own(&mut self, id: NodeId) {
+        let Some(owner) = ::reactive::current_scope() else {
+            return;
+        };
+        let zone = self.zone;
+        ::reactive::on_cleanup(move || {
+            crate::current::try_with_document(|document| {
+                if document.zone() == zone {
+                    document.remove_node(id);
+                }
+            });
+        });
+        self.owners[id.index as usize] = Some(owner);
+    }
+
+    pub fn owner(&self, id: NodeId) -> Option<::reactive::ScopeContext> {
+        self.owners[self.slot(id)?].clone()
+    }
+
+    pub fn owned(&self, id: NodeId) -> bool {
+        self.slot(id).is_some_and(|slot| {
+            self.owners[slot]
+                .as_ref()
+                .is_some_and(|owner| owner.is_alive())
+        })
     }
 
     fn slot(&self, id: NodeId) -> Option<usize> {
@@ -556,6 +598,10 @@ impl Arena {
     fn element_mut(&mut self, id: NodeId) -> &mut dyn Element {
         let slot = self.slot(id).expect("node was removed");
         self.nodes[slot].as_deref_mut().expect("node was removed")
+    }
+
+    pub fn try_get(&self, id: impl Into<NodeId>) -> Option<&dyn Element> {
+        self.element(id.into())
     }
 
     pub fn get(&self, id: impl Into<NodeId>) -> &dyn Element {
@@ -779,7 +825,8 @@ impl Arena {
 
     pub fn parent(&self, id: NodeId) -> Option<NodeId> {
         self.adopt();
-        self.parents.borrow()[self.slot(id)?].filter(|parent| self.current(*parent))
+        self.parents.borrow()[self.slot(id)?]
+            .filter(|parent| self.slot(*parent).is_some_and(|slot| !self.removed[slot]))
     }
 
     pub fn relaid_len(&self) -> usize {
@@ -806,15 +853,15 @@ impl Arena {
         std::mem::take(&mut self.everything)
     }
 
-    pub fn remove(&mut self, id: NodeId) {
+    pub fn remove(&mut self, id: NodeId) -> Option<Box<dyn Element>> {
         self.invalidate_node(id);
-        let Some(slot) = self.slot(id) else {
-            return;
-        };
-        if self.nodes[slot].take().is_some() {
-            self.live -= 1;
-            self.released.push(id.index);
-        }
+        let slot = self.slot(id)?;
+        self.owners[slot] = None;
+        let element = self.nodes[slot].take()?;
+        self.removed[slot] = true;
+        self.live -= 1;
+        self.released.push(id.index);
+        Some(element)
     }
 
     pub fn take_released(&mut self) -> Vec<u32> {
