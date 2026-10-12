@@ -30,7 +30,7 @@ Commands (builds run on the build server; see guides/buck2.md and guides/build_s
 - `./scripts/test NAME`: runs the tests whose full names (module path and function, such as `media::tests::plays::plays`) contain NAME, so NAME may also be a module path like `media::tests`, and prints all their output, passing or failing. It finds their crates and runs each the way its tests need, natively or as wasm. `--update` accepts the paintings they make.
 - `./scripts/buck run //crates/block-app:dev`: run the app headless, signed in with a workspace open, then `source ~/.cache/be3/dev/env` and drive it with `drive` (guides/running/drive.md). beui-demo and be-launcher have a `:dev` too.
 - `./scripts/buck run //crates/block-app:app`: build and run the native app in a window.
-- `./scripts/buck run //crates/block-app:smoke`: a bounded launch test; run it for changes that could affect native startup.
+- `./scripts/buck test //crates/block-app:smoke` (and `:smoke-desktop`, with `--desktop`): the native smoke test, which `./scripts/verify` runs too. It starts the app headless on a build server worker with the dev workspace open, closes it once its shell's plugins have drawn, and fails unless the app exits cleanly.
 - `./scripts/buck build //crates/block-app:web`: for web-specific changes; `./scripts/buck run //crates/block-app:web-serve` serves it on http://127.0.0.1:8080 (guides/running/web.md).
 - `./scripts/buck run //crates/block-app:android`: for Android-specific changes; builds the APK (guides/running/android.md).
 - `./scripts/be BE-7K3Q2M`: read or change a tracker row (guides/tracker.md); needs `external/.tracker-credentials`, which `./scripts/setup` fetches.

@@ -81,6 +81,7 @@ mod a_driver_acts_on_a_slider_the_way_a_screen_reader_does;
 mod a_driver_answers_a_file_dialog_with_a_file;
 mod a_driver_carries_grabbed_files_and_drops_them;
 mod a_driver_clicks_a_button_by_its_label_and_hears_what_changed;
+mod a_driver_closes_the_window_once_the_app_lets_it;
 mod a_driver_composes_with_an_input_method_and_holds_a_key;
 mod a_driver_holds_a_back_gesture_part_way_and_cancels_it;
 mod a_driver_holds_a_press_across_a_pause_and_taps_with_a_finger;
@@ -2016,6 +2017,7 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
 pub(crate) struct Driven {
     runner: beui_core::runner::Runner,
     inbox: beui_core::app::automation::Inbox,
+    pub(crate) closed: bool,
 }
 
 struct DrivenScreen(Vec2);
@@ -2095,7 +2097,11 @@ impl Driven {
             )
             .expect("the screen loads");
         runner.context().stop_clock();
-        let mut driven = Self { runner, inbox };
+        let mut driven = Self {
+            runner,
+            inbox,
+            closed: false,
+        };
         driven.frame();
         driven
     }
@@ -2104,11 +2110,13 @@ impl Driven {
         self.runner
             .context()
             .advance_clock(Duration::from_micros(16_667));
-        self.runner.frame(
+        if let Some(frame) = self.runner.frame(
             &mut DrivenPlatform,
             1.0,
             beui_core::app::SafeArea::default(),
-        );
+        ) {
+            self.closed |= frame.close_requested;
+        }
         if let Some(failure) = self.runner.failure() {
             panic!("the driven app panicked: {failure}");
         }
