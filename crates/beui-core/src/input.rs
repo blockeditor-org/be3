@@ -776,10 +776,11 @@ impl InputState {
         }
         self.pointer_events.clear();
         self.touched = self.touches.iter().map(|(_, pos)| *pos).collect();
-        self.touched.extend(raw.events.iter().filter_map(|event| match event {
-            Event::Touch { pos, .. } => Some(*pos),
-            _ => None,
-        }));
+        self.touched
+            .extend(raw.events.iter().filter_map(|event| match event {
+                Event::Touch { pos, .. } => Some(*pos),
+                _ => None,
+            }));
         for (source, event) in raw.events.iter().enumerate() {
             self.source = source;
             self.force = None;
@@ -787,7 +788,7 @@ impl InputState {
                 self.modifiers = modifiers;
             }
             match event {
-                Event::PointerMoved(pos) if !self.from_touch(*pos) => {
+                Event::PointerMoved(pos) if !self.on_finger(*pos) => {
                     self.pointer.pos = Some(*pos);
                     self.pointer.from_touch = false;
                     self.emit(PointerId::Mouse, PointerPhase::Move, *pos);
@@ -811,7 +812,7 @@ impl InputState {
                     button,
                     pressed,
                     ..
-                } if !self.from_touch(*pos) => {
+                } if !self.on_finger(*pos) => {
                     self.pointer.pos = Some(*pos);
                     self.pointer.from_touch = false;
                     if *pressed && *button == PointerButton::Primary {
@@ -857,7 +858,7 @@ impl InputState {
         }
     }
 
-    fn from_touch(&self, pos: Pos2) -> bool {
+    fn on_finger(&self, pos: Pos2) -> bool {
         self.touched
             .iter()
             .any(|touched| touched.distance(pos) <= SYNTHESIZED_SLOP)
@@ -918,7 +919,7 @@ impl InputState {
             (TouchPhase::End | TouchPhase::Cancel, Some(index)) => {
                 self.touches.remove(index);
                 if first == Some(id) {
-                    self.pointer.pos = Some(pos).filter(|_| phase != TouchPhase::Cancel);
+                    self.pointer.pos = (phase != TouchPhase::Cancel).then_some(pos);
                 }
                 let phase = match phase {
                     TouchPhase::End => PointerPhase::Up(PointerButton::Primary),

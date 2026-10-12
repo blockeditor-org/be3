@@ -251,7 +251,9 @@ impl Document {
                 }
                 releases
             }
-            Key::Enter | Key::Space if !modifiers.ctrl && !modifiers.alt && self.activates(node) => {
+            Key::Enter | Key::Space
+                if !modifiers.ctrl && !modifiers.alt && self.activates(node) =>
+            {
                 self.set_focus_key_pressed(press.key, true, press.repeat);
                 true
             }

@@ -133,9 +133,11 @@ impl KeyListeners {
         self.live()
             .iter()
             .filter(|listener| listener.phase == phase)
-            .filter(|listener| match (&listener.at, stop) {
-                (KeyAt::Host, Stop::Host) | (KeyAt::Window, Stop::Window) => true,
-                _ => false,
+            .filter(|listener| {
+                matches!(
+                    (&listener.at, stop),
+                    (KeyAt::Host, Stop::Host) | (KeyAt::Window, Stop::Window)
+                )
             })
             .filter_map(|listener| {
                 Some(Placed {

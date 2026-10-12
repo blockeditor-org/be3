@@ -84,9 +84,15 @@ pub(crate) fn TextSurface(state: Shared) -> NodeId {
     let press_state = state.clone();
     let key_state = state.clone();
     let field = NodeRef::new();
-    on_key(KeyAt::Node(field.clone()), KeyPhase::Capture, move |event| {
-        event.press().is_some_and(|press| paste_key(&key_state, press))
-    });
+    on_key(
+        KeyAt::Node(field.clone()),
+        KeyPhase::Capture,
+        move |event| {
+            event
+                .press()
+                .is_some_and(|press| paste_key(&key_state, press))
+        },
+    );
     let typing = state.set_typing.clone();
     view! {
         <TextArea

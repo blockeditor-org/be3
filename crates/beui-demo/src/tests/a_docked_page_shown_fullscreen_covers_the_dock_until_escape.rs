@@ -26,7 +26,14 @@ fn a_docked_page_shown_fullscreen_covers_the_dock_until_escape() {
     test.frame(
         [true, false]
             .into_iter()
-            .map(|pressed| Event::key(beui::KeyPress { key: Key::Escape, pressed, repeat: false, modifiers: Modifiers::NONE }))
+            .map(|pressed| {
+                Event::key(beui::KeyPress {
+                    key: Key::Escape,
+                    pressed,
+                    repeat: false,
+                    modifiers: Modifiers::NONE,
+                })
+            })
             .collect(),
     );
     test.frame(Vec::new());

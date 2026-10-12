@@ -41,7 +41,11 @@ fn a_forwarding_catcher_hears_the_pointer_leave_once_no_press_holds_it() {
     harness.frame(vec![Event::PointerMoved(inside)]);
     harness.frame(vec![Event::PointerMoved(outside)]);
     harness.frame(vec![Event::PointerMoved(pos2(260.0, 50.0))]);
-    assert_eq!(lefts(&heard), 1, "the catcher hears the pointer leave, once");
+    assert_eq!(
+        lefts(&heard),
+        1,
+        "the catcher hears the pointer leave, once"
+    );
 
     heard.borrow_mut().clear();
     harness.press_at(inside);

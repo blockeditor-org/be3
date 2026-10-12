@@ -46,10 +46,17 @@ fn f6_moves_the_focus_between_forwarding_catchers() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.click(pos2(50.0, 50.0));
-    let f6 = |shift: bool| Event::key(beui::KeyPress { key: Key::F6, pressed: true, repeat: false, modifiers: match shift {
-            true => Modifiers::SHIFT,
-            false => Modifiers::NONE,
-        } });
+    let f6 = |shift: bool| {
+        Event::key(beui::KeyPress {
+            key: Key::F6,
+            pressed: true,
+            repeat: false,
+            modifiers: match shift {
+                true => Modifiers::SHIFT,
+                false => Modifiers::NONE,
+            },
+        })
+    };
 
     heard.borrow_mut().clear();
     harness.frame(vec![f6(false)]);

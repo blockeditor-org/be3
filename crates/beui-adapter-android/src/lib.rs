@@ -30,7 +30,8 @@ use beui_core::app::{SafeArea, Setup, Waker};
 use beui_core::file_picker::{FilePick, FilePickId, FilePickRequest, PickedFile};
 use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
 use beui_core::input::{
-    BackEdge, BackGesture, Event, ImeArea, ImeEvent, ImeText, Key, KeyPress, Modifiers, TouchId, TouchPhase,
+    BackEdge, BackGesture, Event, ImeArea, ImeEvent, ImeText, Key, KeyPress, Modifiers, TouchId,
+    TouchPhase,
 };
 use beui_core::renderer::{Loaded, WindowHandle};
 use beui_core::runner::{Adapter, Launch, Platform, Running};

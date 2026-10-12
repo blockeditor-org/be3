@@ -206,7 +206,6 @@ impl InputAdapter {
     pub(super) fn back(&self, gesture: beui::BackGesture) -> InputEvent {
         InputEvent::Back(beui_plugin_input::back_phase(gesture))
     }
-
 }
 
 pub(super) fn viewport_metrics(

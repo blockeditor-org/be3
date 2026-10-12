@@ -30,13 +30,7 @@ enum Fate {
     Unheard,
 }
 
-pub fn interact(
-    doc: &mut Document,
-    ctx: &Context,
-    painter: &Painter,
-    rects: &Rects,
-    root: NodeId,
-) {
+pub fn interact(doc: &mut Document, ctx: &Context, painter: &Painter, rects: &Rects, root: NodeId) {
     let events = ctx.input(|input| input.events.clone());
     if events.iter().any(is_activity) {
         doc.note_input();
@@ -71,7 +65,10 @@ fn key_event(
     event: &Event,
     tap: bool,
 ) -> bool {
-    if let Some(modifiers) = event.modifiers().filter(|_| !matches!(event, Event::PointerButton { .. })) {
+    if let Some(modifiers) = event
+        .modifiers()
+        .filter(|_| !matches!(event, Event::PointerButton { .. }))
+    {
         doc.set_modifiers(modifiers);
     }
     match event {
@@ -231,7 +228,11 @@ fn key_press(doc: &mut Document, press: KeyPress) -> Fate {
         doc.set_focus_visible(true);
     }
     let tree = Tree::gather(doc, &route);
-    if let Some(placed) = tree.capture.into_iter().find(|placed| (placed.handler)(event)) {
+    if let Some(placed) = tree
+        .capture
+        .into_iter()
+        .find(|placed| (placed.handler)(event))
+    {
         let reveal = placed.reveal;
         hold(doc, press, Holder::Listener(placed.handler));
         return Fate::Handled { reveal };
@@ -245,7 +246,11 @@ fn key_press(doc: &mut Document, press: KeyPress) -> Fate {
         phase: KeyPhase::Bubble,
         ..event
     };
-    if let Some(placed) = tree.bubble.into_iter().find(|placed| (placed.handler)(bubbled)) {
+    if let Some(placed) = tree
+        .bubble
+        .into_iter()
+        .find(|placed| (placed.handler)(bubbled))
+    {
         return Fate::Handled {
             reveal: placed.reveal,
         };
@@ -273,7 +278,11 @@ fn key_press(doc: &mut Document, press: KeyPress) -> Fate {
 }
 
 fn held_key(doc: &mut Document, press: KeyPress) -> Option<Fate> {
-    let at = doc.keys.held.iter().position(|(key, _)| *key == press.key)?;
+    let at = doc
+        .keys
+        .held
+        .iter()
+        .position(|(key, _)| *key == press.key)?;
     if press.pressed && !press.repeat {
         doc.keys.held.remove(at);
         return None;

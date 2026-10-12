@@ -58,9 +58,11 @@ impl Pointers {
         self.sessions
             .iter()
             .filter_map(|session| match session.pointer {
-                PointerId::Touch(id) => {
-                    Some((id, session.pos - session.shift, session.origin - session.shift))
-                }
+                PointerId::Touch(id) => Some((
+                    id,
+                    session.pos - session.shift,
+                    session.origin - session.shift,
+                )),
                 PointerId::Mouse => None,
             })
     }
@@ -167,12 +169,7 @@ struct Frame<'a> {
     long_press: Duration,
 }
 
-pub(crate) fn dispatch(
-    doc: &mut Document,
-    ctx: &Context,
-    rects: &Rects,
-    root: NodeId,
-) {
+pub(crate) fn dispatch(doc: &mut Document, ctx: &Context, rects: &Rects, root: NodeId) {
     let frame = Frame {
         ctx,
         rects,
@@ -571,7 +568,11 @@ fn moved(doc: &mut Document, frame: &Frame, event: PointerEvent) {
     }
 }
 
-fn with_session(doc: &mut Document, index: usize, change: impl FnOnce(&mut Document, &mut Session)) {
+fn with_session(
+    doc: &mut Document,
+    index: usize,
+    change: impl FnOnce(&mut Document, &mut Session),
+) {
     let mut session = doc.pointers.sessions.remove(index);
     change(doc, &mut session);
     doc.pointers.sessions.insert(index, session);
@@ -1012,7 +1013,13 @@ fn finger_moved(doc: &mut Document, id: TouchId, pos: Pos2) {
     }
 }
 
-fn finger_lifted(doc: &mut Document, id: TouchId, pos: Option<Pos2>, cancelled: bool, primary: bool) {
+fn finger_lifted(
+    doc: &mut Document,
+    id: TouchId,
+    pos: Option<Pos2>,
+    cancelled: bool,
+    primary: bool,
+) {
     let now = doc.now();
     let held = doc.pointers.touches().count();
     let fingers = &mut doc.pointers.fingers;
@@ -1046,7 +1053,12 @@ fn finger_lifted(doc: &mut Document, id: TouchId, pos: Option<Pos2>, cancelled: 
 }
 
 fn measure(doc: &mut Document) {
-    let held: Vec<Pos2> = doc.pointers.touches().map(|(_, pos, _)| pos).take(3).collect();
+    let held: Vec<Pos2> = doc
+        .pointers
+        .touches()
+        .map(|(_, pos, _)| pos)
+        .take(3)
+        .collect();
     let fingers = &mut doc.pointers.fingers;
     let [first, second] = held[..] else {
         fingers.span = None;

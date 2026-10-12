@@ -1671,10 +1671,9 @@ focused field into what is left, through every scroll it sits in.
 
 From inside a frame the app can also ask the window for things through the
 `Context`: `set_fullscreen`, `set_ime_area` for an input it draws itself,
-`set_zoom_factor`, `close_window`, and `retain_events` to take events away from
-the document before it sees them, which is how an app that hosts its own
-surfaces (block-app hosting plugins) keeps a key meant for a plugin away from
-the focused beui control.
+`set_zoom_factor`, `close_window`, and `with_input` to show a document only the
+input meant for it, which is how the inspector keeps the app's keys while its
+own panel has the keyboard (guides/beui_keyboard.md, One input path).
 
 A runner hands the document its events in batches, one per frame. A press that
 follows typing waits for the next frame, so text typed before a click always
@@ -1731,8 +1730,8 @@ releases it. A stroke that moved the cursor is never a tap. The strip along the 
 and right mouse buttons plus a keyboard toggle: a button stays held for as long
 as its finger is down, another finger can work the trackpad at the same time,
 and swiping up or down on the middle button scrolls a wheel tick at a time. The
-keyboard toggle opens an on-screen keyboard that sends `Event::Key` and
-`Event::Text`; its Shift, Ctrl, and Alt keys latch until the next key, and they
+keyboard toggle opens an on-screen keyboard that sends `Event::Key`s with the
+text they type; its Shift, Ctrl, and Alt keys latch until the next key, and they
 also apply to clicks, so Ctrl+Shift+I on it reopens the inspector.
 
 The strip and the keyboard take their room out of the window rather than
@@ -2138,9 +2137,10 @@ press the same way.
 Hover is the path under the mouse, worked out again every frame, so a catcher
 hears `on_hover_change` when it joins or leaves the path whether the pointer
 moved or the layout did. The cursor is the innermost armed catcher's, else the
-innermost hovered one's. The wheel goes to the innermost catcher on the path
-that takes it along its axis, unless a forwarding catcher comes first, and
-stays latched to it for `WHEEL_LATCH_TIMEOUT` while the pointer holds still.
+innermost hovered one's. A wheel turn goes to the innermost catcher on the path
+under where the pointer was when it turned that takes it along its axis, unless
+a forwarding catcher comes first, and stays latched to it for
+`WHEEL_LATCH_TIMEOUT` while the pointer holds still.
 
 Parts a catcher draws outside its own rectangle, such as the touch selection
 handles of `unstyled::TextArea`, take their presses with `claim_at`.

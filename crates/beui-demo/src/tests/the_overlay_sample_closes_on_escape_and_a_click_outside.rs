@@ -15,7 +15,14 @@ fn the_overlay_sample_closes_on_escape_and_a_click_outside() {
     test.frame(
         [true, false]
             .into_iter()
-            .map(|pressed| Event::key(beui::KeyPress { key: Key::Escape, pressed, repeat: false, modifiers: Modifiers::NONE }))
+            .map(|pressed| {
+                Event::key(beui::KeyPress {
+                    key: Key::Escape,
+                    pressed,
+                    repeat: false,
+                    modifiers: Modifiers::NONE,
+                })
+            })
             .collect(),
     );
     test.frame(Vec::new());

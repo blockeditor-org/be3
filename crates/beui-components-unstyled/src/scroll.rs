@@ -21,15 +21,15 @@ use beui_core::input::{
     AutoscrollGesture, DragGesture, Key, KeyPress, PointerPress, ScrollGesture,
 };
 use beui_core::interact::autoscroll::AUTOSCROLL_DEAD_ZONE;
+use beui_core::keys::{KeyAt, KeyPhase};
 use beui_core::node::{NodeId, NodeOf};
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Callback, Children, Fade, Frame, Interactive, List, ListChild, Memo, NodeRef, Offset, Prop,
     ReadSignal, Render, RenderFn, ShowKeepAlive, Timer, clone, component_accessibility,
-    create_effect, create_memo, create_signal, create_timer, focus_ring, on_cleanup,
-    on_scroll_key, set_component_state, untrack, with_document,
+    create_effect, create_memo, create_signal, create_timer, focus_ring, on_cleanup, on_scroll_key,
+    set_component_state, untrack, with_document,
 };
-use beui_core::keys::{KeyAt, KeyPhase};
 
 const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_INSET: f32 = -1.0;
@@ -450,11 +450,15 @@ fn Scrolling(
     let marker_axis = create_memo(clone!(direction -> move || direction.get()));
     let content_axis = marker_axis.clone();
     let scroll_to = Callback::new(move |offset: f32| motion.scroll_to(offset));
-    on_scroll_key(KeyAt::Node(catcher.clone()), KeyPhase::Bubble, move |event| {
-        event
-            .press()
-            .is_some_and(|press| navigates(press.key) && ancestor_keyed.key(press))
-    });
+    on_scroll_key(
+        KeyAt::Node(catcher.clone()),
+        KeyPhase::Bubble,
+        move |event| {
+            event
+                .press()
+                .is_some_and(|press| navigates(press.key) && ancestor_keyed.key(press))
+        },
+    );
     view! {
         <List direction={across} spacing={scrollbar.spacing()}>
             <Interactive

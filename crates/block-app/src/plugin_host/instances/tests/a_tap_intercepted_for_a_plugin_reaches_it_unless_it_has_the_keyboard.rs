@@ -14,7 +14,11 @@ fn a_tap_intercepted_for_a_plugin_reaches_it_unless_it_has_the_keyboard() {
         "a tap heard while something else has the keyboard is sent on"
     );
 
-    instances.forward(INSTANCE, REGION, &forwarded(vec![beui::Forwarded::Focus(true)], None, true));
+    instances.forward(
+        INSTANCE,
+        REGION,
+        &forwarded(vec![beui::Forwarded::Focus(true)], None, true),
+    );
     let messages = instances.intercepted_tap(INSTANCE, REGION, beui::Key::Logo);
     assert!(
         messages.is_empty(),

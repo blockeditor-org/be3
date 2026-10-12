@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
-use beui::{ForwardedInput, PointerPhase};
 use beui::reactive::{Layers, component};
+use beui::{ForwardedInput, PointerPhase};
 
 use super::*;
 

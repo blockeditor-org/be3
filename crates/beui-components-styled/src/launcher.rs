@@ -17,6 +17,7 @@ use beui_core::geometry::Pos2;
 use beui_core::icons::{ICON_APPS, ICON_SEARCH, ICON_TERMINAL};
 use beui_core::image::Image;
 use beui_core::input::{Key, KeyPress};
+use beui_core::keys::{KeyAt, KeyPhase};
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
@@ -24,7 +25,6 @@ use beui_view::reactive::{
     ReadSignal, Show, Text, WriteSignal, clone, create_effect, create_memo, create_signal, on_key,
     untrack,
 };
-use beui_core::keys::{KeyAt, KeyPhase};
 
 const WIDTH: f32 = 560.0;
 const LIST_HEIGHT: f32 = 380.0;
@@ -246,9 +246,11 @@ pub fn Launcher(
     };
     let (typing, submitting, keys, building) = (state.clone(), state.clone(), state.clone(), state);
     let search = NodeRef::new();
-    on_key(KeyAt::Node(search.clone()), KeyPhase::Capture, move |event| {
-        event.press().is_some_and(|press| keys.navigate(press))
-    });
+    on_key(
+        KeyAt::Node(search.clone()),
+        KeyPhase::Capture,
+        move |event| event.press().is_some_and(|press| keys.navigate(press)),
+    );
 
     let accessibility = create_memo(|| {
         let mut node = Node::new(Role::SearchInput);

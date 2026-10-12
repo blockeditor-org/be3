@@ -7,7 +7,12 @@ use crate::KeyAt;
 use crate::reactive::{Action, Canvas, CanvasItem, Chord, Frame, Interactive, build, view};
 
 fn key(key: Key, pressed: bool, modifiers: Modifiers) -> Event {
-    Event::key(beui::KeyPress { key, pressed, repeat: false, modifiers })
+    Event::key(beui::KeyPress {
+        key,
+        pressed,
+        repeat: false,
+        modifiers,
+    })
 }
 
 #[test]

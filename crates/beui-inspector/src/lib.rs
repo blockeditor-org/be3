@@ -728,7 +728,8 @@ impl Inspector {
             .zip(pointer)
             .filter(|_| !self.state.picking.get() && !self.toolbar.open())
             .and_then(|(placement, pointer)| handle_at(placement.shown(), content, pointer));
-        if let (Some(handle), Some(placement), Some(origin)) = (self.handle, placement, pressed(ctx))
+        if let (Some(handle), Some(placement), Some(origin)) =
+            (self.handle, placement, pressed(ctx))
         {
             self.resizing = Some(Resize {
                 handle,
@@ -785,7 +786,10 @@ impl Inspector {
         }
         let area = toolbar.union(content).scaled(scale.recip());
         ctx.scaled(scale, || {
-            ctx.with_input(|input| keyed(input, focused), || document.show_content(ctx, area));
+            ctx.with_input(
+                |input| keyed(input, focused),
+                || document.show_content(ctx, area),
+            );
         });
     }
 
@@ -1265,8 +1269,12 @@ impl Tools for InspectorTools {
                     false => input.clone(),
                 };
                 let input = match (withheld.keys, was.keys) {
-                    (true, false) => input.only(|event| !event.is_key()).with_event(Event::Focus(false)),
-                    (true, true) => input.only(|event| !event.is_key() && *event != Event::Focus(false)),
+                    (true, false) => input
+                        .only(|event| !event.is_key())
+                        .with_event(Event::Focus(false)),
+                    (true, true) => {
+                        input.only(|event| !event.is_key() && *event != Event::Focus(false))
+                    }
                     (false, true) => input.with_event(Event::Focus(true)),
                     (false, false) => input,
                 };

@@ -21,8 +21,8 @@ use beui_core::context::Context;
 use beui_core::file_picker::FilePickRequest;
 use beui_core::geometry::{Pos2, Rect, pos2, vec2};
 use beui_core::input::{
-    CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, KeyPress, Modifiers, PointerButton, TouchId,
-    TouchPhase,
+    CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, KeyPress, Modifiers, PointerButton,
+    TouchId, TouchPhase,
 };
 use beui_core::renderer::Loaded;
 use beui_core::runner::{Adapter, Launch, Platform, Running};

@@ -278,7 +278,7 @@ presses: `drive keydown alt; drive key tab tab; drive keyup alt`.
 Each window is a `be_wayland::WindowView`, a forwarding catcher like a plugin's region (see
 guides/beui_keyboard.md, One input path): beui decides which window a press, motion, scroll or key
 goes to, and `Compositor::after` turns what each window was forwarded into `wl_pointer` and
-`wl_keyboard` events, keys by their scan codes (`Event::PhysicalKey`). Where the shell draws over a
+`wl_keyboard` events, keys by their scan codes (`Event::Key`'s `code`). Where the shell draws over a
 window (a floating window's tab, say) the window takes nothing (`occluders`, from the region's
 occlusion), and a press keeps going to the window or plugin it began on until it is let go.
 
@@ -404,5 +404,5 @@ and `ctrl+v`.
 
 A window's drag (`wl_data_device.start_drag`) goes to the window under the pointer: the press
 stays with the window it began in, and while the drag lasts the compositor moves it to the
-window beui finds under the pointer (`ForwardedInput::under`). Only a shown window can be dropped on: a
+window beui finds under the pointer (`over` on each `Forwarded::Pointer`). Only a shown window can be dropped on: a
 dock tab does not switch under a drag, and the drag's icon is not drawn (BE3-296).

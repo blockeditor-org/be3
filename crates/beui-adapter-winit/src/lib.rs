@@ -32,8 +32,8 @@ use beui_core::file_picker::FilePickRequest;
 use beui_core::geometry::Vec2;
 use beui_core::geometry::{Pos2, pos2, vec2};
 use beui_core::input::{
-    CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, KeyPress, Modifiers, PointerButton, TouchId,
-    TouchPhase,
+    CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, KeyPress, Modifiers, PointerButton,
+    TouchId, TouchPhase,
 };
 use beui_core::renderer::{Loaded, WindowHandle};
 use beui_core::runner::{Adapter, Launch, Platform, Running};
@@ -599,9 +599,7 @@ impl ApplicationHandler<UserEvent> for Runner {
                 let text = event
                     .text
                     .filter(|text| {
-                        pressed
-                            && !self.modifiers.command()
-                            && !text.chars().any(char::is_control)
+                        pressed && !self.modifiers.command() && !text.chars().any(char::is_control)
                     })
                     .map(|text| text.to_string());
                 match named.or(code.map(|_| Key::Unidentified)) {
