@@ -114,8 +114,10 @@ fn key_event(
     keys: Keys,
     tap: bool,
 ) -> bool {
+    if let Some(modifiers) = event.modifiers().filter(|_| !matches!(event, Event::PointerButton { .. })) {
+        doc.set_modifiers(modifiers);
+    }
     match event {
-        Event::Modifiers(modifiers) => doc.set_modifiers(*modifiers),
         Event::Focus(false) => {
             doc.keys.held.clear();
             doc.cancel_focus_activation();
@@ -125,7 +127,6 @@ fn key_event(
         }
         Event::Back(gesture) => doc.back(*gesture),
         Event::InterceptedKey(press) => {
-            doc.set_modifiers(press.modifiers);
             offer_from_app(doc, KeyInput::Press(*press));
             return false;
         }
@@ -135,7 +136,6 @@ fn key_event(
         }
         Event::Key { .. } if keys.claimed(event) => {}
         Event::Key { press, text, .. } => {
-            doc.set_modifiers(press.modifiers);
             let fate = ::reactive::settle(|| key_press(doc, *press));
             if let Fate::Handled { reveal: true } = fate {
                 doc.reveal_focus(painter);

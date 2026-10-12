@@ -380,6 +380,14 @@ impl Event {
             _ => None,
         }
     }
+
+    pub fn modifiers(&self) -> Option<Modifiers> {
+        match self {
+            Self::Key { press, .. } | Self::InterceptedKey(press) => Some(press.modifiers),
+            Self::Modifiers(modifiers) | Self::PointerButton { modifiers, .. } => Some(*modifiers),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -690,6 +698,9 @@ impl InputState {
         for (source, event) in raw.events.iter().enumerate() {
             self.source = source;
             self.force = None;
+            if let Some(modifiers) = event.modifiers() {
+                self.modifiers = modifiers;
+            }
             match event {
                 Event::PointerMoved(pos) if !suppress_mouse => {
                     self.pointer.pos = Some(*pos);
@@ -717,7 +728,6 @@ impl InputState {
                     modifiers,
                 } if !suppress_mouse => {
                     self.pointer.pos = Some(*pos);
-                    self.modifiers = *modifiers;
                     self.pointer.button(*button, *pressed, *pos, now);
                     let phase = match pressed {
                         true => PointerPhase::Down(*button),
@@ -728,8 +738,6 @@ impl InputState {
                 Event::Scroll(delta) => self.scroll_delta += *delta,
                 Event::ScrollEnded => scroll_ended = true,
                 Event::Zoom(factor) => self.zoom_factor *= *factor,
-                Event::Key { press, .. } => self.modifiers = press.modifiers,
-                Event::Modifiers(modifiers) => self.modifiers = *modifiers,
                 Event::Touch {
                     id,
                     phase,
