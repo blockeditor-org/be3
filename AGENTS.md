@@ -10,6 +10,7 @@ Guides:
 - guides/beui_keyboard.md
 - guides/buck2.md
 - guides/build_server.md
+- guides/frozen_formats.md: the formats every later build must keep reading, how to change them, and the tests that hold them
 - guides/hosting.md
 - guides/linux_desktop.md: block-app as a Linux desktop: the session, notifications, media keys, the lock screen, Wayland and X11 programs
 - guides/pan_and_zoom.md: the camera a plugin editor is handed by its host
@@ -44,7 +45,7 @@ Design principles:
 - Do not edit this list.
 - If a request seems to require violating one of these, confirm with the user using AskUserQuestion before going ahead.
 - General:
-  - Don't keep backward compatibility in serialization formats or network requests. The project is early, and users can delete their data; block-app's crash handler offers this automatically.
+  - Keep reading whatever a frozen format saved, forever (guides/frozen_formats.md: the server's data and backups, and text, folder and database blocks), and change one only by adding to it. Don't keep backward compatibility in any other serialization format or in network requests: the project is early, and users can delete that data; block-app's crash handler offers this automatically.
   - Treat everything in the repo as in scope for any task. Fix bugs and missing features at their source (in beui, for example) rather than working around them, and update any guide you find out of date.
   - Do not edit files named README.md.
   - Write guides for agents. Add something to a guide only if a summary of that area written from scratch would include it. Put notes that only help humans in the PR description, the handoff message, or both.

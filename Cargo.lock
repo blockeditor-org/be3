@@ -713,6 +713,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-frozen"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-cli",
+ "be-client",
+ "be-graph",
+ "be-keys",
+ "be-protocol",
+ "be-server",
+ "be-store",
+ "build-id",
+ "rusqlite",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "be-graph"
 version = "0.1.0"
 dependencies = [
