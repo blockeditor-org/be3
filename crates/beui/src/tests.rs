@@ -109,6 +109,7 @@ mod a_focused_text_input_asks_for_the_keyboard;
 mod a_for_each_keeps_its_rows_between_the_children_beside_it;
 mod a_for_each_places_the_items_of_a_canvas;
 mod a_for_each_row_picks_and_changes_its_own_size;
+mod a_forwarding_catcher_hears_the_pointer_leave_once_no_press_holds_it;
 mod a_fragment_sits_beside_the_children_written_around_it;
 mod a_frame_keeps_its_size_between_its_min_and_max;
 mod a_frame_pads_each_side_on_its_own;
@@ -679,6 +680,33 @@ const TALL_VIEWPORT: Vec2 = Vec2::new(1000.0, 1400.0);
 const VIRTUAL_ITEM_COUNT: usize = 10_000;
 const VIRTUAL_ITEM_HEIGHT: f32 = 20.0;
 const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
+
+fn flattened(input: crate::ForwardedInput) -> Vec<Event> {
+    use crate::input::{PointerId, PointerPhase};
+    input
+        .events
+        .into_iter()
+        .filter_map(|forwarded| match forwarded {
+            crate::Forwarded::Input(event) => Some(event),
+            crate::Forwarded::Pointer { event, .. } if event.pointer == PointerId::Mouse => {
+                match event.phase {
+                    PointerPhase::Move => Some(Event::PointerMoved(event.pos)),
+                    PointerPhase::Down(button) | PointerPhase::Up(button) => {
+                        Some(Event::PointerButton {
+                            pos: event.pos,
+                            button,
+                            pressed: matches!(event.phase, PointerPhase::Down(_)),
+                            modifiers: event.modifiers,
+                        })
+                    }
+                    PointerPhase::Gone => Some(Event::PointerGone),
+                    _ => None,
+                }
+            }
+            _ => None,
+        })
+        .collect()
+}
 
 fn touch_event(finger: u64, phase: TouchPhase, pos: Pos2) -> Event {
     Event::Touch {

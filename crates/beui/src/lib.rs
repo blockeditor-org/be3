@@ -42,7 +42,7 @@ pub use beui_core::input::{
     PointerId, PointerPhase, PointerPress, RawInput, ScrollGesture, SecondaryDrag, TouchId,
     TouchPhase, ZoomGesture,
 };
-pub use beui_core::interact::forward::ForwardedInput;
+pub use beui_core::interact::forward::{Forwarded, ForwardedInput};
 pub use beui_core::keys::{KeyAt, KeyEvent, KeyInput, KeyPhase, KeyTarget};
 pub use beui_core::layer::{Dismiss, LayerLevel, LayerPolicy};
 pub use beui_core::node::{ClickHandler, Handler, NodeId, NodeOf};

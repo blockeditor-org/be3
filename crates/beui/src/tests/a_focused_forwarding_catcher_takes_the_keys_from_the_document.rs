@@ -18,7 +18,7 @@ fn a_focused_forwarding_catcher_takes_the_keys_from_the_document() {
                             focusable=true
                             on_forward={move |input: ForwardedInput| {
                                 if input.focused {
-                                    keys.borrow_mut().extend(input.events);
+                                    keys.borrow_mut().extend(flattened(input));
                                 }
                             }}
                         >

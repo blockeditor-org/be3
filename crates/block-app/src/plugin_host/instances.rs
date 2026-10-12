@@ -915,20 +915,12 @@ impl Instances {
             return (Vec::new(), false);
         }
         let id = screen.request.screen;
-        let pressed = input.events.iter().any(|event| {
-            matches!(
-                event,
-                beui::Event::PointerButton { pressed: true, .. }
-                    | beui::Event::Touch {
-                        phase: beui::TouchPhase::Start,
-                        ..
-                    }
-            )
-        });
+        let pressed = input
+            .pointer_events()
+            .any(|event| matches!(event.phase, beui::PointerPhase::Down(_)));
         let escaped = input.focused
             && input
-                .events
-                .iter()
+                .inputs()
                 .filter_map(beui::Event::press)
                 .any(|press| press.key == beui::Key::Escape && press.pressed);
         let mut messages = screen.input.forward(input, id);

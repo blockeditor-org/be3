@@ -19,7 +19,7 @@ fn a_catcher_under_an_open_dialog_hears_no_press() {
                         <CanvasItem x=0.0 y=0.0 width={VIEWPORT.x} height={VIEWPORT.y}>
                             <Interactive
                                 on_forward={move |input: ForwardedInput| {
-                                    heard.borrow_mut().extend(input.events)
+                                    heard.borrow_mut().extend(flattened(input))
                                 }}
                             >
                                 <Frame />

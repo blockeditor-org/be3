@@ -25,8 +25,15 @@ pub struct Pointers {
     fingers: Fingers,
     pinch_target: Option<NodeId>,
     hits: Vec<(Pos2, bool, Hit)>,
-    pub(crate) routed: Vec<Option<NodeId>>,
+    current: usize,
+    pub(crate) routed: Vec<Routed>,
     pub(crate) shift: Vec2,
+}
+
+#[derive(Clone, Copy, Default, Debug)]
+pub(crate) struct Routed {
+    pub sink: Option<NodeId>,
+    pub over: Option<NodeId>,
 }
 
 impl Pointers {
@@ -41,9 +48,9 @@ impl Pointers {
         self.hits.clear();
     }
 
-    fn route(&mut self, source: usize, sink: Option<NodeId>) {
-        if let Some(routed) = self.routed.get_mut(source) {
-            *routed = sink;
+    fn route(&mut self, sink: Option<NodeId>) {
+        if let Some(routed) = self.routed.get_mut(self.current) {
+            routed.sink = sink;
         }
     }
 
@@ -174,7 +181,8 @@ pub(crate) fn dispatch(
         now: ctx.now(),
         long_press: ctx.input(|input| input.long_press_delay),
     };
-    doc.pointers.routed = vec![None; ctx.input(|input| input.events.len())];
+    let events = ctx.input(|input| input.pointer_events.clone());
+    doc.pointers.routed = vec![Routed::default(); events.len()];
     doc.pointers.hits.clear();
     doc.pointers.fingers.pinch = 1.0;
     doc.pointers.fingers.pan = Vec2::ZERO;
@@ -197,8 +205,13 @@ pub(crate) fn dispatch(
         return;
     }
     long_presses(doc, &frame);
-    for event in ctx.input(|input| input.pointer_events.clone()) {
+    for (index, event) in events.into_iter().enumerate() {
+        doc.pointers.current = index;
         ::reactive::settle(|| pointer_event(doc, &frame, event));
+        if doc.pointers.routed[index].sink.is_some() {
+            let hit = hit(doc, frame.rects, frame.root, event.pos, false);
+            doc.pointers.routed[index].over = hit::sink(doc, frame.rects, &hit.path, event.pos);
+        }
     }
     doc.pointers.hits.clear();
     ::reactive::settle(|| {
@@ -231,14 +244,14 @@ fn pointer_event(doc: &mut Document, frame: &Frame, event: PointerEvent) {
                 .pointers
                 .sink_of(event.pointer)
                 .or(doc.forward.hovered());
-            doc.pointers.route(event.source, sink);
+            doc.pointers.route(sink);
             cancel(doc, frame, event.pointer);
         }
         PointerPhase::Scroll(delta) => wheel(doc, frame, event, delta, Vec2::ZERO),
         PointerPhase::ScrollEnded { fling } => wheel(doc, frame, event, Vec2::ZERO, fling),
         PointerPhase::Zoom(factor) => {
             let sink = wheel_sink(doc, frame, event.pos);
-            doc.pointers.route(event.source, sink);
+            doc.pointers.route(sink);
             if let Some(target) = gesture_target(doc, frame, event.pos)
                 && let Some(node) = interactive(doc, target)
             {
@@ -328,7 +341,7 @@ fn down(doc: &mut Document, frame: &Frame, event: PointerEvent, button: PointerB
             .then_some(claimant),
         None => hit::sink(doc, frame.rects, &hit.path, pos),
     });
-    doc.pointers.route(event.source, sink);
+    doc.pointers.route(sink);
     let mut session = Session {
         pointer: event.pointer,
         button,
@@ -557,7 +570,7 @@ fn moved(doc: &mut Document, frame: &Frame, event: PointerEvent) {
             hit::sink(doc, frame.rects, &hit.path, event.pos)
         }
     };
-    doc.pointers.route(event.source, sink);
+    doc.pointers.route(sink);
     for index in 0..doc.pointers.sessions.len() {
         if doc.pointers.sessions[index].pointer != event.pointer {
             continue;
@@ -739,7 +752,7 @@ fn up(doc: &mut Document, frame: &Frame, event: PointerEvent, button: PointerBut
             PointerId::Mouse => doc.pointers.sink_of(PointerId::Mouse),
             PointerId::Touch(_) => None,
         };
-        doc.pointers.route(event.source, sink);
+        doc.pointers.route(sink);
         return;
     };
     let mut session = doc.pointers.sessions.remove(index);
@@ -747,7 +760,7 @@ fn up(doc: &mut Document, frame: &Frame, event: PointerEvent, button: PointerBut
         PointerId::Mouse => doc.pointers.sink_of(PointerId::Mouse).or(session.sink),
         PointerId::Touch(_) => session.sink,
     };
-    doc.pointers.route(event.source, sink);
+    doc.pointers.route(sink);
     let pos = event.pos + session.shift;
     follow(doc, frame, &mut session, pos, true);
     end(doc, frame, session, false);
@@ -1119,7 +1132,7 @@ fn pinch(doc: &mut Document, frame: &Frame) {
 fn wheel(doc: &mut Document, frame: &Frame, event: PointerEvent, delta: Vec2, fling: Vec2) {
     let pos = event.pos;
     let sink = wheel_sink(doc, frame, pos);
-    doc.pointers.route(event.source, sink);
+    doc.pointers.route(sink);
     let (delta, fling) = match event.modifiers.shift && delta.x == 0.0 && fling.x == 0.0 {
         true => (vec2(delta.y, 0.0), vec2(fling.y, 0.0)),
         false => (delta, fling),

@@ -54,7 +54,7 @@ fn an_intercepted_press_keeps_its_physical_key_repeats_and_release_from_the_app(
                         <Interactive
                             focusable=true
                             on_forward={move |input: ForwardedInput| {
-                                forwarded.borrow_mut().extend(input.events);
+                                forwarded.borrow_mut().extend(flattened(input));
                             }}
                         >
                             <Frame />

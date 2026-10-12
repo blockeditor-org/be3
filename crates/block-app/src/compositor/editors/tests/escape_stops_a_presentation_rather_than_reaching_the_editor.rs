@@ -18,7 +18,7 @@ fn escape_stops_a_presentation_rather_than_reaching_the_editor() {
                 <Interactive
                     @node_ref={&catcher}
                     focusable=true
-                    on_forward={move |input: ForwardedInput| heard.borrow_mut().extend(input.events)}
+                    on_forward={move |input: ForwardedInput| heard.borrow_mut().extend(input.inputs().cloned())}
                 >
                     <Frame width=100.0 height=100.0 />
                 </Interactive>

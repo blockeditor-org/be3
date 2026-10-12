@@ -28,7 +28,7 @@ fn super_tapped_alone_runs_its_tap_action_and_still_reaches_the_app() {
                         <Interactive
                             focusable=true
                             on_forward={move |input: ForwardedInput| {
-                                forwarded.borrow_mut().extend(input.events);
+                                forwarded.borrow_mut().extend(flattened(input));
                             }}
                         >
                             <Frame />

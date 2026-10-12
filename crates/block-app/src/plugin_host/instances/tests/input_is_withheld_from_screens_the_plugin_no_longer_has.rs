@@ -8,7 +8,7 @@ fn input_is_withheld_from_screens_the_plugin_no_longer_has() {
     assert_eq!(screens.len(), 1);
     instances.screen_set(screens);
 
-    let (messages, _) = instances.forward(INSTANCE, REGION, &forwarded(Vec::new(), None, true));
+    let (messages, _) = instances.forward(INSTANCE, REGION, &forwarded(vec![beui::Forwarded::Focus(true)], None, true));
     assert_eq!(input_events(&messages), [InputEvent::Focus(true)]);
     let messages = instances.back(INSTANCE, REGION, beui::BackGesture::Invoked);
     assert_eq!(

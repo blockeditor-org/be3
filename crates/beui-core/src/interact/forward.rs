@@ -2,26 +2,54 @@ use crate::base::interactive::InteractiveNode;
 use crate::context::Context;
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect};
-use crate::input::{Event, Modifiers};
+use crate::input::{Event, Modifiers, PointerEvent, PointerId};
 use crate::node::{Element, NodeId, Rects};
 
 use super::hit;
+use super::pointer::Routed;
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Forwarded {
+    Pointer {
+        event: PointerEvent,
+        over: Option<NodeId>,
+    },
+    Left,
+    Focus(bool),
+    Input(Event),
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ForwardedInput {
-    pub events: Vec<Event>,
+    pub events: Vec<Forwarded>,
     pub rect: Rect,
     pub hovered: bool,
     pub focused: bool,
     pub pointer: Option<Pos2>,
-    pub under: Vec<Option<NodeId>>,
     pub modifiers: Modifiers,
+}
+
+impl ForwardedInput {
+    pub fn inputs(&self) -> impl Iterator<Item = &Event> {
+        self.events.iter().filter_map(|event| match event {
+            Forwarded::Input(event) => Some(event),
+            _ => None,
+        })
+    }
+
+    pub fn pointer_events(&self) -> impl Iterator<Item = &PointerEvent> {
+        self.events.iter().filter_map(|event| match event {
+            Forwarded::Pointer { event, .. } => Some(event),
+            _ => None,
+        })
+    }
 }
 
 #[derive(Default)]
 pub struct Routing {
     hovered: Option<NodeId>,
     focused: Option<NodeId>,
+    entered: Vec<NodeId>,
 }
 
 impl Routing {
@@ -102,79 +130,98 @@ pub(super) fn route(
     };
     let focused = alive(doc, doc.focused_node()).filter(|_| !keys.ignored());
     let hovered = position.and_then(|pos| sink_at(doc, rects, root, pos));
-    let routed = doc.pointers.routed.clone();
+    let pointer_events: Vec<PointerEvent> = match pointer {
+        true => ctx.input(|input| input.pointer_events.clone()),
+        false => Vec::new(),
+    };
+    let routed = std::mem::take(&mut doc.pointers.routed);
     let layers = doc.layers();
     let blocking = layers.blocking();
     let reachable = |doc: &Document, sink: NodeId| {
         doc.layer_of(&layers, sink)
             .is_some_and(|layer| layer >= blocking)
     };
-    let mut deliveries: Vec<(NodeId, Vec<Event>)> = Vec::new();
-    let mut deliver = |to: Option<NodeId>, event: &Event| {
+    let mut deliveries: Vec<(NodeId, Vec<Forwarded>)> = Vec::new();
+    let mut deliver = |to: Option<NodeId>, event: Forwarded| {
         let Some(to) = to else {
             return;
         };
         match deliveries.iter_mut().find(|(sink, _)| *sink == to) {
-            Some((_, events)) => events.push(event.clone()),
-            None => deliveries.push((to, vec![event.clone()])),
+            Some((_, events)) => events.push(event),
+            None => deliveries.push((to, vec![event])),
         }
     };
+    let mut entered = std::mem::take(&mut doc.forward.entered);
+    let mut pointed = 0;
     for (index, event) in events.iter().enumerate() {
+        while let Some(pointer_event) = pointer_events
+            .get(pointed)
+            .filter(|pointer_event| pointer_event.source == index)
+        {
+            let Routed { sink, over } = routed.get(pointed).copied().unwrap_or_default();
+            pointed += 1;
+            let to = alive(doc, sink.filter(|sink| reachable(doc, *sink)));
+            if let Some(to) = to
+                && pointer_event.pointer == PointerId::Mouse
+                && !entered.contains(&to)
+            {
+                entered.push(to);
+            }
+            deliver(
+                to,
+                Forwarded::Pointer {
+                    event: *pointer_event,
+                    over,
+                },
+            );
+        }
         if !keep.get(index).copied().unwrap_or(true) {
             continue;
         }
         match event {
-            Event::PointerMoved(_)
-            | Event::PointerButton { .. }
-            | Event::PointerGone
-            | Event::Touch { .. }
-            | Event::Scroll(_)
-            | Event::ScrollEnded
-            | Event::Zoom(_) => {
-                let to = routed
-                    .get(index)
-                    .copied()
-                    .flatten()
-                    .filter(|sink| reachable(doc, *sink));
-                deliver(alive(doc, to), event);
-            }
             Event::FileHovered | Event::FileHoverCancelled | Event::FileDropped(_) => {
-                deliver(hovered, event)
+                deliver(hovered, Forwarded::Input(event.clone()))
             }
             Event::Key { .. }
             | Event::Text(_)
             | Event::Ime(_)
             | Event::Modifiers(_)
             | Event::PointerMotion(_)
-            | Event::Focus(false) => deliver(focused, event),
-            Event::Focus(true)
-            | Event::Back(_)
-            | Event::InterceptedKey(_)
-            | Event::InterceptedTap(_) => {}
+            | Event::Focus(_) => deliver(focused, Forwarded::Input(event.clone())),
+            _ => {}
+        }
+    }
+    let captured = doc.pointers.sink_of(PointerId::Mouse);
+    entered.retain(|sink| {
+        let stays = hovered == Some(*sink) || captured == Some(*sink);
+        if !stays && alive(doc, Some(*sink)).is_some() {
+            deliver(Some(*sink), Forwarded::Left);
+        }
+        stays
+    });
+    let before = doc.forward.focused;
+    for sink in [before, focused].into_iter().flatten() {
+        if before != focused && alive(doc, Some(sink)).is_some() {
+            deliver(Some(sink), Forwarded::Focus(focused == Some(sink)));
         }
     }
     let pointed = events
         .iter()
         .any(|event| matches!(event, Event::PointerMoved(_) | Event::PointerButton { .. }));
-    if pointed
-        && let Some(hovered) = alive(doc, hovered)
-        && !deliveries.iter().any(|(sink, _)| *sink == hovered)
+    for sink in [doc.forward.hovered, hovered]
+        .into_iter()
+        .flatten()
+        .filter(|_| pointed || doc.forward.hovered != hovered)
     {
-        deliveries.push((hovered, Vec::new()));
-    }
-    let before = (doc.forward.hovered, doc.forward.focused);
-    for changed in [before.0, hovered, before.1, focused].into_iter().flatten() {
-        if alive(doc, Some(changed)).is_some()
-            && !deliveries.iter().any(|(sink, _)| *sink == changed)
-        {
-            let moved = (before.0 == Some(changed)) != (hovered == Some(changed))
-                || (before.1 == Some(changed)) != (focused == Some(changed));
-            if moved {
-                deliveries.push((changed, Vec::new()));
-            }
+        if alive(doc, Some(sink)).is_some() && !deliveries.iter().any(|(to, _)| *to == sink) {
+            deliveries.push((sink, Vec::new()));
         }
     }
-    doc.forward = Routing { hovered, focused };
+    doc.forward = Routing {
+        hovered,
+        focused,
+        entered,
+    };
     for (sink, events) in deliveries {
         if !doc.arena.contains(sink) {
             continue;
@@ -184,24 +231,13 @@ pub(super) fn route(
         else {
             continue;
         };
-        let under = events
-            .iter()
-            .map(|event| match event {
-                Event::PointerMoved(pos) | Event::PointerButton { pos, .. } if pointer => {
-                    sink_at(doc, rects, root, *pos)
-                }
-                _ => hovered,
-            })
-            .collect();
-        let raw = ForwardedInput {
+        on_forward.call(ForwardedInput {
             events,
             rect: rects.get(&sink).unwrap_or(Rect::NOTHING),
             hovered: hovered == Some(sink),
             focused: focused == Some(sink),
             pointer: position.filter(|_| hovered == Some(sink)),
-            under,
             modifiers,
-        };
-        on_forward.call(raw);
+        });
     }
 }

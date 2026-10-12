@@ -14,7 +14,7 @@ fn f6_moves_the_focus_between_forwarding_catchers() {
         move |input: ForwardedInput| {
             heard
                 .borrow_mut()
-                .push((index, input.focused, input.events))
+                .push((index, input.focused, flattened(input)))
         }
     };
     let document = build({
