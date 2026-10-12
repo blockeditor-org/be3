@@ -3,13 +3,15 @@
 # Lays out the app as it runs: the executable under cargo's name, --file beside
 # it as it is, and each plugin's manifest renamed <id>.plugin.json with
 # the module it names and its .cwasm, and --data, the plugin's read-only data
-# (plugin_data), under data/<id>/. For the web bundle, --tree copies in what
+# (plugin_data), under data/<id>/. --sdk is the plugin SDK the modules are
+# linked against, staged as sdk-<its SHA-256>.wasm, which is the name a plugin
+# finds it by, with --sdk-artifact, its .cwasm. For the web bundle, --tree copies in what
 # wasm-bindgen wrote and --index writes plugins.json. --compiled-only leaves out
 # each module that has a .cwasm, for the APK, which only falls back to one.
 #
 # Usage:
 #   stage.sh OUT [--executable=EXECUTABLE=NAME] [--file=FILE]... [--tree=DIR]...
-#            [--index] [--compiled-only]
+#            [--index] [--compiled-only] [--sdk=SDK [--sdk-artifact=CWASM]]
 #            (MANIFEST=MODULE [--data=DIR] [--artifact=CWASM])...
 set -eu
 out="$1"
@@ -42,6 +44,18 @@ for argument in "$@"; do
             ;;
         --compiled-only)
             compiled_only=true
+            ;;
+        --sdk=*)
+            sdk="${argument#--sdk=}"
+            identity="$(sha256sum "$sdk" | cut -d ' ' -f 1)"
+            staged="$out/sdk-$identity.wasm"
+            cp "$sdk" "$staged"
+            ;;
+        --sdk-artifact=*)
+            cp "${argument#--sdk-artifact=}" "${staged%.wasm}.cwasm"
+            if $compiled_only; then
+                rm "$staged"
+            fi
             ;;
         --data=*)
             mkdir -p "$out/data/$id"

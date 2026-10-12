@@ -1,7 +1,9 @@
 // Instantiating a plugin in the browser.
 //
 // A plugin is the same bindgen-free wasm that wasmtime runs on every other
-// platform: its only imports are WASI and the be3 gpu abi. In a browser the
+// platform: its only imports are WASI and the be3 gpu abi, and, when it was
+// linked against the plugin SDK, the SDK, which is fetched from beside it and
+// linked to it here (dylink.js). In a browser the
 // abi is answered by block-gpu-shim, a second module that does have bindgen
 // and a real wgpu device in the worker, which draws what the plugin shows into
 // the canvases the page transferred to the worker. The two
@@ -9,6 +11,7 @@
 // straight to the shim's export, and a call that passes a pointer goes through
 // a wrapper here that copies the bytes into a scratch block the shim owns.
 
+import * as dylink from "./dylink.js";
 import * as wasi from "./wasi.js";
 import * as threads from "./threads.js";
 
@@ -107,7 +110,7 @@ function resolve(module, memory, shim) {
         if (wanted.kind === "memory") {
             group[wanted.name] = memory;
         } else if (wanted.module === "wasi_snapshot_preview1") {
-            group[wanted.name] = wasi[wanted.name];
+            group[wanted.name] = wasi[wanted.name] ?? stub(wanted.module, wanted.name);
         } else if (wanted.module === "wasi") {
             group[wanted.name] = threads[wanted.name];
         } else if (wanted.module === "be3_host" && wanted.name === "host_panic") {
@@ -188,21 +191,46 @@ function memoryLimits(bytes) {
     throw new Error("a plugin does not import the memory it runs in");
 }
 
+async function fetched(url) {
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`${url} could not be fetched: ${response.status}`);
+    }
+    return response.arrayBuffer();
+}
+
 export async function boot(shimUrl, moduleUrl, wake) {
     const shimModule = await import(shimUrl);
     const shim = await shimModule.default();
     await shimModule.start();
-    const bytes = await (await fetch(moduleUrl)).arrayBuffer();
-    const limits = memoryLimits(bytes);
-    const memory = new WebAssembly.Memory({ ...limits, shared: true });
-    const module = await WebAssembly.compile(bytes);
+    const bytes = await fetched(moduleUrl);
+    const plugin = await WebAssembly.compile(bytes);
+    const identity = dylink.sdkIdentity(plugin);
+    const sdkBytes =
+        identity === null ? null : await fetched(new URL(dylink.sdkFileName(identity), moduleUrl));
+    const first = sdkBytes === null ? plugin : await WebAssembly.compile(sdkBytes);
+    const memory = new WebAssembly.Memory({ ...memoryLimits(sdkBytes ?? bytes), shared: true });
     wasi.bindMemory(memory);
-    threads.bindThreads(module, memory);
+    threads.bindThreads(first, memory);
     threads.bindWake(wake);
-    const instance = new WebAssembly.Instance(module, resolve(module, memory, shim));
-    const exports = instance.exports;
-    exports.__wasm_call_ctors?.();
-    exports.plugin_initialize_tls(exports.__tls_size.value, exports.__tls_align.value);
+    const runtime = new WebAssembly.Instance(first, resolve(first, memory, shim));
+    runtime.exports.__wasm_call_ctors?.();
+    let exports = runtime.exports;
+    if (first !== plugin) {
+        const layout = dylink.plan(runtime, plugin, memory);
+        const instance = dylink.instantiate(runtime, plugin, layout, resolve(plugin, memory, shim));
+        dylink.relocate(instance, layout);
+        instance.exports.plugin_initialize_tls(
+            runtime.exports.__tls_size.value,
+            runtime.exports.__tls_align.value,
+        );
+        dylink.placeThreadLocals(instance, memory, layout, runtime.exports.__tls_base.value);
+        threads.bindPlugin(plugin, layout);
+        instance.exports.__wasm_call_ctors?.();
+        exports = instance.exports;
+    } else {
+        exports.plugin_initialize_tls(exports.__tls_size.value, exports.__tls_align.value);
+    }
     exports.plugin_start();
     return {
         deliver: (frame) => shimModule.deliver(frame),

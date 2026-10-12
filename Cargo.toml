@@ -46,6 +46,7 @@ members = [
     "crates/block-gpu-host",
     "crates/block-gpu-shim",
     "crates/block-plugin-api",
+    "crates/block-plugin-sdk",
     "crates/block-shell",
     "crates/block-ui",
     "crates/block-ui-test",
@@ -107,6 +108,7 @@ members = [
     "crates/text-editor-core",
     "crates/verify",
     "crates/wasi-threads",
+    "crates/wasm-link",
 ]
 resolver = "3"
 

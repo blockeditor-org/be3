@@ -1382,6 +1382,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "block-plugin-sdk"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "block-editor-beui",
+ "block-editor-plugin",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "block-shell"
 version = "0.1.0"
 dependencies = [
@@ -7870,6 +7882,13 @@ checksum = "7d8ad9f0a39050867bda22e6486c316e2e52d20a42154d5bc433934bf738d085"
 dependencies = [
  "leb128fmt",
  "wasmparser 0.257.1",
+]
+
+[[package]]
+name = "wasm-link"
+version = "0.1.0"
+dependencies = [
+ "sha2",
 ]
 
 [[package]]

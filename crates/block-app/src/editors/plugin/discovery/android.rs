@@ -55,6 +55,27 @@ pub(super) fn read(app: &AndroidApp, path: &str) -> Result<Vec<u8>, String> {
     Ok(bytes)
 }
 
+#[derive(Clone)]
+pub(crate) struct Module {
+    bytes: Arc<Vec<u8>>,
+    app: AndroidApp,
+}
+
+impl Module {
+    pub(super) fn new(bytes: Arc<Vec<u8>>, app: AndroidApp) -> Self {
+        Self { bytes, app }
+    }
+
+    pub(crate) fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    pub(crate) fn sdk(&self, identity: &str) -> Result<Vec<u8>, String> {
+        let name = block_wasm_host::sdk_file_name(identity);
+        read(&self.app, &compiled(&name)).or_else(|_| read(&self.app, &name))
+    }
+}
+
 fn compiled(entry: &str) -> String {
     match entry.rsplit_once('.') {
         Some((stem, _)) => format!("{stem}.{}", block_wasm_host::PRECOMPILED_EXTENSION),

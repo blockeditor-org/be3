@@ -7523,6 +7523,126 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/block-plugin-sdk": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "block_plugin_sdk",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "block-plugin-sdk",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/block-shell": {
         "binaries": [],
         "edition": "2024",
@@ -12505,6 +12625,124 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/wasm-link": {
+        "binaries": [
+            {
+                "crate_root": "src/main.rs",
+                "name": "wasm-link",
+            },
+        ],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "wasm_link",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "wasm-link",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {
+                    "wasm-link": [
+                        "//third-party/rust:sha2-0.10.9",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {
+                    "wasm-link": [
+                        "//third-party/rust:sha2-0.10.9",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {
+                    "wasm-link": [
+                        "//third-party/rust:sha2-0.10.9",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {
+                    "wasm-link": [
+                        "//third-party/rust:sha2-0.10.9",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {
+                    "wasm-link": [
+                        "//third-party/rust:sha2-0.10.9",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {
+                    "wasm-link": [
+                        "//third-party/rust:sha2-0.10.9",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {
+                    "wasm-link": [
+                        "//third-party/rust:sha2-0.10.9",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:sha2-0.10.9",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
