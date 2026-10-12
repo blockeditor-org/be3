@@ -18,11 +18,30 @@ plugin_data = rule(
     impl = _plugin_data_impl,
 )
 
+# One action a module, so that the thirty-odd compiles run side by side on as
+# many workers rather than one after another.
+def _precompile(ctx: AnalysisContext, wasm: Artifact) -> Artifact:
+    artifact = ctx.actions.declare_output(wasm.basename.removesuffix(".wasm") + ".cwasm")
+    ctx.actions.run(
+        cmd_args(
+            ctx.attrs.precompiler[RunInfo],
+            "--precompile-to",
+            "--target",
+            ctx.attrs.precompile_target,
+            artifact.as_output(),
+            wasm,
+        ),
+        category = "wasm_precompile",
+        identifier = wasm.basename,
+    )
+    return artifact
+
 # The app as it runs (buck/app/stage.sh): the executable under cargo's name, and
 # beside it every plugin, each module precompiled for precompile_target in an
 # action of its own by the precompiler, plugin-test-runner as the workers run
-# it, whatever the app is built for; with no precompiler, each plugin is its
-# module alone. With no binary it
+# it, whatever the app is built for, and the plugin SDK they are linked against
+# (guides/plugin_sdk.md), with its .cwasm; with no precompiler, each plugin is
+# its module alone. With no binary it
 # is the plugins alone. The web bundle is this rule too: `bindgen` runs
 # wasm-bindgen over each module, and `index` writes the plugins.json a browser
 # finds the plugins through.
@@ -41,6 +60,11 @@ def _app_impl(ctx: AnalysisContext) -> list[Provider]:
         command.add(cmd_args("--executable=", extra, "=", extra_name + extra.extension, delimiter = ""))
     for file in ctx.attrs.files:
         command.add(cmd_args("--file=", file, delimiter = ""))
+    if ctx.attrs.sdk:
+        sdk = ctx.attrs.sdk[DefaultInfo].default_outputs[0]
+        command.add(cmd_args("--sdk=", sdk, delimiter = ""))
+        if ctx.attrs.precompiler:
+            command.add(cmd_args("--sdk-artifact=", _precompile(ctx, sdk), delimiter = ""))
     data = ctx.attrs.data or [None] * len(ctx.attrs.manifests)
     for manifest, module, files in zip(ctx.attrs.manifests, ctx.attrs.modules, data):
         wasm = module[DefaultInfo].default_outputs[0]
@@ -48,22 +72,7 @@ def _app_impl(ctx: AnalysisContext) -> list[Provider]:
         if files:
             command.add(cmd_args("--data=", files, delimiter = ""))
         if ctx.attrs.precompiler:
-            # One action a module, so that the thirty-odd compiles run side by
-            # side on as many workers rather than one after another.
-            artifact = ctx.actions.declare_output(wasm.basename.removesuffix(".wasm") + ".cwasm")
-            ctx.actions.run(
-                cmd_args(
-                    ctx.attrs.precompiler[RunInfo],
-                    "--precompile-to",
-                    "--target",
-                    ctx.attrs.precompile_target,
-                    artifact.as_output(),
-                    wasm,
-                ),
-                category = "wasm_precompile",
-                identifier = wasm.basename,
-            )
-            command.add(cmd_args("--artifact=", artifact, delimiter = ""))
+            command.add(cmd_args("--artifact=", _precompile(ctx, wasm), delimiter = ""))
     for module in ctx.attrs.bindgen:
         wasm = module[DefaultInfo].default_outputs[0]
         bindings = ctx.actions.declare_output(wasm.basename.removesuffix(".wasm") + "-bindings", dir = True)
@@ -107,6 +116,9 @@ app = rule(
         "modules": attrs.list(attrs.dep()),
         "precompile_target": attrs.string(default = "x86_64-unknown-linux-gnu"),
         "precompiler": attrs.option(attrs.dep(providers = [RunInfo]), default = None),
+        # The plugin SDK the modules are linked against, staged under the name
+        # they find it by.
+        "sdk": attrs.option(attrs.dep(), default = None),
         "wasm_bindgen": attrs.option(attrs.exec_dep(providers = [RunInfo]), default = None),
         "_stage": attrs.default_only(attrs.source(default = "root//buck/app:stage.sh")),
     },

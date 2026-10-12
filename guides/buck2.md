@@ -160,8 +160,9 @@ crate reads at compile time (default `src/**/*.rs`), `env`, `extra_deps`, or any
 rule attribute such as a test's `remote_execution = "disabled"`.
 
 **An editor**: `crates/editors/<name>/BUCK` is one `editor(name, module)` call
-from `buck/wasm/defs.bzl`, which makes the guest cdylib, its `:module`, its
-`:manifest` and its wasm `:test`. The app picks up every editor by itself.
+from `buck/wasm/defs.bzl`, which makes the guest cdylib, linked against the
+plugin SDK (guides/plugin_sdk.md), its `:module`, its `:manifest` and its wasm
+`:test`. The app picks up every editor by itself.
 
 **A fuzz target**: a file `fuzz/<name>.rs` in a crate whose `BUCK` calls
 `cargo_fuzz()` (with `extra_features` for the library's features it needs),
@@ -226,7 +227,7 @@ turns.
 | `windows_arm64`, `windows_x86_64` | MSVC runtime and Windows SDK via xwin | `lld-link`, `llvm-lib` |
 | `android_arm64` | NDK r29, API 26 | lld |
 | `wasi` | the WASI sysroot | rust-lld (block-app on the web) |
-| `wasi_guest` | the WASI sysroot | rust-lld (the plugins) |
+| `wasi_guest` | the WASI sysroot | rust-lld through crates/wasm-link (the plugins and their SDK) |
 | `wasm32` | nothing | rust-lld (the games, the gpu shim) |
 
 All of them build on the same Linux workers. CI builds and ships only the
@@ -247,7 +248,8 @@ A native target depends on a wasm one through a transition in
 ## Shipping
 
 - `:app` stages the executable as `block-app` and every editor's
-  manifest (`<id>.plugin.json`), data (`data/<id>/`), module and `.cwasm`, precompiled in an action
+  manifest (`<id>.plugin.json`), data (`data/<id>/`), module and `.cwasm`, and
+  the plugin SDK as `sdk-<SHA-256>.wasm` with its `.cwasm`, precompiled in an action
   per module for the platform the app is built for, by
   `//crates/plugin-test-runner:precompiler`, which is always the Linux x86_64
   build the workers can run.

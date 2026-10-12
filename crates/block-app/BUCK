@@ -51,6 +51,7 @@ app(
     modules = ["//{}:module".format(package) for package in editor_packages()],
     precompile_target = per_cross_platform("x86_64-unknown-linux-gnu", cross_triple),
     precompiler = "//crates/plugin-test-runner:precompiler",
+    sdk = "//crates/block-plugin-sdk:module",
 )
 
 # The plugins alone: every editor's manifest and module, for CI to ship once
@@ -61,6 +62,7 @@ app(
     data = ["//{}:data".format(package) for package in editor_packages()],
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
+    sdk = "//crates/block-plugin-sdk:module",
 )
 
 # What CI ships per platform: the app and server under cargo's names; the
@@ -86,14 +88,15 @@ wasi_app_module(
 
 web_files = glob(["web/*.html", "web/*.js"]) + ["//buck/app:build-id"]
 
-# The WASI and wasi-threads shims, which beui-web-demo needs too.
+# The WASI and wasi-threads shims, which beui-web-demo needs too, with what
+# thread.js imports.
 [
     export_file(
         name = shim,
         src = "web/" + shim,
         visibility = ["//crates/beui-web-demo:"],
     )
-    for shim in ["wasi.js", "threads.js", "thread.js"]
+    for shim in ["wasi.js", "threads.js", "thread.js", "dylink.js", "env.js"]
 ]
 
 app(
@@ -104,6 +107,7 @@ app(
     index = True,
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
+    sdk = "//crates/block-plugin-sdk:module",
     wasm_bindgen = "//buck/cargo:wasm-bindgen",
     visibility = ["//crates/local-tools:"],
 )
@@ -177,6 +181,7 @@ app(
     modules = ["//{}:module".format(package) for package in editor_packages()],
     precompile_target = "aarch64-linux-android",
     precompiler = "//crates/plugin-test-runner:precompiler",
+    sdk = "//crates/block-plugin-sdk:module",
 )
 
 [

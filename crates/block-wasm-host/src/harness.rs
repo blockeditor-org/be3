@@ -158,7 +158,7 @@ impl Host {
             submit_time: Duration::ZERO,
             threads: threads::Spawner::new(
                 self.engine.clone(),
-                module.clone(),
+                crate::dylink::Program::Whole(module.clone()),
                 memory.clone(),
                 Arc::clone(&woken),
             ),

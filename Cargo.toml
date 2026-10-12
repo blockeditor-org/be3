@@ -47,6 +47,7 @@ members = [
     "crates/block-gpu-host",
     "crates/block-gpu-shim",
     "crates/block-plugin-api",
+    "crates/block-plugin-sdk",
     "crates/block-shell",
     "crates/block-ui",
     "crates/block-ui-test",
@@ -106,6 +107,7 @@ members = [
     "crates/tabletop-games/rules/tic-tac-toe",
     "crates/text-editor-core",
     "crates/wasi-threads",
+    "crates/wasm-link",
 ]
 resolver = "3"
 
