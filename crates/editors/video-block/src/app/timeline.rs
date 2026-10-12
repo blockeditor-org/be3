@@ -456,22 +456,29 @@ fn DropMarker(target: Memo<Option<TimelineDropTarget>>, scale: ReadSignal<f32>) 
 #[component]
 fn TrimHandle(state: Rc<VideoState>, row: Lane, scale: ReadSignal<f32>) -> NodeId {
     let clips = state.clips.clone();
+    let length_of = clone!(clips -> move || {
+        clips
+            .get_untracked()
+            .into_iter()
+            .find(|clip| clip.id == row.id)
+    });
+    let grabbed = Rc::new(Cell::new(None::<(f32, u64)>));
+    let held = Rc::clone(&grabbed);
+    let pressed = clone!(length_of -> move |press: PointerPress| {
+        held.set(length_of().map(|clip| (press.pos.x, clip.length)));
+    });
     view! {
         <Interactive
             cursor=CursorIcon::ResizeHorizontal
             capture_presses=true
             @test_id={format!("video.trim.{}", row.id)}
+            on_press={pressed}
             on_drag={move |press: PointerPress| {
                 let scale = scale.get_untracked().max(f32::EPSILON);
-                let Some(mut clip) = clips
-                    .get_untracked()
-                    .into_iter()
-                    .find(|clip| clip.id == row.id)
-                else {
+                let (Some((from, start)), Some(mut clip)) = (grabbed.get(), length_of()) else {
                     return;
                 };
-                let handle = clip.length as f32 * scale - THUMBNAIL_MARGIN - TRIM_HANDLE_WIDTH;
-                let reach = (handle + press.local.x) / scale;
+                let reach = start as f32 + (press.pos.x - from) / scale;
                 let length = (reach.max(1.0) as u64).max(1);
                 if length != clip.length {
                     clip.length = length;
