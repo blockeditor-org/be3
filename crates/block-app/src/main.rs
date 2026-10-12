@@ -69,7 +69,7 @@ use uuid::Uuid;
 const APP_ID: &str = "Block";
 
 pub(crate) fn commit() -> &'static str {
-    build_id::commit(build_id::current())
+    build_id::current().map_or("no build id", build_id::commit)
 }
 
 fn run_options() -> beui::RunOptions {
@@ -391,6 +391,9 @@ struct BlockApp {
     reauth: Option<ReauthState>,
     invite_open: bool,
     invite_sent: u64,
+    agents_open: bool,
+    agents: Vec<be_protocol::Agent>,
+    agent_created: Option<accounts::AgentCredentials>,
     scheduled_workspace_list: bool,
     server_url: String,
     account: Account,
@@ -456,6 +459,7 @@ struct PendingAccountRequest {
     receiver: platform::RequestResult<Result<Session, String>>,
     server: ServerLocation,
     url: String,
+    authorization: Option<String>,
 }
 
 enum WorkspaceOperation {
@@ -463,6 +467,9 @@ enum WorkspaceOperation {
     Create(String),
     Respond(Uuid, bool),
     Invite(Uuid, String, WorkspaceRole),
+    ListAgents(Uuid),
+    CreateAgent(Uuid, String, [u8; 32]),
+    RemoveAgent(Uuid, Uuid),
 }
 
 enum WorkspaceResult {
@@ -470,6 +477,10 @@ enum WorkspaceResult {
     Created(Workspace),
     Responded,
     Invited,
+    Agents(
+        Option<Vec<be_protocol::Agent>>,
+        Option<accounts::AgentCredentials>,
+    ),
 }
 
 type WorkspaceRequestError = AccountError;
@@ -514,7 +525,7 @@ const CACHES: [&str; 2] = ["be-objects", "plugin-cache"];
 #[cfg(not(target_arch = "wasm32"))]
 fn forget_caches_of_other_builds(data_dir: &Path) -> io::Result<()> {
     let stamp = data_dir.join(build_id::FILE);
-    let current = build_id::current();
+    let current = build_id::current().map_err(io::Error::other)?;
     if std::fs::read_to_string(&stamp).is_ok_and(|cached| cached == current) {
         return Ok(());
     }
@@ -564,6 +575,7 @@ impl BlockApp {
     ) -> Result<Self, Box<dyn Error + Send + Sync>> {
         let client_id = app_state.client_id()?;
         let accounts = app_state.accounts()?;
+        accounts::authorize(&accounts);
         let active = app_state.active_account()?;
         let account = active
             .and_then(|(server, id)| {
@@ -580,6 +592,7 @@ impl BlockApp {
             name: String::new(),
             token: String::new(),
             last_workspace_id: None,
+            authorization: None,
         });
         let server_url = match &account.server {
             ServerLocation::Local => url.clone(),
@@ -608,6 +621,9 @@ impl BlockApp {
             reauth: None,
             invite_open: false,
             invite_sent: 0,
+            agents_open: false,
+            agents: Vec::new(),
+            agent_created: None,
             scheduled_workspace_list: false,
             server_url,
             account,
@@ -828,6 +844,7 @@ impl BlockApp {
             register: true,
             remote: remote_url.is_some(),
             remote_url: remote_url.unwrap_or_default(),
+            authorization: String::new(),
             email: "dev@localhost".to_owned(),
             display_name: "Dev".to_owned(),
             password: "dev-password".to_owned(),
@@ -871,6 +888,9 @@ impl BlockApp {
         } else {
             ServerLocation::Local
         };
+        let authorization = Some(form.authorization.trim().to_owned())
+            .filter(|header| remote && !header.is_empty());
+        be_client::authorize(&url, authorization.clone());
         let requested = url.clone();
         let AccountForm {
             register,
@@ -905,6 +925,7 @@ impl BlockApp {
             receiver,
             server,
             url,
+            authorization,
         });
     }
 
@@ -926,6 +947,7 @@ impl BlockApp {
                     name: session.display_name,
                     token: session.token,
                     last_workspace_id: None,
+                    authorization: pending.authorization.clone(),
                 };
                 if let Err(error) = self.app_state.save_account(&saved) {
                     self.account_error = Some(error.to_string());
@@ -1001,6 +1023,23 @@ impl BlockApp {
                         .await
                         .map(|()| WorkspaceResult::Invited)
                 }
+                WorkspaceOperation::ListAgents(workspace) => {
+                    accounts::agents(url, token, workspace)
+                        .await
+                        .map(|agents| WorkspaceResult::Agents(Some(agents), None))
+                }
+                WorkspaceOperation::CreateAgent(workspace, name, key) => {
+                    let created =
+                        accounts::create_agent(url.clone(), token.clone(), workspace, name, key)
+                            .await?;
+                    let agents = accounts::agents(url, token, workspace).await.ok();
+                    Ok(WorkspaceResult::Agents(agents, Some(created)))
+                }
+                WorkspaceOperation::RemoveAgent(workspace, account) => {
+                    accounts::remove_agent(url.clone(), token.clone(), workspace, account).await?;
+                    let agents = accounts::agents(url, token, workspace).await?;
+                    Ok(WorkspaceResult::Agents(Some(agents), None))
+                }
             }
         });
         self.workspace_error = None;
@@ -1066,6 +1105,14 @@ impl BlockApp {
             Ok(WorkspaceResult::Invited) => {
                 self.invite_sent += 1;
                 self.invite_open = false;
+            }
+            Ok(WorkspaceResult::Agents(agents, created)) => {
+                if let Some(agents) = agents {
+                    self.agents = agents;
+                }
+                if created.is_some() {
+                    self.agent_created = created;
+                }
             }
             Err(error) if error.invalid_token => self.begin_reauth(),
             Err(error) => {
@@ -1283,6 +1330,8 @@ impl BlockApp {
         self.workspace_error = None;
         self.reauth = None;
         self.invite_open = false;
+        self.agents_open = false;
+        self.agent_created = None;
         self.root_settings = RootSettings::new(self.root_settings.shell());
         self.choosing_profile = false;
         self.shell = None;
@@ -2427,6 +2476,32 @@ impl BlockApp {
                 }
             }
             UiCommand::CloseInvite => self.invite_open = false,
+            UiCommand::OpenAgents => {
+                self.agents_open = true;
+                self.agent_created = None;
+                if let Some(workspace) = &self.workspace {
+                    let id = workspace.id;
+                    self.begin_workspace_request(WorkspaceOperation::ListAgents(id));
+                }
+            }
+            UiCommand::CloseAgents => {
+                self.agents_open = false;
+                self.agent_created = None;
+            }
+            UiCommand::CreateAgent(name) => {
+                if let (Some(workspace), Some(key)) = (&self.workspace, self.workspace_key)
+                    && !name.trim().is_empty()
+                {
+                    let id = workspace.id;
+                    self.begin_workspace_request(WorkspaceOperation::CreateAgent(id, name, key));
+                }
+            }
+            UiCommand::RemoveAgent(account) => {
+                if let Some(workspace) = &self.workspace {
+                    let id = workspace.id;
+                    self.begin_workspace_request(WorkspaceOperation::RemoveAgent(id, account));
+                }
+            }
             UiCommand::Discard => self.discard(context),
             UiCommand::CancelDiscard => self.pending_destructive_action = None,
             UiCommand::Debug(command) => debug::command(command),
@@ -2585,6 +2660,26 @@ impl BlockApp {
                 session_type: self.root_settings.shell(),
                 can_close: !cfg!(target_arch = "wasm32"),
             },
+            agents: self.agents_open.then(|| ui::AgentsView {
+                workspace: workspace_name.clone(),
+                busy: self.pending_workspace_request.is_some(),
+                error: self.workspace_error.clone(),
+                agents: self
+                    .agents
+                    .iter()
+                    .map(|agent| ui::AgentRow {
+                        account: agent.account,
+                        name: agent.name.clone(),
+                    })
+                    .collect(),
+                created: self.agent_created.as_ref().map(|created| ui::CreatedAgent {
+                    name: created.name.clone(),
+                    server: created.server.clone(),
+                    workspace: created.workspace.to_string(),
+                    token: created.token.clone(),
+                    phrase: created.phrase.clone(),
+                }),
+            }),
             invite: self.invite_open.then(|| ui::InviteView {
                 workspace: workspace_name,
                 busy: self.pending_workspace_request.is_some(),

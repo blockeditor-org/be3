@@ -13,6 +13,7 @@ use uuid::Uuid;
 
 use crate::database_view::app::data::{Data, ViewData};
 use crate::database_view::app::kanban::Kanban;
+use crate::database_view::app::list::ListView;
 use crate::database_view::app::scatter::Scatter;
 use crate::database_view::app::sidebar::ViewSidebar;
 use crate::database_view::app::spreadsheet::Spreadsheet;
@@ -29,7 +30,7 @@ pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
     create_effect(move || {
         let size = match measured.kind.get() {
             DatabaseViewKind::Spreadsheet => Some(spreadsheet_size(&measured)),
-            DatabaseViewKind::Kanban | DatabaseViewKind::Scatter => None,
+            DatabaseViewKind::Kanban | DatabaseViewKind::Scatter | DatabaseViewKind::List => None,
         };
         sized.set_intrinsic_size(size);
     });
@@ -95,6 +96,9 @@ fn Content(data: Data) -> NodeId {
                         DatabaseViewKind::Scatter => view! {
                             <Scatter @sizing=ItemSize::Percent(100.0) data={data} />
                         },
+                        DatabaseViewKind::List => view! {
+                            <ListView @sizing=ItemSize::Percent(100.0) data={data} />
+                        },
                     }
                 }}
             </Dynamic>
@@ -125,7 +129,7 @@ fn CellEditor(data: Data) -> NodeId {
         };
         data.rows.with(|rows| {
             rows.get(selection.row)
-                .map(|row| row.values().clone())
+                .map(|row| row.cells())
                 .unwrap_or_default()
         })
     }));

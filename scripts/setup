@@ -94,6 +94,30 @@ fi
 step 'Installing buck2'
 "$internal/install-buck2.sh"
 
+# The tracker's command line tool, ./scripts/be (guides/tracker.md), is a
+# pinned release too, built from the same commit as the tracker's server.
+step 'Installing be'
+if [[ -n "$be_release" ]]; then
+    "$internal/install-be.sh"
+else
+    echo 'No be release is pinned yet, so ./scripts/be is not installed.'
+fi
+
+# Its credentials, from behind the server's gateway: a cloud environment's proxy
+# adds the header the gateway wants, and anywhere else they come by hand.
+credentials="$repository/external/.tracker-credentials"
+if [[ ! -s "$credentials" ]]; then
+    mkdir -p "$(dirname "$credentials")"
+    if (umask 077 && curl -sSf --max-time 30 -o "$credentials.partial" \
+        https://blocks.pfg.pw/authorized-storage/tracker-credentials); then
+        mv -f "$credentials.partial" "$credentials"
+        echo "Fetched the tracker's credentials into $credentials."
+    else
+        rm -f "$credentials.partial"
+        echo "Could not fetch the tracker's credentials; ./scripts/be needs them in $credentials."
+    fi
+fi
+
 end_step
 echo ''
 echo 'Setup finished. The first time ./scripts/buck runs, it asks which build server'

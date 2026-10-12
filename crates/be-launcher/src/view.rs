@@ -4,13 +4,13 @@ use beui::icons::{
     ICON_CALL_SPLIT, ICON_CANCEL, ICON_DRAFT, ICON_FRAME_INSPECT, ICON_MERGE, ICON_REFRESH,
     ICON_SEARCH,
 };
+#[cfg(target_os = "android")]
+use beui::reactive::Portal;
 use beui::reactive::with_document;
 use beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, Prop, Show, Spacer, Text, clone,
     component, create_memo, view,
 };
-#[cfg(target_os = "android")]
-use beui::reactive::{Portal, in_new_scope, on_cleanup, try_with_document};
 #[cfg(not(target_os = "android"))]
 use beui::styled::Separator;
 use beui::styled::theme::{FONT_BODY, FONT_SMALL};
@@ -54,12 +54,9 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
     let reading = create_memo(clone!(listing -> move || !listing.get()));
     let back = clone!(model -> move || model.deselect());
     let gesture = back.clone();
-    let sidebar = in_new_scope(clone!(model -> move || view! {
-        <Sidebar model />
-    }));
-    on_cleanup(move || {
-        try_with_document(|document| document.remove_node(sidebar));
-    });
+    let sidebar = view! {
+        <Sidebar model={model.clone()} />
+    };
     let viewer = model.clone();
     let page = use_theme().background;
     view! {

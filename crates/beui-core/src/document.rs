@@ -19,7 +19,9 @@ use crate::input::{Key, KeyChord, Modifiers};
 use crate::display::Display;
 use crate::interact;
 use crate::layout;
-use crate::node::{ANCESTOR_LIMIT, Arena, NodeId, NodeMap, NodeOf, Placed, Rects, SpaceId};
+use crate::node::{
+    ANCESTOR_LIMIT, Arena, Element, NodeId, NodeMap, NodeOf, Placed, Rects, SpaceId,
+};
 use crate::paint::{self, PaintCache};
 use crate::painter::{Local, Painter, PainterState, Shape};
 use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
@@ -136,7 +138,6 @@ pub struct Document {
     reactive_scope: ::reactive::Scope,
     zone: u64,
     extensions: HashMap<std::any::TypeId, Box<dyn Any>>,
-    node_scopes: HashMap<NodeId, Vec<::reactive::Scope>>,
     node_refs: HashMap<NodeId, Vec<Weak<Cell<Option<NodeId>>>>>,
     placements: NodeMap<Vec<PlacementWatcher>>,
     placed: NodeMap<(::reactive::ReadSignal<bool>, ::reactive::WriteSignal<bool>)>,
@@ -243,8 +244,9 @@ static NEXT_ZONE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::n
 impl Document {
     pub fn new() -> Self {
         let rects = Rc::new(Rects::default());
+        let zone = NEXT_ZONE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         Self {
-            arena: Arena::default(),
+            arena: Arena::in_zone(zone),
             root: None,
             focused: None,
             focus_before: None,
@@ -319,9 +321,8 @@ impl Document {
             next_paint: None,
             now: Instant::now(),
             reactive_scope: ::reactive::Scope::new(),
-            zone: NEXT_ZONE.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+            zone,
             extensions: HashMap::new(),
-            node_scopes: HashMap::new(),
             node_refs: HashMap::new(),
             placements: NodeMap::default(),
             placed: NodeMap::default(),
@@ -557,10 +558,6 @@ impl Document {
             .min()
     }
 
-    pub fn register_node_scope(&mut self, node: NodeId, scope: ::reactive::Scope) {
-        self.node_scopes.entry(node).or_default().push(scope);
-    }
-
     pub fn register_node_ref(&mut self, node: NodeId, cell: Weak<Cell<Option<NodeId>>>) {
         let refs = self.node_refs.entry(node).or_default();
         refs.retain(|cell| cell.strong_count() > 0);
@@ -776,22 +773,31 @@ impl Document {
     }
 
     pub fn remove_node(&mut self, id: NodeId) {
+        if !self.arena.contains(id) {
+            return;
+        }
         let mut dropped = Vec::new();
         let rects = Rc::clone(&self.rects);
         self.drop_placement(id, &rects, &mut dropped);
         let returning = self.returns_on_removal(id);
-        let mut scopes = Vec::new();
-        self.detach_subtree(id, &mut scopes);
-        drop(scopes);
+        if self
+            .focused
+            .is_some_and(|focused| self.is_within(focused, id))
+        {
+            self.focused = None;
+        }
+        let mut removed = Vec::new();
+        self.detach_subtree(id, &mut removed);
         for node in dropped {
             self.release_placement(node);
         }
         if let Some(returning) = returning {
             self.return_removed_focus(returning);
         }
+        drop(removed);
     }
 
-    fn detach_subtree(&mut self, id: NodeId, scopes: &mut Vec<::reactive::Scope>) {
+    fn detach_subtree(&mut self, id: NodeId, removed: &mut Vec<Box<dyn Element>>) {
         if !self.arena.contains(id) {
             return;
         }
@@ -808,15 +814,15 @@ impl Document {
             self.release_forgotten(child);
         }
         for child in children {
-            if borrowed.contains(&child) {
+            if borrowed.contains(&child) || self.arena.owned(child) {
                 continue;
             }
-            self.detach_subtree(child, scopes);
+            self.detach_subtree(child, removed);
         }
         let mut element = self.arena.take(id);
         element.detached();
         self.arena.put_back(id, element);
-        self.arena.remove(id);
+        removed.extend(self.arena.remove(id));
         self.forget_layer(id);
         self.forget_back_gesture(id);
         self.back_handlers.retain(|handler| handler.id() != id);
@@ -839,7 +845,6 @@ impl Document {
         for test_id in self.node_test_ids.remove(&id).unwrap_or_default() {
             self.drop_test_id(id, &test_id);
         }
-        scopes.extend(self.node_scopes.remove(&id).unwrap_or_default());
         for cell in self.node_refs.remove(&id).unwrap_or_default() {
             if let Some(cell) = cell.upgrade()
                 && cell.get() == Some(id)

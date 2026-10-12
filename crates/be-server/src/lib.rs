@@ -33,6 +33,7 @@ use uuid::Uuid;
 
 pub mod backup;
 pub mod blocks;
+mod http;
 pub mod schema;
 pub mod sessions;
 pub mod store;
@@ -126,9 +127,9 @@ impl ServerConfig {
 }
 
 const MAX_CONNECTIONS: usize = 1024;
-const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
+pub(crate) const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 const PING_INTERVAL: Duration = Duration::from_secs(30);
-const IDLE_TIMEOUT: Duration = Duration::from_secs(90);
+pub(crate) const IDLE_TIMEOUT: Duration = Duration::from_secs(90);
 const OUTBOUND_LIMIT: usize = 4096;
 const ACCEPT_RETRY: Duration = Duration::from_millis(100);
 
@@ -138,15 +139,20 @@ pub async fn serve_with_config(
     config: ServerConfig,
     shutdown: impl Future<Output = impl Sized>,
 ) -> Result<(), ServerError> {
-    let store = Arc::new(ServerStore::open(data_dir.into())?);
-    let hub = Arc::new(WatchHub::new());
-    let registry = Arc::new(SessionRegistry::new());
+    let services = Services {
+        store: Arc::new(ServerStore::open(data_dir.into())?),
+        hub: Arc::new(WatchHub::new()),
+        registry: Arc::new(SessionRegistry::new()),
+        config,
+        http: Arc::new(http::Sessions::default()),
+    };
     let slots = Arc::new(Semaphore::new(MAX_CONNECTIONS));
     tokio::pin!(shutdown);
     loop {
         tokio::select! {
             _ = &mut shutdown => {
-                store.checkpoint().await?;
+                services.http.close_all().await;
+                services.store.checkpoint().await?;
                 return Ok(());
             }
             accepted = listener.accept() => {
@@ -163,11 +169,9 @@ pub async fn serve_with_config(
                     continue;
                 };
                 let _ = stream.set_nodelay(true);
-                let store = Arc::clone(&store);
-                let hub = Arc::clone(&hub);
-                let registry = Arc::clone(&registry);
+                let services = services.clone();
                 tokio::spawn(async move {
-                    if let Err(error) = handle_connection(stream, peer, store, hub, registry, config).await {
+                    if let Err(error) = handle_connection(stream, peer, services).await {
                         tracing::debug!(%peer, %error, "a connection ended with an error");
                     }
                     drop(slot);
@@ -175,6 +179,15 @@ pub async fn serve_with_config(
             }
         }
     }
+}
+
+#[derive(Clone)]
+pub(crate) struct Services {
+    store: Arc<ServerStore>,
+    hub: Arc<WatchHub>,
+    registry: Arc<SessionRegistry>,
+    config: ServerConfig,
+    http: Arc<http::Sessions>,
 }
 
 struct Connection {
@@ -188,11 +201,92 @@ struct Connection {
     config: ServerConfig,
 }
 
-struct Forwarded(Arc<std::sync::Mutex<Option<String>>>);
+pub(crate) struct Client {
+    connection: Connection,
+    outbound: mpsc::Receiver<ServerMessage>,
+}
+
+impl Client {
+    pub(crate) async fn open(services: &Services) -> Self {
+        let (sender, outbound) = mpsc::channel(OUTBOUND_LIMIT);
+        let client = services.hub.register(sender).await;
+        Self {
+            connection: Connection {
+                store: Arc::clone(&services.store),
+                hub: Arc::clone(&services.hub),
+                registry: Arc::clone(&services.registry),
+                client,
+                account: None,
+                token: None,
+                identity: None,
+                config: services.config,
+            },
+            outbound,
+        }
+    }
+
+    pub(crate) async fn answer(&mut self, bytes: &[u8]) -> Vec<ServerMessage> {
+        let response = match decode::<ClientMessage>(bytes) {
+            Err(_) => ServerMessage::Failed {
+                request: 0,
+                code: ErrorCode::InvalidRequest,
+                message: "the frame is not a valid protocol message".into(),
+            },
+            Ok(request) => {
+                let id = request.request();
+                match self.connection.dispatch(request).await {
+                    Ok(response) => response,
+                    Err(error) => ServerMessage::Failed {
+                        request: id,
+                        code: error.code(),
+                        message: error.to_string(),
+                    },
+                }
+            }
+        };
+        let mut frames = self.pending();
+        frames.push(response);
+        frames
+    }
+
+    pub(crate) fn pending(&mut self) -> Vec<ServerMessage> {
+        let mut frames = Vec::new();
+        while let Ok(notification) = self.outbound.try_recv() {
+            frames.push(notification);
+        }
+        frames
+    }
+
+    pub(crate) async fn close(self) {
+        let Connection {
+            hub,
+            registry,
+            client,
+            ..
+        } = self.connection;
+        for (block, state) in registry.leave_all(client).await {
+            let participants = registry.participants(block).await;
+            hub.send_all(
+                &participants,
+                client,
+                &ServerMessage::SessionChanged { block, state },
+            )
+            .await;
+        }
+        hub.remove(client).await;
+    }
+}
+
+#[derive(Default)]
+struct Handshake {
+    forwarded: Option<String>,
+}
+
+struct Forwarded(Arc<std::sync::Mutex<Handshake>>);
 
 impl Callback for Forwarded {
     fn on_request(self, request: &Request, response: Response) -> Result<Response, ErrorResponse> {
-        *self.0.lock().unwrap() = request
+        self.0.lock().unwrap().forwarded = request
             .headers()
             .get("x-forwarded-for")
             .and_then(|value| value.to_str().ok())
@@ -205,15 +299,15 @@ impl Callback for Forwarded {
 async fn handle_connection(
     stream: TcpStream,
     peer: SocketAddr,
-    store: Arc<ServerStore>,
-    hub: Arc<WatchHub>,
-    registry: Arc<SessionRegistry>,
-    config: ServerConfig,
+    services: Services,
 ) -> Result<(), ServerError> {
-    let forwarded = Arc::new(std::sync::Mutex::new(None));
+    let Some(stream) = http::route(stream, &services).await? else {
+        return Ok(());
+    };
+    let held = Arc::new(std::sync::Mutex::new(Handshake::default()));
     let handshake = accept_hdr_async_with_config(
         stream,
-        Forwarded(Arc::clone(&forwarded)),
+        Forwarded(Arc::clone(&held)),
         Some(WebSocketConfig {
             max_frame_size: Some(MAX_FRAME_BYTES),
             max_message_size: Some(MAX_FRAME_BYTES),
@@ -223,13 +317,23 @@ async fn handle_connection(
     let socket = tokio::time::timeout(HANDSHAKE_TIMEOUT, handshake)
         .await
         .map_err(|_| ServerError::Socket("the websocket handshake timed out".into()))??;
-    let client = forwarded
-        .lock()
-        .unwrap()
-        .take()
-        .unwrap_or_else(|| peer.ip().to_string());
+    let Handshake { forwarded } = std::mem::take(&mut *held.lock().unwrap());
+    let client = forwarded.unwrap_or_else(|| peer.ip().to_string());
     tracing::debug!(%client, "connected");
-    serve_socket(socket, store, hub, registry, config).await
+    serve_socket(socket, &services).await
+}
+
+pub(crate) fn greeting(theirs: Option<&str>) -> Result<(Vec<u8>, bool), ServerError> {
+    let ours = build_id::current().map_err(ServerError::Socket)?;
+    let compatible = theirs.is_some_and(|theirs| build_id::compatible(ours, theirs));
+    if !compatible {
+        tracing::info!(
+            ours,
+            theirs = theirs.unwrap_or("a build from before the greeting"),
+            "refused a client of another build"
+        );
+    }
+    Ok((hello(ours), compatible))
 }
 
 async fn greet<S>(
@@ -239,8 +343,7 @@ async fn greet<S>(
 where
     S: AsyncRead + AsyncWrite + Unpin + Send,
 {
-    let ours = build_id::current();
-    let greeting = async {
+    let greeting_frame = async {
         loop {
             match source.next().await {
                 Some(Ok(Message::Binary(bytes))) => return Ok(read_hello(&bytes)),
@@ -251,32 +354,20 @@ where
             }
         }
     };
-    let theirs = tokio::time::timeout(HANDSHAKE_TIMEOUT, greeting)
+    let theirs = tokio::time::timeout(HANDSHAKE_TIMEOUT, greeting_frame)
         .await
         .map_err(|_| ServerError::Socket("the client never said which build it is".into()))??;
-    sink.send(Message::Binary(hello(ours))).await?;
-    let compatible = theirs
-        .as_deref()
-        .is_some_and(|theirs| build_id::compatible(ours, theirs));
+    let (ours, compatible) = greeting(theirs.as_deref())?;
+    sink.send(Message::Binary(ours)).await?;
     if !compatible {
-        tracing::info!(
-            ours,
-            theirs = theirs
-                .as_deref()
-                .unwrap_or("a build from before the greeting"),
-            "refused a client of another build"
-        );
         sink.send(Message::Close(None)).await?;
     }
     Ok(compatible)
 }
 
-pub async fn serve_socket<S>(
+async fn serve_socket<S>(
     socket: tokio_tungstenite::WebSocketStream<S>,
-    store: Arc<ServerStore>,
-    hub: Arc<WatchHub>,
-    registry: Arc<SessionRegistry>,
-    config: ServerConfig,
+    services: &Services,
 ) -> Result<(), ServerError>
 where
     S: AsyncRead + AsyncWrite + Unpin + Send,
@@ -285,25 +376,14 @@ where
     if !greet(&mut sink, &mut source).await? {
         return Ok(());
     }
-    let (sender, mut outbound) = mpsc::channel(OUTBOUND_LIMIT);
     let mut pings = tokio::time::interval(PING_INTERVAL);
     let mut heard = Instant::now();
-    let client = hub.register(sender).await;
-    let mut connection = Connection {
-        store,
-        hub: Arc::clone(&hub),
-        registry: Arc::clone(&registry),
-        client,
-        account: None,
-        token: None,
-        identity: None,
-        config,
-    };
+    let mut client = Client::open(services).await;
 
     let outcome = async {
         loop {
             let frame = tokio::select! {
-                notification = outbound.recv() => {
+                notification = client.outbound.recv() => {
                     let Some(notification) = notification else { return Ok(()) };
                     sink.send(Message::Binary(
                         encode(&notification).map_err(|_| ServerError::Corrupt)?,
@@ -324,34 +404,12 @@ where
             heard = Instant::now();
             match frame? {
                 Message::Binary(bytes) => {
-                    let response = match decode::<ClientMessage>(&bytes) {
-                        Err(_) => ServerMessage::Failed {
-                            request: 0,
-                            code: ErrorCode::InvalidRequest,
-                            message: "the frame is not a valid protocol message".into(),
-                        },
-                        Ok(request) => {
-                            let id = request.request();
-                            match connection.dispatch(request).await {
-                                Ok(response) => response,
-                                Err(error) => ServerMessage::Failed {
-                                    request: id,
-                                    code: error.code(),
-                                    message: error.to_string(),
-                                },
-                            }
-                        }
-                    };
-                    while let Ok(notification) = outbound.try_recv() {
+                    for message in client.answer(&bytes).await {
                         sink.send(Message::Binary(
-                            encode(&notification).map_err(|_| ServerError::Corrupt)?,
+                            encode(&message).map_err(|_| ServerError::Corrupt)?,
                         ))
                         .await?;
                     }
-                    sink.send(Message::Binary(
-                        encode(&response).map_err(|_| ServerError::Corrupt)?,
-                    ))
-                    .await?;
                 }
                 Message::Close(_) => return Ok(()),
                 Message::Ping(payload) => sink.send(Message::Pong(payload)).await?,
@@ -361,16 +419,7 @@ where
     }
     .await;
 
-    for (block, state) in registry.leave_all(client).await {
-        let participants = registry.participants(block).await;
-        hub.send_all(
-            &participants,
-            client,
-            &ServerMessage::SessionChanged { block, state },
-        )
-        .await;
-    }
-    hub.remove(client).await;
+    client.close().await;
     outcome
 }
 
@@ -535,11 +584,12 @@ impl Connection {
                 })
             }
             ClientMessage::GetObject { request, hash } => {
-                self.identity()?;
-                Ok(ServerMessage::Object {
-                    request,
-                    bytes: self.store.get_object(hash)?,
-                })
+                let identity = self.identity()?;
+                let bytes = match self.store.may_read_object(identity, hash).await? {
+                    true => self.store.get_object(hash)?,
+                    false => None,
+                };
+                Ok(ServerMessage::Object { request, bytes })
             }
             ClientMessage::GetObjectRange {
                 request,
@@ -547,11 +597,12 @@ impl Connection {
                 offset,
                 length,
             } => {
-                self.identity()?;
-                Ok(ServerMessage::Object {
-                    request,
-                    bytes: self.store.get_object_range(hash, offset, length)?,
-                })
+                let identity = self.identity()?;
+                let bytes = match self.store.may_read_object(identity, hash).await? {
+                    true => self.store.get_object_range(hash, offset, length)?,
+                    false => None,
+                };
+                Ok(ServerMessage::Object { request, bytes })
             }
             ClientMessage::MissingObjects { request, hashes } => {
                 self.identity()?;
@@ -874,6 +925,37 @@ impl Connection {
             ClientMessage::ListMemberKeys { request, workspace } => {
                 let members = self.store.member_keys(self.account()?, workspace).await?;
                 Ok(ServerMessage::MemberKeys { request, members })
+            }
+            ClientMessage::CreateAgent {
+                request,
+                workspace,
+                name,
+                recovery,
+                sealed,
+            } => {
+                let (agent, token) = self
+                    .store
+                    .create_agent(self.account()?, workspace, &name, recovery, sealed)
+                    .await?;
+                Ok(ServerMessage::AgentCreated {
+                    request,
+                    agent,
+                    token,
+                })
+            }
+            ClientMessage::ListAgents { request, workspace } => Ok(ServerMessage::Agents {
+                request,
+                agents: self.store.list_agents(self.account()?, workspace).await?,
+            }),
+            ClientMessage::RemoveAgent {
+                request,
+                workspace,
+                account,
+            } => {
+                self.store
+                    .remove_agent(self.account()?, workspace, account)
+                    .await?;
+                Ok(ServerMessage::Ok { request })
             }
             ClientMessage::Pair {
                 request,

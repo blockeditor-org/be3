@@ -69,7 +69,7 @@ pub use logic_grid::{LogicGridContent, LogicGridDocument};
 pub use map::{Map, MapContent};
 pub use metadata::{
     ARTIFACT, ArtifactSource, BlockMetadata, Definition, Entries, INTRINSIC_NAME, LOCAL_ID,
-    MetaKey, NAME, Origin, SCHEMA, THUMBHASH, Thumbhash,
+    MetaKey, NAME, Origin, ROW_PREFIX, SCHEMA, THUMBHASH, Thumbhash,
 };
 pub use model::Root;
 pub use paint::{PaintReview, PaintReviewContent, PaintSnapshotContent, PaintSnapshotHeader};

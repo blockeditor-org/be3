@@ -60,16 +60,14 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
             {move |size: ReadSignal<Vec2>| {
                 let bounds = create_memo(clone!(data axes -> move || {
                     let (x_field, y_field) = axes.get()?;
-                    data.rows.with(|rows| plot_bounds(rows, x_field.id, y_field.id))
+                    plot_bounds(&shown_rows(&data), x_field.id, y_field.id)
                 }));
                 let placed = create_memo(clone!(data axes bounds size -> move || {
                     let (Some((x_field, y_field)), Some(bounds)) = (axes.get(), bounds.get()) else {
                         return Vec::new();
                     };
                     let area = size.get();
-                    data.rows.with(|rows| {
-                        place_points(rows, x_field.id, y_field.id, bounds, plot_area(area))
-                    })
+                    place_points(&shown_rows(&data), x_field.id, y_field.id, bounds, plot_area(area))
                 }));
                 let keys = create_memo(clone!(placed -> move || {
                     placed.with(|placed| placed.iter().map(|point| point.row).collect::<Vec<usize>>())
@@ -326,4 +324,15 @@ fn format_axis_value(value: f64) -> String {
     } else {
         format!("{value:.2}")
     }
+}
+
+fn shown_rows(data: &Data) -> Vec<DatabaseRow> {
+    data.rows.with(|rows| {
+        rows.iter()
+            .map(|row| match data.shows(row) {
+                true => row.clone(),
+                false => DatabaseRow::default(),
+            })
+            .collect()
+    })
 }

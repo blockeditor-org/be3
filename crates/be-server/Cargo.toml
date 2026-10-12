@@ -14,6 +14,7 @@ be-session = { path = "../be-session" }
 be-store = { path = "../be-store" }
 build-id = { path = "../build-id" }
 futures-util = "0.3"
+httparse = "1"
 rand = "0.9"
 rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }

@@ -325,6 +325,32 @@ impl ServerStore {
         .await
     }
 
+    pub async fn may_read_object(
+        &self,
+        identity: Identity,
+        hash: Hash,
+    ) -> Result<bool, ServerError> {
+        self.with_graph(identity.workspace, move |graph, database| {
+            let mut statement = database.prepare(
+                "SELECT block_id FROM commit_objects WHERE workspace_id = ?1 AND hash = ?2
+                 UNION
+                 SELECT block_id FROM block_objects WHERE workspace_id = ?1 AND hash = ?2",
+            )?;
+            let rows = statement.query_map(
+                params![identity.workspace.to_string(), hash.to_hex()],
+                |row| row.get::<_, String>(0),
+            )?;
+            let seen = visibility(graph, identity);
+            for row in rows {
+                if seen.access(graph, parse_uuid(&row?)?).can_view() {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        })
+        .await
+    }
+
     pub async fn hold_objects(
         &self,
         identity: Identity,
@@ -612,6 +638,7 @@ impl ServerStore {
                     email,
                     display_name,
                     role,
+                    author: node.author == account,
                     granted: node.grants.get(&account).copied(),
                     effective: Visibility::of(graph, account, role).access(graph, block),
                 });

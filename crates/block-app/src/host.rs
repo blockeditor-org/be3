@@ -1,4 +1,4 @@
-use beui::styled::DocumentTheme;
+use beui::styled::{self, DocumentTheme, ThemeKind};
 use std::{
     cell::RefCell,
     sync::{
@@ -70,7 +70,7 @@ struct Host {
     pass: u64,
     pixels_per_point: f32,
     screen_scale: f32,
-    dark: bool,
+    theme: block_plugin_api::Theme,
     grabbed: bool,
     commands: Vec<HostCommand>,
     waiting_picks: Vec<(FilePickId, PickSlot)>,
@@ -86,7 +86,7 @@ impl Default for Host {
             pass: 0,
             pixels_per_point: 1.0,
             screen_scale: 1.0,
-            dark: true,
+            theme: block_plugin_api::Theme::Dark,
             grabbed: false,
             commands: Vec::new(),
             waiting_picks: Vec::new(),
@@ -102,7 +102,7 @@ fn with<R>(act: impl FnOnce(&mut Host) -> R) -> R {
 
 struct Frame {
     now: Option<Instant>,
-    dark: bool,
+    theme: block_plugin_api::Theme,
     pixels_per_point: f32,
     screen_scale: f32,
 }
@@ -111,7 +111,7 @@ impl Default for Frame {
     fn default() -> Self {
         Self {
             now: None,
-            dark: true,
+            theme: block_plugin_api::Theme::Dark,
             pixels_per_point: 1.0,
             screen_scale: 1.0,
         }
@@ -151,8 +151,7 @@ pub(crate) fn begin(context: &beui::Context, document: &Document) {
         now: Some(context.now()),
         ..Frame::default()
     };
-    let [red, green, blue, _] = document.theme().background.to_array();
-    frame.dark = u32::from(red) + u32::from(green) + u32::from(blue) < 384;
+    frame.theme = plugin_theme(document.theme());
     frame.screen_scale = context.screen_scale();
     frame.pixels_per_point = context.pixels_per_point() * frame.screen_scale;
     start(frame);
@@ -160,7 +159,7 @@ pub(crate) fn begin(context: &beui::Context, document: &Document) {
 
 fn start(frame: Frame) {
     with(|host| {
-        host.dark = frame.dark;
+        host.theme = frame.theme;
         host.pass += 1;
         if let Some(now) = frame.now {
             let started = *host.started.get_or_insert(now);
@@ -221,8 +220,17 @@ pub(crate) fn pixels_per_point() -> f32 {
     with(|host| host.pixels_per_point)
 }
 
-pub(crate) fn dark() -> bool {
-    with(|host| host.dark)
+pub(crate) fn theme() -> block_plugin_api::Theme {
+    with(|host| host.theme)
+}
+
+fn plugin_theme(theme: styled::Theme) -> block_plugin_api::Theme {
+    match theme.kind {
+        ThemeKind::Dark => block_plugin_api::Theme::Dark,
+        ThemeKind::OledDark => block_plugin_api::Theme::OledDark,
+        ThemeKind::Light => block_plugin_api::Theme::Light,
+        ThemeKind::EInk => block_plugin_api::Theme::EInk,
+    }
 }
 
 pub(crate) fn set_fullscreen(fullscreen: bool) {
@@ -290,3 +298,6 @@ pub(crate) enum HostItem {
         block_type: Uuid,
     },
 }
+
+#[cfg(test)]
+mod tests;

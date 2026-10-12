@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use crate::database_schema::app::DatabaseSchemaApp;
 
+mod a_relation_field_names_the_database_it_links_to;
 mod adding_a_field_appends_a_string_field;
 mod configured_fields_paint_on_separate_lines;
 mod renaming_a_field_writes_the_new_name_to_the_block;

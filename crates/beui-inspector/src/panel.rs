@@ -56,7 +56,6 @@ const PIXEL_RATIOS: [(&str, Option<f32>); 5] = [
     ("2x", Some(2.0)),
     ("3x", Some(3.0)),
 ];
-const THEMES: [(&str, Theme); 2] = [("Dark", Theme::DARK), ("E-ink", Theme::EINK)];
 
 fn labels<T>(options: &[(&'static str, T)]) -> Vec<&'static str> {
     options.iter().map(|(label, _)| *label).collect()
@@ -489,7 +488,7 @@ fn SimulationPanel(state: Rc<State>, responsive: Memo<bool>, handles_back: Memo<
         .position(|(_, ratio)| *ratio == simulated)
         .unwrap_or(0);
     let theme = state.theme.get();
-    let selected_theme = THEMES
+    let selected_theme = Theme::BUILT_IN
         .iter()
         .position(|(_, candidate)| *candidate == theme)
         .unwrap_or(0);
@@ -554,7 +553,7 @@ fn SimulationPanel(state: Rc<State>, responsive: Memo<bool>, handles_back: Memo<
                         <RadioGroup
                             @test_id={"inspector.simulation.theme"}
                             options={view! {
-                                <ForEach keys={labels(&THEMES)}>
+                                <ForEach keys={labels(&Theme::BUILT_IN)}>
                                     {|label: &'static str| view! {
                                         <ChoiceOption label />
                                     }}
@@ -562,7 +561,7 @@ fn SimulationPanel(state: Rc<State>, responsive: Memo<bool>, handles_back: Memo<
                             }}
                             selected={Some(selected_theme)}
                             on_change={move |index: Option<usize>| {
-                                if let Some((_, theme)) = index.and_then(|index| THEMES.get(index)) {
+                                if let Some((_, theme)) = index.and_then(|index| Theme::BUILT_IN.get(index)) {
                                     theme_state.choose_theme(*theme);
                                 }
                             }}

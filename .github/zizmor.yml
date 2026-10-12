@@ -23,4 +23,5 @@ rules:
   self-repository:
     ignore:
       - ci.yml
+      - tracker.yml
 

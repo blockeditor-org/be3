@@ -1,8 +1,10 @@
 use std::rc::Rc;
 
+use block_editor_beui::be_block::BlockContent;
+use block_editor_beui::be_block::database::DatabaseContent;
 use block_editor_beui::be_block::database_schema::{
     DatabaseBlockOptions, DatabaseField, DatabaseFieldType, DatabaseNumberOptions,
-    DatabaseNumberScale, DatabaseSchema, DatabaseSchemaContent,
+    DatabaseNumberScale, DatabaseRelationOptions, DatabaseSchema, DatabaseSchemaContent,
 };
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_DELETE};
 use block_editor_beui::beui::reactive::{
@@ -15,7 +17,7 @@ use block_editor_beui::beui::styled::{
 };
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{NodeId, Vec2};
-use block_editor_beui::{ContentProjection, Editor};
+use block_editor_beui::{BlockFilter, ChildTarget, ContentProjection, Editor, watch_block_label};
 use uuid::Uuid;
 
 use super::field_line_count;
@@ -31,7 +33,7 @@ const NUMBER_WIDTH: f32 = 120.0;
 const INTRINSIC_WIDTH: f32 = 600.0;
 const ROW_HEIGHT: f32 = 40.0;
 
-const FIELD_TYPES: [(DatabaseFieldType, &str, &str); 7] = [
+const FIELD_TYPES: [(DatabaseFieldType, &str, &str); 8] = [
     (DatabaseFieldType::String, "String", "string"),
     (DatabaseFieldType::Number, "Number", "number"),
     (DatabaseFieldType::Enum, "Enum", "enum"),
@@ -39,6 +41,7 @@ const FIELD_TYPES: [(DatabaseFieldType, &str, &str); 7] = [
     (DatabaseFieldType::Boolean, "Boolean", "boolean"),
     (DatabaseFieldType::Color, "Color", "color"),
     (DatabaseFieldType::Datetime, "Datetime", "datetime"),
+    (DatabaseFieldType::Relation, "Relation", "relation"),
 ];
 
 const NUMBER_SCALES: [(DatabaseNumberScale, &str); 2] = [
@@ -155,13 +158,22 @@ fn FieldRow(
     let type_keys = create_memo(|| (0..FIELD_TYPES.len()).collect::<Vec<usize>>());
     let (name_off, type_off, delete_off) =
         (read_only.clone(), read_only.clone(), read_only.clone());
-    let (number_off, enum_off, block_off) = (read_only.clone(), read_only.clone(), read_only);
-    let (number_schema, enum_schema, block_schema) = (schema.clone(), schema.clone(), schema);
-    let (number_field, enum_field, block_field) = (field.clone(), field.clone(), field);
-    let (number_kind, enum_kind, block_kind) = (
+    let (number_off, enum_off, block_off, relation_off) = (
+        read_only.clone(),
+        read_only.clone(),
+        read_only.clone(),
+        read_only,
+    );
+    let (number_schema, enum_schema, block_schema, relation_schema) =
+        (schema.clone(), schema.clone(), schema.clone(), schema);
+    let (number_field, enum_field, block_field, relation_field) =
+        (field.clone(), field.clone(), field.clone(), field);
+    let relation_editor = editor.clone();
+    let (number_kind, enum_kind, block_kind, relation_kind) = (
         is(DatabaseFieldType::Number),
         is(DatabaseFieldType::Enum),
         is(DatabaseFieldType::Block),
+        is(DatabaseFieldType::Relation),
     );
     view! {
         <List spacing=ROW_SPACING>
@@ -221,6 +233,15 @@ fn FieldRow(
                     id={id}
                     field={block_field.clone()}
                     read_only={block_off.clone()}
+                />
+            </Show>
+            <Show condition={relation_kind}>
+                <RelationOptions
+                    editor={relation_editor.clone()}
+                    schema={relation_schema.clone()}
+                    id={id}
+                    field={relation_field.clone()}
+                    read_only={relation_off.clone()}
                 />
             </Show>
             <Separator />
@@ -595,6 +616,121 @@ fn BlockOptions(
                     on_change={picked}
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
+            </List>
+        </Frame>
+    }
+}
+
+#[component]
+fn RelationOptions(
+    editor: Editor,
+    schema: Schema,
+    id: Uuid,
+    field: Memo<Option<DatabaseField>>,
+    read_only: Memo<bool>,
+) -> NodeId {
+    let target = create_memo(clone!(field -> move || {
+        field
+            .with(|field| field.as_ref().and_then(|field| field.relation_options.database))
+            .map(|database| ChildTarget::new(database, DatabaseContent::CONTENT_TYPE))
+    }));
+    let shown = watch_block_label(&editor, target.clone());
+    let label = create_memo(clone!(shown target -> move || {
+        match target.get() {
+            None => "Choose a database".to_owned(),
+            Some(_) => shown.with(|shown| match shown.name.is_empty() {
+                true => "Loading…".to_owned(),
+                false => shown.name.clone(),
+            }),
+        }
+    }));
+    let options = create_memo(clone!(field -> move || {
+        field.with(|field| {
+            field
+                .as_ref()
+                .map(|field| field.relation_options.clone())
+                .unwrap_or_default()
+        })
+    }));
+    let choose = clone!(editor schema options -> move || {
+        let schema = schema.clone();
+        let current = options.get_untracked();
+        editor.pick_block(
+            BlockFilter {
+                name: "Linked database".to_owned(),
+                block_types: vec![DatabaseContent::CONTENT_TYPE.into_bytes()],
+                excluded: Vec::new(),
+                templates: false,
+                place: None,
+            },
+            move |picked| {
+                if let Ok(picked) = picked {
+                    schema.operate(DatabaseSchema::set_relation_options(
+                        id,
+                        DatabaseRelationOptions {
+                            database: Some(picked.id),
+                            ..current.clone()
+                        },
+                    ));
+                }
+            },
+        );
+    });
+    let multiple = create_memo(clone!(options -> move || options.get().multiple));
+    let inverse = create_memo(clone!(options -> move || options.get().inverse));
+    let remultiplied = clone!(schema options -> move |multiple: bool| {
+        schema.operate(DatabaseSchema::set_relation_options(
+            id,
+            DatabaseRelationOptions {
+                multiple,
+                ..options.get_untracked()
+            },
+        ));
+    });
+    let renamed = clone!(schema options -> move |inverse: String| {
+        schema.operate(DatabaseSchema::set_relation_options(
+            id,
+            DatabaseRelationOptions {
+                inverse,
+                ..options.get_untracked()
+            },
+        ));
+    });
+    let (multiple_off, inverse_off) = (read_only.clone(), read_only.clone());
+    view! {
+        <Frame padding_left={INDENT + ROW_SPACING}>
+            <List spacing=ROW_SPACING>
+                <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
+                    <Body content="Links to" />
+                    <Button
+                        label={label}
+                        variant=ButtonVariant::Secondary
+                        disabled={read_only}
+                        @test_id={format!("database-schema.relation.{id}.database")}
+                        on_click={choose}
+                    />
+                    <Checkbox
+                        label="Several rows"
+                        checked={multiple}
+                        disabled={multiple_off}
+                        @test_id={format!("database-schema.relation.{id}.multiple")}
+                        on_change={remultiplied}
+                    />
+                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                </List>
+                <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
+                    <Body content="Shown on the linked rows as" />
+                    <Frame width=NAME_WIDTH>
+                        <TextInput
+                            value={inverse}
+                            placeholder="No column"
+                            disabled={inverse_off}
+                            @test_id={format!("database-schema.relation.{id}.inverse")}
+                            on_change={renamed}
+                        />
+                    </Frame>
+                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                </List>
             </List>
         </Frame>
     }

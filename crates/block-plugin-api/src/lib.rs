@@ -425,6 +425,7 @@ pub struct AccessGrant {
     pub email: String,
     pub display_name: String,
     pub administrator: bool,
+    pub author: bool,
     pub granted: Option<AccessLevel>,
     pub effective: AccessLevel,
 }
@@ -1873,8 +1874,12 @@ pub struct HelloAccepted {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Theme {
-    pub dark: bool,
+pub enum Theme {
+    #[default]
+    Dark,
+    OledDark,
+    Light,
+    EInk,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

@@ -118,9 +118,11 @@ pub fn Body(
     content: Prop<String>,
     #[prop(default = TextAlign::Start)] align: Prop<TextAlign>,
     #[prop(default = text_color())] color: Prop<Color32>,
+    #[prop(default = false)] wrap: Prop<bool>,
+    #[prop(default = false)] ellipsis: Prop<bool>,
 ) -> NodeId {
     view! {
-        <Line content font_size=FONT_BODY color align />
+        <Line content font_size=FONT_BODY color align wrap ellipsis />
     }
 }
 

@@ -115,6 +115,7 @@ pub(crate) struct AccountForm {
     pub(crate) register: bool,
     pub(crate) remote: bool,
     pub(crate) remote_url: String,
+    pub(crate) authorization: String,
     pub(crate) email: String,
     pub(crate) display_name: String,
     pub(crate) password: String,
@@ -181,6 +182,30 @@ pub(crate) struct InviteView {
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct AgentRow {
+    pub(crate) account: Uuid,
+    pub(crate) name: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct CreatedAgent {
+    pub(crate) name: String,
+    pub(crate) server: String,
+    pub(crate) workspace: String,
+    pub(crate) token: String,
+    pub(crate) phrase: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct AgentsView {
+    pub(crate) workspace: String,
+    pub(crate) busy: bool,
+    pub(crate) error: Option<String>,
+    pub(crate) agents: Vec<AgentRow>,
+    pub(crate) created: Option<CreatedAgent>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct DiscardView {
     pub(crate) title: String,
     pub(crate) message: String,
@@ -212,6 +237,7 @@ pub(crate) struct AppView {
     pub(crate) reauth: Option<ReauthView>,
     pub(crate) status: StatusView,
     pub(crate) invite: Option<InviteView>,
+    pub(crate) agents: Option<AgentsView>,
     pub(crate) about: bool,
     pub(crate) app_menu: bool,
     pub(crate) discard: Option<DiscardView>,
@@ -257,6 +283,10 @@ pub(crate) enum UiCommand {
     AppMenu(bool),
     SendInvite(String, WorkspaceRole),
     CloseInvite,
+    OpenAgents,
+    CloseAgents,
+    CreateAgent(String),
+    RemoveAgent(Uuid),
     Discard,
     CancelDiscard,
     Debug(DebugCommand),

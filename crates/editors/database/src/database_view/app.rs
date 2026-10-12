@@ -7,7 +7,9 @@ use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
 pub(crate) mod data;
+pub(crate) mod filters;
 pub(crate) mod kanban;
+pub(crate) mod list;
 pub(crate) mod scatter;
 pub(crate) mod sidebar;
 pub(crate) mod spreadsheet;

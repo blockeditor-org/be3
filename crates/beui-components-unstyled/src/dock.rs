@@ -41,7 +41,7 @@ use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Action, Callback, Canvas, CanvasItem, Child, ClickCallback, Dynamic, ForEach, Frame, Func,
     Interactive, IntoProp, LayoutBuilder, List, Memo, NodeRef, PlacementBuilder, Portal, Prop,
-    ReadSignal, RenderFn, ScopeContext, Show, WriteSignal, clone, component_accessibility,
+    ReadSignal, RenderFn, Scope, ScopeContext, Show, WriteSignal, clone, component_accessibility,
     create_effect, create_memo, create_signal, create_timer, node_scope, on_cleanup, on_shortcut,
     owner_scope, provide_context, set_component_state, try_with_document, use_context,
     with_document,
@@ -378,7 +378,7 @@ struct State {
     panes: RefCell<HashMap<Tree, NodeRef>>,
     windows: RefCell<HashMap<SurfaceId, NodeRef>>,
     bars: RefCell<HashMap<LeafId, TabBar>>,
-    panels: RefCell<HashMap<TabId, NodeId>>,
+    panels: RefCell<HashMap<TabId, (NodeId, Scope)>>,
     owner: Option<ScopeContext>,
     tab: RenderFn<DockTabHandle>,
     content: RenderFn<TabId>,
@@ -486,7 +486,7 @@ impl State {
     }
 
     fn panel(self: &Rc<Self>, tab: TabId) -> NodeId {
-        if let Some(panel) = self.panels.borrow().get(&tab) {
+        if let Some((panel, _)) = self.panels.borrow().get(&tab) {
             return *panel;
         }
         let scope = with_document(|document| node_scope(document, self.owner.clone()));
@@ -503,8 +503,7 @@ impl State {
             provide_context(control);
             self.content.call(tab)
         });
-        with_document(|document| document.register_node_scope(panel, scope));
-        self.panels.borrow_mut().insert(tab, panel);
+        self.panels.borrow_mut().insert(tab, (panel, scope));
         panel
     }
 
@@ -522,10 +521,8 @@ impl State {
     }
 
     fn forget_panel(&self, tab: TabId) {
-        let Some(panel) = self.panels.borrow_mut().remove(&tab) else {
-            return;
-        };
-        try_with_document(|document| document.remove_node(panel));
+        let panel = self.panels.borrow_mut().remove(&tab);
+        drop(panel);
     }
 
     fn pane_rect(&self, tree: Tree) -> Option<Rect> {
@@ -1330,11 +1327,6 @@ fn DockStack(dock: Handle) -> NodeId {
             switching,
             set_switching.clone(),
         ))
-    });
-    on_cleanup(move || {
-        if let Some(bar) = bar {
-            try_with_document(|document| document.remove_node(bar));
-        }
     });
     let barred = create_memo(clone!(occupied -> move || bar.is_some() && occupied.get()));
     let empty = dock.empty.clone();

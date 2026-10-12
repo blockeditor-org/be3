@@ -1,0 +1,22 @@
+load("@root//buck/app:defs.bzl", "app")
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
+
+cargo_library()
+
+cargo_test()
+
+cargo_binary(name = "be-bin")
+
+# be with its build-id file beside it, which it greets the server with:
+# `./scripts/buck run //crates/be-cli:be -- ARGS`.
+app(
+    name = "be",
+    binary = ":be-bin",
+    executable_name = "be",
+    files = ["//buck/app:build-id"],
+    manifests = [],
+    modules = [],
+    precompile = False,
+    precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
+    visibility = ["//crates/deploy:"],
+)

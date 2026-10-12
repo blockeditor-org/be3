@@ -260,7 +260,7 @@ fn Cell(
         field.with(|field| field.as_ref().map_or(0.0, |field| column_width(field.field_type)))
     }));
     let value = create_memo(clone!(entry -> move || {
-        entry.with(|entry| entry.as_ref().and_then(|entry| entry.row.value(id).cloned()))
+        entry.with(|entry| entry.as_ref().and_then(|entry| entry.row.get(id)))
     }));
     let text = create_memo(clone!(entry field data -> move || {
         let (Some(entry), Some(field)) = (entry.get(), field.get()) else {
@@ -393,18 +393,22 @@ pub fn display(data: &Data) -> Memo<Vec<DisplayRow>> {
     let fields = data.fields.clone();
     let labels = data.labels.clone();
     let sort = data.sort.clone();
+    let filters = data.filters.clone();
     let selected = data.selected.clone();
     create_memo(move || {
         rows.with(|rows| {
             fields.with(|fields| {
                 labels.with(|labels| {
-                    display_rows(
-                        rows,
-                        selected.get().map(|selection| selection.row),
-                        sort.get(),
-                        fields,
-                        labels,
-                    )
+                    filters.with(|filters| {
+                        display_rows(
+                            rows,
+                            selected.get().map(|selection| selection.row),
+                            sort.get(),
+                            filters,
+                            fields,
+                            labels,
+                        )
+                    })
                 })
             })
         })

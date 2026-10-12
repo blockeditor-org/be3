@@ -20,6 +20,11 @@ pub(crate) fn spawn(future: impl Future<Output = ()> + 'static) {
 }
 
 pub(crate) async fn connect(url: &str) -> Result<(Writer, Reader), String> {
+    if !url.starts_with("ws://") && !url.starts_with("wss://") {
+        return Err(format!(
+            "the browser build speaks only websockets, not {url}"
+        ));
+    }
     let socket = web_sys::WebSocket::new(url)
         .map_err(|error| format!("failed to connect to {url}: {}", describe(&error)))?;
     socket.set_binary_type(web_sys::BinaryType::Arraybuffer);

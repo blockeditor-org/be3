@@ -323,6 +323,26 @@ buck2_release_sha256() {
     echo "${!name}"
 }
 
+# The be release ./scripts/be runs: the tracker's command line tool
+# (guides/tracker.md), built from the same commit as the be-server the tracker
+# lives on. The release is that server's build id (its build-id file), which
+# install-be.sh writes beside be, so the server refuses this be once it is
+# deployed from another build. Each platform's :be bundle is uploaded to the
+# mirror as be/<release>/be-<triple>/, by the same triple buck2's releases are
+# named after, and its be is checked against these hashes. An empty hash is a platform with no
+# release uploaded yet.
+be_release='581912671eb40e5cee0dcd034dc4426088174b7b'
+be_sha256_x86_64_unknown_linux_gnu='f33b18fef3ca3e6f414427683ddea4533c6694b9d1c29483249376e0bdfad674'
+be_sha256_aarch64_unknown_linux_gnu='8017c369b221bacfc076f410cf10319590503a41a5a6eab6ec7789ec3bb0faa1'
+be_sha256_x86_64_apple_darwin=''
+be_sha256_aarch64_apple_darwin=''
+
+# Where the pinned be is installed, under a directory named after the release
+# so that moving the release installs the new one.
+be_path() {
+    echo "$repository/target/tools/be-$be_release/be"
+}
+
 # The nsc release ./scripts/buck runs: Namespace's command-line tool, which
 # wakes the remote execution cluster and names its hosts
 # (guides/build_server.md). Its archives are checked against these hashes, by

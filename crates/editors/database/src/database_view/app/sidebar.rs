@@ -1,16 +1,19 @@
+use block_editor_beui::be_block::database::short_id;
 use block_editor_beui::be_block::database_schema::DatabaseField;
 use block_editor_beui::be_block::database_view::{DatabaseView, DatabaseViewKind};
 use block_editor_beui::be_block::{BlockContent, DatabaseSchemaContent};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
-    ICON_DESELECT, ICON_GRID_ON, ICON_SCATTER_PLOT, ICON_SCHEMA, ICON_VIEW_KANBAN,
+    ICON_DESCRIPTION, ICON_DESELECT, ICON_GRID_ON, ICON_SCATTER_PLOT, ICON_SCHEMA,
+    ICON_VIEW_KANBAN, ICON_VIEW_LIST,
 };
 use block_editor_beui::beui::reactive::{
     Align, Callback, Direction, ForEach, ItemSize, List, Memo, Show, Spacer, clone, component,
     create_memo, view,
 };
 use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, Heading, Select, Separator, ToggleButton, use_theme,
+    Body, Button, ButtonVariant, Caption, Heading, IconButton, Select, Separator, TextInput,
+    ToggleButton, use_theme,
 };
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::block_ui::database::{DatabaseBlockPickRequest, DatabaseValueChange};
@@ -18,12 +21,14 @@ use block_editor_beui::database::DatabaseValueEditor;
 use uuid::Uuid;
 
 use crate::database_view::app::data::Data;
+use crate::database_view::app::filters::Filters;
 use crate::database_view::app::kanban::enum_fields;
 use crate::database_view::app::scatter::number_fields;
 
 const SPACING: f32 = 10.0;
-const KINDS: [(DatabaseViewKind, &str, &str); 3] = [
+const KINDS: [(DatabaseViewKind, &str, &str); 4] = [
     (DatabaseViewKind::Spreadsheet, "Spreadsheet", ICON_GRID_ON),
+    (DatabaseViewKind::List, "List", ICON_VIEW_LIST),
     (DatabaseViewKind::Kanban, "Kanban", ICON_VIEW_KANBAN),
     (DatabaseViewKind::Scatter, "Scatter", ICON_SCATTER_PLOT),
 ];
@@ -40,7 +45,17 @@ pub fn ViewSidebar(data: Data) -> NodeId {
     });
     let kanban = create_memo(clone!(data -> move || data.kind.get() == DatabaseViewKind::Kanban));
     let scatter = create_memo(clone!(data -> move || data.kind.get() == DatabaseViewKind::Scatter));
-    let (switch, status, axes, item) = (data.clone(), data.clone(), data.clone(), data.clone());
+    let listed = create_memo(clone!(data -> move || data.kind.get() != DatabaseViewKind::List));
+    let prefix = data.prefix.clone();
+    let prefix_off = data.read_only.clone();
+    let reprefix = clone!(data -> move |text: String| data.set_prefix(text));
+    let (switch, status, axes, item, filters) = (
+        data.clone(),
+        data.clone(),
+        data.clone(),
+        data.clone(),
+        data.clone(),
+    );
     let theme = use_theme();
     view! {
         <List spacing=SPACING>
@@ -70,6 +85,8 @@ pub fn ViewSidebar(data: Data) -> NodeId {
                 <AxisPickers data={axes.clone()} />
             </Show>
             <Separator />
+            <Filters data={filters} />
+            <Separator />
             <List direction=Direction::Horizontal spacing=0.0>
                 <Button
                     glyph={ICON_SCHEMA.to_owned()}
@@ -80,8 +97,22 @@ pub fn ViewSidebar(data: Data) -> NodeId {
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
-            <Separator />
-            <SelectedItem data={item} />
+            <Caption content="Row id prefix" />
+            <TextInput
+                value={prefix}
+                placeholder="BE"
+                disabled={prefix_off}
+                @test_id={"database-view.prefix"}
+                on_change={reprefix}
+            />
+            <Show condition={listed}>
+                {move || clone!(item -> view! {
+                    <List spacing=SPACING>
+                        <Separator />
+                        <SelectedItem data={item} />
+                    </List>
+                })}
+            </Show>
         </List>
     }
 }
@@ -190,7 +221,7 @@ fn AxisPickers(data: Data) -> NodeId {
 }
 
 #[component]
-fn FieldPicker(
+pub fn FieldPicker(
     options: Memo<Vec<DatabaseField>>,
     chosen: Memo<Option<Uuid>>,
     label: &'static str,
@@ -239,16 +270,26 @@ fn SelectedItem(data: Data) -> NodeId {
     let chosen = create_memo(clone!(row -> move || row.get().is_some()));
     let editing = chosen.clone();
     let none = create_memo(clone!(row -> move || row.get().is_none()));
-    let title = create_memo(clone!(row -> move || match row.get() {
-        Some(row) => format!("Row {}", row + 1),
-        None => "Selected item".to_owned(),
+    let title = create_memo(clone!(data row -> move || {
+        let Some(index) = row.get() else {
+            return "Selected item".to_owned();
+        };
+        match data.row_ids.with(|ids| ids.get(index).copied()) {
+            Some(id) => short_id(&data.prefix.get(), id.as_uuid()),
+            None => format!("Row {}", index + 1),
+        }
     }));
+    let page = clone!(data row -> move || {
+        if let Some(index) = row.get_untracked() {
+            data.open_page(index);
+        }
+    });
     let values = create_memo(clone!(data row -> move || {
         let Some(row) = row.get() else {
             return Default::default();
         };
         data.rows.with(|rows| {
-            rows.get(row).map(|row| row.values().clone()).unwrap_or_default()
+            rows.get(row).map(|row| row.cells()).unwrap_or_default()
         })
     }));
     let deselect = clone!(data -> move || data.deselect());
@@ -270,6 +311,14 @@ fn SelectedItem(data: Data) -> NodeId {
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                 <Heading content={title} />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
+                <Show condition={chosen.clone()}>
+                    <IconButton
+                        glyph={ICON_DESCRIPTION.to_owned()}
+                        label="Open the page"
+                        @test_id={"database-view.page"}
+                        on_click={page.clone()}
+                    />
+                </Show>
                 <Show condition={chosen}>
                     <Button
                         glyph={ICON_DESELECT.to_owned()}
