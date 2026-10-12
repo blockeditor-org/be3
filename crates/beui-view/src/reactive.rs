@@ -3,8 +3,8 @@ use std::rc::Rc;
 
 pub use beui_core::base::{Align, Direction, ItemSize, Justify, Sizing, Track};
 pub use beui_core::tree::{
-    AcceptsSizing, BuildsNode, ListChild, NodeSlot, WithSizing, component_accessibility,
-    component_placed, set_component_state, with_sizing,
+    BareChild, BuildsNode, FromPlaced, ListChild, ParentKind, Placed, WithSizing,
+    component_accessibility, component_placed, set_component_state, with_sizing,
 };
 pub use beui_tree::reactive::*;
 
@@ -162,9 +162,11 @@ pub fn focus_takes_text() -> bool {
 }
 
 pub fn bind(node: NodeId, effect: impl FnMut() + 'static) {
-    let scope = with_document(|document| node_scope(document, None));
-    scope.context().run(|| create_effect(effect));
-    with_document(|document| document.register_node_scope(node, scope));
+    let owner = with_document(|document| document.arena.owner(node));
+    match owner.filter(ScopeContext::is_alive) {
+        Some(owner) => owner.run(|| create_effect(effect)),
+        None => create_effect(effect),
+    };
 }
 
 pub fn bind_test_id(node: NodeId, test_id: Prop<String>) {
@@ -188,13 +190,6 @@ pub fn bind_test_id(node: NodeId, test_id: Prop<String>) {
             document.set_test_id(node, next);
         });
     });
-}
-
-pub fn in_new_scope(f: impl FnOnce() -> NodeId) -> NodeId {
-    let scope = with_document(|document| node_scope(document, None));
-    let node = scope.context().run(f);
-    with_document(|document| document.register_node_scope(node, scope));
-    node
 }
 
 pub use crate::actions::{

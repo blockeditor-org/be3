@@ -145,7 +145,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         }
     }
 
-    fn set_keys(&mut self, keys: Vec<K>) -> Vec<NodeId> {
+    fn set_keys(&mut self, keys: Vec<K>) {
         let indices: HashMap<K, usize> = keys
             .iter()
             .enumerate()
@@ -176,7 +176,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         self.keys = keys;
         self.indices = indices;
         let kept: Vec<K> = self.placed.iter().map(|row| row.key.clone()).collect();
-        self.rows.retain(&kept)
+        self.rows.retain(&kept);
     }
 
     fn window(&self, doc: &Document, painter: &Painter, start: f32, main: f32) -> (f32, f32) {
@@ -246,7 +246,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         let (first, last) = window;
         if self.metrics.count == 0 || last <= first {
             self.origin = None;
-            self.keep(doc, Vec::new());
+            self.keep(Vec::new());
             return 0.0;
         }
         let (index, position) = self.anchor(window);
@@ -319,7 +319,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
                 0.0
             }
         };
-        self.keep(doc, rows);
+        self.keep(rows);
         shift
     }
 
@@ -337,12 +337,10 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         0.0
     }
 
-    fn keep(&mut self, doc: &mut Document, rows: Vec<Row<K>>) {
+    fn keep(&mut self, rows: Vec<Row<K>>) {
         let kept: Vec<K> = rows.iter().map(|row| row.key.clone()).collect();
         self.placed = rows;
-        for node in self.rows.retain(&kept) {
-            doc.remove_node(node);
-        }
+        self.rows.retain(&kept);
     }
 }
 
@@ -389,9 +387,9 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
         }
     }
 
-    fn unplaced(&mut self, doc: &mut Document) {
+    fn unplaced(&mut self, _doc: &mut Document) {
         self.origin = None;
-        self.keep(doc, Vec::new());
+        self.keep(Vec::new());
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, _rect: Rect) {
@@ -482,13 +480,9 @@ impl Document {
         if self.arena.get_as::<VirtualListNode<(K, usize)>>(list).keys == keys {
             return;
         }
-        let evicted = self
-            .arena
+        self.arena
             .get_mut_as::<VirtualListNode<(K, usize)>>(list)
             .set_keys(keys);
-        for row in evicted {
-            self.remove_node(row);
-        }
     }
 
     pub fn virtual_list_offset<K: Clone + Hash + Eq + 'static>(

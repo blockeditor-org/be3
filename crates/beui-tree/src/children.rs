@@ -16,8 +16,6 @@ pub trait SlotChild: Sized + 'static {
     type Stored: Clone + 'static;
 
     fn store(self) -> Self::Stored;
-
-    fn discard(_stored: &Self::Stored) {}
 }
 
 pub trait SlotHost<C: SlotChild> {
@@ -30,8 +28,6 @@ pub trait SlotHost<C: SlotChild> {
     fn open(&self) -> SlotId;
 
     fn fill(&self, slot: SlotId, items: Vec<C::Stored>);
-
-    fn adopt_scope(&self, scope: Scope);
 }
 
 #[diagnostic::on_unimplemented(
@@ -235,12 +231,7 @@ impl<C: SlotChild> Run<C> {
                 });
                 slot.fill(built.clone());
                 let previous = held.borrow_mut().replace((built, scope));
-                if let Some((stored, scope)) = previous {
-                    for row in &stored {
-                        R::discard(row);
-                    }
-                    drop(scope);
-                }
+                drop(previous);
             });
         })
     }
@@ -345,13 +336,9 @@ impl<C: SlotChild> ChildSlot<C> {
         }
     }
 
-    pub fn discard(stored: &C::Stored) {
-        C::discard(stored);
-    }
-
     fn adopt_scope(&self, scope: Scope) {
         match &self.place {
-            Place::Host { host, .. } => host.adopt_scope(scope),
+            Place::Host { .. } => scope.into_parent(),
             Place::Run { run, .. } => run.held.borrow_mut().push(scope),
         }
     }

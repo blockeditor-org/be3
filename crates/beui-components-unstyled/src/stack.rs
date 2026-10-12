@@ -17,7 +17,7 @@ pub fn Stack(spacing: Prop<f32>, narrow: Prop<bool>, children: Children<ListChil
     }));
 
     let children = children.map(move |child| {
-        let ListChild { node, size } = child;
+        let ListChild { node, data: size } = child;
         let size = Prop::Dynamic(std::rc::Rc::new(clone!(stacked -> move || {
             let size = size.get();
             if stacked.get() {
@@ -26,7 +26,7 @@ pub fn Stack(spacing: Prop<f32>, narrow: Prop<bool>, children: Children<ListChil
                 size
             }
         })));
-        ListChild { node, size }
+        ListChild { node, data: size }
     });
 
     view! {

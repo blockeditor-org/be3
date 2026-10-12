@@ -36,8 +36,7 @@ use beui_view::reactive::{
     Callback, Canvas, CanvasItem, Child, ClickCallback, Frame, Interactive, LayoutBuilder, List,
     Memo, NodeRef, PlacementBuilder, Prop, ReadSignal, Render, RenderFn, Show, WriteSignal,
     action_scope, clone, component_accessibility, create_effect, create_memo, create_signal,
-    create_timer, in_new_scope, on_cleanup, pixels_per_point, set_component_state,
-    try_with_document, untrack, with_document,
+    create_timer, pixels_per_point, set_component_state, try_with_document, untrack, with_document,
 };
 
 use completion::{Completions, Query, query};
@@ -1149,14 +1148,9 @@ pub fn TextArea(
                                 None => set_dismissed.set(None),
                             }
                         }));
-                        let anchor = in_new_scope(|| {
-                            view! {
-                                <Frame width=CARET_WIDTH />
-                            }
-                        });
-                        on_cleanup(move || {
-                            beui_core::current::try_with_document(|document| document.remove_node(anchor));
-                        });
+                        let anchor = view! {
+                            <Frame width=CARET_WIDTH />
+                        };
 
                         let cx: Context = Rc::new(Surface {
                             state: state.clone(),

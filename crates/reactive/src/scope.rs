@@ -90,6 +90,7 @@ impl Owner {
 pub struct Scope {
     owner: Rc<Owner>,
     gate: Option<Rc<Gate>>,
+    handed: bool,
 }
 
 impl Scope {
@@ -118,7 +119,11 @@ impl Scope {
             ),
             ..Owner::default()
         });
-        Self { owner, gate: None }
+        Self {
+            owner,
+            gate: None,
+            handed: false,
+        }
     }
 
     pub fn pausable(mut self) -> Self {
@@ -177,6 +182,10 @@ impl Scope {
         batch(|| self.owner.dispose());
     }
 
+    pub fn into_parent(mut self) {
+        self.handed = true;
+    }
+
     pub fn is_disposed(&self) -> bool {
         self.owner.disposed.get()
     }
@@ -207,6 +216,12 @@ impl ScopeContext {
     }
 }
 
+pub fn current_scope() -> Option<ScopeContext> {
+    let owner = RUNTIME.with(|runtime| runtime.owner.borrow().clone());
+    let context = ScopeContext(owner);
+    context.is_alive().then_some(context)
+}
+
 pub fn owner_scope() -> Option<ScopeContext> {
     RUNTIME.with(|runtime| {
         let observer = runtime.observer.borrow().upgrade();
@@ -228,6 +243,9 @@ impl Default for Scope {
 
 impl Drop for Scope {
     fn drop(&mut self) {
+        if self.handed {
+            return;
+        }
         if std::thread::panicking() {
             self.owner.dispose();
         } else {
