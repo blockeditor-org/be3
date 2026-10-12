@@ -8,14 +8,12 @@ use accesskit::Node;
 
 use crate::accessibility::{self, AccessibilityTree};
 use crate::base::child_list::{ChildHost, NodeChildren, SlotId};
-use crate::base::fade::FadeNode;
-use crate::base::frame::Sides;
 use crate::context::{Context, Moved};
 use crate::damage::{Damage, Region};
 use crate::file_picker::{FileFilter, FilePick, FilePickId};
 use crate::flash::FlashLog;
 use crate::font::{FontId, Galley, TextLayout};
-use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
+use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::input::{Key, KeyChord, Modifiers};
 
 use crate::display::Display;
@@ -110,9 +108,7 @@ pub struct Document {
     node_test_ids: HashMap<NodeId, Vec<String>>,
     layout_revision: u64,
     paint_revision: u64,
-    delivering: bool,
-    pub deferred_reveals: Vec<NodeId>,
-    pub deferred_fades: Vec<(NodeOf<FadeNode>, Sides)>,
+    reports: Vec<Box<dyn FnOnce()>>,
     interaction_done: Option<Rc<dyn Fn()>>,
     laid_out: Option<Rc<dyn Fn()>>,
     constrained: HashSet<NodeId>,
@@ -128,6 +124,7 @@ pub struct Document {
     layout_pass: u64,
     scroll_hosts: Vec<NodeId>,
     scroll_shifts: NodeMap<f32>,
+    pub(crate) reveals: NodeMap<NodeId>,
     viewport: Option<(Context, Rect, f32)>,
     fonts_generation: u64,
     painting: Vec<(Rc<Display>, Vec2)>,
@@ -141,7 +138,6 @@ pub struct Document {
     extensions: HashMap<std::any::TypeId, Box<dyn Any>>,
     node_scopes: HashMap<NodeId, Vec<::reactive::Scope>>,
     node_refs: HashMap<NodeId, Vec<Weak<Cell<Option<NodeId>>>>>,
-    sizes: NodeMap<Vec<SizeWatcher>>,
     placements: NodeMap<Vec<PlacementWatcher>>,
     placed: NodeMap<(::reactive::ReadSignal<bool>, ::reactive::WriteSignal<bool>)>,
     component_states: HashMap<NodeId, Vec<Box<dyn Any>>>,
@@ -155,7 +151,6 @@ pub struct Document {
     damage: Damage,
     damage_flashes: FlashLog<Rect>,
     painters: NodeMap<Placing>,
-    spaces_moved: bool,
     rubber_banding: bool,
 }
 
@@ -165,11 +160,6 @@ struct Placing {
     own: PainterState,
     sight: Sight,
     culled: bool,
-}
-
-struct SizeWatcher {
-    read: ::reactive::ReadSignal<Vec2>,
-    write: ::reactive::WriteSignal<Vec2>,
 }
 
 const REMEMBERED_MEASUREMENTS: usize = 4;
@@ -191,19 +181,6 @@ fn axis_still_fits(offered: f32, size: f32, available: f32) -> bool {
         true => available.is_finite() && size <= available && available <= offered,
         false => available.to_bits() == size.to_bits(),
     }
-}
-
-fn constrained(held: Vec2, available: Vec2) -> Vec2 {
-    vec2(
-        match available.x.is_finite() {
-            true => available.x,
-            false => held.x,
-        },
-        match available.y.is_finite() {
-            true => available.y,
-            false => held.y,
-        },
-    )
 }
 
 #[derive(Default)]
@@ -265,6 +242,7 @@ static NEXT_ZONE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::n
 
 impl Document {
     pub fn new() -> Self {
+        let rects = Rc::new(Rects::default());
         Self {
             arena: Arena::default(),
             root: None,
@@ -274,7 +252,8 @@ impl Document {
             keyboard_held: false,
             activated: None,
             activation_key: None,
-            rects: Rc::new(Rects::default()),
+            drags: Rc::new(crate::drag_board::Board::new(Rc::clone(&rects))),
+            rects,
             tools: None,
             inspector_requested: false,
             screen_pointer: None,
@@ -307,7 +286,6 @@ impl Document {
             outside_watchers: HashSet::new(),
             forward: Default::default(),
             pointers: Default::default(),
-            drags: Rc::default(),
             paste_requested: false,
             unsent_file_picks: Vec::new(),
             waiting_file_picks: Vec::new(),
@@ -315,9 +293,7 @@ impl Document {
             node_test_ids: HashMap::new(),
             layout_revision: 0,
             paint_revision: 0,
-            delivering: false,
-            deferred_reveals: Vec::new(),
-            deferred_fades: Vec::new(),
+            reports: Vec::new(),
             interaction_done: None,
             laid_out: None,
             constrained: HashSet::new(),
@@ -333,6 +309,7 @@ impl Document {
             layout_pass: 0,
             scroll_hosts: Vec::new(),
             scroll_shifts: NodeMap::default(),
+            reveals: NodeMap::default(),
             viewport: None,
             fonts_generation: 0,
             painting: Vec::new(),
@@ -346,7 +323,6 @@ impl Document {
             extensions: HashMap::new(),
             node_scopes: HashMap::new(),
             node_refs: HashMap::new(),
-            sizes: NodeMap::default(),
             placements: NodeMap::default(),
             placed: NodeMap::default(),
             component_states: HashMap::new(),
@@ -360,7 +336,6 @@ impl Document {
             damage: Damage::default(),
             damage_flashes: FlashLog::default(),
             painters: NodeMap::default(),
-            spaces_moved: false,
             rubber_banding: true,
         }
     }
@@ -754,7 +729,7 @@ impl Document {
     pub fn set_accessibility(&mut self, id: NodeId, node: Node) {
         if self.accessibility.get(&id) != Some(&node) {
             self.accessibility.insert(id, node);
-            self.arena.invalidate_node(id);
+            self.arena.touch(id);
         }
     }
 
@@ -802,10 +777,8 @@ impl Document {
 
     pub fn remove_node(&mut self, id: NodeId) {
         let mut dropped = Vec::new();
-        if !self.delivering {
-            let rects = Rc::clone(&self.rects);
-            self.drop_placement(id, &rects, &mut dropped);
-        }
+        let rects = Rc::clone(&self.rects);
+        self.drop_placement(id, &rects, &mut dropped);
         let returning = self.returns_on_removal(id);
         let mut scopes = Vec::new();
         self.detach_subtree(id, &mut scopes);
@@ -848,7 +821,6 @@ impl Document {
         self.forget_back_gesture(id);
         self.back_handlers.retain(|handler| handler.id() != id);
         self.paint_cache.borrow_mut().forget(id);
-        self.sizes.remove(&id);
         self.placements.remove(&id);
         self.placed.remove(&id);
         self.measurements.remove(&id);
@@ -861,6 +833,7 @@ impl Document {
         self.outside_watchers.remove(&id);
         self.reached_pass.remove(&id);
         self.scroll_shifts.remove(&id);
+        self.reveals.remove(&id);
         self.accessibility.remove(&id);
         self.accessibility_tree.get_mut().forget(id, &self.arena);
         for test_id in self.node_test_ids.remove(&id).unwrap_or_default() {
@@ -1054,12 +1027,11 @@ impl Document {
             FrameMeasurement::measure(&mut measurement.timings.interaction, || {
                 if let Some(root) = self.root {
                     let rects = Rc::clone(&self.rects);
-                    let painter = ctx.painter();
                     let context = self.reactive_scope().context();
                     let _guard = crate::current::install(self);
                     context.run(|| {
                         crate::current::with_document(|document| {
-                            interact::interact(document, ctx, &painter, &rects, root)
+                            interact::interact(document, ctx, &rects, root)
                         });
                     });
                 }
@@ -1086,31 +1058,13 @@ impl Document {
         if std::mem::take(&mut self.paste_requested) {
             ctx.request_paste();
         }
+        if resized && self.focus_takes_text() {
+            self.reveal_focus();
+        }
         measurement.layout_passes =
             FrameMeasurement::measure(&mut measurement.timings.layout, || {
-                let mut passes = usize::from(self.update_layout(ctx, rect));
-                if resized && self.focus_takes_text() {
-                    self.reveal_focus(&ctx.painter());
-                    passes += usize::from(self.update_layout(ctx, rect));
-                }
-                passes
+                self.update_layout(ctx, rect)
             });
-        if let Some(laid_out) = self.laid_out.clone() {
-            for _ in 0..LAID_OUT_ROUNDS {
-                let context = self.reactive_scope().context();
-                {
-                    let _guard = crate::current::install(self);
-                    context.run(|| laid_out());
-                }
-                let moved = FrameMeasurement::measure(&mut measurement.timings.layout, || {
-                    self.update_layout(ctx, rect)
-                });
-                measurement.layout_passes += usize::from(moved);
-                if !moved {
-                    break;
-                }
-            }
-        }
         if self.keyboard
             && let Some(area) = self.focused_ime_area()
         {
@@ -1416,19 +1370,6 @@ impl Document {
         }
     }
 
-    pub fn watch_size(&mut self, id: NodeId) -> ::reactive::ReadSignal<Vec2> {
-        if let Some(watcher) = self.sizes.get(&id).and_then(|watchers| watchers.first()) {
-            return watcher.read.clone();
-        }
-        let size = self.rects.get(&id).map_or(Vec2::ZERO, |rect| rect.size());
-        let (read, write) = ::reactive::create_signal(size);
-        self.sizes.get_or_default(id).push(SizeWatcher {
-            read: read.clone(),
-            write,
-        });
-        read
-    }
-
     pub fn watch_placement(&mut self, id: NodeId) -> ::reactive::ReadSignal<Rect> {
         if let Some(watcher) = self
             .placements
@@ -1444,28 +1385,6 @@ impl Document {
             write,
         });
         read
-    }
-
-    pub fn register_placement_watcher(
-        &mut self,
-        id: NodeId,
-        read: ::reactive::ReadSignal<Rect>,
-        write: ::reactive::WriteSignal<Rect>,
-    ) {
-        self.placements
-            .get_or_default(id)
-            .push(PlacementWatcher { read, write });
-    }
-
-    pub fn register_size_watcher(
-        &mut self,
-        id: NodeId,
-        read: ::reactive::ReadSignal<Vec2>,
-        write: ::reactive::WriteSignal<Vec2>,
-    ) {
-        self.sizes
-            .get_or_default(id)
-            .push(SizeWatcher { read, write });
     }
 
     pub fn name_component(&mut self, id: NodeId, name: &'static str) {
@@ -1490,65 +1409,20 @@ impl Document {
             .unwrap_or_else(|| panic!("component has no {} state", std::any::type_name::<T>()))
     }
 
-    pub fn deliver_constraint(&mut self, id: NodeId, available: Vec2) {
-        if !self.delivering {
-            return;
+    pub fn offer_measured_constraint(&mut self, id: NodeId, available: Vec2) {
+        if self.offer_constraint(id, available) {
+            self.constrained.insert(id);
         }
-        let Some(watchers) = self.sizes.get(&id) else {
-            return;
-        };
-        self.constrained.insert(id);
-        let writes: Vec<(::reactive::WriteSignal<Vec2>, Vec2)> = watchers
-            .iter()
-            .filter_map(|watcher| {
-                let held = watcher.read.get_untracked();
-                let offered = constrained(held, available);
-                (offered != held).then(|| (watcher.write.clone(), offered))
-            })
-            .collect();
-        if writes.is_empty() {
-            return;
-        }
-        ::reactive::settle(|| {
-            for (write, size) in writes {
-                write.set(size);
-            }
-        });
     }
 
     pub fn deliver_unmeasured_constraint(&mut self, id: NodeId, available: Vec2) {
-        if self.constrained.contains(&id) {
-            return;
+        if !self.constrained.contains(&id) {
+            self.offer_constraint(id, available);
         }
-        self.deliver_constraint(id, available);
     }
 
-    pub fn deliver_placement(&mut self, id: NodeId, rect: Rect) {
-        if !self.delivering {
-            return;
-        }
-        let Some(watchers) = self.placements.get(&id) else {
-            return;
-        };
-        let writes: Vec<::reactive::WriteSignal<Rect>> = watchers
-            .iter()
-            .filter(|watcher| watcher.read.get_untracked() != rect)
-            .map(|watcher| watcher.write.clone())
-            .collect();
-        if writes.is_empty() {
-            return;
-        }
-        ::reactive::settle(|| {
-            for write in writes {
-                write.set(rect);
-            }
-        });
-    }
-
-    pub fn settle_effects(&mut self) {
-        if self.delivering {
-            ::reactive::settle(|| {});
-        }
+    pub fn report_after_layout(&mut self, report: impl FnOnce() + 'static) {
+        self.reports.push(Box::new(report));
     }
 
     pub fn assert_confined(&self, id: NodeId, watermark: usize) {
@@ -1652,14 +1526,6 @@ impl Document {
         counter.set(counter.get() + 1);
     }
 
-    pub fn note_parent(&mut self, id: NodeId) {
-        if !self.delivering {
-            return;
-        }
-        let parent = self.layout_parent;
-        self.arena.set_parent(id, parent);
-    }
-
     pub fn enter_measure(&mut self, id: NodeId) -> Option<NodeId> {
         self.layout_parent.replace(id)
     }
@@ -1679,14 +1545,12 @@ impl Document {
 
     pub fn leave_layout(&mut self, id: NodeId, frame: LayoutFrame, out: &Rects) {
         self.layout_parent = frame.parent;
-        if self.delivering {
-            let mut dropped = Vec::new();
-            for child in self.dropped_children(id, frame.base) {
-                self.drop_placement(child, out, &mut dropped);
-            }
-            for node in dropped {
-                self.release_placement(node);
-            }
+        let mut dropped = Vec::new();
+        for child in self.dropped_children(id, frame.base) {
+            self.drop_placement(child, out, &mut dropped);
+        }
+        for node in dropped {
+            self.release_placement(node);
         }
         self.placing.truncate(frame.base);
     }
@@ -1719,7 +1583,7 @@ impl Document {
     }
 
     fn drop_placement(&mut self, id: NodeId, out: &Rects, dropped: &mut Vec<NodeId>) {
-        if self.delivering && self.reached_pass.get(&id) == Some(&self.layout_pass) {
+        if self.reached_pass.get(&id) == Some(&self.layout_pass) {
             return;
         }
         self.painters.remove(&id);
@@ -1728,9 +1592,6 @@ impl Document {
             self.paint_cache.get_mut().unplace(id);
         }
         dropped.push(id);
-        if self.delivering {
-            self.deliver_placed(id, false);
-        }
         for child in self.placed_children.remove(&id).unwrap_or_default() {
             self.drop_placement(child, out, dropped);
         }
@@ -1752,10 +1613,6 @@ impl Document {
 
     pub fn laying_out(&self) -> Option<NodeId> {
         self.layout_parent
-    }
-
-    pub fn delivering(&self) -> bool {
-        self.delivering
     }
 
     pub fn invalidate_measurement(&mut self, id: NodeId) {
@@ -1786,17 +1643,12 @@ impl Document {
     }
 
     pub fn rewind_placing(&mut self, len: usize) {
-        if self.delivering {
-            self.placing.truncate(len);
-        }
+        self.placing.truncate(len);
     }
 
     pub fn note_placed(&mut self, id: NodeId) {
-        if self.delivering {
-            self.placing.push(id);
-            self.reached_pass.insert(id, self.layout_pass);
-            self.deliver_placed(id, true);
-        }
+        self.placing.push(id);
+        self.reached_pass.insert(id, self.layout_pass);
     }
 
     pub fn watch_placed(&mut self, id: NodeId) -> ::reactive::ReadSignal<bool> {
@@ -1808,17 +1660,6 @@ impl Document {
         read
     }
 
-    fn deliver_placed(&mut self, id: NodeId, placed: bool) {
-        let Some((read, write)) = self.placed.get(&id) else {
-            return;
-        };
-        if read.get_untracked() == placed {
-            return;
-        }
-        let write = write.clone();
-        ::reactive::settle(|| write.set(placed));
-    }
-
     pub fn reuse_placement(
         &mut self,
         id: NodeId,
@@ -1827,8 +1668,7 @@ impl Document {
         own: PainterState,
         out: &Rects,
     ) -> bool {
-        let reusable = self.delivering
-            && !self.arena.unplaced(id)
+        let reusable = !self.arena.unplaced(id)
             && out.placed(&id).is_some_and(|placed| {
                 placed.space == given.space && placed.rect.size() == rect.size()
             })
@@ -1851,7 +1691,6 @@ impl Document {
         let moved = out.insert(id, placed) != Some(placed);
         let space = out.set_space(SpaceId::of(id), given.space, rect.min.to_vec2(), given.clip);
         if moved || space {
-            self.spaces_moved = true;
             self.accessibility_tree.get_mut().mark(id, &self.arena);
         }
         true
@@ -1872,9 +1711,6 @@ impl Document {
         };
         let previous = out.insert(id, placed);
         out.set_space(SpaceId::of(id), given.space, rect.min.to_vec2(), given.clip);
-        if !self.delivering {
-            return;
-        }
         self.arena.clear_unplaced(id);
         self.arena.note_relaid(id);
         self.placed_pass.insert(id, self.layout_pass);
@@ -1917,7 +1753,7 @@ impl Document {
     }
 
     pub fn culls(&self, id: NodeId, size: Vec2, own: PainterState) -> bool {
-        self.delivering && !Sight::shows(size, own) && !self.holds_focus(id)
+        !Sight::shows(size, own) && !self.holds_focus(id)
     }
 
     fn holds_focus(&self, id: NodeId) -> bool {
@@ -1952,9 +1788,6 @@ impl Document {
     }
 
     pub fn note_space_reads(&mut self, id: NodeId, reads: bool, base: usize) {
-        if !self.delivering {
-            return;
-        }
         let Some(own) = self.painters.get(&id).map(|held| held.own) else {
             return;
         };
@@ -1982,18 +1815,19 @@ impl Document {
         let entered = painter.shifted(space, translation, clip);
         let state = painter.state();
         let kept = state.clip.intersect(clip);
-        if out.set_space(space, state.space, translation, kept) && self.delivering {
-            self.spaces_moved = true;
+        if out.set_space(space, state.space, translation, kept) {
             self.accessibility_tree.get_mut().mark(host, &self.arena);
         }
         entered
     }
 
-    fn redeliver_placements(&mut self) {
+    fn report_laid_out(&mut self) {
+        let reports = std::mem::take(&mut self.reports);
+        let rects = Rc::clone(&self.rects);
         let moved: Vec<(::reactive::WriteSignal<Rect>, Rect)> = self
             .placements
             .iter()
-            .filter_map(|(id, watchers)| Some((self.rects.get(&id)?, watchers)))
+            .filter_map(|(id, watchers)| Some((rects.get(&id)?, watchers)))
             .flat_map(|(rect, watchers)| {
                 watchers
                     .iter()
@@ -2001,14 +1835,61 @@ impl Document {
                     .map(move |watcher| (watcher.write.clone(), rect))
             })
             .collect();
-        if moved.is_empty() {
+        let placed: Vec<(::reactive::WriteSignal<bool>, bool)> = self
+            .placed
+            .iter()
+            .map(|(id, (read, write))| (rects.contains_key(&id), read, write))
+            .filter(|(placed, read, _)| read.get_untracked() != *placed)
+            .map(|(placed, _, write)| (write.clone(), placed))
+            .collect();
+        if reports.is_empty() && moved.is_empty() && placed.is_empty() {
             return;
         }
-        ::reactive::settle(|| {
-            for (write, rect) in moved {
-                write.set(rect);
-            }
+        let context = self.reactive_scope().context();
+        let _guard = crate::current::install(self);
+        context.run(|| {
+            ::reactive::settle(|| {
+                for report in reports {
+                    report();
+                }
+                for (write, rect) in moved {
+                    write.set(rect);
+                }
+                for (write, shown) in placed {
+                    write.set(shown);
+                }
+            });
         });
+    }
+
+    fn assert_layout_settled(&self, watermark: usize) {
+        if !cfg!(debug_assertions) {
+            return;
+        }
+        let relaid: Vec<String> = self
+            .arena
+            .relaid_since(watermark)
+            .iter()
+            .filter(|id| self.arena.contains(**id))
+            .take(8)
+            .map(|id| {
+                let names = self.component_names(*id).join(" in ");
+                format!("{} {id:?} ({names})", self.node_kind(*id))
+            })
+            .collect();
+        assert!(
+            relaid.is_empty(),
+            "layout did not settle in {LAYOUTS_PER_FRAME} layouts: what each reported kept changing \
+             the layout of {relaid:?}",
+        );
+    }
+
+    fn run_laid_out(&mut self) {
+        if let Some(laid_out) = self.laid_out.clone() {
+            let context = self.reactive_scope().context();
+            let _guard = crate::current::install(self);
+            context.run(|| laid_out());
+        }
     }
 
     pub fn viewport_rect(&self) -> Rect {
@@ -2046,45 +1927,43 @@ impl Document {
         measured
     }
 
-    fn update_layout(&mut self, ctx: &Context, rect: Rect) -> bool {
-        if self.layout_revision == self.arena.layout_revision {
-            return false;
-        }
-        for _ in 0..LAYOUT_PASSES {
-            self.lay_out_pass(ctx, rect);
-            let overlays_moved = self.relay_moved_overlays();
-            let unsettled = self.root.is_some_and(|root| self.arena.unplaced(root));
-            if !std::mem::take(&mut self.spaces_moved) {
-                if unsettled || overlays_moved {
-                    continue;
-                }
-                break;
+    fn needs_layout(&self) -> bool {
+        self.layout_revision != self.arena.layout_revision
+            || self.root.is_some_and(|root| self.arena.unplaced(root))
+    }
+
+    fn update_layout(&mut self, ctx: &Context, rect: Rect) -> usize {
+        let mut passes = 0;
+        for round in 0..LAYOUTS_PER_FRAME {
+            if self.needs_layout() {
+                self.lay_out_pass(ctx, rect);
+                passes += 1;
             }
-            let context = self.reactive_scope().context();
-            {
-                let _guard = crate::current::install(self);
-                context.run(|| {
-                    crate::current::with_document(Document::redeliver_placements);
-                });
+            let watermark = self.arena.relaid_len();
+            self.report_laid_out();
+            if round == 0 {
+                self.run_laid_out();
             }
-            if !unsettled && self.layout_revision == self.arena.layout_revision {
-                break;
+            if !self.needs_layout() {
+                return passes;
             }
-        }
-        for (fade, edges) in std::mem::take(&mut self.deferred_fades) {
-            if self.arena.contains(fade.id()) {
-                self.set_fade(fade, edges);
+            if round + 1 == LAYOUTS_PER_FRAME {
+                self.assert_layout_settled(watermark);
             }
         }
-        for node in std::mem::take(&mut self.deferred_reveals) {
-            if self.arena.contains(node) {
-                self.reveal_node(node);
-            }
-        }
-        true
+        self.lay_out_pass(ctx, rect);
+        ctx.request_repaint();
+        passes + 1
     }
 
     fn lay_out_pass(&mut self, ctx: &Context, rect: Rect) {
+        self.lay_out_tree(ctx, rect);
+        if self.relay_moved_overlays() {
+            self.lay_out_tree(ctx, rect);
+        }
+    }
+
+    fn lay_out_tree(&mut self, ctx: &Context, rect: Rect) {
         self.layout_pass = self.layout_pass.wrapping_add(1);
         let rects = Rc::clone(&self.rects);
         self.placing.clear();
@@ -2094,25 +1973,20 @@ impl Document {
             let placed = &*rects;
             self.constrained.clear();
             self.layout_parent = None;
-            self.delivering = true;
-            {
-                let _guard = crate::current::install(self);
-                context.run(|| {
-                    crate::current::with_document(|document| {
-                        layout::layout(document, &painter, root, rect, placed);
-                    });
+            let _guard = crate::current::install(self);
+            context.run(|| {
+                crate::current::with_document(|document| {
+                    layout::layout(document, &painter, root, rect, placed);
+                    document.lay_out_boundaries(ctx, placed);
+                    ::reactive::settle(|| {});
                 });
-            }
-            self.delivering = false;
+            });
         }
         self.placing.clear();
-        self.lay_out_boundaries(ctx, &rects);
         self.layout_revision = self.arena.layout_revision;
+        self.layout_pass = self.layout_pass.wrapping_add(1);
     }
 }
-
-const LAYOUT_PASSES: usize = 3;
-const LAID_OUT_ROUNDS: usize = 4;
 
 fn covered(rect: Rect, region: &Region) -> bool {
     let mut left = vec![rect];
@@ -2238,6 +2112,8 @@ fn verifying_paint() -> bool {
     cfg!(test) || VERIFY_PAINT.load(std::sync::atomic::Ordering::Relaxed)
 }
 
+const LAYOUTS_PER_FRAME: usize = 4;
+
 impl Document {
     fn lay_out_boundaries(&mut self, ctx: &Context, rects: &Rects) {
         for boundary in self.arena.take_boundaries() {
@@ -2259,19 +2135,8 @@ impl Document {
                 ..held.given
             };
             let painter = Painter::resumed(ctx.clone(), state);
-            let rect = placed.rect;
-            let context = self.reactive_scope().context();
             self.layout_parent = self.arena.parent(boundary);
-            self.delivering = true;
-            {
-                let _guard = crate::current::install(self);
-                context.run(|| {
-                    crate::current::with_document(|document| {
-                        layout::layout(document, &painter, boundary, rect, rects);
-                    });
-                });
-            }
-            self.delivering = false;
+            layout::layout(self, &painter, boundary, placed.rect, rects);
             self.layout_parent = None;
             self.placing.clear();
         }

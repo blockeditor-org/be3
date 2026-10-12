@@ -238,9 +238,12 @@ fn pointer_event(doc: &mut Document, frame: &Frame, event: PointerEvent) {
             if let Some(target) = gesture_target(doc, frame, event.pos)
                 && let Some(node) = interactive(doc, target)
             {
+                let (local, size) = local(frame.rects, target, event.pos);
                 node.on_zoom.clone().call(ZoomGesture {
                     factor,
                     pos: event.pos,
+                    local,
+                    size,
                 });
             }
         }
@@ -260,6 +263,12 @@ fn node_mut(doc: &mut Document, id: NodeId) -> Option<&mut InteractiveNode> {
 fn rect_of(doc: &Document, rects: &Rects, id: NodeId) -> Option<Rect> {
     interactive(doc, id)?;
     rects.get(&id)
+}
+
+fn local(rects: &Rects, id: NodeId, pos: Pos2) -> (Pos2, Vec2) {
+    rects.get(&id).map_or((pos, Vec2::ZERO), |rect| {
+        (pos - rect.min.to_vec2(), rect.size())
+    })
 }
 
 fn over(rects: &Rects, id: NodeId, pos: Pos2) -> bool {
@@ -1120,7 +1129,13 @@ fn pinch(doc: &mut Document, frame: &Frame) {
     };
     let (on_zoom, on_pan_drag) = (node.on_zoom.clone(), node.on_pan_drag.clone());
     if zoom != 1.0 {
-        on_zoom.call(ZoomGesture { factor: zoom, pos });
+        let (local, size) = local(frame.rects, target, pos);
+        on_zoom.call(ZoomGesture {
+            factor: zoom,
+            pos,
+            local,
+            size,
+        });
     }
     if pan != Vec2::ZERO {
         on_pan_drag.call(pan);
@@ -1156,13 +1171,17 @@ fn wheel(doc: &mut Document, frame: &Frame, event: PointerEvent, delta: Vec2, fl
         None
     });
     doc.pointers.wheel_latch = target.map(|target| (target, frame.now, pos));
-    let Some(node) = target.and_then(|target| interactive(doc, target)) else {
+    let Some((target, node)) = target.and_then(|target| Some((target, interactive(doc, target)?)))
+    else {
         return;
     };
+    let (local, size) = local(frame.rects, target, pos);
     node.on_scroll.clone().call(ScrollGesture {
         delta,
         fling,
         pos,
+        local,
+        size,
         modifiers: event.modifiers,
     });
 }
@@ -1320,5 +1339,5 @@ fn track(doc: &mut Document, frame: &Frame) {
     };
     doc.last_pointer = Some(PointerSample { pos, touch });
     doc.drag_board()
-        .track(crate::drag_board::DragPoint { pos, modifiers });
+        .track(crate::drag_board::DragPoint::at(pos, modifiers));
 }

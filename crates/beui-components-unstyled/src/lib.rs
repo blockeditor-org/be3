@@ -114,7 +114,9 @@ pub use popover::{
 };
 pub use pressable::Pressable;
 pub use scroll::{Scroll, ScrollHandle, ScrollbarStyle, scroll_animating};
-pub use scrollbar::{Scrollbar, ScrollbarHandle, thumb_length, thumb_start};
+pub use scrollbar::{
+    Scrollbar, ScrollbarHandle, ScrollbarThumb, thumb_length, thumb_rect, thumb_start,
+};
 pub use select::{
     Select, SelectOptionHandle, SelectTriggerHandle, select_highlighted, select_open,
     select_option_button, select_search, select_selected, select_trigger,

@@ -367,10 +367,7 @@ fn carry(drag: BlockDrag) {
     let Some(pointer) = pointer.filter(|_| !board.carrying()) else {
         return;
     };
-    let point = DragPoint {
-        pos: pointer.pos,
-        modifiers: Modifiers::NONE,
-    };
+    let point = DragPoint::at(pointer.pos, Modifiers::NONE);
     board.begin(Rc::new(drag), point, Rc::new(|_| {}));
 }
 

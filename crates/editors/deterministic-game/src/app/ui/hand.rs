@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
 use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, CanvasView, Draw, Drawing, ForEach, Frame, Memo, Prop, ReadSignal,
-    WriteSignal, clone, component, component_rect, create_effect, create_memo, view,
+    Canvas, CanvasItem, CanvasView, Draw, Drawing, ForEach, Frame, Memo, PlacementBuilder, Prop,
+    ReadSignal, WriteSignal, clone, component, create_effect, create_memo, view,
 };
 use block_editor_beui::beui::styled::use_theme;
 use block_editor_beui::beui::{NodeId, Painter, Pos2, Rect, Vec2, pos2};
@@ -48,42 +48,47 @@ pub(crate) fn HandBar(
     play: Play,
     hidden: Memo<Vec<ItemId>>,
 ) -> NodeId {
-    let rect = component_rect();
-    let bar = rect.clone();
-    create_effect(move || set_bar.set(bar.get()));
-    let theme = use_theme();
-    let shown = create_memo(clone!(hand -> move || !hand.with(Vec::is_empty)));
-    let height =
-        create_memo(clone!(shown -> move || Some(if shown.get() { BAR_HEIGHT } else { 0.0 })));
-    let keys = create_memo(clone!(hand -> move || {
-        hand.with(|hand| hand.iter().map(|held| (held.id, held.spot)).collect::<Vec<_>>())
-    }));
-    let screen = Some(CanvasView::new(Pos2::ZERO, 1.0));
     view! {
-        <Frame
-            height={height}
-            color={theme.surface.clone()}
-            outline={theme.border.clone()}
-            outline_width=1.0
-            outline_visible=true
-            visible={shown}
-            @test_id={"game.hand"}
-        >
-            <Canvas view={screen}>
-                <ForEach keys={keys}>
-                    {move |(id, spot): (ItemId, Spot)| view! {
-                        <HandItem
-                            id
-                            spot
-                            hand={hand.clone()}
-                            bar={rect.clone()}
-                            play={play.clone()}
-                            hidden={hidden.clone()}
-                        />
-                    }}
-                </ForEach>
-            </Canvas>
-        </Frame>
+        <PlacementBuilder>
+            {move |rect: ReadSignal<Rect>| {
+                let bar = rect.clone();
+                create_effect(move || set_bar.set(bar.get()));
+                let theme = use_theme();
+                let shown = create_memo(clone!(hand -> move || !hand.with(Vec::is_empty)));
+                let height =
+                    create_memo(clone!(shown -> move || Some(if shown.get() { BAR_HEIGHT } else { 0.0 })));
+                let keys = create_memo(clone!(hand -> move || {
+                    hand.with(|hand| hand.iter().map(|held| (held.id, held.spot)).collect::<Vec<_>>())
+                }));
+                let screen = Some(CanvasView::new(Pos2::ZERO, 1.0));
+                view! {
+                    <Frame
+                        height={height}
+                        color={theme.surface.clone()}
+                        outline={theme.border.clone()}
+                        outline_width=1.0
+                        outline_visible=true
+                        visible={shown}
+                        @test_id={"game.hand"}
+                    >
+                        <Canvas view={screen}>
+                            <ForEach keys={keys}>
+                                {move |(id, spot): (ItemId, Spot)| view! {
+                                    <HandItem
+                                        id
+                                        spot
+                                        hand={hand.clone()}
+                                        bar={rect.clone()}
+                                        play={play.clone()}
+                                        hidden={hidden.clone()}
+                                    />
+                                }}
+                            </ForEach>
+                        </Canvas>
+                    </Frame>
+                }
+            }}
+        </PlacementBuilder>
     }
 }
 

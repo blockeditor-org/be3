@@ -3,11 +3,13 @@ use std::rc::Rc;
 
 use super::*;
 use crate::geometry::vec2;
-use crate::reactive::{ForEach, List, build, component, component_rect, create_effect, view};
+use crate::reactive::{
+    ForEach, List, PlacementBuilder, ReadSignal, build, component, create_effect, view,
+};
 use crate::unstyled::Scroll;
 
 #[test]
-fn a_rect_watched_inside_a_scroll_follows_it_as_it_scrolls() {
+fn a_placement_built_inside_a_scroll_follows_it_as_it_scrolls() {
     let seen = Rc::new(Cell::new(Rect::NOTHING));
     let document = build({
         let seen = Rc::clone(&seen);
@@ -41,21 +43,25 @@ fn a_rect_watched_inside_a_scroll_follows_it_as_it_scrolls() {
     assert_eq!(
         seen.get().top(),
         50.0,
-        "a row that moves with its scroll reports where it moved to, \
-         though it was not laid out again"
+        "a row built from its placement hears where its scroll moved it"
     );
 }
 
 #[component]
 fn Row(watched: bool, seen: Rc<Cell<Rect>>) -> NodeId {
-    let rect = component_rect();
-    create_effect(move || {
-        let placed = rect.get();
-        if watched {
-            seen.set(placed);
-        }
-    });
     view! {
-        <Frame height=40.0 color=Color32::WHITE radius=0 />
+        <PlacementBuilder>
+            {move |rect: ReadSignal<Rect>| {
+                create_effect(move || {
+                    let placed = rect.get();
+                    if watched {
+                        seen.set(placed);
+                    }
+                });
+                view! {
+                    <Frame height=40.0 color=Color32::WHITE radius=0 />
+                }
+            }}
+        </PlacementBuilder>
     }
 }

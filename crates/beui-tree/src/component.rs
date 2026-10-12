@@ -76,7 +76,7 @@ pub trait ChildValue {
         assert!(
             !component.has_extensions(),
             "component `{}` returns a value that is no node, so the bindings its body made \
-             (such as `component_size` or `component_state`) have nothing to attach to",
+             (such as `component_placed` or `component_state`) have nothing to attach to",
             component.name(),
         );
     }

@@ -216,6 +216,8 @@ pub fn press_at(
 ) -> PointerPress {
     PointerPress {
         pos,
+        local: pos - rect.min.to_vec2(),
+        size: rect.size(),
         fraction: fraction(rect, pos),
         clicks,
         modifiers,
