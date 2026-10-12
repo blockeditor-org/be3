@@ -915,7 +915,8 @@ impl<S: ObjectStore> Tracker<S> {
         field: &str,
         option: &str,
         settings: &[Assignment],
-    ) -> Result<bool, String> {
+        adding: bool,
+    ) -> Result<(), String> {
         let loaded = self.load(database).await?;
         let schema = loaded
             .database
@@ -941,16 +942,20 @@ impl<S: ObjectStore> Tracker<S> {
                     )
                 })
         };
+        if option.trim().is_empty() {
+            return Err(format!("name an option of {}", field.name));
+        }
         let mut edits = Vec::new();
-        let (id, added) = match named(option) {
-            Ok(id) => (id, false),
-            Err(_) if option.trim().is_empty() => {
-                return Err(format!("name an option of {}", field.name));
+        let id = match (named(option), adding) {
+            (Ok(id), false) => id,
+            (Err(error), false) => return Err(error),
+            (Ok(_), true) => {
+                return Err(format!("{} already has {}", field.name, option.trim()));
             }
-            Err(_) => {
+            (Err(_), true) => {
                 let (id, add) = DatabaseSchema::add_enum_option(field.id, option.trim());
                 edits.push(add);
-                (id, true)
+                id
             }
         };
         for setting in settings {
@@ -1006,7 +1011,7 @@ impl<S: ObjectStore> Tracker<S> {
         self.change::<DatabaseSchemaContent>(schema, |_| Ok(edits.clone()))
             .await?;
         self.invalidate().await;
-        Ok(added)
+        Ok(())
     }
 
     pub async fn closed_option(&self, code: &str, field: &str) -> Result<Option<String>, String> {

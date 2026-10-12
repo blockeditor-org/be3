@@ -34,9 +34,10 @@ A database (or a view of one):
   schema                              Its columns, and each choice's colour, icon, whether
                                       it closes a row and which is the default
   option FIELD OPTION [SETTING=VALUE]...
-                                      Change (or add) a choice: color=blue, icon=done,
-                                      closed=yes, default=yes, name=NEW, after=OPTION or
-                                      first=yes
+                                      Change a choice: color=blue, icon=done, closed=yes,
+                                      default=yes, name=NEW, after=OPTION or first=yes
+  add-option FIELD OPTION [SETTING=VALUE]...
+                                      Add a choice, with the same settings
   add-column NAME TYPE [--options A,B] [--links DATABASE] [--multiple] [--inverse NAME]
                                       TYPE is text, number, enum, boolean, date, color,
                                       block or relation
@@ -407,21 +408,23 @@ async fn block_verb<S: ObjectStore>(
             print(shown(&row, json))
         }
         ("schema", _, Some(database)) => print(tracker.schema(database).await?.join("\n")),
-        ("option", _, Some(database)) => {
+        (verb @ ("option" | "add-option"), _, Some(database)) => {
             let [field, option, settings @ ..] = arguments.as_slice() else {
                 return Err(format!(
-                    "usage: be {} option FIELD OPTION [SETTING=VALUE]...",
+                    "usage: be {} {verb} FIELD OPTION [SETTING=VALUE]...",
                     entry.short
                 ));
             };
-            let added = tracker
-                .set_option(database, field, option, &assignments(settings)?)
+            tracker
+                .set_option(
+                    database,
+                    field,
+                    option,
+                    &assignments(settings)?,
+                    verb == "add-option",
+                )
                 .await?;
-            let schema = tracker.schema(database).await?.join("\n");
-            print(match added {
-                true => format!("added {option} to {field}\n{schema}"),
-                false => schema,
-            })
+            print(tracker.schema(database).await?.join("\n"))
         }
         ("add-column", _, Some(database)) => {
             let [name, kind] = arguments.as_slice() else {
@@ -474,7 +477,8 @@ async fn block_verb<S: ObjectStore>(
             entry.kind(),
             match (is_text, database) {
                 (true, _) => "cat, write, append, edit, ls and info",
-                (false, Some(_)) => "rows, new, schema, option, add-column, import, ls and info",
+                (false, Some(_)) =>
+                    "rows, new, schema, option, add-option, add-column, import, ls and info",
                 (false, None) => "ls and info",
             }
         ) + &format!(", not {verb}")),

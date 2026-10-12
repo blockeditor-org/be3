@@ -8,13 +8,13 @@ async fn a_merged_pull_request_closes_rows_without_a_done_status() {
     let harness = Harness::start().await;
     let tracker = Tracker::new(harness.owner().await);
     let board = board(&tracker).await;
-    run(&tracker, "Issues option Status Shipped closed=yes")
+    run(&tracker, "Issues add-option Status Shipped closed=yes")
         .await
         .unwrap();
     run(&tracker, "Issues option Status Shipped first=yes")
         .await
         .unwrap();
-    run(&tracker, "Issues option Status Canceled closed=yes")
+    run(&tracker, "Issues add-option Status Canceled closed=yes")
         .await
         .unwrap();
     let made = tracker

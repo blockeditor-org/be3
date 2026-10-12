@@ -50,7 +50,7 @@ be 3fa9 delete                          a block and everything in it, to Recentl
 be 3fa9 cat                             a text block, reached directly
 be Issues schema                        columns; each choice with its colour, icon, closed, default
 be Issues option Status Done closed=yes icon=done color=blue
-be Issues option Status Backlog default=yes first=yes
+be Issues add-option Status Backlog default=yes first=yes
 be Issues add-column "Blocked by" relation --links Issues --multiple --inverse Blocking
 be new-database Milestones --prefix MS --in a1f3
 be Issues import issues.csv             Linear's export, or any CSV
@@ -64,7 +64,8 @@ needs no coordination; the prefix is kept in the database's sealed metadata,
 which is how `be` finds the database without opening the others, and two
 databases with one prefix are refused. Field values are matched by name, case
 aside: an option's name for an Enum column, a row's title or id for a Relation.
-`option FIELD OPTION` adds the option if the column lacks it and takes
+`option FIELD OPTION` changes an option the column has, refusing any other
+name, and `add-option` adds one; both take
 `color=`, `icon=`, `closed=yes|no` (a closed option marks a row finished),
 `default=yes|no`, `name=`, `after=OPTION` and `first=yes`. A new row, by `new`
 or `import`, takes each Enum column's default option unless it sets that column.
