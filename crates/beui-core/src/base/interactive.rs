@@ -511,7 +511,6 @@ impl Document {
             .collect();
         for callback in outside {
             callback.call(pos);
-            ::reactive::settle(|| {});
         }
     }
 

@@ -87,7 +87,7 @@ fn Field(label: Prop<String>, value: Prop<String>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <Caption @sizing=ItemSize::Fixed(LABEL_WIDTH) content={label} />
-            <Code @sizing=ItemSize::Percent(100.0) content={value} />
+            <Code @sizing=ItemSize::Percent(100.0) content={value} wrap=true />
         </List>
     }
 }

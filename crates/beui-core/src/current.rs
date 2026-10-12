@@ -5,6 +5,26 @@ use crate::document::Document;
 thread_local! {
     static CURRENT_DOCUMENT: RefCell<Option<Document>> = const { RefCell::new(None) };
     static ACTIVE_DOCUMENT: Cell<*mut Document> = const { Cell::new(std::ptr::null_mut()) };
+    static LENT_DOCUMENT: Cell<*mut Document> = const { Cell::new(std::ptr::null_mut()) };
+    static LENT_IN_USE: Cell<bool> = const { Cell::new(false) };
+}
+
+struct Restore<T: Copy + 'static>(&'static std::thread::LocalKey<Cell<T>>, T);
+
+impl<T: Copy + 'static> Drop for Restore<T> {
+    fn drop(&mut self) {
+        self.0.with(|cell| cell.set(self.1));
+    }
+}
+
+pub(crate) fn lend<R>(document: &mut Document, f: impl FnOnce() -> R) -> R {
+    let lent: *mut Document = document;
+    let _lent = Restore(
+        &LENT_DOCUMENT,
+        LENT_DOCUMENT.with(|cell| cell.replace(lent)),
+    );
+    let _in_use = Restore(&LENT_IN_USE, LENT_IN_USE.with(|cell| cell.replace(false)));
+    f()
 }
 
 struct ActiveDocumentGuard;
@@ -55,8 +75,18 @@ pub fn install(document: &mut Document) -> DocumentGuard<'_> {
 
 pub fn enter<R>(document: &mut Document, f: impl FnOnce() -> R) -> R {
     let context = document.reactive_scope().context();
-    let _guard = install(document);
-    context.run(f)
+    let guard = install(document);
+    let result = context.run(f);
+    let installed = matches!(guard, DocumentGuard::Installed(..));
+    drop(guard);
+    if installed {
+        document.drain_removals();
+    }
+    result
+}
+
+pub(crate) fn run_in<R>(document: &mut Document, f: impl FnOnce(&mut Document) -> R) -> R {
+    enter(document, || with_document(f))
 }
 
 pub fn with_reactive_scope<R>(document: &mut Document, f: impl FnOnce() -> R) -> R {
@@ -71,6 +101,16 @@ pub fn with_document<R>(f: impl FnOnce(&mut Document) -> R) -> R {
 }
 
 pub fn try_with_document<R>(f: impl FnOnce(&mut Document) -> R) -> Option<R> {
+    let lent = LENT_DOCUMENT.with(Cell::get);
+    if !lent.is_null() {
+        let reentered = LENT_IN_USE.with(|cell| cell.replace(true));
+        debug_assert!(
+            !reentered,
+            "a build during layout reached the document while it already held it"
+        );
+        let _in_use = Restore(&LENT_IN_USE, reentered);
+        return Some(f(unsafe { &mut *lent }));
+    }
     CURRENT_DOCUMENT.with(|cell| match cell.try_borrow_mut() {
         Ok(mut slot) => {
             let document = slot.as_mut()?;

@@ -38,6 +38,7 @@ mod downstream_effect_recovers_after_memo_panics;
 mod dropping_scope_cancels_queued_effects;
 mod effects_can_write_signals_and_settle_without_recursion;
 mod effects_of_every_zone_run_when_no_zone_is_entered;
+mod flushing_a_scope_runs_only_the_effects_it_owns;
 mod memo_panic_can_be_retried;
 mod memo_writes_are_rejected_even_when_untracked;
 mod memos_are_lazy_cached_and_filter_equal_outputs;

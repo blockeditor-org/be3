@@ -1975,45 +1975,73 @@ without rebuilding their children.
 
 ### One layout per frame
 
-A frame is input, then layout, then paint. Input is dispatched against the rects
-the previous frame painted, which is what the reader was looking at when they
-clicked, and the tree is laid out once afterwards.
+A frame runs in fixed phases: input, then layout, then paint. Input is
+dispatched against the rects the previous frame painted, which is what the
+reader was looking at when they clicked. Events are dispatched once, in the
+order they arrived, pointer and keyboard interleaved, and the effects an
+event's handlers woke run after that event and before the next one, so a key
+typed just after a click reaches whatever the click focused.
 
-Layout is a function of the tree and the constraints it is offered: nothing
-the walk does writes a signal outside the node being laid out. Two nodes build
-their children inside their own layout, so whatever reacts rebuilds within
-their subtree and the walk carries on with the rebuilt tree:
+Effects never flush inside the dispatch of one event or inside the layout walk,
+with one exception: a node being laid out may build its own subtree there, and
+the effects that build owns run on the spot. `Document::build_within(node, ..)`
+does it: it lends the walk's own `&mut Document` to the build, so the build's
+`with_document` calls reach the document through that one reference, and it
+stops anything the build invalidates from marking the node or its ancestors,
+which are in the middle of being laid out. The build flushes with
+`ScopeContext::flush_owned`, which runs only the effects owned by that scope
+and the scopes under it; a write the build makes to a signal outside its
+subtree wakes that signal's effects once the walk has finished, which is what
+keeps a build confined to its node.
 
-- `LayoutBuilder` hands its render prop a `ReadSignal<Vec2>` of the constraint
-  it is offered (the finite axes of it; an unbounded axis keeps its last
-  value), written before its child is measured. Use it for a component that
-  needs the space it was given, such as one that wraps text or switches between
-  a row and a column.
-- `PlacementBuilder` hands its render prop a `ReadSignal<Rect>` of where it was
-  placed, in the document's coordinates, written as it is laid out and before
-  its child is. Use it for anything that positions content in document
-  coordinates (a canvas camera, an overlay anchored at a point) or needs the
-  size it ended up with rather than the one it was offered. It is laid out
-  again whenever it moves, scrolling included.
+Layout is a function of the tree and the constraints it is offered. Two nodes
+build during it:
 
-The rule both rest on is the one container queries settle on: a component may
-query the space it was given, but must not be the thing that decides that
-space on the axis it queries. Laying a node out changing an ancestor or an
-already-placed sibling is caught by a debug assertion.
+- `LayoutBuilder` hands its render prop a `ReadSignal<Vec2>` of the size it is
+  laid out at, on each axis its parent bounds (an axis the parent measured it
+  unbounded on keeps its last value). When the walk reaches it at a new size it
+  writes the signal and flushes its content's scope, then lays the content out
+  in the same walk, so a builder inside the content it just built is reached
+  and built in that walk too. Measuring it never rebuilds anything: a parent
+  that tries several sizes is answered by the content built for the last size
+  it was laid out at. If the rebuilt content measures differently, its
+  ancestors are laid out again once. Use it for a component that needs the
+  space it was given, such as one that wraps text or switches between a row
+  and a column, and give it that space from its parent (a stretch, a fixed or
+  percent size) on the axis it reads.
+- `VirtualList` builds each row its window reaches that it does not have yet,
+  as the walk reaches it, measures it and carries on, so one walk fills the
+  window.
+
+`PlacementBuilder` hands its render prop a `ReadSignal<Rect>` of where it was
+placed, in the document's coordinates, written after each layout with the
+other placement reports. Use it for anything that positions content in
+document coordinates (a canvas camera, an overlay anchored at a point). Moving
+it does not lay its content out again; only the effects that read the rect run.
+Content that needs the rect to lay itself out takes a second layout. A
+component that only needs where on itself it was pressed reads the `local`
+position pointer events carry instead.
+
+The rule these rest on is the one container queries settle on: a component
+may query the space it was given, but must not be the thing that decides that
+space on the axis it queries.
 
 Everything else layout decides is told to the tree after the walk: a `Scroll`'s
 position, `component_placed`, `node_rect` and `node_placed` for watching other
 nodes, and `Document::on_laid_out`, the callback block-app waits for its plugins
 in. A node with something to report queues it with
-`Document::report_after_layout`. If what they change touches layout, the frame
-is laid out again and reports again until nothing changes, so a frame is never
-painted from a layout the tree no longer has; a debug assertion names what is
-still changing after four layouts. Each of those extra layouts is a cost the
-frame pays, so keep what a report drives to painting where you can: a
-scrollbar's thumb is painted where the position says rather than laid out,
-which keeps scrolling to one layout a frame. Reach for a report only for what
-depends on how other nodes ended up, such as `TreeReveal`'s button appearing
-once the selected row has scrolled out of view.
+`Document::report_after_layout`, and one whose own size changed while it was
+laid out with `Document::invalidate_after_layout`. The reports run together in
+one batch; whatever they changed is laid out again, which only walks the
+nodes that changed and their ancestors, until nothing changes, so a frame is
+never painted from a layout the tree no longer has. After four layouts the
+frame is painted anyway, asks for another, and debug builds log what was still
+changing. Each of those extra layouts is a cost the frame pays, so keep what a
+report drives to painting where you can: a scrollbar's thumb is painted where
+the position says rather than laid out, which keeps scrolling to one layout a
+frame. Reach for a report only for what depends on how other nodes ended up,
+such as `TreeReveal`'s button appearing once the selected row has scrolled
+out of view.
 
 Pointer callbacks are handed positions in the coordinates of the node that
 hears them as well as the document's: `PointerPress`, `ScrollGesture` and
@@ -2308,13 +2336,12 @@ another kind, and a query meant for such code takes a `NodeId` and answers
 `None` or `false` itself, as `is_overlay_open` does.
 
 `measure` takes `&self` and must not mutate; `layout` takes `&mut self` and may
-update the node's own retained state, which is how a `VirtualList` realises
-the rows its slice of the viewport calls for. Both receive `&mut Document` and are
-reached through `beui_core::layout::measure` and `beui_core::layout::layout`, which take
-the element out of the arena for the duration so an effect woken mid-walk cannot
-alias it. Reach children through those two functions rather than calling another
-element's methods directly, or the node you descend into is never handed its
-constraint.
+update the node's own retained state, and may build its own subtree through
+`Document::build_within`, which is how a `VirtualList` builds the rows its
+slice of the viewport calls for. Both receive `&mut Document` and are reached
+through `beui_core::layout::measure` and `beui_core::layout::layout`, which
+take the element out of the arena for the duration. Reach children through
+those two functions rather than calling another element's methods directly.
 
 `unplaced` is the other half of `layout`. The layout calls it on every node it
 placed last pass and did not place this one - a child its parent now skips, and
@@ -2479,5 +2506,4 @@ is the full check, and CI runs it on a pull request and pushes whatever it chang
 the pull request's branch; it runs the workspace tests, lints, formatting, project structure checks, snapshot updates, and the formatter for
 `view!` bodies that rustfmt cannot handle. Use a package-scoped Cargo command
 only as a narrow diagnostic after one of the supported scripts has exposed a
-failure. Run `./scripts/buck run //crates/block-app:smoke` as well when a change can affect native
-startup or runtime integration.
+failure.

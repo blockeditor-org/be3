@@ -1,0 +1,14 @@
+#builtin.build .= () => std.Folder: [
+  "lib.c" .= std.c.compile: [
+    "transmogrify" .= transmogrify
+  ]
+]
+
+transmogrify :: (a: std.c.int, b: std.c.int) => std.c.int: :return {
+  std.c.if (a == b) {
+    return: zero()
+  }
+  -> a + b
+}
+zero :: () => std.c.int: 0
+std :: #builtin.std

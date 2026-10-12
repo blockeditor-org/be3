@@ -9,7 +9,7 @@ use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
 use crate::node::{Element, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
-use ::reactive::{KeyedItems, ScopeContext, numbered, owner_scope, settle};
+use ::reactive::{KeyedItems, ScopeContext, numbered, owner_scope};
 
 const ROW_LIMIT: usize = 4096;
 const ANCHOR_SLACK: f32 = 4.0;
@@ -192,26 +192,28 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         (first, last)
     }
 
-    fn build(&self, key: K) -> NodeId {
+    fn build(&self, doc: &mut Document, list: NodeId, key: K) -> NodeId {
         if let Some(node) = self.rows.get(&key) {
             return node;
         }
         let rows = self.rows.clone();
-        match self.owner.as_ref().filter(|owner| owner.is_alive()) {
-            Some(owner) => settle(|| owner.run(|| rows.entry(key))),
-            None => settle(|| rows.entry(key)),
-        }
+        let owner = self.owner.clone().filter(ScopeContext::is_alive);
+        doc.build_within(list, move || match owner {
+            Some(owner) => owner.run(|| rows.entry_owned(key)),
+            None => rows.entry_owned(key),
+        })
     }
 
     fn measured_row(
         &mut self,
         doc: &mut Document,
+        list: NodeId,
         painter: &Painter,
         index: usize,
         cross: f32,
     ) -> (K, NodeId, f32) {
         let key = self.keys[index].clone();
-        let node = self.build(key.clone());
+        let node = self.build(doc, list, key.clone());
         let offer = self.direction.axes(f32::INFINITY, cross);
         let length = self
             .direction
@@ -238,6 +240,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
     fn realize(
         &mut self,
         doc: &mut Document,
+        list: NodeId,
         painter: &Painter,
         window: (f32, f32),
         main: f32,
@@ -255,7 +258,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         while at < self.metrics.count && cursor < last && scanned < ROW_LIMIT {
             let estimate = self.metrics.height(at);
             let row = match cursor + estimate > first {
-                true => Some(self.measured_row(doc, painter, at, cross)),
+                true => Some(self.measured_row(doc, list, painter, at, cross)),
                 false => None,
             };
             let length = row.as_ref().map_or(estimate, |(_, _, length)| *length);
@@ -281,7 +284,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
             scanned += 1;
             let estimate = self.metrics.height(at);
             let row = match cursor - estimate < last {
-                true => Some(self.measured_row(doc, painter, at, cross)),
+                true => Some(self.measured_row(doc, list, painter, at, cross)),
                 false => None,
             };
             let length = row.as_ref().map_or(estimate, |(_, _, length)| *length);
@@ -360,12 +363,14 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
-        let node = doc.laying_out();
+        let Some(node) = doc.laying_out() else {
+            return;
+        };
         let (main, cross) = self.direction.main_and_cross(rect.size());
         let start = self.direction.main(rect.min.to_vec2());
         let total = self.metrics.total();
         let window = self.window(doc, painter, start, main);
-        let shift = self.realize(doc, painter, window, main, cross);
+        let shift = self.realize(doc, node, painter, window, main, cross);
         let grid = doc.pixel_grid();
         for row in &self.placed {
             let placed = item_rect(
@@ -376,11 +381,9 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
             );
             crate::layout::layout(doc, painter, row.node, placed, out);
         }
-        if let Some(node) = node {
-            doc.arena.adopt_children(node);
-            if self.metrics.total() != total {
-                doc.invalidate_measurement(node);
-            }
+        doc.arena.adopt_children(node);
+        if self.metrics.total() != total {
+            doc.arena.invalidate_node(node);
         }
         if shift != 0.0 {
             doc.record_scroll_shift(shift);

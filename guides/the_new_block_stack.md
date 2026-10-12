@@ -426,7 +426,8 @@ register default and old name) and the document's bytes. Keep it as a module
 of the block's tests, and test it with `schema::check_frozen::<Root>(REGISTRY,
 DOCUMENT)`, which fails when a frozen property is gone or retyped, a register
 default changed, the document no longer loads, or anything in it is no longer
-understood.
+understood. guides/frozen_formats.md lists what is frozen and the end-to-end
+snapshots of a server that hold it.
 
 `be-model` stores a document as a table of objects with ids, not as a tree of
 values, and every algorithm is written once against that table:

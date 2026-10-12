@@ -2,7 +2,7 @@
 #
 # Deploys be-server and the tracker's be from this checkout, in one buck2
 # command: it builds both in release for the platforms they run on, then runs
-# crates/deploy, which uploads each be to the mirror and reads it back, stops
+# local-tools deploy, which uploads each be to the mirror and reads it back, stops
 # the server's units, copies be-server and its build-id over with scp, starts
 # them again, and pins the uploaded be in scripts/internal/common.sh to commit.
 # `./scripts/deploy --help` lists its options and the environment it reads.
@@ -14,4 +14,4 @@ set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/internal/common.sh"
 
-exec "$repository/scripts/buck" run -m release //crates/deploy:deploy -- --repository "$repository" "$@"
+exec "$repository/scripts/buck" run -m release //crates/local-tools:deploy -- --repository "$repository" "$@"

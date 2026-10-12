@@ -59,11 +59,13 @@ Files:
   drop [TARGET]             drop the grabbed files; ungrab takes them away again
   upload FILE [TARGET]      answer the file dialog with FILE, clicking TARGET first to open it
   dismiss                   cancel the open file dialog
-Window (headless only, except focus, blur and leave):
+Window (headless only, except focus, blur, leave and close):
   resize WIDTHxHEIGHT[@SCALE]   resize the window, and its scale when given
   resize screen WIDTHxHEIGHT    the screen a fullscreen window fills
   focus / blur              the window gains or loses focus
   clipboard [TEXT]          read the clipboard, or put TEXT on it
+  close                     ask the window to close, as its close button does; an app that stays
+                            open, to ask about unsaved changes, answers with what changed
 Waiting:
   settle                    wait until nothing is left to draw
   wait TEXT|#TEST_ID        wait until a line of the tree contains TEXT, or the test id is on screen
@@ -157,6 +159,7 @@ pub struct Automation {
     ime: bool,
     back: Option<f32>,
     clock_stopped: bool,
+    closing: bool,
 }
 
 impl Automation {
@@ -174,6 +177,7 @@ impl Automation {
             ime: false,
             back: None,
             clock_stopped: false,
+            closing: false,
         }
     }
 
@@ -266,6 +270,16 @@ impl Automation {
                 }
             }
             world.events.extend(step);
+        }
+    }
+
+    pub fn take_close(&mut self) -> bool {
+        std::mem::take(&mut self.closing)
+    }
+
+    pub fn closed(&mut self, accepted: bool) {
+        if accepted {
+            self.finish(Reply::Text("The window closed.\n".to_owned()));
         }
     }
 
@@ -965,6 +979,12 @@ impl Automation {
                 input(vec![vec![Event::FileHoverCancelled]])
             }
             "settle" => Ok(Started::Phase(Phase::Settling { before: None })),
+            "close" => {
+                self.closing = true;
+                Ok(Started::Phase(Phase::Settling {
+                    before: Some(view.tree.to_owned()),
+                }))
+            }
             "a11y" => {
                 let line = node(
                     argument(0)?,

@@ -81,6 +81,7 @@ mod a_driver_acts_on_a_slider_the_way_a_screen_reader_does;
 mod a_driver_answers_a_file_dialog_with_a_file;
 mod a_driver_carries_grabbed_files_and_drops_them;
 mod a_driver_clicks_a_button_by_its_label_and_hears_what_changed;
+mod a_driver_closes_the_window_once_the_app_lets_it;
 mod a_driver_composes_with_an_input_method_and_holds_a_key;
 mod a_driver_holds_a_back_gesture_part_way_and_cancels_it;
 mod a_driver_holds_a_press_across_a_pause_and_taps_with_a_finger;
@@ -133,13 +134,17 @@ mod a_hidden_show_gives_its_share_of_the_space_to_its_visible_siblings;
 mod a_horizontal_scroll_lays_its_items_out_in_a_row;
 mod a_hovered_catcher_hears_where_the_pointer_is_while_another_holds_it;
 mod a_justified_row_places_its_leftover_space;
+mod a_key_typed_before_a_click_in_one_frame_reaches_the_field_focused_before_it;
 mod a_keyed_view_rebuilds_only_when_its_key_changes;
 mod a_launcher_closed_by_a_click_outside_opens_again;
 mod a_launcher_closed_by_a_click_outside_within_one_frame_opens_again;
 mod a_launcher_closed_by_escape_opens_again;
 mod a_launcher_query_that_matches_nothing_runs_as_a_command_and_escape_closes;
 mod a_launcher_ranks_names_above_keywords_and_comments;
+mod a_layout_builder_built_inside_another_settles_in_one_layout;
 mod a_layout_builder_in_a_scroll_rebuilds_for_the_width_it_is_given;
+mod a_layout_builder_in_a_wrapping_row_builds_only_for_the_width_it_is_laid_out_at;
+mod a_layout_builders_content_reads_the_context_its_caller_provides;
 mod a_layout_put_back_from_its_snapshot_keeps_the_tabs_where_they_were;
 mod a_list_in_a_scroll_lays_out_only_the_rows_near_the_view;
 mod a_list_sizes_plain_nodes_handed_to_it_intrinsically;
@@ -176,7 +181,7 @@ mod a_picture_given_a_source_paints_only_that_part_of_the_image;
 mod a_picture_paints_the_image_it_is_given;
 mod a_picture_scaled_down_never_grows_past_its_own_pixels;
 mod a_picture_shows_its_thumbhash_until_the_image_arrives;
-mod a_placement_built_inside_a_scroll_follows_it_as_it_scrolls;
+mod a_placement_built_inside_a_scroll_follows_it_without_laying_its_content_out_again;
 mod a_platform_keystroke_types_only_without_a_shortcut_held;
 mod a_plugin_description_reads_as_a_pane_under_the_window;
 mod a_pointer_lock_lets_go_when_the_window_loses_focus;
@@ -206,6 +211,7 @@ mod a_removed_nodes_slot_is_reused_under_a_new_id;
 mod a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose;
 mod a_row_pushed_down_by_the_row_above_it_is_neither_laid_out_nor_painted_again;
 mod a_runner_whose_app_panics_lets_the_app_exit_and_reports_why;
+mod a_scope_disposed_with_no_document_installed_still_removes_its_nodes;
 mod a_scroll_in_a_dialog_copies_what_it_showed_over_the_page_beneath;
 mod a_scroll_in_a_dialog_follows_the_wheel;
 mod a_scroll_inside_a_scroll_lays_out_the_rows_it_holds;
@@ -285,6 +291,7 @@ mod a_virtual_list_in_a_box_taller_than_its_rows_builds_every_row;
 mod a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view;
 mod a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate;
 mod a_virtual_list_scrolled_out_of_view_releases_its_rows;
+mod a_virtual_list_scrolled_to_rows_of_unestimated_heights_fills_its_window_in_one_walk;
 mod a_virtual_scroll_only_builds_the_items_in_view;
 mod a_virtual_scroll_row_can_build_reactive_content_during_dispatch;
 mod a_wheel_turned_before_the_pointer_moves_on_scrolls_what_it_was_over;
@@ -372,6 +379,7 @@ mod clicking_the_padding_around_a_button_label_activates_it;
 mod clicking_the_scrollbar_track_pages_the_scroll_towards_the_click;
 mod clicking_the_start_of_a_text_input_puts_the_caret_before_the_text;
 mod closing_a_dock_tab_asks_its_owner_to_remove_it;
+mod closing_a_panes_last_tab_keeps_its_bar_tall_and_darkens_it_without_a_border;
 mod compacting_virtual_rows_clamps_the_scroll_anchor_at_the_end;
 mod copy_and_cut_export_only_selected_text_and_cut_can_be_undone;
 mod ctrl_a_selects_everything_so_typing_replaces_the_value;
@@ -2015,6 +2023,7 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
 pub(crate) struct Driven {
     runner: beui_core::runner::Runner,
     inbox: beui_core::app::automation::Inbox,
+    pub(crate) closed: bool,
 }
 
 struct DrivenScreen(Vec2);
@@ -2094,7 +2103,11 @@ impl Driven {
             )
             .expect("the screen loads");
         runner.context().stop_clock();
-        let mut driven = Self { runner, inbox };
+        let mut driven = Self {
+            runner,
+            inbox,
+            closed: false,
+        };
         driven.frame();
         driven
     }
@@ -2103,11 +2116,13 @@ impl Driven {
         self.runner
             .context()
             .advance_clock(Duration::from_micros(16_667));
-        self.runner.frame(
+        if let Some(frame) = self.runner.frame(
             &mut DrivenPlatform,
             1.0,
             beui_core::app::SafeArea::default(),
-        );
+        ) {
+            self.closed |= frame.close_requested;
+        }
         if let Some(failure) = self.runner.failure() {
             panic!("the driven app panicked: {failure}");
         }

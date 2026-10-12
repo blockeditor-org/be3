@@ -147,6 +147,7 @@ pub struct Runner {
     actions: Vec<ActionGroup>,
     test_ids: std::collections::HashMap<String, crate::geometry::Rect>,
     unpresented: bool,
+    closing: bool,
     shown: Shown,
     output: Option<FrameOutput>,
     reports_screens: bool,
@@ -186,6 +187,7 @@ impl Runner {
             actions: Vec::new(),
             test_ids: std::collections::HashMap::new(),
             unpresented: false,
+            closing: false,
             shown: Shown::default(),
             output: None,
             reports_screens: false,
@@ -390,6 +392,11 @@ impl Runner {
                 context: &self.context,
             };
             automation.begin(&view, &mut world);
+            if automation.take_close() {
+                let accepted = self.app.close_requested();
+                automation.closed(accepted);
+                self.closing |= accepted;
+            }
         }
         let pixels_per_point = match &self.simulation {
             Some(simulation) => {
@@ -537,7 +544,7 @@ impl Runner {
             deferred: !self.events.is_empty(),
             repaint: output.repaint,
             repaint_after: output.repaint_after,
-            close_requested: output.close_requested,
+            close_requested: output.close_requested || self.closing,
         };
         self.unpresented |= pending;
         if let Some(automation) = &mut self.automation

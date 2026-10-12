@@ -258,13 +258,13 @@ fn Tile(label: Prop<String>) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame
-            height=TILE_HEIGHT
+            min_height={Some(TILE_HEIGHT)}
             color={theme.surface_raised.clone()}
             radius=RADIUS
             padding_horizontal=12.0
             align_vertical=Align::Center
         >
-            <Text string={label} color={theme.text.clone()} />
+            <Text string={label} color={theme.text.clone()} wrap=true />
         </Frame>
     }
 }
@@ -520,7 +520,7 @@ fn InteractiveCard() -> NodeId {
                     <Text string={log} color={theme.text.clone()} />
                 </Frame>
             </Interactive>
-            <Text string={state} color={theme.text_muted.clone()} monospace=true />
+            <Text string={state} color={theme.text_muted.clone()} monospace=true wrap=true />
         </List>
     }
 }
@@ -614,8 +614,8 @@ fn NudgedTile() -> NodeId {
 fn FadedStrip() -> NodeId {
     let edges = Sides::symmetric(48.0, 0.0);
     view! {
-        <List direction=Direction::Horizontal spacing=0.0>
-            <Fade edges>
+        <Fade edges>
+            <Scroll direction=Direction::Horizontal>
                 <List direction=Direction::Horizontal spacing=8.0>
                     <ForEach keys={PLANETS.to_vec()}>
                         {move |planet: &'static str| view! {
@@ -623,8 +623,8 @@ fn FadedStrip() -> NodeId {
                         }}
                     </ForEach>
                 </List>
-            </Fade>
-        </List>
+            </Scroll>
+        </Fade>
     }
 }
 

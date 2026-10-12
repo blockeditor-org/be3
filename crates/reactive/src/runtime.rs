@@ -93,13 +93,6 @@ pub fn batch<T>(f: impl FnOnce() -> T) -> T {
     result
 }
 
-pub fn settle<T>(f: impl FnOnce() -> T) -> T {
-    let result = batch(f);
-    let _guard = Reset::set(|runtime| &runtime.depth, 0);
-    flush();
-    result
-}
-
 pub(crate) fn next_sequence() -> u64 {
     RUNTIME.with(|runtime| {
         let next = runtime.sequence.get() + 1;
@@ -129,34 +122,57 @@ pub(crate) fn flush() {
     loop {
         let next = RUNTIME.with(|runtime| runtime.queue.borrow_mut().pop_front());
         let Some(next) = next else { break };
-        let Some(computation) = next.upgrade() else {
-            continue;
-        };
-        if let Some(gate) = computation.closed_gate() {
-            gate.park(next);
-            continue;
-        }
-        let current = RUNTIME.with(|runtime| runtime.zone.get());
-        if computation.zone != 0 && current != 0 && computation.zone != current {
-            RUNTIME.with(|runtime| {
-                runtime
-                    .parked
-                    .borrow_mut()
-                    .entry(computation.zone)
-                    .or_default()
-                    .push(next);
-            });
-            continue;
-        }
-        computation.queued.set(false);
-        let count = runs.entry(Rc::as_ptr(&computation)).or_insert(0);
-        *count += 1;
-        if *count > 10_000 {
-            computation.dispose();
-            panic!("reactive effects did not settle after 10000 executions");
-        }
-        computation.refresh();
+        run_queued(next, &mut runs);
     }
+}
+
+pub(crate) fn flush_within(root: &Owner) {
+    let depth = RUNTIME.with(|runtime| runtime.depth.get());
+    let _depth = Reset::set(|runtime| &runtime.depth, depth + 1);
+    let mut runs = HashMap::new();
+    loop {
+        let next = RUNTIME.with(|runtime| {
+            let mut queue = runtime.queue.borrow_mut();
+            let at = queue.iter().position(|queued| {
+                queued
+                    .upgrade()
+                    .is_some_and(|computation| computation.owned_within(root))
+            })?;
+            queue.remove(at)
+        });
+        let Some(next) = next else { break };
+        run_queued(next, &mut runs);
+    }
+}
+
+fn run_queued(next: Weak<Computation>, runs: &mut HashMap<*const Computation, usize>) {
+    let Some(computation) = next.upgrade() else {
+        return;
+    };
+    if let Some(gate) = computation.closed_gate() {
+        gate.park(next);
+        return;
+    }
+    let current = RUNTIME.with(|runtime| runtime.zone.get());
+    if computation.zone != 0 && current != 0 && computation.zone != current {
+        RUNTIME.with(|runtime| {
+            runtime
+                .parked
+                .borrow_mut()
+                .entry(computation.zone)
+                .or_default()
+                .push(next);
+        });
+        return;
+    }
+    computation.queued.set(false);
+    let count = runs.entry(Rc::as_ptr(&computation)).or_insert(0);
+    *count += 1;
+    if *count > 10_000 {
+        computation.dispose();
+        panic!("reactive effects did not settle after 10000 executions");
+    }
+    computation.refresh();
 }
 
 pub struct ZoneGuard {

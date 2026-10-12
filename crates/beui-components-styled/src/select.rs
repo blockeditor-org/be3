@@ -125,7 +125,7 @@ fn SelectTrigger(handle: SelectTriggerHandle, placeholder: Memo<String>) -> Node
                         font_size=FONT_BODY
                         color={text_color}
                         align=TextAlign::Start
-                        clip=true
+                        ellipsis=true
                         @sizing=ItemSize::Percent(100.0)
                     />
                     <Icon glyph={ICON_ARROW_DROP_DOWN.to_owned()} color={arrow_color} />
