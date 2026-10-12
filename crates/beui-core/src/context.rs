@@ -986,14 +986,6 @@ impl Context {
         }
     }
 
-    pub fn screen_input<R>(&self, reader: impl FnOnce(&InputState) -> R) -> R {
-        let scale = self.screen_scale();
-        if scale == 1.0 {
-            return self.input(reader);
-        }
-        reader(&self.inner.input.borrow().scaled(scale.recip()))
-    }
-
     pub fn set_screen_simulation(&self, simulation: Option<ScreenSimulation>) {
         self.inner.screen_simulation.set(simulation);
     }

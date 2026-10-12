@@ -38,7 +38,7 @@ pub fn wants_forward(element: &dyn Element) -> bool {
 }
 
 fn sink_at(doc: &mut Document, rects: &Rects, root: NodeId, pos: Pos2) -> Option<NodeId> {
-    let hit = hit::hit(doc, rects, root, pos, false);
+    let hit = super::pointer::hit(doc, rects, root, pos, false);
     hit::sink(doc, rects, &hit.path, pos)
 }
 
@@ -92,6 +92,7 @@ pub(super) fn route(
     pointer: bool,
     keys: super::Keys,
 ) {
+    doc.pointers.forget_hits();
     let modifiers = ctx.input(|input| input.modifiers);
     let position = ctx
         .input(|input| input.pointer.interact_pos())
@@ -101,7 +102,6 @@ pub(super) fn route(
     };
     let focused = alive(doc, doc.focused_node()).filter(|_| !keys.ignored());
     let hovered = position.and_then(|pos| sink_at(doc, rects, root, pos));
-    let wheeled = alive(doc, doc.pointers.wheel_sink);
     let routed = doc.pointers.routed.clone();
     let layers = doc.layers();
     let blocking = layers.blocking();
@@ -127,15 +127,17 @@ pub(super) fn route(
             Event::PointerMoved(_)
             | Event::PointerButton { .. }
             | Event::PointerGone
-            | Event::Touch { .. } => {
+            | Event::Touch { .. }
+            | Event::Scroll(_)
+            | Event::ScrollEnded
+            | Event::Zoom(_) => {
                 let to = routed
-                    .iter()
-                    .find(|(source, _)| *source == index)
-                    .and_then(|(_, sink)| *sink)
+                    .get(index)
+                    .copied()
+                    .flatten()
                     .filter(|sink| reachable(doc, *sink));
                 deliver(alive(doc, to), event);
             }
-            Event::Scroll(_) | Event::ScrollEnded | Event::Zoom(_) => deliver(wheeled, event),
             Event::FileHovered | Event::FileHoverCancelled | Event::FileDropped(_) => {
                 deliver(hovered, event)
             }

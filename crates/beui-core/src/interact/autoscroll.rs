@@ -2,7 +2,7 @@ use crate::base::interactive::InteractiveNode;
 use crate::base::list::Direction;
 use crate::context::Context;
 use crate::document::Document;
-use crate::geometry::{Pos2, Vec2};
+use crate::geometry::Pos2;
 use crate::input::{
     AutoscrollGesture, CursorIcon, Event, PointerButton, PointerEvent, PointerId, PointerPhase,
 };
@@ -31,20 +31,18 @@ pub(crate) fn start(doc: &mut Document, target: NodeId, pos: Pos2) {
     report(doc, &autoscroll, false);
 }
 
-pub(crate) fn frame(doc: &mut Document, ctx: &Context, enabled: bool) -> bool {
+pub(crate) fn frame(doc: &mut Document, ctx: &Context, enabled: bool) {
     let Some(autoscroll) = doc.autoscroll else {
-        return false;
+        return;
     };
     if catcher(doc, autoscroll.target).is_none() {
         doc.autoscroll = None;
-        return false;
+        return;
     }
     let lost = ctx.input(|input| input.events.contains(&Event::Focus(false)));
-    let wheeled = ctx.input(|input| input.scroll_delta != Vec2::ZERO);
-    if !enabled || lost || wheeled {
+    if !enabled || lost {
         finish(doc, &autoscroll);
     }
-    wheeled
 }
 
 pub(crate) fn end(doc: &mut Document) -> bool {
@@ -85,6 +83,10 @@ pub(crate) fn pointer(doc: &mut Document, event: &PointerEvent) -> bool {
         PointerPhase::Cancel | PointerPhase::Gone => {
             finish(doc, &autoscroll);
             false
+        }
+        PointerPhase::Scroll(_) => {
+            finish(doc, &autoscroll);
+            true
         }
         _ => false,
     }

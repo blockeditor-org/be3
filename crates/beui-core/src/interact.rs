@@ -63,21 +63,6 @@ pub fn interact(
     if events.iter().any(is_activity) {
         doc.note_input();
     }
-    let typed = !keys.ignored()
-        && events
-            .iter()
-            .any(|event| event.press().is_some_and(|press| press.pressed));
-    let moved = events
-        .iter()
-        .any(|event| matches!(event, Event::PointerMoved(_)));
-    if typed {
-        doc.acted = Acted::Keys;
-    } else if pointer
-        && moved
-        && let Some(pos) = ctx.input(|input| input.pointer.interact_pos())
-    {
-        doc.acted = Acted::Pointer(pos + doc.pointers.shift);
-    }
     pointer::dispatch(doc, ctx, rects, root, pointer);
     doc.validate_focus();
     let keep = match keys.ignored() {
@@ -136,6 +121,9 @@ fn key_event(
         }
         Event::Key { .. } if keys.claimed(event) => {}
         Event::Key { press, text, .. } => {
+            if press.pressed {
+                doc.acted = Acted::Keys;
+            }
             let fate = ::reactive::settle(|| key_press(doc, *press));
             if let Fate::Handled { reveal: true } = fate {
                 doc.reveal_focus(painter);

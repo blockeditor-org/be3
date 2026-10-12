@@ -12,6 +12,7 @@ pub const FINGER_TAP_TIME: Duration = Duration::from_millis(350);
 pub const TOUCH_VELOCITY_WINDOW: f32 = 0.12;
 pub const MAX_TOUCH_VELOCITY: f32 = 4_000.0;
 const WHEEL_VELOCITY_WINDOW: Duration = Duration::from_millis(100);
+const SYNTHESIZED_SLOP: f32 = 2.0;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Key {
@@ -592,13 +593,16 @@ impl PointerId {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum PointerPhase {
     Down(PointerButton),
     Move,
     Up(PointerButton),
     Cancel,
     Gone,
+    Scroll(Vec2),
+    ScrollEnded { fling: Vec2 },
+    Zoom(f32),
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -617,12 +621,10 @@ pub struct InputState {
     pub events: Vec<Event>,
     pub pointer_events: Vec<PointerEvent>,
     pub pointer: Pointer,
-    pub scroll_delta: Vec2,
-    pub scroll_fling: Vec2,
-    pub zoom_factor: f32,
     pub modifiers: Modifiers,
     pub long_press_delay: Duration,
     touches: Vec<(TouchId, Pos2)>,
+    touched: Vec<Pos2>,
     source: usize,
     force: Option<f32>,
     scroll_samples: VecDeque<(Instant, Vec2)>,
@@ -634,12 +636,10 @@ impl Default for InputState {
             events: Vec::new(),
             pointer_events: Vec::new(),
             pointer: Pointer::default(),
-            scroll_delta: Vec2::ZERO,
-            scroll_fling: Vec2::ZERO,
-            zoom_factor: 1.0,
             modifiers: Modifiers::default(),
             long_press_delay: LONG_PRESS_DELAY,
             touches: Vec::new(),
+            touched: Vec::new(),
             source: 0,
             force: None,
             scroll_samples: VecDeque::new(),
@@ -656,13 +656,23 @@ impl InputState {
                 Event::PointerMoved(pos)
                 | Event::PointerButton { pos, .. }
                 | Event::Touch { pos, .. } => *pos = scale(*pos),
+                Event::Scroll(delta) => *delta *= factor,
                 _ => {}
             }
         }
         for event in &mut input.pointer_events {
             event.pos = scale(event.pos);
+            match &mut event.phase {
+                PointerPhase::Scroll(delta) | PointerPhase::ScrollEnded { fling: delta } => {
+                    *delta *= factor;
+                }
+                _ => {}
+            }
         }
         for (_, pos) in &mut input.touches {
+            *pos = scale(*pos);
+        }
+        for pos in &mut input.touched {
             *pos = scale(*pos);
         }
         input.pointer.pos = input.pointer.pos.map(scale);
@@ -686,15 +696,11 @@ impl InputState {
             self.pointer.from_touch = false;
         }
         self.pointer_events.clear();
-        self.scroll_delta = Vec2::ZERO;
-        self.scroll_fling = Vec2::ZERO;
-        self.zoom_factor = 1.0;
-        let mut scroll_ended = false;
-        let suppress_mouse = self.pointer.from_touch
-            || raw
-                .events
-                .iter()
-                .any(|event| matches!(event, Event::Touch { .. }));
+        self.touched = self.touches.iter().map(|(_, pos)| *pos).collect();
+        self.touched.extend(raw.events.iter().filter_map(|event| match event {
+            Event::Touch { pos, .. } => Some(*pos),
+            _ => None,
+        }));
         for (source, event) in raw.events.iter().enumerate() {
             self.source = source;
             self.force = None;
@@ -702,14 +708,15 @@ impl InputState {
                 self.modifiers = modifiers;
             }
             match event {
-                Event::PointerMoved(pos) if !suppress_mouse => {
+                Event::PointerMoved(pos) if !self.from_touch(*pos) => {
                     self.pointer.pos = Some(*pos);
+                    self.pointer.from_touch = false;
                     self.emit(PointerId::Mouse, PointerPhase::Move, *pos);
                 }
                 Event::PointerMotion(delta) => {
                     self.pointer.motion += *delta;
                 }
-                Event::PointerGone if !suppress_mouse => self.mouse_gone(),
+                Event::PointerGone if self.touched.is_empty() => self.mouse_gone(),
                 Event::Focus(false) => {
                     for (id, pos) in std::mem::take(&mut self.touches) {
                         self.emit(PointerId::Touch(id), PointerPhase::Cancel, pos);
@@ -725,9 +732,10 @@ impl InputState {
                     pos,
                     button,
                     pressed,
-                    modifiers,
-                } if !suppress_mouse => {
+                    ..
+                } if !self.from_touch(*pos) => {
                     self.pointer.pos = Some(*pos);
+                    self.pointer.from_touch = false;
                     self.pointer.button(*button, *pressed, *pos, now);
                     let phase = match pressed {
                         true => PointerPhase::Down(*button),
@@ -735,9 +743,18 @@ impl InputState {
                     };
                     self.emit(PointerId::Mouse, phase, *pos);
                 }
-                Event::Scroll(delta) => self.scroll_delta += *delta,
-                Event::ScrollEnded => scroll_ended = true,
-                Event::Zoom(factor) => self.zoom_factor *= *factor,
+                Event::Scroll(delta) => {
+                    match self.scroll_samples.back_mut() {
+                        Some((when, sum)) if *when == now => *sum += *delta,
+                        _ => self.scroll_samples.push_back((now, *delta)),
+                    }
+                    self.wheel(PointerPhase::Scroll(*delta));
+                }
+                Event::ScrollEnded => {
+                    let fling = self.fling(now);
+                    self.wheel(PointerPhase::ScrollEnded { fling });
+                }
+                Event::Zoom(factor) => self.wheel(PointerPhase::Zoom(*factor)),
                 Event::Touch {
                     id,
                     phase,
@@ -751,7 +768,25 @@ impl InputState {
             }
         }
         self.events = raw.events;
-        self.sample_scroll(now, scroll_ended);
+        while self
+            .scroll_samples
+            .front()
+            .is_some_and(|(when, _)| now.duration_since(*when) > WHEEL_VELOCITY_WINDOW)
+        {
+            self.scroll_samples.pop_front();
+        }
+    }
+
+    fn from_touch(&self, pos: Pos2) -> bool {
+        self.touched
+            .iter()
+            .any(|touched| touched.distance(pos) <= SYNTHESIZED_SLOP)
+    }
+
+    fn wheel(&mut self, phase: PointerPhase) {
+        if let Some(pos) = self.pointer.pos.filter(|_| !self.pointer.from_touch) {
+            self.emit(PointerId::Mouse, phase, pos);
+        }
     }
 
     fn emit(&mut self, pointer: PointerId, phase: PointerPhase, pos: Pos2) {
@@ -826,33 +861,24 @@ impl InputState {
         }
     }
 
-    fn sample_scroll(&mut self, now: Instant, ended: bool) {
-        if self.scroll_delta != Vec2::ZERO {
-            self.scroll_samples.push_back((now, self.scroll_delta));
-        }
-        while self
-            .scroll_samples
-            .front()
-            .is_some_and(|(when, _)| now.duration_since(*when) > WHEEL_VELOCITY_WINDOW)
-        {
-            self.scroll_samples.pop_front();
-        }
-        if !ended {
-            return;
-        }
+    fn fling(&mut self, now: Instant) -> Vec2 {
         let samples = std::mem::take(&mut self.scroll_samples);
-        let (Some((first, _)), Some((last, _))) = (samples.front(), samples.back()) else {
-            return;
+        let recent: Vec<(Instant, Vec2)> = samples
+            .into_iter()
+            .filter(|(when, _)| now.duration_since(*when) <= WHEEL_VELOCITY_WINDOW)
+            .collect();
+        let (Some((first, _)), Some((last, _))) = (recent.first(), recent.last()) else {
+            return Vec2::ZERO;
         };
         let elapsed = last.duration_since(*first).as_secs_f32();
         if elapsed <= f32::EPSILON {
-            return;
+            return Vec2::ZERO;
         }
-        let travelled = samples
+        let travelled = recent
             .iter()
             .skip(1)
             .fold(Vec2::ZERO, |sum, (_, delta)| sum + *delta);
-        self.scroll_fling = travelled * elapsed.recip();
+        travelled * elapsed.recip()
     }
 }
 
