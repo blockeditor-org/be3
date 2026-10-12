@@ -16,7 +16,12 @@ async fn a_new_row_takes_each_choice_fields_default() {
     assert_eq!(pairs(&plain), [("Status".to_owned(), "To do".to_owned())]);
 
     let done = tracker
-        .create(board.database, "Write the guide", &[set("status", "Done")], Body::Keep)
+        .create(
+            board.database,
+            "Write the guide",
+            &[set("status", "Done")],
+            Body::Keep,
+        )
         .await
         .unwrap();
     assert_eq!(pairs(&done), [("Status".to_owned(), "Done".to_owned())]);

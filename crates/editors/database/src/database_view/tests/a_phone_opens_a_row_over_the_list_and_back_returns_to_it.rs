@@ -12,7 +12,10 @@ fn a_phone_opens_a_row_over_the_list_and_back_returns_to_it() {
     tracker.fixture.harness.click(&line);
     tracker.fixture.settle();
     assert!(tracker.fixture.harness.shown("database-view.detail.back"));
-    assert!(!tracker.fixture.harness.shown(&line), "the row covers the list");
+    assert!(
+        !tracker.fixture.harness.shown(&line),
+        "the row covers the list"
+    );
     assert_eq!(
         tracker.fixture.harness.label("database-view.detail.id"),
         tracker.fixture.database().short_id(tracker.row(4))

@@ -55,16 +55,24 @@ pub fn DisplayOptions(data: Data) -> NodeId {
             <KindSwitch data={switch} />
             <Separator />
             <Show condition={grouped}>
-                {move || clone!(groups -> view! { <GroupPicker data={groups} /> })}
+                {move || clone!(groups -> view! {
+                    <GroupPicker data={groups} />
+                })}
             </Show>
             <Show condition={ordered}>
-                {move || clone!(order -> view! { <OrderPicker data={order} /> })}
+                {move || clone!(order -> view! {
+                    <OrderPicker data={order} />
+                })}
             </Show>
             <Show condition={scatter}>
-                {move || clone!(axes -> view! { <AxisPickers data={axes} /> })}
+                {move || clone!(axes -> view! {
+                    <AxisPickers data={axes} />
+                })}
             </Show>
             <Show condition={listed.clone()}>
-                {move || clone!(empty -> view! { <EmptyGroups data={empty} /> })}
+                {move || clone!(empty -> view! {
+                    <EmptyGroups data={empty} />
+                })}
             </Show>
             <Show condition={listed}>
                 {move || clone!(shown -> view! {
@@ -296,7 +304,8 @@ fn AxisPickers(data: Data) -> NodeId {
 #[component]
 fn EmptyGroups(data: Data) -> NodeId {
     let on = data.show_empty_groups.clone();
-    let toggle = clone!(data -> move |on: bool| data.operate_view(DatabaseView::set_show_empty_groups(on)));
+    let toggle =
+        clone!(data -> move |on: bool| data.operate_view(DatabaseView::set_show_empty_groups(on)));
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <Body @sizing=ItemSize::Percent(100.0) content="Show empty groups" />

@@ -221,8 +221,7 @@ impl DatabaseField {
     }
 
     pub fn default_value(&self) -> Option<Uuid> {
-        self.default_option
-            .filter(|id| self.option(*id).is_some())
+        self.default_option.filter(|id| self.option(*id).is_some())
     }
 }
 
@@ -358,7 +357,9 @@ impl DatabaseSchema {
     }
 
     pub fn set_option_icon(option: Uuid, icon: ChoiceIcon) -> Edit {
-        EnumOption::ICON.set(ObjectId::from_uuid(option), &icon).into()
+        EnumOption::ICON
+            .set(ObjectId::from_uuid(option), &icon)
+            .into()
     }
 
     pub fn set_option_closed(option: Uuid, closed: bool) -> Edit {
@@ -374,16 +375,24 @@ impl DatabaseSchema {
     }
 
     pub fn move_field(field: Uuid, after: Option<Uuid>) -> Edit {
-        let anchor = after.map_or(Anchor::Start, |after| Anchor::After(ObjectId::from_uuid(after)));
+        let anchor = after.map_or(Anchor::Start, |after| {
+            Anchor::After(ObjectId::from_uuid(after))
+        });
         Self::FIELDS
             .move_into(ObjectId::ROOT, anchor, ObjectId::from_uuid(field))
             .into()
     }
 
     pub fn move_enum_option(field: Uuid, option: Uuid, after: Option<Uuid>) -> Edit {
-        let anchor = after.map_or(Anchor::Start, |after| Anchor::After(ObjectId::from_uuid(after)));
+        let anchor = after.map_or(Anchor::Start, |after| {
+            Anchor::After(ObjectId::from_uuid(after))
+        });
         SchemaField::ENUM_OPTIONS
-            .move_into(ObjectId::from_uuid(field), anchor, ObjectId::from_uuid(option))
+            .move_into(
+                ObjectId::from_uuid(field),
+                anchor,
+                ObjectId::from_uuid(option),
+            )
             .into()
     }
 
@@ -392,7 +401,10 @@ impl DatabaseSchema {
             .into_iter()
             .filter(|field| field.field_type == DatabaseFieldType::Enum)
             .filter_map(|field| {
-                Some((field.id, crate::database::DatabaseValue::Enum(field.default_value()?)))
+                Some((
+                    field.id,
+                    crate::database::DatabaseValue::Enum(field.default_value()?),
+                ))
             })
             .collect()
     }

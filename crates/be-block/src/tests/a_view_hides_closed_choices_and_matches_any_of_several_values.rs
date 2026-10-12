@@ -40,12 +40,7 @@ fn a_view_hides_closed_choices_and_matches_any_of_several_values() {
 
     let database = edited(
         &DatabaseContent::default(),
-        [
-            ("Plan", backlog),
-            ("Review it", review),
-            ("Ship", done),
-        ]
-        .map(|(name, state)| {
+        [("Plan", backlog), ("Review it", review), ("Ship", done)].map(|(name, state)| {
             Database::add_row([
                 (title, DatabaseValue::String(name.into())),
                 (status, DatabaseValue::Enum(state)),

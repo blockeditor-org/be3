@@ -38,7 +38,11 @@ fn databases_saved_by_the_first_tracker_build_still_load() {
     let schema =
         Document::<DatabaseSchema>::from_bytes(&bytes(frozen_database_schema::DOCUMENT)).unwrap();
     let status = schema.root().field_named("Status").unwrap();
-    let names: Vec<_> = status.enum_options.iter().map(|option| &option.name).collect();
+    let names: Vec<_> = status
+        .enum_options
+        .iter()
+        .map(|option| &option.name)
+        .collect();
     assert_eq!(names, ["To do", "Done"]);
     assert!(status.enum_options.iter().all(|option| {
         option.color == ChoiceColor::Gray && option.icon == ChoiceIcon::None && !option.closed

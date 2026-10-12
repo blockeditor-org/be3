@@ -1,13 +1,13 @@
 use block_editor_beui::be_block::database_schema::DatabaseField;
+use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::{
-    Align, Callback, Child, Direction, ForEach, Frame, List, Memo, clone, component,
-    create_memo, view,
+    Align, Callback, Child, Direction, ForEach, Frame, List, Memo, clone, component, create_memo,
+    view,
 };
 use block_editor_beui::beui::styled::context_menu::menu_style;
 use block_editor_beui::beui::styled::theme::RADIUS;
 use block_editor_beui::beui::styled::{Body, use_theme};
 use block_editor_beui::beui::unstyled::{self, ButtonHandle, MenuButtonHandle, MenuItem};
-use block_editor_beui::beui::NodeId;
 use block_editor_beui::database::{ChoiceMark, choice_glyph};
 use uuid::Uuid;
 
@@ -67,10 +67,12 @@ pub fn ChoicePicker(
         }),
     }));
     let theme = use_theme();
-    let color = create_memo(clone!(option theme -> move || match option.with(Option::is_some) {
-        true => theme.text.get(),
-        false => theme.text_muted.get(),
-    }));
+    let color = create_memo(
+        clone!(option theme -> move || match option.with(Option::is_some) {
+            true => theme.text.get(),
+            false => theme.text_muted.get(),
+        }),
+    );
     let keys = create_memo(clone!(field -> move || {
         field.with(|field| {
             field

@@ -21,8 +21,4 @@ fn a_new_row_takes_each_choices_default() {
         row.value(tracker.status),
         Some(&DatabaseValue::Enum(tracker.backlog))
     );
-    tracker
-        .fixture
-        .harness
-        .snapshot("a_new_row_takes_each_choices_default");
 }

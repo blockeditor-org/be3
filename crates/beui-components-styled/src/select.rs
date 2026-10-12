@@ -87,10 +87,12 @@ fn SelectTrigger(handle: SelectTriggerHandle, placeholder: Memo<String>) -> Node
         true => theme.surface.get(),
         false => theme.surface_raised.get(),
     }));
-    let text_color = create_memo(clone!(theme disabled -> move || match disabled.get() || empty.get() {
-        true => theme.text_muted.get(),
-        false => theme.text.get(),
-    }));
+    let text_color = create_memo(
+        clone!(theme disabled -> move || match disabled.get() || empty.get() {
+            true => theme.text_muted.get(),
+            false => theme.text.get(),
+        }),
+    );
     view! {
         <Frame
             max_width=TRIGGER_MAX_WIDTH

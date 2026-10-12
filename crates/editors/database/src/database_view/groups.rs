@@ -115,9 +115,7 @@ pub fn group_rows(
             group.rows.push(*index);
         }
     }
-    groups.retain(|group| {
-        !group.rows.is_empty() || (show_empty && group.key != GroupKey::Empty)
-    });
+    groups.retain(|group| !group.rows.is_empty() || (show_empty && group.key != GroupKey::Empty));
     groups
 }
 

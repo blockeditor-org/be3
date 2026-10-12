@@ -10,7 +10,9 @@ use block_editor_beui::be_block::database_schema::{
 use block_editor_beui::beui::styled::context_menu::menu_style;
 use block_editor_beui::beui::styled::{Caption, ToggleButton};
 use block_editor_beui::beui::unstyled::{self, MenuButtonHandle, MenuItem};
-use block_editor_beui::database::{ChoiceMark, choice_color_label, choice_glyph, choice_icon_label};
+use block_editor_beui::database::{
+    ChoiceMark, choice_color_label, choice_glyph, choice_icon_label,
+};
 
 use crate::database_view::app::controls::ControlFace;
 use block_editor_beui::beui::icons::{
@@ -47,11 +49,19 @@ const ROW_HEIGHT: f32 = 40.0;
 const FIELD_TYPES: [(DatabaseFieldType, &str, &str); 8] = [
     (DatabaseFieldType::String, "Text", ICON_SHORT_TEXT),
     (DatabaseFieldType::Number, "Number", ICON_NUMBERS),
-    (DatabaseFieldType::Enum, "Choice", ICON_ARROW_DROP_DOWN_CIRCLE),
+    (
+        DatabaseFieldType::Enum,
+        "Choice",
+        ICON_ARROW_DROP_DOWN_CIRCLE,
+    ),
     (DatabaseFieldType::Block, "Block", ICON_WIDGETS),
     (DatabaseFieldType::Boolean, "Checkbox", ICON_CHECK_BOX),
     (DatabaseFieldType::Color, "Color", ICON_PALETTE),
-    (DatabaseFieldType::Datetime, "Date and time", ICON_CALENDAR_TODAY),
+    (
+        DatabaseFieldType::Datetime,
+        "Date and time",
+        ICON_CALENDAR_TODAY,
+    ),
     (DatabaseFieldType::Relation, "Link to rows", ICON_LINK),
 ];
 
@@ -563,7 +573,9 @@ fn EnumOptionRow(
     let name = create_memo(clone!(option -> move || {
         option.with(|option| option.as_ref().map(|option| option.name.clone()).unwrap_or_default())
     }));
-    let closed = create_memo(clone!(option -> move || option.with(|option| option.as_ref().is_some_and(|option| option.closed))));
+    let closed = create_memo(
+        clone!(option -> move || option.with(|option| option.as_ref().is_some_and(|option| option.closed))),
+    );
     let default = create_memo(clone!(field -> move || {
         field.with(|field| field.as_ref().and_then(|field| field.default_value()) == Some(option_id))
     }));

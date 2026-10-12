@@ -1,6 +1,7 @@
 use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::be_block::database::{DatabaseValue, short_id};
 use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
+use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_UNFOLD_MORE};
 use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, clone, component, create_memo,
@@ -10,7 +11,6 @@ use block_editor_beui::beui::styled::{
     Body, ButtonVariant, Caption, IconButton, IconButtonSize, ListRow, Scroll, use_theme,
 };
 use block_editor_beui::beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
-use block_editor_beui::beui::NodeId;
 use block_editor_beui::database::ChoiceMark;
 use uuid::Uuid;
 
@@ -40,7 +40,10 @@ pub fn Kanban(data: Data) -> NodeId {
             <List spacing=0.0>
                 <Show condition={missing}>
                     <Frame padding_horizontal=PADDING padding_vertical=PADDING>
-                        <Caption content="Choose the choice field whose options make the columns, under Display." wrap=true />
+                        <Caption
+                            content="Choose the choice field whose options make the columns, under Display."
+                            wrap=true
+                        />
                     </Frame>
                 </Show>
                 <Show condition={ready}>
@@ -191,7 +194,11 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                     >
                         <List spacing=CARD_SPACING>
                             <Frame padding_left={Some(4.0)} padding_vertical=4.0>
-                                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=8.0
+                                >
                                     <ChoiceMark option={option.clone()} size=MARK_SIZE />
                                     <Body content={label.clone()} />
                                     <Caption content={count.clone()} />

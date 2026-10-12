@@ -5,8 +5,8 @@ use block_editor_beui::be_block::database_schema::{
 };
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_DESCRIPTION, ICON_EXPAND_MORE, ICON_LINK};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, Dynamic, ForEach, Frame, ItemSize, Layers, List, Memo, Show, VirtualList, clone,
-    component, create_memo, view,
+    Align, Direction, Dynamic, ForEach, Frame, ItemSize, Layers, List, Memo, Show, VirtualList,
+    clone, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::theme::{BORDER_WIDTH, FONT_SMALL};
 use block_editor_beui::beui::styled::{
@@ -117,11 +117,17 @@ pub fn ListView(data: Data) -> NodeId {
 }
 
 #[component]
-pub fn RowBeside(data: Data, enabled: bool, children: block_editor_beui::beui::reactive::Child) -> NodeId {
-    let selected = create_memo(clone!(data -> move || match enabled && data.kind.get() != block_editor_beui::be_block::database_view::DatabaseViewKind::Spreadsheet {
-        true => data.selected_row(),
-        false => None,
-    }));
+pub fn RowBeside(
+    data: Data,
+    enabled: bool,
+    children: block_editor_beui::beui::reactive::Child,
+) -> NodeId {
+    let selected = create_memo(
+        clone!(data -> move || match enabled && data.kind.get() != block_editor_beui::be_block::database_view::DatabaseViewKind::Spreadsheet {
+            true => data.selected_row(),
+            false => None,
+        }),
+    );
     let open = create_memo(clone!(selected -> move || selected.get().is_some()));
     let narrow = narrow_chrome();
     let main_shown = create_memo(clone!(narrow open -> move || !(narrow.get() && open.get())));
@@ -345,11 +351,20 @@ fn RowLine(data: Data, row: ObjectId) -> NodeId {
                 <Show condition={narrow}>
                     {move || clone!(narrow_data narrow_entry marks parts part_keys code title -> view! {
                         <List spacing=4.0>
-                            <List direction=Direction::Horizontal align=Align::Start spacing=SPACING>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Start
+                                spacing=SPACING
+                            >
                                 <Marks data={narrow_data} entry={narrow_entry} marks={marks} />
                                 <Body @sizing=ItemSize::Percent(100.0) content={title} wrap=true />
                             </List>
-                            <List direction=Direction::Horizontal align=Align::Center spacing=8.0 wrap=true>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=8.0
+                                wrap=true
+                            >
                                 <Caption content={code} />
                                 <Parts parts={parts} keys={part_keys} />
                             </List>

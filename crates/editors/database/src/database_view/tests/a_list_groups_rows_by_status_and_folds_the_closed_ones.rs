@@ -10,7 +10,10 @@ fn a_list_groups_rows_by_status_and_folds_the_closed_ones() {
     let done = group_test_key(GroupKey::Option(tracker.done));
 
     assert!(tracker.fixture.harness.shown(&tracker.line(0)));
-    assert!(!tracker.fixture.harness.shown(&shipped), "a closed group starts folded");
+    assert!(
+        !tracker.fixture.harness.shown(&shipped),
+        "a closed group starts folded"
+    );
     tracker.fixture.harness.record();
 
     tracker

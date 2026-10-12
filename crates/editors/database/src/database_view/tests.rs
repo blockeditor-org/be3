@@ -174,37 +174,96 @@ fn tracker() -> Tracker {
         fixture.fields[3],
     );
     let schema = fixture.schema;
-    let mut choice = |field: Uuid, name: &str, icon: ChoiceIcon, color: ChoiceColor, closed: bool| {
-        let id = fixture.option(field, name);
-        for edit in [
-            DatabaseSchema::set_option_icon(id, icon),
-            DatabaseSchema::set_option_color(id, color),
-            DatabaseSchema::set_option_closed(id, closed),
-        ] {
-            fixture.harness.edit::<DatabaseSchemaContent>(Some(schema), &edit);
-        }
-        id
-    };
-    let backlog = choice(status, "Backlog", ChoiceIcon::Backlog, ChoiceColor::Gray, false);
-    let started = choice(status, "In Progress", ChoiceIcon::Started, ChoiceColor::Yellow, false);
-    let review = choice(status, "In Review", ChoiceIcon::Review, ChoiceColor::Green, false);
+    let mut choice =
+        |field: Uuid, name: &str, icon: ChoiceIcon, color: ChoiceColor, closed: bool| {
+            let id = fixture.option(field, name);
+            for edit in [
+                DatabaseSchema::set_option_icon(id, icon),
+                DatabaseSchema::set_option_color(id, color),
+                DatabaseSchema::set_option_closed(id, closed),
+            ] {
+                fixture
+                    .harness
+                    .edit::<DatabaseSchemaContent>(Some(schema), &edit);
+            }
+            id
+        };
+    let backlog = choice(
+        status,
+        "Backlog",
+        ChoiceIcon::Backlog,
+        ChoiceColor::Gray,
+        false,
+    );
+    let started = choice(
+        status,
+        "In Progress",
+        ChoiceIcon::Started,
+        ChoiceColor::Yellow,
+        false,
+    );
+    let review = choice(
+        status,
+        "In Review",
+        ChoiceIcon::Review,
+        ChoiceColor::Green,
+        false,
+    );
     let done = choice(status, "Done", ChoiceIcon::Done, ChoiceColor::Blue, true);
-    let urgent = choice(priority, "Urgent", ChoiceIcon::Urgent, ChoiceColor::Orange, false);
+    let urgent = choice(
+        priority,
+        "Urgent",
+        ChoiceIcon::Urgent,
+        ChoiceColor::Orange,
+        false,
+    );
     let high = choice(priority, "High", ChoiceIcon::High, ChoiceColor::Gray, false);
-    let wayland = choice(project, "Wayland", ChoiceIcon::None, ChoiceColor::Blue, false);
-    let beui = choice(project, "Beui", ChoiceIcon::None, ChoiceColor::Purple, false);
+    let wayland = choice(
+        project,
+        "Wayland",
+        ChoiceIcon::None,
+        ChoiceColor::Blue,
+        false,
+    );
+    let beui = choice(
+        project,
+        "Beui",
+        ChoiceIcon::None,
+        ChoiceColor::Purple,
+        false,
+    );
     fixture.harness.edit::<DatabaseSchemaContent>(
         Some(schema),
         &DatabaseSchema::set_default_option(status, Some(backlog)),
     );
     let rows = [
-        ("Ctrl+Shift+I opens both the host's inspector and the plugin's", started, None, None),
+        (
+            "Ctrl+Shift+I opens both the host's inspector and the plugin's",
+            started,
+            None,
+            None,
+        ),
         ("small protocols", review, None, Some(wayland)),
-        ("beui: Text always lays out from Span children, reshaping only spans that change", review, None, Some(beui)),
+        (
+            "beui: Text always lays out from Span children, reshaping only spans that change",
+            review,
+            None,
+            Some(beui),
+        ),
         ("freeze prep", backlog, Some(urgent), None),
-        ("one wl_output per monitor", backlog, Some(high), Some(wayland)),
+        (
+            "one wl_output per monitor",
+            backlog,
+            Some(high),
+            Some(wayland),
+        ),
         ("fractional scaling", backlog, None, Some(wayland)),
-        ("block-app --session: system tray", done, None, Some(wayland)),
+        (
+            "block-app --session: system tray",
+            done,
+            None,
+            Some(wayland),
+        ),
     ];
     for (index, (name, state, urgency, area)) in rows.into_iter().enumerate() {
         fixture.set(index, title, DatabaseValue::String(name.into()));

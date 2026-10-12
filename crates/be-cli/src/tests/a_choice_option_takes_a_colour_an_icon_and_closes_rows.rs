@@ -16,17 +16,23 @@ async fn a_choice_option_takes_a_colour_an_icon_and_closes_rows() {
     let schema = run(&tracker, "Issues schema").await.unwrap();
     assert_eq!(status(&schema), "Status\tone of To do (gray), Done (gray)");
 
-    let schema = run(&tracker, "Issues option Status done closed=yes icon=done color=Blue")
-        .await
-        .unwrap();
+    let schema = run(
+        &tracker,
+        "Issues option Status done closed=yes icon=done color=Blue",
+    )
+    .await
+    .unwrap();
     assert_eq!(
         status(&schema),
         "Status\tone of To do (gray), Done (blue, icon done, closed)"
     );
 
-    let schema = run(&tracker, "Issues option Status Backlog first=yes default=yes icon=backlog")
-        .await
-        .unwrap();
+    let schema = run(
+        &tracker,
+        "Issues option Status Backlog first=yes default=yes icon=backlog",
+    )
+    .await
+    .unwrap();
     assert!(schema.starts_with("added Backlog to Status\n"), "{schema}");
     assert_eq!(
         status(&schema),

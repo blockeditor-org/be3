@@ -18,7 +18,12 @@ async fn a_merged_pull_request_closes_rows_without_a_done_status() {
         .await
         .unwrap();
     let made = tracker
-        .create(board.database, "Fix the login", &[set("Status", "To do")], Body::Keep)
+        .create(
+            board.database,
+            "Fix the login",
+            &[set("Status", "To do")],
+            Body::Keep,
+        )
         .await
         .unwrap();
     let event = json!({
@@ -43,13 +48,19 @@ async fn a_merged_pull_request_closes_rows_without_a_done_status() {
         .unwrap();
     assert_eq!(said, [format!("{}: Status is now Shipped", made.id)]);
     let shipped = tracker.show(&made.id).await.unwrap();
-    assert_eq!(pairs(&shipped), [("Status".to_owned(), "Shipped".to_owned())]);
+    assert_eq!(
+        pairs(&shipped),
+        [("Status".to_owned(), "Shipped".to_owned())]
+    );
 
     pull_request(&tracker, &event, &statuses(Some("Canceled")))
         .await
         .unwrap();
     let canceled = tracker.show(&made.id).await.unwrap();
-    assert_eq!(pairs(&canceled), [("Status".to_owned(), "Canceled".to_owned())]);
+    assert_eq!(
+        pairs(&canceled),
+        [("Status".to_owned(), "Canceled".to_owned())]
+    );
 
     harness.stop().await;
 }

@@ -1,21 +1,21 @@
-use block_editor_beui::be_block::{BlockContent, ObjectId};
 use block_editor_beui::be_block::database::{DatabaseValue, RowRef, short_id};
 use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
 use block_editor_beui::be_block::text::TextContent;
+use block_editor_beui::be_block::{BlockContent, ObjectId};
+use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
     ICON_ARROW_BACK, ICON_CLOSE, ICON_DELETE, ICON_EXPAND_LESS, ICON_EXPAND_MORE, ICON_MORE_HORIZ,
     ICON_NOTE_ADD, ICON_OPEN_IN_NEW,
 };
 use block_editor_beui::beui::reactive::{
-    Align, BackHandler, Direction, ForEach, Frame, ItemSize, List, Memo, Show, clone,
-    component, create_memo, view,
+    Align, BackHandler, Direction, ForEach, Frame, ItemSize, List, Memo, Show, clone, component,
+    create_memo, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, IconButton, IconMenuButton, ListRow, Scroll, Select,
     Separator, TextInput, use_theme,
 };
 use block_editor_beui::beui::unstyled::{ChoiceOption, MenuItem};
-use block_editor_beui::beui::NodeId;
 use block_editor_beui::block_ui::database::{DatabaseBlockPickRequest, DatabaseValueChange};
 use block_editor_beui::database::{ChoiceMark, DatabaseValueEditor};
 use block_editor_beui::{ChildBlock, ChildMode, ChildTarget, narrow_chrome};
@@ -515,7 +515,11 @@ fn LinkedRow(
                         </Frame>
                     </Frame>
                     <Caption content={code} />
-                    <Body @sizing={ItemSize::Percent(100.0).shrink(1.0)} content={label} ellipsis=true />
+                    <Body
+                        @sizing={ItemSize::Percent(100.0).shrink(1.0)}
+                        content={label}
+                        ellipsis=true
+                    />
                 </List>
             </ListRow>
             <IconButton
@@ -529,4 +533,3 @@ fn LinkedRow(
         </List>
     }
 }
-

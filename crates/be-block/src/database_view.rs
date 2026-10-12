@@ -151,7 +151,9 @@ impl DatabaseView {
     }
 
     pub fn shows(&self, row: &DatabaseRow, fields: &[DatabaseField]) -> bool {
-        self.filters.iter().all(|filter| filter.matches(row, fields))
+        self.filters
+            .iter()
+            .all(|filter| filter.matches(row, fields))
     }
 
     pub fn add_filter(field: Option<Uuid>, condition: FilterCondition) -> (ObjectId, Edit) {

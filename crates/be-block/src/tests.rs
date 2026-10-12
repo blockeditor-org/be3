@@ -60,6 +60,7 @@ mod a_review_forgets_or_repoints_an_approval_with_its_snapshot;
 mod a_row_is_found_by_its_short_id_with_or_without_its_prefix;
 mod a_schema_field_removed_on_one_side_and_renamed_on_the_other_stays_removed;
 mod a_schema_normalizes_number_options_and_keeps_option_ids;
+mod a_view_hides_closed_choices_and_matches_any_of_several_values;
 mod a_view_shows_only_the_rows_every_filter_matches;
 mod a_wire_cut_on_one_side_stays_cut_when_the_other_extends_it;
 mod a_wire_cut_stays_cut_when_someone_extends_it_at_once;
@@ -86,11 +87,15 @@ mod compiling_an_empty_grid_is_refused;
 mod components_added_by_two_peers_at_once_are_both_kept;
 mod components_added_on_both_sides_offline_are_both_kept;
 mod content_is_stamped_with_the_shape_it_was_saved_in;
+mod databases_saved_by_the_first_tracker_build_still_load;
 mod defined_metadata_merges_key_by_key;
 mod deleting_or_replacing_a_linked_block_rewrites_the_cells_that_link_it;
 mod entities_brought_forward_on_both_sides_merge_to_both_moves;
 mod enum_options_added_on_both_sides_merge_to_both;
 mod file_contents_check_what_they_hold_and_round_trip;
+mod frozen_database;
+mod frozen_database_schema;
+mod frozen_database_view;
 mod input_settings_keep_their_values_in_bounds;
 mod inserts_at_one_place_from_two_peers_keep_each_peers_text_whole;
 mod items_added_by_two_peers_at_once_are_both_kept;
@@ -129,11 +134,6 @@ mod unpinning_a_component_removes_it_from_every_folder;
 mod video_clips_attach_ripple_and_refuse_cycles;
 mod visiting_a_block_puts_it_first_in_the_recents_once;
 mod wires_drawn_on_each_side_that_meet_join_into_one;
-mod a_view_hides_closed_choices_and_matches_any_of_several_values;
-mod databases_saved_by_the_first_tracker_build_still_load;
-mod frozen_database;
-mod frozen_database_schema;
-mod frozen_database_view;
 
 fn header(name: &str) -> ImageHeader {
     ImageHeader {

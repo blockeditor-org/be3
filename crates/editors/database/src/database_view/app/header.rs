@@ -33,16 +33,25 @@ pub fn ViewHeader(data: Data) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={wide}>
-                {move || clone!(wide_data -> view! { <WideHeader data={wide_data} /> })}
+                {move || clone!(wide_data -> view! {
+                    <WideHeader data={wide_data} />
+                })}
             </Show>
             <Show condition={narrow}>
-                {move || clone!(narrow_data -> view! { <NarrowHeader data={narrow_data} /> })}
+                {move || clone!(narrow_data -> view! {
+                    <NarrowHeader data={narrow_data} />
+                })}
             </Show>
             <Show condition={failed}>
                 {move || clone!(message dismiss theme -> view! {
                     <Frame padding_horizontal=GUTTER padding_vertical=6.0>
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                            <Body @sizing=ItemSize::Percent(100.0) content={message} color={theme.danger.clone()} wrap=true />
+                            <Body
+                                @sizing=ItemSize::Percent(100.0)
+                                content={message}
+                                color={theme.danger.clone()}
+                                wrap=true
+                            />
                             <Button
                                 label="Dismiss"
                                 variant=ButtonVariant::Secondary
@@ -88,7 +97,9 @@ fn WideHeader(data: Data) -> NodeId {
                     >
                         {move |_| {
                             let data = display.clone();
-                            view! { <DisplayOptions data={data} /> }
+                            view! {
+                                <DisplayOptions data={data} />
+                            }
                         }}
                     </Popover>
                 </List>
@@ -135,8 +146,15 @@ fn NarrowHeader(data: Data) -> NodeId {
                 <ModalSheet open={sheet} on_close={close}>
                     <Frame padding_horizontal={GUTTER * 1.5} padding_bottom={Some(GUTTER * 2.0)}>
                         <List spacing=GUTTER>
-                            <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                                <Heading @sizing=ItemSize::Percent(100.0) content="Filter and display" />
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=SPACING
+                            >
+                                <Heading
+                                    @sizing=ItemSize::Percent(100.0)
+                                    content="Filter and display"
+                                />
                                 <Button
                                     label="Done"
                                     variant=ButtonVariant::Ghost

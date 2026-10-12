@@ -12,15 +12,13 @@ use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, clone, component, create_memo,
     create_signal, view,
 };
+use block_editor_beui::beui::styled::popover::PopoverPanel;
 use block_editor_beui::beui::styled::theme::{BORDER_WIDTH, FONT_SMALL};
 use block_editor_beui::beui::styled::{
     Body, ButtonVariant, Caption, Checkbox, IconButton, IconButtonSize, IconSized, Scroll, Select,
     TextInput, use_theme,
 };
-use block_editor_beui::beui::styled::popover::PopoverPanel;
-use block_editor_beui::beui::unstyled::{
-    self, ChoiceOption, PopoverHandle, PopoverTriggerHandle,
-};
+use block_editor_beui::beui::unstyled::{self, ChoiceOption, PopoverHandle, PopoverTriggerHandle};
 use block_editor_beui::block_ui::database::{
     DatabaseBlockPickRequest, DatabaseValueChange, ValueLabels, database_value_text,
 };
@@ -100,7 +98,12 @@ pub fn starting_condition(field: &DatabaseField) -> FilterCondition {
     }
 }
 
-fn converted(kind: Kind, current: &FilterCondition, field: &DatabaseField, labels: &ValueLabels) -> FilterCondition {
+fn converted(
+    kind: Kind,
+    current: &FilterCondition,
+    field: &DatabaseField,
+    labels: &ValueLabels,
+) -> FilterCondition {
     let chosen = match current {
         FilterCondition::AnyOf(values) | FilterCondition::NoneOf(values) => values.clone(),
         _ => Vec::new(),
@@ -295,7 +298,11 @@ fn AddFilter(data: Data) -> NodeId {
             trigger={move |handle: PopoverTriggerHandle| view! {
                 <ControlFace handle={handle.button}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                        <IconSized glyph={ICON_FILTER_LIST.to_owned()} font_size={FONT_SMALL + 2.0} color={use_theme().text_muted.clone()} />
+                        <IconSized
+                            glyph={ICON_FILTER_LIST.to_owned()}
+                            font_size={FONT_SMALL + 2.0}
+                            color={use_theme().text_muted.clone()}
+                        />
                         <Caption content="Filter" />
                     </List>
                 </ControlFace>
@@ -322,8 +329,12 @@ fn AddFilter(data: Data) -> NodeId {
                                     let id = editing.get_untracked();
                                     let data = edits.clone();
                                     match id {
-                                        Some(id) => view! { <FilterEditor data={data} id={id} /> },
-                                        None => view! { <Frame /> },
+                                        Some(id) => view! {
+                                            <FilterEditor data={data} id={id} />
+                                        },
+                                        None => view! {
+                                            <Frame />
+                                        },
                                     }
                                 }}
                             </Show>
@@ -336,7 +347,10 @@ fn AddFilter(data: Data) -> NodeId {
 }
 
 #[component]
-fn FieldChoices(data: Data, on_pick: block_editor_beui::beui::reactive::Callback<ObjectId>) -> NodeId {
+fn FieldChoices(
+    data: Data,
+    on_pick: block_editor_beui::beui::reactive::Callback<ObjectId>,
+) -> NodeId {
     let keys = create_memo(clone!(data -> move || {
         data.fields.with(|fields| {
             fields
@@ -415,12 +429,14 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
     let kinds = create_memo(clone!(field -> move || {
         field.with(|field| field.as_ref().map(kinds_for).unwrap_or_default())
     }));
-    let kind = create_memo(clone!(filter -> move || filter.with(|filter| Kind::of(&filter.condition))));
+    let kind =
+        create_memo(clone!(filter -> move || filter.with(|filter| Kind::of(&filter.condition))));
     let selected = create_memo(clone!(kinds kind -> move || {
         let kind = kind.get();
         kinds.with(|kinds| kinds.iter().position(|held| *held == kind))
     }));
-    let kind_keys = create_memo(clone!(kinds -> move || (0..kinds.with(Vec::len)).collect::<Vec<usize>>()));
+    let kind_keys =
+        create_memo(clone!(kinds -> move || (0..kinds.with(Vec::len)).collect::<Vec<usize>>()));
     let recondition = clone!(data filter field kinds -> move |index: Option<usize>| {
         let Some(kind) = index.and_then(|index| kinds.with_untracked(|kinds| kinds.get(index).copied())) else {
             return;
@@ -432,8 +448,10 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
         let next = data.labels.with_untracked(|labels| converted(kind, &current, &field, labels));
         data.operate_view(DatabaseView::set_filter_condition(id, &next));
     });
-    let choosing = create_memo(clone!(kind -> move || matches!(kind.get(), Kind::AnyOf | Kind::NoneOf)));
-    let comparing = create_memo(clone!(kind -> move || matches!(kind.get(), Kind::Is | Kind::IsNot)));
+    let choosing =
+        create_memo(clone!(kind -> move || matches!(kind.get(), Kind::AnyOf | Kind::NoneOf)));
+    let comparing =
+        create_memo(clone!(kind -> move || matches!(kind.get(), Kind::Is | Kind::IsNot)));
     let searching = create_memo(clone!(kind -> move || kind.get() == Kind::Contains));
     let needle = create_memo(clone!(filter -> move || match filter.get().condition {
         FilterCondition::Contains(text) => text,
@@ -442,7 +460,8 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
     let searched_for = clone!(data -> move |text: String| {
         data.operate_view(DatabaseView::set_filter_condition(id, &FilterCondition::Contains(text)));
     });
-    let value_fields = create_memo(clone!(field -> move || field.get().into_iter().collect::<Vec<_>>()));
+    let value_fields =
+        create_memo(clone!(field -> move || field.get().into_iter().collect::<Vec<_>>()));
     let values = create_memo(clone!(filter -> move || {
         let filter = filter.get();
         match (filter.field, filter.condition) {
@@ -504,7 +523,12 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
                 </List>
                 <Show condition={choosing}>
                     {move || clone!(choices choice_filter choice_field -> view! {
-                        <ValueChoices data={choices} id={id} filter={choice_filter} field={choice_field} />
+                        <ValueChoices
+                            data={choices}
+                            id={id}
+                            filter={choice_filter}
+                            field={choice_field}
+                        />
                     })}
                 </Show>
                 <Show condition={comparing}>
@@ -666,7 +690,11 @@ fn ValueChoices(
                             let test_id = format!("database-view.filter.{}.choice.{index}", id.as_uuid());
                             let read_only = read_only.clone();
                             view! {
-                                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=SPACING
+                                >
                                     <Frame visible={marked}>
                                         <ChoiceMark option={option} size=MARK_SIZE />
                                     </Frame>
@@ -734,7 +762,11 @@ pub fn FilterList(data: Data) -> NodeId {
                 }}
             </ForEach>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <IconSized glyph={ICON_ADD.to_owned()} font_size=18.0 color={use_theme().text_muted.clone()} />
+                <IconSized
+                    glyph={ICON_ADD.to_owned()}
+                    font_size=18.0
+                    color={use_theme().text_muted.clone()}
+                />
                 <Frame @sizing=ItemSize::Percent(100.0)>
                     <Select
                         options={view! {

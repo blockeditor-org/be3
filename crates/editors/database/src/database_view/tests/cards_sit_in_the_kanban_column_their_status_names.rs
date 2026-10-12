@@ -23,7 +23,12 @@ fn cards_sit_in_the_kanban_column_their_status_names() {
         waiting.right() <= finished.left(),
         "the two cards share a column"
     );
-    assert!(fixture.harness.label("database-view.card.0").ends_with("Write it"));
+    assert!(
+        fixture
+            .harness
+            .label("database-view.card.0")
+            .ends_with("Write it")
+    );
 
     fixture.harness.click("database-view.card.1");
     fixture.settle();

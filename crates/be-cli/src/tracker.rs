@@ -181,7 +181,7 @@ pub enum Target {
 enum Column {
     Title,
     Page,
-    Field(DatabaseField),
+    Field(Box<DatabaseField>),
     Ignored,
 }
 
@@ -1460,7 +1460,7 @@ impl<S: ObjectStore> Tracker<S> {
                 }
                 match loaded.field(name) {
                     Ok(Writable::Own(field)) if field.id == title_field => Column::Title,
-                    Ok(Writable::Own(field)) => Column::Field(field),
+                    Ok(Writable::Own(field)) => Column::Field(Box::new(field)),
                     _ => {
                         imported.ignored.push(name.clone());
                         Column::Ignored
@@ -1488,7 +1488,7 @@ impl<S: ObjectStore> Tracker<S> {
                     Column::Page => page_text = cell.clone(),
                     Column::Ignored => {}
                     Column::Field(field) if field.field_type == DatabaseFieldType::Relation => {
-                        later.push((number, ObjectId::ROOT, field.clone(), cell.clone()));
+                        later.push((number, ObjectId::ROOT, (**field).clone(), cell.clone()));
                     }
                     Column::Field(field) => match self.value(field, cell, &labels) {
                         Ok(Some(value)) => {
@@ -1644,7 +1644,12 @@ impl<S: ObjectStore> Tracker<S> {
             Some(value) => Ok(Some(value)),
             None => Err(match field.field_type {
                 DatabaseFieldType::Enum => {
-                    format!("{} is not one of {}: {}", wanted, field.name, option_names(field))
+                    format!(
+                        "{} is not one of {}: {}",
+                        wanted,
+                        field.name,
+                        option_names(field)
+                    )
                 }
                 _ => format!("{wanted} is not a value {} can hold", field.name),
             }),

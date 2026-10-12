@@ -167,39 +167,41 @@ impl ViewData {
         let views = watch_views(editor, database_id.clone());
         let name = watch_name(editor, database_id.clone());
         let search = create_memo(move || search.get());
-        let groups = create_memo(clone!(search prefix row_ids title_field group_by show_empty_groups rows fields labels filters sort kind -> move || {
-            let search = search.get();
-            let prefix = prefix.get();
-            let ids = row_ids.get();
-            let title = title_field.get();
-            let group_by = group_by.get();
-            let show_empty = show_empty_groups.get() || kind.get() == DatabaseViewKind::Kanban;
-            let sort = sort.get();
-            rows.with(|rows| {
-                fields.with(|fields| {
-                    labels.with(|labels| {
-                        filters.with(|filters| {
-                            let shown: Vec<usize> = crate::database_view::sort::display_rows(
-                                rows, None, sort, filters, fields, labels,
-                            )
-                            .into_iter()
-                            .map(|row| row.index)
-                            .filter(|index| *index < rows.len())
-                            .filter(|index| {
-                                let code = ids
-                                    .get(*index)
-                                    .map(|id| short_id(&prefix, id.as_uuid()))
-                                    .unwrap_or_default();
-                                matches_search(&rows[*index], title, &code, &search)
+        let groups = create_memo(
+            clone!(search prefix row_ids title_field group_by show_empty_groups rows fields labels filters sort kind -> move || {
+                let search = search.get();
+                let prefix = prefix.get();
+                let ids = row_ids.get();
+                let title = title_field.get();
+                let group_by = group_by.get();
+                let show_empty = show_empty_groups.get() || kind.get() == DatabaseViewKind::Kanban;
+                let sort = sort.get();
+                rows.with(|rows| {
+                    fields.with(|fields| {
+                        labels.with(|labels| {
+                            filters.with(|filters| {
+                                let shown: Vec<usize> = crate::database_view::sort::display_rows(
+                                    rows, None, sort, filters, fields, labels,
+                                )
+                                .into_iter()
+                                .map(|row| row.index)
+                                .filter(|index| *index < rows.len())
+                                .filter(|index| {
+                                    let code = ids
+                                        .get(*index)
+                                        .map(|id| short_id(&prefix, id.as_uuid()))
+                                        .unwrap_or_default();
+                                    matches_search(&rows[*index], title, &code, &search)
+                                })
+                                .collect();
+                                let field = group_by.and_then(|id| fields.iter().find(|f| f.id == id));
+                                group_rows(rows, &shown, field, labels, show_empty)
                             })
-                            .collect();
-                            let field = group_by.and_then(|id| fields.iter().find(|f| f.id == id));
-                            group_rows(rows, &shown, field, labels, show_empty)
                         })
                     })
                 })
-            })
-        }));
+            }),
+        );
 
         Rc::new(Self {
             editor: editor.clone(),

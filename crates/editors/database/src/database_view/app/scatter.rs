@@ -223,7 +223,6 @@ pub fn axis_fields(data: &Data) -> Memo<Option<(DatabaseField, DatabaseField)>> 
     })
 }
 
-
 fn plot_area(size: block_editor_beui::beui::Vec2) -> (f32, f32) {
     (
         (size.x - AXIS_LEFT - AXIS_RIGHT).max(1.0),
