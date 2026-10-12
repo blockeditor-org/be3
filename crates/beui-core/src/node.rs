@@ -442,7 +442,8 @@ pub struct Arena {
     parents: RefCell<Vec<Option<NodeId>>>,
     owners: Vec<Option<::reactive::ScopeContext>>,
     removed: Vec<bool>,
-    pub(crate) zone: u64,
+    removals: std::rc::Rc<RefCell<Vec<NodeId>>>,
+    fence: Option<NodeId>,
     adopting: RefCell<Vec<NodeId>>,
     stale: Vec<bool>,
     unplaced: Vec<bool>,
@@ -461,13 +462,6 @@ pub struct Arena {
 }
 
 impl Arena {
-    pub(crate) fn in_zone(zone: u64) -> Self {
-        Self {
-            zone,
-            ..Self::default()
-        }
-    }
-
     pub fn len(&self) -> usize {
         self.live
     }
@@ -521,15 +515,17 @@ impl Arena {
         let Some(owner) = ::reactive::current_scope() else {
             return;
         };
-        let zone = self.zone;
-        ::reactive::on_cleanup(move || {
-            crate::current::try_with_document(|document| {
-                if document.zone() == zone {
-                    document.remove_node(id);
-                }
-            });
-        });
+        let removals = std::rc::Rc::clone(&self.removals);
+        ::reactive::on_cleanup(move || removals.borrow_mut().push(id));
         self.owners[id.index as usize] = Some(owner);
+    }
+
+    pub(crate) fn take_removals(&self) -> Vec<NodeId> {
+        std::mem::take(&mut *self.removals.borrow_mut())
+    }
+
+    pub(crate) fn removals_pending(&self) -> bool {
+        !self.removals.borrow().is_empty()
     }
 
     pub fn owner(&self, id: NodeId) -> Option<::reactive::ScopeContext> {
@@ -708,6 +704,9 @@ impl Arena {
             let Some((node, slot)) = current.and_then(|node| Some((node, self.slot(node)?))) else {
                 return;
             };
+            if self.fence == Some(node) {
+                return;
+            }
             if node != id
                 && self.nodes[slot]
                     .as_deref()
@@ -721,6 +720,11 @@ impl Arena {
             self.unplaced[slot] = true;
             current = self.parents.get_mut()[slot];
         }
+    }
+
+    pub(crate) fn fence(&mut self, fence: Option<NodeId>) -> Option<NodeId> {
+        self.marked = None;
+        std::mem::replace(&mut self.fence, fence)
     }
 
     pub fn take_boundaries(&mut self) -> Vec<NodeId> {

@@ -310,7 +310,7 @@ for it, whether or not it is paused itself. This is what keeps a hidden
 ## beui integration
 
 `beui::reactive` (re-exporting `create_signal`, `create_effect`, `create_memo`,
-`create_selector`, `clone!`, `Scope`, `batch`, `settle`, `untrack`, `on_cleanup`,
+`create_selector`, `clone!`, `Scope`, `batch`, `untrack`, `on_cleanup`,
 `provide_context`, and `use_context` from this crate) binds signals and
 memos directly to `Document` nodes. Nothing in a view takes a `&mut Document`
 parameter, so tags nest the way JSX or solidjs would nest them: write the tree
@@ -739,12 +739,14 @@ like any other wrapper.
 Layout sizes are available reactively: `node_size(id)` returns a
 `ReadSignal<Vec2>` that the document updates from that node's laid-out rect.
 `Document::show` runs layout, publishes the sizes that changed, and lets the
-effects that woke up rebuild before it lays out again — up to a few passes per
-frame — so a size-driven change is visible in the frame that caused it rather
-than one frame later. The signal reads `Vec2::ZERO` until the first layout.
+effects that woke up rebuild before it lays out what they changed again, so a
+size-driven change is visible in the frame that caused it rather than one frame
+later. The signal reads `Vec2::ZERO` until the first layout.
 
-`unstyled::container` ties the two together: it measures its returned base node,
-provides that size as `ContainerSize`, and hands the signal to its `content`
+`unstyled::container` ties the two together: it is a `LayoutBuilder`, which
+builds its content in a scope of its own under the caller's, the way `Show`
+and `Dynamic` do, so context the caller provides still reaches it. It provides
+the size it is laid out at as `ContainerSize`, and hands the signal to its `content`
 render prop. Anything below it can then ask `container_size()`, or
 `narrower_than(width)` for a `Memo<bool>` that is true when the nearest container
 is narrower than `width` (false when nothing provides a size, and false until the
@@ -795,15 +797,23 @@ it back out of a thread-local (`with_document`) installed by whichever ambient
 context is active, and releases it before returning. `build` installs the
 document (and enters its scope, so a `Prop` bound to a signal can create its
 effect) for the duration of the tree-building closure. `Document::show` installs
-itself before dispatching interaction events and flushes queued effects
-immediately after, before the frame's paint check, so a signal write from a
-click handler is visible in the same frame.
+itself for each event it dispatches and flushes the effects that event queued
+before the next one, outside any walk, so a signal write from a click handler
+is visible in the same frame and to the events after it. A write inside a
+batch is seen by effects when the outermost batch ends, with one exception:
+`ScopeContext::flush_owned` (and `Scope::flush_owned`) runs, there and then,
+the queued effects owned by that scope and the scopes under it, and leaves
+every other effect queued. `KeyedItems::entry_owned` builds an entry and
+flushes its scope that way. This is what a node uses to build its own subtree
+during layout (see "One layout per frame" in the beui guide); nothing else
+should need it.
 
-`settle` runs a closure and then flushes the effects it queued even when an
-outer batch is still open. `VirtualList` builds each row inside one, because it
-measures the row immediately afterwards and the row's own props are applied by
-effects; without it a row would measure as empty and the list would build every
-item in the collection on its first frame.
+Disposing a scope never removes its nodes on the spot. Each node's cleanup
+queues its id with the document that made it, and the document removes them
+once the code that disposed the scope has returned: after each event, after
+layout, and when `with_reactive_scope` returns. A node therefore never leaves
+the arena while something is walking it, and a scope disposed while another
+document is installed still removes its nodes from its own.
 
 `with_document` asserts when no document is installed at all; nested calls are
 fine, and reach the same installed document. Event handlers are plain `FnMut`

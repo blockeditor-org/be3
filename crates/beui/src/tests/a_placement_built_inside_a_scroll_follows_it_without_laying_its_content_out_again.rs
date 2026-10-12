@@ -9,7 +9,7 @@ use crate::reactive::{
 use crate::unstyled::Scroll;
 
 #[test]
-fn a_placement_built_inside_a_scroll_follows_it_as_it_scrolls() {
+fn a_placement_built_inside_a_scroll_follows_it_without_laying_its_content_out_again() {
     let seen = Rc::new(Cell::new(Rect::NOTHING));
     let document = build({
         let seen = Rc::clone(&seen);
@@ -44,6 +44,16 @@ fn a_placement_built_inside_a_scroll_follows_it_as_it_scrolls() {
         seen.get().top(),
         50.0,
         "a row built from its placement hears where its scroll moved it"
+    );
+    let latest = &harness.document().performance().latest;
+    assert_eq!(
+        latest.layout_passes, 1,
+        "following the scroll takes no second layout"
+    );
+    assert!(
+        latest.work.placed < 20,
+        "the rows under the placements are not laid out again, but {} nodes were",
+        latest.work.placed
     );
 }
 

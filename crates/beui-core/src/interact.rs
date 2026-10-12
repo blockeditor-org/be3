@@ -14,6 +14,7 @@ use crate::input::{BackGesture, Event, ImeEvent, Key, KeyPress, Modifiers};
 use crate::keys::{AtNode, Holder, KeyEvent, KeyInput, KeyPhase, KeyTarget, Placed, Stop};
 use crate::layer::Dismiss;
 
+use crate::current::run_in;
 use crate::document::{Acted, Document};
 use crate::node::{NodeId, Rects};
 
@@ -29,35 +30,73 @@ enum Fate {
     Unheard,
 }
 
-pub fn interact(doc: &mut Document, ctx: &Context, rects: &Rects, root: NodeId) {
+pub fn interact(document: &mut Document, ctx: &Context, rects: &Rects, root: NodeId) {
     let events = ctx.input(|input| input.events.clone());
-    if events.iter().any(is_activity) {
-        doc.note_input();
-    }
-    pointer::dispatch(doc, ctx, rects, root);
-    doc.validate_focus();
-    let taps = taps(doc, &events);
-    let keep: Vec<bool> = events
-        .iter()
-        .enumerate()
-        .map(|(index, event)| {
-            ::reactive::settle(|| {
-                doc.validate_focus();
-                key_event(doc, ctx, event, taps.contains(&index))
-            })
-        })
-        .collect();
-    forward::route(doc, ctx, rects, root, &events, &keep);
-    if ctx.pointer_locked() && !forward::takes_keys(doc) {
-        let motion = ctx.input(|input| input.pointer.motion);
-        if motion != Vec2::ZERO {
-            doc.motion_focused(motion);
+    let pointer_events = ctx.input(|input| input.pointer_events.clone());
+    let frame = pointer::Frame::new(ctx, rects, root);
+    let (long_pressed, taps) = run_in(document, |doc| {
+        if events.iter().any(is_activity) {
+            doc.note_input();
         }
+        (pointer::begin(doc, &frame), taps(doc, &events))
+    });
+    if !long_pressed.is_empty() {
+        run_in(document, |doc| {
+            pointer::long_pressed(doc, &frame, long_pressed)
+        });
     }
-    doc.validate_focus();
+    let mut keep = Vec::with_capacity(events.len());
+    let mut pointed = 0;
+    for (index, event) in events.iter().enumerate() {
+        while let Some(pointer_event) = pointer_events
+            .get(pointed)
+            .filter(|pointer_event| pointer_event.source <= index)
+            .copied()
+        {
+            pointer_step(document, &frame, pointed, pointer_event);
+            pointed += 1;
+        }
+        let tap = taps.contains(&index);
+        let kept = match run_in(document, |doc| {
+            doc.validate_focus();
+            key_event(doc, ctx, event)
+        }) {
+            Ok(kept) => kept,
+            Err(fate) => run_in(document, |doc| key_pressed(doc, event, fate, tap)),
+        };
+        keep.push(kept);
+    }
+    for (index, pointer_event) in pointer_events.iter().enumerate().skip(pointed) {
+        pointer_step(document, &frame, index, *pointer_event);
+    }
+    run_in(document, |doc| {
+        pointer::end_frame(doc, &frame);
+        doc.validate_focus();
+        forward::route(doc, ctx, rects, root, &events, &keep);
+        if ctx.pointer_locked() && !forward::takes_keys(doc) {
+            let motion = ctx.input(|input| input.pointer.motion);
+            if motion != Vec2::ZERO {
+                doc.motion_focused(motion);
+            }
+        }
+        doc.validate_focus();
+    });
 }
 
-fn key_event(doc: &mut Document, ctx: &Context, event: &Event, tap: bool) -> bool {
+fn pointer_step(
+    document: &mut Document,
+    frame: &pointer::Frame,
+    index: usize,
+    event: crate::input::PointerEvent,
+) {
+    if let Some(down) = run_in(document, |doc| pointer::event(doc, frame, index, event)) {
+        run_in(document, |doc| {
+            pointer::finish_down(doc, frame, index, down)
+        });
+    }
+}
+
+fn key_event(doc: &mut Document, ctx: &Context, event: &Event) -> Result<bool, Fate> {
     if let Some(modifiers) = event
         .modifiers()
         .filter(|_| !matches!(event, Event::PointerButton { .. }))
@@ -77,33 +116,22 @@ fn key_event(doc: &mut Document, ctx: &Context, event: &Event, tap: bool) -> boo
         Event::Back(gesture) => doc.back(*gesture),
         Event::InterceptedKey(press) => {
             offer_from_app(doc, KeyInput::Press(*press));
-            return false;
+            return Ok(false);
         }
         Event::InterceptedTap(key) => {
             offer_from_app(doc, KeyInput::Tap(*key));
-            return false;
+            return Ok(false);
         }
-        Event::Key { press, text, .. } => {
+        Event::Key { press, .. } => {
             if press.pressed {
                 doc.acted = Acted::Keys;
             }
-            let fate = ::reactive::settle(|| key_press(doc, *press));
-            if let Fate::Handled { reveal: true } = fate {
-                doc.reveal_focus();
-            }
-            if let Some(text) = text.as_ref().filter(|_| fate.local()) {
-                doc.text_focused(text);
-                doc.reveal_focus();
-            }
-            if tap && fate != Fate::Taken {
-                ::reactive::settle(|| offer_tap(doc, press.key));
-            }
-            return fate == Fate::App;
+            return Err(key_press(doc, *press));
         }
         Event::Text(text) if !forward::takes_keys(doc) => {
             doc.text_focused(text);
             doc.reveal_focus();
-            return false;
+            return Ok(false);
         }
         Event::Ime(ime) if !forward::takes_keys(doc) => {
             doc.ime_focused(ime.clone());
@@ -113,7 +141,24 @@ fn key_event(doc: &mut Document, ctx: &Context, event: &Event, tap: bool) -> boo
         }
         _ => {}
     }
-    true
+    Ok(true)
+}
+
+fn key_pressed(doc: &mut Document, event: &Event, fate: Fate, tap: bool) -> bool {
+    let Event::Key { press, text, .. } = event else {
+        return true;
+    };
+    if let Fate::Handled { reveal: true } = fate {
+        doc.reveal_focus();
+    }
+    if let Some(text) = text.as_ref().filter(|_| fate.local()) {
+        doc.text_focused(text);
+        doc.reveal_focus();
+    }
+    if tap && fate != Fate::Taken {
+        offer_tap(doc, press.key);
+    }
+    fate == Fate::App
 }
 
 impl Fate {

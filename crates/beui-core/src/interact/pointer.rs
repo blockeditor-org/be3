@@ -161,7 +161,7 @@ struct Hold {
     drag: SecondaryDrag,
 }
 
-struct Frame<'a> {
+pub(crate) struct Frame<'a> {
     ctx: &'a Context,
     rects: &'a Rects,
     root: NodeId,
@@ -169,16 +169,35 @@ struct Frame<'a> {
     long_press: Duration,
 }
 
-pub(crate) fn dispatch(doc: &mut Document, ctx: &Context, rects: &Rects, root: NodeId) {
-    let frame = Frame {
-        ctx,
-        rects,
-        root,
-        now: ctx.now(),
-        long_press: ctx.input(|input| input.long_press_delay),
-    };
-    let events = ctx.input(|input| input.pointer_events.clone());
-    doc.pointers.routed = vec![Routed::default(); events.len()];
+impl<'a> Frame<'a> {
+    pub(crate) fn new(ctx: &'a Context, rects: &'a Rects, root: NodeId) -> Self {
+        Self {
+            ctx,
+            rects,
+            root,
+            now: ctx.now(),
+            long_press: ctx.input(|input| input.long_press_delay),
+        }
+    }
+}
+
+pub(crate) struct Down {
+    event: PointerEvent,
+    button: PointerButton,
+    role: Role,
+    hit: Hit,
+}
+
+pub(crate) struct LongPressed {
+    pos: Pos2,
+    clicks: u32,
+    modifiers: Modifiers,
+    hit: Hit,
+}
+
+pub(crate) fn begin(doc: &mut Document, frame: &Frame) -> Vec<LongPressed> {
+    let count = frame.ctx.input(|input| input.pointer_events.len());
+    doc.pointers.routed = vec![Routed::default(); count];
     doc.pointers.hits.clear();
     doc.pointers.fingers.pinch = 1.0;
     doc.pointers.fingers.pan = Vec2::ZERO;
@@ -186,40 +205,63 @@ pub(crate) fn dispatch(doc: &mut Document, ctx: &Context, rects: &Rects, root: N
     for session in &mut doc.pointers.sessions {
         session.dragged_this_frame = false;
     }
-    autoscroll::frame(doc, ctx);
-    long_presses(doc, &frame);
-    for (index, event) in events.into_iter().enumerate() {
-        doc.pointers.current = index;
-        ::reactive::settle(|| pointer_event(doc, &frame, event));
-        if doc.pointers.routed[index].sink.is_some() {
-            let hit = hit(doc, frame.rects, frame.root, event.pos, false);
-            doc.pointers.routed[index].over = hit::sink(doc, frame.rects, &hit.path, event.pos);
-        }
-    }
-    doc.pointers.hits.clear();
-    ::reactive::settle(|| {
-        frame_drags(doc, &frame);
-        pinch(doc, &frame);
-        let mouse = ctx.input(|input| input.pointer.pos.filter(|_| !input.pointer.from_touch()));
-        hover(doc, &frame, mouse);
-        if let Some(fingers) = doc.pointers.fingers.tap
-            && !doc.modal_open()
-        {
-            doc.finger_tap(fingers);
-        }
-    });
-    cursor(doc, &frame);
-    track(doc, &frame);
-    autoscroll::show_cursor(doc, ctx);
+    autoscroll::frame(doc, frame.ctx);
+    long_presses(doc, frame)
 }
 
-fn pointer_event(doc: &mut Document, frame: &Frame, event: PointerEvent) {
+pub(crate) fn event(
+    doc: &mut Document,
+    frame: &Frame,
+    index: usize,
+    event: PointerEvent,
+) -> Option<Down> {
+    doc.pointers.current = index;
+    let down = pointer_event(doc, frame, event);
+    if down.is_none() {
+        route_over(doc, frame, index, event);
+    }
+    down
+}
+
+pub(crate) fn finish_down(doc: &mut Document, frame: &Frame, index: usize, down: Down) {
+    doc.pointers.current = index;
+    let event = down.event;
+    press_down(doc, frame, down);
+    route_over(doc, frame, index, event);
+}
+
+fn route_over(doc: &mut Document, frame: &Frame, index: usize, event: PointerEvent) {
+    if doc.pointers.routed[index].sink.is_some() {
+        let hit = hit(doc, frame.rects, frame.root, event.pos, false);
+        doc.pointers.routed[index].over = hit::sink(doc, frame.rects, &hit.path, event.pos);
+    }
+}
+
+pub(crate) fn end_frame(doc: &mut Document, frame: &Frame) {
+    doc.pointers.hits.clear();
+    frame_drags(doc, frame);
+    pinch(doc, frame);
+    let mouse = frame
+        .ctx
+        .input(|input| input.pointer.pos.filter(|_| !input.pointer.from_touch()));
+    hover(doc, frame, mouse);
+    if let Some(fingers) = doc.pointers.fingers.tap
+        && !doc.modal_open()
+    {
+        doc.finger_tap(fingers);
+    }
+    cursor(doc, frame);
+    track(doc, frame);
+    autoscroll::show_cursor(doc, frame.ctx);
+}
+
+fn pointer_event(doc: &mut Document, frame: &Frame, event: PointerEvent) -> Option<Down> {
     doc.pointers.hits.clear();
     if autoscroll::pointer(doc, &event) {
-        return;
+        return None;
     }
     match event.phase {
-        PointerPhase::Down(button) => down(doc, frame, event, button),
+        PointerPhase::Down(button) => return down(doc, frame, event, button),
         PointerPhase::Move => moved(doc, frame, event),
         PointerPhase::Up(button) => up(doc, frame, event, button),
         PointerPhase::Cancel | PointerPhase::Gone => {
@@ -248,6 +290,7 @@ fn pointer_event(doc: &mut Document, frame: &Frame, event: PointerEvent) {
             }
         }
     }
+    None
 }
 
 fn node_mut(doc: &mut Document, id: NodeId) -> Option<&mut InteractiveNode> {
@@ -289,7 +332,12 @@ fn find(doc: &Document, pointer: PointerId, button: Option<PointerButton>) -> Op
     })
 }
 
-fn down(doc: &mut Document, frame: &Frame, event: PointerEvent, button: PointerButton) {
+fn down(
+    doc: &mut Document,
+    frame: &Frame,
+    event: PointerEvent,
+    button: PointerButton,
+) -> Option<Down> {
     if let Some(index) = find(doc, event.pointer, Some(button)) {
         let stale = doc.pointers.sessions.remove(index);
         end(doc, frame, stale, true);
@@ -310,13 +358,37 @@ fn down(doc: &mut Document, frame: &Frame, event: PointerEvent, button: PointerB
         event.pos,
         touch && role == Role::Press,
     );
-    let pos = event.pos + hit.shift;
-    if matches!(role, Role::Press | Role::Secondary) {
-        doc.acted = Acted::Pointer(pos);
-        if !touch {
-            pressed_outside(doc, frame, event.pos, &hit.outside, role == Role::Press);
-        }
+    let down = Down {
+        event,
+        button,
+        role,
+        hit,
+    };
+    if !matches!(role, Role::Press | Role::Secondary) {
+        press_down(doc, frame, down);
+        return None;
     }
+    doc.acted = Acted::Pointer(event.pos + down.hit.shift);
+    if touch {
+        press_down(doc, frame, down);
+        return None;
+    }
+    doc.press_outside(&down.hit.outside);
+    if role == Role::Press {
+        doc.pressed_outside(frame.rects, event.pos);
+    }
+    Some(down)
+}
+
+fn press_down(doc: &mut Document, frame: &Frame, down: Down) {
+    let Down {
+        event,
+        button,
+        role,
+        hit,
+    } = down;
+    let touch = event.pointer.is_touch();
+    let pos = event.pos + hit.shift;
     let claimant = match role {
         Role::Press | Role::Secondary => {
             hit::claimant(doc, frame.rects, frame.root, pos, event.modifiers)
@@ -376,20 +448,6 @@ fn down(doc: &mut Document, frame: &Frame, event: PointerEvent, button: PointerB
     if let PointerId::Touch(id) = event.pointer {
         finger_down(doc, frame, id, event.pos);
     }
-}
-
-fn pressed_outside(
-    doc: &mut Document,
-    frame: &Frame,
-    pos: Pos2,
-    layers: &[NodeOf<OverlayNode>],
-    watchers: bool,
-) {
-    doc.press_outside(layers);
-    if watchers {
-        doc.pressed_outside(frame.rects, pos);
-    }
-    ::reactive::settle(|| {});
 }
 
 fn reached(doc: &Document, rects: &Rects, path: &[NodeId], pos: Pos2) -> (Vec<NodeId>, bool) {
@@ -806,7 +864,8 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, cancelled: bool)
                 && !session.dragged
                 && !cancelled
             {
-                pressed_outside(doc, frame, session.origin - session.shift, &outside, true);
+                doc.press_outside(&outside);
+                doc.pressed_outside(frame.rects, session.origin - session.shift);
             }
             if doc.dragging() {
                 match cancelled {
@@ -862,7 +921,7 @@ fn is_primary(doc: &Document, pointer: PointerId) -> bool {
     primary_touch(doc).is_some_and(|index| doc.pointers.sessions[index].pointer == pointer)
 }
 
-fn long_presses(doc: &mut Document, frame: &Frame) {
+fn long_presses(doc: &mut Document, frame: &Frame) -> Vec<LongPressed> {
     let mut fired = Vec::new();
     for (index, session) in doc.pointers.sessions.iter_mut().enumerate() {
         let Some(due) = session.long_press else {
@@ -880,6 +939,7 @@ fn long_presses(doc: &mut Document, frame: &Frame) {
         session.cancelled = true;
         fired.push(index);
     }
+    let mut pressed = Vec::new();
     for index in fired {
         let owners = std::mem::take(&mut doc.pointers.sessions[index].owners);
         for owner in owners.into_iter().rev() {
@@ -890,7 +950,24 @@ fn long_presses(doc: &mut Document, frame: &Frame) {
         doc.acted = Acted::Pointer(pos);
         let hit = hit(doc, frame.rects, frame.root, pos, false);
         doc.press_outside(&hit.outside);
-        ::reactive::settle(|| {});
+        pressed.push(LongPressed {
+            pos,
+            clicks,
+            modifiers,
+            hit,
+        });
+    }
+    pressed
+}
+
+pub(crate) fn long_pressed(doc: &mut Document, frame: &Frame, pressed: Vec<LongPressed>) {
+    for LongPressed {
+        pos,
+        clicks,
+        modifiers,
+        hit,
+    } in pressed
+    {
         for id in hit.path.iter().rev() {
             if !over(frame.rects, *id, pos) {
                 continue;
@@ -902,7 +979,6 @@ fn long_presses(doc: &mut Document, frame: &Frame) {
                 .clone()
                 .call(press_at(rect, pos, clicks, modifiers, true));
         }
-        ::reactive::settle(|| {});
     }
 }
 

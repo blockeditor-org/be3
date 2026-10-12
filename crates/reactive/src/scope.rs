@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
 use crate::computation::Computation;
-use crate::runtime::{Context, RUNTIME, batch, flush, next_sequence};
+use crate::runtime::{Context, RUNTIME, batch, flush, flush_within, next_sequence};
 
 pub(crate) struct Gate {
     parent: Option<Rc<Gate>>,
@@ -55,6 +55,17 @@ impl Owner {
             gate: RefCell::new(gate),
             ..Self::default()
         }
+    }
+
+    pub(crate) fn within(self: &Rc<Self>, root: &Owner) -> bool {
+        let mut current = Some(Rc::clone(self));
+        while let Some(owner) = current {
+            if std::ptr::eq(Rc::as_ptr(&owner), root) {
+                return true;
+            }
+            current = owner.parent.upgrade();
+        }
+        false
     }
 
     pub(crate) fn add(&self, cleanup: impl FnOnce() + 'static) {
@@ -193,6 +204,10 @@ impl Scope {
     pub fn context(&self) -> ScopeContext {
         ScopeContext(Rc::downgrade(&self.owner))
     }
+
+    pub fn flush_owned(&self) {
+        flush_within(&self.owner);
+    }
 }
 
 #[derive(Clone)]
@@ -209,6 +224,12 @@ impl ScopeContext {
 
     pub fn is_alive(&self) -> bool {
         self.0.upgrade().is_some_and(|owner| !owner.disposed.get())
+    }
+
+    pub fn flush_owned(&self) {
+        if let Some(owner) = self.0.upgrade() {
+            flush_within(&owner);
+        }
     }
 
     pub fn child(&self) -> Option<Scope> {
