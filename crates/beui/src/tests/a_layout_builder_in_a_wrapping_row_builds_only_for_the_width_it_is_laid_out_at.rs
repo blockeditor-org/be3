@@ -17,7 +17,9 @@ fn a_layout_builder_in_a_wrapping_row_builds_only_for_the_width_it_is_laid_out_a
                         {move |size: ReadSignal<Vec2>| {
                             let seen = Rc::clone(&seen);
                             create_effect(move || seen.borrow_mut().push(size.get().x));
-                            view! { <Frame height=20.0 /> }
+                            view! {
+                                <Frame height=20.0 />
+                            }
                         }}
                     </LayoutBuilder>
                 </List>

@@ -8,9 +8,15 @@ fn a_scope_disposed_with_no_document_installed_still_removes_its_nodes() {
         let held = Rc::clone(&held);
         move || {
             let scope = Scope::new();
-            let node = scope.run(|| view! { <Frame width=10.0 height=10.0 /> });
+            let node = scope.run(|| {
+                view! {
+                    <Frame width=10.0 height=10.0 />
+                }
+            });
             *held.borrow_mut() = Some((scope, node));
-            view! { <Frame width=20.0 height=20.0 /> }
+            view! {
+                <Frame width=20.0 height=20.0 />
+            }
         }
     });
     let mut harness = Harness::new(document);

@@ -5,8 +5,12 @@ use crate::styled::TextInput;
 fn a_key_typed_before_a_click_in_one_frame_reaches_the_field_focused_before_it() {
     let (document, [first, second]) = toolbar_of(|| {
         [
-            view! { <TextInput value="" /> },
-            view! { <TextInput value="" /> },
+            view! {
+                <TextInput value="" />
+            },
+            view! {
+                <TextInput value="" />
+            },
         ]
     });
     let mut harness = Harness::new(document);

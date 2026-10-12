@@ -251,13 +251,13 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         window: (f32, f32),
         main: f32,
         cross: f32,
-    ) -> f32 {
+    ) -> (f32, bool) {
         let (first, last) = window;
         self.missing.clear();
         if self.metrics.count == 0 || last <= first {
             self.origin = None;
             self.keep(Vec::new());
-            return 0.0;
+            return (0.0, false);
         }
         let (index, position) = self.anchor(window);
         let guess = self.metrics.guess();
@@ -269,7 +269,9 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
                 true => self.measured_row(doc, painter, at, cross).ok_or(guess),
                 false => Err(estimate),
             };
-            let length = row.as_ref().map_or_else(|guess| *guess, |(_, _, length)| *length);
+            let length = row
+                .as_ref()
+                .map_or_else(|guess| *guess, |(_, _, length)| *length);
             if let Ok((key, node, _)) = row
                 && cursor + length > first
             {
@@ -295,7 +297,9 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
                 true => self.measured_row(doc, painter, at, cross).ok_or(guess),
                 false => Err(estimate),
             };
-            let length = row.as_ref().map_or_else(|guess| *guess, |(_, _, length)| *length);
+            let length = row
+                .as_ref()
+                .map_or_else(|guess| *guess, |(_, _, length)| *length);
             cursor -= length;
             if let Ok((key, node, _)) = row
                 && cursor < last
@@ -331,7 +335,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
             }
         };
         self.keep(rows);
-        shift
+        (shift, shifted != 0.0)
     }
 
     fn plan(&mut self, doc: &mut Document, painter: &Painter) {
@@ -414,7 +418,7 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
         let total = self.metrics.total();
         let window = self.window(doc, painter, start, main);
         self.planned = Some((window, cross));
-        let shift = self.realize(doc, painter, window, main, cross);
+        let (shift, shifted) = self.realize(doc, painter, window, main, cross);
         let grid = doc.pixel_grid();
         for row in &self.placed {
             let placed = item_rect(
@@ -427,7 +431,7 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
         }
         if let Some(node) = node {
             doc.arena.adopt_children(node);
-            if self.metrics.total() != total {
+            if self.metrics.total() != total || shifted {
                 doc.invalidate_after_layout(node);
             }
             if !self.missing.is_empty() {

@@ -1444,8 +1444,6 @@ impl Document {
         self.invalidated.push(id);
     }
 
-
-
     pub fn measured(&mut self, id: NodeId, available: Vec2) -> Option<Vec2> {
         if self.arena.stale(id) {
             self.measurements.remove(&id);

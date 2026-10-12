@@ -41,7 +41,9 @@ pub fn interact(document: &mut Document, ctx: &Context, rects: &Rects, root: Nod
         (pointer::begin(doc, &frame), taps(doc, &events))
     });
     if !long_pressed.is_empty() {
-        run_in(document, |doc| pointer::long_pressed(doc, &frame, long_pressed));
+        run_in(document, |doc| {
+            pointer::long_pressed(doc, &frame, long_pressed)
+        });
     }
     let mut keep = Vec::with_capacity(events.len());
     let mut pointed = 0;
@@ -88,7 +90,9 @@ fn pointer_step(
     event: crate::input::PointerEvent,
 ) {
     if let Some(down) = run_in(document, |doc| pointer::event(doc, frame, index, event)) {
-        run_in(document, |doc| pointer::finish_down(doc, frame, index, down));
+        run_in(document, |doc| {
+            pointer::finish_down(doc, frame, index, down)
+        });
     }
 }
 
