@@ -334,8 +334,17 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
                 0.0
             }
         };
+        let gap = shifted != 0.0
+            && match (rows.first(), rows.last()) {
+                (Some(head), Some(tail)) => {
+                    (head.index > 0 && head.position > first)
+                        || (tail.index + 1 < self.metrics.count
+                            && tail.position + tail.length < last)
+                }
+                _ => false,
+            };
         self.keep(rows);
-        (shift, shifted != 0.0)
+        (shift, gap)
     }
 
     fn plan(&mut self, doc: &mut Document, painter: &Painter) {
@@ -418,7 +427,7 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
         let total = self.metrics.total();
         let window = self.window(doc, painter, start, main);
         self.planned = Some((window, cross));
-        let (shift, shifted) = self.realize(doc, painter, window, main, cross);
+        let (shift, gap) = self.realize(doc, painter, window, main, cross);
         let grid = doc.pixel_grid();
         for row in &self.placed {
             let placed = item_rect(
@@ -431,7 +440,7 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
         }
         if let Some(node) = node {
             doc.arena.adopt_children(node);
-            if self.metrics.total() != total || shifted {
+            if self.metrics.total() != total || gap {
                 doc.invalidate_after_layout(node);
             }
             if !self.missing.is_empty() {
