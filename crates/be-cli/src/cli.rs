@@ -23,6 +23,10 @@ Commands:
                                       Make a database (and a list view of it)
   be pull-request EVENT-FILE          Move the rows a GitHub pull request names
 
+Any block:
+  ls | info                           Its children, or where it is and who may change it
+  delete                              Move it, and everything inside it, to Recently Deleted
+
 A database (or a view of one):
   rows [FILTER]...                    Its rows; FILTER is FIELD=VALUE, FIELD!=VALUE or FIELD~TEXT
   new TITLE [FIELD=VALUE]... [--body TEXT]
@@ -356,6 +360,7 @@ async fn block_verb<S: ObjectStore>(
             ))
         }
         ("help", _, _) => print(USAGE.to_owned()),
+        ("delete", _, _) => print(tracker.delete_block(entry).await?),
         ("cat", true, _) => print(tracker.text(entry.id).await?),
         ("write" | "append", true, _) => {
             let text = arguments

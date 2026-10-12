@@ -319,7 +319,28 @@ impl<S: ObjectStore> Tracker<S> {
                 references: summary.references,
                 access: summary.access,
                 head: summary.head,
+                deleted: false,
             });
+        }
+        let parents: std::collections::HashMap<Uuid, BlockParent> = entries
+            .iter()
+            .map(|entry| (entry.id, entry.parent))
+            .collect();
+        let deleted = |mut parent: BlockParent| {
+            for _ in 0..parents.len() + 1 {
+                match parent {
+                    BlockParent::Detached => return true,
+                    BlockParent::Root => return false,
+                    BlockParent::Block(id) => match parents.get(&id) {
+                        Some(next) => parent = *next,
+                        None => return false,
+                    },
+                }
+            }
+            false
+        };
+        for entry in &mut entries {
+            entry.deleted = deleted(entry.parent);
         }
         let index = Index::new(entries);
         *held = Some(index.clone());
@@ -335,6 +356,26 @@ impl<S: ObjectStore> Tracker<S> {
             Some(None) => Ok(None),
             None => self.peer.open::<C>(block).await.map_err(explain),
         }
+    }
+
+    pub async fn delete_block(&self, entry: &Entry) -> Result<String, String> {
+        let index = self.index().await?;
+        let shell = entry
+            .parent
+            .block()
+            .and_then(|parent| index.get(parent))
+            .filter(|parent| {
+                entry.block_type == DatabaseContent::CONTENT_TYPE
+                    && parent.block_type == DatabaseViewContent::CONTENT_TYPE
+            });
+        let deleted = shell.unwrap_or(entry);
+        self.peer.delete(deleted.id).await.map_err(explain)?;
+        self.invalidate().await;
+        Ok(format!(
+            "deleted {} ({}) and everything inside it; the app lists it under Recently Deleted",
+            deleted.label(),
+            deleted.short
+        ))
     }
 
     pub async fn invalidate(&self) {
@@ -407,7 +448,7 @@ impl<S: ObjectStore> Tracker<S> {
             .entries
             .iter()
             .filter(|entry| entry.block_type == DatabaseContent::CONTENT_TYPE)
-            .filter(|entry| entry.access.can_view())
+            .filter(|entry| entry.access.can_view() && !entry.deleted)
         {
             let unknown = entry.prefix.is_none();
             let known_and_different = entry

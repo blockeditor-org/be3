@@ -46,6 +46,7 @@ be Issues new "Fix the login" Status="To do" "Blocked by=BE-4HV8ND" --body "Step
 be BE-7K3Q2M set Status=Done "Blocked by-=BE-4HV8ND" --append "Fixed in #412."
 be BE-7K3Q2M page edit                  its page in $EDITOR, merged with any change since
 be BE-7K3Q2M delete
+be 3fa9 delete                          a block and everything in it, to Recently Deleted
 be 3fa9 cat                             a text block, reached directly
 be Issues schema
 be Issues add-column "Blocked by" relation --links Issues --multiple --inverse Blocking
@@ -54,7 +55,7 @@ be Issues import issues.csv             Linear's export, or any CSV
 ```
 
 A target is a block, by the start of its id as `be ls` prints it, its full id
-or its name (a database view and the database inside it share a name, and the
+or (unless it is deleted) its name (a database view and the database inside it share a name, and the
 name means the database), or a row by its id. A row's id is its database's
 prefix and six characters made from the row's own id, so it never changes and
 needs no coordination; the prefix is kept in the database's sealed metadata,

@@ -19,6 +19,7 @@ pub struct Entry {
     pub references: Vec<Uuid>,
     pub access: Access,
     pub head: Option<be_commit::CommitId>,
+    pub deleted: bool,
 }
 
 impl Entry {
@@ -104,7 +105,7 @@ impl Index {
         let mut named: Vec<&Entry> = self
             .entries
             .iter()
-            .filter(|entry| entry.label().eq_ignore_ascii_case(wanted))
+            .filter(|entry| !entry.deleted && entry.label().eq_ignore_ascii_case(wanted))
             .collect();
         let shells: Vec<Uuid> = named
             .iter()
