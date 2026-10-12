@@ -12,6 +12,7 @@ mod wake;
 mod tests;
 
 use std::{
+    num::NonZeroUsize,
     path::Path,
     sync::Arc,
     time::{Duration, Instant},
@@ -33,6 +34,8 @@ pub use state::{Connect, State};
 pub const PRECOMPILED_EXTENSION: &str = "cwasm";
 
 const CONSTRUCTORS: &str = "__wasm_call_ctors";
+
+const BACKTRACE_FRAMES: usize = 100;
 
 #[derive(Clone)]
 pub struct Host {
@@ -317,6 +320,7 @@ fn configuration() -> Config {
     config.shared_memory(true);
     config.wasm_bulk_memory(true);
     config.wasm_exceptions(true);
+    config.wasm_backtrace_max_frames(NonZeroUsize::new(BACKTRACE_FRAMES));
     if std::env::var_os("BE3_PERF_MAP").is_some() {
         config.profiler(wasmtime::ProfilingStrategy::PerfMap);
     }

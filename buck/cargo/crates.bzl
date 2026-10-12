@@ -7915,6 +7915,7 @@ crates = {
                         "//crates/block-gpu-abi:block-gpu-abi",
                         "//crates/block-gpu-host:block-gpu-host",
                         "//third-party/rust:bytes-1.11.1",
+                        "//third-party/rust:rustc-demangle-0.1.28",
                         "//third-party/rust:tokio-1.52.3",
                         "//third-party/rust:wasmtime-48.0.1",
                         "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -7925,6 +7926,7 @@ crates = {
                     "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/block-gpu-host:block-gpu-host",
                     "//third-party/rust:bytes-1.11.1",
+                    "//third-party/rust:rustc-demangle-0.1.28",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:wasmtime-48.0.1",
                     "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -7937,6 +7939,7 @@ crates = {
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-plugin-api:block-plugin-api",
                             "//third-party/rust:bytes-1.11.1",
+                            "//third-party/rust:rustc-demangle-0.1.28",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:wasmtime-48.0.1",
                             "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -7957,6 +7960,7 @@ crates = {
                         "//crates/block-gpu-abi:block-gpu-abi",
                         "//crates/block-gpu-host:block-gpu-host",
                         "//third-party/rust:bytes-1.11.1",
+                        "//third-party/rust:rustc-demangle-0.1.28",
                         "//third-party/rust:tokio-1.52.3",
                         "//third-party/rust:wasmtime-48.0.1",
                         "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -7967,6 +7971,7 @@ crates = {
                     "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/block-gpu-host:block-gpu-host",
                     "//third-party/rust:bytes-1.11.1",
+                    "//third-party/rust:rustc-demangle-0.1.28",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:wasmtime-48.0.1",
                     "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -7979,6 +7984,7 @@ crates = {
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-plugin-api:block-plugin-api",
                             "//third-party/rust:bytes-1.11.1",
+                            "//third-party/rust:rustc-demangle-0.1.28",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:wasmtime-48.0.1",
                             "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -7999,6 +8005,7 @@ crates = {
                         "//crates/block-gpu-abi:block-gpu-abi",
                         "//crates/block-gpu-host:block-gpu-host",
                         "//third-party/rust:bytes-1.11.1",
+                        "//third-party/rust:rustc-demangle-0.1.28",
                         "//third-party/rust:tokio-1.52.3",
                         "//third-party/rust:wasmtime-48.0.1",
                         "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -8009,6 +8016,7 @@ crates = {
                     "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/block-gpu-host:block-gpu-host",
                     "//third-party/rust:bytes-1.11.1",
+                    "//third-party/rust:rustc-demangle-0.1.28",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:wasmtime-48.0.1",
                     "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -8021,6 +8029,7 @@ crates = {
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-plugin-api:block-plugin-api",
                             "//third-party/rust:bytes-1.11.1",
+                            "//third-party/rust:rustc-demangle-0.1.28",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:wasmtime-48.0.1",
                             "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -8041,6 +8050,7 @@ crates = {
                         "//crates/block-gpu-abi:block-gpu-abi",
                         "//crates/block-gpu-host:block-gpu-host",
                         "//third-party/rust:bytes-1.11.1",
+                        "//third-party/rust:rustc-demangle-0.1.28",
                         "//third-party/rust:tokio-1.52.3",
                         "//third-party/rust:wasmtime-48.0.1",
                         "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -8051,6 +8061,7 @@ crates = {
                     "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/block-gpu-host:block-gpu-host",
                     "//third-party/rust:bytes-1.11.1",
+                    "//third-party/rust:rustc-demangle-0.1.28",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:wasmtime-48.0.1",
                     "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -8063,6 +8074,7 @@ crates = {
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-plugin-api:block-plugin-api",
                             "//third-party/rust:bytes-1.11.1",
+                            "//third-party/rust:rustc-demangle-0.1.28",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:wasmtime-48.0.1",
                             "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -8083,6 +8095,7 @@ crates = {
                         "//crates/block-gpu-abi:block-gpu-abi",
                         "//crates/block-gpu-host:block-gpu-host",
                         "//third-party/rust:bytes-1.11.1",
+                        "//third-party/rust:rustc-demangle-0.1.28",
                         "//third-party/rust:tokio-1.52.3",
                         "//third-party/rust:wasmtime-48.0.1",
                         "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -8093,6 +8106,7 @@ crates = {
                     "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/block-gpu-host:block-gpu-host",
                     "//third-party/rust:bytes-1.11.1",
+                    "//third-party/rust:rustc-demangle-0.1.28",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:wasmtime-48.0.1",
                     "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -8105,6 +8119,7 @@ crates = {
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-plugin-api:block-plugin-api",
                             "//third-party/rust:bytes-1.11.1",
+                            "//third-party/rust:rustc-demangle-0.1.28",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:wasmtime-48.0.1",
                             "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -8125,6 +8140,7 @@ crates = {
                         "//crates/block-gpu-abi:block-gpu-abi",
                         "//crates/block-gpu-host:block-gpu-host",
                         "//third-party/rust:bytes-1.11.1",
+                        "//third-party/rust:rustc-demangle-0.1.28",
                         "//third-party/rust:tokio-1.52.3",
                         "//third-party/rust:wasmtime-48.0.1",
                         "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -8135,6 +8151,7 @@ crates = {
                     "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/block-gpu-host:block-gpu-host",
                     "//third-party/rust:bytes-1.11.1",
+                    "//third-party/rust:rustc-demangle-0.1.28",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:wasmtime-48.0.1",
                     "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -8147,6 +8164,7 @@ crates = {
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-plugin-api:block-plugin-api",
                             "//third-party/rust:bytes-1.11.1",
+                            "//third-party/rust:rustc-demangle-0.1.28",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:wasmtime-48.0.1",
                             "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -8167,6 +8185,7 @@ crates = {
                         "//crates/block-gpu-abi:block-gpu-abi",
                         "//crates/block-gpu-host:block-gpu-host",
                         "//third-party/rust:bytes-1.11.1",
+                        "//third-party/rust:rustc-demangle-0.1.28",
                         "//third-party/rust:tokio-1.52.3",
                         "//third-party/rust:wasmtime-48.0.1",
                         "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -8177,6 +8196,7 @@ crates = {
                     "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/block-gpu-host:block-gpu-host",
                     "//third-party/rust:bytes-1.11.1",
+                    "//third-party/rust:rustc-demangle-0.1.28",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:wasmtime-48.0.1",
                     "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -8189,6 +8209,7 @@ crates = {
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-plugin-api:block-plugin-api",
                             "//third-party/rust:bytes-1.11.1",
+                            "//third-party/rust:rustc-demangle-0.1.28",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:wasmtime-48.0.1",
                             "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -19590,6 +19611,97 @@ third_party = {
         "sha256": "873dab07c8f743075e57f524c583985fbaf745602acbe916a01539364369a779",
         "size_bytes": 100083,
         "version": "0.15.3",
+    },
+    "cpp_demangle-0.5.1": {
+        "build_script": {
+            "crate_root": "build.rs",
+            "edition": "2018",
+        },
+        "env": {
+            "CARGO_PKG_AUTHORS": "Nick Fitzgerald <fitzgen@gmail.com>:Jim Blandy <jimb@red-bean.com>:Kyle Huey <khuey@kylehuey.com>",
+            "CARGO_PKG_DESCRIPTION": "A crate for demangling C++ symbols",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/gimli-rs/cpp_demangle",
+        },
+        "library": {
+            "crate": "cpp_demangle",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "cpp_demangle",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "0667304c32ea56cb4cd6d2d7c0cfe9a2f8041229db8c033af7f8d69492429def",
+        "size_bytes": 83067,
+        "version": "0.5.1",
     },
     "cpufeatures-0.2.17": {
         "build_script": None,
@@ -44077,6 +44189,67 @@ third_party = {
         "size_bytes": 155563,
         "version": "0.32.1",
     },
+    "rustc-demangle-0.1.28": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Alex Crichton <alex@alexcrichton.com>",
+            "CARGO_PKG_DESCRIPTION": "Rust compiler symbol demangling.\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/rust-lang/rustc-demangle",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-lang/rustc-demangle",
+        },
+        "library": {
+            "crate": "rustc_demangle",
+            "crate_root": "src/lib.rs",
+            "edition": "2015",
+            "proc_macro": False,
+        },
+        "name": "rustc-demangle",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "b74b56ffa8bb2830709a538c2cbcae9aa062db0d2a42563bfb09bdaae44020eb",
+        "size_bytes": 30857,
+        "version": "0.1.28",
+    },
     "rustc-hash-1.1.0": {
         "build_script": None,
         "env": {
@@ -56368,6 +56541,7 @@ third_party = {
                     "cache",
                     "component-model",
                     "cranelift",
+                    "demangle",
                     "gc",
                     "gc-drc",
                     "once_cell",
@@ -56419,6 +56593,7 @@ third_party = {
                     "cache",
                     "component-model",
                     "cranelift",
+                    "demangle",
                     "gc",
                     "gc-drc",
                     "once_cell",
@@ -56470,6 +56645,7 @@ third_party = {
                     "cache",
                     "component-model",
                     "cranelift",
+                    "demangle",
                     "gc",
                     "gc-drc",
                     "once_cell",
@@ -56521,6 +56697,7 @@ third_party = {
                     "cache",
                     "component-model",
                     "cranelift",
+                    "demangle",
                     "gc",
                     "gc-drc",
                     "once_cell",
@@ -56572,6 +56749,7 @@ third_party = {
                     "cache",
                     "component-model",
                     "cranelift",
+                    "demangle",
                     "gc",
                     "gc-drc",
                     "once_cell",
@@ -56622,6 +56800,7 @@ third_party = {
                     "cache",
                     "component-model",
                     "cranelift",
+                    "demangle",
                     "gc",
                     "gc-drc",
                     "once_cell",
@@ -56672,6 +56851,7 @@ third_party = {
                     "cache",
                     "component-model",
                     "cranelift",
+                    "demangle",
                     "gc",
                     "gc-drc",
                     "once_cell",
@@ -56725,6 +56905,7 @@ third_party = {
             "android-arm64": {
                 "deps": [
                     ":anyhow-1.0.104",
+                    ":cpp_demangle-0.5.1",
                     ":cranelift-bforest-0.135.1",
                     ":cranelift-bitset-0.135.1",
                     ":cranelift-entity-0.135.1",
@@ -56734,6 +56915,7 @@ third_party = {
                     ":log-0.4.31",
                     ":object-0.39.1",
                     ":postcard-1.1.3",
+                    ":rustc-demangle-0.1.28",
                     ":semver-1.0.28",
                     ":serde-1.0.228",
                     ":serde_derive-1.0.228",
@@ -56747,6 +56929,7 @@ third_party = {
                 "features": [
                     "compile",
                     "component-model",
+                    "demangle",
                     "gc",
                     "gc-copying",
                     "gc-drc",
@@ -56763,6 +56946,7 @@ third_party = {
             "linux-arm64": {
                 "deps": [
                     ":anyhow-1.0.104",
+                    ":cpp_demangle-0.5.1",
                     ":cranelift-bforest-0.135.1",
                     ":cranelift-bitset-0.135.1",
                     ":cranelift-entity-0.135.1",
@@ -56772,6 +56956,7 @@ third_party = {
                     ":log-0.4.31",
                     ":object-0.39.1",
                     ":postcard-1.1.3",
+                    ":rustc-demangle-0.1.28",
                     ":semver-1.0.28",
                     ":serde-1.0.228",
                     ":serde_derive-1.0.228",
@@ -56785,6 +56970,7 @@ third_party = {
                 "features": [
                     "compile",
                     "component-model",
+                    "demangle",
                     "gc",
                     "gc-copying",
                     "gc-drc",
@@ -56801,6 +56987,7 @@ third_party = {
             "linux-x86_64": {
                 "deps": [
                     ":anyhow-1.0.104",
+                    ":cpp_demangle-0.5.1",
                     ":cranelift-bforest-0.135.1",
                     ":cranelift-bitset-0.135.1",
                     ":cranelift-entity-0.135.1",
@@ -56810,6 +56997,7 @@ third_party = {
                     ":log-0.4.31",
                     ":object-0.39.1",
                     ":postcard-1.1.3",
+                    ":rustc-demangle-0.1.28",
                     ":semver-1.0.28",
                     ":serde-1.0.228",
                     ":serde_derive-1.0.228",
@@ -56823,6 +57011,7 @@ third_party = {
                 "features": [
                     "compile",
                     "component-model",
+                    "demangle",
                     "gc",
                     "gc-copying",
                     "gc-drc",
@@ -56839,6 +57028,7 @@ third_party = {
             "macos-arm64": {
                 "deps": [
                     ":anyhow-1.0.104",
+                    ":cpp_demangle-0.5.1",
                     ":cranelift-bforest-0.135.1",
                     ":cranelift-bitset-0.135.1",
                     ":cranelift-entity-0.135.1",
@@ -56848,6 +57038,7 @@ third_party = {
                     ":log-0.4.31",
                     ":object-0.39.1",
                     ":postcard-1.1.3",
+                    ":rustc-demangle-0.1.28",
                     ":semver-1.0.28",
                     ":serde-1.0.228",
                     ":serde_derive-1.0.228",
@@ -56861,6 +57052,7 @@ third_party = {
                 "features": [
                     "compile",
                     "component-model",
+                    "demangle",
                     "gc",
                     "gc-copying",
                     "gc-drc",
@@ -56877,6 +57069,7 @@ third_party = {
             "macos-x86_64": {
                 "deps": [
                     ":anyhow-1.0.104",
+                    ":cpp_demangle-0.5.1",
                     ":cranelift-bforest-0.135.1",
                     ":cranelift-bitset-0.135.1",
                     ":cranelift-entity-0.135.1",
@@ -56886,6 +57079,7 @@ third_party = {
                     ":log-0.4.31",
                     ":object-0.39.1",
                     ":postcard-1.1.3",
+                    ":rustc-demangle-0.1.28",
                     ":semver-1.0.28",
                     ":serde-1.0.228",
                     ":serde_derive-1.0.228",
@@ -56899,6 +57093,7 @@ third_party = {
                 "features": [
                     "compile",
                     "component-model",
+                    "demangle",
                     "gc",
                     "gc-copying",
                     "gc-drc",
@@ -56915,6 +57110,7 @@ third_party = {
             "windows-arm64": {
                 "deps": [
                     ":anyhow-1.0.104",
+                    ":cpp_demangle-0.5.1",
                     ":cranelift-bforest-0.135.1",
                     ":cranelift-bitset-0.135.1",
                     ":cranelift-entity-0.135.1",
@@ -56924,6 +57120,7 @@ third_party = {
                     ":log-0.4.31",
                     ":object-0.39.1",
                     ":postcard-1.1.3",
+                    ":rustc-demangle-0.1.28",
                     ":semver-1.0.28",
                     ":serde-1.0.228",
                     ":serde_derive-1.0.228",
@@ -56937,6 +57134,7 @@ third_party = {
                 "features": [
                     "compile",
                     "component-model",
+                    "demangle",
                     "gc",
                     "gc-copying",
                     "gc-drc",
@@ -56953,6 +57151,7 @@ third_party = {
             "windows-x86_64": {
                 "deps": [
                     ":anyhow-1.0.104",
+                    ":cpp_demangle-0.5.1",
                     ":cranelift-bforest-0.135.1",
                     ":cranelift-bitset-0.135.1",
                     ":cranelift-entity-0.135.1",
@@ -56962,6 +57161,7 @@ third_party = {
                     ":log-0.4.31",
                     ":object-0.39.1",
                     ":postcard-1.1.3",
+                    ":rustc-demangle-0.1.28",
                     ":semver-1.0.28",
                     ":serde-1.0.228",
                     ":serde_derive-1.0.228",
@@ -56975,6 +57175,7 @@ third_party = {
                 "features": [
                     "compile",
                     "component-model",
+                    "demangle",
                     "gc",
                     "gc-copying",
                     "gc-drc",

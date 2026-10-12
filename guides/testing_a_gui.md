@@ -250,7 +250,10 @@ While working on one editor, run its tests alone:
 
 The first compares, the second accepts. A panic aborts a wasm guest, so a failing test ends
 its binary's run; the runner then lists the tests and runs each in an instance of its own, and
-reports every one that failed, each with its panic message, at the end of the output.
+reports every one that failed, each with its panic message and the functions it panicked in,
+innermost first, at the end of the output. Rust's own backtraces are not available in wasm, so
+the runner reads the call stack from wasmtime instead; it has function names but no line
+numbers.
 Until then the module's tests run one after another, in name order, on one thread, so what a
 crate keeps per thread (the frame clock, the pinned wall clock) carries from one test into the
 next, and anything that starts afresh with each harness must be reset when it does
