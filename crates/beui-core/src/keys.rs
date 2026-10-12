@@ -82,6 +82,7 @@ pub type KeyHandler = dyn Fn(KeyEvent) -> bool;
 struct Listener {
     at: KeyAt,
     phase: KeyPhase,
+    reveal: bool,
     handler: Weak<KeyHandler>,
 }
 
@@ -100,47 +101,64 @@ pub struct KeyListeners {
 pub(crate) enum Stop {
     Host,
     Window,
-    Node(NodeId),
+}
+
+pub(crate) struct Placed {
+    pub handler: Rc<KeyHandler>,
+    pub reveal: bool,
+}
+
+pub(crate) struct AtNode {
+    pub node: NodeId,
+    pub placed: Placed,
 }
 
 impl KeyListeners {
-    pub fn listen(&self, at: KeyAt, phase: KeyPhase, handler: Weak<KeyHandler>) {
-        self.listeners
-            .borrow_mut()
-            .push(Listener { at, phase, handler });
+    pub fn listen(&self, at: KeyAt, phase: KeyPhase, reveal: bool, handler: Weak<KeyHandler>) {
+        self.listeners.borrow_mut().push(Listener {
+            at,
+            phase,
+            reveal,
+            handler,
+        });
     }
 
-    pub(crate) fn at(
-        &self,
-        stop: Stop,
-        phase: KeyPhase,
-        root: Option<NodeId>,
-    ) -> Vec<Rc<KeyHandler>> {
+    fn live(&self) -> std::cell::RefMut<'_, Vec<Listener>> {
         let mut listeners = self.listeners.borrow_mut();
         listeners.retain(|listener| listener.handler.strong_count() > 0);
         listeners
+    }
+
+    pub(crate) fn at(&self, stop: Stop, phase: KeyPhase) -> Vec<Placed> {
+        self.live()
             .iter()
             .filter(|listener| listener.phase == phase)
             .filter(|listener| match (&listener.at, stop) {
                 (KeyAt::Host, Stop::Host) | (KeyAt::Window, Stop::Window) => true,
-                (at, Stop::Node(node)) => at.node(root) == Some(node),
                 _ => false,
             })
-            .filter_map(|listener| listener.handler.upgrade())
+            .filter_map(|listener| {
+                Some(Placed {
+                    handler: listener.handler.upgrade()?,
+                    reveal: listener.reveal,
+                })
+            })
             .collect()
     }
 
-    pub(crate) fn placed(
-        &self,
-        phase: KeyPhase,
-        root: Option<NodeId>,
-    ) -> Vec<(NodeId, Rc<KeyHandler>)> {
-        let mut listeners = self.listeners.borrow_mut();
-        listeners.retain(|listener| listener.handler.strong_count() > 0);
-        listeners
+    pub(crate) fn placed(&self, phase: KeyPhase, root: Option<NodeId>) -> Vec<AtNode> {
+        self.live()
             .iter()
             .filter(|listener| listener.phase == phase)
-            .filter_map(|listener| Some((listener.at.node(root)?, listener.handler.upgrade()?)))
+            .filter_map(|listener| {
+                Some(AtNode {
+                    node: listener.at.node(root)?,
+                    placed: Placed {
+                        handler: listener.handler.upgrade()?,
+                        reveal: listener.reveal,
+                    },
+                })
+            })
             .collect()
     }
 }

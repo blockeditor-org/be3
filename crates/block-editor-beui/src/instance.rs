@@ -203,7 +203,7 @@ impl<A: BeuiApp> Views<A> {
             editor.end_frame(chrome.document());
         }
         shown.content = chrome.document().node_rect(chrome.content());
-        shown.exit = chrome.exit().get() || beui_frame::escaped(context);
+        shown.exit = chrome.exit().take();
         shown.painted = vec![rect];
         shown.floating = chrome.document().overlay_rects();
         shown.claims = chrome.document().press_claims();

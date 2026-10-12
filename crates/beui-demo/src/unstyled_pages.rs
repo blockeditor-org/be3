@@ -1148,7 +1148,6 @@ fn NumberField(handle: NumberFieldHandle) -> NodeId {
         on_change,
         on_submit,
         on_focus_change,
-        on_key,
     } = handle;
     view! {
         <unstyled::TextInput
@@ -1160,7 +1159,6 @@ fn NumberField(handle: NumberFieldHandle) -> NodeId {
             on_change={move |typed| on_change.call(typed)}
             on_submit={move |typed| on_submit.call(typed)}
             on_focus_change={move |focused| on_focus_change.call(focused)}
-            on_key_override={move |press| on_key.call(press)}
         >
             {move |handle: TextInputHandle| view! {
                 <UnderlinedField handle />

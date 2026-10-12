@@ -32,7 +32,6 @@ pub struct Focus {
     pub on_text: Callback<String>,
     pub on_ime: Callback<ImeEvent>,
     pub on_key: KeyCallback,
-    pub on_ancestor_key: KeyCallback,
     pub on_motion: Callback<Vec2>,
 }
 
@@ -59,7 +58,6 @@ impl Focus {
             on_text: Callback::empty(),
             on_ime: Callback::empty(),
             on_key: Callback::empty(),
-            on_ancestor_key: Callback::empty(),
             on_motion: Callback::empty(),
         }
     }
@@ -238,6 +236,37 @@ impl Document {
             return false;
         };
         on_key.call(press)
+    }
+
+    pub(crate) fn target_key(&mut self, node: NodeId, press: KeyPress) -> bool {
+        if self.key_focused(press) {
+            return true;
+        }
+        let modifiers = press.modifiers;
+        match press.key {
+            Key::Enter | Key::Space if !press.pressed => {
+                let releases = self.activation_key == Some(press.key);
+                if releases {
+                    self.set_focus_key_pressed(press.key, false, press.repeat);
+                }
+                releases
+            }
+            Key::Enter | Key::Space if !modifiers.ctrl && !modifiers.alt && self.activates(node) => {
+                self.set_focus_key_pressed(press.key, true, press.repeat);
+                true
+            }
+            Key::ArrowLeft | Key::ArrowDown | Key::ArrowRight | Key::ArrowUp
+                if press.pressed && !modifiers.ctrl && !modifiers.alt && self.steps(node) =>
+            {
+                let delta = match press.key {
+                    Key::ArrowLeft | Key::ArrowDown => -1.0,
+                    _ => 1.0,
+                };
+                self.step_focused(delta);
+                true
+            }
+            _ => false,
+        }
     }
 
     pub fn step_focused(&mut self, delta: f32) {

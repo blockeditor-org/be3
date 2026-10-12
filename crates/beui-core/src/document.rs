@@ -513,9 +513,10 @@ impl Document {
         &self,
         at: crate::keys::KeyAt,
         phase: crate::keys::KeyPhase,
+        reveal: bool,
         handler: Weak<crate::keys::KeyHandler>,
     ) {
-        self.keys.listen(at, phase, handler);
+        self.keys.listen(at, phase, reveal, handler);
     }
 
     pub fn input_frames(&self) -> u64 {

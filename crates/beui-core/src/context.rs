@@ -14,7 +14,7 @@ use crate::file_picker::{FileFilter, FilePick, FilePickId, FilePickRequest};
 use crate::filter::Filter;
 use crate::font::{FontBackend, FontId, Fonts, Galley, TextLayout};
 use crate::geometry::{Rect, pos2};
-use crate::input::{CursorIcon, Event, ImeArea, InputState, KeyChord, RawInput};
+use crate::input::{CursorIcon, ImeArea, InputState, KeyChord, RawInput};
 use crate::node::NodeId;
 use crate::paint::{Item, Recorded};
 use crate::painter::{Entry, Painter, Shape};
@@ -560,10 +560,6 @@ impl Context {
 
     pub fn input<R>(&self, reader: impl FnOnce(&InputState) -> R) -> R {
         reader(&self.inner.input.borrow())
-    }
-
-    pub fn retain_events(&self, keep: impl FnMut(&Event) -> bool) {
-        self.inner.input.borrow_mut().events.retain(keep);
     }
 
     pub fn set_ime_area(&self, area: Option<ImeArea>) {

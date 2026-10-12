@@ -4,7 +4,7 @@ use crate::context::Context;
 use crate::document::Document;
 use crate::geometry::{Pos2, Vec2};
 use crate::input::{
-    AutoscrollGesture, CursorIcon, Event, Key, PointerButton, PointerEvent, PointerId, PointerPhase,
+    AutoscrollGesture, CursorIcon, Event, PointerButton, PointerEvent, PointerId, PointerPhase,
 };
 use crate::node::NodeId;
 
@@ -19,12 +19,6 @@ pub struct Autoscroll {
     travelled: bool,
 }
 
-#[derive(Default)]
-pub(crate) struct Tracked {
-    pub swallows_escape: bool,
-    pub wheel_taken: bool,
-}
-
 pub(crate) fn start(doc: &mut Document, target: NodeId, pos: Pos2) {
     let autoscroll = Autoscroll {
         target,
@@ -37,34 +31,28 @@ pub(crate) fn start(doc: &mut Document, target: NodeId, pos: Pos2) {
     report(doc, &autoscroll, false);
 }
 
-pub(crate) fn frame(doc: &mut Document, ctx: &Context, enabled: bool) -> Tracked {
+pub(crate) fn frame(doc: &mut Document, ctx: &Context, enabled: bool) -> bool {
     let Some(autoscroll) = doc.autoscroll else {
-        return Tracked::default();
+        return false;
     };
     if catcher(doc, autoscroll.target).is_none() {
         doc.autoscroll = None;
-        return Tracked::default();
+        return false;
     }
-    let mut tracked = Tracked::default();
-    let mut ended = !enabled;
-    for event in ctx.input(|input| input.events.clone()) {
-        match event {
-            Event::Key { press, .. } if press.pressed && !press.key.is_modifier() => {
-                ended = true;
-                tracked.swallows_escape |= press.key == Key::Escape;
-            }
-            Event::Focus(false) => ended = true,
-            _ => {}
-        }
-    }
-    if ctx.input(|input| input.scroll_delta != Vec2::ZERO) {
-        ended = true;
-        tracked.wheel_taken = true;
-    }
-    if ended {
+    let lost = ctx.input(|input| input.events.contains(&Event::Focus(false)));
+    let wheeled = ctx.input(|input| input.scroll_delta != Vec2::ZERO);
+    if !enabled || lost || wheeled {
         finish(doc, &autoscroll);
     }
-    tracked
+    wheeled
+}
+
+pub(crate) fn end(doc: &mut Document) -> bool {
+    let Some(autoscroll) = doc.autoscroll else {
+        return false;
+    };
+    finish(doc, &autoscroll);
+    true
 }
 
 pub(crate) fn pointer(doc: &mut Document, event: &PointerEvent) -> bool {

@@ -126,17 +126,13 @@ struct Frame<'a> {
     long_press: Duration,
 }
 
-pub(crate) struct Dispatched {
-    pub swallows_escape: bool,
-}
-
 pub(crate) fn dispatch(
     doc: &mut Document,
     ctx: &Context,
     rects: &Rects,
     root: NodeId,
     enabled: bool,
-) -> Dispatched {
+) {
     let frame = Frame {
         ctx,
         rects,
@@ -151,7 +147,7 @@ pub(crate) fn dispatch(
     for session in &mut doc.pointers.sessions {
         session.dragged_this_frame = false;
     }
-    let tracked = autoscroll::frame(doc, ctx, enabled);
+    let wheel_taken = autoscroll::frame(doc, ctx, enabled);
     if !enabled {
         let pointers: Vec<PointerId> = doc
             .pointers
@@ -164,9 +160,7 @@ pub(crate) fn dispatch(
         }
         hover(doc, &frame, None);
         doc.pointers.wheel_sink = None;
-        return Dispatched {
-            swallows_escape: tracked.swallows_escape,
-        };
+        return;
     }
     long_presses(doc, &frame);
     for event in ctx.input(|input| input.pointer_events.clone()) {
@@ -190,7 +184,7 @@ pub(crate) fn dispatch(
     }
     frame_drags(doc, &frame);
     pinch(doc, &frame);
-    if !tracked.wheel_taken {
+    if !wheel_taken {
         wheel(doc, &frame);
     }
     let mouse = ctx.input(|input| input.pointer.pos.filter(|_| !input.pointer.from_touch()));
@@ -204,9 +198,6 @@ pub(crate) fn dispatch(
     cursor(doc, &frame);
     track(doc, &frame);
     autoscroll::show_cursor(doc, ctx);
-    Dispatched {
-        swallows_escape: tracked.swallows_escape,
-    }
 }
 
 fn node_mut(doc: &mut Document, id: NodeId) -> Option<&mut InteractiveNode> {

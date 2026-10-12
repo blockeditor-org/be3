@@ -31,7 +31,6 @@ pub fn Interactive(
     #[prop(default = true)] takes_text: bool,
     on_ime: Callback<ImeEvent>,
     on_key: Callback<KeyPress, bool>,
-    on_ancestor_key: Callback<KeyPress, bool>,
     on_motion: Callback<Vec2>,
     cursor: Option<Prop<CursorIcon>>,
     #[prop(default = false)] key_active: Prop<bool>,
@@ -76,7 +75,6 @@ pub fn Interactive(
                 && on_text.is_empty()
                 && on_ime.is_empty()
                 && on_key.is_empty()
-                && on_ancestor_key.is_empty()
                 && on_motion.is_empty()),
         "an Interactive handed focus callbacks has to be focusable"
     );
@@ -94,7 +92,6 @@ pub fn Interactive(
             }
             focus.on_ime = on_ime;
             focus.on_key = on_key;
-            focus.on_ancestor_key = on_ancestor_key;
             focus.on_motion = on_motion;
         }
         node.on_click = on_click;

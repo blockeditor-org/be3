@@ -6,11 +6,13 @@ use beui_macros::{component, view};
 
 use beui_core::document::Document;
 use beui_core::geometry::Pos2;
-use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
+use beui_core::input::{CursorIcon, Key, PointerPress};
+use beui_core::keys::{KeyAt, KeyEvent, KeyPhase};
+use beui_core::tree::component_node;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Callback, Interactive, IntoProp, List, Memo, Prop, ReadSignal, Render, ShowKeepAlive, clone,
-    component_accessibility, create_effect, create_memo, create_signal, set_component_state,
+    component_accessibility, create_effect, create_memo, create_signal, on_key, set_component_state,
 };
 
 const DRAG_THRESHOLD: f32 = 2.0;
@@ -51,7 +53,6 @@ pub struct NumberFieldHandle {
     pub on_change: Callback<String>,
     pub on_submit: Callback<String>,
     pub on_focus_change: Callback<bool>,
-    pub on_key: Callback<KeyPress, bool>,
 }
 
 struct Parts {
@@ -180,14 +181,15 @@ pub fn NumberInput(
             finish(true);
         }
     });
-    let escaped = clone!(set_refocus -> move |press: KeyPress| {
-        if press.key != Key::Escape {
+    on_key(KeyAt::Node(component_node()), KeyPhase::Bubble, clone!(editing set_refocus finish -> move |event: KeyEvent| {
+        let escaped = event.press().is_some_and(|press| press.pressed && press.key == Key::Escape);
+        if !escaped || !editing.get_untracked() {
             return false;
         }
         set_refocus.set(true);
         finish(false);
         true
-    });
+    }));
     let button_focus = move |has_focus: bool| {
         set_focused.set(has_focus);
         if !has_focus {
@@ -209,7 +211,6 @@ pub fn NumberInput(
         on_change: Callback::new(edited),
         on_submit: Callback::new(submitted),
         on_focus_change: Callback::new(focus_changed),
-        on_key: Callback::new(escaped),
     });
     set_component_state(Parts {
         face,

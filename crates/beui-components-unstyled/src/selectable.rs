@@ -2,9 +2,10 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use beui::reactive::{
-    Callback, Child, Interactive, NodeRef, Prop, copy_text, create_effect, set_component_state,
-    untrack, with_document,
+    Callback, Child, Interactive, NodeRef, Prop, copy_text, create_effect, on_key,
+    set_component_state, untrack, with_document,
 };
+use beui_core::keys::{KeyAt, KeyPhase};
 use beui_core::base::text::TextNode;
 use beui_core::color::Color32;
 use beui_core::document::Document;
@@ -418,18 +419,18 @@ pub fn Selectable(
             with_document(|document| painted.paint(document));
         });
     });
-    let (pressed, dragged, keyed, ancestor) =
-        (state.clone(), state.clone(), state.clone(), state.clone());
+    let (pressed, dragged, keyed) = (state.clone(), state.clone(), state.clone());
     let (tapped, held, captured, released) =
         (state.clone(), state.clone(), state.clone(), state.clone());
     let focused = focusable.clone();
+    on_key(KeyAt::Node(focusable.clone()), KeyPhase::Bubble, move |event| {
+        event.press().is_some_and(|press| key(&keyed, press))
+    });
     view! {
         <Interactive
             focusable=true
             @node_ref=&focusable
             tab_stop=false
-            on_key={move |press: KeyPress| key(&keyed, press)}
-            on_ancestor_key={move |press: KeyPress| key(&ancestor, press)}
             claims_touch=false
             claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
                 with_document(|document| captured.handle_at(document, pos).is_some())

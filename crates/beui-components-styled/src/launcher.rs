@@ -20,9 +20,11 @@ use beui_core::input::{Key, KeyPress};
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    Align, Callback, ClickCallback, Direction, ForEach, Frame, ItemSize, List, Memo, Prop,
-    ReadSignal, Show, Text, WriteSignal, clone, create_effect, create_memo, create_signal, untrack,
+    Align, Callback, ClickCallback, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Prop,
+    ReadSignal, Show, Text, WriteSignal, clone, create_effect, create_memo, create_signal, on_key,
+    untrack,
 };
+use beui_core::keys::{KeyAt, KeyPhase};
 
 const WIDTH: f32 = 560.0;
 const LIST_HEIGHT: f32 = 380.0;
@@ -243,6 +245,11 @@ pub fn Launcher(
         on_run,
     };
     let (typing, submitting, keys, building) = (state.clone(), state.clone(), state.clone(), state);
+    let search = NodeRef::new();
+    on_key(KeyAt::Node(search.clone()), KeyPhase::Capture, move |event| {
+        event.press().is_some_and(|press| keys.navigate(press))
+    });
+
     let accessibility = create_memo(|| {
         let mut node = Node::new(Role::SearchInput);
         node.set_label("Search programs");
@@ -271,6 +278,7 @@ pub fn Launcher(
                 >
                     <List spacing=PADDING>
                         <unstyled::TextInput
+                            @node_ref=&search
                             @test_id={"launcher.search"}
                             value={query}
                             focused={searching}
@@ -282,7 +290,6 @@ pub fn Launcher(
                             }}
                             on_change={move |text: String| typing.set_query.set(text)}
                             on_submit={move |_: String| submitting.submit()}
-                            on_key_override={move |press: KeyPress| keys.navigate(press)}
                         />
                         <unstyled::Scroll
                             @sizing=ItemSize::Fixed(LIST_HEIGHT)
