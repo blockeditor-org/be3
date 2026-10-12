@@ -48,7 +48,7 @@ How the server runs on a VPS for real notes. The files referred to are in
 ## Deploying
 
 `./scripts/deploy` builds be-server and `be` in release in one buck2 command
-(crates/deploy) and then, from that build:
+(local-tools deploy, in crates/local-tools) and then, from that build:
 
 - uploads each `be` bundle (Linux x86_64 and arm64) to the storage zone as
   `be/BUILD/be-TRIPLE/` (`BUNNY_STORAGE_KEY`), reads it back from

@@ -266,7 +266,7 @@ _FUZZ_FLAGS = [
 # which is built again with extra_features and the coverage instrumentation, and
 # linked with libFuzzer (//buck/tools:libfuzzer) for its main. fuzz/NAME.rs is
 # :fuzz-NAME, which `./scripts/buck run` fuzzes until it is stopped, keeping
-# what it finds in target/fuzz/<crate>/NAME (crates/fuzz-runner); //:fuzz runs
+# what it finds in target/fuzz/<crate>/NAME (local-tools fuzz); //:fuzz runs
 # every one, taking turns. :fuzz-NAME-test runs it briefly from a fixed seed, so a
 # target that stops building or running fails verify.
 def cargo_fuzz(extra_features = []):
@@ -311,14 +311,14 @@ def cargo_fuzz(extra_features = []):
 FuzzTargetInfo = provider(fields = {"binary": Artifact, "id": str})
 
 # A fuzz target's binary under the id its corpus is kept by, run here by
-# crates/fuzz-runner, which reads them from a list of "id<TAB>binary" lines:
+# local-tools fuzz, which reads them from a list of "id<TAB>binary" lines:
 # here the one, and for //:fuzz every one.
 def _fuzz_target_impl(ctx: AnalysisContext) -> list[Provider]:
     binary = ctx.attrs.binary[DefaultInfo].default_outputs[0]
     targets = ctx.actions.write("targets", [cmd_args(ctx.attrs.id, binary, delimiter = "\t")])
     return [
         DefaultInfo(default_output = targets, other_outputs = [binary]),
-        RunInfo(args = cmd_args(ctx.attrs._runner[RunInfo], "--list", targets, hidden = binary)),
+        RunInfo(args = cmd_args(ctx.attrs._runner[RunInfo], "fuzz", "--list", targets, hidden = binary)),
         FuzzTargetInfo(binary = binary, id = ctx.attrs.id),
     ]
 
@@ -326,7 +326,7 @@ fuzz_target = rule(
     attrs = {
         "binary": attrs.dep(providers = [RunInfo]),
         "id": attrs.string(),
-        "_runner": attrs.default_only(attrs.dep(default = "root//crates/fuzz-runner:fuzz-runner-bin", providers = [RunInfo])),
+        "_runner": attrs.default_only(attrs.dep(default = "root//crates/local-tools:local-tools-bin", providers = [RunInfo])),
     },
     impl = _fuzz_target_impl,
 )

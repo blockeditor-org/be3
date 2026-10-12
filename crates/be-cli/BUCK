@@ -18,5 +18,5 @@ app(
     modules = [],
     precompile = False,
     precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
-    visibility = ["//crates/deploy:"],
+    visibility = ["//crates/local-tools:"],
 )

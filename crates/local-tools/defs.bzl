@@ -1,6 +1,6 @@
 load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "keep_profile")
 
-# What ./scripts/deploy runs: crates/deploy, handed the server and the be
+# What ./scripts/deploy runs: local-tools deploy, handed the server and the be
 # bundles built for the platforms they run on whatever machine deploys them,
 # in the profile the command asks for (-m release).
 
@@ -24,6 +24,7 @@ def _deploy_impl(ctx: AnalysisContext) -> list[Provider]:
     server = ctx.attrs.server[DefaultInfo].default_outputs[0]
     command = cmd_args(
         ctx.attrs.tool[RunInfo],
+        "deploy",
         "--server",
         server,
         "--be",
