@@ -51,7 +51,6 @@ pub struct BeuiTest<A: BeuiApp> {
     output: Option<beui::FrameOutput>,
     recording: Option<snapshot::Snapshot>,
     overflows: Vec<String>,
-    allowed_overflows: Vec<String>,
     viewport: Option<Viewport>,
     children: Vec<ChildPlacement>,
     occluders: Vec<Occluder>,
@@ -215,7 +214,6 @@ impl<A: BeuiApp> BeuiTest<A> {
             output: None,
             recording: None,
             overflows: Vec::new(),
-            allowed_overflows: Vec::new(),
             viewport: None,
             children: Vec::new(),
             occluders: Vec::new(),
@@ -1306,13 +1304,9 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.push(Event::Text(text.into()));
     }
 
-    pub fn allow_overflow(&mut self, test_id: &str) {
-        self.allowed_overflows.push(test_id.to_owned());
-    }
-
     pub fn record(&mut self) {
         let frame = self.painted();
-        let found = overflow::overflows(self.document(), &self.allowed_overflows);
+        let found = overflow::overflows(self.document());
         self.overflows.extend(found);
         match &mut self.recording {
             Some(recording) => recording.append(frame),
@@ -1324,7 +1318,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         let painting = match self.recording.take() {
             Some(recording) => recording,
             None => {
-                let found = overflow::overflows(self.document(), &self.allowed_overflows);
+                let found = overflow::overflows(self.document());
                 self.overflows.extend(found);
                 self.painted()
             }
