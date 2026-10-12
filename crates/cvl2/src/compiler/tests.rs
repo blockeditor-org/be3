@@ -111,6 +111,58 @@ fn pub_binding(lhs: SyntaxNode, rhs: SyntaxNode, idx: usize) -> SyntaxNode {
     )
 }
 
+fn build_c_fn(body: &str) -> Result<String, Vec<TokenizationError>> {
+    let artifact = import_file(
+        "op.qxc",
+        &format!(
+            "#builtin.build .= () => std.Folder: [
+  \"lib.c\" .= std.c.compile: [
+    \"f\" .= f
+  ]
+]
+f :: (a: std.c.int, b: std.c.int) => std.c.int: {{
+{body}
+}}
+g :: (x: std.c.int) => std.c.int: x
+std :: #builtin.std"
+        ),
+    )?;
+    let ComptimeValueBuildArtifact::Folder(folder) = artifact else {
+        panic!("expected a folder");
+    };
+    let [(_, ComptimeValueBuildArtifact::File(file))] = folder.value.as_slice() else {
+        panic!("expected a single file");
+    };
+    Ok(String::from_utf8(file.value.clone()).unwrap())
+}
+
+fn build_file(body: &str) -> Result<String, Vec<TokenizationError>> {
+    let artifact = import_file(
+        "file.qxc",
+        &format!(
+            "#builtin.build .= () => std.Folder: [
+  \"x.txt\" .= std.File: {{
+{body}
+  }}
+]
+std :: #builtin.std"
+        ),
+    )?;
+    let ComptimeValueBuildArtifact::Folder(folder) = artifact else {
+        panic!("expected a folder");
+    };
+    let [(_, ComptimeValueBuildArtifact::File(file))] = folder.value.as_slice() else {
+        panic!("expected a single file");
+    };
+    Ok(String::from_utf8(file.value.clone()).unwrap())
+}
+
+fn only_error(result: Result<String, Vec<TokenizationError>>) -> String {
+    let errors = result.expect_err("expected the build to fail");
+    assert_eq!(errors.len(), 1, "{errors:?}");
+    errors[0].entries[0].message.clone()
+}
+
 mod add_err_pushes_error_into_env;
 mod analyze_access_builtin_main_resolves_key;
 mod analyze_base_builtin_resolves_to_namespace;
@@ -118,7 +170,51 @@ mod analyze_call_not_supported_call_type_errors;
 mod analyze_namespace_errors_on_non_key_bind_target;
 mod block_append_returns_sequential_indices;
 mod get_err_includes_message_and_trace;
+mod import_file_bad_token_reports_once;
+mod import_file_build_rejects_c_if;
+mod import_file_builds_c_sample;
+mod import_file_builds_codegen_sample;
+mod import_file_builds_comptime_sample;
+mod import_file_builds_data_sample;
+mod import_file_builds_demo_sample;
+mod import_file_builds_kw_sample;
+mod import_file_builds_loop_sample;
+mod import_file_builds_optional_sample;
+mod import_file_builds_reflect_sample;
+mod import_file_builds_text_sample;
+mod import_file_builds_types_sample;
+mod import_file_c_skips_known_kw_if;
+mod import_file_compare_operator_takes_rhs_type_from_lhs;
+mod import_file_compound_assignment;
+mod import_file_comptime_param_errors;
+mod import_file_datapack_names_calls_and_reports_lost_results;
+mod import_file_emit_errors;
+mod import_file_kw_bool_values_resolve_from_slot;
+mod import_file_kw_else_if_chains;
+mod import_file_kw_else_must_follow_if_on_same_line;
+mod import_file_kw_for;
+mod import_file_kw_if_binds_an_optional;
+mod import_file_kw_if_condition_must_be_kw_bool;
+mod import_file_kw_int_arithmetic_errors_on_overflow;
+mod import_file_kw_map_and_split;
+mod import_file_kw_match;
+mod import_file_kw_string_and_list_errors;
+mod import_file_loop_and_mut_errors;
+mod import_file_operator_errors_without_slot_or_lhs;
+mod import_file_operator_falls_back_to_lhs_in_unknown_slot;
+mod import_file_operator_name_must_be_an_operator;
+mod import_file_optionals_wrap_one_level_at_a_time;
+mod import_file_reflect_generator_rejects_unsupported_types;
+mod import_file_shared_buffers_keep_values_immutable;
+mod import_file_struct_and_enum_errors;
+mod import_file_struct_spread_and_field_cells;
+mod import_file_text_interpolates_and_names_fresh_identifiers;
+mod import_file_user_type_errors;
+mod import_file_written_calls_match_calls;
+mod import_file_written_literals_match_literals;
+mod import_file_written_operators_match_desugared_operators;
 mod ns_key_distinguishes_str_and_sym_variants;
+mod per_comptime_scope_cache_keys_on_target;
 mod read_binary2_extracts_matching_triplet;
 mod read_binary2_returns_none_for_empty_input;
 mod read_binary2_returns_none_for_non_matching_tag;

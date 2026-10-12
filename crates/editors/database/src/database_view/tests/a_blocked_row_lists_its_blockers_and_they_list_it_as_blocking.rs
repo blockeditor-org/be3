@@ -64,7 +64,7 @@ fn a_blocked_row_lists_its_blockers_and_they_list_it_as_blocking() {
         .harness
         .settle_until("the blocking row to show", |harness| {
             harness.shown(&format!(
-                "database-view.detail.field.{}.remove.{}",
+                "database-view.detail.links.{}.{}.remove",
                 block_editor_beui::be_block::database::inverse_id(database, blocked_by),
                 id(2).as_uuid()
             ))
@@ -74,7 +74,7 @@ fn a_blocked_row_lists_its_blockers_and_they_list_it_as_blocking() {
         .snapshot("a_blocked_row_lists_its_blockers_and_they_list_it_as_blocking");
 
     fixture.harness.click(&format!(
-        "database-view.detail.field.{}.remove.{}",
+        "database-view.detail.links.{}.{}.remove",
         block_editor_beui::be_block::database::inverse_id(database, blocked_by),
         id(2).as_uuid()
     ));

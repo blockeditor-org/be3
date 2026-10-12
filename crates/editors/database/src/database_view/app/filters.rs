@@ -2,237 +2,127 @@ use std::collections::BTreeMap;
 
 use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::be_block::database::{DatabaseColor, DatabaseValue};
-use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
+use block_editor_beui::be_block::database_schema::{
+    DatabaseEnumOption, DatabaseField, DatabaseFieldType,
+};
 use block_editor_beui::be_block::database_view::{DatabaseView, FilterCondition, ViewFilter};
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::{ICON_DELETE, ICON_FILTER_LIST};
+use block_editor_beui::beui::icons::{ICON_ADD, ICON_CLOSE, ICON_FILTER_LIST};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, ItemSize, List, Show, Spacer, clone, component, create_memo, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, clone, component, create_memo,
+    create_signal, view,
 };
+use block_editor_beui::beui::styled::popover::PopoverPanel;
+use block_editor_beui::beui::styled::theme::{BORDER_WIDTH, FONT_SMALL};
 use block_editor_beui::beui::styled::{
-    Button, ButtonVariant, Caption, Heading, IconButton, Select, TextInput,
+    Body, ButtonVariant, Caption, Checkbox, IconButton, IconButtonSize, IconSized, Scroll, Select,
+    TextInput, use_theme,
 };
-use block_editor_beui::beui::unstyled::ChoiceOption;
+use block_editor_beui::beui::unstyled::{self, ChoiceOption, PopoverHandle, PopoverTriggerHandle};
 use block_editor_beui::block_ui::database::{
-    DatabaseBlockPickRequest, DatabaseValueChange, ValueLabels,
+    DatabaseBlockPickRequest, DatabaseValueChange, ValueLabels, database_value_text,
 };
-use block_editor_beui::database::DatabaseValueEditor;
+use block_editor_beui::database::{ChoiceMark, DatabaseValueEditor};
+use uuid::Uuid;
 
+use crate::database_view::app::controls::{ControlFace, MARK_SIZE};
 use crate::database_view::app::data::Data;
-use crate::database_view::app::sidebar::FieldPicker;
 
 const SPACING: f32 = 6.0;
-const CONDITIONS: [&str; 5] = ["is set", "is empty", "is", "is not", "contains"];
+const EDITOR_WIDTH: f32 = 300.0;
+const CHOICES_HEIGHT: f32 = 280.0;
 
-#[component]
-pub fn Filters(data: Data) -> NodeId {
-    let keys = create_memo(clone!(data -> move || {
-        data.filter_items
-            .with(|items| items.iter().map(|(id, _)| *id).collect::<Vec<ObjectId>>())
-    }));
-    let none = create_memo(clone!(keys -> move || keys.with(Vec::is_empty)));
-    let add = clone!(data -> move || {
-        let field = data.fields.with_untracked(|fields| fields.first().map(|field| field.id));
-        data.operate_view(DatabaseView::add_filter(field, FilterCondition::IsSet).1);
-    });
-    let rows = data.clone();
-    let read_only = data.read_only.clone();
-    view! {
-        <List spacing=SPACING>
-            <Heading content="Filters" />
-            <Show condition={none}>
-                <Caption content="Every row is shown." wrap=true />
-            </Show>
-            <ForEach keys={keys}>
-                {move |id: ObjectId| {
-                    let data = rows.clone();
-                    view! {
-                        <FilterRow data={data} id={id} />
-                    }
-                }}
-            </ForEach>
-            <List direction=Direction::Horizontal spacing=0.0>
-                <Button
-                    glyph={ICON_FILTER_LIST.to_owned()}
-                    label="Add filter"
-                    variant=ButtonVariant::Secondary
-                    disabled={read_only}
-                    @test_id={"database-view.filters.add"}
-                    on_click={add}
-                />
-                <Spacer @sizing=ItemSize::Percent(100.0) />
-            </List>
-        </List>
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Kind {
+    AnyOf,
+    NoneOf,
+    Open,
+    Closed,
+    Set,
+    Empty,
+    Is,
+    IsNot,
+    Contains,
+}
+
+impl Kind {
+    fn label(self) -> &'static str {
+        match self {
+            Self::AnyOf | Self::Is => "is",
+            Self::NoneOf | Self::IsNot => "is not",
+            Self::Open => "is open",
+            Self::Closed => "is closed",
+            Self::Set => "is set",
+            Self::Empty => "is empty",
+            Self::Contains => "contains",
+        }
+    }
+
+    fn of(condition: &FilterCondition) -> Self {
+        match condition {
+            FilterCondition::AnyOf(_) => Self::AnyOf,
+            FilterCondition::NoneOf(_) => Self::NoneOf,
+            FilterCondition::IsOpen => Self::Open,
+            FilterCondition::IsClosed => Self::Closed,
+            FilterCondition::IsSet => Self::Set,
+            FilterCondition::IsEmpty => Self::Empty,
+            FilterCondition::Is(_) => Self::Is,
+            FilterCondition::IsNot(_) => Self::IsNot,
+            FilterCondition::Contains(_) => Self::Contains,
+        }
     }
 }
 
-#[component]
-fn FilterRow(data: Data, id: ObjectId) -> NodeId {
-    let filter = create_memo(clone!(data -> move || {
-        data.filter_items.with(|items| {
-            items
-                .iter()
-                .find(|(held, _)| *held == id)
-                .map(|(_, filter)| filter.clone())
-                .unwrap_or_default()
-        })
-    }));
-    let chosen = create_memo(clone!(filter -> move || filter.with(|filter| filter.field)));
-    let field = create_memo(clone!(data chosen -> move || {
-        let chosen = chosen.get()?;
-        data.fields
-            .with(|fields| fields.iter().find(|field| field.id == chosen).cloned())
-    }));
-    let condition = create_memo(clone!(filter -> move || condition_index(&filter.get())));
-    let compared = create_memo(clone!(condition -> move || matches!(condition.get(), Some(2 | 3))));
-    let searched = create_memo(clone!(condition -> move || condition.get() == Some(4)));
-    let fields = data.fields.clone();
-    let refield = clone!(data fields -> move |index: Option<usize>| {
-        let field = index.and_then(|index| {
-            fields.with_untracked(|fields| fields.get(index).map(|field| field.id))
-        });
-        data.operate_view(DatabaseView::set_filter_field(id, field));
-        data.operate_view(DatabaseView::set_filter_condition(id, &FilterCondition::IsSet));
-    });
-    let recondition = clone!(data filter field -> move |index: Option<usize>| {
-        let Some(index) = index else {
-            return;
-        };
-        let current = filter.get_untracked().condition;
-        let labels = data.labels.get_untracked();
-        let next = field
-            .get_untracked()
-            .and_then(|field| next_condition(index, &current, &field, &labels));
-        if let Some(next) = next {
-            data.operate_view(DatabaseView::set_filter_condition(id, &next));
-        }
-    });
-    let remove = clone!(data -> move || data.operate_view(DatabaseView::remove_filter(id)));
-    let value_fields =
-        create_memo(clone!(field -> move || field.get().into_iter().collect::<Vec<_>>()));
-    let values = create_memo(clone!(filter -> move || {
-        let filter = filter.get();
-        match (filter.field, filter.condition) {
-            (Some(field), FilterCondition::Is(value) | FilterCondition::IsNot(value)) => {
-                BTreeMap::from([(field, value)])
-            }
-            _ => BTreeMap::new(),
-        }
-    }));
-    let revalue = clone!(data filter -> move |change: DatabaseValueChange| {
-        let Some(value) = change.value else {
-            return;
-        };
-        let next = match filter.get_untracked().condition {
-            FilterCondition::IsNot(_) => FilterCondition::IsNot(value),
-            _ => FilterCondition::Is(value),
-        };
-        data.operate_view(DatabaseView::set_filter_condition(id, &next));
-    });
-    let picked = |_: DatabaseBlockPickRequest| {};
-    let needle = create_memo(clone!(filter -> move || match filter.get().condition {
-        FilterCondition::Contains(text) => text,
-        _ => String::new(),
-    }));
-    let searched_for = clone!(data -> move |text: String| {
-        data.operate_view(DatabaseView::set_filter_condition(id, &FilterCondition::Contains(text)));
-    });
-    let condition_keys = create_memo(|| (0..CONDITIONS.len()).collect::<Vec<usize>>());
-    let (remove_off, condition_off, value_off, text_off) = (
-        data.read_only.clone(),
-        data.read_only.clone(),
-        data.read_only.clone(),
-        data.read_only.clone(),
-    );
-    let labels = data.labels.clone();
-    view! {
-        <List spacing=SPACING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <FieldPicker
-                    @sizing=ItemSize::Percent(100.0)
-                    options={fields}
-                    chosen={chosen}
-                    label="Field"
-                    picker_id={format!("database-view.filter.{}.field", id.as_uuid())}
-                    on_change={refield}
-                />
-                <IconButton
-                    glyph={ICON_DELETE.to_owned()}
-                    label="Remove filter"
-                    disabled={remove_off}
-                    @test_id={format!("database-view.filter.{}.remove", id.as_uuid())}
-                    on_click={remove}
-                />
-            </List>
-            <Select
-                options={view! {
-                    <ForEach keys={condition_keys}>
-                        {|index: usize| view! {
-                            <ChoiceOption label={CONDITIONS[index]} />
-                        }}
-                    </ForEach>
-                }}
-                selected={condition}
-                label="Condition"
-                disabled={condition_off}
-                @test_id={format!("database-view.filter.{}.condition", id.as_uuid())}
-                on_change={recondition}
-            />
-            <Show condition={compared}>
-                <DatabaseValueEditor
-                    fields={value_fields.clone()}
-                    values={values.clone()}
-                    labels={labels.clone()}
-                    disabled={value_off.clone()}
-                    prefix={format!("database-view.filter.{}", id.as_uuid())}
-                    headings=false
-                    on_change={revalue.clone()}
-                    on_pick={picked}
-                />
-            </Show>
-            <Show condition={searched}>
-                <TextInput
-                    value={needle.clone()}
-                    placeholder="Text"
-                    disabled={text_off.clone()}
-                    @test_id={format!("database-view.filter.{}.text", id.as_uuid())}
-                    on_change={searched_for.clone()}
-                />
-            </Show>
-        </List>
+pub fn kinds_for(field: &DatabaseField) -> Vec<Kind> {
+    match field.field_type {
+        DatabaseFieldType::Enum => vec![
+            Kind::AnyOf,
+            Kind::NoneOf,
+            Kind::Open,
+            Kind::Closed,
+            Kind::Set,
+            Kind::Empty,
+        ],
+        DatabaseFieldType::Relation => vec![Kind::AnyOf, Kind::NoneOf, Kind::Set, Kind::Empty],
+        DatabaseFieldType::String => vec![Kind::Contains, Kind::Set, Kind::Empty],
+        _ => vec![Kind::Is, Kind::IsNot, Kind::Set, Kind::Empty],
     }
 }
 
-fn condition_index(filter: &ViewFilter) -> Option<usize> {
-    filter.field?;
-    Some(match filter.condition {
-        FilterCondition::IsSet => 0,
-        FilterCondition::IsEmpty => 1,
-        FilterCondition::Is(_) => 2,
-        FilterCondition::IsNot(_) => 3,
-        FilterCondition::Contains(_) => 4,
-    })
+pub fn starting_condition(field: &DatabaseField) -> FilterCondition {
+    match field.field_type {
+        DatabaseFieldType::Enum | DatabaseFieldType::Relation => FilterCondition::AnyOf(Vec::new()),
+        DatabaseFieldType::String => FilterCondition::Contains(String::new()),
+        DatabaseFieldType::Boolean => FilterCondition::Is(DatabaseValue::Boolean(true)),
+        _ => FilterCondition::IsSet,
+    }
 }
 
-fn next_condition(
-    index: usize,
+fn converted(
+    kind: Kind,
     current: &FilterCondition,
     field: &DatabaseField,
     labels: &ValueLabels,
-) -> Option<FilterCondition> {
-    let value = match current {
+) -> FilterCondition {
+    let chosen = match current {
+        FilterCondition::AnyOf(values) | FilterCondition::NoneOf(values) => values.clone(),
+        _ => Vec::new(),
+    };
+    let single = match current {
         FilterCondition::Is(value) | FilterCondition::IsNot(value) => Some(value.clone()),
         _ => None,
     }
     .or_else(|| starting_value(field, labels));
-    match index {
-        0 => Some(FilterCondition::IsSet),
-        1 => Some(FilterCondition::IsEmpty),
-        2 => value.map(FilterCondition::Is),
-        3 => value.map(FilterCondition::IsNot),
-        4 => (field.field_type == DatabaseFieldType::String)
-            .then(|| FilterCondition::Contains(String::new())),
-        _ => None,
+    match kind {
+        Kind::AnyOf => FilterCondition::AnyOf(chosen),
+        Kind::NoneOf => FilterCondition::NoneOf(chosen),
+        Kind::Open => FilterCondition::IsOpen,
+        Kind::Closed => FilterCondition::IsClosed,
+        Kind::Set => FilterCondition::IsSet,
+        Kind::Empty => FilterCondition::IsEmpty,
+        Kind::Is => single.map_or(FilterCondition::IsSet, FilterCondition::Is),
+        Kind::IsNot => single.map_or(FilterCondition::IsEmpty, FilterCondition::IsNot),
+        Kind::Contains => FilterCondition::Contains(String::new()),
     }
 }
 
@@ -255,5 +145,651 @@ fn starting_value(field: &DatabaseField, labels: &ValueLabels) -> Option<Databas
                 .map(|(link, _)| DatabaseValue::Relation(*link))
         }
         DatabaseFieldType::Block => None,
+    }
+}
+
+pub fn summary(filter: &ViewFilter, fields: &[DatabaseField], labels: &ValueLabels) -> String {
+    let Some(field) = filter
+        .field
+        .and_then(|id| fields.iter().find(|field| field.id == id))
+    else {
+        return "Any row".to_owned();
+    };
+    let kind = Kind::of(&filter.condition);
+    let detail = match &filter.condition {
+        FilterCondition::AnyOf(values) | FilterCondition::NoneOf(values) if values.is_empty() => {
+            "…".to_owned()
+        }
+        FilterCondition::AnyOf(values) | FilterCondition::NoneOf(values) => values
+            .iter()
+            .map(|value| value_name(value, field, labels))
+            .collect::<Vec<_>>()
+            .join(", "),
+        FilterCondition::Is(value) | FilterCondition::IsNot(value) => {
+            value_name(value, field, labels)
+        }
+        FilterCondition::Contains(text) => format!("“{text}”"),
+        _ => String::new(),
+    };
+    [field.name.as_str(), kind.label(), detail.as_str()]
+        .into_iter()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn value_name(value: &DatabaseValue, field: &DatabaseField, labels: &ValueLabels) -> String {
+    match value {
+        DatabaseValue::Relation(link) => labels.row(link),
+        value => database_value_text(value, field, labels),
+    }
+}
+
+fn values_of(condition: &FilterCondition) -> Vec<DatabaseValue> {
+    match condition {
+        FilterCondition::AnyOf(values) | FilterCondition::NoneOf(values) => values.clone(),
+        _ => Vec::new(),
+    }
+}
+
+#[component]
+pub fn FilterBar(data: Data) -> NodeId {
+    let keys = create_memo(clone!(data -> move || {
+        data.filter_items
+            .with(|items| items.iter().map(|(id, _)| *id).collect::<Vec<ObjectId>>())
+    }));
+    let chips = data.clone();
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=SPACING wrap=true>
+            <ForEach keys={keys}>
+                {move |id: ObjectId| {
+                    let data = chips.clone();
+                    view! {
+                        <FilterChip data={data} id={id} />
+                    }
+                }}
+            </ForEach>
+            <AddFilter data={data} />
+        </List>
+    }
+}
+
+#[component]
+fn FilterChip(data: Data, id: ObjectId) -> NodeId {
+    let text = create_memo(clone!(data -> move || {
+        let filter = data.filter_items.with(|items| {
+            items.iter().find(|(held, _)| *held == id).map(|(_, filter)| filter.clone())
+        });
+        let Some(filter) = filter else {
+            return String::new();
+        };
+        data.fields
+            .with(|fields| data.labels.with(|labels| summary(&filter, fields, labels)))
+    }));
+    let remove = clone!(data -> move || data.operate_view(DatabaseView::remove_filter(id)));
+    let editor = data.clone();
+    let read_only = data.read_only.clone();
+    let theme = use_theme();
+    let label = text.clone();
+    view! {
+        <Frame
+            color={theme.surface.clone()}
+            outline={theme.border.clone()}
+            outline_width=BORDER_WIDTH
+            outline_visible=true
+            radius=14
+        >
+            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                <unstyled::Popover
+                    label={label}
+                    @test_id={format!("database-view.filter.{}", id.as_uuid())}
+                    trigger={move |handle: PopoverTriggerHandle| {
+                        let text = text.clone();
+                        view! {
+                            <ControlFace handle={handle.button}>
+                                <Caption content={text} />
+                            </ControlFace>
+                        }
+                    }}
+                >
+                    {move |_: PopoverHandle| {
+                        let data = editor.clone();
+                        view! {
+                            <PopoverPanel max_width={Some(EDITOR_WIDTH + 24.0)}>
+                                <FilterEditor data={data} id={id} />
+                            </PopoverPanel>
+                        }
+                    }}
+                </unstyled::Popover>
+                <IconButton
+                    glyph={ICON_CLOSE.to_owned()}
+                    label="Remove filter"
+                    variant=ButtonVariant::Ghost
+                    size=IconButtonSize::Compact
+                    disabled={read_only}
+                    @test_id={format!("database-view.filter.{}.remove", id.as_uuid())}
+                    on_click={remove}
+                />
+            </List>
+        </Frame>
+    }
+}
+
+#[component]
+fn AddFilter(data: Data) -> NodeId {
+    let (adding, set_adding) = create_signal(None::<ObjectId>);
+    let choosing = create_memo(clone!(adding -> move || adding.get().is_none()));
+    let editing = create_memo(clone!(adding -> move || adding.get()));
+    let has_editing = create_memo(clone!(adding -> move || adding.get().is_some()));
+    let reset = clone!(set_adding -> move |open: bool| {
+        if !open {
+            set_adding.set(None);
+        }
+    });
+    let picks = data.clone();
+    let edits = data.clone();
+    let read_only = data.read_only.clone();
+    view! {
+        <unstyled::Popover
+            label="Filter"
+            disabled={read_only}
+            @test_id={"database-view.filters.add"}
+            on_open_change={reset}
+            trigger={move |handle: PopoverTriggerHandle| view! {
+                <ControlFace handle={handle.button}>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+                        <IconSized
+                            glyph={ICON_FILTER_LIST.to_owned()}
+                            font_size={FONT_SMALL + 2.0}
+                            color={use_theme().text_muted.clone()}
+                        />
+                        <Caption content="Filter" />
+                    </List>
+                </ControlFace>
+            }}
+        >
+            {move |_: PopoverHandle| {
+                let picks = picks.clone();
+                let edits = edits.clone();
+                let set_adding = set_adding.clone();
+                let editing = editing.clone();
+                view! {
+                    <PopoverPanel max_width={Some(EDITOR_WIDTH + 24.0)}>
+                        <List spacing=0.0>
+                            <Show condition={choosing.clone()}>
+                                {move || clone!(picks set_adding -> view! {
+                                    <FieldChoices
+                                        data={picks}
+                                        on_pick={move |id: ObjectId| set_adding.set(Some(id))}
+                                    />
+                                })}
+                            </Show>
+                            <Show condition={has_editing.clone()}>
+                                {move || {
+                                    let id = editing.get_untracked();
+                                    let data = edits.clone();
+                                    match id {
+                                        Some(id) => view! {
+                                            <FilterEditor data={data} id={id} />
+                                        },
+                                        None => view! {
+                                            <Frame />
+                                        },
+                                    }
+                                }}
+                            </Show>
+                        </List>
+                    </PopoverPanel>
+                }
+            }}
+        </unstyled::Popover>
+    }
+}
+
+#[component]
+fn FieldChoices(
+    data: Data,
+    on_pick: block_editor_beui::beui::reactive::Callback<ObjectId>,
+) -> NodeId {
+    let keys = create_memo(clone!(data -> move || {
+        data.fields.with(|fields| {
+            fields
+                .iter()
+                .filter(|field| field.field_type != DatabaseFieldType::Block)
+                .map(|field| field.id)
+                .collect::<Vec<Uuid>>()
+        })
+    }));
+    view! {
+        <List spacing=2.0>
+            <Caption content="Filter by" />
+            <ForEach keys={keys}>
+                {move |field: Uuid| {
+                    let data = data.clone();
+                    let on_pick = on_pick.clone();
+                    let name = create_memo(clone!(data -> move || {
+                        data.fields.with(|fields| {
+                            fields
+                                .iter()
+                                .find(|known| known.id == field)
+                                .map_or_else(String::new, |known| known.name.clone())
+                        })
+                    }));
+                    let pick = move || {
+                        let Some(known) = data.fields.with_untracked(|fields| {
+                            fields.iter().find(|known| known.id == field).cloned()
+                        }) else {
+                            return;
+                        };
+                        let (id, edit) =
+                            DatabaseView::add_filter(Some(field), starting_condition(&known));
+                        data.operate_view(edit);
+                        on_pick.call(id);
+                    };
+                    view! {
+                        <unstyled::Button
+                            label={name.clone()}
+                            @test_id={format!("database-view.filters.field.{field}")}
+                            on_click={pick}
+                            content={move |handle| {
+                                let name = name.clone();
+                                view! {
+                                    <ControlFace handle={handle}>
+                                        <Body content={name} />
+                                    </ControlFace>
+                                }
+                            }}
+                        />
+                    }
+                }}
+            </ForEach>
+        </List>
+    }
+}
+
+#[component]
+pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
+    let filter = create_memo(clone!(data -> move || {
+        data.filter_items.with(|items| {
+            items
+                .iter()
+                .find(|(held, _)| *held == id)
+                .map(|(_, filter)| filter.clone())
+                .unwrap_or_default()
+        })
+    }));
+    let field = create_memo(clone!(data filter -> move || {
+        let chosen = filter.with(|filter| filter.field)?;
+        data.fields
+            .with(|fields| fields.iter().find(|field| field.id == chosen).cloned())
+    }));
+    let name = create_memo(clone!(field -> move || {
+        field.with(|field| field.as_ref().map(|field| field.name.clone()).unwrap_or_default())
+    }));
+    let kinds = create_memo(clone!(field -> move || {
+        field.with(|field| field.as_ref().map(kinds_for).unwrap_or_default())
+    }));
+    let kind =
+        create_memo(clone!(filter -> move || filter.with(|filter| Kind::of(&filter.condition))));
+    let selected = create_memo(clone!(kinds kind -> move || {
+        let kind = kind.get();
+        kinds.with(|kinds| kinds.iter().position(|held| *held == kind))
+    }));
+    let kind_keys =
+        create_memo(clone!(kinds -> move || (0..kinds.with(Vec::len)).collect::<Vec<usize>>()));
+    let recondition = clone!(data filter field kinds -> move |index: Option<usize>| {
+        let Some(kind) = index.and_then(|index| kinds.with_untracked(|kinds| kinds.get(index).copied())) else {
+            return;
+        };
+        let Some(field) = field.get_untracked() else {
+            return;
+        };
+        let current = filter.get_untracked().condition;
+        let next = data.labels.with_untracked(|labels| converted(kind, &current, &field, labels));
+        data.operate_view(DatabaseView::set_filter_condition(id, &next));
+    });
+    let choosing =
+        create_memo(clone!(kind -> move || matches!(kind.get(), Kind::AnyOf | Kind::NoneOf)));
+    let comparing =
+        create_memo(clone!(kind -> move || matches!(kind.get(), Kind::Is | Kind::IsNot)));
+    let searching = create_memo(clone!(kind -> move || kind.get() == Kind::Contains));
+    let needle = create_memo(clone!(filter -> move || match filter.get().condition {
+        FilterCondition::Contains(text) => text,
+        _ => String::new(),
+    }));
+    let searched_for = clone!(data -> move |text: String| {
+        data.operate_view(DatabaseView::set_filter_condition(id, &FilterCondition::Contains(text)));
+    });
+    let value_fields =
+        create_memo(clone!(field -> move || field.get().into_iter().collect::<Vec<_>>()));
+    let values = create_memo(clone!(filter -> move || {
+        let filter = filter.get();
+        match (filter.field, filter.condition) {
+            (Some(field), FilterCondition::Is(value) | FilterCondition::IsNot(value)) => {
+                BTreeMap::from([(field, value)])
+            }
+            _ => BTreeMap::new(),
+        }
+    }));
+    let revalue = clone!(data filter -> move |change: DatabaseValueChange| {
+        let Some(value) = change.value else {
+            return;
+        };
+        let next = match filter.get_untracked().condition {
+            FilterCondition::IsNot(_) => FilterCondition::IsNot(value),
+            _ => FilterCondition::Is(value),
+        };
+        data.operate_view(DatabaseView::set_filter_condition(id, &next));
+    });
+    let picked = |_: DatabaseBlockPickRequest| {};
+    let (condition_off, value_off, text_off) = (
+        data.read_only.clone(),
+        data.read_only.clone(),
+        data.read_only.clone(),
+    );
+    let labels = data.labels.clone();
+    let choices = data.clone();
+    let choice_filter = filter.clone();
+    let choice_field = field.clone();
+    let condition_names = kinds.clone();
+    view! {
+        <Frame width=EDITOR_WIDTH>
+            <List spacing={SPACING * 1.5}>
+                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                    <Body content={name} />
+                    <Frame @sizing=ItemSize::Percent(100.0)>
+                        <Select
+                            options={view! {
+                                <ForEach keys={kind_keys}>
+                                    {move |index: usize| {
+                                        let label = create_memo(clone!(condition_names -> move || {
+                                            condition_names.with(|kinds| {
+                                                kinds.get(index).map(|kind| kind.label()).unwrap_or_default().to_owned()
+                                            })
+                                        }));
+                                        view! {
+                                            <ChoiceOption label={label} />
+                                        }
+                                    }}
+                                </ForEach>
+                            }}
+                            selected={selected}
+                            label="Condition"
+                            disabled={condition_off}
+                            @test_id={format!("database-view.filter.{}.condition", id.as_uuid())}
+                            on_change={recondition}
+                        />
+                    </Frame>
+                </List>
+                <Show condition={choosing}>
+                    {move || clone!(choices choice_filter choice_field -> view! {
+                        <ValueChoices
+                            data={choices}
+                            id={id}
+                            filter={choice_filter}
+                            field={choice_field}
+                        />
+                    })}
+                </Show>
+                <Show condition={comparing}>
+                    <DatabaseValueEditor
+                        fields={value_fields.clone()}
+                        values={values.clone()}
+                        labels={labels.clone()}
+                        disabled={value_off.clone()}
+                        prefix={format!("database-view.filter.{}", id.as_uuid())}
+                        headings=false
+                        on_change={revalue.clone()}
+                        on_pick={picked}
+                    />
+                </Show>
+                <Show condition={searching}>
+                    <TextInput
+                        value={needle.clone()}
+                        placeholder="Text"
+                        disabled={text_off.clone()}
+                        focused=true
+                        @test_id={format!("database-view.filter.{}.text", id.as_uuid())}
+                        on_change={searched_for.clone()}
+                    />
+                </Show>
+            </List>
+        </Frame>
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct Choice {
+    value: DatabaseValue,
+    label: String,
+    option: Option<DatabaseEnumOption>,
+    count: usize,
+}
+
+#[component]
+fn ValueChoices(
+    data: Data,
+    id: ObjectId,
+    filter: Memo<ViewFilter>,
+    field: Memo<Option<DatabaseField>>,
+) -> NodeId {
+    let (query, set_query) = create_signal(String::new());
+    let choices = create_memo(clone!(data field filter query -> move || {
+        let Some(field) = field.get() else {
+            return Vec::new();
+        };
+        let others: Vec<ViewFilter> = data.filter_items.with(|items| {
+            items
+                .iter()
+                .filter(|(held, _)| *held != id)
+                .map(|(_, filter)| filter.clone())
+                .collect()
+        });
+        let query = query.get().trim().to_lowercase();
+        let _ = filter.get();
+        data.rows.with(|rows| {
+            data.fields.with(|fields| {
+                data.labels.with(|labels| {
+                    let kept: Vec<_> = rows
+                        .iter()
+                        .filter(|row| others.iter().all(|other| other.matches(row, fields)))
+                        .collect();
+                    let count = |value: &DatabaseValue| {
+                        kept.iter()
+                            .filter(|row| FilterCondition::AnyOf(vec![value.clone()]).matches(row.get(field.id).as_ref(), Some(&field)))
+                            .count()
+                    };
+                    let all: Vec<Choice> = match field.field_type {
+                        DatabaseFieldType::Enum => field
+                            .enum_options
+                            .iter()
+                            .map(|option| {
+                                let value = DatabaseValue::Enum(option.id);
+                                Choice {
+                                    count: count(&value),
+                                    value,
+                                    label: option.name.clone(),
+                                    option: Some(option.clone()),
+                                }
+                            })
+                            .collect(),
+                        _ => field
+                            .relation_options
+                            .database
+                            .map(|database| labels.rows_of(database))
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|(link, label)| {
+                                let value = DatabaseValue::Relation(link);
+                                Choice {
+                                    count: count(&value),
+                                    value,
+                                    label,
+                                    option: None,
+                                }
+                            })
+                            .collect(),
+                    };
+                    all.into_iter()
+                        .filter(|choice| query.is_empty() || choice.label.to_lowercase().contains(&query))
+                        .collect()
+                })
+            })
+        })
+    }));
+    let many = create_memo(clone!(field -> move || {
+        field.with(|field| field.as_ref().is_some_and(|field| field.field_type == DatabaseFieldType::Relation))
+    }));
+    let keys = create_memo(clone!(choices -> move || {
+        choices.with(|choices| (0..choices.len()).collect::<Vec<usize>>())
+    }));
+    let read_only = data.read_only.clone();
+    let typed = move |text: String| set_query.set(text);
+    view! {
+        <List spacing=SPACING>
+            <Show condition={many}>
+                <TextInput
+                    value={query.clone()}
+                    placeholder="Search"
+                    @test_id={format!("database-view.filter.{}.search", id.as_uuid())}
+                    on_change={typed.clone()}
+                />
+            </Show>
+            <Scroll max_length=CHOICES_HEIGHT>
+                <List spacing=2.0>
+                    <ForEach keys={keys}>
+                        {move |index: usize| {
+                            let data = data.clone();
+                            let choice = create_memo(clone!(choices -> move || choices.with(|choices| choices.get(index).cloned())));
+                            let label = create_memo(clone!(choice -> move || choice.with(|choice| choice.as_ref().map(|choice| choice.label.clone()).unwrap_or_default())));
+                            let count = create_memo(clone!(choice -> move || choice.with(|choice| choice.as_ref().map_or(0, |choice| choice.count)).to_string()));
+                            let option = create_memo(clone!(choice -> move || choice.with(|choice| choice.as_ref().and_then(|choice| choice.option.clone()))));
+                            let marked = create_memo(clone!(option -> move || option.with(Option::is_some)));
+                            let checked = create_memo(clone!(choice filter -> move || {
+                                let Some(choice) = choice.get() else {
+                                    return false;
+                                };
+                                values_of(&filter.get().condition).contains(&choice.value)
+                            }));
+                            let toggle = clone!(choice filter -> move |on: bool| {
+                                let Some(choice) = choice.get_untracked() else {
+                                    return;
+                                };
+                                let current = filter.get_untracked().condition;
+                                let mut values = values_of(&current);
+                                values.retain(|held| *held != choice.value);
+                                if on {
+                                    values.push(choice.value);
+                                }
+                                let next = match current {
+                                    FilterCondition::NoneOf(_) => FilterCondition::NoneOf(values),
+                                    _ => FilterCondition::AnyOf(values),
+                                };
+                                data.operate_view(DatabaseView::set_filter_condition(id, &next));
+                            });
+                            let test_id = format!("database-view.filter.{}.choice.{index}", id.as_uuid());
+                            let read_only = read_only.clone();
+                            view! {
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=SPACING
+                                >
+                                    <Frame visible={marked}>
+                                        <ChoiceMark option={option} size=MARK_SIZE />
+                                    </Frame>
+                                    <Checkbox
+                                        @sizing={block_editor_beui::beui::reactive::ItemSize::Percent(100.0).shrink(1.0)}
+                                        label={label}
+                                        checked={checked}
+                                        disabled={read_only}
+                                        @test_id={test_id}
+                                        on_change={toggle}
+                                    />
+                                    <Caption content={count} />
+                                </List>
+                            }
+                        }}
+                    </ForEach>
+                </List>
+            </Scroll>
+        </List>
+    }
+}
+
+#[component]
+pub fn FilterList(data: Data) -> NodeId {
+    let keys = create_memo(clone!(data -> move || {
+        data.filter_items
+            .with(|items| items.iter().map(|(id, _)| *id).collect::<Vec<ObjectId>>())
+    }));
+    let none = create_memo(clone!(keys -> move || keys.with(Vec::is_empty)));
+    let names = data.fields.clone();
+    let field_keys = create_memo(clone!(names -> move || {
+        names.with(|fields| (0..fields.len()).collect::<Vec<usize>>())
+    }));
+    let add = clone!(data -> move |index: Option<usize>| {
+        let Some(field) = index.and_then(|index| data.fields.with_untracked(|fields| fields.get(index).cloned())) else {
+            return;
+        };
+        data.operate_view(DatabaseView::add_filter(Some(field.id), starting_condition(&field)).1);
+    });
+    let editors = data.clone();
+    let read_only = data.read_only.clone();
+    view! {
+        <List spacing={SPACING * 2.0}>
+            <Show condition={none}>
+                <Caption content="Every row is shown." />
+            </Show>
+            <ForEach keys={keys}>
+                {move |id: ObjectId| {
+                    let data = editors.clone();
+                    let remove = clone!(data -> move || data.operate_view(DatabaseView::remove_filter(id)));
+                    let read_only = data.read_only.clone();
+                    view! {
+                        <List direction=Direction::Horizontal align=Align::Start spacing=SPACING>
+                            <FilterEditor @sizing=ItemSize::Percent(100.0) data={data} id={id} />
+                            <IconButton
+                                glyph={ICON_CLOSE.to_owned()}
+                                label="Remove filter"
+                                variant=ButtonVariant::Ghost
+                                disabled={read_only}
+                                @test_id={format!("database-view.filter.{}.remove", id.as_uuid())}
+                                on_click={remove}
+                            />
+                        </List>
+                    }
+                }}
+            </ForEach>
+            <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                <IconSized
+                    glyph={ICON_ADD.to_owned()}
+                    font_size=18.0
+                    color={use_theme().text_muted.clone()}
+                />
+                <Frame @sizing=ItemSize::Percent(100.0)>
+                    <Select
+                        options={view! {
+                            <ForEach keys={field_keys}>
+                                {move |index: usize| {
+                                    let label = create_memo(clone!(names -> move || {
+                                        names.with(|fields| fields.get(index).map(|field| field.name.clone()).unwrap_or_default())
+                                    }));
+                                    view! {
+                                        <ChoiceOption label={label} />
+                                    }
+                                }}
+                            </ForEach>
+                        }}
+                        selected={None}
+                        label="Add a filter"
+                        placeholder="Add a filter"
+                        disabled={read_only}
+                        @test_id={"database-view.filters.add-field"}
+                        on_change={add}
+                    />
+                </Frame>
+            </List>
+        </List>
     }
 }

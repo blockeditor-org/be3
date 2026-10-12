@@ -14,7 +14,7 @@ use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Child, Children, Frame, Prop, Text, clone, create_memo, focus_ring,
+    Callback, Child, Children, Frame, Memo, Prop, Text, clone, create_memo, focus_ring,
 };
 
 const TRIGGER_MAX_WIDTH: f32 = 220.0;
@@ -30,10 +30,12 @@ pub fn Select(
     options: Children<ChoiceOption>,
     selected: Prop<Option<usize>>,
     #[prop(default = String::new())] label: Prop<String>,
+    #[prop(default = String::new())] placeholder: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     on_change: Callback<Option<usize>>,
 ) -> NodeId {
     let options = options.into_run();
+    let placeholder = create_memo(move || placeholder.get());
     view! {
         <unstyled::Select
             options
@@ -48,7 +50,7 @@ pub fn Select(
             search_style={text_input_style()}
             scrollbar={scrollbar_style()}
             trigger={move |handle| view! {
-                <SelectTrigger handle />
+                <SelectTrigger handle placeholder={placeholder.clone()} />
             }}
             option={|handle| view! {
                 <SelectOption handle />
@@ -62,7 +64,7 @@ pub fn Select(
 }
 
 #[component]
-fn SelectTrigger(handle: SelectTriggerHandle) -> NodeId {
+fn SelectTrigger(handle: SelectTriggerHandle, placeholder: Memo<String>) -> NodeId {
     let SelectTriggerHandle {
         label,
         hovered,
@@ -71,7 +73,13 @@ fn SelectTrigger(handle: SelectTriggerHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let label_text = create_memo(move || label.get().unwrap_or_else(|| "Select...".to_owned()));
+    let empty = create_memo(clone!(label -> move || label.with(Option::is_none)));
+    let label_text = create_memo(move || {
+        label.get().unwrap_or_else(|| match placeholder.get() {
+            placeholder if placeholder.is_empty() => "Select...".to_owned(),
+            placeholder => placeholder,
+        })
+    });
     let border = create_memo(clone!(focused theme disabled -> move || {
         field_border(&theme, disabled.get(), focused.get(), hovered.get())
     }));
@@ -79,10 +87,12 @@ fn SelectTrigger(handle: SelectTriggerHandle) -> NodeId {
         true => theme.surface.get(),
         false => theme.surface_raised.get(),
     }));
-    let text_color = create_memo(clone!(theme disabled -> move || match disabled.get() {
-        true => theme.text_muted.get(),
-        false => theme.text.get(),
-    }));
+    let text_color = create_memo(
+        clone!(theme disabled -> move || match disabled.get() || empty.get() {
+            true => theme.text_muted.get(),
+            false => theme.text.get(),
+        }),
+    );
     view! {
         <Frame
             max_width=TRIGGER_MAX_WIDTH

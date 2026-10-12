@@ -876,6 +876,18 @@ fn FruitSelect() -> NodeId {
                 }}
             />
             <Caption content={fruit_text} />
+            <Select
+                options={view! {
+                    <ForEach keys={FRUITS.to_vec()}>
+                        {|label: &'static str| view! {
+                            <ChoiceOption label />
+                        }}
+                    </ForEach>
+                }}
+                selected=None
+                label="Add a fruit"
+                placeholder="Add a fruit"
+            />
         </List>
     }
 }
