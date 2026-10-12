@@ -15,7 +15,7 @@ use crate::input::{
     TouchId, TouchPhase,
 };
 
-const WHEEL_LINE: f32 = 40.0;
+use crate::runner::SCROLL_LINE as WHEEL_LINE;
 const CHANGES: usize = 60;
 const FRAME: Duration = Duration::from_micros(16_667);
 const GESTURE_STEPS: usize = 4;

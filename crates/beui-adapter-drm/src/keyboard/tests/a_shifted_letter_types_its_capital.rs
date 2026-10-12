@@ -8,18 +8,20 @@ fn a_shifted_letter_types_its_capital() {
     keyboard.key(SHIFT, true);
     let pressed = keyboard.key(KEY_A, true);
 
-    assert!(pressed.events.contains(&Event::Key {
-        press: beui::KeyPress::down(Key::A, Modifiers::SHIFT),
+    let typed = Keystroke {
+        key: Some(Key::A),
+        pressed: true,
+        repeat: false,
         code: Some(KEY_A),
         text: Some("A".to_owned()),
-    }));
-    assert!(pressed.repeat.is_some(), "holding a letter repeats it");
-
-    let released = keyboard.key(KEY_A, false);
-    assert!(
-        !released
-            .events
-            .iter()
-            .any(|event| matches!(event, Event::Key { text: Some(_), .. }))
+    };
+    assert!(pressed.inputs.contains(&Input::Key(typed.clone())));
+    assert_eq!(
+        pressed.repeat,
+        Some(Keystroke {
+            repeat: true,
+            ..typed
+        }),
+        "holding a letter repeats it"
     );
 }

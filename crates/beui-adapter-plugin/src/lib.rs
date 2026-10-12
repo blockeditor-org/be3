@@ -5,7 +5,6 @@ mod surface;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
-use std::time::Duration;
 
 use beui_core::app::{App, SafeArea, Setup, Waker};
 use beui_core::context::{Context, FrameOutput};
@@ -19,9 +18,7 @@ use block_editor_plugin::{
 };
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect};
-use block_plugin_api::CursorIcon;
 
-use input::Input;
 use platform::HostPlatform;
 use surface::{Surface, SurfaceRenderer};
 
@@ -39,6 +36,7 @@ impl Adapter for PluginAdapter {
     fn run(self: Box<Self>, launch: Launch) -> Running {
         Box::pin(async move {
             let mut runner = Runner::new(launch);
+            runner.context().set_test_ids_published(true);
             let waker = self.host.waker();
             let loaded = Loaded {
                 renderer: Box::new(SurfaceRenderer::new(Rc::clone(&self.surface))),
@@ -55,7 +53,6 @@ pub struct PluginSurface {
     runner: Runner,
     platform: HostPlatform,
     surface: Rc<RefCell<Surface>>,
-    input: Input,
 }
 
 impl PluginSurface {
@@ -88,7 +85,6 @@ impl PluginSurface {
             runner,
             platform: HostPlatform::new(host),
             surface,
-            input: Input::default(),
         }
     }
 
@@ -134,9 +130,8 @@ impl PluginSurface {
     }
 
     pub fn input(&mut self, region: &Region, event: &InputEvent) {
-        let context = self.runner.context().clone();
-        for event in self.input.translate(&context, region, event) {
-            self.runner.push(event);
+        if let Some(input) = input::translate(region, event) {
+            self.runner.push(input);
         }
     }
 
@@ -164,7 +159,7 @@ impl PluginSurface {
         if let Some(now) = block_editor_plugin::frame_time() {
             self.runner.context().set_clock(now);
         }
-        self.platform.deliver_picks(self.runner.context());
+        self.platform.deliver_picks();
         let ratio = self.ratio(region);
         let scale = region.scale_factor;
         let rect = region.rect;
@@ -183,17 +178,10 @@ impl PluginSurface {
         };
         let description = region.describe.then(|| self.describe(region));
         let unscale = ratio.recip();
-        let cursor = match self.runner.context().touch_emulation() {
-            true => CursorIcon::Crosshair,
-            false => self.platform.cursor,
-        };
         Frame {
             changed: frame.pending,
-            repaint_after: match frame.again() {
-                true => Some(Duration::ZERO),
-                false => (frame.repaint_after < Duration::MAX).then_some(frame.repaint_after),
-            },
-            cursor,
+            repaint_after: frame.wait(),
+            cursor: self.platform.cursor,
             content: None,
             painted: Vec::new(),
             floating: Vec::new(),

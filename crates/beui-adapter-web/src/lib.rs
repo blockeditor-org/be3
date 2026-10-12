@@ -17,18 +17,17 @@ use wasm_bindgen::prelude::Closure;
 
 use beui_core::app::ime_mirror::{ImeInput, ImeMirror};
 use beui_core::app::{SafeArea, Setup, Waker};
-use beui_core::context::Context;
-use beui_core::file_picker::FilePickRequest;
+use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::geometry::{Pos2, Rect, pos2, vec2};
 use beui_core::input::{
-    CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, KeyPress, Modifiers, PointerButton,
-    TouchId, TouchPhase,
+    CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, Modifiers, PointerButton, TouchId,
+    TouchPhase,
 };
 use beui_core::renderer::Loaded;
-use beui_core::runner::{Adapter, Launch, Platform, Running};
+use beui_core::runner::{
+    Adapter, Input, Keystroke, Launch, Platform, Running, SCROLL_LINE, SCROLL_PAGE, ScrollDelta,
+};
 
-const LINE_HEIGHT: f32 = 40.0;
-const PAGE_HEIGHT: f32 = 800.0;
 const PINCH_SPEED: f32 = 0.01;
 
 type Loading = Pin<Box<dyn Future<Output = Result<Vec<Loaded>, Box<dyn Error>>>>>;
@@ -65,22 +64,16 @@ impl Adapter for Web {
     }
 }
 
-struct Input {
-    events: RefCell<Vec<Event>>,
-    modifiers: Cell<Modifiers>,
-    scale: Cell<f32>,
+struct Pending {
+    inputs: RefCell<Vec<Input>>,
     locked: Cell<bool>,
-    buttons: Cell<u16>,
     scheduled: Cell<bool>,
 }
 
 thread_local! {
-    static INPUT: Input = const { Input {
-        events: RefCell::new(Vec::new()),
-        modifiers: Cell::new(Modifiers::NONE),
-        scale: Cell::new(1.0),
+    static INPUT: Pending = const { Pending {
+        inputs: RefCell::new(Vec::new()),
         locked: Cell::new(false),
-        buttons: Cell::new(0),
         scheduled: Cell::new(false),
     } };
     static RUNNER: RefCell<Option<Rc<RefCell<Runner>>>> = const { RefCell::new(None) };
@@ -92,8 +85,8 @@ thread_local! {
     static REFOCUSING: Cell<bool> = const { Cell::new(false) };
 }
 
-fn push(event: Event) {
-    INPUT.with(|input| input.events.borrow_mut().push(event));
+fn push(input: impl Into<Input>) {
+    INPUT.with(|pending| pending.inputs.borrow_mut().push(input.into()));
     schedule();
 }
 
@@ -151,10 +144,10 @@ struct Runner {
 }
 
 struct WebPlatform {
-    context: Context,
     surface: web_sys::HtmlElement,
     agent: web_sys::HtmlTextAreaElement,
     ime: Option<ImeArea>,
+    css_per_point: f32,
 }
 
 impl Platform for WebPlatform {
@@ -176,8 +169,12 @@ impl Platform for WebPlatform {
         None
     }
 
-    fn pick_file(&mut self, request: FilePickRequest) {
-        file_picker::open(&self.context, request);
+    fn delivers_paste_shortcut(&self) -> bool {
+        true
+    }
+
+    fn pick_file(&mut self, request: FilePickRequest, answer: FilePickAnswer) {
+        file_picker::open(request, answer);
     }
 
     fn set_cursor(&mut self, icon: CursorIcon, _touch_emulation: bool) {
@@ -225,7 +222,9 @@ impl Platform for WebPlatform {
             return;
         }
         let held = ime.filter(|area| !area.keyboard);
-        let was_held = HELD_FIELD.replace(held.map(|area| area.rect)).is_some();
+        let was_held = HELD_FIELD
+            .replace(held.map(|area| area.rect.scaled(self.css_per_point)))
+            .is_some();
         match held {
             Some(_) => {
                 let _ = self.agent.set_attribute("inputmode", "none");
@@ -237,7 +236,7 @@ impl Platform for WebPlatform {
         }
         self.ime = ime.cloned();
         if let Some(area) = ime {
-            let css = 1.0 / INPUT.with(|input| input.scale.get());
+            let css = self.css_per_point;
             let style = self.agent.style();
             let _ = style.set_property("left", &format!("{}px", area.cursor.min.x * css));
             let _ = style.set_property("top", &format!("{}px", area.cursor.max.y * css));
@@ -263,12 +262,12 @@ impl Runner {
             self.size = (width, height);
             renderers.resize(width, height);
         }
+        for input in INPUT.with(|pending| pending.inputs.take()) {
+            self.runner.push(input);
+        }
         let context = self.runner.context();
         context.set_pixels_per_point(ratio);
-        INPUT.with(|input| input.scale.set(ratio / context.pixels_per_point()));
-        for event in INPUT.with(|input| input.events.take()) {
-            self.runner.push(event);
-        }
+        self.platform.css_per_point = context.pixels_per_point() / ratio;
         let Some(frame) = self
             .runner
             .frame(&mut self.platform, ratio, SafeArea::default())
@@ -276,10 +275,11 @@ impl Runner {
             return;
         };
         let again = frame.pending && self.runner.present();
-        if again || frame.again() {
-            schedule();
-        } else if frame.repaint_after != Duration::MAX {
-            schedule_after(frame.repaint_after);
+        match frame.wait() {
+            _ if again => schedule(),
+            Some(Duration::ZERO) => schedule(),
+            Some(wait) => schedule_after(wait),
+            None => {}
         }
     }
 }
@@ -354,16 +354,15 @@ async fn run(element_id: &str, launch: Launch, load: Load) -> Result<(), Box<dyn
     let agent = text_agent(&document)?;
     let loaded = load(surface.clone()).await?;
 
-    let context = launch.context.clone();
     let mut runner = beui_core::runner::Runner::new(launch);
     runner.start(loaded, Setup::new(waker()))?;
     let runner = Runner {
         runner,
         platform: WebPlatform {
-            context,
             surface: surface.clone(),
             agent: agent.clone(),
             ime: None,
+            css_per_point: 1.0,
         },
         size: (0, 0),
     };
@@ -440,17 +439,23 @@ fn on<E: wasm_bindgen::convert::FromWasmAbi + 'static>(
     Ok(())
 }
 
-fn position(surface: &web_sys::HtmlElement, event: &web_sys::MouseEvent) -> Pos2 {
+fn ratio() -> f32 {
+    web_sys::window().map_or(1.0, |window| window.device_pixel_ratio() as f32)
+}
+
+fn css_position(surface: &web_sys::HtmlElement, event: &web_sys::MouseEvent) -> Pos2 {
     let bounds = surface.get_bounding_client_rect();
-    let scale = INPUT.with(|input| input.scale.get());
     let (x, y) = (
         client(event, "clientX").unwrap_or(f64::from(event.client_x())),
         client(event, "clientY").unwrap_or(f64::from(event.client_y())),
     );
-    pos2(
-        (x - bounds.left()) as f32 * scale,
-        (y - bounds.top()) as f32 * scale,
-    )
+    pos2((x - bounds.left()) as f32, (y - bounds.top()) as f32)
+}
+
+fn position(surface: &web_sys::HtmlElement, event: &web_sys::MouseEvent) -> Pos2 {
+    let css = css_position(surface, event);
+    let scale = ratio();
+    pos2(css.x * scale, css.y * scale)
 }
 
 fn client(event: &web_sys::MouseEvent, axis: &str) -> Option<f64> {
@@ -463,18 +468,13 @@ thread_local! {
         .is_some_and(|platform| platform.starts_with("Mac") || platform.starts_with("iP"));
 }
 
+fn apple() -> bool {
+    APPLE.with(|apple| *apple)
+}
+
 fn modifiers_of(alt: bool, ctrl: bool, meta: bool, shift: bool) -> Modifiers {
-    let command = APPLE.with(|apple| *apple);
-    let modifiers = Modifiers {
-        alt,
-        ctrl: ctrl || (command && meta),
-        shift,
-        logo: !command && meta,
-    };
-    let changed = INPUT.with(|input| input.modifiers.replace(modifiers) != modifiers);
-    if changed {
-        push(Event::Modifiers(modifiers));
-    }
+    let modifiers = Modifiers::with_meta(alt, ctrl, shift, meta, apple());
+    push(Event::Modifiers(modifiers));
     modifiers
 }
 
@@ -494,17 +494,18 @@ fn listen(
             event.prevent_default();
             let _ = agent.focus();
             let _ = surface.set_pointer_capture(event.pointer_id());
-            let modifiers = modifiers_of(
+            modifiers_of(
                 event.alt_key(),
                 event.ctrl_key(),
                 event.meta_key(),
                 event.shift_key(),
             );
             let pos = position(&surface, &event);
+            let css = css_position(&surface, &event);
             if event.pointer_type() == "touch"
                 && HELD_FIELD
                     .with(|held| held.get())
-                    .is_some_and(|rect| rect.contains(pos))
+                    .is_some_and(|rect| rect.contains(css))
             {
                 HELD_FIELD.set(None);
                 let _ = agent.remove_attribute("inputmode");
@@ -517,23 +518,16 @@ fn listen(
                 push(touch(&event, TouchPhase::Start, pos));
                 return;
             }
-            let Some(button) = pointer_button(event.button()) else {
-                return;
-            };
-            INPUT.with(|input| input.buttons.set(event.buttons()));
-            push(Event::PointerButton {
-                pos,
-                button,
-                pressed: true,
-                modifiers,
-            });
+            if let Some(button) = pointer_button(event.button()) {
+                push(button_event(pos, button, true));
+            }
         }
     })?;
     on(surface_target, "pointermove", {
         let surface = surface.clone();
         move |event: web_sys::PointerEvent| {
             if INPUT.with(|input| input.locked.get()) {
-                let scale = INPUT.with(|input| input.scale.get());
+                let scale = ratio();
                 push(Event::PointerMotion(vec2(
                     event.movement_x() as f32 * scale,
                     event.movement_y() as f32 * scale,
@@ -553,7 +547,7 @@ fn listen(
             let surface = surface.clone();
             move |event: web_sys::PointerEvent| {
                 let _ = surface.release_pointer_capture(event.pointer_id());
-                let modifiers = modifiers_of(
+                modifiers_of(
                     event.alt_key(),
                     event.ctrl_key(),
                     event.meta_key(),
@@ -568,16 +562,9 @@ fn listen(
                     push(touch(&event, phase, pos));
                     return;
                 }
-                INPUT.with(|input| input.buttons.set(event.buttons()));
-                let Some(button) = pointer_button(event.button()) else {
-                    return;
-                };
-                push(Event::PointerButton {
-                    pos,
-                    button,
-                    pressed: false,
-                    modifiers,
-                });
+                if let Some(button) = pointer_button(event.button()) {
+                    push(button_event(pos, button, false));
+                }
             }
         })?;
     }
@@ -585,24 +572,28 @@ fn listen(
         surface_target,
         "pointerleave",
         |event: web_sys::PointerEvent| {
-            if event.pointer_type() != "touch" && INPUT.with(|input| input.buttons.get()) == 0 {
+            if event.pointer_type() != "touch" {
                 push(Event::PointerGone);
             }
         },
     )?;
     on(surface_target, "wheel", |event: web_sys::WheelEvent| {
         event.prevent_default();
-        let unit = match event.delta_mode() {
-            web_sys::WheelEvent::DOM_DELTA_LINE => LINE_HEIGHT,
-            web_sys::WheelEvent::DOM_DELTA_PAGE => PAGE_HEIGHT,
-            _ => INPUT.with(|input| input.scale.get()),
+        let delta = -vec2(event.delta_x() as f32, event.delta_y() as f32);
+        let (delta, points) = match event.delta_mode() {
+            web_sys::WheelEvent::DOM_DELTA_LINE => (ScrollDelta::Lines(delta), SCROLL_LINE),
+            web_sys::WheelEvent::DOM_DELTA_PAGE => (ScrollDelta::Pages(delta), SCROLL_PAGE),
+            _ => (ScrollDelta::Pixels(delta * ratio()), 1.0),
         };
-        let delta = vec2(event.delta_x() as f32, event.delta_y() as f32) * unit;
         if event.ctrl_key() {
-            push(Event::Zoom((-delta.y * PINCH_SPEED).exp()));
+            let pinched = match delta {
+                ScrollDelta::Lines(delta) | ScrollDelta::Pages(delta) => delta.y * points,
+                ScrollDelta::Pixels(delta) => delta.y / ratio(),
+            };
+            push(Event::Zoom((pinched * PINCH_SPEED).exp()));
             return;
         }
-        push(Event::Scroll(-delta));
+        push(delta);
     })?;
     on(
         surface_target,
@@ -656,14 +647,12 @@ fn listen(
             event.shift_key(),
         );
         let key = key(&event.code());
-        if let Some(key) = key.filter(|key| !(event.repeat() && key.is_modifier())) {
-            push(Event::key(KeyPress {
-                key,
-                pressed: true,
-                repeat: event.repeat(),
-                modifiers,
-            }));
-        }
+        push(Keystroke {
+            key,
+            pressed: true,
+            repeat: event.repeat(),
+            ..Keystroke::default()
+        });
         let clipboard = modifiers.ctrl && matches!(key, Some(Key::C | Key::V | Key::X));
         let printable = event.key().chars().count() == 1 && !modifiers.command();
         let passes = key.is_some_and(|key| key.is_media() || key.is_modifier());
@@ -675,15 +664,16 @@ fn listen(
         if event.is_composing() {
             return;
         }
-        let modifiers = modifiers_of(
+        modifiers_of(
             event.alt_key(),
             event.ctrl_key(),
             event.meta_key(),
             event.shift_key(),
         );
-        if let Some(key) = key(&event.code()) {
-            push(Event::key(KeyPress::up(key, modifiers)));
-        }
+        push(Keystroke {
+            key: key(&event.code()),
+            ..Keystroke::default()
+        });
     })?;
     on(agent_target, "input", {
         let agent = agent.clone();
@@ -750,7 +740,6 @@ fn listen(
         if REFOCUSING.get() {
             return;
         }
-        INPUT.with(|input| input.buttons.set(0));
         push(Event::Focus(false));
     })?;
 
@@ -817,107 +806,17 @@ fn pointer_button(button: i16) -> Option<PointerButton> {
 }
 
 fn key(code: &str) -> Option<Key> {
-    let key = match code {
-        "ArrowDown" => Key::ArrowDown,
-        "ArrowLeft" => Key::ArrowLeft,
-        "ArrowRight" => Key::ArrowRight,
-        "ArrowUp" => Key::ArrowUp,
-        "Backspace" => Key::Backspace,
-        "Delete" => Key::Delete,
-        "End" => Key::End,
-        "Enter" | "NumpadEnter" => Key::Enter,
-        "Escape" => Key::Escape,
-        "Home" => Key::Home,
-        "BracketLeft" => Key::BracketLeft,
-        "BracketRight" => Key::BracketRight,
-        "Minus" | "NumpadSubtract" => Key::Minus,
-        "PageDown" => Key::PageDown,
-        "PageUp" => Key::PageUp,
-        "Equal" | "NumpadAdd" => Key::Plus,
-        "Space" => Key::Space,
-        "Tab" => Key::Tab,
-        "Digit0" | "Numpad0" => Key::Zero,
-        "Digit1" | "Numpad1" => Key::One,
-        "Digit2" | "Numpad2" => Key::Two,
-        "Digit3" | "Numpad3" => Key::Three,
-        "Digit4" | "Numpad4" => Key::Four,
-        "Digit5" | "Numpad5" => Key::Five,
-        "Digit6" | "Numpad6" => Key::Six,
-        "Digit7" | "Numpad7" => Key::Seven,
-        "Digit8" | "Numpad8" => Key::Eight,
-        "Digit9" | "Numpad9" => Key::Nine,
-        "Backquote" => Key::Backtick,
-        "KeyA" => Key::A,
-        "KeyB" => Key::B,
-        "KeyC" => Key::C,
-        "KeyD" => Key::D,
-        "KeyE" => Key::E,
-        "KeyF" => Key::F,
-        "KeyG" => Key::G,
-        "KeyH" => Key::H,
-        "KeyI" => Key::I,
-        "KeyJ" => Key::J,
-        "KeyK" => Key::K,
-        "KeyL" => Key::L,
-        "KeyM" => Key::M,
-        "KeyN" => Key::N,
-        "KeyO" => Key::O,
-        "KeyP" => Key::P,
-        "KeyQ" => Key::Q,
-        "KeyR" => Key::R,
-        "KeyS" => Key::S,
-        "KeyT" => Key::T,
-        "KeyU" => Key::U,
-        "KeyV" => Key::V,
-        "KeyW" => Key::W,
-        "KeyX" => Key::X,
-        "KeyY" => Key::Y,
-        "KeyZ" => Key::Z,
-        "Insert" => Key::Insert,
-        "Comma" => Key::Comma,
-        "Period" | "NumpadDecimal" => Key::Period,
-        "Slash" | "NumpadDivide" => Key::Slash,
-        "Backslash" => Key::Backslash,
-        "Semicolon" => Key::Semicolon,
-        "Quote" => Key::Quote,
-        "BrowserBack" => Key::BrowserBack,
-        "F1" => Key::F1,
-        "F2" => Key::F2,
-        "F3" => Key::F3,
-        "F4" => Key::F4,
-        "F5" => Key::F5,
-        "F6" => Key::F6,
-        "F7" => Key::F7,
-        "F8" => Key::F8,
-        "F9" => Key::F9,
-        "F10" => Key::F10,
-        "F11" => Key::F11,
-        "F12" => Key::F12,
-        "F13" => Key::F13,
-        "F14" => Key::F14,
-        "F15" => Key::F15,
-        "F16" => Key::F16,
-        "F17" => Key::F17,
-        "F18" => Key::F18,
-        "F19" => Key::F19,
-        "F20" => Key::F20,
-        "F21" => Key::F21,
-        "F22" => Key::F22,
-        "F23" => Key::F23,
-        "F24" => Key::F24,
-        "AudioVolumeUp" => Key::VolumeUp,
-        "AudioVolumeDown" => Key::VolumeDown,
-        "AudioVolumeMute" => Key::VolumeMute,
-        "MediaPlayPause" => Key::MediaPlayPause,
-        "MediaTrackNext" => Key::MediaNext,
-        "MediaTrackPrevious" => Key::MediaPrevious,
-        "MediaStop" => Key::MediaStop,
-        "ShiftLeft" | "ShiftRight" => Key::Shift,
-        "ControlLeft" | "ControlRight" => Key::Ctrl,
-        "AltLeft" | "AltRight" => Key::Alt,
-        "MetaLeft" | "MetaRight" if APPLE.with(|apple| *apple) => Key::Ctrl,
-        "MetaLeft" | "MetaRight" => Key::Logo,
-        _ => return None,
-    };
-    Some(key)
+    match code {
+        "MetaLeft" | "MetaRight" => Some(Key::meta(apple())),
+        code => Key::from_code(code),
+    }
+}
+
+fn button_event(pos: Pos2, button: PointerButton, pressed: bool) -> Event {
+    Event::PointerButton {
+        pos,
+        button,
+        pressed,
+        modifiers: Modifiers::NONE,
+    }
 }

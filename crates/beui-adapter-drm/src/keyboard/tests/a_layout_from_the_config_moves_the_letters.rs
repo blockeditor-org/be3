@@ -10,10 +10,7 @@ fn a_layout_from_the_config_moves_the_letters() {
 
     let pressed = keyboard.key(KEY_Y, true);
 
-    assert!(
-        pressed
-            .events
-            .iter()
-            .any(|event| matches!(event, Event::Key { text: Some(text), .. } if text == "z"))
-    );
+    assert!(pressed.inputs.iter().any(
+        |input| matches!(input, Input::Key(Keystroke { text: Some(text), .. }) if text == "z")
+    ));
 }

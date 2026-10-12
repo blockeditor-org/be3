@@ -175,9 +175,11 @@ mod a_picture_given_a_source_paints_only_that_part_of_the_image;
 mod a_picture_paints_the_image_it_is_given;
 mod a_picture_scaled_down_never_grows_past_its_own_pixels;
 mod a_picture_shows_its_thumbhash_until_the_image_arrives;
+mod a_platform_keystroke_types_only_without_a_shortcut_held;
 mod a_plugin_description_reads_as_a_pane_under_the_window;
 mod a_pointer_lock_lets_go_when_the_window_loses_focus;
 mod a_pointer_lock_reports_motion_only_while_it_holds_the_pointer;
+mod a_pointer_that_leaves_while_pressed_is_gone_after_the_release;
 mod a_popover_panel_stops_at_its_max_width_rather_than_spanning_the_window;
 mod a_portal_shows_a_subtree_it_does_not_own;
 mod a_press_a_catcher_declines_focuses_the_catcher_beneath;
@@ -379,6 +381,7 @@ mod ctrl_shift_f_moves_focus_between_the_inspector_and_the_document;
 mod ctrl_shift_i_opens_and_closes_the_inspector;
 mod ctrl_shift_m_toggles_responsive_design_mode;
 mod ctrl_tab_walks_the_tabs_of_the_pane_the_focus_is_in;
+mod ctrl_v_pastes_the_platforms_clipboard_unless_it_pastes_itself;
 mod ctrl_z_undoes_what_was_typed_into_a_text_input;
 mod dock_tabs_are_the_same_height_whether_or_not_they_close;
 mod dock_tabs_moved_into_a_sidebar_stack_beside_the_panel;
@@ -469,6 +472,7 @@ mod line_starts_and_checkboxes_follow_edits;
 mod list_rows_and_pressables_activate_from_the_keyboard;
 mod listbox_navigation_reveals_options_inside_a_tall_scroll_item;
 mod listbox_typeahead_matches_prefixes_and_cycles_repeated_letters;
+mod losing_focus_lets_go_of_the_modifiers_and_an_emulated_touch;
 mod losing_window_focus_cancels_a_held_activation_key;
 mod measuring_after_an_edit_matches_measuring_afresh;
 mod middle_clicking_a_scroll_scrolls_it_towards_the_pointer;
@@ -501,6 +505,7 @@ mod picking_a_node_leaves_the_document_alone;
 mod picking_in_a_narrow_window_returns_to_the_inspector;
 mod pinching_a_pan_zoom_with_two_fingers_zooms_and_pans_it;
 mod pinching_a_pan_zoom_zooms_around_the_pointer;
+mod platform_scrolls_arrive_in_points;
 mod plus_and_minus_zoom_a_focused_pan_zoom_and_zero_resets_the_scale;
 mod pointer_motion_only_reaches_what_lies_under_the_pointer;
 mod pointing_inside_the_autoscroll_dead_zone_leaves_the_scroll_still;
@@ -624,6 +629,7 @@ mod tiling_a_stacked_dock_with_its_switcher_open_closes_the_switcher;
 mod touch_dragging_a_horizontal_scroll_moves_it_sideways;
 mod touch_dragging_a_scroll_moves_it_without_activating_a_row;
 mod touch_dragging_across_a_text_input_does_not_select_its_text;
+mod touch_emulation_turns_the_mouse_into_a_finger;
 mod touch_overscroll_bands_without_hovering_a_row;
 mod triple_clicking_selects_the_line_so_typing_replaces_the_value;
 mod turning_an_oklch_color_wheel_keeps_its_lightness;
@@ -646,6 +652,7 @@ mod up_and_down_in_a_single_line_text_area_move_to_its_ends;
 mod view_attributes_can_be_written_without_braces;
 mod view_attributes_can_pun_a_bare_name_as_its_own_value;
 mod view_children_can_pick_fixed_and_percent_sizing;
+mod web_codes_and_typed_characters_name_the_same_keys;
 mod what_on_laid_out_changes_is_laid_out_before_the_frame_is_painted;
 mod without_a_drag_modifier_a_modified_drag_reaches_the_dock_content;
 mod wrapped_rows_wrap_long_text_and_grow_percent_children;
@@ -2024,15 +2031,7 @@ impl beui_core::renderer::Renderer for DrivenScreen {
 
 struct DrivenPlatform;
 
-impl beui_core::runner::Platform for DrivenPlatform {
-    fn copy(&mut self, _text: String) {}
-
-    fn paste(&mut self) -> Option<String> {
-        None
-    }
-
-    fn pick_file(&mut self, _request: FilePickRequest) {}
-}
+impl beui_core::runner::Platform for DrivenPlatform {}
 
 struct DrivenDocument(Document);
 
@@ -2258,5 +2257,82 @@ fn FocusPanel(
         >
             <Frame width height />
         </Interactive>
+    }
+}
+
+struct Seeing(Rc<RefCell<Vec<Event>>>);
+
+impl App for Seeing {
+    fn update(&mut self, context: &Context, _rect: Rect) {
+        context.input(|input| self.0.borrow_mut().extend(input.events.iter().cloned()));
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct IntakePlatform {
+    pub(crate) clipboard: Option<String>,
+    pub(crate) delivers_paste: bool,
+}
+
+impl beui_core::runner::Platform for IntakePlatform {
+    fn paste(&mut self) -> Option<String> {
+        self.clipboard.clone()
+    }
+
+    fn delivers_paste_shortcut(&self) -> bool {
+        self.delivers_paste
+    }
+}
+
+pub(crate) struct Intaken {
+    pub(crate) runner: beui_core::runner::Runner,
+    pub(crate) platform: IntakePlatform,
+    seen: Rc<RefCell<Vec<Event>>>,
+}
+
+impl Intaken {
+    pub(crate) fn new() -> Self {
+        let seen = Rc::new(RefCell::new(Vec::new()));
+        let mut runner = beui_core::runner::Runner::new(beui_core::runner::Launch {
+            options: beui_core::runner::RunOptions::new("Intaken"),
+            context: context(),
+            app: Box::new(Seeing(Rc::clone(&seen))),
+        });
+        runner
+            .start(
+                vec![beui_core::renderer::Loaded {
+                    renderer: Box::new(DrivenScreen(VIEWPORT)),
+                    fonts: None,
+                }],
+                Setup::new(Waker::new(|| {})),
+            )
+            .expect("the screen loads");
+        runner.context().stop_clock();
+        Self {
+            runner,
+            platform: IntakePlatform::default(),
+            seen,
+        }
+    }
+
+    pub(crate) fn frame(
+        &mut self,
+        pixels_per_point: f32,
+        inputs: impl IntoIterator<Item = beui_core::runner::Input>,
+    ) -> Vec<Event> {
+        for input in inputs {
+            self.runner.push(input);
+        }
+        loop {
+            self.runner.frame(
+                &mut self.platform,
+                pixels_per_point,
+                beui_core::app::SafeArea::default(),
+            );
+            if !self.runner.has_events() {
+                break;
+            }
+        }
+        self.seen.take()
     }
 }
