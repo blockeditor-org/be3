@@ -3,7 +3,7 @@
 # with its own data directory, loading the sysroot's libraries. Needs xvfb-run.
 #
 #   ./scripts/buck run //crates/block-app:smoke
-#   ./scripts/buck run //crates/block-app:smoke-desktop    the same with --desktop
+#   ./scripts/buck run //crates/block-desktop:smoke      the desktop shell in its window
 set -u
 app="$1"
 LD_LIBRARY_PATH="$2"

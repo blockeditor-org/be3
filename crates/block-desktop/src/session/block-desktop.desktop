@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Block
+Comment=Block as the desktop, with Block as the Wayland compositor
+Exec=block-desktop --session
+TryExec=block-desktop
+DesktopNames=Block
+X-LightDM-Session-Type=wayland

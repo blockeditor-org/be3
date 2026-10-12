@@ -3,18 +3,7 @@ use be_block::InputSettings;
 use crate::app_state::{AppStateError, AppStateStore};
 use crate::local_settings::LocalSettings;
 
-#[cfg(target_os = "linux")]
-mod linux;
-#[cfg(target_os = "linux")]
-use linux::apply;
-#[cfg(target_os = "linux")]
-pub(crate) use linux::start;
-
-#[cfg(not(target_os = "linux"))]
-pub(crate) fn start(_setup: &beui::Setup) {}
-
-#[cfg(not(target_os = "linux"))]
-fn apply(_settings: &InputSettings) {}
+use crate::extension::apply_input as apply;
 
 impl LocalSettings for InputSettings {
     const NAME: &'static str = "input settings";

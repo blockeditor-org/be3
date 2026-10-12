@@ -24,11 +24,11 @@ fn notices() -> MutexGuard<'static, Notices> {
 }
 
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-pub(crate) fn report(message: String) {
+pub fn report(message: String) {
     show(message, None);
 }
 
-pub(crate) fn report_with(message: String, report: String) {
+pub fn report_with(message: String, report: String) {
     show(message, Some(report));
 }
 

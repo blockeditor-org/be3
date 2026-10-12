@@ -1052,7 +1052,7 @@ A document knows the screens it is shown on: `Document::screens()`, and
 same while the monitor is plugged in, a `name`, and a `rect` in document
 coordinates). A window, a browser tab, an Android view, a plugin's region and
 an inspector panel are one screen the size of what the document is shown in;
-under `block-app --session` there is one per monitor. They come from the
+under `block-desktop --session` there is one per monitor. They come from the
 renderer: `Renderer::screens` hands the runner each monitor in physical
 pixels (beui-adapter-drm's outputs, beui-adapter-plugin's from the monitors
 the host says its region covers), the runner puts them on the `Context`
@@ -1664,8 +1664,8 @@ focused field into what is left, through every scroll it sits in.
   thread-locals are dropped only by `exit()` after `main` returns, in no set
   order, after the GPU and the rest of the runner are gone, and dropping GPU or
   reactive state there aborts or crashes the process (block-app's
-  `Shell::exiting` takes down the Wayland compositor, the plugin runtimes and
-  their worker threads, and the screens this way).
+  `Shell::exiting` takes down the plugin runtimes and their worker threads this
+  way, and block-desktop's the Wayland compositor and the screens).
 - `busy` says whether work the app is waiting on, such as a server request or a
   plugin's frame, will still change what it shows. Only a driver reads it.
 

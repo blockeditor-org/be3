@@ -17,7 +17,7 @@ use block_plugin_api::{
 };
 use uuid::Uuid;
 
-use crate::wayland::WindowSurface;
+use crate::extension::WindowSurface;
 
 use super::region::{ChildView, PluginRegion, RegionEditor};
 use crate::editors::plugin::PickSource;

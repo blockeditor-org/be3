@@ -4,6 +4,7 @@ use block_plugin_api::{HostValue, HostWindow, HostWindowId, HostWindows, Size};
 
 #[test]
 fn a_shell_only_host_value_reaches_only_the_shell() {
+    crate::plugin_host::allow_value::<HostWindows>(crate::plugin_host::Access::Shell);
     let mut instances = placed();
     let windows = vec![HostWindow {
         id: HostWindowId(1),

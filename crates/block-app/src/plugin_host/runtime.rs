@@ -1056,7 +1056,7 @@ pub(crate) fn set_focus(block: Option<(Uuid, Uuid)>, via: Vec<Uuid>) {
     });
 }
 
-pub(crate) fn publish<T: HostValue>(value: &T::Value) {
+pub fn publish<T: HostValue>(value: &T::Value) {
     let bytes = encode_host(value);
     HOST.with(|host| {
         let mut host = host.borrow_mut();
@@ -1079,8 +1079,7 @@ pub(crate) fn publish<T: HostValue>(value: &T::Value) {
     });
 }
 
-#[cfg(target_os = "linux")]
-pub(crate) fn watched<T: HostValue>() -> bool {
+pub fn watched<T: HostValue>() -> bool {
     HOST.with(|host| {
         host.borrow()
             .runtimes
@@ -1089,7 +1088,7 @@ pub(crate) fn watched<T: HostValue>() -> bool {
     })
 }
 
-pub(crate) fn take_actions<A: HostAction>() -> Vec<A> {
+pub fn take_actions<A: HostAction>() -> Vec<A> {
     HOST.with(|host| {
         let mut host = host.borrow_mut();
         let mut runtimes: Vec<_> = host.runtimes.iter_mut().collect();

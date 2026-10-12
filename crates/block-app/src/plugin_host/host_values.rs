@@ -1,50 +1,54 @@
 use std::{collections::HashMap, sync::Arc};
 
-use block_plugin_api::{
-    Displays, EditorInstanceId, EditorMessage, HostAction, HostValue, HostWindows, InputDevices,
-    LinkBase, Media, MediaRequest, Message, NotificationReport, Notifications, Power, PowerAction,
-    ProgramAction, Programs, ScreenLocked, Tray, TrayRequest, WindowAction,
-};
+use std::sync::RwLock;
+
+use block_plugin_api::{EditorInstanceId, EditorMessage, HostAction, HostValue, LinkBase, Message};
 
 pub(super) const MAX_ACTIONS: usize = 64;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Access {
+pub enum Access {
     Anyone,
     Shell,
 }
 
-const VALUES: &[(&str, Access)] = &[
-    (HostWindows::KEY, Access::Shell),
-    (InputDevices::KEY, Access::Anyone),
-    (Displays::KEY, Access::Anyone),
-    (Power::KEY, Access::Anyone),
-    (Media::KEY, Access::Anyone),
-    (Notifications::KEY, Access::Shell),
-    (ScreenLocked::KEY, Access::Anyone),
-    (Programs::KEY, Access::Shell),
-    (Tray::KEY, Access::Shell),
-    (LinkBase::KEY, Access::Anyone),
-];
+static VALUES: RwLock<Vec<(&str, Access)>> = RwLock::new(Vec::new());
+static ACTIONS: RwLock<Vec<(&str, Access)>> = RwLock::new(Vec::new());
 
-const ACTIONS: &[(&str, Access)] = &[
-    (WindowAction::KEY, Access::Shell),
-    (PowerAction::KEY, Access::Shell),
-    (MediaRequest::KEY, Access::Shell),
-    (NotificationReport::KEY, Access::Shell),
-    (ProgramAction::KEY, Access::Shell),
-    (TrayRequest::KEY, Access::Shell),
-];
-
-fn allowed(table: &[(&str, Access)], key: &str, shell: bool) -> bool {
-    table
-        .iter()
-        .find(|(listed, _)| *listed == key)
-        .is_some_and(|(_, access)| shell || *access == Access::Anyone)
+pub fn allow_value<T: HostValue>(access: Access) {
+    allow(&VALUES, T::KEY, access);
 }
 
-fn known(table: &[(&str, Access)], key: &str) -> bool {
-    table.iter().any(|(listed, _)| *listed == key)
+pub fn allow_action<A: HostAction>(access: Access) {
+    allow(&ACTIONS, A::KEY, access);
+}
+
+fn allow(table: &RwLock<Vec<(&'static str, Access)>>, key: &'static str, access: Access) {
+    let mut table = table
+        .write()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    table.retain(|(listed, _)| *listed != key);
+    table.push((key, access));
+}
+
+fn access(table: &RwLock<Vec<(&'static str, Access)>>, key: &str) -> Option<Access> {
+    if std::ptr::eq(table, &VALUES) && key == LinkBase::KEY {
+        return Some(Access::Anyone);
+    }
+    table
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .iter()
+        .find(|(listed, _)| *listed == key)
+        .map(|(_, access)| *access)
+}
+
+fn allowed(table: &RwLock<Vec<(&'static str, Access)>>, key: &str, shell: bool) -> bool {
+    access(table, key).is_some_and(|access| shell || access == Access::Anyone)
+}
+
+fn known(table: &RwLock<Vec<(&'static str, Access)>>, key: &str) -> bool {
+    access(table, key).is_some()
 }
 
 pub(super) type Published = HashMap<String, Arc<Vec<u8>>>;
@@ -57,7 +61,7 @@ pub(super) struct Watched {
 
 impl Watched {
     pub(super) fn watch(&mut self, key: String) -> bool {
-        if !known(VALUES, &key) {
+        if !known(&VALUES, &key) {
             return false;
         }
         self.reported.entry(key).or_default();
@@ -70,7 +74,7 @@ impl Watched {
             .iter()
             .filter(|(listed, _)| *listed == key)
             .count();
-        if !allowed(ACTIONS, &key, shell) || queued >= MAX_ACTIONS {
+        if !allowed(&ACTIONS, &key, shell) || queued >= MAX_ACTIONS {
             return false;
         }
         self.actions.push((key, action));
@@ -78,7 +82,7 @@ impl Watched {
     }
 
     pub(super) fn watches(&self, key: &str, shell: bool) -> bool {
-        self.reported.contains_key(key) && allowed(VALUES, key, shell)
+        self.reported.contains_key(key) && allowed(&VALUES, key, shell)
     }
 
     pub(super) fn forget_reported(&mut self) {
@@ -109,7 +113,7 @@ impl Watched {
         let mut keys: Vec<_> = self.reported.keys().cloned().collect();
         keys.sort();
         for key in keys {
-            if !allowed(VALUES, &key, shell) {
+            if !allowed(&VALUES, &key, shell) {
                 continue;
             }
             let Some(value) = published.get(&key) else {

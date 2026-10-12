@@ -3,35 +3,23 @@ mod app_state;
 mod be;
 mod block_label;
 mod compositor;
-#[cfg(target_os = "linux")]
-mod dbus;
 mod debug;
 mod display;
 mod editors;
+pub mod extension;
 mod host;
 mod input;
 mod keys;
 mod local_settings;
-#[cfg(target_os = "linux")]
-mod media;
 mod notices;
-#[cfg(target_os = "linux")]
-mod notifications;
 mod panic_guard;
-mod password;
 mod performance;
 mod platform;
 mod plugin_host;
-mod programs;
 mod root_settings;
-#[cfg(target_os = "linux")]
-mod session;
 mod shell_route;
 mod surfaces;
-#[cfg(target_os = "linux")]
-mod tray;
 mod ui;
-mod wayland;
 
 use beui::styled::DocumentTheme;
 use std::{
@@ -65,14 +53,13 @@ use surfaces::SurfaceId;
 use ui::{AccountForm, AppView, AppViewStore, ErrorAction, UiCommand};
 use uuid::Uuid;
 
-#[cfg(not(target_arch = "wasm32"))]
-const APP_ID: &str = "Block";
+pub const APP_ID: &str = "Block";
 
-pub(crate) fn commit() -> &'static str {
+pub fn commit() -> &'static str {
     build_id::commit(build_id::current())
 }
 
-fn run_options() -> beui::RunOptions {
+pub fn run_options() -> beui::RunOptions {
     let mut options = beui::RunOptions::new("Block");
     #[cfg(not(target_arch = "wasm32"))]
     {
@@ -89,55 +76,40 @@ fn storage_dir() -> Option<PathBuf> {
 
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 pub fn run() -> Result<(), Box<dyn Error>> {
-    let arguments: Vec<String> = std::env::args().skip(1).collect();
-    #[cfg(target_os = "linux")]
-    if arguments.first().map(String::as_str) == Some("--install-session") {
-        return session::install(arguments.get(1).map(String::as_str));
-    }
-    let session =
-        cfg!(target_os = "linux") && arguments.iter().any(|argument| argument == "--session");
-    #[cfg(target_os = "linux")]
-    if session {
-        session::start_log();
-    }
-    panic_guard::install();
-    let mut app = BlockApp::new(None).map_err(|error| error.to_string())?;
-    let options = run_options();
-    for argument in arguments {
-        if argument == "--dev-workspace" {
-            app.open_dev_workspace(None);
-        } else if cfg!(target_os = "linux") && (argument == "--session" || argument == "--desktop")
-        {
-            app.run_as_desktop();
-        } else {
-            return Err(format!("unknown argument {argument}").into());
+    let mut launch = Launch::new()?;
+    for argument in std::env::args().skip(1) {
+        match argument.as_str() {
+            "--dev-workspace" => launch.open_dev_workspace(),
+            _ => return Err(format!("unknown argument {argument}").into()),
         }
     }
-    run_shell(options, Shell::new(app), session)
+    beui::run_with(run_options(), launch.into_app(extension::NoExtension))
 }
 
-#[cfg(target_os = "linux")]
-fn run_shell(options: beui::RunOptions, shell: Shell, session: bool) -> Result<(), Box<dyn Error>> {
-    if session {
-        return beui::run_on(Box::new(beui_adapter_drm::Drm), options, shell);
+#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+pub struct Launch {
+    app: BlockApp,
+}
+
+#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+impl Launch {
+    pub fn new() -> Result<Self, Box<dyn Error>> {
+        panic_guard::install();
+        let app = BlockApp::new(None).map_err(|error| error.to_string())?;
+        Ok(Self { app })
     }
-    let renderer = beui::WindowRenderer::Wgpu {
-        open_device: Some(std::sync::Arc::new(be_dmabuf::open_device)),
-    };
-    beui::run_with_renderers(options, vec![renderer], shell)
-}
 
-#[cfg(all(
-    not(target_os = "linux"),
-    not(target_os = "android"),
-    not(target_arch = "wasm32")
-))]
-fn run_shell(
-    options: beui::RunOptions,
-    shell: Shell,
-    _session: bool,
-) -> Result<(), Box<dyn Error>> {
-    beui::run_with(options, shell)
+    pub fn open_dev_workspace(&mut self) {
+        self.app.open_dev_workspace(None);
+    }
+
+    pub fn set_shell(&mut self, shell: Uuid) {
+        self.app.root_settings = RootSettings::new(shell);
+    }
+
+    pub fn into_app(self, extension: impl extension::Extension + 'static) -> impl beui::App {
+        Shell::new(self.app, Box::new(extension))
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -165,7 +137,7 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
         &canvas_id,
         vec![beui::WebRenderer::Wgpu],
         options,
-        Shell::new(app),
+        Shell::new(app, Box::new(extension::NoExtension)),
     )
     .await
     .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))
@@ -220,7 +192,11 @@ fn android_main(app: beui::AndroidApp) {
     let exit_code = match BlockApp::new(storage_root)
         .map_err(|error| error.to_string())
         .and_then(|block_app| {
-            beui::run_with(options, Shell::new(block_app)).map_err(|error| error.to_string())
+            beui::run_with(
+                options,
+                Shell::new(block_app, Box::new(extension::NoExtension)),
+            )
+            .map_err(|error| error.to_string())
         }) {
         Ok(()) => 0,
         Err(error) => {
@@ -236,20 +212,21 @@ struct Shell {
     document: Document,
     view: AppViewStore,
     app: BlockApp,
+    extension: Box<dyn extension::Extension>,
 }
 
 impl Shell {
-    fn new(app: BlockApp) -> Self {
+    fn new(app: BlockApp, mut extension: Box<dyn extension::Extension>) -> Self {
         let mut view = None;
         let mut document = beui::reactive::build(|| {
             compositor::install();
-            wayland::create();
             surfaces::create_handles();
             let store = AppViewStore::new(AppView::default());
             view = Some(store.clone());
             let view = store;
+            let overlay = extension.view();
             beui::reactive::view! {
-                <ui::Root view />
+                <ui::Root view>{overlay}</ui::Root>
             }
         });
         document.on_interacted(plugin_host::start_frames);
@@ -261,6 +238,7 @@ impl Shell {
             document,
             view: view.expect("the view store is created while the document is built"),
             app,
+            extension,
         }
     }
 }
@@ -269,18 +247,7 @@ impl beui::App for Shell {
     fn setup(&mut self, setup: &beui::Setup) {
         host::install_waker(setup.waker.clone());
         plugin_host::install(setup);
-        wayland::start(setup);
-        input::start(setup);
-        #[cfg(target_os = "linux")]
-        if let Some(problems) = setup.get::<beui_adapter_drm::Problems>() {
-            problems.listen(notices::report);
-        }
-        #[cfg(target_os = "linux")]
-        if self.app.desktop.is_none() && session::owns_a_seat(setup) {
-            self.app.desktop = Some(session::DesktopSession::start());
-            session::export_environment(wayland::environment());
-        }
-        display::start(setup);
+        self.extension.setup(setup);
         self.app.input.boot(&self.app.app_state);
         self.app.display.boot(&self.app.app_state);
         #[cfg(all(
@@ -295,14 +262,16 @@ impl beui::App for Shell {
 
     fn renderer_replaced(&mut self, setup: &beui::Setup) {
         plugin_host::replace_gpu(setup);
-        wayland::replace_gpu(setup);
+        self.extension.renderer_replaced(setup);
     }
 
     fn update(&mut self, context: &beui::Context, rect: beui::Rect) {
         let started = std::time::Instant::now();
         host::begin(context, &self.document);
-        wayland::before(context, rect, &mut self.document);
+        self.extension.before(context, rect, &mut self.document);
+        self.app.ends_on_crash = self.extension.ends_on_crash();
         self.app.frame(context);
+        self.extension.frame(context, &mut self.document);
         if let Some(open) = self.app.inspector_requested.take()
             && open
         {
@@ -322,11 +291,7 @@ impl beui::App for Shell {
         );
         self.document.show(context, rect);
         plugin_host::describe(context);
-        #[cfg(target_os = "linux")]
-        if let Some(lock) = &mut self.app.screen_lock {
-            lock.note_drawn(self.document.locked());
-        }
-        wayland::after(context, &mut self.document);
+        self.extension.after(context, &mut self.document);
         let commands = ui::take_commands();
         if !commands.is_empty() {
             for command in commands {
@@ -352,16 +317,8 @@ impl beui::App for Shell {
     }
 
     fn exiting(&mut self) {
-        wayland::exiting();
+        self.extension.exiting();
         plugin_host::exiting();
-        display::stop();
-        #[cfg(target_os = "linux")]
-        {
-            self.app.media = None;
-            self.app.notifications = None;
-            self.app.tray = None;
-            self.app.desktop = None;
-        }
         be::flush();
         be::stop();
     }
@@ -398,7 +355,6 @@ struct BlockApp {
     choosing_profile: bool,
     every_profile_type: bool,
     shell: Option<Uuid>,
-    windows_sent: Option<u64>,
     forwarded_picks: HashMap<u64, (PickSource, u64)>,
     next_pick: u64,
     focus_reports: HashMap<Uuid, editors::FocusReport>,
@@ -422,7 +378,6 @@ struct BlockApp {
     pending_transfers: Vec<PendingTransfer>,
     pending_copies: Vec<PendingCopy>,
     about_open: bool,
-    programs: programs::Programs,
     app_menu_open: bool,
     pending_destructive_action: Option<PendingDestructiveAction>,
     allow_close: bool,
@@ -436,18 +391,7 @@ struct BlockApp {
     dev_workspace: bool,
     keys: keys::KeyState,
     workspace_key: Option<[u8; 32]>,
-    #[cfg(target_os = "linux")]
-    desktop: Option<session::DesktopSession>,
-    #[cfg(target_os = "linux")]
-    screen_lock: Option<session::ScreenLock>,
-    #[cfg(target_os = "linux")]
-    published_power: Option<block_plugin_api::PowerAvailability>,
-    #[cfg(target_os = "linux")]
-    media: Option<media::Media>,
-    #[cfg(target_os = "linux")]
-    notifications: Option<notifications::Notifications>,
-    #[cfg(target_os = "linux")]
-    tray: Option<tray::Tray>,
+    ends_on_crash: bool,
 }
 
 type Account = SavedAccount;
@@ -615,7 +559,6 @@ impl BlockApp {
             choosing_profile: false,
             every_profile_type: false,
             shell: None,
-            windows_sent: None,
             forwarded_picks: HashMap::new(),
             focus_reports: HashMap::new(),
             artifact_watches: HashMap::new(),
@@ -635,7 +578,6 @@ impl BlockApp {
             pending_transfers: Vec::new(),
             pending_copies: Vec::new(),
             about_open: false,
-            programs: programs::Programs::default(),
             app_menu_open: false,
             pending_destructive_action: None,
             allow_close: false,
@@ -649,151 +591,8 @@ impl BlockApp {
             dev_workspace: false,
             keys: keys::KeyState::default(),
             workspace_key: None,
-            #[cfg(target_os = "linux")]
-            desktop: None,
-            #[cfg(target_os = "linux")]
-            screen_lock: None,
-            #[cfg(target_os = "linux")]
-            published_power: None,
-            #[cfg(target_os = "linux")]
-            media: None,
-            #[cfg(target_os = "linux")]
-            notifications: None,
-            #[cfg(target_os = "linux")]
-            tray: None,
+            ends_on_crash: false,
         })
-    }
-
-    #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
-    fn run_as_desktop(&mut self) {
-        self.root_settings = RootSettings::new(be_block::LINUX_DESKTOP_EDITOR);
-        #[cfg(target_os = "linux")]
-        {
-            self.screen_lock = Some(session::ScreenLock::start());
-            if self.notifications.is_none() {
-                self.notifications = Some(notifications::Notifications::start());
-            }
-            if self.tray.is_none() {
-                self.tray = Some(tray::Tray::start());
-            }
-        }
-    }
-
-    #[cfg(target_os = "linux")]
-    fn run_notifications(&mut self) {
-        if let Some(notifications) = &mut self.notifications {
-            notifications.frame();
-        }
-        if let Some(tray) = &mut self.tray {
-            tray.frame();
-        }
-    }
-
-    #[cfg(target_os = "linux")]
-    fn take_power_request(&mut self) {
-        let request = plugin_host::take_actions::<block_plugin_api::PowerAction>().pop();
-        if let Some(action) = request
-            && self
-                .published_power
-                .is_some_and(|power| power.allows(action))
-        {
-            self.request_power(action, session::Trigger::Menu);
-        }
-        self.run_media();
-    }
-
-    #[cfg(target_os = "linux")]
-    fn request_power(&mut self, action: block_plugin_api::PowerAction, trigger: session::Trigger) {
-        match action {
-            block_plugin_api::PowerAction::Lock => {
-                if let Some(lock) = &mut self.screen_lock {
-                    lock.lock(trigger);
-                }
-            }
-            action => {
-                if let Some(desktop) = &mut self.desktop {
-                    desktop.request(action);
-                    host::request_repaint();
-                }
-            }
-        }
-    }
-
-    #[cfg(target_os = "linux")]
-    fn run_session(&mut self, context: &beui::Context) {
-        let Some(lock) = &mut self.screen_lock else {
-            return;
-        };
-        lock.frame();
-        if wayland::take_lock_due() {
-            lock.lock(session::Trigger::Idle);
-        }
-        if let Some(desktop) = &mut self.desktop {
-            desktop.frame(context, lock);
-        }
-        let locked = lock.locked();
-        wayland::set_locked(locked);
-        plugin_host::publish::<block_plugin_api::ScreenLocked>(&locked);
-        if locked {
-            self.app_menu_open = false;
-        }
-        let mut availability = self
-            .desktop
-            .as_ref()
-            .map(session::DesktopSession::availability)
-            .unwrap_or_default();
-        availability.lock = !locked;
-        if self.published_power != Some(availability) {
-            self.published_power = Some(availability);
-            plugin_host::publish::<block_plugin_api::Power>(&availability);
-        }
-    }
-
-    #[cfg(target_os = "linux")]
-    fn lock_view(&self) -> ui::LockView {
-        let Some(lock) = &self.screen_lock else {
-            return ui::LockView::default();
-        };
-        let state = lock.state();
-        let offered = self
-            .desktop
-            .as_ref()
-            .map(session::DesktopSession::availability)
-            .unwrap_or_default();
-        ui::LockView {
-            available: true,
-            locked: state.locked,
-            busy: state.busy,
-            error: state.error,
-            user: lock.user().to_owned(),
-            power: [
-                block_plugin_api::PowerAction::Suspend,
-                block_plugin_api::PowerAction::Restart,
-                block_plugin_api::PowerAction::PowerOff,
-            ]
-            .into_iter()
-            .filter(|action| offered.allows(*action))
-            .collect(),
-        }
-    }
-
-    #[cfg(target_os = "linux")]
-    fn run_media(&mut self) {
-        let requests = plugin_host::take_actions::<block_plugin_api::MediaRequest>();
-        if self.media.is_none()
-            && (!requests.is_empty() || plugin_host::watched::<block_plugin_api::Media>())
-        {
-            self.media = Some(media::Media::start());
-        }
-        let Some(media) = &mut self.media else {
-            return;
-        };
-        for request in requests {
-            media.request(request);
-        }
-        if let Some(levels) = media.frame() {
-            plugin_host::publish::<block_plugin_api::Media>(&levels);
-        }
     }
 
     fn busy(&self) -> bool {
@@ -1669,19 +1468,6 @@ impl BlockApp {
         {
             return;
         }
-        if Some(wayland::revision()) != self.windows_sent {
-            self.windows_sent = Some(wayland::revision());
-            plugin_host::publish::<block_plugin_api::HostWindows>(&wayland::listed());
-        }
-        for action in plugin_host::take_actions::<block_plugin_api::WindowAction>() {
-            match action {
-                block_plugin_api::WindowAction::Focus(window) => wayland::focus(window),
-                block_plugin_api::WindowAction::Close(window) => wayland::close(window),
-                block_plugin_api::WindowAction::Fullscreen { window, fullscreen } => {
-                    wayland::fullscreen(window, fullscreen);
-                }
-            }
-        }
         let reports: Vec<(Uuid, Option<editors::FocusReport>, Option<Vec<Uuid>>)> =
             self.editors.with(|open| {
                 open.values()
@@ -2077,8 +1863,6 @@ impl BlockApp {
             }
         }
         self.run_display_prompt();
-        #[cfg(target_os = "linux")]
-        self.run_session(context);
     }
 
     fn run_display_prompt(&mut self) {
@@ -2114,8 +1898,7 @@ impl BlockApp {
 
     fn crashed(&mut self, report: String) {
         let _ = self.app_state.clear_active_account();
-        #[cfg(target_os = "linux")]
-        if self.desktop.is_some() {
+        if self.ends_on_crash {
             panic_guard::persist(&report);
             std::panic::resume_unwind(Box::new(panic_guard::summary(&report).to_owned()));
         }
@@ -2124,8 +1907,7 @@ impl BlockApp {
     }
 
     fn crashed_before(&mut self, report: String) {
-        #[cfg(target_os = "linux")]
-        if self.desktop.is_some() {
+        if self.ends_on_crash {
             let summary = panic_guard::summary(&report);
             let message = match summary.lines().skip(1).collect::<Vec<_>>().join(" ") {
                 message if message.is_empty() => summary.to_owned(),
@@ -2145,8 +1927,6 @@ impl BlockApp {
     fn run_frame(&mut self, context: &beui::Context) {
         performance::begin_frame();
         plugin_host::poll();
-        #[cfg(target_os = "linux")]
-        self.run_notifications();
         if !self.signed_in {
             be::stop();
             self.poll_account_request();
@@ -2180,7 +1960,6 @@ impl BlockApp {
         }
         self.sync_ui_settings(context);
         self.sync_local_settings();
-        self.programs.frame();
         self.sync_be_stack();
         self.poll_workspace_request();
         self.poll_reauth_request();
@@ -2193,8 +1972,6 @@ impl BlockApp {
         self.process_pending_copies();
         debug::poll();
         self.show_shell();
-        #[cfg(target_os = "linux")]
-        self.take_power_request();
         self.poll_artifacts();
         plugin_host::flush();
         performance::end_frame();
@@ -2394,30 +2171,6 @@ impl BlockApp {
             UiCommand::DismissToast(id) => notices::dismiss(id),
             UiCommand::KeepDisplay(round) => self.answer_display(round, true),
             UiCommand::RevertDisplay(round) => self.answer_display(round, false),
-            #[cfg(target_os = "linux")]
-            UiCommand::LockScreen => {
-                if let Some(lock) = &mut self.screen_lock {
-                    lock.lock(session::Trigger::Shortcut);
-                }
-            }
-            #[cfg(target_os = "linux")]
-            UiCommand::Unlock(password) => {
-                if let Some(lock) = &mut self.screen_lock {
-                    lock.submit(password);
-                }
-            }
-            #[cfg(target_os = "linux")]
-            UiCommand::LockPower(action) => {
-                if self
-                    .screen_lock
-                    .as_ref()
-                    .is_some_and(session::ScreenLock::locked)
-                {
-                    self.request_power(action, session::Trigger::Menu);
-                }
-            }
-            #[cfg(not(target_os = "linux"))]
-            UiCommand::LockScreen | UiCommand::Unlock(_) | UiCommand::LockPower(_) => {}
             UiCommand::SendInvite(email, role) => {
                 if let Some(workspace) = &self.workspace
                     && !email.trim().is_empty()
@@ -2600,10 +2353,6 @@ impl BlockApp {
             debug: debug::view(),
             toasts: notices::shown(),
             keep_display: self.display_round,
-            #[cfg(target_os = "linux")]
-            lock: self.lock_view(),
-            #[cfg(not(target_os = "linux"))]
-            lock: ui::LockView::default(),
         }
     }
 
@@ -2614,13 +2363,6 @@ impl BlockApp {
         match Self::new(Some(self.data_dir.clone())) {
             Ok(mut fresh) => {
                 fresh.root_settings = RootSettings::new(self.root_settings.shell());
-                #[cfg(target_os = "linux")]
-                {
-                    fresh.desktop = self.desktop.take();
-                    fresh.screen_lock = self.screen_lock.take();
-                    fresh.media = self.media.take();
-                    fresh.notifications = self.notifications.take();
-                }
                 *self = fresh;
             }
             Err(error) => self.error = Some(error.to_string()),

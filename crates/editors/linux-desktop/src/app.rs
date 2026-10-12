@@ -24,8 +24,8 @@ use block_editor_beui::beui::unstyled::{
 use block_editor_beui::beui::{Modifiers, NodeId, Rect, Vec2, pos2, vec2};
 use block_editor_beui::{HostPanel, HostWindowId};
 use block_shell::{
-    AttachedWindow, BlockTab, Failure, FloatingWindow, PanelWindow, PickerDialogs, Workspace,
-    WorkspaceDialogs,
+    AttachedWindow, BlockTab, Failure, FloatingWindow, PanelWindow, PickerDialogs, ProgramWindows,
+    Workspace, WorkspaceDialogs,
 };
 
 use bar::DesktopBar;
@@ -51,12 +51,14 @@ impl block_editor_beui::BeuiApp for LinuxDesktopApp {
 #[component]
 fn DesktopShell(editor: Editor) -> NodeId {
     let workspace = Workspace::new(editor, false);
+    let windows = ProgramWindows::new(workspace.editor(), workspace.layout());
     view! {
         <Container>
             {move |_| {
                 let workspace = Rc::clone(&workspace);
+                let windows = Rc::clone(&windows);
                 view! {
-                    <DesktopBody workspace={workspace} />
+                    <DesktopBody workspace={workspace} windows />
                 }
             }}
         </Container>
@@ -64,7 +66,7 @@ fn DesktopShell(editor: Editor) -> NodeId {
 }
 
 #[component]
-fn DesktopBody(workspace: Rc<Workspace>) -> NodeId {
+fn DesktopBody(workspace: Rc<Workspace>, windows: Rc<ProgramWindows>) -> NodeId {
     let surface = NodeRef::new();
     workspace.editor().content(&surface);
     let layout = workspace.layout();
@@ -74,12 +76,12 @@ fn DesktopBody(workspace: Rc<Workspace>) -> NodeId {
     let failed = create_memo(clone!(failure -> move || failure.get().is_some()));
     let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
     let block_tabs = workspace.block_tabs();
-    let top_windows = workspace.windows();
-    let dialog_windows = workspace.dialogs();
+    let top_windows = windows.windows();
+    let dialog_windows = windows.dialogs();
     let panels = workspace.panels();
     let blocks = Rc::clone(&workspace);
-    let programs = Rc::clone(&workspace);
-    let dialogs = Rc::clone(&workspace);
+    let programs = Rc::clone(&windows);
+    let dialogs = windows;
     let hosted = Rc::clone(&workspace);
     let bar = Rc::clone(&workspace);
     let pickers = Rc::clone(&workspace);
@@ -106,12 +108,12 @@ fn DesktopBody(workspace: Rc<Workspace>) -> NodeId {
                     </ForEach>
                     <ForEach keys={top_windows}>
                         {move |window: HostWindowId| view! {
-                            <FloatingWindow workspace={Rc::clone(&programs)} window />
+                            <FloatingWindow windows={Rc::clone(&programs)} window />
                         }}
                     </ForEach>
                     <ForEach keys={dialog_windows}>
                         {move |(window, parent): (HostWindowId, HostWindowId)| view! {
-                            <AttachedWindow workspace={Rc::clone(&dialogs)} window parent />
+                            <AttachedWindow windows={Rc::clone(&dialogs)} window parent />
                         }}
                     </ForEach>
                     <ForEach keys={panels}>

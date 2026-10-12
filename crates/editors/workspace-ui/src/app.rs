@@ -13,12 +13,10 @@ use block_editor_beui::beui::unstyled::{
     Container, DockMode, DockPane, DockSplit, DockTab, TabId, narrower_than,
 };
 use block_editor_beui::{
-    ChildBlock, ChildBlockHandle, ChildMode, ChildTarget, Editor, HostPanel, HostWindowId,
-    NARROW_WIDTH, TopBar,
+    ChildBlock, ChildBlockHandle, ChildMode, ChildTarget, Editor, HostPanel, NARROW_WIDTH, TopBar,
 };
 use block_shell::{
-    AttachedWindow, BlockTab, FILES, Failure, PanelStatus, PanelWindow, PickerDialogs, WindowTab,
-    Workspace, WorkspaceDialogs,
+    BlockTab, FILES, Failure, PanelStatus, PanelWindow, PickerDialogs, Workspace, WorkspaceDialogs,
 };
 
 const FILES_SHARE: f32 = 0.22;
@@ -76,14 +74,10 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
     let failed = create_memo(clone!(failure -> move || failure.get().is_some()));
     let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
     let block_tabs = workspace.block_tabs();
-    let top_windows = workspace.windows();
-    let dialog_windows = workspace.dialogs();
     let panels = workspace.panels();
     let files = Rc::clone(&workspace);
     let blocks = Rc::clone(&workspace);
-    let programs = Rc::clone(&workspace);
     let hosted = Rc::clone(&workspace);
-    let dialogs = Rc::clone(&workspace);
     let pickers = Rc::clone(&workspace);
     let shell_dialogs = Rc::clone(&workspace);
     let theme = use_theme();
@@ -109,21 +103,11 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
                                     <BlockTab workspace={Rc::clone(&blocks)} tab />
                                 }}
                             </ForEach>
-                            <ForEach keys={top_windows}>
-                                {move |window: HostWindowId| view! {
-                                    <WindowTab workspace={Rc::clone(&programs)} window />
-                                }}
-                            </ForEach>
                         </DockPane>
                     </DockSplit>
                     <ForEach keys={panels}>
                         {move |panel: HostPanel| view! {
                             <PanelWindow workspace={Rc::clone(&hosted)} panel />
-                        }}
-                    </ForEach>
-                    <ForEach keys={dialog_windows}>
-                        {move |(window, parent): (HostWindowId, HostWindowId)| view! {
-                            <AttachedWindow workspace={Rc::clone(&dialogs)} window parent />
                         }}
                     </ForEach>
                 </Docking>

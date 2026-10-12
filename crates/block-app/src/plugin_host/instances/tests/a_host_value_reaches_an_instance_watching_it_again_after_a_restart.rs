@@ -20,6 +20,7 @@ fn monitor(width: u32) -> HostDisplay {
 
 #[test]
 fn a_host_value_reaches_an_instance_watching_it_again_after_a_restart() {
+    crate::plugin_host::allow_value::<Displays>(crate::plugin_host::Access::Anyone);
     let mut instances = placed();
     instances.next_screens(PASS);
 

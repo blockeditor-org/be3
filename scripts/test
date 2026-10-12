@@ -41,7 +41,7 @@ if [[ ${#targets[@]} -eq 0 ]]; then
         exit 1
     fi
     # A test's name is its module path and its function, the way the test
-    # binary filters it: crates/block-app/src/media/tests/plays.rs holds
+    # binary filters it: crates/block-desktop/src/media/tests/plays.rs holds
     # media::tests::plays::plays. Every function in a file with a test in it is
     # named so, and NAME picks the crates where one of those names contains it.
     crates=()
@@ -54,7 +54,7 @@ if [[ ${#targets[@]} -eq 0 ]]; then
     if [[ ${#crates[@]} -eq 0 ]]; then
         echo "No test in crates/ has a name containing '$name'." >&2
         echo "A test's name is its module path and its function, such as media::tests::plays::plays for" >&2
-        echo "crates/block-app/src/media/tests/plays.rs; NAME may be any part of one." >&2
+        echo "crates/block-desktop/src/media/tests/plays.rs; NAME may be any part of one." >&2
         exit 1
     fi
     while IFS= read -r crate; do

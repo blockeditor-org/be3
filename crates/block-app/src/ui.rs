@@ -1,7 +1,6 @@
 mod debug;
 mod dialogs;
 mod keys;
-mod lock;
 mod onboarding;
 mod workspace;
 
@@ -9,7 +8,7 @@ use std::cell::RefCell;
 
 use be_protocol::WorkspaceRole;
 use beui::reactive::{
-    Dynamic, Frame, List, NodeRef, Store, clone, component, copy_text, create_memo, view,
+    Child, Dynamic, Frame, List, NodeRef, Store, clone, component, copy_text, create_memo, view,
 };
 use beui::styled::{KeepChanges, Toast, Toasts, use_theme};
 use beui::unstyled::Edge;
@@ -18,7 +17,6 @@ use block_plugin_api::HostPanel;
 use uuid::Uuid;
 
 use crate::app_state::{SavedAccount, ServerLocation};
-use crate::wayland::WindowActions;
 
 pub(crate) use debug::{
     DebugCommand, DebugView, HostPanelSurface, Line, LineStyle, PerformanceRow, PluginsView,
@@ -187,16 +185,6 @@ pub(crate) struct DiscardView {
     pub(crate) button: String,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct LockView {
-    pub(crate) available: bool,
-    pub(crate) locked: bool,
-    pub(crate) busy: bool,
-    pub(crate) error: Option<String>,
-    pub(crate) user: String,
-    pub(crate) power: Vec<block_plugin_api::PowerAction>,
-}
-
 #[derive(Clone, Default, PartialEq, Store)]
 pub(crate) struct AppView {
     pub(crate) screen: Screen,
@@ -219,7 +207,6 @@ pub(crate) struct AppView {
     pub(crate) debug: DebugView,
     pub(crate) toasts: Vec<Toast>,
     pub(crate) keep_display: Option<u64>,
-    pub(crate) lock: LockView,
 }
 
 #[derive(Clone, Debug)]
@@ -272,15 +259,10 @@ pub(crate) enum UiCommand {
     DismissToast(u64),
     KeepDisplay(u64),
     RevertDisplay(u64),
-    LockScreen,
-    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-    Unlock(crate::password::Password),
-    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-    LockPower(block_plugin_api::PowerAction),
 }
 
 #[component]
-pub(crate) fn Root(view: AppViewStore) -> NodeId {
+pub(crate) fn Root(view: AppViewStore, children: Child) -> NodeId {
     let theme = use_theme();
     let screen = view.screen.clone();
     let toasts = view.toasts.clone();
@@ -289,7 +271,6 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
     let round = create_memo(move || keep_display.get().unwrap_or_default());
     let keeping = round.clone();
     let reverting = round.clone();
-    let locking = view.clone();
     let area = NodeRef::new();
     view! {
         <Frame @node_ref=&area color={theme.background.clone()}>
@@ -347,8 +328,7 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                     on_keep={move || send(UiCommand::KeepDisplay(keeping.get_untracked()))}
                     on_revert={move || send(UiCommand::RevertDisplay(reverting.get_untracked()))}
                 />
-                <lock::SessionLock view={locking} />
-                <WindowActions />
+                {children}
             </List>
         </Frame>
     }

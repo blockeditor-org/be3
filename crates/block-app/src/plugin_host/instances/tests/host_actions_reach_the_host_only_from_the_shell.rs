@@ -7,6 +7,11 @@ use block_plugin_api::{
 
 #[test]
 fn host_actions_reach_the_host_only_from_the_shell() {
+    use crate::plugin_host::{Access, allow_action};
+    allow_action::<PowerAction>(Access::Shell);
+    allow_action::<MediaRequest>(Access::Shell);
+    allow_action::<NotificationReport>(Access::Shell);
+    allow_action::<WindowAction>(Access::Shell);
     let mut instances = placed();
     instances.next_screens(PASS);
 

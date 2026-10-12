@@ -1,30 +1,47 @@
 # The Linux desktop
 
-block-app is also a Linux desktop: a Wayland compositor whose shell is the linux-desktop
-plugin instead of workspace-ui. Two flags start it that way:
+block-desktop (`crates/block-desktop`, Linux only) is block-app as a Linux desktop: a Wayland
+compositor whose shell is the linux-desktop plugin instead of workspace-ui, on a profile of its
+own. block-app itself runs no compositor and serves none of what this guide describes; paths
+below are block-desktop's unless they name another crate.
 
-- `--session` (Linux): run on the displays and input devices themselves through
-  `beui-adapter-drm` instead of in a window, from a virtual terminal with no other display
-  server on it, as the desktop: the shell is linux-desktop instead of workspace-ui, on a
-  profile of its own. The bar's power menu logs out (see below), Ctrl+Alt+Backspace quits at
-  once and Ctrl+Alt+F<n> switches terminals.
-  `BEUI_SCALE` sets its scale.
-- `--desktop` (Linux): the desktop shell, linux-desktop on its own profile as under
-  `--session`, in a normal window, with programs opening as windows inside it as they do in
-  any windowed run. What needs the displays and input devices themselves, such as display
-  modes, pointer settings and the power menu, is absent, since `beui-adapter-drm` is not
-  running: the power actions start only when the DRM seat provides its `DisplayControl`.
-  `./scripts/buck run //crates/block-app:smoke-desktop` is its launch check.
-- `--install-session [PREFIX]` (Linux): see below.
+- `block-desktop`: the desktop shell in a normal window, with programs opening as windows
+  inside it. What needs the displays and input devices themselves, such as display modes,
+  pointer settings and the power menu, is absent, since `beui-adapter-drm` is not running: the
+  power actions start only when the DRM seat provides its `DisplayControl`.
+  `./scripts/buck run //crates/block-desktop:app` runs it, and `:smoke` is its launch check.
+- `--session`: run on the displays and input devices themselves through `beui-adapter-drm`
+  instead of in a window, from a virtual terminal with no other display server on it, as the
+  desktop. The bar's power menu logs out (see below), Ctrl+Alt+Backspace quits at once and
+  Ctrl+Alt+F<n> switches terminals. `BEUI_SCALE` sets its scale.
+- `--install-session [PREFIX]`: see below.
+- `--dev-workspace`: as block-app's (guides/running/native.md).
 
-`./scripts/buck run //crates/block-app:dev -- --desktop` runs the desktop shell headless, to
-drive like any other run (guides/running/drive.md).
+`./scripts/buck run //crates/block-desktop:dev` runs the desktop shell headless, to drive like
+any other run (guides/running/drive.md).
+
+## On top of block-app
+
+block-desktop is block-app's library (`block_app_lib`) with an extension: `lib.rs`'s `run`
+builds a `block_app_lib::Launch`, sets its shell to linux-desktop, and hands it a `Desktop`,
+which implements `block_app_lib::extension::Extension`. block-app calls the extension at fixed
+points of its own frame (`view` while its document is built, for what is drawn over the app -
+here the lock screen; `setup`, `before`, `frame`, `after`, `exiting`; `ends_on_crash`), and
+`block_app_lib::extension` is everything else block-desktop may reach: publishing host values
+and taking host actions, allowing their keys (`allow_value`, `allow_action`), applying the
+display and input settings (`apply_display_with`, `apply_input_with`, while block-app keeps
+syncing their blocks and asking to keep a display mode), drawing a program's window where a
+plugin places one (`show_windows_with`), and block-app's waking channel, frame clock, toasts and
+panic containment. Anything block-desktop needs from block-app goes there, as a hook block-app
+calls rather than a check for the desktop inside block-app. block-desktop chooses the runner:
+the DRM adapter under `--session`, otherwise a window whose GPU device can import client
+dmabufs (`be_dmabuf::open_device`).
 
 ## Program windows
 
 be-wayland (`crates/be-wayland`) is the compositor; a program's toplevel is a `WindowView`, a
-forwarding catcher the shell places like any other node. A floating window (every window under
-the desktop shell, and dialogs under workspace-ui) owns its size: a new one is configured 0×0,
+forwarding catcher the shell places like any other node. A floating window (every window)
+owns its size: a new one is configured 0×0,
 `WindowInfo::size` is the size it last chose for itself (a commit that is not the answer to a
 size the compositor asked for), the shell's `DialogWindow` follows that size through
 `DockTabControl::resize_window`, and a window shown at its own size is never told a size, so it
@@ -38,11 +55,11 @@ overlay above the document, so a menu can reach past its window's edge.
 
 ## Installing it as a session
 
-    ./scripts/buck run //crates/block-app:install-session [-- PREFIX]
+    ./scripts/buck run //crates/block-desktop:install-session [-- PREFIX]
 
-installs the app with its plugins in `PREFIX/lib/block-app` (`/usr/local` by default, asking
-sudo when it needs root), links `PREFIX/bin/block-app` to it and writes
-`/usr/share/wayland-sessions/block-app.desktop` (from `src/session/block-app.desktop`), which
+installs block-desktop with its plugins in `PREFIX/lib/block-desktop` (`/usr/local` by default,
+asking sudo when it needs root), links `PREFIX/bin/block-desktop` to it and writes
+`/usr/share/wayland-sessions/block-desktop.desktop` (from `src/session/block-desktop.desktop`), which
 runs it with `--session`, whatever the prefix: GDM, SDDM (older ones read nothing else) and
 LightDM all read that directory, and LightDM (Mint's slick-greeter) never reads
 `/usr/local/share`. When LightDM's `sessions-directory` (its `lightdm.conf.d` directories and
@@ -72,7 +89,7 @@ plugin (guides/adding_a_plugin_editor.md), the shell included, while the composi
 clients keep running; a D-Bus task (`dbus::spawn`) ends alone with a toast; a
 password check that panics fails. Any other panic, on the UI thread or on a thread nothing
 contains (the block stack's, say), is the app's own: in a window the app shows its error
-screen, and under `--session` it ends the session instead, through beui's runner and
+screen, and under `--session` (the extension's `ends_on_crash`) it ends the session instead, through beui's runner and
 `beui_adapter_drm`'s `Session::end`, so the console comes back and the display manager takes
 over rather than a frozen screen.
 
@@ -80,7 +97,7 @@ The screens turn off after the display settings' "Turn off screens after" (ten m
 default). `be_wayland::Compositor` counts the idle time on the frame clock from the frames that
 carried input (`Document::input_frames`), held back while a window that is shown has a `zwp_idle_inhibitor_v1`, and answers
 `ext_idle_notifier_v1` for idle daemons the same way. `Windows::idle()` is true once the time
-has run out; block-app hands it to `beui_adapter_drm::DisplayControl::set_blanked`, which turns
+has run out; block-desktop hands it to `beui_adapter_drm::DisplayControl::set_blanked`, which turns
 the outputs' CRTCs off and stops drawing to them until input wakes the session. In a window
 nothing is turned off.
 
@@ -90,7 +107,7 @@ it (`GRACE_USEC`, timed on libinput's event clock), and the release of every pre
 whenever that comes. Pointer motion it drops still moves the cursor. A release whose press was
 delivered before the screens went off is still delivered, so no key stays held. The adapter
 turns the screens on itself and reports the wake through `DisplayControl::take_woken`, which
-block-app hands to `Compositor::woke` so the idle count restarts.
+block-desktop hands to `Compositor::woke` so the idle count restarts.
 
 Switching terminals hands the seat to whatever runs there, whose DRM master reprograms the
 CRTCs, connectors and planes as it likes, so nothing the adapter cached about them survives.
@@ -117,8 +134,8 @@ thread waits on the bus. `dbus::session()` is the shared session bus connection.
 
 ## Notifications
 
-The desktop shell (`--session` and `--desktop`) serves `org.freedesktop.Notifications` on the
-session bus from block-app's `src/notifications/server.rs`, asking for the name without
+block-desktop serves `org.freedesktop.Notifications` on the
+session bus from `src/notifications/server.rs`, asking for the name without
 replacing an owner, so under another desktop that already runs a notification daemon it logs
 that and serves nothing. The host keeps only what a plugin cannot do: it owns the name, reads
 the hints, loads the picture (image-data, image-path, the app icon through be-wayland's
@@ -145,7 +162,7 @@ To try it, start a session bus of its own (`dbus-daemon --session --fork --print
 prints its address; `notify-send` is in the `libnotify-bin` package), and run the dev app and
 every client with `DBUS_SESSION_BUS_ADDRESS` set to it:
 
-    DBUS_SESSION_BUS_ADDRESS=ADDRESS ./scripts/buck run //crates/block-app:dev -- --desktop
+    DBUS_SESSION_BUS_ADDRESS=ADDRESS ./scripts/buck run //crates/block-desktop:dev
     DBUS_SESSION_BUS_ADDRESS=ADDRESS gdbus monitor --session -d org.freedesktop.Notifications
     DBUS_SESSION_BUS_ADDRESS=ADDRESS notify-send --action=default=Open --action=reply=Reply Mail 'Lunch at noon?'
 
@@ -159,7 +176,7 @@ returns.
 ## The tray
 
 Programs such as Discord, Steam and Nextcloud show tray icons as StatusNotifierItems. The
-desktop shell serves `org.kde.StatusNotifierWatcher` on the session bus from block-app's
+desktop shell serves `org.kde.StatusNotifierWatcher` on the session bus from
 `src/tray/` and is its `StatusNotifierHost`; under another desktop whose watcher already owns
 the name it registers with that one as a host instead. `client.rs` is one task on the D-Bus
 thread that every change reaches as an `Event`: registrations, `NameOwnerChanged` (an item
@@ -199,7 +216,7 @@ the same output level while the host reports one, and its popup sets the volume,
 the default output (`MediaRequest::SetVolume`, `SetMute`, `ChooseOutput`) from the sinks the
 host lists in `MediaLevels::outputs`.
 
-block-app does what a plugin cannot: `src/media.rs` starts its backends once a plugin watches
+block-desktop does what a plugin cannot: `src/media.rs` starts its backends once a plugin watches
 the levels or the shell asks for something, carries out the shell's requests only, and reports
 the levels back. The backends run as tasks on the D-Bus thread:
 - `media/audio.rs`: volume steps up to 100%, set volume, mute and mic mute on the default sink
@@ -211,7 +228,7 @@ the levels back. The backends run as tasks on the D-Bus thread:
 - `media/players.rs`: play/pause, next, previous and stop to the MPRIS player that most
   recently started playing, or the first one listed, on the session bus.
 
-To try them under `:dev -- --desktop`, run `pipewire`, `wireplumber` and `pipewire-pulse`
+To try them under block-desktop's `:dev`, run `pipewire`, `wireplumber` and `pipewire-pulse`
 with `XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` set for the app, and press them with
 `drive key volumeup` (or `micmute`, `play`, ...). The VM has no sound card, so give it outputs with
 `pactl load-module module-null-sink sink_name=speakers sink_properties=device.description=Speakers`,
@@ -220,17 +237,17 @@ and change them from outside the app with `pactl set-sink-volume`, `set-sink-mut
 
 ## The lock screen
 
-In the desktop shell (`--session` and `--desktop`) the screen locks on Super+L, the bar's power
+In block-desktop the screen locks on Super+L, the bar's power
 menu's Lock, idling for the display settings' "Lock the screen after" (by default when the screens
 turn off), and, under `--session`, logind's `Lock` for the app's own session (`loginctl
 lock-session`) and before every suspend: `DesktopSession` holds a logind `delay` inhibitor for
 sleep and lets it go once the lock screen has been drawn twice (`src/session/sleep.rs`), taking it
 again on waking. `src/session/lock.rs` is the state machine, `src/session.rs`'s `ScreenLock` runs
-it, and `src/ui/lock.rs` shows it as `styled::LockScreen`, a card on every screen of
+it, and `src/lock_screen.rs` shows it as `styled::LockScreen`, the extension's view,, a card on every screen of
 the document (`use_screens()`) over an opaque scrim. logind's `Unlock` is not obeyed: only a password unlocks.
 
-The password is checked by PAM on a thread of its own, with the service `block-app` when
-`/etc/pam.d/block-app` exists (`--install-session` writes it unless one is there, as
+The password is checked by PAM on a thread of its own, with the service `block-desktop` when
+`/etc/pam.d/block-desktop` exists (`--install-session` writes it unless one is there, as
 `auth include common-auth` where that exists, as on Debian and Ubuntu, and `auth include login`
 elsewhere) and `login` otherwise. libpam is opened with `dlopen` when a password is checked, so the app
 does not link it. After three wrong passwords each attempt waits, from five seconds doubling up to
@@ -247,7 +264,7 @@ of their own for it: each is a forwarding catcher like a plugin's region, so wit
 pointer held by the lock none is forwarded anything. `be_wayland::Compositor::set_locked` only lets
 go of the buttons and popups a window held. Screens still
 turn off while locked, and idle inhibitors from the windows behind it are ignored. Media keys
-still reach linux-desktop's intercepting media actions (through `compositor/intercept.rs`'s
+still reach linux-desktop's intercepting media actions (through block-app's `compositor/intercept.rs`'s
 `on_global_key`), so volume and playback work over the lock. The host publishes the
 `ScreenLocked` host value, and linux-desktop shows no notification toasts while it is set, so
 none can be read or acted on behind the lock; they show again once it is unlocked.
@@ -255,22 +272,22 @@ none can be read or acted on behind the lock; they show again once it is unlocke
 
 ## Wayland programs
 
-On Linux the app is a Wayland compositor. Its socket is `wayland-<n>` in `XDG_RUNTIME_DIR`,
+block-desktop is a Wayland compositor. Its socket is `wayland-<n>` in `XDG_RUNTIME_DIR`,
 or `/tmp/be-wayland-<pid>` when that is unset, as it is under `:dev`. In the desktop shell
 the program launcher, which tapping Super alone or the bar's programs button opens, lists the
 `.desktop` programs of the XDG data dirs and starts the one picked, or what was typed as a
-command, with `WAYLAND_DISPLAY` pointing at it. linux-desktop draws it; block-app only reads the
+command, with `WAYLAND_DISPLAY` pointing at it. linux-desktop draws it; block-desktop only reads the
 `.desktop` files and their icons and starts the programs (the `Programs` host value and
-`ProgramAction`, guides/adding_a_plugin_editor.md). The workspace shell has no launcher. A
+`ProgramAction`, guides/adding_a_plugin_editor.md). A
 program can also be started against the socket directly:
 
     WAYLAND_DISPLAY=/tmp/be-wayland-<the app's pid> foot
 
-A top-level window opens as a tab in the workspace shell and floats in a dock window of its own in the desktop shell. A window with a parent (`xdg_toplevel.set_parent`) instead hangs over its parent's tab as a dock dialog (see the dock in guides/beui.md), showing and hiding with it. `xdg-dialog-v1` (be-wayland's `dialog.rs`) lets a program mark such a window modal (an XWayland window's parent is its `WM_TRANSIENT_FOR` and its modal flag `_NET_WM_STATE_MODAL`, which smithay's `X11Surface::is_popup` reads): `WindowInfo::modal` is set, and `Windows::blocked_by` names the innermost modal dialog of a window, to which be-wayland gives the keyboard whenever the parent would get it, and for which it drops the parent's pointer input. `weston-simple-shm` (from the `weston` package)
-and `foot` are small clients to try it with. `foot --fullscreen` starts one fullscreen, and in the desktop shell Super+F toggles fullscreen on the focused
-window (linux-desktop's `desktop.fullscreen` action, which sends `WindowAction::Fullscreen`). Under `--session` and `--desktop`, Super+drag anywhere on a floating window, its bar
+A top-level window floats in a dock window of its own (block-shell's `ProgramWindows`). A window with a parent (`xdg_toplevel.set_parent`) instead hangs over its parent's tab as a dock dialog (see the dock in guides/beui.md), showing and hiding with it. `xdg-dialog-v1` (be-wayland's `dialog.rs`) lets a program mark such a window modal (an XWayland window's parent is its `WM_TRANSIENT_FOR` and its modal flag `_NET_WM_STATE_MODAL`, which smithay's `X11Surface::is_popup` reads): `WindowInfo::modal` is set, and `Windows::blocked_by` names the innermost modal dialog of a window, to which be-wayland gives the keyboard whenever the parent would get it, and for which it drops the parent's pointer input. `weston-simple-shm` (from the `weston` package)
+and `foot` are small clients to try it with. `foot --fullscreen` starts one fullscreen, and Super+F toggles fullscreen on the focused
+window (linux-desktop's `desktop.fullscreen` action, which sends `WindowAction::Fullscreen`). Super+drag anywhere on a floating window, its bar
 included, moves the window, and Super+right-drag resizes it from its nearest edge or corner,
-or moves the split beside a docked one. In the desktop shell Alt+Tab, with Alt held, opens the window switcher and walks the
+or moves the split beside a docked one. Alt+Tab, with Alt held, opens the window switcher and walks the
 windows from the one used last (Alt+Shift+Tab the other way); letting go of Alt focuses and
 raises the chosen one and Alt+Escape stays where it was. To drive it, hold Alt across the
 presses: `drive keydown alt; drive key tab tab; drive keyup alt`.
@@ -310,7 +327,7 @@ desktop, a virtual machine) gets the desktop's shortcuts itself while its window
 keyboard: the window's `WindowView` sets `inhibits_shortcuts`, and beui keeps every
 window listener - capturing actions, taps and F6 - from it (guides/beui_keyboard.md). Two chords always work, as host actions:
 Super+L locks the screen, and Super+Escape (`register_restore_shortcuts`, registered by
-block-app's `WindowActions`) takes the shortcuts back from the focused window until it
+`wayland.rs`'s `WindowActions`) takes the shortcuts back from the focused window until it
 loses the keyboard and gets it again. The inhibitor is told it is active only while its
 window has the keyboard.
 
@@ -321,10 +338,10 @@ icon directories, following `Inherits`), looked up by CSS name and then the old 
 (`cursors.rs`), at the size the scale needs; without a theme the built-in arrow is drawn. Over a
 window, a `wp_cursor_shape_v1` shape becomes the window's `CursorIcon` (`Windows::cursor`, which
 the winit backend shows too), and a `wl_pointer.set_cursor` surface reaches the adapter through
-`beui_adapter_drm::SoftwareCursor` (block-app's `wayland/linux.rs`), redrawn whenever the client
+`beui_adapter_drm::SoftwareCursor` (`wayland.rs`), redrawn whenever the client
 commits to it; a null cursor hides the pointer.
 
-Under `--session` the app runs a frame only when an output has flipped since the last one (`beui-adapter-drm`'s `pacing.rs`), and a window's `wl_surface.frame` callbacks and `wp_presentation_feedback` are answered by the flip of the screen it mostly covers, with the flip's time, refresh and sequence: the adapter reports each flip through `beui_adapter_drm::Flips`, which block-app hands to `Compositor::presented` (`presentation.rs`). Elsewhere there are no flips, so they are answered as soon as the window is painted, at the frame clock's time.
+Under `--session` the app runs a frame only when an output has flipped since the last one (`beui-adapter-drm`'s `pacing.rs`), and a window's `wl_surface.frame` callbacks and `wp_presentation_feedback` are answered by the flip of the screen it mostly covers, with the flip's time, refresh and sequence: the adapter reports each flip through `beui_adapter_drm::Flips`, which block-desktop hands to `Compositor::presented` (`presentation.rs`). Elsewhere there are no flips, so they are answered as soon as the window is painted, at the frame clock's time.
 
 A `WindowView` that changes size configures its client with the new size in that same frame.
 Until the client commits a buffer of that size, its last one is drawn at its own size from the
@@ -345,7 +362,7 @@ the dock has no way yet to mark a tab as wanting attention.
 
 ### X11 programs
 
-`be_wayland::Server::start_xwayland`, which block-app calls once the server is up, starts
+`be_wayland::Server::start_xwayland`, which block-desktop calls once the server is up, starts
 `Xwayland` (the `xwayland` package; without it X11 programs just do not run) on the first free
 display, with smithay's `X11Wm` as its window manager (`crates/be-wayland/src/xwayland.rs`).
 It starts with the compositor rather than when an X11 client first connects: smithay creates

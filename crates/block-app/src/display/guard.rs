@@ -5,12 +5,11 @@ use be_block::be_model::{Document, Edit};
 use be_block::display_settings::DisplayMode;
 
 #[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-pub(crate) struct Screen {
-    pub(crate) id: String,
-    pub(crate) modes: Vec<DisplayMode>,
-    pub(crate) default: DisplayMode,
-    pub(crate) preferred: DisplayMode,
+pub struct Screen {
+    pub id: String,
+    pub modes: Vec<DisplayMode>,
+    pub default: DisplayMode,
+    pub preferred: DisplayMode,
 }
 
 impl Screen {

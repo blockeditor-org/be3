@@ -806,12 +806,13 @@ into the copy's id before anything opens the copy.
 The app can read a block itself, not only through an editor: the zoom in
 `sync_ui_settings` comes from the UI settings block's content, and
 `sync_local_settings` hands the input settings block (keymap, key repeat, and
-pointer settings for every pointer with per-device overrides) to the `--session`
-seat through `beui_adapter_drm::InputControl` and to the nested Wayland clients'
-keyboard, and the display settings block (a mode per monitor, keyed by the
-monitor's EDID make, model and serial, or by its connector when it has no EDID)
-to the seat's outputs through `beui_adapter_drm::DisplayControl`, which switches
-mode live. Every setting is an `Option`, and an unset one means the default:
+pointer settings for every pointer with per-device overrides) and the display
+settings block (a mode per monitor, keyed by the monitor's EDID make, model and
+serial, or by its connector when it has no EDID) to whatever applies them
+(`extension::apply_input_with` and `apply_display_with`): block-desktop hands
+them to the `--session` seat's pointers and outputs through
+`beui_adapter_drm::InputControl` and `DisplayControl`, which switches mode live,
+and to its Wayland clients' keyboard. block-app alone applies neither. Every setting is an `Option`, and an unset one means the default:
 libinput's own for a pointer setting, which the seat reports per device and an
 editor reads as the `InputDevices` host value, and for a monitor its preferred
 resolution at the fastest refresh rate it offers there, which the seat reports
@@ -860,7 +861,7 @@ can index into `refs`.
 
 A profile, or session, is an `EditorView` of a shell editor: workspace-ui
 (`WORKSPACE_EDITOR`), or linux-desktop (`LINUX_DESKTOP_EDITOR`) for a client run
-as the desktop with `block-app --session`. Each account has its own settings
+as the desktop by block-desktop. Each account has its own settings
 block (the top-level `Settings` block it authored); its `profiles` lists every
 profile, and `Settings::profile(shell, client)` is the one this client uses for
 that shell, so the desktop and the app each keep their own. The host opens the

@@ -22,6 +22,7 @@ mod a_calendar_the_desktop_no_longer_holds_is_replaced;
 mod a_first_desktop_with_no_sessions_offers_a_new_one;
 mod a_held_volume_key_keeps_turning_the_volume;
 mod a_locked_screen_shows_no_notification_toasts;
+mod a_modal_window_sends_presses_on_its_parent_to_itself;
 mod a_notification_that_arrives_on_an_idle_desktop_keeps_its_full_time;
 mod a_notification_toast_shows_above_the_bar_until_its_time_is_up;
 mod a_query_no_program_matches_runs_as_a_command;
@@ -29,9 +30,16 @@ mod a_session_chosen_from_the_menu_opens_in_a_window_and_closing_it_keeps_the_se
 mod a_super_tap_toggles_the_launcher_even_from_a_program_with_the_keyboard;
 mod a_toast_answers_its_actions_and_hides_while_the_history_is_open;
 mod a_volume_key_shows_the_level_the_host_reports_until_it_fades;
+mod a_window_tab_shows_the_icon_its_program_set;
+mod a_window_that_stops_responding_offers_to_wait_or_force_close;
 mod a_window_the_host_focuses_leads_the_window_switcher;
+mod a_window_the_host_makes_fullscreen_covers_the_desktop_until_it_leaves;
+mod a_window_the_host_raises_comes_to_the_front;
+mod a_window_the_host_runs_floats_until_its_program_closes_it;
+mod a_window_with_a_parent_hangs_over_it;
 mod alt_tab_switches_to_the_window_two_back_once_alt_is_let_go;
 mod clicking_the_clock_opens_the_desktops_calendar_and_clicking_away_closes_it;
+mod closing_a_window_tab_asks_its_program_to_close;
 mod escape_closes_the_launcher_and_gives_the_focus_back_to_its_button;
 mod escape_leaves_the_window_switcher_without_switching;
 mod super_f_toggles_fullscreen_on_the_window_with_the_keyboard;
@@ -316,6 +324,42 @@ fn programs() -> Vec<HostProgram> {
             }),
         },
     ]
+}
+
+fn window(id: u64, title: &str, parent: Option<u64>) -> HostWindow {
+    HostWindow {
+        title: title.to_owned(),
+        parent: parent.map(HostWindowId),
+        ..host_window(id, false)
+    }
+}
+
+fn large_window(id: u64, title: &str) -> HostWindow {
+    HostWindow {
+        size: Size {
+            width: 640.0,
+            height: 480.0,
+        },
+        ..window(id, title, None)
+    }
+}
+
+fn placed_windows(fixture: &Fixture) -> Vec<(u64, Rect)> {
+    fixture
+        .test
+        .children()
+        .iter()
+        .filter_map(|placement| match placement.content {
+            ChildContent::Window(window) => Some((
+                window.0,
+                Rect::from_min_size(
+                    block_editor_beui::pos2(placement.rect.x, placement.rect.y),
+                    block_editor_beui::vec2(placement.rect.width, placement.rect.height),
+                ),
+            )),
+            _ => None,
+        })
+        .collect()
 }
 
 fn window_tab(id: u64) -> u64 {

@@ -18,7 +18,5 @@ mod workspace;
 
 pub use dialogs::WorkspaceDialogs;
 pub use picker_view::PickerDialogs;
-pub use workspace::{
-    AttachedWindow, BlockTab, FILES, Failure, FloatingWindow, PanelStatus, PanelWindow, WindowTab,
-    Workspace,
-};
+pub use window::{AttachedWindow, FloatingWindow, ProgramWindows};
+pub use workspace::{BlockTab, FILES, Failure, PanelStatus, PanelWindow, Workspace};

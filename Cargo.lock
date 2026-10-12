@@ -1214,22 +1214,16 @@ version = "0.1.0"
 dependencies = [
  "arboard",
  "ashpd",
- "async-executor",
- "async-io",
- "async-lock",
  "be-block",
  "be-client",
  "be-commit",
- "be-dmabuf",
  "be-graph",
  "be-keys",
  "be-protocol",
  "be-server",
  "be-store",
  "be-vcs",
- "be-wayland",
  "beui",
- "beui-adapter-drm",
  "beui-plugin-input",
  "block-editor-plugin",
  "block-plugin-api",
@@ -1244,7 +1238,6 @@ dependencies = [
  "libc",
  "ndk-context",
  "pollster",
- "pulseaudio",
  "reactive",
  "rfd",
  "rodio",
@@ -1262,7 +1255,6 @@ dependencies = [
  "wgpu",
  "winit",
  "wry",
- "zbus",
  "zip",
 ]
 
@@ -1273,6 +1265,32 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71"
 dependencies = [
  "generic-array",
+]
+
+[[package]]
+name = "block-desktop"
+version = "0.1.0"
+dependencies = [
+ "async-executor",
+ "async-io",
+ "async-lock",
+ "be-block",
+ "be-dmabuf",
+ "be-wayland",
+ "beui",
+ "beui-adapter-drm",
+ "block-app",
+ "block-plugin-api",
+ "futures-util",
+ "image",
+ "libc",
+ "pollster",
+ "pulseaudio",
+ "serde",
+ "tokio",
+ "uuid",
+ "wgpu",
+ "zbus",
 ]
 
 [[package]]

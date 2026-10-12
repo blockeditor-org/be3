@@ -39,14 +39,13 @@ fn hook(info: &std::panic::PanicHookInfo<'_>) {
     *lock(&LAST_PANIC) = Some(report);
 }
 
-pub(crate) fn contain<R>(run: impl FnOnce() -> R) -> Result<R, String> {
+pub fn contain<R>(run: impl FnOnce() -> R) -> Result<R, String> {
     CONTAINING.with(|depth| depth.set(depth.get() + 1));
     let ran = catch_unwind(AssertUnwindSafe(run));
     CONTAINING.with(|depth| depth.set(depth.get() - 1));
     ran.map_err(|payload| beui::panic_message(&*payload))
 }
 
-#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub(crate) fn summary(report: &str) -> &str {
     report.split("\n\n").next().unwrap_or(report)
 }
@@ -70,10 +69,7 @@ pub(crate) fn take_previous() -> Option<String> {
     Some(report)
 }
 
-#[cfg_attr(
-    any(not(target_os = "linux"), target_arch = "wasm32"),
-    allow(dead_code, unused_variables)
-)]
+#[cfg_attr(target_arch = "wasm32", allow(unused_variables))]
 pub(crate) fn persist(report: &str) {
     #[cfg(not(target_arch = "wasm32"))]
     if let Some(path) = &*lock(&REPORT_FILE) {
@@ -125,10 +121,7 @@ fn library_offset(line: &str) -> Option<String> {
     Some(format!("({name}+{:#x})", address - info.dli_fbase as usize))
 }
 
-#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-pub(crate) async fn contain_task(
-    task: impl std::future::Future<Output = ()>,
-) -> Result<(), String> {
+pub async fn contain_task(task: impl std::future::Future<Output = ()>) -> Result<(), String> {
     let mut task = std::pin::pin!(task);
     std::future::poll_fn(|context| match contain(|| task.as_mut().poll(context)) {
         Ok(polled) => polled.map(Ok),

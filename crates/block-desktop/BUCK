@@ -1,0 +1,87 @@
+load("@root//buck/app:defs.bzl", "app")
+load("@root//buck/app:drive.bzl", "headless")
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test", "editor_packages")
+load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
+
+# block-app as a Linux desktop (guides/linux_desktop.md), so Linux's alone:
+# `//crates/...` for another platform skips it rather than failing on it.
+linux = ["prelude//os:linux"]
+
+desktop_srcs = glob(["src/**/*.rs", "src/**/*.desktop"])
+
+cargo_library(
+    srcs = desktop_srcs,
+    target_compatible_with = linux,
+)
+
+# The desktop links system libraries the worker's image does not have, as
+# block-app does, so its tests load them from the sysroot it was linked
+# against. The Wayland compositor's tests draw through lavapipe and build a
+# keyboard from the test runtime's keymaps, as be-wayland's do, and the tray's
+# run a private D-Bus bus with the test runtime's daemon.
+cargo_test(
+    env = {
+        "BE3_DBUS_DAEMON": "$(location //buck/sysroot:amd64-test)/usr/bin/dbus-daemon",
+        "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu",
+        "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
+        "XKB_CONFIG_ROOT": "$(location //buck/sysroot:amd64-test)/usr/share/X11/xkb",
+    },
+    srcs = desktop_srcs,
+    target_compatible_with = linux,
+)
+
+cargo_binary(
+    srcs = desktop_srcs,
+    target_compatible_with = linux,
+)
+
+# The desktop with every plugin beside it, laid out as block-app's :app is:
+# `./scripts/buck run //crates/block-desktop:app` runs the desktop shell in a
+# window.
+app(
+    name = "app",
+    binary = ":block-desktop-bin",
+    data = ["//{}:data".format(package) for package in editor_packages()],
+    executable_name = "block-desktop",
+    files = ["//buck/app:build-id"],
+    manifests = ["//{}:manifest".format(package) for package in editor_packages()],
+    modules = ["//{}:module".format(package) for package in editor_packages()],
+    precompile_target = per_cross_platform("x86_64-unknown-linux-gnu", cross_triple),
+    precompiler = "//crates/plugin-test-runner:precompiler",
+    target_compatible_with = linux,
+)
+
+# The startup smoke check: the desktop shell for ten seconds in a virtual
+# display.
+command_alias(
+    name = "smoke",
+    args = [
+        "sh",
+        "$(location //buck/app:smoke.sh)",
+        "$(location :app)/block-desktop",
+        "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
+    ],
+    target_compatible_with = linux,
+)
+
+# The desktop with its plugins installed under /usr/local (or the prefix given
+# after `--`), with a wayland-sessions entry that runs it with --session, for a
+# display manager to offer on its login screen: guides/linux_desktop.md.
+command_alias(
+    name = "install-session",
+    args = [
+        "$(location :app)/block-desktop",
+        "--install-session",
+    ],
+    target_compatible_with = linux,
+)
+
+# The desktop shell headless for an agent to drive, signed in with a workspace
+# open: guides/running/drive.md.
+headless(
+    name = "dev",
+    app_name = "dev",
+    args = ["--dev-workspace"],
+    data = True,
+    program = "$(location :app)/block-desktop",
+)

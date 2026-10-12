@@ -21,13 +21,13 @@ pub(crate) fn install_waker(waker: Waker) {
     let _ = WAKER.set(waker);
 }
 
-pub(crate) fn wake() {
+pub fn wake() {
     if let Some(waker) = WAKER.get() {
         waker.wake();
     }
 }
 
-pub(crate) struct WakingSender<T>(mpsc::Sender<T>);
+pub struct WakingSender<T>(mpsc::Sender<T>);
 
 impl<T> Clone for WakingSender<T> {
     fn clone(&self) -> Self {
@@ -36,14 +36,14 @@ impl<T> Clone for WakingSender<T> {
 }
 
 impl<T> WakingSender<T> {
-    pub(crate) fn send(&self, value: T) -> Result<(), SendError<T>> {
+    pub fn send(&self, value: T) -> Result<(), SendError<T>> {
         let sent = self.0.send(value);
         wake();
         sent
     }
 }
 
-pub(crate) fn waking_channel<T>() -> (WakingSender<T>, Receiver<T>) {
+pub fn waking_channel<T>() -> (WakingSender<T>, Receiver<T>) {
     let (sender, receiver) = mpsc::channel();
     (WakingSender(sender), receiver)
 }
@@ -209,7 +209,7 @@ pub(crate) fn pass() -> u64 {
     with(|host| host.pass)
 }
 
-pub(crate) fn now() -> Duration {
+pub fn now() -> Duration {
     with(|host| host.now)
 }
 
@@ -252,11 +252,11 @@ pub(crate) fn pick_file(filter: FileFilter, deliver: impl FnOnce(FilePick) + 'st
     });
 }
 
-pub(crate) fn request_repaint() {
+pub fn request_repaint() {
     with(|host| host.output.repaint = true);
 }
 
-pub(crate) fn request_repaint_after(delay: Duration) {
+pub fn request_repaint_after(delay: Duration) {
     with(|host| {
         host.output.repaint_after = Some(match host.output.repaint_after {
             Some(current) => current.min(delay),

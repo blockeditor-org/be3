@@ -38,6 +38,7 @@ members = [
     "crates/beui-view",
     "crates/beui-web-demo",
     "crates/block-app",
+    "crates/block-desktop",
     "crates/block-editor-beui",
     "crates/block-editor-plugin",
     "crates/block-gpu-abi",

@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::{EditorView, EditorViewContent, ViewState, WORKSPACE_EDITOR};
 
 use block_editor_beui::beui::{Document, NodeId, Rect, Vec2};
-use block_editor_beui::{BlockParent, ChildContent, Editor, EditorHost, HostWindows, WindowAction};
+use block_editor_beui::{BlockParent, ChildContent, Editor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -12,7 +12,6 @@ mod a_block_tab_asks_its_editor_for_the_top_bar;
 mod a_closed_tab_gives_up_its_view_block;
 mod a_failed_creation_is_shown_and_dismissing_it_cancels_the_pick;
 mod a_host_panel_the_host_asks_for_is_placed_in_its_own_window;
-mod a_modal_window_sends_presses_on_its_parent_to_itself;
 mod a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches;
 mod a_placing_pick_names_and_places_the_block_it_creates;
 mod a_profile_keeps_its_tabs_as_view_blocks_and_reopens_them;
@@ -20,14 +19,7 @@ mod a_reopened_phone_goes_back_through_the_files_in_the_order_they_were_shown;
 mod a_shown_block_is_remembered_in_the_recents;
 mod a_shown_block_is_reported_as_focused;
 mod a_template_without_a_dialog_is_created_and_answers_the_pick;
-mod a_window_tab_shows_the_icon_its_program_set;
-mod a_window_that_stops_responding_offers_to_wait_or_force_close;
-mod a_window_the_host_makes_fullscreen_covers_the_workspace_until_it_leaves;
-mod a_window_the_host_raises_brings_its_hidden_tab_forward;
-mod a_window_the_host_runs_gets_a_tab_until_its_program_closes_it;
-mod a_window_with_a_parent_hangs_over_it_and_hides_with_its_tab;
 mod an_open_menu_is_withheld_from_the_block_under_it;
-mod closing_a_window_tab_asks_its_program_to_close;
 mod closing_the_only_tab_leaves_the_blank_workspace;
 mod creating_from_a_dialog_commits_the_creation_at_once;
 mod crossing_the_phone_width_keeps_the_block_on_show;
@@ -122,43 +114,6 @@ fn text_within(document: &Document, id: NodeId, words: &str) -> Option<NodeId> {
         .children(id)
         .into_iter()
         .find_map(|child| text_within(document, child, words))
-}
-
-fn window(id: u64, title: &str, parent: Option<u64>) -> block_editor_beui::HostWindow {
-    block_editor_beui::HostWindow {
-        id: block_editor_beui::HostWindowId(id),
-        title: title.to_owned(),
-        app_id: "test".to_owned(),
-        parent: parent.map(block_editor_beui::HostWindowId),
-        modal: false,
-        size: block_plugin_api::Size {
-            width: 320.0,
-            height: 200.0,
-        },
-        fullscreen: None,
-        responding: true,
-        focused: false,
-        icon: None,
-        raised: 0,
-    }
-}
-
-fn placed_windows(fixture: &Fixture) -> Vec<(u64, Rect)> {
-    fixture
-        .test
-        .children()
-        .iter()
-        .filter_map(|placement| match placement.content {
-            ChildContent::Window(window) => Some((
-                window.0,
-                Rect::from_min_size(
-                    block_editor_beui::pos2(placement.rect.x, placement.rect.y),
-                    block_editor_beui::vec2(placement.rect.width, placement.rect.height),
-                ),
-            )),
-            _ => None,
-        })
-        .collect()
 }
 
 fn editor() -> (Fixture, Uuid) {

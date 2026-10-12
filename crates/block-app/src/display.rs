@@ -10,30 +10,16 @@ use crate::local_settings::LocalSettings;
 mod guard;
 
 use guard::Guard;
-pub(crate) use guard::{ANSWER_WITHIN, Prompt, Screen};
+pub use guard::Screen;
+pub(crate) use guard::{ANSWER_WITHIN, Prompt};
 
-#[cfg(target_os = "linux")]
-mod linux;
-#[cfg(target_os = "linux")]
-use linux::apply;
-#[cfg(target_os = "linux")]
-pub(crate) use linux::{start, stop};
-
-#[cfg(not(target_os = "linux"))]
-pub(crate) fn start(_setup: &beui::Setup) {}
-
-#[cfg(not(target_os = "linux"))]
-pub(crate) fn stop() {}
-
-#[cfg(not(target_os = "linux"))]
-fn apply(_settings: &DisplaySettings) {}
+use crate::extension::apply_display as apply;
 
 thread_local! {
     static GUARD: RefCell<Guard> = RefCell::new(Guard::default());
 }
 
-#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-pub(crate) fn set_screens(screens: Vec<Screen>) {
+pub fn set_screens(screens: Vec<Screen>) {
     GUARD.with(|guard| guard.borrow_mut().set_screens(screens));
 }
 
