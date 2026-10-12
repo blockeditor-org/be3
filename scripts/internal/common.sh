@@ -331,9 +331,9 @@ buck2_release_sha256() {
 # mirror as be/<release>/be-<triple>/, by the same triple buck2's releases are
 # named after, and its be is checked against these hashes. An empty hash is a platform with no
 # release uploaded yet.
-be_release='1ad723dae221bb45d31a2c065da8ef71ea722cca'
-be_sha256_x86_64_unknown_linux_gnu='f11bf904154268454ac005872cfaf763e5f0af8ab03fc3fcbe686b69210703c7'
-be_sha256_aarch64_unknown_linux_gnu='1fa3d4fd34487bfd6807ab1ffbdf448f988a0f78e645dce2d1a4e18ee583533a'
+be_release='dfab796f1140c3d511b140ab9c9ca7f74435b532'
+be_sha256_x86_64_unknown_linux_gnu='aac8eae015c4b44e04bef3f217974f3ec5b5f91b997fb82ff579a5a2efb15e3b'
+be_sha256_aarch64_unknown_linux_gnu='2715963e9b027774434ba15d55e998d9fe3fbb72d71c6d624b1cde1f2b2a86cf'
 be_sha256_x86_64_apple_darwin=''
 be_sha256_aarch64_apple_darwin=''
 
