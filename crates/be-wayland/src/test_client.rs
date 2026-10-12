@@ -26,9 +26,16 @@ use wayland_protocols::wp::linux_dmabuf::zv1::client::{
 use wayland_protocols::ext::idle_notify::v1::client::{
     ext_idle_notification_v1, ext_idle_notifier_v1,
 };
+use wayland_protocols::wp::cursor_shape::v1::client::{
+    wp_cursor_shape_device_v1, wp_cursor_shape_manager_v1,
+};
 use wayland_protocols::wp::idle_inhibit::zv1::client::{
     zwp_idle_inhibit_manager_v1, zwp_idle_inhibitor_v1,
 };
+
+mod protocols;
+use wayland_protocols::wp::presentation_time::client::{wp_presentation, wp_presentation_feedback};
+use wayland_protocols::xdg::activation::v1::client::{xdg_activation_token_v1, xdg_activation_v1};
 
 const ARGB8888: u32 = u32::from_le_bytes(*b"AR24");
 use crate::state::{ServerEvent, WindowId};
@@ -57,6 +64,7 @@ pub(crate) struct Received {
     pub(crate) repeat: Option<(i32, i32)>,
     pub(crate) pointer_entered: Option<(f64, f64)>,
     pub(crate) pointer_surface: Option<wl_surface::WlSurface>,
+    pub(crate) pointer_serial: Option<u32>,
     pub(crate) buttons: Vec<(u32, bool)>,
     pub(crate) scrolled: f64,
     pub(crate) frames: usize,
@@ -67,6 +75,21 @@ pub(crate) struct Received {
     pub(crate) ignores_pings: bool,
     pub(crate) pings: Vec<u32>,
     pub(crate) idle: Vec<bool>,
+    pub(crate) protocols: protocols::Protocols,
+    pub(crate) clock: Option<u32>,
+    pub(crate) presented: Vec<Feedback>,
+    pub(crate) discarded: usize,
+    pub(crate) token: Option<String>,
+    pub(crate) popup_geometry: Option<(i32, i32, i32, i32)>,
+    pub(crate) repositioned: Option<u32>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Feedback {
+    pub(crate) time: std::time::Duration,
+    pub(crate) refresh: u32,
+    pub(crate) sequence: u64,
+    pub(crate) flags: u32,
 }
 
 pub(crate) struct TestClient {
@@ -231,6 +254,14 @@ impl TestClient {
         manager.create_inhibitor(surface, &self.handle, ())
     }
 
+    pub(crate) fn presentation_feedback(
+        &self,
+        surface: &wl_surface::WlSurface,
+    ) -> wp_presentation_feedback::WpPresentationFeedback {
+        let presentation: wp_presentation::WpPresentation = self.bind("wp_presentation", 2);
+        presentation.feedback(surface, &self.handle, ())
+    }
+
     pub(crate) fn idle_notification(
         &self,
         timeout_ms: u32,
@@ -243,6 +274,27 @@ impl TestClient {
             true => notifier.get_input_idle_notification(timeout_ms, seat, &self.handle, ()),
             false => notifier.get_idle_notification(timeout_ms, seat, &self.handle, ()),
         }
+    }
+
+    pub(crate) fn request_token(
+        &self,
+        serial: Option<u32>,
+        surface: Option<&wl_surface::WlSurface>,
+    ) {
+        let activation: xdg_activation_v1::XdgActivationV1 = self.bind("xdg_activation_v1", 1);
+        let token = activation.get_activation_token(&self.handle, ());
+        if let Some(serial) = serial {
+            token.set_serial(serial, self.seat.as_ref().unwrap());
+        }
+        if let Some(surface) = surface {
+            token.set_surface(surface);
+        }
+        token.commit();
+    }
+
+    pub(crate) fn activate(&self, token: &str, surface: &wl_surface::WlSurface) {
+        let activation: xdg_activation_v1::XdgActivationV1 = self.bind("xdg_activation_v1", 1);
+        activation.activate(token.to_owned(), surface);
     }
 
     pub(crate) fn flush(&mut self) {
@@ -341,11 +393,7 @@ impl TestClient {
             .create_surface(&self.handle, ());
         let wm_base = self.wm_base.as_ref().unwrap();
         let xdg_surface = wm_base.get_xdg_surface(&surface, &self.handle, ());
-        let positioner = wm_base.create_positioner(&self.handle, ());
-        positioner.set_size(size.0, size.1);
-        positioner.set_anchor_rect(anchor.0, anchor.1, 1, 1);
-        positioner.set_anchor(xdg_positioner::Anchor::TopLeft);
-        positioner.set_gravity(xdg_positioner::Gravity::BottomRight);
+        let positioner = self.positioner(anchor, size);
         let popup = xdg_surface.get_popup(Some(&parent.xdg_surface), &positioner, &self.handle, ());
         positioner.destroy();
         if let Some(serial) = grab {
@@ -372,6 +420,38 @@ impl TestClient {
         window
     }
 
+    fn positioner(&self, anchor: (i32, i32), size: (i32, i32)) -> xdg_positioner::XdgPositioner {
+        let positioner = self
+            .wm_base
+            .as_ref()
+            .unwrap()
+            .create_positioner(&self.handle, ());
+        positioner.set_size(size.0, size.1);
+        positioner.set_anchor_rect(anchor.0, anchor.1, 1, 1);
+        positioner.set_anchor(xdg_positioner::Anchor::TopLeft);
+        positioner.set_gravity(xdg_positioner::Gravity::BottomRight);
+        positioner.set_constraint_adjustment(xdg_positioner::ConstraintAdjustment::all());
+        positioner
+    }
+
+    pub(crate) fn reposition(
+        &mut self,
+        server: &mut Server,
+        popup: &TestWindow,
+        anchor: (i32, i32),
+        size: (i32, i32),
+        token: u32,
+    ) {
+        let positioner = self.positioner(anchor, size);
+        popup
+            .popup
+            .as_ref()
+            .expect("only a popup is repositioned")
+            .reposition(&positioner, token);
+        positioner.destroy();
+        self.exchange(server);
+    }
+
     pub(crate) fn attach(
         &mut self,
         server: &mut Server,
@@ -384,13 +464,51 @@ impl TestClient {
     }
 
     pub(crate) fn attach_unsent(&mut self, window: &TestWindow, width: i32, height: i32) {
+        let length = (width * 4 * height) as usize;
+        self.attach_pixels_unsent(window, width, height, &vec![0xff; length]);
+    }
+
+    pub(crate) fn attach_pixels_unsent(
+        &mut self,
+        window: &TestWindow,
+        width: i32,
+        height: i32,
+        pixels: &[u8],
+    ) {
+        self.attach_surface_pixels(&window.surface, width, height, pixels);
+    }
+
+    pub(crate) fn surface(&self) -> wl_surface::WlSurface {
+        self.compositor
+            .as_ref()
+            .unwrap()
+            .create_surface(&self.handle, ())
+    }
+
+    pub(crate) fn attach_surface(
+        &mut self,
+        surface: &wl_surface::WlSurface,
+        width: i32,
+        height: i32,
+    ) {
+        let length = (width * 4 * height) as usize;
+        self.attach_surface_pixels(surface, width, height, &vec![0xff; length]);
+    }
+
+    pub(crate) fn attach_surface_pixels(
+        &mut self,
+        surface: &wl_surface::WlSurface,
+        width: i32,
+        height: i32,
+        pixels: &[u8],
+    ) {
         let stride = width * 4;
         let length = (stride * height) as usize;
+        assert_eq!(pixels.len(), length, "the pixels fill the buffer");
         let fd = rustix::fs::memfd_create("buffer", rustix::fs::MemfdFlags::CLOEXEC)
             .expect("a memfd opens");
         let mut file = std::fs::File::from(fd);
-        file.write_all(&vec![0xff; length])
-            .expect("the buffer is written");
+        file.write_all(pixels).expect("the buffer is written");
         let pool = self.shm.as_ref().unwrap().create_pool(
             std::os::fd::AsFd::as_fd(&file),
             length as i32,
@@ -406,9 +524,9 @@ impl TestClient {
             &self.handle,
             (),
         );
-        window.surface.attach(Some(&buffer), 0, 0);
-        window.surface.damage_buffer(0, 0, width, height);
-        window.surface.commit();
+        surface.attach(Some(&buffer), 0, 0);
+        surface.damage_buffer(0, 0, width, height);
+        surface.commit();
     }
 
     pub(crate) fn keyboard(&mut self) -> wl_keyboard::WlKeyboard {
@@ -499,6 +617,15 @@ impl Dispatch<xdg_toplevel::XdgToplevel, ()> for Received {
             state.activated = has(xdg_toplevel::State::Activated);
             state.fullscreen = has(xdg_toplevel::State::Fullscreen);
             state.maximized = has(xdg_toplevel::State::Maximized);
+        } else if let xdg_toplevel::Event::WmCapabilities { capabilities } = event {
+            state.protocols.wm_capabilities = Some(
+                capabilities
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .map(|chunk| u32::from_ne_bytes(*chunk))
+                    .collect(),
+            );
         }
     }
 }
@@ -554,12 +681,13 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Received {
     ) {
         match event {
             wl_pointer::Event::Enter {
+                serial,
                 surface,
                 surface_x,
                 surface_y,
-                ..
             } => {
                 state.pointer_entered = Some((surface_x, surface_y));
+                state.pointer_serial = Some(serial);
                 state.pointer_surface = Some(surface);
             }
             wl_pointer::Event::Leave { .. } => state.pointer_surface = None,
@@ -698,6 +826,10 @@ impl Dispatch<ext_idle_notification_v1::ExtIdleNotificationV1, ()> for Received 
 wayland_client::delegate_noop!(Received: ignore zwp_linux_dmabuf_v1::ZwpLinuxDmabufV1);
 wayland_client::delegate_noop!(Received: ignore zwp_linux_buffer_params_v1::ZwpLinuxBufferParamsV1);
 wayland_client::delegate_noop!(Received: ignore xdg_positioner::XdgPositioner);
+wayland_client::delegate_noop!(Received: ignore wayland_protocols::xdg::dialog::v1::client::xdg_wm_dialog_v1::XdgWmDialogV1);
+wayland_client::delegate_noop!(Received: ignore wayland_protocols::xdg::dialog::v1::client::xdg_dialog_v1::XdgDialogV1);
+wayland_client::delegate_noop!(Received: ignore wp_cursor_shape_manager_v1::WpCursorShapeManagerV1);
+wayland_client::delegate_noop!(Received: ignore wp_cursor_shape_device_v1::WpCursorShapeDeviceV1);
 impl Dispatch<xdg_popup::XdgPopup, ()> for Received {
     fn event(
         state: &mut Self,
@@ -707,10 +839,85 @@ impl Dispatch<xdg_popup::XdgPopup, ()> for Received {
         _: &Connection,
         _: &QueueHandle<Self>,
     ) {
-        if let xdg_popup::Event::PopupDone = event {
-            state.seen.push(Seen::PopupDone(popup.clone()));
+        match event {
+            xdg_popup::Event::PopupDone => state.seen.push(Seen::PopupDone(popup.clone())),
+            xdg_popup::Event::Configure {
+                x,
+                y,
+                width,
+                height,
+            } => state.popup_geometry = Some((x, y, width, height)),
+            xdg_popup::Event::Repositioned { token } => state.repositioned = Some(token),
+            _ => {}
         }
     }
 }
 
 pub(crate) use be_dmabuf::testing::{pattern, read, vulkan_device};
+
+wayland_client::delegate_noop!(Received: ignore xdg_activation_v1::XdgActivationV1);
+impl Dispatch<xdg_activation_token_v1::XdgActivationTokenV1, ()> for Received {
+    fn event(
+        received: &mut Self,
+        _: &xdg_activation_token_v1::XdgActivationTokenV1,
+        event: xdg_activation_token_v1::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let xdg_activation_token_v1::Event::Done { token } = event {
+            received.token = Some(token);
+        }
+    }
+}
+
+impl Dispatch<wp_presentation::WpPresentation, ()> for Received {
+    fn event(
+        state: &mut Self,
+        _: &wp_presentation::WpPresentation,
+        event: wp_presentation::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let wp_presentation::Event::ClockId { clk_id } = event {
+            state.clock = Some(clk_id);
+        }
+    }
+}
+
+impl Dispatch<wp_presentation_feedback::WpPresentationFeedback, ()> for Received {
+    fn event(
+        state: &mut Self,
+        _: &wp_presentation_feedback::WpPresentationFeedback,
+        event: wp_presentation_feedback::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        match event {
+            wp_presentation_feedback::Event::Presented {
+                tv_sec_hi,
+                tv_sec_lo,
+                tv_nsec,
+                refresh,
+                seq_hi,
+                seq_lo,
+                flags,
+            } => state.presented.push(Feedback {
+                time: std::time::Duration::new(
+                    (u64::from(tv_sec_hi) << 32) | u64::from(tv_sec_lo),
+                    tv_nsec,
+                ),
+                refresh,
+                sequence: (u64::from(seq_hi) << 32) | u64::from(seq_lo),
+                flags: match flags {
+                    WEnum::Value(kind) => kind.bits(),
+                    WEnum::Unknown(bits) => bits,
+                },
+            }),
+            wp_presentation_feedback::Event::Discarded => state.discarded += 1,
+            _ => {}
+        }
+    }
+}

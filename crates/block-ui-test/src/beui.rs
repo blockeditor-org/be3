@@ -657,7 +657,6 @@ impl<A: BeuiApp> BeuiTest<A> {
             available: true,
             intrinsic: None,
             aspect_ratio: None,
-            hovered: false,
             active: false,
             interaction: block_editor_beui::InteractionMode::Preview,
             capabilities: block_editor_beui::EditorCapabilities::default(),
@@ -860,9 +859,17 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn take_renames(&mut self) -> Vec<(Uuid, Option<String>)> {
         self.take_where(|message| match message {
-            EditorMessage::SetName { block_id, name, .. } => {
-                Some((Uuid::from_bytes(*block_id), name.clone()))
-            }
+            EditorMessage::Define {
+                block_id,
+                key,
+                value,
+                ..
+            } if *key == block_editor_beui::be_block::NAME.id.into_bytes() => Some((
+                Uuid::from_bytes(*block_id),
+                value
+                    .as_ref()
+                    .and_then(|value| block_editor_beui::be_block::be_model::from_cbor(value)),
+            )),
             _ => None,
         })
     }
@@ -1179,20 +1186,31 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn click_at(&mut self, pos: Pos2) {
+        self.click_button_at(pos, PointerButton::Primary);
+    }
+
+    pub fn click_button(&mut self, test_id: &str, button: PointerButton) {
+        self.click_button_at(self.point_of(test_id), button);
+    }
+
+    pub fn click_button_at(&mut self, pos: Pos2, button: PointerButton) {
         let modifiers = self.input.held();
         self.hover_at(pos);
-        self.push(Event::PointerButton {
-            pos,
-            button: PointerButton::Primary,
-            pressed: true,
-            modifiers,
-        });
-        self.push(Event::PointerButton {
-            pos,
-            button: PointerButton::Primary,
-            pressed: false,
-            modifiers,
-        });
+        for pressed in [true, false] {
+            self.push(Event::PointerButton {
+                pos,
+                button,
+                pressed,
+                modifiers,
+            });
+        }
+    }
+
+    pub fn scroll(&mut self, test_id: &str, delta: Vec2) {
+        self.hover_at(self.point_of(test_id));
+        self.push(Event::Scroll(delta));
+        self.next_frame();
+        self.push(Event::ScrollEnded);
     }
 
     pub fn drag(&mut self, from: Pos2, to: Pos2) {
@@ -1273,18 +1291,8 @@ impl<A: BeuiApp> BeuiTest<A> {
         if modifiers != held {
             self.push(Event::Modifiers(modifiers));
         }
-        self.push(Event::Key {
-            key,
-            pressed: true,
-            repeat: false,
-            modifiers,
-        });
-        self.push(Event::Key {
-            key,
-            pressed: false,
-            repeat: false,
-            modifiers,
-        });
+        self.push(Event::key(KeyPress::down(key, modifiers)));
+        self.push(Event::key(KeyPress::up(key, modifiers)));
         if modifiers != held {
             self.push(Event::Modifiers(held));
         }

@@ -32,17 +32,19 @@ fn pointer_motion_only_reaches_what_lies_under_the_pointer() {
     let bottom_counts = counted_with_measures(&mut document, bottom);
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
+    harness.frame(vec![Event::PointerMoved(pos2(5.0, 50.0))]);
+    top_counts.visits.set(0);
+    bottom_counts.visits.set(0);
 
     for x in [10.0, 20.0, 30.0] {
         harness.frame(vec![Event::PointerMoved(pos2(x, 50.0))]);
     }
-    assert_eq!(
-        top_counts.interactions.get(),
-        3,
-        "the catcher under the pointer hears every move"
+    assert!(
+        top_counts.visits.get() >= 3,
+        "the catcher under the pointer is hit tested on every move"
     );
     assert_eq!(
-        bottom_counts.interactions.get(),
+        bottom_counts.visits.get(),
         0,
         "a catcher away from the pointer is not visited"
     );
@@ -54,10 +56,11 @@ fn pointer_motion_only_reaches_what_lies_under_the_pointer() {
         vec![true, false],
         "the catcher the pointer left hears it leave"
     );
+    top_counts.visits.set(0);
     harness.frame(vec![Event::PointerMoved(pos2(20.0, 500.0))]);
     assert_eq!(
-        top_counts.interactions.get(),
-        4,
-        "once it let go of its hover it is no longer visited"
+        top_counts.visits.get(),
+        0,
+        "once the pointer has left it, it is no longer visited"
     );
 }

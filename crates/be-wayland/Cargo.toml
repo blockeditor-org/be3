@@ -8,10 +8,11 @@ license.workspace = true
 be-dmabuf = { path = "../be-dmabuf" }
 beui = { path = "../beui" }
 bytemuck = { version = "1", features = ["derive"] }
+gvdb = "0.10"
 image = { version = "0.25", default-features = false, features = ["png"] }
 resvg = { version = "0.48", default-features = false }
-rustix = { version = "1", features = ["event", "fs", "process"] }
-smithay = { version = "0.7", default-features = false, features = ["backend_drm", "desktop", "wayland_frontend"] }
+rustix = { version = "1", features = ["event", "fs", "pipe", "process"] }
+smithay = { version = "0.7", default-features = false, features = ["backend_drm", "desktop", "wayland_frontend", "xwayland"] }
 wgpu = { version = "29", default-features = false, features = ["vulkan"] }
 
 [dev-dependencies]

@@ -23,7 +23,6 @@ fn a_restarted_plugin_hears_its_childrens_statuses_again() {
         available: true,
         intrinsic: None,
         aspect_ratio: None,
-        hovered: false,
         active: false,
         interaction: Default::default(),
         capabilities: Default::default(),

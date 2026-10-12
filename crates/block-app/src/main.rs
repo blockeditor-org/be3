@@ -28,6 +28,8 @@ mod root_settings;
 mod session;
 mod shell_route;
 mod surfaces;
+#[cfg(target_os = "linux")]
+mod tray;
 mod ui;
 mod wayland;
 
@@ -39,7 +41,10 @@ use std::{
 };
 
 #[cfg(not(target_arch = "wasm32"))]
-use std::{io, path::PathBuf};
+use std::{
+    io,
+    path::{Path, PathBuf},
+};
 
 use accounts::{AccountError, Session};
 use app_state::{AppStateStore, SavedAccount, ServerLocation};
@@ -63,7 +68,9 @@ use uuid::Uuid;
 #[cfg(not(target_arch = "wasm32"))]
 const APP_ID: &str = "Block";
 
-pub(crate) const COMMIT: &str = env!("BLOCK_APP_COMMIT");
+pub(crate) fn commit() -> &'static str {
+    build_id::commit(build_id::current())
+}
 
 fn run_options() -> beui::RunOptions {
     let mut options = beui::RunOptions::new("Block");
@@ -95,15 +102,13 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     }
     panic_guard::install();
     let mut app = BlockApp::new(None).map_err(|error| error.to_string())?;
-    let mut options = run_options();
+    let options = run_options();
     for argument in arguments {
         if argument == "--dev-workspace" {
             app.open_dev_workspace(None);
         } else if cfg!(target_os = "linux") && (argument == "--session" || argument == "--desktop")
         {
             app.run_as_desktop();
-        } else if let Some(path) = argument.strip_prefix("--accessibility-tree=") {
-            options.accessibility_dump = Some(PathBuf::from(path));
         } else {
             return Err(format!("unknown argument {argument}").into());
         }
@@ -151,7 +156,11 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
     if page.search_params().has("dev-workspace") {
         app.open_dev_workspace(Some(location.origin()?));
     }
-    options.accessibility_tree = page.search_params().has("accessibility-tree");
+    if page.search_params().has("automation") {
+        let inbox = beui::automation::Inbox::default();
+        AUTOMATION.with(|automation| *automation.borrow_mut() = Some(inbox.clone()));
+        options.automation = Some(inbox);
+    }
     beui::run_web(
         &canvas_id,
         vec![beui::WebRenderer::Wgpu],
@@ -163,9 +172,42 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
 }
 
 #[cfg(target_arch = "wasm32")]
+thread_local! {
+    static AUTOMATION: std::cell::RefCell<Option<beui::automation::Inbox>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen::prelude::wasm_bindgen]
-pub fn accessibility_tree() -> Option<String> {
-    beui::accessibility_tree()
+pub async fn automate(
+    words: Vec<String>,
+    timeout_milliseconds: i32,
+) -> Result<String, wasm_bindgen::JsValue> {
+    use wasm_bindgen::JsCast;
+    let inbox = AUTOMATION
+        .with(|automation| automation.borrow().clone())
+        .ok_or("the page was not opened with ?automation")?;
+    let answered = beui::automation::ask(&inbox, words);
+    let canceller = answered.canceller();
+    let late = wasm_bindgen::closure::Closure::once_into_js(move || {
+        canceller.cancel(format!(
+            "timed out after {} seconds",
+            f64::from(timeout_milliseconds) / 1000.0
+        ));
+    });
+    web_sys::window()
+        .ok_or("no browser window is available")?
+        .set_timeout_with_callback_and_timeout_and_arguments_0(
+            late.unchecked_ref(),
+            timeout_milliseconds,
+        )?;
+    match answered.await {
+        beui::automation::Reply::Text(text) => Ok(text),
+        beui::automation::Reply::Error(error) => Err(error.into()),
+        beui::automation::Reply::Image { .. } => {
+            Err("the browser takes screenshots itself: use drive shot".into())
+        }
+    }
 }
 
 #[cfg(target_os = "android")]
@@ -236,6 +278,7 @@ impl beui::App for Shell {
         #[cfg(target_os = "linux")]
         if self.app.desktop.is_none() && session::owns_a_seat(setup) {
             self.app.desktop = Some(session::DesktopSession::start());
+            session::export_environment(wayland::environment());
         }
         display::start(setup);
         self.app.input.boot(&self.app.app_state);
@@ -278,6 +321,7 @@ impl beui::App for Shell {
             self.document.theme().background,
         );
         self.document.show(context, rect);
+        plugin_host::describe(context);
         #[cfg(target_os = "linux")]
         if let Some(lock) = &mut self.app.screen_lock {
             lock.note_drawn(self.document.locked());
@@ -299,6 +343,10 @@ impl beui::App for Shell {
         self.document.theme().background
     }
 
+    fn busy(&self) -> bool {
+        self.app.busy() || plugin_host::busy()
+    }
+
     fn close_requested(&mut self) -> bool {
         self.app.close_requested()
     }
@@ -311,6 +359,7 @@ impl beui::App for Shell {
         {
             self.app.media = None;
             self.app.notifications = None;
+            self.app.tray = None;
             self.app.desktop = None;
         }
         be::flush();
@@ -397,6 +446,8 @@ struct BlockApp {
     media: Option<media::Media>,
     #[cfg(target_os = "linux")]
     notifications: Option<notifications::Notifications>,
+    #[cfg(target_os = "linux")]
+    tray: Option<tray::Tray>,
 }
 
 type Account = SavedAccount;
@@ -457,6 +508,25 @@ struct PendingCopy {
     stage: CopyStage,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+const CACHES: [&str; 2] = ["be-objects", "plugin-cache"];
+
+#[cfg(not(target_arch = "wasm32"))]
+fn forget_caches_of_other_builds(data_dir: &Path) -> io::Result<()> {
+    let stamp = data_dir.join(build_id::FILE);
+    let current = build_id::current();
+    if std::fs::read_to_string(&stamp).is_ok_and(|cached| cached == current) {
+        return Ok(());
+    }
+    for cache in CACHES {
+        match std::fs::remove_dir_all(data_dir.join(cache)) {
+            Err(error) if error.kind() != io::ErrorKind::NotFound => return Err(error),
+            _ => {}
+        }
+    }
+    std::fs::write(stamp, current)
+}
+
 #[derive(Clone, Copy)]
 enum CopyStage {
     Duplicate,
@@ -470,6 +540,7 @@ impl BlockApp {
             .or_else(storage_dir)
             .ok_or_else(|| io::Error::other("application-data directory is unavailable"))?;
         std::fs::create_dir_all(&data_dir)?;
+        forget_caches_of_other_builds(&data_dir)?;
         panic_guard::report_in(&data_dir);
         plugin_host::cache_in(data_dir.join("plugin-cache"));
         let embedded_server = platform::start_embedded_server(data_dir.join("server"))?;
@@ -588,6 +659,8 @@ impl BlockApp {
             media: None,
             #[cfg(target_os = "linux")]
             notifications: None,
+            #[cfg(target_os = "linux")]
+            tray: None,
         })
     }
 
@@ -600,6 +673,9 @@ impl BlockApp {
             if self.notifications.is_none() {
                 self.notifications = Some(notifications::Notifications::start());
             }
+            if self.tray.is_none() {
+                self.tray = Some(tray::Tray::start());
+            }
         }
     }
 
@@ -607,6 +683,9 @@ impl BlockApp {
     fn run_notifications(&mut self) {
         if let Some(notifications) = &mut self.notifications {
             notifications.frame();
+        }
+        if let Some(tray) = &mut self.tray {
+            tray.frame();
         }
     }
 
@@ -715,6 +794,15 @@ impl BlockApp {
         if let Some(levels) = media.frame() {
             plugin_host::publish::<block_plugin_api::Media>(&levels);
         }
+    }
+
+    fn busy(&self) -> bool {
+        self.pending_account_request.is_some()
+            || self.pending_workspace_request.is_some()
+            || !self.pending_transfers.is_empty()
+            || !self.pending_copies.is_empty()
+            || (self.dev_workspace && self.workspace.is_none())
+            || be::busy()
     }
 
     #[cfg(not(target_os = "android"))]
@@ -1624,17 +1712,6 @@ impl BlockApp {
         if rewatched {
             self.watch_artifacts(self.watched());
         }
-        if host::key_pressed(beui::Key::Escape) {
-            let presenting: Vec<Uuid> = self.editors.with(|open| {
-                open.values()
-                    .filter(|editor| editor.presenting_now())
-                    .map(PluginEditor::id)
-                    .collect()
-            });
-            for id in presenting {
-                self.with_editor(id, PluginEditor::stop_presenting_now);
-            }
-        }
         self.forward_block_picks(shell);
         self.editors.step_creations();
         for (from, action) in compositor::take_actions() {
@@ -1910,12 +1987,6 @@ impl BlockApp {
                 block_type,
                 via,
             } => self.show_block(from, id, block_type, via),
-            EditorAction::DragBlock { id, block_type } => {
-                host::start_drag(host::DragPayload {
-                    block_id: id,
-                    block_type,
-                });
-            }
             EditorAction::Command { id, command } => self.handle_block_command(from, id, command),
         }
     }
@@ -1986,6 +2057,11 @@ impl BlockApp {
 
     fn frame(&mut self, context: &beui::Context) {
         if self.error.is_none()
+            && let Some(report) = panic_guard::take_previous()
+        {
+            self.crashed_before(report);
+        }
+        if self.error.is_none()
             && let Some(report) = panic_guard::take()
         {
             self.crashed(report);
@@ -2037,8 +2113,33 @@ impl BlockApp {
     }
 
     fn crashed(&mut self, report: String) {
-        self.error = Some(report);
         let _ = self.app_state.clear_active_account();
+        #[cfg(target_os = "linux")]
+        if self.desktop.is_some() {
+            panic_guard::persist(&report);
+            std::panic::resume_unwind(Box::new(panic_guard::summary(&report).to_owned()));
+        }
+        panic_guard::forget();
+        self.error = Some(report);
+    }
+
+    fn crashed_before(&mut self, report: String) {
+        #[cfg(target_os = "linux")]
+        if self.desktop.is_some() {
+            let summary = panic_guard::summary(&report);
+            let message = match summary.lines().skip(1).collect::<Vec<_>>().join(" ") {
+                message if message.is_empty() => summary.to_owned(),
+                message => message,
+            };
+            notices::report_with(
+                format!("The last session ended after an error: {message}"),
+                report,
+            );
+            return;
+        }
+        self.crashed(format!(
+            "Block closed after this error the last time it ran.\n\n{report}"
+        ));
     }
 
     fn run_frame(&mut self, context: &beui::Context) {
@@ -2109,6 +2210,12 @@ impl BlockApp {
         if be::installed_for(self.account.id, workspace) {
             return;
         }
+        let link_base = if self.server_url == self.local_server_url {
+            String::new()
+        } else {
+            accounts::link_base(&self.server_url)
+        };
+        plugin_host::publish::<block_plugin_api::LinkBase>(&link_base);
         be::start(be::Config {
             server_url: self.server_url.clone(),
             token: self.account.token.clone(),
@@ -2505,7 +2612,17 @@ impl BlockApp {
         be::flush();
         be::stop();
         match Self::new(Some(self.data_dir.clone())) {
-            Ok(fresh) => *self = fresh,
+            Ok(mut fresh) => {
+                fresh.root_settings = RootSettings::new(self.root_settings.shell());
+                #[cfg(target_os = "linux")]
+                {
+                    fresh.desktop = self.desktop.take();
+                    fresh.screen_lock = self.screen_lock.take();
+                    fresh.media = self.media.take();
+                    fresh.notifications = self.notifications.take();
+                }
+                *self = fresh;
+            }
             Err(error) => self.error = Some(error.to_string()),
         }
     }
@@ -2577,15 +2694,11 @@ fn discard_view(action: &PendingDestructiveAction) -> ui::DiscardView {
 }
 
 fn artifact_of(id: Uuid) -> Option<be_block::ArtifactSource> {
-    be::node(id)?.metadata.artifact
+    be::node(id)?.metadata.get(&be_block::ARTIFACT)
 }
 
 fn set_artifact(id: Uuid, artifact: Option<be_block::ArtifactSource>) {
-    let Some(mut metadata) = be::node(id).map(|node| node.metadata) else {
-        return;
-    };
-    metadata.artifact = artifact;
-    be::set_metadata(id, metadata);
+    be::define(id, vec![be_block::ARTIFACT.definition(artifact.as_ref())]);
 }
 
 fn drag_source(location: BlockLocation) -> SidebarDragSource {

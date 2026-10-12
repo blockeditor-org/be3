@@ -1,3 +1,4 @@
+use beui_core::layer::LayerPolicy;
 use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonVariant};
@@ -6,7 +7,7 @@ use crate::text::Icon;
 use crate::theme::{BORDER_WIDTH, FONT_BODY, FONT_SMALL, RADIUS, use_theme};
 use beui_components_unstyled::{Edge, Picture, Pressable};
 use beui_core::base::Justify;
-use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
+use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::icons::{ICON_CLOSE, ICON_ERROR, ICON_INFO};
 use beui_core::image::Image;
 use beui_core::node::NodeId;
@@ -80,7 +81,7 @@ pub fn Toasts(
         <Overlay
             anchor
             placement={placement}
-            mode=OverlayMode::Floating
+            policy=LayerPolicy::Pass
             traps_focus=false
             open={open}
         >
@@ -95,7 +96,7 @@ pub fn Toasts(
                             let on_dismiss = on_dismiss.clone();
                             let on_action = on_action.clone();
                             let on_activate = on_activate.clone();
-                            let duration = match toast.sticky {
+                            let duration = match toast.sticky || toast.danger {
                                 true => None,
                                 false => duration.peek(),
                             };

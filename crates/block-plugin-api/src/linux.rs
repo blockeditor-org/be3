@@ -11,10 +11,13 @@ pub struct HostWindow {
     pub title: String,
     pub app_id: String,
     pub parent: Option<HostWindowId>,
+    pub modal: bool,
     pub size: Size,
     pub fullscreen: Option<ChildRect>,
     pub responding: bool,
     pub focused: bool,
+    pub icon: Option<HostImage>,
+    pub raised: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -90,11 +93,19 @@ pub struct MediaLevel {
     pub muted: bool,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AudioOutput {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct MediaLevels {
     pub output: Option<MediaLevel>,
     pub input: Option<MediaLevel>,
     pub brightness: Option<f32>,
+    pub outputs: Vec<AudioOutput>,
+    pub default_output: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -109,11 +120,13 @@ impl PlayerCommand {
     pub const ALL: [Self; 4] = [Self::PlayPause, Self::Next, Self::Previous, Self::Stop];
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum MediaRequest {
     StepVolume(f32),
     SetVolume(f32),
     ToggleMute,
+    SetMute(bool),
+    ChooseOutput(String),
     ToggleMicMute,
     StepBrightness(f32),
     Player(PlayerCommand),
@@ -200,6 +213,60 @@ impl ProgramAction {
     pub const MAX_ICON_SIZE: u32 = 256;
 }
 
+#[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TrayStatus {
+    Passive,
+    #[default]
+    Active,
+    NeedsAttention,
+}
+
+#[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TrayToggle {
+    #[default]
+    None,
+    Check(bool),
+    Radio(bool),
+}
+
+#[derive(Clone, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TrayMenuEntry {
+    pub id: i32,
+    pub label: String,
+    pub separator: bool,
+    pub enabled: bool,
+    pub toggle: TrayToggle,
+    pub children: Vec<TrayMenuEntry>,
+}
+
+#[derive(Clone, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HostTrayItem {
+    pub id: String,
+    pub title: String,
+    pub tooltip: String,
+    pub status: TrayStatus,
+    pub icon: Option<HostImage>,
+    pub item_is_menu: bool,
+    pub menu: Vec<TrayMenuEntry>,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TrayRequest {
+    Activate(String),
+    SecondaryActivate(String),
+    Scroll {
+        item: String,
+        delta: i32,
+        horizontal: bool,
+    },
+    MenuOpened(String),
+    MenuClosed(String),
+    MenuChosen {
+        item: String,
+        entry: i32,
+    },
+}
+
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WindowAction {
     Focus(HostWindowId),
@@ -264,6 +331,17 @@ pub enum Programs {}
 impl HostValue for Programs {
     const KEY: &'static str = "programs";
     type Value = Vec<HostProgram>;
+}
+
+pub enum Tray {}
+
+impl HostValue for Tray {
+    const KEY: &'static str = "tray";
+    type Value = Vec<HostTrayItem>;
+}
+
+impl HostAction for TrayRequest {
+    const KEY: &'static str = "tray";
 }
 
 impl HostAction for ProgramAction {

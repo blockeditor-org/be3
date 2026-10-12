@@ -6,16 +6,18 @@ use std::time::{Duration, Instant};
 
 use beui::reactive::with_reactive_scope;
 use beui::{
-    Context, CursorIcon, Document, Event, ForwardedInput, PointerButton, Pos2, Rect, Vec2, Waker,
+    Context, CursorIcon, Document, Event, Forwarded, ForwardedInput, NodeId, PointerButton,
+    PointerId, PointerPhase, Pos2, Rect, Vec2, Waker,
 };
 use smithay::backend::renderer::utils::with_renderer_surface_state;
 use smithay::input::pointer::{CursorImageStatus, CursorImageSurfaceData};
 use smithay::wayland::compositor::with_states;
 
+use crate::presentation::{Place, Presented};
 use crate::render::{Gpu, Textures, WindowDraw};
 use crate::server::{Server, Watch};
 use crate::state::{KeyboardConfig, ServerEvent, WindowId};
-use crate::windows::{Command, Launch, WindowInfo, Windows};
+use crate::windows::{Command, Launch, Popups, WindowInfo, Windows};
 
 const BUTTON_LEFT: u32 = 0x110;
 const BUTTON_RIGHT: u32 = 0x111;
@@ -29,6 +31,7 @@ pub struct CursorImage {
     pub size: Vec2,
     pub hotspot: Vec2,
     pub opaque: bool,
+    pub revision: u64,
 }
 
 pub struct Compositor {
@@ -49,6 +52,10 @@ pub struct Compositor {
     input_frames: u64,
     forced: bool,
     locked: bool,
+    clipboard: clipboard::Clipboard,
+    gtk_profile: Option<std::path::PathBuf>,
+    cursor_surface: Option<smithay::reexports::wayland_server::protocol::wl_surface::WlSurface>,
+    cursor_revision: u64,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -60,6 +67,9 @@ struct Configured {
 
 impl Compositor {
     pub fn new(server: Server, windows: Windows) -> Self {
+        let gtk_profile = server
+            .socket_name()
+            .and_then(|_| crate::gtk_settings::profile());
         Self {
             server,
             windows,
@@ -78,6 +88,10 @@ impl Compositor {
             input_frames: 0,
             forced: false,
             locked: false,
+            clipboard: clipboard::Clipboard::default(),
+            gtk_profile,
+            cursor_surface: None,
+            cursor_revision: 0,
         }
     }
 
@@ -205,18 +219,41 @@ impl Compositor {
             .map(|name| name.to_string_lossy().into_owned())
     }
 
-    fn launch(&mut self, launch: &Launch) {
+    pub fn x11_display(&self) -> Option<String> {
+        self.server
+            .x11_display()
+            .map(|display| format!(":{display}"))
+    }
+
+    pub fn environment(&self) -> Vec<(&'static str, String)> {
+        let wayland = self.socket().map(|socket| ("WAYLAND_DISPLAY", socket));
+        let x11 = self.x11_display().map(|display| ("DISPLAY", display));
+        let gtk = self
+            .gtk_profile
+            .as_ref()
+            .map(|profile| ("DCONF_PROFILE", profile.to_string_lossy().into_owned()));
+        wayland.into_iter().chain(x11).chain(gtk).collect()
+    }
+
+    fn launch(&mut self, launch: &Launch, now: Instant) {
         let Some((program, arguments)) = launch.arguments.split_first() else {
             return;
         };
+        let token = self.server.state.activation.launch_token(now);
         let mut process = Process::new(program);
         if let Some(dir) = &launch.working_dir {
             process.current_dir(dir);
         }
         process
             .args(arguments)
-            .env("WAYLAND_DISPLAY", self.socket().unwrap_or_default())
+            .env("XDG_ACTIVATION_TOKEN", &token)
+            .env("DESKTOP_STARTUP_ID", &token)
+            .env_remove("WAYLAND_DISPLAY")
             .env_remove("DISPLAY")
+            .envs(self.environment())
+            .env_remove("BEUI_AUTOMATION")
+            .env_remove("BEUI_HEADLESS")
+            .env_remove("BEUI_HEADLESS_SCREEN")
             .env("GDK_BACKEND", "wayland")
             .env("QT_QPA_PLATFORM", "wayland")
             .env("SDL_VIDEODRIVER", "wayland")
@@ -265,16 +302,29 @@ impl Compositor {
     }
 
     fn receive(&mut self, context: &Context, document: &mut Document) {
+        self.server.state.activation.tick(context.now());
         self.server.dispatch();
+        self.sync_clipboard(context);
         self.watch_pings(context);
         let events = self.server.state.take_events();
+        let cursor = match self.server.state.cursor() {
+            CursorImageStatus::Surface(surface) => Some(surface.clone()),
+            _ => None,
+        };
+        let mut cursor_changed = cursor != self.cursor_surface;
         for surface in self.server.state.take_committed() {
             self.textures.borrow_mut().upload(&surface);
+            cursor_changed |= cursor.as_ref() == Some(&surface);
+        }
+        if cursor_changed {
+            self.cursor_surface = cursor;
+            self.cursor_revision += 1;
         }
         self.textures.borrow_mut().prune();
         let mut redraw = Vec::new();
         let mut changed = false;
         let mut fullscreen = Vec::new();
+        let mut activated = None;
         let windows = self.windows.clone();
         with_reactive_scope(document, || {
             for event in events {
@@ -286,6 +336,7 @@ impl Compositor {
                     }
                     ServerEvent::Titled(..) | ServerEvent::Changed(_) => changed = true,
                     ServerEvent::Fullscreen(id, on) => fullscreen.push((id, on)),
+                    ServerEvent::Activated(id) => activated = Some(id),
                     ServerEvent::Committed(id) => {
                         if !windows.listed(id) {
                             changed = true;
@@ -299,6 +350,9 @@ impl Compositor {
         });
         for (id, on) in fullscreen {
             self.set_fullscreen(id, on);
+        }
+        if let Some(id) = activated {
+            self.windows.activate(id);
         }
         let open = self.server.state.windows();
         self.configured.retain(|id, _| open.contains(id));
@@ -367,8 +421,11 @@ impl Compositor {
                     title: state.title(id).unwrap_or_default(),
                     app_id: state.app_id(id).unwrap_or_default(),
                     parent: state.parent(id),
+                    modal: state.modal(id),
                     fullscreen: self.fullscreen_area(id),
                     responding: state.responding(id),
+                    icon: state.icon(id),
+                    inhibits_shortcuts: state.inhibits_shortcuts(id),
                 })
             })
             .collect()
@@ -379,10 +436,14 @@ impl Compositor {
             .into_iter()
             .map(|id| (id, self.drawing(id)))
             .collect();
+        for (id, _) in &drawings {
+            let callbacks = self.server.state.take_feedback(*id);
+            self.server.state.presentation.drawn(*id, callbacks);
+        }
         let store = self.windows.clone();
         with_reactive_scope(document, || {
-            for (id, drawing) in drawings {
-                store.draw(id, drawing);
+            for (id, (drawing, popups)) in drawings {
+                store.draw(id, drawing, popups);
             }
         });
     }
@@ -411,81 +472,174 @@ impl Compositor {
             size: beui::vec2(size.w as f32, size.h as f32),
             hotspot: beui::vec2(hotspot.x as f32, hotspot.y as f32),
             opaque: current.texture.opaque(),
+            revision: self.cursor_revision,
         })
     }
 
-    fn drawing(&self, id: WindowId) -> Option<beui::Drawing> {
+    fn drawing(&self, id: WindowId) -> (Option<beui::Drawing>, Option<Popups>) {
         let textures = self.textures.borrow();
-        let gpu = textures.gpu()?;
-        let signals = self.windows.signals(id)?;
-        let layers = self
+        let (Some(gpu), Some(signals)) = (textures.gpu(), self.windows.signals(id)) else {
+            return (None, None);
+        };
+        let (popups, own): (Vec<_>, Vec<_>) = self
             .server
             .state
             .layers(id)
             .into_iter()
             .filter_map(|layer| Some((textures.get(&layer.surface)?, layer)))
-            .collect();
-        Some(WindowDraw::drawing(
-            gpu,
-            layers,
+            .partition(|(_, layer)| layer.popup);
+        let drawing = WindowDraw::drawing(
+            gpu.clone(),
+            own,
             signals.painted.clone(),
             self.waker.clone(),
-        ))
+        );
+        let bounds = popups
+            .iter()
+            .map(|(_, layer)| layer.rect)
+            .reduce(|bounds, rect| bounds.merge(rect));
+        let popups = bounds.map(|bounds| {
+            let areas = popups
+                .iter()
+                .map(|(_, layer)| {
+                    let at = layer.rect.loc - bounds.loc;
+                    Rect::from_min_size(
+                        Pos2::new(at.x as f32, at.y as f32),
+                        Vec2::new(layer.rect.size.w as f32, layer.rect.size.h as f32),
+                    )
+                })
+                .collect();
+            let layers = popups
+                .into_iter()
+                .map(|(texture, mut layer)| {
+                    layer.rect.loc -= bounds.loc;
+                    (texture, layer)
+                })
+                .collect();
+            Popups {
+                areas,
+                rect: Rect::from_min_size(
+                    Pos2::new(bounds.loc.x as f32, bounds.loc.y as f32),
+                    Vec2::new(bounds.size.w as f32, bounds.size.h as f32),
+                ),
+                drawing: WindowDraw::drawing(
+                    gpu,
+                    layers,
+                    signals.painted.clone(),
+                    self.waker.clone(),
+                ),
+            }
+        });
+        (Some(drawing), popups)
     }
 
     fn input(&mut self, now: Instant) {
-        for (id, input) in self.windows.take_input() {
-            if self.server.state.windows().contains(&id) {
-                self.deliver(id, &input, now);
+        let inputs = self.windows.take_input();
+        for (id, input) in &inputs {
+            let id = *id;
+            if !self.server.state.windows().contains(&id) {
+                continue;
+            }
+            let hovered = inputs
+                .iter()
+                .any(|(other, input)| *other == id && input.hovered);
+            match self.windows.blocked_by(id) {
+                Some(dialog) => self.refuse(id, dialog, input, now),
+                None => self.deliver(id, input, hovered, now),
             }
         }
     }
 
-    fn deliver(&mut self, id: WindowId, input: &ForwardedInput, now: Instant) {
-        let state = &mut self.server.state;
-        let at = |pos: Pos2| {
-            let local = pos - input.rect.min;
-            Some((id, (f64::from(local.x), f64::from(local.y)).into()))
-        };
-        for event in &input.events {
-            match *event {
-                Event::PhysicalKey { code, pressed } if state.keyboard_window() == Some(id) => {
-                    if pressed {
-                        state.ping(id, now);
-                    }
-                    state.key(code, pressed);
-                }
-                Event::PointerMoved(pos) => state.pointer_motion(at(pos)),
-                Event::PointerButton {
-                    pos,
-                    button,
-                    pressed,
-                    ..
-                } => {
-                    state.pointer_motion(at(pos));
-                    if pressed {
-                        state.ping(id, now);
-                    }
-                    state.pointer_button(button_code(button), pressed);
-                }
-                Event::Scroll(delta) => {
-                    if state.pointer_window() != Some(id)
-                        && let Some(pos) = input.pointer
-                    {
-                        state.pointer_motion(at(pos));
-                    }
-                    state.pointer_axis((-f64::from(delta.x), -f64::from(delta.y)));
-                }
-                _ => {}
-            }
+    fn refuse(&mut self, id: WindowId, dialog: WindowId, input: &ForwardedInput, now: Instant) {
+        let pressed = mouse(input).any(|event| matches!(event.phase, PointerPhase::Down(_)));
+        if pressed {
+            self.raise = Some(dialog);
         }
-        if !input.hovered && !state.buttons_held() && state.pointer_window() == Some(id) {
+        if self.server.state.buttons_held() && self.server.state.pointer_window() == Some(id) {
+            let releases = ForwardedInput {
+                events: input
+                    .events
+                    .iter()
+                    .filter(|event| {
+                        matches!(
+                            event,
+                            Forwarded::Pointer { event, .. }
+                                if matches!(event.phase, PointerPhase::Up(_))
+                        )
+                    })
+                    .cloned()
+                    .collect(),
+                ..input.clone()
+            };
+            self.deliver(id, &releases, false, now);
+        }
+        let state = &mut self.server.state;
+        if !state.buttons_held() && state.pointer_window() == Some(id) {
             state.pointer_motion(None);
         }
     }
 
+    fn deliver(&mut self, id: WindowId, input: &ForwardedInput, hovered: bool, now: Instant) {
+        let state = &mut self.server.state;
+        let dragging = state.dragging();
+        let windows = &self.windows;
+        let at = |over: Option<NodeId>, pos: Pos2| {
+            let (id, rect) = match dragging {
+                true => windows
+                    .caught_at(over?)
+                    .filter(|(target, _)| windows.blocked_by(*target).is_none())?,
+                false => (id, input.rect),
+            };
+            let local = pos - rect.min;
+            Some((id, (f64::from(local.x), f64::from(local.y)).into()))
+        };
+        for forwarded in &input.events {
+            match forwarded {
+                Forwarded::Input(Event::Key {
+                    press,
+                    code: Some(code),
+                    ..
+                }) if !press.repeat && state.keyboard_window() == Some(id) => {
+                    if press.pressed {
+                        state.ping(id, now);
+                    }
+                    state.key(*code, press.pressed);
+                }
+                Forwarded::Pointer { event, over } if event.pointer == PointerId::Mouse => {
+                    match event.phase {
+                        PointerPhase::Move => state.pointer_motion(at(*over, event.pos)),
+                        PointerPhase::Down(button) | PointerPhase::Up(button) => {
+                            let pressed = matches!(event.phase, PointerPhase::Down(_));
+                            state.pointer_motion(at(*over, event.pos));
+                            if pressed {
+                                state.ping(id, now);
+                            }
+                            state.pointer_button(button_code(button), pressed);
+                        }
+                        PointerPhase::Scroll(delta) => {
+                            if state.pointer_window() != Some(id) {
+                                state.pointer_motion(at(*over, event.pos));
+                            }
+                            state.pointer_axis((-f64::from(delta.x), -f64::from(delta.y)));
+                        }
+                        _ => {}
+                    }
+                }
+                Forwarded::Left
+                    if !hovered && !state.buttons_held() && state.pointer_window() == Some(id) =>
+                {
+                    state.pointer_motion(None);
+                }
+                _ => {}
+            }
+        }
+    }
+
     fn focus(&mut self, now: Instant) {
-        let focused = self.windows.focused();
+        let focused = self
+            .windows
+            .focused()
+            .map(|id| self.windows.blocked_by(id).unwrap_or(id));
         if self.server.state.keyboard_window() == focused {
             return;
         }
@@ -504,6 +658,13 @@ impl Compositor {
         for command in self.windows.take_commands() {
             match command {
                 Command::Configure(id) => {
+                    if let Some(rect) = self.windows.rect(id) {
+                        let position = rect.min - self.area.min;
+                        self.server.state.place(
+                            id,
+                            (position.x.round() as i32, position.y.round() as i32).into(),
+                        );
+                    }
                     let size = self
                         .windows
                         .rect(id)
@@ -514,7 +675,11 @@ impl Compositor {
                                 (area.width().round() as i32, area.height().round() as i32)
                             })
                         });
-                    let Some(size) = size.filter(|size| size.0 >= 1 && size.1 >= 1) else {
+                    let own = !self.configured.contains_key(&id)
+                        && size.is_some_and(|size| {
+                            self.server.state.own_size(id) == Some(size.into())
+                        });
+                    let Some(size) = size.filter(|size| size.0 >= 1 && size.1 >= 1 && !own) else {
                         self.server
                             .state
                             .configure_sized(id, None, focused == Some(id));
@@ -538,11 +703,12 @@ impl Compositor {
                     self.server.state.ping(id, now);
                 }
                 Command::Close(id) => self.force_close(id),
-                Command::Launch(launch) => self.launch(&launch),
+                Command::RestoreShortcuts(id) => {
+                    self.server.state.restore_shortcuts(id);
+                    self.forced = true;
+                }
+                Command::Launch(launch) => self.launch(&launch, now),
             }
-        }
-        for id in self.windows.take_painted() {
-            self.server.state.send_frames(id);
         }
         let cursor = match self.server.state.cursor() {
             CursorImageStatus::Hidden => CursorIcon::None,
@@ -600,12 +766,84 @@ impl Compositor {
 }
 
 impl Compositor {
+    pub fn pace_to_flips(&mut self) {
+        self.server.state.presentation.pace_to_flips();
+    }
+
+    pub fn presented(&mut self, screen: Rect, presented: Presented) {
+        self.server.state.presentation.flipped(screen, presented);
+    }
+
+    pub fn awaits_flip(&self) -> bool {
+        self.server.state.presentation.awaits_flip()
+    }
+
+    fn place_of(&self, id: WindowId) -> Place {
+        let Some(rect) = self.windows.rect(id) else {
+            return Place::Anywhere;
+        };
+        if self.screens.is_empty() {
+            return Place::Anywhere;
+        }
+        let area = |screen: &Rect| {
+            let shared = screen.intersect(rect);
+            shared.width().max(0.0) * shared.height().max(0.0)
+        };
+        self.screens
+            .iter()
+            .copied()
+            .filter(|screen| area(screen) > 0.0)
+            .max_by(|left, right| area(left).total_cmp(&area(right)))
+            .map_or(Place::Nowhere, Place::On)
+    }
+
+    fn show_painted(&mut self, context: &Context) {
+        let open = self.server.state.windows();
+        let presentation = &mut self.server.state.presentation;
+        for id in self.windows.take_painted() {
+            presentation.painted(id);
+        }
+        presentation.forget_closed(&open);
+        let places: Vec<_> = open.iter().map(|id| (*id, self.place_of(*id))).collect();
+        let shown = self
+            .server
+            .state
+            .presentation
+            .take_shown(context.now(), |id| {
+                places
+                    .iter()
+                    .find(|(held, _)| *held == id)
+                    .map_or(Place::Anywhere, |(_, place)| *place)
+            });
+        for shown in shown {
+            self.server.state.present(shown);
+        }
+    }
+
     pub fn before(&mut self, context: &Context, rect: Rect, document: &mut Document) {
+        self.show_painted(context);
         self.receive(context, document);
         let scale = context.pixels_per_point().ceil().max(1.0) as i32;
         let size = (rect.width().round() as i32, rect.height().round() as i32);
         self.server.state.set_scale(scale, size.into());
         self.area = rect;
+        let screens = self
+            .screens
+            .iter()
+            .map(|screen| screen.intersect(rect).translate(-rect.min.to_vec2()))
+            .filter(|screen| screen.width() > 0.0 && screen.height() > 0.0)
+            .map(|screen| {
+                smithay::utils::Rectangle::new(
+                    (screen.min.x.round() as i32, screen.min.y.round() as i32).into(),
+                    (
+                        screen.width().round() as i32,
+                        screen.height().round() as i32,
+                    )
+                        .into(),
+                )
+            })
+            .collect();
+        self.server.state.set_screens(screens);
         self.publish(document);
     }
 
@@ -708,30 +946,16 @@ fn button_code(button: PointerButton) -> u32 {
 }
 
 fn cursor_icon(icon: smithay::input::pointer::CursorIcon) -> CursorIcon {
-    use smithay::input::pointer::CursorIcon as Named;
-    match icon {
-        Named::Crosshair => CursorIcon::Crosshair,
-        Named::Grab => CursorIcon::Grab,
-        Named::Grabbing => CursorIcon::Grabbing,
-        Named::NotAllowed | Named::NoDrop => CursorIcon::NotAllowed,
-        Named::Pointer => CursorIcon::PointingHand,
-        Named::EwResize | Named::EResize | Named::WResize | Named::ColResize => {
-            CursorIcon::ResizeHorizontal
-        }
-        Named::NsResize | Named::NResize | Named::SResize | Named::RowResize => {
-            CursorIcon::ResizeVertical
-        }
-        Named::NeswResize | Named::NeResize | Named::SwResize => CursorIcon::ResizeNeSw,
-        Named::NwseResize | Named::NwResize | Named::SeResize => CursorIcon::ResizeNwSe,
-        Named::Text | Named::VerticalText => CursorIcon::Text,
-        Named::Wait => CursorIcon::Wait,
-        Named::Move | Named::AllScroll => CursorIcon::Move,
-        Named::Progress => CursorIcon::Progress,
-        Named::Help => CursorIcon::Help,
-        Named::Alias => CursorIcon::Alias,
-        _ => CursorIcon::Default,
-    }
+    CursorIcon::from_name(icon.name()).unwrap_or_default()
 }
+
+mod clipboard;
 
 #[cfg(test)]
 mod tests;
+
+fn mouse(input: &ForwardedInput) -> impl Iterator<Item = &beui::PointerEvent> {
+    input
+        .pointer_events()
+        .filter(|event| event.pointer == PointerId::Mouse)
+}

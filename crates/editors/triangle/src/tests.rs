@@ -17,5 +17,6 @@ fn region() -> Region {
         age: 0,
         spec: FrameSpec::default(),
         monitors: Vec::new(),
+        describe: false,
     }
 }

@@ -1,5 +1,6 @@
 use std::{error::Error, fmt, io};
 
+pub mod bytes;
 pub mod chunker;
 pub mod hash;
 pub mod store;
@@ -8,7 +9,7 @@ pub mod vault;
 pub use chunker::{ChunkerConfig, split};
 pub use hash::Hash;
 pub use store::{FileStore, MemoryStore, ObjectStore};
-pub use vault::{ChunkRef, ContentKey, Manifest, Vault};
+pub use vault::{ChunkRef, ContentKey, Manifest, Vault, decode_value, encode_value};
 
 #[derive(Debug)]
 pub enum StoreError {

@@ -22,6 +22,7 @@ fn a_volume_key_shows_the_level_the_host_reports_until_it_fades() {
             muted: false,
         }),
         brightness: None,
+        ..MediaLevels::default()
     });
     fixture.settle();
     assert!(
@@ -38,6 +39,7 @@ fn a_volume_key_shows_the_level_the_host_reports_until_it_fades() {
         }),
         input: None,
         brightness: None,
+        ..MediaLevels::default()
     });
     fixture.settle();
     assert!(fixture.test.shown("desktop.osd.0"), "the new volume shows");
@@ -58,6 +60,7 @@ fn a_volume_key_shows_the_level_the_host_reports_until_it_fades() {
         }),
         input: None,
         brightness: None,
+        ..MediaLevels::default()
     });
     fixture.settle();
     assert!(fixture.test.shown("desktop.osd.0"));

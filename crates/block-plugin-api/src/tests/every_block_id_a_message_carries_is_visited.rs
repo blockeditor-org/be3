@@ -13,12 +13,9 @@ fn every_block_id_a_message_carries_is_visited() {
                 block_type: [9; 16],
                 author: [9; 16],
                 parent: BlockLocation::Block([1; 16]),
-                name: None,
-                named_by_hand: false,
                 references: vec![[1; 16]],
                 access: AccessLevel::Edit,
-                artifact: None,
-                thumbhash: None,
+                metadata: crate::BlockMetadata::default(),
             }],
         }),
         Message::Editor(EditorMessage::VersionControl {
@@ -42,8 +39,7 @@ fn every_block_id_a_message_carries_is_visited() {
         block_id: [1; 16],
         content_type: [9; 16],
         parent: BlockLocation::Block([4; 16]),
-        name: None,
-        artifact: None,
+        defined: crate::MetadataEntries::new(),
         content: None,
     });
     let mut roles = Vec::new();

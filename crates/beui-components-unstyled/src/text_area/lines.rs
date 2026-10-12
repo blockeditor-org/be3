@@ -1,9 +1,10 @@
+use beui_core::layer::LayerPolicy;
 use std::rc::Rc;
 
 use beui_macros::{component, view};
 
 use beui_core::base::ItemSize;
-use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
+use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::base::text::TextNode;
 use beui_core::color::Color32;
 use beui_core::font::{FontId, TextAlign};
@@ -17,7 +18,7 @@ use text_editor_core::{EditorCommand, MarkdownCommand};
 use crate::{Toggle, ToggleHandle};
 use beui_view::reactive::{
     Callback, Canvas, CanvasItem, ForEach, Frame, List, Memo, NodeRef, Portal, RenderFn, Show,
-    Text, TextItem, VirtualList, clone, component_rect, create_effect, create_memo, on_cleanup,
+    Text, TextItem, VirtualList, clone, component_placed, create_effect, create_memo, on_cleanup,
     untrack, with_document,
 };
 
@@ -269,7 +270,7 @@ fn RowText(
     #[prop(default = Layer::All)] layer: Layer,
 ) -> NodeId {
     let node = NodeRef::new();
-    let placed = component_rect();
+    let placed = component_placed();
     create_effect(clone!(node text -> move || {
         placed.get();
         if layer != Layer::Handles
@@ -682,7 +683,7 @@ fn WidgetPopup(anchor: NodeRef, render: RenderFn<usize>, index: usize) -> NodeId
         <Overlay
             anchor={OverlayAnchor::Node(anchor)}
             placement=Placement::BelowStart
-            mode=OverlayMode::Floating
+            policy=LayerPolicy::Pass
             traps_focus=false
             open=true
         >

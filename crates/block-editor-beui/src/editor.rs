@@ -189,7 +189,6 @@ impl SubregionContent {
 pub struct ChildState {
     pub placed: bool,
     pub available: bool,
-    pub hovered: bool,
     pub active: bool,
     pub intrinsic_size: Option<Vec2>,
     pub aspect_ratio: Option<f32>,
@@ -215,7 +214,6 @@ impl ChildState {
         Self {
             placed: true,
             available: status.available,
-            hovered: status.hovered,
             active: status.active,
             intrinsic_size: status
                 .intrinsic
@@ -1248,8 +1246,12 @@ impl crate::root_settings::SettingsGraph for Editor {
     }
 
     fn create(&self, block_type: Uuid, content: Vec<u8>, parent: BlockParent) -> Uuid {
-        self.blocks()
-            .create_with(block_type, Some(content), parent, None, None)
+        self.blocks().create_with(
+            block_type,
+            Some(content),
+            parent,
+            be_block::BlockMetadata::default(),
+        )
     }
 
     fn edit_settings(&self, block: Uuid, edit: be_block::Edit) {

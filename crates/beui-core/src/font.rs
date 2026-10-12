@@ -256,6 +256,22 @@ impl PartialEq for Galley {
 }
 
 impl Galley {
+    pub fn same_layout(&self, other: &Self) -> bool {
+        let (left, right) = (&self.inner, &other.inner);
+        Rc::ptr_eq(left, right)
+            || (left.text == right.text
+                && left.font == right.font
+                && left.size == right.size
+                && left.line_height == right.line_height
+                && left.baseline == right.baseline
+                && left.glyphs.len() == right.glyphs.len()
+                && left
+                    .glyphs
+                    .iter()
+                    .zip(&right.glyphs)
+                    .all(|(glyph, other)| glyph.id == other.id && glyph.offset == other.offset))
+    }
+
     pub fn text(&self) -> &str {
         &self.inner.text
     }

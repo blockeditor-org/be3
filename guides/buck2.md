@@ -40,9 +40,14 @@ profile is the `root//buck/constraints:release` constraint, added by a
 configuration modifier (the root `PACKAGE`) rather than a buckconfig value, so
 one build can hold both, and every transition keeps it. Every other build is cargo's dev profile, with
 `Cargo.toml`'s `[profile.dev.package]` overrides (the optimised cranelift and
-crypto crates), which `crates.bzl` carries as each crate's rustc flags. A
-release build takes `-c be3.commit=SHA`, the commit the app reports; a dev
-build says `unknown` whatever it is passed, so a new commit does not rebuild it.
+crypto crates), which `crates.bzl` carries as each crate's rustc flags.
+
+Which build a program is lives in a file beside it, never in its code:
+`//buck/app:build-id` writes `be3.build_id` into a file named `build-id`, and
+every bundle (`:app`, `:dist`, `:web`, `:web-dist`, the APK's assets) carries
+it. A client and a server refuse each other unless their ids match (or one has
+none), and the app shows the id's commit as its version. Since only that file
+and the bundles read the id, a new commit rebuilds nothing else.
 
 ## What `./scripts/buck` does
 
@@ -76,6 +81,11 @@ these in front of the pinned buck2:
   it, and a Windows checkout has none, so no file a build reads may have one:
   Windows would miss every cache entry Linux wrote. Scripts are run with `sh`,
   and `./scripts/verify`'s lint clears the bit from anything outside `scripts/`.
+- **The build id.** Every command that reads the configuration gets
+  `-c be3.build_id=ID`: the commit, and when the working tree differs from it,
+  `+` and the start of the tree's hash, taken through a throwaway index so
+  untracked files count and the same tree always gives the same id.
+  `BE3_BUILD_ID` overrides it.
 - **Retries.** buck2 exits with 2 for an infrastructure error, such as a
   connection to the build server resetting partway through a download, which buck2 does not retry itself.
   The wrapper runs such a command again, three times in all (`BE3_BUCK_ATTEMPTS`); the finished actions are cached by then.

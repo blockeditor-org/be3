@@ -8,6 +8,9 @@ const INDEX: &str = "plugins.json";
 
 pub(crate) fn load(app: &AndroidApp) {
     let read = |path: &str| read(app, path);
+    if let Ok(id) = read(build_id::FILE) {
+        build_id::install(&String::from_utf8_lossy(&id));
+    }
     let mut plugins = Plugins::default();
     match read(INDEX) {
         Ok(document) => match serde_json::from_slice::<Vec<String>>(&document) {

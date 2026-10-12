@@ -11,6 +11,7 @@ pub struct CursorImage {
     pub size: Vec2,
     pub hotspot: Vec2,
     pub opaque: bool,
+    pub revision: u64,
 }
 
 #[derive(Clone, Default)]

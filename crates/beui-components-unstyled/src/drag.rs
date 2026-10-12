@@ -1,3 +1,4 @@
+use beui_core::layer::{LayerLevel, LayerPolicy};
 use std::any::Any;
 use std::cell::Cell;
 use std::rc::Rc;
@@ -5,17 +6,18 @@ use std::rc::Rc;
 use beui_macros::{component, view};
 
 use beui_core::base::Direction;
-use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
+use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::drag_board::{Board, DragPoint, Pending, Target};
 use beui_core::geometry::{Pos2, Vec2};
 use beui_core::input::CursorIcon;
 use beui_core::input::{PointerPress, TOUCH_DRAG_THRESHOLD};
 use beui_core::node::NodeId;
+use beui_core::tree::component_node;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Callback, ClickCallback, Dynamic, Frame, Func, Interactive, IntoProp, List, Memo, Prop,
-    ReadSignal, Render, RenderFn, clone, component_rect, create_memo, create_signal, on_cleanup,
-    provide_context, use_context, with_document,
+    ReadSignal, Render, RenderFn, clone, create_memo, create_signal, on_cleanup, provide_context,
+    use_context, with_document,
 };
 
 pub const DRAG_THRESHOLD: f32 = 4.0;
@@ -158,7 +160,8 @@ where
                 <Overlay
                     anchor={anchor}
                     placement=Placement::BelowStart
-                    mode=OverlayMode::Passive
+                    policy=LayerPolicy::Inert
+                    level=LayerLevel::Top
                     traps_focus=false
                     open={dragging}
                 >
@@ -198,7 +201,7 @@ where
     let id = board.register(Target {
         id: 0,
         depth,
-        rect: component_rect(),
+        node: component_node(),
         accepts: Rc::new(move |payload: &dyn Any| {
             payload
                 .downcast_ref::<P>()

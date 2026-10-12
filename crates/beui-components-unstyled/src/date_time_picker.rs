@@ -7,11 +7,12 @@ use crate::date_time_field::{
 };
 use crate::datetime::{Date, DateTime, HourCycle, Time};
 use crate::popover::{Popover, PopoverHandle, PopoverPlacement, PopoverTriggerHandle};
+use beui_core::geometry::Rect;
 use beui_core::input::{CursorIcon, PointerPress};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Child, ClickCallback, Frame, Interactive, Memo, NodeRef, Prop, ReadSignal, Render,
-    RenderFn, WriteSignal, clone, component_rect, create_effect, create_memo, create_signal,
+    Callback, Child, ClickCallback, Frame, Interactive, Memo, NodeRef, PlacementBuilder, Prop,
+    ReadSignal, Render, RenderFn, WriteSignal, clone, create_effect, create_memo, create_signal,
     create_timer,
 };
 
@@ -120,118 +121,123 @@ pub fn DateTimePicker(
             on_change.call(next);
         }
     }));
-    let placed = component_rect();
-    let width = create_memo(move || placed.get().width());
-    let field = Field {
-        current: current.clone(),
-        report,
-        parts,
-        hour_cycle,
-        label: label.clone(),
-        disabled: disabled.clone(),
-        segment,
-        literal,
-        segments,
-        frame: field,
-    };
-    let (open, set_open) = create_signal(false);
-    let (from_field, set_from_field) = create_signal(false);
-    let (inner_focus, set_inner_focus) = create_signal(None::<DateSegment>);
-    let (outer_focus, set_outer_focus) = create_signal(None::<DateSegment>);
-    let (last_inner, set_last_inner) = create_signal(None::<DateSegment>);
-    let (outer_segment, set_outer_segment) = create_signal(None::<DateSegment>);
-    let first = match parts.has_date() {
-        true => DateSegment::Year,
-        false => DateSegment::Hour,
-    };
-    let open_at = Callback::new(
-        clone!(disabled set_open set_from_field set_inner_focus -> move |segment: DateSegment| {
-            if disabled.get_untracked() {
-                return;
-            }
-            set_from_field.set(true);
-            set_inner_focus.set(Some(segment));
-            set_open.set(true);
-        }),
-    );
-    let pressed = create_timer(clone!(outer_segment open_at -> move || {
-        open_at.call(outer_segment.get_untracked().unwrap_or(first));
-        None
-    }));
-    let refocus_trigger = create_memo(clone!(from_field -> move || !from_field.get()));
-    let opened = clone!(from_field last_inner set_open set_inner_focus set_outer_focus -> move |now_open: bool| {
-        if now_open {
-            return;
-        }
-        set_open.set(false);
-        set_inner_focus.set(None);
-        if from_field.get_untracked() {
-            set_from_field.set(false);
-            set_outer_focus.set(Some(last_inner.get_untracked().unwrap_or(first)));
-        }
-    });
-    let picker_label = create_memo(clone!(label -> move || {
-        let what = match parts {
-            DateTimeParts::Time => "Choose a time",
-            DateTimeParts::Date => "Choose a date",
-            DateTimeParts::DateTime => "Choose a date and time",
-        };
-        match label.get() {
-            label if label.is_empty() => what.to_owned(),
-            label => format!("{what} for {label}"),
-        }
-    }));
-    let anchor = NodeRef::new();
-    let popover_anchor = anchor.clone();
-    let inner_field = field.clone();
-    let trigger_label = picker_label.clone();
     view! {
-        <Frame @node_ref=&anchor>
-            <FieldBox
-                field
-                focus={outer_focus}
-                trigger={view! {
-                    <Popover
-                        label={picker_label}
-                        disabled={disabled.clone()}
-                        open={open}
-                        anchor=popover_anchor
-                        placement
-                        refocus_trigger
-                        on_open_change={opened}
-                        trigger={move |handle: PopoverTriggerHandle| trigger.call(DateTimeTriggerHandle {
-                            popover: handle,
-                            label: trigger_label,
-                        })}
-                    >
-                        {move |popover: PopoverHandle| view! {
-                            <PickerPanel
-                                popover
-                                field={inner_field}
-                                width
-                                from_field
-                                inner_focus
-                                set_inner_focus
-                                set_last_inner
-                                paged
-                                min
-                                max
-                                today
-                                panel
-                            />
-                        }}
-                    </Popover>
-                }}
-                on_segment_focus={move |segment: Option<DateSegment>| {
-                    set_outer_segment.set(segment);
-                    if segment.is_some() {
-                        set_outer_focus.set(None);
+        <PlacementBuilder>
+            {move |placed: ReadSignal<Rect>| {
+                let width = create_memo(move || placed.get().width());
+                let field = Field {
+                    current: current.clone(),
+                    report,
+                    parts,
+                    hour_cycle,
+                    label: label.clone(),
+                    disabled: disabled.clone(),
+                    segment,
+                    literal,
+                    segments,
+                    frame: field,
+                };
+                let (open, set_open) = create_signal(false);
+                let (from_field, set_from_field) = create_signal(false);
+                let (inner_focus, set_inner_focus) = create_signal(None::<DateSegment>);
+                let (outer_focus, set_outer_focus) = create_signal(None::<DateSegment>);
+                let (last_inner, set_last_inner) = create_signal(None::<DateSegment>);
+                let (outer_segment, set_outer_segment) = create_signal(None::<DateSegment>);
+                let first = match parts.has_date() {
+                    true => DateSegment::Year,
+                    false => DateSegment::Hour,
+                };
+                let open_at = Callback::new(
+                    clone!(disabled set_open set_from_field set_inner_focus -> move |segment: DateSegment| {
+                        if disabled.get_untracked() {
+                            return;
+                        }
+                        set_from_field.set(true);
+                        set_inner_focus.set(Some(segment));
+                        set_open.set(true);
+                    }),
+                );
+                let pressed = create_timer(clone!(outer_segment open_at -> move || {
+                    open_at.call(outer_segment.get_untracked().unwrap_or(first));
+                    None
+                }));
+                let refocus_trigger = create_memo(clone!(from_field -> move || !from_field.get()));
+                let opened = clone!(from_field last_inner set_open set_inner_focus set_outer_focus -> move |now_open: bool| {
+                    if now_open {
+                        return;
                     }
-                }}
-                on_open={move |segment: DateSegment| open_at.call(segment)}
-                on_press={move || pressed.restart(Duration::ZERO)}
-            />
-        </Frame>
+                    set_open.set(false);
+                    set_inner_focus.set(None);
+                    if from_field.get_untracked() {
+                        set_from_field.set(false);
+                        set_outer_focus.set(Some(last_inner.get_untracked().unwrap_or(first)));
+                    }
+                });
+                let picker_label = create_memo(clone!(label -> move || {
+                    let what = match parts {
+                        DateTimeParts::Time => "Choose a time",
+                        DateTimeParts::Date => "Choose a date",
+                        DateTimeParts::DateTime => "Choose a date and time",
+                    };
+                    match label.get() {
+                        label if label.is_empty() => what.to_owned(),
+                        label => format!("{what} for {label}"),
+                    }
+                }));
+                let anchor = NodeRef::new();
+                let popover_anchor = anchor.clone();
+                let inner_field = field.clone();
+                let trigger_label = picker_label.clone();
+                view! {
+                    <Frame @node_ref=&anchor>
+                        <FieldBox
+                            field
+                            focus={outer_focus}
+                            trigger={view! {
+                                <Popover
+                                    label={picker_label}
+                                    disabled={disabled.clone()}
+                                    open={open}
+                                    anchor=popover_anchor
+                                    placement
+                                    refocus_trigger
+                                    on_open_change={opened}
+                                    trigger={move |handle: PopoverTriggerHandle| trigger.call(DateTimeTriggerHandle {
+                                        popover: handle,
+                                        label: trigger_label,
+                                    })}
+                                >
+                                    {move |popover: PopoverHandle| view! {
+                                        <PickerPanel
+                                            popover
+                                            field={inner_field}
+                                            width
+                                            from_field
+                                            inner_focus
+                                            set_inner_focus
+                                            set_last_inner
+                                            paged
+                                            min
+                                            max
+                                            today
+                                            panel
+                                        />
+                                    }}
+                                </Popover>
+                            }}
+                            on_segment_focus={move |segment: Option<DateSegment>| {
+                                set_outer_segment.set(segment);
+                                if segment.is_some() {
+                                    set_outer_focus.set(None);
+                                }
+                            }}
+                            on_open={move |segment: DateSegment| open_at.call(segment)}
+                            on_press={move || pressed.restart(Duration::ZERO)}
+                        />
+                    </Frame>
+                }
+            }}
+        </PlacementBuilder>
     }
 }
 

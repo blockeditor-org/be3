@@ -361,19 +361,14 @@ impl EditorSession {
                     id,
                     block_type,
                     parent,
-                    name,
-                    artifact,
+                    defined,
                     content,
                 } => EditorMessage::CreateBlock {
                     instance,
                     block_id: id.into_bytes(),
                     content_type: block_type.into_bytes(),
                     parent: parent.encode(),
-                    name,
-                    artifact: artifact.map(|artifact| block_plugin_api::ArtifactSource {
-                        source_type: artifact.source_type.into_bytes(),
-                        data: artifact.data,
-                    }),
+                    defined: crate::graph::wire_entries(&defined),
                     content: content.map(serde_bytes::ByteBuf::from),
                 },
                 crate::GraphCommand::SetParent { id, parent } => EditorMessage::SetParent {
@@ -381,10 +376,11 @@ impl EditorSession {
                     block_id: id.into_bytes(),
                     parent: parent.encode(),
                 },
-                crate::GraphCommand::SetName { id, name } => EditorMessage::SetName {
+                crate::GraphCommand::Define { id, key, value } => EditorMessage::Define {
                     instance,
                     block_id: id.into_bytes(),
-                    name,
+                    key: key.into_bytes(),
+                    value: value.map(serde_bytes::ByteBuf::from),
                 },
             }));
         }
@@ -880,6 +876,7 @@ impl EditorSession {
                 .and_then(|state| state.frame.clone())
                 .unwrap_or_default(),
             monitors: self.monitors(region),
+            describe: crate::screens::describing(),
         }
     }
 
@@ -975,6 +972,34 @@ impl EditorSession {
                 handles_back: frame.handles_back,
                 wants_keyboard: frame.wants_keyboard,
                 intercepted_keys: frame.intercepted_keys.clone(),
+                description: frame.description.as_ref().map(|description| {
+                    block_plugin_api::Description {
+                        nodes: description
+                            .nodes
+                            .iter()
+                            .map(|node| block_plugin_api::DescribedNode {
+                                depth: node.depth,
+                                role: node.role.clone(),
+                                label: node.label.clone(),
+                                value: node.value.clone(),
+                                toggled: node.toggled,
+                                disabled: node.disabled,
+                                focused: node.focused,
+                                rect: node.rect.map(reported),
+                                actions: node.actions.clone(),
+                            })
+                            .collect(),
+                        test_ids: description
+                            .test_ids
+                            .iter()
+                            .map(|(id, rect)| block_plugin_api::TestIdRect {
+                                id: id.clone(),
+                                rect: reported(*rect),
+                            })
+                            .collect(),
+                        actions: description.actions.clone(),
+                    }
+                }),
             });
         }
         frame
@@ -988,6 +1013,22 @@ impl EditorSession {
     pub(crate) fn input(&mut self, region: EditorRegion, event: &InputEvent) {
         let context = self.context(region);
         self.app.input(&context, event);
+    }
+
+    pub(crate) fn node_action(
+        &mut self,
+        region: EditorRegion,
+        node: usize,
+        action: &str,
+        value: Option<block_plugin_api::NodeValue>,
+    ) {
+        let context = self.context(region);
+        self.app.node_action(&context, node, action, value);
+    }
+
+    pub(crate) fn run_action(&mut self, region: EditorRegion, id: &str) {
+        let context = self.context(region);
+        self.app.run_action(&context, id);
     }
 
     pub fn report(&self, region: EditorRegion) -> Option<&FrameReport> {

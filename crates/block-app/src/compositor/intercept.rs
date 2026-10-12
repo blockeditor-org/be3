@@ -2,7 +2,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use beui::reactive::{Memo, clone, create_effect, held_modifiers, on_global_key};
-use beui::{GlobalKeyPress, KeyChord, Modifiers};
+use beui::{KeyChord, KeyEvent, KeyInput, Modifiers};
 use block_plugin_api::{EditorInstanceId, EditorRegion};
 
 use crate::plugin_host;
@@ -15,18 +15,20 @@ pub(super) fn intercept_keys(
     allowed: impl Fn() -> bool + 'static,
 ) {
     let held = Rc::new(Cell::new(Modifiers::NONE));
-    on_global_key(clone!(plugin_id held -> move |global: GlobalKeyPress| {
-        let press = global.press;
-        if global.tap {
-            let asked = chords.with_untracked(|chords| {
-                chords.iter().any(|chord| chord.tap && chord.key == press.key)
-            });
-            if asked && allowed() {
-                plugin_host::intercept_tap(&plugin_id, instance, region, press.key);
+    on_global_key(clone!(plugin_id held -> move |event: KeyEvent| {
+        let press = match event.input {
+            KeyInput::Tap(key) => {
+                let asked = chords.with_untracked(|chords| {
+                    chords.iter().any(|chord| chord.tap && chord.key == key)
+                });
+                if asked && allowed() {
+                    plugin_host::intercept_tap(&plugin_id, instance, region, key);
+                }
+                return false;
             }
-            return false;
-        }
-        if !global.held {
+            KeyInput::Press(press) => press,
+        };
+        if !event.held() {
             let asked = chords.with_untracked(|chords| {
                 chords
                     .iter()

@@ -26,7 +26,11 @@ const HISTORY_STEPS: usize = 200;
 type AccessReply = Box<dyn FnOnce(Result<Vec<AccessEntry>, String>) + Send>;
 
 pub(super) enum Command {
-    Open(Uuid, Uuid),
+    Open {
+        block: Uuid,
+        content_type: Uuid,
+        owned: bool,
+    },
     Close(Uuid),
     Operate(Uuid, Option<u64>, Vec<u8>),
     Duplicate {
@@ -66,9 +70,9 @@ pub(super) enum Command {
         block: Uuid,
         parent: BlockParent,
     },
-    SetMetadata {
+    Define {
         block: Uuid,
-        metadata: BlockMetadata,
+        changes: Vec<be_block::Definition>,
     },
     SetAccess {
         block: Uuid,
@@ -118,6 +122,10 @@ pub(crate) struct Shared {
     pub(crate) version_watch: std::collections::HashSet<Uuid>,
     pub(crate) versions: HashMap<Uuid, super::version::VersionState>,
     pub(crate) touched: std::collections::HashSet<Uuid>,
+    pub(crate) pending: usize,
+    pub(crate) owned: std::collections::HashSet<Uuid>,
+    pub(crate) unreadable: HashMap<Uuid, String>,
+    pub(crate) stale_revision: u64,
 }
 
 impl Shared {
@@ -787,7 +795,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
             }
             Woken::Disconnected => return Outcome::Lost,
             Woken::Command(command) => {
-                apply(
+                let applied = apply(
                     &peer,
                     &mut sessions,
                     shared,
@@ -796,7 +804,13 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                     &mut flushes,
                     command,
                 )
-                .await
+                .await;
+                {
+                    let mut held = shared.lock().unwrap();
+                    held.pending = held.pending.saturating_sub(1);
+                }
+                crate::host::wake();
+                applied
             }
             Woken::Event(event) => {
                 match event {
@@ -999,14 +1013,68 @@ async fn rejoin(
     block: Uuid,
     content_type: Uuid,
 ) {
-    let Some(join) = super::join_for(content_type) else {
+    let Some(kind) = super::kind_of(content_type) else {
         return;
     };
-    match join(peer, block).await {
-        Ok(session) => {
+    let owned = !kind.frozen && shared.lock().unwrap().owned.contains(&block);
+    match (kind.join)(peer, block).await {
+        Ok(mut session) => {
+            set_unreadable(shared, block, None);
+            if owned && reshaped(shared, block, kind) {
+                match session.replace((kind.blank)()).await {
+                    Ok(()) => reset_notice(),
+                    Err(error) => record(shared, error),
+                }
+            }
             sessions.insert(block, session);
         }
+        Err(ClientError::Content(_)) if owned => {
+            if let Err(error) = (kind.replace)(peer, block, (kind.blank)()).await {
+                set_unreadable(shared, block, Some(error.to_string()));
+                return;
+            }
+            reset_notice();
+            match (kind.join)(peer, block).await {
+                Ok(session) => {
+                    set_unreadable(shared, block, None);
+                    sessions.insert(block, session);
+                }
+                Err(error) => set_unreadable(shared, block, Some(error.to_string())),
+            }
+        }
+        Err(ClientError::Content(error)) => set_unreadable(shared, block, Some(error.to_string())),
         Err(error) => record(shared, error),
+    }
+}
+
+fn reshaped(shared: &Arc<Mutex<Shared>>, block: Uuid, kind: &super::Kind) -> bool {
+    shared
+        .lock()
+        .unwrap()
+        .graph
+        .get(block)
+        .and_then(|node| node.metadata.get(&be_block::SCHEMA))
+        .is_some_and(|stamped| stamped != (kind.schema)())
+}
+
+fn reset_notice() {
+    crate::notices::report(
+        "Some of this device's settings were saved by another build of Block, so they were reset."
+            .to_owned(),
+    );
+}
+
+fn set_unreadable(shared: &Arc<Mutex<Shared>>, block: Uuid, error: Option<String>) {
+    let mut held = shared.lock().unwrap();
+    let changed = match error {
+        Some(error) => held.unreadable.insert(block, error.clone()) != Some(error),
+        None => held.unreadable.remove(&block).is_some(),
+    };
+    if changed {
+        held.stale_revision += 1;
+        held.touch(block);
+        drop(held);
+        crate::host::wake();
     }
 }
 
@@ -1086,7 +1154,14 @@ async fn apply(
             set_busy(shared, block, false, outcome.err());
             true
         }
-        Command::Open(block, content_type) => {
+        Command::Open {
+            block,
+            content_type,
+            owned,
+        } => {
+            if owned {
+                shared.lock().unwrap().owned.insert(block);
+            }
             open.insert(block, content_type);
             if sessions.contains_key(&block) {
                 return false;
@@ -1105,6 +1180,7 @@ async fn apply(
             let _ = peer.leave_session(block).await;
             let mut held = shared.lock().unwrap();
             held.blocks.remove(&block);
+            held.graph.forget_derived(block);
             held.histories.remove(&block);
             held.presence.remove(&block);
             held.touch(block);
@@ -1155,8 +1231,12 @@ async fn apply(
                     None => Ok(()),
                 },
             };
-            if let Err(error) = outcome {
-                record(shared, error);
+            match outcome {
+                Ok(()) if !sessions.contains_key(&block) && open.contains_key(&block) => {
+                    rejoin(peer, sessions, shared, block, content_type).await;
+                }
+                Ok(()) => {}
+                Err(error) => record(shared, error),
             }
             remember_head(peer, shared, block);
             false
@@ -1229,9 +1309,18 @@ async fn apply(
             }
             true
         }
-        Command::SetMetadata { block, metadata } => {
-            let changed = peer.set_metadata(block, &metadata).await;
-            if let Err(error) = settled(peer, shared, block, changed).await {
+        Command::Define { block, changes } => {
+            let defined = peer
+                .define(block, |metadata| metadata.define(&changes))
+                .await;
+            if let Ok(summary) = &defined
+                && let Some(head) = summary.head
+                && let Some(session) = sessions.get_mut(&block)
+                && let Err(error) = session.published_elsewhere(head).await
+            {
+                record(shared, error);
+            }
+            if let Err(error) = settled(peer, shared, block, defined).await {
                 record(shared, error);
             }
             true
@@ -1268,7 +1357,9 @@ async fn load_graph(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
     match peer.list_blocks().await {
         Ok(blocks) => {
             let nodes = blocks.iter().map(|block| node_of(peer, block)).collect();
-            shared.lock().unwrap().graph.load(nodes);
+            let mut held = shared.lock().unwrap();
+            held.graph.load(nodes);
+            held.stale_revision += 1;
         }
         Err(error) => record(shared, error),
     }
@@ -1316,7 +1407,6 @@ pub(super) fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
         parent: summary.parent,
         access: summary.access,
         references: summary.references.clone(),
-        unreadable_metadata: metadata.is_err(),
         metadata: metadata.unwrap_or_default(),
         head: summary.head,
         version: summary.version,

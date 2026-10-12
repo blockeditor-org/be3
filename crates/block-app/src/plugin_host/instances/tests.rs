@@ -46,7 +46,7 @@ fn placed_on(block: Uuid, block_type: Uuid) -> Instances {
 }
 
 fn forwarded(
-    events: Vec<beui::Event>,
+    events: Vec<beui::Forwarded>,
     pointer: Option<Pos2>,
     focused: bool,
 ) -> beui::ForwardedInput {
@@ -58,6 +58,21 @@ fn forwarded(
         focused,
         pointer,
         modifiers: beui::Modifiers::NONE,
+    }
+}
+
+fn moved(pos: Pos2) -> beui::Forwarded {
+    beui::Forwarded::Pointer {
+        event: beui::PointerEvent {
+            pointer: beui::PointerId::Mouse,
+            phase: beui::PointerPhase::Move,
+            pos,
+            modifiers: beui::Modifiers::NONE,
+            clicks: 0,
+            force: None,
+            source: 0,
+        },
+        over: None,
     }
 }
 

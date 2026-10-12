@@ -24,7 +24,7 @@ fn a_press_claimed_by_its_modifiers_goes_to_the_claimant_and_not_the_catcher_ben
                     <CanvasItem x=0.0 y=0.0 width=100.0 height=200.0>
                         <Interactive
                             on_forward={move |input: ForwardedInput| {
-                                child.borrow_mut().extend(input.events)
+                                child.borrow_mut().extend(flattened(input))
                             }}
                         >
                             <Frame />
@@ -32,10 +32,10 @@ fn a_press_claimed_by_its_modifiers_goes_to_the_claimant_and_not_the_catcher_ben
                     </CanvasItem>
                     <CanvasItem x=0.0 y=0.0 width=200.0 height=200.0>
                         <Interactive
-                            forward_at={|local: Pos2| local.x >= 100.0}
+                            hit_at={|local: Pos2| local.x >= 100.0}
                             claim_at={|(_, held): (Pos2, Modifiers)| held.logo}
                             on_forward={move |input: ForwardedInput| {
-                                parent.borrow_mut().extend(input.events)
+                                parent.borrow_mut().extend(flattened(input))
                             }}
                         >
                             <Frame />

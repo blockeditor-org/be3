@@ -11,11 +11,13 @@ Guides:
 - guides/buck2.md
 - guides/build_server.md
 - guides/hosting.md
+- guides/linux_desktop.md: block-app as a Linux desktop: the session, notifications, media keys, the lock screen, Wayland and X11 programs
 - guides/pan_and_zoom.md: the camera a plugin editor is handed by its host
 - guides/reactive.md: the reactive graph under beui
-- guides/running_on_android.md
-- guides/running_the_app.md
-- guides/running_the_web_app.md
+- guides/running/drive.md: how to run and test any app; read this first
+- guides/running/native.md
+- guides/running/web.md
+- guides/running/android.md
 - guides/testing_a_gui.md
 - guides/the_new_block_stack.md: the `be-*` crates every block lives in
 
@@ -24,16 +26,16 @@ Commands (builds run on the build server; see guides/buck2.md and guides/build_s
 - `./scripts/verify`: the full check. It applies autofixes, accepts new and changed snapshots, and runs every lint and test. Use a 10-minute timeout. CI runs the same thing on pull requests and pushes what it changes.
   - Write code however is natural and let its autofixes tidy it; don't do these by hand. It formats code (including `view!` bodies), applies fixable clippy lints, deletes comments and doc comments, splits tests into one per file, and renames `foo/mod.rs` to `foo.rs`.
 - `./scripts/test NAME`: runs the tests whose full names (module path and function, such as `media::tests::plays::plays`) contain NAME, so NAME may also be a module path like `media::tests`, and prints all their output, passing or failing. It finds their crates and runs each the way its tests need, natively or as wasm. `--update` accepts the paintings they make.
-- `./scripts/buck run //crates/block-app:app`: build and run the native app.
-- `./scripts/buck run //crates/block-app:dev`: run the app in a virtual display, signed in with a workspace open, to drive with xdotool (guides/running_the_app.md).
+- `./scripts/buck run //crates/block-app:dev`: run the app headless, signed in with a workspace open, then `source ~/.cache/be3/dev/env` and drive it with `drive` (guides/running/drive.md). beui-demo and be-launcher have a `:dev` too.
+- `./scripts/buck run //crates/block-app:app`: build and run the native app in a window.
 - `./scripts/buck run //crates/block-app:smoke`: a bounded launch test; run it for changes that could affect native startup.
-- `./scripts/buck build //crates/block-app:web`: for web-specific changes; `./scripts/buck run //crates/block-app:web-serve` serves it on http://127.0.0.1:8080 (guides/running_the_web_app.md).
-- `./scripts/buck run //crates/block-app:android`: for Android-specific changes; builds the APK (guides/running_on_android.md).
+- `./scripts/buck build //crates/block-app:web`: for web-specific changes; `./scripts/buck run //crates/block-app:web-serve` serves it on http://127.0.0.1:8080 (guides/running/web.md).
+- `./scripts/buck run //crates/block-app:android`: for Android-specific changes; builds the APK (guides/running/android.md).
 
 Do:
 - Use commit messages of the form `type: message`, ending with a Co-Authored-By line naming your model.
 - When done, open a pull request on GitHub. Don't watch it, subscribe to it or check on it, and don't create routines or check-in timers.
-- If you find yourself polling while waiting for a command to finish, run `./scripts/nopoll` in the foreground.
+- To wait for a background command, end your turn: you are re-invoked when it exits. This includes a foreground command that outlives its timeout and is moved to the background. Never loop reading its output file or sleeping to check on it. If a stop hook then tells you to commit uncommitted changes while the command is still running, end your turn again: the hook blocks only once.
 - When updating GitHub Actions workflows, remember that the new version will run on old PRs that don't have main's new changes applied.
 
 Design principles:
@@ -51,6 +53,7 @@ Design principles:
 - beui:
   - beui is retained-mode and fine-grained reactive, like SolidJS. It is not like React or an immediate-mode UI: a component runs once, and changes reach the UI through signals. Use that reactivity rather than working around it: push changes, never poll for them, and don't rebuild trees to update them.
   - Keep a full layout from scratch O(n) in the number of nodes. Incremental relayout may do less, but don't add anything that makes a full layout worse than linear.
+  - Derive damage from the retained tree by identity, never by comparing paint output.
   - Add new beui components to beui-demo too.
 - Plugins:
   - Keep the plugin protocol independent of any GUI framework: no beui-specific types or ideas in it. Any framework that can render offscreen and run in wasm (egui, for example) should be able to use it unchanged.

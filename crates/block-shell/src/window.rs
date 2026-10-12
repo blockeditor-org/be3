@@ -6,18 +6,21 @@ use block_editor_beui::beui::reactive::{
 };
 use block_editor_beui::beui::styled::{Body, Button, ButtonVariant, WINDOW_CHROME, use_theme};
 use block_editor_beui::beui::unstyled::{Edge, Floating, TabId, use_dock_tab};
-use block_editor_beui::beui::{NodeId, Rect, pos2, vec2};
+use block_editor_beui::beui::{Image, NodeId, Rect, Vec2, pos2, vec2};
 use block_editor_beui::{
-    ChildMode, Editor, HostWindow, HostWindowId, Subregion, SubregionContent, WindowAction,
+    ChildMode, Editor, HostImage, HostWindow, HostWindowId, Subregion, SubregionContent,
+    WindowAction,
 };
 
 const WINDOW_TABS: u64 = 1 << 41;
-const DIALOG_ORIGIN: f32 = 80.0;
-const DIALOG_CASCADE: f32 = 32.0;
-const DIALOG_CASCADES: u64 = 8;
+const WINDOW_ORIGIN: f32 = 80.0;
+const WINDOW_CASCADE: f32 = 32.0;
+const WINDOW_CASCADES: u64 = 8;
 const BANNER_PADDING: f32 = 12.0;
 const BANNER_SPACING: f32 = 12.0;
 const BANNER_RADIUS: u8 = 8;
+const PLACEHOLDER_EDGE: f32 = 1.0;
+const PLACEHOLDER_SIZE: Vec2 = Vec2::new(800.0, 500.0);
 
 pub(crate) fn window_tab(window: HostWindowId) -> TabId {
     TabId::new(WINDOW_TABS + window.0)
@@ -27,12 +30,26 @@ pub(crate) fn tab_window(tab: TabId) -> Option<HostWindowId> {
     tab.value().checked_sub(WINDOW_TABS).map(HostWindowId)
 }
 
-pub(crate) fn dialog_window(window: &HostWindow) -> Rect {
-    let step = (window.id.0 % DIALOG_CASCADES) as f32 * DIALOG_CASCADE;
+pub(crate) fn floating_window(window: &HostWindow) -> Rect {
+    let step = (window.id.0 % WINDOW_CASCADES) as f32 * WINDOW_CASCADE;
+    let size = vec2(window.size.width, window.size.height);
     Rect::from_min_size(
-        pos2(DIALOG_ORIGIN + step, DIALOG_ORIGIN + step),
-        vec2(window.size.width, window.size.height) + WINDOW_CHROME,
+        pos2(WINDOW_ORIGIN + step, WINDOW_ORIGIN + step),
+        shown_size(size) + WINDOW_CHROME,
     )
+}
+
+pub(crate) fn shown_size(size: Vec2) -> Vec2 {
+    own_size(size).unwrap_or(PLACEHOLDER_SIZE)
+}
+
+pub(crate) fn own_size(size: Vec2) -> Option<Vec2> {
+    (size.x > PLACEHOLDER_EDGE && size.y > PLACEHOLDER_EDGE).then_some(size)
+}
+
+pub(crate) fn window_picture(icon: &HostImage) -> Option<Image> {
+    (icon.width > 0 && icon.height > 0 && icon.is_whole())
+        .then(|| Image::from_rgba(icon.width, icon.height, icon.rgba.clone()))
 }
 
 pub(crate) fn window_title(window: &HostWindow) -> String {
@@ -51,8 +68,14 @@ pub(crate) fn WindowPanel(
     name: Memo<String>,
     responding: Memo<bool>,
     focused: Memo<bool>,
+    size: Memo<Option<Vec2>>,
 ) -> NodeId {
     if let Some(tab) = use_dock_tab() {
+        create_effect(clone!(tab -> move || {
+            if let Some(size) = size.get().and_then(own_size) {
+                untrack(|| tab.resize_window(size + WINDOW_CHROME));
+            }
+        }));
         create_effect(clone!(tab focused -> move || {
             if focused.get() {
                 untrack(|| tab.show());
@@ -71,6 +94,13 @@ pub(crate) fn WindowPanel(
             Some(area) => tab.enter_fullscreen(Some(area)),
             None => untrack(|| tab.leave_fullscreen()),
         }));
+        let called = create_memo(clone!(tab -> move || tab.attention()));
+        let host = editor.host().clone();
+        create_effect(move || {
+            if called.get().is_some() {
+                host.act(WindowAction::Focus(window));
+            }
+        });
         let shown = create_memo(clone!(tab -> move || tab.fullscreen()));
         let host = editor.host().clone();
         create_effect(move || {

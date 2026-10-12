@@ -22,7 +22,9 @@ pub enum ClientError {
     Content(ContentError),
     Store(StoreError),
     Encoding(String),
+    Contended,
     Unexpected,
+    Incompatible { ours: String, theirs: String },
 }
 
 impl fmt::Display for ClientError {
@@ -42,7 +44,14 @@ impl fmt::Display for ClientError {
             Self::Content(error) => write!(formatter, "{error}"),
             Self::Store(error) => write!(formatter, "{error}"),
             Self::Encoding(reason) => write!(formatter, "a request failed to encode: {reason}"),
+            Self::Contended => {
+                formatter.write_str("someone else kept changing the block at the same time")
+            }
             Self::Unexpected => formatter.write_str("the server answered with the wrong message"),
+            Self::Incompatible { ours, theirs } => write!(
+                formatter,
+                "this app is build {ours} and the server is build {theirs}; update them to the same build"
+            ),
         }
     }
 }

@@ -1,8 +1,9 @@
+use beui_core::layer::LayerPolicy;
 use std::time::Duration;
 
 use beui_macros::{component, view};
 
-use beui_core::base::overlay::{OverlayMode, Placement};
+use beui_core::base::overlay::Placement;
 use beui_core::input::PointerPress;
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
@@ -59,7 +60,7 @@ pub fn Tooltip(
                 <Overlay
                     anchor=&anchor
                     placement=Placement::BelowStart
-                    mode=OverlayMode::Passive
+                    policy=LayerPolicy::Inert
                     traps_focus=false
                     open={open}
                 >

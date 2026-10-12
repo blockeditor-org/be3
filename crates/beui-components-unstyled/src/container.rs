@@ -1,9 +1,9 @@
-use beui_macros::component;
+use beui_macros::{component, view};
 
 use beui_core::geometry::Vec2;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Memo, ReadSignal, Render, component_size, create_memo, provide_context, use_context,
+    LayoutBuilder, Memo, ReadSignal, Render, create_memo, provide_context, use_context,
 };
 
 #[derive(Clone)]
@@ -11,9 +11,14 @@ pub struct ContainerSize(pub ReadSignal<Vec2>);
 
 #[component]
 pub fn Container(#[prop(children)] content: Render<ReadSignal<Vec2>>) -> NodeId {
-    let size = component_size();
-    provide_context(ContainerSize(size.clone()));
-    content.call(size)
+    view! {
+        <LayoutBuilder>
+            {move |size: ReadSignal<Vec2>| {
+                provide_context(ContainerSize(size.clone()));
+                content.call(size)
+            }}
+        </LayoutBuilder>
+    }
 }
 
 pub fn container_size() -> Option<ReadSignal<Vec2>> {

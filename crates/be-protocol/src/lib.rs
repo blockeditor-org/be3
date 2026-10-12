@@ -97,6 +97,7 @@ pub enum ErrorCode {
     RegistrationDisabled,
     InvitationNotFound,
     LoginDisabled,
+    BlockHasContent,
 }
 
 impl fmt::Display for ErrorCode {
@@ -193,11 +194,14 @@ pub enum ClientMessage {
         block: Uuid,
         commit: CommitId,
         expected: Option<CommitId>,
+        parents: Vec<CommitId>,
         chunks: Vec<Hash>,
         time: i64,
         pinned: bool,
         references_added: Vec<Uuid>,
         references_removed: Vec<Uuid>,
+        #[serde(with = "serde_bytes")]
+        metadata: Vec<u8>,
     },
     HoldObjects {
         request: u64,
@@ -375,6 +379,7 @@ impl ClientMessage {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct HistoryEntry {
     pub commit: CommitId,
+    pub parents: Vec<CommitId>,
     pub time: i64,
     pub pinned: bool,
 }
@@ -537,4 +542,15 @@ pub fn encode<T: Serialize>(message: &T) -> Result<Vec<u8>, postcard::Error> {
 
 pub fn decode<T: for<'a> Deserialize<'a>>(bytes: &[u8]) -> Result<T, postcard::Error> {
     postcard::from_bytes(bytes)
+}
+
+const HELLO: &[u8] = b"be3 hello\n";
+
+pub fn hello(build: &str) -> Vec<u8> {
+    [HELLO, build.as_bytes()].concat()
+}
+
+pub fn read_hello(frame: &[u8]) -> Option<String> {
+    let build = frame.strip_prefix(HELLO)?;
+    String::from_utf8(build.to_vec()).ok()
 }

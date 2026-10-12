@@ -1,3 +1,11 @@
+load(":defs.bzl", "build_id")
+
+build_id(
+    name = "build-id",
+    id = read_config("be3", "build_id", "unknown"),
+    visibility = ["PUBLIC"],
+)
+
 export_file(
     name = "stage.sh",
     visibility = ["PUBLIC"],
@@ -5,11 +13,6 @@ export_file(
 
 export_file(
     name = "smoke.sh",
-    visibility = ["PUBLIC"],
-)
-
-export_file(
-    name = "dev.sh",
     visibility = ["PUBLIC"],
 )
 

@@ -15,7 +15,7 @@ fn a_shape_partly_outside_its_clip_is_cut_with_an_inset() {
         clip,
     };
     let shape = rect(Rect::from_min_max(pos2(10.0, 0.0), pos2(80.0, 40.0)));
-    let Some(style::Look::Box(css)) = style::look(&shape, 1.0, false, None) else {
+    let Some(style::Look::Box(css)) = style::look(&shape, 1.0, None) else {
         panic!("a rect is a box");
     };
     assert!(
@@ -24,5 +24,5 @@ fn a_shape_partly_outside_its_clip_is_cut_with_an_inset() {
     );
 
     let hidden = rect(Rect::from_min_max(pos2(200.0, 0.0), pos2(300.0, 40.0)));
-    assert_eq!(style::look(&hidden, 1.0, false, None), None);
+    assert_eq!(style::look(&hidden, 1.0, None), None);
 }

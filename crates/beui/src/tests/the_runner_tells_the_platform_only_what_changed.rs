@@ -46,7 +46,7 @@ impl Platform for Recording {
         Some("pasted".to_owned())
     }
 
-    fn pick_file(&mut self, _request: FilePickRequest) {
+    fn pick_file(&mut self, _request: FilePickRequest, _answer: FilePickAnswer) {
         self.0.borrow_mut().push("pick".to_owned());
     }
 

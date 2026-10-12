@@ -12,6 +12,8 @@ use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
 use smithay::wayland::dmabuf::get_dmabuf;
 use smithay::wayland::shm::with_buffer_contents;
 
+use smithay::utils::{Logical, Rectangle, Size};
+
 use crate::state::Layer;
 use be_dmabuf::{Usage, Vulkan};
 
@@ -207,6 +209,47 @@ impl Textures {
             .get(surface)
             .filter(|current| current.buffer.is_none())
             .map(|current| current.texture.clone());
+        if let Some((rgba, opaque)) = crate::single_pixel::color(&buffer) {
+            let format = match gpu.srgb {
+                true => wgpu::TextureFormat::Rgba8UnormSrgb,
+                false => wgpu::TextureFormat::Rgba8Unorm,
+            };
+            let size = wgpu::Extent3d {
+                width: 1,
+                height: 1,
+                depth_or_array_layers: 1,
+            };
+            let texture = previous
+                .filter(|texture| {
+                    texture.texture.size() == size
+                        && texture.texture.format() == format
+                        && texture.opaque == opaque
+                })
+                .unwrap_or_else(|| Rc::new(gpu.texture(size, format, opaque)));
+            gpu.queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &texture.texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                &rgba,
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(4),
+                    rows_per_image: Some(1),
+                },
+                size,
+            );
+            self.surfaces.insert(
+                surface.clone(),
+                Current {
+                    texture,
+                    buffer: None,
+                },
+            );
+            return;
+        }
         let uploaded = with_buffer_contents(&buffer, |pointer, length, data| {
             let (format, opaque) = match (data.format, gpu.srgb) {
                 (wl_shm::Format::Argb8888, true) => (wgpu::TextureFormat::Bgra8UnormSrgb, false),
@@ -382,11 +425,20 @@ impl WindowDraw {
 }
 
 fn quad(layer: &Layer, at: &DrawAt) -> Option<[Vertex; 6]> {
+    place(layer.rect, layer.source, layer.buffer, at)
+}
+
+fn place(
+    rect: Rectangle<f64, Logical>,
+    source: Rectangle<f64, Logical>,
+    buffer: Size<f64, Logical>,
+    at: &DrawAt,
+) -> Option<[Vertex; 6]> {
     let scale = at.pixels_per_point;
-    let left = at.rect[0] + layer.rect.loc.x as f32 * scale;
-    let top = at.rect[1] + layer.rect.loc.y as f32 * scale;
-    let right = left + layer.rect.size.w as f32 * scale;
-    let bottom = top + layer.rect.size.h as f32 * scale;
+    let left = at.rect[0] + rect.loc.x as f32 * scale;
+    let top = at.rect[1] + rect.loc.y as f32 * scale;
+    let right = left + rect.size.w as f32 * scale;
+    let bottom = top + rect.size.h as f32 * scale;
     let clip = [
         at.clip[0].max(at.rect[0]),
         at.clip[1].max(at.rect[1]),
@@ -395,13 +447,13 @@ fn quad(layer: &Layer, at: &DrawAt) -> Option<[Vertex; 6]> {
     ];
     let (x0, y0) = (left.max(clip[0]), top.max(clip[1]));
     let (x1, y1) = (right.min(clip[2]), bottom.min(clip[3]));
-    if x1 <= x0 || y1 <= y0 || layer.size.w <= 0.0 || layer.size.h <= 0.0 {
+    if x1 <= x0 || y1 <= y0 || buffer.w <= 0.0 || buffer.h <= 0.0 {
         return None;
     }
-    let u0 = (layer.source.loc.x / layer.size.w) as f32;
-    let v0 = (layer.source.loc.y / layer.size.h) as f32;
-    let u1 = ((layer.source.loc.x + layer.source.size.w) / layer.size.w) as f32;
-    let v1 = ((layer.source.loc.y + layer.source.size.h) / layer.size.h) as f32;
+    let u0 = (source.loc.x / buffer.w) as f32;
+    let v0 = (source.loc.y / buffer.h) as f32;
+    let u1 = ((source.loc.x + source.size.w) / buffer.w) as f32;
+    let v1 = ((source.loc.y + source.size.h) / buffer.h) as f32;
     let u = |x: f32| u0 + (x - left) / (right - left) * (u1 - u0);
     let v = |y: f32| v0 + (y - top) / (bottom - top) * (v1 - v0);
     let ndc_x = |x: f32| x / at.screen.x * 2.0 - 1.0;
@@ -486,3 +538,6 @@ impl Drop for WindowDraw {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -1,5 +1,6 @@
 mod gpu;
 mod harness;
+mod panic;
 mod precompile;
 mod state;
 mod stderr;
@@ -134,6 +135,7 @@ impl Plugin {
             .map_err(|error| format!("the plugin memory could not be linked: {error}"))?;
         gpu::link(&mut linker)?;
         transport::link(&mut linker)?;
+        panic::link(&mut linker)?;
         threads::link(&mut linker)?;
         wake::link(&mut linker)?;
         linker
@@ -179,9 +181,9 @@ impl Plugin {
             self.stopped = true;
             return Err(failure);
         }
-        let outcome = function
-            .call(&mut self.store, ())
-            .map_err(|error| format!("the plugin trapped: {error}"));
+        let outcome = function.call(&mut self.store, ()).map_err(|error| {
+            panic::message(&error).unwrap_or_else(|| format!("the plugin trapped: {error}"))
+        });
         if let Err(error) = outcome {
             self.stopped = true;
             return Err(error);

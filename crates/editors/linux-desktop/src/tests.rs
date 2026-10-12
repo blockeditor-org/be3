@@ -4,10 +4,11 @@ use block_editor_beui::be_block::{
 };
 use block_editor_beui::beui::{Document, Key, KeyChord, Modifiers, NodeId, Rect};
 use block_editor_beui::{
-    BlockInfo, BlockParent, ChildContent, Editor, EditorHost, HostImage, HostProgram, HostWindow,
-    HostWindowId, HostWindows, IncomingNotification, Media, MediaLevel, MediaLevels, MediaRequest,
-    NotificationInbox, NotificationReport, NotificationRequest, NotificationSignal, Notifications,
-    PlayerCommand, Power, PowerAction, PowerAvailability, ProgramAction, Programs, WindowAction,
+    AudioOutput, BlockInfo, BlockParent, ChildContent, Editor, EditorHost, HostImage, HostProgram,
+    HostWindow, HostWindowId, HostWindows, IncomingNotification, Media, MediaLevel, MediaLevels,
+    MediaRequest, NotificationInbox, NotificationReport, NotificationRequest, NotificationSignal,
+    Notifications, PlayerCommand, Power, PowerAction, PowerAvailability, ProgramAction, Programs,
+    WindowAction,
 };
 use block_plugin_api::Size;
 use block_ui_test::BeuiTest;
@@ -31,6 +32,7 @@ mod a_volume_key_shows_the_level_the_host_reports_until_it_fades;
 mod a_window_the_host_focuses_leads_the_window_switcher;
 mod alt_tab_switches_to_the_window_two_back_once_alt_is_let_go;
 mod clicking_the_clock_opens_the_desktops_calendar_and_clicking_away_closes_it;
+mod escape_closes_the_launcher_and_gives_the_focus_back_to_its_button;
 mod escape_leaves_the_window_switcher_without_switching;
 mod super_f_toggles_fullscreen_on_the_window_with_the_keyboard;
 mod the_calendar_popup_fits_a_narrow_screen;
@@ -41,6 +43,9 @@ mod the_power_menu_asks_before_ending_the_session;
 mod the_power_menu_locks_the_screen_without_asking;
 mod the_power_menu_offers_only_what_the_host_allows;
 mod the_programs_button_opens_the_launcher_on_the_programs_the_host_lists;
+mod the_tray_shows_its_items_and_answers_their_clicks_and_menus;
+mod the_volume_in_the_bar_follows_the_host_and_opens_its_controls;
+mod the_volume_popup_asks_the_host_for_a_level_a_mute_and_an_output;
 mod the_volume_shows_on_every_monitor;
 
 const MAX_TAB: u64 = 64;
@@ -55,6 +60,8 @@ const EVERYTHING: PowerAvailability = PowerAvailability {
 const SHOWN_TYPE: Uuid = Uuid::from_u128(0x7368_6f77_6e2d_7479_7065_2d74_6573_7431);
 const DEFAULT_ACTION: &str = "default";
 const NOON: u64 = 1_768_478_400;
+const SPEAKERS: &str = "alsa_output.pci-0000_00_1f.3.analog-stereo";
+const HEADPHONES: &str = "bluez_output.headphones";
 
 struct Fixture {
     test: BeuiTest<LinuxDesktopApp>,
@@ -95,14 +102,13 @@ impl Fixture {
         let mut profiles = Vec::new();
         for (name, editor) in sessions {
             let profile = Uuid::new_v4();
-            store.add_block(BlockInfo {
-                name: Some((*name).to_owned()),
-                ..BlockInfo::new(
-                    profile,
-                    EditorView::CONTENT_TYPE,
-                    BlockParent::Block(self.settings),
-                )
-            });
+            let mut info = BlockInfo::new(
+                profile,
+                EditorView::CONTENT_TYPE,
+                BlockParent::Block(self.settings),
+            );
+            info.set_name(*name);
+            store.add_block(info);
             store.hold(Some(profile), EditorView::document(*editor, None));
             settings.apply(&Settings::add_profile(*editor, self.client, profile));
             profiles.push(profile);
@@ -144,6 +150,25 @@ impl Fixture {
 
     fn settle(&mut self) {
         self.test.run();
+    }
+
+    fn hear(&mut self, level: f32, muted: bool, default_output: &str) {
+        self.test.set_host_value::<Media>(&MediaLevels {
+            output: Some(MediaLevel { level, muted }),
+            outputs: vec![
+                AudioOutput {
+                    id: SPEAKERS.to_owned(),
+                    name: "Speakers".to_owned(),
+                },
+                AudioOutput {
+                    id: HEADPHONES.to_owned(),
+                    name: "Headphones".to_owned(),
+                },
+            ],
+            default_output: Some(default_output.to_owned()),
+            ..MediaLevels::default()
+        });
+        self.settle();
     }
 
     fn notify(&mut self, arrived: &[IncomingNotification]) {
@@ -250,6 +275,7 @@ fn host_window(id: u64, focused: bool) -> HostWindow {
         title: format!("Program {id}"),
         app_id: "test".to_owned(),
         parent: None,
+        modal: false,
         size: Size {
             width: 320.0,
             height: 200.0,
@@ -257,6 +283,8 @@ fn host_window(id: u64, focused: bool) -> HostWindow {
         fullscreen: None,
         responding: true,
         focused,
+        icon: None,
+        raised: 0,
     }
 }
 

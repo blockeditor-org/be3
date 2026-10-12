@@ -29,6 +29,7 @@ pub(crate) fn apply(settings: &InputSettings) {
             control.set(seat(settings));
         }
     });
+    crate::wayland::set_primary_selection(settings.middle_click_paste());
     if !crate::wayland::set_keyboard(&keyboard(settings)) {
         eprintln!(
             "block-app: the keymap {:?} could not be compiled for Wayland clients",

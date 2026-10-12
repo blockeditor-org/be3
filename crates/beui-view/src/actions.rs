@@ -2,8 +2,10 @@ use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
 use beui_core::callback::NodeRef;
-use beui_core::document::{GlobalKey, GlobalKeyPress, UnhandledKey, UnhandledKeyPress};
+use beui_core::context::{ActionGroup, ActionInfo, Context};
+use beui_core::document::ActionsHook;
 use beui_core::input::{Key, KeyChord, KeyPress, Modifiers};
+use beui_core::keys::{KeyAt, KeyEvent, KeyHandler, KeyInput, KeyPhase};
 use beui_core::node::NodeId;
 use reactive::{
     Memo, ReadSignal, WriteSignal, create_effect, create_memo, create_signal, on_cleanup,
@@ -98,10 +100,10 @@ impl Chord {
         !self.tap && !self.ctrl && !self.alt && !self.logo && !self.key.is_media()
     }
 
-    fn heard(self, global: GlobalKeyPress) -> bool {
-        match global.tap {
-            true => self.tap && global.press.key == self.key,
-            false => self.matches(global.press) && !(global.typing && self.typed()),
+    fn heard(self, event: KeyEvent) -> bool {
+        match event.input {
+            KeyInput::Tap(key) => self.tap && key == self.key,
+            KeyInput::Press(press) => self.matches(press) && !(event.target.typing && self.typed()),
         }
     }
 
@@ -178,8 +180,8 @@ struct ActionData {
     enabled: Prop<bool>,
     checked: Option<Prop<bool>>,
     menu: bool,
-    global: bool,
-    intercepts: bool,
+    at: Option<KeyAt>,
+    capture: bool,
     run: Rc<dyn Fn()>,
 }
 
@@ -207,8 +209,8 @@ impl Action {
             enabled: Prop::Static(true),
             checked: None,
             menu: false,
-            global: false,
-            intercepts: false,
+            at: None,
+            capture: false,
             run: Rc::new(run),
         }
     }
@@ -254,11 +256,21 @@ impl Action {
     }
 
     pub fn is_global(&self) -> bool {
-        self.0.global
+        matches!(self.0.at, Some(KeyAt::Window | KeyAt::Host))
     }
 
     pub fn intercepts(&self) -> bool {
-        self.0.intercepts
+        self.is_global() && self.0.capture
+    }
+
+    fn listens(&self, at: &KeyAt, phase: KeyPhase) -> bool {
+        let same = matches!(
+            (&self.0.at, at),
+            (Some(KeyAt::Window), KeyAt::Window)
+                | (Some(KeyAt::Host), KeyAt::Host)
+                | (None, KeyAt::Root)
+        );
+        same && (self.0.capture == (phase != KeyPhase::Bubble))
     }
 
     pub fn is_enabled(&self) -> bool {
@@ -282,8 +294,8 @@ pub struct ActionBuilder {
     enabled: Prop<bool>,
     checked: Option<Prop<bool>>,
     menu: bool,
-    global: bool,
-    intercepts: bool,
+    at: Option<KeyAt>,
+    capture: bool,
     run: Rc<dyn Fn()>,
 }
 
@@ -313,14 +325,16 @@ impl ActionBuilder {
         self
     }
 
-    pub fn global(mut self) -> Self {
-        self.global = true;
+    pub fn at(mut self, at: KeyAt) -> Self {
+        self.at = match at {
+            KeyAt::Root => None,
+            at => Some(at),
+        };
         self
     }
 
-    pub fn intercepts(mut self) -> Self {
-        self.global = true;
-        self.intercepts = true;
+    pub fn capture(mut self) -> Self {
+        self.capture = true;
         self
     }
 
@@ -334,8 +348,8 @@ impl ActionBuilder {
             enabled: self.enabled,
             checked: self.checked,
             menu: self.menu,
-            global: self.global,
-            intercepts: self.intercepts,
+            at: self.at,
+            capture: self.capture,
             run: self.run,
         }))
     }
@@ -356,6 +370,16 @@ impl ActionBuilder {
         registry.0.next.set(key + 1);
         action.0.key.set(key);
         scope.add(action.clone());
+        if let Some(KeyAt::Node(node)) = &action.0.at {
+            let phase = match action.0.capture {
+                true => KeyPhase::Capture,
+                false => KeyPhase::Bubble,
+            };
+            let listening = action.clone();
+            crate::reactive::on_key(KeyAt::Node(node.clone()), phase, move |event| {
+                run_matching(std::iter::once(&listening), event)
+            });
+        }
         registry.touch();
         on_cleanup(move || {
             scope.remove(key);
@@ -397,6 +421,13 @@ pub fn action_scope(node: &NodeRef) -> ActionScope {
     }));
     registry.0.scopes.borrow_mut().push(Rc::downgrade(&scope.0));
     provide_context(scope.clone());
+    let listening = Rc::downgrade(&scope.0);
+    crate::reactive::on_key(KeyAt::Node(node.clone()), KeyPhase::Bubble, move |event| {
+        listening.upgrade().is_some_and(|scope| {
+            let actions = scope.actions.borrow().clone();
+            run_matching(actions.iter().filter(|action| action.0.at.is_none()), event)
+        })
+    });
     let held = Rc::clone(&scope.0);
     on_cleanup(move || {
         registry.0.scopes.borrow_mut().retain(|other| {
@@ -415,8 +446,8 @@ struct RegistryData {
     next: Cell<u64>,
     version: ReadSignal<u64>,
     set_version: WriteSignal<u64>,
-    keys: RefCell<Option<Rc<UnhandledKey>>>,
-    global_keys: RefCell<Option<Rc<GlobalKey>>>,
+    listeners: RefCell<Vec<Rc<KeyHandler>>>,
+    described: RefCell<Option<Rc<ActionsHook>>>,
 }
 
 #[derive(Clone)]
@@ -434,8 +465,8 @@ impl Registry {
             next: Cell::new(1),
             version,
             set_version,
-            keys: RefCell::new(None),
-            global_keys: RefCell::new(None),
+            listeners: RefCell::new(Vec::new()),
+            described: RefCell::new(None),
         }))
     }
 
@@ -487,27 +518,29 @@ impl Registry {
         listed
     }
 
-    fn key(&self, unhandled: &UnhandledKeyPress) -> bool {
-        let actions = self.actions(&unhandled.focus_path);
-        let local = actions.iter().filter(|action| !action.is_global());
-        run_matching(
-            local,
-            GlobalKeyPress {
-                press: unhandled.press,
-                typing: unhandled.typing,
-                in_app: false,
-                held: false,
-                tap: false,
-            },
-        )
+    fn root_key(&self, event: KeyEvent) -> bool {
+        let path = with_document(|document| document.focus_ancestry());
+        let scopes = self.scopes();
+        let scoped = path
+            .iter()
+            .any(|node| scopes.iter().any(|scope| scope.node() == Some(*node)));
+        let mut actions: Vec<Action> = self.0.global.actions.borrow().clone();
+        if !scoped && event.target.node.is_some() {
+            for scope in scopes.iter().rev() {
+                actions.extend(scope.actions.borrow().iter().cloned());
+            }
+        }
+        run_matching(actions.iter().filter(|action| action.0.at.is_none()), event)
     }
 
-    fn global_key(&self, global: GlobalKeyPress) -> bool {
+    fn outer_key(&self, at: &KeyAt, event: KeyEvent) -> bool {
         let actions = self.all();
-        let live = actions
-            .iter()
-            .filter(|action| action.is_global() && (action.intercepts() || !global.in_app));
-        run_matching(live, global)
+        run_matching(
+            actions
+                .iter()
+                .filter(|action| action.listens(at, event.phase)),
+            event,
+        )
     }
 
     fn intercepted(&self) -> Vec<KeyChord> {
@@ -526,6 +559,39 @@ impl Registry {
         chords
     }
 
+    fn describe(&self, context: &Context, focus_path: &[NodeId]) {
+        let live = self.actions(focus_path);
+        let all = self.all();
+        for requested in context.action_requests() {
+            let found = live
+                .iter()
+                .chain(all.iter())
+                .find(|action| action.id() == requested);
+            if let Some(action) = found {
+                untrack(|| action.run());
+                context.action_ran(&requested);
+            }
+        }
+        let info = |action: &Action, live: bool| ActionInfo {
+            id: action.id().to_owned(),
+            label: action.label().peek(),
+            shortcut: action.shortcut_label(),
+            enabled: action.is_enabled(),
+            checked: action.checked().map(|checked| checked.peek()),
+            live,
+        };
+        let mut actions: Vec<ActionInfo> = live.iter().map(|action| info(action, true)).collect();
+        for action in &all {
+            if !actions.iter().any(|listed| listed.id == action.id()) {
+                actions.push(info(action, false));
+            }
+        }
+        context.publish_actions(ActionGroup {
+            name: String::new(),
+            actions,
+        });
+    }
+
     fn all(&self) -> Vec<Action> {
         let mut all: Vec<Action> = self.0.global.actions.borrow().clone();
         for scope in self.scopes() {
@@ -536,9 +602,9 @@ impl Registry {
     }
 }
 
-fn run_matching<'a>(actions: impl Iterator<Item = &'a Action>, global: GlobalKeyPress) -> bool {
+fn run_matching<'a>(actions: impl Iterator<Item = &'a Action>, event: KeyEvent) -> bool {
     for action in actions {
-        let matched = action.shortcuts().iter().any(|chord| chord.heard(global));
+        let matched = action.shortcuts().iter().any(|chord| chord.heard(event));
         if matched && untrack(|| action.run()) {
             return true;
         }
@@ -552,20 +618,34 @@ fn registry() -> Registry {
             return registry;
         }
         let registry = document.extension_or_insert_with(Registry::new);
+        let listen = |at: KeyAt, phase: KeyPhase| {
+            let weak = Rc::downgrade(&registry.0);
+            let place = at.clone();
+            let handler: Rc<KeyHandler> = Rc::new(move |event: KeyEvent| {
+                weak.upgrade().is_some_and(|registry| {
+                    let registry = Registry(registry);
+                    match place {
+                        KeyAt::Root => registry.root_key(event),
+                        _ => registry.outer_key(&place, event),
+                    }
+                })
+            });
+            document.listen_keys(at, phase, true, Rc::downgrade(&handler));
+            registry.0.listeners.borrow_mut().push(handler);
+        };
+        listen(KeyAt::Root, KeyPhase::Bubble);
+        for at in [KeyAt::Window, KeyAt::Host] {
+            listen(at.clone(), KeyPhase::Capture);
+            listen(at, KeyPhase::Bubble);
+        }
         let weak = Rc::downgrade(&registry.0);
-        let keys: Rc<UnhandledKey> = Rc::new(move |unhandled: UnhandledKeyPress| {
-            weak.upgrade()
-                .is_some_and(|registry| Registry(registry).key(&unhandled))
+        let described: Rc<ActionsHook> = Rc::new(move |context: &Context, path: &[NodeId]| {
+            if let Some(registry) = weak.upgrade() {
+                Registry(registry).describe(context, path);
+            }
         });
-        document.register_unhandled_key(Rc::downgrade(&keys));
-        *registry.0.keys.borrow_mut() = Some(keys);
-        let weak = Rc::downgrade(&registry.0);
-        let global: Rc<GlobalKey> = Rc::new(move |global: GlobalKeyPress| {
-            weak.upgrade()
-                .is_some_and(|registry| Registry(registry).global_key(global))
-        });
-        document.register_global_key(Rc::downgrade(&global));
-        *registry.0.global_keys.borrow_mut() = Some(global);
+        document.register_actions(Rc::downgrade(&described));
+        *registry.0.described.borrow_mut() = Some(described);
         let intercepted = document.intercepted_keys_writer();
         let weak = Rc::downgrade(&registry.0);
         let reported = RefCell::new(Vec::new());

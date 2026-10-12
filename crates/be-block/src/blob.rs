@@ -5,12 +5,16 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
 use crate::{
-    BlockContent, ContentError, DerivedMetadata, LiveEdit, Merge,
+    BlockContent, BlockMetadata, ContentError, LiveEdit, Merge,
     streamed::{Streamed, decode_streamed, encode_streamed},
 };
 
 pub trait BlobKind: Send + Sync + 'static {
     const CONTENT_TYPE: Uuid;
+
+    const FROZEN: bool = false;
+
+    const SCHEMA: u32 = 0;
 
     type Header: Clone
         + Debug
@@ -24,9 +28,8 @@ pub trait BlobKind: Send + Sync + 'static {
 
     fn name(header: &Self::Header) -> &str;
 
-    fn derived_metadata(header: &Self::Header) -> DerivedMetadata {
-        let _ = header;
-        DerivedMetadata::default()
+    fn describe(header: &Self::Header, metadata: &mut BlockMetadata) {
+        let _ = (header, metadata);
     }
 }
 
@@ -97,6 +100,12 @@ impl<K: BlobKind> Debug for Blob<K> {
 impl<K: BlobKind> BlockContent for Blob<K> {
     const CONTENT_TYPE: Uuid = K::CONTENT_TYPE;
 
+    const FROZEN: bool = K::FROZEN;
+
+    fn schema() -> String {
+        format!("blob {}", K::SCHEMA)
+    }
+
     fn encode(&self) -> Vec<u8> {
         encode_streamed(&self.header, &self.data)
     }
@@ -111,8 +120,8 @@ impl<K: BlobKind> BlockContent for Blob<K> {
         (!name.is_empty()).then(|| name.to_owned())
     }
 
-    fn derived_metadata(&self) -> DerivedMetadata {
-        K::derived_metadata(&self.header)
+    fn describe(&self, metadata: &mut BlockMetadata) {
+        K::describe(&self.header, metadata);
     }
 }
 

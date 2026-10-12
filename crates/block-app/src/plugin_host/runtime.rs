@@ -21,6 +21,7 @@ use super::{
     ArtifactSlot, ArtifactState, BlockPickRequest, CreationSlot, CreationState, HostChild,
     HostChildStatus, InstanceRole, RuntimeStatus, SurfaceStatus,
     backend::{Availability, Backend, Deadline, Platform, ShownFrame},
+    input::{BlockDrag, BlockDragEvent},
     instances::{EditorView, Focus, Instances, Placement},
     presenter::{
         self, Blit, MAX_SURFACES, Piece, PresenterState, PresenterStatus, Quad, RegionDrawing,
@@ -97,7 +98,8 @@ impl Host {
                 runtime
             });
         runtime.instances.set_focus(focus);
-        runtime.begin_pass(host::pass());
+        let pass = host::pass();
+        runtime.contain(|runtime| runtime.begin_pass(pass));
         Ok(runtime)
     }
 
@@ -151,9 +153,17 @@ pub(super) struct Runtime {
     theme: Theme,
     utc_offset: Option<i32>,
     fonts_sent: bool,
+    described: bool,
+    pub(super) placements: HashMap<(EditorInstanceId, EditorRegion), Placed>,
     fallbacks: super::fonts::Fallbacks,
     presents: Presents,
     frames: u64,
+}
+
+pub(super) struct Placed {
+    pub(super) rect: Rect,
+    pub(super) clip: Rect,
+    pub(super) document: u32,
 }
 
 #[derive(Default)]
@@ -256,6 +266,8 @@ impl Runtime {
             theme: theme(),
             utc_offset: None,
             fonts_sent: false,
+            described: false,
+            placements: HashMap::new(),
             fallbacks: super::fonts::Fallbacks::new(),
             presents: Presents::default(),
             frames: 0,
@@ -282,6 +294,7 @@ impl Runtime {
         self.theme = theme();
         self.utc_offset = None;
         self.fonts_sent = false;
+        self.described = false;
         self.fallbacks = super::fonts::Fallbacks::new();
         self.presents = Presents::default();
         self.instances.reopen();
@@ -299,6 +312,11 @@ impl Runtime {
         if !self.fonts_sent && *self.session.state() == SessionState::Running {
             self.fonts_sent = true;
             messages.push(Message::Fonts(super::fonts::bundled()));
+        }
+        let describing = super::description::describing();
+        if *self.session.state() == SessionState::Running && self.described != describing {
+            self.described = describing;
+            messages.push(Message::Describe(describing));
         }
         let theme = theme();
         if self.theme != theme {
@@ -378,6 +396,50 @@ impl Runtime {
         self.error.is_none() && !self.backend.settled()
     }
 
+    pub(super) fn name(&self) -> &str {
+        &self.plugin.identity.name
+    }
+
+    pub(super) fn id(&self) -> &str {
+        &self.plugin.identity.id
+    }
+
+    pub(super) fn node_action(
+        &mut self,
+        screen: ScreenId,
+        node: u32,
+        action: String,
+        value: Option<block_plugin_api::NodeValue>,
+    ) {
+        self.pacing.needed = true;
+        self.send(vec![Message::NodeAction {
+            screen,
+            node,
+            action,
+            value,
+        }]);
+        host::request_repaint();
+    }
+
+    pub(super) fn run_action(&mut self, screen: ScreenId, id: String) {
+        self.pacing.needed = true;
+        self.send(vec![Message::RunAction { screen, id }]);
+        host::request_repaint();
+    }
+
+    fn busy(&mut self) -> bool {
+        if self.error.is_some() || !self.instances.has_mounted() {
+            return false;
+        }
+        let starting = matches!(
+            self.session.state(),
+            SessionState::Idle | SessionState::Starting
+        );
+        let drawing = self.session.granted_surface().is_some();
+        let awaited = drawing && (self.pacing.needed || self.pacing.requested_at.is_some());
+        starting || awaited || !self.backend.settled()
+    }
+
     fn request_frame(&mut self) {
         if self.error.is_some() {
             return;
@@ -402,14 +464,40 @@ impl Runtime {
         host::milliseconds()
     }
 
+    fn contain<R: Default>(&mut self, act: impl FnOnce(&mut Self) -> R) -> R {
+        match crate::panic_guard::contain(|| act(self)) {
+            Ok(done) => done,
+            Err(panic) => {
+                self.crashed(format!("The app failed while running it: {panic}"));
+                R::default()
+            }
+        }
+    }
+
+    fn crashed(&mut self, error: String) {
+        if self.error.is_some() {
+            return;
+        }
+        let first = error.lines().next().unwrap_or_default();
+        crate::notices::report_with(format!("{} stopped: {first}", self.name()), error.clone());
+        self.error = Some(error);
+        let _ = crate::panic_guard::contain(|| self.backend.shutdown());
+        mark(&self.plugin.identity.id);
+        host::request_repaint();
+    }
+
     fn detect_error(&mut self) {
         if self.error.is_some() {
             return;
         }
-        self.error = self.backend.take_error().or(match self.status.get() {
+        if let Some(error) = self.backend.take_error() {
+            self.crashed(error);
+            return;
+        }
+        self.error = match self.status.get() {
             PresenterState::Failed(error) | PresenterState::Unsupported(error) => Some(error),
             PresenterState::Waiting | PresenterState::Presenting | PresenterState::Released => None,
-        });
+        };
         if self.error.is_some() {
             mark(&self.plugin.identity.id);
         }
@@ -794,15 +882,17 @@ pub(crate) fn creation(slot: CreationSlot<'_>) -> CreationState {
             Ok(runtime) => runtime,
             Err(error) => return CreationState::Failed(error),
         };
-        if let Some(error) = runtime.error.clone() {
-            return CreationState::Failed(error);
-        }
-        match runtime
-            .instances
-            .report_creation(instance, client_id, block_types, role)
-        {
-            true => CreationState::Ready,
-            false => CreationState::Starting,
+        let ready = runtime.contain(|runtime| {
+            runtime.error.is_none().then(|| {
+                runtime
+                    .instances
+                    .report_creation(instance, client_id, block_types, role)
+            })
+        });
+        match (ready, runtime.error.clone()) {
+            (_, Some(error)) => CreationState::Failed(error),
+            (Some(true), None) => CreationState::Ready,
+            (Some(false) | None, None) => CreationState::Starting,
         }
     })
 }
@@ -824,26 +914,32 @@ pub(crate) fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
             Ok(runtime) => runtime,
             Err(error) => return ArtifactState::Failed(error),
         };
-        if let Some(error) = runtime.error.clone() {
-            return ArtifactState::Failed(error);
-        }
-        let messages = runtime.instances.report_artifact(
-            instance,
-            client_id,
-            block_types,
-            source_type,
-            block,
-            data,
-            resync,
-        );
-        runtime.send(messages);
-        match runtime.instances.artifact_description(instance) {
-            Some(ArtifactDescription::Described { source, summary }) => ArtifactState::Described {
-                source: Uuid::from_bytes(source),
-                summary,
-            },
-            Some(ArtifactDescription::Unreadable(error)) => ArtifactState::Failed(error),
-            None => ArtifactState::Starting,
+        let description = runtime.contain(|runtime| {
+            if runtime.error.is_some() {
+                return None;
+            }
+            let messages = runtime.instances.report_artifact(
+                instance,
+                client_id,
+                block_types,
+                source_type,
+                block,
+                data,
+                resync,
+            );
+            runtime.send(messages);
+            runtime.instances.artifact_description(instance)
+        });
+        match (description, runtime.error.clone()) {
+            (_, Some(error)) => ArtifactState::Failed(error),
+            (Some(ArtifactDescription::Described { source, summary }), None) => {
+                ArtifactState::Described {
+                    source: Uuid::from_bytes(source),
+                    summary,
+                }
+            }
+            (Some(ArtifactDescription::Unreadable(error)), None) => ArtifactState::Failed(error),
+            (None, None) => ArtifactState::Starting,
         }
     })
 }
@@ -860,17 +956,13 @@ pub(crate) fn poll() {
     let touched = crate::be::take_touched();
     HOST.with(|host| {
         let mut host = host.borrow_mut();
-        let pressed = host::pressed_at();
         for runtime in host.runtimes.values_mut() {
-            if let Some(position) = pressed
-                && runtime.instances.pressed_at(position)
-            {
-                mark(&runtime.plugin.identity.id);
-            }
-            runtime.instances.touch(&touched);
-            runtime.detect_error();
-            runtime.pump();
-            runtime.begin_frame(pass);
+            runtime.contain(|runtime| {
+                runtime.instances.touch(&touched);
+                runtime.detect_error();
+                runtime.pump();
+                runtime.begin_frame(pass);
+            });
         }
         let grabbed = host
             .runtimes
@@ -895,13 +987,17 @@ pub(crate) fn settle() {
         let asked: Vec<String> = host
             .runtimes
             .iter_mut()
-            .filter_map(|(id, runtime)| runtime.ask(pass).then(|| id.clone()))
+            .filter_map(|(id, runtime)| {
+                runtime
+                    .contain(|runtime| runtime.ask(pass))
+                    .then(|| id.clone())
+            })
             .collect();
         let started = std::time::Instant::now();
         let mut over = false;
         for id in asked {
             if let Some(runtime) = host.runtimes.get_mut(&id) {
-                over |= runtime.settle(deadline);
+                over |= runtime.contain(|runtime| runtime.settle(deadline));
             }
         }
         host.waited += started.elapsed();
@@ -909,11 +1005,20 @@ pub(crate) fn settle() {
     });
 }
 
+pub(crate) fn busy() -> bool {
+    HOST.with(|host| {
+        host.borrow_mut()
+            .runtimes
+            .values_mut()
+            .any(|runtime| runtime.contain(Runtime::busy))
+    })
+}
+
 pub(crate) fn start_frames() {
     let pass = host::pass();
     HOST.with(|host| {
         for runtime in host.borrow_mut().runtimes.values_mut() {
-            runtime.start(pass);
+            runtime.contain(|runtime| runtime.start(pass));
         }
     });
 }
@@ -930,7 +1035,7 @@ pub(crate) fn record_pacing() {
 pub(crate) fn flush() {
     HOST.with(|host| {
         for runtime in host.borrow_mut().runtimes.values_mut() {
-            runtime.flush();
+            runtime.contain(Runtime::flush);
         }
     });
 }
@@ -1377,9 +1482,11 @@ pub(crate) fn mount_region(slot: RegionSlot<'_>) {
             mark(&plugin.identity.id);
             return;
         };
-        runtime
-            .instances
-            .mount(instance, region, client_id, role, block_types);
+        runtime.contain(|runtime| {
+            runtime
+                .instances
+                .mount(instance, region, client_id, role, block_types);
+        });
         mark(&plugin.identity.id);
     });
     host::request_repaint();
@@ -1387,6 +1494,7 @@ pub(crate) fn mount_region(slot: RegionSlot<'_>) {
 
 pub(crate) fn unmount_region(plugin_id: &str, instance: EditorInstanceId, region: EditorRegion) {
     with(plugin_id, |runtime| {
+        runtime.placements.remove(&(instance, region));
         runtime.instances.unmount(instance, region)
     });
     mark(plugin_id);
@@ -1395,6 +1503,7 @@ pub(crate) fn unmount_region(plugin_id: &str, instance: EditorInstanceId, region
 
 pub(crate) fn unplace_region(plugin_id: &str, instance: EditorInstanceId, region: EditorRegion) {
     with(plugin_id, |runtime| {
+        runtime.placements.remove(&(instance, region));
         runtime.instances.unplace(instance, region)
     });
     mark(plugin_id);
@@ -1426,6 +1535,18 @@ pub(crate) fn place_region(
             clip,
             screens,
         } = placement;
+        runtime
+            .placements
+            .entry((instance, region))
+            .and_modify(|placed| {
+                placed.rect = rect;
+                placed.clip = clip;
+            })
+            .or_insert_with(|| Placed {
+                rect,
+                clip,
+                document: beui::accessibility::next_document_id(),
+            });
         let scale_factor = host::pixels_per_point();
         let size = match region {
             EditorRegion::Preview => preview_size(rect.size(), scale_factor),
@@ -1497,6 +1618,18 @@ pub(crate) fn forward_region(
         runtime.pacing.needed |= !messages.is_empty();
         runtime.send(messages);
         if revoked {
+            mark(plugin_id);
+        }
+    });
+}
+
+pub(crate) fn pressed_outside_region(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+) {
+    with(plugin_id, |runtime| {
+        if runtime.instances.revoke_active(instance, region) {
             mark(plugin_id);
         }
     });
@@ -1650,9 +1783,26 @@ pub(crate) fn region_view(
             Ok(runtime) => runtime,
             Err(error) => return RegionView::failed(error, false),
         };
-        if let Some(error) = runtime.error.clone() {
-            return RegionView::failed(error, true);
+        let view = runtime.contain(|runtime| {
+            runtime
+                .error
+                .is_none()
+                .then(|| placed_view(runtime, instance, region))
+        });
+        match (view, runtime.error.clone()) {
+            (_, Some(error)) => RegionView::failed(error, true),
+            (Some(view), None) => view,
+            (None, None) => RegionView::waiting(),
         }
+    })
+}
+
+fn placed_view(
+    runtime: &mut Runtime,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+) -> RegionView {
+    {
         let Some(placement) = runtime.instances.placement(instance, region) else {
             return RegionView::waiting();
         };
@@ -1756,7 +1906,7 @@ pub(crate) fn region_view(
             intercepted_keys,
             grabbed: runtime.instances.grabbing(),
         }
-    })
+    }
 }
 
 pub(crate) fn frames(plugin_id: &str) -> u64 {
@@ -1777,15 +1927,46 @@ pub(crate) fn take_region_actions(
                 via,
             });
         }
-        while let Some((id, block_type)) = runtime.instances.take_block_drag(instance) {
-            actions.push(EditorAction::DragBlock { id, block_type });
-        }
         while let Some((id, command)) = runtime.instances.take_block_command(instance) {
             actions.push(EditorAction::Command { id, command });
         }
         actions
     })
     .unwrap_or_default()
+}
+
+pub(crate) fn take_block_drags(plugin_id: &str, instance: EditorInstanceId) -> Vec<BlockDrag> {
+    with(plugin_id, |runtime| {
+        runtime.instances.take_block_drags(instance)
+    })
+    .unwrap_or_default()
+}
+
+pub(crate) fn drag_over_region(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+    over: Option<(BlockDrag, Pos2)>,
+    dropped: bool,
+) {
+    with(plugin_id, |runtime| {
+        let origin = runtime
+            .instances
+            .placement(instance, region)
+            .map_or(Pos2::ZERO, |placement| placement.rect.min);
+        let was = runtime.instances.dragging(instance, region);
+        let event = over.map(|(drag, at)| BlockDragEvent {
+            position: at - origin,
+            drag,
+            dropped,
+        });
+        let messages = runtime.instances.drag(instance, region, event);
+        runtime.pacing.needed |= !messages.is_empty();
+        runtime.send(messages);
+        if was != runtime.instances.dragging(instance, region) {
+            mark(plugin_id);
+        }
+    });
 }
 
 pub(crate) fn region_drawing(
@@ -1847,8 +2028,17 @@ pub(crate) fn region_damage(
     .flatten()
 }
 
+pub(super) fn each(mut act: impl FnMut(&Runtime)) {
+    HOST.with(|host| host.borrow().runtimes.values().for_each(&mut act));
+}
+
 pub(super) fn with<R>(plugin_id: &str, act: impl FnOnce(&mut Runtime) -> R) -> Option<R> {
-    HOST.with(|host| Some(act(host.borrow_mut().runtimes.get_mut(plugin_id)?)))
+    HOST.with(|host| {
+        host.borrow_mut()
+            .runtimes
+            .get_mut(plugin_id)?
+            .contain(|runtime| Some(act(runtime)))
+    })
 }
 
 #[cfg(test)]

@@ -11,13 +11,13 @@ use futures_util::pin_mut;
 use pulseaudio::protocol::{
     self, AuthParams, AuthReply, ChannelVolume, Command, CommandReply, GetSinkInfo, GetSourceInfo,
     Prop, Props, PulseError, SetClientNameReply, SetDeviceMuteParams, SetDeviceVolumeParams,
-    SinkInfo, SourceInfo, SubscriptionMask, Volume,
+    SinkInfo, SinkInfoList, SourceInfo, SubscriptionMask, Volume,
 };
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
-use block_plugin_api::MediaLevel;
+use block_plugin_api::{AudioOutput, MediaLevel};
 
-use super::{Audio, AudioRequest, MediaEvent};
+use super::{Audio, AudioRequest, AudioState, MediaEvent};
 use crate::host::WakingSender;
 
 const LONGEST_FRAME: usize = 16 << 20;
@@ -73,6 +73,17 @@ fn scaled(channels: &[u32], target: u32) -> Vec<u32> {
     }
 }
 
+pub(super) fn output_of(sink: &SinkInfo) -> AudioOutput {
+    let id = sink.name.to_string_lossy().into_owned();
+    let name = sink
+        .description
+        .as_ref()
+        .map(|description| description.to_string_lossy().into_owned())
+        .filter(|description| !description.trim().is_empty())
+        .unwrap_or_else(|| id.clone());
+    AudioOutput { id, name }
+}
+
 pub(super) fn level(channels: &[u32], muted: bool) -> MediaLevel {
     let loudest = channels.iter().copied().max().unwrap_or_default();
     MediaLevel {
@@ -98,10 +109,7 @@ async fn run(mut requested: UnboundedReceiver<AudioRequest>, events: WakingSende
             },
             Err(error) => eprintln!("block-app: PulseAudio is not reachable: {error}"),
         }
-        let _ = events.send(MediaEvent::Audio {
-            output: None,
-            input: None,
-        });
+        let _ = events.send(MediaEvent::Audio(AudioState::default()));
         match requested.recv().await {
             Some(request) => {
                 pending = Some(request);
@@ -225,7 +233,7 @@ impl Connection {
                 let (target, louder) = match request {
                     AudioRequest::Set(level) => (set(&channels, level), level > 0.0),
                     AudioRequest::Step(by) => (stepped(&channels, by), by > 0.0),
-                    AudioRequest::ToggleMute | AudioRequest::ToggleMicMute => return Ok(()),
+                    _ => return Ok(()),
                 };
                 if target != channels {
                     let mut volume = ChannelVolume::empty();
@@ -247,6 +255,21 @@ impl Connection {
             AudioRequest::ToggleMute => {
                 if let Some(sink) = self.sink().await? {
                     self.mute_sink(sink.index, !sink.muted).await?;
+                }
+            }
+            AudioRequest::SetMute(mute) => {
+                if let Some(sink) = self.sink().await?
+                    && sink.muted != mute
+                {
+                    self.mute_sink(sink.index, mute).await?;
+                }
+            }
+            AudioRequest::Choose(id) => {
+                let Ok(name) = CString::new(id) else {
+                    return Ok(());
+                };
+                if let Err(error) = self.acknowledged(Command::SetDefaultSink(name)).await? {
+                    eprintln!("block-app: the output was not chosen: {error:?}");
                 }
             }
             AudioRequest::ToggleMicMute => {
@@ -276,10 +299,16 @@ impl Connection {
     }
 
     async fn publish(&mut self, events: &WakingSender<MediaEvent>) -> Result<(), String> {
-        let output = self.sink().await?.map(|sink| {
+        let sinks: SinkInfoList = self
+            .reply(Command::GetSinkInfoList)
+            .await?
+            .unwrap_or_default();
+        let sink = self.sink().await?;
+        let output = sink.as_ref().map(|sink| {
             let channels: Vec<u32> = sink.cvolume.channels().iter().map(Volume::as_u32).collect();
             level(&channels, sink.muted)
         });
+        let default_output = sink.map(|sink| sink.name.to_string_lossy().into_owned());
         let input = self.source().await?.map(|source| {
             let channels: Vec<u32> = source
                 .cvolume
@@ -289,7 +318,12 @@ impl Connection {
                 .collect();
             level(&channels, source.muted)
         });
-        let _ = events.send(MediaEvent::Audio { output, input });
+        let _ = events.send(MediaEvent::Audio(AudioState {
+            output,
+            input,
+            outputs: sinks.iter().map(output_of).collect(),
+            default_output,
+        }));
         Ok(())
     }
 

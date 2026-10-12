@@ -32,7 +32,6 @@ fn clicking_a_live_editor_hands_it_the_frame() {
             available: true,
             intrinsic: None,
             aspect_ratio: None,
-            hovered: false,
             active: false,
             interaction: InteractionMode::Live,
             capabilities: EditorCapabilities::default(),

@@ -1,9 +1,10 @@
+use beui_core::layer::LayerPolicy;
 use std::ops::Range;
 use std::rc::Rc;
 
 use beui_macros::{component, view};
 
-use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
+use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::input::CursorIcon;
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
@@ -85,7 +86,7 @@ pub(super) fn Completions(cx: Context, menu: CompletionMenu) -> NodeId {
         <Overlay
             anchor={OverlayAnchor::Node(anchor)}
             placement=Placement::BelowStart
-            mode=OverlayMode::Floating
+            policy=LayerPolicy::Pass
             traps_focus=false
             open=true
         >

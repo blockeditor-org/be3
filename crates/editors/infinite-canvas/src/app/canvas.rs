@@ -4,8 +4,9 @@ use block_editor_beui::be_block::canvas::{CanvasEntity, CanvasEntityKind};
 use std::cell::RefCell;
 
 use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, CanvasView, Child, Draw, Drawing, ForEach, Interactive, Memo, ReadSignal,
-    Show, clone, component, component_rect, create_effect, create_memo, create_signal, view,
+    Canvas, CanvasItem, CanvasView, Child, Draw, Drawing, ForEach, Interactive, Memo,
+    PlacementBuilder, ReadSignal, Show, clone, component, create_effect, create_memo,
+    create_signal, view,
 };
 use block_editor_beui::beui::styled::use_theme;
 use block_editor_beui::beui::{KeyPress, NodeId, Painter, PointerPress, Rect, Vec2, pos2};
@@ -23,77 +24,82 @@ const ITEM_MARGIN: f32 = 2.0;
 
 #[component]
 pub(crate) fn CanvasStage(state: Rc<CanvasState>) -> NodeId {
-    let placed = component_rect();
-    let held = Rc::clone(&state);
-    create_effect(clone!(placed held -> move || held.stage.set(placed.get())));
-
-    let view = state.editor().canvas();
-    let world = state.editor().world();
-    let centred = Rc::clone(&state);
-    let camera = create_memo(clone!(view world placed centred -> move || {
-        super::state::camera_view(view.get(), world.get(), placed.get(), centred.centre())
-    }));
-    let ids = create_memo(clone!(state -> move || {
-        state
-            .displayed()
-            .iter()
-            .map(|entity| entity.id)
-            .collect::<Vec<Uuid>>()
-    }));
-    let embeds = ids.clone();
-    let surface = Rc::clone(&state);
-    let shapes = Rc::clone(&state);
-    let children = Rc::clone(&state);
-    let over = Rc::clone(&state);
-    let shape_camera = camera.clone();
-    let overlay_camera = camera.clone();
-    let overlay_stage = placed.clone();
-    let backdrop = Rc::clone(&state);
-    let backdrop_camera = camera.clone();
-    let backdrop_stage = placed.clone();
-    let placement = camera.clone();
-    let previewing = state.previewing();
     view! {
-        <CanvasMenu disabled={previewing}>
-            <CanvasSurface state={surface}>
-                <Canvas
-                    view={create_memo(clone!(placement -> move || Some(placement.get())))}
-                    @test_id={"infinite-canvas.canvas"}
-                >
-                    <Show condition={!previewing}>
-                        <CanvasBackdrop
-                            state={backdrop.clone()}
-                            camera={backdrop_camera.clone()}
-                            stage={backdrop_stage.clone()}
-                        />
-                    </Show>
-                    <ForEach keys={ids}>
-                        {move |id: Uuid| {
-                            let state = Rc::clone(&shapes);
-                            let camera = shape_camera.clone();
-                            view! {
-                                <EntityShape state id camera />
-                            }
-                        }}
-                    </ForEach>
-                    <ForEach keys={embeds}>
-                        {move |id: Uuid| {
-                            let state = Rc::clone(&children);
-                            view! {
-                                <EntityEmbed state id />
-                            }
-                        }}
-                    </ForEach>
-                    <Show condition={!previewing}>
-                        <CanvasOverlay
-                            state={over.clone()}
-                            camera={overlay_camera.clone()}
-                            stage={overlay_stage.clone()}
-                        />
-                    </Show>
-                </Canvas>
-            </CanvasSurface>
-        </CanvasMenu>
+        <PlacementBuilder>
+            {move |placed: ReadSignal<Rect>| {
+                let held = Rc::clone(&state);
+                create_effect(clone!(placed held -> move || held.stage.set(placed.get())));
+
+                let view = state.editor().canvas();
+                let world = state.editor().world();
+                let centred = Rc::clone(&state);
+                let camera = create_memo(clone!(view world placed centred -> move || {
+                    super::state::camera_view(view.get(), world.get(), placed.get(), centred.centre())
+                }));
+                let ids = create_memo(clone!(state -> move || {
+                    state
+                        .displayed()
+                        .iter()
+                        .map(|entity| entity.id)
+                        .collect::<Vec<Uuid>>()
+                }));
+                let embeds = ids.clone();
+                let surface = Rc::clone(&state);
+                let shapes = Rc::clone(&state);
+                let children = Rc::clone(&state);
+                let over = Rc::clone(&state);
+                let shape_camera = camera.clone();
+                let overlay_camera = camera.clone();
+                let overlay_stage = placed.clone();
+                let backdrop = Rc::clone(&state);
+                let backdrop_camera = camera.clone();
+                let backdrop_stage = placed.clone();
+                let placement = camera.clone();
+                let previewing = state.previewing();
+                view! {
+                    <CanvasMenu disabled={previewing}>
+                        <CanvasSurface state={surface}>
+                            <Canvas
+                                view={create_memo(clone!(placement -> move || Some(placement.get())))}
+                                @test_id={"infinite-canvas.canvas"}
+                            >
+                                <Show condition={!previewing}>
+                                    <CanvasBackdrop
+                                        state={backdrop.clone()}
+                                        camera={backdrop_camera.clone()}
+                                        stage={backdrop_stage.clone()}
+                                    />
+                                </Show>
+                                <ForEach keys={ids}>
+                                    {move |id: Uuid| {
+                                        let state = Rc::clone(&shapes);
+                                        let camera = shape_camera.clone();
+                                        view! {
+                                            <EntityShape state id camera />
+                                        }
+                                    }}
+                                </ForEach>
+                                <ForEach keys={embeds}>
+                                    {move |id: Uuid| {
+                                        let state = Rc::clone(&children);
+                                        view! {
+                                            <EntityEmbed state id />
+                                        }
+                                    }}
+                                </ForEach>
+                                <Show condition={!previewing}>
+                                    <CanvasOverlay
+                                        state={over.clone()}
+                                        camera={overlay_camera.clone()}
+                                        stage={overlay_stage.clone()}
+                                    />
+                                </Show>
+                            </Canvas>
+                        </CanvasSurface>
+                    </CanvasMenu>
+                }
+            }}
+        </PlacementBuilder>
     }
 }
 

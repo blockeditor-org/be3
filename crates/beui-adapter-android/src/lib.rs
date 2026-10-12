@@ -27,16 +27,15 @@ use ndk::native_window::NativeWindow;
 use raw_window_handle as rwh;
 
 use beui_core::app::{SafeArea, Setup, Waker};
-use beui_core::file_picker::{FilePick, FilePickId, FilePickRequest, PickedFile};
+use beui_core::file_picker::{FilePick, FilePickAnswer, FilePickId, FilePickRequest, PickedFile};
 use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
 use beui_core::input::{
     BackEdge, BackGesture, Event, ImeArea, ImeEvent, ImeText, Key, Modifiers, TouchId, TouchPhase,
 };
 use beui_core::renderer::{Loaded, WindowHandle};
-use beui_core::runner::{Adapter, Launch, Platform, Running};
+use beui_core::runner::{Adapter, Keystroke, Launch, Platform, Running, ScrollDelta};
 use clipboard::Clipboard;
 
-const LINE_HEIGHT: f32 = 40.0;
 const SURFACE_RELEASE_TIMEOUT: Duration = Duration::from_secs(2);
 
 const META_SHIFT_ON: jint = 0x1;
@@ -104,7 +103,6 @@ enum Message {
     Back(BackGesture),
     InitialTreeRequested,
     Action(ActionRequest),
-    FilePicked(FilePickId, FilePick),
     Wake,
     Destroy {
         finishing: bool,
@@ -119,6 +117,7 @@ struct Shared {
 static SHARED: OnceLock<Shared> = OnceLock::new();
 static STARTED: AtomicBool = AtomicBool::new(false);
 static ACTIVITY: Mutex<Option<Global<JObject<'static>>>> = Mutex::new(None);
+static PICKS: Mutex<Vec<FilePickAnswer>> = Mutex::new(Vec::new());
 
 fn shared() -> &'static Shared {
     SHARED.get_or_init(|| {
@@ -167,14 +166,12 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
         .unwrap_or_else(PoisonError::into_inner)
         .take()
         .ok_or("the app is already running")?;
-    launch.context.set_test_ids_published(false);
     let mut runner = Runner {
         runner: beui_core::runner::Runner::new(launch),
         platform: AndroidPlatform {
             vm: JavaVM::singleton()?,
             view: None,
             accessibility: None,
-            accessibility_active: false,
             clipboard: Clipboard::new(),
             ime: None,
             handles_back: false,
@@ -185,7 +182,6 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
         load: Some(load),
         window: None,
         density: 1.0,
-        modifiers: Modifiers::NONE,
         safe_area: SafeArea::default(),
         next_update: None,
         redraw: false,
@@ -194,7 +190,7 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
     runner.run(&receiver);
     match runner.error {
         Some(error) => Err(error.into()),
-        None => Ok(()),
+        None => runner.runner.finish(),
     }
 }
 
@@ -204,7 +200,6 @@ struct Runner {
     load: Option<Load>,
     window: Option<NativeWindow>,
     density: f32,
-    modifiers: Modifiers,
     safe_area: SafeArea,
     next_update: Option<Instant>,
     redraw: bool,
@@ -215,7 +210,6 @@ struct AndroidPlatform {
     vm: JavaVM,
     view: Option<Arc<Global<JObject<'static>>>>,
     accessibility: Option<InjectingAdapter>,
-    accessibility_active: bool,
     clipboard: Clipboard,
     ime: Option<ImeArea>,
     handles_back: bool,
@@ -233,8 +227,8 @@ impl Platform for AndroidPlatform {
         self.clipboard.get()
     }
 
-    fn pick_file(&mut self, request: FilePickRequest) {
-        AndroidPlatform::pick_file(self, request);
+    fn pick_file(&mut self, request: FilePickRequest, answer: FilePickAnswer) {
+        AndroidPlatform::pick_file(self, request, answer);
     }
 
     fn set_handles_back(&mut self, handles: bool) {
@@ -264,9 +258,7 @@ impl Platform for AndroidPlatform {
     }
 
     fn publish_accessibility(&mut self, tree: &mut dyn FnMut() -> TreeUpdate) {
-        if self.accessibility_active
-            && let Some(accessibility) = &mut self.accessibility
-        {
+        if let Some(accessibility) = &mut self.accessibility {
             accessibility.update_if_active(tree);
         }
     }
@@ -361,15 +353,16 @@ impl AndroidPlatform {
             });
     }
 
-    fn pick_file(&self, request: FilePickRequest) {
+    fn pick_file(&self, request: FilePickRequest, answer: FilePickAnswer) {
         let Some(view) = &self.view else {
-            send(Message::FilePicked(
-                request.id,
-                Err("Choosing a file is unavailable right now".into()),
-            ));
+            answer.send(Err("Choosing a file is unavailable right now".into()));
             return;
         };
         let id = request.id;
+        PICKS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(answer);
         let started = self
             .vm
             .attach_current_thread(|env| -> Result<(), JniError> {
@@ -385,11 +378,10 @@ impl AndroidPlatform {
                 )?;
                 Ok(())
             });
-        if let Err(error) = started {
-            send(Message::FilePicked(
-                id,
-                Err(format!("Could not open a file picker: {error}")),
-            ));
+        if let Err(error) = started
+            && let Some(answer) = take_pick(id)
+        {
+            answer.send(Err(format!("Could not open a file picker: {error}")));
         }
     }
 
@@ -465,18 +457,6 @@ impl Runner {
         self.exit();
     }
 
-    fn scale_factor(&self) -> f32 {
-        let context = self.runner.context();
-        context
-            .simulated_pixels_per_point()
-            .unwrap_or(self.density * context.zoom_factor())
-    }
-
-    fn logical(&self, x: f32, y: f32) -> Pos2 {
-        let scale = self.scale_factor();
-        pos2(x / scale, y / scale)
-    }
-
     fn handle(&mut self, message: Message) {
         match message {
             Message::View(view) => {
@@ -512,13 +492,7 @@ impl Runner {
                 self.safe_area = area;
                 self.redraw = true;
             }
-            Message::Focus(focused) => {
-                if !focused && self.modifiers != Modifiers::NONE {
-                    self.modifiers = Modifiers::NONE;
-                    self.runner.push(Event::Modifiers(self.modifiers));
-                }
-                self.runner.push(Event::Focus(focused));
-            }
+            Message::Focus(focused) => self.runner.push(Event::Focus(focused)),
             Message::Touch {
                 device,
                 id,
@@ -527,9 +501,10 @@ impl Runner {
                 y,
                 force,
             } => {
-                let pos = self.logical(x, y);
+                let pos = pos2(x, y);
                 if phase == TouchPhase::End {
-                    self.platform.tapped_at = Some(pos);
+                    let scale = self.runner.context().pixels_per_point();
+                    self.platform.tapped_at = Some(pos2(x / scale, y / scale));
                 }
                 self.runner.push(Event::Touch {
                     id: TouchId {
@@ -541,7 +516,7 @@ impl Runner {
                     force: Some(force),
                 });
             }
-            Message::Scroll(delta) => self.runner.push(Event::Scroll(delta * LINE_HEIGHT)),
+            Message::Scroll(delta) => self.runner.push(ScrollDelta::Lines(delta)),
             Message::Key {
                 key,
                 pressed,
@@ -549,32 +524,14 @@ impl Runner {
                 modifiers,
                 text,
             } => {
-                if modifiers != self.modifiers {
-                    self.modifiers = modifiers;
-                    self.runner.push(Event::Modifiers(modifiers));
-                }
-                if pressed
-                    && key == Some(Key::V)
-                    && modifiers.ctrl
-                    && !modifiers.alt
-                    && let Some(text) = self.platform.clipboard.get()
-                {
-                    self.runner.push(Event::Text(text));
-                }
-                if let Some(key) = key.filter(|key| !(repeat && key.is_modifier())) {
-                    self.runner.push(Event::Key {
-                        key,
-                        pressed,
-                        repeat,
-                        modifiers,
-                    });
-                }
-                if pressed
-                    && !modifiers.command()
-                    && let Some(text) = text
-                {
-                    self.runner.push(Event::Text(text));
-                }
+                self.runner.push(Event::Modifiers(modifiers));
+                self.runner.push(Keystroke {
+                    key,
+                    pressed,
+                    repeat,
+                    code: None,
+                    text,
+                });
             }
             Message::Ime { event, serial } => {
                 self.platform.ime_serial = self.platform.ime_serial.max(serial);
@@ -582,16 +539,11 @@ impl Runner {
             }
             Message::Back(gesture) => self.runner.push(Event::Back(gesture)),
             Message::InitialTreeRequested => {
-                self.platform.accessibility_active = true;
-                self.runner.context().reset_accessibility();
+                self.runner.accessibility_requested();
                 self.redraw = true;
             }
             Message::Action(request) => {
-                self.runner.context().accessibility_action(request);
-                self.redraw = true;
-            }
-            Message::FilePicked(id, pick) => {
-                self.runner.context().file_picked(id, pick);
+                self.runner.accessibility_action(request);
                 self.redraw = true;
             }
             Message::Wake => self.redraw = true,
@@ -656,10 +608,9 @@ impl Runner {
             self.next_update = None;
             return false;
         };
-        self.next_update = Instant::now().checked_add(frame.repaint_after);
-        if frame.deferred {
-            self.redraw = true;
-        }
+        self.next_update = frame
+            .wait()
+            .and_then(|wait| Instant::now().checked_add(wait));
         if frame.close_requested {
             self.platform.finish_activity();
             self.exit();
@@ -1131,5 +1082,13 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeFilePicked<'local>(
             Err("The chosen file could not be read".to_owned())
         }
     };
-    send(Message::FilePicked(FilePickId(id.cast_unsigned()), pick));
+    if let Some(answer) = take_pick(FilePickId(id.cast_unsigned())) {
+        answer.send(pick);
+    }
+}
+
+fn take_pick(id: FilePickId) -> Option<FilePickAnswer> {
+    let mut picks = PICKS.lock().unwrap_or_else(PoisonError::into_inner);
+    let index = picks.iter().position(|answer| answer.id() == id)?;
+    Some(picks.swap_remove(index))
 }

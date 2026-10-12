@@ -102,7 +102,7 @@ fn name(&self) -> Option<String> {
 }
 ```
 
-Whenever an editor that may edit the block sees a new revision, the app writes this as the block's automatic name (`be::name_implicitly`). It never overrides a name someone set by hand. Leave `name` at its default, `None`, and the UI falls back to the type's display name.
+Every save records this as the block's `INTRINSIC_NAME` metadata, and the app shows it while an editor has the block open (`be::describe_implicitly`). A name someone set by hand (`NAME`) takes precedence. Anything else the content can say about itself that others want before it loads goes in `BlockContent::describe`, under a `MetaKey::derived` key. Leave `name` at its default, `None`, and the UI falls back to the type's display name.
 
 ## 5. Children
 
@@ -124,7 +124,7 @@ The app calls it through `be::change_child`, so the host makes the edit itself a
 
 A `Document` implements `Undo` already: every edit records a step that is taken against the state before it and reverted against the state as it is now, so undo leaves alone what someone else changed since. It is enabled per type in the app's registry (below) with `kind_with_history`. Undo belongs to the app's peer, not to the editor, so an editor gets it without writing anything.
 
-A content type that does not fit a document - a file with a large payload (`Blob<K>`) - implements `BlockContent`, `LiveEdit` and `Merge` by hand in `be-block`, and `Undo` too if it wants one. Prefer a document whenever the content can be described as one.
+A content type that does not fit a document - a file with a large payload (`Blob<K>`) - implements `BlockContent`, `LiveEdit` and `Merge` by hand in `be-block`, and `Undo` too if it wants one. Prefer a document whenever the content can be described as one. A blob kind bumps `BlobKind::SCHEMA` when its header changes so that an old header would be read wrongly, which offers its blocks saved before the change for reset (guides/the_new_block_stack.md, Blocks saved by another build); a document's schema is derived from its structs.
 
 ## 7. Export and register
 

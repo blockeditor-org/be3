@@ -8,7 +8,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use beui::{Document, Event, FileFilter, FilePick, FilePickId, Key, PointerButton, Pos2, Waker};
+use beui::{ClipboardReadId, Document, FileFilter, FilePick, FilePickId, Waker};
 use uuid::Uuid;
 
 static WAKER: OnceLock<Waker> = OnceLock::new();
@@ -48,24 +48,9 @@ pub(crate) fn waking_channel<T>() -> (WakingSender<T>, Receiver<T>) {
     (WakingSender(sender), receiver)
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct DragPayload {
-    pub(crate) block_id: Uuid,
-    pub(crate) block_type: Uuid,
-}
-
 #[derive(Clone, Debug)]
 pub(crate) enum HostCommand {
     RestartPlugin(String),
-}
-
-#[derive(Default)]
-pub(crate) struct Input {
-    pub(crate) events: Vec<Event>,
-    pub(crate) pointer: Option<Pos2>,
-    pub(crate) pressed: bool,
-    pub(crate) primary_released: bool,
-    pub(crate) primary_down: bool,
 }
 
 #[derive(Default)]
@@ -73,6 +58,7 @@ struct Output {
     fullscreen: Option<bool>,
     copied: Option<String>,
     file_picks: Vec<(FileFilter, PickSlot)>,
+    clipboard_reads: Vec<ReadSlot>,
     grab: Option<bool>,
     repaint: bool,
     repaint_after: Option<Duration>,
@@ -85,12 +71,10 @@ struct Host {
     pixels_per_point: f32,
     screen_scale: f32,
     dark: bool,
-    input: Input,
-    pointer: Option<Pos2>,
-    drag: Option<DragPayload>,
     grabbed: bool,
     commands: Vec<HostCommand>,
     waiting_picks: Vec<(FilePickId, PickSlot)>,
+    waiting_reads: Vec<(ClipboardReadId, ReadSlot)>,
     output: Output,
 }
 
@@ -103,12 +87,10 @@ impl Default for Host {
             pixels_per_point: 1.0,
             screen_scale: 1.0,
             dark: true,
-            input: Input::default(),
-            pointer: None,
-            drag: None,
             grabbed: false,
             commands: Vec::new(),
             waiting_picks: Vec::new(),
+            waiting_reads: Vec::new(),
             output: Output::default(),
         }
     }
@@ -120,12 +102,6 @@ fn with<R>(act: impl FnOnce(&mut Host) -> R) -> R {
 
 struct Frame {
     now: Option<Instant>,
-    events: Vec<Event>,
-    pointer: Option<Pos2>,
-    pressed: bool,
-    released: bool,
-    down: bool,
-    touch_position: Option<Pos2>,
     dark: bool,
     pixels_per_point: f32,
     screen_scale: f32,
@@ -135,12 +111,6 @@ impl Default for Frame {
     fn default() -> Self {
         Self {
             now: None,
-            events: Vec::new(),
-            pointer: None,
-            pressed: false,
-            released: false,
-            down: false,
-            touch_position: None,
             dark: true,
             pixels_per_point: 1.0,
             screen_scale: 1.0,
@@ -163,16 +133,24 @@ pub(crate) fn begin(context: &beui::Context, document: &Document) {
     for (deliver, pick) in picked {
         deliver(pick);
     }
-    let mut frame = context.screen_input(|input| Frame {
-        now: Some(context.now()),
-        events: input.events.clone(),
-        pointer: input.pointer.pos,
-        pressed: input.pointer.primary_pressed || input.touch.started(),
-        released: input.pointer.primary_released,
-        down: input.pointer.primary_down,
-        touch_position: input.touch.primary_pos(),
-        ..Frame::default()
+    let mut read = Vec::new();
+    with(|host| {
+        host.waiting_reads
+            .retain_mut(|(id, slot)| match context.take_clipboard_read(*id) {
+                Some(text) => {
+                    read.extend(slot.take().map(|deliver| (deliver, text)));
+                    false
+                }
+                None => true,
+            });
     });
+    for (deliver, text) in read {
+        deliver(text);
+    }
+    let mut frame = Frame {
+        now: Some(context.now()),
+        ..Frame::default()
+    };
     let [red, green, blue, _] = document.theme().background.to_array();
     frame.dark = u32::from(red) + u32::from(green) + u32::from(blue) < 384;
     frame.screen_scale = context.screen_scale();
@@ -191,26 +169,11 @@ fn start(frame: Frame) {
         host.pixels_per_point = frame.pixels_per_point;
         host.screen_scale = frame.screen_scale;
         host.output = Output::default();
-        if frame.pointer.is_some() {
-            host.pointer = frame.pointer;
-        }
-        host.input = Input {
-            events: frame.events,
-            pointer: frame.pointer.or(frame.touch_position).or(host.pointer),
-            pressed: frame.pressed,
-            primary_released: frame.released,
-            primary_down: frame.down,
-        };
     });
 }
 
 fn finish() -> Output {
-    with(|host| {
-        if host.input.primary_released && !host.input.primary_down {
-            host.drag = None;
-        }
-        std::mem::take(&mut host.output)
-    })
+    with(|host| std::mem::take(&mut host.output))
 }
 
 pub(crate) fn end(context: &beui::Context) {
@@ -224,6 +187,10 @@ pub(crate) fn end(context: &beui::Context) {
     for (filter, slot) in output.file_picks {
         let id = context.pick_file(filter);
         with(|host| host.waiting_picks.push((id, slot)));
+    }
+    for slot in output.clipboard_reads {
+        let id = context.read_clipboard();
+        with(|host| host.waiting_reads.push((id, slot)));
     }
     if let Some(grab) = output.grab
         && with(|host| std::mem::replace(&mut host.grabbed, grab)) != grab
@@ -258,22 +225,6 @@ pub(crate) fn dark() -> bool {
     with(|host| host.dark)
 }
 
-pub(crate) fn input<R>(read: impl FnOnce(&Input) -> R) -> R {
-    with(|host| read(&host.input))
-}
-
-pub(crate) fn pointer() -> Option<Pos2> {
-    input(|input| input.pointer)
-}
-
-pub(crate) fn key_pressed(key: Key) -> bool {
-    input(|input| {
-        input.events.iter().any(|event| {
-            matches!(event, Event::Key { key: pressed, pressed: true, .. } if *pressed == key)
-        })
-    })
-}
-
 pub(crate) fn set_fullscreen(fullscreen: bool) {
     with(|host| host.output.fullscreen = Some(fullscreen));
 }
@@ -287,6 +238,11 @@ pub(crate) fn copy_text(text: String) {
 }
 
 type PickSlot = Option<Box<dyn FnOnce(FilePick)>>;
+type ReadSlot = Option<Box<dyn FnOnce(Option<String>)>>;
+
+pub(crate) fn read_clipboard(deliver: impl FnOnce(Option<String>) + 'static) {
+    with(|host| host.output.clipboard_reads.push(Some(Box::new(deliver))));
+}
 
 pub(crate) fn pick_file(filter: FileFilter, deliver: impl FnOnce(FilePick) + 'static) {
     with(|host| {
@@ -309,22 +265,6 @@ pub(crate) fn request_repaint_after(delay: Duration) {
     });
 }
 
-pub(crate) fn start_drag(payload: DragPayload) {
-    with(|host| host.drag = Some(payload));
-}
-
-pub(crate) fn drag() -> Option<DragPayload> {
-    with(|host| host.drag)
-}
-
-pub(crate) fn pressed_at() -> Option<Pos2> {
-    input(|input| input.pressed.then_some(input.pointer).flatten())
-}
-
-pub(crate) fn drag_released() -> bool {
-    input(|input| input.primary_released)
-}
-
 pub(crate) fn push_command(command: HostCommand) {
     with(|host| host.commands.push(command));
     wake();
@@ -334,25 +274,11 @@ pub(crate) fn take_commands() -> Vec<HostCommand> {
     with(|host| std::mem::take(&mut host.commands))
 }
 
-pub(crate) fn pointer_button_index(button: PointerButton) -> u8 {
-    match button {
-        PointerButton::Primary => 0,
-        PointerButton::Secondary => 1,
-        PointerButton::Middle => 2,
-        PointerButton::Back => 3,
-        PointerButton::Forward => 4,
-    }
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum HostItem {
     Notice {
         text: String,
         spinner: bool,
-    },
-    Error {
-        text: String,
-        restart: Option<String>,
     },
     Fallback {
         name: String,

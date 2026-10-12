@@ -1,34 +1,68 @@
 use super::*;
+use beui::KeyAt;
+use beui::reactive::LayerLevel;
 
 mod a_click_on_beui_dismisses_a_grabbed_popup;
 mod a_closed_window_leaves_the_list;
+mod a_cursor_shape_a_client_names_is_shown_over_its_window;
+mod a_dialog_that_closes_gives_the_keyboard_back_to_the_window_that_had_it;
 mod a_dmabuf_window_samples_the_clients_pixels;
 mod a_drag_begun_on_the_ui_over_a_window_never_reaches_the_window;
+mod a_drag_does_not_drop_onto_a_window_a_modal_dialog_blocks;
+mod a_drag_reaches_a_popup_past_its_windows_edge;
 mod a_drawn_window_is_listed_and_fitted_to_where_it_is_shown;
+mod a_frame_callback_waits_for_the_flip_of_the_screen_the_window_is_on;
 mod a_fullscreen_window_covers_only_its_own_screen;
 mod a_global_action_that_does_not_intercept_leaves_the_window_its_keys;
+mod a_launched_program_is_given_a_token_that_brings_a_window_forward;
 mod a_locked_session_gives_no_window_the_keyboard_or_the_pointer;
 mod a_maximized_window_keeps_its_place_and_is_told_it_is_maximized;
+mod a_modal_dialog_keeps_presses_and_keys_from_its_parent;
+mod a_popup_reaching_past_its_window_keeps_its_size_and_is_shown_outside_it;
+mod a_press_between_two_popups_reaches_what_is_under_them;
+mod a_press_held_when_a_dialog_turns_modal_is_still_released;
 mod a_press_the_ui_claims_with_super_never_reaches_the_window;
 mod a_process_the_compositor_launched_can_be_ended;
 mod a_program_that_is_not_found_is_reported;
+mod a_repositioned_popup_is_configured_again;
+mod a_resized_window_is_drawn_unscaled_until_it_commits_the_new_size;
 mod a_shown_dmabuf_is_released_once_a_newer_one_is_painted;
 mod a_shown_window_that_inhibits_idle_keeps_the_session_awake;
+mod a_single_pixel_buffer_fills_its_window_with_one_color;
+mod a_stale_or_foreign_token_does_not_take_the_focus;
+mod a_token_from_a_click_in_the_focused_window_brings_another_window_forward;
+mod a_token_is_lost_once_the_keyboard_leaves_its_window;
 mod a_wake_from_the_host_counts_as_activity;
 mod a_window_asking_for_fullscreen_before_it_is_shown_is_answered;
 mod a_window_asking_for_fullscreen_covers_the_screen;
+mod a_window_brought_forward_while_it_is_not_shown_is_reported_raised;
+mod a_window_dragged_from_drops_onto_the_window_under_the_pointer;
+mod a_window_on_no_screen_has_its_presentation_discarded;
+mod a_window_that_copies_keeps_its_own_selection;
+mod a_window_that_moves_without_resizing_is_not_configured_again;
+mod a_window_that_picks_its_own_size_is_shown_at_it_and_never_told_another;
 mod a_window_that_stops_answering_pings_is_not_responding_until_it_answers;
+mod a_windows_surfaces_are_drawn_back_to_front;
+mod activating_a_window_with_a_modal_dialog_raises_the_dialog;
+mod an_app_that_inhibits_shortcuts_gets_super_chords_until_super_escape;
 mod an_inhibitor_on_a_window_that_is_not_shown_does_not_keep_the_session_awake;
 mod closing_a_window_that_is_not_responding_disconnects_its_client;
 mod idle_notifications_tell_clients_when_the_user_idles_and_resumes;
 mod keys_follow_the_focus_between_beui_and_a_window;
 mod leaving_fullscreen_returns_the_window_to_where_it_was_shown;
 mod only_an_input_idle_notification_ignores_inhibitors;
+mod presentation_feedback_carries_the_flip_time;
+mod raising_a_window_that_does_not_redraw_shows_it_over_the_one_it_covered;
 mod super_f_toggles_fullscreen_on_the_focused_window;
+mod text_a_program_copies_reaches_the_host;
+mod text_the_host_copies_is_offered_to_programs;
 mod the_f_of_super_f_released_elsewhere_is_not_held_against_the_next;
 mod the_lock_time_runs_on_its_own_and_ignores_inhibitors_once_locked;
+mod the_pointer_shows_the_cursor_surface_a_client_sets_over_its_window;
 mod the_session_idles_after_the_blank_time_and_wakes_on_input;
 mod the_ui_can_make_a_window_fullscreen_and_take_it_back;
+mod with_middle_click_paste_off_a_selection_is_cancelled_and_offered_to_no_one;
+mod with_middle_click_paste_on_a_selection_is_offered_until_it_is_switched_off;
 
 use beui::reactive::{
     ForEach, Frame, Interactive, List, Overlay, OverlayAnchor, Placement, WriteSignal, build,
@@ -70,17 +104,21 @@ fn Shown(windows: Windows) -> NodeId {
             });
         })
         .shortcut(beui::reactive::Chord::logo(Key::F))
-        .intercepts()
+        .at(KeyAt::Window)
+        .capture()
         .register();
         beui::reactive::Action::new("test.global", "Global", || {
             GLOBAL_RAN.with(|ran| ran.set(ran.get() + 1))
         })
         .shortcut(beui::reactive::Chord::logo(Key::G))
-        .global()
+        .at(KeyAt::Window)
         .register();
+        crate::view::register_restore_shortcuts(&windows);
         let (text, set_text) = create_signal(String::new());
         let (locked, set_locked) = create_signal(false);
         LOCK.with(|lock| *lock.borrow_mut() = Some(set_locked));
+        let (asking, set_asking) = create_signal(false);
+        DIALOG.with(|dialog| *dialog.borrow_mut() = Some(set_asking));
         let ids = create_memo(clone_list(&windows));
         view! {
             <Interactive
@@ -122,10 +160,17 @@ fn Shown(windows: Windows) -> NodeId {
                     <Overlay
                         anchor=OverlayAnchor::Point(Pos2::ZERO)
                         placement=Placement::Fill
-                        locks=true
+                        level=LayerLevel::Lock
                         open={locked}
                     >
                         <TextInput @test_id={"test.lock"} value="" />
+                    </Overlay>
+                    <Overlay
+                        anchor=OverlayAnchor::Point(Pos2::ZERO)
+                        placement=Placement::Center
+                        open={asking.clone()}
+                    >
+                        <TextInput @test_id={"test.dialog"} value="" focused={asking} />
                     </Overlay>
                 </List>
             </Interactive>
@@ -214,6 +259,14 @@ impl Harness {
         self.settle();
     }
 
+    fn ask(&mut self, open: bool) {
+        let set = DIALOG
+            .with(|dialog| dialog.borrow().clone())
+            .expect("the harness has a dialog");
+        with_reactive_scope(&mut self.document, move || set.set(open));
+        self.settle();
+    }
+
     fn settle(&mut self) {
         for _ in 0..3 {
             self.frame(Vec::new());
@@ -285,16 +338,7 @@ impl Harness {
     }
 
     fn key(&mut self, code: u32) {
-        self.frame(vec![
-            Event::PhysicalKey {
-                code,
-                pressed: true,
-            },
-            Event::PhysicalKey {
-                code,
-                pressed: false,
-            },
-        ]);
+        self.frame(vec![physical(code, true), physical(code, false)]);
         self.settle();
     }
 
@@ -310,18 +354,102 @@ impl Harness {
     }
 }
 
+struct Painter {
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    renderer: beui::Renderer,
+    view: wgpu::TextureView,
+}
+
+impl Painter {
+    fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
+        let format = wgpu::TextureFormat::Bgra8Unorm;
+        let target = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("screen"),
+            size: wgpu::Extent3d {
+                width: SCREEN.x as u32,
+                height: SCREEN.y as u32,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+        Self {
+            device: device.clone(),
+            queue: queue.clone(),
+            renderer: beui::Renderer::new(device, format),
+            view: target.create_view(&wgpu::TextureViewDescriptor::default()),
+        }
+    }
+
+    fn paint(&mut self, harness: &Harness) {
+        use beui::Repainting as _;
+        let output = harness.output.as_ref().expect("a frame ran");
+        let repaint = output.repaint(beui::Color32::BLACK);
+        self.renderer
+            .prepare(&self.device, &self.queue, output, SCREEN, 1.0, repaint);
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+        self.renderer.render(
+            &self.device,
+            &self.queue,
+            &mut encoder,
+            &self.view,
+            (SCREEN.x as u32, SCREEN.y as u32),
+            wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+        );
+        let index = self.queue.submit([encoder.finish()]);
+        self.device
+            .poll(wgpu::PollType::Wait {
+                submission_index: Some(index),
+                timeout: None,
+            })
+            .expect("the frame finishes");
+    }
+}
+
+fn flip(seconds: u64) -> crate::presentation::Presented {
+    crate::presentation::Presented {
+        time: std::time::Duration::from_secs(seconds),
+        refresh: std::time::Duration::from_nanos(16_666_667),
+        sequence: seconds,
+        vsync: true,
+        hardware_clock: true,
+    }
+}
+
 const KEY_F: u32 = 33;
 const KEY_G: u32 = 34;
+const KEY_ESC: u32 = 1;
 const KEY_LEFTMETA: u32 = 125;
 
 thread_local! {
     static LOCK: std::cell::RefCell<Option<WriteSignal<bool>>> = const { std::cell::RefCell::new(None) };
+    static DIALOG: std::cell::RefCell<Option<WriteSignal<bool>>> = const { std::cell::RefCell::new(None) };
     static GLOBAL_RAN: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
     static CLAIMED: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }
 
+fn stroke(key: Key, code: u32, pressed: bool, modifiers: beui::Modifiers) -> Event {
+    Event::Key {
+        press: beui::KeyPress {
+            key,
+            pressed,
+            repeat: false,
+            modifiers,
+        },
+        code: Some(code),
+        text: None,
+    }
+}
+
 fn physical(code: u32, pressed: bool) -> Event {
-    Event::PhysicalKey { code, pressed }
+    stroke(Key::Unidentified, code, pressed, beui::Modifiers::NONE)
 }
 
 fn super_key(pressed: bool) -> Vec<Event> {
@@ -329,19 +457,14 @@ fn super_key(pressed: bool) -> Vec<Event> {
         true => beui::Modifiers::LOGO,
         false => beui::Modifiers::NONE,
     };
-    vec![physical(KEY_LEFTMETA, pressed), Event::Modifiers(held)]
+    vec![
+        stroke(Key::Logo, KEY_LEFTMETA, pressed, held),
+        Event::Modifiers(held),
+    ]
 }
 
 fn f_key(pressed: bool, modifiers: beui::Modifiers) -> Vec<Event> {
-    vec![
-        physical(KEY_F, pressed),
-        Event::Key {
-            key: Key::F,
-            pressed,
-            repeat: false,
-            modifiers,
-        },
-    ]
+    vec![stroke(Key::F, KEY_F, pressed, modifiers)]
 }
 
 fn outside() -> Pos2 {

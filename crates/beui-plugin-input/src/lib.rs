@@ -21,12 +21,12 @@ pub fn beui_modifiers(modifiers: Modifiers) -> beui::Modifiers {
     }
 }
 
-pub fn protocol_chord(chord: beui::KeyChord) -> KeyChord {
-    KeyChord {
-        key: protocol_key(chord.key),
+pub fn protocol_chord(chord: beui::KeyChord) -> Option<KeyChord> {
+    Some(KeyChord {
+        key: protocol_key(chord.key)?,
         modifiers: protocol_modifiers(chord.modifiers),
         tap: chord.tap,
-    }
+    })
 }
 
 pub fn beui_chord(chord: KeyChord) -> Option<beui::KeyChord> {
@@ -86,8 +86,8 @@ pub fn beui_back(phase: BackPhase) -> beui::BackGesture {
     }
 }
 
-pub fn protocol_key(key: beui::Key) -> Key {
-    match key {
+pub fn protocol_key(key: beui::Key) -> Option<Key> {
+    Some(match key {
         beui::Key::ArrowDown => Key::ArrowDown,
         beui::Key::ArrowLeft => Key::ArrowLeft,
         beui::Key::ArrowRight => Key::ArrowRight,
@@ -189,7 +189,8 @@ pub fn protocol_key(key: beui::Key) -> Key {
         beui::Key::F22 => Key::F22,
         beui::Key::F23 => Key::F23,
         beui::Key::F24 => Key::F24,
-    }
+        beui::Key::Unidentified => return None,
+    })
 }
 
 pub fn beui_key(key: Key) -> Option<beui::Key> {
@@ -415,7 +416,25 @@ pub fn protocol_cursor(cursor: beui::CursorIcon) -> CursorIcon {
         beui::CursorIcon::Move => CursorIcon::Move,
         beui::CursorIcon::Progress => CursorIcon::Progress,
         beui::CursorIcon::Help => CursorIcon::Help,
-        beui::CursorIcon::Alias => CursorIcon::Pointer,
+        beui::CursorIcon::Alias => CursorIcon::Alias,
+        beui::CursorIcon::ContextMenu => CursorIcon::ContextMenu,
+        beui::CursorIcon::Cell => CursorIcon::Cell,
+        beui::CursorIcon::VerticalText => CursorIcon::VerticalText,
+        beui::CursorIcon::Copy => CursorIcon::Copy,
+        beui::CursorIcon::NoDrop => CursorIcon::NoDrop,
+        beui::CursorIcon::AllScroll => CursorIcon::AllScroll,
+        beui::CursorIcon::ZoomIn => CursorIcon::ZoomIn,
+        beui::CursorIcon::ZoomOut => CursorIcon::ZoomOut,
+        beui::CursorIcon::ResizeColumn => CursorIcon::ResizeColumn,
+        beui::CursorIcon::ResizeRow => CursorIcon::ResizeRow,
+        beui::CursorIcon::ResizeNorth => CursorIcon::ResizeNorth,
+        beui::CursorIcon::ResizeEast => CursorIcon::ResizeEast,
+        beui::CursorIcon::ResizeSouth => CursorIcon::ResizeSouth,
+        beui::CursorIcon::ResizeWest => CursorIcon::ResizeWest,
+        beui::CursorIcon::ResizeNorthEast => CursorIcon::ResizeNorthEast,
+        beui::CursorIcon::ResizeNorthWest => CursorIcon::ResizeNorthWest,
+        beui::CursorIcon::ResizeSouthEast => CursorIcon::ResizeSouthEast,
+        beui::CursorIcon::ResizeSouthWest => CursorIcon::ResizeSouthWest,
     }
 }
 

@@ -81,15 +81,15 @@ pub use date_time_picker::{
 };
 pub use disclosure::{Disclosure, DisclosureHandle, disclosure_open};
 pub use dock::{
-    DockBarHandle, DockChromeHandle, DockDragged, DockDrop, DockEntry, DockFullscreen,
-    DockGripHandle, DockGroup, DockKey, DockLayout, DockMenus, DockMode, DockNode, DockPane,
-    DockPreviewHandle, DockSplit, DockSplitter, DockSplitterHandle, DockStackHandle, DockState,
-    DockSwitch, DockSwitchHandle, DockSwitchRowHandle, DockSwitcherCardHandle, DockSwitcherHandle,
-    DockTab, DockTabControl, DockTabHandle, DockTabMenu, DockTree, DockTreeEntry, DockWindow,
-    Docking, DockingLayout, DockingSnapshot, Entry, GroupId, LeafId, MIN_PANE_LENGTH,
-    MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH, SPLITTER_THICKNESS, Side, SplitId, SurfaceId, TabId,
-    TabPosition, Tree, dock_actions, dock_menu, dock_menu_items, dock_state, layout_surface,
-    layout_tree, sidebar_size, use_dock_tab,
+    DockBarHandle, DockChromeHandle, DockDialog, DockDialogHandle, DockDragged, DockDrop,
+    DockEntry, DockFullscreen, DockGripHandle, DockGroup, DockKey, DockLayout, DockMenus, DockMode,
+    DockNode, DockPane, DockPreviewHandle, DockSplit, DockSplitter, DockSplitterHandle,
+    DockStackHandle, DockState, DockSwitch, DockSwitchHandle, DockSwitchRowHandle,
+    DockSwitcherCardHandle, DockSwitcherHandle, DockTab, DockTabControl, DockTabHandle,
+    DockTabMenu, DockTree, DockTreeEntry, DockWindow, Docking, DockingLayout, DockingSnapshot,
+    Entry, GroupId, LeafId, MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH, SPLITTER_THICKNESS,
+    Side, SplitId, SurfaceId, TabId, TabPosition, Tree, dock_actions, dock_menu, dock_menu_items,
+    dock_state, layout_surface, layout_tree, sidebar_size, use_dock_tab,
 };
 pub use drag::{
     DRAG_PREVIEW_OFFSET, DRAG_THRESHOLD, DragHandle, Draggable, DropHandle, DropTarget,
@@ -114,7 +114,9 @@ pub use popover::{
 };
 pub use pressable::Pressable;
 pub use scroll::{Scroll, ScrollHandle, ScrollbarStyle, scroll_animating};
-pub use scrollbar::{Scrollbar, ScrollbarHandle, thumb_length, thumb_start};
+pub use scrollbar::{
+    Scrollbar, ScrollbarHandle, ScrollbarThumb, thumb_length, thumb_rect, thumb_start,
+};
 pub use select::{
     Select, SelectOptionHandle, SelectTriggerHandle, select_highlighted, select_open,
     select_option_button, select_search, select_selected, select_trigger,

@@ -203,7 +203,7 @@ impl<A: BeuiApp> Views<A> {
             editor.end_frame(chrome.document());
         }
         shown.content = chrome.document().node_rect(chrome.content());
-        shown.exit = chrome.exit().get() || beui_frame::escaped(context);
+        shown.exit = chrome.exit().take();
         shown.painted = vec![rect];
         shown.floating = chrome.document().overlay_rects();
         shown.claims = chrome.document().press_claims();
@@ -475,6 +475,20 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
 
     fn input(&mut self, region: &Region, event: &InputEvent) {
         self.surface(region.region).input(region, event);
+    }
+
+    fn run_action(&mut self, region: &Region, id: &str) {
+        self.surface(region.region).run_action(id);
+    }
+
+    fn node_action(
+        &mut self,
+        region: &Region,
+        node: usize,
+        action: &str,
+        value: Option<block_editor_plugin::NodeValue>,
+    ) {
+        self.surface(region.region).node_action(node, action, value);
     }
 }
 

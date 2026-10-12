@@ -1,3 +1,4 @@
+use beui::KeyAt;
 use block_editor_beui::beui::icons::{
     ICON_BRIGHTNESS_HIGH, ICON_BRIGHTNESS_LOW, ICON_MIC, ICON_MIC_OFF, ICON_PLAY_PAUSE,
     ICON_SKIP_NEXT, ICON_SKIP_PREVIOUS, ICON_STOP, ICON_VOLUME_DOWN, ICON_VOLUME_OFF,
@@ -115,7 +116,7 @@ impl MediaKey {
     }
 }
 
-fn volume_glyph(level: MediaLevel) -> &'static str {
+pub(crate) fn volume_glyph(level: MediaLevel) -> &'static str {
     match level.level {
         _ if level.muted || level.level <= 0.0 => ICON_VOLUME_OFF,
         volume if volume < 0.5 => ICON_VOLUME_DOWN,
@@ -172,7 +173,8 @@ pub(super) fn MediaKeys(editor: Editor) -> NodeId {
         })
         .glyph(media_key.glyph())
         .shortcut(Chord::key(key))
-        .intercepts()
+        .at(KeyAt::Window)
+        .capture()
         .register();
     }
     let level = create_memo(move || osd_level(shown.get()?, levels.get()));

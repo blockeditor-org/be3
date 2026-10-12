@@ -1,3 +1,4 @@
+use beui_core::layer::Dismiss;
 use std::rc::Rc;
 
 use beui_macros::{component, view};
@@ -116,7 +117,7 @@ pub(crate) fn MenuPopup(
                 placement=Placement::BelowStart
                 traps_focus
                 open={dropped}
-                on_dismiss={move || on_dismiss.call()}
+                on_dismiss={move |_: Dismiss| on_dismiss.call()}
             >
                 {panel.call(view! {
                     <MenuList

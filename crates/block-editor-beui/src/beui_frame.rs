@@ -8,11 +8,11 @@ use beui::icons::{
 };
 use beui::reactive::{
     Action, Chord, ClickCallback, ItemSize, List, Memo, ReadSignal, WriteSignal, clone, component,
-    create_effect, create_memo, create_signal, menu_actions, on_finger_tap, provide_context,
-    untrack, use_context, view,
+    create_effect, create_memo, create_signal, menu_actions, on_finger_tap, on_key,
+    provide_context, untrack, use_context, view,
 };
 use beui::styled::CommandPalette;
-use beui::{Context, Document, Key};
+use beui::{Document, Key, KeyAt, KeyPhase};
 use block_plugin_api::{BarAction, MenuEntry};
 
 use crate::chrome::ChromeRoot;
@@ -68,6 +68,16 @@ impl BeuiFrame {
             .glyph(ICON_TERMINAL)
             .shortcut(PALETTE)
             .register();
+            let escaping = exit_writer.clone();
+            on_key(KeyAt::Window, KeyPhase::Bubble, move |event| {
+                let escaped = event
+                    .press()
+                    .is_some_and(|press| press.pressed && press.key == Key::Escape);
+                if escaped {
+                    escaping.set(true);
+                }
+                escaped
+            });
             view! {
                 <List spacing=0.0>
                     <FrameMenu
@@ -381,19 +391,4 @@ pub(crate) fn FrameMenu(
     view! {
         <List spacing=0.0 />
     }
-}
-
-pub(crate) fn escaped(context: &Context) -> bool {
-    context.input(|input| {
-        input.events.iter().any(|event| {
-            matches!(
-                event,
-                beui::Event::Key {
-                    key: Key::Escape,
-                    pressed: true,
-                    ..
-                }
-            )
-        })
-    })
 }

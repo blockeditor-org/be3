@@ -67,7 +67,10 @@ pub use kinds::{PanZoomContent, Scene3dContent, TriangleContent};
 pub use logic_game::{LogicGameContent, LogicGameProgress};
 pub use logic_grid::{LogicGridContent, LogicGridDocument};
 pub use map::{Map, MapContent};
-pub use metadata::{ArtifactSource, BlockMetadata, DerivedMetadata, Thumbhash};
+pub use metadata::{
+    ARTIFACT, ArtifactSource, BlockMetadata, Definition, Entries, INTRINSIC_NAME, LOCAL_ID,
+    MetaKey, NAME, Origin, SCHEMA, THUMBHASH, Thumbhash,
+};
 pub use model::Root;
 pub use paint::{PaintReview, PaintReviewContent, PaintSnapshotContent, PaintSnapshotHeader};
 pub use pdf::{PdfContent, PdfHeader};
@@ -107,6 +110,12 @@ impl Error for ContentError {}
 pub trait BlockContent: Sized + Send + Sync + 'static {
     const CONTENT_TYPE: Uuid;
 
+    const FROZEN: bool = false;
+
+    fn schema() -> String {
+        String::new()
+    }
+
     fn encode(&self) -> Vec<u8>;
 
     fn decode(bytes: &[u8]) -> Result<Self, ContentError>;
@@ -124,9 +133,23 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
         None
     }
 
-    fn derived_metadata(&self) -> DerivedMetadata {
-        DerivedMetadata::default()
+    fn describe(&self, metadata: &mut BlockMetadata) {
+        let _ = metadata;
     }
+}
+
+pub fn schema_fingerprint<C: BlockContent>() -> String {
+    be_store::Hash::of(C::schema().as_bytes()).to_hex()[..16].to_owned()
+}
+
+pub fn derived_metadata<C: BlockContent>(content: &C) -> Entries {
+    let mut metadata = BlockMetadata::default();
+    metadata.insert(&SCHEMA, &schema_fingerprint::<C>());
+    if let Some(name) = content.name() {
+        metadata.insert(&INTRINSIC_NAME, &name);
+    }
+    content.describe(&mut metadata);
+    metadata.derived
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

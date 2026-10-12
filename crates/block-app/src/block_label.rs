@@ -40,8 +40,8 @@ impl BlockLabel {
         Self::new(
             registry,
             node.content_type,
-            node.metadata.name.as_deref(),
-            node.metadata.named_by_hand,
+            node.metadata.name().as_deref(),
+            node.metadata.named_by_hand(),
         )
     }
 }

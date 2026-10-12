@@ -11,9 +11,9 @@ use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::painter::Painter;
 use crate::pixel_grid::PixelGrid;
 
-use crate::base::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
+use crate::base::child_list::{ChildHost, ChildList, NodeChildren};
 use crate::document::Document;
-use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeId, NodeOf, Rects};
 use crate::rich::{
     CaretHandle, RichLayout, RichOptions, SpanStyle, TextCaret, TextMark, TextSpan, handle_shape,
 };
@@ -98,6 +98,7 @@ pub struct TextNode {
 #[derive(Clone, Copy, PartialEq)]
 struct MeasuredKey {
     font: FontId,
+    align: TextAlign,
     line_height: Option<f32>,
     scale: f32,
     generation: u64,
@@ -323,9 +324,9 @@ impl TextNode {
             }
             let area = layout.caret_rect(caret.at, caret.width).translate(origin);
             if let Some(handle) = caret.handle {
-                let top = painter.on_top();
                 let (shape, corners, angle) = handle_shape(area, handle);
-                top.rotated(shape.center(), angle)
+                painter
+                    .rotated(shape.center(), angle)
                     .rect_filled(shape, corners, caret.color);
                 continue;
             }
@@ -339,11 +340,11 @@ impl TextNode {
             }
         }
         if !self.handles.is_empty() {
-            let top = painter.on_top();
             for (index, handle, color) in &self.handles {
                 let caret = layout.caret_rect(*index, 0.0).translate(origin);
                 let (shape, corners, angle) = handle_shape(caret, *handle);
-                top.rotated(shape.center(), angle)
+                painter
+                    .rotated(shape.center(), angle)
                     .rect_filled(shape, corners, *color);
             }
         }
@@ -363,6 +364,7 @@ impl TextNode {
             self.font(),
             TextLayout {
                 wrap_width: self.wrap_width(available_width),
+                align: self.horizontal,
                 line_height: self.line_height,
                 ..TextLayout::DEFAULT
             },
@@ -373,6 +375,7 @@ impl TextNode {
         let ctx = painter.ctx();
         let key = MeasuredKey {
             font: self.font(),
+            align: self.horizontal,
             line_height: self.line_height,
             scale: ctx.pixels_per_point(),
             generation: ctx.font_generation(),
@@ -526,11 +529,11 @@ impl Element for TextNode {
         }
         clipped.galley(placed.origin, placed.galley.clone(), self.color);
         if !self.handles.is_empty() {
-            let top = painter.on_top();
             for (index, handle, color) in &self.handles {
                 let caret = plain_caret_rect(&placed.galley, placed.origin, *index);
                 let (shape, corners, angle) = handle_shape(caret, *handle);
-                top.rotated(shape.center(), angle)
+                painter
+                    .rotated(shape.center(), angle)
                     .rect_filled(shape, corners, *color);
             }
         }
@@ -539,19 +542,6 @@ impl Element for TextNode {
                 clipped.rect_filled(line, 0.0, self.color);
             }
         }
-    }
-
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        children.extend(self.items.iter().map(ChildItem::node));
     }
 
     fn children(&self) -> Vec<NodeId> {
@@ -810,19 +800,6 @@ impl Element for TextItemNode {
         if let Some(child) = self.child {
             crate::paint::paint(doc, painter, rects, child);
         }
-    }
-
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        children.extend(self.child);
     }
 
     fn children(&self) -> Vec<NodeId> {

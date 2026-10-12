@@ -2,7 +2,7 @@ use std::any::Any;
 
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
-use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 
 pub struct ShiftNode {
@@ -33,19 +33,6 @@ impl Element for ShiftNode {
             return;
         }
         crate::paint::paint(doc, painter, rects, self.child);
-    }
-
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        children.push(self.child);
     }
 
     fn children(&self) -> Vec<NodeId> {

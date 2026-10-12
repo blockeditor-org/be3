@@ -7,7 +7,8 @@ use std::hash::Hash;
 use std::rc::Rc;
 
 use beui_core::base::Direction;
-use beui_core::geometry::Rect;
+use beui_core::geometry::{Rect, Vec2};
+use beui_core::image::Image;
 use beui_core::input::Modifiers;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
@@ -18,6 +19,7 @@ use beui_view::reactive::{
 };
 use serde::{Deserialize, Serialize};
 
+use super::dialog::{DialogParts, DockDialogHandle};
 use super::state::{
     DockFullscreen, DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow,
 };
@@ -57,6 +59,11 @@ enum NodeKind<K: 'static> {
         rect: Rect,
         children: Run<DockNode<K>>,
     },
+    Dialog {
+        id: K,
+        parent: K,
+        parts: DialogParts,
+    },
 }
 
 pub struct DockEntry<K: 'static> {
@@ -69,6 +76,7 @@ enum EntryKind<K: 'static> {
         id: K,
         title: Memo<String>,
         icon: Memo<String>,
+        picture: Memo<Option<Image>>,
         on_close: Option<ClickCallback>,
         content: RenderFn<()>,
     },
@@ -181,10 +189,42 @@ where
 }
 
 #[component]
+pub fn DockDialog<K>(
+    id: K,
+    parent: K,
+    title: Prop<String>,
+    #[prop(default = String::new())] icon: Prop<String>,
+    size: Prop<Vec2>,
+    #[prop(default = false)] modal: Prop<bool>,
+    on_close: Option<ClickCallback>,
+    #[prop(children)] content: RenderFn<()>,
+) -> DockNode<K>
+where
+    K: DockKey,
+{
+    DockNode {
+        kind: NodeKind::Dialog {
+            id,
+            parent,
+            parts: DialogParts {
+                title: create_memo(move || title.get()),
+                icon: create_memo(move || icon.get()),
+                size: create_memo(move || size.get()),
+                modal: create_memo(move || modal.get()),
+                on_close,
+                content,
+            },
+        },
+        scope: ChildScope::default(),
+    }
+}
+
+#[component]
 pub fn DockTab<K>(
     id: K,
     title: Prop<String>,
     #[prop(default = String::new())] icon: Prop<String>,
+    #[prop(default = None)] picture: Prop<Option<Image>>,
     on_close: Option<ClickCallback>,
     #[prop(children)] content: RenderFn<()>,
 ) -> DockEntry<K>
@@ -196,6 +236,7 @@ where
             id,
             title: create_memo(move || title.get()),
             icon: create_memo(move || icon.get()),
+            picture: create_memo(move || picture.get()),
             on_close,
             content,
         },
@@ -415,12 +456,17 @@ impl<K: DockKey> DockingLayout<K> {
         tab
     }
 
-    fn reconcile(&self, spec: &DockSpec) {
+    fn reconcile(&self, spec: &DockSpec, dialogs: &[(TabId, TabId)]) {
         let current = self.inner.state.get_untracked();
         let mut next = current.clone();
         next.reconcile(spec);
         let mut kept: HashSet<TabId> = spec.tabs().into_iter().collect();
         kept.extend(next.all_tabs());
+        kept.extend(
+            dialogs
+                .iter()
+                .flat_map(|(dialog, parent)| [*dialog, *parent]),
+        );
         {
             let mut keys = self.inner.keys.borrow_mut();
             keys.keys.retain(|tab, _| kept.contains(tab));
@@ -434,6 +480,17 @@ impl<K: DockKey> DockingLayout<K> {
     fn spec(&self, nodes: &[Rc<DockNode<K>>], focus: Option<&K>, found: &mut Found<K>) -> DockSpec {
         let mut spec = DockSpec::default();
         for node in nodes {
+            if let NodeKind::Dialog { id, parent, parts } = &node.kind {
+                let dialog = self.mint(id);
+                if found.dialogs.iter().any(|(held, _)| *held == dialog) {
+                    continue;
+                }
+                let parent = self.mint(parent);
+                found.dialogs.push((dialog, parent));
+                found.parts.insert(dialog, parts.clone());
+            }
+        }
+        for node in nodes {
             match &node.kind {
                 NodeKind::Window {
                     key,
@@ -444,6 +501,7 @@ impl<K: DockKey> DockingLayout<K> {
                     rect: *rect,
                     root: self.root(children, found),
                 }),
+                NodeKind::Dialog { .. } => {}
                 _ if spec.main.is_none() => spec.main = self.node(node, found),
                 _ => {}
             }
@@ -456,7 +514,7 @@ impl<K: DockKey> DockingLayout<K> {
         children
             .items()
             .iter()
-            .filter(|node| !matches!(node.kind, NodeKind::Window { .. }))
+            .filter(|node| !matches!(node.kind, NodeKind::Window { .. } | NodeKind::Dialog { .. }))
             .find_map(|node| self.node(node, found))
     }
 
@@ -511,7 +569,7 @@ impl<K: DockKey> DockingLayout<K> {
                     keep: empty.is_some(),
                 }))
             }
-            NodeKind::Window { .. } => None,
+            NodeKind::Window { .. } | NodeKind::Dialog { .. } => None,
         }
     }
 
@@ -519,6 +577,9 @@ impl<K: DockKey> DockingLayout<K> {
         match &entry.kind {
             EntryKind::Tab { id, .. } => {
                 let tab = self.mint(id);
+                if found.parts.contains_key(&tab) {
+                    return None;
+                }
                 if found.tabs.insert(tab, Rc::clone(entry)).is_some() {
                     return None;
                 }
@@ -546,6 +607,8 @@ struct Found<K: 'static> {
     tabs: HashMap<TabId, Rc<DockEntry<K>>>,
     panes: HashMap<String, Rc<DockNode<K>>>,
     groups: HashMap<String, Rc<DockEntry<K>>>,
+    dialogs: Vec<(TabId, TabId)>,
+    parts: HashMap<TabId, DialogParts>,
 }
 
 impl<K: 'static> Default for Found<K> {
@@ -554,6 +617,8 @@ impl<K: 'static> Default for Found<K> {
             tabs: HashMap::new(),
             panes: HashMap::new(),
             groups: HashMap::new(),
+            dialogs: Vec::new(),
+            parts: HashMap::new(),
         }
     }
 }
@@ -578,6 +643,13 @@ impl<K: 'static> Found<K> {
                 content,
                 ..
             } => Some(read(title, icon, on_close, content)),
+            EntryKind::Group { .. } => None,
+        }
+    }
+
+    fn picture(&self, tab: TabId) -> Option<Image> {
+        match &self.tabs.get(&tab)?.kind {
+            EntryKind::Tab { picture, .. } => picture.get(),
             EntryKind::Group { .. } => None,
         }
     }
@@ -620,6 +692,7 @@ pub fn Docking<K>(
     stack: Option<RenderFn<DockStackHandle>>,
     switcher: Option<RenderFn<DockSwitcherHandle>>,
     switch: Option<RenderFn<DockSwitchHandle>>,
+    dialog_chrome: Option<RenderFn<DockDialogHandle>>,
     children: Children<DockNode<K>>,
 ) -> NodeId
 where
@@ -633,11 +706,18 @@ where
         let mut held = Found::default();
         let focus = focus.peek();
         let spec = layout.spec(&items, focus.as_ref(), &mut held);
+        let dialogs = held.dialogs.clone();
         untrack(|| {
             set_found.set(Rc::new(held));
-            layout.reconcile(&spec);
+            layout.reconcile(&spec, &dialogs);
         });
     }));
+    let listed = found.clone();
+    let dialogs = create_memo(move || listed.with(|found| found.dialogs.clone()));
+    let described = found.clone();
+    let dialog = Func::new(move |tab: TabId| {
+        described.with_untracked(|found| found.parts.get(&tab).cloned())
+    });
     let titles = found.clone();
     let title = Func::new(move |tab: TabId| {
         titles
@@ -650,6 +730,8 @@ where
             .with(|found| found.tab(tab, |_, icon, _, _| icon.get()))
             .unwrap_or_default()
     });
+    let pictures = found.clone();
+    let picture = Func::new(move |tab: TabId| pictures.with(|found| found.picture(tab)));
     let closers = found.clone();
     let closable = Func::new(move |tab: TabId| {
         closers
@@ -723,6 +805,7 @@ where
                 title,
                 group_title,
                 icon,
+                picture,
                 closable,
                 menu,
                 mode,
@@ -744,6 +827,9 @@ where
                 stack,
                 switcher,
                 switch,
+                dialogs,
+                dialog,
+                dialog_chrome,
             }}
         />
     }

@@ -1,4 +1,5 @@
-use std::cell::{Cell, RefCell};
+use beui_core::layer::Dismiss;
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use accesskit::{Node, Role};
@@ -7,13 +8,14 @@ use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::geometry::Pos2;
 use beui_core::input::{Key, KeyPress};
+use beui_core::keys::{KeyAt, KeyPhase};
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Action, Child, ClickCallback, ForEach, ItemSize, List, Memo, NodeRef, Prop, ReadSignal, Render,
     RenderFn, Selector, WriteSignal, active_actions_from, clone, create_effect, create_memo,
-    create_selector, create_signal, set_component_state, untrack, with_document,
+    create_selector, create_signal, on_key, set_component_state, untrack, with_document,
 };
 
 use crate as unstyled;
@@ -42,7 +44,6 @@ struct State {
     set_highlighted: WriteSignal<Option<u64>>,
     searching: ReadSignal<bool>,
     set_searching: WriteSignal<bool>,
-    returning: Cell<Option<NodeId>>,
     rows: RefCell<Vec<(u64, NodeRef)>>,
     on_close: ClickCallback,
 }
@@ -86,7 +87,6 @@ pub fn CommandPalette(
         set_highlighted,
         searching: searching.clone(),
         set_searching,
-        returning: Cell::new(None),
         rows: RefCell::new(Vec::new()),
         on_close,
     });
@@ -109,6 +109,15 @@ pub fn CommandPalette(
         state.clone(),
         state.clone(),
     );
+    on_key(
+        KeyAt::Node(state.search.clone()),
+        KeyPhase::Capture,
+        move |event| {
+            event
+                .press()
+                .is_some_and(|press| navigate(&key_state, press))
+        },
+    );
     let accessibility = create_memo(|| {
         let mut node = Node::new(Role::Dialog);
         node.set_label("Command palette");
@@ -121,7 +130,7 @@ pub fn CommandPalette(
             placement=Placement::Center
             scrim
             open
-            on_dismiss={move || dismiss(&dismiss_state)}
+            on_dismiss={move |_: Dismiss| dismiss(&dismiss_state)}
         >
             {panel.call(view! {
                 <List spacing=6.0>
@@ -140,7 +149,6 @@ pub fn CommandPalette(
                                 confirm(&submit_state, key);
                             }
                         }}
-                        on_key_override={move |press: KeyPress| navigate(&key_state, press)}
                     />
                     <unstyled::Scroll
                         @sizing={list_height.map(ItemSize::Fixed)}
@@ -229,9 +237,7 @@ fn find(state: &State, key: u64) -> Option<Action> {
 }
 
 fn start(state: &State) {
-    let (focused, path) =
-        with_document(|document| (document.focused_node(), document.focus_ancestry()));
-    state.returning.set(focused);
+    let path = with_document(|document| document.focus_ancestry());
     let mut actions = active_actions_from(&path);
     actions.sort_by_key(|action| !action.is_enabled());
     *state.actions.borrow_mut() = actions;
@@ -244,16 +250,10 @@ fn start(state: &State) {
 fn close(state: &State) {
     state.set_searching.set(false);
     state.on_close.call();
-    let returning = state.returning.take();
     let overlay = state.overlay.try_get();
     with_document(|document| {
         if let Some(overlay) = overlay.and_then(|id| document.arena.kind_of::<OverlayNode>(id)) {
             document.close_overlay(overlay);
-        }
-        if returning.is_some_and(|node| document.contains(node)) {
-            document.update_focus(returning);
-        } else {
-            document.update_focus(None);
         }
     });
 }

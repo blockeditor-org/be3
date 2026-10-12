@@ -11,10 +11,10 @@ fn a_phone_walks_into_folders_and_opens_files() {
     let notes = Uuid::from_u128(3);
     let inside = Uuid::from_u128(4);
     let mut projects = BlockInfo::new(folder, FolderContent::CONTENT_TYPE, BlockParent::Root);
-    projects.name = Some("Projects".to_owned());
+    projects.set_intrinsic_name("Projects".to_owned());
     projects.references = vec![inside];
     let mut listed = BlockInfo::new(notes, text_type, BlockParent::Root);
-    listed.name = Some("Notes".to_owned());
+    listed.set_intrinsic_name("Notes".to_owned());
     fixture
         .host
         .set_blocks(BlockQuery::Roots, vec![projects, listed]);
@@ -38,7 +38,7 @@ fn a_phone_walks_into_folders_and_opens_files() {
         "a folder is walked into, not opened"
     );
     let mut roadmap = BlockInfo::new(inside, text_type, BlockParent::Block(folder));
-    roadmap.name = Some("Roadmap".to_owned());
+    roadmap.set_intrinsic_name("Roadmap".to_owned());
     fixture
         .host
         .set_blocks(BlockQuery::References(folder), vec![roadmap]);

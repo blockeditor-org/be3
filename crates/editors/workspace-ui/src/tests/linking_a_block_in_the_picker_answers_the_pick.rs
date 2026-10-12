@@ -7,7 +7,7 @@ fn linking_a_block_in_the_picker_answers_the_pick() {
     let (mut fixture, _) = editor();
     let linked = Uuid::new_v4();
     let mut info = BlockInfo::new(linked, SHOWN_TYPE, BlockParent::Root);
-    info.name = Some("Notes".to_owned());
+    info.set_intrinsic_name("Notes".to_owned());
     fixture.test.store().add_block(info);
 
     fixture.test.request_pick(7, filter(), BlockLocation::Root);

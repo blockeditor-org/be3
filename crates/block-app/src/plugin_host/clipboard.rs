@@ -35,27 +35,3 @@ pub(crate) fn read_clipboard_image() -> ClipboardImage {
 pub(crate) fn read_clipboard_image() -> ClipboardImage {
     ClipboardImage::Empty
 }
-
-#[cfg(not(any(target_os = "android", target_arch = "wasm32")))]
-pub(crate) fn read_clipboard_text() -> Option<String> {
-    arboard::Clipboard::new().ok()?.get_text().ok()
-}
-
-#[cfg(any(target_os = "android", target_arch = "wasm32"))]
-pub(crate) fn read_clipboard_text() -> Option<String> {
-    None
-}
-
-#[cfg(target_os = "windows")]
-pub(crate) fn paste_shortcut_down() -> bool {
-    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_CONTROL};
-
-    const VK_V: i32 = 0x56;
-
-    unsafe { GetAsyncKeyState(VK_CONTROL as i32) < 0 && GetAsyncKeyState(VK_V) < 0 }
-}
-
-#[cfg(not(target_os = "windows"))]
-pub(crate) fn paste_shortcut_down() -> bool {
-    false
-}

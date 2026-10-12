@@ -168,7 +168,7 @@ impl CompileRegeneration {
                 .read()
                 .into_iter()
                 .next()
-                .and_then(|info| info.name)
+                .and_then(|info| info.name())
                 .unwrap_or_else(|| "Logic Grid".to_owned());
             self.host
                 .blocks()

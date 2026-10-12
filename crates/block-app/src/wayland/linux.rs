@@ -13,6 +13,7 @@ struct Running {
     compositor: Compositor,
     cursor: Option<beui_adapter_drm::SoftwareCursor>,
     display: Option<beui_adapter_drm::DisplayControl>,
+    flips: Option<beui_adapter_drm::Flips>,
     blanked: bool,
     lock_due: bool,
     lock_noticed: bool,
@@ -36,7 +37,7 @@ pub(crate) fn start(setup: &Setup) {
     let (Some(windows), Some(gpu)) = (windows(), setup.get::<beui::GpuSetup>()) else {
         return;
     };
-    let server = match Server::new() {
+    let mut server = match Server::new() {
         Ok(server) => server,
         Err(error) => {
             eprintln!("block-app: the Wayland server did not start: {error}");
@@ -46,6 +47,12 @@ pub(crate) fn start(setup: &Setup) {
             return;
         }
     };
+    match server.start_xwayland() {
+        Ok(display) => eprintln!("block-app: X11 programs run on Xwayland at :{display}"),
+        Err(error) => {
+            eprintln!("block-app: Xwayland did not start, so X11 programs cannot run: {error}")
+        }
+    }
     let mut compositor = Compositor::new(server, windows);
     compositor.on_failure(crate::notices::report);
     let defaults = be_block::DisplaySettings::default();
@@ -59,11 +66,16 @@ pub(crate) fn start(setup: &Setup) {
     );
     let cursor = setup.get::<beui_adapter_drm::SoftwareCursor>().cloned();
     let display = setup.get::<beui_adapter_drm::DisplayControl>().cloned();
+    let flips = setup.get::<beui_adapter_drm::Flips>().cloned();
+    if flips.is_some() {
+        compositor.pace_to_flips();
+    }
     RUNNING.with(|running| {
         *running.borrow_mut() = Some(Running {
             compositor,
             cursor,
             display,
+            flips,
             blanked: false,
             lock_due: false,
             lock_noticed: false,
@@ -73,6 +85,18 @@ pub(crate) fn start(setup: &Setup) {
 
 fn with<R>(act: impl FnOnce(&mut Running) -> R) -> Option<R> {
     RUNNING.with(|running| running.borrow_mut().as_mut().map(act))
+}
+
+pub(crate) fn environment() -> Vec<(String, String)> {
+    with(|running| {
+        running
+            .compositor
+            .environment()
+            .into_iter()
+            .map(|(name, value)| (name.to_owned(), value))
+            .collect()
+    })
+    .unwrap_or_default()
 }
 
 pub(crate) fn running() -> bool {
@@ -95,6 +119,24 @@ pub(crate) fn before(context: &Context, rect: Rect, document: &mut Document) {
         {
             running.compositor.woke();
         }
+        if let Some(flips) = &running.flips {
+            let screens = document.screens();
+            for flip in flips.take() {
+                let Some(screen) = screens.iter().find(|screen| screen.id == flip.screen) else {
+                    continue;
+                };
+                running.compositor.presented(
+                    screen.rect,
+                    be_wayland::Presented {
+                        time: flip.time,
+                        refresh: flip.refresh,
+                        sequence: flip.sequence,
+                        vsync: true,
+                        hardware_clock: flip.hardware_clock,
+                    },
+                );
+            }
+        }
         running.compositor.before(context, rect, document);
     });
 }
@@ -102,6 +144,9 @@ pub(crate) fn before(context: &Context, rect: Rect, document: &mut Document) {
 pub(crate) fn after(context: &Context, document: &mut Document) {
     with(|running| {
         running.compositor.after(context, document);
+        if let Some(flips) = &running.flips {
+            flips.watch(running.compositor.awaits_flip());
+        }
         let due = running.compositor.lock_due();
         if due && !running.lock_due {
             running.lock_noticed = true;
@@ -121,6 +166,7 @@ pub(crate) fn after(context: &Context, document: &mut Document) {
                     size: image.size,
                     hotspot: image.hotspot,
                     opaque: image.opaque,
+                    revision: image.revision,
                 }
             }));
         }
@@ -141,6 +187,10 @@ pub(crate) fn take_lock_due() -> bool {
 
 pub(crate) fn set_locked(locked: bool) {
     with(|running| running.compositor.set_locked(locked));
+}
+
+pub(crate) fn set_primary_selection(on: bool) {
+    with(|running| running.compositor.set_primary_selection(on));
 }
 
 pub(crate) fn set_keyboard(keyboard: &be_wayland::KeyboardConfig) -> bool {
@@ -183,6 +233,7 @@ pub(crate) fn listed() -> Vec<HostWindow> {
             title: info.title,
             app_id: info.app_id,
             parent: info.parent.map(|parent| HostWindowId(parent.0)),
+            modal: info.modal,
             size: Size {
                 width: info.size.x,
                 height: info.size.y,
@@ -195,6 +246,12 @@ pub(crate) fn listed() -> Vec<HostWindow> {
             }),
             responding: info.responding,
             focused: windows.focused() == Some(info.id),
+            icon: info.icon.map(|icon| HostImage {
+                width: icon.width(),
+                height: icon.height(),
+                rgba: icon.pixels().to_vec(),
+            }),
+            raised: windows.raised(info.id),
         })
         .collect()
 }
@@ -359,6 +416,16 @@ impl Programs {
         });
         crate::host::wake();
         true
+    }
+}
+
+#[component]
+pub(crate) fn WindowActions() -> NodeId {
+    if let Some(windows) = windows() {
+        be_wayland::register_restore_shortcuts(&windows);
+    }
+    view! {
+        <Frame />
     }
 }
 

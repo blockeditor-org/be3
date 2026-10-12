@@ -11,7 +11,7 @@ use crate::{
 };
 
 pub enum PublishOutcome {
-    Published(CommitId),
+    Published(CommitId, bool),
     Rejected(Option<CommitId>),
 }
 
@@ -124,6 +124,12 @@ impl ServerStore {
     ) -> Result<BlockSummary, ServerError> {
         self.with_graph(identity.workspace, move |graph, database| {
             require_edit(graph, &visibility(graph, identity), block)?;
+            if let Some(head) = graph.head(block) {
+                return Err(ServerError::Refused(
+                    ErrorCode::BlockHasContent,
+                    format!("block {block} has content at {head}, so its metadata is published with it"),
+                ));
+            }
             database.execute(
                 "UPDATE blocks SET metadata = ?3, version = version + 1 WHERE workspace_id = ?1 AND id = ?2",
                 params![identity.workspace.to_string(), block.to_string(), metadata],
@@ -213,11 +219,13 @@ impl ServerStore {
         block: Uuid,
         commit: CommitId,
         expected: Option<CommitId>,
+        parents: Vec<CommitId>,
         chunks: Vec<Hash>,
         time: i64,
         pinned: bool,
         references_added: Vec<Uuid>,
         references_removed: Vec<Uuid>,
+        metadata: Vec<u8>,
     ) -> Result<PublishOutcome, ServerError> {
         let mut held = vec![commit.hash()];
         held.extend(chunks.iter().copied());
@@ -236,8 +244,11 @@ impl ServerStore {
                 return Ok(PublishOutcome::Rejected(current));
             }
             if current == Some(commit) {
-                return Ok(PublishOutcome::Published(commit));
+                return Ok(PublishOutcome::Published(commit, false));
             }
+            let redescribed = graph
+                .get(block)
+                .is_some_and(|node| node.metadata != metadata);
             let transaction = database.unchecked_transaction()?;
             let workspace = identity.workspace.to_string();
             let existing: Option<i64> = transaction
@@ -250,12 +261,14 @@ impl ServerStore {
                 .optional()?;
             if existing.is_none() {
                 transaction.execute(
-                    "INSERT INTO block_commits (workspace_id, block_id, commit_id, time, pinned)
-                     VALUES (?1, ?2, ?3, ?4, ?5)",
+                    "INSERT INTO block_commits
+                        (workspace_id, block_id, commit_id, parents, time, pinned)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                     params![
                         workspace,
                         block.to_string(),
                         commit.hash().to_hex(),
+                        encode_parents(&parents),
                         time,
                         pinned
                     ],
@@ -279,8 +292,14 @@ impl ServerStore {
                 persist_refs(&transaction, &refs, &held)?;
             }
             transaction.execute(
-                "UPDATE blocks SET head = ?3, version = version + 1 WHERE workspace_id = ?1 AND id = ?2",
-                params![workspace, block.to_string(), commit.hash().to_hex()],
+                "UPDATE blocks SET head = ?3, metadata = ?4, version = version + 1
+                 WHERE workspace_id = ?1 AND id = ?2",
+                params![
+                    workspace,
+                    block.to_string(),
+                    commit.hash().to_hex(),
+                    metadata
+                ],
             )?;
             for reference in &references_removed {
                 transaction.execute(
@@ -299,8 +318,9 @@ impl ServerStore {
             transaction.commit()?;
             graph.apply_references(block, &references_added, &references_removed)?;
             graph.set_head(block, commit)?;
+            graph.set_metadata(block, metadata)?;
             graph.touch(block)?;
-            Ok(PublishOutcome::Published(commit))
+            Ok(PublishOutcome::Published(commit, redescribed))
         })
         .await
     }
@@ -608,22 +628,24 @@ fn read_history(
     block: Uuid,
 ) -> Result<Vec<HistoryEntry>, ServerError> {
     let mut statement = connection.prepare(
-        "SELECT commit_id, time, pinned FROM block_commits
+        "SELECT commit_id, parents, time, pinned FROM block_commits
          WHERE workspace_id = ?1 AND block_id = ?2
          ORDER BY time DESC",
     )?;
     let rows = statement.query_map(params![workspace.to_string(), block.to_string()], |row| {
         Ok((
             row.get::<_, String>(0)?,
-            row.get::<_, i64>(1)?,
-            row.get::<_, bool>(2)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, i64>(2)?,
+            row.get::<_, bool>(3)?,
         ))
     })?;
     let mut entries = Vec::new();
     for row in rows {
-        let (commit, time, pinned) = row?;
+        let (commit, parents, time, pinned) = row?;
         entries.push(HistoryEntry {
-            commit: CommitId::from_hash(Hash::from_hex(&commit).ok_or(ServerError::Corrupt)?),
+            commit: parse_commit(&commit)?,
+            parents: decode_parents(&parents)?,
             time,
             pinned,
         });
@@ -730,4 +752,22 @@ fn persist_refs(
         }
     }
     Ok(())
+}
+
+fn parse_commit(hex: &str) -> Result<CommitId, ServerError> {
+    Hash::from_hex(hex)
+        .map(CommitId::from_hash)
+        .ok_or(ServerError::Corrupt)
+}
+
+fn encode_parents(parents: &[CommitId]) -> String {
+    parents
+        .iter()
+        .map(|parent| parent.hash().to_hex())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn decode_parents(parents: &str) -> Result<Vec<CommitId>, ServerError> {
+    parents.split_whitespace().map(parse_commit).collect()
 }

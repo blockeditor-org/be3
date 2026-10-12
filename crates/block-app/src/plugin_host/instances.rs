@@ -20,7 +20,7 @@ use super::{
     MAX_LIVE_CHILDREN,
     audio::AudioPlayer,
     host_values::{Published, Watched},
-    input::{BlockDragEvent, FileDropEvent, InputAdapter, viewport_metrics},
+    input::{BlockDrag, BlockDragEvent, FileDropEvent, InputAdapter, viewport_metrics},
     pieces,
 };
 use crate::{
@@ -48,6 +48,7 @@ pub(super) struct Instances {
     epoch: u64,
     graph_seen: Option<u64>,
     pasted: HashSet<EditorInstanceId>,
+    pastes: Pastes,
     audio_changes: AudioChanges,
     published: Published,
     shell: Option<EditorInstanceId>,
@@ -59,6 +60,18 @@ struct AudioChanges {
 }
 
 impl Default for AudioChanges {
+    fn default() -> Self {
+        let (sender, receiver) = host::waking_channel();
+        Self { sender, receiver }
+    }
+}
+
+struct Pastes {
+    sender: host::WakingSender<(u64, EditorInstanceId, String)>,
+    receiver: std::sync::mpsc::Receiver<(u64, EditorInstanceId, String)>,
+}
+
+impl Default for Pastes {
     fn default() -> Self {
         let (sender, receiver) = host::waking_channel();
         Self { sender, receiver }
@@ -97,7 +110,7 @@ struct Instance {
     opened: bool,
     deferred: Vec<Message>,
     opens: Vec<OpenRequest>,
-    block_drags: Vec<(Uuid, Uuid)>,
+    block_drags: Vec<BlockDrag>,
     block_commands: Vec<(Uuid, BlockCommand)>,
     reported_focus: Option<Focus>,
     reported_editable: Option<bool>,
@@ -858,11 +871,12 @@ impl Instances {
         else {
             return Vec::new();
         };
+        let Some(key) = beui_plugin_input::protocol_key(key) else {
+            return Vec::new();
+        };
         vec![Message::Input(block_plugin_api::InputBatch {
             screen: screen.request.screen,
-            events: vec![block_plugin_api::InputEvent::InterceptedTap {
-                key: beui_plugin_input::protocol_key(key),
-            }],
+            events: vec![block_plugin_api::InputEvent::InterceptedTap { key }],
         })]
     }
 
@@ -901,37 +915,20 @@ impl Instances {
             return (Vec::new(), false);
         }
         let id = screen.request.screen;
-        let pressed = input.events.iter().any(|event| {
-            matches!(
-                event,
-                beui::Event::PointerButton { pressed: true, .. }
-                    | beui::Event::Touch {
-                        phase: beui::TouchPhase::Start,
-                        ..
-                    }
-            )
-        });
+        let pressed = input
+            .pointer_events()
+            .any(|event| matches!(event.phase, beui::PointerPhase::Down(_)));
         let escaped = input.focused
-            && input.events.iter().any(|event| {
-                matches!(
-                    event,
-                    beui::Event::Key {
-                        key: beui::Key::Escape,
-                        pressed: true,
-                        ..
-                    }
-                )
-            });
+            && input
+                .inputs()
+                .filter_map(beui::Event::press)
+                .any(|press| press.key == beui::Key::Escape && press.pressed);
         let mut messages = screen.input.forward(input, id);
-        let dragging = screen.dragging;
         let files = super::input::file_drop(input, screen.file_dropping);
-        let drag = super::input::block_drag(input);
-        let changed = dragging != drag.as_ref().is_some_and(|drag| !drag.dropped);
-        messages.extend(self.drag(instance, region, drag));
         messages.extend(self.file_drop(instance, region, files));
         let revoked =
             (escaped || (pressed && input.hovered)) && self.revoke_active(instance, region);
-        (messages, revoked || changed)
+        (messages, revoked)
     }
 
     pub(super) fn hold(&mut self, instance: EditorInstanceId, region: EditorRegion) {
@@ -1378,8 +1375,8 @@ impl Instances {
                     region,
                     x: event.position.x,
                     y: event.position.y,
-                    block_id: event.block_id.into_bytes(),
-                    block_type: event.block_type.into_bytes(),
+                    block_id: event.drag.block_id.into_bytes(),
+                    block_type: event.drag.block_type.into_bytes(),
                     dropped: event.dropped,
                 })]
             }
@@ -1592,26 +1589,6 @@ impl Instances {
         (children, holes)
     }
 
-    pub(super) fn pressed_at(&mut self, position: beui::Pos2) -> bool {
-        let outside: Vec<(EditorInstanceId, EditorRegion)> = self
-            .entries
-            .iter()
-            .flat_map(|(instance, entry)| {
-                entry.screens.iter().filter_map(move |(region, screen)| {
-                    let placement = screen.placement?;
-                    let away = screen.mounted > 0
-                        && !placement.rect.intersect(placement.clip).contains(position);
-                    away.then_some((*instance, *region))
-                })
-            })
-            .collect();
-        let mut revoked = false;
-        for (instance, region) in outside {
-            revoked |= self.revoke_active(instance, region);
-        }
-        revoked
-    }
-
     pub(super) fn revoke_active(
         &mut self,
         instance: EditorInstanceId,
@@ -1701,7 +1678,6 @@ impl Instances {
                     height: size.y,
                 }),
                 aspect_ratio: status.aspect_ratio,
-                hovered: status.hovered,
                 active: status.active,
                 interaction: status.interaction,
                 capabilities: status.capabilities,
@@ -2118,6 +2094,25 @@ impl Instances {
             CursorIcon::ResizeVertical => beui::CursorIcon::ResizeVertical,
             CursorIcon::ResizeNeSw => beui::CursorIcon::ResizeNeSw,
             CursorIcon::ResizeNwSe => beui::CursorIcon::ResizeNwSe,
+            CursorIcon::Alias => beui::CursorIcon::Alias,
+            CursorIcon::ContextMenu => beui::CursorIcon::ContextMenu,
+            CursorIcon::Cell => beui::CursorIcon::Cell,
+            CursorIcon::VerticalText => beui::CursorIcon::VerticalText,
+            CursorIcon::Copy => beui::CursorIcon::Copy,
+            CursorIcon::NoDrop => beui::CursorIcon::NoDrop,
+            CursorIcon::AllScroll => beui::CursorIcon::AllScroll,
+            CursorIcon::ZoomIn => beui::CursorIcon::ZoomIn,
+            CursorIcon::ZoomOut => beui::CursorIcon::ZoomOut,
+            CursorIcon::ResizeColumn => beui::CursorIcon::ResizeColumn,
+            CursorIcon::ResizeRow => beui::CursorIcon::ResizeRow,
+            CursorIcon::ResizeNorth => beui::CursorIcon::ResizeNorth,
+            CursorIcon::ResizeEast => beui::CursorIcon::ResizeEast,
+            CursorIcon::ResizeSouth => beui::CursorIcon::ResizeSouth,
+            CursorIcon::ResizeWest => beui::CursorIcon::ResizeWest,
+            CursorIcon::ResizeNorthEast => beui::CursorIcon::ResizeNorthEast,
+            CursorIcon::ResizeNorthWest => beui::CursorIcon::ResizeNorthWest,
+            CursorIcon::ResizeSouthEast => beui::CursorIcon::ResizeSouthEast,
+            CursorIcon::ResizeSouthWest => beui::CursorIcon::ResizeSouthWest,
         })
     }
 
@@ -2165,6 +2160,17 @@ impl Instances {
                     request_id: reply.request_id,
                     reply: reply.reply,
                 }));
+            }
+        }
+        while let Ok((epoch, instance, text)) = self.pastes.receiver.try_recv() {
+            if epoch != self.epoch {
+                continue;
+            }
+            if let Some(entry) = self.entries.get_mut(&instance) {
+                entry
+                    .text_pastes
+                    .extend(block_plugin_api::paste_events(&text));
+                self.pasted.insert(instance);
             }
         }
         let mut pasted: Vec<_> = std::mem::take(&mut self.pasted).into_iter().collect();
@@ -2406,9 +2412,10 @@ impl Instances {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
                 };
-                entry
-                    .block_drags
-                    .push((Uuid::from_bytes(block_id), Uuid::from_bytes(block_type)));
+                entry.block_drags.push(BlockDrag {
+                    block_id: Uuid::from_bytes(block_id),
+                    block_type: Uuid::from_bytes(block_type),
+                });
                 true
             }
             EditorMessage::BlockCommand {
@@ -2511,8 +2518,7 @@ impl Instances {
                 block_id,
                 content_type,
                 parent,
-                name,
-                artifact,
+                defined,
                 content,
                 ..
             } => {
@@ -2524,15 +2530,11 @@ impl Instances {
                 if crate::be::node(block).is_some() {
                     return false;
                 }
+                let mut defined = super::graph::entries_of(defined);
+                defined.remove(&be_block::LOCAL_ID.id);
                 let metadata = be_block::BlockMetadata {
-                    named_by_hand: name.is_some(),
-                    name,
-                    artifact: artifact.map(|artifact| be_block::ArtifactSource {
-                        source_type: Uuid::from_bytes(artifact.source_type),
-                        data: artifact.data,
-                    }),
-                    local_id: None,
-                    derived: be_block::DerivedMetadata::default(),
+                    defined,
+                    ..be_block::BlockMetadata::default()
                 };
                 crate::be::create(
                     block,
@@ -2556,12 +2558,18 @@ impl Instances {
                 crate::be::set_parent(block, parent);
                 true
             }
-            EditorMessage::SetName { block_id, name, .. } => {
+            EditorMessage::Define {
+                block_id,
+                key,
+                value,
+                ..
+            } => {
                 let block = Uuid::from_bytes(block_id);
-                if !self.editable(block) {
+                let key = Uuid::from_bytes(key);
+                if !self.editable(block) || key == be_block::LOCAL_ID.id {
                     return false;
                 }
-                crate::be::set_name(block, name);
+                crate::be::define(block, vec![(key, value.map(|value| value.into_vec()))]);
                 true
             }
             EditorMessage::ShowPresence {
@@ -2703,16 +2711,17 @@ impl Instances {
                 false
             }
             EditorMessage::PasteText { instance } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
+                if !self.entries.contains_key(&instance) {
                     return false;
-                };
-                if let Some(text) = super::clipboard::read_clipboard_text() {
-                    entry
-                        .text_pastes
-                        .extend(block_plugin_api::paste_events(&text));
                 }
-                self.pasted.insert(instance);
-                true
+                let sender = self.pastes.sender.clone();
+                let epoch = self.epoch;
+                host::read_clipboard(move |text| {
+                    if let Some(text) = text {
+                        let _ = sender.send((epoch, instance, text));
+                    }
+                });
+                false
             }
             EditorMessage::ChildReplaced {
                 instance,
@@ -2875,13 +2884,11 @@ impl Instances {
         }
     }
 
-    pub(super) fn take_block_drag(&mut self, instance: EditorInstanceId) -> Option<(Uuid, Uuid)> {
-        let entry = self.entries.get_mut(&instance)?;
-        if entry.block_drags.is_empty() {
-            None
-        } else {
-            Some(entry.block_drags.remove(0))
-        }
+    pub(super) fn take_block_drags(&mut self, instance: EditorInstanceId) -> Vec<BlockDrag> {
+        self.entries
+            .get_mut(&instance)
+            .map(|entry| std::mem::take(&mut entry.block_drags))
+            .unwrap_or_default()
     }
 
     pub(super) fn take_block_command(

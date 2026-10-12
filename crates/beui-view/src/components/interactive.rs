@@ -31,7 +31,6 @@ pub fn Interactive(
     #[prop(default = true)] takes_text: bool,
     on_ime: Callback<ImeEvent>,
     on_key: Callback<KeyPress, bool>,
-    on_ancestor_key: Callback<KeyPress, bool>,
     on_motion: Callback<Vec2>,
     cursor: Option<Prop<CursorIcon>>,
     #[prop(default = false)] key_active: Prop<bool>,
@@ -59,11 +58,12 @@ pub fn Interactive(
     on_autoscroll: Callback<AutoscrollGesture>,
     on_zoom: Callback<ZoomGesture>,
     capture_at: Callback<Pos2, bool>,
-    intercept_at: Callback<Pos2, bool>,
+    hit_at: Callback<Pos2, bool>,
     on_forward: Callback<ForwardedInput>,
-    forward_at: Callback<Pos2, bool>,
+    #[prop(default = false)] inhibits_shortcuts: Prop<bool>,
     #[prop(default = None)] claim_modifiers: Prop<Option<Modifiers>>,
     claim_at: Callback<(Pos2, Modifiers), bool>,
+    on_press_outside: Callback<Pos2>,
     children: Option<Child>,
 ) -> NodeId {
     assert!(
@@ -75,7 +75,6 @@ pub fn Interactive(
                 && on_text.is_empty()
                 && on_ime.is_empty()
                 && on_key.is_empty()
-                && on_ancestor_key.is_empty()
                 && on_motion.is_empty()),
         "an Interactive handed focus callbacks has to be focusable"
     );
@@ -93,7 +92,6 @@ pub fn Interactive(
             }
             focus.on_ime = on_ime;
             focus.on_key = on_key;
-            focus.on_ancestor_key = on_ancestor_key;
             focus.on_motion = on_motion;
         }
         node.on_click = on_click;
@@ -114,10 +112,10 @@ pub fn Interactive(
         node.on_autoscroll = on_autoscroll;
         node.on_zoom = on_zoom;
         node.capture_at = capture_at;
-        node.intercept_at = intercept_at;
+        node.hit_at = hit_at;
         node.on_forward = on_forward;
-        node.forward_at = forward_at;
-        node.claim_at = claim_at;
+        document.set_interactive_claim_at(interactive, claim_at);
+        document.set_interactive_on_press_outside(interactive, on_press_outside);
         if let Some(child) = children {
             document.set_interactive_child(interactive, child);
         }
@@ -197,6 +195,10 @@ pub fn Interactive(
     });
     create_effect(move || {
         with_document(|document| document.set_interactive_key_active(interactive, key_active.get()))
+    });
+    create_effect(move || {
+        let inhibits = inhibits_shortcuts.get();
+        with_document(|document| document.set_interactive_inhibits_shortcuts(interactive, inhibits))
     });
     create_effect(move || {
         let claimed = claim_modifiers.get();

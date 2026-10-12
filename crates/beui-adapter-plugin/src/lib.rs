@@ -5,7 +5,6 @@ mod surface;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
-use std::time::Duration;
 
 use beui_core::app::{App, SafeArea, Setup, Waker};
 use beui_core::context::{Context, FrameOutput};
@@ -13,12 +12,13 @@ use beui_core::geometry::Rect;
 use beui_core::renderer::Loaded;
 use beui_core::runner::{Adapter, Launch, RunOptions, Runner, Running};
 use beui_core::screens::Screen;
-use block_editor_plugin::{EditorHost, Frame, InputEvent, Region};
+use block_editor_plugin::{
+    DescribedAction, DescribedNode, Description, EditorHost, Frame, InputEvent, NodeValue, Region,
+    Toggled,
+};
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect};
-use block_plugin_api::CursorIcon;
 
-use input::Input;
 use platform::HostPlatform;
 use surface::{Surface, SurfaceRenderer};
 
@@ -36,6 +36,7 @@ impl Adapter for PluginAdapter {
     fn run(self: Box<Self>, launch: Launch) -> Running {
         Box::pin(async move {
             let mut runner = Runner::new(launch);
+            runner.context().set_test_ids_published(true);
             let waker = self.host.waker();
             let loaded = Loaded {
                 renderer: Box::new(SurfaceRenderer::new(Rc::clone(&self.surface))),
@@ -52,7 +53,6 @@ pub struct PluginSurface {
     runner: Runner,
     platform: HostPlatform,
     surface: Rc<RefCell<Surface>>,
-    input: Input,
 }
 
 impl PluginSurface {
@@ -85,7 +85,6 @@ impl PluginSurface {
             runner,
             platform: HostPlatform::new(host),
             surface,
-            input: Input::default(),
         }
     }
 
@@ -99,10 +98,40 @@ impl PluginSurface {
         region.scale_factor / context.pixels_per_point()
     }
 
+    pub fn node_action(&mut self, node: usize, action: &str, value: Option<NodeValue>) {
+        let Some(action) = beui_core::app::accessibility_dump::action_named(action) else {
+            return;
+        };
+        let Some(target) = self.runner.accessibility().and_then(|dump| {
+            dump.lines()
+                .iter()
+                .filter(|line| line.role != beui_core::accesskit::Role::Window)
+                .nth(node)
+                .map(|line| line.id)
+        }) else {
+            return;
+        };
+        let data = value.map(|value| match value {
+            NodeValue::Text(text) => beui_core::accesskit::ActionData::Value(text.into()),
+            NodeValue::Number(number) => beui_core::accesskit::ActionData::NumericValue(number),
+        });
+        self.runner
+            .context()
+            .accessibility_action(beui_core::accesskit::ActionRequest {
+                action,
+                target_tree: beui_core::accesskit::TreeId::ROOT,
+                target_node: target,
+                data,
+            });
+    }
+
+    pub fn run_action(&mut self, id: &str) {
+        self.runner.context().request_action(id.to_owned());
+    }
+
     pub fn input(&mut self, region: &Region, event: &InputEvent) {
-        let context = self.runner.context().clone();
-        for event in self.input.translate(&context, region, event) {
-            self.runner.push(event);
+        if let Some(input) = input::translate(region, event) {
+            self.runner.push(input);
         }
     }
 
@@ -130,7 +159,7 @@ impl PluginSurface {
         if let Some(now) = block_editor_plugin::frame_time() {
             self.runner.context().set_clock(now);
         }
-        self.platform.deliver_picks(self.runner.context());
+        self.platform.deliver_picks();
         let ratio = self.ratio(region);
         let scale = region.scale_factor;
         let rect = region.rect;
@@ -140,21 +169,19 @@ impl PluginSurface {
             right: width as f32 - rect.max.x * scale,
             bottom: height as f32 - rect.max.y * scale,
         };
+        if region.describe {
+            self.runner.keep_accessibility();
+            self.runner.context().set_automated(true);
+        }
         let Some(frame) = self.runner.frame(&mut self.platform, scale, area) else {
             return Frame::default();
         };
+        let description = region.describe.then(|| self.describe(region));
         let unscale = ratio.recip();
-        let cursor = match self.runner.context().touch_emulation() {
-            true => CursorIcon::Crosshair,
-            false => self.platform.cursor,
-        };
         Frame {
             changed: frame.pending,
-            repaint_after: match frame.again() {
-                true => Some(Duration::ZERO),
-                false => (frame.repaint_after < Duration::MAX).then_some(frame.repaint_after),
-            },
-            cursor,
+            repaint_after: frame.wait(),
+            cursor: self.platform.cursor,
             content: None,
             painted: Vec::new(),
             floating: Vec::new(),
@@ -172,6 +199,76 @@ impl PluginSurface {
             handles_back: self.platform.handles_back,
             wants_keyboard: self.platform.wants_keyboard,
             intercepted_keys: self.platform.intercepted_keys.clone(),
+            description,
+        }
+    }
+
+    fn describe(&self, region: &Region) -> Description {
+        let points = region.scale_factor.recip();
+        let nodes = self
+            .runner
+            .accessibility()
+            .map(|dump| {
+                dump.lines()
+                    .iter()
+                    .filter(|line| line.role != beui_core::accesskit::Role::Window)
+                    .map(|line| DescribedNode {
+                        depth: line.depth.saturating_sub(1).min(usize::from(u16::MAX)) as u16,
+                        role: format!("{:?}", line.role),
+                        label: line.label.clone(),
+                        value: line.value.clone(),
+                        toggled: line.toggled.map(|toggled| match toggled {
+                            beui_core::accesskit::Toggled::False => Toggled::Off,
+                            beui_core::accesskit::Toggled::True => Toggled::On,
+                            beui_core::accesskit::Toggled::Mixed => Toggled::Mixed,
+                        }),
+                        disabled: line.disabled,
+                        focused: line.focused,
+                        rect: line.bounds.map(|bounds| bounds.scaled(points)),
+                        actions: line
+                            .actions
+                            .iter()
+                            .map(|action| format!("{action:?}"))
+                            .collect(),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let mut test_ids: Vec<(String, Rect)> = self
+            .runner
+            .output()
+            .map(|output| {
+                output
+                    .test_ids()
+                    .iter()
+                    .map(|(id, rect)| (id.clone(), self.to_region(region, *rect)))
+                    .collect()
+            })
+            .unwrap_or_default();
+        test_ids.sort_by(|a, b| a.0.cmp(&b.0));
+        let actions = self
+            .runner
+            .output()
+            .map(|output| {
+                output
+                    .actions
+                    .iter()
+                    .flat_map(|group| &group.actions)
+                    .map(|action| DescribedAction {
+                        id: action.id.clone(),
+                        label: action.label.clone(),
+                        shortcut: action.shortcut.clone(),
+                        enabled: action.enabled,
+                        checked: action.checked,
+                        live: action.live,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        Description {
+            nodes,
+            test_ids,
+            actions,
         }
     }
 

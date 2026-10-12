@@ -1,5 +1,6 @@
 use bincode::Options;
 use serde::{Deserialize, Serialize};
+pub use serde_bytes::ByteBuf;
 use std::fmt;
 
 mod block_ids;
@@ -8,13 +9,15 @@ mod linux;
 mod manifest;
 mod session;
 pub use block_ids::BlockIdRole;
-pub use host_value::{HostAction, HostImage, HostValue, decode_host, encode_host};
+pub use host_value::{HostAction, HostImage, HostValue, LinkBase, decode_host, encode_host};
 pub use linux::{
-    Displays, HostDisplay, HostDisplayMode, HostInputDevice, HostNotificationAction, HostProgram,
-    HostWindow, HostWindowId, HostWindows, IncomingNotification, InputDevices, Media, MediaLevel,
-    MediaLevels, MediaRequest, NotificationCloseReason, NotificationInbox, NotificationReport,
-    NotificationRequest, NotificationSignal, NotificationUrgency, Notifications, PlayerCommand,
-    Power, PowerAction, PowerAvailability, ProgramAction, Programs, ScreenLocked, WindowAction,
+    AudioOutput, Displays, HostDisplay, HostDisplayMode, HostInputDevice, HostNotificationAction,
+    HostProgram, HostTrayItem, HostWindow, HostWindowId, HostWindows, IncomingNotification,
+    InputDevices, Media, MediaLevel, MediaLevels, MediaRequest, NotificationCloseReason,
+    NotificationInbox, NotificationReport, NotificationRequest, NotificationSignal,
+    NotificationUrgency, Notifications, PlayerCommand, Power, PowerAction, PowerAvailability,
+    ProgramAction, Programs, ScreenLocked, Tray, TrayMenuEntry, TrayRequest, TrayStatus,
+    TrayToggle, WindowAction,
 };
 pub use manifest::{
     EditorDocument, ManifestDocument, TemplateDocument, Templates, manifest_from_json,
@@ -101,6 +104,56 @@ pub struct FrameReport {
     pub handles_back: bool,
     pub wants_keyboard: bool,
     pub intercepted_keys: Vec<KeyChord>,
+    pub description: Option<Description>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Description {
+    pub nodes: Vec<DescribedNode>,
+    pub test_ids: Vec<TestIdRect>,
+    pub actions: Vec<DescribedAction>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DescribedAction {
+    pub id: String,
+    pub label: String,
+    pub shortcut: Option<String>,
+    pub enabled: bool,
+    pub checked: Option<bool>,
+    pub live: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DescribedNode {
+    pub depth: u16,
+    pub role: String,
+    pub label: String,
+    pub value: String,
+    pub toggled: Option<Toggled>,
+    pub disabled: bool,
+    pub focused: bool,
+    pub rect: Option<ChildRect>,
+    pub actions: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum NodeValue {
+    Text(String),
+    Number(f64),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Toggled {
+    Off,
+    On,
+    Mixed,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct TestIdRect {
+    pub id: String,
+    pub rect: ChildRect,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -344,7 +397,6 @@ pub struct ChildStatus {
     pub available: bool,
     pub intrinsic: Option<Size>,
     pub aspect_ratio: Option<f32>,
-    pub hovered: bool,
     pub active: bool,
     pub interaction: InteractionMode,
     pub capabilities: EditorCapabilities,
@@ -1085,8 +1137,7 @@ pub enum EditorMessage {
         block_id: [u8; 16],
         content_type: [u8; 16],
         parent: BlockLocation,
-        name: Option<String>,
-        artifact: Option<ArtifactSource>,
+        defined: MetadataEntries,
         content: Option<serde_bytes::ByteBuf>,
     },
     SetParent {
@@ -1094,10 +1145,11 @@ pub enum EditorMessage {
         block_id: [u8; 16],
         parent: BlockLocation,
     },
-    SetName {
+    Define {
         instance: EditorInstanceId,
         block_id: [u8; 16],
-        name: Option<String>,
+        key: [u8; 16],
+        value: Option<serde_bytes::ByteBuf>,
     },
     VersionControl {
         instance: EditorInstanceId,
@@ -1193,7 +1245,7 @@ impl EditorMessage {
             | Self::Blocks { instance, .. }
             | Self::CreateBlock { instance, .. }
             | Self::SetParent { instance, .. }
-            | Self::SetName { instance, .. }
+            | Self::Define { instance, .. }
             | Self::VersionControl { instance, .. }
             | Self::VersionStatus { instance, .. } => *instance,
         }
@@ -1232,6 +1284,25 @@ pub enum CursorIcon {
     ResizeVertical,
     ResizeNeSw,
     ResizeNwSe,
+    Alias,
+    ContextMenu,
+    Cell,
+    VerticalText,
+    Copy,
+    NoDrop,
+    AllScroll,
+    ZoomIn,
+    ZoomOut,
+    ResizeColumn,
+    ResizeRow,
+    ResizeNorth,
+    ResizeEast,
+    ResizeSouth,
+    ResizeWest,
+    ResizeNorthEast,
+    ResizeNorthWest,
+    ResizeSouthEast,
+    ResizeSouthWest,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1271,11 +1342,12 @@ pub enum BlockQuery {
     Block([u8; 16]),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ArtifactSource {
-    pub source_type: [u8; 16],
-    #[serde(with = "serde_bytes")]
-    pub data: Vec<u8>,
+pub type MetadataEntries = std::collections::BTreeMap<[u8; 16], serde_bytes::ByteBuf>;
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BlockMetadata {
+    pub defined: MetadataEntries,
+    pub derived: MetadataEntries,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1284,19 +1356,9 @@ pub struct BlockInfo {
     pub block_type: [u8; 16],
     pub author: [u8; 16],
     pub parent: BlockLocation,
-    pub name: Option<String>,
-    pub named_by_hand: bool,
     pub references: Vec<[u8; 16]>,
     pub access: AccessLevel,
-    pub artifact: Option<ArtifactSource>,
-    pub thumbhash: Option<Thumbhash>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Thumbhash {
-    pub hash: Vec<u8>,
-    pub width: u32,
-    pub height: u32,
+    pub metadata: BlockMetadata,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -1627,10 +1689,14 @@ pub enum Message {
     RegionSizes(Vec<RegionSize>),
     Frames(Vec<FrameReport>),
     Input(InputBatch),
-    DrawFrame { now_micros: u64 },
+    DrawFrame {
+        now_micros: u64,
+    },
     FrameNeeded,
     FrameReady(FrameReady),
-    Acknowledged { request_id: u64 },
+    Acknowledged {
+        request_id: u64,
+    },
     Error(ProtocolError),
     Shutdown,
     ShutdownAcknowledged,
@@ -1638,6 +1704,17 @@ pub enum Message {
     BlockTypes(Catalog),
     Children(ChildPlacements),
     ChildStatuses(Vec<ChildStatus>),
+    Describe(bool),
+    RunAction {
+        screen: ScreenId,
+        id: String,
+    },
+    NodeAction {
+        screen: ScreenId,
+        node: u32,
+        action: String,
+        value: Option<NodeValue>,
+    },
 }
 
 impl Message {
@@ -1673,7 +1750,10 @@ impl Message {
             | Self::DrawFrame { .. }
             | Self::Shutdown
             | Self::BlockTypes(_)
-            | Self::ChildStatuses(_) => Direction::ToPlugin,
+            | Self::ChildStatuses(_)
+            | Self::Describe(_)
+            | Self::RunAction { .. }
+            | Self::NodeAction { .. } => Direction::ToPlugin,
             Self::Hello(_)
             | Self::Acknowledged { .. }
             | Self::ShutdownAcknowledged
@@ -1774,7 +1854,7 @@ impl EditorMessage {
             | Self::SetParent { .. }
             | Self::WatchHostValue { .. }
             | Self::HostAction { .. }
-            | Self::SetName { .. } => Direction::ToHost,
+            | Self::Define { .. } => Direction::ToHost,
         }
     }
 }
@@ -1933,6 +2013,7 @@ pub enum InputEvent {
         key: Key,
         pressed: bool,
         repeat: bool,
+        text: Option<String>,
     },
     Text(String),
     Paste(String),
@@ -2432,6 +2513,14 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
             Ok(())
         }
         Message::Children(value) => validate_children(value),
+        Message::RunAction { id, .. } => string(id),
+        Message::NodeAction { action, value, .. } => {
+            string(action)?;
+            match value {
+                Some(NodeValue::Text(text)) => string(text),
+                _ => Ok(()),
+            }
+        }
         Message::ChildStatuses(value) => {
             collection(value.len())?;
             for status in value {
@@ -2561,33 +2650,21 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
                 return Err(DecodeError::LimitExceeded("block list"));
             }
             for block in blocks {
-                if let Some(name) = &block.name {
-                    string(name)?;
-                }
                 collection(block.references.len())?;
-                if let Some(artifact) = &block.artifact {
-                    descriptor(&artifact.data)?;
-                }
+                metadata(&block.metadata.defined)?;
+                metadata(&block.metadata.derived)?;
             }
             Ok(())
         }
         EditorMessage::CreateBlock {
-            name,
-            artifact,
-            content,
-            ..
+            defined, content, ..
         } => {
-            if let Some(name) = name {
-                string(name)?;
-            }
-            if let Some(artifact) = artifact {
-                descriptor(&artifact.data)?;
-            }
+            metadata(defined)?;
             content.as_ref().map_or(Ok(()), |content| blob(content))
         }
-        EditorMessage::SetName {
-            name: Some(name), ..
-        } => string(name),
+        EditorMessage::Define {
+            value: Some(value), ..
+        } => descriptor(value),
         EditorMessage::VersionControl { command, .. } => match command {
             VersionCommand::Commit { message: value }
             | VersionCommand::Switch { branch: value }
@@ -2738,6 +2815,11 @@ fn descriptor(data: &[u8]) -> Result<(), DecodeError> {
     } else {
         Ok(())
     }
+}
+
+fn metadata(entries: &MetadataEntries) -> Result<(), DecodeError> {
+    collection(entries.len())?;
+    entries.values().try_for_each(|value| descriptor(value))
 }
 
 fn menu(entries: &[MenuEntry]) -> Result<(), DecodeError> {

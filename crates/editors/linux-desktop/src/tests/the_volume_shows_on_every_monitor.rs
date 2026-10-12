@@ -18,6 +18,7 @@ fn the_volume_shows_on_every_monitor() {
         }),
         input: None,
         brightness: None,
+        ..MediaLevels::default()
     });
     assert!(fixture.test.app_key(Modifiers::NONE, Key::VolumeUp));
     fixture.settle();

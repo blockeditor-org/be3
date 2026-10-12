@@ -58,7 +58,10 @@ impl Message {
             | Self::Shutdown
             | Self::ShutdownAcknowledged
             | Self::BlockTypes(_)
-            | Self::ChildStatuses(_) => {}
+            | Self::ChildStatuses(_)
+            | Self::Describe(_)
+            | Self::RunAction { .. }
+            | Self::NodeAction { .. } => {}
         }
     }
 }
@@ -88,7 +91,7 @@ impl EditorMessage {
             | Self::DragOver { block_id, .. }
             | Self::PlayAudio { block_id, .. }
             | Self::OpenArtifact { block_id, .. }
-            | Self::SetName { block_id, .. }
+            | Self::Define { block_id, .. }
             | Self::VersionStatus { block_id, .. } => existing(block_id),
             Self::ShowDialog { block_id, .. } | Self::SetAccess { block_id, .. } => {
                 existing(block_id);

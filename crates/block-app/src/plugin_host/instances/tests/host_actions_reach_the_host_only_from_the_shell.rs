@@ -22,8 +22,8 @@ fn host_actions_reach_the_host_only_from_the_shell() {
         MediaRequest::SetVolume(0.3),
         MediaRequest::Player(PlayerCommand::Next),
     ];
-    for request in media {
-        assert!(act(&mut instances, &request));
+    for request in &media {
+        assert!(act(&mut instances, request));
     }
     assert!(act(&mut instances, &PowerAction::Suspend));
     let notification = NotificationReport {

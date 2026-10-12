@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::ImageContent;
 use block_editor_beui::beui::reactive::{
-    Align, Canvas, CanvasItem, Direction, Frame, ItemSize, List, Memo, NodeRef, Show, Spacer,
-    clone, component, component_rect, create_effect, create_memo, view,
+    Align, Canvas, CanvasItem, Direction, Frame, ItemSize, List, Memo, NodeRef, PlacementBuilder,
+    ReadSignal, Show, Spacer, clone, component, create_effect, create_memo, view,
 };
 use block_editor_beui::beui::styled::{Button, ButtonVariant, Caption, Heading, use_theme};
 use block_editor_beui::beui::unstyled::Picture;
@@ -85,31 +85,42 @@ fn Artwork(
     image: Memo<Option<Image>>,
     thumbhash: Memo<Option<Thumbhash>>,
 ) -> NodeId {
-    let placed = component_rect();
-    let world = editor.world();
-    let placeholder = create_memo(clone!(thumbhash -> move || {
-        thumbhash.get().map(|thumbhash| thumbhash.size())
-    }));
-    let shape = create_memo(clone!(image placeholder world placed -> move || {
-        let Some(size) = image.get().map(|image| image.size()).or_else(|| placeholder.get()) else {
-            return Rect::ZERO;
-        };
-        let available = world.get().unwrap_or_else(|| placed.get().size());
-        fit_content(
-            Rect::from_min_size(Pos2::ZERO, available.max(Vec2::new(1.0, 1.0))),
-            size,
-        )
-    }));
-    let x = create_memo(clone!(shape -> move || shape.get().left()));
-    let y = create_memo(clone!(shape -> move || shape.get().top()));
-    let width = create_memo(clone!(shape -> move || shape.get().width()));
-    let height = create_memo(clone!(shape -> move || shape.get().height()));
     view! {
-        <Canvas view={editor.canvas()}>
-            <CanvasItem x={x} y={y} width={width} height={height} @test_id={"image.picture"}>
-                <Picture image={image} thumbhash={thumbhash} fit=ImageFit::Fill />
-            </CanvasItem>
-        </Canvas>
+        <PlacementBuilder>
+            {move |placed: ReadSignal<Rect>| {
+                let world = editor.world();
+                let placeholder = create_memo(clone!(thumbhash -> move || {
+                    thumbhash.get().map(|thumbhash| thumbhash.size())
+                }));
+                let shape = create_memo(clone!(image placeholder world placed -> move || {
+                    let Some(size) = image.get().map(|image| image.size()).or_else(|| placeholder.get()) else {
+                        return Rect::ZERO;
+                    };
+                    let available = world.get().unwrap_or_else(|| placed.get().size());
+                    fit_content(
+                        Rect::from_min_size(Pos2::ZERO, available.max(Vec2::new(1.0, 1.0))),
+                        size,
+                    )
+                }));
+                let x = create_memo(clone!(shape -> move || shape.get().left()));
+                let y = create_memo(clone!(shape -> move || shape.get().top()));
+                let width = create_memo(clone!(shape -> move || shape.get().width()));
+                let height = create_memo(clone!(shape -> move || shape.get().height()));
+                view! {
+                    <Canvas view={editor.canvas()}>
+                        <CanvasItem
+                            x={x}
+                            y={y}
+                            width={width}
+                            height={height}
+                            @test_id={"image.picture"}
+                        >
+                            <Picture image={image} thumbhash={thumbhash} fit=ImageFit::Fill />
+                        </CanvasItem>
+                    </Canvas>
+                }
+            }}
+        </PlacementBuilder>
     }
 }
 

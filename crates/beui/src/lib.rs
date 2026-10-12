@@ -7,23 +7,29 @@ pub use accesskit;
 pub use beui_components_styled as styled;
 pub use beui_components_unstyled as unstyled;
 pub use beui_components_unstyled::datetime;
+pub use beui_core::accessibility;
+pub use beui_core::app::accessibility_dump;
+pub use beui_core::app::automation;
 pub use beui_core::app::{App, Setup, Waker};
 pub use beui_core::base::{
     Align, Direction, ImeCursor, ItemSize, Justify, ScrollPosition, Sides, Sizing, Track,
     focus_within,
 };
+pub use beui_core::clipboard::ClipboardReadId;
 pub use beui_core::color::{Color32, Hsva, Oklch, format_hex, parse_hex};
 pub use beui_core::context::{
-    Context, FrameOutput, InputSimulation, Moved, RendererChoices, RendererInfo,
+    ActionGroup, ActionInfo, Context, FrameOutput, InputSimulation, Moved, RendererChoices,
+    RendererInfo,
 };
 pub use beui_core::damage::Region;
 pub use beui_core::document::{
-    Document, GlobalKeyPress, OverRepaint, Tools, detect_over_repaint, take_over_repaints,
-    verify_paint,
+    Document, OverRepaint, Tools, detect_over_repaint, take_over_repaints, verify_paint,
 };
 pub use beui_core::draw::{Quad, Quads, Turn, quads};
 pub use beui_core::drawing::Drawing;
-pub use beui_core::file_picker::{FileFilter, FilePick, FilePickId, FilePickRequest, PickedFile};
+pub use beui_core::file_picker::{
+    FileFilter, FilePick, FilePickAnswer, FilePickId, FilePickRequest, PickedFile,
+};
 pub use beui_core::filter::{ColorVision, Filter, MAX_BLUR};
 pub use beui_core::font::{
     FontBackend, FontFamily, FontId, Galley, GalleyLine, Glyph, GlyphId, GlyphImage, Shaping,
@@ -34,10 +40,13 @@ pub use beui_core::icons;
 pub use beui_core::image::{Image, ImageFit, ImageId, Thumbhash};
 pub use beui_core::input::{
     AutoscrollGesture, BackEdge, BackGesture, CursorIcon, DroppedFile, Event, ImeArea, ImeEvent,
-    ImeText, InputState, Key, KeyChord, KeyPress, Modifiers, PointerButton, PointerPress, RawInput,
-    ScrollGesture, SecondaryDrag, TouchId, TouchPhase, TouchPoint, TouchState, ZoomGesture,
+    ImeText, InputState, Key, KeyChord, KeyPress, Modifiers, PointerButton, PointerEvent,
+    PointerId, PointerPhase, PointerPress, RawInput, ScrollGesture, SecondaryDrag, TouchId,
+    TouchPhase, ZoomGesture,
 };
-pub use beui_core::interact::forward::ForwardedInput;
+pub use beui_core::interact::forward::{Forwarded, ForwardedInput};
+pub use beui_core::keys::{KeyAt, KeyEvent, KeyInput, KeyPhase, KeyTarget};
+pub use beui_core::layer::{Dismiss, LayerLevel, LayerPolicy};
 pub use beui_core::node::{ClickHandler, Handler, NodeId, NodeOf};
 pub use beui_core::page::{Page, PageShape};
 pub use beui_core::painter::{Corners, Painter, Shape};
@@ -63,7 +72,9 @@ pub use beui_adapter_android::AndroidApp;
 pub use beui_adapter_web::accessibility_tree;
 #[cfg(all(feature = "window", not(target_os = "android")))]
 pub use beui_adapter_winit::winit;
-pub use beui_core::runner::{Adapter, Launch, Platform, RunOptions, Running};
+pub use beui_core::runner::{
+    Adapter, Input, Keystroke, Launch, Platform, RunOptions, Running, ScrollDelta, panic_message,
+};
 #[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
 pub use web::{WebRenderer, run_web, web_adapter};
 
@@ -74,6 +85,12 @@ pub use window::{WindowRenderer, run_on, run_with, run_with_renderers, window_ad
 
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]
 mod window;
+
+#[cfg(all(
+    feature = "window",
+    not(any(target_os = "android", target_arch = "wasm32"))
+))]
+pub use beui_adapter_headless::Headless;
 
 pub mod reactive {
     pub use beui_components_unstyled::Button;
@@ -111,8 +128,8 @@ pub fn run(title: impl Into<String>, app: impl App + 'static) -> Result<(), Box<
 
 #[cfg(test)]
 use beui_core::{
-    accessibility, base, color, context, damage, draw, drawing, filter, flash, font, geometry,
-    image, input, interact, node, painter, screen_simulation, sight,
+    base, color, context, damage, draw, drawing, filter, flash, font, geometry, image, input,
+    interact, node, painter, screen_simulation, sight,
 };
 #[cfg(test)]
 use beui_inspector::{self as inspector, mouse_simulation};

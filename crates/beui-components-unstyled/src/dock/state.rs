@@ -810,6 +810,32 @@ impl DockState {
         self.find(tab).is_some()
     }
 
+    pub fn is_shown(&self, tab: TabId, stacked: bool) -> bool {
+        if self.fullscreen().is_some_and(|shown| shown.tab == tab) {
+            return true;
+        }
+        if stacked {
+            return self.stacked_tab() == Some(tab);
+        }
+        let Some(position) = self.find(tab) else {
+            return false;
+        };
+        let mut leaf = position.leaf;
+        if self.active_tab(leaf) != Some(tab) {
+            return false;
+        }
+        while let Some(Tree::Group(group)) = self.tree_of(leaf) {
+            let Some((holder, index)) = self.holder(group) else {
+                return false;
+            };
+            if self.active_index(holder) != index {
+                return false;
+            }
+            leaf = holder;
+        }
+        true
+    }
+
     pub fn all_tabs(&self) -> Vec<TabId> {
         self.surfaces
             .iter()

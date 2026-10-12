@@ -1,9 +1,81 @@
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use crate::geometry::Rect;
-use crate::node::NodeId;
-use crate::painter::{Entry, Shape, placed_shape};
+use crate::context::scale_shape;
+use crate::fade::Fade;
+use crate::filter::Filter;
+use crate::geometry::{Rect, Vec2};
+use crate::node::{NodeId, SpaceId};
+use crate::painter::{Shape, placed_shape};
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Group {
+    Transform {
+        offset: Vec2,
+        scale: f32,
+    },
+    Clip(Rect),
+    Scroll {
+        space: SpaceId,
+        viewport: Rect,
+        offset: Vec2,
+    },
+    Mask(Fade),
+    Filter(Filter),
+}
+
+impl Group {
+    pub fn place(&self, rect: Rect) -> Rect {
+        match *self {
+            Self::Transform { offset, scale } => rect.scaled(scale).translate(offset),
+            Self::Clip(clip) => rect.intersect(clip),
+            Self::Scroll {
+                viewport, offset, ..
+            } => rect.translate(offset).intersect(viewport),
+            Self::Mask(_) => rect,
+            Self::Filter(filter) => match filter.blur > 0.0 && rect.is_positive() {
+                true => rect.union(rect.expand(filter.blur * 3.0).intersect(filter.region)),
+                false => rect,
+            },
+        }
+    }
+
+    pub fn same_place(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                Self::Scroll {
+                    space, viewport, ..
+                },
+                Self::Scroll {
+                    space: other_space,
+                    viewport: other_viewport,
+                    ..
+                },
+            ) => space == other_space && viewport == other_viewport,
+            (Self::Mask(_), Self::Mask(_)) => true,
+            _ => self == other,
+        }
+    }
+
+    pub fn place_shape(&self, shape: &mut Shape) {
+        match *self {
+            Self::Transform { offset, scale } => {
+                if scale != 1.0 {
+                    scale_shape(shape, scale);
+                }
+                *shape = placed_shape(shape, offset, Rect::EVERYTHING);
+            }
+            Self::Clip(clip) => {
+                let held = crate::context::shape_clip(shape);
+                *held = held.intersect(clip);
+            }
+            Self::Scroll {
+                viewport, offset, ..
+            } => *shape = placed_shape(shape, offset, viewport),
+            Self::Mask(_) | Self::Filter(_) => {}
+        }
+    }
+}
 
 pub struct Display {
     pub key: u64,
@@ -14,193 +86,279 @@ pub struct Display {
 }
 
 pub enum Part {
-    Shapes { top: bool, start: u32, end: u32 },
-    Child(NodeId, Entry, Rc<Display>),
+    Shapes { start: u32, end: u32, bounds: Rect },
+    Child(NodeId, Vec2, Rc<Display>),
+    Group(Group, Box<[Part]>),
 }
 
-#[derive(PartialEq)]
-pub enum Item<'a> {
-    Main(&'a Shape),
-    Top(&'a Shape),
-    Child(NodeId, Entry),
+impl Part {
+    pub fn bounds(&self) -> Rect {
+        match self {
+            Self::Shapes { bounds, .. } => *bounds,
+            Self::Child(_, at, display) => display.bounds.translate(*at),
+            Self::Group(group, parts) => group.place(bounds_of(parts)),
+        }
+    }
+}
+
+pub fn bounds_of(parts: &[Part]) -> Rect {
+    parts
+        .iter()
+        .fold(Rect::NOTHING, |bounds, part| bounds.union(part.bounds()))
+}
+
+fn count_of(parts: &[Part]) -> usize {
+    parts
+        .iter()
+        .map(|part| match part {
+            Part::Shapes { start, end, .. } => (end - start) as usize,
+            Part::Child(_, _, display) => display.count,
+            Part::Group(_, parts) => count_of(parts),
+        })
+        .sum()
 }
 
 static KEYS: AtomicU64 = AtomicU64::new(1);
 
 impl Display {
-    pub fn new(shapes: Vec<Shape>, parts: Vec<Part>, bounds: Rect) -> Self {
-        let own = shapes.len();
+    pub fn new(shapes: Vec<Shape>, parts: Vec<Part>) -> Self {
         Self {
             key: KEYS.fetch_add(1, Ordering::Relaxed),
             shapes: shapes.into(),
-            count: own + children_count(&parts),
+            bounds: bounds_of(&parts),
+            count: count_of(&parts),
             parts: parts.into_boxed_slice(),
-            bounds,
         }
     }
 
-    pub fn with_children(&self, parts: Vec<Part>, bounds: Rect) -> Self {
-        Self {
+    pub fn with_children(&self, child: &impl Fn(NodeId) -> Option<Rc<Display>>) -> Option<Self> {
+        let parts = rechilded(&self.parts, child)?;
+        Some(Self {
             key: self.key,
             shapes: Rc::clone(&self.shapes),
-            count: self.shapes.len() + children_count(&parts),
-            parts: parts.into_boxed_slice(),
-            bounds,
-        }
-    }
-
-    pub fn items(&self) -> Vec<Item<'_>> {
-        let mut items = Vec::new();
-        for part in self.parts.iter() {
-            match part {
-                Part::Shapes { top, start, end } => {
-                    for shape in &self.shapes[*start as usize..*end as usize] {
-                        items.push(match top {
-                            true => Item::Top(shape),
-                            false => Item::Main(shape),
-                        });
-                    }
-                }
-                Part::Child(id, entry, _) => items.push(Item::Child(*id, *entry)),
-            }
-        }
-        items
-    }
-
-    pub fn children(&self) -> impl Iterator<Item = (NodeId, Entry, &Rc<Display>)> + '_ {
-        self.parts.iter().filter_map(|part| match part {
-            Part::Child(id, entry, display) => Some((*id, *entry, display)),
-            Part::Shapes { .. } => None,
+            bounds: bounds_of(&parts),
+            count: count_of(&parts),
+            parts,
         })
     }
 
-    pub fn flatten(&self, at: Entry, main: &mut Vec<Shape>, top: &mut Vec<Shape>) {
-        for part in self.parts.iter() {
+    pub fn children(&self) -> Vec<(NodeId, Vec2, &Rc<Display>)> {
+        let mut children = Vec::new();
+        collect_children(&self.parts, &mut children);
+        children
+    }
+
+    pub fn flatten(&self, at: Vec2, into: &mut Vec<Shape>) {
+        self.flatten_within(at, Rect::EVERYTHING, into);
+    }
+
+    fn flatten_within(&self, at: Vec2, clip: Rect, into: &mut Vec<Shape>) {
+        self.flatten_parts(&self.parts, at, clip, into);
+    }
+
+    fn flatten_parts(&self, parts: &[Part], at: Vec2, clip: Rect, into: &mut Vec<Shape>) {
+        for part in parts {
             match part {
-                Part::Shapes {
-                    top: on_top,
-                    start,
-                    end,
-                } => {
-                    let into = match on_top {
-                        true => &mut *top,
-                        false => &mut *main,
-                    };
+                Part::Shapes { start, end, .. } => {
                     for shape in &self.shapes[*start as usize..*end as usize] {
-                        let shape = placed_shape(shape, at.translation, at.clip);
-                        if crate::damage::bounds(&shape).is_positive()
-                            || matches!(shape, Shape::Drawing { .. })
-                        {
-                            into.push(shape);
-                        }
+                        push_shown(into, placed_shape(shape, at, clip));
                     }
                 }
-                Part::Child(_, entry, display) => display.flatten(at.compose(*entry), main, top),
+                Part::Child(_, translation, display) => {
+                    display.flatten_within(at + *translation, clip, into);
+                }
+                Part::Group(group, inner) => match *group {
+                    Group::Clip(rect) => {
+                        self.flatten_parts(inner, at, clip.intersect(rect.translate(at)), into)
+                    }
+                    Group::Scroll {
+                        viewport, offset, ..
+                    } => self.flatten_parts(
+                        inner,
+                        at + offset,
+                        clip.intersect(viewport.translate(at)),
+                        into,
+                    ),
+                    Group::Transform { offset, scale: 1.0 } => {
+                        self.flatten_parts(inner, at + offset, clip, into)
+                    }
+                    Group::Transform { offset, scale } => {
+                        let mut scaled = Vec::new();
+                        self.flatten_parts(inner, Vec2::ZERO, Rect::EVERYTHING, &mut scaled);
+                        for mut shape in scaled {
+                            scale_shape(&mut shape, scale);
+                            push_shown(into, placed_shape(&shape, at + offset, clip));
+                        }
+                    }
+                    Group::Mask(_) | Group::Filter(_) => self.flatten_parts(inner, at, clip, into),
+                },
             }
         }
     }
+
+    pub fn same_tree(&self, other: &Self) -> bool {
+        same_parts(self, &self.parts, other, &other.parts)
+    }
 }
 
-fn children_count(parts: &[Part]) -> usize {
+fn push_shown(into: &mut Vec<Shape>, shape: Shape) {
+    if crate::damage::bounds(&shape).is_positive() || matches!(shape, Shape::Drawing { .. }) {
+        into.push(shape);
+    }
+}
+
+fn same_parts(left: &Display, parts: &[Part], right: &Display, others: &[Part]) -> bool {
+    parts.len() == others.len()
+        && parts.iter().zip(others).all(|pair| match pair {
+            (
+                Part::Shapes { start, end, .. },
+                Part::Shapes {
+                    start: other_start,
+                    end: other_end,
+                    ..
+                },
+            ) => {
+                let shapes = &left.shapes[*start as usize..*end as usize];
+                let other = &right.shapes[*other_start as usize..*other_end as usize];
+                shapes.len() == other.len()
+                    && shapes
+                        .iter()
+                        .zip(other)
+                        .all(|(shape, other)| shape.same_look(other))
+            }
+            (Part::Child(id, at, display), Part::Child(other_id, other_at, other)) => {
+                id == other_id && at == other_at && display.same_tree(other)
+            }
+            (Part::Group(group, inner), Part::Group(other_group, other_inner)) => {
+                group == other_group && same_parts(left, inner, right, other_inner)
+            }
+            _ => false,
+        })
+}
+
+fn rechilded(
+    parts: &[Part],
+    child: &impl Fn(NodeId) -> Option<Rc<Display>>,
+) -> Option<Box<[Part]>> {
+    let mut changed = false;
+    let mut rebuilt = Vec::with_capacity(parts.len());
+    for part in parts {
+        rebuilt.push(match part {
+            Part::Shapes { start, end, bounds } => Part::Shapes {
+                start: *start,
+                end: *end,
+                bounds: *bounds,
+            },
+            Part::Child(id, at, display) => {
+                let current = child(*id).unwrap_or_else(|| Rc::clone(display));
+                changed |= !Rc::ptr_eq(&current, display);
+                Part::Child(*id, *at, current)
+            }
+            Part::Group(group, inner) => match rechilded(inner, child) {
+                Some(inner) => {
+                    changed = true;
+                    Part::Group(*group, inner)
+                }
+                None => Part::Group(*group, copied(inner)),
+            },
+        });
+    }
+    changed.then(|| rebuilt.into_boxed_slice())
+}
+
+fn copied(parts: &[Part]) -> Box<[Part]> {
     parts
         .iter()
         .map(|part| match part {
-            Part::Child(_, _, display) => display.count,
-            Part::Shapes { .. } => 0,
+            Part::Shapes { start, end, bounds } => Part::Shapes {
+                start: *start,
+                end: *end,
+                bounds: *bounds,
+            },
+            Part::Child(id, at, display) => Part::Child(*id, *at, Rc::clone(display)),
+            Part::Group(group, inner) => Part::Group(*group, copied(inner)),
         })
-        .sum()
+        .collect()
 }
 
-pub fn parts(
-    items: Vec<crate::paint::Item>,
-    child: impl Fn(NodeId) -> Option<Rc<Display>>,
-) -> (Vec<Shape>, Vec<Part>) {
-    let mut shapes = Vec::new();
-    let mut parts: Vec<Part> = Vec::new();
-    for item in items {
-        let (shape, on_top) = match item {
-            crate::paint::Item::Main(shape) => (shape, false),
-            crate::paint::Item::Top(shape) => (shape, true),
-            crate::paint::Item::Child(id, entry) => {
-                if let Some(display) = child(id) {
-                    parts.push(Part::Child(id, entry, display));
-                }
-                continue;
-            }
-        };
-        let at = shapes.len() as u32;
-        shapes.push(shape);
-        match parts.last_mut() {
-            Some(Part::Shapes { top, end, .. }) if *top == on_top && *end == at => *end = at + 1,
-            _ => parts.push(Part::Shapes {
-                top: on_top,
-                start: at,
-                end: at + 1,
-            }),
+fn collect_children<'a>(parts: &'a [Part], into: &mut Vec<(NodeId, Vec2, &'a Rc<Display>)>) {
+    for part in parts {
+        match part {
+            Part::Shapes { .. } => {}
+            Part::Child(id, at, display) => into.push((*id, *at, display)),
+            Part::Group(_, inner) => collect_children(inner, into),
         }
     }
-    (shapes, parts)
 }
 
 #[derive(Clone)]
 pub enum Layer {
     Shape(Shape),
-    Display {
-        display: Rc<Display>,
-        entry: Entry,
-        scale: f32,
-        clip: Rect,
-    },
+    Display(Vec2, Rc<Display>),
+    Group(Group, Rc<[Layer]>),
 }
 
 impl Layer {
     pub fn same(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Shape(left), Self::Shape(right)) => left == right,
-            (
-                Self::Display {
-                    display,
-                    entry,
-                    scale,
-                    clip,
-                },
-                Self::Display {
-                    display: other_display,
-                    entry: other_entry,
-                    scale: other_scale,
-                    clip: other_clip,
-                },
-            ) => {
-                Rc::ptr_eq(display, other_display)
-                    && entry == other_entry
-                    && scale == other_scale
-                    && clip == other_clip
+            (Self::Display(at, display), Self::Display(other_at, other)) => {
+                at == other_at && Rc::ptr_eq(display, other)
+            }
+            (Self::Group(group, layers), Self::Group(other_group, others)) => {
+                group == other_group && same_layers(layers, others)
             }
             _ => false,
+        }
+    }
+
+    pub fn bounds(&self) -> Rect {
+        match self {
+            Self::Shape(shape) => crate::damage::bounds(shape),
+            Self::Display(at, display) => display.bounds.translate(*at),
+            Self::Group(group, layers) => group.place(
+                layers
+                    .iter()
+                    .fold(Rect::NOTHING, |bounds, layer| bounds.union(layer.bounds())),
+            ),
         }
     }
 
     pub fn flatten(&self, into: &mut Vec<Shape>) {
         match self {
             Self::Shape(shape) => into.push(shape.clone()),
-            Self::Display {
-                display,
-                entry,
-                scale,
-                clip,
-            } => {
-                let mut main = Vec::new();
-                let mut top = Vec::new();
-                display.flatten(*entry, &mut main, &mut top);
-                for mut shape in main.into_iter().chain(top) {
-                    crate::context::scale_shape(&mut shape, *scale);
-                    let bounds = crate::context::shape_clip(&mut shape);
-                    *bounds = bounds.intersect(*clip);
-                    into.push(shape);
+            Self::Display(at, display) => display.flatten(*at, into),
+            Self::Group(group, layers) => {
+                let mut inner = Vec::new();
+                for layer in layers.iter() {
+                    layer.flatten(&mut inner);
+                }
+                for mut shape in inner {
+                    group.place_shape(&mut shape);
+                    push_shown(into, shape);
                 }
             }
         }
     }
+
+    pub fn filters(&self, into: &mut Vec<Filter>) {
+        if let Self::Group(group, layers) = self {
+            if let Group::Filter(filter) = group {
+                into.push(*filter);
+            }
+            for layer in layers.iter() {
+                layer.filters(into);
+            }
+        }
+    }
+}
+
+pub fn same_layers(layers: &[Layer], others: &[Layer]) -> bool {
+    layers.len() == others.len()
+        && layers
+            .iter()
+            .zip(others)
+            .all(|(layer, other)| layer.same(other))
 }
 
 pub fn flatten(layers: &[Layer]) -> Vec<Shape> {
@@ -209,4 +367,12 @@ pub fn flatten(layers: &[Layer]) -> Vec<Shape> {
         layer.flatten(&mut shapes);
     }
     shapes
+}
+
+pub fn filters(layers: &[Layer]) -> Vec<Filter> {
+    let mut filters = Vec::new();
+    for layer in layers {
+        layer.filters(&mut filters);
+    }
+    filters
 }

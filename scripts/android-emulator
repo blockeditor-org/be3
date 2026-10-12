@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # This needs KVM. If /dev/kvm is not readable and writable, give up: do not try
-# to run the Android emulator. See guides/running_on_android.md.
+# to run the Android emulator. See guides/running/android.md.
 #
 # Boots an Android emulator (if one isn't running), installs be3's APK, launches
 # it, and prints the app's logcat plus a screenshot path.

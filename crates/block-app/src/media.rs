@@ -7,13 +7,15 @@ mod tests;
 use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 
-use block_plugin_api::{MediaLevel, MediaLevels, MediaRequest, PlayerCommand};
+use block_plugin_api::{AudioOutput, MediaLevel, MediaLevels, MediaRequest, PlayerCommand};
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum AudioRequest {
     Step(f32),
     Set(f32),
     ToggleMute,
+    SetMute(bool),
+    Choose(String),
     ToggleMicMute,
 }
 
@@ -36,12 +38,17 @@ pub(crate) struct Backends {
     pub(crate) players: Rc<dyn Players>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct AudioState {
+    pub(crate) output: Option<MediaLevel>,
+    pub(crate) input: Option<MediaLevel>,
+    pub(crate) outputs: Vec<AudioOutput>,
+    pub(crate) default_output: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum MediaEvent {
-    Audio {
-        output: Option<MediaLevel>,
-        input: Option<MediaLevel>,
-    },
+    Audio(AudioState),
     Brightness(f32),
 }
 
@@ -85,6 +92,11 @@ impl Media {
             }
             MediaRequest::SetVolume(_) => {}
             MediaRequest::ToggleMute => backends.audio.request(AudioRequest::ToggleMute),
+            MediaRequest::SetMute(mute) => backends.audio.request(AudioRequest::SetMute(mute)),
+            MediaRequest::ChooseOutput(id) if !id.is_empty() && !id.contains('\0') => {
+                backends.audio.request(AudioRequest::Choose(id));
+            }
+            MediaRequest::ChooseOutput(_) => {}
             MediaRequest::ToggleMicMute => backends.audio.request(AudioRequest::ToggleMicMute),
             MediaRequest::StepBrightness(by) => {
                 if let Some(by) = step(by) {
@@ -96,17 +108,19 @@ impl Media {
     }
 
     pub(crate) fn frame(&mut self) -> Option<MediaLevels> {
-        let before = self.levels;
+        let before = self.levels.clone();
         for event in self.events.try_iter() {
             match event {
-                MediaEvent::Audio { output, input } => {
-                    self.levels.output = output;
-                    self.levels.input = input;
+                MediaEvent::Audio(audio) => {
+                    self.levels.output = audio.output;
+                    self.levels.input = audio.input;
+                    self.levels.outputs = audio.outputs;
+                    self.levels.default_output = audio.default_output;
                 }
                 MediaEvent::Brightness(level) => self.levels.brightness = Some(level),
             }
         }
-        (self.levels != before).then_some(self.levels)
+        (self.levels != before).then(|| self.levels.clone())
     }
 }
 

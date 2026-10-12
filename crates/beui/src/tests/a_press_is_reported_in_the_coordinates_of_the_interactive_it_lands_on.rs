@@ -1,0 +1,46 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use super::*;
+use crate::input::PointerPress;
+use crate::reactive::{Frame, Interactive, NodeRef, build, view};
+
+#[test]
+fn a_press_is_reported_in_the_coordinates_of_the_interactive_it_lands_on() {
+    let heard = Rc::new(RefCell::new(Vec::<PointerPress>::new()));
+    let target = NodeRef::new();
+    let document = build({
+        let heard = Rc::clone(&heard);
+        let target = target.clone();
+        move || {
+            view! {
+                <List spacing=0.0>
+                    <Frame height=70.0 />
+                    <Frame padding_horizontal=30.0>
+                        <Interactive
+                            @node_ref={&target}
+                            on_click_at={move |press: PointerPress| heard.borrow_mut().push(press)}
+                        >
+                            <Frame height=40.0 />
+                        </Interactive>
+                    </Frame>
+                </List>
+            }
+        }
+    });
+    let mut harness = Harness::new(document);
+    harness.frame(Vec::new());
+
+    let rect = harness.rect(target.get());
+    let at = rect.min + vec2(5.0, 10.0);
+    harness.click(at);
+    let heard = heard.borrow();
+    assert_eq!(heard.len(), 1, "the click lands on the interactive");
+    assert_eq!(heard[0].pos, at, "pos stays in the document's coordinates");
+    assert_eq!(
+        heard[0].local,
+        pos2(5.0, 10.0),
+        "local is from the interactive's corner"
+    );
+    assert_eq!(heard[0].size, rect.size(), "size is the interactive's own");
+}
