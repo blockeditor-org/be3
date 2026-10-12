@@ -10,7 +10,7 @@ fn presses(forwarded: &RefCell<Vec<ForwardedInput>>) -> usize {
     forwarded
         .borrow()
         .iter()
-        .flat_map(|input| input.events.iter())
+        .flat_map(|input| flattened(input.clone()))
         .filter(|event| matches!(event, Event::PointerButton { pressed: true, .. }))
         .count()
 }

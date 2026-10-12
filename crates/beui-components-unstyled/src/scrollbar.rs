@@ -3,12 +3,16 @@ use std::rc::Rc;
 
 use beui_macros::{component, view};
 
+use beui_core::base::drawing::Draw;
 use beui_core::base::{Direction, ScrollPosition};
+use beui_core::color::Color32;
+use beui_core::geometry::{Rect, pos2};
 use beui_core::input::PointerPress;
 use beui_core::node::NodeId;
+use beui_core::painter::Painter;
 use beui_view::reactive::{
-    Callback, Interactive, Memo, Prop, ReadSignal, Render, clone, create_memo, create_signal,
-    untrack,
+    Callback, Drawing, Interactive, Memo, Prop, ReadSignal, Render, clone, create_memo,
+    create_signal, untrack,
 };
 
 const MINIMUM_THUMB: f32 = 0.08;
@@ -37,6 +41,41 @@ pub fn thumb_start(position: ScrollPosition) -> f32 {
         return 0.0;
     }
     thumb_travel(position) * progress(position)
+}
+
+pub fn thumb_rect(rect: Rect, direction: Direction, position: ScrollPosition) -> Rect {
+    let length = direction.main(rect.size());
+    let start = direction.main(rect.min.to_vec2()) + thumb_start(position) * length;
+    let end = start + thumb_length(position) * length;
+    match direction {
+        Direction::Horizontal => {
+            Rect::from_min_max(pos2(start, rect.top()), pos2(end, rect.bottom()))
+        }
+        Direction::Vertical => {
+            Rect::from_min_max(pos2(rect.left(), start), pos2(rect.right(), end))
+        }
+    }
+}
+
+#[component]
+pub fn ScrollbarThumb(
+    position: Memo<ScrollPosition>,
+    direction: Prop<Direction>,
+    color: Prop<Color32>,
+    #[prop(default = 0.0)] radius: f32,
+) -> NodeId {
+    let draw = Prop::Dynamic(Rc::new(move || {
+        let (position, direction, color) = (position.get(), direction.get(), color.get());
+        Rc::new(move |painter: &Painter, rect: Rect| {
+            let thumb = painter
+                .pixel_grid()
+                .snap_rect(thumb_rect(rect, direction, position));
+            painter.rect_filled(thumb, radius, color);
+        }) as Draw
+    }));
+    view! {
+        <Drawing draw />
+    }
 }
 
 fn resting_length(position: ScrollPosition) -> f32 {

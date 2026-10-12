@@ -7,7 +7,7 @@ use crate::base::list::Direction;
 use crate::base::offset::item_rect;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
-use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 use ::reactive::{KeyedItems, ScopeContext, numbered, owner_scope, settle};
 
@@ -365,15 +365,9 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
         let node = doc.laying_out();
         let (main, cross) = self.direction.main_and_cross(rect.size());
         let start = self.direction.main(rect.min.to_vec2());
-        let live = doc.delivering();
         let total = self.metrics.total();
-        let shift = match live {
-            true => {
-                let window = self.window(doc, painter, start, main);
-                self.realize(doc, painter, window, main, cross)
-            }
-            false => 0.0,
-        };
+        let window = self.window(doc, painter, start, main);
+        let shift = self.realize(doc, painter, window, main, cross);
         let grid = doc.pixel_grid();
         for row in &self.placed {
             let placed = item_rect(
@@ -384,13 +378,11 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
             );
             crate::layout::layout(doc, painter, row.node, placed, out);
         }
-        if !live {
-            return;
-        }
-        if let Some(node) = node
-            && self.metrics.total() != total
-        {
-            doc.invalidate_measurement(node);
+        if let Some(node) = node {
+            doc.arena.adopt_children(node);
+            if self.metrics.total() != total {
+                doc.invalidate_measurement(node);
+            }
         }
         if shift != 0.0 {
             doc.record_scroll_shift(shift);
@@ -408,19 +400,6 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
                 crate::paint::paint(doc, painter, rects, row.node);
             }
         }
-    }
-
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        children.extend(self.placed.iter().map(|row| row.node));
     }
 
     fn children(&self) -> Vec<NodeId> {

@@ -7,8 +7,7 @@ use crate::painter::Painter;
 
 use crate::callback::Callback;
 use crate::document::Document;
-use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects, SpaceId};
-use ::reactive::settle;
+use crate::node::{Element, NodeId, NodeOf, Rects, SpaceId};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct ScrollPosition {
@@ -140,6 +139,32 @@ impl OffsetNode {
             .map_or(0.0, |start| start - anchor.start)
     }
 
+    fn revealed(&mut self, doc: &mut Document, out: &Rects, host: NodeId, main: f32) -> f32 {
+        let Some(target) = doc.take_reveal(host) else {
+            return 0.0;
+        };
+        let mut shown = Some(target);
+        for _ in 0..crate::node::ANCESTOR_LIMIT {
+            match shown {
+                Some(node) if node == host => return 0.0,
+                Some(node) if out.contains_key(&node) => break,
+                Some(node) => shown = doc.arena.parent(node),
+                None => return 0.0,
+            }
+        }
+        let Some((start, rect)) =
+            shown.and_then(|node| Some((self.content_start(out, host, node)?, out.get(&node)?)))
+        else {
+            return 0.0;
+        };
+        let end = start + self.direction.main(rect.size());
+        let Some(revealed) = revealed_offset(start, end, self.offset, main) else {
+            return 0.0;
+        };
+        self.steered.set(true);
+        revealed - self.offset
+    }
+
     fn anchor(&self, doc: &Document, out: &Rects, host: NodeId) -> Option<OffsetAnchor> {
         if !self.anchored {
             return None;
@@ -167,10 +192,7 @@ impl OffsetNode {
 
 const ANCHOR_DEPTH: usize = 16;
 
-fn revealed_offset(direction: Direction, viewport: Rect, item: Rect, offset: f32) -> Option<f32> {
-    let length = direction.main(viewport.size());
-    let start = direction.main(item.min - viewport.min) + offset;
-    let end = direction.main(item.max - viewport.min) + offset;
+fn revealed_offset(start: f32, end: f32, offset: f32, length: f32) -> Option<f32> {
     if start <= offset && end >= offset + length {
         return None;
     }
@@ -212,7 +234,9 @@ impl Element for OffsetNode {
         let mut position = self.settled(main, content);
         let base = doc.placing_len();
         self.place(doc, painter, rect, out, position, host);
-        let shift = doc.take_scroll_shift(host) + self.drift(doc, out, host, anchor);
+        let shift = doc.take_scroll_shift(host)
+            + self.drift(doc, out, host, anchor)
+            + self.revealed(doc, out, host, main);
         let measured = self.content_length(doc, painter, cross);
         if shift != 0.0 || measured != content || doc.arena.unplaced(self.child) {
             self.offset = (self.offset + shift).max(0.0);
@@ -224,8 +248,8 @@ impl Element for OffsetNode {
         self.position = Some(position);
         if !self.on_change.is_empty() && self.reported != Some(position) {
             self.reported = Some(position);
-            let on_change = &self.on_change;
-            settle(|| on_change.call(position));
+            let on_change = self.on_change.clone();
+            doc.report_after_layout(move || on_change.call(position));
         }
     }
 
@@ -238,19 +262,6 @@ impl Element for OffsetNode {
         }
         let entered = painter.shifted(Some(SpaceId::inside(host, 1)), self.translation, rect);
         crate::paint::paint(doc, &entered, rects, self.child);
-    }
-
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        children.push(self.child);
     }
 
     fn children(&self) -> Vec<NodeId> {
@@ -405,77 +416,42 @@ impl Document {
 }
 
 impl Document {
-    fn reveal_offset_item(&mut self, offset: NodeOf<OffsetNode>, item: NodeId) {
-        let (Some(viewport), Some(item)) = (self.node_rect(offset), self.node_rect(item)) else {
-            return;
-        };
-        let direction = self.arena.get_as::<OffsetNode>(offset).direction;
-        let current = self.offset_value(offset);
-        let Some(revealed) = revealed_offset(direction, viewport, item, current) else {
-            return;
-        };
-        self.set_offset_value(offset, revealed);
+    fn reveal_in(&mut self, offset: NodeOf<OffsetNode>, target: NodeId) {
+        self.reveals.insert(offset.id(), target);
+        if !self.arena.taken(offset.id()) {
+            self.arena.invalidate_node(offset);
+        }
+    }
+
+    pub(crate) fn take_reveal(&mut self, offset: NodeId) -> Option<NodeId> {
+        self.reveals.remove(&offset)
+    }
+
+    fn enclosing_offsets(&self, node: NodeId) -> Vec<NodeOf<OffsetNode>> {
+        let mut offsets = Vec::new();
+        let mut current = self.arena.parent(node);
+        for _ in 0..crate::node::ANCESTOR_LIMIT {
+            let Some(id) = current else {
+                break;
+            };
+            offsets.extend(self.arena.made_as::<OffsetNode>(id));
+            current = self.arena.parent(id);
+        }
+        offsets
     }
 
     pub fn reveal_node(&mut self, node: NodeId) {
-        if self.delivering() {
-            self.deferred_reveals.push(node);
-            return;
-        }
-        let Some(root) = self.root else {
-            return;
-        };
-        let mut path = Vec::new();
-        if !self.focus_path(root, node, &mut path) {
-            return;
-        }
-        let placed = path
-            .iter()
-            .rev()
-            .copied()
-            .find(|id| self.node_rect(*id).is_some())
-            .unwrap_or(node);
-        for id in path.into_iter().rev().skip(1) {
-            if let Some(offset) = self.arena.kind_of::<OffsetNode>(id) {
-                self.reveal_offset_item(offset, placed);
-                return;
-            }
+        if let Some(&offset) = self.enclosing_offsets(node).first() {
+            self.reveal_in(offset, node);
         }
     }
 
-    pub fn reveal_focus(&mut self, painter: &Painter) {
-        let (Some(root), Some(focused)) = (self.root, self.focused) else {
+    pub fn reveal_focus(&mut self) {
+        let Some(focused) = self.focused else {
             return;
         };
-        let mut path = Vec::new();
-        if !self.focus_path(root, focused, &mut path) {
-            return;
+        for offset in self.enclosing_offsets(focused) {
+            self.reveal_in(offset, focused);
         }
-        let Some(target) = self.focus_target_rect(painter, focused) else {
-            return;
-        };
-        for id in path.into_iter().rev().skip(1) {
-            let Some(offset) = self.arena.kind_of::<OffsetNode>(id) else {
-                continue;
-            };
-            let Some(viewport) = self.node_rect(offset) else {
-                continue;
-            };
-            let direction = self.arena.get_as::<OffsetNode>(offset).direction;
-            let current = self.offset_value(offset);
-            if let Some(revealed) = revealed_offset(direction, viewport, target, current) {
-                self.set_offset_value(offset, revealed);
-            }
-        }
-    }
-
-    fn focus_target_rect(&mut self, painter: &Painter, focused: NodeId) -> Option<Rect> {
-        let Some(culled) = self.culled_ancestor(focused) else {
-            return self.node_rect(focused);
-        };
-        let placed = self.node_rect(culled)?;
-        let rects = Rects::default();
-        crate::layout::layout(self, painter, culled, placed, &rects);
-        Some(rects.get(&focused).unwrap_or(placed))
     }
 }

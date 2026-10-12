@@ -33,10 +33,7 @@ fn a_drag_put_on_the_board_drops_where_the_button_is_let_go() {
     harness.press_at(from);
     harness.document().drag_board().begin(
         Rc::new(7_u32),
-        DragPoint {
-            pos: from,
-            modifiers: Modifiers::NONE,
-        },
+        DragPoint::at(from, Modifiers::NONE),
         Rc::new(|_| {}),
     );
     harness.frame(vec![Event::PointerMoved(to)]);

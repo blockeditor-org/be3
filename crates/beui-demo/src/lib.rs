@@ -1,6 +1,7 @@
 use base_pages::{
     ControlFlowPage, FramesPage, InteractionPage, LayeringPage, ListsPage, TextNodesPage,
 };
+use beui::KeyAt;
 use beui::datetime::{Date, DateTime, HourCycle, Time};
 use beui::icons::{
     ICON_ACCOUNT_TREE, ICON_ALT_ROUTE, ICON_BUG_REPORT, ICON_CALENDAR_MONTH, ICON_CODE,
@@ -515,7 +516,7 @@ fn switch_tabs_with_alt_q(layout: &DockingLayout<TabId>) {
         })
         .glyph(ICON_FLIP_TO_FRONT)
         .shortcut(chord)
-        .global()
+        .at(KeyAt::Window)
         .register();
     }
     let open = create_memo(clone!(layout -> move || layout.switching()));
@@ -526,7 +527,7 @@ fn switch_tabs_with_alt_q(layout: &DockingLayout<TabId>) {
     .shortcut(Chord::key(Key::Escape).alt())
     .shortcut(Chord::key(Key::Escape).alt().shift())
     .enabled(open)
-    .global()
+    .at(KeyAt::Window)
     .register();
     let committing = layout.clone();
     create_effect(move || {

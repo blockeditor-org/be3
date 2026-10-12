@@ -79,18 +79,17 @@ impl Input {
                 y: pos.y,
                 force,
             }),
-            Event::Key {
-                key,
-                pressed,
-                repeat,
-                modifiers,
-            } => {
-                self.modifiers(modifiers, output);
-                output.push(InputEvent::Key {
-                    key: protocol_key(key),
-                    pressed,
-                    repeat,
-                });
+            Event::Key { press, text, .. } => {
+                self.modifiers(press.modifiers, output);
+                match protocol_key(press.key) {
+                    Some(key) => output.push(InputEvent::Key {
+                        key,
+                        pressed: press.pressed,
+                        repeat: press.repeat,
+                        text,
+                    }),
+                    None => output.extend(text.map(InputEvent::Text)),
+                }
             }
             Event::Modifiers(modifiers) => self.modifiers(modifiers, output),
             Event::Text(text) => output.push(InputEvent::Text(text)),
@@ -99,16 +98,16 @@ impl Input {
             Event::Back(gesture) => output.push(InputEvent::Back(back_phase(gesture))),
             Event::InterceptedKey(press) => {
                 self.modifiers(press.modifiers, output);
-                output.push(InputEvent::InterceptedKey {
-                    key: protocol_key(press.key),
-                    pressed: press.pressed,
-                    repeat: press.repeat,
-                });
+                if let Some(key) = protocol_key(press.key) {
+                    output.push(InputEvent::InterceptedKey {
+                        key,
+                        pressed: press.pressed,
+                        repeat: press.repeat,
+                    });
+                }
             }
             Event::InterceptedTap(key) => {
-                output.push(InputEvent::InterceptedTap {
-                    key: protocol_key(key),
-                });
+                output.extend(protocol_key(key).map(|key| InputEvent::InterceptedTap { key }));
             }
             _ => {}
         }

@@ -1,3 +1,4 @@
+use beui_core::layer::LayerPolicy;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -11,7 +12,7 @@ use super::rubber_band::{
 };
 use beui_core::base::Sides;
 use beui_core::base::offset::OffsetNode;
-use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
+use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::base::{Direction, ItemSize, ScrollPosition, Sizing};
 use beui_core::color::Color32;
 use beui_core::document::Document;
@@ -20,12 +21,13 @@ use beui_core::input::{
     AutoscrollGesture, DragGesture, Key, KeyPress, PointerPress, ScrollGesture,
 };
 use beui_core::interact::autoscroll::AUTOSCROLL_DEAD_ZONE;
+use beui_core::keys::{KeyAt, KeyPhase};
 use beui_core::node::{NodeId, NodeOf};
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Callback, Children, Fade, Frame, Interactive, List, ListChild, Memo, NodeRef, Offset, Prop,
     ReadSignal, Render, RenderFn, ShowKeepAlive, Timer, clone, component_accessibility,
-    create_effect, create_memo, create_signal, create_timer, focus_ring, on_cleanup,
+    create_effect, create_memo, create_signal, create_timer, focus_ring, on_cleanup, on_scroll_key,
     set_component_state, untrack, with_document,
 };
 
@@ -438,6 +440,8 @@ fn Scrolling(
     let (wheeled, dragged) = (motion.clone(), motion.clone());
     let autoscrolled = motion.clone();
     let (tapped, stopped) = (motion.clone(), motion.clone());
+    let catcher = NodeRef::new();
+    let catcher_rect = catcher.clone();
     let (origin, set_origin) = create_signal(None::<Pos2>);
     let marked = create_memo(clone!(origin -> move || origin.get().is_some()));
     let anchor = create_memo(clone!(origin -> move || {
@@ -446,6 +450,15 @@ fn Scrolling(
     let marker_axis = create_memo(clone!(direction -> move || direction.get()));
     let content_axis = marker_axis.clone();
     let scroll_to = Callback::new(move |offset: f32| motion.scroll_to(offset));
+    on_scroll_key(
+        KeyAt::Node(catcher.clone()),
+        KeyPhase::Bubble,
+        move |event| {
+            event
+                .press()
+                .is_some_and(|press| navigates(press.key) && ancestor_keyed.key(press))
+        },
+    );
     view! {
         <List direction={across} spacing={scrollbar.spacing()}>
             <Interactive
@@ -454,9 +467,11 @@ fn Scrolling(
                 @sizing=ItemSize::Percent(100.0)
                 on_focus_change={move |focused: bool| set_focused.set(focused)}
                 on_key={move |press: KeyPress| keyed.key(press)}
-                on_ancestor_key={move |press: KeyPress| ancestor_keyed.key(press)}
                 scroll_axis={axis}
-                intercept_at={move |_: Pos2| tapped.flinging()}
+                @node_ref=&catcher
+                claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
+                    tapped.flinging() && under(&catcher_rect, pos)
+                }}
                 on_press={move |_: PointerPress| stopped.stop_fling()}
                 on_scroll={move |gesture: ScrollGesture| wheeled.wheel(gesture)}
                 on_scroll_drag={move |gesture: DragGesture| dragged.drag(gesture)}
@@ -480,7 +495,7 @@ fn Scrolling(
                             <Overlay
                                 anchor
                                 placement=Placement::Around
-                                mode=OverlayMode::Passive
+                                policy=LayerPolicy::Inert
                                 traps_focus=false
                                 open={marked}
                             >
@@ -628,4 +643,24 @@ fn across(direction: &Prop<Direction>) -> Memo<Direction> {
         Direction::Horizontal => Direction::Vertical,
         Direction::Vertical => Direction::Horizontal,
     })
+}
+
+pub(crate) fn under(node: &NodeRef, pos: Pos2) -> bool {
+    node.try_get().is_some_and(|node| {
+        with_document(|document| document.node_rect(node)).is_some_and(|rect| rect.contains(pos))
+    })
+}
+
+fn navigates(key: Key) -> bool {
+    matches!(
+        key,
+        Key::ArrowUp
+            | Key::ArrowDown
+            | Key::ArrowLeft
+            | Key::ArrowRight
+            | Key::Home
+            | Key::End
+            | Key::PageUp
+            | Key::PageDown
+    )
 }

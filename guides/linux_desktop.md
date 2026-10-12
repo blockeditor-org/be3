@@ -240,8 +240,8 @@ unlocks it. Under `:dev` the app runs as the VM's user, so that user needs a pas
 (`passwd`) for the lock to be tried.
 
 While it is locked, two things keep input from everything behind it: the lock is a beui
-`Overlay` with `locks` set, which nothing dismisses, which stays above every other overlay and keeps
-the focus and the pointer, and while it is open `Document::key_global` hears only media keys (no other global action, no plugin's
+`Overlay` at `LayerLevel::Lock`, which nothing dismisses, which stays above every other layer and keeps
+the focus and the pointer, and while it is open the host and window key listeners hear only media keys (no other window action, no plugin's
 intercepted chord, no Alt+Tab); and the app menu is closed. Windows need nothing
 of their own for it: each is a forwarding catcher like a plugin's region, so with the focus and the
 pointer held by the lock none is forwarded anything. `be_wayland::Compositor::set_locked` only lets
@@ -278,7 +278,7 @@ presses: `drive keydown alt; drive key tab tab; drive keyup alt`.
 Each window is a `be_wayland::WindowView`, a forwarding catcher like a plugin's region (see
 guides/beui_keyboard.md, One input path): beui decides which window a press, motion, scroll or key
 goes to, and `Compositor::after` turns what each window was forwarded into `wl_pointer` and
-`wl_keyboard` events, keys by their scan codes (`Event::PhysicalKey`). Where the shell draws over a
+`wl_keyboard` events, keys by their scan codes (`Event::Key`'s `code`). Where the shell draws over a
 window (a floating window's tab, say) the window takes nothing (`occluders`, from the region's
 occlusion), and a press keeps going to the window or plugin it began on until it is let go.
 
@@ -308,7 +308,7 @@ buffers are drawn as one-pixel textures.
 A program that holds a `zwp_keyboard_shortcuts_inhibitor_v1` on its window (a remote
 desktop, a virtual machine) gets the desktop's shortcuts itself while its window has the
 keyboard: the window's `WindowView` sets `inhibits_shortcuts`, and beui keeps every
-intercepting action, tap and F6 from it (guides/beui_keyboard.md). Two chords always work:
+window listener - capturing actions, taps and F6 - from it (guides/beui_keyboard.md). Two chords always work, as host actions:
 Super+L locks the screen, and Super+Escape (`register_restore_shortcuts`, registered by
 block-app's `WindowActions`) takes the shortcuts back from the focused window until it
 loses the keyboard and gets it again. The inhibitor is told it is active only while its
@@ -404,5 +404,5 @@ and `ctrl+v`.
 
 A window's drag (`wl_data_device.start_drag`) goes to the window under the pointer: the press
 stays with the window it began in, and while the drag lasts the compositor moves it to the
-window beui finds under the pointer (`ForwardedInput::under`). Only a shown window can be dropped on: a
+window beui finds under the pointer (`over` on each `Forwarded::Pointer`). Only a shown window can be dropped on: a
 dock tab does not switch under a drag, and the drag's icon is not drawn (BE3-296).

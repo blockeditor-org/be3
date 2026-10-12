@@ -4,7 +4,7 @@ use crate::base::list::Align;
 use crate::color::{Color32, format_hex};
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2, vec2};
-use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeId, NodeOf, Rects};
 use crate::painter::{Corners, Painter};
 use crate::pixel_grid::PixelGrid;
 
@@ -298,21 +298,12 @@ impl Element for FrameNode {
         }
     }
 
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        children.extend(self.shown());
-    }
-
     fn children(&self) -> Vec<NodeId> {
         self.child.into_iter().collect()
+    }
+
+    fn pointer_children(&self) -> Vec<NodeId> {
+        self.shown().into_iter().collect()
     }
 
     fn passes_scroll_anchor(&self) -> bool {
@@ -514,6 +505,7 @@ impl Document {
     pub fn set_visible(&mut self, frame: NodeOf<FrameNode>, visible: bool) {
         if self.arena.get_as::<FrameNode>(frame).visible != visible {
             self.arena.get_mut_as::<FrameNode>(frame).visible = visible;
+            self.focus_dirty = true;
         }
     }
 }

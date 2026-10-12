@@ -1,4 +1,4 @@
-use crate::input::{Event, Key, Modifiers};
+use crate::input::{Event, Key, KeyPress, Modifiers};
 
 pub fn modifier(name: &str) -> Option<Key> {
     match name.to_ascii_lowercase().as_str() {
@@ -21,13 +21,7 @@ pub fn set_modifier(modifiers: &mut Modifiers, key: Key, pressed: bool) {
 }
 
 pub fn modifier_event(key: Key, pressed: bool, modifiers: Modifiers, events: &mut Vec<Event>) {
-    physical(key, pressed, events);
-    events.push(Event::Key {
-        key,
-        pressed,
-        repeat: false,
-        modifiers,
-    });
+    events.push(stroke(key, pressed, false, modifiers, None));
     events.push(Event::Modifiers(modifiers));
 }
 
@@ -51,12 +45,9 @@ pub fn chord(chord: &str, held: Modifiers, events: &mut Vec<Event>) -> Result<()
         modifier_event(modifier, true, state, events);
         pressed.push(modifier);
     }
-    press(key, state, events);
-    if !(state.ctrl || state.alt || state.logo)
-        && let Some(text) = text(key, state.shift)
-    {
-        events.push(Event::Text(text.to_owned()));
-    }
+    let typed = text(key, state.shift).filter(|_| !(state.ctrl || state.alt || state.logo));
+    events.push(stroke(key, true, false, state, typed));
+    events.push(stroke(key, false, false, state, None));
     for modifier in pressed.into_iter().rev() {
         set_modifier(&mut state, modifier, false);
         set_modifier(&mut state, modifier, held_by(held, modifier));
@@ -82,40 +73,33 @@ pub fn key_event(
     modifiers: Modifiers,
     events: &mut Vec<Event>,
 ) {
-    if !repeat {
-        physical(key, pressed, events);
-    }
-    events.push(Event::Key {
-        key,
-        pressed,
-        repeat,
-        modifiers,
-    });
-    if pressed
-        && !(modifiers.ctrl || modifiers.alt || modifiers.logo)
-        && let Some(text) = text(key, modifiers.shift)
-    {
-        events.push(Event::Text(text));
-    }
+    let typed = text(key, modifiers.shift)
+        .filter(|_| pressed && !(modifiers.ctrl || modifiers.alt || modifiers.logo));
+    events.push(stroke(key, pressed, repeat, modifiers, typed));
 }
 
 pub fn press(key: Key, modifiers: Modifiers, events: &mut Vec<Event>) {
     for pressed in [true, false] {
-        physical(key, pressed, events);
-        events.push(Event::Key {
-            key,
-            pressed,
-            repeat: false,
-            modifiers,
-        });
+        events.push(stroke(key, pressed, false, modifiers, None));
     }
 }
 
-fn physical(key: Key, pressed: bool, events: &mut Vec<Event>) {
-    if cfg!(target_os = "linux")
-        && let Some(code) = evdev(key)
-    {
-        events.push(Event::PhysicalKey { code, pressed });
+fn stroke(
+    key: Key,
+    pressed: bool,
+    repeat: bool,
+    modifiers: Modifiers,
+    text: Option<String>,
+) -> Event {
+    Event::Key {
+        press: KeyPress {
+            key,
+            pressed,
+            repeat,
+            modifiers,
+        },
+        code: evdev(key).filter(|_| cfg!(target_os = "linux")),
+        text,
     }
 }
 

@@ -1,3 +1,4 @@
+use beui::KeyAt;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use beui::datetime::{DateTime, HourCycle};
@@ -64,7 +65,8 @@ pub(crate) fn SessionLock(view: AppViewStore) -> NodeId {
     })
     .glyph(ICON_LOCK)
     .shortcut(Chord::logo(Key::L))
-    .escape_hatch()
+    .at(KeyAt::Host)
+    .capture()
     .enabled(available)
     .register();
     let clock = wall_clock();

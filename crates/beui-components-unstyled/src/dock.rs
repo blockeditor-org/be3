@@ -6,6 +6,7 @@ mod switch;
 #[cfg(test)]
 mod tests;
 
+use beui_core::layer::LayerPolicy;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -29,7 +30,7 @@ use crate::context_menu::ContextMenu;
 use crate::menu::MenuItem;
 use crate::menu_popup::MenuStyle;
 use crate::rubber_band::{Band, WINDOW_SPRING};
-use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
+use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::base::{Direction, ItemSize};
 use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
@@ -39,8 +40,8 @@ use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Action, Callback, Canvas, CanvasItem, Child, ClickCallback, Dynamic, ForEach, Frame, Func,
-    Interactive, IntoProp, List, Memo, NodeRef, Portal, Prop, ReadSignal, RenderFn, ScopeContext,
-    Show, WriteSignal, clone, component_accessibility, component_rect, component_size,
+    Interactive, IntoProp, LayoutBuilder, List, Memo, NodeRef, PlacementBuilder, Portal, Prop,
+    ReadSignal, RenderFn, ScopeContext, Show, WriteSignal, clone, component_accessibility,
     create_effect, create_memo, create_signal, create_timer, node_scope, on_cleanup, on_shortcut,
     owner_scope, provide_context, set_component_state, try_with_document, use_context,
     with_document,
@@ -1104,145 +1105,151 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         dialog,
         dialog_chrome,
     } = config;
-    let mode = create_memo(move || mode.get());
-    let (dialog_focus, set_dialog_focus) = create_signal(None);
-    let (attention, set_attention) = create_signal((0, None));
-    let (current, set_current) = create_signal(state.peek());
-    let (actions, set_actions) = create_signal(HashMap::new());
-    let (menus, set_menu) = create_signal(DockMenus::new());
-    create_effect(clone!(set_current -> move || set_current.set(state.get())));
-    let (drag, set_drag) = create_signal(None);
-    let dock: Handle = Rc::new(State {
-        state: current.clone(),
-        windows: RefCell::default(),
-        panels: RefCell::default(),
-        owner: owner_scope(),
-        set_state: set_current,
-        on_change,
-        on_close,
-        drag,
-        set_drag,
-        title,
-        group_title,
-        icon,
-        picture,
-        closable,
-        menu,
-        home: create_memo(move || home.get()),
-        drag_modifier: create_memo(move || drag_modifier.get()),
-        actions,
-        set_actions,
-        menus,
-        set_menu,
-        stack,
-        switcher,
-        switch,
-        mode: mode.clone(),
-        dialogs,
-        dialog,
-        dialog_chrome: dialog_chrome
-            .unwrap_or_else(|| RenderFn::new(|handle: DockDialogHandle| handle.body)),
-        dialog_frames: RefCell::default(),
-        dialog_bodies: RefCell::default(),
-        dialog_focus,
-        set_dialog_focus,
-        attention,
-        set_attention,
-        thickness: splitter_thickness,
-        group_inset,
-        rect: component_rect(),
-        panes: RefCell::default(),
-        bars: RefCell::default(),
-        tab,
-        content,
-        empty,
-        fullscreen: fullscreen.unwrap_or_else(|| {
-            RenderFn::new(|body: NodeId| {
-                view! {
-                    <Frame>{body}</Frame>
-                }
-            })
-        }),
-        chrome: chrome.unwrap_or_else(|| RenderFn::new(|handle: DockChromeHandle| handle.content)),
-        bar: bar.unwrap_or_else(|| {
-            RenderFn::new(|handle| {
-                view! {
-                    <PlainBar handle />
-                }
-            })
-        }),
-        splitter: splitter.unwrap_or_else(|| {
-            RenderFn::new(|_| {
-                view! {
-                    <Frame />
-                }
-            })
-        }),
-        grip: grip.unwrap_or_else(|| {
-            RenderFn::new(|_| {
-                view! {
-                    <Frame />
-                }
-            })
-        }),
-        highlight: highlight.unwrap_or_else(|| {
-            RenderFn::new(|()| {
-                view! {
-                    <Frame />
-                }
-            })
-        }),
-        preview: preview.unwrap_or_else(|| {
-            RenderFn::new(|_| {
-                view! {
-                    <Frame />
-                }
-            })
-        }),
-    });
-    set_component_state(dock.clone());
-    on_shortcut(clone!(dock -> move |press: KeyPress| {
-        if !press.pressed || press.key != Key::Tab || !press.modifiers.ctrl || press.modifiers.alt
-        {
-            return false;
-        }
-        dock.cycle(press.modifiers.shift)
-    }));
-    create_effect(clone!(dock current -> move || {
-        let tabs = current.with(DockState::all_tabs);
-        dock.keep_panels(&tabs);
-    }));
-    on_cleanup(clone!(dock -> move || dock.keep_panels(&[])));
-    let fullscreen_dock = dock.clone();
-    let switch_dock = dock.clone();
-    let dialog_dock = dock.clone();
     view! {
-        <List spacing=0.0>
-            <Frame
-                @sizing=ItemSize::Percent(100.0)
-                padding_horizontal={inset.clone()}
-                padding_vertical={inset}
-            >
-                <List spacing=0.0>
-                    <Dynamic value={mode}>
-                        {move |mode: DockMode| {
-                            let dock = dock.clone();
-                            match mode {
-                                DockMode::Tiled => view! {
-                                    <DockTiles dock @sizing=ItemSize::Percent(100.0) />
-                                },
-                                DockMode::Stacked => view! {
-                                    <DockStack dock @sizing=ItemSize::Percent(100.0) />
-                                },
+        <PlacementBuilder>
+            {move |dock_rect: ReadSignal<Rect>| {
+                let mode = create_memo(move || mode.get());
+                let (dialog_focus, set_dialog_focus) = create_signal(None);
+                let (attention, set_attention) = create_signal((0, None));
+                let (current, set_current) = create_signal(state.peek());
+                let (actions, set_actions) = create_signal(HashMap::new());
+                let (menus, set_menu) = create_signal(DockMenus::new());
+                create_effect(clone!(set_current -> move || set_current.set(state.get())));
+                let (drag, set_drag) = create_signal(None);
+                let dock: Handle = Rc::new(State {
+                    state: current.clone(),
+                    windows: RefCell::default(),
+                    panels: RefCell::default(),
+                    owner: owner_scope(),
+                    set_state: set_current,
+                    on_change,
+                    on_close,
+                    drag,
+                    set_drag,
+                    title,
+                    group_title,
+                    icon,
+                    picture,
+                    closable,
+                    menu,
+                    home: create_memo(move || home.get()),
+                    drag_modifier: create_memo(move || drag_modifier.get()),
+                    actions,
+                    set_actions,
+                    menus,
+                    set_menu,
+                    stack,
+                    switcher,
+                    switch,
+                    mode: mode.clone(),
+                    dialogs,
+                    dialog,
+                    dialog_chrome: dialog_chrome
+                        .unwrap_or_else(|| RenderFn::new(|handle: DockDialogHandle| handle.body)),
+                    dialog_frames: RefCell::default(),
+                    dialog_bodies: RefCell::default(),
+                    dialog_focus,
+                    set_dialog_focus,
+                    attention,
+                    set_attention,
+                    thickness: splitter_thickness,
+                    group_inset,
+                    rect: dock_rect,
+                    panes: RefCell::default(),
+                    bars: RefCell::default(),
+                    tab,
+                    content,
+                    empty,
+                    fullscreen: fullscreen.unwrap_or_else(|| {
+                        RenderFn::new(|body: NodeId| {
+                            view! {
+                                <Frame>{body}</Frame>
                             }
-                        }}
-                    </Dynamic>
-                </List>
-            </Frame>
-            <DockFullscreenView dock={fullscreen_dock} />
-            <DockDialogs dock={dialog_dock} />
-            <DockSwitchView dock={switch_dock} />
-        </List>
+                        })
+                    }),
+                    chrome: chrome.unwrap_or_else(|| RenderFn::new(|handle: DockChromeHandle| handle.content)),
+                    bar: bar.unwrap_or_else(|| {
+                        RenderFn::new(|handle| {
+                            view! {
+                                <PlainBar handle />
+                            }
+                        })
+                    }),
+                    splitter: splitter.unwrap_or_else(|| {
+                        RenderFn::new(|_| {
+                            view! {
+                                <Frame />
+                            }
+                        })
+                    }),
+                    grip: grip.unwrap_or_else(|| {
+                        RenderFn::new(|_| {
+                            view! {
+                                <Frame />
+                            }
+                        })
+                    }),
+                    highlight: highlight.unwrap_or_else(|| {
+                        RenderFn::new(|()| {
+                            view! {
+                                <Frame />
+                            }
+                        })
+                    }),
+                    preview: preview.unwrap_or_else(|| {
+                        RenderFn::new(|_| {
+                            view! {
+                                <Frame />
+                            }
+                        })
+                    }),
+                });
+                set_component_state(dock.clone());
+                on_shortcut(clone!(dock -> move |press: KeyPress| {
+                    if !press.pressed || press.key != Key::Tab || !press.modifiers.ctrl || press.modifiers.alt
+                    {
+                        return false;
+                    }
+                    dock.cycle(press.modifiers.shift)
+                }));
+                create_effect(clone!(dock current -> move || {
+                    let tabs = current.with(DockState::all_tabs);
+                    dock.keep_panels(&tabs);
+                }));
+                on_cleanup(clone!(dock -> move || dock.keep_panels(&[])));
+                let fullscreen_dock = dock.clone();
+                let switch_dock = dock.clone();
+                let dialog_dock = dock.clone();
+                view! {
+                    <List spacing=0.0>
+                        <Frame
+                            @sizing=ItemSize::Percent(100.0)
+                            padding_horizontal={inset.clone()}
+                            padding_vertical={inset}
+                        >
+                            <List spacing=0.0>
+                                <Dynamic value={mode}>
+                                    {move |mode: DockMode| {
+                                        let dock = dock.clone();
+                                        match mode {
+                                            DockMode::Tiled => view! {
+                                                <DockTiles dock @sizing=ItemSize::Percent(100.0) />
+                                            },
+                                            DockMode::Stacked => view! {
+                                                <DockStack dock @sizing=ItemSize::Percent(100.0) />
+                                            },
+                                        }
+                                    }}
+                                </Dynamic>
+                            </List>
+                        </Frame>
+                        <DockFullscreenView dock={fullscreen_dock} />
+                        <DockDialogs dock={dialog_dock} />
+                        <DockSwitchView dock={switch_dock} />
+                    </List>
+                }
+            }}
+        </PlacementBuilder>
     }
 }
 
@@ -1269,7 +1276,7 @@ fn DockFullscreenView(dock: Handle) -> NodeId {
         <Portal node={panel} />
     });
     view! {
-        <Overlay anchor placement mode=OverlayMode::Floating traps_focus=false open>
+        <Overlay anchor placement policy=LayerPolicy::Pass traps_focus=false open>
             <Frame @test_id="dock.fullscreen" width height>{body}</Frame>
         </Overlay>
     }
@@ -1598,82 +1605,92 @@ fn DockTreeView(
             panes.remove(&tree);
         }
     }));
-    let size = component_size();
-    let placement = component_rect();
-    let thickness = dock.thickness;
-    let state = dock.state.clone();
-    let layout = create_memo(clone!(state -> move || {
-        let area = Rect::from_min_size(Pos2::ZERO, size.get());
-        state.with(|state| layout_tree(state, tree, area, thickness))
-    }));
-    let leaves = create_memo(clone!(layout -> move || {
-        layout.with(|layout| layout.leaves.iter().map(|(leaf, _)| *leaf).collect::<Vec<_>>())
-    }));
-    let splits = create_memo(clone!(layout -> move || {
-        layout.with(|layout| layout.splitters.iter().map(|splitter| splitter.id).collect::<Vec<_>>())
-    }));
-    let hoisted = hoisted.peek();
-    let panels = dock.clone();
-    let panel_layout = layout.clone();
-    let splitters = dock.clone();
-    let splitter_layout = layout.clone();
-    let marked = dock.clone();
-    let marked_surface = match tree {
-        Tree::Surface(surface) => state
-            .with_untracked(|state| state.window_rect(surface).is_none())
-            .then_some(surface),
-        Tree::Group(_) => None,
-    };
-    let pane_origin = create_memo(clone!(placement -> move || placement.get().min));
     view! {
-        <Canvas @node_ref=&canvas>
-            <ForEach keys={leaves}>
-                {move |leaf: LeafId| {
-                    let dock = panels.clone();
-                    let layout = panel_layout.clone();
-                    let rect = create_memo(clone!(layout -> move || {
-                        layout.with(|layout| layout.leaf_rect(leaf)).unwrap_or(Rect::ZERO)
-                    }));
-                    let x = create_memo(clone!(rect -> move || rect.get().min.x));
-                    let y = create_memo(clone!(rect -> move || rect.get().min.y));
-                    let width = create_memo(clone!(rect -> move || rect.get().width()));
-                    let height = create_memo(clone!(rect -> move || rect.get().height()));
-                    let hoisted = hoisted == Some(leaf);
-                    view! {
-                        <CanvasItem x={x} y={y} width={width} height={height}>
-                            <DockPanelView dock tree leaf hoisted />
-                        </CanvasItem>
-                    }
-                }}
-            </ForEach>
-            <ForEach keys={splits}>
-                {move |split: SplitId| {
-                    let dock = splitters.clone();
-                    let layout = splitter_layout.clone();
-                    let rect = create_memo(clone!(layout -> move || {
-                        layout.with(|layout| layout.splitter(split)).map_or(Rect::ZERO, |splitter| {
-                            splitter.handle.expand2(splitter.direction.axes(HANDLE_REACH, 0.0))
-                        })
-                    }));
-                    let x = create_memo(clone!(rect -> move || rect.get().min.x));
-                    let y = create_memo(clone!(rect -> move || rect.get().min.y));
-                    let width = create_memo(clone!(rect -> move || rect.get().width()));
-                    let height = create_memo(clone!(rect -> move || rect.get().height()));
-                    view! {
-                        <CanvasItem x={x} y={y} width={width} height={height}>
-                            <DockSplitterView dock tree split />
-                        </CanvasItem>
-                    }
-                }}
-            </ForEach>
-            <Show condition={marked_surface.is_some()}>
-                <DockDropMarker
-                    dock={marked.clone()}
-                    surface={marked_surface.unwrap_or_else(|| unreachable!())}
-                    origin={pane_origin.clone()}
-                />
-            </Show>
-        </Canvas>
+        <LayoutBuilder>
+            {move |size: ReadSignal<Vec2>| {
+                view! {
+                    <PlacementBuilder>
+                        {move |placement: ReadSignal<Rect>| {
+                        let thickness = dock.thickness;
+                        let state = dock.state.clone();
+                        let layout = create_memo(clone!(state -> move || {
+                            let area = Rect::from_min_size(Pos2::ZERO, size.get());
+                            state.with(|state| layout_tree(state, tree, area, thickness))
+                        }));
+                        let leaves = create_memo(clone!(layout -> move || {
+                            layout.with(|layout| layout.leaves.iter().map(|(leaf, _)| *leaf).collect::<Vec<_>>())
+                        }));
+                        let splits = create_memo(clone!(layout -> move || {
+                            layout.with(|layout| layout.splitters.iter().map(|splitter| splitter.id).collect::<Vec<_>>())
+                        }));
+                        let hoisted = hoisted.peek();
+                        let panels = dock.clone();
+                        let panel_layout = layout.clone();
+                        let splitters = dock.clone();
+                        let splitter_layout = layout.clone();
+                        let marked = dock.clone();
+                        let marked_surface = match tree {
+                            Tree::Surface(surface) => state
+                                .with_untracked(|state| state.window_rect(surface).is_none())
+                                .then_some(surface),
+                            Tree::Group(_) => None,
+                        };
+                        let pane_origin = create_memo(clone!(placement -> move || placement.get().min));
+                        view! {
+                            <Canvas @node_ref=&canvas>
+                                <ForEach keys={leaves}>
+                                    {move |leaf: LeafId| {
+                                        let dock = panels.clone();
+                                        let layout = panel_layout.clone();
+                                        let rect = create_memo(clone!(layout -> move || {
+                                            layout.with(|layout| layout.leaf_rect(leaf)).unwrap_or(Rect::ZERO)
+                                        }));
+                                        let x = create_memo(clone!(rect -> move || rect.get().min.x));
+                                        let y = create_memo(clone!(rect -> move || rect.get().min.y));
+                                        let width = create_memo(clone!(rect -> move || rect.get().width()));
+                                        let height = create_memo(clone!(rect -> move || rect.get().height()));
+                                        let hoisted = hoisted == Some(leaf);
+                                        view! {
+                                            <CanvasItem x={x} y={y} width={width} height={height}>
+                                                <DockPanelView dock tree leaf hoisted />
+                                            </CanvasItem>
+                                        }
+                                    }}
+                                </ForEach>
+                                <ForEach keys={splits}>
+                                    {move |split: SplitId| {
+                                        let dock = splitters.clone();
+                                        let layout = splitter_layout.clone();
+                                        let rect = create_memo(clone!(layout -> move || {
+                                            layout.with(|layout| layout.splitter(split)).map_or(Rect::ZERO, |splitter| {
+                                                splitter.handle.expand2(splitter.direction.axes(HANDLE_REACH, 0.0))
+                                            })
+                                        }));
+                                        let x = create_memo(clone!(rect -> move || rect.get().min.x));
+                                        let y = create_memo(clone!(rect -> move || rect.get().min.y));
+                                        let width = create_memo(clone!(rect -> move || rect.get().width()));
+                                        let height = create_memo(clone!(rect -> move || rect.get().height()));
+                                        view! {
+                                            <CanvasItem x={x} y={y} width={width} height={height}>
+                                                <DockSplitterView dock tree split />
+                                            </CanvasItem>
+                                        }
+                                    }}
+                                </ForEach>
+                                <Show condition={marked_surface.is_some()}>
+                                    <DockDropMarker
+                                        dock={marked.clone()}
+                                        surface={marked_surface.unwrap_or_else(|| unreachable!())}
+                                        origin={pane_origin.clone()}
+                                    />
+                                </Show>
+                            </Canvas>
+                        }
+                        }}
+                    </PlacementBuilder>
+                }
+            }}
+        </LayoutBuilder>
     }
 }
 
@@ -2500,7 +2517,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
             @node_ref=&overlay
             anchor={anchor}
             placement=Placement::At
-            mode=OverlayMode::Floating
+            policy=LayerPolicy::Pass
             traps_focus=false
             open=true
         >
@@ -2735,7 +2752,7 @@ fn DockDragLayer(dock: Handle) -> NodeId {
             <Overlay
                 anchor={marker_anchor}
                 placement=Placement::BelowStart
-                mode=OverlayMode::Passive
+                policy=LayerPolicy::Inert
                 traps_focus=false
                 open={marking}
             >

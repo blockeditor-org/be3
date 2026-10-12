@@ -94,7 +94,7 @@ impl std::fmt::Debug for Waker {
 
 pub fn next_batch(pending: &mut Vec<Event>) -> Vec<Event> {
     let typed = pending.iter().position(|event| match event {
-        Event::Key { key, .. } => !key.is_modifier(),
+        Event::Key { press, .. } => !press.key.is_modifier(),
         Event::Text(_) | Event::Ime(_) => true,
         _ => false,
     });

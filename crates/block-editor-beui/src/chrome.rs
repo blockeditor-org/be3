@@ -1,14 +1,14 @@
-use beui::NodeId;
 use beui::icons::ICON_TUNE;
 use beui::reactive::{
-    Action, Align, Child, Children, Direction, ForEach, Frame, ItemSize, List, ListChild, Memo,
-    Portal, Prop, ReadSignal, Render, Show, WriteSignal, clone, component, component_size,
+    Action, Align, Child, Children, Direction, ForEach, Frame, ItemSize, LayoutBuilder, List,
+    ListChild, Memo, Portal, Prop, ReadSignal, Render, Show, WriteSignal, clone, component,
     create_effect, create_memo, create_signal, on_cleanup, provide_context, untrack, use_context,
     view,
 };
 use beui::styled::theme::BORDER_WIDTH;
 pub use beui::styled::theme::NARROW_WIDTH;
 use beui::styled::{SHEET_STOPS, Scroll, Separator, Sheet, ToggleButton, use_theme};
+use beui::{NodeId, Vec2};
 
 pub const SIDEBAR_WIDTH: f32 = 260.0;
 
@@ -71,82 +71,87 @@ pub(crate) fn ChromeRoot(
     #[prop(children)] content: Render<()>,
 ) -> NodeId {
     let phone = create_memo(move || phone.get());
-    let size = component_size();
-    let narrow = create_memo(clone!(size -> move || {
-        let width = size.get().x;
-        width > 0.0 && width < NARROW_WIDTH
-    }));
-    let (panels, set_panels) = create_signal(Vec::<NodeId>::new());
-    let (open, set_open) = create_signal(false);
-    let (toolbars, set_toolbars) = create_signal(0usize);
-    let layout = ChromeLayout {
-        narrow,
-        panels: panels.clone(),
-        set_panels,
-        open: open.clone(),
-        set_open,
-        set_toolbars,
-    };
-    provide_context(layout.clone());
-    let content = content.call(());
-    let offers = layout.offers_sheet();
-    let sheet = create_memo(clone!(offers open -> move || offers.get() && open.get()));
-    let bare = create_memo(clone!(offers toolbars phone -> move || {
-        offers.get() && toolbars.get() == 0 && !phone.get()
-    }));
-    let listed = create_memo(clone!(offers phone -> move || offers.get() && phone.get()));
-    let opener = layout.set_open.clone();
-    let theme = use_theme();
-    let bar_color = theme.surface.clone();
-    let extent = create_memo(clone!(size -> move || size.get().y));
-    let close = layout.set_open.clone();
     view! {
-        <List spacing=0.0>
-            <Show condition={bare}>
-                <Frame color={bar_color.clone()}>
+        <LayoutBuilder>
+            {move |size: ReadSignal<Vec2>| {
+                let narrow = create_memo(clone!(size -> move || {
+                    let width = size.get().x;
+                    width > 0.0 && width < NARROW_WIDTH
+                }));
+                let (panels, set_panels) = create_signal(Vec::<NodeId>::new());
+                let (open, set_open) = create_signal(false);
+                let (toolbars, set_toolbars) = create_signal(0usize);
+                let layout = ChromeLayout {
+                    narrow,
+                    panels: panels.clone(),
+                    set_panels,
+                    open: open.clone(),
+                    set_open,
+                    set_toolbars,
+                };
+                provide_context(layout.clone());
+                let content = content.call(());
+                let offers = layout.offers_sheet();
+                let sheet = create_memo(clone!(offers open -> move || offers.get() && open.get()));
+                let bare = create_memo(clone!(offers toolbars phone -> move || {
+                    offers.get() && toolbars.get() == 0 && !phone.get()
+                }));
+                let listed = create_memo(clone!(offers phone -> move || offers.get() && phone.get()));
+                let opener = layout.set_open.clone();
+                let theme = use_theme();
+                let bar_color = theme.surface.clone();
+                let extent = create_memo(clone!(size -> move || size.get().y));
+                let close = layout.set_open.clone();
+                view! {
                     <List spacing=0.0>
-                        <Frame
-                            padding_horizontal=BAND_PADDING_HORIZONTAL
-                            padding_vertical=BAND_PADDING_VERTICAL
-                        >
-                            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                                <SheetToggle />
-                            </List>
-                        </Frame>
-                        <Separator />
+                        <Show condition={bare}>
+                            <Frame color={bar_color.clone()}>
+                                <List spacing=0.0>
+                                    <Frame
+                                        padding_horizontal=BAND_PADDING_HORIZONTAL
+                                        padding_vertical=BAND_PADDING_VERTICAL
+                                    >
+                                        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                                            <SheetToggle />
+                                        </List>
+                                    </Frame>
+                                    <Separator />
+                                </List>
+                            </Frame>
+                        </Show>
+                        <Show condition={listed}>
+                            {move || view! {
+                                <PanelItem set_open={opener.clone()} />
+                            }}
+                        </Show>
+                        {content} @sizing=ItemSize::Percent(100.0)
+                        <Show condition={sheet.clone()}>
+                            {move || clone!(panels close -> view! {
+                                <Sheet
+                                    extent={extent.clone()}
+                                    open={sheet.clone()}
+                                    rest={SHEET_STOPS[0]}
+                                    on_close={move || close.set(false)}
+                                >
+                                    <List spacing=0.0>
+                                        <ForEach keys={panels}>
+                                            {move |panel: NodeId| {
+                                                view! {
+                                                    <Portal
+                                                        @sizing=ItemSize::Percent(100.0)
+                                                        node={Some(panel)}
+                                                    />
+                                                }
+                                            }}
+                                        </ForEach>
+                                    </List>
+                                </Sheet>
+                            })}
+                        </Show>
                     </List>
-                </Frame>
-            </Show>
-            <Show condition={listed}>
-                {move || view! {
-                    <PanelItem set_open={opener.clone()} />
-                }}
-            </Show>
-            {content} @sizing=ItemSize::Percent(100.0)
-            <Show condition={sheet.clone()}>
-                {move || clone!(panels close -> view! {
-                    <Sheet
-                        extent={extent.clone()}
-                        open={sheet.clone()}
-                        rest={SHEET_STOPS[0]}
-                        on_close={move || close.set(false)}
-                    >
-                        <List spacing=0.0>
-                            <ForEach keys={panels}>
-                                {move |panel: NodeId| {
-                                    view! {
-                                        <Portal
-                                            @sizing=ItemSize::Percent(100.0)
-                                            node={Some(panel)}
-                                        />
-                                    }
-                                }}
-                            </ForEach>
-                        </List>
-                    </Sheet>
-                })}
-            </Show>
-        </List>
+                }
+            }}
+        </LayoutBuilder>
     }
 }
 

@@ -8,8 +8,7 @@ pub fn measure(doc: &mut Document, painter: &Painter, id: NodeId, available: Vec
     if !doc.arena.contains(id) {
         return Vec2::ZERO;
     }
-    doc.note_parent(id);
-    doc.deliver_constraint(id, available);
+    doc.offer_measured_constraint(id, available);
     if !doc.arena.contains(id) {
         return Vec2::ZERO;
     }
@@ -52,7 +51,6 @@ pub fn layout(doc: &mut Document, painter: &Painter, id: NodeId, rect: Rect, out
     if !doc.arena.contains(id) {
         return;
     }
-    doc.note_parent(id);
     let rect = doc.pixel_grid().snap_rect(rect);
     doc.note_placed(id);
     let state = painter.state();
@@ -66,7 +64,6 @@ pub fn layout(doc: &mut Document, painter: &Painter, id: NodeId, rect: Rect, out
     doc.record_placement(id, rect, state, own.state(), out, culled);
     let watermark = doc.arena.relaid_len();
     doc.deliver_unmeasured_constraint(id, rect.size());
-    doc.deliver_placement(id, rect.translate(state.origin));
     doc.assert_confined(id, watermark);
     if culled || !doc.arena.contains(id) {
         return;
@@ -80,7 +77,4 @@ pub fn layout(doc: &mut Document, painter: &Painter, id: NodeId, rect: Rect, out
     doc.note_space_reads(id, reads, frame.base());
     doc.leave_layout(id, frame, out);
     doc.arena.put_back(id, element);
-    let settled = doc.arena.relaid_len();
-    doc.settle_effects();
-    doc.assert_confined(id, settled);
 }

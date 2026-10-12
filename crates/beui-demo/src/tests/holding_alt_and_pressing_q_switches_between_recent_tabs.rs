@@ -7,11 +7,13 @@ const BUTTONS_PAGE: &str = "demo.code.Buttons";
 fn press(key: Key, modifiers: Modifiers) -> Vec<Event> {
     [true, false]
         .into_iter()
-        .map(|pressed| Event::Key {
-            key,
-            pressed,
-            repeat: false,
-            modifiers,
+        .map(|pressed| {
+            Event::key(beui::KeyPress {
+                key,
+                pressed,
+                repeat: false,
+                modifiers,
+            })
         })
         .collect()
 }

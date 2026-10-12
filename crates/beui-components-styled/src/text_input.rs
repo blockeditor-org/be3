@@ -8,7 +8,6 @@ use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{TextInputHandle, TextInputStyle};
 use beui_core::document::Document;
 use beui_core::icons::ICON_CLOSE;
-use beui_core::input::KeyPress;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Align, Callback, Direction, Frame, IntoProp, ItemSize, List, Memo, Prop, Show, clone,
@@ -38,7 +37,6 @@ pub fn TextInput(
     on_change: Callback<String>,
     on_submit: Callback<String>,
     on_focus_change: Callback<bool>,
-    on_key_override: Callback<KeyPress, bool>,
 ) -> NodeId {
     let plain = create_memo(move || plain.get());
     let glyph = create_memo(move || glyph.get());
@@ -56,7 +54,6 @@ pub fn TextInput(
             on_change={move |value| on_change.call(value)}
             on_submit={move |value| on_submit.call(value)}
             on_focus_change={move |focused| on_focus_change.call(focused)}
-            on_key_override={move |press| on_key_override.call(press)}
         >
             {move |handle| view! {
                 <TextInputFrame

@@ -6,7 +6,7 @@ use beui::unstyled::{
     ButtonHandle, ChoiceKind, ChoiceOptionHandle, DisclosureHandle, DragHandle, DragPoint,
     DropHandle, MenuButtonHandle, MenuRowHandle, PopoverTriggerHandle, ScrollHandle,
     ScrollbarHandle, ScrollbarStyle, SliderHandle, TextInputHandle, TextInputStyle, ToggleHandle,
-    TooltipHandle, thumb_length, thumb_start,
+    TooltipHandle,
 };
 use beui::unstyled::{ColorAreaHandle, ColorPickerArea, HueSlider, SwatchHandle, Swatches};
 use beui::unstyled::{
@@ -986,17 +986,11 @@ fn thin_scrollbar() -> ScrollbarStyle {
 fn ThinThumb(bar: ScrollbarHandle) -> NodeId {
     let ScrollbarHandle {
         position,
+        direction,
         hovered,
         dragging,
-        ..
     } = bar;
     let theme = use_theme();
-    let before = create_memo(
-        clone!(position -> move || ItemSize::Percent(thumb_start(position.get()) * 100.0)),
-    );
-    let length = create_memo(
-        clone!(position -> move || ItemSize::Percent(thumb_length(position.get()) * 100.0)),
-    );
     let color = create_memo(
         clone!(theme -> move || match hovered.get() || dragging.get() {
             true => theme.scroll_thumb_hover.get(),
@@ -1004,10 +998,7 @@ fn ThinThumb(bar: ScrollbarHandle) -> NodeId {
         }),
     );
     view! {
-        <List spacing=0.0>
-            <Spacer @sizing={before} />
-            <Frame @sizing={length} color={color} radius=3 />
-        </List>
+        <unstyled::ScrollbarThumb position direction color radius=3.0 />
     }
 }
 
@@ -1148,7 +1139,6 @@ fn NumberField(handle: NumberFieldHandle) -> NodeId {
         on_change,
         on_submit,
         on_focus_change,
-        on_key,
     } = handle;
     view! {
         <unstyled::TextInput
@@ -1160,7 +1150,6 @@ fn NumberField(handle: NumberFieldHandle) -> NodeId {
             on_change={move |typed| on_change.call(typed)}
             on_submit={move |typed| on_submit.call(typed)}
             on_focus_change={move |focused| on_focus_change.call(focused)}
-            on_key_override={move |press| on_key.call(press)}
         >
             {move |handle: TextInputHandle| view! {
                 <UnderlinedField handle />

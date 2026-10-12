@@ -2014,6 +2014,7 @@ pub enum InputEvent {
         key: Key,
         pressed: bool,
         repeat: bool,
+        text: Option<String>,
     },
     Text(String),
     Paste(String),

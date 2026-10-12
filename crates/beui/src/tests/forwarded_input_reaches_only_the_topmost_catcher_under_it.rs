@@ -8,9 +8,9 @@ use crate::reactive::{Canvas, CanvasItem, Frame, Interactive, build, view};
 fn moves(log: &RefCell<Vec<ForwardedInput>>) -> Vec<Pos2> {
     log.borrow()
         .iter()
-        .flat_map(|input| input.events.iter())
+        .flat_map(|input| flattened(input.clone()))
         .filter_map(|event| match event {
-            Event::PointerMoved(pos) => Some(*pos),
+            Event::PointerMoved(pos) => Some(pos),
             _ => None,
         })
         .collect()

@@ -21,7 +21,7 @@ fn a_catcher_in_a_dialog_hears_a_press_on_it() {
                         <Interactive
                             @node_ref={&catcher}
                             on_forward={move |input: ForwardedInput| {
-                                heard.borrow_mut().extend(input.events)
+                                heard.borrow_mut().extend(flattened(input))
                             }}
                         >
                             <Frame height=200.0 />

@@ -37,8 +37,9 @@ fn a_press_and_release_in_one_frame_on_a_submenu_item_selects_it_once() {
     let find = |harness: &Harness, label: &str| {
         let document = harness.document();
         document
-            .overlay_stack
+            .layers()
             .iter()
+            .filter_map(|layer| layer.overlay)
             .find_map(|overlay| text_within(document, overlay.id(), label))
             .unwrap_or_else(|| panic!("the menu shows {label}"))
     };

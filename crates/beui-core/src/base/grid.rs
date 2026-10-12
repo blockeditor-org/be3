@@ -4,7 +4,7 @@ use crate::base::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
 use crate::base::share::{Part, share, snapped_run};
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2, pos2, vec2};
-use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -220,19 +220,6 @@ impl Element for GridNode {
         for item in self.items.iter() {
             crate::paint::paint(doc, painter, rects, item.child);
         }
-    }
-
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        children.extend(self.items.iter().map(ChildItem::node));
     }
 
     fn children(&self) -> Vec<NodeId> {

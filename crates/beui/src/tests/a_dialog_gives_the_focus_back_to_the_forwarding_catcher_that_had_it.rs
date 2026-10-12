@@ -28,7 +28,7 @@ fn a_dialog_gives_the_focus_back_to_the_forwarding_catcher_that_had_it() {
                                 @node_ref=&catcher
                                 focusable=true
                                 on_forward={move |input: ForwardedInput| {
-                                    heard.borrow_mut().push((input.focused, input.events))
+                                    heard.borrow_mut().push((input.focused, flattened(input)))
                                 }}
                             >
                                 <Frame />

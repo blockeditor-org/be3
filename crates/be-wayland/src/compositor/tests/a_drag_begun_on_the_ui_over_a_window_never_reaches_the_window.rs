@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
-use beui::ForwardedInput;
 use beui::reactive::{Layers, component};
+use beui::{ForwardedInput, PointerPhase};
 
 use super::*;
 
@@ -21,7 +21,18 @@ fn Covered(windows: Windows) -> NodeId {
             <Interactive
                 focusable=true
                 on_forward={|input: ForwardedInput| {
-                    HEARD.with(|heard| heard.borrow_mut().extend(input.events));
+                    let buttons = input.pointer_events().filter_map(|event| match event.phase {
+                        PointerPhase::Down(button) | PointerPhase::Up(button) => {
+                            Some(Event::PointerButton {
+                                pos: event.pos,
+                                button,
+                                pressed: matches!(event.phase, PointerPhase::Down(_)),
+                                modifiers: event.modifiers,
+                            })
+                        }
+                        _ => None,
+                    });
+                    HEARD.with(|heard| heard.borrow_mut().extend(buttons));
                 }}
             >
                 <Frame width={Some(SCREEN.x)} height={Some(SCREEN.y)} />

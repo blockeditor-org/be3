@@ -3,6 +3,7 @@ use std::rc::Rc;
 
 use super::*;
 use crate::ForwardedInput;
+use crate::KeyAt;
 use crate::reactive::{Action, Canvas, CanvasItem, Chord, Frame, Interactive, build, view};
 
 #[test]
@@ -17,13 +18,14 @@ fn a_focused_app_keeps_its_keys_from_global_actions_that_do_not_intercept() {
                 global.borrow_mut().push("global")
             })
             .shortcut(Chord::logo(Key::G))
-            .global()
+            .at(KeyAt::Window)
             .register();
             Action::new("test.intercepting", "Intercepting", move || {
                 intercepting.borrow_mut().push("intercepting")
             })
             .shortcut(Chord::logo(Key::H))
-            .intercepts()
+            .at(KeyAt::Window)
+            .capture()
             .register();
             view! {
                 <Canvas>
@@ -32,9 +34,11 @@ fn a_focused_app_keeps_its_keys_from_global_actions_that_do_not_intercept() {
                             focusable=true
                             on_forward={move |input: ForwardedInput| {
                                 if input.focused {
-                                    forwarded.borrow_mut().extend(input.events.iter().filter_map(
+                                    forwarded.borrow_mut().extend(input.inputs().filter_map(
                                         |event| match event {
-                                            Event::Key { key, pressed: true, .. } => Some(*key),
+                                            Event::Key { press, .. } if press.pressed => {
+                                                Some(press.key)
+                                            }
                                             _ => None,
                                         },
                                     ));

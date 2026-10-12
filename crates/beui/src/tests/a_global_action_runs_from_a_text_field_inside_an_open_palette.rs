@@ -1,4 +1,5 @@
 use super::*;
+use crate::KeyAt;
 use crate::reactive::{Action, Chord, NodeRef, build, create_signal, view};
 use crate::styled::CommandPalette;
 use crate::unstyled::command_palette_shown;
@@ -14,19 +15,19 @@ fn a_global_action_runs_from_a_text_field_inside_an_open_palette() {
             lock.borrow_mut().push("lock")
         })
         .shortcut(Chord::logo(Key::L))
-        .global()
+        .at(KeyAt::Window)
         .register();
         Action::new("test.louder", "Volume up", move || {
             louder.borrow_mut().push("louder")
         })
         .shortcut(Chord::key(Key::VolumeUp))
-        .global()
+        .at(KeyAt::Window)
         .register();
         Action::new("test.typed", "Line tool", move || {
             typed.borrow_mut().push("typed")
         })
         .shortcut(Chord::key(Key::L))
-        .global()
+        .at(KeyAt::Window)
         .register();
         let (open, set_open) = create_signal(true);
         view! {

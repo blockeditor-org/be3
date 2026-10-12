@@ -1,4 +1,6 @@
 use super::*;
+use beui::KeyAt;
+use beui::reactive::LayerLevel;
 
 mod a_click_on_beui_dismisses_a_grabbed_popup;
 mod a_closed_window_leaves_the_list;
@@ -102,13 +104,14 @@ fn Shown(windows: Windows) -> NodeId {
             });
         })
         .shortcut(beui::reactive::Chord::logo(Key::F))
-        .intercepts()
+        .at(KeyAt::Window)
+        .capture()
         .register();
         beui::reactive::Action::new("test.global", "Global", || {
             GLOBAL_RAN.with(|ran| ran.set(ran.get() + 1))
         })
         .shortcut(beui::reactive::Chord::logo(Key::G))
-        .global()
+        .at(KeyAt::Window)
         .register();
         crate::view::register_restore_shortcuts(&windows);
         let (text, set_text) = create_signal(String::new());
@@ -157,7 +160,7 @@ fn Shown(windows: Windows) -> NodeId {
                     <Overlay
                         anchor=OverlayAnchor::Point(Pos2::ZERO)
                         placement=Placement::Fill
-                        locks=true
+                        level=LayerLevel::Lock
                         open={locked}
                     >
                         <TextInput @test_id={"test.lock"} value="" />
@@ -335,16 +338,7 @@ impl Harness {
     }
 
     fn key(&mut self, code: u32) {
-        self.frame(vec![
-            Event::PhysicalKey {
-                code,
-                pressed: true,
-            },
-            Event::PhysicalKey {
-                code,
-                pressed: false,
-            },
-        ]);
+        self.frame(vec![physical(code, true), physical(code, false)]);
         self.settle();
     }
 
@@ -441,8 +435,21 @@ thread_local! {
     static CLAIMED: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }
 
+fn stroke(key: Key, code: u32, pressed: bool, modifiers: beui::Modifiers) -> Event {
+    Event::Key {
+        press: beui::KeyPress {
+            key,
+            pressed,
+            repeat: false,
+            modifiers,
+        },
+        code: Some(code),
+        text: None,
+    }
+}
+
 fn physical(code: u32, pressed: bool) -> Event {
-    Event::PhysicalKey { code, pressed }
+    stroke(Key::Unidentified, code, pressed, beui::Modifiers::NONE)
 }
 
 fn super_key(pressed: bool) -> Vec<Event> {
@@ -450,19 +457,14 @@ fn super_key(pressed: bool) -> Vec<Event> {
         true => beui::Modifiers::LOGO,
         false => beui::Modifiers::NONE,
     };
-    vec![physical(KEY_LEFTMETA, pressed), Event::Modifiers(held)]
+    vec![
+        stroke(Key::Logo, KEY_LEFTMETA, pressed, held),
+        Event::Modifiers(held),
+    ]
 }
 
 fn f_key(pressed: bool, modifiers: beui::Modifiers) -> Vec<Event> {
-    vec![
-        physical(KEY_F, pressed),
-        Event::Key {
-            key: Key::F,
-            pressed,
-            repeat: false,
-            modifiers,
-        },
-    ]
+    vec![stroke(Key::F, KEY_F, pressed, modifiers)]
 }
 
 fn outside() -> Pos2 {

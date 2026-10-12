@@ -1,9 +1,10 @@
 use beui::reactive::{
-    Frame, List, clone, component, create_effect, create_memo, request_paste, untrack, view,
+    Frame, List, NodeRef, clone, component, create_effect, create_memo, on_key, request_paste,
+    untrack, view,
 };
 use beui::styled::{Button, ButtonVariant, TextArea};
 use beui::unstyled::{RemoteTextCursor, TextWidget};
-use beui::{Key, KeyPress, NodeId, Vec2};
+use beui::{Key, KeyAt, KeyPhase, KeyPress, NodeId, Vec2};
 use block_editor_beui::{Drag, block_ui::BlockLabel};
 use text_editor_core::{CursorLeftRightStop, CursorPosition, EditorCommand};
 
@@ -82,16 +83,27 @@ pub(crate) fn TextSurface(state: Shared) -> NodeId {
 
     let press_state = state.clone();
     let key_state = state.clone();
+    let field = NodeRef::new();
+    on_key(
+        KeyAt::Node(field.clone()),
+        KeyPhase::Capture,
+        move |event| {
+            key_state.text.core().composition().is_none()
+                && event
+                    .press()
+                    .is_some_and(|press| paste_key(&key_state, press))
+        },
+    );
     let typing = state.set_typing.clone();
     view! {
         <TextArea
+            @node_ref=&field
             state={state.text.clone()}
             widgets={widgets}
             remote_cursors={remote_cursors}
             drop_caret={drop_caret}
             @test_id={"text.surface"}
             on_widget_press={move |widget: usize| focus_embed(&press_state, widget)}
-            on_key_override={move |press: KeyPress| paste_key(&key_state, press)}
             on_focus_change={move |focused: bool| typing.set(focused)}
             block={embed_row}
             selected_widget={open_row}

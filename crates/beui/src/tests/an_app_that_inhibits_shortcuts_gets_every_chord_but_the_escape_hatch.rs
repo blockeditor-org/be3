@@ -3,6 +3,7 @@ use std::rc::Rc;
 
 use super::*;
 use crate::ForwardedInput;
+use crate::KeyAt;
 use crate::reactive::{
     Action, Canvas, CanvasItem, Chord, Frame, Interactive, WriteSignal, build, create_signal, view,
     with_reactive_scope,
@@ -22,13 +23,15 @@ fn an_app_that_inhibits_shortcuts_gets_every_chord_but_the_escape_hatch() {
                 intercepting.borrow_mut().push("intercepting")
             })
             .shortcut(Chord::logo(Key::H))
-            .intercepts()
+            .at(KeyAt::Window)
+            .capture()
             .register();
             Action::new("test.hatch", "Escape hatch", move || {
                 hatch.borrow_mut().push("hatch")
             })
             .shortcut(Chord::logo(Key::L))
-            .escape_hatch()
+            .at(KeyAt::Host)
+            .capture()
             .register();
             let (inhibits, set_inhibits) = create_signal(true);
             *setter.borrow_mut() = Some(set_inhibits);
@@ -40,9 +43,11 @@ fn an_app_that_inhibits_shortcuts_gets_every_chord_but_the_escape_hatch() {
                             inhibits_shortcuts={inhibits}
                             on_forward={move |input: ForwardedInput| {
                                 if input.focused {
-                                    forwarded.borrow_mut().extend(input.events.iter().filter_map(
+                                    forwarded.borrow_mut().extend(input.inputs().filter_map(
                                         |event| match event {
-                                            Event::Key { key, pressed: true, .. } => Some(*key),
+                                            Event::Key { press, .. } if press.pressed => {
+                                                Some(press.key)
+                                            }
                                             _ => None,
                                         },
                                     ));

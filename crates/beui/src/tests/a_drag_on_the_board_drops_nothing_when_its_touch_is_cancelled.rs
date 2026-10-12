@@ -31,10 +31,7 @@ fn a_drag_on_the_board_drops_nothing_when_its_touch_is_cancelled() {
     harness.touch(TouchPhase::Start, from);
     harness.document().drag_board().begin(
         Rc::new(7_u32),
-        DragPoint {
-            pos: from,
-            modifiers: Modifiers::NONE,
-        },
+        DragPoint::at(from, Modifiers::NONE),
         Rc::new(|_| {}),
     );
     harness.touch(TouchPhase::Move, to);
