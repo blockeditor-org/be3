@@ -589,16 +589,17 @@ impl Inspector {
             pos2(edge - GRIP_WIDTH, rect.top()),
             pos2(edge + GRIP_WIDTH, rect.bottom()),
         );
-        if released(ctx) {
-            self.grabbed = None;
+        for (down, at) in primary(ctx) {
+            match down {
+                true if grip.contains(at) => self.grabbed = Some(at.x - edge),
+                true => {}
+                false => self.grabbed = None,
+            }
         }
         let Some(pointer) = ctx.input(|input| input.pointer.interact_pos()) else {
             self.grip = false;
             return;
         };
-        if let Some(pressed) = pressed(ctx).filter(|pressed| grip.contains(*pressed)) {
-            self.grabbed = Some(pressed.x - edge);
-        }
         if let Some(grabbed) = self.grabbed {
             let maximum = (rect.width() / scale - NARROWEST_APP_WIDTH).max(MINIMUM_WIDTH);
             self.width =
@@ -709,8 +710,32 @@ impl Inspector {
             self.handle = None;
             return;
         };
-        if released(ctx) && self.resizing.take().is_some() {
-            self.state.touch();
+        let placement = target.shown_screen();
+        let reachable = !self.state.picking.get() && !self.toolbar.open();
+        let handle_under = |pos: Pos2| {
+            placement
+                .filter(|_| reachable)
+                .and_then(|placement| handle_at(placement.shown(), content, pos))
+        };
+        for (down, at) in primary(ctx) {
+            match down {
+                true if self.resizing.is_none() => {
+                    if let (Some(handle), Some(placement)) = (handle_under(at), placement) {
+                        self.resizing = Some(Resize {
+                            handle,
+                            origin: at,
+                            size: simulation.size,
+                            scale: placement.scale,
+                        });
+                    }
+                }
+                true => {}
+                false => {
+                    if self.resizing.take().is_some() {
+                        self.state.touch();
+                    }
+                }
+            }
         }
         let pointer = ctx.input(|input| input.pointer.interact_pos());
         if let Some(resizing) = self.resizing {
@@ -723,21 +748,7 @@ impl Inspector {
             self.handle = Some(resizing.handle);
             return;
         }
-        let placement = target.shown_screen();
-        self.handle = placement
-            .zip(pointer)
-            .filter(|_| !self.state.picking.get() && !self.toolbar.open())
-            .and_then(|(placement, pointer)| handle_at(placement.shown(), content, pointer));
-        if let (Some(handle), Some(placement), Some(origin)) =
-            (self.handle, placement, pressed(ctx))
-        {
-            self.resizing = Some(Resize {
-                handle,
-                origin,
-                size: simulation.size,
-                scale: placement.scale,
-            });
-        }
+        self.handle = pointer.and_then(handle_under);
     }
 
     fn paint_handles(&self, target: &Document, ctx: &Context, content: Rect) {
@@ -995,21 +1006,25 @@ impl Inspector {
         }
 
         self.state.hovered.set(None);
+        let screen = target.screen_scale();
+        let under = |pos: Pos2| {
+            let pos = Some(pos).filter(|pos| content.contains(*pos))?;
+            overlay::hit(target, pos2(pos.x / screen, pos.y / screen))
+        };
+        let pressed = primary(ctx).into_iter().find(|(down, _)| *down);
+        if let Some(id) = pressed.and_then(|(_, at)| under(at)) {
+            self.state.stop_picking();
+            self.state.app_shown.set(false);
+            self.state.select(id);
+            return;
+        }
         let pointer = ctx.input(|input| input.pointer.interact_pos());
         let Some(pointer) = pointer.filter(|pointer| content.contains(*pointer)) else {
             return;
         };
         ctx.set_cursor_icon(CursorIcon::Crosshair);
-        let screen = target.screen_scale();
-        let pointer = pos2(pointer.x / screen, pointer.y / screen);
-        let Some(id) = overlay::hit(target, pointer) else {
-            return;
-        };
-        self.state.hovered.set(Some(id));
-        if pressed(ctx).is_some() {
-            self.state.stop_picking();
-            self.state.app_shown.set(false);
-            self.state.select(id);
+        if let Some(id) = under(pointer) {
+            self.state.hovered.set(Some(id));
         }
     }
 
@@ -1322,21 +1337,16 @@ fn keyed(input: &InputState, keys: bool) -> InputState {
     }
 }
 
-fn pressed(ctx: &Context) -> Option<Pos2> {
+fn primary(ctx: &Context) -> Vec<(bool, Pos2)> {
     ctx.input(|input| {
         input
             .pointer_events
             .iter()
-            .find(|event| event.phase == PointerPhase::Down(PointerButton::Primary))
-            .map(|event| event.pos)
-    })
-}
-
-fn released(ctx: &Context) -> bool {
-    ctx.input(|input| {
-        input
-            .pointer_events
-            .iter()
-            .any(|event| event.phase == PointerPhase::Up(PointerButton::Primary))
+            .filter_map(|event| match event.phase {
+                PointerPhase::Down(PointerButton::Primary) => Some((true, event.pos)),
+                PointerPhase::Up(PointerButton::Primary) => Some((false, event.pos)),
+                _ => None,
+            })
+            .collect()
     })
 }
