@@ -838,10 +838,13 @@ impl Fixed {
             }
             return;
         }
-        if let Some(interior) = rim(shape)
+        if let Some((interior, corners)) = edges(shape)
             && bounds.contains_rect(self.viewport)
         {
             self.inner = self.inner.intersect(interior);
+            for corner in corners {
+                self.both(corner);
+            }
             return;
         }
         for rect in painted(shape, bounds) {
@@ -863,6 +866,47 @@ fn rim(shape: &Shape) -> Option<Rect> {
         }
         _ => None,
     }
+}
+
+pub fn uneven(shape: &Shape, area: Rect) -> Option<Vec<Rect>> {
+    let (interior, corners) = edges(shape)?;
+    if !crate::damage::bounds(shape).contains_rect(area) {
+        return None;
+    }
+    let mut parts = uncovered(area, interior);
+    parts.extend(corners);
+    Some(parts)
+}
+
+fn edges(shape: &Shape) -> Option<(Rect, [Rect; 4])> {
+    let Shape::Rect {
+        rect,
+        corner_radius,
+        stroke_width,
+        rotation,
+        ..
+    } = shape
+    else {
+        return None;
+    };
+    if rotation.turns() {
+        return None;
+    }
+    let interior = match *stroke_width > 0.0 {
+        true => rect.shrink(stroke_width + 1.0),
+        false => *rect,
+    };
+    let corner = |at: Pos2, radius: f32| {
+        let reach = 2.0 * (radius + stroke_width + 1.0);
+        Rect::from_center_size(at, Vec2::new(reach, reach)).intersect(*rect)
+    };
+    let corners = [
+        corner(rect.left_top(), corner_radius.top_left),
+        corner(rect.right_top(), corner_radius.top_right),
+        corner(rect.right_bottom(), corner_radius.bottom_right),
+        corner(rect.left_bottom(), corner_radius.bottom_left),
+    ];
+    Some((interior, corners))
 }
 
 pub fn painted(shape: &Shape, bounds: Rect) -> Vec<Rect> {

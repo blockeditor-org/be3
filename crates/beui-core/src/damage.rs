@@ -1,7 +1,8 @@
 use crate::geometry::{Pos2, Rect};
+use crate::paint::uncovered;
 use crate::painter::Shape;
 
-const REGIONS: usize = 4;
+const REGIONS: usize = 8;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Region {
@@ -40,27 +41,50 @@ impl Region {
         if !rect.is_positive() {
             return;
         }
-        for region in &mut self.rects[..self.count] {
-            if region.intersects(rect) {
-                *region = region.union(rect);
-                return;
+        if let Some(index) = self.rects().iter().position(|region| joins(*region, rect)) {
+            let union = self.rects[index].union(rect);
+            self.rects[index] = self.rects[self.count - 1];
+            self.count -= 1;
+            self.add(union);
+            return;
+        }
+        if let Some(overlapped) = self.rects().iter().find(|region| region.intersects(rect)) {
+            for piece in uncovered(rect, *overlapped) {
+                self.add(piece);
             }
+            return;
         }
         if self.count < REGIONS {
             self.rects[self.count] = rect;
             self.count += 1;
             return;
         }
-        let mut chosen = 0;
-        let mut cheapest = f32::INFINITY;
-        for (index, region) in self.rects.iter().enumerate() {
-            let growth = area(region.union(rect)) - area(*region);
-            if growth < cheapest {
-                cheapest = growth;
-                chosen = index;
+        let mut all = self.rects.to_vec();
+        all.push(rect);
+        let mut cheapest = None;
+        for first in 0..all.len() {
+            for second in first + 1..all.len() {
+                let (merged, absorbed) = cascade(&all, first, second);
+                let growth =
+                    area(merged) - absorbed.iter().map(|index| area(all[*index])).sum::<f32>();
+                if cheapest
+                    .as_ref()
+                    .is_none_or(|(least, _, _)| growth < *least)
+                {
+                    cheapest = Some((growth, merged, absorbed));
+                }
             }
         }
-        self.rects[chosen] = self.rects[chosen].union(rect);
+        let (_, merged, absorbed) = cheapest.expect("a full region has a pair to merge");
+        *self = Self::NOTHING;
+        for (index, region) in all.into_iter().enumerate() {
+            if !absorbed.contains(&index) {
+                self.rects[self.count] = region;
+                self.count += 1;
+            }
+        }
+        self.rects[self.count] = merged;
+        self.count += 1;
     }
 
     pub fn clipped(&self, viewport: Rect) -> Self {
@@ -84,6 +108,29 @@ impl Default for Region {
     fn default() -> Self {
         Self::NOTHING
     }
+}
+
+fn joins(a: Rect, b: Rect) -> bool {
+    let overlap = match a.intersects(b) {
+        true => area(a.intersect(b)),
+        false => 0.0,
+    };
+    let union = a.union(b);
+    let touches =
+        union.width() <= a.width() + b.width() && union.height() <= a.height() + b.height();
+    touches && area(union) <= area(a) + area(b) - overlap
+}
+
+fn cascade(rects: &[Rect], first: usize, second: usize) -> (Rect, Vec<usize>) {
+    let mut merged = rects[first].union(rects[second]);
+    let mut absorbed = vec![first, second];
+    while let Some(index) =
+        (0..rects.len()).find(|index| !absorbed.contains(index) && rects[*index].intersects(merged))
+    {
+        merged = merged.union(rects[index]);
+        absorbed.push(index);
+    }
+    (merged, absorbed)
 }
 
 fn area(rect: Rect) -> f32 {

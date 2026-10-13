@@ -2035,8 +2035,16 @@ fn verify_move(previous: &[Shape], shapes: &[Shape], region: &Region, moved: Mov
         .iter()
         .filter(|shape| within(shape, landed))
         .collect();
+    let even = |shape: &Shape| {
+        paint::uneven(shape, landed).is_some_and(|parts| {
+            parts
+                .into_iter()
+                .all(|rect| covered(rect.intersect(landed), region))
+        })
+    };
     let matches = |old: &Shape, new: &Shape| {
         (paint::covers(old, landed) && paint::covers(new, landed) && same_fill(old, new))
+            || (even(old) && even(new) && same_paint(old, new))
             || (unclipped(old) == unclipped(new)
                 && clip_of(old).intersect(landed) == clip_of(new).intersect(landed))
     };
@@ -2075,6 +2083,16 @@ fn same_fill(left: &Shape, right: &Shape) -> bool {
     matches!(
         (left, right),
         (Shape::Rect { color, .. }, Shape::Rect { color: other, .. }) if color == other
+    )
+}
+
+fn same_paint(left: &Shape, right: &Shape) -> bool {
+    matches!(
+        (left, right),
+        (
+            Shape::Rect { corner_radius, stroke_width, color, .. },
+            Shape::Rect { corner_radius: other_radius, stroke_width: other_width, color: other, .. },
+        ) if color == other && corner_radius == other_radius && stroke_width == other_width
     )
 }
 
