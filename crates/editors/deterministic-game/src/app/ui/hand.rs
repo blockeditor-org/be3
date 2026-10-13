@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, CanvasView, Draw, Drawing, ForEach, Frame, Memo, PlacementBuilder, Prop,
-    ReadSignal, WriteSignal, clone, component, create_effect, create_memo, view,
+    ReadSignal, WriteSignal, component, create_effect, create_memo, view,
 };
 use block_editor_beui::beui::styled::use_theme;
 use block_editor_beui::beui::{NodeId, Painter, Pos2, Rect, Vec2, pos2};
@@ -54,12 +54,12 @@ pub(crate) fn HandBar(
                 let bar = rect;
                 create_effect(move || set_bar.set(bar.get()));
                 let theme = use_theme();
-                let shown = create_memo(clone!(hand -> move || !hand.with(Vec::is_empty)));
+                let shown = create_memo(move || !hand.with(Vec::is_empty));
                 let height =
-                    create_memo(clone!(shown -> move || Some(if shown.get() { BAR_HEIGHT } else { 0.0 })));
-                let keys = create_memo(clone!(hand -> move || {
+                    create_memo(move || Some(if shown.get() { BAR_HEIGHT } else { 0.0 }));
+                let keys = create_memo(move || {
                     hand.with(|hand| hand.iter().map(|held| (held.id, held.spot)).collect::<Vec<_>>())
-                }));
+                });
                 let screen = Some(CanvasView::new(Pos2::ZERO, 1.0));
                 view! {
                     <Frame
@@ -101,19 +101,19 @@ fn HandItem(
     play: Play,
     hidden: Memo<Vec<ItemId>>,
 ) -> CanvasItem {
-    let held = create_memo(clone!(hand -> move || {
+    let held = create_memo(move || {
         hand.with(|hand| {
             let index = hand.iter().position(|held| held.id == id)?;
             Some((index, hand.len(), hand[index].clone()))
         })
-    }));
-    let rect = create_memo(clone!(held -> move || {
+    });
+    let rect = create_memo(move || {
         held.get()
             .and_then(|(index, count, _)| hand_rects(bar.get(), count).get(index).copied())
             .unwrap_or(Rect::ZERO)
-    }));
+    });
     let theme = use_theme();
-    let draw: Prop<Draw> = Prop::Dynamic(Rc::new(clone!(held -> move || {
+    let draw: Prop<Draw> = Prop::Dynamic(Rc::new(move || {
         let held = held.get();
         let mark = play.mark(spot);
         let hidden = hidden.with(|hidden| hidden.contains(&id));
@@ -127,13 +127,13 @@ fn HandItem(
             }
             paint_card_mark(painter, rect, mark, 1.0, &theme);
         }) as Draw
-    })));
+    }));
     view! {
         <CanvasItem
-            x={create_memo(clone!(rect -> move || rect.get().left()))}
-            y={create_memo(clone!(rect -> move || rect.get().top()))}
-            width={create_memo(clone!(rect -> move || rect.get().width().max(1.0)))}
-            height={create_memo(clone!(rect -> move || rect.get().height().max(1.0)))}
+            x={create_memo(move || rect.get().left())}
+            y={create_memo(move || rect.get().top())}
+            width={create_memo(move || rect.get().width().max(1.0))}
+            height={create_memo(move || rect.get().height().max(1.0))}
             clip=false
             @test_id={spot_test_id(spot)}
         >

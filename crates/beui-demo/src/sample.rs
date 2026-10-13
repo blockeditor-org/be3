@@ -39,7 +39,7 @@ pub(crate) fn Sample(title: &'static str, code: Vec<&'static str>, children: Chi
 #[component]
 fn CodeBlock(source: String) -> NodeId {
     let theme = use_theme();
-    let tokens = create_memo(clone!(source theme -> move || {
+    let tokens = create_memo(clone!(source -> move || {
         let theme = theme.get();
         code_tokens(&source, theme.background, theme.text)
     }));

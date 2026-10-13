@@ -104,15 +104,13 @@ fn ResponsiveToolbar(
     device: NodeRef,
     zoom: NodeRef,
 ) -> NodeId {
-    let selected_device = create_memo(clone!(screen -> move || {
-        Some(device_index(screen.get().size))
-    }));
-    let width = create_memo(clone!(screen -> move || f64::from(screen.get().size.x)));
-    let height = create_memo(clone!(screen -> move || f64::from(screen.get().size.y)));
-    let selected_zoom = create_memo(clone!(screen -> move || {
+    let selected_device = create_memo(move || Some(device_index(screen.get().size)));
+    let width = create_memo(move || f64::from(screen.get().size.x));
+    let height = create_memo(move || f64::from(screen.get().size.y));
+    let selected_zoom = create_memo(move || {
         let zoom = screen.get().zoom;
         ZOOMS.iter().position(|(_, candidate)| *candidate == zoom)
-    }));
+    });
     let (device_state, width_state, height_state) = (state.clone(), state.clone(), state.clone());
     let (rotate_state, zoom_state, close_state) = (state.clone(), state.clone(), state);
     view! {

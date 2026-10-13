@@ -6,8 +6,8 @@ use beui_macros::{component, view};
 use crate::theme::use_theme;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Direction, Frame, ItemSize, List, Prop, Spacer, clone, component_accessibility,
-    component_placed, create_effect, create_memo, create_signal, create_timer, now,
+    Direction, Frame, ItemSize, List, Prop, Spacer, component_accessibility, component_placed,
+    create_effect, create_memo, create_signal, create_timer, now,
 };
 
 const HEIGHT: f32 = 4.0;
@@ -32,20 +32,19 @@ pub fn Spinner(
         node.set_busy();
         node
     }));
-    let before = create_memo(clone!(phase -> move || {
-        ItemSize::Percent(phase.get() * (1.0 - SEGMENT) * 100.0 + 0.001)
-    }));
+    let before =
+        create_memo(move || ItemSize::Percent(phase.get() * (1.0 - SEGMENT) * 100.0 + 0.001));
     let after = create_memo(move || {
         ItemSize::Percent((1.0 - phase.get()) * (1.0 - SEGMENT) * 100.0 + 0.001)
     });
     let placed = component_placed();
-    let ticking = create_timer(clone!(placed -> move || {
+    let ticking = create_timer(move || {
         if !placed.get_untracked() {
             return None;
         }
         set_phase.set((now().saturating_duration_since(started).as_secs_f32() / PERIOD).fract());
         Some(FRAME)
-    }));
+    });
     create_effect(move || match placed.get() {
         true => ticking.start(Duration::ZERO),
         false => ticking.stop(),

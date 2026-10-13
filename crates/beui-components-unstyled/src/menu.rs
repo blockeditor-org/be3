@@ -165,15 +165,15 @@ pub fn MenuList(
         (true, false) => Focus::Root,
     });
     let (focus, set_focus) = create_signal(active_focus.peek());
-    create_effect(clone!(set_focus -> move || set_focus.set(active_focus.get())));
-    let focused = create_selector(clone!(focus -> move || focus.get()));
-    let root_tab_stop = create_memo(clone!(focus -> move || !matches!(focus.get(), Focus::Row(_))));
+    create_effect(move || set_focus.set(active_focus.get()));
+    let focused = create_selector(move || focus.get());
+    let root_tab_stop = create_memo(move || !matches!(focus.get(), Focus::Row(_)));
 
     let state: Handle = Rc::new(State {
         rows: Rc::default(),
         root: NodeRef::new(),
-        focus: focus,
-        set_focus: set_focus,
+        focus,
+        set_focus,
         on_select,
     });
     set_component_state(state.clone());
@@ -395,7 +395,7 @@ fn open_submenu(state: &State, index: usize) -> bool {
     if !row.has_children() {
         return false;
     }
-    let opening = (!row.item.disabled.get_untracked()).then(|| row.submenu.set_open);
+    let opening = (!row.item.disabled.get_untracked()).then_some(row.submenu.set_open);
     drop(rows);
     if let Some(set_open) = opening {
         set_open.set(true);

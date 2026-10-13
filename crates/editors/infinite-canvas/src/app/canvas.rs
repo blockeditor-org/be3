@@ -28,12 +28,12 @@ pub(crate) fn CanvasStage(state: Rc<CanvasState>) -> NodeId {
         <PlacementBuilder>
             {move |placed: ReadSignal<Rect>| {
                 let held = Rc::clone(&state);
-                create_effect(clone!(placed held -> move || held.stage.set(placed.get())));
+                create_effect(clone!(held -> move || held.stage.set(placed.get())));
 
                 let view = state.editor().canvas();
                 let world = state.editor().world();
                 let centred = Rc::clone(&state);
-                let camera = create_memo(clone!(view world placed centred -> move || {
+                let camera = create_memo(clone!(centred -> move || {
                     super::state::camera_view(view.get(), world.get(), placed.get(), centred.centre())
                 }));
                 let ids = create_memo(clone!(state -> move || {
@@ -60,7 +60,7 @@ pub(crate) fn CanvasStage(state: Rc<CanvasState>) -> NodeId {
                     <CanvasMenu disabled={previewing}>
                         <CanvasSurface state={surface}>
                             <Canvas
-                                view={create_memo(clone!(placement -> move || Some(placement.get())))}
+                                view={create_memo(move || Some(placement.get()))}
                                 @test_id={"infinite-canvas.canvas"}
                             >
                                 <Show condition={!previewing}>
@@ -154,13 +154,12 @@ fn CanvasOverlay(
     camera: Memo<CanvasView>,
     stage: ReadSignal<Rect>,
 ) -> CanvasItem {
-    let visible =
-        create_memo(clone!(camera stage -> move || camera.get().rect_to_canvas(stage.get())));
+    let visible = create_memo(move || camera.get().rect_to_canvas(stage.get()));
     let theme = use_theme();
     let drawn = Rc::clone(&state);
     let (draw, set_draw) = create_signal::<Draw>(Rc::new(|_, _| {}));
     let shown = RefCell::new(None::<Overlay>);
-    create_effect(clone!(drawn theme camera stage -> move || {
+    create_effect(clone!(drawn -> move || {
         let overlay = Overlay {
             camera: Camera::of(Some(camera.get()), stage.get().min),
             palette: palette(&theme),
@@ -182,10 +181,10 @@ fn CanvasOverlay(
             overlay.draw(&painter.in_document())
         }));
     }));
-    let x = create_memo(clone!(visible -> move || visible.get().left()));
-    let y = create_memo(clone!(visible -> move || visible.get().top()));
-    let width = create_memo(clone!(visible -> move || visible.get().width().max(1.0)));
-    let height = create_memo(clone!(visible -> move || visible.get().height().max(1.0)));
+    let x = create_memo(move || visible.get().left());
+    let y = create_memo(move || visible.get().top());
+    let width = create_memo(move || visible.get().width().max(1.0));
+    let height = create_memo(move || visible.get().height().max(1.0));
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
             <Drawing draw={draw} />
@@ -199,12 +198,11 @@ fn CanvasBackdrop(
     camera: Memo<CanvasView>,
     stage: ReadSignal<Rect>,
 ) -> CanvasItem {
-    let visible =
-        create_memo(clone!(camera stage -> move || camera.get().rect_to_canvas(stage.get())));
+    let visible = create_memo(move || camera.get().rect_to_canvas(stage.get()));
     let theme = use_theme();
     let (draw, set_draw) = create_signal::<Draw>(Rc::new(|_, _| {}));
     let shown = RefCell::new(None::<Backdrop>);
-    create_effect(clone!(state theme camera stage -> move || {
+    create_effect(clone!(state -> move || {
         let artboards = state
             .displayed()
             .into_iter()
@@ -232,10 +230,10 @@ fn CanvasBackdrop(
             backdrop.draw(&painter.in_document())
         }));
     }));
-    let x = create_memo(clone!(visible -> move || visible.get().left()));
-    let y = create_memo(clone!(visible -> move || visible.get().top()));
-    let width = create_memo(clone!(visible -> move || visible.get().width().max(1.0)));
-    let height = create_memo(clone!(visible -> move || visible.get().height().max(1.0)));
+    let x = create_memo(move || visible.get().left());
+    let y = create_memo(move || visible.get().top());
+    let width = create_memo(move || visible.get().width().max(1.0));
+    let height = create_memo(move || visible.get().height().max(1.0));
     view! {
         <CanvasItem x={x} y={y} width={width} height={height} @test_id={"infinite-canvas.backdrop"}>
             <Drawing draw={draw} />
@@ -246,22 +244,20 @@ fn CanvasBackdrop(
 #[component]
 fn EntityShape(state: Rc<CanvasState>, id: Uuid, camera: Memo<CanvasView>) -> CanvasItem {
     let entity = entity_of(&state, id);
-    let bounds = create_memo(clone!(entity -> move || {
+    let bounds = create_memo(move || {
         entity
             .get()
             .map(|entity| item_bounds(&entity))
             .unwrap_or(Rect::ZERO)
-    }));
+    });
     let hashed = Rc::clone(&state);
-    let thumbhash = create_memo(clone!(entity -> move || {
-        hashed.thumbhash_of(reference_of(&entity.get()?)?)
-    }));
+    let thumbhash = create_memo(move || hashed.thumbhash_of(reference_of(&entity.get()?)?));
     let placeholder = create_memo(move || thumbhash.get().and_then(|thumbhash| thumbhash.decode()));
     let theme = use_theme();
     let drawn = Rc::clone(&state);
     let (draw, set_draw) = create_signal::<Draw>(Rc::new(|_, _| {}));
     let shown = RefCell::new(None::<EntityPaint>);
-    create_effect(clone!(entity drawn theme camera placeholder -> move || {
+    create_effect(clone!(drawn -> move || {
         let Some(entity) = entity.get() else {
             return;
         };
@@ -297,10 +293,10 @@ fn EntityShape(state: Rc<CanvasState>, id: Uuid, camera: Memo<CanvasView>) -> Ca
     }));
     view! {
         <CanvasItem
-            x={create_memo(clone!(bounds -> move || bounds.get().left()))}
-            y={create_memo(clone!(bounds -> move || bounds.get().top()))}
-            width={create_memo(clone!(bounds -> move || bounds.get().width().max(1.0)))}
-            height={create_memo(clone!(bounds -> move || bounds.get().height().max(1.0)))}
+            x={create_memo(move || bounds.get().left())}
+            y={create_memo(move || bounds.get().top())}
+            width={create_memo(move || bounds.get().width().max(1.0))}
+            height={create_memo(move || bounds.get().height().max(1.0))}
             @test_id={format!("infinite-canvas.entity.{id}")}
         >
             <Drawing draw={draw} />
@@ -311,26 +307,23 @@ fn EntityShape(state: Rc<CanvasState>, id: Uuid, camera: Memo<CanvasView>) -> Ca
 #[component]
 fn EntityEmbed(state: Rc<CanvasState>, id: Uuid) -> CanvasItem {
     let entity = entity_of(&state, id);
-    let bounds = create_memo(clone!(entity -> move || {
-        entity.get().map(content_bounds).unwrap_or(Rect::ZERO)
-    }));
+    let bounds = create_memo(move || entity.get().map(content_bounds).unwrap_or(Rect::ZERO));
     let resolving = Rc::clone(&state);
-    let target = create_memo(clone!(entity resolving -> move || {
+    let target = create_memo(clone!(resolving -> move || {
         let entity = entity.get().filter(|entity| !entity.style.hidden)?;
         let id = reference_of(&entity)?;
         let block_type = resolving.block_type_of(id)?;
         Some(ChildTarget::new(id, block_type))
     }));
-    let rotation = create_memo(clone!(entity -> move || {
-        entity.get().map_or(0.0, |entity| entity.transform.rotation)
-    }));
-    let opacity = create_memo(clone!(entity -> move || {
+    let rotation =
+        create_memo(move || entity.get().map_or(0.0, |entity| entity.transform.rotation));
+    let opacity = create_memo(move || {
         entity
             .get()
             .map_or(1.0, |entity| entity.style.opacity.clamp(0.0, 1.0))
-    }));
+    });
     let moded = Rc::clone(&state);
-    let mode = create_memo(clone!(entity moded -> move || match entity.get() {
+    let mode = create_memo(clone!(moded -> move || match entity.get() {
         Some(entity) => match entity.kind {
             CanvasEntityKind::DirectEditor { .. } => {
                 match moded.focused_editor.get() == Some(id) {
@@ -346,7 +339,7 @@ fn EntityEmbed(state: Rc<CanvasState>, id: Uuid) -> CanvasItem {
         None => ChildMode::Preview,
     }));
     let sizing = Rc::clone(&state);
-    let intrinsic = create_memo(clone!(entity sizing -> move || {
+    let intrinsic = create_memo(clone!(sizing -> move || {
         entity
             .get()
             .and_then(|entity| sizing.assigned_intrinsic(&entity))
@@ -358,10 +351,10 @@ fn EntityEmbed(state: Rc<CanvasState>, id: Uuid) -> CanvasItem {
     let editor = state.editor().clone();
     view! {
         <CanvasItem
-            x={create_memo(clone!(bounds -> move || bounds.get().left()))}
-            y={create_memo(clone!(bounds -> move || bounds.get().top()))}
-            width={create_memo(clone!(bounds -> move || bounds.get().width().max(1.0)))}
-            height={create_memo(clone!(bounds -> move || bounds.get().height().max(1.0)))}
+            x={create_memo(move || bounds.get().left())}
+            y={create_memo(move || bounds.get().top())}
+            width={create_memo(move || bounds.get().width().max(1.0))}
+            height={create_memo(move || bounds.get().height().max(1.0))}
         >
             <ChildBlock
                 editor={editor}

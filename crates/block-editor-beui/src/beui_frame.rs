@@ -58,10 +58,8 @@ impl BeuiFrame {
         let content_slot_writer = content_slot.clone();
         let editor = editor.clone();
         let document = beui::reactive::build(move || {
-            provide_context(PhoneLayout(create_memo(
-                clone!(bar -> move || bar.get().on_phone),
-            )));
-            let phone = create_memo(clone!(bar -> move || bar.get().on_phone));
+            provide_context(PhoneLayout(create_memo(move || bar.get().on_phone)));
+            let phone = create_memo(move || bar.get().on_phone);
             let (palette, set_palette) = create_signal(false);
             let opening = set_palette;
             let opener = Action::new("editor.palette", "Command palette", move || {
@@ -260,16 +258,14 @@ struct FrameActions {
 fn frame_actions(
     editor: &Editor,
     watched: &Rc<Watched>,
-    state: &ReadSignal<BarState>,
-    live: &Memo<bool>,
-    closable: &Memo<bool>,
+    state: ReadSignal<BarState>,
+    live: Memo<bool>,
+    closable: Memo<bool>,
     on_exit: &ClickCallback,
 ) -> FrameActions {
     let host = editor.host().clone();
     let id = editor.block_id();
-    let can = |read: fn(&BarState) -> bool| {
-        create_memo(clone!(state live -> move || live.get() && state.with(read)))
-    };
+    let can = |read: fn(&BarState) -> bool| create_memo(move || live.get() && state.with(read));
     FrameActions {
         undo: Action::new(
             "editor.undo",
@@ -323,7 +319,7 @@ fn frame_actions(
             clone!(on_exit -> move || on_exit.call()),
         )
         .glyph(ICON_CLOSE)
-        .enabled(*closable)
+        .enabled(closable)
         .register(),
     }
 }
@@ -336,17 +332,17 @@ pub(crate) fn FrameMenu(
     published: Rc<RefCell<Vec<Action>>>,
     on_exit: ClickCallback,
 ) -> NodeId {
-    let on_phone = create_memo(clone!(bar -> move || bar.get().on_phone));
-    let shown = create_memo(clone!(bar on_phone -> move || bar.get().shown && !on_phone.get()));
-    let closable = create_memo(clone!(bar -> move || bar.get().closable));
-    let live = create_memo(clone!(shown on_phone -> move || shown.get() || on_phone.get()));
+    let on_phone = create_memo(move || bar.get().on_phone);
+    let shown = create_memo(move || bar.get().shown && !on_phone.get());
+    let closable = create_memo(move || bar.get().closable);
+    let live = create_memo(move || shown.get() || on_phone.get());
     let (state, set_state) = create_signal(BarState::default());
     let watched = Rc::new(Watched {
         editor: editor.clone(),
         list: RefCell::new(None),
         watching: Cell::new(false),
     });
-    let actions = frame_actions(&editor, &watched, &state, &live, &closable, &on_exit);
+    let actions = frame_actions(&editor, &watched, state, live, closable, &on_exit);
     let reading = Rc::clone(&watched);
     let visible = live;
     let taps = Rc::clone(&watched);
@@ -366,7 +362,7 @@ pub(crate) fn FrameMenu(
         details,
         close,
     } = actions;
-    let listed = create_memo(clone!(live closable -> move || {
+    let listed = create_memo(move || {
         if !live.get() {
             return Vec::new();
         }
@@ -383,7 +379,7 @@ pub(crate) fn FrameMenu(
             listed.push(close.clone());
         }
         listed
-    }));
+    });
     let host = editor.host().clone();
     create_effect(move || {
         let listed = listed.get();

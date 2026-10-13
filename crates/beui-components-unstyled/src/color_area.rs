@@ -10,8 +10,8 @@ use beui_core::geometry::{Pos2, Vec2, pos2};
 use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Interactive, Memo, Prop, ReadSignal, Render, clone, component_accessibility,
-    create_effect, create_memo, create_signal, set_component_state,
+    Callback, Interactive, Memo, Prop, ReadSignal, Render, component_accessibility, create_effect,
+    create_memo, create_signal, set_component_state,
 };
 
 const STEP: f32 = 0.01;
@@ -39,20 +39,24 @@ pub fn ColorArea(
     on_drag_change: Callback<bool>,
 ) -> NodeId {
     let (color, set_color) = create_signal(value.peek());
-    create_effect(clone!(set_color -> move || set_color.set(value.get())));
+    create_effect(move || set_color.set(value.get()));
     let (dragging, set_dragging) = create_signal(false);
     let (hovered, set_hovered) = create_signal(false);
     let (has_focus, set_has_focus) = create_signal(false);
     let disabled = create_memo(move || disabled.get());
-    let x = create_memo(clone!(color -> move || color.get().saturation));
-    let y = create_memo(clone!(color -> move || 1.0 - color.get().value));
+    let x = create_memo(move || color.get().saturation);
+    let y = create_memo(move || 1.0 - color.get().value);
     set_component_state(color);
 
-    component_accessibility(create_memo(clone!(color disabled -> move || {
+    component_accessibility(create_memo(move || {
         let color = color.get();
         let mut node = Node::new(Role::Slider);
         let label = label.get();
-        node.set_label(if label.is_empty() { "Saturation and brightness".to_owned() } else { label });
+        node.set_label(if label.is_empty() {
+            "Saturation and brightness".to_owned()
+        } else {
+            label
+        });
         node.set_numeric_value(f64::from((color.saturation * 100.0).round()));
         node.set_min_numeric_value(0.0);
         node.set_max_numeric_value(100.0);
@@ -66,7 +70,7 @@ pub fn ColorArea(
             node.set_disabled();
         }
         node
-    })));
+    }));
 
     let set = {
         move |saturation: f32, value: f32| {
@@ -102,7 +106,7 @@ pub fn ColorArea(
         }
     };
     let (pointer, set_pointer) = create_signal(None::<PointerPress>);
-    let cursor = create_memo(clone!(color dragging hovered -> move || {
+    let cursor = create_memo(move || {
         if dragging.get() {
             return CursorIcon::Grabbing;
         }
@@ -115,7 +119,7 @@ pub fn ColorArea(
             true => CursorIcon::Grab,
             false => CursorIcon::Crosshair,
         }
-    }));
+    });
     let (key_color, step_color) = (color, color);
     let content_node = content.call(ColorAreaHandle {
         color,
@@ -126,7 +130,7 @@ pub fn ColorArea(
         focused: has_focus,
         disabled,
     });
-    let tab_stop = create_memo(clone!(disabled -> move || !disabled.get()));
+    let tab_stop = create_memo(move || !disabled.get());
     view! {
         <Interactive
             focusable=true

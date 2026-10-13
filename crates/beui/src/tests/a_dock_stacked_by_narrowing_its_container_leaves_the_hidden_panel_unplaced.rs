@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{build, clone, create_memo, view};
+use crate::reactive::{build, create_memo, view};
 use crate::unstyled::{
     Container, DockMode, DockPane, DockSplit, DockTab, DockingLayout, narrower_than,
 };
@@ -17,10 +17,10 @@ fn a_dock_stacked_by_narrowing_its_container_leaves_the_hidden_panel_unplaced() 
                     {move |_| {
                         let home = home.clone();
                         let narrow = narrower_than(BREAKPOINT);
-                        let mode = create_memo(clone!(narrow -> move || match narrow.get() {
+                        let mode = create_memo(move || match narrow.get() {
                             true => DockMode::Stacked,
                             false => DockMode::Tiled,
-                        }));
+                        });
                         let layout = DockingLayout::new();
                         view! {
                             <styled::Docking layout mode home=1u64 focus=2u64>

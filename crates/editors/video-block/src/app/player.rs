@@ -19,7 +19,7 @@ pub(crate) fn Player(state: Rc<VideoState>) -> NodeId {
     let shown = Rc::clone(&state);
     let playhead = state.playhead;
     let clips = state.clips;
-    let visible = create_memo(clone!(shown playhead clips -> move || {
+    let visible = create_memo(clone!(shown -> move || {
         let _ = clips.get();
         let _ = playhead.get();
         shown
@@ -27,11 +27,11 @@ pub(crate) fn Player(state: Rc<VideoState>) -> NodeId {
             .map(|video| video.visible_at(playhead.get()))
             .unwrap_or_default()
     }));
-    let empty = create_memo(clone!(visible -> move || visible.get().is_empty()));
-    let any = create_memo(clone!(empty -> move || !empty.get()));
+    let empty = create_memo(move || visible.get().is_empty());
+    let any = create_memo(move || !empty.get());
 
     let sized = Rc::clone(&state);
-    let ratio = create_memo(clone!(visible sized -> move || {
+    let ratio = create_memo(clone!(sized -> move || {
         let ids = visible.get();
         let Some(video) = sized.video() else {
             return DEFAULT_ASPECT_RATIO;
@@ -51,7 +51,7 @@ pub(crate) fn Player(state: Rc<VideoState>) -> NodeId {
                     <Caption content="No clip at the playhead" color={theme.text_muted} />
                 </Show>
                 <Show condition={any}>
-                    {move || clone!(state visible -> view! {
+                    {move || clone!(state -> view! {
                         <Frame aspect_ratio={ratio} color=Color32::BLACK>
                             <List spacing=0.0>
                                 <ForEach keys={visible}>
@@ -75,7 +75,7 @@ pub(crate) fn Player(state: Rc<VideoState>) -> NodeId {
 fn Layer(state: Rc<VideoState>, id: Uuid) -> NodeId {
     let held = Rc::clone(&state);
     let clips = state.clips;
-    let block = create_memo(clone!(held clips -> move || {
+    let block = create_memo(clone!(held -> move || {
         let clip = clips.get().into_iter().find(|clip| clip.id == id)?;
         held.target(clip.block_id)
     }));

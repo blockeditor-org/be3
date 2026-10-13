@@ -8,7 +8,7 @@ fn clone_brings_cloned_handles_into_the_closure() {
     let seen = Rc::new(RefCell::new(Vec::new()));
     let doubled = Rc::new(RefCell::new(Vec::new()));
     scope.run(|| {
-        create_effect(clone!(seen value -> move || seen.borrow_mut().push(value.get())));
+        create_effect(clone!(seen -> move || seen.borrow_mut().push(value.get())));
         create_effect(clone!(seen doubled -> move || {
             doubled.borrow_mut().push(seen.borrow().len() * 2);
             value.get();

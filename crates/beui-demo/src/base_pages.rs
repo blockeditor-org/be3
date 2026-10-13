@@ -252,11 +252,11 @@ fn ColumnsForWidth() -> NodeId {
     view! {
         <LayoutBuilder>
             {move |size: ReadSignal<Vec2>| {
-                let wide = create_memo(clone!(size -> move || size.get().x >= 480.0));
-                let direction = create_memo(clone!(wide -> move || match wide.get() {
+                let wide = create_memo(move || size.get().x >= 480.0);
+                let direction = create_memo(move || match wide.get() {
                     true => Direction::Horizontal,
                     false => Direction::Vertical,
-                }));
+                });
                 let label = create_memo(move || format!("{:.0} wide", size.get().x));
                 view! {
                     <List direction spacing=8.0>
@@ -375,7 +375,7 @@ fn ShowToggle() -> NodeId {
 #[component]
 fn PlanetList() -> NodeId {
     let (count, set_count) = create_signal(3usize);
-    let planets = create_memo(clone!(count -> move || PLANETS[..count.get()].to_vec()));
+    let planets = create_memo(move || PLANETS[..count.get()].to_vec());
     let fewer = set_count;
     view! {
         <List spacing=SECTION_SPACING>
@@ -442,22 +442,22 @@ fn InteractiveCard() -> NodeId {
     let (focused, set_focused) = create_signal(false);
     let (log, set_log) = create_signal("Hover, press, or Tab to it and type".to_owned());
     let clicked = set_log;
-    let fill = create_memo(clone!(theme hovered active -> move || {
+    let fill = create_memo(move || {
         let theme = theme.get();
         match (active.get(), hovered.get()) {
             (true, _) => theme.pressed,
             (false, true) => theme.hover,
             (false, false) => theme.surface_raised,
         }
-    }));
-    let state = create_memo(clone!(hovered active focused -> move || {
+    });
+    let state = create_memo(move || {
         format!(
             "hovered: {}, active: {}, focused: {}",
             hovered.get(),
             active.get(),
             focused.get()
         )
-    }));
+    });
     view! {
         <List spacing=SECTION_SPACING>
             <Interactive

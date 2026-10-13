@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 use beui::Image;
 use beui::reactive::{
-    KeyedStore, ReadSignal, Selector, WriteSignal, clone, create_selector, create_signal,
+    KeyedStore, ReadSignal, Selector, WriteSignal, create_selector, create_signal,
 };
 
 #[cfg(not(target_os = "android"))]
@@ -170,9 +170,9 @@ impl Model {
         let (listing, set_listing) = create_signal(Loaded::Loading);
         let (query, set_query) = create_signal(String::new());
         let (selected, set_selected) = create_signal(None::<PullRequest>);
-        let selection = create_selector(clone!(selected -> move || {
+        let selection = create_selector(move || {
             selected.with(|selected| selected.as_ref().map(|pull_request| pull_request.number))
-        }));
+        });
         #[cfg(not(target_os = "android"))]
         let (head, set_head) = create_signal(String::new());
         #[cfg(not(target_os = "android"))]

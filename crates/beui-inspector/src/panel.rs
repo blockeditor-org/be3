@@ -237,19 +237,15 @@ pub fn build(state: &Rc<State>) -> Panel {
         let selection_text = create_memo(move || summary.with(|summary| summary.selection.clone()));
         let bounds_text = create_memo(move || summary.with(|summary| summary.bounds.clone()));
         let properties = create_memo(move || summary.with(|summary| summary.properties.clone()));
-        let has_properties = create_memo(clone!(properties -> move || {
-            properties.with(|properties| !properties.is_empty())
-        }));
-        let properties_size = create_memo(clone!(has_properties -> move || {
-            match has_properties.get() {
-                true => ItemSize::Percent(PROPERTIES_SHARE),
-                false => ItemSize::Fixed(0.0),
-            }
-        }));
+        let has_properties =
+            create_memo(move || properties.with(|properties| !properties.is_empty()));
+        let properties_size = create_memo(move || match has_properties.get() {
+            true => ItemSize::Percent(PROPERTIES_SHARE),
+            false => ItemSize::Fixed(0.0),
+        });
         let (select_state, expand_state, hover_state, reveal_state) =
             (state.clone(), state.clone(), state.clone(), state.clone());
-        let selected =
-            create_memo(clone!(selection -> move || selection.with(|path| path.last().copied())));
+        let selected = create_memo(move || selection.with(|path| path.last().copied()));
         let lineage = selection;
         let row_entries = entries;
         let item_entries = entries;
@@ -319,7 +315,7 @@ pub fn build(state: &Rc<State>) -> Panel {
                                             keys
                                             item={move |key: Key| item(&item_entries, key)}
                                             selected={selected}
-                                            ancestors={move |key: Key| ancestors(&lineage, key)}
+                                            ancestors={move |key: Key| ancestors(lineage, key)}
                                             padding=BODY_PADDING
                                             focus_color={Some(THEME.accent)}
                                             row_test_id={move |key: Key| key.test_id()}
@@ -329,7 +325,7 @@ pub fn build(state: &Rc<State>) -> Panel {
                                                 expand_state.set_expanded(key, expanded);
                                             }}
                                             on_reveal={move |key: Key| {
-                                                reveal_state.expand_ancestors(&ancestors(&selection, key));
+                                                reveal_state.expand_ancestors(&ancestors(selection, key));
                                             }}
                                             on_hover_change={move |(key, hovered): (Key, bool)| {
                                                 hover_state.hover(key.node(), hovered);
@@ -582,7 +578,7 @@ fn BackSection(state: Rc<State>, handles_back: Memo<bool>) -> NodeId {
         true => "Drag to the end to go back, or let go early to cancel.".to_owned(),
         false => "Nothing in the app takes back: the system would leave it.".to_owned(),
     });
-    let moved = clone!(state swipe dragging set_progress from_right -> move |value: f32| {
+    let moved = clone!(state swipe dragging -> move |value: f32| {
         set_progress.set(value);
         match swipe.get() {
             Swipe::Done => return,
@@ -801,16 +797,16 @@ fn PerformancePanel(
 ) -> NodeId {
     let (change_state, damage_state, renderer_state) =
         (state.clone(), state.clone(), state.clone());
-    let latest_work = performance_text(&performance, |summary| &summary.latest_work);
-    let scene = performance_text(&performance, |summary| &summary.scene);
-    let cache = performance_text(&performance, |summary| &summary.cache);
-    let reuse = performance_text(&performance, |summary| &summary.reuse);
-    let total = timing_values(&performance, |timings| timings.total);
-    let layout = timing_values(&performance, |timings| timings.layout);
-    let interaction = timing_values(&performance, |timings| timings.interaction);
-    let paint = timing_values(&performance, |timings| timings.paint);
-    let accessibility = timing_values(&performance, |timings| timings.accessibility);
-    let other = timing_values(&performance, |timings| timings.other);
+    let latest_work = performance_text(performance, |summary| &summary.latest_work);
+    let scene = performance_text(performance, |summary| &summary.scene);
+    let cache = performance_text(performance, |summary| &summary.cache);
+    let reuse = performance_text(performance, |summary| &summary.reuse);
+    let total = timing_values(performance, |timings| timings.total);
+    let layout = timing_values(performance, |timings| timings.layout);
+    let interaction = timing_values(performance, |timings| timings.interaction);
+    let paint = timing_values(performance, |timings| timings.paint);
+    let accessibility = timing_values(performance, |timings| timings.accessibility);
+    let other = timing_values(performance, |timings| timings.other);
     view! {
         <Scroll focus_color={Some(THEME.accent)}>
             <Frame padding_horizontal=BODY_PADDING padding_vertical=BODY_PADDING>
@@ -874,11 +870,9 @@ fn RendererSection(
     renderers: ReadSignal<RendererChoices>,
     state: Rc<State>,
 ) -> NodeId {
-    let missing = create_memo(clone!(rows -> move || rows.with(Vec::is_empty)));
-    let names = create_memo(
-        clone!(renderers -> move || renderers.with(|renderers| renderers.names.clone())),
-    );
-    let choosable = create_memo(clone!(names -> move || names.with(|names| names.len() > 1)));
+    let missing = create_memo(move || rows.with(Vec::is_empty));
+    let names = create_memo(move || renderers.with(|renderers| renderers.names.clone()));
+    let choosable = create_memo(move || names.with(|names| names.len() > 1));
     let active = create_memo(move || Some(renderers.with(|renderers| renderers.active)));
     view! {
         <List spacing=TIMING_SPACING>
@@ -975,19 +969,17 @@ fn TimingRow(label: String, values: [Memo<String>; 3]) -> NodeId {
 }
 
 fn performance_text(
-    performance: &ReadSignal<PerformanceSummary>,
+    performance: ReadSignal<PerformanceSummary>,
     read: impl Fn(&PerformanceSummary) -> &String + 'static,
 ) -> Memo<String> {
-    let performance = *performance;
     create_memo(move || performance.with(|summary| read(summary).clone()))
 }
 
 fn timing_values(
-    performance: &ReadSignal<PerformanceSummary>,
+    performance: ReadSignal<PerformanceSummary>,
     read: impl Fn(PerformanceTimings) -> Duration + Clone + 'static,
 ) -> [Memo<String>; 3] {
     let timing = |select: fn(&PerformanceSummary) -> PerformanceTimings| {
-        let performance = *performance;
         let read = read.clone();
         create_memo(move || format_duration(read(performance.with(select))))
     };
@@ -1020,7 +1012,7 @@ pub fn toggle_text(picking: bool) -> Color32 {
 
 #[component]
 fn PickToggle(state: Rc<State>, picking: Memo<bool>) -> NodeId {
-    let label_color = create_memo(clone!(picking -> move || toggle_text(picking.get())));
+    let label_color = create_memo(move || toggle_text(picking.get()));
     let fill_color = create_memo(move || toggle_fill(picking.get()));
     let picker = state;
     view! {
@@ -1113,7 +1105,7 @@ fn TreeCells(row_key: Key, entries: Entries) -> NodeId {
     }
 }
 
-fn ancestors(selection: &ReadSignal<Vec<Key>>, key: Key) -> Vec<Key> {
+fn ancestors(selection: ReadSignal<Vec<Key>>, key: Key) -> Vec<Key> {
     selection.with(|path| match path.split_last() {
         Some((last, ancestors)) if *last == key => ancestors.to_vec(),
         _ => Vec::new(),

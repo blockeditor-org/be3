@@ -59,11 +59,11 @@ pub fn TextContextMenu(
     let chosen = actions;
     let no_menu = !menu.is_some();
     let off = create_memo(move || no_menu || disabled.get());
-    let open = Callback::new(clone!(off set_open_at -> move |at: Pos2| {
+    let open = Callback::new(move |at: Pos2| {
         if !off.get_untracked() {
             set_open_at.set(Some(at));
         }
-    }));
+    });
     view! {
         <ContextMenu
             menu

@@ -193,7 +193,7 @@ pub fn DateTimeField(
             state.set_typing.set(None);
         }
     }));
-    create_effect(clone!(state disabled -> move || {
+    create_effect(clone!(state -> move || {
         if disabled.get() {
             state.set_focus.set(None);
         }
@@ -281,17 +281,16 @@ fn SegmentView(
         Some((typing, buffer)) if typing == segment => Some(buffer),
         _ => None,
     }));
-    let text = create_memo(clone!(value typed -> move || match typed.get() {
+    let text = create_memo(move || match typed.get() {
         Some(buffer) => buffer,
-        None => value.get().map_or_else(|| segment.placeholder().to_owned(), |value| {
-            format_segment(segment, value)
-        }),
-    }));
-    let placeholder = create_memo(clone!(value typed -> move || {
-        typed.get().is_none() && value.get().is_none()
-    }));
+        None => value.get().map_or_else(
+            || segment.placeholder().to_owned(),
+            |value| format_segment(segment, value),
+        ),
+    });
+    let placeholder = create_memo(move || typed.get().is_none() && value.get().is_none());
     let accessibility_state = state.clone();
-    component_accessibility(create_memo(clone!(value -> move || {
+    component_accessibility(create_memo(move || {
         let state = &accessibility_state;
         let mut node = Node::new(Role::SpinButton);
         node.set_label(segment.label());
@@ -310,7 +309,7 @@ fn SegmentView(
             node.set_disabled();
         }
         node
-    })));
+    }));
     let ime = focused_read;
     let content = face.call(DateSegmentHandle {
         segment,

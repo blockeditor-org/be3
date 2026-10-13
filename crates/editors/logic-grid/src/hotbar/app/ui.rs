@@ -41,14 +41,13 @@ pub fn HotbarView(editor: Editor) -> NodeId {
     let hotbar = editor.block_content::<HotbarContent>();
     let pinned = hotbar.project(|hotbar| hotbar.root().slots.to_vec());
 
-    let rows = create_memo(clone!(pinned -> move || {
+    let rows = create_memo(move || {
         let mut rows = Vec::new();
         pinned.with(|slots| flatten(slots, 0, &mut rows));
         rows
-    }));
-    let keys =
-        create_memo(clone!(rows -> move || (0..rows.with(Vec::len)).collect::<Vec<usize>>()));
-    let empty = create_memo(clone!(rows -> move || rows.with(Vec::is_empty)));
+    });
+    let keys = create_memo(move || (0..rows.with(Vec::len)).collect::<Vec<usize>>());
+    let empty = create_memo(move || rows.with(Vec::is_empty));
     let read_only = editor.read_only();
 
     let theme = use_theme();
@@ -64,9 +63,9 @@ pub fn HotbarView(editor: Editor) -> NodeId {
                     <List spacing=ROW_SPACING>
                         <ForEach keys={keys}>
                             {move |index: usize| {
-                                let row = create_memo(clone!(rows -> move || {
+                                let row = create_memo(move || {
                                     rows.with(|rows| rows.get(index).cloned())
-                                }));
+                                });
                                 view! {
                                     <SlotRow
                                         index={index}
@@ -93,30 +92,58 @@ fn SlotRow(
     row: Memo<Option<Row>>,
     read_only: Memo<bool>,
 ) -> NodeId {
-    let indent = create_memo(clone!(row -> move || {
+    let indent = create_memo(move || {
         ItemSize::Fixed(row.with(|row| row.as_ref().map_or(0.0, |row| row.depth as f32 * INDENT)))
-    }));
-    let note = create_memo(clone!(row -> move || row.with(|row| match row {
-        Some(Row { kind: RowKind::Note(text), .. }) => text.clone(),
-        _ => String::new(),
-    })));
-    let folder = create_memo(clone!(row -> move || row.with(|row| match row {
-        Some(Row { kind: RowKind::Folder(name), .. }) => name.clone(),
-        _ => String::new(),
-    })));
-    let is_folder = create_memo(clone!(folder -> move || !folder.get().is_empty()));
-    let component = create_memo(clone!(row -> move || row.with(|row| match row {
-        Some(Row { kind: RowKind::Component { block, .. }, .. }) => *block,
-        _ => None,
-    })));
-    let is_component = create_memo(clone!(row -> move || {
-        row.with(|row| matches!(row, Some(Row { kind: RowKind::Component { .. }, .. })))
-    }));
-    let name = create_memo(clone!(row -> move || row.with(|row| match row {
-        Some(Row { kind: RowKind::Component { name, .. }, .. }) => name.clone(),
-        _ => String::new(),
-    })));
-    let unpin = clone!(row hotbar -> move || {
+    });
+    let note = create_memo(move || {
+        row.with(|row| match row {
+            Some(Row {
+                kind: RowKind::Note(text),
+                ..
+            }) => text.clone(),
+            _ => String::new(),
+        })
+    });
+    let folder = create_memo(move || {
+        row.with(|row| match row {
+            Some(Row {
+                kind: RowKind::Folder(name),
+                ..
+            }) => name.clone(),
+            _ => String::new(),
+        })
+    });
+    let is_folder = create_memo(move || !folder.get().is_empty());
+    let component = create_memo(move || {
+        row.with(|row| match row {
+            Some(Row {
+                kind: RowKind::Component { block, .. },
+                ..
+            }) => *block,
+            _ => None,
+        })
+    });
+    let is_component = create_memo(move || {
+        row.with(|row| {
+            matches!(
+                row,
+                Some(Row {
+                    kind: RowKind::Component { .. },
+                    ..
+                })
+            )
+        })
+    });
+    let name = create_memo(move || {
+        row.with(|row| match row {
+            Some(Row {
+                kind: RowKind::Component { name, .. },
+                ..
+            }) => name.clone(),
+            _ => String::new(),
+        })
+    });
+    let unpin = clone!(hotbar -> move || {
         let Some(compiled) = row.with(|row| match row {
             Some(Row { kind: RowKind::Component { compiled, .. }, .. }) => Some(*compiled),
             _ => None,

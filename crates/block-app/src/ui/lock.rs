@@ -6,8 +6,7 @@ use beui::icons::{
     ICON_BEDTIME, ICON_LOCK, ICON_LOGOUT, ICON_POWER_SETTINGS_NEW, ICON_RESTART_ALT,
 };
 use beui::reactive::{
-    Action, Chord, ReadSignal, clone, component, create_memo, create_signal, create_timer, now,
-    view,
+    Action, Chord, ReadSignal, component, create_memo, create_signal, create_timer, now, view,
 };
 use beui::styled::{LockAction, LockScreen};
 use beui::{Key, NodeId};
@@ -59,7 +58,7 @@ fn wall_clock() -> ReadSignal<DateTime> {
 #[component]
 pub(crate) fn SessionLock(view: AppViewStore) -> NodeId {
     let lock = view.lock;
-    let available = create_memo(clone!(lock -> move || lock.get().available && !lock.get().locked));
+    let available = create_memo(move || lock.get().available && !lock.get().locked);
     Action::new("session.lock", "Lock the screen", || {
         send(UiCommand::LockScreen);
     })
@@ -70,7 +69,7 @@ pub(crate) fn SessionLock(view: AppViewStore) -> NodeId {
     .enabled(available)
     .register();
     let clock = wall_clock();
-    let time = create_memo(clone!(clock -> move || clock.get().time.format(HourCycle::H24)));
+    let time = create_memo(move || clock.get().time.format(HourCycle::H24));
     let date = create_memo(move || {
         let date = clock.get().date;
         format!(
@@ -80,14 +79,14 @@ pub(crate) fn SessionLock(view: AppViewStore) -> NodeId {
             date.month_name()
         )
     });
-    let open = create_memo(clone!(lock -> move || lock.get().locked));
-    let user = create_memo(clone!(lock -> move || lock.get().user));
-    let error = create_memo(clone!(lock -> move || lock.get().error));
-    let busy = create_memo(clone!(lock -> move || lock.get().busy));
-    let powers = create_memo(clone!(lock -> move || lock.get().power));
-    let actions = create_memo(clone!(powers -> move || {
+    let open = create_memo(move || lock.get().locked);
+    let user = create_memo(move || lock.get().user);
+    let error = create_memo(move || lock.get().error);
+    let busy = create_memo(move || lock.get().busy);
+    let powers = create_memo(move || lock.get().power);
+    let actions = create_memo(move || {
         powers.with(|powers| powers.iter().copied().map(action).collect::<Vec<_>>())
-    }));
+    });
     view! {
         <LockScreen
             open

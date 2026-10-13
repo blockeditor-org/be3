@@ -11,7 +11,7 @@ use beui_core::geometry::Pos2;
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    Child, ClickCallback, Frame, List, Prop, Show, clone, component_accessibility, create_memo,
+    Child, ClickCallback, Frame, List, Prop, Show, component_accessibility, create_memo,
     create_signal,
 };
 
@@ -54,15 +54,15 @@ pub fn Dialog(
 #[component]
 fn DialogSurface(width: Prop<f32>, title: Prop<String>, children: Child) -> NodeId {
     let label = create_memo(move || title.get());
-    let titled = create_memo(clone!(label -> move || !label.get().is_empty()));
-    component_accessibility(create_memo(clone!(label -> move || {
+    let titled = create_memo(move || !label.get().is_empty());
+    component_accessibility(create_memo(move || {
         let mut node = Node::new(Role::Dialog);
         let title = label.get();
         if !title.is_empty() {
             node.set_label(title);
         }
         node
-    })));
+    }));
     let theme = use_theme();
     view! {
         <Frame padding_horizontal=MARGIN padding_vertical=MARGIN>

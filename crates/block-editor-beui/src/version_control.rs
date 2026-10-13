@@ -1,5 +1,5 @@
 use beui::NodeId;
-use beui::reactive::{Direction, ForEach, List, Memo, clone, component, create_memo, view};
+use beui::reactive::{Direction, ForEach, List, Memo, component, create_memo, view};
 use beui::styled::{Body, Caption};
 use block_editor_plugin::VersionCommit;
 
@@ -12,14 +12,14 @@ pub fn short_id(id: &[u8; 32]) -> String {
 
 #[component]
 pub fn VersionHistory(log: Memo<Vec<VersionCommit>>) -> NodeId {
-    let rows = create_memo(clone!(log -> move || {
+    let rows = create_memo(move || {
         log.with(|log| {
             log.iter()
                 .map(|commit| (commit.id, commit.message.clone()))
                 .collect::<Vec<_>>()
         })
-    }));
-    let empty = create_memo(clone!(rows -> move || rows.with(Vec::is_empty)));
+    });
+    let empty = create_memo(move || rows.with(Vec::is_empty));
     view! {
         <List spacing=6.0>
             <beui::reactive::Show condition={empty}>

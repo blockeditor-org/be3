@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::pixel_art::Artwork;
 use block_editor_beui::be_block::{ArtifactSource, BlockContent, ImageContent, PixelArtContent};
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::reactive::{Frame, List, Show, clone, component, create_memo, view};
+use block_editor_beui::beui::reactive::{Frame, List, Show, component, create_memo, view};
 use block_editor_beui::beui::styled::{Caption, NumberInput, use_theme};
 use block_editor_beui::{ArtifactDescription, Artifacts, EditorHost};
 use block_editor_beui::{BlockList, BlockQuery, ContentProjection};
@@ -122,15 +122,17 @@ fn summary(settings: &ImageSettings) -> String {
 #[component]
 pub fn Settings(artifacts: Artifacts) -> NodeId {
     let data = artifacts.settings();
-    let decoded = create_memo(clone!(data -> move || ImageArtifact::decode(&data.get()).ok()));
-    let readable = create_memo(clone!(decoded -> move || decoded.get().is_some()));
-    let scale = create_memo(clone!(decoded -> move || {
-        decoded.get().map_or(1.0, |artifact| f64::from(artifact.settings.scale))
-    }));
-    let caption = create_memo(clone!(decoded -> move || match decoded.get() {
+    let decoded = create_memo(move || ImageArtifact::decode(&data.get()).ok());
+    let readable = create_memo(move || decoded.get().is_some());
+    let scale = create_memo(move || {
+        decoded
+            .get()
+            .map_or(1.0, |artifact| f64::from(artifact.settings.scale))
+    });
+    let caption = create_memo(move || match decoded.get() {
         Some(artifact) => summary(&artifact.settings),
         None => "These settings cannot be read.".to_owned(),
-    }));
+    });
     let edited = artifacts.clone();
     let scaled = decoded;
     let set_scale = move |value: f64| {

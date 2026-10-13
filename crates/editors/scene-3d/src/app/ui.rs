@@ -57,11 +57,11 @@ pub(crate) fn Scene3DView() -> NodeId {
     let (camera, set_camera) = create_signal(Camera::default());
     let walking = Rc::new(Cell::new(Walking::default()));
     let clock = Rc::new(Cell::new(Instant::now()));
-    let drawing = create_memo(clone!(camera -> move || Some(scene.drawing(camera.get()))));
+    let drawing = create_memo(move || Some(scene.drawing(camera.get())));
     let (looking, set_looking) = create_signal(false);
-    let idle = create_memo(clone!(looking -> move || !looking.get()));
+    let idle = create_memo(move || !looking.get());
 
-    let stepping = create_timer(clone!(walking looking clock set_camera -> move || {
+    let stepping = create_timer(clone!(walking clock -> move || {
         let now = Instant::now();
         let elapsed = now
             .saturating_duration_since(clock.replace(now))
@@ -75,9 +75,9 @@ pub(crate) fn Scene3DView() -> NodeId {
         Some(Duration::ZERO)
     }));
 
-    let look = clone!(set_camera -> move |motion: Vec2| {
+    let look = move |motion: Vec2| {
         set_camera.update(|camera| camera.look([motion.x, motion.y]));
-    });
+    };
     let walked = clone!(walking stepping -> move |press: KeyPress| {
         let mut held = walking.get();
         let handled = held.hold(press.key, press.pressed);
@@ -88,21 +88,21 @@ pub(crate) fn Scene3DView() -> NodeId {
         }
         handled
     });
-    let released = clone!(walking set_looking -> move |looking: bool| {
+    let released = clone!(walking -> move |looking: bool| {
         if !looking {
             walking.set(Walking::default());
         }
         set_looking.set(looking);
     });
 
-    let described = create_memo(clone!(looking -> move || {
+    let described = create_memo(move || {
         let mut node = Node::new(Role::Canvas);
         node.set_label(match looking.get() {
             true => "3D scene, looking around",
             false => "3D scene, click to look around",
         });
         node
-    }));
+    });
 
     let anchor = NodeRef::new();
     view! {

@@ -9,8 +9,8 @@ use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Interactive, Memo, Prop, ReadSignal, Render, clone, component_accessibility,
-    create_effect, create_memo, create_signal, set_component_state, untrack,
+    Callback, Interactive, Memo, Prop, ReadSignal, Render, component_accessibility, create_effect,
+    create_memo, create_signal, set_component_state, untrack,
 };
 
 const STEP: f32 = 0.05;
@@ -80,15 +80,14 @@ pub fn Slider(
 ) -> NodeId {
     let value = value.map(move |value| value.clamp(min, max));
     let (value_read, set_value_signal) = create_signal(value.peek());
-    create_effect(clone!(set_value_signal -> move || set_value_signal.set(value.get())));
-    let fraction =
-        create_memo(clone!(value_read -> move || scale.fraction_of(value_read.get(), min, max)));
+    create_effect(move || set_value_signal.set(value.get()));
+    let fraction = create_memo(move || scale.fraction_of(value_read.get(), min, max));
     let (dragging, set_dragging) = create_signal(false);
     let (focused, set_focused) = create_signal(false);
     let disabled = create_memo(move || disabled.get());
 
     let accessibility = crate::labelled_node(Role::Slider, accessibility, label);
-    component_accessibility(create_memo(clone!(value_read disabled -> move || {
+    component_accessibility(create_memo(move || {
         let mut node = accessibility.get();
         let value = value_read.get();
         node.set_numeric_value(value.into());
@@ -101,7 +100,7 @@ pub fn Slider(
             node.clear_disabled();
         }
         node
-    })));
+    }));
 
     let content_node = content.map(|build| {
         build.call(SliderHandle {
@@ -159,7 +158,7 @@ pub fn Slider(
 
     set_component_state(value_read);
 
-    let tab_stop = create_memo(clone!(disabled -> move || !disabled.get()));
+    let tab_stop = create_memo(move || !disabled.get());
     view! {
         <Interactive
             focusable=true

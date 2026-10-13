@@ -70,7 +70,7 @@ pub(crate) fn canvas_actions(state: &Rc<CanvasState>) -> CanvasActions {
     let live = !state.previewing();
     let free = create_memo(clone!(state -> move || live && state.focused_editor.get().is_none()));
     let when = |test: fn(&CanvasState) -> bool| {
-        create_memo(clone!(state free -> move || free.get() && test(&state)))
+        create_memo(clone!(state -> move || free.get() && test(&state)))
     };
     let selected = when(|state| !state.selection.get().is_empty());
     let unlocked = when(|state| {
@@ -91,7 +91,7 @@ pub(crate) fn canvas_actions(state: &Rc<CanvasState>) -> CanvasActions {
     let block = when(|state| embedded_block(state).is_some());
     let artboard = when(|state| state.first_artboard().is_some());
     let reorder = |movement: CanvasLayerMove| {
-        create_memo(clone!(state free -> move || free.get() && state.can_reorder(movement)))
+        create_memo(clone!(state -> move || free.get() && state.can_reorder(movement)))
     };
     let tool = |id: &str, label: &'static str, glyph: &str, tool: Tool, key: Key| {
         Action::new(id, label, clone!(state -> move || state.set_tool(tool)))
@@ -404,7 +404,7 @@ pub(crate) fn canvas_actions(state: &Rc<CanvasState>) -> CanvasActions {
     let zoom_reset = Action::new(
         "canvas.zoom-reset",
         "Zoom to 100%",
-        clone!(state scale -> move || {
+        clone!(state -> move || {
             state.editor().zoom(1.0 / scale.get_untracked().max(f32::EPSILON));
         }),
     )

@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use beui::reactive::{
-    ForEach, Frame, Layers, List, Memo, ReadSignal, Show, Text, WriteSignal, clone, component,
+    ForEach, Frame, Layers, List, Memo, ReadSignal, Show, Text, WriteSignal, component,
     create_memo, create_signal, view,
 };
 use beui::styled::{Caption, Heading, Icon, Spinner, StaleNotice, use_theme};
@@ -108,9 +108,14 @@ pub(crate) fn MainSurface() -> NodeId {
 #[component]
 pub(crate) fn HostedSurface(id: SurfaceId) -> NodeId {
     let region = hosted(id).region;
-    let keys = create_memo(clone!(region -> move || {
-        region.with(|held| held.as_ref().map(HostedRegion::key).into_iter().collect::<Vec<_>>())
-    }));
+    let keys = create_memo(move || {
+        region.with(|held| {
+            held.as_ref()
+                .map(HostedRegion::key)
+                .into_iter()
+                .collect::<Vec<_>>()
+        })
+    });
     view! {
         <Layers>
             <ForEach keys={keys}>

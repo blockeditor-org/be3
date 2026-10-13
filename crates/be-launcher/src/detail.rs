@@ -69,18 +69,18 @@ pub(crate) fn Detail(model: Model) -> NodeId {
 
 #[component]
 fn Selected(model: Model, pull_request: ReadSignal<Option<PullRequest>>) -> NodeId {
-    let shown = create_memo(clone!(pull_request -> move || pull_request.with(Option::is_some)));
+    let shown = create_memo(move || pull_request.with(Option::is_some));
     let pull_request = create_memo(move || pull_request.get());
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                {move || clone!(pull_request -> view! {
+                {move || view! {
                     <PullRequestView
                         @sizing=ItemSize::Percent(100.0)
                         model={model.clone()}
                         pull_request={create_memo(move || pull_request.get().unwrap_or_else(placeholder))}
                     />
-                })}
+                }}
             </Show>
         </List>
     }
@@ -109,12 +109,12 @@ fn placeholder() -> PullRequest {
 #[component]
 fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
     let theme = use_theme();
-    let title = create_memo(clone!(pull_request -> move || {
+    let title = create_memo(move || {
         let pull_request = pull_request.get();
         format!("{} #{}", pull_request.title, pull_request.number)
-    }));
-    let state = create_memo(clone!(pull_request -> move || pull_request.get().state));
-    let summary = create_memo(clone!(pull_request -> move || {
+    });
+    let state = create_memo(move || pull_request.get().state);
+    let summary = create_memo(move || {
         let pull_request = pull_request.get();
         let verb = match pull_request.state {
             State::Merged => "merged",
@@ -127,33 +127,30 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
             pull_request.branch,
             relative(now(), pull_request.created)
         )
-    }));
-    let labels = create_memo(clone!(pull_request -> move || pull_request.get().labels));
-    let checked_out = create_memo(clone!(model pull_request -> move || {
+    });
+    let labels = create_memo(move || pull_request.get().labels);
+    let checked_out = create_memo(clone!(model -> move || {
         model.current(&pull_request.get())
     }));
-    let tagged = create_memo(clone!(labels checked_out -> move || {
-        !labels.get().is_empty() || checked_out.get()
-    }));
+    let tagged = create_memo(move || !labels.get().is_empty() || checked_out.get());
     let timeline = model.timeline(&pull_request.get_untracked());
-    let loading = create_memo(clone!(timeline -> move || timeline.get() == Loaded::Loading));
-    let error = create_memo(clone!(timeline -> move || match timeline.get() {
+    let loading = create_memo(move || timeline.get() == Loaded::Loading);
+    let error = create_memo(move || match timeline.get() {
         Loaded::Failed(error) => error,
         _ => String::new(),
-    }));
-    let failed = create_memo(clone!(error -> move || !error.get().is_empty()));
-    let entries = create_memo(clone!(timeline -> move || match timeline.get() {
+    });
+    let failed = create_memo(move || !error.get().is_empty());
+    let entries = create_memo(move || match timeline.get() {
         Loaded::Ready(entries) => entries,
         _ => Vec::new(),
-    }));
-    let keys = create_memo(clone!(entries -> move || (0..entries.get().len()).collect::<Vec<_>>()));
+    });
+    let keys = create_memo(move || (0..entries.get().len()).collect::<Vec<_>>());
     let actions = model.clone();
     let notes = model.clone();
     let noted = pull_request;
     let notes_timeline = timeline;
-    let open = clone!(model pull_request -> move || model.open(&pull_request.get_untracked().url));
-    let refresh =
-        clone!(model pull_request -> move || model.refresh_timeline(&pull_request.get_untracked()));
+    let open = clone!(model -> move || model.open(&pull_request.get_untracked().url));
+    let refresh = clone!(model -> move || model.refresh_timeline(&pull_request.get_untracked()));
     view! {
         <SelectableText child_size=ItemSize::Percent(100.0)>
             <List spacing=0.0>
@@ -213,7 +210,7 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                         <List spacing=0.0>
                             <ForEach keys>
                                 {move |index: usize| {
-                                    let entry = create_memo(clone!(entries -> move || entries.get().get(index).cloned()));
+                                    let entry = create_memo(move || entries.get().get(index).cloned());
                                     view! {
                                         <TimelineEntry model={model.clone()} entry />
                                     }
@@ -230,14 +227,14 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
 #[component]
 fn StateBadge(state: Memo<State>) -> NodeId {
     let theme = use_theme();
-    let fill = create_memo(clone!(state -> move || match state.get() {
+    let fill = create_memo(move || match state.get() {
         State::Open => theme.success.get(),
         State::Draft => theme.surface_raised.get(),
         State::Merged => MERGED,
         State::Closed => theme.danger.get(),
-    }));
-    let ink = create_memo(clone!(fill -> move || readable_on(fill.get())));
-    let glyph = create_memo(clone!(state -> move || state_glyph(state.get()).to_owned()));
+    });
+    let ink = create_memo(move || readable_on(fill.get()));
+    let glyph = create_memo(move || state_glyph(state.get()).to_owned());
     let label = create_memo(move || {
         match state.get() {
             State::Open => "Open",
@@ -298,11 +295,11 @@ fn CommentCard(
     inline: Vec<InlineComment>,
 ) -> NodeId {
     let theme = use_theme();
-    let outline = create_memo(clone!(theme -> move || match tone {
+    let outline = create_memo(move || match tone {
         Tone::Neutral => theme.border.get(),
         Tone::Approved => theme.success.get(),
         Tone::ChangesRequested => theme.warning.get(),
-    }));
+    });
     let heading = format!("{} {verb}", author.login);
     let time = relative(now(), when);
     let inline_keys: Vec<usize> = (0..inline.len()).collect();
@@ -564,12 +561,12 @@ fn Item(text: String) -> NodeId {
 #[component]
 fn WebImage(model: Model, url: String, alt: String) -> NodeId {
     let image = model.image(&url);
-    let picture = create_memo(clone!(image -> move || match image.get() {
+    let picture = create_memo(move || match image.get() {
         Loaded::Ready(image) => Some(image),
         _ => None,
-    }));
-    let waiting = create_memo(clone!(image -> move || image.get() == Loaded::Loading));
-    let failed = create_memo(clone!(image -> move || matches!(image.get(), Loaded::Failed(_))));
+    });
+    let waiting = create_memo(move || image.get() == Loaded::Loading);
+    let failed = create_memo(move || matches!(image.get(), Loaded::Failed(_)));
     let described = if alt.is_empty() {
         "image".to_owned()
     } else {

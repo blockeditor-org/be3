@@ -38,39 +38,39 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
         events.sort_by_key(|event| event.start);
         events
     });
-    let events = create_memo(clone!(events -> move || events.get()));
+    let events = create_memo(move || events.get());
     let (mode, set_mode) = create_signal(CalendarView::default());
     let (anchor, set_anchor) = create_signal(today_days_since_epoch());
     let (form, set_form) = create_signal(None::<EventForm>);
-    let anchor = create_memo(clone!(anchor -> move || anchor.get()));
+    let anchor = create_memo(move || anchor.get());
 
     let sized = editor.clone();
-    create_effect(clone!(mode -> move || {
+    create_effect(move || {
         let height = match mode.get() {
             CalendarView::Month => MONTH_HEIGHT,
             CalendarView::Day | CalendarView::Week => TIMELINE_HEIGHT,
         };
         sized.set_intrinsic_size(Some(Vec2::new(INTRINSIC_WIDTH, height)));
-    }));
+    });
 
     let read_only = editor.read_only();
-    let header = create_memo(clone!(mode anchor -> move || mode.get().header(anchor.get())));
-    let mode_index = create_memo(clone!(mode -> move || {
+    let header = create_memo(move || mode.get().header(anchor.get()));
+    let mode_index = create_memo(move || {
         CalendarView::ALL
             .iter()
             .position(|shown| *shown == mode.get())
             .unwrap_or(0)
-    }));
-    let previous = clone!(mode anchor set_anchor -> move || {
+    });
+    let previous = move || {
         set_anchor.set(mode.get_untracked().previous(anchor.get_untracked()));
-    });
-    let next = clone!(mode anchor set_anchor -> move || {
+    };
+    let next = move || {
         set_anchor.set(mode.get_untracked().next(anchor.get_untracked()));
-    });
-    let today = clone!(set_anchor -> move || set_anchor.set(today_days_since_epoch()));
-    let add = clone!(anchor set_form -> move || {
+    };
+    let today = move || set_anchor.set(today_days_since_epoch());
+    let add = move || {
         set_form.set(Some(EventForm::new_at(anchor.get_untracked(), 9)));
-    });
+    };
 
     let editable = editor.editable();
     let operate = {
@@ -91,18 +91,17 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
             }
         }
     };
-    let pick_day = clone!(set_form editable -> move |day: i64| {
+    let pick_day = move |day: i64| {
         if editable.get_untracked() {
             set_form.set(Some(EventForm::new_at(day, 9)));
         }
-    });
-    let pick_slot = clone!(set_form editable -> move |(day, hour): (i64, u8)| {
+    };
+    let pick_slot = move |(day, hour): (i64, u8)| {
         if editable.get_untracked() {
             set_form.set(Some(EventForm::new_at(day, hour)));
         }
-    });
-    let pick_event =
-        clone!(set_form -> move |event: Shown| set_form.set(Some(EventForm::edit(&event))));
+    };
+    let pick_event = move |event: Shown| set_form.set(Some(EventForm::edit(&event)));
 
     let form_read_only = read_only;
     let chrome = editor.chrome_shown();
@@ -223,71 +222,73 @@ fn EventDialog(
     read_only: block_editor_beui::beui::reactive::Memo<bool>,
     on_operate: block_editor_beui::beui::reactive::Callback<FormAction>,
 ) -> NodeId {
-    let open = create_memo(clone!(form -> move || form.get().is_some()));
-    let title = create_memo(clone!(form -> move || {
+    let open = create_memo(move || form.get().is_some());
+    let title = create_memo(move || {
         match form.with(|form| form.as_ref().is_some_and(|form| form.editing_id.is_some())) {
             true => "Edit event".to_owned(),
             false => "New event".to_owned(),
         }
-    }));
-    let name = create_memo(clone!(form -> move || {
-        form.with(|form| form.as_ref().map(|form| form.title.clone()).unwrap_or_default())
-    }));
-    let start = create_memo(clone!(form -> move || {
-        form.with(|form| form.as_ref().map(|form| form.start))
-    }));
-    let end =
-        create_memo(clone!(form -> move || form.with(|form| form.as_ref().map(|form| form.end))));
-    let backwards = create_memo(clone!(form -> move || {
+    });
+    let name = create_memo(move || {
+        form.with(|form| {
+            form.as_ref()
+                .map(|form| form.title.clone())
+                .unwrap_or_default()
+        })
+    });
+    let start = create_memo(move || form.with(|form| form.as_ref().map(|form| form.start)));
+    let end = create_memo(move || form.with(|form| form.as_ref().map(|form| form.end)));
+    let backwards = create_memo(move || {
         form.with(|form| form.as_ref().is_some_and(|form| form.end < form.start))
-    }));
-    let editing = create_memo(clone!(form -> move || {
+    });
+    let editing = create_memo(move || {
         form.with(|form| form.as_ref().is_some_and(|form| form.editing_id.is_some()))
-    }));
-    let blank = create_memo(clone!(form read_only backwards -> move || {
+    });
+    let blank = create_memo(move || {
         read_only.get()
             || backwards.get()
             || form.with(|form| {
-                form.as_ref().is_none_or(|form| form.title.trim().is_empty())
+                form.as_ref()
+                    .is_none_or(|form| form.title.trim().is_empty())
             })
-    }));
+    });
 
-    let edit_title = clone!(set_form -> move |typed: String| {
+    let edit_title = move |typed: String| {
         set_form.update(|form| {
             if let Some(form) = form {
                 form.title = typed;
             }
         });
-    });
-    let edit_start = clone!(set_form -> move |picked: Option<DateTime>| {
+    };
+    let edit_start = move |picked: Option<DateTime>| {
         set_form.update(|form| {
             if let (Some(form), Some(picked)) = (form, picked) {
                 form.move_start(picked);
             }
         });
-    });
-    let edit_end = clone!(set_form -> move |picked: Option<DateTime>| {
+    };
+    let edit_end = move |picked: Option<DateTime>| {
         set_form.update(|form| {
             if let (Some(form), Some(picked)) = (form, picked) {
                 form.end = picked;
             }
         });
-    });
-    let save = clone!(form set_form on_operate -> move || {
+    };
+    let save = clone!(on_operate -> move || {
         let Some(shown) = form.get_untracked() else {
             return;
         };
         on_operate.call(FormAction::Save(shown.editing_id, shown.event()));
         set_form.set(None);
     });
-    let delete = clone!(form set_form on_operate -> move || {
+    let delete = clone!(on_operate -> move || {
         if let Some(id) = form.get_untracked().and_then(|form| form.editing_id) {
             on_operate.call(FormAction::Delete(id));
         }
         set_form.set(None);
     });
-    let cancel = clone!(set_form -> move || set_form.set(None));
-    let dismiss = clone!(set_form -> move || set_form.set(None));
+    let cancel = move || set_form.set(None);
+    let dismiss = move || set_form.set(None);
     view! {
         <Dialog open={open} title={title} width=FORM_WIDTH on_dismiss={dismiss}>
             <List spacing=SPACING>

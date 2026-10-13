@@ -2,7 +2,7 @@ use std::cell::RefCell;
 
 use beui::NodeId;
 use beui::reactive::{
-    Memo, Prop, ReadSignal, clone, component, create_effect, create_memo, create_signal, view,
+    Memo, Prop, ReadSignal, component, create_effect, create_memo, create_signal, view,
 };
 use beui::styled::Link;
 use beui::styled::theme::FONT_BODY;
@@ -76,20 +76,20 @@ pub fn BlockLink(
     let target = create_memo(move || block.get());
     let shown = watch_block_label(&editor, target);
     let host = editor.host().clone();
-    let label = create_memo(clone!(shown -> move || {
+    let label = create_memo(move || {
         let name = shown.with(|shown| shown.name.clone());
         match name.is_empty() {
             true => fallback.get(),
             false => name,
         }
-    }));
-    let glyph = create_memo(clone!(shown -> move || shown.with(|shown| shown.glyph.clone())));
-    let missing = create_memo(clone!(target -> move || target.get().is_none()));
-    let open = clone!(target -> move || {
+    });
+    let glyph = create_memo(move || shown.with(|shown| shown.glyph.clone()));
+    let missing = create_memo(move || target.get().is_none());
+    let open = move || {
         if let Some(target) = target.get_untracked() {
             host.open_block(target.id, target.block_type);
         }
-    });
+    };
     view! {
         <Link
             label={label}

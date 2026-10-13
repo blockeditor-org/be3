@@ -11,7 +11,7 @@ use beui_core::document::Document;
 use beui_core::icons::{ICON_EXPAND_LESS, ICON_EXPAND_MORE};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Callback, Child, Direction, Frame, ItemSize, List, Memo, Prop, Text, clone, create_memo,
+    Align, Callback, Child, Direction, Frame, ItemSize, List, Memo, Prop, Text, create_memo,
     focus_ring,
 };
 
@@ -50,7 +50,7 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let header_color = create_memo(clone!(theme -> move || header_fill(&theme, hovered.get())));
+    let header_color = create_memo(move || header_fill(&theme, hovered.get()));
     let marker_glyph = create_memo(move || glyph(open.get()).to_owned());
     let marker_color = theme.text_muted;
     let title_color = theme.text;

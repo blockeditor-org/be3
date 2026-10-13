@@ -9,7 +9,7 @@ use std::cell::RefCell;
 
 use be_protocol::WorkspaceRole;
 use beui::reactive::{
-    Dynamic, Frame, List, NodeRef, Store, clone, component, copy_text, create_memo, view,
+    Dynamic, Frame, List, NodeRef, Store, component, copy_text, create_memo, view,
 };
 use beui::styled::{KeepChanges, Toast, Toasts, use_theme};
 use beui::unstyled::Edge;
@@ -336,7 +336,7 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
     let screen = view.screen;
     let toasts = view.toasts;
     let keep_display = view.keep_display;
-    let asking = create_memo(clone!(keep_display -> move || keep_display.get().is_some()));
+    let asking = create_memo(move || keep_display.get().is_some());
     let round = create_memo(move || keep_display.get().unwrap_or_default());
     let keeping = round;
     let reverting = round;

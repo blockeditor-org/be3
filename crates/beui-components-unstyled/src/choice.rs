@@ -92,10 +92,10 @@ pub fn Choice(
         ChoiceKind::Radio | ChoiceKind::Listbox => Direction::Vertical,
     });
     let (selected, set_selected) = create_signal(None);
-    let selection = create_selector(clone!(selected -> move || selected.get()));
-    let tab_stop_owner = create_selector(clone!(selected -> move || selected.get().unwrap_or(0)));
+    let selection = create_selector(move || selected.get());
+    let tab_stop_owner = create_selector(move || selected.get().unwrap_or(0));
     let (focus, set_focus) = create_signal(None);
-    let focused = create_selector(clone!(focus -> move || focus.get()));
+    let focused = create_selector(move || focus.get());
 
     component_accessibility(Node::new(match kind {
         ChoiceKind::Tabs => Role::TabList,
@@ -105,9 +105,9 @@ pub fn Choice(
 
     let state: Handle = Rc::new(State {
         options: options.clone(),
-        focus: focus,
+        focus,
         set_focus,
-        selected: selected,
+        selected,
         set_selected,
         kind,
         direction,

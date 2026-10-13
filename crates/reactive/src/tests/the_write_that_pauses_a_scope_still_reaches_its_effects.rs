@@ -6,9 +6,9 @@ fn the_write_that_pauses_a_scope_still_reaches_its_effects() {
     let (open, set_open) = create_signal(true);
     let seen = Rc::new(RefCell::new(Vec::new()));
     let outer = Scope::new();
-    outer.run(clone!(open seen -> move || {
+    outer.run(clone!(seen -> move || {
         let inner = Rc::new(Scope::detached().pausable());
-        create_effect(clone!(open inner -> move || match open.get() {
+        create_effect(clone!(inner -> move || match open.get() {
             true => inner.resume(),
             false => inner.pause(),
         }));

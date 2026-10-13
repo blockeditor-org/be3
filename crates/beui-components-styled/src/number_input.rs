@@ -9,9 +9,7 @@ use beui_components_unstyled::{NumberDrag, NumberFaceHandle, NumberFieldHandle};
 use beui_core::base::TextAlign;
 use beui_core::document::Document;
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Callback, Frame, NodeRef, Prop, Text, clone, create_memo, set_component_state,
-};
+use beui_view::reactive::{Callback, Frame, NodeRef, Prop, Text, create_memo, set_component_state};
 
 const HEIGHT: f32 = 34.0;
 const PADDING_HORIZONTAL: f32 = 10.0;
@@ -85,22 +83,20 @@ fn NumberFace(handle: NumberFaceHandle, shown: NodeRef, placeholder: Prop<String
     } = handle;
     let theme = use_theme();
     let placeholder = create_memo(move || placeholder.get());
-    let string = create_memo(clone!(text placeholder -> move || {
+    let string = create_memo(move || {
         let text = text.get();
         match text.is_empty() {
             true => placeholder.get(),
             false => text,
         }
-    }));
-    let color = create_memo(clone!(theme text disabled -> move || {
-        match text.get().is_empty() {
-            true => theme.text_muted.get(),
-            false => ButtonVariant::Secondary.label(&theme, disabled.get()),
-        }
-    }));
-    let fill = create_memo(clone!(theme disabled -> move || {
+    });
+    let color = create_memo(move || match text.get().is_empty() {
+        true => theme.text_muted.get(),
+        false => ButtonVariant::Secondary.label(&theme, disabled.get()),
+    });
+    let fill = create_memo(move || {
         ButtonVariant::Secondary.fill(&theme, disabled.get(), hovered.get(), active.get())
-    }));
+    });
     view! {
         <FocusRing focused offset=FOCUS_RING_OFFSET>
             <Frame

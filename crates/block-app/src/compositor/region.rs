@@ -97,7 +97,7 @@ pub(crate) fn PluginRegion(
     let placed: Rc<Cell<Option<EmbedPlacement>>> = Rc::new(Cell::new(None));
     let screens = use_screens();
     let place: Rc<dyn Fn(Option<EmbedPlacement>)> = Rc::new(
-        clone!(plugin_id frame view screens -> move |placement: Option<EmbedPlacement>| {
+        clone!(plugin_id frame view -> move |placement: Option<EmbedPlacement>| {
             match placement {
                 Some(placement) => plugin_host::place_region(
                     &plugin_id,
@@ -126,11 +126,11 @@ pub(crate) fn PluginRegion(
         screens.with(|_| ());
         place(placed.get());
     }));
-    let state = create_memo(clone!(revision -> move || {
+    let state = create_memo(move || {
         revision.get();
         plugin_host::region_view(&editor.plugin, instance, region)
-    }));
-    create_effect(clone!(revision plugin_id state -> move || {
+    });
+    create_effect(clone!(plugin_id -> move || {
         revision.get();
         let actions = plugin_host::take_region_actions(&plugin_id, instance);
         if !actions.is_empty() {
@@ -155,12 +155,12 @@ pub(crate) fn PluginRegion(
             carry(drag);
         }
     }));
-    let frames = create_memo(clone!(revision plugin_id -> move || {
+    let frames = create_memo(clone!(plugin_id -> move || {
         revision.get();
         plugin_host::frames(&plugin_id)
     }));
     let drawing = |floating: bool| {
-        let shown = create_memo(clone!(state frames rotation opacity -> move || {
+        let shown = create_memo(clone!(rotation opacity -> move || {
             let (pieces, loading, drawn, held, size) = state.with(|view| {
                 let pieces = match floating {
                     true => view.floating.clone(),
@@ -177,7 +177,7 @@ pub(crate) fn PluginRegion(
             )
         }));
         let held: Rc<RefCell<Option<(DrawingKey, beui::Drawing)>>> = Rc::new(RefCell::new(None));
-        let drawn = create_memo(clone!(plugin_id state -> move || {
+        let drawn = create_memo(clone!(plugin_id -> move || {
             let (_, rotation, opacity, pieces, _) = shown.get();
             let (drawn, held_rect, size) =
                 state.with_untracked(|view| (view.drawn, view.held, view.rect.size()));
@@ -224,14 +224,10 @@ pub(crate) fn PluginRegion(
     };
     let base = drawing(false);
     let floating = drawing(true);
-    let cursor = create_memo(clone!(state -> move || {
-        state.with(|view| view.cursor.unwrap_or(CursorIcon::Default))
-    }));
-    let handles_back = create_memo(clone!(state -> move || state.with(|view| view.handles_back)));
-    let pastes = create_memo(clone!(state -> move || state.with(|view| view.pastes.clone())));
-    let intercepted = create_memo(clone!(state -> move || {
-        state.with(|view| view.intercepted_keys.clone())
-    }));
+    let cursor = create_memo(move || state.with(|view| view.cursor.unwrap_or(CursorIcon::Default)));
+    let handles_back = create_memo(move || state.with(|view| view.handles_back));
+    let pastes = create_memo(move || state.with(|view| view.pastes.clone()));
+    let intercepted = create_memo(move || state.with(|view| view.intercepted_keys.clone()));
     let shell = super::shell();
     super::intercept::intercept_keys(
         plugin_id.clone(),
@@ -241,10 +237,10 @@ pub(crate) fn PluginRegion(
         move || region == EditorRegion::Frame && block.is_some() && shell.get_untracked() == block,
     );
     let catcher = NodeRef::new();
-    take_keyboard(&state, &catcher);
+    take_keyboard(state, &catcher);
     let anchor = NodeRef::new();
-    let ime = create_memo(clone!(state -> move || state.with(|view| view.ime.is_some())));
-    let ime_cursor = create_memo(clone!(state anchor -> move || {
+    let ime = create_memo(move || state.with(|view| view.ime.is_some()));
+    let ime_cursor = create_memo(clone!(anchor -> move || {
         state.with(|view| {
             let area = view.ime.as_ref()?;
             Some(ImeCursor {
@@ -253,22 +249,23 @@ pub(crate) fn PluginRegion(
             })
         })
     }));
-    let ime_keyboard = create_memo(clone!(state -> move || {
+    let ime_keyboard = create_memo(move || {
         state.with(|view| view.ime.as_ref().is_none_or(|area| area.keyboard.shown()))
-    }));
-    let keyboard_asks = create_memo(clone!(state -> move || {
-        Some(state.with(|view| match view.ime.as_ref().map(|area| area.keyboard) {
-            Some(beui::Keyboard::Shown { asks }) => asks,
-            _ => 0,
-        }))
-    }));
-    let ime_text = create_memo(clone!(state -> move || {
+    });
+    let keyboard_asks = create_memo(move || {
+        Some(
+            state.with(|view| match view.ime.as_ref().map(|area| area.keyboard) {
+                Some(beui::Keyboard::Shown { asks }) => asks,
+                _ => 0,
+            }),
+        )
+    });
+    let ime_text = create_memo(move || {
         state.with(|view| view.ime.as_ref().and_then(|area| area.text.clone()))
-    }));
-    let loading = create_memo(clone!(state -> move || {
-        region == EditorRegion::Frame && state.with(|view| view.loading)
-    }));
-    let failure = create_memo(clone!(state plugin_id -> move || {
+    });
+    let loading =
+        create_memo(move || region == EditorRegion::Frame && state.with(|view| view.loading));
+    let failure = create_memo(clone!(plugin_id -> move || {
         state.with(|view| {
             view.error.as_ref().map(|(text, restart)| Failure {
                 title: match restart {
@@ -280,7 +277,7 @@ pub(crate) fn PluginRegion(
             })
         })
     }));
-    let rect = create_memo(clone!(state -> move || state.with(|view| view.rect)));
+    let rect = create_memo(move || state.with(|view| view.rect));
     let (reports, tick) = super::editors::reports();
     super::editors::provide_reports(reports.clone());
     create_effect(clone!(plugin_id -> move || {
@@ -294,7 +291,7 @@ pub(crate) fn PluginRegion(
         plugin_host::back_region(&plugin_id, instance, region, gesture);
     });
     let occluded = occlusion();
-    let takes: Rc<dyn Fn(Pos2) -> bool> = Rc::new(clone!(state passive -> move |local: Pos2| {
+    let takes: Rc<dyn Fn(Pos2) -> bool> = Rc::new(clone!(passive -> move |local: Pos2| {
         !passive.peek()
             && state.with_untracked(|view| {
                 let position = local + view.rect.min.to_vec2();
@@ -304,7 +301,7 @@ pub(crate) fn PluginRegion(
                     })
             })
     }));
-    let taken = clone!(state takes -> move |point: DragPoint| {
+    let taken = clone!(takes -> move |point: DragPoint| {
         takes(point.pos - state.with_untracked(|view| view.rect.min.to_vec2()))
     });
     let over = clone!(plugin_id taken -> move |over: Option<(BlockDrag, DragPoint)>| {
@@ -322,7 +319,7 @@ pub(crate) fn PluginRegion(
         plugin_host::pressed_outside_region(&plugin_id, instance, region);
     });
     let takes = move |local: Pos2| takes(local);
-    let claims = clone!(state passive -> move |(position, held): (Pos2, beui::Modifiers)| {
+    let claims = clone!(passive -> move |(position, held): (Pos2, beui::Modifiers)| {
         !passive.peek() && state.with_untracked(|view| view.claims(position, held))
     });
     let below = Rc::clone(&child_view);
@@ -375,8 +372,8 @@ fn carry(drag: BlockDrag) {
     board.begin(Rc::new(drag), point, Rc::new(|_| {}));
 }
 
-fn take_keyboard(state: &Memo<RegionView>, catcher: &NodeRef) {
-    let wants = create_memo(clone!(state -> move || state.with(|view| view.wants_keyboard)));
+fn take_keyboard(state: Memo<RegionView>, catcher: &NodeRef) {
+    let wants = create_memo(move || state.with(|view| view.wants_keyboard));
     let before = Cell::new(None::<NodeId>);
     let catcher = catcher.clone();
     create_effect(move || {
@@ -409,18 +406,22 @@ fn take_keyboard(state: &Memo<RegionView>, catcher: &NodeRef) {
 
 #[component]
 fn Notices(loading: Memo<bool>, failure: Memo<Option<Failure>>, id: String) -> NodeId {
-    let failed = create_memo(clone!(failure -> move || failure.get().is_some()));
-    let still_loading = create_memo(clone!(failure loading -> move || {
-        loading.get() && failure.get().is_none()
-    }));
-    let title = create_memo(clone!(failure -> move || {
-        failure.get().map(|failure| failure.title).unwrap_or_default()
-    }));
-    let detail = create_memo(clone!(failure -> move || {
-        failure.get().map(|failure| failure.detail).unwrap_or_default()
-    }));
+    let failed = create_memo(move || failure.get().is_some());
+    let still_loading = create_memo(move || loading.get() && failure.get().is_none());
+    let title = create_memo(move || {
+        failure
+            .get()
+            .map(|failure| failure.title)
+            .unwrap_or_default()
+    });
+    let detail = create_memo(move || {
+        failure
+            .get()
+            .map(|failure| failure.detail)
+            .unwrap_or_default()
+    });
     let restart = create_memo(move || failure.get().and_then(|failure| failure.restart));
-    let reloadable = create_memo(clone!(restart -> move || restart.get().is_some()));
+    let reloadable = create_memo(move || restart.get().is_some());
     let reload = move || {
         if let Some(plugin) = restart.get_untracked() {
             crate::host::push_command(crate::host::HostCommand::RestartPlugin(plugin));
@@ -457,7 +458,7 @@ fn RegionChildren(
     child_view: ChildView,
     below: bool,
 ) -> NodeId {
-    let keys = create_memo(clone!(state -> move || {
+    let keys = create_memo(move || {
         state.with(|view| {
             view.children
                 .iter()
@@ -465,26 +466,26 @@ fn RegionChildren(
                 .map(|child| child.child)
                 .collect::<Vec<ChildId>>()
         })
-    }));
+    });
     view! {
         <Canvas>
             <ForEach keys={keys}>
                 {move |key: ChildId| {
-                    let child = create_memo(clone!(state -> move || {
+                    let child = create_memo(move || {
                         state.with(|view| {
                             view.children.iter().find(|child| child.child == key).cloned()
                         })
-                    }));
-                    let clip = create_memo(clone!(child rect -> move || {
+                    });
+                    let clip = create_memo(move || {
                         let origin = rect.get().min;
                         child
                             .get()
                             .map_or(Rect::ZERO, |child| child.clip.translate(-origin.to_vec2()))
-                    }));
-                    let x = create_memo(clone!(clip -> move || clip.get().min.x));
-                    let y = create_memo(clone!(clip -> move || clip.get().min.y));
-                    let width = create_memo(clone!(clip -> move || clip.get().width()));
-                    let height = create_memo(clone!(clip -> move || clip.get().height()));
+                    });
+                    let x = create_memo(move || clip.get().min.x);
+                    let y = create_memo(move || clip.get().min.y);
+                    let width = create_memo(move || clip.get().width());
+                    let height = create_memo(move || clip.get().height());
                     let built = child_view(key, child, rect);
                     view! {
                         <CanvasItem x={x} y={y} width={width} height={height}>{built}</CanvasItem>

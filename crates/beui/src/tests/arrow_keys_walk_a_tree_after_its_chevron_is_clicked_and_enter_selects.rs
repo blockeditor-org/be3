@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::*;
-use crate::reactive::{NodeRef, Text, build, clone, create_memo, create_signal, view};
+use crate::reactive::{NodeRef, Text, build, create_memo, create_signal, view};
 use crate::styled::{Tree, TreeRowFace, tree_focused};
 use crate::unstyled::TreeItem;
 
@@ -15,10 +15,10 @@ fn arrow_keys_walk_a_tree_after_its_chevron_is_clicked_and_enter_selects() {
         let tree = tree.clone();
         move || {
             let (expanded, set_expanded) = create_signal(true);
-            let keys = create_memo(clone!(expanded -> move || match expanded.get() {
+            let keys = create_memo(move || match expanded.get() {
                 true => vec![0usize, 1, 2],
                 false => vec![0usize],
-            }));
+            });
             let item = move |key: usize| TreeItem {
                 label: format!("row {key}"),
                 depth: usize::from(key > 0),

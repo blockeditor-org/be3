@@ -33,7 +33,7 @@ pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
 
                 let rowed = Rc::clone(&state);
                 let clips = state.clips;
-                let rows = create_memo(clone!(rowed clips -> move || {
+                let rows = create_memo(clone!(rowed -> move || {
                     let _ = clips.get();
                     rowed
                         .video()
@@ -51,18 +51,18 @@ pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
                         })
                         .unwrap_or_default()
                 }));
-                let lanes = create_memo(clone!(rows -> move || {
+                let lanes = create_memo(move || {
                     rows.get().iter().map(|row| row.lane + 1).max().unwrap_or(1) + 1
-                }));
+                });
 
                 let (offset, set_offset) = create_signal(Vec2::ZERO);
-                let camera = create_memo(clone!(offset placed -> move || {
+                let camera = create_memo(move || {
                     Some(CanvasView::new(placed.get().min - offset.get(), 1.0))
-                }));
+                });
 
                 let pixels_per_frame = state.pixels_per_frame;
                 let duration = state.duration;
-                let content = create_memo(clone!(duration pixels_per_frame lanes placed -> move || {
+                let content = create_memo(move || {
                     let viewport = placed.get().size().max(Vec2::new(1.0, 1.0));
                     Rect::from_min_size(
                         Pos2::ZERO,
@@ -71,7 +71,7 @@ pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
                             (RULER_HEIGHT + lanes.get() as f32 * (LANE_HEIGHT + LANE_GAP)).max(viewport.y),
                         ),
                     )
-                }));
+                });
 
                 let scrolled = content;
                 let scroll_placed = placed;
@@ -103,10 +103,7 @@ pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
                 let target_placed = placed;
                 let host_drag = state.editor().drag();
                 let content_rect = content;
-                let target = create_memo(clone!(
-                    targeted target_rows target_scale target_pointer target_drag host_drag content_rect
-                    target_placed target_offset
-                    -> move || {
+                let target = create_memo(clone!(targeted -> move || {
                         let _ = target_rows.get();
                         let video = targeted.video()?;
                         let rows: Vec<ClipRow> = timeline::lane_rows(&video);
@@ -128,7 +125,7 @@ pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
                 let landing_drag = state.editor().drag();
                 create_effect(move || {
                     let dragged = landing_drag.get();
-                    untrack(|| land(&landing, &landing_target, dragged));
+                    untrack(|| land(&landing, landing_target, dragged));
                 });
 
                 let dropped = Rc::clone(&state);
@@ -164,7 +161,7 @@ pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
                     seeking.select(None);
                 };
 
-                let ticks = create_memo(clone!(state content pixels_per_frame -> move || {
+                let ticks = create_memo(clone!(state -> move || {
                     let rate = state.frame_rate.get();
                     let step = timeline::tick_seconds(rate, pixels_per_frame.get());
                     let per_second = (rate.frames_per_second() * f64::from(pixels_per_frame.get())) as f32;
@@ -179,15 +176,15 @@ pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
                         .collect::<Vec<Tick>>()
                 }));
 
-                let lane_keys = create_memo(clone!(lanes -> move || (0..lanes.get()).collect::<Vec<usize>>()));
+                let lane_keys = create_memo(move || (0..lanes.get()).collect::<Vec<usize>>());
                 let selection = create_selector(clone!(state -> move || state.selected.get()));
                 let rowed_state = Rc::clone(&state);
                 let row_scale = pixels_per_frame;
                 let playhead = state.playhead;
-                let playhead_x = create_memo(clone!(playhead pixels_per_frame -> move || {
+                let playhead_x = create_memo(move || {
                     playhead.get() as f32 * pixels_per_frame.get()
-                }));
-                let playhead_height = create_memo(clone!(content -> move || content.get().height()));
+                });
+                let playhead_height = create_memo(move || content.get().height());
                 let theme = use_theme();
 
                 view! {
@@ -275,7 +272,7 @@ fn LaneStrip(lane: usize, content: Memo<Rect>) -> CanvasItem {
         _ => theme.surface,
     };
     let y = RULER_HEIGHT + lane as f32 * (LANE_HEIGHT + LANE_GAP);
-    let width = create_memo(clone!(content -> move || content.get().width()));
+    let width = create_memo(move || content.get().width());
     view! {
         <CanvasItem x=0.0 y={y} width={width} height=LANE_HEIGHT>
             <Frame color={color} radius=3 />
@@ -301,37 +298,35 @@ fn Clip(
     selected: Memo<bool>,
     scale: ReadSignal<f32>,
 ) -> CanvasItem {
-    let x = create_memo(clone!(scale -> move || row.start as f32 * scale.get()));
-    let width = create_memo(clone!(scale -> move || {
-        (row.length as f32 * scale.get()).max(3.0)
-    }));
+    let x = create_memo(move || row.start as f32 * scale.get());
+    let width = create_memo(move || (row.length as f32 * scale.get()).max(3.0));
     let y = RULER_HEIGHT + row.lane as f32 * (LANE_HEIGHT + LANE_GAP);
     let held = Rc::clone(&state);
     let clips = state.clips;
-    let block = create_memo(clone!(held clips -> move || {
+    let block = create_memo(clone!(held -> move || {
         let clip = clips.get().into_iter().find(|clip| clip.id == row.id)?;
         held.target(clip.block_id)
     }));
     let named = Rc::clone(&state);
-    let name = create_memo(clone!(clips named -> move || {
+    let name = create_memo(clone!(named -> move || {
         clips
             .get()
             .into_iter()
             .find(|clip| clip.id == row.id)
             .map_or_else(String::new, |clip| named.name_of(clip.block_id))
     }));
-    let attached = create_memo(clone!(clips -> move || {
+    let attached = create_memo(move || {
         clips
             .get()
             .iter()
             .find(|clip| clip.id == row.id)
             .is_some_and(|clip| clip.attachment.is_some())
-    }));
+    });
     let theme = use_theme();
-    let fill = create_memo(clone!(theme attached -> move || match attached.get() {
+    let fill = create_memo(move || match attached.get() {
         true => theme.hover.get(),
         false => theme.pressed.get(),
-    }));
+    });
     let chosen = Rc::clone(&state);
     let trimming = Rc::clone(&state);
     let trim_scale = scale;
@@ -405,11 +400,14 @@ fn Clip(
 
 #[component]
 fn DropMarker(target: Memo<Option<TimelineDropTarget>>, scale: ReadSignal<f32>) -> CanvasItem {
-    let preview = create_memo(clone!(target scale -> move || {
+    let preview = create_memo(move || {
         let scale = scale.get();
         match target.get()? {
             TimelineDropTarget::Attach {
-                start, lane, length, ..
+                start,
+                lane,
+                length,
+                ..
             }
             | TimelineDropTarget::Offset {
                 start,
@@ -431,13 +429,13 @@ fn DropMarker(target: Memo<Option<TimelineDropTarget>>, scale: ReadSignal<f32>) 
                 ))
             }
         }
-    }));
-    let shown = create_memo(clone!(preview -> move || preview.get().is_some()));
-    let rect = create_memo(clone!(preview -> move || preview.get().unwrap_or(Rect::ZERO)));
-    let x = create_memo(clone!(rect -> move || rect.get().left()));
-    let y = create_memo(clone!(rect -> move || rect.get().top()));
-    let width = create_memo(clone!(rect -> move || rect.get().width()));
-    let height = create_memo(clone!(rect -> move || rect.get().height()));
+    });
+    let shown = create_memo(move || preview.get().is_some());
+    let rect = create_memo(move || preview.get().unwrap_or(Rect::ZERO));
+    let x = create_memo(move || rect.get().left());
+    let y = create_memo(move || rect.get().top());
+    let width = create_memo(move || rect.get().width());
+    let height = create_memo(move || rect.get().height());
     let theme = use_theme();
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
@@ -456,17 +454,17 @@ fn DropMarker(target: Memo<Option<TimelineDropTarget>>, scale: ReadSignal<f32>) 
 #[component]
 fn TrimHandle(state: Rc<VideoState>, row: Lane, scale: ReadSignal<f32>) -> NodeId {
     let clips = state.clips;
-    let length_of = clone!(clips -> move || {
+    let length_of = move || {
         clips
             .get_untracked()
             .into_iter()
             .find(|clip| clip.id == row.id)
-    });
+    };
     let grabbed = Rc::new(Cell::new(None::<(f32, u64)>));
     let held = Rc::clone(&grabbed);
-    let pressed = clone!(length_of -> move |press: PointerPress| {
+    let pressed = move |press: PointerPress| {
         held.set(length_of().map(|clip| (press.pos.x, clip.length)));
-    });
+    };
     view! {
         <Interactive
             cursor=CursorIcon::ResizeHorizontal
@@ -491,7 +489,7 @@ fn TrimHandle(state: Rc<VideoState>, row: Lane, scale: ReadSignal<f32>) -> NodeI
     }
 }
 
-fn land(landing: &VideoState, target: &Memo<Option<TimelineDropTarget>>, dragged: Option<Drag>) {
+fn land(landing: &VideoState, target: Memo<Option<TimelineDropTarget>>, dragged: Option<Drag>) {
     let Some(dragged) = dragged.filter(|drag| drag.block_id != landing.block_id()) else {
         return;
     };

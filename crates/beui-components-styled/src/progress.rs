@@ -3,7 +3,7 @@ use beui_macros::{component, view};
 
 use crate::theme::use_theme;
 use beui_core::node::NodeId;
-use beui_view::reactive::{Align, Frame, Prop, clone, component_accessibility, create_memo};
+use beui_view::reactive::{Align, Frame, Prop, component_accessibility, create_memo};
 
 const HEIGHT: f32 = 6.0;
 const RADIUS: u8 = 3;
@@ -13,8 +13,8 @@ pub fn Progress(value: Prop<f32>, #[prop(default = String::new())] label: Prop<S
     let value = value.map(|value| value.clamp(0.0, 1.0));
     let value_read = create_memo(move || value.get());
 
-    let filled = create_memo(clone!(value_read -> move || Some(value_read.get())));
-    component_accessibility(create_memo(clone!(value_read -> move || {
+    let filled = create_memo(move || Some(value_read.get()));
+    component_accessibility(create_memo(move || {
         let value = value_read.get();
         let mut node = Node::new(Role::ProgressIndicator);
         let label = label.get();
@@ -25,7 +25,7 @@ pub fn Progress(value: Prop<f32>, #[prop(default = String::new())] label: Prop<S
         node.set_min_numeric_value(0.0);
         node.set_max_numeric_value(1.0);
         node
-    })));
+    }));
     let theme = use_theme();
 
     view! {

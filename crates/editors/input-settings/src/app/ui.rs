@@ -35,8 +35,7 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
     let devices = editor.host_value::<InputDevices>();
     let root = settings.project(|content| content.root());
     let inherited = editor.inherited_settings::<InputSettings>();
-    let effective =
-        create_memo(clone!(root inherited -> move || root.get().over(&inherited.get())));
+    let effective = create_memo(move || root.get().over(&inherited.get()));
     let layout = settings.project(|content| content.root().keyboard_layout);
     let variant = settings.project(|content| content.root().keyboard_variant);
     let options = settings.project(|content| content.root().keyboard_options);
@@ -52,23 +51,20 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
             .repeat_rate
             .map(|rate| rate.per_second() as f32)
     });
-    let delay_value = create_memo(clone!(delay effective -> move || {
-        delay.get().unwrap_or(effective.get().repeat_delay() as f32)
-    }));
-    let delay_shown =
-        create_memo(clone!(delay_value -> move || format!("{} ms", delay_value.get())));
+    let delay_value =
+        create_memo(move || delay.get().unwrap_or(effective.get().repeat_delay() as f32));
+    let delay_shown = create_memo(move || format!("{} ms", delay_value.get()));
     let delay_unset = create_memo(move || delay.get().is_none());
-    let rate_value = create_memo(clone!(rate effective -> move || {
-        rate.get().unwrap_or(effective.get().repeat_rate() as f32)
-    }));
-    let rate_shown = create_memo(clone!(rate_value -> move || format!("{} / s", rate_value.get())));
+    let rate_value =
+        create_memo(move || rate.get().unwrap_or(effective.get().repeat_rate() as f32));
+    let rate_shown = create_memo(move || format!("{} / s", rate_value.get()));
     let rate_unset = create_memo(move || rate.get().is_none());
     let (set_layout, set_variant, set_options) =
         (settings.clone(), settings.clone(), settings.clone());
     let (set_delay, set_rate) = (settings.clone(), settings.clone());
     let pointers_off = read_only;
     let paste = settings.project(|content| content.root().middle_click_paste);
-    let paste_on = create_memo(clone!(effective -> move || effective.get().middle_click_paste()));
+    let paste_on = create_memo(move || effective.get().middle_click_paste());
     let paste_unset = create_memo(move || paste.get().is_none());
     let set_paste = settings.clone();
     let paste_off = read_only;
@@ -84,7 +80,7 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
                             <TextSetting
                                 label="Layout"
                                 value={create_memo(move || layout.get())}
-                                inherited={create_memo(clone!(inherited -> move || inherited.get().keyboard_layout))}
+                                inherited={create_memo(move || inherited.get().keyboard_layout)}
                                 read_only={read_only}
                                 id="layout"
                                 on_change={move |layout: Option<String>| {
@@ -94,7 +90,7 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
                             <TextSetting
                                 label="Variant"
                                 value={create_memo(move || variant.get())}
-                                inherited={create_memo(clone!(inherited -> move || inherited.get().keyboard_variant))}
+                                inherited={create_memo(move || inherited.get().keyboard_variant)}
                                 read_only={read_only}
                                 id="variant"
                                 on_change={move |variant: Option<String>| {
@@ -242,42 +238,54 @@ fn Pointers(
     devices: Memo<Vec<HostInputDevice>>,
     read_only: Memo<bool>,
 ) -> NodeId {
-    let keys = create_memo(clone!(devices -> move || {
+    let keys = create_memo(move || {
         devices.with(|devices| devices.iter().map(device_key).collect::<Vec<DeviceKey>>())
-    }));
-    let none = create_memo(clone!(devices -> move || devices.with(Vec::is_empty)));
+    });
+    let none = create_memo(move || devices.with(Vec::is_empty));
     let (chosen, choose) = create_signal(None::<DeviceKey>);
-    let scope = create_memo(clone!(keys -> move || {
-        chosen.get().filter(|key| keys.with(|keys| keys.contains(key)))
-    }));
-    let selected = create_memo(clone!(keys scope -> move || {
+    let scope = create_memo(move || {
+        chosen
+            .get()
+            .filter(|key| keys.with(|keys| keys.contains(key)))
+    });
+    let selected = create_memo(move || {
         let index = scope
             .get()
             .and_then(|key| keys.with(|keys| keys.iter().position(|known| *known == key)));
         Some(index.map_or(0, |index| index + 1))
-    }));
+    });
     let picked = keys;
-    let apply: Apply = Rc::new(clone!(root scope -> move |setting: PointerSetting| {
+    let apply: Apply = Rc::new(move |setting: PointerSetting| {
         let root = root.get_untracked();
         let edit = match scope.get_untracked() {
             None => root.set_every_pointer(setting),
             Some(key) => root.set_device_pointer(&identity(&key), setting),
         };
         settings.operate(edit);
-    }));
+    });
     let state = |get: fn(&PointerSettings) -> Option<bool>,
                  default: fn(&HostInputDevice) -> Option<bool>| {
-        create_memo(clone!(root effective devices scope -> move || {
+        create_memo(move || {
             let (root, effective) = (root.get(), effective.get());
-            devices.with(|devices| field_state(&root, &effective, devices, scope.get().as_ref(), get, default, false))
-        }))
+            devices.with(|devices| {
+                field_state(
+                    &root,
+                    &effective,
+                    devices,
+                    scope.get().as_ref(),
+                    get,
+                    default,
+                    false,
+                )
+            })
+        })
     };
     let tap = state(|pointer| pointer.tap_to_click, |device| device.tap_to_click);
     let natural = state(
         |pointer| pointer.natural_scroll,
         |device| device.natural_scroll,
     );
-    let speed = create_memo(clone!(root effective devices scope -> move || {
+    let speed = create_memo(move || {
         let (root, effective) = (root.get(), effective.get());
         devices.with(|devices| {
             field_state(
@@ -290,13 +298,13 @@ fn Pointers(
                 0.0,
             )
         })
-    }));
-    let speed_value = create_memo(clone!(speed -> move || speed.get().value));
-    let speed_shown = create_memo(clone!(speed -> move || match speed.get() {
+    });
+    let speed_value = create_memo(move || speed.get().value);
+    let speed_shown = create_memo(move || match speed.get() {
         FieldState { mixed: true, .. } => "Mixed".to_owned(),
         state => format!("{:+.2}", state.value),
-    }));
-    let speed_unset = create_memo(clone!(speed -> move || !speed.get().set));
+    });
+    let speed_unset = create_memo(move || !speed.get().set);
     let has_speed = create_memo(move || speed.get().supported);
     let (tap_on, tap_mixed, tap_unset, has_tap) = switch_state(tap);
     let (natural_on, natural_mixed, natural_unset, has_natural) = switch_state(natural);
@@ -374,9 +382,9 @@ fn Pointers(
 
 fn switch_state(state: Memo<FieldState<bool>>) -> (Memo<bool>, Memo<bool>, Memo<bool>, Memo<bool>) {
     (
-        create_memo(clone!(state -> move || state.get().value)),
-        create_memo(clone!(state -> move || state.get().mixed)),
-        create_memo(clone!(state -> move || !state.get().set)),
+        create_memo(move || state.get().value),
+        create_memo(move || state.get().mixed),
+        create_memo(move || !state.get().set),
         create_memo(move || state.get().supported),
     )
 }
@@ -409,7 +417,7 @@ fn TextSetting(
     id: &'static str,
     on_change: Callback<Option<String>>,
 ) -> NodeId {
-    let shown = create_memo(clone!(value -> move || value.get().unwrap_or_default()));
+    let shown = create_memo(move || value.get().unwrap_or_default());
     let unset = create_memo(move || value.get().is_none());
     let typed = on_change.clone();
     let echoed = shown;

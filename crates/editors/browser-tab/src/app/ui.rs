@@ -19,20 +19,18 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
     let back = session.back();
     let forward = session.forward();
 
-    let no_back = create_memo(clone!(back -> move || back.get().is_none()));
-    let no_forward = create_memo(clone!(forward -> move || forward.get().is_none()));
-    let failed = create_memo(clone!(error -> move || error.get().is_some()));
-    let reason = create_memo(clone!(error -> move || error.get().unwrap_or_default()));
-    let page = create_memo(clone!(failed -> move || {
-        (!failed.get()).then_some(SubregionContent::WebView(PAGE))
-    }));
+    let no_back = create_memo(move || back.get().is_none());
+    let no_forward = create_memo(move || forward.get().is_none());
+    let failed = create_memo(move || error.get().is_some());
+    let reason = create_memo(move || error.get().unwrap_or_default());
+    let page = create_memo(move || (!failed.get()).then_some(SubregionContent::WebView(PAGE)));
 
-    let go_back = clone!(session back -> move || {
+    let go_back = clone!(session -> move || {
         if let Some(index) = back.get_untracked() {
             session.go(index);
         }
     });
-    let go_forward = clone!(session forward -> move || {
+    let go_forward = clone!(session -> move || {
         if let Some(index) = forward.get_untracked() {
             session.go(index);
         }
@@ -40,7 +38,7 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
     let reload = clone!(session -> move || session.reload());
     let typed = clone!(session -> move |value: String| session.set_address(value));
     let submit = clone!(session -> move |value: String| session.navigate(&value));
-    let navigate = clone!(session address -> move || session.navigate(&address.get_untracked()));
+    let navigate = clone!(session -> move || session.navigate(&address.get_untracked()));
     let focus_app = clone!(session -> move |focused: bool| {
         if focused {
             session.focus_app();

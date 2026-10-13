@@ -49,7 +49,7 @@ fn scrolled(gesture: ScrollGesture) -> Option<(i32, bool)> {
 #[component]
 pub(crate) fn TrayItems(editor: Editor) -> NodeId {
     let listed = editor.host_value::<Tray>();
-    let keys = create_memo(clone!(listed -> move || {
+    let keys = create_memo(move || {
         listed.with(|items| {
             items
                 .iter()
@@ -57,7 +57,7 @@ pub(crate) fn TrayItems(editor: Editor) -> NodeId {
                 .map(|item| item.id.clone())
                 .collect::<Vec<_>>()
         })
-    }));
+    });
     view! {
         <List
             direction=Direction::Horizontal
@@ -79,20 +79,20 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
     let item = create_memo(clone!(id -> move || {
         listed.with(|items| items.iter().find(|item| item.id == id).cloned().unwrap_or_default())
     }));
-    let label = create_memo(clone!(item -> move || {
-        item.with(|item| match item.tooltip.is_empty() || item.tooltip == item.title {
-            true => item.title.clone(),
-            false => format!("{}: {}", item.title, item.tooltip),
-        })
-    }));
-    let icon = create_memo(clone!(item -> move || item.with(|item| item.icon.clone())));
+    let label = create_memo(move || {
+        item.with(
+            |item| match item.tooltip.is_empty() || item.tooltip == item.title {
+                true => item.title.clone(),
+                false => format!("{}: {}", item.title, item.tooltip),
+            },
+        )
+    });
+    let icon = create_memo(move || item.with(|item| item.icon.clone()));
     let image = create_memo(move || icon.with(|icon| icon.as_ref().and_then(picture)));
-    let entries = create_memo(clone!(item -> move || item.with(|item| item.menu.clone())));
-    let has_menu =
-        create_memo(clone!(entries -> move || entries.with(|entries| !entries.is_empty())));
-    let item_is_menu = create_memo(clone!(item -> move || item.with(|item| item.item_is_menu)));
-    let click_opens =
-        create_memo(clone!(has_menu item_is_menu -> move || item_is_menu.get() && has_menu.get()));
+    let entries = create_memo(move || item.with(|item| item.menu.clone()));
+    let has_menu = create_memo(move || entries.with(|entries| !entries.is_empty()));
+    let item_is_menu = create_memo(move || item.with(|item| item.item_is_menu));
+    let click_opens = create_memo(move || item_is_menu.get() && has_menu.get());
     let request = {
         let (editor, id) = (editor.clone(), id.clone());
         move |request: fn(String) -> TrayRequest| editor.act(request(id.clone()))
@@ -149,7 +149,7 @@ fn TrayEntries(
     chosen: Chosen,
     prefix: String,
 ) -> DynamicSegment<MenuItem> {
-    let keys = create_memo(clone!(entries -> move || {
+    let keys = create_memo(move || {
         entries.with(|entries| {
             entries
                 .iter()
@@ -157,7 +157,7 @@ fn TrayEntries(
                 .map(|entry| entry.id)
                 .collect::<Vec<i32>>()
         })
-    }));
+    });
     view! {
         <ForEach keys>
             {move |id: i32| view! {
@@ -174,7 +174,7 @@ fn TrayEntry(
     chosen: Chosen,
     prefix: String,
 ) -> MenuItem {
-    let entry = create_memo(clone!(entries -> move || {
+    let entry = create_memo(move || {
         entries.with(|entries| {
             entries
                 .iter()
@@ -182,7 +182,7 @@ fn TrayEntry(
                 .cloned()
                 .unwrap_or_default()
         })
-    }));
+    });
     let separated = create_memo(move || {
         entries.with(|entries| {
             let Some(at) = entries
@@ -196,11 +196,9 @@ fn TrayEntry(
                 && before.iter().any(|entry| !entry.separator)
         })
     });
-    let label = create_memo(clone!(entry -> move || entry.with(|entry| entry.label.clone())));
-    let glyph = create_memo(
-        clone!(entry -> move || entry.with(|entry| toggle_glyph(entry.toggle).to_owned())),
-    );
-    let disabled = create_memo(clone!(entry -> move || entry.with(|entry| !entry.enabled)));
+    let label = create_memo(move || entry.with(|entry| entry.label.clone()));
+    let glyph = create_memo(move || entry.with(|entry| toggle_glyph(entry.toggle).to_owned()));
+    let disabled = create_memo(move || entry.with(|entry| !entry.enabled));
     let children = create_memo(move || entry.with(|entry| entry.children.clone()));
     let row_test_id = format!("{prefix}.{id}");
     let choose = chosen.clone();

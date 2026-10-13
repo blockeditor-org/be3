@@ -10,7 +10,7 @@ use beui_components_unstyled::{Toggle, ToggleHandle};
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Callback, Direction, Frame, ItemSize, List, Prop, Show, Text, clone, create_memo,
+    Align, Callback, Direction, Frame, ItemSize, List, Prop, Show, Text, create_memo,
 };
 
 const BOX_SIZE: f32 = 18.0;
@@ -59,17 +59,16 @@ fn CheckboxFace(handle: ToggleHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let fill_color = create_memo(clone!(checked theme disabled -> move || {
-        box_fill(&theme, disabled.get(), checked.get(), hovered.get())
-    }));
-    let border_visible = create_memo(clone!(checked -> move || !checked.get()));
+    let fill_color =
+        create_memo(move || box_fill(&theme, disabled.get(), checked.get(), hovered.get()));
+    let border_visible = create_memo(move || !checked.get());
     let box_border = theme.border;
     let mark_color = theme.on_accent;
-    let labeled = create_memo(clone!(label -> move || !label.get().is_empty()));
-    let label_color = create_memo(clone!(theme disabled -> move || match disabled.get() {
+    let labeled = create_memo(move || !label.get().is_empty());
+    let label_color = create_memo(move || match disabled.get() {
         true => theme.text_muted.get(),
         false => theme.text.get(),
-    }));
+    });
 
     view! {
         <FocusRing focused offset=FOCUS_RING_OFFSET>
@@ -94,7 +93,7 @@ fn CheckboxFace(handle: ToggleHandle) -> NodeId {
                     />
                 </Frame>
                 <Show condition={labeled}>
-                    {move || clone!(label label_color -> view! {
+                    {move || view! {
                         <Text
                             @sizing=ItemSize::Percent(100.0)
                             string={label}
@@ -102,7 +101,7 @@ fn CheckboxFace(handle: ToggleHandle) -> NodeId {
                             color={label_color}
                             align=TextAlign::Start
                         />
-                    })}
+                    }}
                 </Show>
             </List>
         </FocusRing>

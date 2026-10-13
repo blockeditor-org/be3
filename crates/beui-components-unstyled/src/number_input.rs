@@ -81,7 +81,7 @@ pub fn NumberInput(
     let (hovered, set_hovered) = create_signal(false);
     let (active, set_active) = create_signal(false);
     let (focused, set_focused) = create_signal(false);
-    create_effect(clone!(value text set_text -> move || {
+    create_effect(clone!(value -> move || {
         let next = value.get();
         let held = text.get_untracked();
         if parse(&held) != Some(next) {
@@ -89,14 +89,12 @@ pub fn NumberInput(
         }
     }));
     let off = create_memo(move || disabled.get());
-    let idle = create_memo(clone!(editing -> move || !editing.get()));
-    let cursor = create_memo(clone!(off -> move || {
-        match drag != NumberDrag::Off && !off.get() {
-            true => CursorIcon::ResizeHorizontal,
-            false => CursorIcon::Default,
-        }
-    }));
-    let accessibility = create_memo(clone!(text off -> move || {
+    let idle = create_memo(move || !editing.get());
+    let cursor = create_memo(move || match drag != NumberDrag::Off && !off.get() {
+        true => CursorIcon::ResizeHorizontal,
+        false => CursorIcon::Default,
+    });
+    let accessibility = create_memo(move || {
         let mut node = Node::new(Role::SpinButton);
         let label = label.get();
         if !label.is_empty() {
@@ -107,18 +105,18 @@ pub fn NumberInput(
             node.set_disabled();
         }
         node
-    }));
+    });
     component_accessibility(accessibility);
 
     let held: Rc<Cell<Option<(Pos2, f64, bool)>>> = Rc::default();
-    let pressed = clone!(held value off -> move |press: PointerPress| {
+    let pressed = clone!(held value -> move |press: PointerPress| {
         if off.get_untracked() {
             return;
         }
         held.set(Some((press.pos, value.peek(), false)));
     });
     let changed = on_change.clone();
-    let dragged = clone!(held set_text -> move |at: PointerPress| {
+    let dragged = clone!(held -> move |at: PointerPress| {
         let Some((origin, start, moved)) = held.get() else {
             return;
         };
@@ -134,12 +132,12 @@ pub fn NumberInput(
         set_text.set(format_number(next));
         changed.call(next);
     });
-    let open = clone!(off set_editing -> move || {
+    let open = move || {
         if !off.get_untracked() {
             set_editing.set(true);
         }
-    });
-    let clicked = clone!(held open -> move || {
+    };
+    let clicked = clone!(held -> move || {
         if let Some((_, _, moved)) = held.take()
             && !moved
         {
@@ -148,14 +146,14 @@ pub fn NumberInput(
     });
 
     let previewed = on_preview.clone();
-    let edited = clone!(set_text editing -> move |typed: String| {
+    let edited = move |typed: String| {
         if !editing.get_untracked() {
             return;
         }
         set_text.set(typed.clone());
         previewed.call(parse(&typed).map(|parsed| parsed.clamp(min, max)));
-    });
-    let finish = clone!(value text set_text editing set_editing -> move |keep: bool| {
+    };
+    let finish = clone!(value -> move |keep: bool| {
         if !editing.get_untracked() {
             return;
         }
@@ -173,7 +171,7 @@ pub fn NumberInput(
         }
         on_preview.call(None);
     });
-    let submitted = clone!(finish set_refocus -> move |_: String| {
+    let submitted = clone!(finish -> move |_: String| {
         set_refocus.set(true);
         finish(true);
     });
@@ -185,7 +183,7 @@ pub fn NumberInput(
     on_key(
         KeyAt::Node(component_node()),
         KeyPhase::Bubble,
-        clone!(editing set_refocus finish -> move |event: KeyEvent| {
+        clone!(finish -> move |event: KeyEvent| {
             let escaped = event.press().is_some_and(|press| press.pressed && press.key == Key::Escape);
             if !escaped || !editing.get_untracked() {
                 return false;

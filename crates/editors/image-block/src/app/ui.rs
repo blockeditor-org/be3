@@ -15,10 +15,10 @@ use super::{filter, imported};
 pub fn ImageEditor(editor: Editor) -> NodeId {
     let block = editor.block_content::<ImageContent>();
     let shown = watch(&editor, &block);
-    let image = create_memo(clone!(shown -> move || shown.get().image));
+    let image = create_memo(move || shown.get().image);
     let placeholder = thumbhash(&editor);
-    let failed = create_memo(clone!(shown -> move || shown.get().error.is_some()));
-    let reason = create_memo(clone!(shown -> move || shown.get().error.unwrap_or_default()));
+    let failed = create_memo(move || shown.get().error.is_some());
+    let reason = create_memo(move || shown.get().error.unwrap_or_default());
 
     let chooser = FileChooser::new(filter(), imported);
     let replacing = editor.clone();
@@ -30,16 +30,16 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
 
     let read_only = editor.read_only();
     let busy = chooser.busy();
-    let blocked = create_memo(clone!(read_only busy -> move || read_only.get() || busy.get()));
+    let blocked = create_memo(move || read_only.get() || busy.get());
     let failure = chooser.error();
-    let refused = create_memo(clone!(failure -> move || failure.get().is_some()));
-    let refusal = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
+    let refused = create_memo(move || failure.get().is_some());
+    let refusal = create_memo(move || failure.get().unwrap_or_default());
     let choose = clone!(chooser -> move || chooser.open());
 
     let sized = editor.clone();
-    create_effect(clone!(image -> move || {
+    create_effect(move || {
         sized.set_intrinsic_size(image.get().map(|image| image.size()));
-    }));
+    });
 
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
@@ -89,10 +89,10 @@ fn Artwork(
         <PlacementBuilder>
             {move |placed: ReadSignal<Rect>| {
                 let world = editor.world();
-                let placeholder = create_memo(clone!(thumbhash -> move || {
+                let placeholder = create_memo(move || {
                     thumbhash.get().map(|thumbhash| thumbhash.size())
-                }));
-                let shape = create_memo(clone!(image placeholder world placed -> move || {
+                });
+                let shape = create_memo(move || {
                     let Some(size) = image.get().map(|image| image.size()).or_else(|| placeholder.get()) else {
                         return Rect::ZERO;
                     };
@@ -101,11 +101,11 @@ fn Artwork(
                         Rect::from_min_size(Pos2::ZERO, available.max(Vec2::new(1.0, 1.0))),
                         size,
                     )
-                }));
-                let x = create_memo(clone!(shape -> move || shape.get().left()));
-                let y = create_memo(clone!(shape -> move || shape.get().top()));
-                let width = create_memo(clone!(shape -> move || shape.get().width()));
-                let height = create_memo(clone!(shape -> move || shape.get().height()));
+                });
+                let x = create_memo(move || shape.get().left());
+                let y = create_memo(move || shape.get().top());
+                let width = create_memo(move || shape.get().width());
+                let height = create_memo(move || shape.get().height());
                 view! {
                     <Canvas view={editor.canvas()}>
                         <CanvasItem

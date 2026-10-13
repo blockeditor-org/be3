@@ -130,7 +130,7 @@ fn Sidebar(model: Model) -> NodeId {
         Loaded::Failed(error) => error,
         _ => String::new(),
     }));
-    let failed = create_memo(clone!(error -> move || !error.get().is_empty()));
+    let failed = create_memo(move || !error.get().is_empty());
     let pull_requests = model.pull_requests.clone();
     let visible = create_memo(clone!(model pull_requests -> move || {
         let query = model.query.get().to_lowercase();
@@ -146,9 +146,7 @@ fn Sidebar(model: Model) -> NodeId {
             })
             .collect::<Vec<u64>>()
     }));
-    let empty = create_memo(clone!(visible loading failed -> move || {
-        visible.get().is_empty() && !loading.get() && !failed.get()
-    }));
+    let empty = create_memo(move || visible.get().is_empty() && !loading.get() && !failed.get());
     let empty_text = create_memo(
         clone!(model -> move || match (model.filter.get(), model.query.get().is_empty()) {
             (_, false) => "Nothing matches the filter".to_owned(),
@@ -248,8 +246,8 @@ fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
     let theme = use_theme();
     let number = pull_request.get_untracked().number;
     let selected = model.selection.memo(Some(number));
-    let title = create_memo(clone!(pull_request -> move || pull_request.get().title));
-    let details = create_memo(clone!(pull_request -> move || {
+    let title = create_memo(move || pull_request.get().title);
+    let details = create_memo(move || {
         let pull_request = pull_request.get();
         format!(
             "#{} by {} · updated {}",
@@ -257,15 +255,13 @@ fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
             pull_request.author.login,
             relative(now(), pull_request.updated)
         )
-    }));
-    let state = create_memo(clone!(pull_request -> move || pull_request.get().state));
-    let labels = create_memo(clone!(pull_request -> move || pull_request.get().labels));
-    let checked_out = create_memo(clone!(model pull_request -> move || {
+    });
+    let state = create_memo(move || pull_request.get().state);
+    let labels = create_memo(move || pull_request.get().labels);
+    let checked_out = create_memo(clone!(model -> move || {
         model.current(&pull_request.get())
     }));
-    let has_tags = create_memo(clone!(labels checked_out -> move || {
-        !labels.get().is_empty() || checked_out.get()
-    }));
+    let has_tags = create_memo(move || !labels.get().is_empty() || checked_out.get());
     view! {
         <ListRow selected on_click={move || model.select(number)}>
             <List direction=Direction::Horizontal spacing=8.0>
@@ -285,7 +281,7 @@ fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
 #[component]
 pub(crate) fn StateIcon(state: Memo<State>) -> NodeId {
     let theme = use_theme();
-    let glyph = create_memo(clone!(state -> move || state_glyph(state.get()).to_owned()));
+    let glyph = create_memo(move || state_glyph(state.get()).to_owned());
     let color = create_memo(move || match state.get() {
         State::Open => theme.success.get(),
         State::Draft => theme.text_muted.get(),
@@ -309,7 +305,7 @@ pub(crate) fn state_glyph(state: State) -> &'static str {
 #[component]
 pub(crate) fn Labels(labels: Memo<Vec<Label>>, checked_out: Memo<bool>) -> NodeId {
     let theme = use_theme();
-    let keys = create_memo(clone!(labels -> move || (0..labels.get().len()).collect::<Vec<_>>()));
+    let keys = create_memo(move || (0..labels.get().len()).collect::<Vec<_>>());
     view! {
         <List direction=Direction::Horizontal spacing=6.0>
             <Show condition={checked_out}>
@@ -317,8 +313,8 @@ pub(crate) fn Labels(labels: Memo<Vec<Label>>, checked_out: Memo<bool>) -> NodeI
             </Show>
             <ForEach keys>
                 {move |index: usize| {
-                    let label = create_memo(clone!(labels -> move || labels.get().get(index).cloned()));
-                    let text = create_memo(clone!(label -> move || label.get().map(|label| label.name).unwrap_or_default()));
+                    let label = create_memo(move || labels.get().get(index).cloned());
+                    let text = create_memo(move || label.get().map(|label| label.name).unwrap_or_default());
                     let color = create_memo(move || label.get().map_or(Color32::from_gray(128), |label| label.color));
                     view! {
                         <Chip text color />

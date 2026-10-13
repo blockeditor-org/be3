@@ -7,7 +7,7 @@ use beui_core::icons::ICON_CHEVRON_RIGHT;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Action, Align, ClickCallback, Direction, Frame, ItemSize, List, Prop, ReadSignal, Show, Text,
-    clone, create_memo, focus_ring,
+    create_memo, focus_ring,
 };
 
 const ROW_HEIGHT: f32 = 52.0;
@@ -64,32 +64,26 @@ pub(crate) fn ActionRowFace(
     let theme = use_theme();
     let off = create_memo(move || disabled.get());
     let danger = create_memo(move || danger.get());
-    let fill = create_memo(clone!(theme off -> move || {
-        match (off.get(), active.get(), hovered.get()) {
-            (true, _, _) => beui_core::color::Color32::TRANSPARENT,
-            (false, true, _) => theme.pressed.get(),
-            (false, false, true) => theme.hover.get(),
-            (false, false, false) => beui_core::color::Color32::TRANSPARENT,
-        }
-    }));
-    let text_color = create_memo(clone!(theme off danger -> move || {
-        match (off.get(), danger.get()) {
-            (true, _) => theme.text_muted.get(),
-            (false, true) => theme.danger.get(),
-            (false, false) => theme.text.get(),
-        }
-    }));
-    let icon_color = create_memo(clone!(theme off -> move || {
-        match (off.get(), danger.get()) {
-            (false, true) => theme.danger.get(),
-            _ => theme.text_muted.get(),
-        }
-    }));
+    let fill = create_memo(move || match (off.get(), active.get(), hovered.get()) {
+        (true, _, _) => beui_core::color::Color32::TRANSPARENT,
+        (false, true, _) => theme.pressed.get(),
+        (false, false, true) => theme.hover.get(),
+        (false, false, false) => beui_core::color::Color32::TRANSPARENT,
+    });
+    let text_color = create_memo(move || match (off.get(), danger.get()) {
+        (true, _) => theme.text_muted.get(),
+        (false, true) => theme.danger.get(),
+        (false, false) => theme.text.get(),
+    });
+    let icon_color = create_memo(move || match (off.get(), danger.get()) {
+        (false, true) => theme.danger.get(),
+        _ => theme.text_muted.get(),
+    });
     let glyph = create_memo(move || glyph.get());
-    let has_glyph = create_memo(clone!(glyph -> move || !glyph.get().is_empty()));
+    let has_glyph = create_memo(move || !glyph.get().is_empty());
     let detail = create_memo(move || detail.get());
     let chevron_color = theme.text_muted;
-    let has_detail = create_memo(clone!(detail -> move || !detail.get().is_empty()));
+    let has_detail = create_memo(move || !detail.get().is_empty());
     view! {
         <Frame
             height=ROW_HEIGHT

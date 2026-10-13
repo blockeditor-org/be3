@@ -7,7 +7,7 @@ use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Action, Callback, Child, ClickCallback, Interactive, Memo, Prop, ReadSignal, Render,
-    action_disabled, action_glyph, action_label, action_tooltip, clone, component_accessibility,
+    action_disabled, action_glyph, action_label, action_tooltip, component_accessibility,
     create_memo, create_signal, set_component_state, untrack,
 };
 
@@ -63,7 +63,7 @@ pub fn Button(
     let glyph = create_memo(move || glyph.get());
     let tooltip = create_memo(move || tooltip.get());
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(role)));
-    component_accessibility(create_memo(clone!(disabled label -> move || {
+    component_accessibility(create_memo(move || {
         let mut node = accessibility.get();
         if node.label().is_none() && !label.get().is_empty() {
             node.set_label(label.get());
@@ -74,7 +74,7 @@ pub fn Button(
             node.clear_disabled();
         }
         node
-    })));
+    }));
 
     let content_node = match content {
         Some(build) => Some(build.call(ButtonHandle {

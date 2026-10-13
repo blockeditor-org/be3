@@ -697,7 +697,7 @@ use crate::inspector::{Inspector, InspectorTools};
 use crate::mouse_simulation::MouseSimulation;
 use crate::reactive::{
     Canvas, CanvasItem, ClickCallback, ForEach, Frame, List, NodeRef, Offset, Spacer, Text,
-    VirtualList, build, clone, create_signal, with_document,
+    VirtualList, build, create_signal, with_document,
 };
 use crate::styled;
 use crate::styled::DocumentTheme;
@@ -1679,7 +1679,7 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
             <styled::Docking @node_ref=&built layout>
                 <unstyled::DockPane id="tabs">
                     <ForEach keys={open}>
-                        {move |id: u64| clone!(set_open -> view! {
+                        {move |id: u64| view! {
                             <unstyled::DockTab
                                 id
                                 title={format!("Tab {id}")}
@@ -1687,7 +1687,7 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
                             >
                                 <Frame @test_id={format!("content.{id}")} />
                             </unstyled::DockTab>
-                        })}
+                        }}
                     </ForEach>
                 </unstyled::DockPane>
             </styled::Docking>

@@ -1,8 +1,7 @@
 use block_editor_beui::be_block::database_schema::DatabaseField;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::{
-    Align, Callback, Child, Direction, ForEach, Frame, List, Memo, clone, component, create_memo,
-    view,
+    Align, Callback, Child, Direction, ForEach, Frame, List, Memo, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::context_menu::menu_style;
 use block_editor_beui::beui::styled::theme::RADIUS;
@@ -22,7 +21,7 @@ pub fn ControlFace(handle: ButtonHandle, children: Child) -> NodeId {
         focused,
         ..
     } = handle;
-    let fill = create_memo(clone!(theme -> move || {
+    let fill = create_memo(move || {
         if active.get() {
             theme.pressed.get()
         } else if hovered.get() {
@@ -30,7 +29,7 @@ pub fn ControlFace(handle: ButtonHandle, children: Child) -> NodeId {
         } else {
             block_editor_beui::beui::Color32::TRANSPARENT
         }
-    }));
+    });
     view! {
         <Frame
             color={fill}
@@ -54,33 +53,31 @@ pub fn ChoicePicker(
     picker_id: String,
     on_pick: Callback<Option<Uuid>>,
 ) -> NodeId {
-    let option = create_memo(clone!(field chosen -> move || {
+    let option = create_memo(move || {
         let chosen = chosen.get()?;
         field.with(|field| field.as_ref()?.option(chosen).cloned())
-    }));
-    let label = create_memo(clone!(field option -> move || match option.get() {
+    });
+    let label = create_memo(move || match option.get() {
         Some(option) => option.name,
         None => field.with(|field| {
-            field
-                .as_ref()
-                .map_or_else(String::new, |field| format!("Set {}", field.name.to_lowercase()))
+            field.as_ref().map_or_else(String::new, |field| {
+                format!("Set {}", field.name.to_lowercase())
+            })
         }),
-    }));
+    });
     let theme = use_theme();
-    let color = create_memo(
-        clone!(option theme -> move || match option.with(Option::is_some) {
-            true => theme.text.get(),
-            false => theme.text_muted.get(),
-        }),
-    );
-    let keys = create_memo(clone!(field -> move || {
+    let color = create_memo(move || match option.with(Option::is_some) {
+        true => theme.text.get(),
+        false => theme.text_muted.get(),
+    });
+    let keys = create_memo(move || {
         field.with(|field| {
             field
                 .as_ref()
                 .map(|field| field.enum_options.iter().map(|option| option.id).collect())
                 .unwrap_or_default()
         })
-    }));
+    });
     let options = field;
     let clear = on_pick.clone();
     let clear_id = format!("{picker_id}.clear");
@@ -96,15 +93,15 @@ pub fn ChoicePicker(
                 items={view! {
                     <ForEach keys={keys}>
                         {move |id: Uuid| {
-                            let shown = create_memo(clone!(options -> move || {
+                            let shown = create_memo(move || {
                                 options.with(|field| field.as_ref()?.option(id).cloned())
-                            }));
-                            let name = create_memo(clone!(shown -> move || {
+                            });
+                            let name = create_memo(move || {
                                 shown.with(|shown| shown.as_ref().map(|shown| shown.name.clone()).unwrap_or_default())
-                            }));
-                            let glyph = create_memo(clone!(shown -> move || {
+                            });
+                            let glyph = create_memo(move || {
                                 shown.with(|shown| shown.as_ref().map(|shown| choice_glyph(shown.icon)).unwrap_or_default()).to_owned()
-                            }));
+                            });
                             let pick = on_pick.clone();
                             view! {
                                 <MenuItem

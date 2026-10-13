@@ -36,7 +36,7 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
     let (expanded, set_expanded) = create_signal(None::<ChallengeId>);
 
     let sized = editor.clone();
-    create_effect(clone!(levels expanded -> move || {
+    create_effect(move || {
         let open = expanded.get();
         let rows = levels.with(|levels| {
             levels.len()
@@ -54,14 +54,19 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
             INTRINSIC_WIDTH,
             CHROME_HEIGHT + ROW_HEIGHT * rows as f32 + quiz,
         )));
-    }));
+    });
 
-    let has_hotbar = create_memo(clone!(hotbar -> move || hotbar.get().is_some()));
+    let has_hotbar = create_memo(move || hotbar.get().is_some());
     let open_hotbar = clone!(game -> move || game.open_hotbar());
-    let keys = create_memo(clone!(levels -> move || {
-        levels.with(|levels| levels.iter().map(|level| level.challenge).collect::<Vec<_>>())
-    }));
-    let open = create_selector(clone!(expanded -> move || expanded.get()));
+    let keys = create_memo(move || {
+        levels.with(|levels| {
+            levels
+                .iter()
+                .map(|level| level.challenge)
+                .collect::<Vec<_>>()
+        })
+    });
+    let open = create_selector(move || expanded.get());
 
     let content = NodeRef::new();
     editor.content(&content);
@@ -88,10 +93,10 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
                                 {move |challenge: ChallengeId| {
                                     let level = level_of(levels, challenge);
                                     let here = open.memo(Some(challenge));
-                                    let toggle = clone!(expanded set_expanded -> move || {
+                                    let toggle = move || {
                                         let shown = expanded.get_untracked() == Some(challenge);
                                         set_expanded.set((!shown).then_some(challenge));
-                                    });
+                                    };
                                     view! {
                                         <LevelRow
                                             editor={editor.clone()}
@@ -123,16 +128,14 @@ fn LevelRow(
     expanded: Memo<bool>,
     on_toggle: ClickCallback,
 ) -> NodeId {
-    let completed = create_memo(clone!(level -> move || {
-        level.get().is_some_and(|level| level.completed)
-    }));
-    let attempts = create_memo(clone!(level -> move || {
+    let completed = create_memo(move || level.get().is_some_and(|level| level.completed));
+    let attempts = create_memo(move || {
         let count = level.get().map_or(0, |level| level.solutions.len());
         format!("{count} attempts")
-    }));
+    });
     let quiz = challenge == ChallengeId::BinaryAddition;
-    let shows_quiz = create_memo(clone!(expanded -> move || expanded.get() && quiz));
-    let shows_solutions = create_memo(clone!(expanded -> move || expanded.get() && !quiz));
+    let shows_quiz = create_memo(move || expanded.get() && quiz);
+    let shows_solutions = create_memo(move || expanded.get() && !quiz);
     let goal = generate_challenge(challenge).goal;
     let solving = editor.clone();
     let theme = use_theme();
@@ -154,7 +157,7 @@ fn LevelRow(
                 </List>
             </ListRow>
             <Show condition={expanded}>
-                {move || clone!(block editor game goal level shows_quiz shows_solutions solving -> view! {
+                {move || clone!(block editor game goal solving -> view! {
                     <Frame padding_left=INDENT>
                         <List spacing=ROW_SPACING>
                             <Caption content={goal} wrap=true />
@@ -185,12 +188,16 @@ fn Solutions(
     level: Memo<Option<Level>>,
 ) -> NodeId {
     let read_only = editor.read_only();
-    let keys = create_memo(clone!(level -> move || {
+    let keys = create_memo(move || {
         level.get().map_or_else(Vec::new, |level| {
-            level.solutions.iter().map(|solution| solution.reference).collect::<Vec<Uuid>>()
+            level
+                .solutions
+                .iter()
+                .map(|solution| solution.reference)
+                .collect::<Vec<Uuid>>()
         })
-    }));
-    let start = clone!(game level -> move || {
+    });
+    let start = clone!(game -> move || {
         let index = level.get_untracked().map_or(0, |level| level.solutions.len());
         game.start(challenge, index);
     });
@@ -231,16 +238,15 @@ fn SolutionRow(
     reference: Uuid,
     solution: Memo<Option<Solution>>,
 ) -> NodeId {
-    let name = create_memo(clone!(solution -> move || {
-        solution.get().map(|solution| solution.name).unwrap_or_default()
-    }));
-    let missing = create_memo(clone!(solution -> move || {
-        solution.get().is_none_or(|solution| solution.id.is_none())
-    }));
-    let passed = create_memo(clone!(solution -> move || {
-        solution.get().is_some_and(|solution| solution.completed)
-    }));
-    let open = clone!(game solution -> move || {
+    let name = create_memo(move || {
+        solution
+            .get()
+            .map(|solution| solution.name)
+            .unwrap_or_default()
+    });
+    let missing = create_memo(move || solution.get().is_none_or(|solution| solution.id.is_none()));
+    let passed = create_memo(move || solution.get().is_some_and(|solution| solution.completed));
+    let open = clone!(game -> move || {
         if let Some(id) = solution.get_untracked().and_then(|solution| solution.id) {
             game.open_solution(id);
         }

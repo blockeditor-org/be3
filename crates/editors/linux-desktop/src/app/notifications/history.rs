@@ -4,8 +4,8 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::datetime::{HourCycle, Time};
 use block_editor_beui::beui::icons::{ICON_CLOSE, ICON_NOTIFICATIONS, ICON_NOTIFICATIONS_ACTIVE};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, ItemSize, List, Memo, Show, Spacer, Text, clone, component,
-    create_memo, view,
+    Align, Direction, ForEach, ItemSize, List, Memo, Show, Spacer, Text, component, create_memo,
+    view,
 };
 use block_editor_beui::beui::styled::theme::{FONT_BODY, FONT_SMALL};
 use block_editor_beui::beui::styled::{
@@ -31,18 +31,14 @@ fn received_at(received: u64) -> String {
 pub(crate) fn NotificationsButton(notifications: DesktopNotifications) -> NodeId {
     let listed = notifications.listed();
     let browsing = notifications.clone();
-    let glyph = create_memo(clone!(listed -> move || {
-        match listed.with(Vec::is_empty) {
-            true => ICON_NOTIFICATIONS.to_owned(),
-            false => ICON_NOTIFICATIONS_ACTIVE.to_owned(),
-        }
-    }));
-    let label = create_memo(clone!(listed -> move || {
-        match listed.with(Vec::len) {
-            0 => "Notifications".to_owned(),
-            count => format!("Notifications ({count})"),
-        }
-    }));
+    let glyph = create_memo(move || match listed.with(Vec::is_empty) {
+        true => ICON_NOTIFICATIONS.to_owned(),
+        false => ICON_NOTIFICATIONS_ACTIVE.to_owned(),
+    });
+    let label = create_memo(move || match listed.with(Vec::len) {
+        0 => "Notifications".to_owned(),
+        count => format!("Notifications ({count})"),
+    });
     view! {
         <BarPopup
             label
@@ -69,9 +65,9 @@ fn NotificationList(
     listed: Memo<Vec<Listed>>,
     popover: PopoverHandle,
 ) -> NodeId {
-    let empty = create_memo(clone!(listed -> move || listed.with(Vec::is_empty)));
+    let empty = create_memo(move || listed.with(Vec::is_empty));
     let unclearable = empty;
-    let some = create_memo(clone!(empty -> move || !empty.get()));
+    let some = create_memo(move || !empty.get());
     let clearing = notifications.clone();
     let cleared = listed;
     let clear = move || {

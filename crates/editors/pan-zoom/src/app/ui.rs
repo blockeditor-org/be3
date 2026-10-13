@@ -102,8 +102,8 @@ pub fn PanZoom(editor: Editor) -> NodeId {
     editor.content(&stage);
 
     let chrome = editor.chrome_shown();
-    let panel_shown = create_memo(clone!(chrome open -> move || chrome.get() && open.get()));
-    let rail_shown = create_memo(clone!(chrome open -> move || chrome.get() && !open.get()));
+    let panel_shown = create_memo(move || chrome.get() && open.get());
+    let rail_shown = create_memo(move || chrome.get() && !open.get());
     let panel = (editor.clone(), selected, set_selected, set_open);
     let rail_open = set_open;
 
@@ -146,15 +146,15 @@ fn Sidebar(
 ) -> NodeId {
     let theme = use_theme();
     let scale = editor.scale();
-    let readout = create_memo(clone!(scale -> move || format!("Zoom {:.0}%", scale.get() * 100.0)));
-    let chosen = create_memo(clone!(selected -> move || match selected.get() {
+    let readout = create_memo(move || format!("Zoom {:.0}%", scale.get() * 100.0));
+    let chosen = create_memo(move || match selected.get() {
         Some(index) => format!("Selected {}", CARDS[index].name),
         None => "Nothing selected".to_owned(),
-    }));
+    });
     let zoom_out = clone!(editor -> move || editor.zoom(1.0 / ZOOM_STEP));
     let zoom_in = clone!(editor -> move || editor.zoom(ZOOM_STEP));
     let fit = clone!(editor -> move || editor.fit());
-    let hide = clone!(set_open -> move || set_open.set(false));
+    let hide = move || set_open.set(false);
     view! {
         <Frame
             color={theme.surface}
@@ -240,7 +240,7 @@ fn FocusRow(editor: Editor, index: usize, set_selected: WriteSignal<Option<usize
 #[component]
 fn Rail(set_open: WriteSignal<bool>) -> NodeId {
     let theme = use_theme();
-    let show = clone!(set_open -> move || set_open.set(true));
+    let show = move || set_open.set(true);
     view! {
         <Frame color={theme.surface} padding_horizontal=6.0 padding_vertical=PANEL_PADDING>
             <List spacing=0.0>
@@ -286,21 +286,21 @@ fn CardView(
 ) -> CanvasItem {
     let card: &'static Card = &CARDS[index];
     let theme = use_theme();
-    let chosen = create_memo(clone!(selected -> move || selected.get() == Some(index)));
+    let chosen = create_memo(move || selected.get() == Some(index));
     let outline = {
-        create_memo(clone!(chosen -> move || match chosen.get() {
+        create_memo(move || match chosen.get() {
             true => theme.get().accent,
             false => theme.get().border,
-        }))
+        })
     };
-    let title_size = scaled(&scale, CARD_TITLE_SIZE);
-    let label_size = scaled(&scale, CARD_LABEL_SIZE);
-    let padding = scaled(&scale, CARD_PADDING);
-    let spacing = scaled(&scale, CARD_SPACING);
-    let radius = create_memo(clone!(scale -> move || (CARD_RADIUS * scale.get()) as u8));
-    let outline_width = scaled(&scale, CARD_OUTLINE);
+    let title_size = scaled(scale, CARD_TITLE_SIZE);
+    let label_size = scaled(scale, CARD_LABEL_SIZE);
+    let padding = scaled(scale, CARD_PADDING);
+    let spacing = scaled(scale, CARD_SPACING);
+    let radius = create_memo(move || (CARD_RADIUS * scale.get()) as u8);
+    let outline_width = scaled(scale, CARD_OUTLINE);
     let position = format!("{:.0}, {:.0}", card.x, card.y);
-    let select = clone!(set_selected -> move || set_selected.set(Some(index)));
+    let select = move || set_selected.set(Some(index));
 
     view! {
         <CanvasItem
@@ -330,6 +330,6 @@ fn CardView(
     }
 }
 
-fn scaled(scale: &ReadSignal<f32>, base: f32) -> block_editor_beui::beui::reactive::Memo<f32> {
-    create_memo(clone!(scale -> move || (base * scale.get()).max(1.0)))
+fn scaled(scale: ReadSignal<f32>, base: f32) -> block_editor_beui::beui::reactive::Memo<f32> {
+    create_memo(move || (base * scale.get()).max(1.0))
 }

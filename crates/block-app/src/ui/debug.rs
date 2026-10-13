@@ -1,7 +1,7 @@
 use beui::NodeId;
 use beui::reactive::{
     Align, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, Show, Text, VirtualList,
-    clone, component, create_memo, on_cleanup, use_context, view,
+    component, create_memo, on_cleanup, use_context, view,
 };
 use beui::styled::{
     Button, ButtonVariant, Caption, Code, Heading, Link, Scroll, Spinner, use_theme,
@@ -163,7 +163,7 @@ const INDENT: f32 = 14.0;
 
 #[component]
 fn LinesView(lines: Memo<Vec<Line>>) -> NodeId {
-    let keys = create_memo(clone!(lines -> move || (0..lines.get().len()).collect::<Vec<_>>()));
+    let keys = create_memo(move || (0..lines.get().len()).collect::<Vec<_>>());
     view! {
         <Scroll>
             <VirtualList keys={keys} item_size=LINE_HEIGHT>
@@ -182,20 +182,21 @@ fn LinesView(lines: Memo<Vec<Line>>) -> NodeId {
 #[component]
 fn LineView(line: Memo<Option<Line>>) -> NodeId {
     let theme = use_theme();
-    let indent = create_memo(clone!(line -> move || {
-        Some(line.get().map_or(0.0, |line| f32::from(line.indent) * INDENT))
-    }));
-    let text =
-        create_memo(clone!(line -> move || line.get().map(|line| line.text).unwrap_or_default()));
-    let style =
-        create_memo(clone!(line -> move || line.get().map_or(LineStyle::Body, |line| line.style)));
-    let color = create_memo(clone!(theme style -> move || match style.get() {
+    let indent = create_memo(move || {
+        Some(
+            line.get()
+                .map_or(0.0, |line| f32::from(line.indent) * INDENT),
+        )
+    });
+    let text = create_memo(move || line.get().map(|line| line.text).unwrap_or_default());
+    let style = create_memo(move || line.get().map_or(LineStyle::Body, |line| line.style));
+    let color = create_memo(move || match style.get() {
         LineStyle::Heading | LineStyle::Body | LineStyle::Code => theme.text.get(),
         LineStyle::Muted => theme.text_muted.get(),
         LineStyle::Error => theme.danger.get(),
-    }));
-    let bold = create_memo(clone!(style -> move || style.get() == LineStyle::Heading));
-    let monospace = create_memo(clone!(style -> move || style.get() == LineStyle::Code));
+    });
+    let bold = create_memo(move || style.get() == LineStyle::Heading);
+    let monospace = create_memo(move || style.get() == LineStyle::Code);
     let size = create_memo(move || match style.get() {
         LineStyle::Heading => 14.0,
         _ => 12.0,
@@ -220,7 +221,7 @@ fn ClientPanel(client: Memo<Option<Vec<Line>>>) -> NodeId {
 #[component]
 fn PerformancePanel(performance: Memo<Option<Vec<PerformanceRow>>>) -> NodeId {
     let rows = create_memo(move || performance.get().unwrap_or_default());
-    let keys = create_memo(clone!(rows -> move || (0..rows.get().len()).collect::<Vec<_>>()));
+    let keys = create_memo(move || (0..rows.get().len()).collect::<Vec<_>>());
     view! {
         <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
             <Scroll>
@@ -297,24 +298,28 @@ fn PerformanceLine(row: Memo<Option<PerformanceRow>>) -> NodeId {
 
 #[component]
 fn PluginsPanel(plugins: Memo<Option<PluginsView>>) -> NodeId {
-    let lines = create_memo(
-        clone!(plugins -> move || plugins.get().map(|plugins| plugins.lines).unwrap_or_default()),
-    );
-    let line_keys =
-        create_memo(clone!(lines -> move || (0..lines.get().len()).collect::<Vec<_>>()));
+    let lines = create_memo(move || {
+        plugins
+            .get()
+            .map(|plugins| plugins.lines)
+            .unwrap_or_default()
+    });
+    let line_keys = create_memo(move || (0..lines.get().len()).collect::<Vec<_>>());
     let runtimes = create_memo(move || {
         plugins
             .get()
             .map(|plugins| plugins.runtimes)
             .unwrap_or_default()
     });
-    let runtime_keys = create_memo(clone!(runtimes -> move || {
-        runtimes.get().into_iter().map(|runtime| runtime.id).collect::<Vec<_>>()
-    }));
-    let idle = create_memo(clone!(runtime_keys -> move || runtime_keys.get().is_empty()));
-    let running = create_memo(
-        clone!(runtime_keys -> move || format!("Running ({})", runtime_keys.get().len())),
-    );
+    let runtime_keys = create_memo(move || {
+        runtimes
+            .get()
+            .into_iter()
+            .map(|runtime| runtime.id)
+            .collect::<Vec<_>>()
+    });
+    let idle = create_memo(move || runtime_keys.get().is_empty());
+    let running = create_memo(move || format!("Running ({})", runtime_keys.get().len()));
     view! {
         <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
             <Scroll>
@@ -350,16 +355,19 @@ fn PluginsPanel(plugins: Memo<Option<PluginsView>>) -> NodeId {
 
 #[component]
 fn RuntimeBlock(id: String, runtime: Memo<Option<RuntimeView>>) -> NodeId {
-    let state = create_memo(
-        clone!(runtime -> move || runtime.get().map(|runtime| runtime.state).unwrap_or_default()),
-    );
+    let state = create_memo(move || {
+        runtime
+            .get()
+            .map(|runtime| runtime.state)
+            .unwrap_or_default()
+    });
     let lines = create_memo(move || {
         runtime
             .get()
             .map(|runtime| runtime.lines)
             .unwrap_or_default()
     });
-    let keys = create_memo(clone!(lines -> move || (0..lines.get().len()).collect::<Vec<_>>()));
+    let keys = create_memo(move || (0..lines.get().len()).collect::<Vec<_>>());
     let kill = id.clone();
     view! {
         <Frame padding_vertical=6.0>
@@ -389,29 +397,33 @@ fn RuntimeBlock(id: String, runtime: Memo<Option<RuntimeView>>) -> NodeId {
 
 #[component]
 fn VersionPanel(version: Memo<Option<VersionView>>) -> NodeId {
-    let build = create_memo(
-        clone!(version -> move || version.get().map(|version| version.build).unwrap_or_default()),
-    );
-    let can_install = create_memo(
-        clone!(version -> move || version.get().is_some_and(|version| version.can_install)),
-    );
+    let build = create_memo(move || {
+        version
+            .get()
+            .map(|version| version.build)
+            .unwrap_or_default()
+    });
+    let can_install = create_memo(move || version.get().is_some_and(|version| version.can_install));
     let runs = create_memo(move || version.get().map(|version| version.runs));
-    let loading =
-        create_memo(clone!(runs -> move || matches!(runs.get(), Some(VersionRuns::Loading))));
-    let error = create_memo(clone!(runs -> move || match runs.get() {
+    let loading = create_memo(move || matches!(runs.get(), Some(VersionRuns::Loading)));
+    let error = create_memo(move || match runs.get() {
         Some(VersionRuns::Failed(error)) => Some(error),
         _ => None,
-    }));
-    let loaded = create_memo(clone!(runs -> move || match runs.get() {
+    });
+    let loaded = create_memo(move || match runs.get() {
         Some(VersionRuns::Loaded(runs)) => runs,
         _ => Vec::new(),
-    }));
+    });
     let none = create_memo(
-        clone!(runs -> move || matches!(runs.get(), Some(VersionRuns::Loaded(runs)) if runs.is_empty())),
+        move || matches!(runs.get(), Some(VersionRuns::Loaded(runs)) if runs.is_empty()),
     );
-    let keys = create_memo(
-        clone!(loaded -> move || loaded.get().into_iter().map(|run| run.id).collect::<Vec<_>>()),
-    );
+    let keys = create_memo(move || {
+        loaded
+            .get()
+            .into_iter()
+            .map(|run| run.id)
+            .collect::<Vec<_>>()
+    });
     view! {
         <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
             <List spacing=8.0>
@@ -460,11 +472,14 @@ fn RunCard(run: Memo<Option<RunView>>, can_install: Memo<bool>) -> NodeId {
         true => "Installing…".to_owned(),
         false => "Install".to_owned(),
     });
-    let current = create_memo(clone!(run -> move || run.get().is_some_and(|run| run.current)));
-    let cannot_install = create_memo(clone!(run can_install -> move || {
-        !can_install.get() || !run.get().is_some_and(|run| run.succeeded && !run.installing)
-    }));
-    let error = create_memo(clone!(run -> move || run.get().and_then(|run| run.error)));
+    let current = create_memo(move || run.get().is_some_and(|run| run.current));
+    let cannot_install = create_memo(move || {
+        !can_install.get()
+            || !run
+                .get()
+                .is_some_and(|run| run.succeeded && !run.installing)
+    });
+    let error = create_memo(move || run.get().and_then(|run| run.error));
     let install = run;
     view! {
         <Frame padding_vertical=4.0>

@@ -41,7 +41,7 @@ pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let toolbar_chrome = chrome;
     let narrow = narrow_chrome();
-    let header_shown = create_memo(clone!(chrome data narrow -> move || {
+    let header_shown = create_memo(clone!(data -> move || {
         let covered = narrow.get()
             && data.kind.get() != DatabaseViewKind::Spreadsheet
             && data.selected_row().is_some();
@@ -119,8 +119,8 @@ fn Content(data: Data, panels: bool) -> NodeId {
 #[component]
 fn CellEditor(data: Data) -> NodeId {
     let field = selected_field(&data);
-    let chosen = create_memo(clone!(field -> move || field.get().is_some()));
-    let label = create_memo(clone!(data field -> move || {
+    let chosen = create_memo(move || field.get().is_some());
+    let label = create_memo(clone!(data -> move || {
         let (Some(selection), Some(field)) = (data.selected.get(), field.get()) else {
             return "Select a cell".to_owned();
         };
@@ -132,7 +132,7 @@ fn CellEditor(data: Data) -> NodeId {
             None => String::new(),
         }
     }));
-    let fields = create_memo(clone!(field -> move || field.get().into_iter().collect::<Vec<_>>()));
+    let fields = create_memo(move || field.get().into_iter().collect::<Vec<_>>());
     let values = create_memo(clone!(data -> move || {
         let Some(selection) = data.selected.get() else {
             return Default::default();

@@ -63,15 +63,15 @@ const COLOR_PRESETS: [(&str, MapColor); 5] = [
 #[component]
 pub(crate) fn MapSidebar(state: Rc<MapState>) -> NodeId {
     let selected = create_memo(clone!(state -> move || state.selected.get()));
-    let listing = create_memo(clone!(selected -> move || selected.get().is_none()));
-    let chosen = create_memo(clone!(selected -> move || selected.get().is_some()));
+    let listing = create_memo(move || selected.get().is_none());
+    let chosen = create_memo(move || selected.get().is_some());
     let region = Rc::clone(&state);
     let list = Rc::clone(&state);
     let details = Rc::clone(&state);
     let dismiss = Rc::clone(&state);
     let error = state.import_error;
-    let failed = create_memo(clone!(error -> move || error.get().is_some()));
-    let reason = create_memo(clone!(error -> move || error.get().unwrap_or_default()));
+    let failed = create_memo(move || error.get().is_some());
+    let reason = create_memo(move || error.get().unwrap_or_default());
     let theme = use_theme();
 
     view! {
@@ -87,7 +87,7 @@ pub(crate) fn MapSidebar(state: Rc<MapState>) -> NodeId {
                 <PointDetails state={details.clone()} selected={selected} />
             </Show>
             <Show condition={failed}>
-                {move || clone!(dismiss reason theme -> view! {
+                {move || clone!(dismiss -> view! {
                     <List spacing=4.0>
                         <Caption content={reason} color={theme.danger} />
                         <Button
@@ -105,8 +105,8 @@ pub(crate) fn MapSidebar(state: Rc<MapState>) -> NodeId {
 #[component]
 fn RegionInspector(state: Rc<MapState>) -> NodeId {
     let region = state.preview_region;
-    let fixed = create_memo(clone!(region -> move || region.get().is_some()));
-    let loose = create_memo(clone!(fixed -> move || !fixed.get()));
+    let fixed = create_memo(move || region.get().is_some());
+    let loose = create_memo(move || !fixed.get());
     let toggled = Rc::clone(&state);
     let captured = Rc::clone(&state);
     let zoomed = Rc::clone(&state);
@@ -284,11 +284,15 @@ fn Coordinate(
 #[component]
 fn PointList(state: Rc<MapState>) -> NodeId {
     let points = state.points;
-    let ids = create_memo(clone!(points -> move || {
-        points.get().iter().map(|point| point.id).collect::<Vec<Uuid>>()
-    }));
-    let empty = create_memo(clone!(ids -> move || ids.get().is_empty()));
-    let any = create_memo(clone!(empty -> move || !empty.get()));
+    let ids = create_memo(move || {
+        points
+            .get()
+            .iter()
+            .map(|point| point.id)
+            .collect::<Vec<Uuid>>()
+    });
+    let empty = create_memo(move || ids.get().is_empty());
+    let any = create_memo(move || !empty.get());
     let theme = use_theme();
     let hint = theme.text_muted;
     view! {
@@ -322,10 +326,12 @@ fn PointRow(state: Rc<MapState>, id: Uuid) -> NodeId {
     let point = create_memo(clone!(named -> move || {
         named.points.get().into_iter().find(|point| point.id == id)
     }));
-    let label = create_memo(clone!(point named -> move || point_name(&named, point.get())));
-    let swatch = create_memo(clone!(point -> move || {
-        point.get().map_or(Color32::TRANSPARENT, |point| marker_color(point.color))
-    }));
+    let label = create_memo(clone!(named -> move || point_name(&named, point.get())));
+    let swatch = create_memo(move || {
+        point
+            .get()
+            .map_or(Color32::TRANSPARENT, |point| marker_color(point.color))
+    });
     let chosen = Rc::clone(&state);
     let centred = Rc::clone(&state);
     let test_id = format!("map.point.{id}");
@@ -358,19 +364,19 @@ fn Swatch(color: Memo<Color32>) -> NodeId {
 #[component]
 fn PointDetails(state: Rc<MapState>, selected: Memo<Option<Uuid>>) -> NodeId {
     let held = Rc::clone(&state);
-    let point = create_memo(clone!(selected held -> move || {
+    let point = create_memo(clone!(held -> move || {
         let id = selected.get()?;
         held.points.get().into_iter().find(|point| point.id == id)
     }));
     let named = Rc::clone(&state);
-    let label = create_memo(clone!(point named -> move || point_name(&named, point.get())));
+    let label = create_memo(clone!(named -> move || point_name(&named, point.get())));
     let target = Rc::clone(&state);
-    let block = create_memo(clone!(point target -> move || {
+    let block = create_memo(clone!(target -> move || {
         let point = point.get()?;
         let label = target.label_of(point.block_id)?;
         Some(ChildTarget::new(point.block_id, label.block_type))
     }));
-    let openable = create_memo(clone!(block -> move || block.get().is_none()));
+    let openable = create_memo(move || block.get().is_none());
     let back = Rc::clone(&state);
     let opened = Rc::clone(&state);
     let opened_block = block;
@@ -378,12 +384,8 @@ fn PointDetails(state: Rc<MapState>, selected: Memo<Option<Uuid>>) -> NodeId {
     let centred_point = point;
     let removed = Rc::clone(&state);
     let editor = state.editor().clone();
-    let latitude = create_memo(clone!(point -> move || {
-        point.get().map_or(0.0, |point| point.position.latitude)
-    }));
-    let longitude = create_memo(clone!(point -> move || {
-        point.get().map_or(0.0, |point| point.position.longitude)
-    }));
+    let latitude = create_memo(move || point.get().map_or(0.0, |point| point.position.latitude));
+    let longitude = create_memo(move || point.get().map_or(0.0, |point| point.position.longitude));
     let moved = Rc::clone(&state);
     let moved_point = point;
     let slid = Rc::clone(&state);
@@ -392,9 +394,11 @@ fn PointDetails(state: Rc<MapState>, selected: Memo<Option<Uuid>>) -> NodeId {
     let tinted_point = point;
     let coloured = Rc::clone(&state);
     let coloured_point = point;
-    let custom = create_memo(clone!(point -> move || {
-        point.get().map_or(Color32::TRANSPARENT, |point| marker_color(point.color))
-    }));
+    let custom = create_memo(move || {
+        point
+            .get()
+            .map_or(Color32::TRANSPARENT, |point| marker_color(point.color))
+    });
 
     view! {
         <List spacing=8.0>

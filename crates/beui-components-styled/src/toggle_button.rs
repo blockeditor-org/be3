@@ -11,7 +11,7 @@ use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Action, Align, Callback, Direction, Frame, List, Memo, Prop, Show, Text, clone, create_memo,
+    Action, Align, Callback, Direction, Frame, List, Memo, Prop, Show, Text, create_memo,
 };
 
 #[component]
@@ -25,7 +25,7 @@ pub fn ToggleButton(
     on_change: Callback<bool>,
 ) -> NodeId {
     let icon_only = create_memo(move || icon_only.get());
-    let named = create_memo(clone!(icon_only -> move || !icon_only.get()));
+    let named = create_memo(move || !icon_only.get());
     view! {
         <Toggle
             checked={pressed}
@@ -57,24 +57,22 @@ fn ToggleButtonFace(handle: ToggleHandle, icon_only: Memo<bool>) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let has_glyph = create_memo(clone!(glyph -> move || !glyph.get().is_empty()));
+    let has_glyph = create_memo(move || !glyph.get().is_empty());
     let named = create_memo(move || !icon_only.get());
-    let text_color = create_memo(clone!(theme disabled -> move || match disabled.get() {
+    let text_color = create_memo(move || match disabled.get() {
         true => theme.text_muted.get(),
         false => theme.text.get(),
-    }));
+    });
     let icon_color = text_color;
-    let fill_color = create_memo(
-        clone!(checked theme -> move || fill_for(&theme, checked.get(), hovered.get())),
-    );
-    let border_color = create_memo(clone!(theme -> move || {
+    let fill_color = create_memo(move || fill_for(&theme, checked.get(), hovered.get()));
+    let border_color = create_memo(move || {
         let theme = theme.get();
         if checked.get() {
             theme.accent
         } else {
             theme.border
         }
-    }));
+    });
 
     view! {
         <FocusRing focused offset=3.0>

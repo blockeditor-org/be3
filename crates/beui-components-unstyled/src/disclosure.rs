@@ -6,7 +6,7 @@ use crate::button::ButtonHandle;
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Child, Frame, List, Prop, ReadSignal, Render, clone, create_effect, create_memo,
+    Callback, Child, Frame, List, Prop, ReadSignal, Render, create_effect, create_memo,
     create_signal, set_component_state, untrack,
 };
 
@@ -30,17 +30,17 @@ pub fn Disclosure(
     on_toggle: Callback<bool>,
 ) -> NodeId {
     let (open_read, set_open) = create_signal(open.peek());
-    create_effect(clone!(set_open -> move || set_open.set(open.get())));
+    create_effect(move || set_open.set(open.get()));
 
     set_component_state(State { open: open_read });
 
     let open_for_header = open_read;
     let open_for_click = open_read;
-    let accessibility = create_memo(clone!(open_read -> move || {
+    let accessibility = create_memo(move || {
         let mut node = Node::new(Role::DisclosureTriangle);
         node.set_expanded(open_read.get());
         node
-    }));
+    });
 
     view! {
         <List spacing=0.0>

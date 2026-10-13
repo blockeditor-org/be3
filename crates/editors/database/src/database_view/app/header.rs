@@ -24,7 +24,7 @@ const DISPLAY_WIDTH: f32 = 380.0;
 #[component]
 pub fn ViewHeader(data: Data) -> NodeId {
     let narrow = narrow_chrome();
-    let wide = create_memo(clone!(narrow -> move || !narrow.get()));
+    let wide = create_memo(move || !narrow.get());
     let (wide_data, narrow_data) = (data.clone(), data.clone());
     let failed = create_memo(clone!(data -> move || data.error.with(Option::is_some)));
     let message = create_memo(clone!(data -> move || data.error.get().unwrap_or_default()));
@@ -43,7 +43,7 @@ pub fn ViewHeader(data: Data) -> NodeId {
                 })}
             </Show>
             <Show condition={failed}>
-                {move || clone!(message dismiss theme -> view! {
+                {move || clone!(dismiss -> view! {
                     <Frame padding_horizontal=GUTTER padding_vertical=6.0>
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                             <Body
@@ -119,8 +119,8 @@ fn NarrowHeader(data: Data) -> NodeId {
     }));
     let count = row_count(&data);
     let (tabs, search, add, sheet_data) = (data.clone(), data.clone(), data.clone(), data.clone());
-    let open = clone!(set_sheet -> move || set_sheet.set(true));
-    let close = clone!(set_sheet -> move || set_sheet.set(false));
+    let open = move || set_sheet.set(true);
+    let close = move || set_sheet.set(false);
     let done = close;
     view! {
         <Frame padding_horizontal=GUTTER padding_top={Some(8.0)} padding_bottom={Some(8.0)}>

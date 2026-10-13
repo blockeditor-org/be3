@@ -3,8 +3,8 @@ use block_editor_beui::beui::icons::{ICON_AUDIO_FILE, ICON_PAUSE, ICON_PLAY_ARRO
 use std::time::Duration;
 
 use block_editor_beui::beui::reactive::{
-    Align, Direction, Frame, ItemSize, List, NodeRef, Show, clone, component, create_effect,
-    create_memo, create_signal, create_timer, now, view,
+    Align, Direction, Frame, ItemSize, List, NodeRef, Show, component, create_effect, create_memo,
+    create_signal, create_timer, now, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Heading, IconButton, IconSized, use_theme,
@@ -36,47 +36,55 @@ pub fn AudioView(editor: Editor) -> NodeId {
     let source = audio.project(|audio| audio.header().source_name.clone());
     let status = editor.audio();
 
-    let playing = create_memo(clone!(status -> move || status.with(|status| status.playing)));
-    let glyph = create_memo(clone!(playing -> move || match playing.get() {
+    let playing = create_memo(move || status.with(|status| status.playing));
+    let glyph = create_memo(move || match playing.get() {
         true => ICON_PAUSE.to_owned(),
         false => ICON_PLAY_ARROW.to_owned(),
-    }));
-    let action = create_memo(clone!(playing -> move || match playing.get() {
+    });
+    let action = create_memo(move || match playing.get() {
         true => "Pause".to_owned(),
         false => "Play".to_owned(),
-    }));
-    let received = create_memo(clone!(status -> move || status.with(|_| now())));
+    });
+    let received = create_memo(move || status.with(|_| now()));
     let (clock, set_clock) = create_signal(now());
-    let position = create_memo(clone!(status received -> move || {
-        status.with(|status| played_to(status, clock.get().saturating_duration_since(received.get())))
-    }));
-    let ticking = create_timer(clone!(status received -> move || {
+    let position = create_memo(move || {
+        status.with(|status| {
+            played_to(
+                status,
+                clock.get().saturating_duration_since(received.get()),
+            )
+        })
+    });
+    let ticking = create_timer(move || {
         let at = now();
         set_clock.set(at);
         status.with_untracked(|status| {
-            let played = played_to(status, at.saturating_duration_since(received.get_untracked()));
-            let ended = status.duration_micros.is_some_and(|duration| played >= duration);
+            let played = played_to(
+                status,
+                at.saturating_duration_since(received.get_untracked()),
+            );
+            let ended = status
+                .duration_micros
+                .is_some_and(|duration| played >= duration);
             (status.playing && !ended)
                 .then(|| Duration::from_micros(SECOND_MICROS - played % SECOND_MICROS))
         })
-    }));
-    create_effect(clone!(status -> move || {
+    });
+    create_effect(move || {
         if status.with(|status| status.playing) {
             ticking.restart(Duration::ZERO);
         } else {
             ticking.stop();
         }
-    }));
-    let elapsed = create_memo(clone!(status position -> move || {
+    });
+    let elapsed = create_memo(move || {
         let duration = status.with(|status| status.duration_micros);
         let duration = duration.map_or_else(|| "--:--".to_owned(), format_micros);
         format!("{} / {duration}", format_micros(position.get()))
-    }));
-    let failed =
-        create_memo(clone!(status -> move || status.with(|status| status.error.is_some())));
-    let reason = create_memo(clone!(status -> move || {
-        status.with(|status| status.error.clone().unwrap_or_default())
-    }));
+    });
+    let failed = create_memo(move || status.with(|status| status.error.is_some()));
+    let reason =
+        create_memo(move || status.with(|status| status.error.clone().unwrap_or_default()));
 
     let played = editor.host().clone();
     let block = editor.block_id();
@@ -147,10 +155,10 @@ fn AudioPanel(editor: Editor) -> NodeId {
 
     let read_only = editor.read_only();
     let busy = chooser.busy();
-    let blocked = create_memo(clone!(busy read_only -> move || busy.get() || read_only.get()));
+    let blocked = create_memo(move || busy.get() || read_only.get());
     let error = chooser.error();
-    let failed = create_memo(clone!(error -> move || error.get().is_some()));
-    let reason = create_memo(clone!(error -> move || error.get().unwrap_or_default()));
+    let failed = create_memo(move || error.get().is_some());
+    let reason = create_memo(move || error.get().unwrap_or_default());
     let replace = move || chooser.open();
     let theme = use_theme();
     view! {

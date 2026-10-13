@@ -52,8 +52,8 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
         open_switcher,
     } = handle;
     let theme = use_theme();
-    let counted = create_memo(clone!(others -> move || others.get() > 0));
-    let pictured = create_memo(clone!(icon -> move || !icon.get().is_empty()));
+    let counted = create_memo(move || others.get() > 0);
+    let pictured = create_memo(move || !icon.get().is_empty());
     view! {
         <List spacing=0.0>
             <Frame
@@ -113,7 +113,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
 #[component]
 fn DockTabCount(count: Memo<usize>, label: Memo<String>, on_click: ClickCallback) -> NodeId {
     let theme = use_theme();
-    let shown = create_memo(clone!(count -> move || count.get().to_string()));
+    let shown = create_memo(move || count.get().to_string());
     view! {
         <unstyled::Button
             @test_id={"dock.switch"}
@@ -122,10 +122,10 @@ fn DockTabCount(count: Memo<usize>, label: Memo<String>, on_click: ClickCallback
             content={move |handle: unstyled::ButtonHandle| {
                 let unstyled::ButtonHandle { hovered, focused, .. } = handle;
                 let theme = theme;
-                let fill = create_memo(clone!(theme -> move || match hovered.get() {
+                let fill = create_memo(move || match hovered.get() {
                     true => theme.hover.get(),
                     false => Color32::TRANSPARENT,
-                }));
+                });
                 let shown = shown;
                 view! {
                     <Frame
@@ -173,7 +173,7 @@ pub(crate) fn DockSwitcher(handle: DockSwitcherHandle) -> NodeId {
         home_icon,
         go_home,
     } = handle;
-    let none = create_memo(clone!(tabs -> move || tabs.with(Vec::is_empty)));
+    let none = create_memo(move || tabs.with(Vec::is_empty));
     let home_glyph = create_memo(move || match home_icon.get() {
         icon if icon.is_empty() => ICON_HOME.to_owned(),
         icon => icon,
@@ -203,7 +203,7 @@ pub(crate) fn DockSwitcher(handle: DockSwitcherHandle) -> NodeId {
                     </List>
                 </Frame>
                 <Show condition={homed}>
-                    {move || clone!(go_home home_title home_glyph -> view! {
+                    {move || clone!(go_home -> view! {
                         <Frame padding_horizontal=SHEET_PADDING padding_vertical=SHEET_PADDING>
                             <ActionRow
                                 @test_id={"dock.switcher.home"}
@@ -231,10 +231,10 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
         close,
     } = handle;
     let theme = use_theme();
-    let outline = create_memo(clone!(theme -> move || match current.get() {
+    let outline = create_memo(move || match current.get() {
         true => theme.accent.get(),
         false => theme.border.get(),
-    }));
+    });
     let id = tab.value();
     view! {
         <Frame

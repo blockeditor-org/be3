@@ -16,7 +16,7 @@ use beui_core::document::Document;
 use beui_core::icons::ICON_ARROW_DROP_DOWN;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Callback, Child, Children, Direction, Frame, ItemSize, List, Memo, Prop, Text, clone,
+    Align, Callback, Child, Children, Direction, Frame, ItemSize, List, Memo, Prop, Text,
     create_memo, focus_ring,
 };
 
@@ -77,30 +77,27 @@ fn SelectTrigger(handle: SelectTriggerHandle, placeholder: Memo<String>) -> Node
         ..
     } = handle;
     let theme = use_theme();
-    let empty = create_memo(clone!(label -> move || label.with(Option::is_none)));
+    let empty = create_memo(move || label.with(Option::is_none));
     let label_text = create_memo(move || {
         label.get().unwrap_or_else(|| match placeholder.get() {
             placeholder if placeholder.is_empty() => "Select...".to_owned(),
             placeholder => placeholder,
         })
     });
-    let border = create_memo(clone!(focused theme disabled -> move || {
-        field_border(&theme, disabled.get(), focused.get(), hovered.get())
-    }));
-    let fill = create_memo(clone!(theme disabled -> move || match disabled.get() {
+    let border =
+        create_memo(move || field_border(&theme, disabled.get(), focused.get(), hovered.get()));
+    let fill = create_memo(move || match disabled.get() {
         true => theme.surface.get(),
         false => theme.surface_raised.get(),
-    }));
-    let text_color = create_memo(
-        clone!(theme disabled -> move || match disabled.get() || empty.get() {
-            true => theme.text_muted.get(),
-            false => theme.text.get(),
-        }),
-    );
-    let arrow_color = create_memo(clone!(theme disabled -> move || match disabled.get() {
+    });
+    let text_color = create_memo(move || match disabled.get() || empty.get() {
         true => theme.text_muted.get(),
         false => theme.text.get(),
-    }));
+    });
+    let arrow_color = create_memo(move || match disabled.get() {
+        true => theme.text_muted.get(),
+        false => theme.text.get(),
+    });
     view! {
         <Frame
             max_width=TRIGGER_MAX_WIDTH
@@ -144,9 +141,7 @@ fn SearchField(handle: TextInputHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let border = create_memo(clone!(theme -> move || {
-        field_border(&theme, false, focused.get(), hovered.get())
-    }));
+    let border = create_memo(move || field_border(&theme, false, focused.get(), hovered.get()));
     view! {
         <Frame
             height=HEIGHT
@@ -170,9 +165,8 @@ fn SelectOption(handle: SelectOptionHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let fill_color = create_memo(
-        clone!(theme -> move || option_background(&theme, highlighted.get(), hovered.get())),
-    );
+    let fill_color =
+        create_memo(move || option_background(&theme, highlighted.get(), hovered.get()));
     view! {
         <Frame
             color={fill_color}

@@ -27,11 +27,11 @@ const SECTION_PADDING: f32 = 8.0;
 #[component]
 pub(crate) fn DetailsSheet(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
     let sheet = workspace.sheet;
-    let shown = create_memo(clone!(sheet -> move || match sheet.get() {
+    let shown = create_memo(move || match sheet.get() {
         PhoneSheet::Details(shown) if shown == tab => Some(shown),
         PhoneSheet::Details(_) | PhoneSheet::Closed => None,
-    }));
-    let open = create_memo(clone!(shown -> move || shown.get().is_some()));
+    });
+    let open = create_memo(move || shown.get().is_some());
     let closing = Rc::clone(&workspace);
     let dismissed = shown;
     view! {
@@ -76,27 +76,31 @@ fn DetailsBody(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
         set_info.set(read_info(&workspace, tab, &watched));
     });
     let naming = Rc::clone(&workspace);
-    let name = create_memo(clone!(info -> move || {
+    let name = create_memo(move || {
         info.with(|info| {
             info.as_ref()
                 .map(|info| naming.label(info.item.id, info.item.block_type).name)
                 .unwrap_or_default()
         })
-    }));
+    });
     let glyphs = Rc::clone(&workspace);
-    let glyph = create_memo(clone!(info -> move || {
+    let glyph = create_memo(move || {
         info.with(|info| {
             info.as_ref()
                 .and_then(|info| glyphs.label(info.item.id, info.item.block_type).icon)
                 .unwrap_or_default()
                 .to_owned()
         })
-    }));
-    let kind = create_memo(clone!(info -> move || {
-        info.with(|info| info.as_ref().map(|info| info.type_name.clone()).unwrap_or_default())
-    }));
+    });
+    let kind = create_memo(move || {
+        info.with(|info| {
+            info.as_ref()
+                .map(|info| info.type_name.clone())
+                .unwrap_or_default()
+        })
+    });
     let judging = Rc::clone(&workspace);
-    let rights = create_memo(clone!(info -> move || {
+    let rights = create_memo(move || {
         info.with(|info| {
             info.as_ref().and_then(|info| {
                 let reference = judging.info(info.item.id)?;
@@ -109,24 +113,30 @@ fn DetailsBody(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
                 ))
             })
         })
-    }));
-    let rename_off = create_memo(clone!(rights -> move || !rights.get().is_some_and(|r| r.0)));
+    });
+    let rename_off = create_memo(move || !rights.get().is_some_and(|r| r.0));
     let share_off = rename_off;
-    let delete_off = create_memo(clone!(rights -> move || !rights.get().is_some_and(|r| r.1)));
-    let unlinkable = create_memo(clone!(rights -> move || rights.get().is_some_and(|r| r.2)));
-    let delete_label = create_memo(clone!(rights -> move || {
-        match rights.get().is_some_and(|r| r.3) {
-            true => "Remove link".to_owned(),
-            false => "Delete".to_owned(),
-        }
-    }));
-    let references = create_memo(clone!(info -> move || {
-        info.with(|info| info.as_ref().map(|info| info.references.clone()).unwrap_or_default())
-    }));
-    let backrefs = create_memo(clone!(info -> move || {
-        info.with(|info| info.as_ref().map(|info| info.backrefs.clone()).unwrap_or_default())
-    }));
-    let act = Rc::new(clone!(workspace info -> move |action: Action| {
+    let delete_off = create_memo(move || !rights.get().is_some_and(|r| r.1));
+    let unlinkable = create_memo(move || rights.get().is_some_and(|r| r.2));
+    let delete_label = create_memo(move || match rights.get().is_some_and(|r| r.3) {
+        true => "Remove link".to_owned(),
+        false => "Delete".to_owned(),
+    });
+    let references = create_memo(move || {
+        info.with(|info| {
+            info.as_ref()
+                .map(|info| info.references.clone())
+                .unwrap_or_default()
+        })
+    });
+    let backrefs = create_memo(move || {
+        info.with(|info| {
+            info.as_ref()
+                .map(|info| info.backrefs.clone())
+                .unwrap_or_default()
+        })
+    });
+    let act = Rc::new(clone!(workspace -> move |action: Action| {
         let Some((id, container)) = info.with_untracked(|info| {
             info.as_ref().map(|info| (info.item.id, info.container))
         }) else {
@@ -138,13 +148,13 @@ fn DetailsBody(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
         }
     }));
     let creating = Rc::clone(&workspace);
-    let new_here = clone!(info -> move || {
+    let new_here = move || {
         let Some(id) = info.with_untracked(|info| info.as_ref().map(|info| info.item.id)) else {
             return;
         };
         creating.set_sheet(PhoneSheet::Closed);
         creating.new_file_near(id);
-    });
+    };
     let renaming = Rc::clone(&act);
     let sharing = Rc::clone(&act);
     let unlinking = Rc::clone(&act);
@@ -225,10 +235,10 @@ fn RelatedBlocks(
     refs: Memo<Refs>,
     named: String,
 ) -> NodeId {
-    let ids = create_memo(clone!(refs -> move || {
+    let ids = create_memo(move || {
         refs.with(|refs| refs.list.iter().map(|info| info.id).collect::<Vec<Uuid>>())
-    }));
-    let some = create_memo(clone!(ids -> move || !ids.get().is_empty()));
+    });
+    let some = create_memo(move || !ids.get().is_empty());
     view! {
         <List spacing=0.0>
             <Show condition={some}>
@@ -241,9 +251,9 @@ fn RelatedBlocks(
             <ForEach keys={ids}>
                 {move |id: Uuid| {
                     let workspace = Rc::clone(&workspace);
-                    let reference = create_memo(clone!(refs -> move || {
+                    let reference = create_memo(move || {
                         refs.with(|refs| refs.list.iter().find(|info| info.id == id).cloned())
-                    }));
+                    });
                     let named = format!("{named}.{id}");
                     view! {
                         <RelatedRow workspace reference named />
@@ -261,17 +271,23 @@ fn RelatedRow(
     named: String,
 ) -> NodeId {
     let naming = Rc::clone(&workspace);
-    let label = create_memo(clone!(reference -> move || {
+    let label = create_memo(move || {
         let types = naming.types();
-        reference.with(|reference| reference.as_ref().map(|reference| reference.label(types.as_ref())))
-    }));
-    let name = create_memo(clone!(label -> move || {
-        label.get().map(|label| label.name).unwrap_or_default()
-    }));
-    let glyph = create_memo(clone!(label -> move || {
-        label.get().and_then(|label| label.icon).unwrap_or_default().to_owned()
-    }));
-    let opening = clone!(reference -> move || {
+        reference.with(|reference| {
+            reference
+                .as_ref()
+                .map(|reference| reference.label(types.as_ref()))
+        })
+    });
+    let name = create_memo(move || label.get().map(|label| label.name).unwrap_or_default());
+    let glyph = create_memo(move || {
+        label
+            .get()
+            .and_then(|label| label.icon)
+            .unwrap_or_default()
+            .to_owned()
+    });
+    let opening = move || {
         let Some(reference) = reference.get_untracked() else {
             return;
         };
@@ -287,7 +303,7 @@ fn RelatedRow(
             },
             via,
         );
-    });
+    };
     view! {
         <ActionRow @test_id={named} label={name} glyph on_click={opening} />
     }

@@ -39,7 +39,7 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
         }
     }));
     let running = model.running;
-    let idle = create_memo(clone!(running -> move || !running.get()));
+    let idle = create_memo(move || !running.get());
     let show = clone!(model -> move |index: usize| {
         if let Some(tab) = Tab::ALL.get(index) {
             model.show_tab(*tab);
@@ -123,12 +123,12 @@ fn TargetList(model: Model) -> NodeId {
         Some(Loaded::Failed(error)) => error,
         _ => String::new(),
     }));
-    let failed = create_memo(clone!(error -> move || !error.get().is_empty()));
+    let failed = create_memo(move || !error.get().is_empty());
     let listed = create_memo(clone!(model -> move || match model.targets.get() {
         Some(Loaded::Ready(targets)) => targets,
         _ => Vec::new(),
     }));
-    let shown = create_memo(clone!(model listed -> move || {
+    let shown = create_memo(clone!(model -> move || {
         let query = model.target_query.get().to_lowercase();
         listed
             .get()
@@ -140,16 +140,20 @@ fn TargetList(model: Model) -> NodeId {
             })
             .collect::<Vec<Target>>()
     }));
-    let keys = create_memo(clone!(shown -> move || {
-        shown.get().into_iter().map(|target| target.label).collect::<Vec<String>>()
-    }));
-    let count = create_memo(clone!(shown listed -> move || {
+    let keys = create_memo(move || {
+        shown
+            .get()
+            .into_iter()
+            .map(|target| target.label)
+            .collect::<Vec<String>>()
+    });
+    let count = create_memo(move || {
         format!(
             "{} of {} targets, run on the current checkout",
             shown.get().len(),
             listed.get().len()
         )
-    }));
+    });
     let query = model.target_query;
     let set_query = model.set_target_query;
     let refresh = clone!(model -> move || model.refresh_targets());
@@ -203,38 +207,32 @@ fn TargetList(model: Model) -> NodeId {
 
 #[component]
 fn TargetRow(model: Model, target: Memo<Option<Target>>) -> NodeId {
-    let label = create_memo(clone!(target -> move || {
-        target.get().map(|target| target.label).unwrap_or_default()
-    }));
-    let kind = create_memo(clone!(target -> move || {
-        target.get().map(|target| target.kind).unwrap_or_default()
-    }));
-    let action = create_memo(clone!(target -> move || {
-        target.get().map_or(Action::Build, |target| target.action)
-    }));
-    let verb = create_memo(clone!(action -> move || {
+    let label = create_memo(move || target.get().map(|target| target.label).unwrap_or_default());
+    let kind = create_memo(move || target.get().map(|target| target.kind).unwrap_or_default());
+    let action = create_memo(move || target.get().map_or(Action::Build, |target| target.action));
+    let verb = create_memo(move || {
         match action.get() {
             Action::Run => "Run",
             Action::Test => "Test",
             Action::Build => "Build",
         }
         .to_owned()
-    }));
-    let glyph = create_memo(clone!(action -> move || {
+    });
+    let glyph = create_memo(move || {
         match action.get() {
             Action::Run => ICON_PLAY_ARROW,
             Action::Test => ICON_SCIENCE,
             Action::Build => ICON_BUILD,
         }
         .to_owned()
-    }));
-    let buildable = create_memo(clone!(action -> move || action.get() != Action::Build));
-    let primary = clone!(model target action -> move || {
+    });
+    let buildable = create_memo(move || action.get() != Action::Build);
+    let primary = clone!(model -> move || {
         if let Some(target) = target.get_untracked() {
             model.run_target(&target, action.get_untracked());
         }
     });
-    let build = clone!(model target -> move || {
+    let build = clone!(model -> move || {
         if let Some(target) = target.get_untracked() {
             model.run_target(&target, Action::Build);
         }
@@ -273,7 +271,7 @@ pub(crate) fn Actions(
     pull_request: Memo<PullRequest>,
     timeline: ReadSignal<Loaded<Vec<Entry>>>,
 ) -> NodeId {
-    let fork = create_memo(clone!(pull_request -> move || !pull_request.get().same_repository));
+    let fork = create_memo(move || !pull_request.get().same_repository);
     let deleted = create_memo(move || match timeline.get() {
         Loaded::Ready(entries) => branch_deleted(&entries),
         _ => false,
@@ -281,12 +279,11 @@ pub(crate) fn Actions(
     let busy = create_memo(clone!(model -> move || {
         model.running.get() || fork.get() || deleted.get()
     }));
-    let check_out =
-        clone!(model pull_request -> move || model.check_out(&pull_request.get_untracked(), None));
-    let check_out_and_run = clone!(model pull_request -> move || {
+    let check_out = clone!(model -> move || model.check_out(&pull_request.get_untracked(), None));
+    let check_out_and_run = clone!(model -> move || {
         model.check_out(&pull_request.get_untracked(), Some(model.common.get_untracked()));
     });
-    let pick = clone!(model pull_request -> move |path: Vec<usize>| match path.as_slice() {
+    let pick = clone!(model -> move |path: Vec<usize>| match path.as_slice() {
         [index] if *index < COMMON.len() => {
             model.check_out(&pull_request.get_untracked(), Some(*index));
         }
@@ -339,10 +336,10 @@ pub(crate) fn Notes(
         Loaded::Ready(entries) => branch_deleted(&entries),
         _ => false,
     });
-    let shown = create_memo(clone!(fork deleted -> move || fork.get() || deleted.get()));
+    let shown = create_memo(move || fork.get() || deleted.get());
     view! {
         <Show condition={shown}>
-            {move || clone!(deleted fork -> view! {
+            {move || view! {
                 <List spacing=8.0>
                     <Show condition={fork}>
                         <Caption
@@ -357,7 +354,7 @@ pub(crate) fn Notes(
                         />
                     </Show>
                 </List>
-            })}
+            }}
         </Show>
     }
 }

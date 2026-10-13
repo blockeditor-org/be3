@@ -121,9 +121,11 @@ fn EffectsColumn(state: Rc<VideoState>) -> NodeId {
 #[component]
 fn FrameRateBar(state: Rc<VideoState>, shown: Prop<bool>) -> NodeId {
     let rate = state.frame_rate;
-    let chosen = create_memo(clone!(rate -> move || {
-        FRAME_RATES.into_iter().position(|option| option == rate.get())
-    }));
+    let chosen = create_memo(move || {
+        FRAME_RATES
+            .into_iter()
+            .position(|option| option == rate.get())
+    });
     let options = (0..FRAME_RATES.len()).collect::<Vec<usize>>();
     view! {
         <Toolbar shown={shown}>
@@ -157,20 +159,20 @@ fn PlaybackBar(state: Rc<VideoState>) -> NodeId {
     let end = Rc::clone(&state);
     let playing = state.playing;
     let empty = create_memo(clone!(state -> move || state.duration.get() == 0));
-    let glyph = create_memo(clone!(playing -> move || match playing.get() {
+    let glyph = create_memo(move || match playing.get() {
         true => ICON_PAUSE.to_owned(),
         false => ICON_PLAY_ARROW.to_owned(),
-    }));
+    });
     let playhead = state.playhead;
     let duration = state.duration;
     let rate = state.frame_rate;
-    let position = create_memo(clone!(playhead duration rate -> move || {
+    let position = create_memo(move || {
         format!(
             "{} / {}",
             crate::timeline::timecode(rate.get(), playhead.get()),
             crate::timeline::timecode(rate.get(), duration.get())
         )
-    }));
+    });
     let theme = use_theme();
     view! {
         <Frame padding_horizontal=10.0 padding_vertical=4.0>

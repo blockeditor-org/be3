@@ -5,7 +5,7 @@ use beui_core::input::CursorIcon;
 
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Child, ClickCallback, Interactive, Prop, clone, component_accessibility, create_memo,
+    Callback, Child, ClickCallback, Interactive, Prop, component_accessibility, create_memo,
     create_signal, untrack,
 };
 
@@ -22,11 +22,11 @@ pub fn Pressable(
     let enabled = create_memo(move || enabled.get());
     let (key_active, set_key_active) = create_signal(false);
     component_accessibility(accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::Button))));
-    let click = clone!(enabled -> move || {
+    let click = move || {
         if untrack(|| enabled.get()) {
             on_click.call();
         }
-    });
+    };
     let key_click = click.clone();
 
     view! {

@@ -99,8 +99,8 @@ pub fn CommandPalette(
         }
     }));
 
-    let highlight = create_selector(clone!(highlighted -> move || highlighted.get()));
-    let keys = create_memo(clone!(shown -> move || shown.get()));
+    let highlight = create_selector(move || highlighted.get());
+    let keys = create_memo(move || shown.get());
     let reveal = reveal_reader(&state);
     let (dismiss_state, filter_state, submit_state, key_state, rows_state) = (
         state.clone(),
@@ -187,7 +187,7 @@ fn CommandRow(
     let enabled = action.enabled();
     let disabled = create_memo(move || !enabled.get());
     let label = action.label();
-    let accessibility = create_memo(clone!(label disabled -> move || {
+    let accessibility = create_memo(clone!(label -> move || {
         let mut node = Node::new(Role::ListBoxOption);
         node.set_label(label.get());
         if disabled.get() {

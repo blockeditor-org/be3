@@ -3,7 +3,7 @@ use block_editor_beui::beui::icons::{
     ICON_BEDTIME, ICON_LOCK, ICON_LOGOUT, ICON_POWER_SETTINGS_NEW, ICON_RESTART_ALT,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, Justify, List, Memo, clone, component, create_memo, create_signal, view,
+    Align, Direction, Justify, List, Memo, component, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{Button, ButtonVariant, Dialog, MenuButton, Paragraph};
 use block_editor_beui::beui::unstyled::MenuItem;
@@ -76,7 +76,7 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
     let (confirming, set_confirming) = create_signal(PowerAction::LogOut);
     let (open, set_open) = create_signal(false);
     let requesting = editor.clone();
-    let chose = clone!(set_open -> move |path: Vec<usize>| {
+    let chose = move |path: Vec<usize>| {
         let Some(action) = path
             .first()
             .and_then(|index| PowerAction::ALL.get(*index).copied())
@@ -93,13 +93,12 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
                 set_open.set(true);
             }
         }
-    });
-    let title = create_memo(clone!(confirming -> move || question(confirming.get())));
-    let explained =
-        create_memo(clone!(confirming -> move || consequence(confirming.get()).to_owned()));
-    let verb = create_memo(clone!(confirming -> move || label(confirming.get()).to_owned()));
-    let dismiss = clone!(set_open -> move || set_open.set(false));
-    let cancel = clone!(set_open -> move || set_open.set(false));
+    };
+    let title = create_memo(move || question(confirming.get()));
+    let explained = create_memo(move || consequence(confirming.get()).to_owned());
+    let verb = create_memo(move || label(confirming.get()).to_owned());
+    let dismiss = move || set_open.set(false);
+    let cancel = move || set_open.set(false);
     let confirm = move || {
         set_open.set(false);
         editor.act(confirming.get_untracked());

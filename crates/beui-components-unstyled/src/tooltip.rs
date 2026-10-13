@@ -32,13 +32,13 @@ pub fn Tooltip(
     let wanted = create_memo(clone!(label disabled -> move || {
         !disabled.get() && !label.get().is_empty()
     }));
-    let open = create_memo(clone!(shown wanted -> move || shown.get() && wanted.get()));
+    let open = create_memo(move || shown.get() && wanted.get());
 
-    let dwell = create_timer(clone!(set_shown -> move || {
+    let dwell = create_timer(move || {
         set_shown.set(true);
         None
-    }));
-    let hover = clone!(dwell set_shown -> move |hovered: bool| {
+    });
+    let hover = clone!(dwell -> move |hovered: bool| {
         match hovered {
             true => dwell.restart(delay),
             false => {
@@ -47,7 +47,7 @@ pub fn Tooltip(
             }
         }
     });
-    let press = clone!(dwell set_shown -> move |_: PointerPress| {
+    let press = clone!(dwell -> move |_: PointerPress| {
         dwell.stop();
         set_shown.set(false);
     });

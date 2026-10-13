@@ -197,7 +197,7 @@ pub fn Launcher(
     let (query, set_query) = create_signal(String::new());
     let (searching, set_searching) = create_signal(false);
     let (highlighted, set_highlighted) = create_signal(None::<Row>);
-    create_effect(clone!(open set_query set_searching -> move || {
+    create_effect(clone!(open -> move || {
         let opened = open.get();
         untrack(|| {
             if opened {
@@ -206,7 +206,7 @@ pub fn Launcher(
             set_searching.set(opened);
         });
     }));
-    let ranked = create_memo(clone!(items query -> move || {
+    let ranked = create_memo(clone!(items -> move || {
         let items = items.get();
         let query = query.get();
         launcher_rank(&items, &query)
@@ -214,7 +214,7 @@ pub fn Launcher(
             .map(|index| items[index].key.clone())
             .collect::<Vec<_>>()
     }));
-    let rows = create_memo(clone!(ranked query -> move || {
+    let rows = create_memo(move || {
         let command = runs_commands.get() && !query.get().trim().is_empty();
         ranked
             .get()
@@ -222,19 +222,19 @@ pub fn Launcher(
             .map(Row::Item)
             .chain(command.then_some(Row::Run))
             .collect::<Vec<_>>()
-    }));
-    create_effect(clone!(rows highlighted set_highlighted -> move || {
+    });
+    create_effect(move || {
         let rows = rows.get();
         let kept = untrack(|| highlighted.get()).filter(|row| rows.contains(row));
         let next = kept.or_else(|| rows.first().cloned());
         if untrack(|| highlighted.get()) != next {
             set_highlighted.set(next);
         }
-    }));
-    let reveal = create_memo(clone!(rows highlighted -> move || {
+    });
+    let reveal = create_memo(move || {
         let highlighted = highlighted.get()?;
         rows.get().iter().position(|row| *row == highlighted)
-    }));
+    });
     let state = State {
         query,
         set_query,
@@ -344,15 +344,15 @@ fn LauncherRow(state: State, items: Prop<Rc<Vec<LauncherItem>>>, row: Row) -> No
         Row::Run => None,
     }));
     let query = state.query;
-    let title = create_memo(clone!(item row query -> move || match &row {
+    let title = create_memo(clone!(row -> move || match &row {
         Row::Item(_) => item.get().map(|item| item.title).unwrap_or_default(),
         Row::Run => format!("Run \u{201c}{}\u{201d}", query.get().trim()),
     }));
-    let detail = create_memo(clone!(item row -> move || match &row {
+    let detail = create_memo(clone!(row -> move || match &row {
         Row::Item(_) => item.get().map(|item| item.detail).unwrap_or_default(),
         Row::Run => "Run it as a command".to_owned(),
     }));
-    let image = create_memo(clone!(item -> move || item.get().and_then(|item| item.image)));
+    let image = create_memo(move || item.get().and_then(|item| item.image));
     let test_id = match &row {
         Row::Item(key) => format!("launcher.item.{key}"),
         Row::Run => "launcher.run".to_owned(),
@@ -363,11 +363,11 @@ fn LauncherRow(state: State, items: Prop<Rc<Vec<LauncherItem>>>, row: Row) -> No
     };
     let highlighted = state.highlighted;
     let lit = create_memo(clone!(row -> move || highlighted.get().as_ref() == Some(&row)));
-    let accessibility = create_memo(clone!(title -> move || {
+    let accessibility = create_memo(move || {
         let mut node = Node::new(Role::ListBoxOption);
         node.set_label(title.get());
         node
-    }));
+    });
     let (hovering, clicking) = (state.clone(), state);
     let (hover_row, click_row) = (row.clone(), row);
     view! {
@@ -407,13 +407,13 @@ fn LauncherRowFace(
     lit: Memo<bool>,
 ) -> NodeId {
     let theme = use_theme();
-    let fill = create_memo(clone!(theme lit -> move || match lit.get() {
+    let fill = create_memo(move || match lit.get() {
         true => theme.accent_soft.get(),
         false => Color32::TRANSPARENT,
-    }));
-    let pictured = create_memo(clone!(image -> move || image.get().is_some()));
-    let plain = create_memo(clone!(pictured -> move || !pictured.get()));
-    let described = create_memo(clone!(detail -> move || !detail.get().is_empty()));
+    });
+    let pictured = create_memo(move || image.get().is_some());
+    let plain = create_memo(move || !pictured.get());
+    let described = create_memo(move || !detail.get().is_empty());
     view! {
         <Frame
             color={fill}

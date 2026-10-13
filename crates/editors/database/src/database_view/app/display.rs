@@ -163,7 +163,7 @@ fn GroupPicker(data: Data) -> NodeId {
         })
     }));
     let chosen = data.group_by;
-    let picked = clone!(data options -> move |field: Option<Uuid>| {
+    let picked = clone!(data -> move |field: Option<Uuid>| {
         let _ = &options;
         data.operate_view(DatabaseView::set_group_by(field));
     });
@@ -393,36 +393,35 @@ pub fn FieldPicker(
     picker_id: String,
     on_change: Callback<Option<Uuid>>,
 ) -> NodeId {
-    let keys = create_memo(clone!(options -> move || {
-        options.with(|options| (0..=options.len()).collect::<Vec<usize>>())
-    }));
-    let selected = create_memo(clone!(options chosen -> move || {
-        match chosen.get() {
-            None => Some(0),
-            Some(chosen) => options
-                .with(|options| options.iter().position(|field| field.id == chosen))
-                .map(|index| index + 1),
-        }
-    }));
+    let keys =
+        create_memo(move || options.with(|options| (0..=options.len()).collect::<Vec<usize>>()));
+    let selected = create_memo(move || match chosen.get() {
+        None => Some(0),
+        Some(chosen) => options
+            .with(|options| options.iter().position(|field| field.id == chosen))
+            .map(|index| index + 1),
+    });
     let names = options;
-    let picked = clone!(options -> move |index: Option<usize>| {
+    let picked = move |index: Option<usize>| {
         let field = match index {
             None | Some(0) => None,
-            Some(index) => options.with_untracked(|options| options.get(index - 1).map(|field| field.id)),
+            Some(index) => {
+                options.with_untracked(|options| options.get(index - 1).map(|field| field.id))
+            }
         };
         on_change.call(field);
-    });
+    };
     view! {
         <Select
             options={view! {
                 <ForEach keys={keys}>
                     {move |index: usize| {
-                        let name = create_memo(clone!(names -> move || match index {
+                        let name = create_memo(move || match index {
                             0 => none.to_owned(),
                             index => names.with(|options| {
                                 options.get(index - 1).map_or_else(String::new, |field| field.name.clone())
                             }),
-                        }));
+                        });
                         view! {
                             <ChoiceOption label={name} />
                         }

@@ -16,16 +16,12 @@ use super::state::{Review, Status};
 pub(crate) fn PaintingList(review: Rc<Review>) -> NodeId {
     let listed = Rc::clone(&review);
     let entries = create_memo(clone!(listed -> move || listed.entries()));
-    let ready = create_memo(clone!(entries -> move || entries.get().is_some()));
-    let waiting = create_memo(clone!(ready -> move || !ready.get()));
-    let empty = create_memo(clone!(entries -> move || {
-        entries.get().is_some_and(|entries| entries.is_empty())
-    }));
+    let ready = create_memo(move || entries.get().is_some());
+    let waiting = create_memo(move || !ready.get());
+    let empty = create_memo(move || entries.get().is_some_and(|entries| entries.is_empty()));
     let downloading = review.downloading;
-    let searching =
-        create_memo(clone!(empty downloading -> move || empty.get() && downloading.get()));
-    let barren =
-        create_memo(clone!(empty downloading -> move || empty.get() && !downloading.get()));
+    let searching = create_memo(move || empty.get() && downloading.get());
+    let barren = create_memo(move || empty.get() && !downloading.get());
     let theme = use_theme();
     let opening = theme.text_muted;
     let looking = theme.text_muted;
@@ -61,7 +57,7 @@ fn StatusGroup(
     entries: block_editor_beui::beui::reactive::Memo<Option<Vec<super::state::Entry>>>,
     status: Status,
 ) -> NodeId {
-    let paths = create_memo(clone!(entries -> move || {
+    let paths = create_memo(move || {
         entries
             .get()
             .unwrap_or_default()
@@ -69,13 +65,11 @@ fn StatusGroup(
             .filter(|entry| entry.status == status)
             .map(|entry| entry.path)
             .collect::<Vec<String>>()
-    }));
-    let any = create_memo(clone!(paths -> move || !paths.get().is_empty()));
-    let heading = create_memo(clone!(paths -> move || {
-        format!("{} ({})", status.label(), paths.get().len())
-    }));
+    });
+    let any = create_memo(move || !paths.get().is_empty());
+    let heading = create_memo(move || format!("{} ({})", status.label(), paths.get().len()));
     let selected = review.selected;
-    let here = create_selector(clone!(selected -> move || selected.get()));
+    let here = create_selector(move || selected.get());
     let theme = use_theme();
 
     view! {

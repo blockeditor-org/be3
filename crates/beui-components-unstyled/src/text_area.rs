@@ -1019,7 +1019,7 @@ pub fn TextArea(
                         let colors = create_memo(move || colors.get());
                         let remote_cursors = create_memo(move || remote_cursors.get());
                         let drop_caret = create_memo(move || drop_caret.get());
-                        let view_width = create_memo(clone!(placed -> move || placed.get().width()));
+                        let view_width = create_memo(move || placed.get().width());
                         let client_colors = create_memo(move || client_colors.get());
                         create_effect(clone!(state -> move || {
                             let shown = show_runs.get();
@@ -1034,7 +1034,7 @@ pub fn TextArea(
                         let accessible = state.content();
                         let moved = state.cursors();
                         let described = create_memo(
-                            clone!(state accessible moved masked placeholder disabled -> move || {
+                            clone!(state -> move || {
                                 accessible.get();
                                 let bytes = state.bytes();
                                 if bytes.len() > ACCESSIBLE_TEXT_LIMIT {
@@ -1060,14 +1060,14 @@ pub fn TextArea(
                         );
 
                         let content = state.content();
-                        let starts = create_memo(clone!(state content -> move || {
+                        let starts = create_memo(clone!(state -> move || {
                             content.get();
                             state.with_snapshot(|snapshot| match snapshot.starts.is_empty() {
                                 true => Rc::new(vec![0]),
                                 false => Rc::clone(&snapshot.starts),
                             })
                         }));
-                        let visible = create_memo(clone!(state content starts -> move || {
+                        let visible = create_memo(clone!(state -> move || {
                             content.get();
                             let starts = starts.get();
                             state.with_snapshot(|snapshot| {
@@ -1079,19 +1079,19 @@ pub fn TextArea(
                                     .collect::<Vec<usize>>()
                             })
                         }));
-                        let gutter = create_memo(clone!(scale attached starts -> move || {
+                        let gutter = create_memo(move || {
                             scale.get();
                             attached.get();
                             match single_line {
                                 true => 0.0,
                                 false => gutter_width(starts.get().len()),
                             }
-                        }));
-                        let wrap_width = create_memo(clone!(size gutter padding -> move || {
+                        });
+                        let wrap_width = create_memo(move || {
                             (size.get().x - gutter.get() - padding.get().x * 2.0).max(1.0).round()
-                        }));
+                        });
                         let tables = create_memo(
-                            clone!(state content starts widgets colors masked font_size scale attached wrap_width -> move || {
+                            clone!(state -> move || {
                                 content.get();
                                 scale.get();
                                 attached.get();
@@ -1124,7 +1124,7 @@ pub fn TextArea(
                                 range: state.core().composition()?,
                             })
                         }));
-                        let completion = create_memo(clone!(state focused -> move || {
+                        let completion = create_memo(clone!(state -> move || {
                             let trigger = trigger?;
                             state.cursors().get();
                             state.content().get();
@@ -1133,26 +1133,26 @@ pub fn TextArea(
                             }
                             query(&state, trigger)
                         }));
-                        let completions = create_memo(clone!(completion -> move || {
+                        let completions = create_memo(move || {
                             match (&completion.get(), &search) {
                                 (Some(query), Some(search)) => search(&query.text),
                                 _ => Vec::new(),
                             }
-                        }));
+                        });
                         let (dismissed, set_dismissed) = create_signal(None::<usize>);
-                        let completing = create_memo(clone!(completion completions -> move || {
+                        let completing = create_memo(move || {
                             let Some(query) = completion.get() else {
                                 return false;
                             };
                             dismissed.get() != Some(query.range.start) && !completions.get().is_empty()
-                        }));
+                        });
                         let (highlighted, set_highlighted) = create_signal(0_usize);
-                        create_effect(clone!(completion set_highlighted set_dismissed -> move || {
+                        create_effect(move || {
                             match completion.get() {
                                 Some(_) => set_highlighted.set(0),
                                 None => set_dismissed.set(None),
                             }
-                        }));
+                        });
                         let anchor = view! {
                             <Frame width=CARET_WIDTH />
                         };
@@ -1172,7 +1172,7 @@ pub fn TextArea(
                             composition,
                             placeholder,
                             font_size,
-                            metrics: create_memo(clone!(scale attached -> move || (scale.get(), attached.get()))),
+                            metrics: create_memo(move || (scale.get(), attached.get())),
                             gutter,
                             padding,
                             scroll,
@@ -1180,7 +1180,7 @@ pub fn TextArea(
                             shift,
                             set_shift,
                             view_width,
-                            view_height: create_memo(clone!(placed -> move || placed.get().height())),
+                            view_height: create_memo(move || placed.get().height()),
                             focused,
                             set_focused,
                             set_autoscroll,
@@ -1209,7 +1209,7 @@ pub fn TextArea(
 
                         if single_line {
                             let clamp_cx = cx.clone();
-                            create_effect(clone!(content view_width shift -> move || {
+                            create_effect(move || {
                                 content.get();
                                 view_width.get();
                                 let (room, width) = untrack(|| (clamp_cx.room(), clamp_cx.text_size().x));
@@ -1217,10 +1217,10 @@ pub fn TextArea(
                                 if shift.get_untracked() > most {
                                     set_shift.set(most);
                                 }
-                            }));
+                            });
                         }
 
-                        let ime_cursor = create_memo(clone!(state focused -> move || {
+                        let ime_cursor = create_memo(clone!(state -> move || {
                             state.cursors().get();
                             if !focused.get() {
                                 return None;
@@ -1230,7 +1230,7 @@ pub fn TextArea(
                                 rect: None,
                             })
                         }));
-                        let ime_text = create_memo(clone!(state focused -> move || {
+                        let ime_text = create_memo(clone!(state -> move || {
                             state.cursors().get();
                             state.content().get();
                             if !focused.get() {
@@ -1252,9 +1252,9 @@ pub fn TextArea(
                                 focus_writer.set(true);
                             }
                         });
-                        create_effect(clone!(set_focused -> move || set_focused.set(focus_request.get())));
+                        create_effect(move || set_focused.set(focus_request.get()));
                         let content = state.content();
-                        let shown = create_memo(clone!(state masked placeholder -> move || {
+                        let shown = create_memo(clone!(state -> move || {
                             content.get();
                             let value = String::from_utf8_lossy(&state.bytes()).into_owned();
                             match (value.is_empty(), masked.get()) {
@@ -1278,16 +1278,16 @@ pub fn TextArea(
                             revealing.start(Duration::ZERO);
                         });
                         let (hover_cursor, set_cursor) = create_signal(CursorIcon::Text);
-                        let cursor = create_memo(clone!(disabled -> move || match disabled.get() {
+                        let cursor = create_memo(move || match disabled.get() {
                             true => CursorIcon::Default,
                             false => hover_cursor.get(),
-                        }));
-                        let tab_stop = create_memo(clone!(disabled -> move || !disabled.get()));
-                        let surface_color = create_memo(clone!(colors -> move || colors.get().surface));
-                        let outer_color = create_memo(clone!(surface_color -> move || match single_line {
+                        });
+                        let tab_stop = create_memo(move || !disabled.get());
+                        let surface_color = create_memo(move || colors.get().surface);
+                        let outer_color = create_memo(move || match single_line {
                             true => Color32::TRANSPARENT,
                             false => surface_color.get(),
-                        }));
+                        });
                         let field = Field {
                             described,
                             frame: Rc::new(RefCell::new(frame)),
@@ -1309,12 +1309,12 @@ pub fn TextArea(
                         };
                         let scrolled = field.clone();
                         let multi_line = !single_line;
-                        let strip_width = create_memo(clone!(gutter -> move || gutter.get()));
-                        let width = create_memo(clone!(size -> move || size.get().x));
-                        let height = create_memo(clone!(size -> move || size.get().y));
-                        let gutter_color = create_memo(clone!(colors -> move || colors.get().gutter));
-                        let border_color = create_memo(clone!(colors -> move || colors.get().gutter_border));
-                        let border_x = create_memo(clone!(gutter -> move || gutter.get() - 1.0));
+                        let strip_width = create_memo(move || gutter.get());
+                        let width = create_memo(move || size.get().x);
+                        let height = create_memo(move || size.get().y);
+                        let gutter_color = create_memo(move || colors.get().gutter);
+                        let border_color = create_memo(move || colors.get().gutter_border);
+                        let border_x = create_memo(move || gutter.get() - 1.0);
                         let (strip_height, border_height, area_width, area_height) = (
                             height,
                             height,
@@ -1322,12 +1322,12 @@ pub fn TextArea(
                             height,
                         );
                         let has_menu = completion_menu.is_some();
-                        let menu = create_memo(clone!(completing -> move || has_menu && completing.get()));
+                        let menu = create_memo(move || has_menu && completing.get());
                         let menu_cx = cx.clone();
                         let menu_render = completion_menu;
                         if multi_line {
                             action_scope(&outer);
-                            actions::register(&state, &disabled);
+                            actions::register(&state, disabled);
                         }
 
                         view! {

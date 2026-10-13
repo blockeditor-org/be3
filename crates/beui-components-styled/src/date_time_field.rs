@@ -109,13 +109,12 @@ fn FieldBox(handle: DateTimeBoxHandle) -> NodeId {
         disabled,
     } = handle;
     let theme = use_theme();
-    let border = create_memo(clone!(theme focused disabled -> move || {
-        field_border(&theme, disabled.get(), focused.get(), hovered.get())
-    }));
-    let fill = create_memo(clone!(theme disabled -> move || match disabled.get() {
+    let border =
+        create_memo(move || field_border(&theme, disabled.get(), focused.get(), hovered.get()));
+    let fill = create_memo(move || match disabled.get() {
         true => theme.surface.get(),
         false => theme.surface_raised.get(),
-    }));
+    });
     let outer = trigger.is_some();
     let keyboard = focus_ring(focused);
     let ring = create_memo(move || outer && keyboard.get());
@@ -155,16 +154,16 @@ fn SegmentFace(handle: DateSegmentHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(clone!(theme focused -> move || match focused.get() {
+    let fill = create_memo(move || match focused.get() {
         true => theme.accent_soft.get(),
         false => Color32::TRANSPARENT,
-    }));
-    let ink = create_memo(clone!(theme -> move || {
-        match (disabled.get(), placeholder.get(), focused.get()) {
+    });
+    let ink = create_memo(
+        move || match (disabled.get(), placeholder.get(), focused.get()) {
             (true, _, _) | (false, true, false) => theme.text_muted.get(),
             _ => theme.text.get(),
-        }
-    }));
+        },
+    );
     view! {
         <Frame height_fraction=1.0 align_vertical=Align::Center>
             <Frame color={fill} radius=SEGMENT_RADIUS padding_horizontal=SEGMENT_PADDING>
@@ -205,18 +204,19 @@ fn PickerTrigger(handle: DateTimeTriggerHandle, parts: DateTimeParts) -> NodeId 
         label,
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(clone!(theme disabled open -> move || {
-        match (disabled.get(), active.get() || open.get(), hovered.get()) {
-            (true, _, _) => Color32::TRANSPARENT,
-            (false, true, _) => theme.pressed.get(),
-            (false, false, true) => theme.hover.get(),
-            (false, false, false) => Color32::TRANSPARENT,
-        }
-    }));
-    let ink = create_memo(clone!(theme -> move || match disabled.get() {
+    let fill =
+        create_memo(
+            move || match (disabled.get(), active.get() || open.get(), hovered.get()) {
+                (true, _, _) => Color32::TRANSPARENT,
+                (false, true, _) => theme.pressed.get(),
+                (false, false, true) => theme.hover.get(),
+                (false, false, false) => Color32::TRANSPARENT,
+            },
+        );
+    let ink = create_memo(move || match disabled.get() {
         true => theme.text_muted.get(),
         false => theme.text.get(),
-    }));
+    });
     let glyph = match parts {
         DateTimeParts::Time => ICON_SCHEDULE,
         DateTimeParts::Date | DateTimeParts::DateTime => ICON_CALENDAR_MONTH,
@@ -256,14 +256,14 @@ fn PickerPanel(
         now_label,
         clear,
     } = handle;
-    let panel_width = create_memo(clone!(layout field_width -> move || {
+    let panel_width = create_memo(move || {
         let least = match layout.get() {
             DateTimePanelLayout::Date | DateTimePanelLayout::Paged => CALENDAR_WIDTH,
             DateTimePanelLayout::Time => TIME_GRID_MIN_WIDTH,
             DateTimePanelLayout::Beside => CALENDAR_WIDTH + PANEL_SPACING + TIME_LIST_WIDTH,
         };
         least.max(field_width.get())
-    }));
+    });
     let width = panel_width;
     view! {
         <Frame width={panel_width}>
@@ -326,19 +326,19 @@ fn PanelBody(
     first_weekday: Weekday,
     step_minutes: u32,
 ) -> NodeId {
-    let beside = create_memo(clone!(width -> move || {
+    let beside = create_memo(move || {
         (width.get() - PANEL_SPACING - TIME_LIST_WIDTH).min(CALENDAR_MAX_WIDTH)
-    }));
+    });
     let alone = create_memo(move || width.get().min(CALENDAR_MAX_WIDTH));
-    let dates = create_memo(clone!(page -> move || page.get() == 0));
-    let times_shown = create_memo(clone!(page -> move || page.get() == 1));
+    let dates = create_memo(move || page.get() == 0);
+    let times_shown = create_memo(move || page.get() == 1);
     let (beside_calendar, beside_times) = (calendar.clone(), times.clone());
     let (date_calendar, time_times) = (calendar.clone(), times.clone());
     let alone_date = alone;
     view! {
         <List spacing=PANEL_SPACING>
             <Show condition={shape == DateTimePanelLayout::Beside}>
-                {move || clone!(beside beside_calendar beside_times -> view! {
+                {move || clone!(beside_calendar beside_times -> view! {
                     <List direction=Direction::Horizontal spacing=PANEL_SPACING>
                         <CalendarPane handle={beside_calendar} width={beside} first_weekday />
                         <TimePane
@@ -352,7 +352,7 @@ fn PanelBody(
                 })}
             </Show>
             <Show condition={shape == DateTimePanelLayout::Date}>
-                {move || clone!(alone_date date_calendar -> view! {
+                {move || clone!(date_calendar -> view! {
                     <Centred>
                         <CalendarPane handle={date_calendar} width={alone_date} first_weekday />
                     </Centred>
@@ -369,7 +369,7 @@ fn PanelBody(
                 })}
             </Show>
             <Show condition={shape == DateTimePanelLayout::Paged}>
-                {move || clone!(dates times_shown page show_page alone calendar times -> view! {
+                {move || clone!(show_page calendar times -> view! {
                     <List spacing=PANEL_SPACING>
                         <Tabs
                             options={view! {
@@ -380,7 +380,7 @@ fn PanelBody(
                             on_change={move |chosen: usize| show_page.call(chosen)}
                         />
                         <Show condition={dates}>
-                            {move || clone!(alone calendar -> view! {
+                            {move || clone!(calendar -> view! {
                                 <Centred>
                                     <CalendarPane handle={calendar} width={alone} first_weekday />
                                 </Centred>
@@ -486,18 +486,18 @@ fn TimeOptionFace(handle: TimeOptionHandle, centred: bool) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(clone!(theme selected -> move || {
-        match (selected.get(), active.get(), hovered.get()) {
+    let fill = create_memo(
+        move || match (selected.get(), active.get(), hovered.get()) {
             (true, _, _) => theme.accent.get(),
             (false, true, _) => theme.pressed.get(),
             (false, false, true) => theme.hover.get(),
             (false, false, false) => Color32::TRANSPARENT,
-        }
-    }));
-    let ink = create_memo(clone!(theme -> move || match selected.get() {
+        },
+    );
+    let ink = create_memo(move || match selected.get() {
         true => theme.on_accent.get(),
         false => theme.text.get(),
-    }));
+    });
     view! {
         <Frame
             height=TIME_ROW_HEIGHT

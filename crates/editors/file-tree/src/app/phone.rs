@@ -114,19 +114,14 @@ pub(crate) fn PhoneFiles(
 ) -> NodeId {
     let (level, set_level) = create_signal(Level::Root);
     let (query, set_query) = create_signal(String::new());
-    let searching = create_memo(clone!(query -> move || !query.get().trim().is_empty()));
-    let browsing = create_memo(clone!(searching -> move || !searching.get()));
-    let at_root = create_memo(clone!(level browsing -> move || {
-        browsing.get() && level.get() == Level::Root
-    }));
-    let nested = create_memo(clone!(level -> move || level.get() != Level::Root));
-    let can_create = create_memo(clone!(level browsing -> move || {
-        browsing.get()
-            && level.get() != Level::Deleted
-            && !covered.get()
-    }));
+    let searching = create_memo(move || !query.get().trim().is_empty());
+    let browsing = create_memo(move || !searching.get());
+    let at_root = create_memo(move || browsing.get() && level.get() == Level::Root);
+    let nested = create_memo(move || level.get() != Level::Root);
+    let can_create =
+        create_memo(move || browsing.get() && level.get() != Level::Deleted && !covered.get());
     let page = NodeRef::new();
-    let creating = clone!(editor picker level tree -> move || {
+    let creating = clone!(editor picker tree -> move || {
         let parent = level.with_untracked(|level| {
             level.container().filter(|crumb| {
                 editor.block_types().child_edits(crumb.block_type).add
@@ -137,7 +132,7 @@ pub(crate) fn PhoneFiles(
         let excluded = parent.into_iter().collect::<HashSet<Uuid>>();
         picker.open_placed(&editor, parent, excluded);
     });
-    let rising = clone!(level set_level -> move || set_level.set(level.get_untracked().up()));
+    let rising = move || set_level.set(level.get_untracked().up());
     let menu = clone!(editor -> move || editor.host().show_app_menu(editor.block_id()));
     let shelf = Shelf {
         editor: editor.clone(),
@@ -155,10 +150,10 @@ pub(crate) fn PhoneFiles(
     let header_level = level;
     let header_set = set_level;
     let page_color = use_theme().background;
-    let parent = clone!(level shelf menu page_color -> move || {
+    let parent = clone!(shelf menu -> move || {
         let (above, _) = create_signal(level.get_untracked().up());
         let (unsearched, unsearch) = create_signal(String::new());
-        let at_top = create_memo(clone!(above -> move || above.get() == Level::Root));
+        let at_top = create_memo(move || above.get() == Level::Root);
         let (color, folder, set_level, on_menu) = (
             page_color,
             shelf.clone(),
@@ -202,7 +197,7 @@ pub(crate) fn PhoneFiles(
                                 <SearchSoon @sizing=ItemSize::Percent(100.0) />
                             </Show>
                             <Show condition={browsing}>
-                                {move || clone!(shelf level at_root -> view! {
+                                {move || clone!(shelf -> view! {
                                     <Folder @sizing=ItemSize::Percent(100.0) shelf level at_root />
                                 })}
                             </Show>
@@ -277,23 +272,30 @@ fn Header(
     on_menu: ClickCallback,
 ) -> NodeId {
     let theme = use_theme();
-    let top = create_memo(clone!(level -> move || level.get() == Level::Root));
-    let inside = create_memo(clone!(top -> move || !top.get()));
+    let top = create_memo(move || level.get() == Level::Root);
+    let inside = create_memo(move || !top.get());
     let titled = top;
     let named = inside;
-    let name = create_memo(clone!(level -> move || match level.get() {
+    let name = create_memo(move || match level.get() {
         Level::Root => "Files".to_owned(),
-        Level::Folder(crumbs) => crumbs.last().map(|crumb| crumb.name.clone()).unwrap_or_default(),
+        Level::Folder(crumbs) => crumbs
+            .last()
+            .map(|crumb| crumb.name.clone())
+            .unwrap_or_default(),
         Level::Deleted => "Recently deleted".to_owned(),
-    }));
-    let path = create_memo(clone!(level -> move || match level.get() {
+    });
+    let path = create_memo(move || match level.get() {
         Level::Folder(crumbs) => std::iter::once("Files".to_owned())
-            .chain(crumbs[..crumbs.len().saturating_sub(1)].iter().map(|crumb| crumb.name.clone()))
+            .chain(
+                crumbs[..crumbs.len().saturating_sub(1)]
+                    .iter()
+                    .map(|crumb| crumb.name.clone()),
+            )
             .collect::<Vec<_>>()
             .join(" / "),
         Level::Root | Level::Deleted => "Files".to_owned(),
-    }));
-    let up = clone!(level -> move || set_level.set(level.get_untracked().up()));
+    });
+    let up = move || set_level.set(level.get_untracked().up());
     let typed = query;
     view! {
         <Frame color={theme.background} padding_horizontal=PADDING padding_vertical=PADDING>
@@ -317,12 +319,12 @@ fn Header(
                         </Frame>
                     </Show>
                     <Show condition={named}>
-                        {move || clone!(name path -> view! {
+                        {move || view! {
                             <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
                                 <Caption content={path} ellipsis=true />
                                 <Heading content={name} />
                             </List>
-                        })}
+                        }}
                     </Show>
                     <Show condition={top}>
                         {move || clone!(on_menu -> view! {
@@ -395,14 +397,14 @@ fn Recents(editor: Editor) -> NodeId {
                 .take(RECENT_SHOWN)
                 .collect::<Vec<(Uuid, Uuid)>>()
         });
-    let keys = create_memo(clone!(recents -> move || {
+    let keys = create_memo(move || {
         recents.with(|recents| recents.iter().map(|(id, _)| *id).collect::<Vec<Uuid>>())
-    }));
-    let any = create_memo(clone!(keys -> move || !keys.get().is_empty()));
+    });
+    let any = create_memo(move || !keys.get().is_empty());
     view! {
         <List spacing=0.0>
             <Show condition={any}>
-                {move || clone!(editor keys recents -> view! {
+                {move || clone!(editor -> view! {
                     <List spacing=6.0>
                         <Frame padding_horizontal=PADDING padding_vertical=4.0>
                             <Caption content="Recent" />
@@ -438,10 +440,10 @@ fn RecentCard(editor: Editor, id: Uuid, block_type: Uuid) -> NodeId {
     let theme = use_theme();
     let target = create_memo(move || Some(ChildTarget::new(id, block_type)));
     let shown = watch_block_label(&editor, target);
-    let resolved = create_memo(clone!(shown -> move || shown.with(|shown| shown.resolved)));
-    let name = create_memo(clone!(shown -> move || shown.with(|shown| shown.name.clone())));
-    let glyph = create_memo(clone!(shown -> move || shown.with(|shown| shown.glyph.clone())));
-    let kind = create_memo(clone!(shown -> move || shown.with(|shown| shown.type_name.clone())));
+    let resolved = create_memo(move || shown.with(|shown| shown.resolved));
+    let name = create_memo(move || shown.with(|shown| shown.name.clone()));
+    let glyph = create_memo(move || shown.with(|shown| shown.glyph.clone()));
+    let kind = create_memo(move || shown.with(|shown| shown.type_name.clone()));
     let host = editor.host().clone();
     view! {
         <Frame visible={resolved} padding_horizontal=4.0>
@@ -491,7 +493,7 @@ fn LevelRows(
     let describing = tree.clone();
     let types = editor.clone();
     let described_level = level.clone();
-    let rows = create_memo(clone!(listed -> move || {
+    let rows = create_memo(move || {
         let listed = listed.get()?;
         let types = types.block_types();
         let mut block_types: HashMap<Uuid, Uuid> = describing.block_types();
@@ -526,19 +528,17 @@ fn LevelRows(
                 })
                 .collect::<Vec<Row>>(),
         )
-    }));
-    let loading = create_memo(clone!(rows -> move || rows.with(Option::is_none)));
-    let empty = create_memo(clone!(rows -> move || {
-        rows.with(|rows| rows.as_ref().is_some_and(Vec::is_empty))
-    }));
-    let keys = create_memo(clone!(rows -> move || {
+    });
+    let loading = create_memo(move || rows.with(Option::is_none));
+    let empty = create_memo(move || rows.with(|rows| rows.as_ref().is_some_and(Vec::is_empty)));
+    let keys = create_memo(move || {
         rows.with(|rows| {
             rows.iter()
                 .flatten()
                 .filter_map(|row| row.id)
                 .collect::<Vec<Uuid>>()
         })
-    }));
+    });
     let empty_text = match &level {
         Level::Root => "Nothing here yet. Tap New to make your first file.",
         Level::Folder(_) => "This folder is empty. Tap New to add a file to it.",
@@ -564,11 +564,11 @@ fn LevelRows(
             </Show>
             <ForEach keys={keys}>
                 {move |id: Uuid| {
-                    let row = create_memo(clone!(rows -> move || {
+                    let row = create_memo(move || {
                         rows.with(|rows| {
                             rows.iter().flatten().find(|row| row.id == Some(id)).cloned()
                         })
-                    }));
+                    });
                     let editor = editor.clone();
                     let level = level.clone();
                     let set_level = set_level;
@@ -579,14 +579,14 @@ fn LevelRows(
                 }}
             </ForEach>
             <Show condition={at_root}>
-                {move || clone!(deleting -> view! {
+                {move || view! {
                     <ActionRow
                         @test_id={"file-tree.deleted"}
                         label="Recently deleted"
                         glyph={ICON_HISTORY.to_owned()}
                         on_click={move || deleting.set(Level::Deleted)}
                     />
-                })}
+                }}
             </Show>
         </List>
     }
@@ -609,12 +609,10 @@ fn PhoneRow(
     let open_id = format!("file-tree.{id}.open");
     let inside_id = format!("file-tree.{id}.inside");
     let more_id = format!("file-tree.{id}.more");
-    let name =
-        create_memo(clone!(row -> move || row.get().map(|row| row.label).unwrap_or_default()));
-    let glyph =
-        create_memo(clone!(row -> move || row.get().map(|row| row.glyph).unwrap_or_default()));
+    let name = create_memo(move || row.get().map(|row| row.label).unwrap_or_default());
+    let glyph = create_memo(move || row.get().map(|row| row.glyph).unwrap_or_default());
     let types = editor.clone();
-    let detail = create_memo(clone!(row -> move || {
+    let detail = create_memo(move || {
         let Some(row) = row.get() else {
             return String::new();
         };
@@ -634,23 +632,24 @@ fn PhoneRow(
                 .unwrap_or("Block")
                 .to_owned(),
         }
-    }));
-    let muted = create_memo(clone!(row -> move || row.get().is_none_or(|row| row.automatic)));
-    let color = create_memo(clone!(theme muted -> move || match muted.get() {
+    });
+    let muted = create_memo(move || row.get().is_none_or(|row| row.automatic));
+    let color = create_memo(move || match muted.get() {
         true => theme.text_muted.get(),
         false => theme.text.get(),
-    }));
-    let folder = create_memo(clone!(row -> move || row.get().is_some_and(|row| drills_in(&row))));
-    let holds = create_memo(clone!(row -> move || {
-        row.get().is_some_and(|row| row.expandable && !drills_in(&row))
-    }));
+    });
+    let folder = create_memo(move || row.get().is_some_and(|row| drills_in(&row)));
+    let holds = create_memo(move || {
+        row.get()
+            .is_some_and(|row| row.expandable && !drills_in(&row))
+    });
     let host = editor.host().clone();
-    let entering = clone!(level set_level row -> move || {
+    let entering = clone!(level -> move || {
         if let Some(next) = row.get_untracked().and_then(|row| level.inside(&row)) {
             set_level.set(next);
         }
     });
-    let tapped = clone!(entering row -> move || {
+    let tapped = clone!(entering -> move || {
         let Some(shown) = row.get_untracked() else {
             return;
         };
@@ -732,12 +731,12 @@ fn RowMenu(tools: RowTools, row: Memo<Option<Row>>) -> NodeId {
     let adding = Rc::clone(&picker);
     let chosen = menu_action(editor.clone(), tree, picker, exporter, inspect, row);
     let add_editor = editor.clone();
-    let add_inside = clone!(row -> move || {
+    let add_inside = move || {
         let Some(id) = row.get_untracked().and_then(|row| row.id) else {
             return;
         };
         adding.open_placed(&add_editor, Some(id), [id].into_iter().collect());
-    });
+    };
     let off =
         |test: fn(&Row) -> bool| create_memo(move || !row.get().is_some_and(|row| test(&row)));
     let unviewable = off(|row| row.access.can_view());
@@ -749,14 +748,14 @@ fn RowMenu(tools: RowTools, row: Memo<Option<Row>>) -> NodeId {
     let undeletable = off(|row| row.can_delete);
     let uninspectable = off(|row| row.inspection.is_some());
     let unexportable = off(|row| row.access.can_view() && exportable(row.block_type));
-    let delete_label = create_memo(clone!(row -> move || {
-        match row.get().is_some_and(|row| row.is_reference) {
+    let delete_label = create_memo(
+        move || match row.get().is_some_and(|row| row.is_reference) {
             true => "Remove link".to_owned(),
             false => "Delete".to_owned(),
-        }
-    }));
+        },
+    );
     let host = editor.host().clone();
-    let opening = clone!(row -> move || {
+    let opening = move || {
         let Some(shown) = row.get_untracked() else {
             return;
         };
@@ -778,7 +777,7 @@ fn RowMenu(tools: RowTools, row: Memo<Option<Row>>) -> NodeId {
             Some(container) => host.open_block_via(id, shown.block_type, container),
             None => host.open_block(id, shown.block_type),
         }
-    });
+    };
     view! {
         <IconMenuButton
             variant=ButtonVariant::Secondary

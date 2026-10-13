@@ -37,16 +37,16 @@ pub fn PresentationView(editor: Editor) -> NodeId {
     editor.content(&stage);
 
     let theme = use_theme();
-    let editing = create_memo(clone!(presenting -> move || !presenting.get()));
-    let mode = create_memo(clone!(presenting -> move || match presenting.get() {
+    let editing = create_memo(move || !presenting.get());
+    let mode = create_memo(move || match presenting.get() {
         true => ChildMode::Preview,
         false => ChildMode::Live,
-    }));
-    let background = create_memo(clone!(theme presenting -> move || match presenting.get() {
+    });
+    let background = create_memo(move || match presenting.get() {
         true => Color32::BLACK,
         false => theme.background.get(),
-    }));
-    let keys = clone!(slides presenting -> move |press: KeyPress| {
+    });
+    let keys = clone!(slides -> move |press: KeyPress| {
         presenting.get_untracked() && navigate(&slides, press)
     });
 
@@ -139,10 +139,10 @@ fn Stage(
             sized.set_intrinsic_size(Some(Vec2::new(SLIDE_HEIGHT * ratio, SLIDE_HEIGHT)));
         }
     };
-    let fitted = create_memo(clone!(ratio -> move || match fit.get() {
+    let fitted = create_memo(move || match fit.get() {
         true => ratio.get(),
         false => FILL,
-    }));
+    });
 
     view! {
         <Frame aspect_ratio={fitted}>
@@ -165,16 +165,14 @@ fn Stage(
 #[component]
 fn SlideStatus(state: ReadSignal<ChildState>) -> NodeId {
     let theme = use_theme();
-    let hidden = create_memo(clone!(state -> move || {
-        state.with(|state| !state.available || state.error.is_some())
-    }));
-    let message = create_memo(
-        clone!(state -> move || state.with(|state| match &state.error {
+    let hidden = create_memo(move || state.with(|state| !state.available || state.error.is_some()));
+    let message = create_memo(move || {
+        state.with(|state| match &state.error {
             Some(error) => error.clone(),
             None if state.placed => "Loading this slide…".to_owned(),
             None => "This slide's block could not be found.".to_owned(),
-        })),
-    );
+        })
+    });
     view! {
         <Frame visible={hidden}>
             <Text string={message} font_size=theme::FONT_SMALL color={theme.text_muted} wrap=true />
@@ -349,17 +347,17 @@ fn SlideTile(editor: Editor, slides: Rc<Slides>, selected: Prop<bool>, id: Uuid)
             .map_or_else(String::new, |index| (index + 1).to_string())
     }));
     let selected = create_memo(move || selected.get());
-    let outline = create_memo(clone!(theme selected -> move || match selected.get() {
+    let outline = create_memo(move || match selected.get() {
         true => theme.accent.get(),
         false => theme.border.get(),
-    }));
-    let width = create_memo(clone!(selected -> move || match selected.get() {
+    });
+    let width = create_memo(move || match selected.get() {
         true => 2.0_f32,
         false => 1.0_f32,
-    }));
+    });
 
     let select = clone!(slides -> move || slides.select(Some(id)));
-    let payload = create_memo(clone!(editable -> move || editable.get().then_some(id)));
+    let payload = create_memo(move || editable.get().then_some(id));
     let entered = Rc::new(Cell::new(false));
     let over = clone!(slides -> move |over: Option<(Uuid, DragPoint)>| {
         let Some((held, _)) = over else {

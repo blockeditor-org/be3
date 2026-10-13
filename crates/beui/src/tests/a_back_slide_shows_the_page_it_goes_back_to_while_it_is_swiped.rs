@@ -1,6 +1,6 @@
 use super::*;
 use crate::input::{BackEdge, BackGesture};
-use crate::reactive::{NodeRef, Text, build, clone, create_memo, create_signal, view};
+use crate::reactive::{NodeRef, Text, build, create_memo, create_signal, view};
 use crate::unstyled::BackSlide;
 
 #[test]
@@ -14,7 +14,7 @@ fn a_back_slide_shows_the_page_it_goes_back_to_while_it_is_swiped() {
     let watched = previous.clone();
     let document = build({
         move || {
-            let nested = create_memo(clone!(depth -> move || depth.get() > 0));
+            let nested = create_memo(move || depth.get() > 0);
             view! {
                 <BackSlide
                     enabled={nested}

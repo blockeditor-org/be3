@@ -13,7 +13,7 @@ const BUTTON_WIDTH: f32 = 44.0;
 pub fn Counter(editor: Editor) -> NodeId {
     let counter = editor.block_content::<CounterContent>();
     let count = counter.field(ObjectId::ROOT, CounterModel::COUNT);
-    let shown = create_memo(clone!(count -> move || count.get().get().to_string()));
+    let shown = create_memo(move || count.get().get().to_string());
     let decrement = clone!(counter -> move || counter.operate(CounterModel::add(-1)));
     let increment = clone!(counter -> move || counter.operate(CounterModel::add(1)));
     let reset = clone!(counter -> move || {

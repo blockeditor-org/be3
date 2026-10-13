@@ -11,7 +11,7 @@ use beui_components_unstyled::{SliderHandle, SliderScale};
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Callback, Direction, Frame, ItemSize, List, Prop, clone, create_memo, focus_ring,
+    Align, Callback, Direction, Frame, ItemSize, List, Prop, create_memo, focus_ring,
 };
 
 const HEIGHT: f32 = 20.0;
@@ -63,15 +63,13 @@ fn SliderTrack(handle: SliderHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let filled_percent = create_memo(clone!(fraction -> move || filled_size(fraction.get())));
+    let filled_percent = create_memo(move || filled_size(fraction.get()));
     let rest_percent = create_memo(move || rest_size(fraction.get()));
-    let knob_color = create_memo(clone!(theme disabled -> move || {
-        knob_fill_color(&theme, dragging.get(), disabled.get())
-    }));
-    let filled_color = create_memo(clone!(theme disabled -> move || match disabled.get() {
+    let knob_color = create_memo(move || knob_fill_color(&theme, dragging.get(), disabled.get()));
+    let filled_color = create_memo(move || match disabled.get() {
         true => theme.track.get(),
         false => theme.accent.get(),
-    }));
+    });
 
     view! {
         <Frame

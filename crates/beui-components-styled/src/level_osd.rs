@@ -50,7 +50,7 @@ pub fn LevelOsd(
 ) -> NodeId {
     let since: Rc<Cell<Option<Instant>>> = Rc::new(Cell::new(None));
     let (opacity, set_opacity) = create_signal(0.0_f32);
-    let ticking = create_timer(clone!(since set_opacity -> move || {
+    let ticking = create_timer(clone!(since -> move || {
         let started = since.get()?;
         let elapsed = now().saturating_duration_since(started);
         if elapsed < duration {
@@ -77,18 +77,14 @@ pub fn LevelOsd(
         });
     });
     let level = create_memo(move || level.get());
-    let open = create_memo(clone!(opacity level -> move || {
-        opacity.get() > 0.0 && level.with(Option::is_some)
-    }));
+    let open = create_memo(move || opacity.get() > 0.0 && level.with(Option::is_some));
     let screens = use_screens();
-    let places = create_memo(clone!(screens -> move || {
-        (0..screens.with(Vec::len)).collect::<Vec<usize>>()
-    }));
+    let places = create_memo(move || (0..screens.with(Vec::len)).collect::<Vec<usize>>());
     view! {
         <List spacing=0.0>
             <ForEach keys={places}>
                 {move |index: usize| {
-                    let anchored = create_memo(clone!(screens -> move || {
+                    let anchored = create_memo(move || {
                         let screen = screens.with(|screens| {
                             screens.get(index).map_or(Rect::ZERO, |screen| screen.rect)
                         });
@@ -96,7 +92,7 @@ pub fn LevelOsd(
                             screen.center().x,
                             screen.top() + screen.height() * SCREEN_HEIGHT_FRACTION,
                         ))
-                    }));
+                    });
                     let (open, level, opacity) = (open, level, opacity);
                     let id = format!("{id}.{index}");
                     view! {
@@ -134,22 +130,25 @@ fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) 
     let card = faded(create_memo(move || raised.get()));
     let outline = faded(create_memo(move || border.get()));
     let rail = faded(create_memo(move || track.get()));
-    let glyph_color = faded(create_memo(
-        clone!(muted text_muted -> move || match muted.get() {
-            true => text_muted.get(),
-            false => text.get(),
-        }),
-    ));
+    let glyph_color = faded(create_memo(move || match muted.get() {
+        true => text_muted.get(),
+        false => text.get(),
+    }));
     let fill = faded(create_memo(move || match muted.get() {
         true => text_muted.get(),
         false => accent.get(),
     }));
-    let glyph = create_memo(clone!(level -> move || {
-        level.with(|level| level.as_ref().map(|level| level.glyph.clone()).unwrap_or_default())
-    }));
-    let filled = create_memo(clone!(level -> move || {
+    let glyph = create_memo(move || {
+        level.with(|level| {
+            level
+                .as_ref()
+                .map(|level| level.glyph.clone())
+                .unwrap_or_default()
+        })
+    });
+    let filled = create_memo(move || {
         level.with(|level| level.as_ref().map(|level| level.level.clamp(0.0, 1.0)))
-    }));
+    });
     component_accessibility(create_memo(move || {
         let mut node = Node::new(Role::ProgressIndicator);
         if let Some(level) = level.get() {

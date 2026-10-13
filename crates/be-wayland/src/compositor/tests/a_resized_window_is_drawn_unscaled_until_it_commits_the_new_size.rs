@@ -13,7 +13,7 @@ fn Pane(windows: Windows) -> NodeId {
     let (size, set_size) = create_signal(SHOWN);
     PANE.with(|pane| *pane.borrow_mut() = Some(set_size));
     let ids = create_memo(clone_list(&windows));
-    let width = create_memo(clone!(size -> move || Some(size.get().x)));
+    let width = create_memo(move || Some(size.get().x));
     let height = create_memo(move || Some(size.get().y));
     view! {
         <List spacing=0.0>

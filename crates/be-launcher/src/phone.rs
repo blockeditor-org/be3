@@ -411,7 +411,7 @@ pub(crate) fn Actions(
     let slot = Slot::PullRequest(initial.number);
     let build = phone.build(slot, &initial.head_sha);
     let busy = create_memo(clone!(phone -> move || phone.work.with(Option::is_some)));
-    let disabled = create_memo(clone!(build busy -> move || busy.get() || !published(&build)));
+    let disabled = create_memo(clone!(build busy -> move || busy.get() || !published(build)));
     let run = clone!(phone -> move || phone.run(slot, false));
     let pick = clone!(phone -> move |path: Vec<usize>| match path.as_slice() {
         [0] => phone.run(slot, true),
@@ -467,7 +467,7 @@ pub(crate) fn MainActions(model: Model) -> NodeId {
     let phone = model.phone.clone();
     let build = phone.main_build();
     let busy = create_memo(clone!(phone -> move || phone.work.with(Option::is_some)));
-    let disabled = create_memo(clone!(build busy -> move || busy.get() || !published(&build)));
+    let disabled = create_memo(clone!(build busy -> move || busy.get() || !published(build)));
     let run = clone!(phone -> move || phone.run(Slot::Main, false));
     let pick = clone!(phone -> move |path: Vec<usize>| match path.as_slice() {
         [0] => phone.run(Slot::Main, true),
@@ -526,7 +526,7 @@ pub(crate) fn MainActions(model: Model) -> NodeId {
     }
 }
 
-fn published(build: &ReadSignal<Loaded<Found>>) -> bool {
+fn published(build: ReadSignal<Loaded<Found>>) -> bool {
     matches!(build.get(), Loaded::Ready(Found { build: Some(_), .. }))
 }
 

@@ -9,7 +9,7 @@ use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    Callback, Child, List, Memo, NodeRef, Prop, ReadSignal, Render, ShowKeepAlive, clone,
+    Callback, Child, List, Memo, NodeRef, Prop, ReadSignal, Render, ShowKeepAlive,
     component_accessibility, create_effect, create_memo, create_signal, set_component_state,
 };
 
@@ -53,11 +53,11 @@ pub fn Popover(
 ) -> NodeId {
     let requested = open;
     let (open, set_open) = create_signal(false);
-    create_effect(clone!(set_open -> move || {
+    create_effect(move || {
         if requested.get() {
             set_open.set(true);
         }
-    }));
+    });
     let (refocus, set_refocus) = create_signal(false);
     let disabled = create_memo(move || disabled.get());
     let label = create_memo(move || label.get());
@@ -67,15 +67,15 @@ pub fn Popover(
         trigger: trigger_ref.clone(),
     });
 
-    create_effect(clone!(open -> move || on_open_change.call(open.get())));
-    create_effect(clone!(disabled set_open -> move || {
+    create_effect(move || on_open_change.call(open.get()));
+    create_effect(move || {
         if disabled.get() {
             set_open.set(false);
         }
-    }));
+    });
 
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::Button)));
-    let trigger_accessibility = create_memo(clone!(open label -> move || {
+    let trigger_accessibility = create_memo(move || {
         let mut node = accessibility.get();
         if node.label().is_none() && !label.get().is_empty() {
             node.set_label(label.get());
@@ -83,26 +83,24 @@ pub fn Popover(
         node.set_has_popup(HasPopup::Dialog);
         node.set_expanded(open.get());
         node
-    }));
+    });
 
     let (built, set_built) = create_signal(false);
-    create_effect(clone!(open -> move || {
+    create_effect(move || {
         if open.get() {
             set_built.set(true);
         }
-    }));
+    });
 
     let refocus_trigger = create_memo(move || refocus_trigger.get());
-    let close = Callback::new(
-        clone!(open set_open set_refocus refocus_trigger -> move |()| {
-            if open.get_untracked() {
-                if refocus_trigger.get_untracked() {
-                    set_refocus.set(true);
-                }
-                set_open.set(false);
+    let close = Callback::new(move |()| {
+        if open.get_untracked() {
+            if refocus_trigger.get_untracked() {
+                set_refocus.set(true);
             }
-        }),
-    );
+            set_open.set(false);
+        }
+    });
     let anchor = anchor.unwrap_or_else(|| trigger_ref.clone());
     let placement = match placement {
         PopoverPlacement::Below => Placement::BelowStart,
@@ -111,11 +109,11 @@ pub fn Popover(
     let handle = PopoverHandle { open, close };
     let trigger_label = label;
     let trigger_open = open;
-    let toggle = clone!(set_open disabled -> move || {
+    let toggle = move || {
         if !disabled.get_untracked() {
             set_open.update(|open| *open = !*open);
         }
-    });
+    };
     view! {
         <List spacing=0.0>
             <unstyled::Button
@@ -125,11 +123,11 @@ pub fn Popover(
                 disabled={disabled}
                 focused={refocus}
                 accessibility={trigger_accessibility}
-                on_focus_change={clone!(set_refocus -> move |focused: bool| {
+                on_focus_change={move |focused: bool| {
                     if !focused {
                         set_refocus.set(false);
                     }
-                })}
+                }}
                 on_click={toggle}
                 content={move |button: ButtonHandle| {
                     trigger.call(PopoverTriggerHandle {
@@ -144,12 +142,12 @@ pub fn Popover(
                 policy=LayerPolicy::Pass
                 trigger={trigger_ref.clone()}
                 open={open}
-                on_dismiss={clone!(set_open -> move |_: Dismiss| {
+                on_dismiss={move |_: Dismiss| {
                     set_open.set(false);
                     if refocus_trigger.get_untracked() {
                         set_refocus.set(true);
                     }
-                })}
+                }}
             >
                 <PopoverSurface label>
                     <List spacing=0.0>

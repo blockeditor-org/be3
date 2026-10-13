@@ -428,10 +428,8 @@ fn Scrolling(
     on_cleanup(clone!(motion -> move || drop(motion.animation.take())));
     set_component_state(motion.clone());
 
-    let position = create_memo(clone!(reported -> move || reported.get().unwrap_or_default()));
-    component_accessibility(create_memo(
-        clone!(reported -> move || scroll_view(reported.get())),
-    ));
+    let position = create_memo(move || reported.get().unwrap_or_default());
+    component_accessibility(create_memo(move || scroll_view(reported.get())));
 
     let (focused, set_focused) = create_signal(false);
     let across = across(&direction);
@@ -443,10 +441,8 @@ fn Scrolling(
     let catcher = NodeRef::new();
     let catcher_rect = catcher.clone();
     let (origin, set_origin) = create_signal(None::<Pos2>);
-    let marked = create_memo(clone!(origin -> move || origin.get().is_some()));
-    let anchor = create_memo(clone!(origin -> move || {
-        OverlayAnchor::Point(origin.get().unwrap_or(Pos2::ZERO))
-    }));
+    let marked = create_memo(move || origin.get().is_some());
+    let anchor = create_memo(move || OverlayAnchor::Point(origin.get().unwrap_or(Pos2::ZERO)));
     let marker_axis = create_memo(clone!(direction -> move || direction.get()));
     let content_axis = marker_axis;
     let scroll_to = Callback::new(move |offset: f32| motion.scroll_to(offset));

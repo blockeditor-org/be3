@@ -1,6 +1,6 @@
 use super::*;
 use crate::reactive::{
-    ForEach, Frame, Memo, clone, component, create_memo, create_signal, view, with_reactive_scope,
+    ForEach, Frame, Memo, component, create_memo, create_signal, view, with_reactive_scope,
 };
 use crate::styled::ContextMenu;
 use crate::unstyled::MenuItem;
@@ -58,7 +58,7 @@ fn a_component_wrapping_a_node_less_component_keeps_its_scope() {
 
 #[component]
 fn Rows(region: NodeRef, count: crate::reactive::ReadSignal<usize>) -> NodeId {
-    let keys = create_memo(clone!(count -> move || (0..count.get()).collect::<Vec<usize>>()));
+    let keys = create_memo(move || (0..count.get()).collect::<Vec<usize>>());
     view! {
         <ContextMenu
             items={view! {
@@ -80,7 +80,7 @@ fn Rows(region: NodeRef, count: crate::reactive::ReadSignal<usize>) -> NodeId {
 
 #[component]
 fn Row(label: Memo<String>) -> MenuItem {
-    let empty = create_memo(clone!(label -> move || label.with(String::is_empty)));
+    let empty = create_memo(move || label.with(String::is_empty));
     view! {
         <MenuItem label={label} disabled={empty} />
     }

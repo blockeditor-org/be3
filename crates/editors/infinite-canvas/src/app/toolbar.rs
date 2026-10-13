@@ -101,7 +101,7 @@ pub(crate) fn ZoomPill(state: Rc<CanvasState>, anchor: NodeRef, shown: Prop<bool
     let previewing = state.previewing();
     let open = create_memo(move || shown.get() && !sheet.get() && !previewing);
     let scale = state.editor().scale();
-    let readout = create_memo(clone!(scale -> move || format!("{:.0}%", scale.get() * 100.0)));
+    let readout = create_memo(move || format!("{:.0}%", scale.get() * 100.0));
     let reset = actions.zoom_reset.clone();
     let theme = use_theme();
     view! {
@@ -169,7 +169,7 @@ pub(crate) fn ImportError(state: Rc<CanvasState>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={failed}>
-                {move || clone!(dismiss message theme -> view! {
+                {move || clone!(dismiss -> view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                         <Body content={message} color={theme.danger} />
                         <Button

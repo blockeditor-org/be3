@@ -5,7 +5,7 @@ use block_editor_beui::be_block::profile::VIEW_EDITORS;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_LOCK;
 use block_editor_beui::beui::reactive::{
-    Align, Dynamic, Frame, ItemSize, List, Memo, ReadSignal, Show, clone, component, create_effect,
+    Align, Dynamic, Frame, ItemSize, List, Memo, ReadSignal, Show, component, create_effect,
     create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{Caption, Heading};
@@ -151,19 +151,19 @@ pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
         };
         set_info.set(read_info(&workspace, tab, &watched));
     });
-    let content = create_memo(clone!(info -> move || match info.get() {
+    let content = create_memo(move || match info.get() {
         Some(info) if info.debugging => Content::Debug,
         Some(info) if !info.access.can_view() => Content::Denied,
         Some(_) | None => Content::Block,
-    }));
+    });
     let editor = workspace.editor().clone();
     let branch = Rc::clone(&workspace);
     let branch_info = info;
     let phone = workspace.phone;
-    let top_bar = create_memo(clone!(phone -> move || match phone.get() {
+    let top_bar = create_memo(move || match phone.get() {
         true => TopBar::Phone,
         false => TopBar::Shown,
-    }));
+    });
     let session = workspace
         .tab(tab)
         .is_some_and(|item| VIEW_EDITORS.contains(&item.block_type));
@@ -262,17 +262,17 @@ fn BlockChild(
 
 #[component]
 fn AccessDenied(info: ReadSignal<Option<Info>>) -> NodeId {
-    let simulated = create_memo(clone!(info -> move || {
+    let simulated = create_memo(move || {
         info.with(|info| info.as_ref().is_some_and(|info| info.ceiling.can_view()))
-    }));
-    let first = create_memo(clone!(simulated -> move || match simulated.get() {
+    });
+    let first = create_memo(move || match simulated.get() {
         true => "An account that only knows this block exists cannot open it.".to_owned(),
         false => "You do not have permission to open this block.".to_owned(),
-    }));
-    let second = create_memo(clone!(simulated -> move || match simulated.get() {
+    });
+    let second = create_memo(move || match simulated.get() {
         true => "Switch back to Can view or Can edit to see it.".to_owned(),
         false => "Ask someone who can edit it to share it with you.".to_owned(),
-    }));
+    });
     let heading = format!("{ICON_LOCK} No access");
     view! {
         <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>

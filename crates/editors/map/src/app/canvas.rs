@@ -31,7 +31,7 @@ pub(crate) fn MapCanvas(state: Rc<MapState>) -> NodeId {
     let revision = state.revision;
     let sized = state.editor().world();
     let laid_out = state.editor().placed();
-    let world = create_memo(clone!(placed sized laid_out -> move || {
+    let world = create_memo(clone!(placed -> move || {
         placed.displayed_region.with(|_| ());
         sized.with(|_| ());
         laid_out.with(|_| ());
@@ -40,63 +40,62 @@ pub(crate) fn MapCanvas(state: Rc<MapState>) -> NodeId {
     }));
     let viewed = Rc::clone(&state);
     let camera = create_memo(move || viewed.camera());
-    let scale =
-        create_memo(clone!(camera -> move || camera.get().map_or(1.0, |camera| camera.scale)));
+    let scale = create_memo(move || camera.get().map_or(1.0, |camera| camera.scale));
     let seen = Rc::clone(&state);
-    let visible = create_memo(clone!(sized -> move || {
+    let visible = create_memo(move || {
         sized.with(|_| ());
         seen.visible()
-    }));
+    });
     let covered = Rc::clone(&state);
-    let covering = create_memo(clone!(world visible scale -> move || {
+    let covering = create_memo(move || {
         let (world, visible, scale) = (world.get(), visible.get(), scale.get());
         match covered.sized() {
             true => tiles::covering(world, visible, scale),
             false => Vec::new(),
         }
-    }));
+    });
     let used = Rc::clone(&state);
-    create_effect(clone!(covering -> move || {
+    create_effect(move || {
         let shown = covering.get();
         untrack(|| used.use_tiles(&shown));
-    }));
+    });
 
     let labelled = Rc::clone(&state);
     let measures = Rc::new(labels::Measures::default());
-    let candidates = create_memo(clone!(covering world revision -> move || {
+    let candidates = create_memo(move || {
         let _ = revision.get();
         let held = labelled.tiles();
         let sources = labels::sources(&held, &covering.get());
         Rc::new(labels::candidates(&held, &sources, world.get(), &measures))
-    }));
-    let decluttered = create_memo(clone!(candidates scale -> move || {
-        Rc::new(labels::declutter(&candidates.get(), scale.get()))
-    }));
-    let shown_labels = create_memo(clone!(decluttered visible scale -> move || {
-        labels::shown(&decluttered.get(), visible.get(), scale.get())
-    }));
-    let label_keys = create_memo(clone!(shown_labels -> move || {
+    });
+    let decluttered =
+        create_memo(move || Rc::new(labels::declutter(&candidates.get(), scale.get())));
+    let shown_labels =
+        create_memo(move || labels::shown(&decluttered.get(), visible.get(), scale.get()));
+    let label_keys = create_memo(move || {
         shown_labels.with(|shown| shown.iter().map(labels::Label::key).collect::<Vec<_>>())
-    }));
-    let by_key = create_memo(
-        clone!(shown_labels -> move || shown_labels.with(|shown| labels::by_key(shown))),
-    );
+    });
+    let by_key = create_memo(move || shown_labels.with(|shown| labels::by_key(shown)));
 
     let region = Rc::clone(&state);
-    let outline = create_memo(clone!(region world -> move || {
+    let outline = create_memo(clone!(region -> move || {
         let view = world.get();
         region
             .preview_region
             .get()
             .map(|preview| view.region_rect(preview))
     }));
-    let has_region = create_memo(clone!(outline -> move || outline.get().is_some()));
-    let region_rect = create_memo(clone!(outline -> move || outline.get().unwrap_or(Rect::ZERO)));
+    let has_region = create_memo(move || outline.get().is_some());
+    let region_rect = create_memo(move || outline.get().unwrap_or(Rect::ZERO));
 
     let points = state.points;
-    let ids = create_memo(clone!(points -> move || {
-        points.get().iter().map(|point| point.id).collect::<Vec<Uuid>>()
-    }));
+    let ids = create_memo(move || {
+        points
+            .get()
+            .iter()
+            .map(|point| point.id)
+            .collect::<Vec<Uuid>>()
+    });
     let selection = create_selector(clone!(state -> move || state.selected.get()));
 
     let theme = use_theme();
@@ -171,10 +170,10 @@ pub(crate) fn MapCanvas(state: Rc<MapState>) -> NodeId {
 
 #[component]
 fn RegionOutline(shown: Memo<bool>, rect: Memo<Rect>) -> CanvasItem {
-    let x = create_memo(clone!(rect -> move || rect.get().left()));
-    let y = create_memo(clone!(rect -> move || rect.get().top()));
-    let width = create_memo(clone!(rect -> move || rect.get().width()));
-    let height = create_memo(clone!(rect -> move || rect.get().height()));
+    let x = create_memo(move || rect.get().left());
+    let y = create_memo(move || rect.get().top());
+    let width = create_memo(move || rect.get().width());
+    let height = create_memo(move || rect.get().height());
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
             <Frame visible={shown} outline=REGION_COLOR outline_width=1.5 outline_visible=true />
@@ -194,18 +193,20 @@ fn PointMarker(
     let point = create_memo(clone!(held -> move || {
         held.points.get().into_iter().find(|point| point.id == id)
     }));
-    let tip = create_memo(clone!(point world -> move || {
+    let tip = create_memo(move || {
         let view = world.get();
         point
             .get()
             .map(|point: MapPoint| view.position(point.position))
             .unwrap_or(Pos2::ZERO)
-    }));
-    let color = create_memo(clone!(point -> move || {
-        point.get().map_or(Color32::TRANSPARENT, |point| points::marker_color(point.color))
-    }));
+    });
+    let color = create_memo(move || {
+        point.get().map_or(Color32::TRANSPARENT, |point| {
+            points::marker_color(point.color)
+        })
+    });
     let named = Rc::clone(&state);
-    let label = create_memo(clone!(point named -> move || {
+    let label = create_memo(clone!(named -> move || {
         let Some(point) = point.get() else {
             return String::new();
         };

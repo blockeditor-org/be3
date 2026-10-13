@@ -7,7 +7,7 @@ use beui_components_unstyled::{MenuItem, SelectableState, copy_selection, select
 use beui_core::base::ItemSize;
 use beui_core::geometry::Pos2;
 use beui_core::node::NodeId;
-use beui_view::reactive::{Child, Prop, clone, create_memo, create_signal, set_component_state};
+use beui_view::reactive::{Child, Prop, create_memo, create_signal, set_component_state};
 
 #[component]
 pub fn SelectableText(
@@ -17,8 +17,8 @@ pub fn SelectableText(
     let theme = use_theme();
     let state = SelectableState::default();
     set_component_state(state.clone());
-    let color = create_memo(clone!(theme -> move || theme.accent_soft.get()));
-    let handle_color = create_memo(clone!(theme -> move || theme.accent.get()));
+    let color = create_memo(move || theme.accent_soft.get());
+    let handle_color = create_memo(move || theme.accent.get());
     let (menu_at, set_menu_at) = create_signal(None::<Pos2>);
     let close_menu = set_menu_at;
     let chosen = state.clone();

@@ -1,6 +1,6 @@
 use beui::NodeId;
 use beui::reactive::{
-    Align, Child, Children, Direction, Frame, List, ListChild, NodeRef, Prop, clone, component,
+    Align, Child, Children, Direction, Frame, List, ListChild, NodeRef, Prop, component,
     create_memo, view,
 };
 use beui::styled::theme::BORDER_WIDTH;
@@ -23,7 +23,7 @@ pub fn BottomDock(
     #[prop(children)] children: Children<ListChild>,
 ) -> NodeId {
     let sheet = sheet_open();
-    let open = create_memo(clone!(sheet -> move || open.get() && !sheet.get()));
+    let open = create_memo(move || open.get() && !sheet.get());
     let theme = use_theme();
     view! {
         <Floating anchor={anchor} edge=Edge::Bottom open={open}>

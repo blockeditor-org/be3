@@ -70,14 +70,14 @@ fn PressCounter() -> NodeId {
     let (presses, set_presses) = create_signal(0u32);
     let (hovered, set_hovered) = create_signal(false);
     let (active, set_active) = create_signal(false);
-    let fill = create_memo(clone!(theme -> move || {
+    let fill = create_memo(move || {
         let theme = theme.get();
         match (active.get(), hovered.get()) {
             (true, _) => theme.pressed,
             (false, true) => theme.hover,
             (false, false) => theme.surface_raised,
         }
-    }));
+    });
     let label = create_memo(move || format!("Pressed {} times", presses.get()));
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
@@ -129,14 +129,14 @@ fn PillFace(handle: ButtonHandle, label: &'static str) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(clone!(theme -> move || {
+    let fill = create_memo(move || {
         let theme = theme.get();
         match (active.get(), hovered.get()) {
             (true, _) => theme.accent_active,
             (false, true) => theme.accent_hover,
             (false, false) => theme.accent,
         }
-    }));
+    });
     view! {
         <Frame
             color={fill}
@@ -177,10 +177,10 @@ fn SquareCheckboxFace(handle: ToggleHandle, label: &'static str) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let border = create_memo(clone!(theme -> move || match hovered.get() {
+    let border = create_memo(move || match hovered.get() {
         true => theme.accent.get(),
         false => theme.text_muted.get(),
-    }));
+    });
     view! {
         <Frame
             outline={theme.accent}
@@ -257,9 +257,7 @@ pub(crate) fn ValuesPage() -> NodeId {
 fn VolumeMeter() -> NodeId {
     let (volume, set_volume) = create_signal(0.3f32);
     let theme = use_theme();
-    let volume_text = create_memo(clone!(volume -> move || {
-        format!("Volume {}%", (volume.get() * 100.0).round())
-    }));
+    let volume_text = create_memo(move || format!("Volume {}%", (volume.get() * 100.0).round()));
     view! {
         <List spacing=SECTION_SPACING>
             <unstyled::Slider value={volume} on_change={move |value| set_volume.set(value)}>
@@ -279,7 +277,7 @@ fn MeterFace(handle: SliderHandle) -> NodeId {
         fraction, focused, ..
     } = handle;
     let theme = use_theme();
-    let filled = create_memo(clone!(fraction -> move || ItemSize::Percent(fraction.get() * 100.0)));
+    let filled = create_memo(move || ItemSize::Percent(fraction.get() * 100.0));
     let rest = create_memo(move || ItemSize::Percent((1.0 - fraction.get()) * 100.0));
     view! {
         <Frame
@@ -338,12 +336,10 @@ fn UnderlinedField(handle: TextInputHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let line = create_memo(
-        clone!(theme -> move || match focused.get() || hovered.get() {
-            true => theme.accent.get(),
-            false => theme.border.get(),
-        }),
-    );
+    let line = create_memo(move || match focused.get() || hovered.get() {
+        true => theme.accent.get(),
+        false => theme.border.get(),
+    });
     view! {
         <List spacing=6.0>
             {field}
@@ -434,18 +430,18 @@ fn SegmentFace(handle: ChoiceOptionHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(clone!(theme selected -> move || {
+    let fill = create_memo(move || {
         let theme = theme.get();
         match (selected.get(), hovered.get()) {
             (true, _) => theme.accent,
             (false, true) => theme.hover,
             (false, false) => Color32::TRANSPARENT,
         }
-    }));
-    let ink = create_memo(clone!(theme -> move || match selected.get() {
+    });
+    let ink = create_memo(move || match selected.get() {
         true => theme.on_accent.get(),
         false => theme.text.get(),
-    }));
+    });
     view! {
         <Frame
             color={fill}
@@ -547,14 +543,14 @@ fn DetailsDisclosure() -> NodeId {
             open=false
             header={move |handle: DisclosureHandle| {
                 let DisclosureHandle { open, hovered, .. } = handle;
-                let title = create_memo(clone!(open -> move || match open.get() {
+                let title = create_memo(move || match open.get() {
                     true => "Hide the details".to_owned(),
                     false => "Show the details".to_owned(),
-                }));
-                let ink = create_memo(clone!(theme -> move || match hovered.get() {
+                });
+                let ink = create_memo(move || match hovered.get() {
                     true => theme.accent_hover.get(),
                     false => theme.accent.get(),
-                }));
+                });
                 view! {
                     <Text string={title} color={ink} underline=true />
                 }
@@ -797,12 +793,10 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(
-        clone!(theme -> move || match hovered.get() || focused.get() {
-            true => theme.hover.get(),
-            false => Color32::TRANSPARENT,
-        }),
-    );
+    let fill = create_memo(move || match hovered.get() || focused.get() {
+        true => theme.hover.get(),
+        false => Color32::TRANSPARENT,
+    });
     view! {
         <Frame color={fill} radius=RADIUS padding_horizontal=10.0 padding_vertical=6.0>
             <Text string={label} color={theme.text} />
@@ -852,10 +846,10 @@ fn FruitBin(bin: usize, bins: ReadSignal<Vec<usize>>, set_bins: WriteSignal<Vec<
         >
             {move |handle: DropHandle| {
                 let DropHandle { over, .. } = handle;
-                let edge = create_memo(clone!(theme -> move || match over.get() {
+                let edge = create_memo(move || match over.get() {
                     true => theme.accent.get(),
                     false => theme.border.get(),
-                }));
+                });
                 view! {
                     <Frame
                         height=BIN_HEIGHT
@@ -894,10 +888,10 @@ fn FruitBin(bin: usize, bins: ReadSignal<Vec<usize>>, set_bins: WriteSignal<Vec<
 #[component]
 fn FruitChip(fruit: usize, lifted: Prop<bool>) -> NodeId {
     let theme = use_theme();
-    let fill = create_memo(clone!(theme -> move || match lifted.get() {
+    let fill = create_memo(move || match lifted.get() {
         true => theme.accent_soft.get(),
         false => theme.surface_raised.get(),
-    }));
+    });
     view! {
         <Frame color={fill} radius=RADIUS padding_horizontal=10.0 padding_vertical=6.0>
             <Text string={PRODUCE[fruit].to_owned()} color={theme.text} />
@@ -978,12 +972,10 @@ fn ThinThumb(bar: ScrollbarHandle) -> NodeId {
         dragging,
     } = bar;
     let theme = use_theme();
-    let color = create_memo(
-        clone!(theme -> move || match hovered.get() || dragging.get() {
-            true => theme.scroll_thumb_hover.get(),
-            false => theme.scroll_thumb.get(),
-        }),
-    );
+    let color = create_memo(move || match hovered.get() || dragging.get() {
+        true => theme.scroll_thumb_hover.get(),
+        false => theme.scroll_thumb.get(),
+    });
     view! {
         <unstyled::ScrollbarThumb position direction color radius=3.0 />
     }
@@ -997,7 +989,7 @@ fn OpenableFiles() -> NodeId {
     let (opened, set_opened) =
         create_signal("Double-click a file, or press Enter on it".to_owned());
     let row = move |index: usize, name: &'static str| {
-        let selected = create_memo(clone!(chosen -> move || chosen.get() == index));
+        let selected = create_memo(move || chosen.get() == index);
         let (choose, open) = (set_chosen, set_opened);
         view! {
             <unstyled::ListRow
@@ -1032,14 +1024,14 @@ fn FileRowFace(handle: ButtonHandle, selected: Memo<bool>, name: &'static str) -
         hovered, focused, ..
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(clone!(theme -> move || {
+    let fill = create_memo(move || {
         let theme = theme.get();
         match (selected.get(), hovered.get()) {
             (true, _) => theme.accent_soft,
             (false, true) => theme.hover,
             (false, false) => Color32::TRANSPARENT,
         }
-    }));
+    });
     view! {
         <Frame
             color={fill}
@@ -1060,7 +1052,7 @@ fn FileRowFace(handle: ButtonHandle, selected: Memo<bool>, name: &'static str) -
 fn ScrubbedNumber() -> NodeId {
     let theme = use_theme();
     let (gap, set_gap) = create_signal(12.0f64);
-    let shown = create_memo(clone!(gap -> move || format!("Gap {} px", gap.get())));
+    let shown = create_memo(move || format!("Gap {} px", gap.get()));
     view! {
         <List spacing=SECTION_SPACING>
             <Frame width=NUMBER_WIDTH>
@@ -1094,14 +1086,14 @@ fn NumberFace(handle: NumberFaceHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(clone!(theme -> move || {
+    let fill = create_memo(move || {
         let theme = theme.get();
         match (active.get(), hovered.get()) {
             (true, _) => theme.pressed,
             (false, true) => theme.hover,
             (false, false) => theme.surface_raised,
         }
-    }));
+    });
     view! {
         <Frame
             color={fill}
@@ -1276,13 +1268,13 @@ const OUTLINE: [(&str, usize, Option<usize>); 6] = [
 fn FolderTree() -> NodeId {
     let (expanded, set_expanded) = create_signal(vec![0usize]);
     let (selected, set_selected) = create_signal(Some(4usize));
-    let keys = create_memo(clone!(expanded -> move || {
+    let keys = create_memo(move || {
         let open = expanded.get();
         (0..OUTLINE.len())
             .filter(|key| OUTLINE[*key].2.is_none_or(|parent| open.contains(&parent)))
             .collect::<Vec<usize>>()
-    }));
-    let item = Func::new(clone!(expanded -> move |key: usize| {
+    });
+    let item = Func::new(move |key: usize| {
         let (label, depth, parent) = OUTLINE[key];
         TreeItem {
             label: label.to_owned(),
@@ -1290,7 +1282,7 @@ fn FolderTree() -> NodeId {
             expandable: parent.is_none(),
             expanded: expanded.get().contains(&key),
         }
-    }));
+    });
     let tree = NodeRef::new();
     let viewport = NodeRef::new();
     let rows = tree.clone();
@@ -1352,10 +1344,9 @@ fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let indent =
-        create_memo(clone!(item -> move || ItemSize::Fixed(item.get().depth as f32 * 16.0)));
-    let label = create_memo(clone!(item -> move || item.get().label));
-    let fill = create_memo(clone!(theme -> move || {
+    let indent = create_memo(move || ItemSize::Fixed(item.get().depth as f32 * 16.0));
+    let label = create_memo(move || item.get().label);
+    let fill = create_memo(move || {
         let theme = theme.get();
         match (selected.get(), marked.get(), hovered.get()) {
             (true, _, _) => theme.accent_soft,
@@ -1363,7 +1354,7 @@ fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
             (false, false, true) => theme.hover,
             (false, false, false) => Color32::TRANSPARENT,
         }
-    }));
+    });
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
             <Spacer @sizing={indent} />
@@ -1464,10 +1455,10 @@ fn CompletionRow(handle: CompletionRowHandle) -> NodeId {
             .map(|item| format!("{} {}", item.insert, item.label))
             .unwrap_or_default()
     });
-    let fill = create_memo(clone!(theme -> move || match highlighted.get() {
+    let fill = create_memo(move || match highlighted.get() {
         true => theme.hover.get(),
         false => Color32::TRANSPARENT,
-    }));
+    });
     view! {
         <Frame color={fill} radius=RADIUS padding_horizontal=10.0 padding_vertical=4.0>
             <Text string={label} color={theme.text} />
@@ -1536,11 +1527,11 @@ fn FolderPages() -> NodeId {
     }
     let theme = use_theme();
     let (depth, set_depth) = create_signal(0_u32);
-    let nested = create_memo(clone!(depth -> move || depth.get() > 0));
+    let nested = create_memo(move || depth.get() > 0);
     let rising = set_depth;
     let page = theme.background;
     let ink = theme.text;
-    let above = clone!(depth page ink -> move || {
+    let above = move || {
         let label = folder_label(depth.get_untracked().saturating_sub(1));
         let (page, ink) = (page, ink);
         view! {
@@ -1548,12 +1539,12 @@ fn FolderPages() -> NodeId {
                 <Text string={label} color={ink} wrap=true />
             </Frame>
         }
-    });
-    let label = create_memo(clone!(depth -> move || folder_label(depth.get())));
+    };
+    let label = create_memo(move || folder_label(depth.get()));
     view! {
         <unstyled::BackSlide
             enabled={nested}
-            on_back={clone!(depth -> move || rising.set(depth.get_untracked().saturating_sub(1)))}
+            on_back={move || rising.set(depth.get_untracked().saturating_sub(1))}
             behind={above}
         >
             <Frame color={page} radius=0>
@@ -1589,10 +1580,10 @@ fn SheetGrip() -> NodeId {
 fn DeadlinePicker() -> NodeId {
     let theme = use_theme();
     let (deadline, set_deadline) = create_signal(None::<DateTime>);
-    let shown = create_memo(clone!(deadline -> move || match deadline.get() {
+    let shown = create_memo(move || match deadline.get() {
         Some(deadline) => format!("Due {}", deadline.date.label()),
         None => "No deadline".to_owned(),
-    }));
+    });
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal spacing=0.0>
@@ -1636,14 +1627,14 @@ fn DateSegmentFace(handle: DateSegmentHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(clone!(theme -> move || match focused.get() {
+    let fill = create_memo(move || match focused.get() {
         true => theme.accent_soft.get(),
         false => Color32::TRANSPARENT,
-    }));
-    let ink = create_memo(clone!(theme -> move || match placeholder.get() {
+    });
+    let ink = create_memo(move || match placeholder.get() {
         true => theme.text_muted.get(),
         false => theme.text.get(),
-    }));
+    });
     view! {
         <Frame color={fill} radius=3 padding_horizontal=2.0>
             <Text string={text} color={ink} />
@@ -1661,10 +1652,10 @@ fn DateBox(handle: DateTimeBoxHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let line = create_memo(clone!(theme -> move || match focused.get() {
+    let line = create_memo(move || match focused.get() {
         true => theme.accent.get(),
         false => theme.border.get(),
-    }));
+    });
     view! {
         <Frame
             outline={line}

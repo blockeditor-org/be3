@@ -18,7 +18,7 @@ use block_editor_beui::be_block::database_view::{
 };
 use block_editor_beui::be_block::text::{TextBlock, TextContent};
 use block_editor_beui::beui::reactive::{
-    Memo, WriteSignal, clone, create_effect, create_memo, create_signal,
+    Memo, WriteSignal, create_effect, create_memo, create_signal,
 };
 use block_editor_beui::block_ui::BlockLabel;
 use block_editor_beui::block_ui::database::DatabaseBlockPickRequest;
@@ -100,9 +100,9 @@ impl ViewData {
                 .map(|row| row.id)
                 .collect::<Vec<ObjectId>>()
         });
-        let row_ids = create_memo(clone!(row_ids -> move || row_ids.get()));
+        let row_ids = create_memo(move || row_ids.get());
         let inverses = watch_inverses(editor, database_id);
-        let rows = create_memo(clone!(rows row_ids inverses -> move || {
+        let rows = create_memo(move || {
             let ids = row_ids.get();
             let inverses = inverses.get();
             rows.get()
@@ -114,36 +114,35 @@ impl ViewData {
                         .fold(row, |row, inverse| inverse.shown_on(&row, id.as_uuid()))
                 })
                 .collect::<Vec<DatabaseRow>>()
-        }));
+        });
         let prefix = database.project(|database| database.root().prefix.clone());
-        let prefix = create_memo(clone!(prefix -> move || prefix.get()));
+        let prefix = create_memo(move || prefix.get());
         let title_field = schema.project(|schema| schema.root().title_field());
-        let title_field = create_memo(clone!(title_field -> move || title_field.get()));
+        let title_field = create_memo(move || title_field.get());
         let fields = schema.project(|schema| schema.root().fields());
-        let fields = create_memo(clone!(fields inverses -> move || {
+        let fields = create_memo(move || {
             let mut fields = fields.get();
-            fields.extend(inverses.with(|inverses| {
-                inverses.iter().map(Inverse::field).collect::<Vec<_>>()
-            }));
+            fields.extend(
+                inverses.with(|inverses| inverses.iter().map(Inverse::field).collect::<Vec<_>>()),
+            );
             fields
-        }));
+        });
         let kind = view.project(|view| view.root().kind);
-        let kind = create_memo(clone!(kind -> move || kind.get()));
+        let kind = create_memo(move || kind.get());
         let sort = view.project(|view| view.root().sort);
-        let sort = create_memo(clone!(sort -> move || sort.get()));
+        let sort = create_memo(move || sort.get());
         let group_by = view.project(|view| view.root().group_by);
-        let group_by = create_memo(clone!(group_by -> move || group_by.get()));
+        let group_by = create_memo(move || group_by.get());
         let hidden_fields = view.project(|view| view.root().hidden_fields.clone());
-        let hidden_fields = create_memo(clone!(hidden_fields -> move || hidden_fields.get()));
+        let hidden_fields = create_memo(move || hidden_fields.get());
         let show_empty_groups = view.project(|view| view.root().show_empty_groups);
-        let show_empty_groups =
-            create_memo(clone!(show_empty_groups -> move || show_empty_groups.get()));
+        let show_empty_groups = create_memo(move || show_empty_groups.get());
         let defaults = schema.project(|schema| schema.root().defaults());
-        let defaults = create_memo(clone!(defaults -> move || defaults.get()));
+        let defaults = create_memo(move || defaults.get());
         let scatter_x = view.project(|view| view.root().scatter_x);
-        let scatter_x = create_memo(clone!(scatter_x -> move || scatter_x.get()));
+        let scatter_x = create_memo(move || scatter_x.get());
         let scatter_y = view.project(|view| view.root().scatter_y);
-        let scatter_y = create_memo(clone!(scatter_y -> move || scatter_y.get()));
+        let scatter_y = create_memo(move || scatter_y.get());
         let filter_items = view.project(|view| {
             view.root()
                 .filters
@@ -151,12 +150,16 @@ impl ViewData {
                 .map(|filter| (filter.id, filter.value.clone()))
                 .collect::<Vec<(ObjectId, ViewFilter)>>()
         });
-        let filter_items = create_memo(clone!(filter_items -> move || filter_items.get()));
-        let filters = create_memo(clone!(filter_items -> move || {
-            filter_items.with(|items| items.iter().map(|(_, filter)| filter.clone()).collect::<Vec<ViewFilter>>())
-        }));
-        let targets =
-            create_memo(clone!(fields -> move || fields.with(|fields| relation_targets(fields))));
+        let filter_items = create_memo(move || filter_items.get());
+        let filters = create_memo(move || {
+            filter_items.with(|items| {
+                items
+                    .iter()
+                    .map(|(_, filter)| filter.clone())
+                    .collect::<Vec<ViewFilter>>()
+            })
+        });
+        let targets = create_memo(move || fields.with(|fields| relation_targets(fields)));
         let row_labels = watch_row_labels(editor, targets);
         let labels = watch_labels(editor, database_id, rows, row_labels);
 
@@ -167,41 +170,39 @@ impl ViewData {
         let views = watch_views(editor, database_id);
         let name = watch_name(editor, database_id);
         let search = create_memo(move || search.get());
-        let groups = create_memo(
-            clone!(search prefix row_ids title_field group_by show_empty_groups rows fields labels filters sort kind -> move || {
-                let search = search.get();
-                let prefix = prefix.get();
-                let ids = row_ids.get();
-                let title = title_field.get();
-                let group_by = group_by.get();
-                let show_empty = show_empty_groups.get() || kind.get() == DatabaseViewKind::Kanban;
-                let sort = sort.get();
-                rows.with(|rows| {
-                    fields.with(|fields| {
-                        labels.with(|labels| {
-                            filters.with(|filters| {
-                                let shown: Vec<usize> = crate::database_view::sort::display_rows(
-                                    rows, None, sort, filters, fields, labels,
-                                )
-                                .into_iter()
-                                .map(|row| row.index)
-                                .filter(|index| *index < rows.len())
-                                .filter(|index| {
-                                    let code = ids
-                                        .get(*index)
-                                        .map(|id| short_id(&prefix, id.as_uuid()))
-                                        .unwrap_or_default();
-                                    matches_search(&rows[*index], title, &code, &search)
-                                })
-                                .collect();
-                                let field = group_by.and_then(|id| fields.iter().find(|f| f.id == id));
-                                group_rows(rows, &shown, field, labels, show_empty)
+        let groups = create_memo(move || {
+            let search = search.get();
+            let prefix = prefix.get();
+            let ids = row_ids.get();
+            let title = title_field.get();
+            let group_by = group_by.get();
+            let show_empty = show_empty_groups.get() || kind.get() == DatabaseViewKind::Kanban;
+            let sort = sort.get();
+            rows.with(|rows| {
+                fields.with(|fields| {
+                    labels.with(|labels| {
+                        filters.with(|filters| {
+                            let shown: Vec<usize> = crate::database_view::sort::display_rows(
+                                rows, None, sort, filters, fields, labels,
+                            )
+                            .into_iter()
+                            .map(|row| row.index)
+                            .filter(|index| *index < rows.len())
+                            .filter(|index| {
+                                let code = ids
+                                    .get(*index)
+                                    .map(|id| short_id(&prefix, id.as_uuid()))
+                                    .unwrap_or_default();
+                                matches_search(&rows[*index], title, &code, &search)
                             })
+                            .collect();
+                            let field = group_by.and_then(|id| fields.iter().find(|f| f.id == id));
+                            group_rows(rows, &shown, field, labels, show_empty)
                         })
                     })
                 })
-            }),
-        );
+            })
+        });
 
         Rc::new(Self {
             editor: editor.clone(),

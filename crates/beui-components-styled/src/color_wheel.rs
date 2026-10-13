@@ -14,7 +14,7 @@ use beui_core::geometry::{Pos2, Rect, Vec2, pos2};
 use beui_core::image::Image;
 use beui_core::node::NodeId;
 use beui_core::painter::Painter;
-use beui_view::reactive::{Callback, Draw, Drawing, Frame, Prop, clone, create_memo, focus_ring};
+use beui_view::reactive::{Callback, Draw, Drawing, Frame, Prop, create_memo, focus_ring};
 
 pub const WHEEL_SIZE: f32 = 200.0;
 const RING_WIDTH: f32 = 22.0;
@@ -46,7 +46,7 @@ pub fn ColorWheel(
     let picker: ColorPickerState<Hsva> =
         ColorPickerState::new(value, disabled, on_change, on_preview);
     let color = picker.color();
-    let point = create_memo(clone!(color -> move || WheelPoint::of_hsva(color.get())));
+    let point = create_memo(move || WheelPoint::of_hsva(color.get()));
     let (change, drag) = (picker.clone(), picker.clone());
     view! {
         <Frame width=WHEEL_SIZE height=WHEEL_SIZE>
@@ -81,9 +81,9 @@ pub fn OklchColorWheel(
     let picker: ColorPickerState<Oklch> =
         ColorPickerState::new(value, disabled, on_change, on_preview);
     let color = picker.color();
-    let point = create_memo(clone!(color -> move || WheelPoint::of_oklch(color.get())));
+    let point = create_memo(move || WheelPoint::of_oklch(color.get()));
     let (change, drag) = (picker.clone(), picker.clone());
-    let accessibility = create_memo(clone!(color -> move || {
+    let accessibility = create_memo(move || {
         let color = color.get();
         let mut node = accesskit::Node::new(accesskit::Role::Slider);
         node.set_label("OKLCH color wheel");
@@ -97,7 +97,7 @@ pub fn OklchColorWheel(
             color.hue.round()
         ));
         node
-    }));
+    });
     view! {
         <Frame width=WHEEL_SIZE height=WHEEL_SIZE>
             <unstyled::ColorWheel

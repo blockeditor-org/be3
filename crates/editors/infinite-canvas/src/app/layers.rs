@@ -35,7 +35,7 @@ pub(crate) fn LayersSection(state: Rc<CanvasState>) -> NodeId {
             .map(|entity| entity.id)
             .collect::<Vec<Uuid>>()
     }));
-    let empty = create_memo(clone!(ids -> move || ids.with(Vec::is_empty)));
+    let empty = create_memo(move || ids.with(Vec::is_empty));
     view! {
         <Accordion title="Layers" open={open} on_toggle={move |open| set_open.set(open)}>
             <List spacing=2.0 @test_id={"infinite-canvas.layers"}>
@@ -60,45 +60,45 @@ fn LayerRow(state: Rc<CanvasState>, id: Uuid) -> NodeId {
     let entity = create_memo(clone!(state -> move || {
         state.entities.get().into_iter().find(|entity| entity.id == id)
     }));
-    let label = create_memo(clone!(state entity -> move || {
+    let label = create_memo(clone!(state -> move || {
         entity
             .get()
             .map(|entity| layer_label(&state, &entity))
             .unwrap_or_default()
     }));
     let selected = create_memo(clone!(state -> move || state.selection.get().contains(&id)));
-    let hidden = create_memo(clone!(entity -> move || {
-        entity.get().is_some_and(|entity| entity.style.hidden)
-    }));
-    let glyph = create_memo(clone!(hidden -> move || match hidden.get() {
+    let hidden = create_memo(move || entity.get().is_some_and(|entity| entity.style.hidden));
+    let glyph = create_memo(move || match hidden.get() {
         true => ICON_VISIBILITY_OFF.to_owned(),
         false => ICON_VISIBILITY.to_owned(),
-    }));
-    let toggle_label = create_memo(clone!(hidden -> move || match hidden.get() {
+    });
+    let toggle_label = create_memo(move || match hidden.get() {
         true => "Show".to_owned(),
         false => "Hide".to_owned(),
-    }));
+    });
     let theme = use_theme();
-    let text = create_memo(clone!(theme hidden -> move || match hidden.get() {
+    let text = create_memo(move || match hidden.get() {
         true => theme.text_muted.get(),
         false => theme.text.get(),
-    }));
-    let toggle = clone!(state hidden -> move || state.set_hidden(id, !hidden.get_untracked()));
+    });
+    let toggle = clone!(state -> move || state.set_hidden(id, !hidden.get_untracked()));
     let select = clone!(state -> move || state.select(id, false));
     let dropped = clone!(state -> move |(Layer(moved), point): (Layer, DragPoint)| {
         let in_front = point.fraction.y < 0.5;
         state.move_layer(moved, id, in_front);
     });
-    let ghost = clone!(label -> move |_: Layer| view! {
-        <LayerGhost label={label} />
-    });
+    let ghost = move |_: Layer| {
+        view! {
+            <LayerGhost label={label} />
+        }
+    };
     view! {
         <DropTarget on_drop={dropped}>
             {move |handle: DropHandle| {
-                let fill = create_memo(clone!(theme selected -> move || match selected.get() {
+                let fill = create_memo(move || match selected.get() {
                     true => theme.accent_soft.get(),
                     false => Color32::TRANSPARENT,
-                }));
+                });
                 view! {
                     <Frame
                         color={fill}

@@ -159,8 +159,8 @@ rebuild a subtree to show a new value. A `Prop<T>` takes a plain `T`, a
 writes just that one property when the value changes.
 
 A `Prop<T>` is a handle rather than a value, so it clones for the price of an
-`Rc` and a component that needs one in more than one place clones it with
-`clone!` the way it would a signal:
+`Rc`, but unlike a signal it is not `Copy`: a component that needs one in more
+than one place clones it with `clone!`:
 
 ```rust
 let color = create_memo(clone!(value -> move || paint(value.get())));
@@ -1632,18 +1632,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 #[component]
 fn Counter() -> NodeId {
     let (count, set_count) = create_signal(0i64);
-    let decrease = set_count.clone();
     let label = create_memo(move || count.get().to_string());
     let theme = use_theme();
 
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <List spacing=8.0>
                 <Display content={label} />
                 <Button
                     label="Decrease"
                     variant=ButtonVariant::Secondary
-                    on_click={move || decrease.update(|value| *value -= 1)}
+                    on_click={move || set_count.update(|value| *value -= 1)}
                 />
                 <Button
                     label="Increase"
@@ -2340,7 +2339,7 @@ control. `styled/checkbox.rs` is a short, complete example of the pair.
 
 Read colors from the nearest theme with `styled::use_theme()`, which returns a
 `ThemeStore` — one `ReadSignal` per token. Bind a token straight to a prop with
-`theme.accent.clone()`, or read tokens inside a memo that also reads interaction
+`theme.accent`, or read tokens inside a memo that also reads interaction
 state, so the control repaints when either changes. Because each token is its
 own signal, a component wakes only for the colors it actually uses. Sizes,
 radii, and font sizes are constants in `styled::theme`. Add a field to `Theme`,

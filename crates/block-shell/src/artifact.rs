@@ -25,13 +25,13 @@ const SPACING: f32 = 8.0;
 
 #[component]
 pub(crate) fn ArtifactBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>) -> NodeId {
-    let shown = create_memo(clone!(info -> move || {
+    let shown = create_memo(move || {
         info.with(|info| {
             info.as_ref()
                 .is_some_and(|info| info.dynamic_artifact && info.access.can_view())
         })
-    }));
-    let source = create_memo(clone!(info -> move || {
+    });
+    let source = create_memo(move || {
         info.with(|info| {
             let info = info.as_ref()?;
             let artifact = info.artifact.as_ref()?;
@@ -40,53 +40,61 @@ pub(crate) fn ArtifactBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info
                 block_type: artifact.source_type,
             })
         })
-    }));
-    let described = create_memo(clone!(source -> move || source.get().is_some()));
-    let waiting = create_memo(clone!(info described -> move || {
+    });
+    let described = create_memo(move || source.get().is_some());
+    let waiting = create_memo(move || {
         !described.get()
             && info.with(|info| {
-                info.as_ref()
-                    .is_none_or(|info| info.artifact.as_ref().is_none_or(|artifact| artifact.error.is_none()))
+                info.as_ref().is_none_or(|info| {
+                    info.artifact
+                        .as_ref()
+                        .is_none_or(|artifact| artifact.error.is_none())
+                })
             })
-    }));
-    let running = create_memo(clone!(info -> move || {
+    });
+    let running = create_memo(move || {
         info.with(|info| {
-            info.as_ref()
-                .is_some_and(|info| info.artifact.as_ref().is_some_and(|artifact| artifact.regenerating))
+            info.as_ref().is_some_and(|info| {
+                info.artifact
+                    .as_ref()
+                    .is_some_and(|artifact| artifact.regenerating)
+            })
         })
-    }));
-    let failure = create_memo(clone!(info -> move || {
+    });
+    let failure = create_memo(move || {
         info.with(|info| {
             info.as_ref()
-                .and_then(|info| info.artifact.as_ref().and_then(|artifact| artifact.error.clone()))
+                .and_then(|info| {
+                    info.artifact
+                        .as_ref()
+                        .and_then(|artifact| artifact.error.clone())
+                })
                 .unwrap_or_default()
         })
-    }));
-    let failed = create_memo(clone!(failure -> move || !failure.get().is_empty()));
-    let summary = create_memo(clone!(info -> move || {
+    });
+    let failed = create_memo(move || !failure.get().is_empty());
+    let summary = create_memo(move || {
         info.with(|info| {
             info.as_ref()
-                .and_then(|info| info.artifact.as_ref().map(|artifact| artifact.summary.clone()))
+                .and_then(|info| {
+                    info.artifact
+                        .as_ref()
+                        .map(|artifact| artifact.summary.clone())
+                })
                 .unwrap_or_default()
         })
-    }));
-    let editable = create_memo(clone!(info -> move || {
-        info.with(|info| info.as_ref().is_some_and(|info| info.can_edit))
-    }));
-    let settings_off = create_memo(clone!(editable -> move || !editable.get()));
-    let regenerate_off = create_memo(clone!(editable running described -> move || {
-        !editable.get() || running.get() || !described.get()
-    }));
-    let unlink_off =
-        create_memo(clone!(editable running -> move || !editable.get() || running.get()));
-    let source_name = create_memo(clone!(source workspace -> move || {
+    });
+    let editable =
+        create_memo(move || info.with(|info| info.as_ref().is_some_and(|info| info.can_edit)));
+    let settings_off = create_memo(move || !editable.get());
+    let regenerate_off = create_memo(move || !editable.get() || running.get() || !described.get());
+    let unlink_off = create_memo(move || !editable.get() || running.get());
+    let source_name = create_memo(clone!(workspace -> move || {
         source.get().map_or_else(String::new, |source| {
             workspace.label(source.id, source.block_type).name
         })
     }));
-    let block = create_memo(clone!(info -> move || {
-        info.with(|info| info.as_ref().map(|info| info.item.id))
-    }));
+    let block = create_memo(move || info.with(|info| info.as_ref().map(|info| info.item.id)));
     let opened = Rc::clone(&workspace);
     let open_source = source;
     let settings = block_command(&workspace, block, Command::Settings);
@@ -113,7 +121,7 @@ pub(crate) fn ArtifactBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info
                         <Caption content="Loading…" />
                     </Show>
                     <Show condition={described}>
-                        {move || clone!(open_source opened source_name summary -> view! {
+                        {move || clone!(opened -> view! {
                             <List
                                 direction=Direction::Horizontal
                                 align=Align::Center

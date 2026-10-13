@@ -21,7 +21,7 @@ pub(crate) fn ImageViewer(model: Model) -> NodeId {
             .get()
             .and_then(|viewer| viewer.images.get(viewer.index).cloned())
     }));
-    let picture = create_memo(clone!(model current -> move || {
+    let picture = create_memo(clone!(model -> move || {
         let url = current.get()?;
         match model.image(&url).get() {
             Loaded::Ready(image) => Some(image),
@@ -51,7 +51,7 @@ pub(crate) fn ImageViewer(model: Model) -> NodeId {
     let dismiss = close.clone();
     let previous = clone!(model -> move || model.step_image(-1));
     let next = clone!(model -> move || model.step_image(1));
-    let browse = clone!(model current -> move || {
+    let browse = clone!(model -> move || {
         if let Some(url) = current.get_untracked() {
             model.open(&url);
         }
@@ -141,42 +141,42 @@ fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
     view! {
         <LayoutBuilder>
             {move |size: ReadSignal<Vec2>| {
-                let natural = create_memo(clone!(picture -> move || {
+                let natural = create_memo(move || {
                     picture.get().map_or(Vec2::ZERO, |image| image.size())
-                }));
-                let shrunk = create_memo(clone!(natural -> move || {
+                });
+                let shrunk = create_memo(move || {
                     let natural = natural.get();
                     let room = size.get() - Vec2::new(0.0, HINT_HEIGHT);
                     natural.x > room.x || natural.y > room.y
-                }));
+                });
                 let (actual, set_actual) = create_signal(false);
-                let zoomed = create_memo(clone!(actual shrunk -> move || actual.get() && shrunk.get()));
-                let fitted = create_memo(clone!(zoomed -> move || !zoomed.get()));
-                let cursor = create_memo(clone!(shrunk -> move || match shrunk.get() {
+                let zoomed = create_memo(move || actual.get() && shrunk.get());
+                let fitted = create_memo(move || !zoomed.get());
+                let cursor = create_memo(move || match shrunk.get() {
                     true => CursorIcon::PointingHand,
                     false => CursorIcon::Default,
-                }));
-                let hint = create_memo(clone!(zoomed shrunk -> move || {
+                });
+                let hint = create_memo(move || {
                     match (zoomed.get(), shrunk.get()) {
                         (true, _) => "100% · click to fit it to the window",
                         (false, true) => "Scaled down to fit · click for 100%",
                         (false, false) => "100%",
                     }
                     .to_owned()
-                }));
-                let width = create_memo(clone!(natural -> move || Some(natural.get().x)));
-                let height = create_memo(clone!(natural -> move || Some(natural.get().y)));
-                let zoom_in = clone!(set_actual shrunk -> move || {
+                });
+                let width = create_memo(move || Some(natural.get().x));
+                let height = create_memo(move || Some(natural.get().y));
+                let zoom_in = move || {
                     if shrunk.get_untracked() {
                         set_actual.set(true);
                     }
-                });
+                };
                 let zoom_out = move || set_actual.set(false);
                 let whole = picture;
                 view! {
                     <List spacing=8.0>
                         <Show condition={fitted}>
-                            {move || clone!(shrunk whole -> view! {
+                            {move || view! {
                                 <Interactive
                                     @sizing=ItemSize::Percent(100.0)
                                     cursor={cursor}
@@ -188,10 +188,10 @@ fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
                                         smooth={shrunk}
                                     />
                                 </Interactive>
-                            })}
+                            }}
                         </Show>
                         <Show condition={zoomed}>
-                            {move || clone!(height picture width zoom_out -> view! {
+                            {move || view! {
                                 <Scroll @sizing=ItemSize::Percent(100.0)>
                                     <Scroll direction=Direction::Horizontal>
                                         <Interactive
@@ -208,7 +208,7 @@ fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
                                         </Interactive>
                                     </Scroll>
                                 </Scroll>
-                            })}
+                            }}
                         </Show>
                         <Caption
                             @sizing=ItemSize::Fixed(HINT_HEIGHT)

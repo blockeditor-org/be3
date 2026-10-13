@@ -70,7 +70,7 @@ pub(super) fn Lines(cx: Context) -> NodeId {
 pub(super) fn SingleLine(cx: Context) -> NodeId {
     let canvas = cx.state.canvas();
     let model = row_model(&cx, 0);
-    let text = create_memo(clone!(cx model -> move || {
+    let text = create_memo(clone!(cx -> move || {
         let row = model.get();
         cx.metrics.get();
         let size = cx.font_size.get();
@@ -79,13 +79,12 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
             .map_or(Vec2::ZERO, |layout| layout.size);
         Vec2::new(laid.x, laid.y.max(body))
     }));
-    let canvas_width = create_memo(clone!(cx text -> move || {
+    let canvas_width = create_memo(clone!(cx -> move || {
         text.get().x + cx.padding.get().x * 2.0 + CARET_WIDTH
     }));
-    let canvas_height =
-        create_memo(clone!(cx text -> move || text.get().y + cx.padding.get().y * 2.0));
+    let canvas_height = create_memo(clone!(cx -> move || text.get().y + cx.padding.get().y * 2.0));
     let x = create_memo(clone!(cx -> move || cx.padding.get().x - cx.shift.get()));
-    let y = create_memo(clone!(cx text -> move || {
+    let y = create_memo(clone!(cx -> move || {
         let padding = cx.padding.get();
         let line = text.get().y;
         let height = cx.view_height.get();
@@ -94,8 +93,8 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
             false => padding.y,
         }
     }));
-    let text_width = create_memo(clone!(text -> move || text.get().x + CARET_WIDTH));
-    let text_height = create_memo(clone!(text -> move || text.get().y));
+    let text_width = create_memo(move || text.get().x + CARET_WIDTH);
+    let text_height = create_memo(move || text.get().y);
     let (text_cx, text_model) = (cx.clone(), model);
     view! {
         <Canvas @node_ref=&canvas width={canvas_width} height={canvas_height}>
@@ -115,19 +114,19 @@ fn AreaRow(cx: Context, line: usize) -> NodeId {
     let gutter = create_memo(clone!(cx -> move || Some(cx.gutter.get())));
     let padding = create_memo(clone!(cx -> move || (cx.padding.get().x - CODE_OUTSET.x).max(0.0)));
     let inset = create_memo(clone!(cx -> move || cx.padding.get().x.min(CODE_OUTSET.x)));
-    let code = create_memo(clone!(cx model -> move || match model.get().code_block {
+    let code = create_memo(clone!(cx -> move || match model.get().code_block {
         true => cx.colors.get().code_background,
         false => Color32::TRANSPARENT,
     }));
-    let block = create_memo(clone!(model -> move || model.get().block));
+    let block = create_memo(move || model.get().block);
     let renders = cx.block.is_some();
-    let has_block = create_memo(clone!(block -> move || renders && block.get().is_some()));
+    let has_block = create_memo(move || renders && block.get().is_some());
     let block_ref = NodeRef::new();
     let block_cx = cx.clone();
     let block_node = block_ref.clone();
     let row = NodeRef::new();
     let text = GeometryCell::default();
-    register_row(&cx, line, &row, &text, &block_ref, &model);
+    register_row(&cx, line, &row, &text, &block_ref, model);
     let (gutter_cx, gutter_model) = (cx.clone(), model);
     view! {
         <Frame @node_ref=&row>
@@ -164,7 +163,7 @@ fn AreaRow(cx: Context, line: usize) -> NodeId {
 fn AreaText(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
     let row = NodeRef::new();
     let text = GeometryCell::default();
-    register_row(&cx, 0, &row, &text, &NodeRef::new(), &model);
+    register_row(&cx, 0, &row, &text, &NodeRef::new(), model);
     view! {
         <Frame @node_ref=&row>
             <RowText cx model text wrap=false layer=Layer::Text />
@@ -178,7 +177,7 @@ fn register_row(
     row: &NodeRef,
     geometry: &GeometryCell,
     block: &NodeRef,
-    model: &Memo<Rc<Row>>,
+    model: Memo<Rc<Row>>,
 ) {
     let id = cx.registered.get() + 1;
     cx.registered.set(id);
@@ -188,7 +187,7 @@ fn register_row(
             id,
             row: row.clone(),
             geometry: geometry.clone(),
-            model: *model,
+            model,
             block: block.clone(),
         },
     );
@@ -279,12 +278,12 @@ fn RowText(
             });
         }
     }));
-    let keys = create_memo(clone!(model -> move || piece_keys(&model.get(), layer)));
+    let keys = create_memo(move || piece_keys(&model.get(), layer));
     let padding = match cx.single_line {
         true => (0.0, 0.0),
         false => LINE_PADDING,
     };
-    let marks = create_memo(clone!(cx model -> move || {
+    let marks = create_memo(clone!(cx -> move || {
         if layer == Layer::Handles {
             return Vec::new();
         }
@@ -316,7 +315,7 @@ fn RowText(
         }
         marks
     }));
-    let carets = create_memo(clone!(cx model -> move || {
+    let carets = create_memo(clone!(cx -> move || {
         let row = model.get();
         let colors = cx.colors.get();
         let focused = cx.focused.get();
@@ -362,23 +361,21 @@ fn RowText(
         }
         carets
     }));
-    let anchor_at = create_memo(clone!(cx model -> move || {
+    let anchor_at = create_memo(clone!(cx -> move || {
         let row = model.get();
         cx.state.cursors().get();
         cx.focused.get();
         let byte = cx.state.caret_indices().first().copied()?;
         (byte >= row.start && byte <= row.end).then(|| row.to_display(byte))
     }));
-    let anchored = create_memo(clone!(anchor_at -> move || {
-        layer != Layer::Handles && anchor_at.get().is_some()
-    }));
+    let anchored = create_memo(move || layer != Layer::Handles && anchor_at.get().is_some());
     let color = create_memo(clone!(cx -> move || cx.colors.get().syntax.markdown_plain_text));
     let font_size = create_memo(clone!(cx -> move || cx.font_size.get()));
     let item_cx = cx.clone();
     let item_model = model;
     let anchor = cx.anchor;
-    let anchor_position = create_memo(clone!(anchor_at -> move || anchor_at.get()));
-    let anchor_node = create_memo(clone!(anchored -> move || anchored.get().then_some(anchor)));
+    let anchor_position = create_memo(move || anchor_at.get());
+    let anchor_node = create_memo(move || anchored.get().then_some(anchor));
     view! {
         <Text
             @node_ref=&node
@@ -395,11 +392,11 @@ fn RowText(
                 }}
             </ForEach>
             <Show condition={anchored}>
-                {move || clone!(anchor_position anchor_node -> view! {
+                {move || view! {
                     <TextItem at={anchor_position}>
                         <Portal node={anchor_node} />
                     </TextItem>
-                })}
+                }}
             </Show>
         </Text>
     }
@@ -484,11 +481,15 @@ fn row_piece(cx: Context, model: Memo<Rc<Row>>, layer: Layer, key: PieceKey) -> 
         }
         .into_child(),
         PieceKey::Inline(item) if layer == Layer::Handles => {
-            let size = create_memo(clone!(model -> move || {
-                model.get().inline.get(item).map_or(Vec2::ZERO, |item| item.size)
-            }));
-            let width = create_memo(clone!(size -> move || Some(size.get().x)));
-            let height = create_memo(clone!(size -> move || Some(size.get().y)));
+            let size = create_memo(move || {
+                model
+                    .get()
+                    .inline
+                    .get(item)
+                    .map_or(Vec2::ZERO, |item| item.size)
+            });
+            let width = create_memo(move || Some(size.get().x));
+            let height = create_memo(move || Some(size.get().y));
             view! {
                 <TextItem>
                     <Frame width height />
@@ -507,14 +508,15 @@ fn row_piece(cx: Context, model: Memo<Rc<Row>>, layer: Layer, key: PieceKey) -> 
 
 #[component]
 fn InlineView(cx: Context, model: Memo<Rc<Row>>, index: usize) -> NodeId {
-    let item = create_memo(clone!(model -> move || model.get().inline.get(index).cloned()));
-    let checkbox = create_memo(
-        clone!(item -> move || matches!(item.get().map(|item| item.inline), Some(Inline::Checkbox { .. }))),
-    );
-    let run = create_memo(
-        clone!(item -> move || matches!(item.get().map(|item| item.inline), Some(Inline::Run))),
-    );
-    let widget = create_memo(clone!(checkbox run -> move || !checkbox.get() && !run.get()));
+    let item = create_memo(move || model.get().inline.get(index).cloned());
+    let checkbox = create_memo(move || {
+        matches!(
+            item.get().map(|item| item.inline),
+            Some(Inline::Checkbox { .. })
+        )
+    });
+    let run = create_memo(move || matches!(item.get().map(|item| item.inline), Some(Inline::Run)));
+    let widget = create_memo(move || !checkbox.get() && !run.get());
     let (checkbox_cx, widget_cx, run_cx) = (cx.clone(), cx.clone(), cx);
     let (checkbox_item, widget_item, run_item) = (item, item, item);
     view! {
@@ -541,13 +543,9 @@ fn InlineView(cx: Context, model: Memo<Rc<Row>>, index: usize) -> NodeId {
 #[component]
 fn RunChip(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     let fill = create_memo(clone!(cx -> move || cx.colors.get().widget));
-    let width =
-        create_memo(clone!(item -> move || Some(item.get().map_or(0.0, |item| item.size.x))));
-    let label =
-        create_memo(clone!(item -> move || item.get().map(|item| item.label).unwrap_or_default()));
-    let color = create_memo(
-        clone!(item -> move || item.get().map_or(Color32::WHITE, |item| item.style.color)),
-    );
+    let width = create_memo(move || Some(item.get().map_or(0.0, |item| item.size.x)));
+    let label = create_memo(move || item.get().map(|item| item.label).unwrap_or_default());
+    let color = create_memo(move || item.get().map_or(Color32::WHITE, |item| item.style.color));
     view! {
         <Frame width={width} height=RUN_CHIP_HEIGHT color={fill} radius=RUN_CHIP_RADIUS>
             <Text
@@ -564,9 +562,12 @@ fn RunChip(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
 
 #[component]
 fn InlineCheckbox(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
-    let checked = create_memo(
-        clone!(item -> move || matches!(item.get().map(|item| item.inline), Some(Inline::Checkbox { checked: true, .. }))),
-    );
+    let checked = create_memo(move || {
+        matches!(
+            item.get().map(|item| item.inline),
+            Some(Inline::Checkbox { checked: true, .. })
+        )
+    });
     let toggle_cx = cx.clone();
     let on_change = Callback::new(move |_: bool| {
         let Some(Inline::Checkbox { line_start, .. }) =
@@ -608,7 +609,7 @@ fn InlineCheckbox(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
 #[component]
 fn CheckboxBox(cx: Context, handle: ToggleHandle) -> NodeId {
     let checked = handle.checked;
-    let fill = create_memo(clone!(cx checked -> move || match checked.get() {
+    let fill = create_memo(clone!(cx -> move || match checked.get() {
         true => cx.colors.get().widget,
         false => Color32::TRANSPARENT,
     }));
@@ -644,45 +645,40 @@ fn CheckboxBox(cx: Context, handle: ToggleHandle) -> NodeId {
 
 #[component]
 fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
-    let index = create_memo(
-        clone!(item -> move || match item.get().map(|item| item.inline) {
-            Some(Inline::Widget(index)) => Some(index),
-            _ => None,
-        }),
-    );
-    let widget = create_memo(clone!(cx index -> move || {
+    let index = create_memo(move || match item.get().map(|item| item.inline) {
+        Some(Inline::Widget(index)) => Some(index),
+        _ => None,
+    });
+    let widget = create_memo(clone!(cx -> move || {
         let index = index.get()?;
         cx.widgets.get().get(index).cloned()
     }));
-    let fill = create_memo(clone!(cx widget -> move || {
+    let fill = create_memo(clone!(cx -> move || {
         let colors = cx.colors.get();
         match widget.get().is_some_and(|widget| widget.broken) {
             true => colors.broken_widget,
             false => colors.widget,
         }
     }));
-    let width =
-        create_memo(clone!(item -> move || Some(item.get().map_or(0.0, |item| item.size.x))));
-    let icon = create_memo(
-        clone!(widget -> move || widget.get().and_then(|widget| widget.icon).unwrap_or("").to_owned()),
-    );
-    let has_icon = create_memo(clone!(icon -> move || !icon.get().is_empty()));
-    let label =
-        create_memo(clone!(item -> move || item.get().map(|item| item.label).unwrap_or_default()));
-    let color = create_memo(
-        clone!(item -> move || item.get().map_or(Color32::WHITE, |item| item.style.color)),
-    );
-    let font_size = create_memo(
-        clone!(item -> move || item.get().map_or(BODY_SIZE, |item| item.style.font.size)),
-    );
-    let bold =
-        create_memo(clone!(item -> move || item.get().is_some_and(|item| item.style.font.bold)));
-    let italic =
-        create_memo(clone!(item -> move || item.get().is_some_and(|item| item.style.font.italic)));
-    let monospace = create_memo(
-        clone!(item -> move || item.get().is_some_and(|item| item.style.font.family == beui_core::font::FontFamily::Monospace)),
-    );
-    let selected = create_memo(clone!(cx index -> move || {
+    let width = create_memo(move || Some(item.get().map_or(0.0, |item| item.size.x)));
+    let icon = create_memo(move || {
+        widget
+            .get()
+            .and_then(|widget| widget.icon)
+            .unwrap_or("")
+            .to_owned()
+    });
+    let has_icon = create_memo(move || !icon.get().is_empty());
+    let label = create_memo(move || item.get().map(|item| item.label).unwrap_or_default());
+    let color = create_memo(move || item.get().map_or(Color32::WHITE, |item| item.style.color));
+    let font_size = create_memo(move || item.get().map_or(BODY_SIZE, |item| item.style.font.size));
+    let bold = create_memo(move || item.get().is_some_and(|item| item.style.font.bold));
+    let italic = create_memo(move || item.get().is_some_and(|item| item.style.font.italic));
+    let monospace = create_memo(move || {
+        item.get()
+            .is_some_and(|item| item.style.font.family == beui_core::font::FontFamily::Monospace)
+    });
+    let selected = create_memo(clone!(cx -> move || {
         cx.state.cursors().get();
         let Some(index) = index.get() else {
             return false;
@@ -775,9 +771,9 @@ fn BlockSlot(render: RenderFn<usize>, index: usize, size: Vec2) -> NodeId {
 
 #[component]
 fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
-    let number = create_memo(clone!(model -> move || (model.get().line + 1).to_string()));
-    let height = create_memo(clone!(model -> move || Some(model.get().line_height)));
-    let arrow = create_memo(clone!(cx model -> move || {
+    let number = create_memo(move || (model.get().line + 1).to_string());
+    let height = create_memo(move || Some(model.get().line_height));
+    let arrow = create_memo(clone!(cx -> move || {
         cx.state.content().get();
         let start = model.get().start;
         cx.state

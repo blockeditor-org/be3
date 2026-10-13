@@ -1,7 +1,7 @@
 use super::*;
 use crate::reactive::{
-    ForEach, Frame, NodeRef, Span, Text, WriteSignal, build, clone, create_memo, create_signal,
-    enter, view,
+    ForEach, Frame, NodeRef, Span, Text, WriteSignal, build, create_memo, create_signal, enter,
+    view,
 };
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -21,17 +21,15 @@ fn changing_one_span_of_a_long_text_shapes_only_that_span() {
         move || {
             let (words, set_words) = create_signal(words());
             *writer.borrow_mut() = Some(set_words);
-            let keys = create_memo(
-                clone!(words -> move || (0..words.get().len()).collect::<Vec<usize>>()),
-            );
+            let keys = create_memo(move || (0..words.get().len()).collect::<Vec<usize>>());
             view! {
                 <Frame width=200.0>
                     <Text @node_ref=&text wrap=true>
                         <ForEach keys={keys}>
                             {move |index: usize| {
-                                let word = create_memo(clone!(words -> move || {
+                                let word = create_memo(move || {
                                     words.get().get(index).cloned().unwrap_or_default()
-                                }));
+                                });
                                 view! {
                                     <Span text={word} />
                                 }

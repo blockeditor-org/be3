@@ -66,7 +66,7 @@ mod with_middle_click_paste_on_a_selection_is_offered_until_it_is_switched_off;
 
 use beui::reactive::{
     ForEach, Frame, Interactive, List, Overlay, OverlayAnchor, Placement, WriteSignal, build,
-    clone, component, create_memo, create_signal, view, with_reactive_scope,
+    component, create_memo, create_signal, view, with_reactive_scope,
 };
 use beui::styled::TextInput;
 use beui::{FrameOutput, Key, NodeId, RawInput, pos2};
@@ -148,7 +148,7 @@ fn Shown(windows: Windows) -> NodeId {
                                         .map_or(SHOWN, |area| area.size())
                                 })
                             });
-                            let width = create_memo(clone!(size -> move || Some(size.get().x)));
+                            let width = create_memo(move || Some(size.get().x));
                             let height = create_memo(move || Some(size.get().y));
                             view! {
                                 <Frame width height>

@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{NodeRef, Text, build, clone, create_memo, create_signal, view};
+use crate::reactive::{NodeRef, Text, build, create_memo, create_signal, view};
 use crate::unstyled::BackSlide;
 
 const REVEAL: f32 = 200.0;
@@ -12,7 +12,7 @@ fn the_inspector_swipes_back_as_far_as_its_slider_is_dragged() {
     let page_ref = page.clone();
     let document = build({
         move || {
-            let nested = create_memo(clone!(depth -> move || depth.get() > 0));
+            let nested = create_memo(move || depth.get() > 0);
             view! {
                 <BackSlide
                     enabled={nested}

@@ -79,20 +79,15 @@ fn TextInputFrame(
     } = handle;
     let clearable = create_memo(move || clearable.get() && !empty.get());
     let theme = use_theme();
-    let marked = create_memo(clone!(glyph -> move || !glyph.get().is_empty()));
-    let raised = create_memo(clone!(focused hovered -> move || {
-        !plain.get() || focused.get() || hovered.get()
-    }));
-    let border = create_memo(clone!(focused theme disabled -> move || {
-        field_border(&theme, disabled.get(), focused.get(), hovered.get())
-    }));
-    let fill = create_memo(clone!(theme disabled raised -> move || {
-        match (raised.get(), disabled.get()) {
-            (false, _) => Color32::TRANSPARENT,
-            (true, true) => theme.surface.get(),
-            (true, false) => theme.surface_raised.get(),
-        }
-    }));
+    let marked = create_memo(move || !glyph.get().is_empty());
+    let raised = create_memo(move || !plain.get() || focused.get() || hovered.get());
+    let border =
+        create_memo(move || field_border(&theme, disabled.get(), focused.get(), hovered.get()));
+    let fill = create_memo(move || match (raised.get(), disabled.get()) {
+        (false, _) => Color32::TRANSPARENT,
+        (true, true) => theme.surface.get(),
+        (true, false) => theme.surface_raised.get(),
+    });
     view! {
         <Frame
             outline={theme.accent}
@@ -111,11 +106,11 @@ fn TextInputFrame(
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                     <Show condition={marked}>
-                        {move || clone!(glyph theme -> view! {
+                        {move || view! {
                             <Frame padding_left=PADDING_HORIZONTAL>
                                 <Icon glyph={glyph} color={theme.text_muted} />
                             </Frame>
-                        })}
+                        }}
                     </Show>
                     {field} @sizing=ItemSize::Percent(100.0)
                     <Show condition={clearable}>

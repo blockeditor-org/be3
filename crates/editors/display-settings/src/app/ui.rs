@@ -34,11 +34,16 @@ pub fn DisplaySettingsView(editor: Editor) -> NodeId {
     let displays = editor.host_value::<Displays>();
     let root = settings.project(|content| content.root());
     let inherited = editor.inherited_settings::<DisplaySettings>();
-    let merged = create_memo(clone!(root -> move || root.get().over(&inherited.get())));
-    let ids = create_memo(clone!(displays -> move || {
-        displays.with(|displays| displays.iter().map(|display| display.id.clone()).collect::<Vec<String>>())
-    }));
-    let none = create_memo(clone!(displays -> move || displays.with(Vec::is_empty)));
+    let merged = create_memo(move || root.get().over(&inherited.get()));
+    let ids = create_memo(move || {
+        displays.with(|displays| {
+            displays
+                .iter()
+                .map(|display| display.id.clone())
+                .collect::<Vec<String>>()
+        })
+    });
+    let none = create_memo(move || displays.with(Vec::is_empty));
     let theme = use_theme();
     view! {
         <Frame color={theme.background}>
@@ -95,36 +100,52 @@ fn DisplaySection(
         displays.with(|displays| displays.iter().find(|display| display.id == id).cloned())
     }));
     let wanted = create_memo(clone!(id -> move || merged.get().mode(&id)));
-    let chosen = create_memo(clone!(display wanted -> move || {
-        display.with(|display| display.as_ref().map(|display| effective(display, wanted.get())))
-    }));
-    let offered = create_memo(clone!(display -> move || {
-        display.with(|display| display.as_ref().map(|display| display.modes.clone()).unwrap_or_default())
-    }));
-    let size_list = create_memo(clone!(offered -> move || offered.with(|modes| sizes(modes))));
-    let rate_list = create_memo(clone!(offered chosen -> move || {
-        match chosen.get() {
-            Some(chosen) => offered.with(|modes| rates(modes, size_of(chosen))),
-            None => Vec::new(),
-        }
-    }));
-    let size_selected = create_memo(clone!(size_list chosen -> move || {
+    let chosen = create_memo(move || {
+        display.with(|display| {
+            display
+                .as_ref()
+                .map(|display| effective(display, wanted.get()))
+        })
+    });
+    let offered = create_memo(move || {
+        display.with(|display| {
+            display
+                .as_ref()
+                .map(|display| display.modes.clone())
+                .unwrap_or_default()
+        })
+    });
+    let size_list = create_memo(move || offered.with(|modes| sizes(modes)));
+    let rate_list = create_memo(move || match chosen.get() {
+        Some(chosen) => offered.with(|modes| rates(modes, size_of(chosen))),
+        None => Vec::new(),
+    });
+    let size_selected = create_memo(move || {
         let size = size_of(chosen.get()?);
         size_list.with(|sizes| sizes.iter().position(|known| *known == size))
-    }));
-    let rate_selected = create_memo(clone!(rate_list chosen -> move || {
+    });
+    let rate_selected = create_memo(move || {
         let chosen = chosen.get()?;
         rate_list.with(|rates| rates.iter().position(|known| *known == chosen))
-    }));
-    let name = create_memo(clone!(display -> move || {
-        display.with(|display| display.as_ref().map(|display| display.name.clone()).unwrap_or_default())
-    }));
-    let showing = create_memo(clone!(display -> move || {
+    });
+    let name = create_memo(move || {
+        display.with(|display| {
+            display
+                .as_ref()
+                .map(|display| display.name.clone())
+                .unwrap_or_default()
+        })
+    });
+    let showing = create_memo(move || {
         display.with(|display| match display {
-            Some(display) => format!("{}, showing {}", display.connector, mode_label(display.current)),
+            Some(display) => format!(
+                "{}, showing {}",
+                display.connector,
+                mode_label(display.current)
+            ),
             None => String::new(),
         })
-    }));
+    });
     let unset = create_memo(clone!(id -> move || root.get().mode(&id).is_none()));
     let connector = display.with_untracked(|display| {
         display
@@ -168,7 +189,7 @@ fn DisplaySection(
                 label="Resolution"
                 disabled={size_off}
                 @test_id={resolution_id}
-                on_change={clone!(offered -> move |index: Option<usize>| {
+                on_change={move |index: Option<usize>| {
                     let Some(size) = index.and_then(|index| picked_size.with_untracked(|sizes| sizes.get(index).copied())) else {
                         return;
                     };
@@ -176,7 +197,7 @@ fn DisplaySection(
                     if fastest.is_some() {
                         sized(fastest);
                     }
-                })}
+                }}
             />
             <Caption content="Refresh rate" />
             <Select
@@ -208,10 +229,10 @@ fn ScreenOffSection(
     merged: Memo<DisplaySettings>,
     read_only: Memo<bool>,
 ) -> NodeId {
-    let selected = create_memo(clone!(merged -> move || {
+    let selected = create_memo(move || {
         let chosen = merged.get().screen_off();
         SCREEN_OFF.iter().position(|offered| *offered == chosen)
-    }));
+    });
     let locks = create_memo(move || {
         let chosen = merged.get().lock_after();
         LOCK_AFTER.iter().position(|offered| *offered == chosen)

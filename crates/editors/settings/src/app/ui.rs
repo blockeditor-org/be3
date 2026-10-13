@@ -50,8 +50,8 @@ pub fn SettingsView(editor: Editor) -> NodeId {
     let settings = editor.block_content::<SettingsContent>();
     let block = editor.block_id();
     let own = create_memo(clone!(editor -> move || is_own_settings(&editor, block)));
-    let others = create_memo(clone!(own -> move || !own.get()));
-    let blocked = blocked(&editor, &settings, &own);
+    let others = create_memo(move || !own.get());
+    let blocked = blocked(&editor, &settings, own);
     let profiles = settings.project(|settings| settings.root().profiles());
     let client = editor.host().client_id();
     let used = settings.project(move |settings| settings.root().profile(client));
@@ -85,10 +85,10 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                                         .and_then(|info| info.name())
                                         .unwrap_or_else(|| "Profile".to_owned())
                                 });
-                                let glyph = create_memo(clone!(used -> move || match used.get() == Some(profile) {
+                                let glyph = create_memo(move || match used.get() == Some(profile) {
                                     true => ICON_CHECK.to_owned(),
                                     false => String::new(),
-                                }));
+                                });
                                 view! {
                                     <Button
                                         label={label}
@@ -144,20 +144,20 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
                 _ => None,
             })
     });
-    let own = create_memo(clone!(editor parent -> move || {
+    let own = create_memo(clone!(editor -> move || {
         parent.get().is_some_and(|parent| is_own_settings(&editor, parent))
     }));
-    let others = create_memo(clone!(own -> move || !own.get()));
-    let blocked = blocked(&editor, &profile, &own);
+    let others = create_memo(move || !own.get());
+    let blocked = blocked(&editor, &profile, own);
     let client = editor.host().client_id();
-    let used = create_memo(clone!(editor parent -> move || {
+    let used = create_memo(clone!(editor -> move || {
         parent.get().and_then(|parent| {
             editor
                 .content_of::<SettingsContent>(parent)
                 .read(|settings| settings.root().profile(client))
         }) == Some(Some(block))
     }));
-    let unused = create_memo(clone!(used blocked -> move || !used.get() && !blocked.get()));
+    let unused = create_memo(move || !used.get() && !blocked.get());
     let using = editor.clone();
     let theme = use_theme();
     view! {
@@ -180,7 +180,7 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
                                 label="Use on this device"
                                 variant=ButtonVariant::Primary
                                 @test_id={"settings-profile.use"}
-                                on_click={clone!(parent using -> move || {
+                                on_click={clone!(using -> move || {
                                     if let Some(settings) = parent.get_untracked() {
                                         using
                                             .content_of::<SettingsContent>(settings)
@@ -200,11 +200,11 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
 fn blocked<C: Layer>(
     editor: &Editor,
     layer: &Rc<ContentProjection<C>>,
-    own: &Memo<bool>,
+    own: Memo<bool>,
 ) -> Memo<bool> {
     let loaded = layer.project(|_| true);
     let read_only = editor.read_only();
-    create_memo(clone!(own -> move || !loaded.get() || read_only.get() || !own.get()))
+    create_memo(move || !loaded.get() || read_only.get() || !own.get())
 }
 
 #[component]

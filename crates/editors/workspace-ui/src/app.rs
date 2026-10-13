@@ -5,8 +5,8 @@ use block_editor_beui::be_block::FILES_EDITOR;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_FOLDER;
 use block_editor_beui::beui::reactive::{
-    Align, ForEach, Frame, ItemSize, List, NodeRef, clone, component, create_effect, create_memo,
-    untrack, view,
+    Align, ForEach, Frame, ItemSize, List, NodeRef, component, create_effect, create_memo, untrack,
+    view,
 };
 use block_editor_beui::beui::styled::{Caption, Docking, Heading, use_theme};
 use block_editor_beui::beui::unstyled::{
@@ -65,16 +65,16 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
         }
     });
     let phone = workspace.phone();
-    let mode = create_memo(clone!(phone -> move || match phone.get() {
+    let mode = create_memo(move || match phone.get() {
         true => DockMode::Stacked,
         false => DockMode::Tiled,
-    }));
+    });
     let surface = NodeRef::new();
     workspace.editor().content(&surface);
     let layout = workspace.layout();
     let failure = workspace.error();
-    let failed = create_memo(clone!(failure -> move || failure.get().is_some()));
-    let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
+    let failed = create_memo(move || failure.get().is_some());
+    let reason = create_memo(move || failure.get().unwrap_or_default());
     let block_tabs = workspace.block_tabs();
     let top_windows = workspace.windows();
     let dialog_windows = workspace.dialogs();

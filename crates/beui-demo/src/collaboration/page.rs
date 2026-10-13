@@ -90,7 +90,7 @@ fn ConcurrentEditing() -> NodeId {
     let timer: Rc<RefCell<Option<Timer>>> = Rc::new(RefCell::new(None));
 
     let pump = Rc::new(
-        clone!(simulation left right paused latency flight set_flight same set_same seen set_seen published timer -> move |force: Option<(Side, Amount)>| {
+        clone!(simulation left right published timer -> move |force: Option<(Side, Amount)>| {
             let now = now();
             let delay = Duration::from_millis(latency.get_untracked() as u64);
             let held = paused.get_untracked();
@@ -151,7 +151,7 @@ fn ConcurrentEditing() -> NodeId {
         pump(None);
         None
     })));
-    create_effect(clone!(left right paused latency pump -> move || {
+    create_effect(clone!(left right pump -> move || {
         left.content().get();
         right.content().get();
         left.cursors().get();
@@ -161,27 +161,24 @@ fn ConcurrentEditing() -> NodeId {
         untrack(|| pump(None));
     }));
 
-    let left_remote = create_memo(clone!(left seen -> move || {
+    let left_remote = create_memo(clone!(left -> move || {
         left.content().get();
         remote(&left, seen.get()[Side::Left.index()], RIGHT_COLOR)
     }));
-    let right_remote = create_memo(clone!(right seen -> move || {
+    let right_remote = create_memo(clone!(right -> move || {
         right.content().get();
         remote(&right, seen.get()[Side::Right.index()], LEFT_COLOR)
     }));
-    let latency_label =
-        create_memo(clone!(latency -> move || format!("Latency: {} ms", latency.get().round())));
-    let status = create_memo(clone!(flight -> move || match (flight.get(), same.get()) {
+    let latency_label = create_memo(move || format!("Latency: {} ms", latency.get().round()));
+    let status = create_memo(move || match (flight.get(), same.get()) {
         (_, true) => "Both sides hold the same text.".to_owned(),
         ((0, 0), false) => "The sides differ with nothing in flight.".to_owned(),
-        ((right, left), false) => format!(
-            "In flight: {right} to the right, {left} to the left."
-        ),
-    }));
-    let network = create_memo(clone!(paused -> move || match paused.get() {
+        ((right, left), false) => format!("In flight: {right} to the right, {left} to the left."),
+    });
+    let network = create_memo(move || match paused.get() {
         true => ICON_PLAY_ARROW.to_owned(),
         false => ICON_PAUSE.to_owned(),
-    }));
+    });
     let send: Send = pump.clone();
     let switched = paused;
     let runs_pressed = runs;
@@ -260,17 +257,17 @@ fn SendButtons(
     paused: ReadSignal<bool>,
     narrow: Memo<bool>,
 ) -> NodeId {
-    let direction = create_memo(clone!(narrow -> move || match narrow.get() {
+    let direction = create_memo(move || match narrow.get() {
         true => Direction::Horizontal,
         false => Direction::Vertical,
-    }));
+    });
     let arrows = |wide: [&'static str; 4], stacked: [&'static str; 4]| {
         (0..4)
             .map(|index| {
-                create_memo(clone!(narrow -> move || match narrow.get() {
+                create_memo(move || match narrow.get() {
                     true => stacked[index].to_owned(),
                     false => wide[index].to_owned(),
-                }))
+                })
             })
             .collect::<Vec<_>>()
     };
@@ -289,14 +286,14 @@ fn SendButtons(
         ],
     );
     let held = |from: Side| {
-        create_memo(clone!(paused flight -> move || {
+        create_memo(move || {
             let (right, left) = flight.get();
             let waiting = match from {
                 Side::Left => right,
                 Side::Right => left,
             };
             !paused.get() || waiting == 0
-        }))
+        })
     };
     let (from_left, from_right) = (held(Side::Left), held(Side::Right));
     let press = |from: Side, amount: Amount| {

@@ -10,7 +10,7 @@ use beui_core::base::TextAlign;
 use beui_core::color::Color32;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Child, ClickCallback, Direction, Frame, ItemSize, List, Prop, Text, clone, create_memo,
+    Align, Child, ClickCallback, Direction, Frame, ItemSize, List, Prop, Text, create_memo,
 };
 
 const WIDTH: f32 = 520.0;
@@ -99,17 +99,17 @@ fn PaletteRow(handle: CommandRowHandle) -> NodeId {
         hovered,
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(clone!(theme disabled -> move || {
-        match (disabled.get(), highlighted.get(), hovered.get()) {
+    let fill = create_memo(
+        move || match (disabled.get(), highlighted.get(), hovered.get()) {
             (true, _, _) | (false, false, false) => Color32::TRANSPARENT,
             (false, true, _) => theme.accent_soft.get(),
             (false, false, true) => theme.surface.get(),
-        }
-    }));
-    let text_color = create_memo(clone!(theme disabled -> move || match disabled.get() {
+        },
+    );
+    let text_color = create_memo(move || match disabled.get() {
         true => theme.text_muted.get(),
         false => theme.text.get(),
-    }));
+    });
     let icon_color = text_color;
     let shortcut = shortcut.unwrap_or_default();
     view! {

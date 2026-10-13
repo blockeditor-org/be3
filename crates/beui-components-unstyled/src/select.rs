@@ -103,11 +103,11 @@ pub fn Select(
     let popup = popup.unwrap_or_else(|| Render::new(|content| content));
 
     let (highlighted, set_highlighted) = create_signal(initial);
-    let highlight = create_selector(clone!(highlighted -> move || highlighted.get()));
+    let highlight = create_selector(move || highlighted.get());
     let (selected, set_selected) = create_signal(initial);
     let (is_open, set_open) = create_signal(false);
     let (focus, set_focus) = create_signal(Focus::Away);
-    let focused = create_selector(clone!(focus -> move || focus.get()));
+    let focused = create_selector(move || focus.get());
     let (search_text, set_search_text) = create_signal(String::new());
     let disabled = create_memo(move || disabled.get());
 
@@ -117,11 +117,11 @@ pub fn Select(
         options: options.clone(),
         rows: Rc::default(),
         open: is_open,
-        set_open: set_open,
-        focus: focus,
-        set_focus: set_focus,
+        set_open,
+        focus,
+        set_focus,
         set_search_text,
-        selected: selected,
+        selected,
         set_selected,
         highlighted,
         set_highlighted,

@@ -20,12 +20,12 @@ pub fn ResponsiveTabs(
 ) -> NodeId {
     let options = options.into_run();
     let (selected_read, set_selected) = create_signal(selected.peek());
-    create_effect(clone!(set_selected -> move || set_selected.set(selected.get())));
+    create_effect(move || set_selected.set(selected.get()));
     set_component_state(selected_read);
 
     let narrow = narrower_than(breakpoint);
-    let wide = create_memo(clone!(narrow -> move || !narrow.get()));
-    let highlighted = create_memo(clone!(selected_read -> move || Some(selected_read.get())));
+    let wide = create_memo(move || !narrow.get());
+    let highlighted = create_memo(move || Some(selected_read.get()));
 
     let tab_options = options.clone();
     let tab_selected = selected_read;
@@ -36,7 +36,7 @@ pub fn ResponsiveTabs(
         <List spacing=0.0>
             <Show
                 condition={wide}
-                then={move || clone!(tab_options tab_selected tab_set tab_change -> view! {
+                then={move || clone!(tab_options tab_change -> view! {
                     <Tabs
                         options={tab_options}
                         selected={tab_selected}
@@ -49,7 +49,7 @@ pub fn ResponsiveTabs(
             />
             <Show
                 condition={narrow}
-                then={move || clone!(options highlighted set_selected on_change -> view! {
+                then={move || clone!(options on_change -> view! {
                     <Select
                         options
                         selected={highlighted}

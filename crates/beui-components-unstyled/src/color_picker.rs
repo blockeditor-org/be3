@@ -12,7 +12,7 @@ use beui_core::geometry::{Rect, pos2};
 use beui_core::image::Image;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, ForEach, Memo, Prop, ReadSignal, Render, RenderFn, WriteSignal, clone, create_effect,
+    Callback, ForEach, Memo, Prop, ReadSignal, Render, RenderFn, WriteSignal, create_effect,
     create_memo, create_signal,
 };
 
@@ -69,12 +69,12 @@ impl<Model: ColorModel> ColorPickerState<Model> {
         let (color, set_color) = create_signal(Model::from_color_keeping(first, Model::default()));
         let (reported, set_reported) = create_signal(first);
         let (dragging, set_dragging) = create_signal(false);
-        create_effect(clone!(color set_color set_reported -> move || {
+        create_effect(move || {
             let next = value.get();
             set_reported.set(next);
             let held = color.get_untracked();
             set_color.set(Model::from_color_keeping(next, held));
-        }));
+        });
         Self {
             color,
             set_color,
@@ -238,12 +238,12 @@ pub struct HexText {
 impl HexText {
     pub fn new(shown: Memo<Color32>, alpha: bool, apply: Callback<Color32>) -> Self {
         let (text, set_text) = create_signal(hex_text(shown.get_untracked(), alpha));
-        create_effect(clone!(shown text set_text -> move || {
+        create_effect(move || {
             let next = shown.get();
             if parse_typed(&text.get_untracked(), next) != Some(next) {
                 set_text.set(hex_text(next, alpha));
             }
-        }));
+        });
         Self {
             text,
             set_text,

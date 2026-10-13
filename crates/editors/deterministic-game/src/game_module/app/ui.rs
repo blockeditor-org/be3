@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::GameModuleContent;
 use block_editor_beui::beui::reactive::{
-    Direction, Frame, ItemSize, List, NodeRef, Show, clone, component, create_memo, view,
+    Direction, Frame, ItemSize, List, NodeRef, Show, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Heading, Paragraph, use_theme,
@@ -36,19 +36,19 @@ pub fn ModuleView(editor: Editor) -> NodeId {
     });
     let source = module.project(|module| module.header().source_name.clone());
     let size = module.project(|module| module.data().len());
-    let bytes = create_memo(clone!(size -> move || format!("{} bytes", size.get())));
+    let bytes = create_memo(move || format!("{} bytes", size.get()));
 
-    let name = create_memo(clone!(loaded -> move || match loaded.get() {
+    let name = create_memo(move || match loaded.get() {
         Loaded::Named(name) => name,
         _ => String::new(),
-    }));
-    let named = create_memo(clone!(loaded -> move || matches!(loaded.get(), Loaded::Named(_))));
-    let reason = create_memo(clone!(loaded -> move || match loaded.get() {
+    });
+    let named = create_memo(move || matches!(loaded.get(), Loaded::Named(_)));
+    let reason = create_memo(move || match loaded.get() {
         Loaded::Failed(error) => error,
         _ => String::new(),
-    }));
-    let failed = create_memo(clone!(loaded -> move || matches!(loaded.get(), Loaded::Failed(_))));
-    let waiting = create_memo(clone!(loaded -> move || loaded.get() == Loaded::Loading));
+    });
+    let failed = create_memo(move || matches!(loaded.get(), Loaded::Failed(_)));
+    let waiting = create_memo(move || loaded.get() == Loaded::Loading);
 
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
@@ -107,10 +107,10 @@ fn ModulePanel(editor: Editor) -> NodeId {
 
     let read_only = editor.read_only();
     let busy = chooser.busy();
-    let blocked = create_memo(clone!(busy read_only -> move || busy.get() || read_only.get()));
+    let blocked = create_memo(move || busy.get() || read_only.get());
     let error = chooser.error();
-    let failed = create_memo(clone!(error -> move || error.get().is_some()));
-    let reason = create_memo(clone!(error -> move || error.get().unwrap_or_default()));
+    let failed = create_memo(move || error.get().is_some());
+    let reason = create_memo(move || error.get().unwrap_or_default());
     let replace = move || chooser.open();
     let theme = use_theme();
     view! {

@@ -29,8 +29,8 @@ const DRAG_THRESHOLD: f32 = 6.0;
 #[component]
 pub fn Kanban(data: Data) -> NodeId {
     let status = status_field(&data);
-    let missing = create_memo(clone!(status -> move || status.get().is_none()));
-    let ready = create_memo(clone!(status -> move || status.get().is_some()));
+    let missing = create_memo(move || status.get().is_none());
+    let ready = create_memo(move || status.get().is_some());
     let columns = create_memo(clone!(data -> move || {
         data.groups.with(|groups| groups.iter().map(|group| group.key).collect::<Vec<GroupKey>>())
     }));
@@ -47,7 +47,7 @@ pub fn Kanban(data: Data) -> NodeId {
                     </Frame>
                 </Show>
                 <Show condition={ready}>
-                    {move || clone!(columns data -> view! {
+                    {move || clone!(data -> view! {
                         <Scroll @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal>
                             <Frame padding_horizontal=PADDING padding_vertical=PADDING>
                                 <List direction=Direction::Horizontal spacing=COLUMN_SPACING>
@@ -74,22 +74,22 @@ fn Column(data: Data, key: GroupKey) -> NodeId {
     let group = create_memo(clone!(data -> move || {
         data.groups.with(|groups| groups.iter().find(|group| group.key == key).cloned())
     }));
-    let folded = create_memo(clone!(data group -> move || {
+    let folded = create_memo(clone!(data -> move || {
         let closed = group.with(|group| group.as_ref().is_some_and(|group| group.closed));
         closed != data.toggled.with(|toggled| toggled.contains(&key))
     }));
-    let open = create_memo(clone!(folded -> move || !folded.get()));
+    let open = create_memo(move || !folded.get());
     let (open_data, folded_data) = (data.clone(), data);
     let (open_group, folded_group) = (group, group);
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Show condition={open}>
-                {move || clone!(open_data open_group -> view! {
+                {move || clone!(open_data -> view! {
                     <OpenColumn data={open_data} group={open_group} key={key} />
                 })}
             </Show>
             <Show condition={folded}>
-                {move || clone!(folded_data folded_group -> view! {
+                {move || clone!(folded_data -> view! {
                     <FoldedColumn data={folded_data} group={folded_group} key={key} />
                 })}
             </Show>
@@ -99,20 +99,22 @@ fn Column(data: Data, key: GroupKey) -> NodeId {
 
 #[component]
 fn FoldedColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
-    let option = create_memo(clone!(group -> move || {
+    let option = create_memo(move || {
         group.with(|group| group.as_ref().and_then(|group| group.option.clone()))
-    }));
-    let count = create_memo(clone!(group -> move || {
-        group.with(|group| group.as_ref().map_or(0, |group| group.rows.len())).to_string()
-    }));
-    let name = create_memo(clone!(group -> move || {
+    });
+    let count = create_memo(move || {
+        group
+            .with(|group| group.as_ref().map_or(0, |group| group.rows.len()))
+            .to_string()
+    });
+    let name = create_memo(move || {
         group.with(|group| {
             group
                 .as_ref()
                 .map(|group| format!("Show {}", group.label))
                 .unwrap_or_default()
         })
-    }));
+    });
     let unfold = clone!(data -> move || data.toggle_group(key));
     let theme = use_theme();
     view! {
@@ -135,22 +137,32 @@ fn FoldedColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId
 
 #[component]
 fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
-    let label = create_memo(clone!(group -> move || {
-        group.with(|group| group.as_ref().map(|group| group.label.clone()).unwrap_or_default())
-    }));
-    let count = create_memo(clone!(group -> move || {
-        group.with(|group| group.as_ref().map_or(0, |group| group.rows.len())).to_string()
-    }));
-    let option = create_memo(clone!(group -> move || {
+    let label = create_memo(move || {
+        group.with(|group| {
+            group
+                .as_ref()
+                .map(|group| group.label.clone())
+                .unwrap_or_default()
+        })
+    });
+    let count = create_memo(move || {
+        group
+            .with(|group| group.as_ref().map_or(0, |group| group.rows.len()))
+            .to_string()
+    });
+    let option = create_memo(move || {
         group.with(|group| group.as_ref().and_then(|group| group.option.clone()))
-    }));
-    let keys = create_memo(clone!(group -> move || {
-        group.with(|group| group.as_ref().map(|group| group.rows.clone()).unwrap_or_default())
-    }));
-    let value = create_memo(clone!(group -> move || {
-        group.with(|group| group.as_ref().and_then(Group::value))
-    }));
-    let add = clone!(data value -> move || {
+    });
+    let keys = create_memo(move || {
+        group.with(|group| {
+            group
+                .as_ref()
+                .map(|group| group.rows.clone())
+                .unwrap_or_default()
+        })
+    });
+    let value = create_memo(move || group.with(|group| group.as_ref().and_then(Group::value)));
+    let add = clone!(data -> move || {
         let Some(field_id) = data.group_by.get_untracked() else {
             return;
         };
@@ -169,7 +181,7 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
         GroupKey::Option(option) => option.to_string(),
         _ => "none".to_owned(),
     };
-    let dropped = clone!(data value -> move |(row, _): (usize, DragPoint)| {
+    let dropped = clone!(data -> move |(row, _): (usize, DragPoint)| {
         let Some(field_id) = data.group_by.get_untracked() else {
             return;
         };
@@ -288,11 +300,11 @@ fn CardLines(data: Data, row: usize) -> NodeId {
             .with(|ids| ids.get(row).copied())
             .map_or_else(String::new, |id: ObjectId| short_id(&data.prefix.get(), id.as_uuid()))
     }));
-    let title = create_memo(clone!(data entry -> move || {
+    let title = create_memo(clone!(data -> move || {
         let field = data.title_field.get();
         entry.with(|entry| row_title(entry.as_ref(), field))
     }));
-    let parts = create_memo(clone!(data entry -> move || {
+    let parts = create_memo(clone!(data -> move || {
         let title = data.title_field.get();
         let column = data.group_by.get();
         entry.with(|entry| {
@@ -308,9 +320,9 @@ fn CardLines(data: Data, row: usize) -> NodeId {
             })
         })
     }));
-    let keys = create_memo(clone!(parts -> move || {
+    let keys = create_memo(move || {
         parts.with(|parts| parts.iter().map(|(key, _)| *key).collect::<Vec<Uuid>>())
-    }));
+    });
     view! {
         <List spacing=6.0>
             <Caption content={code} />

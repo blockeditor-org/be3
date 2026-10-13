@@ -6,7 +6,7 @@ use beui_core::base::{Align, Direction};
 use beui_core::color::Color32;
 use beui_core::font::TextAlign;
 use beui_core::node::NodeId;
-use beui_view::reactive::{Child, Frame, List, Text, clone, create_memo};
+use beui_view::reactive::{Child, Frame, List, Text, create_memo};
 
 const MENU_WIDTH: f32 = 240.0;
 const EMOJI_SIZE: f32 = 16.0;
@@ -55,14 +55,12 @@ fn EmojiRow(handle: CompletionRowHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let emoji = create_memo(clone!(completion -> move || {
-        completion.get().map(|item| item.insert).unwrap_or_default()
-    }));
+    let emoji = create_memo(move || completion.get().map(|item| item.insert).unwrap_or_default());
     let label = create_memo(move || completion.get().map(|item| item.label).unwrap_or_default());
-    let fill = create_memo(clone!(theme -> move || match highlighted.get() {
+    let fill = create_memo(move || match highlighted.get() {
         true => theme.accent_soft.get(),
         false => Color32::TRANSPARENT,
-    }));
+    });
     view! {
         <Frame color={fill} radius=RADIUS padding_horizontal=8.0 padding_vertical=3.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>

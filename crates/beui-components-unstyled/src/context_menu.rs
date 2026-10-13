@@ -8,7 +8,7 @@ use beui_core::geometry::Pos2;
 use beui_core::input::PointerPress;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Child, Children, ClickCallback, Interactive, ItemSize, List, NodeRef, Prop, clone,
+    Callback, Child, Children, ClickCallback, Interactive, ItemSize, List, NodeRef, Prop,
     create_effect, create_memo, create_signal, last_pointer, set_component_state,
 };
 
@@ -70,11 +70,11 @@ pub fn ContextMenu(
         pointed_focusing.set(true);
         pointed.set(true);
     });
-    let shown = create_memo(clone!(open -> move || open.get()));
+    let shown = create_memo(move || open.get());
     let touched = create_memo(move || !selection && touched.get());
     view! {
         <Interactive
-            on_secondary_press={clone!(set_open -> move |press: PointerPress| {
+            on_secondary_press={move |press: PointerPress| {
                 if disabled.get() {
                     return;
                 }
@@ -82,7 +82,7 @@ pub fn ContextMenu(
                 set_touched.set(press.touch);
                 set_focusing.set(true);
                 set_open.set(true);
-            })}
+            }}
         >
             <List spacing=0.0>
                 {children} @sizing={child_size}

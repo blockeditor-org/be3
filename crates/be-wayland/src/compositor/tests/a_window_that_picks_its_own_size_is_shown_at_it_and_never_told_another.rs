@@ -16,7 +16,7 @@ fn Floating(windows: Windows) -> NodeId {
                                 .map_or(Vec2::ZERO, |info| info.size)
                         })
                     });
-                    let width = create_memo(clone!(size -> move || Some(size.get().x)));
+                    let width = create_memo(move || Some(size.get().x));
                     let height = create_memo(move || Some(size.get().y));
                     view! {
                         <Frame width height>

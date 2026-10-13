@@ -60,18 +60,18 @@ const ANCHORS: [(PixelArtAnchor, &str, &str); 9] = [
 pub(crate) fn TopBar(tools: Rc<Tools>, size: Memo<(u16, u16)>, shown: ReadSignal<bool>) -> NodeId {
     let editor = tools.editor().clone();
     let tool = tools.tool;
-    let label = create_memo(clone!(tool -> move || tool.get().label().to_owned()));
-    let dimensions = create_memo(clone!(size -> move || {
+    let label = create_memo(move || tool.get().label().to_owned());
+    let dimensions = create_memo(move || {
         let (width, height) = size.get();
         format!("{width} × {height} px")
-    }));
+    });
     let scale = editor.scale();
-    let percent = create_memo(clone!(scale -> move || format!("{:.0}%", scale.get() * 100.0)));
+    let percent = create_memo(move || format!("{:.0}%", scale.get() * 100.0));
     let read_only = editor.read_only();
 
     let zoom_out = clone!(editor -> move || editor.zoom(1.0 / ZOOM_STEP));
     let zoom_in = clone!(editor -> move || editor.zoom(ZOOM_STEP));
-    let reset = clone!(editor scale -> move || {
+    let reset = clone!(editor -> move || {
         editor.zoom(1.0 / scale.get_untracked().max(f32::EPSILON));
     });
     let fit = clone!(editor -> move || editor.fit());
@@ -81,7 +81,7 @@ pub(crate) fn TopBar(tools: Rc<Tools>, size: Memo<(u16, u16)>, shown: ReadSignal
 
     let export = clone!(tools -> move || super::app::export(&tools));
     let clear = clone!(tools -> move || tools.open_dialog(Dialog::Clear));
-    let resize = clone!(tools size -> move || {
+    let resize = clone!(tools -> move || {
         let (width, height) = size.get_untracked();
         tools.set_resize_width.set(width);
         tools.set_resize_height.set(height);
@@ -90,8 +90,8 @@ pub(crate) fn TopBar(tools: Rc<Tools>, size: Memo<(u16, u16)>, shown: ReadSignal
     });
 
     let failure = tools.export_error;
-    let failed = create_memo(clone!(failure -> move || failure.get().is_some()));
-    let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
+    let failed = create_memo(move || failure.get().is_some());
+    let reason = create_memo(move || failure.get().unwrap_or_default());
     let theme = use_theme();
     view! {
         <Toolbar shown={shown}>
@@ -157,16 +157,15 @@ pub(crate) fn ToolsPanel(tools: Rc<Tools>) -> NodeId {
     let rows = create_memo(|| (0..TOOLS.len() / 2).collect::<Vec<usize>>());
     let brush_size = tools.brush_size;
     let set_brush_size = tools.set_brush_size;
-    let size_value = create_memo(clone!(brush_size -> move || f64::from(brush_size.get())));
+    let size_value = create_memo(move || f64::from(brush_size.get()));
     let shape = tools.brush_shape;
     let set_shape = tools.set_brush_shape;
-    let square = create_memo(clone!(shape -> move || shape.get() == BrushShape::Square));
-    let circle = create_memo(clone!(shape -> move || shape.get() == BrushShape::Circle));
+    let square = create_memo(move || shape.get() == BrushShape::Square);
+    let circle = create_memo(move || shape.get() == BrushShape::Circle);
     let filled = tools.shapes_filled;
     let set_filled = tools.set_shapes_filled;
-    let shapes = create_memo(clone!(chosen -> move || {
-        !matches!(chosen.get(), PixelTool::Rectangle | PixelTool::Ellipse)
-    }));
+    let shapes =
+        create_memo(move || !matches!(chosen.get(), PixelTool::Rectangle | PixelTool::Ellipse));
     let horizontal = tools.mirror_horizontal;
     let set_horizontal = tools.set_mirror_horizontal;
     let vertical = tools.mirror_vertical;
@@ -277,23 +276,23 @@ pub(crate) fn ColorsPanel(tools: Rc<Tools>, palette: Memo<Vec<PixelColor>>) -> N
     });
     let channels = create_memo(|| ["Red", "Green", "Blue", "Alpha"].to_vec());
     let recent = tools.recent;
-    let recent_colors = create_memo(clone!(recent -> move || recent.get()));
+    let recent_colors = create_memo(move || recent.get());
 
-    let can_add = create_memo(clone!(palette color read_only -> move || {
+    let can_add = create_memo(move || {
         read_only.get()
             || palette.with(|palette| {
                 palette.len() >= MAX_PIXEL_ART_PALETTE_COLORS || palette.contains(&color.get())
             })
-    }));
-    let can_remove = create_memo(clone!(palette color read_only -> move || {
+    });
+    let can_remove = create_memo(move || {
         read_only.get() || palette.with(|palette| !palette.contains(&color.get()))
-    }));
-    let add = clone!(tools palette color -> move || {
+    });
+    let add = clone!(tools -> move || {
         let mut colors = palette.get_untracked();
         colors.push(color.get_untracked());
         tools.operate(PixelArtOperation::SetPalette { colors });
     });
-    let remove = clone!(tools palette color -> move || {
+    let remove = clone!(tools -> move || {
         let removed = color.get_untracked();
         let colors = palette
             .get_untracked()
@@ -382,8 +381,8 @@ fn Channel(tools: Rc<Tools>, channel: &'static str) -> NodeId {
         _ => 3,
     };
     let color = tools.color;
-    let value = create_memo(clone!(color -> move || f64::from(color.get().rgba()[index])));
-    let edit = clone!(tools color -> move |typed: f64| {
+    let value = create_memo(move || f64::from(color.get().rgba()[index]));
+    let edit = clone!(tools -> move |typed: f64| {
         let mut rgba = color.get_untracked().rgba();
         rgba[index] = typed.clamp(0.0, 255.0) as u8;
         tools.set_active_color(PixelColor::new(rgba[0], rgba[1], rgba[2], rgba[3]), false);
@@ -398,10 +397,10 @@ fn Swatch(color: Prop<PixelColor>, selected: Prop<bool>, on_click: ClickCallback
     let fill = create_memo(move || swatch_color(color.get()));
     let chosen = create_memo(move || selected.get());
     let theme = use_theme();
-    let outline = create_memo(clone!(theme chosen -> move || match chosen.get() {
+    let outline = create_memo(move || match chosen.get() {
         true => theme.accent.get(),
         false => theme.border.get(),
-    }));
+    });
     view! {
         <Pressable on_click={move || on_click.call()}>
             <Frame
@@ -420,21 +419,21 @@ fn Swatch(color: Prop<PixelColor>, selected: Prop<bool>, on_click: ClickCallback
 #[component]
 pub(crate) fn Dialogs(tools: Rc<Tools>, size: Memo<(u16, u16)>) -> NodeId {
     let dialog = tools.dialog();
-    let resizing = create_memo(clone!(dialog -> move || dialog.get() == Dialog::Resize));
-    let clearing = create_memo(clone!(dialog -> move || dialog.get() == Dialog::Clear));
+    let resizing = create_memo(move || dialog.get() == Dialog::Resize);
+    let clearing = create_memo(move || dialog.get() == Dialog::Clear);
     let width = tools.resize_width;
     let height = tools.resize_height;
     let set_width = tools.set_resize_width;
     let set_height = tools.set_resize_height;
-    let width_value = create_memo(clone!(width -> move || f64::from(width.get())));
-    let height_value = create_memo(clone!(height -> move || f64::from(height.get())));
-    let cropping = create_memo(clone!(width height size -> move || {
+    let width_value = create_memo(move || f64::from(width.get()));
+    let height_value = create_memo(move || f64::from(height.get()));
+    let cropping = create_memo(move || {
         let (current_width, current_height) = size.get();
         width.get() < current_width || height.get() < current_height
-    }));
+    });
     let anchors = create_memo(|| (0..3).collect::<Vec<usize>>());
 
-    let apply = clone!(tools width height -> move || {
+    let apply = clone!(tools -> move || {
         tools.operate(PixelArtOperation::Resize {
             width: width.get_untracked(),
             height: height.get_untracked(),

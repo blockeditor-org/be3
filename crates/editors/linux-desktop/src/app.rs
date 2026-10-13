@@ -15,7 +15,7 @@ use std::rc::Rc;
 
 use block_editor_beui::Editor;
 use block_editor_beui::beui::reactive::{
-    ForEach, Frame, ItemSize, List, NodeRef, clone, component, create_memo, view,
+    ForEach, Frame, ItemSize, List, NodeRef, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::{Docking, use_theme};
 use block_editor_beui::beui::unstyled::{
@@ -71,8 +71,8 @@ fn DesktopBody(workspace: Rc<Workspace>) -> NodeId {
     switcher::bind_window_switcher(&layout);
     fullscreen::bind_fullscreen(workspace.editor());
     let failure = workspace.error();
-    let failed = create_memo(clone!(failure -> move || failure.get().is_some()));
-    let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
+    let failed = create_memo(move || failure.get().is_some());
+    let reason = create_memo(move || failure.get().unwrap_or_default());
     let block_tabs = workspace.block_tabs();
     let top_windows = workspace.windows();
     let dialog_windows = workspace.dialogs();

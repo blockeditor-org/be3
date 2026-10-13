@@ -5,7 +5,7 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::datetime::{HourCycle, Time};
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_APPS, ICON_MENU, ICON_WORKSPACES};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, ReadSignal, Show, Spacer, clone, component,
+    Align, Direction, ForEach, Frame, ItemSize, List, ReadSignal, Show, Spacer, component,
     create_memo, create_signal, create_timer, now, view,
 };
 use block_editor_beui::beui::styled::{IconButton, MenuButton, Separator, use_theme};
@@ -64,20 +64,24 @@ pub(crate) fn DesktopBar(
     let sounding = editor.clone();
     let tray = editor.clone();
     let levels = editor.host_value::<Media>();
-    let audible =
-        create_memo(clone!(levels -> move || levels.with(|levels| levels.output.is_some())));
+    let audible = create_memo(move || levels.with(|levels| levels.output.is_some()));
     let dated = editor.clone();
     let launcher = move || launcher.show(true);
     let menu = move || editor.host().show_app_menu(editor.block_id());
     let sessions = Sessions::new(&workspace);
     let listed = sessions.listed;
-    let keys = create_memo(clone!(listed -> move || {
-        listed.with(|sessions| sessions.iter().map(|session| session.block).collect::<Vec<_>>())
-    }));
+    let keys = create_memo(move || {
+        listed.with(|sessions| {
+            sessions
+                .iter()
+                .map(|session| session.block)
+                .collect::<Vec<_>>()
+        })
+    });
     let named = listed;
     let settings = sessions.settings;
     let unready = create_memo(move || settings.get().is_none());
-    let listing = create_memo(clone!(listed -> move || !listed.with(Vec::is_empty)));
+    let listing = create_memo(move || !listed.with(Vec::is_empty));
     let creating = sessions.clone();
     let chose = move |path: Vec<usize>| {
         let chosen = path

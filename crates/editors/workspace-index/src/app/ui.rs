@@ -5,8 +5,7 @@ use block_editor_beui::be_block::FolderContent;
 use block_editor_beui::beui::icons::{ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_FOLDER};
 use block_editor_beui::beui::reactive::{
     Align, Direction, Dynamic, ForEach, Frame, ItemSize, Justify, List, Memo, NodeRef, ReadSignal,
-    Show, WriteSignal, clone, component, create_effect, create_memo, create_selector,
-    create_signal, view,
+    Show, WriteSignal, component, create_effect, create_memo, create_selector, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Caption, IconButton, IconSized, ListRow, Scroll, Select, use_theme,
@@ -97,7 +96,7 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
     let drop = super::drop::watch(&editor, &folder);
 
     let sized = editor.clone();
-    create_effect(clone!(entries mode -> move || {
+    create_effect(move || {
         let rows = entries.with(Vec::len).max(1);
         let height = match mode.get() {
             FolderView::LargeGrid => LARGE_TILE.y * rows.div_ceil(3) as f32,
@@ -105,27 +104,31 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
             FolderView::List => ROW_HEIGHT * rows as f32,
         };
         sized.set_intrinsic_size(Some(Vec2::new(INTRINSIC_WIDTH, height)));
-    }));
+    });
 
-    let empty = create_memo(clone!(entries -> move || entries.with(Vec::is_empty)));
-    let unordered = create_memo(clone!(sort -> move || sort.get() == FolderSort::Intrinsic));
-    let direction_glyph = create_memo(clone!(descending -> move || match descending.get() {
+    let empty = create_memo(move || entries.with(Vec::is_empty));
+    let unordered = create_memo(move || sort.get() == FolderSort::Intrinsic);
+    let direction_glyph = create_memo(move || match descending.get() {
         true => ICON_ARROW_DOWNWARD.to_owned(),
         false => ICON_ARROW_UPWARD.to_owned(),
-    }));
-    let direction_label = create_memo(clone!(descending -> move || match descending.get() {
+    });
+    let direction_label = create_memo(move || match descending.get() {
         true => "Descending".to_owned(),
         false => "Ascending".to_owned(),
-    }));
-    let mode_index = create_memo(clone!(mode -> move || {
-        FolderView::ALL.iter().position(|shown| *shown == mode.get())
-    }));
-    let sort_index = create_memo(clone!(sort -> move || {
-        FolderSort::ALL.iter().position(|order| *order == sort.get())
-    }));
-    let flip = clone!(descending set_descending -> move || {
-        set_descending.set(!descending.get_untracked());
     });
+    let mode_index = create_memo(move || {
+        FolderView::ALL
+            .iter()
+            .position(|shown| *shown == mode.get())
+    });
+    let sort_index = create_memo(move || {
+        FolderSort::ALL
+            .iter()
+            .position(|order| *order == sort.get())
+    });
+    let flip = move || {
+        set_descending.set(!descending.get_untracked());
+    };
     let cells = Cells {
         editor: editor.clone(),
         entries,
@@ -137,11 +140,11 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
     let content = NodeRef::new();
     editor.content(&content);
     let theme = use_theme();
-    let hovering = create_memo(clone!(drop -> move || drop.get().is_some()));
-    let outline = create_memo(clone!(drop theme -> move || match drop.get() {
+    let hovering = create_memo(move || drop.get().is_some());
+    let outline = create_memo(move || match drop.get() {
         Some(true) => theme.accent.get(),
         _ => theme.danger.get(),
-    }));
+    });
     view! {
         <Frame color={theme.background}>
             <List spacing=0.0>

@@ -7,7 +7,7 @@ use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Action, Callback, Interactive, Memo, Prop, ReadSignal, Render, action_disabled, action_glyph,
-    action_label, action_pressed, action_tooltip, clone, component_accessibility, create_effect,
+    action_label, action_pressed, action_tooltip, component_accessibility, create_effect,
     create_memo, create_signal, set_component_state, untrack,
 };
 
@@ -48,7 +48,7 @@ pub fn Toggle(
     let glyph = create_memo(move || glyph.get());
     let tooltip = create_memo(move || tooltip.get());
     let (checked_read, set_checked) = create_signal(checked.peek());
-    create_effect(clone!(set_checked -> move || set_checked.set(checked.get())));
+    create_effect(move || set_checked.set(checked.get()));
     let (hovered, set_hovered) = create_signal(false);
     let (active, set_active) = create_signal(false);
     let (focused, set_focused) = create_signal(false);
@@ -57,24 +57,22 @@ pub fn Toggle(
     let mixed = create_memo(move || mixed.get());
 
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(role)));
-    component_accessibility(create_memo(
-        clone!(checked_read mixed disabled label -> move || {
-            let mut node = accessibility.get();
-            if node.label().is_none() && !label.get().is_empty() {
-                node.set_label(label.get());
-            }
-            node.set_toggled(match mixed.get() {
-                true => Toggled::Mixed,
-                false => Toggled::from(checked_read.get()),
-            });
-            if disabled.get() {
-                node.set_disabled();
-            } else {
-                node.clear_disabled();
-            }
-            node
-        }),
-    ));
+    component_accessibility(create_memo(move || {
+        let mut node = accessibility.get();
+        if node.label().is_none() && !label.get().is_empty() {
+            node.set_label(label.get());
+        }
+        node.set_toggled(match mixed.get() {
+            true => Toggled::Mixed,
+            false => Toggled::from(checked_read.get()),
+        });
+        if disabled.get() {
+            node.set_disabled();
+        } else {
+            node.clear_disabled();
+        }
+        node
+    }));
 
     let content_node = content.map(|build| {
         build.call(ToggleHandle {
@@ -107,10 +105,10 @@ pub fn Toggle(
     let key_toggle = toggle_checked.clone();
     let tab_disabled = disabled;
     let tab_stop = tab_stop.map(move |tab_stop| tab_stop && !tab_disabled.get());
-    let cursor = create_memo(clone!(disabled -> move || match disabled.get() {
+    let cursor = create_memo(move || match disabled.get() {
         true => CursorIcon::Default,
         false => CursorIcon::PointingHand,
-    }));
+    });
 
     set_component_state(checked_read);
 

@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, Drawing, Frame, Interactive, ItemSize, List, PlacementBuilder, ReadSignal,
-    clone, component, create_memo, view,
+    component, create_memo, view,
 };
 use block_editor_beui::beui::styled::use_theme;
 use block_editor_beui::beui::unstyled::Picture;
@@ -20,16 +20,16 @@ pub(crate) fn Artwork(state: Rc<RayState>) -> NodeId {
         <PlacementBuilder>
             {move |placed: ReadSignal<Rect>| {
                 let world = state.editor().world();
-                let artwork = create_memo(clone!(world placed -> move || {
+                let artwork = create_memo(move || {
                     let available = world
                         .get()
                         .unwrap_or_else(|| placed.get().size())
                         .max(Vec2::new(1.0, 1.0));
                     artwork_rect(Rect::from_min_size(Pos2::ZERO, available))
-                }));
-                let left = create_memo(clone!(artwork -> move || artwork.get().left()));
-                let top = create_memo(clone!(artwork -> move || artwork.get().top()));
-                let side = create_memo(clone!(artwork -> move || artwork.get().width()));
+                });
+                let left = create_memo(move || artwork.get().left());
+                let top = create_memo(move || artwork.get().top());
+                let side = create_memo(move || artwork.get().width());
 
                 let pressing = Rc::clone(&state);
                 let press_artwork = artwork;
@@ -82,9 +82,9 @@ pub(crate) fn Artwork(state: Rc<RayState>) -> NodeId {
                 let rays = state.rays;
                 let overlay = state.overlay;
                 let tool = state.tool;
-                let tracing = create_memo(clone!(tool rays -> move || {
+                let tracing = create_memo(move || {
                     tool.get() == Tool::RayTrace && rays.get().is_some()
-                }));
+                });
                 let camera = state.editor().canvas();
                 let theme = use_theme();
 

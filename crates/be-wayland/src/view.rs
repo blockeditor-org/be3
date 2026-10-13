@@ -30,7 +30,7 @@ pub fn WindowView(
             {move |rect: ReadSignal<Rect>| {
                 let catcher = NodeRef::new();
                 let popup_catcher = NodeRef::new();
-                create_effect(clone!(windows rect catcher popup_catcher -> move || {
+                create_effect(clone!(windows catcher popup_catcher -> move || {
                     windows.placed(id, rect.get());
                     if let Some(node) = catcher.try_get() {
                         windows.caught_by(id, node);
@@ -40,12 +40,12 @@ pub fn WindowView(
                     }
                 }));
                 let list = windows.list();
-                let inhibits = create_memo(clone!(list -> move || {
+                let inhibits = create_memo(move || {
                     list.with(|list| {
                         list.iter()
                             .any(|info| info.id == id && info.inhibits_shortcuts)
                     })
-                }));
+                });
                 let dim = create_memo(move || {
                     let responding = list.with(|list| {
                         list.iter()
@@ -69,16 +69,16 @@ pub fn WindowView(
                         .any(|occluder| occluder.contains(position))
                 };
                 let popups = signals.popups;
-                let shown = create_memo(clone!(popups -> move || popups.with(|popups| {
+                let shown = create_memo(move || popups.with(|popups| {
                     popups.as_ref().map(|popups| popups.rect)
-                })));
-                let open = create_memo(clone!(shown -> move || shown.get().is_some()));
-                let anchor = create_memo(clone!(shown rect -> move || {
+                }));
+                let open = create_memo(move || shown.get().is_some());
+                let anchor = create_memo(move || {
                     let at = shown.get().unwrap_or(Rect::ZERO);
                     OverlayAnchor::Rect(at.translate(rect.get().min.to_vec2()))
-                }));
-                let width = create_memo(clone!(shown -> move || shown.get().map(|at| at.width())));
-                let height = create_memo(clone!(shown -> move || shown.get().map(|at| at.height())));
+                });
+                let width = create_memo(move || shown.get().map(|at| at.width()));
+                let height = create_memo(move || shown.get().map(|at| at.height()));
                 let reach = windows.clone();
                 let into_window = move |mut input: ForwardedInput| {
                     let at = shown.get_untracked().unwrap_or(Rect::ZERO);

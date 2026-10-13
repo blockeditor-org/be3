@@ -28,7 +28,7 @@ pub(crate) fn EditorMenu(state: Shared) -> NodeId {
     let (settings, set_settings) = create_signal(false);
     menu_actions(&state, set_settings);
     let hex = state.hex_view;
-    let text_view = create_memo(clone!(hex -> move || !hex.get()));
+    let text_view = create_memo(move || !hex.get());
     let hex_view = create_memo(move || hex.get());
     let text_state = state.clone();
     view! {
@@ -51,7 +51,7 @@ pub(crate) fn EditorMenu(state: Shared) -> NodeId {
 
 fn menu_actions(state: &Shared, set_settings: WriteSignal<bool>) {
     let hex = state.hex_view;
-    let in_text = create_memo(clone!(hex -> move || !hex.get()));
+    let in_text = create_memo(move || !hex.get());
     Action::new(
         "text.hex",
         "Toggle hex view",
@@ -280,32 +280,30 @@ fn HexSettings(state: Shared) -> NodeId {
 #[component]
 fn TextSettings(state: Shared) -> NodeId {
     let content = state.text.content();
-    let language = create_memo(clone!(state content -> move || {
+    let language = create_memo(clone!(state -> move || {
         content.get();
         state.text.language()
     }));
-    let indentation = create_memo(clone!(state content -> move || {
+    let indentation = create_memo(clone!(state -> move || {
         content.get();
         state.text.indentation()
     }));
-    let language_index = create_memo(clone!(language -> move || {
+    let language_index = create_memo(move || {
         TextLanguage::ALL
             .iter()
             .position(|choice| *choice == language.get())
-    }));
-    let indentation_index = create_memo(clone!(indentation -> move || {
+    });
+    let indentation_index = create_memo(move || {
         Some(usize::from(matches!(
             indentation.get(),
             TextIndentation::Spaces { .. }
         )))
-    }));
-    let spaces = create_memo(clone!(indentation -> move || {
-        matches!(indentation.get(), TextIndentation::Spaces { .. })
-    }));
-    let width = create_memo(clone!(indentation -> move || match indentation.get() {
+    });
+    let spaces = create_memo(move || matches!(indentation.get(), TextIndentation::Spaces { .. }));
+    let width = create_memo(move || match indentation.get() {
         TextIndentation::Spaces { width } => f64::from(width),
         TextIndentation::Tabs => 2.0,
-    }));
+    });
     let language_state = state.clone();
     let indentation_state = state.clone();
     let width_state = state;
@@ -358,7 +356,7 @@ fn TextSettings(state: Shared) -> NodeId {
                 </Frame>
             </List>
             <Show condition={spaces}>
-                {move || clone!(width width_state -> view! {
+                {move || clone!(width_state -> view! {
                     <List
                         direction=Direction::Horizontal
                         align=Align::Center

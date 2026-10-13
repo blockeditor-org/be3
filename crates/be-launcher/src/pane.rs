@@ -198,7 +198,7 @@ pub(crate) fn TerminalPane(pane: Pane) -> NodeId {
                     untrack(|| pane.resize(cols, rows, cell.x as u32, cell.y as u32));
                 }));
                 let rows = pane.rows;
-                let keys = create_memo(clone!(rows -> move || (0..rows.with(Vec::len)).collect::<Vec<_>>()));
+                let keys = create_memo(move || (0..rows.with(Vec::len)).collect::<Vec<_>>());
                 let background = pane.background;
                 let typed = pane.clone();
                 let pressed = pane.clone();
@@ -240,7 +240,7 @@ pub(crate) fn TerminalPane(pane: Pane) -> NodeId {
 
 #[component]
 fn TerminalLine(row: Memo<Row>) -> NodeId {
-    let keys = create_memo(clone!(row -> move || (0..row.with(Vec::len)).collect::<Vec<_>>()));
+    let keys = create_memo(move || (0..row.with(Vec::len)).collect::<Vec<_>>());
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <ForEach keys>
@@ -264,12 +264,16 @@ fn TerminalSpan(span: Memo<Option<Span>>) -> NodeId {
     let bold = field(|span| span.bold);
     let italic = field(|span| span.italic);
     let underline = field(|span| span.underline);
-    let text = create_memo(clone!(span -> move || {
-        span.with(|span| span.as_ref().map(|span| span.text.clone()).unwrap_or_default())
-    }));
-    let color = create_memo(clone!(span -> move || {
+    let text = create_memo(move || {
+        span.with(|span| {
+            span.as_ref()
+                .map(|span| span.text.clone())
+                .unwrap_or_default()
+        })
+    });
+    let color = create_memo(move || {
         span.with(|span| span.as_ref().map_or(Color32::WHITE, |span| span.color))
-    }));
+    });
     let background = create_memo(move || {
         span.with(|span| span.as_ref().and_then(|span| span.background))
             .unwrap_or(Color32::TRANSPARENT)

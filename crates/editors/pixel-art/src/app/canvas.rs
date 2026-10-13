@@ -4,7 +4,7 @@ use block_editor_beui::be_block::pixel_art::{PixelArtOperation, PixelColor, Pixe
 use block_editor_beui::beui::icons::ICON_ARROW_FORWARD;
 use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, CanvasView, ForEach, Frame, Interactive, ItemSize, List, Memo, NodeRef,
-    PlacementBuilder, ReadSignal, WriteSignal, clone, component, create_effect, create_memo,
+    PlacementBuilder, ReadSignal, WriteSignal, component, create_effect, create_memo,
     held_modifiers, untrack, view,
 };
 use block_editor_beui::beui::styled::{Code, use_theme};
@@ -43,7 +43,7 @@ pub(crate) fn ArtworkCanvas(
         <PlacementBuilder>
             {move |placed: ReadSignal<Rect>| {
                 let world = editor.world();
-                let artwork = create_memo(clone!(size world placed -> move || {
+                let artwork = create_memo(move || {
                     let (width, height) = size.get();
                     if width == 0 || height == 0 {
                         return Rect::ZERO;
@@ -54,7 +54,7 @@ pub(crate) fn ArtworkCanvas(
                         width,
                         height,
                     )
-                }));
+                });
 
                 let held = held_modifiers();
                 let constraining = Rc::clone(&tools);
@@ -330,38 +330,50 @@ fn Artwork(
     show_grid: ReadSignal<bool>,
     hovered: ReadSignal<Option<(u16, u16)>>,
 ) -> NodeId {
-    let cell = create_memo(clone!(shown artwork -> move || {
+    let cell = create_memo(move || {
         let width = shown.get().width;
         match width {
             0 => 0.0,
             width => artwork.get().width() / f32::from(width),
         }
-    }));
-    let left = create_memo(clone!(artwork -> move || artwork.get().left()));
-    let top = create_memo(clone!(artwork -> move || artwork.get().top()));
-    let width = create_memo(clone!(artwork -> move || artwork.get().width()));
-    let height = create_memo(clone!(artwork -> move || artwork.get().height()));
-    let image = create_memo(clone!(shown -> move || shown.get().artwork));
-    let preview = create_memo(clone!(shown -> move || shown.get().preview));
-    let has_preview = create_memo(clone!(preview -> move || preview.get().is_some()));
-    let preview_image = create_memo(clone!(preview -> move || {
-        preview.get().map(|(_, _, _, _, image)| image)
-    }));
-    let preview_x = create_memo(clone!(preview left cell -> move || {
-        left.get() + preview.get().map_or(0.0, |(edge, _, _, _, _)| f32::from(edge)) * cell.get()
-    }));
-    let preview_y = create_memo(clone!(preview top cell -> move || {
-        top.get() + preview.get().map_or(0.0, |(_, edge, _, _, _)| f32::from(edge)) * cell.get()
-    }));
-    let preview_width = create_memo(clone!(preview cell -> move || {
-        preview.get().map_or(0.0, |(edge, _, far, _, _)| f32::from(far - edge + 1)) * cell.get()
-    }));
-    let preview_height = create_memo(clone!(preview cell -> move || {
-        preview.get().map_or(0.0, |(_, edge, _, far, _)| f32::from(far - edge + 1)) * cell.get()
-    }));
-    let thin = create_memo(clone!(scale -> move || 1.0 / scale.get().max(f32::EPSILON)));
+    });
+    let left = create_memo(move || artwork.get().left());
+    let top = create_memo(move || artwork.get().top());
+    let width = create_memo(move || artwork.get().width());
+    let height = create_memo(move || artwork.get().height());
+    let image = create_memo(move || shown.get().artwork);
+    let preview = create_memo(move || shown.get().preview);
+    let has_preview = create_memo(move || preview.get().is_some());
+    let preview_image = create_memo(move || preview.get().map(|(_, _, _, _, image)| image));
+    let preview_x = create_memo(move || {
+        left.get()
+            + preview
+                .get()
+                .map_or(0.0, |(edge, _, _, _, _)| f32::from(edge))
+                * cell.get()
+    });
+    let preview_y = create_memo(move || {
+        top.get()
+            + preview
+                .get()
+                .map_or(0.0, |(_, edge, _, _, _)| f32::from(edge))
+                * cell.get()
+    });
+    let preview_width = create_memo(move || {
+        preview
+            .get()
+            .map_or(0.0, |(edge, _, far, _, _)| f32::from(far - edge + 1))
+            * cell.get()
+    });
+    let preview_height = create_memo(move || {
+        preview
+            .get()
+            .map_or(0.0, |(_, edge, _, far, _)| f32::from(far - edge + 1))
+            * cell.get()
+    });
+    let thin = create_memo(move || 1.0 / scale.get().max(f32::EPSILON));
     let border = thin;
-    let lines = create_memo(clone!(shown scale cell show_grid -> move || {
+    let lines = create_memo(move || {
         let shown = shown.get();
         if !show_grid.get() || cell.get() * scale.get() < GRID_MIN_CELL {
             return Vec::new();
@@ -370,18 +382,18 @@ fn Artwork(
             .map(Line::Vertical)
             .chain((1..shown.height).map(Line::Horizontal))
             .collect::<Vec<Line>>()
-    }));
-    let hover_x = create_memo(clone!(hovered left cell -> move || {
+    });
+    let hover_x = create_memo(move || {
         left.get() + hovered.get().map_or(0.0, |(x, _)| f32::from(x)) * cell.get()
-    }));
-    let hover_y = create_memo(clone!(hovered top cell -> move || {
+    });
+    let hover_y = create_memo(move || {
         top.get() + hovered.get().map_or(0.0, |(_, y)| f32::from(y)) * cell.get()
-    }));
-    let over = create_memo(clone!(hovered -> move || hovered.get().is_some()));
-    let hover_size = create_memo(clone!(over cell -> move || match over.get() {
+    });
+    let over = create_memo(move || hovered.get().is_some());
+    let hover_size = create_memo(move || match over.get() {
         true => cell.get(),
         false => 0.0,
-    }));
+    });
     view! {
         <Canvas view={view}>
             <CanvasItem
@@ -413,18 +425,18 @@ fn Artwork(
                     let (width, height) = (width, height);
                     let (x, y, line_width, line_height) = match line {
                         Line::Vertical(at) => (
-                            create_memo(clone!(left cell -> move || {
+                            create_memo(move || {
                                 left.get() + f32::from(at) * cell.get()
-                            })),
+                            }),
                             top,
                             thin,
                             height,
                         ),
                         Line::Horizontal(at) => (
                             left,
-                            create_memo(clone!(top cell -> move || {
+                            create_memo(move || {
                                 top.get() + f32::from(at) * cell.get()
-                            })),
+                            }),
                             width,
                             thin,
                         ),
@@ -459,14 +471,14 @@ pub(crate) fn HoverLabel(tools: Rc<Tools>, hovered: ReadSignal<Option<(u16, u16)
     let color = tools.color;
     let tool = tools.tool;
     let sampled = Rc::clone(&tools);
-    let source = create_memo(clone!(hovered tool -> move || {
+    let source = create_memo(move || {
         if tool.get() != PixelTool::ReplaceColor {
             return None;
         }
         let (x, y) = hovered.get()?;
         sampled.pixel(x, y)
-    }));
-    let label = create_memo(clone!(hovered source color -> move || {
+    });
+    let label = create_memo(move || {
         let Some((x, y)) = hovered.get() else {
             return String::new();
         };
@@ -478,7 +490,7 @@ pub(crate) fn HoverLabel(tools: Rc<Tools>, hovered: ReadSignal<Option<(u16, u16)
             ),
             None => format!("{x}, {y}"),
         }
-    }));
+    });
     view! {
         <Frame
             height=HOVER_LABEL_HEIGHT

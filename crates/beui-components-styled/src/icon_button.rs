@@ -7,7 +7,7 @@ use crate::theme::{BORDER_WIDTH, FONT_BODY, ICON_SIZE, RADIUS, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_core::node::NodeId;
-use beui_view::reactive::{Action, ClickCallback, Frame, Prop, clone, create_memo};
+use beui_view::reactive::{Action, ClickCallback, Frame, Prop, create_memo};
 
 const PADDING: f32 = 8.0;
 const COMPACT_PADDING: f32 = 2.0;
@@ -88,10 +88,9 @@ pub(crate) fn IconButtonFace(
         ..
     } = handle;
     let theme = use_theme();
-    let fill_color = create_memo(clone!(theme disabled -> move || {
-        variant.fill(&theme, disabled.get(), hovered.get(), active.get())
-    }));
-    let icon_color = create_memo(clone!(theme -> move || variant.label(&theme, disabled.get())));
+    let fill_color =
+        create_memo(move || variant.fill(&theme, disabled.get(), hovered.get(), active.get()));
+    let icon_color = create_memo(move || variant.label(&theme, disabled.get()));
     view! {
         <FocusRing focused radius={RADIUS + 4} offset={size.focus_ring_offset()}>
             <Frame

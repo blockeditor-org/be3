@@ -29,18 +29,16 @@ pub(crate) fn LargeEmbed(state: Shared, embed: ResolvedEmbed) -> NodeId {
     let target = ChildTarget::new(embed.id, embed.block_type);
     let (child, set_child) = create_signal(ChildState::default());
     let focused_embed = state.focused_embed;
-    let focused = create_memo(clone!(focused_embed -> move || focused_embed.get() == Some(key)));
-    let mode = create_memo(clone!(child focused -> move || {
-        match (focused.get(), child.get().interaction) {
-            (true, _) => ChildMode::Active,
-            (false, Some(InteractionMode::Preview)) => ChildMode::Preview,
-            (false, _) => ChildMode::Passive,
-        }
-    }));
+    let focused = create_memo(move || focused_embed.get() == Some(key));
+    let mode = create_memo(move || match (focused.get(), child.get().interaction) {
+        (true, _) => ChildMode::Active,
+        (false, Some(InteractionMode::Preview)) => ChildMode::Preview,
+        (false, _) => ChildMode::Passive,
+    });
     let available = embed.available;
-    let editable = create_memo(clone!(child focused -> move || {
+    let editable = create_memo(move || {
         available && child.get().interaction == Some(InteractionMode::Preview) && !focused.get()
-    }));
+    });
     let unavailable = !available;
     let has_icon = embed.icon.is_some();
     let icon = embed.icon.unwrap_or_default().to_owned();
@@ -113,7 +111,7 @@ pub(crate) fn LargeEmbed(state: Shared, embed: ResolvedEmbed) -> NodeId {
                 </Frame>
                 <Show condition={unavailable} then={unavailable_row} />
                 <Show condition={available}>
-                    {move || clone!(set_child -> view! {
+                    {move || view! {
                         <ChildBlock
                             @sizing=ItemSize::Percent(100.0)
                             editor={report.editor.clone()}
@@ -134,7 +132,7 @@ pub(crate) fn LargeEmbed(state: Shared, embed: ResolvedEmbed) -> NodeId {
                                 confirm_focus(&report, key, next.active);
                             })}
                         />
-                    })}
+                    }}
                 </Show>
             </List>
         </Frame>

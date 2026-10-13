@@ -1,6 +1,6 @@
 use beui::NodeId;
 use beui::reactive::{
-    Action, Callback, Embed, EmbedSlot, IntoProp, Memo, Prop, ReadSignal, Render, clone, component,
+    Action, Callback, Embed, EmbedSlot, IntoProp, Memo, Prop, ReadSignal, Render, component,
     create_memo, view,
 };
 use block_plugin_api::{BarAction, ChildLayer, ChildMode, TopBar, ViewChange};
@@ -123,7 +123,7 @@ fn SubregionView(
     } = placing;
     let slot = EmbedSlot::new();
     let layer = create_memo(move || layer.get());
-    let below = create_memo(clone!(layer -> move || matches!(layer.get(), ChildLayer::Below)));
+    let below = create_memo(move || matches!(layer.get(), ChildLayer::Below));
     let punch = create_memo(move || below.get() && punch.get());
     let turn = create_memo(move || rotation.get());
     let state = editor.register_child(
@@ -140,9 +140,7 @@ fn SubregionView(
         on_view_change,
         on_bar,
     );
-    let entries = create_memo(clone!(state -> move || {
-        state.with(|state| (state.child, state.menu.clone()))
-    }));
+    let entries = create_memo(move || state.with(|state| (state.child, state.menu.clone())));
     let host = editor.host().clone();
     let menu = create_memo(move || {
         let (child, entries) = entries.get();

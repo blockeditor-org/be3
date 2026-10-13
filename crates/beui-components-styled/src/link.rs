@@ -8,9 +8,7 @@ use beui_components_unstyled as unstyled;
 use beui_core::base::TextAlign;
 use beui_core::color::Color32;
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Align, ClickCallback, Direction, List, Prop, Show, Text, clone, create_memo,
-};
+use beui_view::reactive::{Align, ClickCallback, Direction, List, Prop, Show, Text, create_memo};
 
 const ICON_SPACING: f32 = 6.0;
 const FOCUS_RING_OFFSET: f32 = 3.0;
@@ -50,11 +48,10 @@ fn LinkFace(handle: unstyled::ButtonHandle, font_size: Prop<f32>) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let color = create_memo(clone!(theme hovered active -> move || {
-        text_color(&theme, disabled.get(), hovered.get(), active.get())
-    }));
-    let underlined = create_memo(clone!(hovered focused -> move || hovered.get() || focused.get()));
-    let has_glyph = create_memo(clone!(glyph -> move || !glyph.get().is_empty()));
+    let color =
+        create_memo(move || text_color(&theme, disabled.get(), hovered.get(), active.get()));
+    let underlined = create_memo(move || hovered.get() || focused.get());
+    let has_glyph = create_memo(move || !glyph.get().is_empty());
     let icon_color = color;
     let label_color = color;
     let size = create_memo(move || font_size.get());

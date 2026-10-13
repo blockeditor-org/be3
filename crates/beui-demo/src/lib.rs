@@ -544,12 +544,10 @@ fn DemoShell() -> NodeId {
     let pages = Pages::new();
     let (mobile, set_mobile) = create_signal(false);
     let narrow = narrower_than(NARROW_WIDTH);
-    let mode = create_memo(clone!(mobile narrow -> move || {
-        match mobile.get() || narrow.get() {
-            true => DockMode::Stacked,
-            false => DockMode::Tiled,
-        }
-    }));
+    let mode = create_memo(move || match mobile.get() || narrow.get() {
+        true => DockMode::Stacked,
+        false => DockMode::Tiled,
+    });
     let active = create_selector(clone!(pages -> move || pages.active()));
     let layout = pages.layout.clone();
     switch_tabs_with_alt_q(&layout);
@@ -720,7 +718,7 @@ fn PageView(page: Page) -> NodeId {
 fn DemoToolbar(pages: Pages, mobile: ReadSignal<bool>, set_mobile: WriteSignal<bool>) -> NodeId {
     let (selected_theme, set_selected_theme) = create_signal(Some(0));
     let narrow = narrower_than(NARROW_WIDTH);
-    let wide = create_memo(clone!(narrow -> move || !narrow.get()));
+    let wide = create_memo(move || !narrow.get());
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=TOOLBAR_SPACING>
             <Title content="beui" />
@@ -729,13 +727,13 @@ fn DemoToolbar(pages: Pages, mobile: ReadSignal<bool>, set_mobile: WriteSignal<b
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <Show condition={wide}>
-                {move || clone!(set_mobile -> view! {
+                {move || view! {
                     <Checkbox
                         label="Mobile"
                         checked={mobile}
                         on_change={move |on: bool| set_mobile.set(on)}
                     />
-                })}
+                }}
             </Show>
             <Select
                 label="Theme"

@@ -6,7 +6,7 @@ use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{PopoverHandle, PopoverTriggerHandle};
 use beui_core::node::NodeId;
-use beui_view::reactive::{Callback, Child, Frame, Prop, Render, clone, create_memo};
+use beui_view::reactive::{Callback, Child, Frame, Prop, Render, create_memo};
 
 pub const PANEL_PADDING: f32 = 12.0;
 pub const PANEL_MAX_WIDTH: f32 = 320.0;
@@ -32,7 +32,7 @@ pub fn Popover(
             on_open_change={move |open| on_open_change.call(open)}
             trigger={move |handle: PopoverTriggerHandle| {
                 let PopoverTriggerHandle { open, button } = handle;
-                let quiet = create_memo(clone!(icon_only -> move || !icon_only.get() || open.get()));
+                let quiet = create_memo(move || !icon_only.get() || open.get());
                 view! {
                     <Tooltip label={button.label} disabled={quiet}>
                         <ButtonFace handle={button} variant icon_only={icon_only} />

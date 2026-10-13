@@ -52,9 +52,9 @@ pub fn DatabaseValueEditor(
     let labels = create_memo(move || labels.get());
     let disabled = create_memo(move || disabled.get());
     let prefix = create_memo(move || prefix.get());
-    let keys = create_memo(clone!(fields -> move || {
+    let keys = create_memo(move || {
         fields.with(|fields| fields.iter().map(|field| field.id).collect::<Vec<Uuid>>())
-    }));
+    });
     view! {
         <List spacing=FIELD_SPACING>
             <ForEach keys={keys}>
@@ -93,18 +93,16 @@ fn DatabaseValueRow(
     on_pick: Callback<DatabaseBlockPickRequest>,
     on_submit: Callback<Uuid>,
 ) -> NodeId {
-    let heading = create_memo(clone!(field -> move || {
+    let heading = create_memo(move || {
         field.with(|field| {
             field.as_ref().map_or_else(String::new, |field| {
                 format!("{} ({})", field.name, field_type_label(field.field_type))
             })
         })
-    }));
-    let set = create_memo(clone!(value disabled headings -> move || {
-        headings.get() && value.with(Option::is_some) && !disabled.get()
-    }));
+    });
+    let set = create_memo(move || headings.get() && value.with(Option::is_some) && !disabled.get());
     let control_id = id.clone();
-    let clear = clone!(field on_change -> move || {
+    let clear = clone!(on_change -> move || {
         if let Some(field_id) = field.with_untracked(|field| field.as_ref().map(|field| field.id)) {
             on_change.call(DatabaseValueChange {
                 field_id,
@@ -154,14 +152,14 @@ fn DatabaseValueControl(
     on_pick: Callback<DatabaseBlockPickRequest>,
     on_submit: Callback<Uuid>,
 ) -> NodeId {
-    let kind = create_memo(clone!(field -> move || {
+    let kind = create_memo(move || {
         field.with(|field| {
             field.as_ref().map(|field| match field.field_type {
                 DatabaseFieldType::Relation if field.relation_options.multiple => None,
                 other => Some(other),
             })
         })
-    }));
+    });
     view! {
         <List spacing=0.0>
             <Dynamic value={kind}>
@@ -279,15 +277,15 @@ fn StringValue(
     on_change: Callback<DatabaseValueChange>,
     on_submit: Callback<Uuid>,
 ) -> NodeId {
-    let text = create_memo(clone!(value -> move || match value.get() {
+    let text = create_memo(move || match value.get() {
         Some(DatabaseValue::String(text)) => text,
         _ => String::new(),
-    }));
-    let submitted = clone!(field -> move |_: String| {
+    });
+    let submitted = move |_: String| {
         if let Some(id) = field.with_untracked(|field| field.as_ref().map(|field| field.id)) {
             on_submit.call(id);
         }
-    });
+    };
     let edited = changer(field, on_change, true, |typed: String| {
         Some(DatabaseValue::String(typed))
     });
@@ -311,18 +309,18 @@ fn NumberValue(
     id: String,
     on_change: Callback<DatabaseValueChange>,
 ) -> NodeId {
-    let options = create_memo(clone!(field -> move || {
+    let options = create_memo(move || {
         field.with(|field| {
             field
                 .as_ref()
                 .map(|field| field.number_options)
                 .unwrap_or_default()
         })
-    }));
-    let number = create_memo(clone!(value options -> move || match value.get() {
+    });
+    let number = create_memo(move || match value.get() {
         Some(DatabaseValue::Number(number)) => number,
         _ => initial_number(options.get()),
-    }));
+    });
     let bounds = options.get_untracked();
     let edited = changer(field, on_change, true, |typed: f64| {
         Some(DatabaseValue::Number(typed))
@@ -348,26 +346,31 @@ fn EnumValue(
     id: String,
     on_change: Callback<DatabaseValueChange>,
 ) -> NodeId {
-    let options = create_memo(clone!(field -> move || {
+    let options = create_memo(move || {
         field.with(|field| {
             field
                 .as_ref()
                 .map(|field| field.enum_options.clone())
                 .unwrap_or_default()
         })
-    }));
-    let keys = create_memo(clone!(options -> move || {
-        options.with(|options| options.iter().map(|option| option.id).collect::<Vec<Uuid>>())
-    }));
-    let selected = create_memo(clone!(options value -> move || {
+    });
+    let keys = create_memo(move || {
+        options.with(|options| {
+            options
+                .iter()
+                .map(|option| option.id)
+                .collect::<Vec<Uuid>>()
+        })
+    });
+    let selected = create_memo(move || {
         let chosen = match value.get() {
             Some(DatabaseValue::Enum(id)) => id,
             _ => return None,
         };
         options.with(|options| options.iter().position(|option| option.id == chosen))
-    }));
+    });
     let names = options;
-    let picked = clone!(options field on_change -> move |index: Option<usize>| {
+    let picked = clone!(on_change -> move |index: Option<usize>| {
         let (Some(index), Some(field_id)) = (
             index,
             field.with_untracked(|field| field.as_ref().map(|field| field.id)),
@@ -388,14 +391,14 @@ fn EnumValue(
             options={view! {
                 <ForEach keys={keys}>
                     {move |id: Uuid| {
-                        let label = create_memo(clone!(names -> move || {
+                        let label = create_memo(move || {
                             names.with(|options| {
                                 options
                                     .iter()
                                     .find(|option| option.id == id)
                                     .map_or_else(String::new, |option| option.name.clone())
                             })
-                        }));
+                        });
                         view! {
                             <ChoiceOption label={label} />
                         }
@@ -419,9 +422,7 @@ fn BooleanValue(
     id: String,
     on_change: Callback<DatabaseValueChange>,
 ) -> NodeId {
-    let checked = create_memo(clone!(value -> move || {
-        matches!(value.get(), Some(DatabaseValue::Boolean(true)))
-    }));
+    let checked = create_memo(move || matches!(value.get(), Some(DatabaseValue::Boolean(true))));
     let toggled = changer(field, on_change, false, |checked: bool| {
         Some(DatabaseValue::Boolean(checked))
     });
@@ -444,10 +445,10 @@ fn ColorValue(
     id: String,
     on_change: Callback<DatabaseValueChange>,
 ) -> NodeId {
-    let color = create_memo(clone!(value -> move || match value.get() {
+    let color = create_memo(move || match value.get() {
         Some(DatabaseValue::Color(color)) => color_of(color),
         _ => Color32::WHITE,
-    }));
+    });
     let edited = changer(field, on_change, true, |picked: Color32| {
         let [red, green, blue, alpha] = picked.to_array();
         Some(DatabaseValue::Color(DatabaseColor {
@@ -476,13 +477,18 @@ fn DatetimeValue(
     id: String,
     on_change: Callback<DatabaseValueChange>,
 ) -> NodeId {
-    let moment = create_memo(clone!(value -> move || match value.get() {
+    let moment = create_memo(move || match value.get() {
         Some(DatabaseValue::Datetime(seconds)) => Some(DateTime::from_unix(seconds)),
         _ => None,
-    }));
-    let label = create_memo(clone!(field -> move || {
-        field.with(|field| field.as_ref().map(|field| field.name.clone()).unwrap_or_default())
-    }));
+    });
+    let label = create_memo(move || {
+        field.with(|field| {
+            field
+                .as_ref()
+                .map(|field| field.name.clone())
+                .unwrap_or_default()
+        })
+    });
     let edited = move |next: Option<DateTime>| {
         let Some(field_id) = field.with_untracked(|field| field.as_ref().map(|field| field.id))
         else {
@@ -508,13 +514,13 @@ fn BlockValue(
     id: String,
     on_pick: Callback<DatabaseBlockPickRequest>,
 ) -> NodeId {
-    let label = create_memo(clone!(value labels -> move || match value.get() {
+    let label = create_memo(move || match value.get() {
         Some(DatabaseValue::Block(reference)) => {
             labels.with(|labels| block_reference_text(&reference, &labels.blocks))
         }
         _ => "Choose block".to_owned(),
-    }));
-    let choose = clone!(field on_pick -> move || {
+    });
+    let choose = clone!(on_pick -> move || {
         let Some(field) = field.get_untracked() else {
             return;
         };
@@ -547,27 +553,36 @@ fn RelationValue(
     id: String,
     on_change: Callback<DatabaseValueChange>,
 ) -> NodeId {
-    let target = create_memo(clone!(field -> move || {
-        field.with(|field| field.as_ref().and_then(|field| field.relation_options.database))
-    }));
-    let choices = create_memo(clone!(target labels -> move || {
+    let target = create_memo(move || {
+        field.with(|field| {
+            field
+                .as_ref()
+                .and_then(|field| field.relation_options.database)
+        })
+    });
+    let choices = create_memo(move || {
         let Some(database) = target.get() else {
             return Vec::new();
         };
         labels.with(|labels| labels.rows_of(database))
-    }));
-    let keys = create_memo(clone!(choices -> move || {
-        choices.with(|choices| choices.iter().map(|(link, _)| *link).collect::<Vec<RowRef>>())
-    }));
-    let selected = create_memo(clone!(choices value -> move || {
+    });
+    let keys = create_memo(move || {
+        choices.with(|choices| {
+            choices
+                .iter()
+                .map(|(link, _)| *link)
+                .collect::<Vec<RowRef>>()
+        })
+    });
+    let selected = create_memo(move || {
         let Some(DatabaseValue::Relation(chosen)) = value.get() else {
             return None;
         };
         choices.with(|choices| choices.iter().position(|(link, _)| *link == chosen))
-    }));
-    let unlinked = create_memo(clone!(target -> move || target.get().is_none()));
+    });
+    let unlinked = create_memo(move || target.get().is_none());
     let names = choices;
-    let picked = clone!(choices field on_change -> move |index: Option<usize>| {
+    let picked = clone!(on_change -> move |index: Option<usize>| {
         let Some(field_id) = field.with_untracked(|field| field.as_ref().map(|field| field.id))
         else {
             return;
@@ -590,14 +605,14 @@ fn RelationValue(
                 options={view! {
                     <ForEach keys={keys}>
                         {move |link: RowRef| {
-                            let label = create_memo(clone!(names -> move || {
+                            let label = create_memo(move || {
                                 names.with(|choices| {
                                     choices
                                         .iter()
                                         .find(|(held, _)| *held == link)
                                         .map_or_else(String::new, |(_, label)| label.clone())
                                 })
-                            }));
+                            });
                             view! {
                                 <ChoiceOption label={label} />
                             }
@@ -623,15 +638,19 @@ fn LinksValue(
     id: String,
     on_change: Callback<DatabaseValueChange>,
 ) -> NodeId {
-    let linked = create_memo(clone!(value -> move || match value.get() {
+    let linked = create_memo(move || match value.get() {
         Some(DatabaseValue::Links(links)) => links,
         Some(DatabaseValue::Relation(link)) => vec![link],
         _ => Vec::new(),
-    }));
-    let target = create_memo(clone!(field -> move || {
-        field.with(|field| field.as_ref().and_then(|field| field.relation_options.database))
-    }));
-    let addable = create_memo(clone!(target labels linked -> move || {
+    });
+    let target = create_memo(move || {
+        field.with(|field| {
+            field
+                .as_ref()
+                .and_then(|field| field.relation_options.database)
+        })
+    });
+    let addable = create_memo(move || {
         let Some(database) = target.get() else {
             return Vec::new();
         };
@@ -643,11 +662,11 @@ fn LinksValue(
                 .filter(|(link, _)| !held.contains(link))
                 .collect::<Vec<_>>()
         })
-    }));
-    let add_keys = create_memo(clone!(addable -> move || {
+    });
+    let add_keys = create_memo(move || {
         addable.with(|rows| rows.iter().map(|(link, _)| *link).collect::<Vec<RowRef>>())
-    }));
-    let emit = clone!(field on_change -> move |links: Vec<RowRef>| {
+    });
+    let emit = clone!(on_change -> move |links: Vec<RowRef>| {
         let Some(field_id) = field.with_untracked(|field| field.as_ref().map(|field| field.id))
         else {
             return;
@@ -658,7 +677,7 @@ fn LinksValue(
             continuous: false,
         });
     });
-    let added = clone!(addable linked emit -> move |index: Option<usize>| {
+    let added = clone!(emit -> move |index: Option<usize>| {
         let Some(link) = index.and_then(|index| {
             addable.with_untracked(|rows| rows.get(index).map(|(link, _)| *link))
         }) else {
@@ -678,10 +697,10 @@ fn LinksValue(
                 {move |link: RowRef| {
                     let disabled = disabled;
                     let remove_id = format!("{id}.remove.{}", link.row);
-                    let label = create_memo(clone!(chip_labels -> move || {
+                    let label = create_memo(move || {
                         chip_labels.with(|labels| labels.row(&link))
-                    }));
-                    let remove = clone!(linked emit -> move || {
+                    });
+                    let remove = clone!(emit -> move || {
                         let links = linked
                             .get_untracked()
                             .into_iter()
@@ -707,13 +726,13 @@ fn LinksValue(
                 options={view! {
                     <ForEach keys={add_keys}>
                         {move |link: RowRef| {
-                            let label = create_memo(clone!(names -> move || {
+                            let label = create_memo(move || {
                                 names.with(|rows| {
                                     rows.iter()
                                         .find(|(held, _)| *held == link)
                                         .map_or_else(String::new, |(_, label)| label.clone())
                                 })
-                            }));
+                            });
                             view! {
                                 <ChoiceOption label={label} />
                             }
@@ -876,10 +895,10 @@ fn row_titles(editor: &crate::Editor, database: Uuid) -> ReadSignal<Vec<(RowRef,
 #[component]
 pub fn DatabaseValueSummary(text: Prop<String>, aligned: Prop<bool>) -> NodeId {
     let aligned = create_memo(move || aligned.get());
-    let align = create_memo(clone!(aligned -> move || match aligned.get() {
+    let align = create_memo(move || match aligned.get() {
         true => beui::TextAlign::End,
         false => beui::TextAlign::Start,
-    }));
+    });
     view! {
         <Frame padding_horizontal=SPACING>
             <Body content={text} align={align} />

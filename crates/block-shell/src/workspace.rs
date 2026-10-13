@@ -8,8 +8,8 @@ use std::rc::Rc;
 
 use block_editor_beui::beui::icons::ICON_WEB_ASSET;
 use block_editor_beui::beui::reactive::{
-    Frame, ItemSize, List, Memo, ReadSignal, Spacer, WriteSignal, batch, clone, component,
-    create_effect, create_memo, create_signal, untrack, view,
+    Frame, ItemSize, List, Memo, ReadSignal, Spacer, WriteSignal, batch, component, create_effect,
+    create_memo, create_signal, untrack, view,
 };
 use block_editor_beui::beui::styled::{Caption, use_theme};
 use block_editor_beui::beui::unstyled::{
@@ -1041,10 +1041,10 @@ pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<Ta
                 .is_none_or(|listed| listed.responding)
         })
     });
-    let title = create_memo(clone!(name responding -> move || match responding.get() {
+    let title = create_memo(move || match responding.get() {
         true => name.get(),
         false => format!("{} (not responding)", name.get()),
-    }));
+    });
     let listed = workspace.windows;
     let fullscreen = create_memo(move || {
         listed.with(|windows| {
@@ -1138,20 +1138,19 @@ pub fn AttachedWindow(
     let info = create_memo(move || {
         listed.with(|windows| windows.iter().find(|listed| listed.id == window).cloned())
     });
-    let title = create_memo(clone!(info -> move || {
-        info.get().map_or_else(|| "Window".to_owned(), |info| window_title(&info))
-    }));
-    let size = create_memo(clone!(info -> move || {
+    let title = create_memo(move || {
+        info.get()
+            .map_or_else(|| "Window".to_owned(), |info| window_title(&info))
+    });
+    let size = create_memo(move || {
         info.get().map_or(Vec2::ZERO, |info| {
             shown_size(vec2(info.size.width, info.size.height))
         })
-    }));
+    });
     let followed = create_memo(|| None);
-    let modal = create_memo(clone!(info -> move || info.get().is_some_and(|info| info.modal)));
-    let responding = create_memo(clone!(info -> move || {
-        info.get().is_none_or(|info| info.responding)
-    }));
-    let focused = create_memo(clone!(info -> move || info.get().is_some_and(|info| info.focused)));
+    let modal = create_memo(move || info.get().is_some_and(|info| info.modal));
+    let responding = create_memo(move || info.get().is_none_or(|info| info.responding));
+    let focused = create_memo(move || info.get().is_some_and(|info| info.focused));
     let fullscreen = create_memo(|| None);
     let closing = Rc::clone(&workspace);
     let editor = workspace.editor().clone();
@@ -1212,15 +1211,13 @@ pub fn Failure(failed: Memo<bool>, reason: Memo<String>) -> NodeId {
 #[component]
 pub fn PanelStatus(state: ReadSignal<ChildState>, loading: String) -> NodeId {
     let theme = use_theme();
-    let shown = create_memo(clone!(state -> move || {
-        state.with(|state| !state.available || state.error.is_some())
-    }));
-    let message = create_memo(clone!(state -> move || {
+    let shown = create_memo(move || state.with(|state| !state.available || state.error.is_some()));
+    let message = create_memo(move || {
         state.with(|state| match &state.error {
             Some(error) => error.clone(),
             None => loading.clone(),
         })
-    }));
+    });
     view! {
         <Frame visible={shown} padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
             <List spacing=PANEL_SPACING>

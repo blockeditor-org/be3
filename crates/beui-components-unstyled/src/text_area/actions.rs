@@ -8,8 +8,8 @@ use text_editor_core::{EditorCommand, FindDirection, LRDirection, UDDirection};
 
 use super::TextAreaState;
 
-pub(super) fn register(state: &TextAreaState, disabled: &Memo<bool>) {
-    let editable = create_memo(clone!(disabled -> move || !disabled.get()));
+pub(super) fn register(state: &TextAreaState, disabled: Memo<bool>) {
+    let editable = create_memo(move || !disabled.get());
     Action::new(
         "text.find",
         "Find",

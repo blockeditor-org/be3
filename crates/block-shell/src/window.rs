@@ -76,7 +76,7 @@ pub(crate) fn WindowPanel(
                 untrack(|| tab.resize_window(size + WINDOW_CHROME));
             }
         }));
-        create_effect(clone!(tab focused -> move || {
+        create_effect(clone!(tab -> move || {
             if focused.get() {
                 untrack(|| tab.show());
             }
@@ -84,13 +84,13 @@ pub(crate) fn WindowPanel(
         let shown = create_memo(clone!(tab -> move || tab.focused()));
         let host = editor.host().clone();
         let settled = Cell::new(false);
-        create_effect(clone!(focused -> move || {
+        create_effect(move || {
             let shown = shown.get();
             if settled.replace(true) && shown && !focused.get_untracked() {
                 host.act(WindowAction::Focus(window));
             }
-        }));
-        create_effect(clone!(tab fullscreen -> move || match fullscreen.get() {
+        });
+        create_effect(clone!(tab -> move || match fullscreen.get() {
             Some(area) => tab.enter_fullscreen(Some(area)),
             None => untrack(|| tab.leave_fullscreen()),
         }));
@@ -115,12 +115,12 @@ pub(crate) fn WindowPanel(
     }
     let panel = NodeRef::new();
     let (waited, set_waited) = create_signal(false);
-    create_effect(clone!(responding set_waited -> move || {
+    create_effect(move || {
         if responding.get() {
             set_waited.set(false);
         }
-    }));
-    let banner = create_memo(clone!(responding -> move || !responding.get() && !waited.get()));
+    });
+    let banner = create_memo(move || !responding.get() && !waited.get());
     let anchor = panel.clone();
     let host = editor.host().clone();
     view! {

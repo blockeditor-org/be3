@@ -73,11 +73,11 @@ pub(crate) fn Stage(
     let world_size = editor.world();
     let (annotations, set_annotations) = create_signal(Vec::<Annotation>::new());
     let (pending, set_pending) = create_signal(None::<Annotation>);
-    create_effect(clone!(layout set_annotations set_pending -> move || {
+    create_effect(move || {
         layout.with(|_| {});
         set_annotations.set(Vec::new());
         set_pending.set(None);
-    }));
+    });
     let (bar, set_bar) = create_signal(Rect::ZERO);
 
     let view_now = {
@@ -113,39 +113,37 @@ pub(crate) fn Stage(
     let motion = Motion::new();
     let dropped = Rc::new(Cell::new(None::<(ItemId, Rect, Spot)>));
     let previous = Rc::new(RefCell::new(None::<(Layout, Vec<HandCard>)>));
-    create_effect(
-        clone!(drawn hand motion dropped previous view_now bar world_size -> move || {
-            let now_drawn = drawn.get();
-            let now_hand = hand.get();
-            let earlier = previous.replace(Some((now_drawn.clone(), now_hand.clone())));
-            let dropped = dropped.take().filter(|(id, _, onto)| {
-                now_drawn.item(*id).and_then(|placed| placed.spot) == Some(*onto)
-            });
-            let Some((was_drawn, was_hand)) = earlier else {
-                return;
-            };
-            let world = world_size.get_untracked();
-            let (view, bar) = (view_now(), bar.get_untracked());
-            let clock = motion.clock.get_untracked();
-            let mut before = sightings(&was_drawn.centered_in(world), view, &was_hand, bar);
-            motion.flights.with_untracked(|flying| {
-                for seen in &mut before {
-                    if let Some(flight) = flying.iter().find(|flight| flight.id == seen.id) {
-                        seen.rect = flight.rect(clock);
-                    }
+    create_effect(clone!(motion dropped previous view_now -> move || {
+        let now_drawn = drawn.get();
+        let now_hand = hand.get();
+        let earlier = previous.replace(Some((now_drawn.clone(), now_hand.clone())));
+        let dropped = dropped.take().filter(|(id, _, onto)| {
+            now_drawn.item(*id).and_then(|placed| placed.spot) == Some(*onto)
+        });
+        let Some((was_drawn, was_hand)) = earlier else {
+            return;
+        };
+        let world = world_size.get_untracked();
+        let (view, bar) = (view_now(), bar.get_untracked());
+        let clock = motion.clock.get_untracked();
+        let mut before = sightings(&was_drawn.centered_in(world), view, &was_hand, bar);
+        motion.flights.with_untracked(|flying| {
+            for seen in &mut before {
+                if let Some(flight) = flying.iter().find(|flight| flight.id == seen.id) {
+                    seen.rect = flight.rect(clock);
                 }
-            });
-            let after: Vec<_> = sightings(&now_drawn.centered_in(world), view, &now_hand, bar)
-                .into_iter()
-                .filter(|seen| movable(&seen.sprite))
-                .filter(|seen| bar.height() > 0.0 || now_hand.iter().all(|held| held.id != seen.id))
-                .collect();
-            let dropped = dropped.map(|(id, rect, _)| (id, rect));
-            motion.launch(flights(&before, &after, dropped, now()));
-        }),
-    );
+            }
+        });
+        let after: Vec<_> = sightings(&now_drawn.centered_in(world), view, &now_hand, bar)
+            .into_iter()
+            .filter(|seen| movable(&seen.sprite))
+            .filter(|seen| bar.height() > 0.0 || now_hand.iter().all(|held| held.id != seen.id))
+            .collect();
+        let dropped = dropped.map(|(id, rect, _)| (id, rect));
+        motion.launch(flights(&before, &after, dropped, now()));
+    }));
 
-    let lifted = create_memo(clone!(play layout hand view_now -> move || {
+    let lifted = create_memo(clone!(play view_now -> move || {
         let dragging = play.dragging.get()?;
         let held = hand.with(|hand| {
             hand.iter()
@@ -165,7 +163,7 @@ pub(crate) fn Stage(
             rect: Rect::from_center_size(dragging.at, size),
         })
     }));
-    let hidden = create_memo(clone!(lifted motion -> move || {
+    let hidden = create_memo(clone!(motion -> move || {
         let mut hidden = motion.flying.get();
         hidden.extend(lifted.with(|lifted| lifted.as_ref().map(|lifted| lifted.id)));
         hidden
@@ -238,7 +236,7 @@ pub(crate) fn Stage(
             }
         }
     });
-    let on_click_at = clone!(press play hit finish set_annotations -> move |pointer: PointerPress| {
+    let on_click_at = clone!(press play hit finish -> move |pointer: PointerPress| {
         let state = press.borrow_mut().take();
         set_annotations.set(Vec::new());
         match state {
@@ -259,7 +257,7 @@ pub(crate) fn Stage(
             finish(state.last);
         }
     });
-    let on_secondary_drag = clone!(table_hit set_annotations set_pending -> move |drag: SecondaryDrag| {
+    let on_secondary_drag = clone!(table_hit -> move |drag: SecondaryDrag| {
         let Some(from) = table_hit(drag.from) else {
             set_pending.set(None);
             return;
@@ -294,33 +292,44 @@ pub(crate) fn Stage(
         true
     });
 
-    let item_keys = create_memo(clone!(layout -> move || {
-        layout.with(|layout| layout.items.iter().map(|placed| placed.id).collect::<Vec<_>>())
+    let item_keys = create_memo(move || {
+        layout.with(|layout| {
+            layout
+                .items
+                .iter()
+                .map(|placed| placed.id)
+                .collect::<Vec<_>>()
+        })
+    });
+    let spot_keys = create_memo(move || {
+        layout.with(|layout| {
+            layout
+                .spots
+                .iter()
+                .map(|place| place.spot)
+                .collect::<Vec<_>>()
+        })
+    });
+    let bounds = create_memo(move || layout.with(Layout::bounds));
+    let marks_draw: Prop<Draw> = Prop::Dynamic(Rc::new(move || {
+        let (layout, annotations, pending) = (layout.get(), annotations.get(), pending.get());
+        Rc::new(move |painter: &Painter, rect: Rect| {
+            annotations::paint(painter, rect, &layout, &annotations, pending);
+        }) as Draw
     }));
-    let spot_keys = create_memo(clone!(layout -> move || {
-        layout.with(|layout| layout.spots.iter().map(|place| place.spot).collect::<Vec<_>>())
-    }));
-    let bounds = create_memo(clone!(layout -> move || layout.with(Layout::bounds)));
-    let marks_draw: Prop<Draw> =
-        Prop::Dynamic(Rc::new(clone!(layout annotations pending -> move || {
-            let (layout, annotations, pending) = (layout.get(), annotations.get(), pending.get());
-            Rc::new(move |painter: &Painter, rect: Rect| {
-                annotations::paint(painter, rect, &layout, &annotations, pending);
-            }) as Draw
-        })));
-    let lifted_rect = create_memo(clone!(lifted -> move || {
+    let lifted_rect = create_memo(move || {
         lifted
             .with(|lifted| lifted.as_ref().map(|lifted| lifted.rect))
             .unwrap_or(Rect::from_min_size(Pos2::ZERO, Vec2::splat(1.0)))
-    }));
-    let lifted_draw: Prop<Draw> = Prop::Dynamic(Rc::new(clone!(lifted -> move || {
+    });
+    let lifted_draw: Prop<Draw> = Prop::Dynamic(Rc::new(move || {
         let lifted = lifted.get();
         Rc::new(move |painter: &Painter, rect: Rect| {
             if let Some(lifted) = &lifted {
                 paint_sprite(painter, rect, &lifted.sprite);
             }
         }) as Draw
-    })));
+    }));
     let flight_keys = create_memo(clone!(motion -> move || motion.flying.get()));
 
     let (items_layout, items_play, items_hidden) = (layout, play.clone(), hidden);
@@ -358,8 +367,8 @@ pub(crate) fn Stage(
                         <CanvasItem
                             x=0.0
                             y=0.0
-                            width={create_memo(clone!(bounds -> move || bounds.get().width().max(1.0)))}
-                            height={create_memo(clone!(bounds -> move || bounds.get().height().max(1.0)))}
+                            width={create_memo(move || bounds.get().width().max(1.0))}
+                            height={create_memo(move || bounds.get().height().max(1.0))}
                             @test_id={"game.board"}
                         >
                             <Drawing draw={marks_draw} />
@@ -374,10 +383,10 @@ pub(crate) fn Stage(
                         }}
                     </ForEach>
                     <CanvasItem
-                        x={create_memo(clone!(lifted_rect -> move || lifted_rect.get().left()))}
-                        y={create_memo(clone!(lifted_rect -> move || lifted_rect.get().top()))}
-                        width={create_memo(clone!(lifted_rect -> move || lifted_rect.get().width()))}
-                        height={create_memo(clone!(lifted_rect -> move || lifted_rect.get().height()))}
+                        x={create_memo(move || lifted_rect.get().left())}
+                        y={create_memo(move || lifted_rect.get().top())}
+                        width={create_memo(move || lifted_rect.get().width())}
+                        height={create_memo(move || lifted_rect.get().height())}
                         clip=false
                         @test_id={"game.lifted"}
                     >
@@ -399,14 +408,23 @@ fn TableItem(
     let placed = create_memo(move || {
         layout.with(|layout| layout.item(id).cloned().map(|placed| (placed, layout.unit)))
     });
-    let rect = create_memo(clone!(placed -> move || {
-        placed.with(|placed| placed.as_ref().map(|(placed, _)| placed.rect)).unwrap_or(Rect::ZERO)
-    }));
+    let rect = create_memo(move || {
+        placed
+            .with(|placed| placed.as_ref().map(|(placed, _)| placed.rect))
+            .unwrap_or(Rect::ZERO)
+    });
     let theme = use_theme();
-    let draw: Prop<Draw> = Prop::Dynamic(Rc::new(clone!(placed -> move || {
+    let draw: Prop<Draw> = Prop::Dynamic(Rc::new(move || {
         let placed = placed.get();
         let mark = match &placed {
-            Some((Placed { sprite: Sprite::Cell, spot: Some(spot), .. }, _)) => play.mark(*spot),
+            Some((
+                Placed {
+                    sprite: Sprite::Cell,
+                    spot: Some(spot),
+                    ..
+                },
+                _,
+            )) => play.mark(*spot),
             _ => Mark::None,
         };
         let hidden = hidden.with(|hidden| hidden.contains(&id));
@@ -419,13 +437,13 @@ fn TableItem(
                 paint_item(painter, rect, placed, zoom, mark, &theme);
             }
         }) as Draw
-    })));
+    }));
     view! {
         <CanvasItem
-            x={create_memo(clone!(rect -> move || rect.get().left()))}
-            y={create_memo(clone!(rect -> move || rect.get().top()))}
-            width={create_memo(clone!(rect -> move || rect.get().width().max(1.0)))}
-            height={create_memo(clone!(rect -> move || rect.get().height().max(1.0)))}
+            x={create_memo(move || rect.get().left())}
+            y={create_memo(move || rect.get().top())}
+            width={create_memo(move || rect.get().width().max(1.0))}
+            height={create_memo(move || rect.get().height().max(1.0))}
         >
             <Drawing draw={draw} />
         </CanvasItem>
@@ -437,11 +455,13 @@ fn SpotItem(spot: Spot, layout: Memo<Layout>, play: Play) -> CanvasItem {
     let place = create_memo(move || {
         layout.with(|layout| layout.find(spot).cloned().map(|place| (place, layout.unit)))
     });
-    let rect = create_memo(clone!(place -> move || {
-        place.with(|place| place.as_ref().map(|(place, _)| place.rect)).unwrap_or(Rect::ZERO)
-    }));
+    let rect = create_memo(move || {
+        place
+            .with(|place| place.as_ref().map(|(place, _)| place.rect))
+            .unwrap_or(Rect::ZERO)
+    });
     let theme = use_theme();
-    let draw: Prop<Draw> = Prop::Dynamic(Rc::new(clone!(place -> move || {
+    let draw: Prop<Draw> = Prop::Dynamic(Rc::new(move || {
         let place = place.get();
         let mark = play.mark(spot);
         let theme = theme.get();
@@ -451,13 +471,13 @@ fn SpotItem(spot: Spot, layout: Memo<Layout>, play: Play) -> CanvasItem {
                 paint_spot(painter, rect, place, mark, zoom, &theme);
             }
         }) as Draw
-    })));
+    }));
     view! {
         <CanvasItem
-            x={create_memo(clone!(rect -> move || rect.get().left()))}
-            y={create_memo(clone!(rect -> move || rect.get().top()))}
-            width={create_memo(clone!(rect -> move || rect.get().width().max(1.0)))}
-            height={create_memo(clone!(rect -> move || rect.get().height().max(1.0)))}
+            x={create_memo(move || rect.get().left())}
+            y={create_memo(move || rect.get().top())}
+            width={create_memo(move || rect.get().width().max(1.0))}
+            height={create_memo(move || rect.get().height().max(1.0))}
             clip=false
             @test_id={spot_test_id(spot)}
         >
@@ -471,26 +491,26 @@ fn FlightItem(id: ItemId, motion: Motion) -> CanvasItem {
     let flight = create_memo(clone!(motion -> move || {
         motion.flights.with(|flights| flights.iter().find(|flight| flight.id == id).cloned())
     }));
-    let rect = create_memo(clone!(flight -> move || {
+    let rect = create_memo(move || {
         let now = motion.clock.get();
         flight
             .with(|flight| flight.as_ref().map(|flight| flight.rect(now)))
             .unwrap_or(Rect::ZERO)
-    }));
-    let draw: Prop<Draw> = Prop::Dynamic(Rc::new(clone!(flight -> move || {
+    });
+    let draw: Prop<Draw> = Prop::Dynamic(Rc::new(move || {
         let flight = flight.get();
         Rc::new(move |painter: &Painter, rect: Rect| {
             if let Some(flight) = &flight {
                 paint_sprite(painter, rect, &flight.sprite);
             }
         }) as Draw
-    })));
+    }));
     view! {
         <CanvasItem
-            x={create_memo(clone!(rect -> move || rect.get().left()))}
-            y={create_memo(clone!(rect -> move || rect.get().top()))}
-            width={create_memo(clone!(rect -> move || rect.get().width().max(1.0)))}
-            height={create_memo(clone!(rect -> move || rect.get().height().max(1.0)))}
+            x={create_memo(move || rect.get().left())}
+            y={create_memo(move || rect.get().top())}
+            width={create_memo(move || rect.get().width().max(1.0))}
+            height={create_memo(move || rect.get().height().max(1.0))}
             clip=false
             @test_id={format!("game.flight.{}", id.0)}
         >

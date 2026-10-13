@@ -74,10 +74,10 @@ pub(crate) fn ChromeRoot(
     view! {
         <LayoutBuilder>
             {move |size: ReadSignal<Vec2>| {
-                let narrow = create_memo(clone!(size -> move || {
+                let narrow = create_memo(move || {
                     let width = size.get().x;
                     width > 0.0 && width < NARROW_WIDTH
-                }));
+                });
                 let (panels, set_panels) = create_signal(Vec::<NodeId>::new());
                 let (open, set_open) = create_signal(false);
                 let (toolbars, set_toolbars) = create_signal(0usize);
@@ -92,15 +92,15 @@ pub(crate) fn ChromeRoot(
                 provide_context(layout.clone());
                 let content = content.call(());
                 let offers = layout.offers_sheet();
-                let sheet = create_memo(clone!(offers open -> move || offers.get() && open.get()));
-                let bare = create_memo(clone!(offers toolbars phone -> move || {
+                let sheet = create_memo(move || offers.get() && open.get());
+                let bare = create_memo(move || {
                     offers.get() && toolbars.get() == 0 && !phone.get()
-                }));
-                let listed = create_memo(clone!(offers phone -> move || offers.get() && phone.get()));
+                });
+                let listed = create_memo(move || offers.get() && phone.get());
                 let opener = layout.set_open;
                 let theme = use_theme();
                 let bar_color = theme.surface;
-                let extent = create_memo(clone!(size -> move || size.get().y));
+                let extent = create_memo(move || size.get().y);
                 let close = layout.set_open;
                 view! {
                     <List spacing=0.0>
@@ -126,7 +126,7 @@ pub(crate) fn ChromeRoot(
                         </Show>
                         {content} @sizing=ItemSize::Percent(100.0)
                         <Show condition={sheet}>
-                            {move || clone!(panels close -> view! {
+                            {move || view! {
                                 <Sheet
                                     extent={extent}
                                     open={sheet}
@@ -146,7 +146,7 @@ pub(crate) fn ChromeRoot(
                                         </ForEach>
                                     </List>
                                 </Sheet>
-                            })}
+                            }}
                         </Show>
                     </List>
                 }
@@ -209,14 +209,14 @@ fn SidebarFrame(side: Side, shown: Prop<bool>, width: Prop<f32>, children: Child
     let layout = use_context::<ChromeLayout>();
     let narrow = narrow_chrome();
     let shown = create_memo(move || shown.get());
-    let docked = create_memo(clone!(shown narrow -> move || shown.get() && !narrow.get()));
-    let folded = create_memo(clone!(shown narrow -> move || shown.get() && narrow.get()));
-    let leading = create_memo(clone!(docked -> move || docked.get() && side == Side::Right));
-    let trailing = create_memo(clone!(docked -> move || docked.get() && side == Side::Left));
+    let docked = create_memo(move || shown.get() && !narrow.get());
+    let folded = create_memo(move || shown.get() && narrow.get());
+    let leading = create_memo(move || docked.get() && side == Side::Right);
+    let trailing = create_memo(move || docked.get() && side == Side::Left);
     if let Some(layout) = layout {
         fold_into_sheet(layout, body, folded);
     }
-    let held = create_memo(clone!(docked -> move || docked.get().then_some(body)));
+    let held = create_memo(move || docked.get().then_some(body));
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame visible={leading} width=BORDER_WIDTH color={theme.border} />
@@ -274,26 +274,24 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
     let theme = use_theme();
     let fit = create_memo(move || fit.get());
     let squeezed = narrow_chrome();
-    let narrow = create_memo(clone!(squeezed fit -> move || squeezed.get() && !fit.get()));
-    let roomy = create_memo(clone!(narrow -> move || !narrow.get()));
+    let narrow = create_memo(move || squeezed.get() && !fit.get());
+    let roomy = create_memo(move || !narrow.get());
     let offers = match use_context::<ChromeLayout>() {
         Some(layout) => {
             count_toolbar(&layout, shown);
             let offers = layout.offers_sheet();
-            create_memo(clone!(shown -> move || offers.get() && shown.get()))
+            create_memo(move || offers.get() && shown.get())
         }
         None => create_memo(|| false),
     };
-    let fitted_toggle = create_memo(clone!(offers squeezed fit -> move || {
-        offers.get() && squeezed.get() && fit.get()
-    }));
-    let spread = create_memo(clone!(roomy -> move || roomy.get().then_some(row)));
-    let scrolled = create_memo(clone!(narrow -> move || narrow.get().then_some(row)));
+    let fitted_toggle = create_memo(move || offers.get() && squeezed.get() && fit.get());
+    let spread = create_memo(move || roomy.get().then_some(row));
+    let scrolled = create_memo(move || narrow.get().then_some(row));
     view! {
         <Frame visible={shown} color={theme.surface}>
             <List spacing=0.0>
                 <Show condition={roomy}>
-                    {move || clone!(fitted_toggle spread -> view! {
+                    {move || view! {
                         <Frame
                             padding_horizontal=BAND_PADDING_HORIZONTAL
                             padding_vertical=BAND_PADDING_VERTICAL
@@ -307,10 +305,10 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
                                 </Show>
                             </List>
                         </Frame>
-                    })}
+                    }}
                 </Show>
                 <Show condition={narrow}>
-                    {move || clone!(offers scrolled -> view! {
+                    {move || view! {
                         <Frame padding_vertical=BAND_PADDING_VERTICAL>
                             <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                                 <Scroll
@@ -328,7 +326,7 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
                                 </Show>
                             </List>
                         </Frame>
-                    })}
+                    }}
                 </Show>
                 <Separator />
             </List>
@@ -339,7 +337,7 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
 fn count_toolbar(layout: &ChromeLayout, shown: Memo<bool>) {
     let set_toolbars = layout.set_toolbars;
     let counted = std::rc::Rc::new(std::cell::Cell::new(false));
-    create_effect(clone!(counted set_toolbars -> move || {
+    create_effect(clone!(counted -> move || {
         let now = shown.get();
         if counted.replace(now) != now {
             set_toolbars.update(|count| match now {

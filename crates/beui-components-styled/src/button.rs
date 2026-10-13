@@ -9,7 +9,7 @@ use beui_components_unstyled as unstyled;
 use beui_core::base::{ItemSize, TextAlign};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Action, Align, ClickCallback, Direction, Frame, List, Prop, Show, Text, clone, create_memo,
+    Action, Align, ClickCallback, Direction, Frame, List, Prop, Show, Text, create_memo,
 };
 
 const GLYPH_SPACING: f32 = 6.0;
@@ -99,18 +99,17 @@ pub fn ButtonFace(
         ..
     } = handle;
     let theme = use_theme();
-    let fill_color = create_memo(clone!(theme disabled -> move || {
-        variant.fill(&theme, disabled.get(), hovered.get(), active.get())
-    }));
-    let label_color = create_memo(clone!(theme -> move || variant.label(&theme, disabled.get())));
+    let fill_color =
+        create_memo(move || variant.fill(&theme, disabled.get(), hovered.get(), active.get()));
+    let label_color = create_memo(move || variant.label(&theme, disabled.get()));
     let icon_color = label_color;
-    let has_glyph = create_memo(clone!(glyph -> move || !glyph.get().is_empty()));
+    let has_glyph = create_memo(move || !glyph.get().is_empty());
     let shown_label = create_memo(move || match icon_only.get() {
         true => String::new(),
         false => label.get(),
     });
     let trailing = create_memo(move || trailing_glyph.get());
-    let has_trailing = create_memo(clone!(trailing -> move || !trailing.get().is_empty()));
+    let has_trailing = create_memo(move || !trailing.get().is_empty());
     let trailing_color = label_color;
     view! {
         <FocusRing focused radius={RADIUS + 4} offset=FOCUS_RING_OFFSET>

@@ -257,8 +257,8 @@ fn ContentDrag() -> NodeId {
 #[component]
 fn EditCounter() -> NodeId {
     let (count, set_count) = create_signal(0u32);
-    let counted = create_memo(clone!(count -> move || format!("{} edits", count.get())));
-    let moved = create_memo(clone!(count -> move || count.get() > 0));
+    let counted = create_memo(move || format!("{} edits", count.get()));
+    let moved = create_memo(move || count.get() > 0);
     let editing = set_count;
     dock_actions(move || {
         view! {
@@ -296,10 +296,10 @@ fn FullscreenTab() -> NodeId {
     let shown = create_memo(clone!(control -> move || {
         control.as_ref().is_some_and(|control| control.fullscreen())
     }));
-    let label = create_memo(clone!(shown -> move || match shown.get() {
+    let label = create_memo(move || match shown.get() {
         true => "Leave fullscreen".to_owned(),
         false => "Show this tab fullscreen".to_owned(),
-    }));
+    });
     let leaving = control.clone();
     let escaping = shown;
     on_shortcut(move |press: beui::KeyPress| {
@@ -655,7 +655,7 @@ fn greeting_label(name: &str) -> String {
 #[component]
 fn SeatsInput() -> NodeId {
     let (seats, set_seats) = create_signal(4.0f64);
-    let seats_text = create_memo(clone!(seats -> move || format!("{} seats", seats.get())));
+    let seats_text = create_memo(move || format!("{} seats", seats.get()));
     view! {
         <List spacing=SECTION_SPACING>
             <NumberInput
@@ -674,10 +674,9 @@ fn SeatsInput() -> NodeId {
 #[component]
 fn LoadSliders() -> NodeId {
     let (load, set_load) = create_signal(0.4f32);
-    let load_text =
-        create_memo(clone!(load -> move || format!("{}%", (load.get() * 100.0).round())));
+    let load_text = create_memo(move || format!("{}%", (load.get() * 100.0).round()));
     let (zoom, set_zoom) = create_signal(1.0f32);
-    let zoom_text = create_memo(clone!(zoom -> move || format!("{:.2}x", zoom.get())));
+    let zoom_text = create_memo(move || format!("{:.2}x", zoom.get()));
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
@@ -740,8 +739,8 @@ fn LockedControls() -> NodeId {
 fn LightSwitches() -> NodeId {
     let (kitchen, set_kitchen) = create_signal(true);
     let (hall, set_hall) = create_signal(false);
-    let every = create_memo(clone!(kitchen hall -> move || kitchen.get() && hall.get()));
-    let mixed = create_memo(clone!(kitchen hall -> move || kitchen.get() != hall.get()));
+    let every = create_memo(move || kitchen.get() && hall.get());
+    let mixed = create_memo(move || kitchen.get() != hall.get());
     let (set_every_kitchen, set_every_hall) = (set_kitchen, set_hall);
     view! {
         <List spacing=8.0>
@@ -892,7 +891,7 @@ fn FruitSelect() -> NodeId {
 #[component]
 fn ScaleTabs() -> NodeId {
     let (scale, set_scale) = create_signal(1usize);
-    let scale_text = create_memo(clone!(scale -> move || format!("Drawn at {}x", scale.get() + 1)));
+    let scale_text = create_memo(move || format!("Drawn at {}x", scale.get() + 1));
     view! {
         <List spacing=SECTION_SPACING>
             <Tabs
@@ -913,9 +912,12 @@ fn ScaleTabs() -> NodeId {
 #[component]
 fn PeriodTabs() -> NodeId {
     let (period, set_period) = create_signal(0usize);
-    let period_text = create_memo(clone!(period -> move || {
-        format!("Showing the {} view", ["day", "week", "month", "year"][period.get()])
-    }));
+    let period_text = create_memo(move || {
+        format!(
+            "Showing the {} view",
+            ["day", "week", "month", "year"][period.get()]
+        )
+    });
     view! {
         <List spacing=SECTION_SPACING>
             <Caption
@@ -987,10 +989,10 @@ pub(crate) fn ColorsPage() -> NodeId {
 fn DayField() -> NodeId {
     let today = today();
     let (day, set_day) = create_signal(Some(DateTime::new(today, Time::MIDNIGHT)));
-    let day_text = create_memo(clone!(day -> move || match day.get() {
+    let day_text = create_memo(move || match day.get() {
         Some(day) => format!("{} was chosen", day.date.label()),
         None => "No day chosen".to_owned(),
-    }));
+    });
     view! {
         <List spacing=SECTION_SPACING>
             <DateTimeField
@@ -1010,10 +1012,10 @@ fn DayField() -> NodeId {
 fn AlarmField() -> NodeId {
     let today = today();
     let (alarm, set_alarm) = create_signal(Some(DateTime::new(today, Time::new(7, 30))));
-    let alarm_text = create_memo(clone!(alarm -> move || match alarm.get() {
+    let alarm_text = create_memo(move || match alarm.get() {
         Some(alarm) => format!("The alarm rings at {}", alarm.time.format(HourCycle::H12)),
         None => "No alarm".to_owned(),
-    }));
+    });
     view! {
         <List spacing=SECTION_SPACING>
             <DateTimeField
@@ -1034,14 +1036,14 @@ fn AlarmField() -> NodeId {
 fn MeetingField() -> NodeId {
     let today = today();
     let (meeting, set_meeting) = create_signal(None::<DateTime>);
-    let meeting_text = create_memo(clone!(meeting -> move || match meeting.get() {
+    let meeting_text = create_memo(move || match meeting.get() {
         Some(meeting) => format!(
             "Meeting on {} at {}",
             meeting.date.label(),
             meeting.time.format(HourCycle::H24)
         ),
         None => "No meeting yet: type one in or pick it".to_owned(),
-    }));
+    });
     view! {
         <List spacing=SECTION_SPACING>
             <DateTimeField
@@ -1062,10 +1064,10 @@ fn MeetingField() -> NodeId {
 fn BookingCalendar() -> NodeId {
     let today = today();
     let (booked, set_booked) = create_signal(None::<Date>);
-    let booked_text = create_memo(clone!(booked -> move || match booked.get() {
+    let booked_text = create_memo(move || match booked.get() {
         Some(booked) => format!("Booked for {}", booked.label()),
         None => "Bookings open for the next 60 days".to_owned(),
-    }));
+    });
     view! {
         <List spacing=SECTION_SPACING>
             <Caption content="Limited to the next 60 days" />
@@ -1103,11 +1105,9 @@ fn AccentInput() -> NodeId {
 fn PaintPicker() -> NodeId {
     let (paint, set_paint) = create_signal(Color32::from_rgb(0x3E, 0x63, 0xDD));
     let (preview, set_preview) = create_signal(None::<Color32>);
-    let shown_paint =
-        create_memo(clone!(paint preview -> move || preview.get().unwrap_or(paint.get())));
-    let paint_text = create_memo(clone!(shown_paint -> move || {
-        format!("Painting in {}", beui::format_hex(shown_paint.get(), false))
-    }));
+    let shown_paint = create_memo(move || preview.get().unwrap_or(paint.get()));
+    let paint_text =
+        create_memo(move || format!("Painting in {}", beui::format_hex(shown_paint.get(), false)));
     view! {
         <List spacing=SECTION_SPACING>
             <ColorPicker
@@ -1127,11 +1127,9 @@ fn PaintPicker() -> NodeId {
 fn HueWheel() -> NodeId {
     let (paint, set_paint) = create_signal(Color32::from_rgb(0x30, 0xA4, 0x6C));
     let (preview, set_preview) = create_signal(None::<Color32>);
-    let shown_paint =
-        create_memo(clone!(paint preview -> move || preview.get().unwrap_or(paint.get())));
-    let paint_text = create_memo(clone!(shown_paint -> move || {
-        format!("Painting in {}", beui::format_hex(shown_paint.get(), false))
-    }));
+    let shown_paint = create_memo(move || preview.get().unwrap_or(paint.get()));
+    let paint_text =
+        create_memo(move || format!("Painting in {}", beui::format_hex(shown_paint.get(), false)));
     view! {
         <List spacing=SECTION_SPACING>
             <ColorWheel
@@ -1150,9 +1148,8 @@ fn HueWheel() -> NodeId {
 fn PerceptualWheel() -> NodeId {
     let (paint, set_paint) = create_signal(Color32::from_rgb(0xD6, 0x40, 0x9F));
     let (preview, set_preview) = create_signal(None::<Color32>);
-    let shown_paint =
-        create_memo(clone!(paint preview -> move || preview.get().unwrap_or(paint.get())));
-    let paint_text = create_memo(clone!(shown_paint -> move || {
+    let shown_paint = create_memo(move || preview.get().unwrap_or(paint.get()));
+    let paint_text = create_memo(move || {
         let color = beui::Oklch::from_color(shown_paint.get());
         format!(
             "oklch({:.0}% {:.3} {:.0})",
@@ -1160,7 +1157,7 @@ fn PerceptualWheel() -> NodeId {
             color.chroma,
             color.hue
         )
-    }));
+    });
     view! {
         <List spacing=SECTION_SPACING>
             <Caption content="Turning the hue keeps lightness and chroma" />
@@ -1439,7 +1436,7 @@ fn RunButtons() -> NodeId {
                         <unstyled::MenuItem label="Run with fresh data" />
                         <unstyled::MenuItem label="Run on the web" />
                     }}
-                    on_click={clone!(set_run_text -> move || set_run_text.set("Running the app".to_owned()))}
+                    on_click={move || set_run_text.set("Running the app".to_owned())}
                     on_select={move |path: Vec<usize>| {
                         let how = match path.as_slice() {
                             [0] => "with fresh data",
@@ -1455,7 +1452,7 @@ fn RunButtons() -> NodeId {
                     items={view! {
                         <unstyled::MenuItem label="Save as a copy" />
                     }}
-                    on_click={clone!(set_save_text -> move || set_save_text.set("Saved".to_owned()))}
+                    on_click={move || set_save_text.set("Saved".to_owned())}
                     on_select={move |_: Vec<usize>| set_save_text.set("Saved a copy".to_owned())}
                 />
             </List>
@@ -2222,13 +2219,13 @@ fn StripCard(index: usize) -> NodeId {
 fn ThousandsOfRows() -> NodeId {
     let (status, set_status) = create_signal("Nothing selected".to_owned());
     let (selected, set_selected) = create_signal(None::<usize>);
-    let selection = create_selector(clone!(selected -> move || selected.get()));
+    let selection = create_selector(move || selected.get());
     let (timings, set_timings) = create_signal(true);
     let (compact, set_compact) = create_signal(false);
-    let row_height = create_memo(clone!(compact -> move || match compact.get() {
+    let row_height = create_memo(move || match compact.get() {
         true => COMPACT_ROW_HEIGHT,
         false => ROW_HEIGHT,
-    }));
+    });
     view! {
         <List spacing=ROW_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING wrap=true>
@@ -2306,21 +2303,21 @@ fn ScrollRowFace(
         false => ROW_PADDING_VERTICAL,
     });
     let theme = use_theme();
-    let value_color = create_memo(clone!(selected theme -> move || {
+    let value_color = create_memo(move || {
         let theme = theme.get();
         match selected.get() {
             true => theme.accent,
             false => theme.text_muted,
         }
-    }));
-    let fill_color = create_memo(clone!(theme -> move || {
+    });
+    let fill_color = create_memo(move || {
         let theme = theme.get();
         match (selected.get(), hovered.get()) {
             (true, _) => theme.accent_soft,
             (false, true) => theme.hover,
             (false, false) => Color32::TRANSPARENT,
         }
-    }));
+    });
     view! {
         <Frame
             color={fill_color}
@@ -2370,11 +2367,11 @@ pub(crate) fn TreePage() -> NodeId {
 fn ProjectTree() -> NodeId {
     let (collapsed, set_collapsed) = create_signal(Vec::<usize>::new());
     let (selected, set_selected) = create_signal(None::<usize>);
-    let keys = create_memo(clone!(collapsed -> move || visible_tree_rows(&collapsed.get())));
-    let status_text = create_memo(clone!(selected -> move || match selected.get() {
+    let keys = create_memo(move || visible_tree_rows(&collapsed.get()));
+    let status_text = create_memo(move || match selected.get() {
         Some(row) => format!("{} selected", TREE_NODES[row].0),
         None => "Nothing selected".to_owned(),
-    }));
+    });
     let expansion = collapsed;
     let reveal = set_collapsed;
     view! {
@@ -2647,9 +2644,7 @@ fn ZoomableStage() -> NodeId {
     let zoom_out = set_stage_view;
     let zoom_in = set_stage_view;
     let stage = set_stage_view;
-    let zoom_label = create_memo(clone!(stage_view -> move || {
-        format!("{:.0}%", stage_view.get().scale * 100.0)
-    }));
+    let zoom_label = create_memo(move || format!("{:.0}%", stage_view.get().scale * 100.0));
     view! {
         <List spacing=ROW_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
@@ -2742,8 +2737,8 @@ fn CanvasBoard(
 fn StageCard(card: (f32, f32, f32, f32, &'static str), scale: Memo<f32>) -> CanvasItem {
     let (x, y, width, height, label) = card;
     let theme = use_theme();
-    let font_size = create_memo(clone!(scale -> move || STAGE_LABEL_SIZE * scale.get()));
-    let padding = create_memo(clone!(scale -> move || STAGE_PADDING * scale.get()));
+    let font_size = create_memo(move || STAGE_LABEL_SIZE * scale.get());
+    let padding = create_memo(move || STAGE_PADDING * scale.get());
     view! {
         <CanvasItem x y width height>
             <Frame
