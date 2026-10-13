@@ -19,7 +19,7 @@ fn a_headless_window_fills_its_screen_when_the_app_goes_fullscreen() {
     driven.ask(&["settle"]).expect("the app settles");
     let state = driven.ask(&["state"]).expect("the state is read");
     assert!(
-        state.starts_with("window 1000x600 at scale 1 (headless; windowed 400x300, screen 1000x600), fullscreen yes"),
+        state.starts_with("window 1000x600 at scale 1, fullscreen yes"),
         "the window grows to the screen:\n{state}"
     );
 

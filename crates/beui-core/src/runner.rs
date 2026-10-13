@@ -9,7 +9,7 @@ use std::time::Duration;
 use accesskit::TreeUpdate;
 
 use crate::app::accessibility_dump::AccessibilityDump;
-use crate::app::automation::{Automation, Inbox, Settled, Simulation, View, World};
+use crate::app::automation::{Automation, Inbox, Resize, Settled, View, World};
 use crate::app::{App, SafeArea, Setup, Waker, next_batch, safe_rect};
 use crate::clipboard::{PasteAnswer, PasteKind, PasteRequest, Pasted};
 use crate::context::{ActionGroup, Context, FrameOutput};
@@ -79,8 +79,8 @@ pub trait Platform {
 
     fn show_window(&mut self, _window: &WindowState, _shown: &WindowState) {}
 
-    fn simulation(&mut self) -> Option<&mut Simulation> {
-        None
+    fn resize(&mut self, _resize: Resize) -> Result<(), String> {
+        Err("this window cannot be resized from here; run the app headless".to_owned())
     }
 
     fn set_fullscreen(&mut self, _fullscreen: bool) {}
@@ -373,13 +373,16 @@ impl Runner {
                 test_ids: &self.test_ids,
                 pixels_per_point: self.context.pixels_per_point(),
                 now: self.context.now(),
+                size: renderers.physical().map_or(Vec2::ZERO, |physical| {
+                    physical / self.context.pixels_per_point()
+                }),
                 window: &self.asked,
                 fullscreen: self.context.fullscreen(),
                 actions: &self.actions,
             };
             let mut world = World {
                 events: &mut self.events,
-                simulation: platform.simulation(),
+                platform: &mut *platform,
                 context: &self.context,
             };
             automation.begin(&view, &mut world);
@@ -456,7 +459,10 @@ impl Runner {
         }
         for request in std::mem::take(&mut output.file_picks) {
             let answer = FilePickAnswer::new(request.id, self.picks.0.clone(), self.waker.clone());
-            platform.pick_file(request, answer);
+            match &mut self.automation {
+                Some(automation) => automation.pick_file(request, answer),
+                None => platform.pick_file(request, answer),
+            }
         }
         let delivered =
             output.paste == Some(PasteRequest::Shortcut) && platform.delivers_paste_shortcut();
@@ -500,6 +506,7 @@ impl Runner {
                 test_ids: &self.test_ids,
                 pixels_per_point: scale,
                 now: self.context.now(),
+                size: screen,
                 window: &self.asked,
                 fullscreen: self.context.fullscreen(),
                 actions: &self.actions,
@@ -511,12 +518,7 @@ impl Runner {
                     false => frame.again(),
                 },
             };
-            let mut world = World {
-                events: &mut self.events,
-                simulation: platform.simulation(),
-                context: &self.context,
-            };
-            automation.end(&view, settled, &mut world, &output.unran_actions);
+            automation.end(&view, settled, &output.unran_actions);
             if let Some(after) = automation.wants_frame(self.context.now()) {
                 frame.repaint |= after.is_zero();
                 frame.repaint_after = frame.repaint_after.min(after);

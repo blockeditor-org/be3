@@ -1,0 +1,32 @@
+use super::*;
+use crate::reactive::{build, create_signal, view};
+use crate::styled::TextInput;
+
+#[test]
+fn a_driver_pastes_the_headless_clipboard_with_ctrl_v() {
+    let document = build(|| {
+        let (text, set_text) = create_signal(String::new());
+        view! {
+            <TextInput
+                @test_id={"field"}
+                value={text}
+                on_change={move |next: String| set_text.set(next)}
+            />
+        }
+    });
+    let mut driven = Driven::headless(document);
+    driven
+        .ask(&["click", "#field"])
+        .expect("the field is focused");
+    driven
+        .ask(&["clipboard", "pasted"])
+        .expect("the clipboard is set");
+
+    let changed = driven
+        .ask(&["key", "ctrl+v"])
+        .expect("the shortcut is pressed");
+    assert!(
+        changed.contains("pasted"),
+        "Ctrl+V asks the window for its clipboard, as it does in any window:\n{changed}"
+    );
+}

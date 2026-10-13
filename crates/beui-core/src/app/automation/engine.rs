@@ -4,21 +4,24 @@ use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 use super::target::{describe, locate, node, point, scaled};
-use super::window::{MAX_PIXELS, Simulation, WindowSize};
+use super::window::{Resize, WindowSize};
 use super::{Capture, Inbox, Reply, Request, changes, keys};
 use crate::app::accessibility_dump::{ACTIONS, Line};
+use crate::clipboard::{PasteAnswer, PasteKind, Pasted};
 use crate::context::{ActionGroup, Context};
-use crate::file_picker::PickedFile;
-use crate::geometry::{Pos2, Rect, vec2};
+use crate::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
+use crate::geometry::{Pos2, Rect, Vec2, vec2};
 use crate::input::{
     BackEdge, BackGesture, DroppedFile, Event, ImeEvent, Key, Modifiers, PointerButton, TouchId,
     TouchPhase,
 };
+use crate::runner::Platform;
 use crate::window::WindowState;
 
 use crate::runner::SCROLL_LINE as WHEEL_LINE;
 const CHANGES: usize = 60;
 const FRAME: Duration = Duration::from_micros(16_667);
+const CLIPBOARD_WAIT: Duration = Duration::from_secs(5);
 const GESTURE_STEPS: usize = 4;
 const PINCH_SPAN: f32 = 100.0;
 
@@ -86,6 +89,7 @@ pub struct View<'a> {
     pub test_ids: &'a HashMap<String, Rect>,
     pub pixels_per_point: f32,
     pub now: Instant,
+    pub size: Vec2,
     pub window: &'a WindowState,
     pub fullscreen: bool,
     pub actions: &'a [ActionGroup],
@@ -93,7 +97,7 @@ pub struct View<'a> {
 
 pub struct World<'a> {
     pub events: &'a mut Vec<Event>,
-    pub simulation: Option<&'a mut Simulation>,
+    pub platform: &'a mut dyn Platform,
     pub context: &'a Context,
 }
 
@@ -130,6 +134,10 @@ enum Phase {
     Capturing {
         crop: Option<Rect>,
     },
+    Reading {
+        pasted: std::sync::mpsc::Receiver<Pasted>,
+        until: Instant,
+    },
 }
 
 struct Active {
@@ -158,6 +166,8 @@ pub struct Automation {
     back: Option<f32>,
     clock_stopped: bool,
     closing: bool,
+    focused: bool,
+    picks: Vec<(FilePickRequest, FilePickAnswer)>,
 }
 
 impl Automation {
@@ -176,6 +186,8 @@ impl Automation {
             back: None,
             clock_stopped: false,
             closing: false,
+            focused: true,
+            picks: Vec::new(),
         }
     }
 
@@ -260,11 +272,9 @@ impl Automation {
         }) = &mut self.active
             && let Some(step) = steps.pop_front()
         {
-            if let Some(simulation) = world.simulation.as_deref_mut() {
-                for event in &step {
-                    if let Event::Focus(focused) = event {
-                        simulation.focused = *focused;
-                    }
+            for event in &step {
+                if let Event::Focus(focused) = event {
+                    self.focused = *focused;
                 }
             }
             world.events.extend(step);
@@ -273,6 +283,10 @@ impl Automation {
 
     pub fn take_close(&mut self) -> bool {
         std::mem::take(&mut self.closing)
+    }
+
+    pub fn pick_file(&mut self, request: FilePickRequest, answer: FilePickAnswer) {
+        self.picks.push((request, answer));
     }
 
     pub fn closed(&mut self, accepted: bool) {
@@ -287,17 +301,12 @@ impl Automation {
             Phase::Input { steps, .. } if !steps.is_empty() => Some(Duration::ZERO),
             Phase::Pausing { .. } if stopped => Some(Duration::ZERO),
             Phase::Pausing { until } => Some(until.saturating_duration_since(now)),
+            Phase::Reading { .. } => Some(FRAME),
             _ => None,
         }
     }
 
-    pub fn end(
-        &mut self,
-        view: &View<'_>,
-        settled: Settled,
-        world: &mut World<'_>,
-        unran: &[String],
-    ) {
+    pub fn end(&mut self, view: &View<'_>, settled: Settled, unran: &[String]) {
         let quiet = !settled.again && !settled.busy;
         let Some(active) = &mut self.active else {
             return;
@@ -329,9 +338,7 @@ impl Automation {
             _ => {}
         }
         if let Phase::Uploading { file, before } = &mut active.phase {
-            let picked = world.simulation.as_deref_mut().and_then(|simulation| {
-                (!simulation.picks.is_empty()).then(|| simulation.picks.remove(0))
-            });
+            let picked = (!self.picks.is_empty()).then(|| self.picks.remove(0));
             match picked {
                 Some((_, answer)) => match std::fs::read(&*file) {
                     Ok(data) => {
@@ -370,6 +377,13 @@ impl Automation {
                     Some(Reply::Text(String::new()))
                 }
                 Phase::Pausing { until } if view.now >= *until => Some(Reply::Text(String::new())),
+                Phase::Reading { pasted, until } => match clipboard_text(pasted) {
+                    Some(text) => Some(Reply::Text(text)),
+                    None if view.now >= *until => Some(Reply::Error(
+                        "the window did not answer with its clipboard in time".to_owned(),
+                    )),
+                    None => None,
+                },
                 _ => None,
             },
         };
@@ -432,9 +446,6 @@ impl Automation {
                 then: None,
             }))
         };
-        let simulated = |what: &str| {
-            format!("{what} needs a simulated window: start the app headless (BEUI_HEADLESS)")
-        };
         match command.as_str() {
             "help" => Ok(Started::Done(Reply::Text(format!("{USAGE}\n")))),
             "tree" => Ok(Started::Done(Reply::Text(view.tree.to_owned()))),
@@ -458,7 +469,7 @@ impl Automation {
                 )?;
                 Ok(Started::Done(Reply::Text(format!("{}\n", describe(rect)))))
             }
-            "state" => Ok(Started::Done(Reply::Text(self.state(view, world)))),
+            "state" => Ok(Started::Done(Reply::Text(self.state(view)))),
             "actions" => Ok(Started::Done(Reply::Text(actions(
                 view.actions,
                 arguments.first().map(String::as_str) == Some("all"),
@@ -770,16 +781,6 @@ impl Automation {
                 let mut events = Vec::new();
                 for chord in arguments {
                     keys::chord(chord, self.held, &mut events)?;
-                    let pasting = chord.eq_ignore_ascii_case("ctrl+v")
-                        || (self.held.ctrl && chord.eq_ignore_ascii_case("v"));
-                    if pasting
-                        && let Some(text) = world
-                            .simulation
-                            .as_deref()
-                            .and_then(|simulation| simulation.clipboard.clone())
-                    {
-                        events.push(Event::Text(text));
-                    }
                 }
                 input(vec![events])
             }
@@ -845,57 +846,38 @@ impl Automation {
             }
             "focus" | "blur" => input(vec![vec![Event::Focus(command == "focus")]]),
             "resize" => {
-                let simulation = world
-                    .simulation
-                    .as_deref_mut()
-                    .ok_or_else(|| simulated("resize"))?;
-                let (window, screen) = match argument(0)? {
-                    "screen" => {
-                        let size = WindowSize::parse(argument(1)?)
-                            .ok_or("resize screen takes WIDTHxHEIGHT")?;
-                        (simulation.window, size.size)
-                    }
-                    size => {
-                        let window = WindowSize::parse(size)
-                            .ok_or("resize takes WIDTHxHEIGHT or WIDTHxHEIGHT@SCALE")?;
-                        (window, simulation.screen)
-                    }
+                let resize = match argument(0)? {
+                    "screen" => Resize::Screen(
+                        WindowSize::parse(argument(1)?)
+                            .ok_or("resize screen takes WIDTHxHEIGHT")?
+                            .size,
+                    ),
+                    size => Resize::Window(
+                        WindowSize::parse(size)
+                            .ok_or("resize takes WIDTHxHEIGHT or WIDTHxHEIGHT@SCALE")?,
+                    ),
                 };
-                let shown = WindowSize {
-                    size: screen,
-                    scale: window.scale,
-                };
-                if !shown.fits() {
-                    return Err(format!(
-                        "a {}x{} screen at scale {} is more than {} pixels across",
-                        screen.x, screen.y, window.scale, MAX_PIXELS
-                    ));
-                }
-                simulation.resize(window, screen);
+                world.platform.resize(resize)?;
                 input(vec![Vec::new()])
             }
             "clipboard" => {
-                let simulation = world
-                    .simulation
-                    .as_deref_mut()
-                    .ok_or_else(|| simulated("clipboard"))?;
-                if arguments.is_empty() {
-                    return Ok(Started::Done(Reply::Text(
-                        simulation
-                            .clipboard
-                            .clone()
-                            .map(|text| format!("{text}\n"))
-                            .unwrap_or_default(),
-                    )));
+                if !arguments.is_empty() {
+                    world.platform.copy(arguments.join(" "));
+                    return Ok(Started::Done(Reply::Text(String::new())));
                 }
-                simulation.clipboard = Some(arguments.join(" "));
-                Ok(Started::Done(Reply::Text(String::new())))
+                let (sender, pasted) = std::sync::mpsc::channel();
+                world
+                    .platform
+                    .paste(&[PasteKind::Text], PasteAnswer::new(sender, None));
+                match clipboard_text(&pasted) {
+                    Some(text) => Ok(Started::Done(Reply::Text(text))),
+                    None => Ok(Started::Phase(Phase::Reading {
+                        pasted,
+                        until: view.now + CLIPBOARD_WAIT,
+                    })),
+                }
             }
             "upload" => {
-                let simulation = world
-                    .simulation
-                    .as_deref_mut()
-                    .ok_or_else(|| simulated("upload"))?;
                 let file = PathBuf::from(argument(0)?);
                 let before = view.tree.to_owned();
                 match arguments.get(1) {
@@ -913,21 +895,17 @@ impl Automation {
                             then: Some(Box::new(Phase::Uploading { file, before })),
                         }))
                     }
-                    None if simulation.picks.is_empty() => Err(
+                    None if self.picks.is_empty() => Err(
                         "no file dialog is open; give upload a TARGET that opens one".to_owned(),
                     ),
                     None => Ok(Started::Phase(Phase::Uploading { file, before })),
                 }
             }
             "dismiss" => {
-                let simulation = world
-                    .simulation
-                    .as_deref_mut()
-                    .ok_or_else(|| simulated("dismiss"))?;
-                if simulation.picks.is_empty() {
+                if self.picks.is_empty() {
                     return Err("no file dialog is open".to_owned());
                 }
-                let (_, answer) = simulation.picks.remove(0);
+                let (_, answer) = self.picks.remove(0);
                 answer.send(Ok(None));
                 input(vec![Vec::new()])
             }
@@ -1082,31 +1060,17 @@ impl Automation {
         }
     }
 
-    fn state(&self, view: &View<'_>, world: &World<'_>) -> String {
+    fn state(&self, view: &View<'_>) -> String {
         let yes = |value: bool| if value { "yes" } else { "no" };
         let mut text = String::new();
         let scale = view.pixels_per_point;
-        match world.simulation.as_deref() {
-            Some(simulation) => {
-                let shown = simulation.shown();
-                text.push_str(&format!(
-                    "window {}x{} at scale {} (headless; windowed {}x{}, screen {}x{}), fullscreen {}, focused {}\n",
-                    shown.x,
-                    shown.y,
-                    simulation.window.scale,
-                    simulation.window.size.x,
-                    simulation.window.size.y,
-                    simulation.screen.x,
-                    simulation.screen.y,
-                    yes(simulation.fullscreen),
-                    yes(simulation.focused),
-                ));
-            }
-            None => text.push_str(&format!(
-                "window at scale {scale}, fullscreen {}\n",
-                yes(view.fullscreen)
-            )),
-        }
+        text.push_str(&format!(
+            "window {}x{} at scale {scale}, fullscreen {}, focused {}\n",
+            view.size.x,
+            view.size.y,
+            yes(view.fullscreen),
+            yes(self.focused),
+        ));
         text.push_str(&format!("cursor {:?}\n", view.window.cursor));
         let held: Vec<String> = self
             .buttons
@@ -1173,22 +1137,16 @@ impl Automation {
             yes(view.window.wants_keyboard),
             yes(view.window.pointer_locked)
         ));
-        if let Some(simulation) = world.simulation.as_deref() {
-            match &simulation.clipboard {
-                Some(clipboard) => text.push_str(&format!("clipboard {clipboard:?}\n")),
-                None => text.push_str("clipboard empty\n"),
-            }
-            for (pick, _) in &simulation.picks {
-                let filter = &pick.filter;
-                text.push_str(&format!(
-                    "file dialog open for {} ({})\n",
-                    match filter.name.is_empty() {
-                        true => "any file",
-                        false => &filter.name,
-                    },
-                    filter.extensions.join(", ")
-                ));
-            }
+        for (pick, _) in &self.picks {
+            let filter = &pick.filter;
+            text.push_str(&format!(
+                "file dialog open for {} ({})\n",
+                match filter.name.is_empty() {
+                    true => "any file",
+                    false => &filter.name,
+                },
+                filter.extensions.join(", ")
+            ));
         }
         text
     }
@@ -1222,6 +1180,14 @@ fn action_name(action: accesskit::Action) -> &'static str {
         accesskit::Action::ShowContextMenu => "context-menu",
         accesskit::Action::ShowTooltip => "tooltip",
         _ => "other",
+    }
+}
+
+fn clipboard_text(pasted: &std::sync::mpsc::Receiver<Pasted>) -> Option<String> {
+    match pasted.try_recv() {
+        Ok(Pasted::Text(text)) => Some(format!("{text}\n")),
+        Ok(_) | Err(std::sync::mpsc::TryRecvError::Disconnected) => Some(String::new()),
+        Err(std::sync::mpsc::TryRecvError::Empty) => None,
     }
 }
 
