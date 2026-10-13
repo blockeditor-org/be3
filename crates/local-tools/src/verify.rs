@@ -500,7 +500,7 @@ impl Run {
             from,
             "HEAD",
             "--",
-            ".",
+            ":(glob)crates/**/*.rs",
             ":(exclude,glob)**/tests.rs",
             ":(exclude,glob)**/tests/**",
         ])
