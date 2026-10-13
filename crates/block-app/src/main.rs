@@ -48,7 +48,9 @@ use std::{
 
 use accounts::{AccountError, Session};
 use app_state::{AppStateStore, SavedAccount, ServerLocation};
-use be_block::{BlockContent, DisplaySettings, InputSettings, UiSettingsContent, WORKSPACE_EDITOR};
+use be_block::{
+    BlockContent, DisplaySettings, InputSettings, Root, UiSettingsContent, WORKSPACE_EDITOR,
+};
 use be_graph::{Access, BlockParent};
 use be_protocol::{Workspace, WorkspaceInvitation, WorkspaceRole};
 use beui::Document;
@@ -303,6 +305,12 @@ impl beui::App for Shell {
         host::begin(context, &self.document);
         wayland::before(context, rect, &mut self.document);
         self.app.frame(context);
+        if let Some(theme) = self.app.theme.take() {
+            let theme = ui::styled_theme(theme);
+            if self.document.theme() != theme {
+                self.document.set_theme(theme);
+            }
+        }
         if let Some(open) = self.app.inspector_requested.take()
             && open
         {
@@ -398,15 +406,16 @@ struct BlockApp {
     server_url: String,
     account: Account,
     root_settings: RootSettings,
-    choosing_profile: bool,
-    every_profile_type: bool,
+    choosing_session: bool,
+    every_session_type: bool,
     shell: Option<Uuid>,
     windows_sent: Option<u64>,
     forwarded_picks: HashMap<u64, (PickSource, u64)>,
     next_pick: u64,
     focus_reports: HashMap<Uuid, editors::FocusReport>,
     artifact_watches: HashMap<Uuid, Vec<Uuid>>,
-    ui_settings: Option<Uuid>,
+    ui_settings: Option<Vec<(Uuid, u64)>>,
+    theme: Option<be_block::Theme>,
     input: SettingsSync<InputSettings>,
     display: SettingsSync<DisplaySettings>,
     display_round: Option<u64>,
@@ -628,8 +637,8 @@ impl BlockApp {
             server_url,
             account,
             root_settings: RootSettings::new(WORKSPACE_EDITOR),
-            choosing_profile: false,
-            every_profile_type: false,
+            choosing_session: false,
+            every_session_type: false,
             shell: None,
             windows_sent: None,
             forwarded_picks: HashMap::new(),
@@ -637,6 +646,7 @@ impl BlockApp {
             artifact_watches: HashMap::new(),
             next_pick: 0,
             ui_settings: None,
+            theme: None,
             input: SettingsSync::default(),
             display: SettingsSync::default(),
             display_round: None,
@@ -1226,11 +1236,11 @@ impl BlockApp {
         self.dynamic_artifact_settings.clear();
         self.dynamic_artifact_settings_open = None;
         self.root_settings = RootSettings::new(self.root_settings.shell());
-        self.choosing_profile = false;
+        self.choosing_session = false;
         self.shell = None;
         self.ui_settings = None;
-        self.input.set_block(None);
-        self.display.set_block(None);
+        self.input.set_layers(Vec::new());
+        self.display.set_layers(Vec::new());
         self.keys.cancel_pairing();
         self.workspace_key = match self.app_state.workspace_key(&self.account, workspace.id) {
             Ok(key) => key,
@@ -1333,11 +1343,11 @@ impl BlockApp {
         self.agents_open = false;
         self.agent_created = None;
         self.root_settings = RootSettings::new(self.root_settings.shell());
-        self.choosing_profile = false;
+        self.choosing_session = false;
         self.shell = None;
         self.ui_settings = None;
-        self.input.set_block(None);
-        self.display.set_block(None);
+        self.input.set_layers(Vec::new());
+        self.display.set_layers(Vec::new());
         self.keys = keys::KeyState::default();
         self.workspace_key = None;
         self.account = account;
@@ -1605,7 +1615,8 @@ impl BlockApp {
     }
 
     fn ensure_shell(&mut self) -> Option<Uuid> {
-        let id = self.root_settings.ensure_profile(self.client_id)?;
+        self.root_settings.ensure_profile(self.client_id)?;
+        let id = self.root_settings.ensure_session(self.client_id)?;
         if let Some(previous) = self.shell.filter(|previous| *previous != id) {
             self.shell = None;
             let open: Vec<Uuid> = self.editors.with(|open| open.keys().copied().collect());
@@ -1614,7 +1625,7 @@ impl BlockApp {
             }
             self.block_types.remove(&previous);
         }
-        let shell_editor = self.root_settings.profile_editor(id)?;
+        let shell_editor = self.root_settings.session_editor(id)?;
         self.block_types.insert(id, shell_editor);
         if !self.editors.with(|open| open.contains_key(&id)) {
             let editor = self.registry.open(id, shell_editor).viewed_by(Some(id));
@@ -2105,6 +2116,8 @@ impl BlockApp {
     }
 
     fn frame(&mut self, context: &beui::Context) {
+        #[cfg(not(target_os = "linux"))]
+        let _ = context;
         if self.error.is_none()
             && let Some(report) = panic_guard::take_previous()
         {
@@ -2117,7 +2130,7 @@ impl BlockApp {
         }
         if self.error.is_none() {
             let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                self.run_frame(context);
+                self.run_frame();
             }));
             if caught.is_err() {
                 self.crashed(
@@ -2191,7 +2204,7 @@ impl BlockApp {
         ));
     }
 
-    fn run_frame(&mut self, context: &beui::Context) {
+    fn run_frame(&mut self) {
         performance::begin_frame();
         plugin_host::poll();
         #[cfg(target_os = "linux")]
@@ -2227,13 +2240,13 @@ impl BlockApp {
             performance::end_frame();
             return;
         }
-        self.sync_ui_settings(context);
+        self.sync_ui_settings();
         self.sync_local_settings();
         self.programs.frame();
         self.sync_be_stack();
         self.poll_workspace_request();
         self.poll_reauth_request();
-        if self.choosing_profile {
+        if self.choosing_session {
             self.root_settings.ensure();
             performance::end_frame();
             return;
@@ -2282,42 +2295,48 @@ impl BlockApp {
     }
 
     fn sync_local_settings(&mut self) {
-        if self.input.block().is_none() || self.display.block().is_none() {
-            let settings = self.root_settings.find().and_then(root_settings::settings);
-            if let Some(settings) = settings {
-                self.input.resolve(&settings, self.client_id);
-                self.display.resolve(&settings, self.client_id);
-            }
+        if self.root_settings.loaded() {
+            let settings = &self.root_settings;
+            self.input
+                .set_layers(settings.layers(InputSettings::CONTENT_TYPE, self.client_id));
+            self.display
+                .set_layers(settings.layers(DisplaySettings::CONTENT_TYPE, self.client_id));
         }
         self.input.sync(&self.app_state);
         self.display.sync(&self.app_state);
     }
 
-    fn sync_ui_settings(&mut self, context: &beui::Context) {
-        if self.ui_settings.is_none() {
-            let Some(root_settings) = self.root_settings.find() else {
-                context.set_zoom_factor(1.0);
-                return;
-            };
-            let Some(settings) = root_settings::settings(root_settings) else {
-                return;
-            };
-            let Some(id) = settings.resolve(UiSettingsContent::CONTENT_TYPE, self.client_id) else {
-                context.set_zoom_factor(1.0);
-                return;
-            };
-            self.ui_settings = Some(id);
+    fn sync_ui_settings(&mut self) {
+        if !self.root_settings.loaded() {
+            return;
         }
-        let Some(id) = self.ui_settings else {
+        let layers = self
+            .root_settings
+            .layers(UiSettingsContent::CONTENT_TYPE, self.client_id);
+        let mut revisions = Vec::with_capacity(layers.len());
+        for block in &layers {
+            be::hold(*block, UiSettingsContent::CONTENT_TYPE);
+            let Some(revision) = be::content_revision(*block) else {
+                return;
+            };
+            revisions.push((*block, revision));
+        }
+        if self.ui_settings.as_ref() == Some(&revisions) {
+            return;
+        }
+        let Some(contents) = layers
+            .iter()
+            .map(|block| {
+                be::content(*block)
+                    .and_then(|content| UiSettingsContent::decode(&content.bytes).ok())
+                    .map(|content| content.root())
+            })
+            .collect::<Option<Vec<_>>>()
+        else {
             return;
         };
-        be::hold(id, UiSettingsContent::CONTENT_TYPE);
-        let settings = be::content(id).and_then(|content| {
-            <be_block::UiSettingsContent as be_block::BlockContent>::decode(&content.bytes).ok()
-        });
-        if let Some(settings) = settings {
-            context.set_zoom_factor(settings.root().zoom());
-        }
+        self.ui_settings = Some(revisions);
+        self.theme = Some(be_block::layered(contents).theme());
     }
 
     fn command(&mut self, context: &beui::Context, command: UiCommand) {
@@ -2382,7 +2401,7 @@ impl BlockApp {
                     self.open_workspace(workspace);
                 }
             }
-            UiCommand::ChooseProfile(id) => {
+            UiCommand::ChooseSession(id) => {
                 if let Some(workspace) = self
                     .workspaces
                     .iter()
@@ -2390,18 +2409,24 @@ impl BlockApp {
                     .cloned()
                 {
                     self.open_workspace(workspace);
-                    self.choosing_profile = true;
+                    self.choosing_session = true;
                 }
             }
-            UiCommand::OpenProfile(profile) => {
+            UiCommand::SwitchSession => self.choosing_session = true,
+            UiCommand::CloseSessions => self.choosing_session = false,
+            UiCommand::OpenSession(session) => {
+                self.root_settings.use_session(self.client_id, session);
+                self.choosing_session = false;
+            }
+            UiCommand::OpenNewSession(editor) => {
+                self.root_settings.new_session(self.client_id, editor);
+                self.choosing_session = false;
+            }
+            UiCommand::EverySessionType(every) => self.every_session_type = every,
+            UiCommand::UseProfile(profile) => {
                 self.root_settings.use_profile(self.client_id, profile);
-                self.choosing_profile = false;
             }
-            UiCommand::OpenNewProfile(editor) => {
-                self.root_settings.new_profile(self.client_id, editor);
-                self.choosing_profile = false;
-            }
-            UiCommand::EveryProfileType(every) => self.every_profile_type = every,
+            UiCommand::NewProfile => self.root_settings.new_profile(self.client_id),
             UiCommand::RespondInvitation(id, accept) => {
                 self.begin_workspace_request(WorkspaceOperation::Respond(id, accept));
             }
@@ -2547,7 +2572,7 @@ impl BlockApp {
             (None, true, None) if self.keys.needs_recovery() => ui::Screen::Recovery,
             (None, true, None) => ui::Screen::Workspaces,
             (None, true, Some(_)) if self.workspace_key.is_none() => ui::Screen::Unlock,
-            (None, true, Some(_)) if self.choosing_profile => ui::Screen::Profiles,
+            (None, true, Some(_)) if self.choosing_session => ui::Screen::Sessions,
             (None, true, Some(_)) => ui::Screen::Workspace,
         };
         let changes_saved = match screen {
@@ -2643,20 +2668,30 @@ impl BlockApp {
                 changes_saved,
                 workspace: workspace_name.clone(),
                 signed_in_as: format!("Signed in as {}", self.account.name),
+                sessions: self
+                    .root_settings
+                    .sessions(self.client_id, self.every_session_type)
+                    .into_iter()
+                    .map(|session| ui::SessionRow {
+                        id: session.id,
+                        name: session.name,
+                        kind: (session.editor != self.root_settings.shell())
+                            .then(|| root_settings::session_type_name(session.editor).to_owned()),
+                        current: session.current,
+                    })
+                    .collect(),
                 profiles: self
                     .root_settings
-                    .profiles(self.client_id, self.every_profile_type)
+                    .profiles(self.client_id)
                     .into_iter()
                     .map(|profile| ui::ProfileRow {
                         id: profile.id,
                         name: profile.name,
-                        kind: (profile.editor != self.root_settings.shell())
-                            .then(|| root_settings::session_type_name(profile.editor).to_owned()),
                         current: profile.current,
                     })
                     .collect(),
-                profiles_loaded: self.root_settings.loaded(),
-                every_profile_type: self.every_profile_type,
+                settings_loaded: self.root_settings.loaded(),
+                every_session_type: self.every_session_type,
                 session_type: self.root_settings.shell(),
                 can_close: !cfg!(target_arch = "wasm32"),
             },

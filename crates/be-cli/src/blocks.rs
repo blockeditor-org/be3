@@ -142,7 +142,7 @@ impl Index {
 }
 
 pub fn type_name(block_type: Uuid) -> &'static str {
-    let known: [(Uuid, &str); 12] = [
+    let known: [(Uuid, &str); 13] = [
         (DatabaseContent::CONTENT_TYPE, "database"),
         (DatabaseSchemaContent::CONTENT_TYPE, "schema"),
         (DatabaseViewContent::CONTENT_TYPE, "database view"),
@@ -154,6 +154,10 @@ pub fn type_name(block_type: Uuid) -> &'static str {
         (be_block::PresentationContent::CONTENT_TYPE, "presentation"),
         (be_block::ImageContent::CONTENT_TYPE, "image"),
         (be_block::SettingsContent::CONTENT_TYPE, "settings"),
+        (
+            be_block::SettingsProfileContent::CONTENT_TYPE,
+            "settings profile",
+        ),
         (be_block::PdfContent::CONTENT_TYPE, "pdf"),
     ];
     known

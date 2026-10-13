@@ -1224,6 +1224,35 @@ impl Creation {
     }
 }
 
+impl Editor {
+    pub fn inherited_settings<R>(&self) -> Memo<R>
+    where
+        R: be_block::Layered + PartialEq + 'static,
+        be_block::be_model::Document<R>: be_block::LiveEdit + Clone + Default,
+    {
+        let editor = self.clone();
+        create_memo(move || {
+            let below = crate::root_settings::RootSettings::default()
+                .read(&editor)
+                .map(|held| {
+                    crate::root_settings::layers(
+                        &editor,
+                        &held,
+                        R::CONTENT_TYPE,
+                        editor.host().client_id(),
+                    )
+                    .below(editor.block_id())
+                })
+                .unwrap_or_default();
+            be_block::layered(below.into_iter().filter_map(|block| {
+                editor
+                    .content_of::<be_block::be_model::Document<R>>(block)
+                    .read(|content| content.root())
+            }))
+        })
+    }
+}
+
 impl crate::root_settings::SettingsGraph for Editor {
     fn roots(&self) -> Option<Vec<(Uuid, Uuid, Uuid)>> {
         let mut roots = self.0.roots.borrow_mut();
@@ -1242,7 +1271,7 @@ impl crate::root_settings::SettingsGraph for Editor {
 
     fn settings(&self, block: Uuid) -> Option<be_block::Settings> {
         self.content_of::<be_block::SettingsContent>(block)
-            .read(|settings| settings.root().clone())
+            .read(|settings| settings.root())
     }
 
     fn create(&self, block_type: Uuid, content: Vec<u8>, parent: BlockParent) -> Uuid {
@@ -1252,6 +1281,11 @@ impl crate::root_settings::SettingsGraph for Editor {
             parent,
             be_block::BlockMetadata::default(),
         )
+    }
+
+    fn settings_profile(&self, block: Uuid) -> Option<be_block::SettingsProfile> {
+        self.content_of::<be_block::SettingsProfileContent>(block)
+            .read(|profile| profile.root())
     }
 
     fn edit_settings(&self, block: Uuid, edit: be_block::Edit) {

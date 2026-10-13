@@ -1,18 +1,17 @@
-use std::cell::RefCell;
 use std::rc::Rc;
 
 use block_editor_beui::BlockParent;
 use block_editor_beui::be_block::{
     EditorView, EditorViewContent, Settings, SettingsContent, WORKSPACE_EDITOR,
 };
-use block_editor_beui::beui::reactive::{Memo, clone, create_memo};
-use block_editor_beui::root_settings::{RootSettings, SettingsGraph};
+use block_editor_beui::beui::reactive::{Memo, create_memo};
+use block_editor_beui::root_settings::RootSettings;
 use block_shell::Workspace;
 use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Session {
-    pub(crate) profile: Uuid,
+    pub(crate) block: Uuid,
     pub(crate) name: String,
 }
 
@@ -25,11 +24,11 @@ pub(crate) struct Sessions {
 
 impl Sessions {
     pub(crate) fn new(workspace: &Rc<Workspace>) -> Self {
-        let found = RefCell::new(RootSettings::default());
+        let found = RootSettings::default();
         let finding = Rc::clone(workspace);
-        let settings = create_memo(move || found.borrow_mut().find(finding.editor()));
+        let settings = create_memo(move || found.find(finding.editor()));
         let listing = Rc::clone(workspace);
-        let listed = create_memo(clone!(settings -> move || listed(&listing, settings.get())));
+        let listed = create_memo(move || listed(&listing));
         Self {
             workspace: Rc::clone(workspace),
             settings,
@@ -37,8 +36,8 @@ impl Sessions {
         }
     }
 
-    pub(crate) fn open(&self, profile: Uuid) {
-        self.workspace.open_block(profile, WORKSPACE_EDITOR);
+    pub(crate) fn open(&self, session: Uuid) {
+        self.workspace.open_block(session, WORKSPACE_EDITOR);
     }
 
     pub(crate) fn create(&self) {
@@ -47,36 +46,37 @@ impl Sessions {
         };
         let editor = self.workspace.editor();
         let count = self.listed.with_untracked(Vec::len);
-        let profile = editor.blocks().create_named(
+        let session = editor.blocks().create_named(
             &EditorView::document(WORKSPACE_EDITOR, None),
             BlockParent::Block(settings),
             format!("Session {}", count + 1),
         );
         editor
             .content_of::<SettingsContent>(settings)
-            .operate(Settings::list_profile(profile));
-        self.open(profile);
+            .operate(Settings::list_session(session));
+        self.open(session);
     }
 }
 
-fn listed(workspace: &Workspace, settings: Option<Uuid>) -> Vec<Session> {
+fn listed(workspace: &Workspace) -> Vec<Session> {
     let editor = workspace.editor();
-    let Some(held) = settings.and_then(|block| editor.settings(block)) else {
+    let Some(held) = RootSettings::default().read(editor) else {
         return Vec::new();
     };
     let mut sessions: Vec<Session> = held
-        .profiles()
+        .settings
+        .sessions()
         .into_iter()
-        .filter(|profile| {
+        .filter(|session| {
             editor
-                .content_of::<EditorViewContent>(*profile)
+                .content_of::<EditorViewContent>(*session)
                 .read(|view| view.root().editor)
                 == Some(WORKSPACE_EDITOR)
         })
-        .map(|profile| Session {
-            profile,
+        .map(|block| Session {
+            block,
             name: workspace
-                .info(profile)
+                .info(block)
                 .and_then(|info| info.name())
                 .unwrap_or_else(|| "Session".to_owned()),
         })
@@ -84,7 +84,7 @@ fn listed(workspace: &Workspace, settings: Option<Uuid>) -> Vec<Session> {
     sessions.sort_by(|left, right| {
         left.name
             .cmp(&right.name)
-            .then(left.profile.cmp(&right.profile))
+            .then(left.block.cmp(&right.block))
     });
     sessions
 }

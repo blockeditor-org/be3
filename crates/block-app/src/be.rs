@@ -261,6 +261,7 @@ const KINDS: &[Kind] = &[
     kind::<be_block::DisplaySettingsContent>(),
     kind::<be_block::BrowserTabContent>(),
     kind_with_history::<be_block::SettingsContent>(),
+    kind_with_history::<be_block::SettingsProfileContent>(),
     kind::<be_block::FolderContent>(),
     kind_with_history::<be_block::PixelRayTracerContent>(),
     kind::<be_block::EditorViewContent>(),

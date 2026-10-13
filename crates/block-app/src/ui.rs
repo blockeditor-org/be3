@@ -37,6 +37,15 @@ pub(crate) fn take_commands() -> Vec<UiCommand> {
     COMMANDS.with(|commands| std::mem::take(&mut *commands.borrow_mut()))
 }
 
+pub(crate) fn styled_theme(theme: be_block::Theme) -> beui::styled::Theme {
+    match theme {
+        be_block::Theme::Dark => beui::styled::Theme::DARK,
+        be_block::Theme::OledDark => beui::styled::Theme::OLED,
+        be_block::Theme::Light => beui::styled::Theme::LIGHT,
+        be_block::Theme::EInk => beui::styled::Theme::EINK,
+    }
+}
+
 pub(crate) fn account_key(account: &SavedAccount) -> String {
     format!("{}\u{0}{}", account.server.key(), account.id)
 }
@@ -49,7 +58,7 @@ pub(crate) enum Screen {
     Workspaces,
     Recovery,
     Unlock,
-    Profiles,
+    Sessions,
     Workspace,
 }
 
@@ -158,18 +167,26 @@ pub(crate) struct StatusView {
     pub(crate) changes_saved: bool,
     pub(crate) workspace: String,
     pub(crate) signed_in_as: String,
+    pub(crate) sessions: Vec<SessionRow>,
     pub(crate) profiles: Vec<ProfileRow>,
-    pub(crate) profiles_loaded: bool,
-    pub(crate) every_profile_type: bool,
+    pub(crate) settings_loaded: bool,
+    pub(crate) every_session_type: bool,
     pub(crate) session_type: Uuid,
     pub(crate) can_close: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct SessionRow {
+    pub(crate) id: Uuid,
+    pub(crate) name: String,
+    pub(crate) kind: Option<String>,
+    pub(crate) current: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct ProfileRow {
     pub(crate) id: Uuid,
     pub(crate) name: String,
-    pub(crate) kind: Option<String>,
     pub(crate) current: bool,
 }
 
@@ -263,10 +280,14 @@ pub(crate) enum UiCommand {
     CloseAddAccount,
     ReloadWorkspaces,
     OpenWorkspace(Uuid),
-    ChooseProfile(Uuid),
-    OpenProfile(Uuid),
-    OpenNewProfile(Uuid),
-    EveryProfileType(bool),
+    ChooseSession(Uuid),
+    SwitchSession,
+    CloseSessions,
+    OpenSession(Uuid),
+    OpenNewSession(Uuid),
+    EverySessionType(bool),
+    UseProfile(Uuid),
+    NewProfile,
     RespondInvitation(Uuid, bool),
     CreateWorkspace(String),
     SwitchAccount,
@@ -346,8 +367,8 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                             Screen::Unlock => view! {
                                 <keys::UnlockScreen @sizing=ItemSize::Percent(100.0) view />
                             },
-                            Screen::Profiles => view! {
-                                <onboarding::ProfilesScreen @sizing=ItemSize::Percent(100.0) view />
+                            Screen::Sessions => view! {
+                                <onboarding::SessionsScreen @sizing=ItemSize::Percent(100.0) view />
                             },
                             Screen::Workspace => view! {
                                 <workspace::WorkspaceScreen @sizing=ItemSize::Percent(100.0) view />

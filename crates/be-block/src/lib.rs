@@ -78,12 +78,14 @@ pub use pixel_art::{PixelArtContent, PixelArtDocument};
 pub use pixel_ray_tracer::PixelRayTracerContent;
 pub use presentation::{Presentation, PresentationContent};
 pub use profile::{FILES_EDITOR, LINUX_DESKTOP_EDITOR, RecentBlock, Recents, WORKSPACE_EDITOR};
-pub use settings::{Settings, SettingsContent};
+pub use settings::{
+    Layered, Settings, SettingsContent, SettingsProfile, SettingsProfileContent, layered,
+};
 pub use streamed::{
     HEADER_PREFIX_BYTES, Streamed, decode_streamed, encode_streamed, payload_start,
 };
 pub use text::{TextBlock, TextContent, TextIndentation, TextLanguage};
-pub use ui_settings::{UiSettings, UiSettingsContent, Zoom};
+pub use ui_settings::{Theme, UiSettings, UiSettingsContent};
 pub use version_control::{
     Checkout, CheckoutConflict, CheckoutContent, ConflictKind, MAIN_BRANCH, Repository,
     RepositoryContent,

@@ -9,13 +9,21 @@ use uuid::Uuid;
 
 use crate::app::SettingsApp;
 
+mod another_accounts_settings_are_shown_but_not_changed;
 mod opening_display_settings_creates_the_block_once;
 mod opening_input_settings_creates_the_block_once;
 mod opening_ui_settings_creates_the_block_once;
+mod this_device_can_pick_a_new_settings_profile;
 
 fn editor() -> BeuiTest<SettingsApp> {
+    editor_for(Uuid::nil())
+}
+
+fn editor_for(account: Uuid) -> BeuiTest<SettingsApp> {
     let block = Uuid::new_v4();
     let host = EditorHost::default();
+    host.set_account_id(account);
+    host.set_block_type(SettingsContent::CONTENT_TYPE);
     host.set_editable(true);
     host.set_client_id(Uuid::new_v4());
     let editor = Editor::new(host.clone(), block);
@@ -26,12 +34,23 @@ fn editor() -> BeuiTest<SettingsApp> {
 }
 
 fn entries(editor: &BeuiTest<SettingsApp>, block_type: Uuid) -> Vec<Uuid> {
-    editor
+    let store = editor.store();
+    let created: Vec<Uuid> = store
+        .created()
+        .into_iter()
+        .filter(|block| {
+            store
+                .block(*block)
+                .is_some_and(|info| info.block_type == block_type)
+        })
+        .collect();
+    let kind = editor
         .content::<SettingsContent>(None)
         .root()
-        .entries
-        .iter()
-        .filter(|((entry_type, _), _)| *entry_type == block_type)
-        .map(|(_, block)| *block)
-        .collect()
+        .kind(block_type);
+    assert!(
+        created.iter().all(|block| kind == Some(*block)),
+        "every block made is the one the settings point at"
+    );
+    created
 }

@@ -1,11 +1,10 @@
 use std::rc::Rc;
 
 use block_editor_beui::be_block::input_settings::{
-    DEFAULT_REPEAT_DELAY, DEFAULT_REPEAT_RATE, InputDevice, MAX_POINTER_SPEED, MAX_REPEAT_DELAY,
-    MAX_REPEAT_RATE, MIN_POINTER_SPEED, MIN_REPEAT_DELAY, MIN_REPEAT_RATE, PointerSetting,
-    PointerSettings, PointerSpeed,
+    InputDevice, MAX_POINTER_SPEED, MAX_REPEAT_DELAY, MAX_REPEAT_RATE, MIN_POINTER_SPEED,
+    MIN_REPEAT_DELAY, MIN_REPEAT_RATE, PointerSetting, PointerSettings, PointerSpeed,
 };
-use block_editor_beui::be_block::{InputSettings, InputSettingsContent};
+use block_editor_beui::be_block::{InputSettings, InputSettingsContent, Layered};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_RESET_SETTINGS;
 use block_editor_beui::beui::reactive::{
@@ -35,6 +34,9 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
     let read_only = editor.read_only();
     let devices = editor.host_value::<InputDevices>();
     let root = settings.project(|content| content.root());
+    let inherited = editor.inherited_settings::<InputSettings>();
+    let effective =
+        create_memo(clone!(root inherited -> move || root.get().over(&inherited.get())));
     let layout = settings.project(|content| content.root().keyboard_layout);
     let variant = settings.project(|content| content.root().keyboard_variant);
     let options = settings.project(|content| content.root().keyboard_options);
@@ -50,13 +52,15 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
             .repeat_rate
             .map(|rate| rate.per_second() as f32)
     });
-    let delay_value =
-        create_memo(clone!(delay -> move || delay.get().unwrap_or(DEFAULT_REPEAT_DELAY as f32)));
+    let delay_value = create_memo(clone!(delay effective -> move || {
+        delay.get().unwrap_or(effective.get().repeat_delay() as f32)
+    }));
     let delay_shown =
         create_memo(clone!(delay_value -> move || format!("{} ms", delay_value.get())));
     let delay_unset = create_memo(move || delay.get().is_none());
-    let rate_value =
-        create_memo(clone!(rate -> move || rate.get().unwrap_or(DEFAULT_REPEAT_RATE as f32)));
+    let rate_value = create_memo(clone!(rate effective -> move || {
+        rate.get().unwrap_or(effective.get().repeat_rate() as f32)
+    }));
     let rate_shown = create_memo(clone!(rate_value -> move || format!("{} / s", rate_value.get())));
     let rate_unset = create_memo(move || rate.get().is_none());
     let (set_layout, set_variant, set_options) =
@@ -64,7 +68,7 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
     let (set_delay, set_rate) = (settings.clone(), settings.clone());
     let pointers_off = read_only.clone();
     let paste = settings.project(|content| content.root().middle_click_paste);
-    let paste_on = create_memo(clone!(paste -> move || paste.get().unwrap_or(false)));
+    let paste_on = create_memo(clone!(effective -> move || effective.get().middle_click_paste()));
     let paste_unset = create_memo(move || paste.get().is_none());
     let set_paste = settings.clone();
     let paste_off = read_only.clone();
@@ -80,6 +84,7 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
                             <TextSetting
                                 label="Layout"
                                 value={create_memo(move || layout.get())}
+                                inherited={create_memo(clone!(inherited -> move || inherited.get().keyboard_layout))}
                                 read_only={read_only.clone()}
                                 id="layout"
                                 on_change={move |layout: Option<String>| {
@@ -89,6 +94,7 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
                             <TextSetting
                                 label="Variant"
                                 value={create_memo(move || variant.get())}
+                                inherited={create_memo(clone!(inherited -> move || inherited.get().keyboard_variant))}
                                 read_only={read_only.clone()}
                                 id="variant"
                                 on_change={move |variant: Option<String>| {
@@ -98,6 +104,7 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
                             <TextSetting
                                 label="Options"
                                 value={create_memo(move || options.get())}
+                                inherited={create_memo(move || inherited.get().keyboard_options)}
                                 read_only={read_only.clone()}
                                 id="options"
                                 on_change={move |options: Option<String>| {
@@ -134,6 +141,7 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
                         <Pointers
                             settings={settings.clone()}
                             root={root}
+                            effective={effective}
                             devices={devices}
                             read_only={pointers_off}
                         />
@@ -183,6 +191,7 @@ struct FieldState<T> {
 
 fn field_state<T: Copy + PartialEq>(
     root: &InputSettings,
+    effective: &InputSettings,
     devices: &[HostInputDevice],
     scope: Option<&DeviceKey>,
     get: fn(&PointerSettings) -> Option<T>,
@@ -196,7 +205,7 @@ fn field_state<T: Copy + PartialEq>(
             .find(|device| device_key(device) == *key)
             .and_then(default);
         return FieldState {
-            value: get(&root.pointer(&device))
+            value: get(&effective.pointer(&device))
                 .or(device_default)
                 .unwrap_or(fallback),
             mixed: false,
@@ -208,13 +217,13 @@ fn field_state<T: Copy + PartialEq>(
         .iter()
         .filter_map(|device| {
             let device_default = default(device)?;
-            Some(get(&root.pointer(&identity(&device_key(device)))).unwrap_or(device_default))
+            Some(get(&effective.pointer(&identity(&device_key(device)))).unwrap_or(device_default))
         })
         .collect();
     let value = values
         .first()
         .copied()
-        .or(get(&root.every_pointer))
+        .or(get(&effective.every_pointer))
         .unwrap_or(fallback);
     FieldState {
         value,
@@ -229,6 +238,7 @@ fn field_state<T: Copy + PartialEq>(
 fn Pointers(
     settings: Settings,
     root: ReadSignal<InputSettings>,
+    effective: Memo<InputSettings>,
     devices: Memo<Vec<HostInputDevice>>,
     read_only: Memo<bool>,
 ) -> NodeId {
@@ -257,9 +267,9 @@ fn Pointers(
     }));
     let state = |get: fn(&PointerSettings) -> Option<bool>,
                  default: fn(&HostInputDevice) -> Option<bool>| {
-        create_memo(clone!(root devices scope -> move || {
-            let root = root.get();
-            devices.with(|devices| field_state(&root, devices, scope.get().as_ref(), get, default, false))
+        create_memo(clone!(root effective devices scope -> move || {
+            let (root, effective) = (root.get(), effective.get());
+            devices.with(|devices| field_state(&root, &effective, devices, scope.get().as_ref(), get, default, false))
         }))
     };
     let tap = state(|pointer| pointer.tap_to_click, |device| device.tap_to_click);
@@ -267,11 +277,12 @@ fn Pointers(
         |pointer| pointer.natural_scroll,
         |device| device.natural_scroll,
     );
-    let speed = create_memo(clone!(root devices scope -> move || {
-        let root = root.get();
+    let speed = create_memo(clone!(root effective devices scope -> move || {
+        let (root, effective) = (root.get(), effective.get());
         devices.with(|devices| {
             field_state(
                 &root,
+                &effective,
                 devices,
                 scope.get().as_ref(),
                 |pointer| pointer.speed.map(PointerSpeed::get),
@@ -393,6 +404,7 @@ fn ResetButton(
 fn TextSetting(
     label: &'static str,
     value: Memo<Option<String>>,
+    inherited: Memo<Option<String>>,
     read_only: Memo<bool>,
     id: &'static str,
     on_change: Callback<Option<String>>,
@@ -407,7 +419,9 @@ fn TextSetting(
                 @sizing=ItemSize::Percent(100.0)
                 value={shown}
                 label={label}
-                placeholder={format!("{label}: default")}
+                placeholder={create_memo(move || {
+                    format!("{label}: {}", inherited.get().unwrap_or_else(|| "default".to_owned()))
+                })}
                 disabled={read_only.clone()}
                 @test_id={format!("input-settings.{id}")}
                 on_change={move |text: String| {

@@ -72,7 +72,7 @@ pub(crate) fn DesktopBar(
     let sessions = Sessions::new(&workspace);
     let listed = sessions.listed.clone();
     let keys = create_memo(clone!(listed -> move || {
-        listed.with(|sessions| sessions.iter().map(|session| session.profile).collect::<Vec<_>>())
+        listed.with(|sessions| sessions.iter().map(|session| session.block).collect::<Vec<_>>())
     }));
     let named = listed.clone();
     let settings = sessions.settings.clone();
@@ -84,7 +84,7 @@ pub(crate) fn DesktopBar(
             .first()
             .and_then(|index| listed.with_untracked(|sessions| sessions.get(*index).cloned()));
         if let Some(session) = chosen {
-            sessions.open(session.profile);
+            sessions.open(session.block);
         }
     };
     view! {
@@ -116,13 +116,13 @@ pub(crate) fn DesktopBar(
                         @test_id={"desktop.sessions"}
                         items={view! {
                             <ForEach keys={keys}>
-                                {move |profile: uuid::Uuid| {
+                                {move |block: uuid::Uuid| {
                                     let named = named.clone();
                                     let label = create_memo(move || {
                                         named.with(|sessions| {
                                             sessions
                                                 .iter()
-                                                .find(|session| session.profile == profile)
+                                                .find(|session| session.block == block)
                                                 .map(|session| session.name.clone())
                                                 .unwrap_or_default()
                                         })
