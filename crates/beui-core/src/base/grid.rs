@@ -21,8 +21,8 @@ pub struct GridItem {
 }
 
 impl ChildItem for GridItem {
-    fn node(&self) -> NodeId {
-        self.child
+    fn node(&self) -> Option<NodeId> {
+        Some(self.child)
     }
 }
 

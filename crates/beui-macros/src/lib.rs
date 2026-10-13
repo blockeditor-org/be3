@@ -1108,6 +1108,15 @@ impl Parse for ViewChild {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let kind = if input.peek(Token![<]) {
             ViewChildKind::Node(input.parse()?)
+        } else if input.peek(syn::LitStr) {
+            let lit: syn::LitStr = input.parse()?;
+            ViewChildKind::Expr(
+                Expr::Lit(ExprLit {
+                    attrs: Vec::new(),
+                    lit: Lit::Str(lit),
+                }),
+                None,
+            )
         } else {
             let content;
             braced!(content in input);

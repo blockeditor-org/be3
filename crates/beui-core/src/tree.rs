@@ -13,7 +13,7 @@ use crate::base::child_list::ChildHost;
 use crate::base::grid::{GridItem, GridNode};
 use crate::base::layers::LayersNode;
 use crate::base::list::{ListItem, ListNode};
-use crate::base::text::TextNode;
+use crate::base::text::{TextNode, TextPart};
 use crate::base::{ItemSize, Sizing};
 use crate::current::with_document;
 use crate::document::Document;
@@ -377,10 +377,13 @@ impl ParentKind for CanvasNode {
 }
 
 impl ParentKind for TextNode {
-    type Data = ();
+    type Data = bool;
 
-    fn item(node: NodeId, _: ()) -> NodeId {
-        node
+    fn item(node: NodeId, anchored: bool) -> TextPart {
+        match anchored {
+            true => TextPart::Anchored(node),
+            false => TextPart::Inline(node),
+        }
     }
 }
 

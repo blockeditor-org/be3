@@ -1,7 +1,5 @@
 use super::*;
-use crate::reactive::{
-    Frame, List, NodeRef, SpanKind, SpanStyle, Text, TextItem, TextSpan, build, view,
-};
+use crate::reactive::{Frame, List, NodeRef, Span, Text, TextItem, build, view};
 use crate::{Color32, FontId};
 
 const WRAP: f32 = 90.0;
@@ -12,31 +10,19 @@ fn text_with_spans_wraps_places_inline_items_and_answers_where_indices_are() {
     let text = NodeRef::new();
     let item = NodeRef::new();
     let content = "hello \u{fffc} wide world of text";
-    let body = SpanStyle::new(FontId::proportional(14.0), Color32::WHITE);
-    let spans = vec![
-        TextSpan::text(0..6, body),
-        TextSpan {
-            kind: SpanKind::Inline(0),
-            ..TextSpan::text(6..9, body)
-        },
-        TextSpan::text(
-            9..content.len(),
-            SpanStyle {
-                font: body.font.bold(true),
-                ..body
-            },
-        ),
-    ];
+    let bold = FontId::proportional(14.0).bold(true);
     let document = build({
         let (text, item) = (text.clone(), item.clone());
         move || {
             view! {
                 <List spacing=0.0>
                     <Frame width=WRAP>
-                        <Text @node_ref=&text string={content.to_owned()} spans={spans} wrap=true>
+                        <Text @node_ref=&text color=Color32::WHITE wrap=true>
+                            "hello "
                             <TextItem>
                                 <Frame @node_ref=&item width=BOX height=BOX />
                             </TextItem>
+                            <Span font=bold>" wide world of text"</Span>
                         </Text>
                     </Frame>
                 </List>

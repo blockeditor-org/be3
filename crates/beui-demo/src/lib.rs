@@ -16,9 +16,9 @@ use beui::icons::{
 use beui::reactive::{
     Action, Align, Callback, Canvas, CanvasItem, CanvasView, Child, Children, Chord, ClickCallback,
     ForEach, Frame, Func, Justify, List, ListChild, Memo, Prop, ReadSignal, Selector, Show, Spacer,
-    SpanStyle, Text, TextSpan, VirtualList, WriteSignal, batch, build, clone, create_effect,
-    create_memo, create_selector, create_signal, focus_ring, held_modifiers, on_shortcut,
-    provide_context, untrack, use_context, view, with_document,
+    Span, Text, VirtualList, WriteSignal, batch, build, clone, create_effect, create_memo,
+    create_selector, create_signal, focus_ring, held_modifiers, on_shortcut, provide_context,
+    untrack, use_context, view, with_document,
 };
 use beui::styled::DocumentTheme;
 use beui::styled::theme::{CARD_RADIUS, FONT_SMALL, NARROW_WIDTH, RADIUS};

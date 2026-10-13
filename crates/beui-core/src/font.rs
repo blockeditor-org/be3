@@ -207,14 +207,10 @@ impl GalleyLine {
     }
 
     fn x(&self, index: usize) -> f32 {
-        let mut x = 0.0;
-        for (at, candidate) in &self.cursors {
-            if *at > index {
-                break;
-            }
-            x = *candidate;
-        }
-        x
+        let after = self.cursors.partition_point(|(at, _)| *at <= index);
+        after
+            .checked_sub(1)
+            .map_or(0.0, |found| self.cursors[found].1)
     }
 }
 
@@ -233,6 +229,28 @@ impl Galley {
             .into_iter()
             .map(|line| line.split_clusters(text))
             .collect();
+        Self::split(
+            text,
+            font,
+            size,
+            line_height,
+            baseline,
+            glyphs,
+            lines,
+            wraps,
+        )
+    }
+
+    fn split(
+        text: &str,
+        font: FontId,
+        size: Vec2,
+        line_height: f32,
+        baseline: f32,
+        glyphs: Vec<Glyph>,
+        lines: Vec<GalleyLine>,
+        wraps: Wraps,
+    ) -> Self {
         Self {
             inner: Rc::new(GalleyData {
                 text: text.into(),
@@ -359,6 +377,70 @@ impl Galley {
                 ))
             })
             .collect()
+    }
+
+    pub fn slice(&self, range: Range<usize>, pixels_per_point: f32) -> Galley {
+        let Some(line) = self
+            .inner
+            .lines
+            .iter()
+            .find(|line| line.range.start <= range.start && range.end <= line.range.end)
+        else {
+            return self.clone();
+        };
+        let (left, right) = (line.x(range.start), line.x(range.end));
+        let shift = vec2(
+            (left * pixels_per_point).round(),
+            (line.top * pixels_per_point).round(),
+        );
+        let (from, to) = (left * pixels_per_point, right * pixels_per_point);
+        let (top, bottom) = (
+            line.top * pixels_per_point,
+            (line.top + self.inner.line_height) * pixels_per_point,
+        );
+        let glyphs = &self.inner.glyphs;
+        let key = |glyph: &Glyph| {
+            let x = glyph.offset.x + glyph.image.width as f32 / 2.0;
+            let y = glyph.offset.y + glyph.image.height as f32 / 2.0;
+            match () {
+                _ if y < top => 0,
+                _ if y >= bottom => 4,
+                _ if x < from => 1,
+                _ if x < to => 2,
+                _ => 3,
+            }
+        };
+        let first = glyphs.partition_point(|glyph| key(glyph) < 2);
+        let last = glyphs.partition_point(|glyph| key(glyph) < 3);
+        let glyphs = glyphs[first..last.max(first)]
+            .iter()
+            .map(|glyph| Glyph {
+                offset: glyph.offset - shift,
+                ..glyph.clone()
+            })
+            .collect();
+        let dx = shift.x / pixels_per_point;
+        let start = line.cursors.partition_point(|(at, _)| *at < range.start);
+        let end = line.cursors.partition_point(|(at, _)| *at <= range.end);
+        let cursors = line.cursors[start..end.max(start)]
+            .iter()
+            .map(|(at, x)| (at - range.start, x - dx))
+            .collect();
+        let text = self.inner.text.get(range.clone()).unwrap_or_default();
+        Galley::split(
+            text,
+            self.inner.font,
+            vec2(right - dx, self.inner.line_height),
+            self.inner.line_height,
+            self.inner.baseline,
+            glyphs,
+            vec![GalleyLine {
+                top: 0.0,
+                range: 0..text.len(),
+                cursors,
+            }],
+            Wraps::ANY,
+        )
     }
 
     pub fn wraps(&self) -> Wraps {

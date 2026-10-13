@@ -1,4 +1,5 @@
 use beui_core::layer::LayerPolicy;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use beui_macros::{component, view};
@@ -7,7 +8,7 @@ use beui_core::base::ItemSize;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::base::text::TextNode;
 use beui_core::color::Color32;
-use beui_core::font::{FontId, TextAlign};
+use beui_core::font::{FontFamily, FontId, TextAlign};
 use beui_core::geometry::Vec2;
 use beui_core::icons::{ICON_CHECK, ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_RIGHT};
 use beui_core::node::NodeId;
@@ -17,15 +18,15 @@ use text_editor_core::{EditorCommand, MarkdownCommand};
 
 use crate::{Toggle, ToggleHandle};
 use beui_view::reactive::{
-    Callback, Canvas, CanvasItem, ForEach, Frame, List, Memo, NodeRef, Portal, RenderFn, Show,
-    Text, TextItem, VirtualList, clone, component_placed, create_effect, create_memo, on_cleanup,
-    untrack, with_document,
+    Callback, Canvas, CanvasItem, ForEach, Frame, IntoChild, List, Memo, NodeRef, Portal, RenderFn,
+    Show, Span, Text, TextChild, TextItem, VirtualList, clone, component_placed, create_effect,
+    create_memo, on_cleanup, untrack, with_document,
 };
 
 use super::rows::{
     BODY_SIZE, CHECKBOX_WIDTH, DOCUMENT_PADDING, INLINE_WIDGET_HEIGHT, INLINE_WIDGET_ICON_INSET,
     Inline, InlineItem, LINE_PADDING, RUN_CHIP_HEIGHT, RUN_CHIP_SIZE, Row, RowInputs, RowOptions,
-    build_row, galley, line_range, rich_layout,
+    SpanKind, build_row, galley, line_range, rich_layout,
 };
 use super::{
     CARET_WIDTH, CHECKBOX_OUTLINE, CHECKBOX_RADIUS, CODE_OUTSET, CODE_RADIUS, Context,
@@ -283,22 +284,7 @@ fn RowText(
             });
         }
     }));
-    let display = create_memo(clone!(model -> move || model.get().display.clone()));
-    let spans = create_memo(clone!(model -> move || {
-        let mut spans = model.get().spans.clone();
-        if layer == Layer::Handles {
-            for span in &mut spans {
-                span.style.color = Color32::TRANSPARENT;
-                span.style.underline = false;
-                span.style.strikethrough = false;
-            }
-        }
-        spans
-    }));
-    let inline = create_memo(clone!(model -> move || match layer {
-        Layer::Handles => Vec::new(),
-        _ => (0..model.get().inline.len()).collect::<Vec<usize>>(),
-    }));
+    let keys = create_memo(clone!(model -> move || piece_keys(&model.get(), layer)));
     let padding = match cx.single_line {
         true => (0.0, 0.0),
         false => LINE_PADDING,
@@ -401,8 +387,6 @@ fn RowText(
     view! {
         <Text
             @node_ref=&node
-            string={display}
-            spans={spans}
             wrap
             line_padding={padding}
             font_size={font_size}
@@ -410,15 +394,9 @@ fn RowText(
             marks={marks}
             carets={carets}
         >
-            <ForEach keys={inline}>
-                {move |index: usize| {
-                    let cx = item_cx.clone();
-                    let model = item_model.clone();
-                    view! {
-                        <TextItem>
-                            <InlineView cx model index />
-                        </TextItem>
-                    }
+            <ForEach keys={keys}>
+                {move |(key, _): (PieceKey, usize)| {
+                    row_piece(item_cx.clone(), item_model.clone(), layer, key)
                 }}
             </ForEach>
             <Show condition={anchored}>
@@ -429,6 +407,106 @@ fn RowText(
                 })}
             </Show>
         </Text>
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+enum PieceKey {
+    Text {
+        text: String,
+        font: (u32, FontFamily, bool, bool),
+        color: Color32,
+        underline: bool,
+        strikethrough: bool,
+        break_after: bool,
+    },
+    Space(u32),
+    Inline(usize),
+}
+
+fn piece_keys(row: &Row, layer: Layer) -> Vec<(PieceKey, usize)> {
+    let mut seen: HashMap<PieceKey, usize> = HashMap::new();
+    row.spans
+        .iter()
+        .map(|span| {
+            let key = match span.kind {
+                SpanKind::Text => {
+                    let style = span.style;
+                    let handles = layer == Layer::Handles;
+                    PieceKey::Text {
+                        text: row
+                            .display
+                            .get(span.range.clone())
+                            .unwrap_or_default()
+                            .to_owned(),
+                        font: (
+                            style.font.size.to_bits(),
+                            style.font.family,
+                            style.font.bold,
+                            style.font.italic,
+                        ),
+                        color: match handles {
+                            true => Color32::TRANSPARENT,
+                            false => style.color,
+                        },
+                        underline: style.underline && !handles,
+                        strikethrough: style.strikethrough && !handles,
+                        break_after: span.break_after,
+                    }
+                }
+                SpanKind::Space(width) => PieceKey::Space(width.to_bits()),
+                SpanKind::Inline(index) => PieceKey::Inline(index),
+            };
+            let repeat = seen.entry(key.clone()).or_default();
+            *repeat += 1;
+            (key, *repeat - 1)
+        })
+        .collect()
+}
+
+fn row_piece(cx: Context, model: Memo<Rc<Row>>, layer: Layer, key: PieceKey) -> TextChild {
+    match key {
+        PieceKey::Text {
+            text,
+            font: (size, family, bold, italic),
+            color,
+            underline,
+            strikethrough,
+            break_after,
+        } => {
+            let font = FontId::new(f32::from_bits(size), family)
+                .bold(bold)
+                .italic(italic);
+            view! {
+                <Span text font color underline strikethrough break_after />
+            }
+            .into_child()
+        }
+        PieceKey::Space(width) => view! {
+            <TextItem>
+                <Frame width={Some(f32::from_bits(width))} height=Some(0.0) />
+            </TextItem>
+        }
+        .into_child(),
+        PieceKey::Inline(item) if layer == Layer::Handles => {
+            let size = create_memo(clone!(model -> move || {
+                model.get().inline.get(item).map_or(Vec2::ZERO, |item| item.size)
+            }));
+            let width = create_memo(clone!(size -> move || Some(size.get().x)));
+            let height = create_memo(clone!(size -> move || Some(size.get().y)));
+            view! {
+                <TextItem>
+                    <Frame width height />
+                </TextItem>
+            }
+            .into_child()
+        }
+        PieceKey::Inline(item) => view! {
+            <TextItem>
+                <InlineView cx model index=item />
+            </TextItem>
+        }
+        .into_child(),
     }
 }
 

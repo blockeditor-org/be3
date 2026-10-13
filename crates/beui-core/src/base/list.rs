@@ -156,8 +156,8 @@ pub struct ListItem {
 }
 
 impl ChildItem for ListItem {
-    fn node(&self) -> NodeId {
-        self.child
+    fn node(&self) -> Option<NodeId> {
+        Some(self.child)
     }
 }
 

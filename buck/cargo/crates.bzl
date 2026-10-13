@@ -3258,6 +3258,10 @@ crates = {
                 "crate_root": "examples/survey.rs",
                 "name": "survey",
             },
+            {
+                "crate_root": "examples/text-bench.rs",
+                "name": "text-bench",
+            },
         ],
         "library": {
             "crate": "beui",
@@ -3284,6 +3288,30 @@ crates = {
                 ],
                 "examples": {
                     "survey": {
+                        "deps": [
+                            "//crates/beui-adapter-android:beui-adapter-android",
+                            "//crates/beui-components-styled:beui-components-styled",
+                            "//crates/beui-components-unstyled:beui-components-unstyled",
+                            "//crates/beui-core:beui-core",
+                            "//crates/beui-font-freetype:beui-font-freetype",
+                            "//crates/beui-inspector:beui-inspector",
+                            "//crates/beui-macros:beui_macros",
+                            "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                            "//crates/beui-view:beui-view",
+                            "//crates/reactive:reactive",
+                            "//crates/text-editor-core:text-editor-core",
+                            "//third-party/rust:accesskit-0.24.1",
+                            "//third-party/rust:pollster-0.4.0",
+                            "//third-party/rust:raw-window-handle-0.6.2",
+                            "//third-party/rust:wgpu-29.0.3",
+                        ],
+                        "features": [
+                            "default",
+                            "render",
+                            "window",
+                        ],
+                    },
+                    "text-bench": {
                         "deps": [
                             "//crates/beui-adapter-android:beui-adapter-android",
                             "//crates/beui-components-styled:beui-components-styled",
@@ -3343,6 +3371,31 @@ crates = {
                 ],
                 "examples": {
                     "survey": {
+                        "deps": [
+                            "//crates/beui-adapter-headless:beui-adapter-headless",
+                            "//crates/beui-adapter-winit:beui-adapter-winit",
+                            "//crates/beui-components-styled:beui-components-styled",
+                            "//crates/beui-components-unstyled:beui-components-unstyled",
+                            "//crates/beui-core:beui-core",
+                            "//crates/beui-font-freetype:beui-font-freetype",
+                            "//crates/beui-inspector:beui-inspector",
+                            "//crates/beui-macros:beui_macros",
+                            "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                            "//crates/beui-view:beui-view",
+                            "//crates/reactive:reactive",
+                            "//crates/text-editor-core:text-editor-core",
+                            "//third-party/rust:accesskit-0.24.1",
+                            "//third-party/rust:pollster-0.4.0",
+                            "//third-party/rust:raw-window-handle-0.6.2",
+                            "//third-party/rust:wgpu-29.0.3",
+                        ],
+                        "features": [
+                            "default",
+                            "render",
+                            "window",
+                        ],
+                    },
+                    "text-bench": {
                         "deps": [
                             "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
@@ -3427,6 +3480,31 @@ crates = {
                             "window",
                         ],
                     },
+                    "text-bench": {
+                        "deps": [
+                            "//crates/beui-adapter-headless:beui-adapter-headless",
+                            "//crates/beui-adapter-winit:beui-adapter-winit",
+                            "//crates/beui-components-styled:beui-components-styled",
+                            "//crates/beui-components-unstyled:beui-components-unstyled",
+                            "//crates/beui-core:beui-core",
+                            "//crates/beui-font-freetype:beui-font-freetype",
+                            "//crates/beui-inspector:beui-inspector",
+                            "//crates/beui-macros:beui_macros",
+                            "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                            "//crates/beui-view:beui-view",
+                            "//crates/reactive:reactive",
+                            "//crates/text-editor-core:text-editor-core",
+                            "//third-party/rust:accesskit-0.24.1",
+                            "//third-party/rust:pollster-0.4.0",
+                            "//third-party/rust:raw-window-handle-0.6.2",
+                            "//third-party/rust:wgpu-29.0.3",
+                        ],
+                        "features": [
+                            "default",
+                            "render",
+                            "window",
+                        ],
+                    },
                 },
                 "features": [
                     "default",
@@ -3487,6 +3565,31 @@ crates = {
                             "window",
                         ],
                     },
+                    "text-bench": {
+                        "deps": [
+                            "//crates/beui-adapter-headless:beui-adapter-headless",
+                            "//crates/beui-adapter-winit:beui-adapter-winit",
+                            "//crates/beui-components-styled:beui-components-styled",
+                            "//crates/beui-components-unstyled:beui-components-unstyled",
+                            "//crates/beui-core:beui-core",
+                            "//crates/beui-font-freetype:beui-font-freetype",
+                            "//crates/beui-inspector:beui-inspector",
+                            "//crates/beui-macros:beui_macros",
+                            "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                            "//crates/beui-view:beui-view",
+                            "//crates/reactive:reactive",
+                            "//crates/text-editor-core:text-editor-core",
+                            "//third-party/rust:accesskit-0.24.1",
+                            "//third-party/rust:pollster-0.4.0",
+                            "//third-party/rust:raw-window-handle-0.6.2",
+                            "//third-party/rust:wgpu-29.0.3",
+                        ],
+                        "features": [
+                            "default",
+                            "render",
+                            "window",
+                        ],
+                    },
                 },
                 "features": [
                     "default",
@@ -3523,6 +3626,31 @@ crates = {
                 ],
                 "examples": {
                     "survey": {
+                        "deps": [
+                            "//crates/beui-adapter-headless:beui-adapter-headless",
+                            "//crates/beui-adapter-winit:beui-adapter-winit",
+                            "//crates/beui-components-styled:beui-components-styled",
+                            "//crates/beui-components-unstyled:beui-components-unstyled",
+                            "//crates/beui-core:beui-core",
+                            "//crates/beui-font-freetype:beui-font-freetype",
+                            "//crates/beui-inspector:beui-inspector",
+                            "//crates/beui-macros:beui_macros",
+                            "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                            "//crates/beui-view:beui-view",
+                            "//crates/reactive:reactive",
+                            "//crates/text-editor-core:text-editor-core",
+                            "//third-party/rust:accesskit-0.24.1",
+                            "//third-party/rust:pollster-0.4.0",
+                            "//third-party/rust:raw-window-handle-0.6.2",
+                            "//third-party/rust:wgpu-29.0.3",
+                        ],
+                        "features": [
+                            "default",
+                            "render",
+                            "window",
+                        ],
+                    },
+                    "text-bench": {
                         "deps": [
                             "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
@@ -3656,6 +3784,31 @@ crates = {
                             "window",
                         ],
                     },
+                    "text-bench": {
+                        "deps": [
+                            "//crates/beui-adapter-headless:beui-adapter-headless",
+                            "//crates/beui-adapter-winit:beui-adapter-winit",
+                            "//crates/beui-components-styled:beui-components-styled",
+                            "//crates/beui-components-unstyled:beui-components-unstyled",
+                            "//crates/beui-core:beui-core",
+                            "//crates/beui-font-freetype:beui-font-freetype",
+                            "//crates/beui-inspector:beui-inspector",
+                            "//crates/beui-macros:beui_macros",
+                            "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                            "//crates/beui-view:beui-view",
+                            "//crates/reactive:reactive",
+                            "//crates/text-editor-core:text-editor-core",
+                            "//third-party/rust:accesskit-0.24.1",
+                            "//third-party/rust:pollster-0.4.0",
+                            "//third-party/rust:raw-window-handle-0.6.2",
+                            "//third-party/rust:wgpu-29.0.3",
+                        ],
+                        "features": [
+                            "default",
+                            "render",
+                            "window",
+                        ],
+                    },
                 },
                 "features": [
                     "default",
@@ -3692,6 +3845,31 @@ crates = {
                 ],
                 "examples": {
                     "survey": {
+                        "deps": [
+                            "//crates/beui-adapter-headless:beui-adapter-headless",
+                            "//crates/beui-adapter-winit:beui-adapter-winit",
+                            "//crates/beui-components-styled:beui-components-styled",
+                            "//crates/beui-components-unstyled:beui-components-unstyled",
+                            "//crates/beui-core:beui-core",
+                            "//crates/beui-font-freetype:beui-font-freetype",
+                            "//crates/beui-inspector:beui-inspector",
+                            "//crates/beui-macros:beui_macros",
+                            "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                            "//crates/beui-view:beui-view",
+                            "//crates/reactive:reactive",
+                            "//crates/text-editor-core:text-editor-core",
+                            "//third-party/rust:accesskit-0.24.1",
+                            "//third-party/rust:pollster-0.4.0",
+                            "//third-party/rust:raw-window-handle-0.6.2",
+                            "//third-party/rust:wgpu-29.0.3",
+                        ],
+                        "features": [
+                            "default",
+                            "render",
+                            "window",
+                        ],
+                    },
+                    "text-bench": {
                         "deps": [
                             "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-winit:beui-adapter-winit",

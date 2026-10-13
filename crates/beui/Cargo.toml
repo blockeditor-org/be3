@@ -76,3 +76,6 @@ workspace = true
 [[example]]
 name = "survey"
 required-features = ["window"]
+
+[[example]]
+name = "text-bench"
