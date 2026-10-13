@@ -153,9 +153,7 @@ impl Shaped {
             },
             ..self.key
         };
-        rewrapped == *key
-            && self.entries == entries
-            && (laid == wrap || self.layout.fits(wrap, laid))
+        rewrapped == *key && self.entries == entries && (laid == wrap || self.layout.fits(wrap))
     }
 }
 
@@ -214,6 +212,10 @@ impl Shaper for CachedShaper<'_> {
         };
         self.fresh.insert(key, galley.clone());
         galley
+    }
+
+    fn slice(&mut self, galley: &Galley, range: Range<usize>, _font: FontId) -> Galley {
+        galley.slice(range, self.painter.ctx().pixels_per_point())
     }
 }
 

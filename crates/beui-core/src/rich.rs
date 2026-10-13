@@ -224,6 +224,8 @@ impl RichRun {
 #[derive(Clone)]
 pub struct RichLine {
     pub range: Range<usize>,
+    reach: f32,
+    limit: f32,
     pub top: f32,
     pub left: f32,
     pub height: f32,
@@ -261,11 +263,16 @@ impl RichLine {
 pub struct RichLayout {
     pub lines: Vec<RichLine>,
     pub size: Vec2,
-    broken: bool,
+    reach: f32,
+    limit: f32,
 }
 
 pub trait Shaper {
     fn galley(&mut self, text: &str, font: FontId) -> Galley;
+
+    fn slice(&mut self, galley: &Galley, range: Range<usize>, font: FontId) -> Galley {
+        self.galley(galley.text().get(range).unwrap_or_default(), font)
+    }
 }
 
 impl<F: FnMut(&str, FontId) -> Galley> Shaper for F {
@@ -278,6 +285,7 @@ struct Builder<'a> {
     text: &'a str,
     spans: &'a [TextSpan],
     shaper: &'a mut dyn Shaper,
+    whole: Vec<Option<Galley>>,
 }
 
 impl Builder<'_> {
@@ -311,8 +319,24 @@ impl Builder<'_> {
         } = self.spans[span].clone();
         match kind {
             SpanKind::Text => {
-                let text = self.text.get(range.clone()).unwrap_or("");
-                let galley = self.shaper.galley(text, style.font);
+                let whole = self.spans[span].range.clone();
+                let shaped = match &self.whole[span] {
+                    Some(shaped) => shaped.clone(),
+                    None => {
+                        let shaped = self
+                            .shaper
+                            .galley(self.text.get(whole.clone()).unwrap_or(""), style.font);
+                        self.whole[span] = Some(shaped.clone());
+                        shaped
+                    }
+                };
+                let galley = match whole == range {
+                    true => shaped,
+                    false => {
+                        let within = range.start - whole.start..range.end - whole.start;
+                        self.shaper.slice(&shaped, within, style.font)
+                    }
+                };
                 RichRun {
                     piece,
                     range,
@@ -349,7 +373,9 @@ impl Builder<'_> {
             }
         }
         stops.retain(|(byte, _)| self.text.is_char_boundary(*byte));
-        stops.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)));
+        if !stops.is_sorted_by(|a, b| (a.0, a.1) <= (b.0, b.1)) {
+            stops.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)));
+        }
         stops
     }
 
@@ -360,30 +386,41 @@ impl Builder<'_> {
         to: usize,
         origin: f32,
         wrap: f32,
-    ) -> Option<usize> {
-        let bytes = self.text.as_bytes();
+    ) -> Option<(usize, f32, f32)> {
         let first = stops.partition_point(|(byte, _)| *byte <= from);
-        let candidates: Vec<(usize, f32)> = stops[first..]
+        let candidates = stops[first..]
             .iter()
-            .take_while(|(byte, _)| *byte < to)
-            .map(|(byte, x)| (*byte, x - origin))
-            .filter(|(_, x)| *x <= wrap)
-            .collect();
-        let good = candidates
+            .take_while(|(byte, x)| *byte < to && x - origin <= wrap);
+        let count = candidates.clone().count();
+        let fits = &stops[first..first + count];
+        let good = fits.iter().rposition(|(byte, _)| self.good(*byte));
+        let fallback = fits
+            .len()
+            .checked_sub(1)
+            .filter(|last| wrap - (fits[*last].1 - origin) < wrap * WRAP_FALLBACK_REMAINING_WIDTH);
+        let chosen = good.or(fallback)?;
+        let (byte, x) = fits[chosen];
+        let reach = x - origin;
+        let mut limit = stops[first + chosen + 1..]
             .iter()
-            .rev()
-            .find(|(byte, _)| {
-                self.breaks_after(*byte)
-                    || bytes.get(byte - 1).is_some_and(|before| {
-                        before.is_ascii_whitespace() || matches!(*before, b'-' | b'/' | b'\\')
-                    })
-            })
-            .copied();
-        let fallback = candidates
-            .last()
-            .copied()
-            .filter(|(_, x)| wrap - *x < wrap * WRAP_FALLBACK_REMAINING_WIDTH);
-        good.or(fallback).map(|(byte, _)| byte)
+            .take_while(|(next, _)| *next <= to)
+            .find(|(next, _)| *next > byte && (good.is_none() || *next == to || self.good(*next)))
+            .map_or(f32::INFINITY, |(_, x)| x - origin);
+        if good.is_none() {
+            limit = limit.min(reach / (1.0 - WRAP_FALLBACK_REMAINING_WIDTH));
+        }
+        Some((byte, reach, limit))
+    }
+
+    fn good(&self, byte: usize) -> bool {
+        self.breaks_after(byte)
+            || self
+                .text
+                .as_bytes()
+                .get(byte.wrapping_sub(1))
+                .is_some_and(|before| {
+                    before.is_ascii_whitespace() || matches!(*before, b'-' | b'/' | b'\\')
+                })
     }
 
     fn breaks_after(&self, byte: usize) -> bool {
@@ -459,6 +496,7 @@ impl RichLayout {
             text,
             spans: &spans,
             shaper,
+            whole: vec![None; spans.len()],
         };
         let kept = previous.map_or(0, |(previous, changed)| {
             previous.line_of(changed).saturating_sub(1)
@@ -467,7 +505,6 @@ impl RichLayout {
             Some((previous, _)) => previous.lines[..kept].to_vec(),
             None => Vec::new(),
         };
-        let mut broken = previous.is_some_and(|(previous, _)| previous.broken) && kept > 0;
         let (mut top, mut resume) =
             match previous.and_then(|(previous, _)| previous.lines.get(kept)) {
                 Some(line) if kept > 0 => (line.top, Some(line.range.start.min(text.len()))),
@@ -496,17 +533,20 @@ impl RichLayout {
                     false => None,
                 };
                 let (to, runs) = match (broke, from == start) {
-                    (Some(to), _) => (to, builder.runs(from, to)),
+                    (Some((to, _, _)), _) => (to, builder.runs(from, to)),
                     (None, true) => (end, whole.take().unwrap_or_default()),
                     (None, false) => (end, builder.runs(from, end)),
                 };
-                let line = line(from..to, runs, top, strut, options.padding);
+                let mut line = line(from..to, runs, top, strut, options.padding);
                 top += line.height;
-                lines.push(line);
-                if broke.is_none() {
+                let Some((_, reach, limit)) = broke else {
+                    line.reach = total - origin;
+                    lines.push(line);
                     break;
-                }
-                broken = true;
+                };
+                line.reach = reach;
+                line.limit = limit;
+                lines.push(line);
                 from = to;
             }
             if end == text.len() {
@@ -515,15 +555,21 @@ impl RichLayout {
             start = end + 1;
         }
         let width = lines.iter().map(|line| line.width).fold(0.0, f32::max);
+        let reach = lines.iter().map(|line| line.reach).fold(0.0, f32::max);
+        let limit = lines
+            .iter()
+            .map(|line| line.limit)
+            .fold(f32::INFINITY, f32::min);
         Self {
             lines,
             size: vec2(width, top),
-            broken,
+            reach,
+            limit,
         }
     }
 
-    pub fn fits(&self, wrap_width: f32, laid_at: f32) -> bool {
-        wrap_width >= self.size.x && (wrap_width <= laid_at || !self.broken)
+    pub fn fits(&self, wrap_width: f32) -> bool {
+        wrap_width >= self.reach && wrap_width < self.limit
     }
 
     pub fn truncate(&mut self, width: f32, shaper: &mut dyn Shaper) {
@@ -721,6 +767,8 @@ fn line(
     let width = runs.last().map_or(0.0, |run| run.x + run.width);
     RichLine {
         range,
+        reach: 0.0,
+        limit: f32::INFINITY,
         top,
         left: 0.0,
         height: height + padding.0 + padding.1,
