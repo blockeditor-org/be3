@@ -512,8 +512,10 @@ impl Runner {
         if let Some(fullscreen) = output.fullscreen {
             match &mut self.simulation {
                 Some(simulation) => {
-                    simulation.fullscreen = fullscreen;
-                    self.context.fullscreen_changed(fullscreen);
+                    if simulation.fullscreen != fullscreen {
+                        simulation.fullscreen = fullscreen;
+                        self.fullscreen = Some(fullscreen);
+                    }
                 }
                 None if fullscreen != self.context.fullscreen() => {
                     platform.set_fullscreen(fullscreen);
@@ -525,7 +527,7 @@ impl Runner {
         let pending = renderers.prepare(&output, scale, self.app.clear_color());
         let mut frame = Frame {
             pending,
-            deferred: !self.events.is_empty(),
+            deferred: !self.events.is_empty() || self.fullscreen.is_some(),
             repaint: output.repaint,
             repaint_after: output.repaint_after,
         };
