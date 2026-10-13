@@ -722,7 +722,9 @@ and `use_context::<T>()` walks up the owner chain and returns the nearest one, o
 reads whatever its ancestors provided, and the effects it creates later — a
 `show` branch that builds long after the first frame, for instance — see the same
 values, since a computation's execution scope is parented to the scope that
-created it. Provide a distinct wrapper type per concern rather than a bare `f32`,
+created it. A scope holds on to the scope it was opened in, so a row that a
+keyed list or `Show` keeps across its effect's reruns still reads what was
+provided above it, even though the execution scope it was built in is gone. Provide a distinct wrapper type per concern rather than a bare `f32`,
 or two providers will collide on the same key.
 
 One ordering rule matters: `view!` builds a tag's children before the tag itself,
