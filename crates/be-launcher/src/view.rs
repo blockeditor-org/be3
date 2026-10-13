@@ -51,7 +51,7 @@ const CURRENT: &str = "installed";
 #[component]
 pub(crate) fn Launcher(model: Model) -> NodeId {
     let listing = create_memo(clone!(model -> move || model.selected.with(Option::is_none)));
-    let reading = create_memo(clone!(listing -> move || !listing.get()));
+    let reading = create_memo(move || !listing.get());
     let back = clone!(model -> move || model.deselect());
     let gesture = back.clone();
     let sidebar = view! {
@@ -65,7 +65,7 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
                 <Portal @sizing=ItemSize::Percent(100.0) node={Some(sidebar)} />
             </Show>
             <Show condition={reading}>
-                {move || clone!(back model page -> view! {
+                {move || clone!(model; back -> view! {
                     <BackSlide
                         @sizing=ItemSize::Percent(100.0)
                         on_back={gesture.clone()}
@@ -328,7 +328,7 @@ pub(crate) fn Labels(labels: Memo<Vec<Label>>, checked_out: Memo<bool>) -> NodeI
 
 #[component]
 fn Chip(text: Prop<String>, color: Prop<Color32>) -> NodeId {
-    let ink = create_memo(clone!(color -> move || readable_on(color.get())));
+    let ink = create_memo(move || readable_on(color.get()));
     view! {
         <Frame
             color

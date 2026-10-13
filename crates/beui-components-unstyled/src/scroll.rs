@@ -433,7 +433,7 @@ fn Scrolling(
 
     let (focused, set_focused) = create_signal(false);
     let across = across(&direction);
-    let axis = create_memo(clone!(direction -> move || Some(direction.get())));
+    let axis = create_memo(move || Some(direction.get()));
     let (keyed, ancestor_keyed) = (motion.clone(), motion.clone());
     let (wheeled, dragged) = (motion.clone(), motion.clone());
     let autoscrolled = motion.clone();
@@ -443,7 +443,7 @@ fn Scrolling(
     let (origin, set_origin) = create_signal(None::<Pos2>);
     let marked = create_memo(move || origin.get().is_some());
     let anchor = create_memo(move || OverlayAnchor::Point(origin.get().unwrap_or(Pos2::ZERO)));
-    let marker_axis = create_memo(clone!(direction -> move || direction.get()));
+    let marker_axis = create_memo(move || direction.get());
     let content_axis = marker_axis;
     let scroll_to = Callback::new(move |offset: f32| motion.scroll_to(offset));
     on_scroll_key(
@@ -523,9 +523,9 @@ pub fn Scroll(
     let rows_direction = direction.clone();
     let fade = scrollbar.fade();
     let (faded, set_faded) = create_signal(None::<ScrollPosition>);
-    let edges = create_memo(clone!(direction -> move || {
+    let edges = create_memo(move || {
         fade_edges(direction.get(), faded.get(), fade)
-    }));
+    });
     let rows = NodeRef::new();
     let revealed = rows.clone();
     let marker = marker.unwrap_or_else(|| {

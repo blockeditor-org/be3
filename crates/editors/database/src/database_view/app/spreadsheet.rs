@@ -317,13 +317,13 @@ fn Cell(
         }
     });
     let shown = NodeRef::new();
-    create_effect(clone!(shown -> move || {
+    create_effect(move || {
         if selected.get()
             && let Some(node) = shown.try_get()
         {
             with_document(|document| document.reveal_node(node));
         }
-    }));
+    });
     let theme = use_theme();
     let glyph_color = theme.text;
     let fill = create_memo(move || match selected.get() {

@@ -29,7 +29,7 @@ pub fn Tooltip(
 ) -> NodeId {
     let anchor = NodeRef::new();
     let (shown, set_shown) = create_signal(false);
-    let wanted = create_memo(clone!(label disabled -> move || {
+    let wanted = create_memo(clone!(label -> move || {
         !disabled.get() && !label.get().is_empty()
     }));
     let open = create_memo(move || shown.get() && wanted.get());

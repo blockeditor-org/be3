@@ -2,7 +2,7 @@ use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::TextAlign;
 use block_editor_beui::beui::reactive::{
-    Callback, Direction, ForEach, Frame, ItemSize, List, Memo, Spacer, clone, component,
+    Callback, Direction, ForEach, Frame, ItemSize, List, Memo, Spacer, component,
     create_memo, view,
 };
 use block_editor_beui::beui::styled::{Body, Caption, ListRow, use_theme};
@@ -134,7 +134,7 @@ fn MonthCell(
         true => theme.text.get(),
         false => theme.text_muted.get(),
     });
-    let pick = clone!(on_pick_day -> move || on_pick_day.call(day));
+    let pick = move || on_pick_day.call(day);
     view! {
         <Frame
             color={fill}
@@ -159,11 +159,11 @@ fn MonthCell(
                         let title = create_memo(move || {
                             event.get().map(|event| event.value.title).unwrap_or_default()
                         });
-                        let open = clone!(on_pick_event -> move || {
+                        let open = move || {
                             if let Some(event) = event.get_untracked() {
                                 on_pick_event.call(event);
                             }
-                        });
+                        };
                         view! {
                             <EventChip
                                 title={title}

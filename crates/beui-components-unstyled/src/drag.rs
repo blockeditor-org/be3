@@ -66,7 +66,7 @@ where
     let (touched, set_touched) = create_signal(false);
     let dragging = create_memo(move || carried.with(Option::is_some));
 
-    let moved = clone!(board pressed_at on_drag_change payload -> move |point: DragPoint| {
+    let moved = clone!(board pressed_at payload -> move |point: DragPoint| {
         let Some(origin) = pressed_at.get() else {
             return;
         };
@@ -106,7 +106,7 @@ where
             on_click.call();
         }
     };
-    let released = clone!(board pressed_at on_drag_change -> move |active: bool| {
+    let released = clone!(board pressed_at -> move |active: bool| {
         if active {
             return;
         }

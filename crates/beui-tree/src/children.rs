@@ -267,7 +267,7 @@ impl<T: 'static, C: SlotChild<Stored = Rc<T>>> Run<C> {
 
 impl<C: SlotChild> IntoProp<Vec<C::Stored>> for Run<C> {
     fn into_prop(self) -> Prop<Vec<C::Stored>> {
-        Prop::Dynamic(Rc::new(move || self.items()))
+        Prop::dynamic(move || self.items())
     }
 }
 

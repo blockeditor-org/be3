@@ -12,7 +12,7 @@ use beui_core::input::{CursorIcon, PointerPress};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Callback, Child, ClickCallback, Frame, Interactive, Memo, NodeRef, PlacementBuilder, Prop,
-    ReadSignal, Render, RenderFn, WriteSignal, clone, create_effect, create_memo, create_signal,
+    ReadSignal, Render, RenderFn, WriteSignal, create_effect, create_memo, create_signal,
     create_timer,
 };
 
@@ -157,10 +157,10 @@ pub fn DateTimePicker(
                         set_open.set(true);
                     },
                 );
-                let pressed = create_timer(clone!(open_at -> move || {
+                let pressed = create_timer(move || {
                     open_at.call(outer_segment.get_untracked().unwrap_or(first));
                     None
-                }));
+                });
                 let refocus_trigger = create_memo(move || !from_field.get());
                 let opened = move |now_open: bool| {
                     if now_open {
@@ -360,7 +360,7 @@ fn PickerPanel(
     let list_focused = create_memo(move || {
         open.get() && !from_field.get() && (!parts.has_date() || tab.get() == 1)
     });
-    let pick_date = Callback::new(clone!(report close -> move |date: Date| {
+    let pick_date = Callback::new(move |date: Date| {
         let time = current.get_untracked().map_or(Time::MIDNIGHT, |value| value.time);
         report.call(Some(DateTime::new(date, time)));
         match parts {
@@ -368,8 +368,8 @@ fn PickerPanel(
             DateTimeParts::DateTime if paged.get_untracked() => set_tab.set(1),
             DateTimeParts::DateTime | DateTimeParts::Time => {}
         }
-    }));
-    let pick_time = Callback::new(clone!(report close -> move |time: Time| {
+    });
+    let pick_time = Callback::new(move |time: Time| {
         let date = current
             .get_untracked()
             .map(|value| value.date)
@@ -377,8 +377,8 @@ fn PickerPanel(
             .unwrap_or_else(Date::today);
         report.call(Some(DateTime::new(date, time)));
         close.call(());
-    }));
-    let now = ClickCallback::new(clone!(report close -> move || {
+    });
+    let now = ClickCallback::new(move || {
         let now = DateTime::now();
         let kept = current.get_untracked();
         let next = match parts {
@@ -388,11 +388,11 @@ fn PickerPanel(
         };
         report.call(Some(next));
         close.call(());
-    }));
-    let clear = ClickCallback::new(clone!(report close -> move || {
+    });
+    let clear = ClickCallback::new(move || {
         report.call(None);
         close.call(());
-    }));
+    });
     let layout = create_memo(move || match parts {
         DateTimeParts::Date => DateTimePanelLayout::Date,
         DateTimeParts::Time => DateTimePanelLayout::Time,

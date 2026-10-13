@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{ItemSize, List, Show, build, clone, create_signal, view};
+use crate::reactive::{ItemSize, List, Show, build, create_signal, view};
 use crate::styled::Stack;
 use crate::unstyled::Button;
 use crate::unstyled::Container;
@@ -22,7 +22,7 @@ fn a_stack_built_inside_a_show_still_measures_the_container_above_it() {
                                 <Text string="toggle" />
                             </Button>
                             <Show condition={visible}>
-                                {move || clone!(left right -> view! {
+                                {move || view! {
                                     <Stack spacing=0.0 breakpoint=BREAKPOINT>
                                         <Frame
                                             @sizing=ItemSize::Percent(50.0)
@@ -39,7 +39,7 @@ fn a_stack_built_inside_a_show_still_measures_the_container_above_it() {
                                             <Spacer />
                                         </Frame>
                                     </Stack>
-                                })}
+                                }}
                             </Show>
                         </List>
                     }}

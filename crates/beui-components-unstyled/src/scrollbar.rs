@@ -64,7 +64,7 @@ pub fn ScrollbarThumb(
     color: Prop<Color32>,
     #[prop(default = 0.0)] radius: f32,
 ) -> NodeId {
-    let draw = Prop::Dynamic(Rc::new(move || {
+    let draw = Prop::dynamic(move || {
         let (position, direction, color) = (position.get(), direction.get(), color.get());
         Rc::new(move |painter: &Painter, rect: Rect| {
             let thumb = painter
@@ -72,7 +72,7 @@ pub fn ScrollbarThumb(
                 .snap_rect(thumb_rect(rect, direction, position));
             painter.rect_filled(thumb, radius, color);
         }) as Draw
-    }));
+    });
     view! {
         <Drawing draw />
     }

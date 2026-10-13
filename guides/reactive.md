@@ -92,21 +92,47 @@ disposed, so state that adds and removes items over its life gives each item an
 `OwnedSignal` or a scope of its own rather than creating them in the long-lived
 scope.
 
+## Stored values
+
+`store(value)` puts any value in the same arena as signals and returns a
+`Stored<T>`: a `Copy` handle owned by the current scope and freed with it. Use
+it for state a component's closures share that is not itself reactive: an
+editor's state struct, a `Cell` a gesture writes, a map of children. A struct
+whose fields are signals, memos, selectors, `Stored` values and other `Copy`
+handles derives `Clone, Copy` and is passed around by value, so closures take
+it with `move` and nothing clones it.
+
+- `with(|value| ...)` borrows the value; `get()` returns its `Rc<T>`. Both panic
+  once the scope is disposed. `try_with`, `try_get` and `is_alive` don't.
+- It holds the value immutably; put a `Cell` or `RefCell` inside for state that
+  changes, or use a signal when readers must hear about the change.
+- `OwnedStored::new(value)` is the scope-free counterpart of `OwnedSignal`: it
+  frees the value when it drops and hands out `Copy` handles with `handle()`
+  (it also derefs to one). Use it for state made outside a scope, such as an
+  editor the host keeps.
+
+`Callback`, `ClickCallback` and `NodeRef` are `Copy` the same way. An empty
+callback needs no scope; `Callback::new`, `ClickCallback::new` and
+`NodeRef::new` create stored values, so they need one. Calling a callback
+whose scope is gone does nothing, as `set` on a freed signal does.
+
 ## Cloning handles into closures
 
-Signals, memos and selectors are `Copy`, so a `move` closure takes them without
-ceremony. The `Rc` handles components keep are cheap to clone but are not
-`Copy`, and a `move` closure that keeps one has to own its own clone. `clone!`
+Signals, memos, selectors, stored values, callbacks, node refs, and structs
+made of them are `Copy`, so a `move` closure takes them without ceremony, and a
+closure that captures only `Copy` values is itself `Copy`. For the `Rc` handles
+that remain, a `move` closure that keeps one has to own its own clone. `clone!`
 writes those clones for you: it takes the names to clone, an arrow, and the
 expression they are in scope for.
 
 ```rust
-create_effect(clone!(state -> move || state.show(count.get())));
+create_effect(clone!(texture -> move || texture.show(count.get())));
 ```
 
 `clone!(a b -> expr)` expands to `{ let a = a.clone(); let b = b.clone(); expr }`,
 so the originals stay usable afterwards and the last closure that needs a handle
-can still take it by move.
+can still take it by move. Naming a value whose clone is `Copy` is a compile
+error that names it; drop it from the list.
 
 ## Selectors
 

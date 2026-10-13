@@ -62,7 +62,7 @@ pub fn StaleNotice(
                         on_click={move || on_delete.call()}
                     />
                     <Show condition={create_memo(move || can_try.get())}>
-                        {move || clone!(on_try try_id -> view! {
+                        {move || clone!(try_id -> view! {
                             <Button
                                 @test_id={try_id}
                                 label="Try anyway"

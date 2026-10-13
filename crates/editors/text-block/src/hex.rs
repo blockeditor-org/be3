@@ -398,7 +398,7 @@ pub(crate) fn HexView(state: Shared) -> NodeId {
                     state.text.cursors().get();
                     page(&state, &geometry.get(), content_size.get())
                 }));
-                let draw: Prop<Draw> = Prop::Dynamic(Rc::new(move || drawn.get().draw()));
+                let draw: Prop<Draw> = Prop::dynamic(move || drawn.get().draw());
 
                 let cx = Rc::new(HexSurface {
                     state: state.clone(),

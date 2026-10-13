@@ -8,8 +8,7 @@ use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    Callback, Child, ClickCallback, List, Memo, NodeRef, Prop, RenderFn, Run, Show, clone,
-    create_memo,
+    Callback, Child, ClickCallback, List, Memo, NodeRef, Prop, RenderFn, Run, Show, create_memo,
 };
 
 pub struct MenuSheetHandle {
@@ -95,10 +94,10 @@ pub(crate) fn MenuPopup(
     let raised = create_memo(move || sheeted && open.get() && touched.get());
     let traps_focus = focusing.clone();
     let active = create_memo(move || dropped.get() && focusing.get());
-    let choose = Callback::new(clone!(on_dismiss -> move |path: Vec<usize>| {
+    let choose = Callback::new(move |path: Vec<usize>| {
         on_select.call(path);
         on_dismiss.call();
-    }));
+    });
     let (sheet_items, sheet_panel, sheet_choose, sheet_dismiss) = (
         items.clone(),
         panel.clone(),

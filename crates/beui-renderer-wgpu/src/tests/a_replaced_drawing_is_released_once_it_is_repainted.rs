@@ -39,7 +39,7 @@ fn a_replaced_drawing_is_released_once_it_is_repainted() {
             let (drawing, set_drawing) = create_signal(Some(initial));
             *setter.borrow_mut() = Some(set_drawing);
             view! {
-                <Drawing draw={Prop::Dynamic(Rc::new(move || draw_gpu(drawing.get())))} />
+                <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
             }
         }
     });

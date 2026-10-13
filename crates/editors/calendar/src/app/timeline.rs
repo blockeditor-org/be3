@@ -2,7 +2,7 @@ use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::beui::TextAlign;
 use block_editor_beui::beui::reactive::{
     Callback, Canvas, CanvasItem, Direction, ForEach, Frame, Interactive, ItemSize, LayoutBuilder,
-    List, Memo, ReadSignal, clone, component, create_memo, view,
+    List, Memo, ReadSignal, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::{Body, Caption, ListRow, Scroll, use_theme};
 use block_editor_beui::beui::{NodeId, Vec2};
@@ -107,7 +107,7 @@ fn Grid(
                 let keys = create_memo(move || {
                     placed.with(|placed| placed.iter().map(|item| item.key).collect::<Vec<_>>())
                 });
-                let slot = clone!(on_pick_slot -> move |at: block_editor_beui::beui::Pos2| {
+                let slot = move |at: block_editor_beui::beui::Pos2| {
                     let x = at.x - GUTTER;
                     if x < 0.0 {
                         return;
@@ -116,7 +116,7 @@ fn Grid(
                     let hour = (at.y / HOUR_HEIGHT).floor().clamp(0.0, 23.0) as u8;
                     let day = first_day.get_untracked() + column.min(days as i64 - 1);
                     on_pick_slot.call((day, hour));
-                });
+                };
                 let theme = use_theme();
                 let hour_border = theme.border;
                 let rule_border = theme.border;
@@ -201,11 +201,11 @@ fn EventBlock(item: Memo<Option<Placed>>, on_pick: Callback<Shown>) -> CanvasIte
     let test_id = item.get_untracked().map_or_else(String::new, |item| {
         format!("calendar.event.{}", item.event.id)
     });
-    let open = clone!(on_pick -> move || {
+    let open = move || {
         if let Some(item) = item.get_untracked() {
             on_pick.call(item.event);
         }
-    });
+    };
     let theme = use_theme();
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>

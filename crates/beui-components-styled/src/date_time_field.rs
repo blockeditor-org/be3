@@ -301,13 +301,13 @@ fn PickerPanel(
                         on_click={move || now.call()}
                     />
                     <Show condition=clearable>
-                        {move || clone!(clear -> view! {
+                        {move || view! {
                             <Button
                                 label="Clear"
                                 variant=ButtonVariant::Ghost
                                 on_click={move || clear.call()}
                             />
-                        })}
+                        }}
                     </Show>
                 </List>
             </List>
@@ -369,7 +369,7 @@ fn PanelBody(
                 })}
             </Show>
             <Show condition={shape == DateTimePanelLayout::Paged}>
-                {move || clone!(show_page calendar times -> view! {
+                {move || clone!(calendar times -> view! {
                     <List spacing=PANEL_SPACING>
                         <Tabs
                             options={view! {

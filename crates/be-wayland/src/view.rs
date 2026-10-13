@@ -1,6 +1,5 @@
 use beui::KeyAt;
 use beui::reactive::LayerPolicy;
-use std::rc::Rc;
 
 use beui::reactive::{
     Action, Chord, Drawing, Frame, Interactive, Layers, NodeRef, Overlay, OverlayAnchor, Placement,
@@ -30,7 +29,7 @@ pub fn WindowView(
             {move |rect: ReadSignal<Rect>| {
                 let catcher = NodeRef::new();
                 let popup_catcher = NodeRef::new();
-                create_effect(clone!(windows catcher popup_catcher -> move || {
+                create_effect(clone!(windows -> move || {
                     windows.placed(id, rect.get());
                     if let Some(node) = catcher.try_get() {
                         windows.caught_by(id, node);
@@ -110,7 +109,7 @@ pub fn WindowView(
                         >
                             <Layers>
                                 <Drawing
-                                    draw={Prop::Dynamic(Rc::new(move || draw_gpu(signals.drawing.get())))}
+                                    draw={Prop::dynamic(move || draw_gpu(signals.drawing.get()))}
                                 />
                                 <Frame color={dim} />
                             </Layers>
@@ -134,11 +133,11 @@ pub fn WindowView(
                                     hit_at={on_popup}
                                 >
                                     <Drawing
-                                        draw={Prop::Dynamic(Rc::new(move || {
+                                        draw={Prop::dynamic(move || {
                                             draw_gpu(popups.with(|popups| {
                                                 popups.as_ref().map(|popups| popups.drawing.clone())
                                             }))
-                                        }))}
+                                        })}
                                     />
                                 </Interactive>
                             </Frame>

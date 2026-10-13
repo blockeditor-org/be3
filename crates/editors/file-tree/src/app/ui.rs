@@ -489,7 +489,7 @@ fn AddChild(
         <Frame width=ADD_WIDTH>
             <List spacing=0.0>
                 <Show condition={shown}>
-                    {move || clone!(on_click -> view! {
+                    {move || view! {
                         <unstyled::Button
                             @test_id={named.clone()}
                             tab_stop=false
@@ -500,7 +500,7 @@ fn AddChild(
                                 <AddChildFace handle={button} />
                             }}
                         />
-                    })}
+                    }}
                 </Show>
             </List>
         </Frame>

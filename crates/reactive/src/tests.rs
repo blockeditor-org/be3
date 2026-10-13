@@ -3,8 +3,8 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
 
 use crate::{
-    KeyedItems, KeyedStore, RootScope, Scope, Store, batch, create_effect, create_memo,
-    create_selector, create_signal, on_cleanup, owner_scope, untrack,
+    KeyedItems, KeyedStore, OwnedStored, RootScope, Scope, Store, batch, create_effect,
+    create_memo, create_selector, create_signal, on_cleanup, owner_scope, store, untrack,
 };
 
 mod a_context_reaches_the_effects_a_nested_scope_creates;
@@ -22,6 +22,7 @@ mod a_selector_forgets_keys_whose_watchers_were_disposed;
 mod a_selector_memo_tracks_one_key_without_watching_the_source;
 mod a_selector_only_reruns_the_keys_that_gained_or_lost_selection;
 mod a_store_wakes_only_the_field_that_changed;
+mod a_stored_value_is_shared_by_its_copies_and_freed_with_its_scope;
 mod all_cleanups_run_even_when_one_panics;
 mod an_effect_keeps_its_zone_for_the_effects_it_creates;
 mod an_effect_that_reads_nothing_is_discarded_after_its_first_run;

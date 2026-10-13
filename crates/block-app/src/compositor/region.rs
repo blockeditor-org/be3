@@ -97,7 +97,7 @@ pub(crate) fn PluginRegion(
     let placed: Rc<Cell<Option<EmbedPlacement>>> = Rc::new(Cell::new(None));
     let screens = use_screens();
     let place: Rc<dyn Fn(Option<EmbedPlacement>)> = Rc::new(
-        clone!(plugin_id frame view -> move |placement: Option<EmbedPlacement>| {
+        clone!(plugin_id frame -> move |placement: Option<EmbedPlacement>| {
             match placement {
                 Some(placement) => plugin_host::place_region(
                     &plugin_id,
@@ -120,7 +120,7 @@ pub(crate) fn PluginRegion(
         placed.set(placement);
         place(placement);
     }));
-    create_effect(clone!(placed place frame view -> move || {
+    create_effect(clone!(placed place frame -> move || {
         let _ = frame.get();
         let _ = view.get();
         screens.with(|_| ());
@@ -160,7 +160,7 @@ pub(crate) fn PluginRegion(
         plugin_host::frames(&plugin_id)
     }));
     let drawing = |floating: bool| {
-        let shown = create_memo(clone!(rotation opacity -> move || {
+        let shown = create_memo(move || {
             let (pieces, loading, drawn, held, size) = state.with(|view| {
                 let pieces = match floating {
                     true => view.floating.clone(),
@@ -175,7 +175,7 @@ pub(crate) fn PluginRegion(
                 pieces,
                 (loading, drawn, held, size),
             )
-        }));
+        });
         let held: Rc<RefCell<Option<(DrawingKey, beui::Drawing)>>> = Rc::new(RefCell::new(None));
         let drawn = create_memo(clone!(plugin_id -> move || {
             let (_, rotation, opacity, pieces, _) = shown.get();
@@ -220,7 +220,7 @@ pub(crate) fn PluginRegion(
             *held.borrow_mut() = drawing.clone().map(|drawing| (key, drawing));
             drawing
         }));
-        Prop::Dynamic(Rc::new(move || draw_gpu(drawn.get())))
+        Prop::dynamic(move || draw_gpu(drawn.get()))
     };
     let base = drawing(false);
     let floating = drawing(true);
@@ -240,7 +240,7 @@ pub(crate) fn PluginRegion(
     take_keyboard(state, &catcher);
     let anchor = NodeRef::new();
     let ime = create_memo(move || state.with(|view| view.ime.is_some()));
-    let ime_cursor = create_memo(clone!(anchor -> move || {
+    let ime_cursor = create_memo(move || {
         state.with(|view| {
             let area = view.ime.as_ref()?;
             Some(ImeCursor {
@@ -248,7 +248,7 @@ pub(crate) fn PluginRegion(
                 rect: Some(area.cursor.translate(-view.rect.min.to_vec2())),
             })
         })
-    }));
+    });
     let ime_keyboard = create_memo(move || {
         state.with(|view| view.ime.as_ref().is_none_or(|area| area.keyboard.shown()))
     });
@@ -291,7 +291,7 @@ pub(crate) fn PluginRegion(
         plugin_host::back_region(&plugin_id, instance, region, gesture);
     });
     let occluded = occlusion();
-    let takes: Rc<dyn Fn(Pos2) -> bool> = Rc::new(clone!(passive -> move |local: Pos2| {
+    let takes: Rc<dyn Fn(Pos2) -> bool> = Rc::new(move |local: Pos2| {
         !passive.peek()
             && state.with_untracked(|view| {
                 let position = local + view.rect.min.to_vec2();
@@ -300,11 +300,11 @@ pub(crate) fn PluginRegion(
                         occluded.with_untracked(|rects| rects.iter().any(|rect| rect.contains(position)))
                     })
             })
-    }));
+    });
     let taken = clone!(takes -> move |point: DragPoint| {
         takes(point.pos - state.with_untracked(|view| view.rect.min.to_vec2()))
     });
-    let over = clone!(plugin_id taken -> move |over: Option<(BlockDrag, DragPoint)>| {
+    let over = clone!(plugin_id; taken -> move |over: Option<(BlockDrag, DragPoint)>| {
         let over = over
             .filter(|(_, point)| taken(*point))
             .map(|(drag, point)| (drag, point.pos));
@@ -319,9 +319,9 @@ pub(crate) fn PluginRegion(
         plugin_host::pressed_outside_region(&plugin_id, instance, region);
     });
     let takes = move |local: Pos2| takes(local);
-    let claims = clone!(passive -> move |(position, held): (Pos2, beui::Modifiers)| {
+    let claims = move |(position, held): (Pos2, beui::Modifiers)| {
         !passive.peek() && state.with_untracked(|view| view.claims(position, held))
-    });
+    };
     let below = Rc::clone(&child_view);
     let above = child_view;
     view! {

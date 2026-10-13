@@ -225,7 +225,7 @@ fn SelectedEntity(
             <Heading content="Selected entity" />
             <Body content={kind} />
             <Show condition={surface}>
-                {move || clone!(set_ior set_metalness set_roughness set_transmission -> view! {
+                {move || clone!(; set_ior set_metalness set_roughness set_transmission -> view! {
                     <List spacing=6.0>
                         <Slider value={roughness} label="Roughness" on_change={set_roughness} />
                         <Slider value={metalness} label="Metalness" on_change={set_metalness} />
@@ -303,7 +303,7 @@ fn NewEntity(state: Rc<RayState>) -> NodeId {
                 })}
             </Show>
             <Show condition={surface}>
-                {move || clone!(set_ior set_metalness set_roughness set_transmission -> view! {
+                {move || clone!(; set_ior set_metalness set_roughness set_transmission -> view! {
                     <List spacing=6.0>
                         <Heading content="New surface" />
                         <Slider value={roughness} label="Roughness" on_change={set_roughness} />

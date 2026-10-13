@@ -148,7 +148,7 @@ fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
                     on_submit={move |typed: String| submit.submit(typed)}
                 />
                 <Show condition=alpha>
-                    {move || clone!(set_opacity -> view! {
+                    {move || clone!(; set_opacity -> view! {
                         <NumberInput
                             @sizing=ItemSize::Fixed(ALPHA_WIDTH)
                             value={opacity}
@@ -240,7 +240,7 @@ fn PlaneFace(handle: ColorAreaHandle) -> NodeId {
             color.opaque().to_color(),
         )
     });
-    let draw = Prop::Dynamic(Rc::new(move || {
+    let draw = Prop::dynamic(move || {
         let image = plane.get();
         let (x, y, fill) = place.get();
         Rc::new(move |painter: &Painter, rect: Rect| {
@@ -258,7 +258,7 @@ fn PlaneFace(handle: ColorAreaHandle) -> NodeId {
             );
             thumb(painter, centre, THUMB_RADIUS, fill);
         }) as Draw
-    }));
+    });
     view! {
         <FocusRing focused radius={RADIUS + 2} offset=FOCUS_RING_OFFSET>
             <Frame height=AREA_HEIGHT>
@@ -288,7 +288,7 @@ fn StripFace(handle: SliderHandle, strip: Strip) -> NodeId {
         Strip::Alpha(color) => alpha_image(color.get().opaque().to_color()),
     }));
     let checkered = matches!(strip, Strip::Alpha(_));
-    let draw = Prop::Dynamic(Rc::new(move || {
+    let draw = Prop::dynamic(move || {
         let image = image.get();
         let knob = knob.get();
         let fraction = fraction.get();
@@ -310,7 +310,7 @@ fn StripFace(handle: SliderHandle, strip: Strip) -> NodeId {
             let centre = pos2(rect.left() + radius + fraction * travel, rect.center().y);
             thumb(painter, centre, KNOB_RADIUS, knob);
         }) as Draw
-    }));
+    });
     view! {
         <FocusRing focused radius=10 offset=FOCUS_RING_OFFSET>
             <Frame height=SLIDER_HEIGHT>
@@ -322,7 +322,7 @@ fn StripFace(handle: SliderHandle, strip: Strip) -> NodeId {
 
 #[component]
 pub fn ColorSwatch(color: Prop<Color32>, width: f32, height: f32) -> NodeId {
-    let draw = Prop::Dynamic(Rc::new(move || {
+    let draw = Prop::dynamic(move || {
         let color = color.get();
         Rc::new(move |painter: &Painter, rect: Rect| {
             let radius = RADIUS as f32;
@@ -332,7 +332,7 @@ pub fn ColorSwatch(color: Prop<Color32>, width: f32, height: f32) -> NodeId {
             painter.rect_filled(rect, radius, color);
             painter.rect_stroke(rect, radius, BORDER_WIDTH, OUTLINE_DARK);
         }) as Draw
-    }));
+    });
     view! {
         <Frame width height>
             <Drawing draw />

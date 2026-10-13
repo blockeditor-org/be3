@@ -21,7 +21,7 @@ pub mod reactive {
         try_current_component,
     };
     pub use crate::control::{Dynamic, ForEach, Keyed, Show, ShowKeepAlive};
-    pub use crate::prop::{Func, IntoFunc, IntoProp, Prop};
+    pub use crate::prop::{Func, Getter, IntoFunc, IntoProp, Prop};
     pub use beui_macros::{component, view};
     pub use reactive::{
         Effect, KeyedItems, KeyedStore, Memo, OwnedSignal, ReadSignal, RootScope, Scope,

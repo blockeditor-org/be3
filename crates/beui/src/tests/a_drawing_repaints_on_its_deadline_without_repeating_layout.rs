@@ -10,10 +10,10 @@ fn a_drawing_repaints_on_its_deadline_without_repeating_layout() {
         move || {
             let (on, set_on) = create_signal(true);
             asking.replace(Some(set_on));
-            let draw: Prop<Draw> = Prop::Dynamic(Rc::new(move || match on.get() {
+            let draw: Prop<Draw> = Prop::dynamic(move || match on.get() {
                 true => blinking(),
                 false => still(),
-            }));
+            });
             view! {
                 <Frame width=40.0 height=20.0>
                     <Drawing @node_ref=&drawing draw={draw} />

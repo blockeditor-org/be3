@@ -1026,10 +1026,10 @@ fn GraphPanel(session: Rc<Session>) -> NodeId {
     let width = create_memo(move || Some(shape.get().size.x));
     let height = create_memo(move || Some(shape.get().size.y));
     let painted = shape;
-    let draw: Prop<Draw> = Prop::Dynamic(Rc::new(move || {
+    let draw: Prop<Draw> = Prop::dynamic(move || {
         let shape = painted.get();
         Rc::new(move |painter: &Painter, rect: Rect| paint_graph(painter, rect, &shape)) as Draw
-    }));
+    });
     view! {
         <List spacing=SPACING>
             <Rows rows={counts} />

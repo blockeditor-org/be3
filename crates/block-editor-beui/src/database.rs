@@ -102,7 +102,7 @@ fn DatabaseValueRow(
     });
     let set = create_memo(move || headings.get() && value.with(Option::is_some) && !disabled.get());
     let control_id = id.clone();
-    let clear = clone!(on_change -> move || {
+    let clear = move || {
         if let Some(field_id) = field.with_untracked(|field| field.as_ref().map(|field| field.id)) {
             on_change.call(DatabaseValueChange {
                 field_id,
@@ -110,7 +110,7 @@ fn DatabaseValueRow(
                 continuous: false,
             });
         }
-    });
+    };
     view! {
         <List spacing=SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
@@ -370,7 +370,7 @@ fn EnumValue(
         options.with(|options| options.iter().position(|option| option.id == chosen))
     });
     let names = options;
-    let picked = clone!(on_change -> move |index: Option<usize>| {
+    let picked = move |index: Option<usize>| {
         let (Some(index), Some(field_id)) = (
             index,
             field.with_untracked(|field| field.as_ref().map(|field| field.id)),
@@ -385,7 +385,7 @@ fn EnumValue(
             value: Some(DatabaseValue::Enum(option.id)),
             continuous: false,
         });
-    });
+    };
     view! {
         <Select
             options={view! {
@@ -520,7 +520,7 @@ fn BlockValue(
         }
         _ => "Choose block".to_owned(),
     });
-    let choose = clone!(on_pick -> move || {
+    let choose = move || {
         let Some(field) = field.get_untracked() else {
             return;
         };
@@ -528,7 +528,7 @@ fn BlockValue(
             field_id: field.id,
             block_type: field.block_options.block_type,
         });
-    });
+    };
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Button
@@ -582,7 +582,7 @@ fn RelationValue(
     });
     let unlinked = create_memo(move || target.get().is_none());
     let names = choices;
-    let picked = clone!(on_change -> move |index: Option<usize>| {
+    let picked = move |index: Option<usize>| {
         let Some(field_id) = field.with_untracked(|field| field.as_ref().map(|field| field.id))
         else {
             return;
@@ -595,7 +595,7 @@ fn RelationValue(
             value: link.map(DatabaseValue::Relation),
             continuous: false,
         });
-    });
+    };
     view! {
         <List spacing=SPACING>
             <Show condition={unlinked}>
@@ -666,7 +666,7 @@ fn LinksValue(
     let add_keys = create_memo(move || {
         addable.with(|rows| rows.iter().map(|(link, _)| *link).collect::<Vec<RowRef>>())
     });
-    let emit = clone!(on_change -> move |links: Vec<RowRef>| {
+    let emit = move |links: Vec<RowRef>| {
         let Some(field_id) = field.with_untracked(|field| field.as_ref().map(|field| field.id))
         else {
             return;
@@ -676,8 +676,8 @@ fn LinksValue(
             value: (!links.is_empty()).then_some(DatabaseValue::Links(links)),
             continuous: false,
         });
-    });
-    let added = clone!(emit -> move |index: Option<usize>| {
+    };
+    let added = clone!(; emit -> move |index: Option<usize>| {
         let Some(link) = index.and_then(|index| {
             addable.with_untracked(|rows| rows.get(index).map(|(link, _)| *link))
         }) else {
@@ -700,7 +700,7 @@ fn LinksValue(
                     let label = create_memo(move || {
                         chip_labels.with(|labels| labels.row(&link))
                     });
-                    let remove = clone!(emit -> move || {
+                    let remove = clone!(; emit -> move || {
                         let links = linked
                             .get_untracked()
                             .into_iter()

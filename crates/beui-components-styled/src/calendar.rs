@@ -15,7 +15,7 @@ use beui_core::icons::{
 };
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, ClickCallback, Frame, ItemSize, List, Memo, Prop, Show, Text, clone, create_memo,
+    Callback, ClickCallback, Frame, ItemSize, List, Memo, Prop, Show, Text, create_memo,
 };
 
 pub const CALENDAR_WIDTH: f32 = 7.0 * DAY_SIZE + 6.0 * SPACING;
@@ -104,14 +104,14 @@ fn CalendarHeader(handle: CalendarHeaderHandle) -> NodeId {
                 spacing=0.0
             >
                 <Show condition={month_shown}>
-                    {move || clone!(show_months -> view! {
+                    {move || view! {
                         <HeaderToggle
                             label={month_label}
                             accessibility={month_toggle}
                             open={months_open}
                             on_click={move || show_months.call(())}
                         />
-                    })}
+                    }}
                 </Show>
                 <HeaderToggle
                     label={year_label}

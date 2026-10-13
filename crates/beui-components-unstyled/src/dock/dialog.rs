@@ -219,7 +219,7 @@ fn DockDialogView(dock: Handle, tab: TabId, parent: TabId) -> NodeId {
     dock.dialog_frames.borrow_mut().insert(tab, frame.clone());
     let inside = NodeRef::new();
     dock.dialog_bodies.borrow_mut().insert(tab, inside.clone());
-    on_cleanup(clone!(dock frame -> move || {
+    on_cleanup(clone!(dock -> move || {
         let mut frames = dock.dialog_frames.borrow_mut();
         if frames.get(&tab).is_some_and(|held| *held == frame) {
             frames.remove(&tab);
@@ -232,7 +232,7 @@ fn DockDialogView(dock: Handle, tab: TabId, parent: TabId) -> NodeId {
     }));
     let shown = create_memo(clone!(dock -> move || dock.dialog_shown(tab)));
     let anchor = NodeRef::new();
-    create_effect(clone!(dock anchor -> move || {
+    create_effect(clone!(dock -> move || {
         if !shown.get() {
             return;
         }

@@ -411,7 +411,7 @@ pub(crate) fn Actions(
     let slot = Slot::PullRequest(initial.number);
     let build = phone.build(slot, &initial.head_sha);
     let busy = create_memo(clone!(phone -> move || phone.work.with(Option::is_some)));
-    let disabled = create_memo(clone!(build busy -> move || busy.get() || !published(build)));
+    let disabled = create_memo(move || busy.get() || !published(build));
     let run = clone!(phone -> move || phone.run(slot, false));
     let pick = clone!(phone -> move |path: Vec<usize>| match path.as_slice() {
         [0] => phone.run(slot, true),
@@ -446,14 +446,14 @@ pub(crate) fn Notes(
     let initial = pull_request.get_untracked();
     let slot = Slot::PullRequest(initial.number);
     let build = phone.build(slot, &initial.head_sha);
-    let status = create_memo(clone!(build pull_request -> move || {
+    let status = create_memo(move || {
         match build.get() {
             Loaded::Ready(Found { build: None, .. }) if !pull_request.get().same_repository => {
                 "It comes from a fork, so CI does not publish an Android build of it.".to_owned()
             }
             found => describe(found, "Looking for its Android build", "it"),
         }
-    }));
+    });
     view! {
         <List spacing=8.0>
             <Caption content={status} wrap=true />
@@ -467,7 +467,7 @@ pub(crate) fn MainActions(model: Model) -> NodeId {
     let phone = model.phone.clone();
     let build = phone.main_build();
     let busy = create_memo(clone!(phone -> move || phone.work.with(Option::is_some)));
-    let disabled = create_memo(clone!(build busy -> move || busy.get() || !published(build)));
+    let disabled = create_memo(move || busy.get() || !published(build));
     let run = clone!(phone -> move || phone.run(Slot::Main, false));
     let pick = clone!(phone -> move |path: Vec<usize>| match path.as_slice() {
         [0] => phone.run(Slot::Main, true),
@@ -475,15 +475,15 @@ pub(crate) fn MainActions(model: Model) -> NodeId {
         _ => {}
     });
     let current = create_memo(clone!(phone -> move || phone.holds(Slot::Main)));
-    let summary = create_memo(clone!(current build -> move || {
+    let summary = create_memo(move || {
         let described = describe(build.get(), "Looking for main's Android build", "main");
         if current.get() {
             format!("main is installed. {described}")
         } else {
             described
         }
-    }));
-    let launcher = create_memo(clone!(phone build -> move || {
+    });
+    let launcher = create_memo(clone!(phone -> move || {
         let main = match build.get() {
             Loaded::Ready(Found { build: Some(build), .. }) => Some(build),
             _ => None,
@@ -586,16 +586,16 @@ fn SlotNotes(model: Model, slot: Slot) -> NodeId {
         Some((problem_slot, problem)) if problem_slot == slot => problem,
         _ => String::new(),
     }));
-    let failed = create_memo(clone!(problem -> move || !problem.get().is_empty()));
+    let failed = create_memo(move || !problem.get().is_empty());
     view! {
         <List spacing=8.0>
             <Show condition={working}>
-                {move || clone!(progress -> view! {
+                {move || view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                         <Spinner width=18.0 label="Working on the build" />
                         <Caption content={progress} />
                     </List>
-                })}
+                }}
             </Show>
             <Show condition={failed}>
                 <Text string={problem} font_size=FONT_BODY color={theme.danger} wrap=true />

@@ -164,7 +164,7 @@ fn ComponentRow(state: Rc<CanvasState>, schema_id: Uuid) -> NodeId {
         <List spacing=6.0>
             <Caption content={named} />
             <Show condition={partial}>
-                {move || clone!(add_all add_id -> view! {
+                {move || clone!(add_id; add_all -> view! {
                     <List spacing=6.0>
                         <Caption content={coverage} />
                         <List direction=Direction::Horizontal spacing=4.0>

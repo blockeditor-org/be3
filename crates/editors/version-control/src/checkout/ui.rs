@@ -215,7 +215,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                             })}
                         </Show>
                         <Show condition={conflicted}>
-                            {move || clone!(conflict_rows -> view! {
+                            {move || clone!(; conflict_rows -> view! {
                                 <Card>
                                     <List spacing=12.0>
                                         <Heading content="Conflicts" />
@@ -372,7 +372,7 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
                     })}
                 </Show>
                 <Show condition={compared}>
-                    {move || clone!(take_base take_ours take_theirs -> view! {
+                    {move || clone!(; take_base take_ours take_theirs -> view! {
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Button
                                 label="Take base"

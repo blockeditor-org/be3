@@ -316,13 +316,13 @@ fn SelectRow(
 
 fn reveal_reader(state: &Handle) -> Prop<Option<usize>> {
     let state = state.clone();
-    Prop::Dynamic(std::rc::Rc::new(move || {
+    Prop::dynamic(move || {
         let visible: Vec<_> = state.rows.borrow().iter().map(|row| row.visible).collect();
         for row in visible {
             row.get();
         }
         state.highlighted.get()
-    }))
+    })
 }
 
 fn blur(state: &State, has_focus: bool, target: Focus) {

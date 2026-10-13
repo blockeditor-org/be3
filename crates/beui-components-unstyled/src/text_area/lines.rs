@@ -266,7 +266,7 @@ fn RowText(
 ) -> NodeId {
     let node = NodeRef::new();
     let placed = component_placed();
-    create_effect(clone!(node text -> move || {
+    create_effect(clone!(text -> move || {
         placed.get();
         if layer != Layer::Handles
             && text.borrow().is_none()

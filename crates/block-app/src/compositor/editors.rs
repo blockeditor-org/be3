@@ -940,7 +940,7 @@ fn BlockFrameView(
     provide_context(nesting.within(block, access));
     let plugin_id = region_editor.plugin_id().to_owned();
     let instance = region_editor.instance;
-    let framed = create_memo(clone!(content -> move || content.get().is_some()));
+    let framed = create_memo(move || content.get().is_some());
     create_effect(clone!(plugin_id -> move || {
         let _ = framed.get();
         plugin_host::hold(&plugin_id, instance, EditorRegion::Frame);
@@ -1061,7 +1061,7 @@ fn BlockFrameView(
                     )
                 });
                 let editor_view = create_memo(
-                    clone!(plugin_id content -> move || {
+                    clone!(plugin_id -> move || {
                         if !handle.pan_and_zoom {
                             return None;
                         }
@@ -1085,7 +1085,7 @@ fn BlockFrameView(
                         })
                     }),
                 );
-                let frame = create_memo(clone!(chrome content top_bar -> move || {
+                let frame = create_memo(move || {
                     let origin = rect.get().min;
                     Some(FrameSpec {
                         chrome: match chrome.get() {
@@ -1103,7 +1103,7 @@ fn BlockFrameView(
                         }),
                         top_bar: top_bar.get(),
                     })
-                }));
+                });
                 let gestures = pan_and_zoom || on_view_change.is_some() && handle.pan_and_zoom;
                 let steered = create_memo(move || {
                     (!read_only && !handle.pan_and_zoom).then(|| content_rect.get())

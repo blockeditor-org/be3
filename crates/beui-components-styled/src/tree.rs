@@ -183,7 +183,7 @@ where
     let theme = use_theme();
     let indent = create_memo(move || ItemSize::Fixed(item.get().depth as f32 * INDENT));
     let fill = create_memo(move || background(&theme, selected.get(), hovered.get(), active.get()));
-    let highlight = create_memo(clone!(outline key -> move || outline.call(key.clone())));
+    let highlight = create_memo(clone!(key -> move || outline.call(key.clone())));
     let outline_color = create_memo(move || highlight.get().unwrap_or_else(|| theme.accent.get()));
     let ring = focus_ring(focused);
     let outlined = create_memo(move || highlight.get().is_some() || ring.get());

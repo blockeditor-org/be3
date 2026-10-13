@@ -134,7 +134,7 @@ fn WheelFace(handle: ColorWheelHandle, model: Model) -> NodeId {
     let hues = Rc::new(ring_colors(model));
     let ring = Rc::new(RefCell::new(None::<(u32, Image)>));
     let triangle = Rc::new(RefCell::new(None::<(u32, u32, Image)>));
-    let draw = Prop::Dynamic(Rc::new(move || {
+    let draw = Prop::dynamic(move || {
         let point = point.get();
         let (hues, ring, triangle) = (hues.clone(), ring.clone(), triangle.clone());
         Rc::new(move |painter: &Painter, rect: Rect| {
@@ -197,7 +197,7 @@ fn WheelFace(handle: ColorWheelHandle, model: Model) -> NodeId {
                 color_at(model, point),
             );
         }) as Draw
-    }));
+    });
     let theme = use_theme();
     let ring_radius = (WHEEL_SIZE / 2.0) as u8 + 2;
     view! {

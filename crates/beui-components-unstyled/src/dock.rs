@@ -1596,7 +1596,7 @@ fn DockTreeView(
 ) -> NodeId {
     let canvas = NodeRef::new();
     dock.panes.borrow_mut().insert(tree, canvas.clone());
-    on_cleanup(clone!(dock canvas -> move || {
+    on_cleanup(clone!(dock -> move || {
         let mut panes = dock.panes.borrow_mut();
         if panes.get(&tree).is_some_and(|current| current.try_get() == canvas.try_get()) {
             panes.remove(&tree);
@@ -1912,7 +1912,7 @@ fn DockTabBar(dock: Handle, leaf: LeafId, vertical: bool) -> NodeId {
     let bar = TabBar::default();
     let (strip, tab_list) = (bar.strip.clone(), bar.tabs.clone());
     dock.bars.borrow_mut().insert(leaf, bar);
-    on_cleanup(clone!(dock strip -> move || {
+    on_cleanup(clone!(dock -> move || {
         let mut bars = dock.bars.borrow_mut();
         if bars.get(&leaf).is_some_and(|current| current.strip.try_get() == strip.try_get()) {
             bars.remove(&leaf);
@@ -2396,9 +2396,9 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
     let area = dock.rect;
     let (overshoot, set_overshoot) = create_signal(Vec2::ZERO);
     let grip_ref = NodeRef::new();
-    let reach: Rc<dyn Fn() -> f32> = Rc::new(clone!(frame grip_ref -> move || {
+    let reach: Rc<dyn Fn() -> f32> = Rc::new(move || {
         grip_reach(&frame, &grip_ref)
-    }));
+    });
     let placed = create_memo(clone!(reach -> move || {
         let bounds = area.get().size();
         let rect = Rect::from_min_size(rect.get().min, fitted(rect.get().size(), bounds));
@@ -2478,7 +2478,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
     let marker = dock.clone();
     let grip_rect = placed;
     let overlay = NodeRef::new();
-    create_effect(clone!(overlay -> move || {
+    create_effect(move || {
         if !focused.get() {
             return;
         }
@@ -2486,7 +2486,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
             return;
         };
         with_document(|document| document.raise_overlay(overlay));
-    }));
+    });
     let grabbed: Rc<Cell<Option<(Rect, Pos2)>>> = Rc::new(Cell::new(None));
     let bar_rect = placed;
     let pressed = dock.clone();

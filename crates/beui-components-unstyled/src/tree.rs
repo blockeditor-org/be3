@@ -151,7 +151,7 @@ where
         <List spacing>
             <ForEach keys>
                 {move |key: K| {
-                    let item = create_memo(clone!(item key -> move || item.call(key.clone())));
+                    let item = create_memo(clone!(key -> move || item.call(key.clone())));
                     let selected = selection.memo(Some(key.clone()));
                     let marked = burial.memo(Some(key.clone()));
                     let hover = on_hover_change.clone();
@@ -283,7 +283,7 @@ pub fn TreeToggle(
     let expanded = create_memo(move || item.get().expanded);
     view! {
         <Show condition={expandable}>
-            {move || clone!(toggle content button_test_id -> {
+            {move || clone!(toggle button_test_id -> {
                 let label = create_memo(move || match expanded.get() {
                     true => "Collapse".to_owned(),
                     false => "Expand".to_owned(),

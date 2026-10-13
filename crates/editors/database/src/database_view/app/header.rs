@@ -43,7 +43,7 @@ pub fn ViewHeader(data: Data) -> NodeId {
                 })}
             </Show>
             <Show condition={failed}>
-                {move || clone!(dismiss -> view! {
+                {move || clone!(; dismiss -> view! {
                     <Frame padding_horizontal=GUTTER padding_vertical=6.0>
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                             <Body

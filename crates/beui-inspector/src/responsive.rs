@@ -71,7 +71,7 @@ pub fn build(state: &Rc<State>) -> Toolbar {
     let owner = RootScope::new();
     let (screen, set_screen) = create_signal(state.screen_simulation.get().unwrap_or(DEFAULT));
     let (device, zoom) = (NodeRef::new(), NodeRef::new());
-    let document = beui_view::reactive::build(clone!(state device zoom -> move || {
+    let document = beui_view::reactive::build(clone!(state -> move || {
         view! {
             <ResponsiveToolbar state screen device zoom />
         }

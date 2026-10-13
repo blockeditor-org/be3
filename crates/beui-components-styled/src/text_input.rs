@@ -10,8 +10,7 @@ use beui_core::document::Document;
 use beui_core::icons::ICON_CLOSE;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Callback, Direction, Frame, IntoProp, ItemSize, List, Memo, Prop, Show, clone,
-    create_memo,
+    Align, Callback, Direction, Frame, IntoProp, ItemSize, List, Memo, Prop, Show, create_memo,
 };
 
 use crate::icon_button::{IconButton, IconButtonSize};
@@ -114,7 +113,7 @@ fn TextInputFrame(
                     </Show>
                     {field} @sizing=ItemSize::Percent(100.0)
                     <Show condition={clearable}>
-                        {move || clone!(clear -> view! {
+                        {move || view! {
                             <Frame padding_horizontal=CLEAR_PADDING>
                                 <IconButton
                                     glyph={ICON_CLOSE.to_owned()}
@@ -124,7 +123,7 @@ fn TextInputFrame(
                                     on_click={move || clear.call()}
                                 />
                             </Frame>
-                        })}
+                        }}
                     </Show>
                 </List>
             </Frame>

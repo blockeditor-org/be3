@@ -619,7 +619,7 @@ impl Document {
         self.call_focusable_handler(id, focused, |node| &node.on_focus_change);
     }
 
-    fn call_focusable_handler<V>(
+    fn call_focusable_handler<V: 'static>(
         &mut self,
         id: NodeId,
         value: V,

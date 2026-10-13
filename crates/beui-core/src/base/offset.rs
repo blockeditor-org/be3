@@ -410,8 +410,7 @@ impl Document {
     ) {
         self.arena
             .touch_mut_as::<OffsetNode>(offset)
-            .on_change
-            .set(handler);
+            .on_change = Callback::new(handler);
     }
 }
 

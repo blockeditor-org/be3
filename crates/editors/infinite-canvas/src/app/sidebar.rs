@@ -172,7 +172,7 @@ fn ArtboardSection(state: Rc<CanvasState>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                {move || clone!(renamed -> view! {
+                {move || clone!(; renamed -> view! {
                     <Accordion
                         title="Artboard"
                         open={open}
@@ -404,7 +404,7 @@ fn BlockSection(state: Rc<CanvasState>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                {move || clone!(scaled toggled -> view! {
+                {move || clone!(scaled; toggled -> view! {
                     <Accordion title="Block" open={open} on_toggle={move |open| set_open.set(open)}>
                         <List spacing=6.0>
                             <Button
@@ -652,7 +652,7 @@ fn ForegroundRow(state: Rc<CanvasState>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                {move || clone!(typed -> view! {
+                {move || clone!(; typed -> view! {
                     <List spacing=6.0>
                         <Caption content="Color" />
                         <ColorInput
@@ -720,7 +720,7 @@ fn LineWidthRow(state: Rc<CanvasState>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                {move || clone!(changed -> view! {
+                {move || clone!(; changed -> view! {
                     <List spacing=4.0>
                         <MixedLabel label="Line width" mixed={mixed} />
                         <Slider
@@ -790,7 +790,7 @@ fn LineOptions(state: Rc<CanvasState>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                {move || clone!(arrow_end arrow_start dash -> view! {
+                {move || clone!(; arrow_end arrow_start dash -> view! {
                     <List spacing=6.0>
                         <Separator />
                         <Caption content="Line" />
@@ -879,7 +879,7 @@ fn RectangleOptions(state: Rc<CanvasState>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                {move || clone!(clearing picking rounded typed -> view! {
+                {move || clone!(picking; clearing rounded typed -> view! {
                     <List spacing=6.0>
                         <Separator />
                         <Caption content="Rectangle" />
@@ -1071,7 +1071,7 @@ fn TextOptions(state: Rc<CanvasState>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                {move || clone!(aligning editing sized spaced weighted wrapped -> view! {
+                {move || clone!(aligning editing; sized spaced weighted wrapped -> view! {
                     <List spacing=6.0>
                         <Separator />
                         <Caption content="Text" />

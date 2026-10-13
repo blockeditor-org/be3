@@ -150,7 +150,7 @@ pub(crate) fn PhoneFiles(
     let header_level = level;
     let header_set = set_level;
     let page_color = use_theme().background;
-    let parent = clone!(shelf menu -> move || {
+    let parent = clone!(shelf; menu -> move || {
         let (above, _) = create_signal(level.get_untracked().up());
         let (unsearched, unsearch) = create_signal(String::new());
         let at_top = create_memo(move || above.get() == Level::Root);
@@ -327,14 +327,14 @@ fn Header(
                         }}
                     </Show>
                     <Show condition={top}>
-                        {move || clone!(on_menu -> view! {
+                        {move || view! {
                             <IconButton
                                 @test_id={"file-tree.app-menu"}
                                 glyph={ICON_ACCOUNT_CIRCLE.to_owned()}
                                 label="Account and settings"
                                 on_click={move || on_menu.call()}
                             />
-                        })}
+                        }}
                     </Show>
                 </List>
                 <TextInput
@@ -649,7 +649,7 @@ fn PhoneRow(
             set_level.set(next);
         }
     });
-    let tapped = clone!(entering -> move || {
+    let tapped = clone!(; entering -> move || {
         let Some(shown) = row.get_untracked() else {
             return;
         };

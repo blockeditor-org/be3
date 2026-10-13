@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{NodeRef, Show, clone};
+use crate::reactive::{NodeRef, Show};
 use crate::styled::{Dialog, Scroll};
 
 #[test]
@@ -15,7 +15,7 @@ fn a_scroll_in_a_dialog_follows_the_wheel() {
                         <Frame height=200.0>
                             <List spacing=8.0>
                                 <Show condition=true>
-                                    {move || clone!(first -> view! {
+                                    {move || view! {
                                         <Scroll @sizing=ItemSize::Percent(100.0)>
                                             <List spacing=8.0>
                                                 <Frame @node_ref=&first height=120.0 />
@@ -23,7 +23,7 @@ fn a_scroll_in_a_dialog_follows_the_wheel() {
                                                 <Frame height=120.0 />
                                             </List>
                                         </Scroll>
-                                    })}
+                                    }}
                                 </Show>
                             </List>
                         </Frame>

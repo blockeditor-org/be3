@@ -256,7 +256,7 @@ fn GridCanvas(session: Rc<Session>) -> NodeId {
                             <Canvas>
                                 <CanvasItem x=0.0 y=0.0 width={width} height={height}>
                                     <Drawing
-                                        draw={Prop::Dynamic(Rc::new(move || draw_gpu(drawing.get())))}
+                                        draw={Prop::dynamic(move || draw_gpu(drawing.get()))}
                                     />
                                 </CanvasItem>
                                 <CanvasItem x=0.0 y=0.0 width={width} height={height}>

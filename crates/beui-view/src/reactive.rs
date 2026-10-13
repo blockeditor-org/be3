@@ -185,7 +185,7 @@ pub fn bind_test_id(node: NodeId, test_id: Prop<String>) {
     };
     let published: Cell<Option<String>> = Cell::new(None);
     bind(node, move || {
-        let next = reading();
+        let next = reading.get();
         let previous = published.replace(Some(next.clone()));
         with_document(|document| {
             if let Some(previous) = previous

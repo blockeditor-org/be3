@@ -912,7 +912,7 @@ pub fn ModalSheet(
             appearing.set(false);
         }
     });
-    let shown = create_memo(clone!(open -> move || open.get() || !gone.get()));
+    let shown = create_memo(move || open.get() || !gone.get());
     let faded = create_memo(move || scrim.scale_alpha(presence.get()));
     view! {
         <Overlay

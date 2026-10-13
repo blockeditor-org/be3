@@ -34,9 +34,9 @@ pub(crate) fn Marker(
     selected: Prop<bool>,
     label: Prop<String>,
 ) -> CanvasItem {
-    let unit = create_memo(clone!(scale -> move || 1.0 / scale.get().max(f32::EPSILON)));
-    let x = create_memo(clone!(tip -> move || tip.get().x - LABEL_WIDTH / 2.0 * unit.get()));
-    let y = create_memo(clone!(tip -> move || tip.get().y - RING_SIZE * unit.get()));
+    let unit = create_memo(move || 1.0 / scale.get().max(f32::EPSILON));
+    let x = create_memo(move || tip.get().x - LABEL_WIDTH / 2.0 * unit.get());
+    let y = create_memo(move || tip.get().y - RING_SIZE * unit.get());
     let width = create_memo(move || LABEL_WIDTH * unit.get());
     let height = create_memo(move || MARKER_HEIGHT * unit.get());
     let named = create_memo(clone!(label -> move || !label.get().is_empty()));

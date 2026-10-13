@@ -705,7 +705,7 @@ pub fn action_disabled(action: Option<&Action>, disabled: Prop<bool>) -> Prop<bo
     match action {
         Some(action) => {
             let enabled = action.enabled();
-            Prop::Dynamic(Rc::new(move || disabled.get() || !enabled.get()))
+            Prop::dynamic(move || disabled.get() || !enabled.get())
         }
         None => disabled,
     }

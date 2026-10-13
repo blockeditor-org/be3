@@ -225,7 +225,7 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                 </ForEach>
                                 <Separator />
                                 <Show condition={missing}>
-                                    {move || clone!(add_page -> view! {
+                                    {move || clone!(; add_page -> view! {
                                         <List direction=Direction::Horizontal spacing=0.0>
                                             <Button
                                                 glyph={ICON_NOTE_ADD.to_owned()}
@@ -318,7 +318,7 @@ fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
             <Frame @sizing=ItemSize::Percent(100.0)>
                 <List spacing=0.0>
                     <Show condition={choice}>
-                        {move || clone!(picked -> view! {
+                        {move || clone!(; picked -> view! {
                             <ChoicePicker
                                 field={known}
                                 chosen={chosen}
@@ -329,7 +329,7 @@ fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
                         })}
                     </Show>
                     <Show condition={other}>
-                        {move || clone!(changed pick_block -> view! {
+                        {move || clone!(; changed pick_block -> view! {
                             <DatabaseValueEditor
                                 fields={fields}
                                 values={values}

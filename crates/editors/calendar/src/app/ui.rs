@@ -6,8 +6,7 @@ use block_editor_beui::beui::icons::{
     ICON_ADD, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_CLOSE, ICON_DELETE, ICON_SAVE,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, Dynamic, Frame, ItemSize, List, NodeRef, Show, Spacer, WriteSignal, clone,
-    component, create_effect, create_memo, create_signal, view,
+    Align, Direction, Dynamic, Frame, ItemSize, List, NodeRef, Show, Spacer, WriteSignal, component, create_effect, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, DateTimeField, Dialog, IconButton, Tabs, TextInput,
@@ -274,19 +273,19 @@ fn EventDialog(
             }
         });
     };
-    let save = clone!(on_operate -> move || {
+    let save = move || {
         let Some(shown) = form.get_untracked() else {
             return;
         };
         on_operate.call(FormAction::Save(shown.editing_id, shown.event()));
         set_form.set(None);
-    });
-    let delete = clone!(on_operate -> move || {
+    };
+    let delete = move || {
         if let Some(id) = form.get_untracked().and_then(|form| form.editing_id) {
             on_operate.call(FormAction::Delete(id));
         }
         set_form.set(None);
-    });
+    };
     let cancel = move || set_form.set(None);
     let dismiss = move || set_form.set(None);
     view! {

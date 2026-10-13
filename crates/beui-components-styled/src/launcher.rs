@@ -197,7 +197,7 @@ pub fn Launcher(
     let (query, set_query) = create_signal(String::new());
     let (searching, set_searching) = create_signal(false);
     let (highlighted, set_highlighted) = create_signal(None::<Row>);
-    create_effect(clone!(open -> move || {
+    create_effect(move || {
         let opened = open.get();
         untrack(|| {
             if opened {
@@ -205,7 +205,7 @@ pub fn Launcher(
             }
             set_searching.set(opened);
         });
-    }));
+    });
     let ranked = create_memo(clone!(items -> move || {
         let items = items.get();
         let query = query.get();

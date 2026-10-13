@@ -261,7 +261,7 @@ fn frame_actions(
     state: ReadSignal<BarState>,
     live: Memo<bool>,
     closable: Memo<bool>,
-    on_exit: &ClickCallback,
+    on_exit: ClickCallback,
 ) -> FrameActions {
     let host = editor.host().clone();
     let id = editor.block_id();
@@ -316,7 +316,7 @@ fn frame_actions(
         close: Action::new(
             "editor.close",
             "Close",
-            clone!(on_exit -> move || on_exit.call()),
+            move || on_exit.call(),
         )
         .glyph(ICON_CLOSE)
         .enabled(closable)
@@ -342,7 +342,7 @@ pub(crate) fn FrameMenu(
         list: RefCell::new(None),
         watching: Cell::new(false),
     });
-    let actions = frame_actions(&editor, &watched, state, live, closable, &on_exit);
+    let actions = frame_actions(&editor, &watched, state, live, closable, on_exit);
     let reading = Rc::clone(&watched);
     let visible = live;
     let taps = Rc::clone(&watched);

@@ -5,7 +5,7 @@ use beui_core::geometry::Vec2;
 use beui_core::input::{CursorIcon, Key, KeyPress};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Interactive, Prop, ReadSignal, Render, clone, component_accessibility, create_effect,
+    Callback, Interactive, Prop, ReadSignal, Render, component_accessibility, create_effect,
     create_signal, on_cleanup, try_with_document, untrack, with_document,
 };
 
@@ -48,15 +48,15 @@ pub fn PointerLock(
         on_change.call(next);
     };
 
-    let engage = clone!(change -> move || change(true));
-    let release = clone!(change -> move || change(false));
-    let blurred = clone!(release -> move |focused: bool| {
+    let engage = move || change(true);
+    let release = move || change(false);
+    let blurred = move |focused: bool| {
         set_focused.set(focused);
         if !focused {
             release();
         }
-    });
-    let key = clone!(release -> move |press: KeyPress| {
+    };
+    let key = move |press: KeyPress| {
         if untrack(|| locked_read.get()) && press.key == Key::Escape {
             if press.pressed {
                 release();
@@ -64,7 +64,7 @@ pub fn PointerLock(
             return true;
         }
         on_key.call(press)
-    });
+    };
 
     let content_node = content.map(|build| {
         build.call(PointerLockHandle {

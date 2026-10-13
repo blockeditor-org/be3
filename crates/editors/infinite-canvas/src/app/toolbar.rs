@@ -169,7 +169,7 @@ pub(crate) fn ImportError(state: Rc<CanvasState>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={failed}>
-                {move || clone!(dismiss -> view! {
+                {move || clone!(; dismiss -> view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                         <Body content={message} color={theme.danger} />
                         <Button

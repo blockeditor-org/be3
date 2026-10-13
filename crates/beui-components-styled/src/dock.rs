@@ -23,7 +23,7 @@ use beui_core::input::Modifiers;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Action, Children, ClickCallback, DynamicSegment, ForEach, Frame, List, ListChild, Memo, Prop,
-    ReadSignal, Show, Text, clone, create_memo, focus_ring,
+    ReadSignal, Show, Text, create_memo, focus_ring,
 };
 use stack::{DockStackBar, DockSwitcher};
 use switch::DockSwitchPanel;
@@ -233,7 +233,7 @@ fn DockTabChrome(
                     @sizing={title_size}
                 />
                 <Show condition={closable}>
-                    {move || clone!(close -> view! {
+                    {move || view! {
                         <IconButton
                             @test_id={close_test_id.clone()}
                             glyph=ICON_CLOSE
@@ -243,7 +243,7 @@ fn DockTabChrome(
                             capture_presses=true
                             on_click={move || close.call()}
                         />
-                    })}
+                    }}
                 </Show>
             </List>
         </Frame>
@@ -346,7 +346,7 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
                             @sizing=ItemSize::Percent(100.0)
                         />
                         <Show condition={closable}>
-                            {move || clone!(close -> view! {
+                            {move || view! {
                                 <IconButton
                                     @test_id={format!("dock.dialog.{}.close", tab.value())}
                                     glyph=ICON_CLOSE
@@ -356,7 +356,7 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
                                     capture_presses=true
                                     on_click={move || close.call()}
                                 />
-                            })}
+                            }}
                         </Show>
                     </List>
                 </Frame>

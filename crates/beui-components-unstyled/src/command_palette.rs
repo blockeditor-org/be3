@@ -340,11 +340,11 @@ fn navigate(state: &State, press: KeyPress) -> bool {
 
 fn reveal_reader(state: &Handle) -> Prop<Option<usize>> {
     let state = state.clone();
-    Prop::Dynamic(Rc::new(move || {
+    Prop::dynamic(move || {
         let shown = state.shown.get();
         let highlighted = state.highlighted.get()?;
         shown.iter().position(|key| *key == highlighted)
-    }))
+    })
 }
 
 pub fn command_palette_search(document: &Document, palette: NodeId) -> NodeId {

@@ -119,7 +119,7 @@ pub(crate) fn Scene3DView() -> NodeId {
             {move |_: PointerLockHandle| view! {
                 <List spacing=0.0>
                     <Drawing
-                        draw={Prop::Dynamic(Rc::new(move || draw_gpu(drawing.get())))}
+                        draw={Prop::dynamic(move || draw_gpu(drawing.get()))}
                         @sizing=ItemSize::Percent(100.0)
                     />
                     <Floating

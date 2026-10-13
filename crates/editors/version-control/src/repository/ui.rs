@@ -98,7 +98,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                             </Show>
                         </List>
                         <Show condition={unversioned}>
-                            {move || clone!(choose -> view! {
+                            {move || clone!(; choose -> view! {
                                 <Card>
                                     <List spacing=10.0>
                                         <Body content="Nothing is versioned here yet." />
@@ -118,7 +118,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                             })}
                         </Show>
                         <Show condition={versioned}>
-                            {move || clone!(rows -> view! {
+                            {move || clone!(; rows -> view! {
                                 <Card>
                                     <List spacing=10.0>
                                         <Heading content="Branches" />

@@ -19,7 +19,7 @@ fn bind_measurement(
         Prop::Static(value) => with_document(|document| set(document, frame, value)),
         Prop::Dynamic(read) => {
             create_effect(move || {
-                let value = read();
+                let value = read.get();
                 with_document(|document| set(document, frame, value));
             });
         }
