@@ -35,7 +35,7 @@ fn the_reveal_button_scrolls_the_inspector_tree_to_a_picked_row() {
     harness.click(target);
     harness.frame(Vec::new());
 
-    assert_eq!(harness.inspector().state.selected.get(), Some(picked));
+    assert_eq!(harness.inspector().state().selected.get(), Some(picked));
     assert!(
         harness.reveal_shown(),
         "a pick outside the panel offers to scroll to it"

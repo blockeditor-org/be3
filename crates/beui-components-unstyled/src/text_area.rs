@@ -1163,7 +1163,7 @@ pub fn TextArea(
                         };
 
                         let cx = Surface {
-                            state: state.clone(),
+                            state,
                             single_line,
                             held: store(Held {
                                 rows: RefCell::new(BTreeMap::new()),

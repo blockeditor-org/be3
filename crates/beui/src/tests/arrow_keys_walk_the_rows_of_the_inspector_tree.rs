@@ -45,7 +45,7 @@ fn arrow_keys_walk_the_rows_of_the_inspector_tree() {
     assert_eq!(harness.focused_row_index(), Some(1));
     assert_eq!(harness.inspector().highlighted(), Some(padding));
     assert_eq!(
-        harness.inspector().state.selected.get(),
+        harness.inspector().state().selected.get(),
         None,
         "moving between rows highlights them without selecting them"
     );

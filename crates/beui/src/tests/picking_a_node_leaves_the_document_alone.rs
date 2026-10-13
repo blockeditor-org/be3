@@ -18,5 +18,5 @@ fn picking_a_node_leaves_the_document_alone() {
     harness.frame(Vec::new());
 
     assert_eq!(clicks.get(), 0);
-    assert!(harness.inspector().state.selected.get().is_some());
+    assert!(harness.inspector().state().selected.get().is_some());
 }

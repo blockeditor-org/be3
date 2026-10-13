@@ -1817,7 +1817,7 @@ fn DockPaneGrip(dock: State, leaf: LeafId, vertical: bool, focused: Memo<bool>) 
         vertical,
         focused,
     });
-    let menu = dock.menu.clone();
+    let menu = dock.menu;
     let named = dock;
     let title = create_memo(move || named.dragged_title(DockDragged::Pane(leaf)));
     let pictured = dock;
@@ -2081,7 +2081,7 @@ fn DockTabView(
         closable,
         close,
     });
-    let menu = dock.menu.clone();
+    let menu = dock.menu;
     let grouped = matches!(entry, Entry::Group(_));
     let carried = dock;
     let preview = dock.preview;
@@ -2584,7 +2584,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                     });
                                                     let grip_face = view! {
                                                         <GripMenu
-                                                            menu={dock.menu.clone()}
+                                                            menu={dock.menu}
                                                             vertical
                                                             toggle={move || {
                                                                 if let Some(leaf) = hoisted {

@@ -9,9 +9,9 @@ fn turning_off_picking_clears_its_highlight() {
     harness.toggle_inspector();
     harness.toggle_picking();
     harness.frame(vec![Event::PointerMoved(pos2(4.0, 4.0))]);
-    assert!(harness.inspector().state.hovered.get().is_some());
+    assert!(harness.inspector().state().hovered.get().is_some());
 
     harness.toggle_picking();
 
-    assert_eq!(harness.inspector().state.hovered.get(), None);
+    assert_eq!(harness.inspector().state().hovered.get(), None);
 }

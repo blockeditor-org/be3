@@ -9,9 +9,9 @@ fn hovering_a_row_highlights_the_node_it_lists() {
     harness.toggle_inspector();
     harness.frame(vec![Event::PointerMoved(harness.row_center(2))]);
 
-    assert_eq!(harness.inspector().state.hovered.get(), Some(text));
+    assert_eq!(harness.inspector().state().hovered.get(), Some(text));
 
     harness.frame(vec![Event::PointerMoved(pos2(4.0, 4.0))]);
 
-    assert_eq!(harness.inspector().state.hovered.get(), None);
+    assert_eq!(harness.inspector().state().hovered.get(), None);
 }

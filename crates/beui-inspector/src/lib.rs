@@ -25,7 +25,7 @@ use beui_components_styled::{DocumentTheme, Theme};
 use beui_core::document::{Document, Tools, trim_bottom};
 use beui_core::node::NodeId;
 use beui_core::screen_simulation::ScreenSimulation;
-use beui_view::reactive::{NodeRef, WriteSignal, with_document, with_reactive_scope};
+use beui_view::reactive::{NodeRef, OwnedStored, WriteSignal, with_document, with_reactive_scope};
 
 use panel::Summary;
 use tree::{Entry, Key};
@@ -371,7 +371,6 @@ enum Layer {
 pub struct Inspector {
     pub document: Document,
     pub entries: Vec<Entry>,
-    pub state: Rc<State>,
     reader: ScreenReader,
     set_keys: WriteSignal<Vec<Key>>,
     set_entries: WriteSignal<HashMap<Key, Entry>>,
@@ -396,14 +395,15 @@ pub struct Inspector {
     seen: u64,
     overlay_bounds: Cell<Rect>,
     _panel_scope: ::reactive::Scope,
+    state: OwnedStored<State>,
 }
 
 impl Inspector {
     pub fn new(ctx: &Context, theme: Theme) -> Self {
-        let state = Rc::new(State::new(ctx, theme));
-        let panel = panel::build(&state);
-        let bar = panel::build_bar(&state);
-        let toolbar = responsive::build(&state);
+        let state = OwnedStored::new(State::new(ctx, theme));
+        let panel = panel::build(state.handle());
+        let bar = panel::build_bar(state.handle());
+        let toolbar = responsive::build(state.handle());
         Self {
             bar,
             toolbar,
@@ -433,6 +433,10 @@ impl Inspector {
             seen: 0,
             overlay_bounds: Cell::new(Rect::NOTHING),
         }
+    }
+
+    pub fn state(&self) -> Rc<State> {
+        self.state.get()
     }
 
     pub fn row_node(&self, index: usize) -> NodeId {
@@ -486,7 +490,7 @@ impl Inspector {
     }
 
     pub fn highlighted(&self) -> Option<NodeId> {
-        self.state.hovered.get().or_else(|| {
+        self.state().hovered.get().or_else(|| {
             let tree = self.tree_node()?;
             self.document
                 .watch_focus_visible()
@@ -505,11 +509,11 @@ impl Inspector {
     }
 
     pub fn closed(&self) -> bool {
-        self.state.closed.get()
+        self.state().closed.get()
     }
 
     pub fn readout_height(&self, ctx: &Context) -> f32 {
-        match self.state.screen_reader.get() {
+        match self.state().screen_reader.get() {
             true => ScreenReader::height() * scale(ctx),
             false => 0.0,
         }
@@ -519,7 +523,7 @@ impl Inspector {
         ctx.set_screen_simulation(self.screen_simulation());
         let scale = scale(ctx);
         let compact = rect.width() < (MINIMUM_APP_WIDTH + DEFAULT_WIDTH) * scale;
-        self.state.compact.set(compact);
+        self.state().compact.set(compact);
         let layout = match compact {
             false => {
                 self.grab(ctx, rect);
@@ -533,7 +537,7 @@ impl Inspector {
                 self.grabbed = None;
                 self.grip = false;
                 let (bar, rect) = trim_top(rect, BAR_HEIGHT * scale);
-                let app_visible = self.state.app_visible();
+                let app_visible = self.state().app_visible();
                 Layout {
                     bar,
                     toolbar: Rect::NOTHING,
@@ -544,7 +548,7 @@ impl Inspector {
                 }
             }
         };
-        if !layout.app_visible || self.state.screen_simulation.get().is_none() {
+        if !layout.app_visible || self.state().screen_simulation.get().is_none() {
             return layout;
         }
         let (toolbar, content) = trim_top(layout.content, responsive::HEIGHT * scale);
@@ -560,27 +564,27 @@ impl Inspector {
     }
 
     pub fn intercepts(&self) -> bool {
-        self.state.picking.get()
+        self.state().picking.get()
             || self.grabbed.is_some()
             || self.resizing.is_some()
             || self.toolbar.open()
-            || self.state.screen_reader.get()
+            || self.state().screen_reader.get()
     }
 
     pub fn takes_keys(&self) -> bool {
-        self.state.picking.get() || self.grabbed.is_some() || self.resizing.is_some()
+        self.state().picking.get() || self.grabbed.is_some() || self.resizing.is_some()
     }
 
     pub fn claims(&self, event: &Event) -> bool {
-        self.state.screen_reader.get() && crate::screen_reader::claims(event)
+        self.state().screen_reader.get() && crate::screen_reader::claims(event)
     }
 
     pub fn toggle_picking(&self) {
-        self.state.toggle_picking();
+        self.state().toggle_picking();
     }
 
     pub fn toggle_responsive(&self) {
-        self.state.toggle_responsive();
+        self.state().toggle_responsive();
     }
 
     fn grab(&mut self, ctx: &Context, rect: Rect) {
@@ -627,7 +631,7 @@ impl Inspector {
         self.forget_removed(target);
         self.sync(target, ctx);
         let scale = scale(ctx);
-        let compact = self.state.compact.get();
+        let compact = self.state().compact.get();
         if std::mem::replace(&mut self.shown_compact, compact) != compact {
             let set_compact = self.panel_compact;
             with_reactive_scope(&mut self.document, || set_compact.set(compact));
@@ -645,22 +649,22 @@ impl Inspector {
             document.hide();
         }
         self.show_bar(ctx, bar);
-        if self.state.reset_performance.take() {
+        if self.state().reset_performance.take() {
             target.reset_performance();
             ctx.request_repaint();
         }
-        ctx.set_touch_emulation(self.state.touch_emulation.get());
-        crate::mouse_simulation::simulate(ctx, self.state.mouse_simulation.get());
-        target.set_rubber_banding(self.state.rubber_banding.get());
-        ctx.set_accessibility_active(self.state.accessibility.get());
-        target.track_changes(self.state.flash_changes.get());
-        target.track_damage(self.state.flash_damage.get());
-        ctx.set_simulated_pixels_per_point(self.state.simulated_pixels_per_point.get());
-        if let Some(theme) = self.state.requested_theme.take() {
+        ctx.set_touch_emulation(self.state().touch_emulation.get());
+        crate::mouse_simulation::simulate(ctx, self.state().mouse_simulation.get());
+        target.set_rubber_banding(self.state().rubber_banding.get());
+        ctx.set_accessibility_active(self.state().accessibility.get());
+        target.track_changes(self.state().flash_changes.get());
+        target.track_damage(self.state().flash_damage.get());
+        ctx.set_simulated_pixels_per_point(self.state().simulated_pixels_per_point.get());
+        if let Some(theme) = self.state().requested_theme.take() {
             target.set_theme(theme);
             ctx.request_repaint();
         }
-        if let Some(index) = self.state.requested_renderer.take() {
+        if let Some(index) = self.state().requested_renderer.take() {
             ctx.choose_renderer(index);
         }
         if app_visible {
@@ -678,7 +682,7 @@ impl Inspector {
             let screen = target
                 .shown_screen()
                 .map_or(content, |placement| placement.shown().intersect(content));
-            ctx.apply_filter(self.state.filter(screen));
+            ctx.apply_filter(self.state().filter(screen));
             if covering {
                 self.cover(ctx, content, readout, Layer::Above);
             }
@@ -688,14 +692,14 @@ impl Inspector {
         if target.flashing() {
             ctx.request_repaint();
         }
-        if self.state.revision.get() != self.seen {
-            self.seen = self.state.revision.get();
+        if self.state().revision.get() != self.seen {
+            self.seen = self.state().revision.get();
             ctx.request_repaint();
         }
     }
 
     fn screen_simulation(&self) -> Option<ScreenSimulation> {
-        let simulation = self.state.screen_simulation.get()?;
+        let simulation = self.state().screen_simulation.get()?;
         Some(match (self.resizing, simulation.zoom) {
             (Some(resizing), None) => ScreenSimulation {
                 zoom: Some(resizing.scale),
@@ -706,13 +710,13 @@ impl Inspector {
     }
 
     fn resize(&mut self, target: &Document, ctx: &Context, content: Rect) {
-        let Some(simulation) = self.state.screen_simulation.get() else {
+        let Some(simulation) = self.state().screen_simulation.get() else {
             self.resizing = None;
             self.handle = None;
             return;
         };
         let placement = target.shown_screen();
-        let reachable = !self.state.picking.get() && !self.toolbar.open();
+        let reachable = !self.state().picking.get() && !self.toolbar.open();
         let handle_under = |pos: Pos2| {
             placement
                 .filter(|_| reachable)
@@ -733,7 +737,7 @@ impl Inspector {
                 true => {}
                 false => {
                     if self.resizing.take().is_some() {
-                        self.state.touch();
+                        self.state().touch();
                     }
                 }
             }
@@ -743,7 +747,7 @@ impl Inspector {
             if let Some(pointer) = pointer {
                 let moved = (pointer - resizing.origin) / resizing.scale;
                 let size = resizing.handle.resized(resizing.size, moved);
-                self.state
+                self.state()
                     .update_screen(|simulation| simulation.resized(size));
             }
             self.handle = Some(resizing.handle);
@@ -755,7 +759,7 @@ impl Inspector {
     fn paint_handles(&self, target: &Document, ctx: &Context, content: Rect) {
         let placement = target
             .shown_screen()
-            .filter(|_| self.state.screen_simulation.get().is_some());
+            .filter(|_| self.state().screen_simulation.get().is_some());
         let painted = ctx.measure_paint(|| {
             let Some(placement) = placement else {
                 return;
@@ -793,7 +797,7 @@ impl Inspector {
             set_screen,
             ..
         } = &mut self.toolbar;
-        if let Some(simulation) = self.state.screen_simulation.get() {
+        if let Some(simulation) = self.state.get().screen_simulation.get() {
             with_reactive_scope(document, || set_screen.set(simulation));
         }
         let area = toolbar.union(content).scaled(scale.recip());
@@ -811,7 +815,7 @@ impl Inspector {
             return;
         }
         let scale = scale(ctx);
-        let selected = usize::from(!self.state.app_shown.get());
+        let selected = usize::from(!self.state().app_shown.get());
         let panel::Bar {
             document,
             set_selected,
@@ -827,11 +831,11 @@ impl Inspector {
     }
 
     fn read(&mut self, target: &Document, ctx: &Context, content: Rect, panel_has_focus: bool) {
-        self.reader.configure(self.state.screen_reader.get());
-        let commands = self.state.take_commands();
+        self.reader.configure(self.state().screen_reader.get());
+        let commands = self.state().take_commands();
         self.reader
             .show(target, ctx, content, commands, !panel_has_focus);
-        if self.state.screen_reader.get() && !self.parked && self.document.focused_node().is_some()
+        if self.state().screen_reader.get() && !self.parked && self.document.focused_node().is_some()
         {
             self.blur();
         }
@@ -857,7 +861,8 @@ impl Inspector {
     }
 
     fn forget_removed(&mut self, target: &Document) {
-        for cell in [&self.state.hovered, &self.state.selected] {
+        let state = self.state();
+        for cell in [&state.hovered, &state.selected] {
             if cell.get().is_some_and(|id| !target.contains(id)) {
                 cell.set(None);
             }
@@ -865,10 +870,10 @@ impl Inspector {
     }
 
     fn sync(&mut self, target: &Document, ctx: &Context) {
-        let entries = match self.state.tab.get() {
-            InspectorTab::Beui => tree::collect(target, &self.state),
-            InspectorTab::Components => tree::collect_components(target, &self.state),
-            InspectorTab::AccessKit => tree::collect_accesskit(target, &self.state),
+        let entries = match self.state().tab.get() {
+            InspectorTab::Beui => tree::collect(target, &self.state()),
+            InspectorTab::Components => tree::collect_components(target, &self.state()),
+            InspectorTab::AccessKit => tree::collect_accesskit(target, &self.state()),
             InspectorTab::Performance | InspectorTab::Simulation => Vec::new(),
         };
         let selection = self.selection_path(target);
@@ -913,7 +918,7 @@ impl Inspector {
         entries: &[Entry],
         selected_key: Option<Key>,
     ) -> Summary {
-        let selected = self.state.selected.get();
+        let selected = self.state().selected.get();
         let selection = selected.map_or_else(nothing_selected, |id| {
             entries
                 .iter()
@@ -922,15 +927,15 @@ impl Inspector {
                 .map_or_else(|| tree::label(target, id), entry_label)
         });
         Summary {
-            total: match self.state.tab.get() {
+            total: match self.state().tab.get() {
                 InspectorTab::Beui => target.root().map_or(0, |root| tree::count(target, root)),
                 InspectorTab::Components => tree::component_count(target),
                 InspectorTab::AccessKit => tree::accesskit_count(target),
                 InspectorTab::Performance | InspectorTab::Simulation => 0,
             },
             native_pixel_ratio: native_pixel_ratio_label(ctx.native_pixels_per_point()),
-            picking: self.state.picking.get(),
-            responsive: self.state.screen_simulation.get().is_some(),
+            picking: self.state().picking.get(),
+            responsive: self.state().screen_simulation.get().is_some(),
             handles_back: target.handles_back(),
             selection,
             bounds: selected
@@ -990,7 +995,7 @@ impl Inspector {
     }
 
     fn release_focus(&mut self, ctx: &Context) {
-        if self.state.picking.get() || self.document.focused_node().is_none() {
+        if self.state().picking.get() || self.document.focused_node().is_none() {
             return;
         }
         if ctx.input(|input| input.events.iter().any(cancelled)) {
@@ -999,15 +1004,15 @@ impl Inspector {
     }
 
     fn pick(&mut self, target: &Document, ctx: &Context, content: Rect) {
-        if !self.state.picking.get() {
+        if !self.state().picking.get() {
             return;
         }
         if ctx.input(|input| input.events.iter().any(cancelled)) {
-            self.state.stop_picking();
+            self.state().stop_picking();
             return;
         }
 
-        self.state.hovered.set(None);
+        self.state().hovered.set(None);
         let screen = target.screen_scale();
         let under = |pos: Pos2| {
             let pos = Some(pos).filter(|pos| content.contains(*pos))?;
@@ -1015,9 +1020,9 @@ impl Inspector {
         };
         let pressed = primary(ctx).into_iter().find(|(down, _)| *down);
         if let Some(id) = pressed.and_then(|(_, at)| under(at)) {
-            self.state.stop_picking();
-            self.state.app_shown.set(false);
-            self.state.select(id);
+            self.state().stop_picking();
+            self.state().app_shown.set(false);
+            self.state().select(id);
             return;
         }
         let pointer = ctx.input(|input| input.pointer.interact_pos());
@@ -1026,19 +1031,19 @@ impl Inspector {
         };
         ctx.set_cursor_icon(CursorIcon::Crosshair);
         if let Some(id) = under(pointer) {
-            self.state.hovered.set(Some(id));
+            self.state().hovered.set(Some(id));
         }
     }
 
     fn selection_path(&self, target: &Document) -> Vec<Key> {
-        let Some(id) = self.state.selected.get() else {
+        let Some(id) = self.state().selected.get() else {
             return Vec::new();
         };
-        match self.state.tab.get() {
+        match self.state().tab.get() {
             InspectorTab::Beui => tree::path(target, id),
             InspectorTab::Components => {
                 let mut path = tree::component_path(target, id);
-                let chosen = self.state.selected_component.get();
+                let chosen = self.state().selected_component.get();
                 if let Some(end) = path.iter().position(|key| Some(*key) == chosen) {
                     path.truncate(end + 1);
                 }
@@ -1272,7 +1277,7 @@ impl Tools for InspectorTools {
         };
         let was = std::mem::replace(&mut self.withheld, withheld);
         if let Some(inspector) = &self.inspector {
-            for gesture in inspector.state.take_back_gestures() {
+            for gesture in inspector.state().take_back_gestures() {
                 with_reactive_scope(document, || {
                     with_document(|document| document.back(gesture))
                 });
