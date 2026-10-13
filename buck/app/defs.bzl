@@ -42,9 +42,9 @@ def _precompile(ctx: AnalysisContext, wasm: Artifact) -> Artifact:
 # it, whatever the app is built for, and the plugin SDK they are linked against
 # (guides/plugin_sdk.md), with its .cwasm; with no precompiler, each plugin is
 # its module alone. With no binary it
-# is the plugins alone. The web bundle is this rule too: `bindgen` runs
-# wasm-bindgen over each module, and `index` writes the plugins.json a browser
-# finds the plugins through.
+# is the plugins alone. `index` writes the plugins.json the app finds the
+# plugins through. The web bundle is this rule too: `bindgen` runs
+# wasm-bindgen over each module.
 def _app_impl(ctx: AnalysisContext) -> list[Provider]:
     out = ctx.actions.declare_output(ctx.label.name, dir = True)
     command = cmd_args("sh", ctx.attrs._stage, out.as_output())

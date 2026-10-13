@@ -95,18 +95,53 @@ impl Host {
     }
 
     pub fn load(&self, path: &Path) -> Result<Plugin, String> {
-        let plugin = match precompiled_beside(&self.engine, path) {
-            Some(plugin) => plugin,
-            None => module(&self.engine, &read(path)?)?,
-        };
         let directory = path.parent().unwrap_or(Path::new("."));
+        let entry = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| format!("{} names no module", path.display()))?;
+        self.load_from(entry, |name| {
+            let path = directory.join(name);
+            std::fs::read(&path)
+                .map_err(|error| format!("{} could not be read: {error}", path.display()))
+        })
+    }
+
+    pub fn load_from(
+        &self,
+        entry: &str,
+        read: impl Fn(&str) -> Result<Vec<u8>, String>,
+    ) -> Result<Plugin, String> {
+        let plugin = match self.precompiled(entry, &read) {
+            Some(plugin) => plugin,
+            None => module(&self.engine, &read(entry)?)?,
+        };
         self.link(plugin, |identity| {
-            let sdk = directory.join(sdk_file_name(identity));
-            match precompiled_beside(&self.engine, &sdk) {
+            let sdk = sdk_file_name(identity);
+            match self.precompiled(&sdk, &read) {
                 Some(module) => Ok(module),
                 None => sdk_module(&self.engine, identity, &read(&sdk)?),
             }
         })
+    }
+
+    fn precompiled(
+        &self,
+        name: &str,
+        read: &impl Fn(&str) -> Result<Vec<u8>, String>,
+    ) -> Option<Module> {
+        let artifact = Path::new(name)
+            .with_extension(PRECOMPILED_EXTENSION)
+            .to_str()?
+            .to_owned();
+        let bytes = read(&artifact).ok()?;
+        match unsafe { Module::deserialize(&self.engine, &bytes) } {
+            Ok(module) => Some(module),
+            Err(error) => {
+                eprintln!("{artifact} could not be used, compiling the plugin instead: {error}");
+                None
+            }
+        }
     }
 
     pub fn load_bytes(&self, bytes: &[u8]) -> Result<Plugin, String> {
@@ -155,10 +190,6 @@ impl Host {
         };
         Plugin::new(self, Program::Linked { sdk, plugin })
     }
-}
-
-fn read(path: &Path) -> Result<Vec<u8>, String> {
-    std::fs::read(path).map_err(|error| format!("{} could not be read: {error}", path.display()))
 }
 
 pub struct Plugin {

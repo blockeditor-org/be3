@@ -8,31 +8,19 @@ mod web;
 #[cfg(target_arch = "wasm32")]
 pub(crate) use web::load;
 
-#[cfg(target_os = "android")]
-mod android;
-#[cfg(target_os = "android")]
-pub(crate) use android::{Module, load};
-
-#[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
-mod native;
-
-#[cfg(target_arch = "wasm32")]
-pub(crate) type Location = String;
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) type Location = std::path::PathBuf;
+mod bundle;
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) use bundle::read;
+#[cfg(target_os = "android")]
+pub(crate) use bundle::use_assets;
 
-#[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
-pub(crate) type Module = std::path::PathBuf;
+const INDEX: &str = "plugins.json";
 
 #[derive(Default)]
 pub(crate) struct Plugins {
     manifests: Vec<Arc<PluginManifest>>,
-    root: Location,
     errors: Vec<String>,
-    #[cfg(target_os = "android")]
-    modules: std::collections::HashMap<String, Arc<Vec<u8>>>,
-    #[cfg(target_os = "android")]
-    app: Option<beui::AndroidApp>,
 }
 
 impl Plugins {
@@ -103,10 +91,7 @@ thread_local! {
     static PLUGINS: RefCell<Option<Arc<Plugins>>> = const { RefCell::new(None) };
 }
 
-#[cfg_attr(
-    all(not(target_arch = "wasm32"), not(target_os = "android")),
-    allow(dead_code)
-)]
+#[cfg(target_arch = "wasm32")]
 fn install(plugins: Plugins) {
     PLUGINS.with(|cell| *cell.borrow_mut() = Some(Arc::new(plugins)));
 }
@@ -118,12 +103,12 @@ pub(crate) fn plugins() -> Arc<Plugins> {
     })
 }
 
-#[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
+#[cfg(not(target_arch = "wasm32"))]
 fn scan() -> Plugins {
-    native::scan()
+    bundle::scan()
 }
 
-#[cfg(any(target_arch = "wasm32", target_os = "android"))]
+#[cfg(target_arch = "wasm32")]
 fn scan() -> Plugins {
     Plugins::default()
 }
@@ -132,40 +117,12 @@ pub(crate) fn manifests() -> Vec<Arc<PluginManifest>> {
     plugins().manifests.clone()
 }
 
-#[cfg_attr(
-    not(any(target_arch = "wasm32", target_os = "windows", target_os = "linux")),
-    allow(dead_code)
-)]
-pub(crate) fn entry_point(plugin_id: &str, entry: &str) -> Option<Location> {
-    let plugins = plugins();
-    if !plugins
+pub(crate) fn entry_point(plugin_id: &str, entry: &str) -> Option<String> {
+    plugins()
         .manifests
         .iter()
         .any(|manifest| manifest.identity.id == plugin_id)
-    {
-        return None;
-    }
-    #[cfg(target_arch = "wasm32")]
-    let location = format!("{}{entry}", plugins.root);
-    #[cfg(not(target_arch = "wasm32"))]
-    let location = plugins.root.join(entry);
-    Some(location)
-}
-
-#[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
-pub(crate) fn module(plugin_id: &str, entry: &str) -> Option<Module> {
-    entry_point(plugin_id, entry)
-}
-
-#[cfg(target_os = "android")]
-pub(crate) fn module(plugin_id: &str, entry: &str) -> Option<Module> {
-    let plugins = plugins();
-    plugins
-        .manifests
-        .iter()
-        .find(|manifest| manifest.identity.id == plugin_id)?;
-    let bytes = plugins.modules.get(entry).cloned()?;
-    Some(Module::new(bytes, plugins.app.clone()?))
+        .then(|| entry.to_owned())
 }
 
 const DATA: &str = "data";
@@ -206,16 +163,9 @@ fn staged(
     }
     let relative = format!("{DATA}/{plugin_id}/{path}");
     #[cfg(target_arch = "wasm32")]
-    crate::platform::http::fetch(format!("{}{relative}", plugins.root), Vec::new(), deliver);
-    #[cfg(target_os = "android")]
-    deliver(match &plugins.app {
-        Some(app) => android::read(app, &relative).map_err(|error| format!("{relative}: {error}")),
-        None => Err("the plugins were not loaded from the app's assets".to_owned()),
-    });
-    #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
-    deliver(
-        std::fs::read(plugins.root.join(&relative)).map_err(|error| format!("{relative}: {error}")),
-    );
+    crate::platform::http::fetch(relative, Vec::new(), deliver);
+    #[cfg(not(target_arch = "wasm32"))]
+    deliver(read(&relative).map_err(|error| format!("{relative}: {error}")));
 }
 
 fn plain(path: &str) -> bool {

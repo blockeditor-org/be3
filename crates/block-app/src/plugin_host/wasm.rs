@@ -10,7 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::editors::plugin::discovery::{self, Module};
+use crate::editors::plugin::discovery;
 
 use block_plugin_api::{Message, PluginManifest, ScreenLayout, decode_frame, encode_frame};
 use block_wasm_host::{Host, Plugin};
@@ -109,7 +109,7 @@ impl Drop for Worker {
 
 pub(super) struct Wasm {
     worker: Option<Worker>,
-    module: Option<Module>,
+    module: Option<String>,
     started: Instant,
     error: Option<String>,
 }
@@ -120,7 +120,7 @@ impl super::backend::Backend for Wasm {
     fn new(plugin: &PluginManifest) -> Self {
         Self {
             worker: None,
-            module: discovery::module(&plugin.identity.id, &plugin.entry_point),
+            module: discovery::entry_point(&plugin.identity.id, &plugin.entry_point),
             started: Instant::now(),
             error: None,
         }
@@ -363,25 +363,14 @@ fn decode(frames: Vec<Vec<u8>>, error: &mut Option<String>) -> Vec<Message> {
     messages
 }
 
-fn open(host: &Host, module: &Module) -> Result<Plugin, String> {
-    #[cfg(not(target_os = "android"))]
-    {
-        host.load(module)
-    }
-    #[cfg(target_os = "android")]
-    {
-        host.load_bytes_with_sdk(module.bytes(), |identity| module.sdk(identity))
-    }
-}
-
 fn run(
     host: Host,
-    module: Module,
+    module: String,
     orders: Receiver<Command>,
     reports: Sender<Event>,
     waiting: Arc<AtomicBool>,
 ) {
-    let mut plugin = match open(&host, &module) {
+    let mut plugin = match host.load_from(&module, discovery::read) {
         Ok(plugin) => plugin,
         Err(error) => {
             let _ = reports.send(Event::Failed(error));

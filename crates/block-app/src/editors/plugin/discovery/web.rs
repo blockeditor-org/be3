@@ -1,9 +1,7 @@
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
-use super::Plugins;
-
-const INDEX: &str = "plugins.json";
+use super::{INDEX, Plugins};
 
 pub(crate) async fn load() {
     if let Ok(id) = get(build_id::FILE).await {

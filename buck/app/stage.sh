@@ -5,8 +5,9 @@
 # the module it names and its .cwasm, and --data, the plugin's read-only data
 # (plugin_data), under data/<id>/. --sdk is the plugin SDK the modules are
 # linked against, staged as sdk-<its SHA-256>.wasm, which is the name a plugin
-# finds it by, with --sdk-artifact, its .cwasm. For the web bundle, --tree copies in what
-# wasm-bindgen wrote and --index writes plugins.json. --compiled-only leaves out
+# finds it by, with --sdk-artifact, its .cwasm. --index writes plugins.json,
+# the list of manifests the app finds its plugins through. For the web bundle,
+# --tree copies in what wasm-bindgen wrote. --compiled-only leaves out
 # each module that has a .cwasm, for the APK, which only falls back to one.
 #
 # Usage:

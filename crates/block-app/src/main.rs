@@ -213,7 +213,7 @@ pub async fn automate(
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
 fn android_main(app: beui::AndroidApp) {
-    editors::plugin::discovery::load(&app);
+    editors::plugin::discovery::use_assets(app.clone());
     panic_guard::install();
     let storage_root = app.internal_data_path();
     let options = run_options();
