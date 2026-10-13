@@ -123,8 +123,7 @@ impl Backend {
 
     pub(super) fn received_frame(&mut self) -> Option<Frame> {
         let (presented, presents) = self.worker.as_mut()?.take_presented()?;
-        platform::frame(presented, presents);
-        Some(())
+        Some(platform::frame(presented, presents))
     }
 
     pub(super) fn settled(&self) -> bool {

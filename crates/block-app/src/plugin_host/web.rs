@@ -14,9 +14,9 @@ use adapter::WebProtocolAdapter;
 pub(super) use adapter::WebProtocolAdapter as Channel;
 pub(super) use canvases::{Placement, placement, set_background};
 
-pub(super) type Frame = ();
+pub(super) struct Frame;
 
-impl ShownFrame for () {
+impl ShownFrame for Frame {
     fn presents(&self) -> u64 {
         0
     }
@@ -36,4 +36,6 @@ pub(super) fn spawn(
     WebProtocolAdapter::start(&module, waiting)
 }
 
-pub(super) fn frame(_presented: Vec<Infallible>, _presents: u64) {}
+pub(super) fn frame(_presented: Vec<Infallible>, _presents: u64) -> Frame {
+    Frame
+}
