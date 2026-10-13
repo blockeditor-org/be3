@@ -24,12 +24,12 @@ pub const DRAG_THRESHOLD: f32 = 4.0;
 pub const DRAG_PREVIEW_OFFSET: Vec2 = Vec2::new(12.0, 14.0);
 const TOUCH_PREVIEW_OFFSET: Vec2 = Vec2::new(16.0, -64.0);
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct DragHandle {
     pub dragging: Memo<bool>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct DropHandle {
     pub carrying: Memo<bool>,
     pub over: Memo<bool>,

@@ -42,7 +42,7 @@ pub struct ScrollHandle {
     pub scroll_to: Callback<f32>,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Copy, Default)]
 pub struct ScrollbarStyle {
     bar: Option<(f32, RenderFn<ScrollHandle, ListChild>)>,
     fade: f32,

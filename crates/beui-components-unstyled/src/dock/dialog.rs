@@ -17,7 +17,7 @@ use super::{DockState, DockTabControl, State, TabId};
 
 const ATTENTION: Duration = Duration::from_millis(400);
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub(crate) struct DialogParts {
     pub(crate) title: Memo<String>,
     pub(crate) icon: Memo<String>,

@@ -49,7 +49,7 @@ pub struct CompletionRowHandle {
     pub hovered: ReadSignal<bool>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct CompletionMenu {
     row: RenderFn<CompletionRowHandle>,
     panel: RenderFn<Child>,

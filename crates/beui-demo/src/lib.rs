@@ -16,9 +16,9 @@ use beui::icons::{
 use beui::reactive::{
     Action, Align, Callback, Canvas, CanvasItem, CanvasView, Child, Children, Chord, ClickCallback,
     ForEach, Frame, Func, Justify, List, ListChild, Memo, Prop, ReadSignal, Selector, Show, Spacer,
-    Span, Text, VirtualList, WriteSignal, batch, build, clone, create_effect, create_memo,
+    Span, Stored, Text, VirtualList, WriteSignal, batch, build, clone, create_effect, create_memo,
     create_selector, create_signal, focus_ring, held_modifiers, on_shortcut, provide_context,
-    untrack, use_context, view, with_document,
+    store, untrack, use_context, view, with_document,
 };
 use beui::styled::DocumentTheme;
 use beui::styled::theme::{CARD_RADIUS, FONT_SMALL, NARROW_WIDTH, RADIUS};
@@ -365,7 +365,7 @@ impl beui::App for DemoApp {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct DragModifier {
     held: ReadSignal<Option<Modifiers>>,
     set: WriteSignal<Option<Modifiers>>,
@@ -385,11 +385,11 @@ impl DemoDialog {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct DemoDialogs {
     open: ReadSignal<Vec<DemoDialog>>,
     set_open: WriteSignal<Vec<DemoDialog>>,
-    next: Rc<std::cell::Cell<u64>>,
+    next: Stored<std::cell::Cell<u64>>,
 }
 
 impl DemoDialogs {
@@ -398,13 +398,12 @@ impl DemoDialogs {
         Self {
             open,
             set_open,
-            next: Rc::new(std::cell::Cell::new(DIALOG_TABS)),
+            next: store(std::cell::Cell::new(DIALOG_TABS)),
         }
     }
 
     fn open(&self, parent: TabId, modal: bool) {
-        let id = TabId::new(self.next.get());
-        self.next.set(self.next.get() + 1);
+        let id = TabId::new(self.next.with(|next| next.replace(next.get() + 1)));
         self.set_open.update(|open| {
             let depth = open
                 .iter()
@@ -560,7 +559,7 @@ fn DemoShell() -> NodeId {
         set: set_drag_modifier,
     });
     let dialogs = DemoDialogs::new();
-    provide_context(dialogs.clone());
+    provide_context(dialogs);
     let attached = dialogs.open;
     view! {
         <Frame color={theme.background}>
@@ -601,7 +600,7 @@ fn DemoShell() -> NodeId {
                         </DockPane>
                     </DockSplit>
                     <ForEach keys={attached}>
-                        {move |dialog: DemoDialog| clone!(dialogs -> view! {
+                        {move |dialog: DemoDialog| view! {
                             <DockDialog
                                 id={dialog.id}
                                 parent={dialog.parent}
@@ -616,7 +615,7 @@ fn DemoShell() -> NodeId {
                             >
                                 <AttachedDialog modal={dialog.modal} />
                             </DockDialog>
-                        })}
+                        }}
                     </ForEach>
                 </Docking>
             </List>

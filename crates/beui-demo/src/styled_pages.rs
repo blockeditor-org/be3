@@ -139,7 +139,6 @@ pub(crate) fn DockingPage() -> NodeId {
 fn AttachedDialogs() -> NodeId {
     let dialogs = use_context::<DemoDialogs>();
     let tab = use_dock_tab().map(|control| control.tab());
-    let modeless = dialogs.clone();
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal spacing=ROW_SPACING>
@@ -148,7 +147,7 @@ fn AttachedDialogs() -> NodeId {
                     label="Open a dialog"
                     variant=ButtonVariant::Secondary
                     on_click={move || {
-                        if let (Some(dialogs), Some(tab)) = (modeless.as_ref(), tab) {
+                        if let (Some(dialogs), Some(tab)) = (dialogs.as_ref(), tab) {
                             dialogs.open(tab, false);
                         }
                     }}
@@ -180,7 +179,6 @@ fn AttachedDialogs() -> NodeId {
 pub(crate) fn AttachedDialog(modal: bool) -> NodeId {
     let dialogs = use_context::<DemoDialogs>();
     let control = use_dock_tab();
-    let nesting = dialogs.clone();
     let tab = control.as_ref().map(DockTabControl::tab);
     let message = match modal {
         true => "This tab cannot be used until this dialog closes.",
@@ -197,7 +195,7 @@ pub(crate) fn AttachedDialog(modal: bool) -> NodeId {
                         label="Open a modal dialog over this one"
                         variant=ButtonVariant::Secondary
                         on_click={move || {
-                            if let (Some(dialogs), Some(tab)) = (nesting.as_ref(), tab) {
+                            if let (Some(dialogs), Some(tab)) = (dialogs.as_ref(), tab) {
                                 dialogs.open(tab, true);
                             }
                         }}
@@ -222,9 +220,9 @@ pub(crate) fn AttachedDialog(modal: bool) -> NodeId {
 #[component]
 fn ContentDrag() -> NodeId {
     let modifier = use_context::<DragModifier>();
-    let on = create_memo(clone!(modifier -> move || {
+    let on = create_memo(move || {
         modifier.as_ref().is_some_and(|modifier| modifier.held.get().is_some())
-    }));
+    });
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>

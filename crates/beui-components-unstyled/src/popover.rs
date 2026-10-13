@@ -25,13 +25,13 @@ pub enum PopoverPlacement {
     Over(u16),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct PopoverHandle {
     pub open: ReadSignal<bool>,
     pub close: Callback<()>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct State {
     open: ReadSignal<bool>,
     trigger: NodeRef,

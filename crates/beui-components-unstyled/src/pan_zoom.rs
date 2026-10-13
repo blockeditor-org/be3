@@ -75,7 +75,7 @@ pub struct PanZoomHandle {
     pub focused: ReadSignal<bool>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct Camera {
     view: ReadSignal<PanZoomView>,
     set_view: WriteSignal<PanZoomView>,

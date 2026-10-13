@@ -11,7 +11,7 @@ use beui_view::reactive::{
     create_effect, create_memo, create_signal, untrack,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct MenuButtonHandle {
     pub open: ReadSignal<bool>,
     pub button: unstyled::ButtonHandle,

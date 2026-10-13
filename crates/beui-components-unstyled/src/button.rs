@@ -11,7 +11,7 @@ use beui_view::reactive::{
     create_memo, create_signal, set_component_state, untrack,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct ButtonHandle {
     pub hovered: ReadSignal<bool>,
     pub active: ReadSignal<bool>,

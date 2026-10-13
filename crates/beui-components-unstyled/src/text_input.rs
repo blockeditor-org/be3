@@ -43,7 +43,7 @@ pub struct TextInputHandle {
     pub clear: ClickCallback,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct TextInputStyle {
     pub font_size: Prop<f32>,
     pub color: Prop<Color32>,

@@ -37,7 +37,7 @@ pub enum DateTimePanelLayout {
     Paged,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct DateTimeCalendarHandle {
     pub date: Memo<Option<Date>>,
     pub shown: Memo<Option<Date>>,
@@ -48,7 +48,7 @@ pub struct DateTimeCalendarHandle {
     pub pick: Callback<Date>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct DateTimeTimesHandle {
     pub time: Memo<Option<Time>>,
     pub hour_cycle: HourCycle,
@@ -69,7 +69,7 @@ pub struct DateTimePanelHandle {
     pub clear: ClickCallback,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct Field {
     current: ReadSignal<Option<DateTime>>,
     report: Callback<Option<DateTime>>,
@@ -186,7 +186,6 @@ pub fn DateTimePicker(
                 });
                 let anchor = NodeRef::new();
                 let popover_anchor = anchor;
-                let inner_field = field.clone();
                 let trigger_label = picker_label;
                 view! {
                     <Frame @node_ref=&anchor>
@@ -210,7 +209,7 @@ pub fn DateTimePicker(
                                     {move |popover: PopoverHandle| view! {
                                         <PickerPanel
                                             popover
-                                            field={inner_field}
+                                            field={field}
                                             width
                                             from_field
                                             inner_focus
@@ -324,7 +323,7 @@ fn PickerPanel(
         parts,
         hour_cycle,
         ..
-    } = field.clone();
+    } = field;
     let (draft, set_draft) = create_signal(DateDraft::default());
     let shown = create_memo(move || {
         let draft = draft.get();

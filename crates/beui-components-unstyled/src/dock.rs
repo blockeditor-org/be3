@@ -282,7 +282,7 @@ pub fn use_dock_tab() -> Option<DockTabControl> {
     use_context::<DockTabControl>()
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct DockTabActions {
     tab: TabId,
     set_actions: WriteSignal<HashMap<TabId, NodeId>>,
@@ -290,7 +290,7 @@ struct DockTabActions {
 
 pub type DockMenus = HashMap<TabId, (u64, Memo<Vec<Action>>)>;
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct DockTabMenu {
     pub tab: TabId,
     pub set_menu: WriteSignal<DockMenus>,
@@ -344,7 +344,7 @@ pub fn dock_actions(actions: impl FnOnce() -> NodeId) {
     });
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Copy, Default)]
 struct TabBar {
     strip: NodeRef,
     tabs: NodeRef,
