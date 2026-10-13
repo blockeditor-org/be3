@@ -26,12 +26,11 @@ use wasmtime::{
 use wasmtime_wasi::{WasiCtxBuilder, p1};
 
 use dylink::Program;
-use sha2::{Digest, Sha256};
 use state::Device;
 use threads::Spawner;
 use wake::Wake;
 
-pub use dylink::sdk_file_name;
+pub use wasm_dylink::sdk_file_name;
 pub use precompile::{precompile, precompile_to};
 pub use state::{Connect, State};
 
@@ -404,15 +403,7 @@ fn module(engine: &Engine, bytes: &[u8]) -> Result<Module, String> {
 
 fn sdk_module(engine: &Engine, identity: &str, bytes: &[u8]) -> Result<Module, String> {
     if Engine::detect_precompiled(bytes).is_none() {
-        let digest: String = Sha256::digest(bytes)
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect();
-        if digest != identity {
-            return Err(format!(
-                "its SHA-256 is {digest}, not the {identity} it is named by"
-            ));
-        }
+        wasm_dylink::check_sdk(bytes, identity)?;
     }
     module(engine, bytes)
 }

@@ -128,11 +128,11 @@ export async function boot(shimUrl, moduleUrl, wake) {
     await shimModule.start();
     const bytes = await fetched(moduleUrl);
     const plugin = await WebAssembly.compile(bytes);
-    const identity = dylink.sdkIdentity(plugin);
+    const identity = dylink.sdkIdentity(shimModule, plugin);
     const sdkBytes =
-        identity === null ? null : await fetched(new URL(dylink.sdkFileName(identity), moduleUrl));
+        identity === null ? null : await fetched(new URL(shimModule.sdk_file_name(identity), moduleUrl));
     if (sdkBytes !== null) {
-        await dylink.checkSdk(sdkBytes, identity);
+        shimModule.check_sdk(new Uint8Array(sdkBytes), identity);
     }
     const first = sdkBytes === null ? plugin : await WebAssembly.compile(sdkBytes);
     const memory = new WebAssembly.Memory({ ...memoryLimits(sdkBytes ?? bytes), shared: true });
@@ -144,7 +144,7 @@ export async function boot(shimUrl, moduleUrl, wake) {
     runtime.exports.__wasm_call_ctors?.();
     let exports = runtime.exports;
     if (first !== plugin) {
-        const layout = dylink.plan(runtime, plugin, memory);
+        const layout = dylink.plan(shimModule, runtime, plugin, memory);
         const instance = dylink.instantiate(runtime, plugin, layout, resolve(plugin, memory, shim));
         dylink.relocate(instance, layout);
         instance.exports.plugin_initialize_tls(

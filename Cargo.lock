@@ -1383,8 +1383,10 @@ dependencies = [
  "block-gpu-abi",
  "block-gpu-host",
  "js-sys",
+ "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "wasm-dylink",
  "web-sys",
  "wgpu",
 ]
@@ -1454,6 +1456,7 @@ dependencies = [
  "rustc-demangle",
  "sha2",
  "tokio",
+ "wasm-dylink",
  "wasmtime",
  "wasmtime-wasi",
  "wgpu",
@@ -7865,6 +7868,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasm-dylink"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "sha2",
+]
+
+[[package]]
 name = "wasm-encoder"
 version = "0.244.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7899,6 +7910,7 @@ name = "wasm-link"
 version = "0.1.0"
 dependencies = [
  "sha2",
+ "wasm-dylink",
 ]
 
 [[package]]

@@ -12,10 +12,10 @@ block-gpu-abi = { path = "../block-gpu-abi" }
 block-gpu-host = { path = "../block-gpu-host" }
 bytes = "1"
 rustc-demangle = "0.1"
-sha2 = "0.10"
 tokio = { version = "1", default-features = false }
 wasmtime = { version = "48", default-features = false, features = ["cache", "cranelift", "demangle", "gc", "gc-drc", "parallel-compilation", "runtime", "std", "threads"] }
 wasmtime-wasi = { version = "48", default-features = false, features = ["p1"] }
+wasm-dylink = { path = "../wasm-dylink" }
 wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }
 
 [lints]
@@ -23,5 +23,6 @@ workspace = true
 
 [dev-dependencies]
 block-plugin-api = { path = "../block-plugin-api" }
+sha2 = "0.10"
 wasmtime = { version = "48", default-features = false, features = ["cranelift", "gc", "gc-drc", "runtime", "std", "threads", "wat"] }
 wgpu = { version = "29", default-features = false, features = ["noop", "std", "wgsl"] }
