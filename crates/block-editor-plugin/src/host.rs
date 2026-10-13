@@ -11,10 +11,10 @@ use block_plugin_api::TopBar;
 use block_plugin_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand,
     BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect,
-    ChildStatus, ClipboardImage, DataListing, EditorRegion, FetchResult, FilePick, FileSave,
-    HostAction, HostPanel, HostReply, HostRequest, HostValue, HostWindowId, MenuEntry, Occluder,
-    PerformanceMeasurement, ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent, WebViewId,
-    decode_host, encode_host,
+    ChildStatus, DataListing, EditorRegion, FetchResult, FilePick, FileSave, HostAction, HostPanel,
+    HostReply, HostRequest, HostValue, HostWindowId, MenuEntry, Occluder, PerformanceMeasurement,
+    ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent, WebViewId, decode_host,
+    encode_host,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;
@@ -1167,17 +1167,6 @@ impl EditorHost {
     pub fn take_block_pick(&self, request: u64) -> Option<BlockPick> {
         match self.take_reply(request)? {
             HostReply::BlockPicked(pick) => Some(pick),
-            reply => self.mismatched(request, reply),
-        }
-    }
-
-    pub fn paste_image(&self) -> u64 {
-        self.ask(HostRequest::PasteImage)
-    }
-
-    pub fn take_pasted_image(&self, request: u64) -> Option<ClipboardImage> {
-        match self.take_reply(request)? {
-            HostReply::ImagePasted(image) => Some(image),
             reply => self.mismatched(request, reply),
         }
     }

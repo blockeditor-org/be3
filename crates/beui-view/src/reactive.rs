@@ -68,12 +68,10 @@ pub fn copy_text(text: impl Into<String>) {
     with_document(|document| document.copy_text(text));
 }
 
+pub use beui_core::clipboard::{PasteKind, Pasted};
+
 pub fn request_paste() {
     with_document(Document::request_paste);
-}
-
-pub fn paste_image(pasted: impl FnOnce(beui_core::clipboard::ImagePaste) + 'static) {
-    with_document(|document| document.paste_image(pasted));
 }
 
 pub fn node_scope(document: &Document, owner: Option<ScopeContext>) -> Scope {

@@ -8,9 +8,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use beui::{
-    ClipboardReadId, Document, FileFilter, FilePick, FilePickId, ImagePaste, ImagePasteId, Waker,
-};
+use beui::{Document, FileFilter, FilePick, FilePickId, Waker};
 use uuid::Uuid;
 
 static WAKER: OnceLock<Waker> = OnceLock::new();
@@ -60,8 +58,7 @@ struct Output {
     fullscreen: Option<bool>,
     copied: Option<String>,
     file_picks: Vec<(FileFilter, PickSlot)>,
-    clipboard_reads: Vec<ReadSlot>,
-    image_pastes: Vec<PickSlot>,
+    paste: bool,
     grab: Option<bool>,
     repaint: bool,
     repaint_after: Option<Duration>,
@@ -77,8 +74,6 @@ struct Host {
     grabbed: bool,
     commands: Vec<HostCommand>,
     waiting_picks: Vec<(FilePickId, PickSlot)>,
-    waiting_reads: Vec<(ClipboardReadId, ReadSlot)>,
-    waiting_pastes: Vec<(ImagePasteId, PickSlot)>,
     output: Output,
 }
 
@@ -94,8 +89,6 @@ impl Default for Host {
             grabbed: false,
             commands: Vec::new(),
             waiting_picks: Vec::new(),
-            waiting_reads: Vec::new(),
-            waiting_pastes: Vec::new(),
             output: Output::default(),
         }
     }
@@ -138,34 +131,6 @@ pub(crate) fn begin(context: &beui::Context, document: &Document) {
     for (deliver, pick) in picked {
         deliver(pick);
     }
-    let mut read = Vec::new();
-    with(|host| {
-        host.waiting_reads
-            .retain_mut(|(id, slot)| match context.take_clipboard_read(*id) {
-                Some(text) => {
-                    read.extend(slot.take().map(|deliver| (deliver, text)));
-                    false
-                }
-                None => true,
-            });
-    });
-    for (deliver, text) in read {
-        deliver(text);
-    }
-    let mut pasted = Vec::new();
-    with(|host| {
-        host.waiting_pastes
-            .retain_mut(|(id, slot)| match context.take_image_paste(*id) {
-                Some(paste) => {
-                    pasted.extend(slot.take().map(|deliver| (deliver, paste)));
-                    false
-                }
-                None => true,
-            });
-    });
-    for (deliver, paste) in pasted {
-        deliver(paste);
-    }
     let mut frame = Frame {
         now: Some(context.now()),
         ..Frame::default()
@@ -206,13 +171,8 @@ pub(crate) fn end(context: &beui::Context) {
         let id = context.pick_file(filter);
         with(|host| host.waiting_picks.push((id, slot)));
     }
-    for slot in output.clipboard_reads {
-        let id = context.read_clipboard();
-        with(|host| host.waiting_reads.push((id, slot)));
-    }
-    for slot in output.image_pastes {
-        let id = context.paste_image();
-        with(|host| host.waiting_pastes.push((id, slot)));
+    if output.paste {
+        context.request_paste();
     }
     if let Some(grab) = output.grab
         && with(|host| std::mem::replace(&mut host.grabbed, grab)) != grab
@@ -269,14 +229,9 @@ pub(crate) fn copy_text(text: String) {
 }
 
 type PickSlot = Option<Box<dyn FnOnce(FilePick)>>;
-type ReadSlot = Option<Box<dyn FnOnce(Option<String>)>>;
 
-pub(crate) fn read_clipboard(deliver: impl FnOnce(Option<String>) + 'static) {
-    with(|host| host.output.clipboard_reads.push(Some(Box::new(deliver))));
-}
-
-pub(crate) fn paste_image(deliver: impl FnOnce(ImagePaste) + 'static) {
-    with(|host| host.output.image_pastes.push(Some(Box::new(deliver))));
+pub(crate) fn request_paste() {
+    with(|host| host.output.paste = true);
 }
 
 pub(crate) fn pick_file(filter: FileFilter, deliver: impl FnOnce(FilePick) + 'static) {

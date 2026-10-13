@@ -385,7 +385,7 @@ through `wl_data_device` or the data-control protocols (`ext-data-control-v1` an
 text, which the compositor reads without blocking and hands to the app with `Context::copy_text`;
 the program's own selection stays, with all its types. Everything the app copies
 (`Context::watch_copies`) becomes a selection the compositor serves as text. Plugins paste
-through `Context::read_clipboard`, so both work in a session, where the platform's clipboard is
+through the host's `request_paste`, so both work in a session, where the platform's clipboard is
 the DRM adapter's own. A selection that only offers images is not handed to the app.
 
 Middle-click paste (`zwp_primary_selection_device_manager_v1`, and the primary selection of the

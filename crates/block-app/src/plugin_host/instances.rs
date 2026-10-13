@@ -3,9 +3,9 @@ use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::ImeArea as PluginImeArea;
 use block_plugin_api::{
     ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId, ChildMode,
-    ChildPlacement, ChildPlacements, ChildStatus, ClipboardImage, CreationOutcome, CursorIcon,
-    DataListing, EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick, FileSave,
-    FrameReport, FrameSpec, HostPanel, HostReply, HostRequest, Message, Monitor, Occluder,
+    ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, CursorIcon, DataListing,
+    EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick, FileSave, FrameReport,
+    FrameSpec, HostPanel, HostReply, HostRequest, Message, Monitor, Occluder,
     PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
     ScreenSet, Size, ViewChange, WatchedContent, WebViewId,
 };
@@ -47,8 +47,6 @@ pub(super) struct Instances {
     replies: Replies,
     epoch: u64,
     graph_seen: Option<u64>,
-    pasted: HashSet<EditorInstanceId>,
-    pastes: Pastes,
     audio_changes: AudioChanges,
     published: Published,
     shell: Option<EditorInstanceId>,
@@ -60,18 +58,6 @@ struct AudioChanges {
 }
 
 impl Default for AudioChanges {
-    fn default() -> Self {
-        let (sender, receiver) = host::waking_channel();
-        Self { sender, receiver }
-    }
-}
-
-struct Pastes {
-    sender: host::WakingSender<(u64, EditorInstanceId, String)>,
-    receiver: std::sync::mpsc::Receiver<(u64, EditorInstanceId, String)>,
-}
-
-impl Default for Pastes {
     fn default() -> Self {
         let (sender, receiver) = host::waking_channel();
         Self { sender, receiver }
@@ -122,7 +108,6 @@ struct Instance {
     drag_accepted: bool,
     intrinsic: Option<Vec2>,
     aspect_ratio: Option<f32>,
-    text_pastes: Vec<block_plugin_api::InputEvent>,
     audio: Option<AudioPlayer>,
     reported_size: Option<Vec2>,
     block_picks: Vec<BlockPickRequest>,
@@ -296,7 +281,6 @@ impl Instance {
             drag_accepted: false,
             intrinsic: None,
             aspect_ratio: None,
-            text_pastes: Vec::new(),
             audio: None,
             reported_size: None,
             block_picks: Vec::new(),
@@ -2162,38 +2146,6 @@ impl Instances {
                 }));
             }
         }
-        while let Ok((epoch, instance, text)) = self.pastes.receiver.try_recv() {
-            if epoch != self.epoch {
-                continue;
-            }
-            if let Some(entry) = self.entries.get_mut(&instance) {
-                entry
-                    .text_pastes
-                    .extend(block_plugin_api::paste_events(&text));
-                self.pasted.insert(instance);
-            }
-        }
-        let mut pasted: Vec<_> = std::mem::take(&mut self.pasted).into_iter().collect();
-        pasted.sort_by_key(|instance| instance.0);
-        for instance in pasted {
-            let Some(entry) = self.entries.get_mut(&instance) else {
-                continue;
-            };
-            let texts = std::mem::take(&mut entry.text_pastes);
-            if !texts.is_empty()
-                && let Some(screen) = entry
-                    .screens
-                    .values()
-                    .find(|screen| screen.input.focused())
-                    .or_else(|| entry.screens.get(&EditorRegion::Frame))
-                    .map(|screen| screen.request.screen)
-            {
-                messages.push(Message::Input(block_plugin_api::InputBatch {
-                    screen,
-                    events: texts,
-                }));
-            }
-        }
         let mut played: Vec<_> = self.audio_changes.receiver.try_iter().collect();
         played.sort_by_key(|instance| instance.0);
         played.dedup();
@@ -2263,16 +2215,6 @@ impl Instances {
                     }));
                 });
             }
-            HostRequest::PasteImage => host::paste_image(move |pasted| {
-                reply(HostReply::ImagePasted(match pasted {
-                    Ok(Some(image)) => ClipboardImage::Pasted {
-                        name: image.name,
-                        data: image.data,
-                    },
-                    Ok(None) => ClipboardImage::Empty,
-                    Err(error) => ClipboardImage::Failed(error),
-                }));
-            }),
             HostRequest::Fetch(url) => {
                 let fetched = move |body: Result<Vec<u8>, String>| {
                     reply(HostReply::Fetched(fetch_result(body)));
@@ -2717,17 +2659,11 @@ impl Instances {
                 host::copy_text(text);
                 false
             }
-            EditorMessage::PasteText { instance } => {
+            EditorMessage::Paste { instance } => {
                 if !self.entries.contains_key(&instance) {
                     return false;
                 }
-                let sender = self.pastes.sender.clone();
-                let epoch = self.epoch;
-                host::read_clipboard(move |text| {
-                    if let Some(text) = text {
-                        let _ = sender.send((epoch, instance, text));
-                    }
-                });
+                host::request_paste();
                 false
             }
             EditorMessage::ChildReplaced {

@@ -1,5 +1,6 @@
 use crate::reactive::{Callback, Child, ClickCallback, Prop, create_effect, with_document};
 use beui_core::base::list::Direction;
+use beui_core::clipboard::{PasteKind, Pasted};
 use beui_core::geometry::{Pos2, Vec2};
 use beui_core::input::{
     AutoscrollGesture, CursorIcon, DragGesture, ImeEvent, ImeText, KeyPress, Modifiers,
@@ -29,6 +30,8 @@ pub fn Interactive(
     on_step: Callback<f32>,
     on_text: Callback<String>,
     #[prop(default = true)] takes_text: bool,
+    #[prop(default = Vec::new())] pastes: Prop<Vec<PasteKind>>,
+    on_paste: Callback<Pasted>,
     on_ime: Callback<ImeEvent>,
     on_key: Callback<KeyPress, bool>,
     on_motion: Callback<Vec2>,
@@ -73,6 +76,7 @@ pub fn Interactive(
                 && on_activate.is_empty()
                 && on_step.is_empty()
                 && on_text.is_empty()
+                && on_paste.is_empty()
                 && on_ime.is_empty()
                 && on_key.is_empty()
                 && on_motion.is_empty()),
@@ -90,6 +94,7 @@ pub fn Interactive(
             if takes_text {
                 focus.on_text = on_text;
             }
+            focus.on_paste = on_paste;
             focus.on_ime = on_ime;
             focus.on_key = on_key;
             focus.on_motion = on_motion;
@@ -132,6 +137,10 @@ pub fn Interactive(
         });
         create_effect(move || {
             with_document(|document| document.set_focusable_ime(interactive, ime.get()))
+        });
+        create_effect(move || {
+            let pastes = pastes.get();
+            with_document(|document| document.set_focusable_pastes(interactive, pastes))
         });
         create_effect(move || {
             let keyboard = ime_keyboard.get();

@@ -56,6 +56,7 @@ fn frame_screens_and_reports_round_trip() {
         }],
         handles_back: true,
         wants_keyboard: true,
+        pastes: vec![PasteKind::Image, PasteKind::Text],
         intercepted_keys: vec![
             KeyChord {
                 key: Key::Tab,

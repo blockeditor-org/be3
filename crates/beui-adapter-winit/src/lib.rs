@@ -27,7 +27,7 @@ use winit::window::{
 
 use accesskit::TreeUpdate;
 use beui_core::app::{SafeArea, Setup, Waker};
-use beui_core::clipboard::ImagePasteAnswer;
+use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
 use beui_core::input::{
@@ -143,12 +143,17 @@ impl Platform for WinitPlatform<'_> {
         self.clipboard.set(text);
     }
 
-    fn paste(&mut self) -> Option<String> {
-        self.clipboard.get()
-    }
-
-    fn paste_image(&mut self, answer: ImagePasteAnswer) {
-        answer.send(self.clipboard.image());
+    fn paste(&mut self, kinds: &[PasteKind], answer: PasteAnswer) {
+        answer.send(kinds.iter().find_map(|kind| {
+            match kind {
+                PasteKind::Text => self
+                    .clipboard
+                    .get()
+                    .filter(|text| !text.is_empty())
+                    .map(Pasted::Text),
+                PasteKind::Image => self.clipboard.image().map(Pasted::Image),
+            }
+        }));
     }
 
     fn pick_file(&mut self, request: FilePickRequest, answer: FilePickAnswer) {

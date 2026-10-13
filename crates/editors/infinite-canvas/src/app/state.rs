@@ -16,7 +16,7 @@ use block_editor_beui::be_block::canvas::{
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::presence::{PresenceColor, pick_free_color};
 use block_editor_beui::beui::reactive::{
-    CanvasView, FilePick, Memo, ReadSignal, WriteSignal, create_effect, create_signal, paste_image,
+    CanvasView, FilePick, Memo, Pasted, ReadSignal, WriteSignal, create_effect, create_signal,
     pick_file, untrack,
 };
 use block_editor_beui::beui::{Pos2, Rect, Thumbhash, Vec2};
@@ -1042,7 +1042,7 @@ impl CanvasState {
         }
     }
 
-    pub(crate) fn run(self: &Rc<Self>, command: CanvasCommand) {
+    pub(crate) fn run(&self, command: CanvasCommand) {
         match command {
             CanvasCommand::SelectAll => {
                 let all = self
@@ -1117,16 +1117,8 @@ impl CanvasState {
         }
     }
 
-    pub(crate) fn ask_to_paste(self: &Rc<Self>) {
+    pub(crate) fn ask_to_paste(&self) {
         block_editor_beui::beui::reactive::request_paste();
-        if self.focused_editor.get_untracked().is_none() {
-            let state = Rc::downgrade(self);
-            paste_image(move |pasted| {
-                if let Some(state) = state.upgrade() {
-                    state.take_paste(pasted);
-                }
-            });
-        }
     }
 
     pub(crate) fn paste_text(&self, text: &str) -> bool {
@@ -1909,15 +1901,16 @@ impl CanvasState {
         }
     }
 
-    fn take_paste(&self, pasted: FilePick) {
+    pub(crate) fn take_paste(&self, pasted: Pasted) {
         match pasted {
-            Ok(Some(file)) => {
+            Pasted::Text(text) => {
+                self.paste_text(&text);
+            }
+            Pasted::Image(file) => {
                 self.set_import_error.set(None);
                 let center = self.viewport_center();
                 self.add_imported_image(ImageContent::from_file(file.name, file.data), center);
             }
-            Err(error) => self.set_import_error.set(Some(error)),
-            Ok(None) => {}
         }
     }
 

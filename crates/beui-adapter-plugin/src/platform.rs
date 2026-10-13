@@ -1,4 +1,4 @@
-use beui_core::clipboard::ImagePasteAnswer;
+use beui_core::clipboard::{PasteAnswer, PasteKind};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::input::{CursorIcon, ImeArea, KeyChord};
 use beui_core::runner::Platform;
@@ -7,13 +7,13 @@ use block_editor_plugin::EditorHost;
 pub(crate) struct HostPlatform {
     host: EditorHost,
     picks: Vec<(u64, FilePickAnswer)>,
-    image_pastes: Vec<(u64, ImagePasteAnswer)>,
     pub(crate) cursor: block_plugin_api::CursorIcon,
     pub(crate) ime: Option<ImeArea>,
     pub(crate) handles_back: bool,
     pub(crate) wants_keyboard: bool,
     pub(crate) intercepted_keys: Vec<block_plugin_api::KeyChord>,
     pub(crate) locked: bool,
+    pub(crate) pastes: Vec<block_plugin_api::PasteKind>,
 }
 
 impl HostPlatform {
@@ -21,7 +21,7 @@ impl HostPlatform {
         Self {
             host,
             picks: Vec::new(),
-            image_pastes: Vec::new(),
+            pastes: Vec::new(),
             cursor: block_plugin_api::CursorIcon::Default,
             ime: None,
             handles_back: false,
@@ -38,12 +38,6 @@ impl HostPlatform {
                 None => self.picks.push((request, answer)),
             }
         }
-        for (request, answer) in std::mem::take(&mut self.image_pastes) {
-            match self.host.take_pasted_image(request) {
-                Some(image) => answer.send(beui_plugin_input::beui_image_paste(image)),
-                None => self.image_pastes.push((request, answer)),
-            }
-        }
     }
 }
 
@@ -52,14 +46,16 @@ impl Platform for HostPlatform {
         self.host.copy_text(text);
     }
 
-    fn paste(&mut self) -> Option<String> {
+    fn paste(&mut self, _kinds: &[PasteKind], answer: PasteAnswer) {
         self.host.request_paste();
-        None
+        drop(answer);
     }
 
-    fn paste_image(&mut self, answer: ImagePasteAnswer) {
-        let asked = self.host.paste_image();
-        self.image_pastes.push((asked, answer));
+    fn set_paste_kinds(&mut self, kinds: &[PasteKind]) {
+        self.pastes = kinds
+            .iter()
+            .map(|kind| beui_plugin_input::protocol_paste_kind(*kind))
+            .collect();
     }
 
     fn delivers_paste_shortcut(&self) -> bool {

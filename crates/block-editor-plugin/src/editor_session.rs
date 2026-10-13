@@ -553,7 +553,7 @@ impl EditorSession {
             messages.push(Message::Editor(EditorMessage::CopyText { instance, text }));
         }
         if self.host.take_paste_request() {
-            messages.push(Message::Editor(EditorMessage::PasteText { instance }));
+            messages.push(Message::Editor(EditorMessage::Paste { instance }));
         }
         for (request_id, replaced) in std::mem::take(&mut self.replacements) {
             messages.push(Message::Editor(EditorMessage::ChildReplaced {
@@ -972,6 +972,7 @@ impl EditorSession {
                 handles_back: frame.handles_back,
                 wants_keyboard: frame.wants_keyboard,
                 intercepted_keys: frame.intercepted_keys.clone(),
+                pastes: frame.pastes.clone(),
                 description: frame.description.as_ref().map(|description| {
                     block_plugin_api::Description {
                         nodes: description

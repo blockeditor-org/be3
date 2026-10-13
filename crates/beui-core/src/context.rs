@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use accesskit::{ActionRequest, TreeUpdate};
 
 use crate::accessibility::{self, Fragment};
-use crate::clipboard::{ClipboardReadId, ImagePaste, ImagePasteId};
+use crate::clipboard::{PasteKind, PasteRequest};
 use crate::damage::{self, Region};
 use crate::display::{Display, Group, Layer};
 use crate::file_picker::{FileFilter, FilePick, FilePickId, FilePickRequest};
@@ -41,14 +41,9 @@ struct Inner {
     test_ids: RefCell<HashMap<String, Rect>>,
     ambiguous_test_ids: RefCell<HashSet<String>>,
     copied_text: RefCell<Option<String>>,
-    paste_requested: Cell<bool>,
+    paste: Cell<Option<PasteRequest>>,
+    paste_kinds: RefCell<Vec<PasteKind>>,
     copy_watchers: RefCell<Vec<CopyWatcher>>,
-    clipboard_read_requests: RefCell<Vec<ClipboardReadId>>,
-    clipboard_reads: RefCell<Vec<(ClipboardReadId, Option<String>)>>,
-    next_clipboard_read: Cell<u64>,
-    image_paste_requests: RefCell<Vec<ImagePasteId>>,
-    image_pastes: RefCell<Vec<(ImagePasteId, ImagePaste)>>,
-    next_image_paste: Cell<u64>,
     file_pick_requests: RefCell<Vec<FilePickRequest>>,
     file_picks: RefCell<Vec<(FilePickId, FilePick)>>,
     next_file_pick: Cell<u64>,
@@ -163,9 +158,8 @@ pub struct FrameOutput {
     pub intercepted_keys: Vec<KeyChord>,
     pub pointer_locked: bool,
     pub copied_text: Option<String>,
-    pub paste_requested: bool,
-    pub clipboard_reads: Vec<ClipboardReadId>,
-    pub image_pastes: Vec<ImagePasteId>,
+    pub paste: Option<PasteRequest>,
+    pub paste_kinds: Vec<PasteKind>,
     pub file_picks: Vec<FilePickRequest>,
     pub repaint: bool,
     pub repaint_after: Duration,
@@ -252,14 +246,9 @@ impl Context {
                 test_ids: RefCell::new(HashMap::new()),
                 ambiguous_test_ids: RefCell::new(HashSet::new()),
                 copied_text: RefCell::new(None),
-                paste_requested: Cell::new(false),
+                paste: Cell::new(None),
+                paste_kinds: RefCell::new(Vec::new()),
                 copy_watchers: RefCell::new(Vec::new()),
-                clipboard_read_requests: RefCell::new(Vec::new()),
-                clipboard_reads: RefCell::new(Vec::new()),
-                next_clipboard_read: Cell::new(0),
-                image_paste_requests: RefCell::new(Vec::new()),
-                image_pastes: RefCell::new(Vec::new()),
-                next_image_paste: Cell::new(0),
                 file_pick_requests: RefCell::new(Vec::new()),
                 file_picks: RefCell::new(Vec::new()),
                 next_file_pick: Cell::new(0),
@@ -443,7 +432,8 @@ impl Context {
         self.inner.test_ids.borrow_mut().clear();
         self.inner.ambiguous_test_ids.borrow_mut().clear();
         self.inner.copied_text.borrow_mut().take();
-        self.inner.paste_requested.set(false);
+        self.inner.paste.set(None);
+        self.inner.paste_kinds.borrow_mut().clear();
         self.inner.cursor_icon.set(CursorIcon::Default);
         self.inner.ime.set(None);
         self.inner.fullscreen.set(None);
@@ -512,9 +502,8 @@ impl Context {
             test_ids: std::mem::take(&mut *self.inner.test_ids.borrow_mut()),
             ambiguous_test_ids: std::mem::take(&mut *self.inner.ambiguous_test_ids.borrow_mut()),
             copied_text,
-            paste_requested: self.inner.paste_requested.replace(false),
-            clipboard_reads: std::mem::take(&mut *self.inner.clipboard_read_requests.borrow_mut()),
-            image_pastes: std::mem::take(&mut *self.inner.image_paste_requests.borrow_mut()),
+            paste: self.inner.paste.take(),
+            paste_kinds: std::mem::take(&mut *self.inner.paste_kinds.borrow_mut()),
             file_picks: std::mem::take(&mut *self.inner.file_pick_requests.borrow_mut()),
             changed,
             repaint_after: self.inner.repaint_after.get(),
@@ -582,45 +571,21 @@ impl Context {
     }
 
     pub fn request_paste(&self) {
-        self.inner.paste_requested.set(true);
+        if self.inner.paste.get().is_none() {
+            self.inner.paste.set(Some(PasteRequest::Asked));
+        }
+    }
+
+    pub fn paste_shortcut(&self) {
+        self.inner.paste.set(Some(PasteRequest::Shortcut));
+    }
+
+    pub fn accept_pastes(&self, kinds: &[PasteKind]) {
+        *self.inner.paste_kinds.borrow_mut() = kinds.to_vec();
     }
 
     pub fn watch_copies(&self, watcher: impl Fn(&str) + 'static) {
         self.inner.copy_watchers.borrow_mut().push(Rc::new(watcher));
-    }
-
-    pub fn read_clipboard(&self) -> ClipboardReadId {
-        let id = ClipboardReadId(self.inner.next_clipboard_read.get() + 1);
-        self.inner.next_clipboard_read.set(id.0);
-        self.inner.clipboard_read_requests.borrow_mut().push(id);
-        id
-    }
-
-    pub fn clipboard_read(&self, id: ClipboardReadId, text: Option<String>) {
-        self.inner.clipboard_reads.borrow_mut().push((id, text));
-    }
-
-    pub fn take_clipboard_read(&self, id: ClipboardReadId) -> Option<Option<String>> {
-        let mut reads = self.inner.clipboard_reads.borrow_mut();
-        let index = reads.iter().position(|(read, _)| *read == id)?;
-        Some(reads.remove(index).1)
-    }
-
-    pub fn paste_image(&self) -> ImagePasteId {
-        let id = ImagePasteId(self.inner.next_image_paste.get() + 1);
-        self.inner.next_image_paste.set(id.0);
-        self.inner.image_paste_requests.borrow_mut().push(id);
-        id
-    }
-
-    pub fn image_pasted(&self, id: ImagePasteId, paste: ImagePaste) {
-        self.inner.image_pastes.borrow_mut().push((id, paste));
-    }
-
-    pub fn take_image_paste(&self, id: ImagePasteId) -> Option<ImagePaste> {
-        let mut pastes = self.inner.image_pastes.borrow_mut();
-        let index = pastes.iter().position(|(pasted, _)| *pasted == id)?;
-        Some(pastes.remove(index).1)
     }
 
     pub fn pick_file(&self, filter: FileFilter) -> FilePickId {

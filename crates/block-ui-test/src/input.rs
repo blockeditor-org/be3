@@ -93,6 +93,9 @@ impl Input {
             }
             Event::Modifiers(modifiers) => self.modifiers(modifiers, output),
             Event::Text(text) => output.push(InputEvent::Text(text)),
+            Event::Paste(pasted) => output.push(InputEvent::Paste(
+                beui_plugin_input::protocol_pasted(pasted),
+            )),
             Event::Ime(ime) => output.push(InputEvent::Ime(beui_plugin_input::protocol_ime(&ime))),
             Event::Focus(focused) => output.push(InputEvent::Focus(focused)),
             Event::Back(gesture) => output.push(InputEvent::Back(back_phase(gesture))),

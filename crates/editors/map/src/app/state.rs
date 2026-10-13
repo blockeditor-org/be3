@@ -7,8 +7,7 @@ use block_editor_beui::be_block::ImageContent;
 use block_editor_beui::be_block::map::{MapColor, MapCoordinate, MapPoint, MapRegion};
 use block_editor_beui::be_block::{Edit, Map, MapContent};
 use block_editor_beui::beui::reactive::{
-    CanvasView, FilePick, ReadSignal, WriteSignal, create_effect, create_signal, paste_image,
-    untrack,
+    CanvasView, Pasted, ReadSignal, WriteSignal, create_effect, create_signal, untrack,
 };
 use block_editor_beui::beui::{Image, Pos2, Rect, Vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
@@ -330,15 +329,6 @@ impl MapState {
         self.labels.get().get(&block).cloned()
     }
 
-    pub(crate) fn ask_to_paste(self: &Rc<Self>) {
-        let state = Rc::downgrade(self);
-        paste_image(move |pasted| {
-            if let Some(state) = state.upgrade() {
-                state.take_paste(pasted);
-            }
-        });
-    }
-
     pub(crate) fn press(&self, at: Pos2) {
         let view = self.view();
         let points = self.points.get_untracked();
@@ -523,15 +513,11 @@ impl MapState {
         }
     }
 
-    fn take_paste(&self, pasted: FilePick) {
-        match pasted {
-            Ok(Some(file)) => {
-                self.set_import_error.set(None);
-                let position = self.view_center.get();
-                self.import(ImageContent::from_file(file.name, file.data), position);
-            }
-            Err(error) => self.set_import_error.set(Some(error)),
-            Ok(None) => {}
+    pub(crate) fn take_paste(&self, pasted: Pasted) {
+        if let Pasted::Image(file) = pasted {
+            self.set_import_error.set(None);
+            let position = self.view_center.get();
+            self.import(ImageContent::from_file(file.name, file.data), position);
         }
     }
 

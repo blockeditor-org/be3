@@ -13,6 +13,7 @@ use beui::{
     TouchId, TouchPhase, Waker, vec2,
 };
 use beui_core::app::SafeArea;
+use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::renderer::Loaded;
 use beui_core::runner::{Keystroke, Runner, panic_message};
 use smithay::backend::allocator::gbm::GbmDevice;
@@ -102,8 +103,12 @@ impl Platform for Seat {
         self.clipboard = Some(text);
     }
 
-    fn paste(&mut self) -> Option<String> {
-        self.clipboard.clone()
+    fn paste(&mut self, kinds: &[PasteKind], answer: PasteAnswer) {
+        let text = kinds
+            .contains(&PasteKind::Text)
+            .then(|| self.clipboard.clone())
+            .flatten();
+        answer.send(text.map(Pasted::Text));
     }
 
     fn set_cursor(&mut self, icon: CursorIcon, _touch_emulation: bool) {

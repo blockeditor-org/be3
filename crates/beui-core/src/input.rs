@@ -358,6 +358,7 @@ pub enum Event {
     Scroll(Vec2),
     ScrollEnded,
     Text(String),
+    Paste(crate::clipboard::Pasted),
     Touch {
         id: TouchId,
         phase: TouchPhase,

@@ -176,6 +176,7 @@ pub(super) fn route(
             }
             Event::Key { .. }
             | Event::Text(_)
+            | Event::Paste(_)
             | Event::Ime(_)
             | Event::Modifiers(_)
             | Event::PointerMotion(_)

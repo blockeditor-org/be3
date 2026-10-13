@@ -17,7 +17,8 @@ use wasm_bindgen::prelude::Closure;
 
 use beui_core::app::ime_mirror::{ImeInput, ImeMirror};
 use beui_core::app::{SafeArea, Setup, Waker};
-use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
+use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
+use beui_core::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
 use beui_core::geometry::{Pos2, Rect, pos2, vec2};
 use beui_core::input::{
     CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, Modifiers, PointerButton, TouchId,
@@ -83,6 +84,48 @@ thread_local! {
     static MIRROR: RefCell<ImeMirror> = RefCell::new(ImeMirror::default());
     static HELD_FIELD: Cell<Option<Rect>> = const { Cell::new(None) };
     static REFOCUSING: Cell<bool> = const { Cell::new(false) };
+    static PASTE_KINDS: RefCell<Vec<PasteKind>> = const { RefCell::new(Vec::new()) };
+}
+
+const PASTED_NAME: &str = "Pasted Image.png";
+
+fn paste_from(data: &web_sys::DataTransfer) {
+    let kinds = PASTE_KINDS.with(|pastes| pastes.borrow().clone());
+    for kind in kinds {
+        match kind {
+            PasteKind::Text => {
+                if let Some(text) = data.get_data("text").ok().filter(|text| !text.is_empty()) {
+                    push(Event::Paste(Pasted::Text(text)));
+                    return;
+                }
+            }
+            PasteKind::Image => {
+                let files = data.files();
+                let image = files.and_then(|files| {
+                    (0..files.length())
+                        .filter_map(|index| files.get(index))
+                        .find(|file| file.type_().starts_with("image/"))
+                });
+                if let Some(file) = image {
+                    wasm_bindgen_futures::spawn_local(async move {
+                        let Ok(buffer) =
+                            wasm_bindgen_futures::JsFuture::from(file.array_buffer()).await
+                        else {
+                            return;
+                        };
+                        let name = Some(file.name())
+                            .filter(|name| !name.is_empty())
+                            .unwrap_or_else(|| PASTED_NAME.to_owned());
+                        push(Event::Paste(Pasted::Image(PickedFile {
+                            name,
+                            data: js_sys::Uint8Array::new(&buffer).to_vec(),
+                        })));
+                    });
+                    return;
+                }
+            }
+        }
+    }
 }
 
 fn push(input: impl Into<Input>) {
@@ -157,16 +200,23 @@ impl Platform for WebPlatform {
         }
     }
 
-    fn paste(&mut self) -> Option<String> {
-        let read = web_sys::window()?.navigator().clipboard().read_text();
+    fn paste(&mut self, kinds: &[PasteKind], answer: PasteAnswer) {
+        let Some(window) = web_sys::window().filter(|_| kinds.contains(&PasteKind::Text)) else {
+            return answer.send(None);
+        };
+        let read = window.navigator().clipboard().read_text();
         wasm_bindgen_futures::spawn_local(async move {
-            if let Ok(text) = wasm_bindgen_futures::JsFuture::from(read).await
-                && let Some(text) = text.as_string()
-            {
-                push(Event::Text(text));
-            }
+            let text = wasm_bindgen_futures::JsFuture::from(read)
+                .await
+                .ok()
+                .and_then(|text| text.as_string())
+                .filter(|text| !text.is_empty());
+            answer.send(text.map(Pasted::Text));
         });
-        None
+    }
+
+    fn set_paste_kinds(&mut self, kinds: &[PasteKind]) {
+        PASTE_KINDS.with(|pastes| *pastes.borrow_mut() = kinds.to_vec());
     }
 
     fn delivers_paste_shortcut(&self) -> bool {
@@ -723,12 +773,8 @@ fn listen(
     })?;
     on(agent_target, "paste", |event: web_sys::ClipboardEvent| {
         event.prevent_default();
-        if let Some(text) = event
-            .clipboard_data()
-            .and_then(|data| data.get_data("text").ok())
-            .filter(|text| !text.is_empty())
-        {
-            push(Event::Text(text));
+        if let Some(data) = event.clipboard_data() {
+            paste_from(&data);
         }
     })?;
     on(agent_target, "focus", |_event: web_sys::FocusEvent| {

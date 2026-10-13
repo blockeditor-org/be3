@@ -106,6 +106,7 @@ pub struct Frame {
     pub handles_back: bool,
     pub wants_keyboard: bool,
     pub intercepted_keys: Vec<KeyChord>,
+    pub pastes: Vec<block_plugin_api::PasteKind>,
     pub description: Option<Description>,
 }
 

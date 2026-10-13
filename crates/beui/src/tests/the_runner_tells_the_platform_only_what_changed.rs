@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::*;
+use crate::{PasteAnswer, PasteKind, Pasted};
 use beui_core::app::SafeArea;
 use beui_core::renderer::{Loaded, Renderer};
 use beui_core::runner::{Launch, Platform, RunOptions, Runner};
@@ -41,9 +42,9 @@ impl Platform for Recording {
         self.0.borrow_mut().push(format!("copy {text}"));
     }
 
-    fn paste(&mut self) -> Option<String> {
-        self.0.borrow_mut().push("paste".to_owned());
-        Some("pasted".to_owned())
+    fn paste(&mut self, kinds: &[PasteKind], answer: PasteAnswer) {
+        self.0.borrow_mut().push(format!("paste {kinds:?}"));
+        answer.send(Some(Pasted::Text("pasted".to_owned())));
     }
 
     fn pick_file(&mut self, _request: FilePickRequest, _answer: FilePickAnswer) {
@@ -69,9 +70,10 @@ impl App for Typing {
             context.copy_text("copied".to_owned());
             context.request_paste();
         }
+        context.accept_pastes(&[PasteKind::Text]);
         context.input(|input| {
             for event in &input.events {
-                if let Event::Text(text) = event {
+                if let Event::Paste(Pasted::Text(text)) = event {
                     self.typed.borrow_mut().push(text.clone());
                 }
             }
@@ -110,7 +112,10 @@ fn the_runner_tells_the_platform_only_what_changed() {
     let frame = runner
         .frame(&mut platform, 1.0, SafeArea::default())
         .expect("a loaded runner draws");
-    assert_eq!(log.take(), ["copy copied", "paste", "cursor Text false"]);
+    assert_eq!(
+        log.take(),
+        ["copy copied", "paste [Text]", "cursor Text false"]
+    );
     assert!(frame.deferred, "the pasted text waits for the next frame");
 
     runner

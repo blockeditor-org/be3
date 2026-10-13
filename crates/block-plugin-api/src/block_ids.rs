@@ -157,7 +157,6 @@ impl EditorMessage {
                 HostRequest::ListAccess(block_id) => existing(block_id),
                 HostRequest::PickFile(_)
                 | HostRequest::SaveFile(_)
-                | HostRequest::PasteImage
                 | HostRequest::Fetch(_)
                 | HostRequest::ListData
                 | HostRequest::ReadData(_) => {}
@@ -167,7 +166,6 @@ impl EditorMessage {
                 HostReply::BlockPicked(BlockPick::Cancelled | BlockPick::Failed(_))
                 | HostReply::FilePicked(_)
                 | HostReply::FileSaved(_)
-                | HostReply::ImagePasted(_)
                 | HostReply::Fetched(_)
                 | HostReply::DataListed(_)
                 | HostReply::DataRead(_)
@@ -278,7 +276,7 @@ impl EditorMessage {
             | Self::ChildView { .. }
             | Self::ChildBar { .. }
             | Self::CopyText { .. }
-            | Self::PasteText { .. }
+            | Self::Paste { .. }
             | Self::AspectRatio { .. }
             | Self::IntrinsicSize { .. }
             | Self::Performance { .. }

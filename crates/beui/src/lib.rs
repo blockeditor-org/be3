@@ -15,7 +15,7 @@ pub use beui_core::base::{
     Align, Direction, ImeCursor, ItemSize, Justify, ScrollPosition, Sides, Sizing, Track,
     focus_within,
 };
-pub use beui_core::clipboard::{ClipboardReadId, ImagePaste, ImagePasteAnswer, ImagePasteId};
+pub use beui_core::clipboard::{PasteAnswer, PasteKind, PasteRequest, Pasted};
 pub use beui_core::color::{Color32, Hsva, Oklch, format_hex, parse_hex};
 pub use beui_core::context::{
     ActionGroup, ActionInfo, Context, FrameOutput, InputSimulation, Moved, RendererChoices,

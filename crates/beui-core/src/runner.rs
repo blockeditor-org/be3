@@ -11,7 +11,7 @@ use accesskit::TreeUpdate;
 use crate::app::accessibility_dump::AccessibilityDump;
 use crate::app::automation::{Automation, Inbox, Settled, Simulation, View, World};
 use crate::app::{App, SafeArea, Setup, Waker, next_batch, safe_rect};
-use crate::clipboard::{ImagePaste, ImagePasteAnswer, ImagePasteId};
+use crate::clipboard::{PasteAnswer, PasteKind, PasteRequest, Pasted};
 use crate::context::{ActionGroup, Context, FrameOutput};
 use crate::file_picker::{FilePick, FilePickAnswer, FilePickId, FilePickRequest};
 use crate::geometry::Vec2;
@@ -24,7 +24,6 @@ use intake::{Drain, Intake};
 pub use intake::{Input, Keystroke, SCROLL_LINE, SCROLL_PAGE, ScrollDelta};
 
 type Answered = (FilePickId, FilePick);
-type Pasted = (ImagePasteId, ImagePaste);
 
 pub struct RunOptions {
     pub title: String,
@@ -63,17 +62,16 @@ pub trait Adapter {
 pub trait Platform {
     fn copy(&mut self, _text: String) {}
 
-    fn paste(&mut self) -> Option<String> {
-        None
+    fn paste(&mut self, kinds: &[PasteKind], answer: PasteAnswer) {
+        let _ = kinds;
+        answer.send(None);
     }
+
+    fn set_paste_kinds(&mut self, _kinds: &[PasteKind]) {}
 
     fn pick_file(&mut self, request: FilePickRequest, answer: FilePickAnswer) {
         let _ = request;
         answer.send(Err("Choosing a file is unavailable here".to_owned()));
-    }
-
-    fn paste_image(&mut self, answer: ImagePasteAnswer) {
-        answer.send(Ok(None));
     }
 
     fn delivers_paste_shortcut(&self) -> bool {
@@ -133,6 +131,7 @@ struct Shown {
     handles_back: bool,
     wants_keyboard: bool,
     intercepted_keys: Vec<KeyChord>,
+    paste_kinds: Vec<PasteKind>,
 }
 
 pub struct Runner {
@@ -144,7 +143,7 @@ pub struct Runner {
     events: Vec<Event>,
     intake: Intake,
     picks: (Sender<Answered>, Receiver<Answered>),
-    image_pastes: (Sender<Pasted>, Receiver<Pasted>),
+    pastes: (Sender<Pasted>, Receiver<Pasted>),
     accessibility: Option<AccessibilityDump>,
     publishing_accessibility: bool,
     automation: Option<Automation>,
@@ -185,7 +184,7 @@ impl Runner {
             events: Vec::new(),
             intake: Intake::default(),
             picks: mpsc::channel(),
-            image_pastes: mpsc::channel(),
+            pastes: mpsc::channel(),
             accessibility,
             publishing_accessibility: false,
             automation,
@@ -375,8 +374,8 @@ impl Runner {
         while let Ok((id, pick)) = self.picks.1.try_recv() {
             self.context.file_picked(id, pick);
         }
-        while let Ok((id, paste)) = self.image_pastes.1.try_recv() {
-            self.context.image_pasted(id, paste);
+        while let Ok(pasted) = self.pastes.1.try_recv() {
+            self.events.push(Event::Paste(pasted));
         }
         if let Err(error) = renderers.follow_choice(&self.context) {
             eprintln!("beui: could not switch renderers: {error}");
@@ -427,17 +426,10 @@ impl Runner {
         };
         self.context.set_pixels_per_point(pixels_per_point);
         let scale = self.context.pixels_per_point();
-        let simulation = &self.simulation;
-        let delivers_paste = platform.delivers_paste_shortcut();
         self.intake.drain(
             &mut Drain {
                 pixels_per_point: scale,
                 touch_emulation: self.context.touch_emulation(),
-                paste: &mut || match simulation {
-                    Some(simulation) => simulation.clipboard.clone(),
-                    None if delivers_paste => None,
-                    None => platform.paste(),
-                },
             },
             &mut self.events,
         );
@@ -480,19 +472,11 @@ impl Runner {
                 simulation
                     .picks
                     .extend(std::mem::take(&mut output.file_picks));
-                if output.paste_requested
+                if output.paste.is_some()
+                    && output.paste_kinds.contains(&PasteKind::Text)
                     && let Some(text) = simulation.clipboard.clone()
                 {
-                    self.events.push(Event::Text(text));
-                }
-                for id in std::mem::take(&mut output.clipboard_reads) {
-                    self.context
-                        .clipboard_read(id, simulation.clipboard.clone());
-                    output.repaint = true;
-                }
-                for id in std::mem::take(&mut output.image_pastes) {
-                    self.context.image_pasted(id, Ok(None));
-                    output.repaint = true;
+                    self.events.push(Event::Paste(Pasted::Text(text)));
                 }
             }
             None => {
@@ -504,19 +488,18 @@ impl Runner {
                         FilePickAnswer::new(request.id, self.picks.0.clone(), self.waker.clone());
                     platform.pick_file(request, answer);
                 }
-                if output.paste_requested
-                    && let Some(text) = platform.paste()
-                {
-                    self.events.push(Event::Text(text));
+                if output.paste_kinds != self.shown.paste_kinds {
+                    self.shown.paste_kinds.clone_from(&output.paste_kinds);
+                    platform.set_paste_kinds(&output.paste_kinds);
                 }
-                for id in std::mem::take(&mut output.clipboard_reads) {
-                    self.context.clipboard_read(id, platform.paste());
-                    output.repaint = true;
-                }
-                for id in std::mem::take(&mut output.image_pastes) {
-                    let answer =
-                        ImagePasteAnswer::new(id, self.image_pastes.0.clone(), self.waker.clone());
-                    platform.paste_image(answer);
+                let delivered = output.paste == Some(PasteRequest::Shortcut)
+                    && platform.delivers_paste_shortcut();
+                if output.paste.is_some() && !delivered && !output.paste_kinds.is_empty() {
+                    let answer = PasteAnswer::new(self.pastes.0.clone(), self.waker.clone());
+                    platform.paste(&output.paste_kinds, answer);
+                    while let Ok(pasted) = self.pastes.1.try_recv() {
+                        self.events.push(Event::Paste(pasted));
+                    }
                 }
             }
         }

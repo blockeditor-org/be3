@@ -8,7 +8,6 @@ use accesskit::Node;
 
 use crate::accessibility::{self, AccessibilityTree};
 use crate::base::child_list::{ChildHost, NodeChildren, SlotId};
-use crate::clipboard::{ImagePaste, ImagePasteId};
 use crate::context::{Context, Moved};
 use crate::damage::{Damage, Region};
 use crate::file_picker::{FileFilter, FilePick, FilePickId};
@@ -105,8 +104,6 @@ pub struct Document {
     pub pointers: crate::interact::pointer::Pointers,
     pub drags: Rc<crate::drag_board::Board>,
     paste_requested: bool,
-    unsent_image_pastes: Vec<PickedCallback>,
-    waiting_image_pastes: Vec<(ImagePasteId, PickedCallback)>,
     unsent_file_picks: Vec<(FileFilter, PickedCallback)>,
     waiting_file_picks: Vec<(FilePickId, PickedCallback)>,
     test_ids: HashMap<String, Vec<NodeId>>,
@@ -292,8 +289,6 @@ impl Document {
             forward: Default::default(),
             pointers: Default::default(),
             paste_requested: false,
-            unsent_image_pastes: Vec::new(),
-            waiting_image_pastes: Vec::new(),
             unsent_file_picks: Vec::new(),
             waiting_file_picks: Vec::new(),
             test_ids: HashMap::new(),
@@ -747,23 +742,15 @@ impl Document {
         self.unsent_file_picks.push((filter, Box::new(picked)));
     }
 
-    pub fn paste_image(&mut self, pasted: impl FnOnce(ImagePaste) + 'static) {
-        self.unsent_image_pastes.push(Box::new(pasted));
-    }
-
     fn send_file_picks(&mut self, ctx: &Context) {
         for (filter, picked) in std::mem::take(&mut self.unsent_file_picks) {
             let id = ctx.pick_file(filter);
             self.waiting_file_picks.push((id, picked));
         }
-        for pasted in std::mem::take(&mut self.unsent_image_pastes) {
-            let id = ctx.paste_image();
-            self.waiting_image_pastes.push((id, pasted));
-        }
     }
 
     fn deliver_file_picks(&mut self, ctx: &Context) {
-        if self.waiting_file_picks.is_empty() && self.waiting_image_pastes.is_empty() {
+        if self.waiting_file_picks.is_empty() {
             return;
         }
         let mut delivered = Vec::new();
@@ -771,12 +758,6 @@ impl Document {
             match ctx.take_file_pick(id) {
                 Some(pick) => delivered.push((picked, pick)),
                 None => self.waiting_file_picks.push((id, picked)),
-            }
-        }
-        for (id, pasted) in std::mem::take(&mut self.waiting_image_pastes) {
-            match ctx.take_image_paste(id) {
-                Some(paste) => delivered.push((pasted, paste)),
-                None => self.waiting_image_pastes.push((id, pasted)),
             }
         }
         if delivered.is_empty() {
@@ -1087,6 +1068,7 @@ impl Document {
         if std::mem::take(&mut self.paste_requested) {
             ctx.request_paste();
         }
+        ctx.accept_pastes(&self.paste_kinds());
         if resized && self.focus_takes_text() {
             self.reveal_focus();
         }

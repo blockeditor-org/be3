@@ -25,8 +25,10 @@ use beui_macros::{component, view};
 use crate::Scroll;
 use beui_core::base::text::TextGeometry;
 use beui_core::base::{ImeCursor, ItemSize, ScrollPosition};
+use beui_core::clipboard::{PasteKind, Pasted};
 use beui_core::color::Color32;
 use beui_core::document::Document;
+use beui_core::file_picker::PickedFile;
 use beui_core::font::FontId;
 use beui_core::geometry::{Pos2, Rect, Vec2};
 use beui_core::input::{CursorIcon, ImeEvent, ImeText, Key, KeyPress, PointerPress};
@@ -947,6 +949,8 @@ struct Field {
     ime_text: Memo<Option<ImeText>>,
     on_focus_change: Callback<bool>,
     on_hover_change: Callback<bool>,
+    pastes_images: bool,
+    on_image_paste: Callback<PickedFile>,
 }
 
 #[component]
@@ -978,6 +982,8 @@ pub fn TextArea(
     on_submit: ClickCallback,
     on_focus_change: Callback<bool>,
     on_hover_change: Callback<bool>,
+    #[prop(default = false)] pastes_images: bool,
+    on_image_paste: Callback<PickedFile>,
 ) -> NodeId {
     let focus_request = focused;
     let search = completer.search.clone();
@@ -1299,6 +1305,8 @@ pub fn TextArea(
                             ime_text,
                             on_focus_change,
                             on_hover_change,
+                            pastes_images,
+                            on_image_paste,
                         };
                         let scrolled = field.clone();
                         let multi_line = !single_line;
@@ -1422,7 +1430,13 @@ fn Editing(field: Field) -> NodeId {
         ime_text,
         on_focus_change,
         on_hover_change,
+        pastes_images,
+        on_image_paste,
     } = field;
+    let pastes = match pastes_images {
+        true => vec![PasteKind::Image, PasteKind::Text],
+        false => vec![PasteKind::Text],
+    };
     let ime_cx = cx.clone();
     let focused = cx.focused.clone();
     let set_focused = cx.set_focused.clone();
@@ -1449,7 +1463,12 @@ fn Editing(field: Field) -> NodeId {
                 }
                 on_focus_change.call(is_focused);
             }}
-            on_text={move |typed: String| insert_text(&text_cx, &typed)}
+            on_text={clone!(text_cx -> move |typed: String| insert_text(&text_cx, &typed))}
+            pastes
+            on_paste={move |pasted: Pasted| match pasted {
+                Pasted::Text(typed) => insert_text(&text_cx, &typed),
+                Pasted::Image(image) => on_image_paste.call(image),
+            }}
             on_ime={move |event: ImeEvent| {
                 ime(&ime_cx, event, |press| field_key(&ime_cx, press))
             }}

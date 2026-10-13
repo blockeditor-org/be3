@@ -176,6 +176,7 @@ mod a_panel_between_two_damaged_ones_is_left_alone;
 mod a_panel_taken_out_of_its_list_gives_up_its_rectangle_and_damages_it;
 mod a_passing_overlay_occludes_only_its_content;
 mod a_password_text_area_masks_its_text_and_keeps_it_off_the_clipboard;
+mod a_paste_brings_the_first_kind_the_focus_accepts_unless_the_platform_pastes_itself;
 mod a_percent_child_stops_at_its_max_and_hands_the_rest_on;
 mod a_picture_given_a_source_paints_only_that_part_of_the_image;
 mod a_picture_paints_the_image_it_is_given;
@@ -389,7 +390,7 @@ mod ctrl_shift_f_moves_focus_between_the_inspector_and_the_document;
 mod ctrl_shift_i_opens_and_closes_the_inspector;
 mod ctrl_shift_m_toggles_responsive_design_mode;
 mod ctrl_tab_walks_the_tabs_of_the_pane_the_focus_is_in;
-mod ctrl_v_pastes_the_platforms_clipboard_unless_it_pastes_itself;
+mod ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it;
 mod ctrl_z_undoes_what_was_typed_into_a_text_input;
 mod disposing_a_scope_removes_the_nodes_it_owns;
 mod dock_tabs_are_the_same_height_whether_or_not_they_close;
@@ -502,7 +503,6 @@ mod overscrolling_squishes_the_scrollbar_thumb_against_the_end;
 mod painting_never_has_to_move_a_rect_onto_the_pixel_grid;
 mod painting_skips_the_elements_outside_the_damaged_region;
 mod panning_a_canvas_lays_out_and_paints_none_of_its_items_again;
-mod pasting_an_image_asks_the_platform_and_answers_by_the_next_frame;
 mod percent_children_land_on_whole_device_pixels;
 mod percent_children_of_an_unbounded_list_use_their_intrinsic_length;
 mod percent_sized_children_still_size_an_intrinsic_lists_height;
@@ -2292,11 +2292,20 @@ fn FocusPanel(
     }
 }
 
-struct Seeing(Rc<RefCell<Vec<Event>>>);
+pub(crate) type PasteAsk = Rc<RefCell<Option<(crate::PasteRequest, Vec<crate::PasteKind>)>>>;
+
+struct Seeing(Rc<RefCell<Vec<Event>>>, PasteAsk);
 
 impl App for Seeing {
     fn update(&mut self, context: &Context, _rect: Rect) {
         context.input(|input| self.0.borrow_mut().extend(input.events.iter().cloned()));
+        if let Some((request, kinds)) = self.1.borrow_mut().take() {
+            context.accept_pastes(&kinds);
+            match request {
+                crate::PasteRequest::Asked => context.request_paste(),
+                crate::PasteRequest::Shortcut => context.paste_shortcut(),
+            }
+        }
     }
 }
 
@@ -2305,15 +2314,16 @@ pub(crate) struct IntakePlatform {
     pub(crate) clipboard: Option<String>,
     pub(crate) clipboard_image: Option<crate::PickedFile>,
     pub(crate) delivers_paste: bool,
+    pub(crate) pastes: Vec<Vec<crate::PasteKind>>,
 }
 
 impl beui_core::runner::Platform for IntakePlatform {
-    fn paste(&mut self) -> Option<String> {
-        self.clipboard.clone()
-    }
-
-    fn paste_image(&mut self, answer: crate::ImagePasteAnswer) {
-        answer.send(Ok(self.clipboard_image.clone()));
+    fn paste(&mut self, kinds: &[crate::PasteKind], answer: crate::PasteAnswer) {
+        self.pastes.push(kinds.to_vec());
+        answer.send(kinds.iter().find_map(|kind| match kind {
+            crate::PasteKind::Text => self.clipboard.clone().map(crate::Pasted::Text),
+            crate::PasteKind::Image => self.clipboard_image.clone().map(crate::Pasted::Image),
+        }));
     }
 
     fn delivers_paste_shortcut(&self) -> bool {
@@ -2324,16 +2334,18 @@ impl beui_core::runner::Platform for IntakePlatform {
 pub(crate) struct Intaken {
     pub(crate) runner: beui_core::runner::Runner,
     pub(crate) platform: IntakePlatform,
+    pub(crate) ask: PasteAsk,
     seen: Rc<RefCell<Vec<Event>>>,
 }
 
 impl Intaken {
     pub(crate) fn new() -> Self {
         let seen = Rc::new(RefCell::new(Vec::new()));
+        let ask = PasteAsk::default();
         let mut runner = beui_core::runner::Runner::new(beui_core::runner::Launch {
             options: beui_core::runner::RunOptions::new("Intaken"),
             context: context(),
-            app: Box::new(Seeing(Rc::clone(&seen))),
+            app: Box::new(Seeing(Rc::clone(&seen), Rc::clone(&ask))),
         });
         runner
             .start(
@@ -2348,6 +2360,7 @@ impl Intaken {
         Self {
             runner,
             platform: IntakePlatform::default(),
+            ask,
             seen,
         }
     }
