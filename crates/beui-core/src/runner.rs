@@ -15,8 +15,9 @@ use crate::clipboard::{PasteAnswer, PasteKind, PasteRequest, Pasted};
 use crate::context::{ActionGroup, Context, FrameOutput};
 use crate::file_picker::{FilePick, FilePickAnswer, FilePickId, FilePickRequest};
 use crate::geometry::Vec2;
-use crate::input::{CursorIcon, Event, ImeArea, KeyChord, RawInput};
+use crate::input::{Event, RawInput};
 use crate::renderer::{Loaded, Renderers};
+use crate::window::WindowState;
 
 mod intake;
 
@@ -67,8 +68,6 @@ pub trait Platform {
         answer.send(None);
     }
 
-    fn set_paste_kinds(&mut self, _kinds: &[PasteKind]) {}
-
     fn pick_file(&mut self, request: FilePickRequest, answer: FilePickAnswer) {
         let _ = request;
         answer.send(Err("Choosing a file is unavailable here".to_owned()));
@@ -78,19 +77,11 @@ pub trait Platform {
         false
     }
 
-    fn set_cursor(&mut self, _icon: CursorIcon, _touch_emulation: bool) {}
-
-    fn lock_pointer(&mut self, _locked: bool) {}
+    fn show_window(&mut self, _window: &WindowState, _shown: &WindowState) {}
 
     fn set_fullscreen(&mut self, _fullscreen: bool) {}
 
-    fn set_handles_back(&mut self, _handles: bool) {}
-
-    fn set_wants_keyboard(&mut self, _wants: bool) {}
-
-    fn set_intercepted_keys(&mut self, _chords: &[KeyChord]) {}
-
-    fn show_ime(&mut self, _ime: Option<&ImeArea>) {}
+    fn show_keyboard(&mut self) {}
 
     fn publish_accessibility(&mut self, _tree: &mut dyn FnMut() -> TreeUpdate) {}
 }
@@ -100,7 +91,6 @@ pub struct Frame {
     pub deferred: bool,
     pub repaint: bool,
     pub repaint_after: Duration,
-    pub close_requested: bool,
 }
 
 impl Frame {
@@ -114,24 +104,19 @@ impl Frame {
             false => (self.repaint_after != Duration::MAX).then_some(self.repaint_after),
         }
     }
+
+    pub fn next(&self, presenting: bool) -> Option<Duration> {
+        match presenting {
+            true => Some(Duration::ZERO),
+            false => self.wait(),
+        }
+    }
 }
 
 struct Exited;
 
 impl App for Exited {
     fn update(&mut self, _context: &Context, _rect: crate::geometry::Rect) {}
-}
-
-#[derive(Default)]
-struct Shown {
-    cursor_icon: CursorIcon,
-    touch_emulation: bool,
-    pointer_locked: bool,
-    fullscreen: bool,
-    handles_back: bool,
-    wants_keyboard: bool,
-    intercepted_keys: Vec<KeyChord>,
-    paste_kinds: Vec<PasteKind>,
 }
 
 pub struct Runner {
@@ -149,12 +134,13 @@ pub struct Runner {
     automation: Option<Automation>,
     simulation: Option<Simulation>,
     simulated_size: Option<(u32, u32)>,
-    ime: Option<crate::geometry::Rect>,
     actions: Vec<ActionGroup>,
     test_ids: std::collections::HashMap<String, crate::geometry::Rect>,
     unpresented: bool,
     closing: bool,
-    shown: Shown,
+    asked: WindowState,
+    shown: WindowState,
+    fullscreen: Option<bool>,
     output: Option<FrameOutput>,
     reports_screens: bool,
     exited: bool,
@@ -190,12 +176,13 @@ impl Runner {
             automation,
             simulation: None,
             simulated_size: None,
-            ime: None,
             actions: Vec::new(),
             test_ids: std::collections::HashMap::new(),
             unpresented: false,
             closing: false,
-            shown: Shown::default(),
+            asked: WindowState::default(),
+            shown: WindowState::default(),
+            fullscreen: None,
             output: None,
             reports_screens: false,
             exited: false,
@@ -254,7 +241,15 @@ impl Runner {
     }
 
     pub fn has_events(&self) -> bool {
-        !self.events.is_empty() || !self.intake.incoming.is_empty()
+        !self.events.is_empty() || !self.intake.incoming.is_empty() || self.fullscreen.is_some()
+    }
+
+    pub fn fullscreen_changed(&mut self, fullscreen: bool) {
+        self.fullscreen = Some(fullscreen);
+    }
+
+    pub fn window(&self) -> &WindowState {
+        &self.shown
     }
 
     pub fn take_output(&mut self) -> Option<FrameOutput> {
@@ -297,8 +292,14 @@ impl Runner {
         self.accessibility.as_ref().map(AccessibilityDump::text)
     }
 
-    pub fn close_requested(&mut self) -> bool {
-        self.app.close_requested()
+    pub fn os_close(&mut self) -> bool {
+        let accepted = self
+            .contain(|runner| runner.app.close_requested())
+            .unwrap_or(true);
+        if accepted {
+            self.exit();
+        }
+        accepted
     }
 
     pub fn exit(&mut self) {
@@ -389,12 +390,9 @@ impl Runner {
                 test_ids: &self.test_ids,
                 pixels_per_point: self.context.pixels_per_point(),
                 now: self.context.now(),
-                cursor: self.shown.cursor_icon,
-                fullscreen: self.shown.fullscreen,
-                wants_keyboard: self.shown.wants_keyboard,
-                pointer_locked: self.shown.pointer_locked,
+                window: &self.asked,
+                fullscreen: self.context.fullscreen(),
                 actions: &self.actions,
-                ime: self.ime,
             };
             let mut world = World {
                 events: &mut self.events,
@@ -407,6 +405,9 @@ impl Runner {
                 automation.closed(accepted);
                 self.closing |= accepted;
             }
+        }
+        if let Some(fullscreen) = self.fullscreen.take() {
+            self.context.fullscreen_changed(fullscreen);
         }
         let pixels_per_point = match &self.simulation {
             Some(simulation) => {
@@ -473,7 +474,7 @@ impl Runner {
                     .picks
                     .extend(std::mem::take(&mut output.file_picks));
                 if output.paste.is_some()
-                    && output.paste_kinds.contains(&PasteKind::Text)
+                    && output.window.paste_kinds.contains(&PasteKind::Text)
                     && let Some(text) = simulation.clipboard.clone()
                 {
                     self.events.push(Event::Paste(Pasted::Text(text)));
@@ -488,57 +489,38 @@ impl Runner {
                         FilePickAnswer::new(request.id, self.picks.0.clone(), self.waker.clone());
                     platform.pick_file(request, answer);
                 }
-                if output.paste_kinds != self.shown.paste_kinds {
-                    self.shown.paste_kinds.clone_from(&output.paste_kinds);
-                    platform.set_paste_kinds(&output.paste_kinds);
-                }
                 let delivered = output.paste == Some(PasteRequest::Shortcut)
                     && platform.delivers_paste_shortcut();
-                if output.paste.is_some() && !delivered && !output.paste_kinds.is_empty() {
+                if output.paste.is_some() && !delivered && !output.window.paste_kinds.is_empty() {
                     let answer = PasteAnswer::new(self.pastes.0.clone(), self.waker.clone());
-                    platform.paste(&output.paste_kinds, answer);
+                    platform.paste(&output.window.paste_kinds, answer);
                     while let Ok(pasted) = self.pastes.1.try_recv() {
                         self.events.push(Event::Paste(pasted));
                     }
                 }
             }
         }
-        let shown = &mut self.shown;
-        if output.pointer_locked != shown.pointer_locked {
-            shown.pointer_locked = output.pointer_locked;
-            platform.lock_pointer(output.pointer_locked);
+        let window_units = scale / self.context.native_pixels_per_point();
+        let window = output.window.clone().scaled(window_units);
+        if window != self.shown {
+            platform.show_window(&window, &self.shown);
+            self.shown = window;
         }
-        let touch_emulation = self.context.touch_emulation();
-        if output.cursor_icon != shown.cursor_icon || touch_emulation != shown.touch_emulation {
-            shown.cursor_icon = output.cursor_icon;
-            shown.touch_emulation = touch_emulation;
-            platform.set_cursor(output.cursor_icon, touch_emulation);
+        self.asked.clone_from(&output.window);
+        if output.show_keyboard {
+            platform.show_keyboard();
         }
-        platform.show_ime(output.ime.as_ref());
-        self.ime = output.ime.as_ref().map(|area| area.cursor);
-        if let Some(fullscreen) = output.fullscreen
-            && fullscreen != shown.fullscreen
-        {
-            shown.fullscreen = fullscreen;
+        if let Some(fullscreen) = output.fullscreen {
             match &mut self.simulation {
                 Some(simulation) => {
                     simulation.fullscreen = fullscreen;
-                    self.context.request_repaint();
+                    self.context.fullscreen_changed(fullscreen);
                 }
-                None => platform.set_fullscreen(fullscreen),
+                None if fullscreen != self.context.fullscreen() => {
+                    platform.set_fullscreen(fullscreen);
+                }
+                None => {}
             }
-        }
-        if output.handles_back != shown.handles_back {
-            shown.handles_back = output.handles_back;
-            platform.set_handles_back(output.handles_back);
-        }
-        if output.wants_keyboard != shown.wants_keyboard {
-            shown.wants_keyboard = output.wants_keyboard;
-            platform.set_wants_keyboard(output.wants_keyboard);
-        }
-        if output.intercepted_keys != shown.intercepted_keys {
-            shown.intercepted_keys.clone_from(&output.intercepted_keys);
-            platform.set_intercepted_keys(&output.intercepted_keys);
         }
 
         let pending = renderers.prepare(&output, scale, self.app.clear_color());
@@ -547,8 +529,8 @@ impl Runner {
             deferred: !self.events.is_empty(),
             repaint: output.repaint,
             repaint_after: output.repaint_after,
-            close_requested: output.close_requested || self.closing,
         };
+        let closing = output.close_requested || self.closing;
         self.unpresented |= pending;
         if let Some(automation) = &mut self.automation
             && let Some(dump) = &self.accessibility
@@ -561,12 +543,9 @@ impl Runner {
                 test_ids: &self.test_ids,
                 pixels_per_point: scale,
                 now: self.context.now(),
-                cursor: self.shown.cursor_icon,
-                fullscreen: self.shown.fullscreen,
-                wants_keyboard: self.shown.wants_keyboard,
-                pointer_locked: self.shown.pointer_locked,
+                window: &self.asked,
+                fullscreen: self.context.fullscreen(),
                 actions: &self.actions,
-                ime: self.ime,
             };
             let settled = Settled {
                 busy: self.app.busy(),
@@ -590,6 +569,10 @@ impl Runner {
             }
         }
         self.output = Some(output);
+        if closing {
+            self.exit();
+            return None;
+        }
         Some(frame)
     }
 

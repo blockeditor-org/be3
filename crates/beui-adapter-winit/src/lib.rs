@@ -31,11 +31,11 @@ use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
 use beui_core::input::{
-    CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, Modifiers, PointerButton, TouchId,
-    TouchPhase,
+    CursorIcon, DroppedFile, Event, ImeEvent, Key, Modifiers, PointerButton, TouchId, TouchPhase,
 };
 use beui_core::renderer::{Loaded, WindowHandle};
 use beui_core::runner::{Adapter, Input, Keystroke, Launch, Platform, Running, ScrollDelta};
+use beui_core::window::WindowState;
 use clipboard::Clipboard;
 
 const TOUCH_CURSOR_SIZE: u16 = 20;
@@ -112,9 +112,8 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
 
 struct Surface {
     window: Arc<Window>,
-    pointer_locked: bool,
     touch_cursor: CustomCursor,
-    ime: Option<ImeArea>,
+    fullscreen: bool,
     accessibility: AccessKitAdapter,
 }
 
@@ -160,48 +159,33 @@ impl Platform for WinitPlatform<'_> {
         file_picker::open(request, answer);
     }
 
-    fn set_cursor(&mut self, icon: CursorIcon, touch_emulation: bool) {
-        let window = &self.surface.window;
-        if touch_emulation {
-            window.set_cursor(self.surface.touch_cursor.clone());
-            window.set_cursor_visible(true);
-            return;
+    fn show_window(&mut self, window: &WindowState, shown: &WindowState) {
+        let surface = &*self.surface;
+        if window.pointer_locked != shown.pointer_locked {
+            lock_pointer(&surface.window, window.pointer_locked);
         }
-        match cursor(icon) {
-            Some(icon) => {
-                window.set_cursor(icon);
-                window.set_cursor_visible(!self.surface.pointer_locked);
+        if (window.cursor, window.touch_emulation, window.pointer_locked)
+            != (shown.cursor, shown.touch_emulation, shown.pointer_locked)
+        {
+            show_cursor(surface, window);
+        }
+        if window.ime != shown.ime {
+            if window.ime.is_some() != shown.ime.is_some() {
+                surface.window.set_ime_allowed(window.ime.is_some());
             }
-            None => window.set_cursor_visible(false),
+            if let Some(area) = &window.ime {
+                surface.window.set_ime_cursor_area(
+                    LogicalPosition::new(area.cursor.min.x, area.cursor.min.y),
+                    LogicalSize::new(area.cursor.width().max(1.0), area.cursor.height().max(1.0)),
+                );
+            }
         }
-    }
-
-    fn lock_pointer(&mut self, locked: bool) {
-        self.surface.pointer_locked = locked;
-        lock_pointer(&self.surface.window, locked);
     }
 
     fn set_fullscreen(&mut self, fullscreen: bool) {
         self.surface
             .window
             .set_fullscreen(fullscreen.then_some(Fullscreen::Borderless(None)));
-    }
-
-    fn show_ime(&mut self, ime: Option<&ImeArea>) {
-        let surface = &mut *self.surface;
-        if ime == surface.ime.as_ref() {
-            return;
-        }
-        if ime.is_some() != surface.ime.is_some() {
-            surface.window.set_ime_allowed(ime.is_some());
-        }
-        if let Some(area) = ime {
-            surface.window.set_ime_cursor_area(
-                LogicalPosition::new(area.cursor.min.x, area.cursor.min.y),
-                LogicalSize::new(area.cursor.width().max(1.0), area.cursor.height().max(1.0)),
-            );
-        }
-        surface.ime = ime.cloned();
     }
 
     fn publish_accessibility(&mut self, tree: &mut dyn FnMut() -> TreeUpdate) {
@@ -252,9 +236,6 @@ impl Runner {
         self.next_update = frame
             .wait()
             .and_then(|wait| Instant::now().checked_add(wait));
-        if frame.close_requested {
-            self.exit(event_loop);
-        }
         frame.pending
     }
 
@@ -339,9 +320,8 @@ impl ApplicationHandler<UserEvent> for Runner {
         setup.provide(window.clone());
         self.surface = Some(Surface {
             window,
-            pointer_locked: false,
             touch_cursor,
-            ime: None,
+            fullscreen: false,
             accessibility,
         });
         if let Err(error) = self.runner.start(loaded, setup) {
@@ -405,15 +385,18 @@ impl ApplicationHandler<UserEvent> for Runner {
             self.prepared = false;
         }
         match event {
-            WindowEvent::CloseRequested => {
-                if self.runner.close_requested() {
-                    self.exit(event_loop);
-                } else {
-                    self.request_redraw();
-                }
-            }
+            WindowEvent::CloseRequested => match self.runner.os_close() {
+                true => event_loop.exit(),
+                false => self.request_redraw(),
+            },
             WindowEvent::Destroyed => self.exit(event_loop),
             WindowEvent::Resized(size) => {
+                if let Some(surface) = &mut self.surface {
+                    let fullscreen = surface.window.fullscreen().is_some();
+                    if std::mem::replace(&mut surface.fullscreen, fullscreen) != fullscreen {
+                        self.runner.fullscreen_changed(fullscreen);
+                    }
+                }
                 if let (Some(surface), Some(renderers)) = (&self.surface, self.runner.renderers()) {
                     renderers.resize(size.width, size.height);
                     surface.window.request_redraw();
@@ -774,6 +757,22 @@ fn named_key(named: NamedKey) -> Option<Key> {
         _ => return None,
     };
     Some(key)
+}
+
+fn show_cursor(surface: &Surface, state: &WindowState) {
+    let window = &surface.window;
+    if state.touch_emulation {
+        window.set_cursor(surface.touch_cursor.clone());
+        window.set_cursor_visible(true);
+        return;
+    }
+    match cursor(state.cursor) {
+        Some(icon) => {
+            window.set_cursor(icon);
+            window.set_cursor_visible(!state.pointer_locked);
+        }
+        None => window.set_cursor_visible(false),
+    }
 }
 
 fn lock_pointer(window: &Window, locked: bool) {

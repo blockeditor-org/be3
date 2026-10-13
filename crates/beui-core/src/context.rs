@@ -21,6 +21,7 @@ use crate::paint::{Item, Recorded, Recording};
 use crate::painter::{Painter, Scope, Shape};
 use crate::screen_simulation::ScreenSimulation;
 use crate::screens::Screen;
+use crate::window::WindowState;
 
 type CopyWatcher = Rc<dyn Fn(&str)>;
 
@@ -42,19 +43,15 @@ struct Inner {
     ambiguous_test_ids: RefCell<HashSet<String>>,
     copied_text: RefCell<Option<String>>,
     paste: Cell<Option<PasteRequest>>,
-    paste_kinds: RefCell<Vec<PasteKind>>,
     copy_watchers: RefCell<Vec<CopyWatcher>>,
     file_pick_requests: RefCell<Vec<FilePickRequest>>,
     file_picks: RefCell<Vec<(FilePickId, FilePick)>>,
     next_file_pick: Cell<u64>,
-    cursor_icon: Cell<CursorIcon>,
-    ime: Cell<Option<ImeArea>>,
+    window: RefCell<WindowState>,
     fullscreen: Cell<Option<bool>>,
+    fullscreen_shown: Cell<bool>,
+    keyboard_requested: Cell<bool>,
     close_requested: Cell<bool>,
-    handles_back: Cell<bool>,
-    wants_keyboard: Cell<bool>,
-    intercepted_keys: RefCell<Vec<KeyChord>>,
-    pointer_locked: Cell<bool>,
     touch_emulation: Cell<bool>,
     input_simulation: RefCell<Option<Box<dyn InputSimulation>>>,
     simulation_area: Cell<(Rect, f32)>,
@@ -149,17 +146,12 @@ pub struct FrameOutput {
     pub layers: Rc<Vec<Layer>>,
     test_ids: HashMap<String, Rect>,
     ambiguous_test_ids: HashSet<String>,
-    pub cursor_icon: CursorIcon,
-    pub ime: Option<ImeArea>,
+    pub window: WindowState,
     pub fullscreen: Option<bool>,
+    pub show_keyboard: bool,
     pub close_requested: bool,
-    pub handles_back: bool,
-    pub wants_keyboard: bool,
-    pub intercepted_keys: Vec<KeyChord>,
-    pub pointer_locked: bool,
     pub copied_text: Option<String>,
     pub paste: Option<PasteRequest>,
-    pub paste_kinds: Vec<PasteKind>,
     pub file_picks: Vec<FilePickRequest>,
     pub repaint: bool,
     pub repaint_after: Duration,
@@ -247,19 +239,15 @@ impl Context {
                 ambiguous_test_ids: RefCell::new(HashSet::new()),
                 copied_text: RefCell::new(None),
                 paste: Cell::new(None),
-                paste_kinds: RefCell::new(Vec::new()),
                 copy_watchers: RefCell::new(Vec::new()),
                 file_pick_requests: RefCell::new(Vec::new()),
                 file_picks: RefCell::new(Vec::new()),
                 next_file_pick: Cell::new(0),
-                cursor_icon: Cell::new(CursorIcon::Default),
-                ime: Cell::new(None),
+                window: RefCell::new(WindowState::default()),
                 fullscreen: Cell::new(None),
+                fullscreen_shown: Cell::new(false),
+                keyboard_requested: Cell::new(false),
                 close_requested: Cell::new(false),
-                handles_back: Cell::new(false),
-                wants_keyboard: Cell::new(false),
-                intercepted_keys: RefCell::new(Vec::new()),
-                pointer_locked: Cell::new(false),
                 touch_emulation: Cell::new(false),
                 input_simulation: RefCell::new(None),
                 simulation_area: Cell::new((Rect::NOTHING, 1.0)),
@@ -433,14 +421,10 @@ impl Context {
         self.inner.ambiguous_test_ids.borrow_mut().clear();
         self.inner.copied_text.borrow_mut().take();
         self.inner.paste.set(None);
-        self.inner.paste_kinds.borrow_mut().clear();
-        self.inner.cursor_icon.set(CursorIcon::Default);
-        self.inner.ime.set(None);
+        self.inner.window.borrow_mut().begin_frame();
         self.inner.fullscreen.set(None);
+        self.inner.keyboard_requested.set(false);
         self.inner.close_requested.set(false);
-        self.inner.handles_back.set(false);
-        self.inner.wants_keyboard.set(false);
-        self.inner.intercepted_keys.borrow_mut().clear();
         self.inner.accessibility.borrow_mut().clear();
         self.inner.actions.borrow_mut().clear();
         let published = std::mem::take(&mut *self.inner.accessibility_published.borrow_mut());
@@ -503,18 +487,16 @@ impl Context {
             ambiguous_test_ids: std::mem::take(&mut *self.inner.ambiguous_test_ids.borrow_mut()),
             copied_text,
             paste: self.inner.paste.take(),
-            paste_kinds: std::mem::take(&mut *self.inner.paste_kinds.borrow_mut()),
             file_picks: std::mem::take(&mut *self.inner.file_pick_requests.borrow_mut()),
             changed,
             repaint_after: self.inner.repaint_after.get(),
-            cursor_icon: self.inner.cursor_icon.get(),
-            ime: self.inner.ime.take(),
+            window: WindowState {
+                touch_emulation: self.touch_emulation(),
+                ..self.inner.window.borrow().clone()
+            },
             fullscreen: self.inner.fullscreen.get(),
+            show_keyboard: self.inner.keyboard_requested.get(),
             close_requested: self.inner.close_requested.get(),
-            handles_back: self.inner.handles_back.get(),
-            wants_keyboard: self.inner.wants_keyboard.get(),
-            intercepted_keys: std::mem::take(&mut *self.inner.intercepted_keys.borrow_mut()),
-            pointer_locked: self.inner.pointer_locked.get(),
             repaint: self.inner.repaint.get(),
             accessibility: std::mem::take(&mut *self.inner.accessibility.borrow_mut()),
             actions: std::mem::take(&mut *self.inner.actions.borrow_mut()),
@@ -534,11 +516,29 @@ impl Context {
     }
 
     pub fn set_ime_area(&self, area: Option<ImeArea>) {
-        self.inner.ime.set(area);
+        self.inner.window.borrow_mut().ime = area;
+    }
+
+    pub fn ime_area(&self) -> Option<ImeArea> {
+        self.inner.window.borrow().ime.clone()
     }
 
     pub fn set_fullscreen(&self, fullscreen: bool) {
         self.inner.fullscreen.set(Some(fullscreen));
+    }
+
+    pub fn fullscreen(&self) -> bool {
+        self.inner.fullscreen_shown.get()
+    }
+
+    pub fn fullscreen_changed(&self, fullscreen: bool) {
+        if self.inner.fullscreen_shown.replace(fullscreen) != fullscreen {
+            self.request_repaint();
+        }
+    }
+
+    pub fn request_keyboard(&self) {
+        self.inner.keyboard_requested.set(true);
     }
 
     pub fn close_window(&self) {
@@ -546,18 +546,18 @@ impl Context {
     }
 
     pub fn handle_back(&self) {
-        self.inner.handles_back.set(true);
+        self.inner.window.borrow_mut().handles_back = true;
     }
 
     pub fn want_keyboard(&self) {
-        self.inner.wants_keyboard.set(true);
+        self.inner.window.borrow_mut().wants_keyboard = true;
     }
 
     pub fn intercept_keys(&self, chords: &[KeyChord]) {
-        let mut held = self.inner.intercepted_keys.borrow_mut();
+        let mut window = self.inner.window.borrow_mut();
         for chord in chords {
-            if !held.contains(chord) {
-                held.push(*chord);
+            if !window.intercepted_keys.contains(chord) {
+                window.intercepted_keys.push(*chord);
             }
         }
     }
@@ -581,7 +581,7 @@ impl Context {
     }
 
     pub fn accept_pastes(&self, kinds: &[PasteKind]) {
-        *self.inner.paste_kinds.borrow_mut() = kinds.to_vec();
+        self.inner.window.borrow_mut().paste_kinds = kinds.to_vec();
     }
 
     pub fn watch_copies(&self, watcher: impl Fn(&str) + 'static) {
@@ -609,21 +609,23 @@ impl Context {
     }
 
     pub fn set_pointer_locked(&self, locked: bool) {
-        if self.inner.pointer_locked.replace(locked) != locked {
+        let changed =
+            std::mem::replace(&mut self.inner.window.borrow_mut().pointer_locked, locked) != locked;
+        if changed {
             self.request_repaint();
         }
     }
 
     pub fn pointer_locked(&self) -> bool {
-        self.inner.pointer_locked.get()
+        self.inner.window.borrow().pointer_locked
     }
 
     pub fn set_cursor_icon(&self, cursor_icon: CursorIcon) {
-        self.inner.cursor_icon.set(cursor_icon);
+        self.inner.window.borrow_mut().cursor = cursor_icon;
     }
 
     pub fn cursor_icon(&self) -> CursorIcon {
-        self.inner.cursor_icon.get()
+        self.inner.window.borrow().cursor
     }
 
     pub fn touch_emulation(&self) -> bool {
@@ -1007,16 +1009,16 @@ impl Context {
         let moves = self.inner.moves.borrow().len();
         let fragments = self.inner.accessibility.borrow().len();
         let test_ids = self.inner.test_ids.take();
-        let ime = self.inner.ime.take();
+        let ime = self.inner.window.borrow_mut().ime.take();
         let result = self.grouping(layers, content);
         self.unmove(moves);
-        let scaled_ime = self.inner.ime.replace(ime);
+        let scaled_ime = std::mem::replace(&mut self.inner.window.borrow_mut().ime, ime);
         if let Some(area) = scaled_ime {
-            self.inner.ime.set(Some(ImeArea {
+            self.inner.window.borrow_mut().ime = Some(ImeArea {
                 rect: area.rect.scaled(scale),
                 cursor: area.cursor.scaled(scale),
                 ..area
-            }));
+            });
         }
         self.inner.input.replace(input);
         self.inner.pixels_per_point.set(pixels_per_point);

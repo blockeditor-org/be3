@@ -1038,6 +1038,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.output
             .as_ref()
             .expect("the editor has not drawn a frame yet")
+            .window
             .pointer_locked
     }
 

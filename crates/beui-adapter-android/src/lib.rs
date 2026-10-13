@@ -29,12 +29,13 @@ use raw_window_handle as rwh;
 use beui_core::app::{SafeArea, Setup, Waker};
 use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePick, FilePickAnswer, FilePickId, FilePickRequest, PickedFile};
-use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
+use beui_core::geometry::{Vec2, pos2, vec2};
 use beui_core::input::{
     BackEdge, BackGesture, Event, ImeArea, ImeEvent, ImeText, Key, Modifiers, TouchId, TouchPhase,
 };
 use beui_core::renderer::{Loaded, WindowHandle};
 use beui_core::runner::{Adapter, Keystroke, Launch, Platform, Running, ScrollDelta};
+use beui_core::window::WindowState;
 use clipboard::Clipboard;
 
 const SURFACE_RELEASE_TIMEOUT: Duration = Duration::from_secs(2);
@@ -174,11 +175,8 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
             view: None,
             accessibility: None,
             clipboard: Clipboard::new(),
-            ime: None,
-            handles_back: false,
             ime_serial: 0,
             sent_ime: None,
-            tapped_at: None,
         },
         load: Some(load),
         window: None,
@@ -212,11 +210,8 @@ struct AndroidPlatform {
     view: Option<Arc<Global<JObject<'static>>>>,
     accessibility: Option<InjectingAdapter>,
     clipboard: Clipboard,
-    ime: Option<ImeArea>,
-    handles_back: bool,
     ime_serial: u64,
     sent_ime: Option<(Option<ImeText>, u64)>,
-    tapped_at: Option<Pos2>,
 }
 
 impl Platform for AndroidPlatform {
@@ -236,30 +231,20 @@ impl Platform for AndroidPlatform {
         AndroidPlatform::pick_file(self, request, answer);
     }
 
-    fn set_handles_back(&mut self, handles: bool) {
-        self.handles_back = handles;
-        self.set_back_handled(handles);
-    }
-
-    fn show_ime(&mut self, ime: Option<&ImeArea>) {
-        let asked = self.ime.as_ref().is_some_and(|area| area.keyboard);
-        let wanted = ime.is_some_and(|area| area.keyboard);
-        let tapped_field = self
-            .tapped_at
-            .take()
-            .is_some_and(|tap| asked && ime.is_some_and(|area| area.rect.contains(tap)));
-        let text = ime.and_then(|area| area.text.clone());
-        let sent = (text, self.ime_serial);
-        if self.sent_ime.as_ref() != Some(&sent) {
-            self.set_ime_text(sent.0.as_ref(), sent.1);
-            self.sent_ime = Some(sent);
+    fn show_window(&mut self, window: &WindowState, shown: &WindowState) {
+        if window.handles_back != shown.handles_back {
+            self.set_back_handled(window.handles_back);
         }
+        self.sync_ime(window.ime.as_ref());
+        let asked = shown.ime.as_ref().is_some_and(|area| area.keyboard);
+        let wanted = window.ime.as_ref().is_some_and(|area| area.keyboard);
         if wanted != asked {
             self.set_keyboard(wanted);
-        } else if wanted && tapped_field {
-            self.set_keyboard(true);
         }
-        self.ime = ime.cloned();
+    }
+
+    fn show_keyboard(&mut self) {
+        self.set_keyboard(true);
     }
 
     fn publish_accessibility(&mut self, tree: &mut dyn FnMut() -> TreeUpdate) {
@@ -270,6 +255,14 @@ impl Platform for AndroidPlatform {
 }
 
 impl AndroidPlatform {
+    fn sync_ime(&mut self, ime: Option<&ImeArea>) {
+        let sent = (ime.and_then(|area| area.text.clone()), self.ime_serial);
+        if self.sent_ime.as_ref() != Some(&sent) {
+            self.set_ime_text(sent.0.as_ref(), sent.1);
+            self.sent_ime = Some(sent);
+        }
+    }
+
     fn set_keyboard(&self, shown: bool) {
         let Some(view) = &self.view else {
             return;
@@ -470,13 +463,13 @@ impl Runner {
                 platform.view = Some(view);
                 platform.attach_accessibility();
                 platform.ime_serial = 0;
-                let text = platform.ime.as_ref().and_then(|area| area.text.clone());
-                platform.set_ime_text(text.as_ref(), 0);
-                platform.sent_ime = Some((text, 0));
-                if platform.ime.as_ref().is_some_and(|area| area.keyboard) {
+                platform.sent_ime = None;
+                let window = self.runner.window();
+                platform.sync_ime(window.ime.as_ref());
+                if window.ime.as_ref().is_some_and(|area| area.keyboard) {
                     platform.set_keyboard(true);
                 }
-                if platform.handles_back {
+                if window.handles_back {
                     platform.set_back_handled(true);
                 }
             }
@@ -507,10 +500,6 @@ impl Runner {
                 force,
             } => {
                 let pos = pos2(x, y);
-                if phase == TouchPhase::End {
-                    let scale = self.runner.context().pixels_per_point();
-                    self.platform.tapped_at = Some(pos2(x / scale, y / scale));
-                }
                 self.runner.push(Event::Touch {
                     id: TouchId {
                         device: u64::from(device.cast_unsigned()),
@@ -611,15 +600,15 @@ impl Runner {
             .frame(&mut self.platform, self.density, self.safe_area)
         else {
             self.next_update = None;
+            if self.runner.exited() {
+                self.platform.finish_activity();
+            }
             return false;
         };
+        self.platform.sync_ime(self.runner.window().ime.as_ref());
         self.next_update = frame
             .wait()
             .and_then(|wait| Instant::now().checked_add(wait));
-        if frame.close_requested {
-            self.platform.finish_activity();
-            self.exit();
-        }
         frame.pending
     }
 }

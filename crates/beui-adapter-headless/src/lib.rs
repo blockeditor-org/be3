@@ -55,12 +55,8 @@ fn run(headless: Headless, launch: Launch) -> Result<(), Box<dyn Error>> {
         let started = Instant::now();
         let next = match runner.frame(&mut Offscreen, headless.window.scale, SafeArea::default()) {
             Some(frame) => {
-                if frame.close_requested {
-                    break;
-                }
-                let again = runner.present();
-                match frame.wait() {
-                    _ if again => Some(started + FRAME_INTERVAL),
+                let presenting = runner.present();
+                match frame.next(presenting) {
                     Some(Duration::ZERO) => Some(started + FRAME_INTERVAL),
                     Some(wait) => started.checked_add(wait),
                     None => None,

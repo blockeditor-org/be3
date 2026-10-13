@@ -546,8 +546,11 @@ impl Document {
         if let Some(target) = target
             && self.focused == Some(target)
             && self.contains(target)
-            && focus_of(self.arena.get(target)).is_some_and(|node| node.press_focus)
+            && let Some(keyboard) = focus_of(self.arena.get(target))
+                .filter(|node| node.press_focus)
+                .map(|node| node.ime && node.ime_keyboard)
         {
+            self.keyboard_asked = keyboard;
             self.keyboard_held = false;
         }
     }

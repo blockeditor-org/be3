@@ -11,9 +11,10 @@ use crate::context::{ActionGroup, Context};
 use crate::file_picker::PickedFile;
 use crate::geometry::{Pos2, Rect, vec2};
 use crate::input::{
-    BackEdge, BackGesture, CursorIcon, DroppedFile, Event, ImeEvent, Key, Modifiers, PointerButton,
-    TouchId, TouchPhase,
+    BackEdge, BackGesture, DroppedFile, Event, ImeEvent, Key, Modifiers, PointerButton, TouchId,
+    TouchPhase,
 };
+use crate::window::WindowState;
 
 use crate::runner::SCROLL_LINE as WHEEL_LINE;
 const CHANGES: usize = 60;
@@ -85,12 +86,9 @@ pub struct View<'a> {
     pub test_ids: &'a HashMap<String, Rect>,
     pub pixels_per_point: f32,
     pub now: Instant,
-    pub cursor: CursorIcon,
+    pub window: &'a WindowState,
     pub fullscreen: bool,
-    pub wants_keyboard: bool,
-    pub pointer_locked: bool,
     pub actions: &'a [ActionGroup],
-    pub ime: Option<Rect>,
 }
 
 pub struct World<'a> {
@@ -1112,7 +1110,7 @@ impl Automation {
                 yes(view.fullscreen)
             )),
         }
-        text.push_str(&format!("cursor {:?}\n", view.cursor));
+        text.push_str(&format!("cursor {:?}\n", view.window.cursor));
         let held: Vec<String> = self
             .buttons
             .iter()
@@ -1152,7 +1150,10 @@ impl Automation {
         if !keys.is_empty() {
             text.push_str(&format!("keys down {}\n", keys.join(", ")));
         }
-        match (&self.composing, view.ime) {
+        match (
+            &self.composing,
+            view.window.ime.as_ref().map(|area| area.cursor),
+        ) {
             (Some(composing), _) => text.push_str(&format!("composing {composing:?}\n")),
             (None, Some(cursor)) => text.push_str(&format!(
                 "the app asks for an input method, its caret {}\n",
@@ -1172,8 +1173,8 @@ impl Automation {
         }
         text.push_str(&format!(
             "wants the keyboard {}, pointer locked {}\n",
-            yes(view.wants_keyboard),
-            yes(view.pointer_locked)
+            yes(view.window.wants_keyboard),
+            yes(view.window.pointer_locked)
         ));
         if let Some(simulation) = world.simulation.as_deref() {
             match &simulation.clipboard {

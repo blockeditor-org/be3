@@ -58,6 +58,7 @@ pub struct Document {
     pub(crate) focus_before: Option<NodeId>,
     pub composed: String,
     pub(crate) keyboard_held: bool,
+    pub(crate) keyboard_asked: bool,
     pub activated: Option<NodeId>,
     pub activation_key: Option<Key>,
     pub rects: Rc<Rects>,
@@ -76,6 +77,7 @@ pub struct Document {
     scale: (::reactive::ReadSignal<f32>, ::reactive::WriteSignal<f32>),
     attached: (::reactive::ReadSignal<u64>, ::reactive::WriteSignal<u64>),
     focus_visible: (::reactive::ReadSignal<bool>, ::reactive::WriteSignal<bool>),
+    fullscreen: (::reactive::ReadSignal<bool>, ::reactive::WriteSignal<bool>),
     screens: (
         ::reactive::ReadSignal<Vec<Screen>>,
         ::reactive::WriteSignal<Vec<Screen>>,
@@ -252,6 +254,7 @@ impl Document {
             focus_before: None,
             composed: String::new(),
             keyboard_held: false,
+            keyboard_asked: false,
             activated: None,
             activation_key: None,
             drags: Rc::new(crate::drag_board::Board::new(Rc::clone(&rects))),
@@ -271,6 +274,7 @@ impl Document {
             scale: ::reactive::create_signal(1.0),
             attached: ::reactive::create_signal(0),
             focus_visible: ::reactive::create_signal(false),
+            fullscreen: ::reactive::create_signal(false),
             screens: ::reactive::create_signal(Vec::new()),
             offered_screens: None,
             rescreened: RefCell::new(None),
@@ -416,6 +420,10 @@ impl Document {
         self.scale.0.clone()
     }
 
+    pub fn watch_fullscreen(&self) -> ::reactive::ReadSignal<bool> {
+        self.fullscreen.0.clone()
+    }
+
     pub fn watch_screens(&self) -> ::reactive::ReadSignal<Vec<Screen>> {
         self.screens.0.clone()
     }
@@ -527,6 +535,13 @@ impl Document {
         let scale = self.pixels_per_point();
         if self.scale.0.get_untracked() != scale {
             self.scale.1.set(scale);
+        }
+        let fullscreen = self
+            .viewport
+            .as_ref()
+            .is_some_and(|(ctx, _, _)| ctx.fullscreen());
+        if self.fullscreen.0.get_untracked() != fullscreen {
+            self.fullscreen.1.set(fullscreen);
         }
         let rescreened = self.rescreened.borrow_mut().take();
         if let Some(screens) = rescreened {
@@ -1076,9 +1091,13 @@ impl Document {
             FrameMeasurement::measure(&mut measurement.timings.layout, || {
                 self.update_layout(ctx, rect)
             });
+        let asked = std::mem::take(&mut self.keyboard_asked);
         if self.keyboard
             && let Some(area) = self.focused_ime_area()
         {
+            if asked && area.keyboard {
+                ctx.request_keyboard();
+            }
             ctx.set_ime_area(Some(area));
         }
         if ctx.test_ids_published() {
