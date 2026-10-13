@@ -39,7 +39,7 @@ fn a_tree_row_decides_which_part_of_it_is_clickable() {
                                 <Spacer @sizing=ItemSize::Fixed(MARGIN) />
                                 <Interactive
                                     @sizing=ItemSize::Percent(100.0)
-                                    on_click={move || select()}
+                                    on_click={move || select.call()}
                                 >
                                     <Text
                                         @test_id={format!("name.{key}")}

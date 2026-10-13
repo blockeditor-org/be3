@@ -1,5 +1,4 @@
 use std::hash::Hash;
-use std::rc::Rc;
 
 use beui_macros::{component, view};
 
@@ -19,7 +18,7 @@ use beui_core::icons::{
 };
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Callback, Direction, Frame, Func, ItemSize, List, Memo, NodeRef, Prop, ReadSignal,
+    Align, Callback, ClickCallback, Direction, Frame, Func, ItemSize, List, Memo, NodeRef, Prop, ReadSignal,
     RenderFn, Spacer, clone, create_memo, focus_ring, set_component_state,
 };
 
@@ -193,7 +192,7 @@ where
         <Frame height=ROW_HEIGHT>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Spacer @sizing={indent} />
-                <Chevron item={item} marked={marked} toggle={toggle} named={chevron_id(&named)} />
+                <Chevron item={item} marked={marked} toggle={move || toggle.call()} named={chevron_id(&named)} />
                 <Frame
                     @sizing=ItemSize::Percent(100.0)
                     @test_id={row_id(&named)}
@@ -216,13 +215,13 @@ where
 fn Chevron(
     item: Memo<TreeItem>,
     marked: Memo<bool>,
-    toggle: Rc<dyn Fn()>,
+    toggle: ClickCallback,
     named: String,
 ) -> NodeId {
     view! {
         <Frame width=CHEVRON_WIDTH>
             <List spacing=0.0>
-                <unstyled::TreeToggle item toggle button_test_id=named>
+                <unstyled::TreeToggle item toggle={move || toggle.call()} button_test_id=named>
                     {move |handle: TreeToggleHandle| view! {
                         <ChevronFace handle marked={marked} />
                     }}

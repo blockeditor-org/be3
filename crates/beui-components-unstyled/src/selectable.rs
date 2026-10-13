@@ -1,9 +1,8 @@
 use std::cell::{Cell, RefCell};
-use std::rc::Rc;
 
 use beui::reactive::{
-    Callback, Child, Interactive, NodeRef, Prop, copy_text, create_effect, on_key,
-    set_component_state, untrack, with_document,
+    Callback, Child, Interactive, NodeRef, Prop, Stored, copy_text, create_effect, on_key,
+    set_component_state, store, untrack, with_document,
 };
 use beui_core::base::text::TextNode;
 use beui_core::color::Color32;
@@ -30,8 +29,14 @@ struct Grab {
     offset: Vec2,
 }
 
-#[derive(Clone, Default)]
-pub struct SelectableState(Rc<Inner>);
+#[derive(Clone, Copy)]
+pub struct SelectableState(Stored<Inner>);
+
+impl Default for SelectableState {
+    fn default() -> Self {
+        Self(store(Inner::default()))
+    }
+}
 
 #[derive(Default)]
 struct Inner {
@@ -49,6 +54,7 @@ struct Inner {
 impl SelectableState {
     fn texts(&self, document: &Document) -> Vec<NodeOf<TextNode>> {
         self.0
+            .get()
             .region
             .try_get()
             .map_or_else(Vec::new, |region| document.texts_within(region))
@@ -81,7 +87,7 @@ impl SelectableState {
     }
 
     fn ordered(&self, texts: &[NodeOf<TextNode>]) -> Option<(Caret, Caret, usize, usize)> {
-        let (anchor, focus) = (self.0.anchor.get()?, self.0.focus.get()?);
+        let (anchor, focus) = (self.0.get().anchor.get()?, self.0.get().focus.get()?);
         let at = |caret: Caret| texts.iter().position(|text| *text == caret.text);
         let (from, to) = (at(anchor)?, at(focus)?);
         match (from, anchor.index) <= (to, focus.index) {
@@ -125,7 +131,7 @@ impl SelectableState {
     }
 
     fn handles(&self, document: &Document) -> Vec<(CaretHandle, Caret)> {
-        if !self.0.touch.get() {
+        if !self.0.get().touch.get() {
             return Vec::new();
         }
         let texts = self.texts(document);
@@ -154,8 +160,8 @@ impl SelectableState {
 
     fn paint(&self, document: &mut Document) {
         let ranges = self.ranges(document);
-        let color = self.0.color.get();
-        let previous = std::mem::take(&mut *self.0.painted.borrow_mut());
+        let color = self.0.get().color.get();
+        let previous = std::mem::take(&mut *self.0.get().painted.borrow_mut());
         for text in previous {
             if document.contains(text) && !ranges.iter().any(|(held, _)| *held == text) {
                 document.set_text_selection(text, None);
@@ -164,11 +170,11 @@ impl SelectableState {
         for (text, range) in &ranges {
             document.set_text_selection(*text, Some((range.clone(), color)));
         }
-        *self.0.painted.borrow_mut() = ranges.into_iter().map(|(text, _)| text).collect();
+        *self.0.get().painted.borrow_mut() = ranges.into_iter().map(|(text, _)| text).collect();
 
         let handles = self.handles(document);
-        let handle_color = self.0.handle_color.get();
-        let previous = std::mem::take(&mut *self.0.handled.borrow_mut());
+        let handle_color = self.0.get().handle_color.get();
+        let previous = std::mem::take(&mut *self.0.get().handled.borrow_mut());
         for text in previous {
             if document.contains(text) {
                 document.set_text_selection_handles(text, Vec::new());
@@ -188,12 +194,12 @@ impl SelectableState {
                 .collect();
             document.set_text_selection_handles(*text, on_text);
         }
-        *self.0.handled.borrow_mut() = handled;
+        *self.0.get().handled.borrow_mut() = handled;
     }
 
     fn select(&self, document: &mut Document, anchor: Option<Caret>, focus: Option<Caret>) {
-        self.0.anchor.set(anchor);
-        self.0.focus.set(focus);
+        self.0.get().anchor.set(anchor);
+        self.0.get().focus.set(focus);
         self.paint(document);
     }
 
@@ -217,7 +223,7 @@ impl SelectableState {
         let Some((start, end)) = self.word_at(document, pos) else {
             return;
         };
-        self.0.touch.set(true);
+        self.0.get().touch.set(true);
         self.select(document, Some(start), Some(end));
     }
 
@@ -275,7 +281,7 @@ fn word_bounds(text: &str, index: usize) -> (usize, usize) {
     (start, end)
 }
 
-fn key(state: &SelectableState, press: KeyPress) -> bool {
+fn key(state: SelectableState, press: KeyPress) -> bool {
     if !press.pressed || !press.modifiers.ctrl || press.modifiers.alt {
         return false;
     }
@@ -296,14 +302,14 @@ fn key(state: &SelectableState, press: KeyPress) -> bool {
     }
 }
 
-pub fn copy_selection(state: &SelectableState) {
+pub fn copy_selection(state: SelectableState) {
     let text = with_document(|document| state.selected_text(document));
     if !text.is_empty() {
         copy_text(text);
     }
 }
 
-pub fn select_all(state: &SelectableState) {
+pub fn select_all(state: SelectableState) {
     with_document(|document| state.select_all(document));
 }
 
@@ -313,10 +319,10 @@ pub fn selectable_text(document: &Document, selectable: NodeId) -> String {
         .selected_text(document)
 }
 
-fn press(state: &SelectableState, focusable: &NodeRef, press: PointerPress) {
+fn press(state: SelectableState, focusable: &NodeRef, press: PointerPress) {
     with_document(|document| {
         if press.touch {
-            state.0.grab.set(None);
+            state.0.get().grab.set(None);
             let Some((handle, moving)) = state.handle_at(document, press.pos) else {
                 return;
             };
@@ -331,25 +337,25 @@ fn press(state: &SelectableState, focusable: &NodeRef, press: PointerPress) {
             let offset = document
                 .text_caret_rect(moving.text, moving.index, CARET_WIDTH)
                 .map_or(Vec2::ZERO, |caret| press.pos - caret.min);
-            state.0.grab.set(Some(Grab { fixed, offset }));
+            state.0.get().grab.set(Some(Grab { fixed, offset }));
             return;
         }
         if let Some(target) = focusable.try_get() {
             document.focus_focusable(target);
         }
-        state.0.touch.set(false);
+        state.0.get().touch.set(false);
         let caret = state.caret_at(document, press.pos);
         let anchor = match press.modifiers.shift {
-            true => state.0.anchor.get().or(caret),
+            true => state.0.get().anchor.get().or(caret),
             false => caret,
         };
         state.select(document, anchor, caret);
     });
 }
 
-fn drag(state: &SelectableState, press: PointerPress) {
+fn drag(state: SelectableState, press: PointerPress) {
     with_document(|document| {
-        if let Some(grab) = state.0.grab.get() {
+        if let Some(grab) = state.0.get().grab.get() {
             if let Some(caret) = state.caret_at(document, press.pos - grab.offset) {
                 state.select(document, Some(grab.fixed), Some(caret));
             }
@@ -360,17 +366,17 @@ fn drag(state: &SelectableState, press: PointerPress) {
         }
         let caret = state.caret_at(document, press.pos);
         if caret.is_some() {
-            let anchor = state.0.anchor.get();
+            let anchor = state.0.get().anchor.get();
             state.select(document, anchor, caret);
         }
     });
 }
 
-fn tap(state: &SelectableState, on_menu: &Callback<Pos2>, press: PointerPress) {
+fn tap(state: SelectableState, on_menu: &Callback<Pos2>, press: PointerPress) {
     if !press.touch {
         return;
     }
-    if state.0.grab.take().is_some() {
+    if state.0.get().grab.take().is_some() {
         return;
     }
     with_document(|document| {
@@ -382,12 +388,12 @@ fn tap(state: &SelectableState, on_menu: &Callback<Pos2>, press: PointerPress) {
             on_menu.call(press.pos);
             return;
         }
-        state.0.touch.set(false);
+        state.0.get().touch.set(false);
         state.select(document, None, None);
     });
 }
 
-fn long_press(state: &SelectableState, press: PointerPress) {
+fn long_press(state: SelectableState, press: PointerPress) {
     if !press.touch {
         return;
     }
@@ -406,25 +412,21 @@ pub fn Selectable(
     #[prop(default = Color32::from_rgb(80, 140, 255))] handle_color: Prop<Color32>,
     on_menu: Callback<Pos2>,
 ) -> NodeId {
-    set_component_state(state.clone());
-    state.0.region.fill(children);
+    set_component_state(state);
+    state.0.get().region.fill(children);
     let focusable = NodeRef::new();
-    let painted = state.clone();
     create_effect(move || {
         let color = color.get();
         let handle_color = handle_color.get();
         untrack(|| {
-            painted.0.color.set(color);
-            painted.0.handle_color.set(handle_color);
-            with_document(|document| painted.paint(document));
+            state.0.get().color.set(color);
+            state.0.get().handle_color.set(handle_color);
+            with_document(|document| state.paint(document));
         });
     });
-    let (pressed, dragged, keyed) = (state.clone(), state.clone(), state.clone());
-    let (tapped, held, captured, released) =
-        (state.clone(), state.clone(), state.clone(), state.clone());
     let focused = focusable;
     on_key(KeyAt::Node(focusable), KeyPhase::Bubble, move |event| {
-        event.press().is_some_and(|press| key(&keyed, press))
+        event.press().is_some_and(|press| key(state, press))
     });
     view! {
         <Interactive
@@ -433,15 +435,15 @@ pub fn Selectable(
             tab_stop=false
             claims_touch=false
             claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
-                with_document(|document| captured.handle_at(document, pos).is_some())
+                with_document(|document| state.handle_at(document, pos).is_some())
             }}
-            on_press={move |event: PointerPress| press(&pressed, &focused, event)}
-            on_drag={move |event: PointerPress| drag(&dragged, event)}
-            on_click_at={move |event: PointerPress| tap(&tapped, &on_menu, event)}
-            on_secondary_press={move |event: PointerPress| long_press(&held, event)}
+            on_press={move |event: PointerPress| press(state, &focused, event)}
+            on_drag={move |event: PointerPress| drag(state, event)}
+            on_click_at={move |event: PointerPress| tap(state, &on_menu, event)}
+            on_secondary_press={move |event: PointerPress| long_press(state, event)}
             on_active_change={move |active: bool| {
                 if !active {
-                    released.0.grab.set(None);
+                    state.0.get().grab.set(None);
                 }
             }}
         >

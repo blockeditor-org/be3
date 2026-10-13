@@ -16,12 +16,11 @@ pub fn SelectableText(
 ) -> NodeId {
     let theme = use_theme();
     let state = SelectableState::default();
-    set_component_state(state.clone());
+    set_component_state(state);
     let color = create_memo(move || theme.accent_soft.get());
     let handle_color = create_memo(move || theme.accent.get());
     let (menu_at, set_menu_at) = create_signal(None::<Pos2>);
     let close_menu = set_menu_at;
-    let chosen = state.clone();
     view! {
         <ContextMenu
             child_size
@@ -34,8 +33,8 @@ pub fn SelectableText(
                 <MenuItem label="Select All" />
             }}
             on_select={move |path: Vec<usize>| match path.first() {
-                Some(0) => copy_selection(&chosen),
-                Some(1) => select_all(&chosen),
+                Some(0) => copy_selection(state),
+                Some(1) => select_all(state),
                 _ => {}
             }}
         >
