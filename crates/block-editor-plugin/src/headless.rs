@@ -15,6 +15,7 @@ pub struct HeadlessPlugin {
 
 impl HeadlessPlugin {
     pub fn new(id: &str, name: &str, version: &str) -> Self {
+        crate::clock::restart();
         Self {
             session: ClientSession::new(id, name, version),
             screens: Screens::new(Vec::new(), Waker::default()),
@@ -82,3 +83,6 @@ impl HeadlessPlugin {
         Some(self.screens.session(instance)?.instance_mut())
     }
 }
+
+#[cfg(test)]
+mod tests;

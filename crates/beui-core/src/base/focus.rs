@@ -1,8 +1,9 @@
 use crate::base::frame::FrameNode;
 use crate::base::interactive::InteractiveNode;
 use crate::base::overlay::OverlayNode;
+use crate::clipboard::{PasteKind, Pasted};
 use crate::geometry::{Rect, Vec2};
-use crate::input::{ImeArea, ImeEvent, ImeText, Key, KeyPress};
+use crate::input::{ImeArea, ImeEvent, ImeText, Key, KeyPress, Keyboard};
 
 use crate::callback::{Callback, ClickCallback};
 use crate::current::with_document;
@@ -22,6 +23,7 @@ pub struct Focus {
     pub press_focus: bool,
     pub ime: bool,
     pub keyboard_on_focus: bool,
+    pub keyboard_asks: Option<u32>,
     pub ime_keyboard: bool,
     pub ime_cursor: Option<ImeCursor>,
     pub ime_text: Option<ImeText>,
@@ -30,9 +32,10 @@ pub struct Focus {
     pub on_activate: ClickCallback,
     pub on_step: Callback<f32>,
     pub on_text: Callback<String>,
+    pub pastes: Vec<PasteKind>,
+    pub on_paste: Callback<Pasted>,
     pub on_ime: Callback<ImeEvent>,
     pub on_key: KeyCallback,
-    pub on_ancestor_key: KeyCallback,
     pub on_motion: Callback<Vec2>,
 }
 
@@ -49,6 +52,7 @@ impl Focus {
             press_focus: true,
             ime: false,
             keyboard_on_focus: true,
+            keyboard_asks: None,
             ime_keyboard: true,
             ime_cursor: None,
             ime_text: None,
@@ -57,9 +61,10 @@ impl Focus {
             on_activate: ClickCallback::empty(),
             on_step: Callback::empty(),
             on_text: Callback::empty(),
+            pastes: Vec::new(),
+            on_paste: Callback::empty(),
             on_ime: Callback::empty(),
             on_key: Callback::empty(),
-            on_ancestor_key: Callback::empty(),
             on_motion: Callback::empty(),
         }
     }
@@ -112,6 +117,48 @@ impl Document {
     pub fn text_focused(&mut self, text: &str) {
         if let Some(focused) = self.focused {
             self.call_focusable_handler(focused, text.to_owned(), |node| &node.on_text);
+        }
+    }
+
+    pub fn paste_kinds(&self) -> Vec<PasteKind> {
+        let Some(focus) = self
+            .focused
+            .and_then(|focused| focus_of(self.arena.get(focused)))
+        else {
+            return Vec::new();
+        };
+        match (focus.pastes.is_empty(), focus.on_text.is_empty()) {
+            (false, _) => focus.pastes.clone(),
+            (true, false) => vec![PasteKind::Text],
+            (true, true) => Vec::new(),
+        }
+    }
+
+    pub fn paste_focused(&mut self, pasted: Pasted) {
+        let Some(focused) = self.focused else {
+            return;
+        };
+        let handles = focus_of(self.arena.get(focused)).is_some_and(|focus| {
+            focus.pastes.contains(&pasted.kind()) && !focus.on_paste.is_empty()
+        });
+        match pasted {
+            pasted if handles => {
+                self.call_focusable_handler(focused, pasted, |node| &node.on_paste);
+            }
+            Pasted::Text(text) => self.text_focused(&text),
+            Pasted::Image(_) => {}
+        }
+    }
+
+    pub fn set_focusable_pastes(
+        &mut self,
+        focusable: NodeOf<InteractiveNode>,
+        pastes: Vec<PasteKind>,
+    ) {
+        if self.contains(focusable)
+            && focus_of(self.arena.get(focusable)).is_some_and(|focus| focus.pastes != pastes)
+        {
+            self.focus_mut(focusable).pastes = pastes;
         }
     }
 
@@ -171,6 +218,16 @@ impl Document {
         }
     }
 
+    pub fn set_focusable_keyboard_asks(
+        &mut self,
+        focusable: NodeOf<InteractiveNode>,
+        asks: Option<u32>,
+    ) {
+        if self.contains(focusable) {
+            self.focus_mut(focusable).keyboard_asks = asks;
+        }
+    }
+
     pub fn set_focusable_ime_cursor(
         &mut self,
         focusable: NodeOf<InteractiveNode>,
@@ -213,7 +270,12 @@ impl Document {
             rect,
             cursor,
             text: node.ime_text.clone(),
-            keyboard: node.ime_keyboard && !self.keyboard_held,
+            keyboard: match node.ime_keyboard && !self.keyboard_held {
+                true => Keyboard::Shown {
+                    asks: node.keyboard_asks.unwrap_or(self.keyboard_asks),
+                },
+                false => Keyboard::Held,
+            },
         })
     }
 
@@ -240,10 +302,55 @@ impl Document {
         on_key.call(press)
     }
 
+    pub(crate) fn target_key(&mut self, node: NodeId, press: KeyPress) -> bool {
+        if self.key_focused(press) {
+            return true;
+        }
+        let modifiers = press.modifiers;
+        match press.key {
+            Key::Enter | Key::Space if !press.pressed => {
+                let releases = self.activation_key == Some(press.key);
+                if releases {
+                    self.set_focus_key_pressed(press.key, false, press.repeat);
+                }
+                releases
+            }
+            Key::Enter | Key::Space
+                if !modifiers.ctrl && !modifiers.alt && self.activates(node) =>
+            {
+                self.set_focus_key_pressed(press.key, true, press.repeat);
+                true
+            }
+            Key::ArrowLeft | Key::ArrowDown | Key::ArrowRight | Key::ArrowUp
+                if press.pressed && !modifiers.ctrl && !modifiers.alt && self.steps(node) =>
+            {
+                let delta = match press.key {
+                    Key::ArrowLeft | Key::ArrowDown => -1.0,
+                    _ => 1.0,
+                };
+                self.step_focused(delta);
+                true
+            }
+            _ => false,
+        }
+    }
+
     pub fn step_focused(&mut self, delta: f32) {
         if let Some(focused) = self.focused {
             self.call_focusable_handler(focused, delta, |node| &node.on_step);
         }
+    }
+
+    pub(crate) fn activates(&self, node: NodeId) -> bool {
+        self.contains(node)
+            && focus_of(self.arena.get(node)).is_some_and(|focus| {
+                !focus.on_activate.is_empty() || !focus.on_activate_change.is_empty()
+            })
+    }
+
+    pub(crate) fn steps(&self, node: NodeId) -> bool {
+        self.contains(node)
+            && focus_of(self.arena.get(node)).is_some_and(|focus| !focus.on_step.is_empty())
     }
 
     pub fn step_focusable(&mut self, focusable: NodeId, delta: f32) {
@@ -260,7 +367,8 @@ impl Document {
 
     pub fn focusables_within(&self, root: NodeId) -> Vec<NodeId> {
         let mut out = Vec::new();
-        self.collect_focusables(root, &mut out);
+        let blocked = self.blocked_roots(&self.layers());
+        self.collect_focusables(root, &mut out, &blocked);
         out
     }
 
@@ -303,22 +411,21 @@ impl Document {
 
     pub(crate) fn focusables(&self) -> Vec<NodeId> {
         let mut out = Vec::new();
-        let start = self
-            .overlay_stack
-            .iter()
-            .rev()
-            .copied()
-            .find(|overlay| self.overlay_traps_focus(*overlay))
-            .map(NodeOf::id)
-            .or(self.root);
+        let layers = self.layers();
+        let start = layers[layers.keyboard()].content;
         if let Some(start) = start {
-            self.collect_focusables(start, &mut out);
+            self.collect_focusables(start, &mut out, &self.blocked_roots(&layers));
         }
         out
     }
 
-    fn collect_focusables(&self, id: NodeId, out: &mut Vec<NodeId>) {
-        let element = self.arena.get(id);
+    fn collect_focusables(&self, id: NodeId, out: &mut Vec<NodeId>, blocked: &[NodeId]) {
+        if blocked.contains(&id) {
+            return;
+        }
+        let Some(element) = self.arena.try_get(id) else {
+            return;
+        };
         if element
             .as_any()
             .downcast_ref::<FrameNode>()
@@ -337,27 +444,102 @@ impl Document {
             out.push(id);
         }
         for child in element.children() {
-            self.collect_focusables(child, out);
+            self.collect_focusables(child, out, blocked);
         }
     }
 
     pub fn validate_focus(&mut self) {
-        if self
-            .focused
-            .is_some_and(|id| !self.focusables().contains(&id))
+        let dirty = std::mem::take(&mut self.focus_dirty) | self.arena.take_reparented();
+        if !dirty {
+            return;
+        }
+        if let Some(focused) = self.focused
+            && !self.focus_valid(focused)
         {
             self.update_focus(None);
         }
+    }
+
+    pub(crate) fn focus_valid(&self, node: NodeId) -> bool {
+        if !self.contains(node) || focus_of(self.arena.get(node)).is_none() {
+            return false;
+        }
+        let mut current = node;
+        loop {
+            let element = self.arena.get(current);
+            if element
+                .as_any()
+                .downcast_ref::<FrameNode>()
+                .is_some_and(|frame| !frame.visible)
+                || element
+                    .as_any()
+                    .downcast_ref::<OverlayNode>()
+                    .is_some_and(|overlay| !overlay.is_open())
+            {
+                return false;
+            }
+            if Some(current) == self.root {
+                break;
+            }
+            let Some(parent) = self.arena.parent(current) else {
+                return self.focusables().contains(&node);
+            };
+            if !self.arena.get(parent).children().contains(&current) {
+                return false;
+            }
+            current = parent;
+        }
+        let layers = self.layers();
+        let Some(layer) = self.layer_of(&layers, node) else {
+            return false;
+        };
+        layer >= layers.keyboard() && self.blocked_focus_redirect(&layers, node).is_none()
     }
 
     pub fn update_focus(&mut self, new_focus: Option<NodeId>) {
         if new_focus == self.focused {
             return;
         }
+        let layers = self.layers();
+        let keyboard = layers.keyboard();
+        match new_focus {
+            Some(new) => {
+                if self
+                    .layer_of(&layers, new)
+                    .is_some_and(|layer| layer < keyboard)
+                {
+                    if layers[keyboard].level == crate::layer::LayerLevel::Lock {
+                        return;
+                    }
+                    self.focus_dirty = true;
+                }
+                if let Some(redirect) = self.blocked_focus_redirect(&layers, new) {
+                    if redirect.is_some() && redirect != self.focused {
+                        self.update_focus(redirect);
+                    }
+                    return;
+                }
+            }
+            None => {
+                let held = layers[keyboard].level == crate::layer::LayerLevel::Lock
+                    && self.focused.is_some_and(|old| {
+                        self.layer_of(&layers, old)
+                            .is_some_and(|layer| layers.within(layer, keyboard))
+                            && self.focus_valid(old)
+                    });
+                if held {
+                    return;
+                }
+            }
+        }
         let old = self.focused;
         self.composed.clear();
         self.cancel_focus_activation();
         self.focused = new_focus;
+        self.focus_before = old;
+        if let Some(new) = new_focus {
+            self.note_focus_outside_layers(new);
+        }
         self.keyboard_held = new_focus.is_some_and(|focused| {
             self.contains(focused)
                 && focus_of(self.arena.get(focused)).is_some_and(|node| !node.keyboard_on_focus)
@@ -381,8 +563,13 @@ impl Document {
         if let Some(target) = target
             && self.focused == Some(target)
             && self.contains(target)
-            && focus_of(self.arena.get(target)).is_some_and(|node| node.press_focus)
+            && let Some(keyboard) = focus_of(self.arena.get(target))
+                .filter(|node| node.press_focus)
+                .map(|node| node.ime && node.ime_keyboard && node.keyboard_asks.is_none())
         {
+            if keyboard {
+                self.keyboard_asks = self.keyboard_asks.wrapping_add(1);
+            }
             self.keyboard_held = false;
         }
     }
@@ -445,41 +632,6 @@ impl Document {
         if let Some(handler) = handler {
             handler.call(value);
         }
-    }
-
-    pub fn key_ancestor(&mut self, press: KeyPress) -> bool {
-        if !matches!(
-            press.key,
-            Key::ArrowUp
-                | Key::ArrowDown
-                | Key::ArrowLeft
-                | Key::ArrowRight
-                | Key::Home
-                | Key::End
-                | Key::PageUp
-                | Key::PageDown
-        ) {
-            return false;
-        }
-        let (Some(root), Some(focused)) = (self.root, self.focused) else {
-            return false;
-        };
-        if focus_of(self.arena.get(focused)).is_some_and(|node| !node.on_step.is_empty()) {
-            return false;
-        }
-        let mut path = Vec::new();
-        if !self.focus_path(root, focused, &mut path) {
-            return false;
-        }
-        for id in path.into_iter().rev().skip(1) {
-            let handler = focus_of(self.arena.get(id)).map(|node| node.on_ancestor_key.clone());
-            if let Some(handler) = handler
-                && handler.call(press)
-            {
-                return true;
-            }
-        }
-        false
     }
 
     pub fn focus_path(&self, id: NodeId, focused: NodeId, path: &mut Vec<NodeId>) -> bool {

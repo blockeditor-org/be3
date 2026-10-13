@@ -23,7 +23,7 @@ fn titled(block: Uuid, title: &str) {
 fn named(block: Uuid, name: &str) {
     crate::be::wait_for(Duration::from_secs(20), |shared| {
         let node = shared.graph.get(block)?;
-        (node.metadata.name.as_deref() == Some(name)).then_some(())
+        (node.metadata.name().as_deref() == Some(name)).then_some(())
     })
     .unwrap_or_else(|| panic!("the block was never named {name}"));
 }

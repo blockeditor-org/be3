@@ -84,11 +84,19 @@ Content-addressed, encrypted object storage.
   `chunks_in_range` are the streaming primitives.
 - `ObjectStore` is `MemoryStore` or `FileStore`. It is synchronous on purpose;
   network fetching is explicit (see `Peer::fetch`), so nothing blocks inside it.
+- `Vault::put_value` stores a value (a commit, a version-control tree) as a
+  CBOR map by field name (`encode_value`), so a later build can add a field to
+  one, with `#[serde(default)]`, without a migration. Commits are encrypted, so
+  only a client could ever rewrite one, and rewriting one changes its hash and
+  every id that names it: an encrypted format is read as it was written,
+  forever. A hash is a CBOR byte string.
 
 ### be-commit
 
-- `Commit` is `{parents, manifest, author, time, kind, references}`, stored as an
-  encrypted object whose hash is its `CommitId`. Several parents means a merge.
+- `Commit` is `{parents, manifest, author, time, kind, references, metadata}`,
+  stored as an encrypted object whose hash is its `CommitId`. Several parents
+  means a merge. `Publish` also tells the server the parents in plaintext, so
+  the server knows the history graph of every block without reading a commit.
 - `references` is the edge set derived from the **sealed** state, recorded once
   per commit. This is what makes the reference graph correct: it always describes
   content that was actually stored.
@@ -135,8 +143,33 @@ and sweep. Do not reintroduce one.
 ### be-server
 
 SQLite for metadata, a `FileStore` for objects, and a websocket carrying
-postcard frames.
+postcard frames. Where a websocket cannot get through (a proxy that refuses the
+upgrade), `POST .../http` carries the same frames (`http.rs`): the first body is
+the greeting, whose answer names a session in a `Be3-Session` header; each
+later post with that header carries client frames, answered in order with the
+frames the server has for the client then; a body is frames each after a
+four-byte big-endian length. The client sends whatever is queued in one post,
+and `Peer::fetch` asks for every missing object at once. A
+session is a connection like a websocket's, kept until it is idle for the same
+time, so notifications wait for the next post.
 
+- The database's schema is a list of `CREATE` statements (`schema.rs`), and
+  `sqlite_schema::ensure` checks a database against it on open: it adds a
+  missing table or index and a missing column that has a default, and refuses
+  anything else (a column gone, retyped or unknown), so a schema only grows.
+  Values that may grow (a role, an access level, a parent kind) have no `CHECK`,
+  since SQLite rebuilds a table to change one. The app's own `app.sqlite3`
+  is checked the same way, and recreated (signing the device out) when it
+  does not match.
+- A connection starts with a greeting outside the protocol: each side sends
+  `be_protocol::hello` with its build id (`build_id::current()`, read from the
+  `build-id` file beside the executable, or `--build-id-file`), and the server
+  closes the connection when the ids differ (`ClientError::Incompatible` on the
+  client). A program with no id is an error, not a wildcard: the client fails
+  with `ClientError::NoBuild`, the server does not start, and a test installs
+  one with `build_id::install`. Server and clients are upgraded
+  together from one commit, so the protocol itself is postcard and never
+  versioned.
 - A publish is a compare-and-swap on the head. A publish against a stale head
   comes back `Rejected` with the head to merge against, rather than being
   silently ordered after it.
@@ -165,6 +198,14 @@ postcard frames.
   checks run off the database lock, a few at a time, and an email with five
   failed sign-ins in a row is locked out for a time that doubles with each
   further failure.
+  The server never reads `Authorization`, which is left to a gateway in front
+  of it. An administrator's `CreateAgent` makes an agent: an
+  editor account with no password, its workspace key sealed to a recovery key
+  the caller made for it, and a token, all answered once (guides/tracker.md).
+- An object is served only to a member who can view a block that holds it, by
+  a commit (`commit_objects`) or by `HoldObjects`; anything else reads as
+  missing. A merge commit holds its extra parents' objects, so a `stash` that
+  was never a head stays readable.
 - The graph is cached per workspace in memory and dropped on any error so it
   reloads from the database rather than drifting.
 
@@ -175,6 +216,8 @@ A block's content is a set of traits a type opts into.
 ```rust
 trait BlockContent {                    // durable form and the edges it declares
     const CONTENT_TYPE: Uuid;
+    const FROZEN: bool = false;
+    fn schema() -> String { String::new() }
     fn encode(&self) -> Vec<u8>;
     fn decode(bytes: &[u8]) -> Result<Self, ContentError>;
     fn references(&self) -> Vec<Uuid> { Vec::new() }
@@ -214,20 +257,31 @@ since: the calendar undoes a rename without moving an event another peer
 rescheduled.
 
 `Streamed` types encode as `[u32 header length][header][payload]`, which is what
-lets a reader take the header and then a byte range. `TextContent` and every
-`Blob` (below) are streamed.
+lets a reader take the header and then a byte range. Every `Blob` (below) is
+streamed.
 
 `references_in` is `references` for one workspace, and it is what the peer
-calls when it records a commit's references. Text uses it: a block URL names its
-workspace, and a URL pasted from another workspace is a link, not a reference.
-The URL format itself lives in `be_block::block_url`.
+calls when it records a commit's references (`Root::references_in` for a
+document). Text uses it: a block URL names its workspace, and a URL pasted from
+another workspace is a link, not a reference.
+The URL format itself lives in `be_block::block_url`: a block URL is
+`<base>#block/<workspace>/<block>`, where the base is the URL of the server the
+workspace is on (the `LinkBase` host value), sub-path and all, or nothing for
+the device's own server. Text stores these bytes, so the format is read
+forever: a reference is found by its fragment alone, whatever host comes before
+it, and the link it belongs to starts at the `http://` or `https://` directly
+before the `#`.
 
 ### be-client
 
 `Peer` is a local object store plus a connection. `transport/` is what makes
 that connection portable: a `Writer` and a `Reader` per platform - tokio and
 tokio-tungstenite natively, the browser's own `WebSocket` in `web.rs` - plus the
-`spawn` each one's executor wants. `Connection` above it is the same code
+`spawn` each one's executor wants. Natively, an `http(s)://` URL (`http_url`)
+takes the server's HTTP posts instead of a websocket (`transport/native/http.rs`),
+and both go through `HTTPS_PROXY`. `be_client::authorize` registers an
+`Authorization` header for a server's origin, which every native connection to
+it sends; a browser cannot add one to a websocket. `Connection` above it is the same code
 everywhere, and it waits on its command channel and its socket rather than
 polling either.
 
@@ -294,7 +348,7 @@ impl Root for Calendar {
 pub type CalendarContent = Document<Calendar>;
 ```
 
-A field is one of seven things. A `Count` is a counter whose concurrent changes
+A field is one of eight things. A `Count` is a counter whose concurrent changes
 add up. A `Grid<T>` is a dense block of fixed-size cells addressed by
 coordinates, for pixel data: its bounds are part of its value, so a resize moves
 the bounds and keeps every cell at its coordinates, `paint` sets cells and
@@ -306,12 +360,74 @@ both keep theirs, which is how a database row holds a cell per schema field.
 and a merge keeps the later stamp per key, so they never conflict and never
 undo. `next(time, origin)` stamps a write past the one it replaces, so a client
 with a slow clock still overwrites what it last read. View state uses them.
+A `Text` is bytes edited in place: it saves only its bytes, and a live session
+gives every byte a position (`Sequence`, in the `sequence` crate) that edits anchor to,
+so concurrent typing and deleting never need rebasing. Positions and tombstones
+are session state (positions only: the receiver fills the visible bytes in from
+its own copy, and an undelete carries the bytes it brings back), and an offline
+merge is a line diff3. The text block is `Document<TextBlock>`, its body a
+`Text` (see `plans/text.md`).
 Anything else that is `Serialize + DeserializeOwned + Clone + PartialEq +
 Default` is a register: it is set as a whole, and setting it on both sides of an
 offline merge is a conflict. `Root` names the content type and, optionally, the
-block's name and the blocks it references. Fields are stored by position, so a
-new field goes at the end of its struct: `Document::from_bytes` fills in the
-fields an older document lacks.
+block's name and the blocks it references.
+
+### The stored form
+
+`Document::to_bytes` writes CBOR (`ciborium`) that names everything and holds
+nothing a live session needs: no positions, tombstones or op history. It is
+`{"format": N, "root": object}`, and an object is a map of its properties by
+field name plus `$kind` (the struct's kind: `#[model(kind = "canvas.entity")]`,
+or its name in snake case) and, for an object in a `List`, `$id` (its `ObjectId`
+as a UUID, tag 37, so offline merges match objects across commits; a repeated id
+is given a fresh one on load). A register is its serde form in CBOR (structs as
+maps by field name, enum variants by name), a `Text` is bytes (any bytes, not
+only UTF-8), a `List` is an array of objects, and a `Map` an array of
+`[key, value]` pairs. The same CBOR is what registers hold in memory and what
+`set` sends, so a value read back is byte-for-byte what was saved.
+
+The format is meant to change without migrations:
+
+- **Adding is free.** A new field, a new field inside a register's struct, a
+  new enum variant or a new kind needs nothing: a missing property reads as its
+  default. Give every struct a register holds `#[serde(default)]` (and every
+  field of an enum's struct variant `#[serde(default)]`), or a document saved
+  before a field was added loses the whole register;
+  `Kind::registers_accept_missing_fields` lists the ones that would.
+- **Unknown data is kept.** Properties a build does not know are kept on their
+  object (`Object::kept`), merged key by key, and written back, so an older
+  build never drops what a newer one wrote. A register whose bytes this build
+  cannot decode reads as its default but keeps its bytes until it is set.
+- **Renames.** `#[model(rename = "...")]` keeps a field's stored name when the
+  Rust name changes, `#[model(alias = "old")]` reads an old name as well, and
+  `#[model(from_old("old", convert))]` reads an old name through
+  `fn convert(Old) -> New`, for a field whose meaning changed. Old names are
+  read, never written.
+- **Critical fields.** `#[critical]` on a field means an older build must not
+  edit an object it cannot read fully. A critical field set to something other
+  than its default is saved inside tag `CRITICAL`; a build that does not know
+  the field locks that object (`Document::is_locked`): its fields, and lists,
+  refuse edits, though it can still be moved or removed whole. Everything else
+  in the document stays editable.
+- **Reshapes.** A change that moves data between objects bumps the root's
+  `#[model(format = N, migrate = path)]`; `migrate(old_format, &mut root)`
+  rewrites the stored root before it is read. A build refuses a format newer
+  than its own.
+- **Block references.** A block id stored as `BlockRef` (or a `Uuid` field
+  with `#[serde(with = "be_model::references::block_ref")]`, `::option` for an
+  `Option`) is saved under tag `BLOCK_REF`, and `Document::block_refs` finds
+  every one, including those inside properties this build does not know. The
+  content's references are those plus `Root::references`.
+
+Freezing a version: set `Root::FROZEN` (or `BlobKind::FROZEN`), which turns off
+the stale-block handling below for the type. `be_model::schema::freeze(&document)` returns Rust source
+holding the type's registry (`Kind::describe`: every kind, property, shape,
+register default and old name) and the document's bytes. Keep it as a module
+of the block's tests, and test it with `schema::check_frozen::<Root>(REGISTRY,
+DOCUMENT)`, which fails when a frozen property is gone or retyped, a register
+default changed, the document no longer loads, or anything in it is no longer
+understood. guides/frozen_formats.md lists what is frozen and the end-to-end
+snapshots of a server that hold it.
 
 `be-model` stores a document as a table of objects with ids, not as a tree of
 values, and every algorithm is written once against that table:
@@ -328,8 +444,20 @@ values, and every algorithm is written once against that table:
   `Calendar::update`, which only writes the fields that changed.
 - **Live editing.** Edits address objects by id and anchor inserts to a sibling,
   so they mean the same thing whatever the sequencer put before them: there is
-  nothing to rebase. The tree remembers where each removed or moved-away object
-  was, so an insert anchored after it lands where it was. Anything two peers may
+  nothing to rebase. A list is a `Sequence` of ids (`Items`) that remembers each
+  object's slot in it. An insert, or a move into a list the object was never
+  in, takes the next offset of the client that made it (`local_client`, carried
+  in the change), so every replica gives it the same slot. Removing an object
+  leaves a tombstone, an insert anchored after a removed or moved-away object
+  lands where it was, and an object that comes back to a list reuses its slot.
+  A move within a list keeps the slot; a move to another list leaves a tombstone
+  behind. Tombstones and text positions live only
+  in the session: they are never saved, the owner hands them to a joining
+  follower in `Snapshot` and to reloading followers in `Sealed`
+  (`LiveEdit::session_state`), and they go when the session ends. A `Snapshot` carries the state as of the
+  owner's last seal, because the follower opens the sealed head and applies the
+  operations since onto it; adopting state rebuilds a follower's view from
+  `confirmed` and its pending edits rather than adopting into it. Anything two peers may
   create at once for the same purpose (a database row past the end, a canvas
   component for a schema, a logic game solution) takes an id derived from what
   it is for, so the second insert is refused and its edits land on the first.
@@ -348,9 +476,10 @@ values, and every algorithm is written once against that table:
   and the one that redoes it, both taken against the state before the edit. A
   register's undo is conditional (`Change::SetIf`, and `Change::PutIf` for a map
   key): it only puts the old value back if nobody has changed it since, which is how undo leaves other
-  people's edits alone. A move's undo (`Change::MoveIf`) only moves the object
-  back if it is still where the move put it. A removed object is put back with
-  everything under it, after the sibling it followed. `Change::RemoveIf` removes
+  people's edits alone. A move's undo puts the object back after what preceded
+  it, even if someone moved it since, and its redo moves it to where the move
+  put it. A removed object is put back with everything under it, in its old
+  slot. `Change::RemoveIf` removes
   an object only if it still holds what the remover expected, for cleanups like
   a database dropping a row it emptied. Consecutive sets of the same fields
   absorb into one step.
@@ -367,8 +496,8 @@ values, and every algorithm is written once against that table:
 built this way: the counter, the checklist, the calendar, the browser
 tab, the UI settings, the three database types, the presentation, the hotbar,
 the deterministic game, the map, the video, the logic game, the logic grid,
-compiled logic, the infinite canvas and pixel art. Text implements the
-traits by hand, which remains possible for content that does not fit. The browser tab shows a register holding an
+compiled logic, the infinite canvas, pixel art and text. Implementing the
+traits by hand remains possible for content that does not fit. The browser tab shows a register holding an
 `Option<ObjectId>`: its current page is an object in its history, not an index,
 so a push and a navigation made at the same time still agree on which page is
 current. The video shows what identity buys a tree: a clip attached to another
@@ -436,7 +565,7 @@ store of its own: history is be-store objects and be-commit commits.
 - **Scopes.** A block's content stores the ids of the blocks it names, and
   those have to mean the same thing in every checkout, so they are *local* ids.
   A block copied into a checkout is created as `masked(local, scope_mask(checkout))`
-  and carries `BlockMetadata::local_id`; a block created inside a checkout, or
+  and carries the `LOCAL_ID` metadata key; a block created inside a checkout, or
   one that was adopted into it, keeps its own id as its local id. The host
   translates every block id that crosses the plugin protocol for an instance
   whose block is inside a checkout (`Instances::translate`, over
@@ -497,6 +626,24 @@ naming the type: join a session, copy, seed, replace, derive a name with
 content type is not in `KINDS` has no content in the app: the host opens
 nothing for it and refuses content written to it.
 
+### Blocks saved by another build
+
+Until a content type is frozen its format changes freely, so a block may hold
+what an older build saved. Every save stamps the derived `SCHEMA` key with
+`schema_fingerprint::<C>()`, a hash of `BlockContent::schema()`: be-model's
+`Kind::describe` for a document, and `blob N` for a blob, whose kind bumps
+`BlobKind::SCHEMA` when its header changes in a way old headers would be read
+wrongly. `be::staleness` calls an unfrozen block stale when the worker could
+not decode it (`Shared::unreadable`) or its stamp is another schema's; a block
+with no stamp is not stale. A stale block's frame shows `StaleNotice`
+(`surfaces::StaleBlock`) instead of its editor: Reset publishes the type's
+default content (`be::reset`), Delete deletes it as the shell would, and Try
+anyway shows the editor for the rest of the session (`be::try_anyway`). A block
+the app holds itself (`be::hold`: settings, the shell's session) is reset by
+the worker without asking, with a notice, since the app needs it to work. The
+app also deletes its local caches (`be-objects/`, `plugin-cache/`) whenever its
+build id changes; when the app becomes offline-first, those will have to stay.
+
 `crates/block-app/src/be/worker.rs` is the peer's loop, with a `Live` session
 per open block behind the `Session` trait, so the loop never names a content
 type; `be/native.rs` runs it on a thread of its own with a `FileStore` under it,
@@ -515,7 +662,7 @@ behind the event broadcast. `Query` (`Roots`, `Detached`,
 `Children`, `References`, `Backrefs`, `Parents`, `Block`) is how everything in
 the app asks it a question, and `be::graph_revision` says when to ask again.
 
-A change made here - `be::create`, `be::set_parent`, `be::set_metadata` - is
+A change made here - `be::create`, `be::set_parent`, `be::define` - is
 applied to the mirror straight away, so the file tree and every editor see it in
 the next frame, and counts as pending for that block. While a block has a
 pending change the mirror ignores the server's echoes for it, which would
@@ -523,29 +670,47 @@ otherwise show a state older than the one on screen; the worker settles the
 change when the server has answered, and refreshes the block from the server
 once nothing is pending.
 
-### Names and derived metadata
+### Metadata
 
-A block's name lives in its metadata (`be_block::BlockMetadata`: `name`,
-`named_by_hand`, `derived` and, for a dynamic artifact, the `ArtifactSource` it
-was made from), which the peer seals with the content key before the server
-stores it (`Peer::seal_metadata`). Metadata that does not decode is an error, never
-a default: the mirror marks that node `unreadable_metadata`, and
-`be::set_metadata` refuses to write over it. `be::set_name` names a block by hand, and
-clearing it hands the name back to the content, which renames the block the
-next time an editor sees a revision. `be::describe_implicitly` is the automatic
-name: whenever an instance that may edit a block is sent a new revision of it,
-the host derives `BlockContent::name` from the content and writes it, unless the
-name was set by hand. The file tree, the block picker and the tabs read the
-name out of the mirror, so a block nobody has open keeps the name it was last
-given.
+A block's metadata (`be_block::BlockMetadata`) is two maps from a key's UUID to a
+CBOR value: `defined`, what someone chose (a name typed by hand, the
+`ArtifactSource` a dynamic artifact was made from, a checkout copy's `LOCAL_ID`),
+and `derived`, what the content says about itself (`INTRINSIC_NAME`,
+`THUMBHASH`, `SCHEMA`). A key is declared once as a typed constant,
+`MetaKey::defined(id, name)` or `MetaKey::derived(id, name)`, and read and
+written through it (`get`, `insert`, `remove`, or `definition` for a change to
+send), so a new key, including one a third-party block type declares, needs no
+change to the format. `BlockMetadata::name` is `NAME` when someone named the
+block and `INTRINSIC_NAME` otherwise. Plugins get both maps in `BlockInfo`, read
+them through its `name`, `thumbhash` and `artifact`, and set a defined key with
+`Blocks::define`; the host never lets a plugin set `LOCAL_ID`. A beui
+`unstyled::Picture` given an image's thumbhash as a `beui::Thumbhash` lays out
+at the image's size and paints the blurred placeholder until the image arrives.
 
-`DerivedMetadata` is written the same way, from
-`BlockContent::derived_metadata`, and is for what a block's content says about
-itself that others want before the content has loaded. An image's is its
-thumbhash and exact size, which the image editor records in the header when it
-decodes the image; it reaches plugins as `BlockInfo::thumbhash`, and a beui
-`unstyled::Picture` given it as a `beui::Thumbhash` lays out at the image's size and
-paints the blurred placeholder until the image arrives.
+Metadata travels with content. Every commit carries the encoded metadata of the
+content it saves, and `Publish` carries it sealed with the content key
+(`Peer::seal_metadata`), so the server stores it in the same step that moves the
+head and cannot keep metadata that belongs to a head it refused. A save takes
+`defined` from the head it builds on and recomputes `derived` from the content
+(`be_block::derived_metadata`: `BlockContent::name` and `BlockContent::describe`;
+a blob type describes itself from its header alone, so an image's thumbhash is
+copied out of `ImageHeader`, never computed again). A merge after a refused save
+merges `defined` key by key against the base commit
+(`BlockMetadata::merge_defined`, the head already published winning a clash) and
+derives the rest from the merged content; version control does the same, and a
+clash on `NAME` there is `ConflictKind::Name`. Defined keys a build does not
+know ride along unchanged; derived keys it does not know are dropped when it
+saves new content, since they describe the old content, and filled in again by
+the next build that knows them.
+
+`Peer::define` changes defined metadata: on a block with content it publishes a
+commit of the current content with the new metadata, which a live session then
+catches up with like any other publish from outside it; a block with no content
+yet takes it through `SetMetadata`, which the server refuses once the block has
+a head. In the app, `be::define` (and `be::set_name`, the `NAME` key) applies
+the change to the mirror at once and sends it. `be::describe_implicitly` keeps
+the derived metadata of an open block current in the mirror as its content
+changes (`Graph::derive`), until the save that publishes it.
 
 ### Content on the plugin protocol
 
@@ -661,8 +826,37 @@ source's type, references and metadata (without its artifact source), and the
 worker copies what the source's session shows, or its head when it is not open,
 into the copy's id before anything opens the copy.
 
-The app can read a block itself, not only through an editor: the zoom in
-`sync_ui_settings` comes from the UI settings block's content. `be::hold` opens a
+The app can read a block itself, not only through an editor: the theme in
+`sync_ui_settings` comes from the UI settings, and
+`sync_local_settings` hands the input settings (keymap, key repeat, and
+pointer settings for every pointer with per-device overrides) to the `--session`
+seat through `beui_adapter_drm::InputControl` and to the nested Wayland clients'
+keyboard, and the display settings (a mode per monitor, keyed by the
+monitor's EDID make, model and serial, or by its connector when it has no EDID)
+to the seat's outputs through `beui_adapter_drm::DisplayControl`, which switches
+mode live. Every setting is an `Option`, and an unset one means the default:
+libinput's own for a pointer setting, which the seat reports per device and an
+editor reads as the `InputDevices` host value, and for a monitor its preferred
+resolution at the fastest refresh rate it offers there, which the seat reports
+with the monitor's modes and an editor reads as the `Displays` host value
+(guides/adding_a_plugin_editor.md says how host values reach a plugin). Because the seat runs before anyone signs in, the app
+keeps a copy of the last settings of each kind it applied in `app_state` and
+applies that at startup; the block stays the source of truth. A kind of setting
+the app applies itself implements `local_settings::LocalSettings` and is kept by
+a `SettingsSync`; its `apply` answers whether the settings may be saved now.
+Display settings may not until someone keeps them: a change that moves what a
+connected monitor shows, or a monitor started at a fastest rate other than its
+preferred mode that it was never kept at, opens the host's "Keep these display
+settings?" prompt (`styled::KeepChanges`, a card on every screen) in
+`display::guard`. It is the host's because it must work before any shell plugin
+runs. Each change is a round (`Guard::prompt`): another change while asking
+starts a new round and a full countdown, and an answer counts only for the
+round it was given in. Keep saves, storing a kept default as the monitor's mode;
+Revert, Escape or 15 seconds of the frame clock, which the guard counts itself,
+put back the earlier modes, or the preferred mode for an untried default, and `SettingsSync::commit` writes
+those edits into the block too, holding them until its content is loaded and reading
+the block with them on top until a revision holds them.
+`be::hold` opens a
 block for the app and keeps it open when the last editor showing it closes,
 because `be::close` leaves a held block alone. Nothing releases a held block
 before the stack stops, which is when the workspace changes.
@@ -677,7 +871,56 @@ Plugins reach it with `BlockCommand::Undo` and `BlockCommand::Redo`, and watch
 whether either is possible with `EditorMessage::WatchHistory`, which the host
 answers with `HistoryStates` whenever they change.
 
-### Profiles and view state
+### Settings, settings profiles and sessions
+
+Each account keeps what is its own in a workspace under one top-level
+`Settings` block it authored. Every reader finds it by its author: a workspace
+administrator can see every block, including other accounts' `Settings`, and
+nothing may pick those up. `root_settings::own_settings_blocks` (plugins) and
+`RootSettings::owned` (block-app) list the account's own, and when two devices
+each made one before seeing the other's, both are read as one
+(`Settings::merged`, the lowest id winning a clash) and written through the
+lowest. The settings editor shows someone else's `Settings` or settings profile
+with a notice, and makes and changes nothing in it.
+
+Each kind of setting (`UiSettings`, `InputSettings`, `DisplaySettings`, the
+logic hotbar) is a block of its own, and is read through layers:
+
+- The `Settings` block's `kinds` map a kind's content type to the block that
+  holds it for every device.
+- A settings profile is a `SettingsProfile` block, a child of the `Settings`
+  block listed in its `profiles`, with `kinds` of its own. Each device
+  (`device_profiles`, keyed by the client id) uses one, and block-app makes one
+  named after the device the first time a device opens the workspace.
+
+`Settings::layers(kind, profile)` lists a kind's blocks from the bottom, and
+`be_block::layered` folds their contents with the kind's `Layered::over`: what
+the profile sets wins field by field, and what it leaves unset falls through to
+the settings for every device, then to the built-in default. Every field of a
+layered kind is an `Option` for this. `Editor::inherited_settings` gives a
+kind's editor what the layers below its block resolve to, which the UI, input
+and display settings editors show for what is unset. The hotbar is not merged:
+the logic editors use the topmost layer that has one, and make one for every
+device when there is none yet (`RootSetting::ensure`).
+
+A session is what a person has open, and is separate from the settings, so
+starting a new one keeps them. It is an `EditorView` of a shell editor:
+workspace-ui (`WORKSPACE_EDITOR`), or linux-desktop (`LINUX_DESKTOP_EDITOR`) for
+a client run as the desktop with `block-app --session`. `Settings::sessions`
+lists every session, and `Settings::session(shell, client)` is the one this
+client uses for that shell, so the desktop and the app each keep their own while
+sharing the device's settings profile. The host opens the shell on that session,
+creating one named after the device when the client has none, and reopens the
+shell when it changes. block-app's sessions screen (the workspace list's
+dropdown, or Sessions and profiles in the app menu) picks the device's settings
+profile and its session, or starts a new one of either. A shell keeps its dock
+layout and recents in the session's state; every tab, and the file tree, is an
+`EditorView` child of the session that the layout references, and closing a tab
+detaches its view. A block whose type is one of `profile::VIEW_EDITORS` is its
+own view, so a workspace session opened on the desktop keeps its tabs in its own
+session and closing it leaves that session alone.
+
+### View state
 
 What a person has open is blocks too, one generic type for all of it:
 `EditorView { editor, content, state }` names the editor that draws it, the
@@ -686,20 +929,6 @@ block it shows (none for the file tree or the workspace itself), and a
 blocks an entry points at; `references()` is `content` plus every entry's refs,
 and a deleted or replaced child is blanked or repointed in place, so the bytes
 can index into `refs`.
-
-A profile, or session, is an `EditorView` of a shell editor: workspace-ui
-(`WORKSPACE_EDITOR`), or linux-desktop (`LINUX_DESKTOP_EDITOR`) for a client run
-as the desktop with `block-app --session`. Each account has its own settings
-block (the top-level `Settings` block it authored); its `profiles` lists every
-profile, and `Settings::profile(shell, client)` is the one this client uses for
-that shell, so the desktop and the app each keep their own. The host opens the
-shell on that profile, creating one named after the device when the client has
-none, and reopens the shell when it changes. A shell keeps its dock layout and
-recents in the profile's state; every tab, and the file tree, is an
-`EditorView` child of the profile that the layout references, and closing a tab
-detaches its view. A block whose type is one of `profile::VIEW_EDITORS` is its
-own view, so a workspace session opened on the desktop keeps its tabs in its own
-profile and closing it leaves that profile alone.
 
 Both shells are built from `crates/block-shell`, which holds the tabs, their
 views, the saved layout, picks, dialogs, host panels and program windows;

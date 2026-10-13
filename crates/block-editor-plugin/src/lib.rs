@@ -17,36 +17,46 @@ pub mod root_settings;
 mod runtime;
 mod screens;
 pub mod session;
+mod theme;
 #[cfg(target_arch = "wasm32")]
 mod wasm;
 
 pub use block_plugin_api::{
-    AccessGrant, AccessLevel, AccessListing, ArtifactAction, AudioStatus, BarAction, BlockCommand,
-    BlockFilter, BlockLocation, BlockPick, Catalog, ChildContent, ChildId, ChildLayer, ChildMode,
-    ChildPlacement, ChildStatus, ClipboardImage, ConflictSide, CreationProgress, CursorIcon,
-    DataListing, EditorCapabilities, EditorInstanceId, EditorRegion, FetchResult, FileSave,
-    FrameChrome, FrameSpec, HostPanel, HostReply, HostRequest, HostWindow, HostWindowId,
-    InputEvent, InteractionMode, Key, MenuEntry, Modifiers, Occluder, PointerButton, ResizeMode,
+    AccessGrant, AccessLevel, AccessListing, ArtifactAction, AudioOutput, AudioStatus, BarAction,
+    BlockCommand, BlockFilter, BlockLocation, BlockPick, Catalog, ChildContent, ChildId,
+    ChildLayer, ChildMode, ChildPlacement, ChildStatus, ConflictSide, CreationProgress, CursorIcon,
+    DataListing, DescribedAction, Displays, EditorCapabilities, EditorInstanceId, EditorRegion,
+    FetchResult, FileSave, FrameChrome, FrameSpec, HostAction, HostDisplay, HostDisplayMode,
+    HostImage, HostInputDevice, HostNotificationAction, HostPanel, HostProgram, HostReply,
+    HostRequest, HostTrayItem, HostValue, HostWindow, HostWindowId, HostWindows,
+    IncomingNotification, InputDevices, InputEvent, InteractionMode, Key, KeyChord, LinkBase,
+    Media, MediaLevel, MediaLevels, MediaRequest, MenuEntry, Modifiers, NodeValue,
+    NotificationCloseReason, NotificationInbox, NotificationReport, NotificationRequest,
+    NotificationSignal, NotificationUrgency, Notifications, Occluder, PlayerCommand, PointerButton,
+    Power, PowerAction, PowerAvailability, ProgramAction, Programs, ResizeMode, ScreenLocked,
     ScreenPlacement, SettingsProgress, ShellDialog, SurfaceRect, TemplateCategory,
-    TemplateDescriptor, TopBar, TouchPhase, VersionBranch, VersionChange, VersionChangeKind,
-    VersionCommand, VersionCommit, VersionStatus, ViewChange, WebViewCommand, WebViewEvent,
-    WebViewId, WheelUnit,
+    TemplateDescriptor, Toggled, TopBar, TouchPhase, Tray, TrayMenuEntry, TrayRequest, TrayStatus,
+    TrayToggle, VersionBranch, VersionChange, VersionChangeKind, VersionCommand, VersionCommit,
+    VersionStatus, ViewChange, WebViewCommand, WebViewEvent, WebViewId, WheelUnit, WindowAction,
 };
 pub use block_ui;
-pub use clock::{frame_time, utc_offset};
-pub use content::ContentProjection;
+pub use clock::{frame_time, pin_wall_clock, utc_offset, wall_clock};
+pub use content::{ContentProjection, Projected};
 pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};
 pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphCommand};
 pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BlockDrag, BlockHistory, BlockPicker,
     ContentUpdate, EditorHost, FileDrop, FileFilter, FileSaver, FocusedBlock, HostContent,
-    ImagePaster, OpenRequest, PastedImage, PeerPresence, PerformanceMeasurementGuard,
-    PerformanceReporter, PickRequest, PickedBlock, PickedFile, Pushed, SavedFile, SeededContent,
-    ShowRequest, ShownPresence, Waker,
+    OpenRequest, PeerPresence, PerformanceMeasurementGuard, PerformanceReporter, PickRequest,
+    PickedBlock, PickedFile, Pushed, SavedFile, SeededContent, ShowRequest, ShownPresence, Waker,
 };
-pub use plugin::{Frame, Ime, Instance, Plugin, Region};
+pub use plugin::{
+    Claim, DescribedNode, Description, Frame, Ime, Instance, Plugin, Region, RegionMonitor,
+    WindowRequests,
+};
 #[cfg(target_arch = "wasm32")]
 pub use plugin::{PaintTarget, SurfaceGpu, surface_gpu};
+pub use theme::host_theme;
 #[cfg(target_arch = "wasm32")]
 pub use wgpu;
 
@@ -98,6 +108,7 @@ pub mod __private {
 
     #[cfg(target_arch = "wasm32")]
     pub fn start_wasm(manifest: &str, apps: Vec<App>) {
+        crate::wasm::report_panics();
         let identity = identity(manifest);
         let mut declared = declared_block_types(manifest);
         let mut implemented: Vec<_> = apps.iter().map(|app| app.block_type).collect();

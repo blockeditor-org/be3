@@ -1,8 +1,11 @@
 use super::*;
 use beui::KeyPress;
 use beui::Sides;
+use beui::Vec2;
+use beui::reactive::Dismiss;
 use beui::reactive::{
-    Dynamic, Fade, Grid, GridCell, Interactive, Layers, NodeRef, Overlay, Placement, Shift, Track,
+    Dynamic, Fade, Grid, GridCell, Interactive, Layers, LayoutBuilder, NodeRef, Overlay, Placement,
+    ReadSignal, Shift, Track,
 };
 
 const SWATCH: f32 = 72.0;
@@ -224,6 +227,9 @@ pub(crate) fn ListsPage() -> NodeId {
             <Sample title="Grid" code={vec![TrackGrid::SOURCE, Tile::SOURCE]}>
                 <TrackGrid />
             </Sample>
+            <Sample title="LayoutBuilder" code={vec![ColumnsForWidth::SOURCE, Tile::SOURCE]}>
+                <ColumnsForWidth />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -234,14 +240,37 @@ fn Tile(label: Prop<String>) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame
-            height=TILE_HEIGHT
+            min_height={Some(TILE_HEIGHT)}
             color={theme.surface_raised.clone()}
             radius=RADIUS
             padding_horizontal=12.0
             align_vertical=Align::Center
         >
-            <Text string={label} color={theme.text.clone()} />
+            <Text string={label} color={theme.text.clone()} wrap=true />
         </Frame>
+    }
+}
+
+#[sample]
+#[component]
+fn ColumnsForWidth() -> NodeId {
+    view! {
+        <LayoutBuilder>
+            {move |size: ReadSignal<Vec2>| {
+                let wide = create_memo(clone!(size -> move || size.get().x >= 480.0));
+                let direction = create_memo(clone!(wide -> move || match wide.get() {
+                    true => Direction::Horizontal,
+                    false => Direction::Vertical,
+                }));
+                let label = create_memo(move || format!("{:.0} wide", size.get().x));
+                view! {
+                    <List direction spacing=8.0>
+                        <Tile @sizing=ItemSize::Percent(100.0) label />
+                        <Tile @sizing=ItemSize::Percent(100.0) label="Side by side from 480" />
+                    </List>
+                }
+            }}
+        </LayoutBuilder>
     }
 }
 
@@ -473,7 +502,7 @@ fn InteractiveCard() -> NodeId {
                     <Text string={log} color={theme.text.clone()} />
                 </Frame>
             </Interactive>
-            <Text string={state} color={theme.text_muted.clone()} monospace=true />
+            <Text string={state} color={theme.text_muted.clone()} monospace=true wrap=true />
         </List>
     }
 }
@@ -567,8 +596,8 @@ fn NudgedTile() -> NodeId {
 fn FadedStrip() -> NodeId {
     let edges = Sides::symmetric(48.0, 0.0);
     view! {
-        <List direction=Direction::Horizontal spacing=0.0>
-            <Fade edges>
+        <Fade edges>
+            <Scroll direction=Direction::Horizontal>
                 <List direction=Direction::Horizontal spacing=8.0>
                     <ForEach keys={PLANETS.to_vec()}>
                         {move |planet: &'static str| view! {
@@ -576,8 +605,8 @@ fn FadedStrip() -> NodeId {
                         }}
                     </ForEach>
                 </List>
-            </Fade>
-        </List>
+            </Scroll>
+        </Fade>
     }
 }
 
@@ -611,7 +640,7 @@ fn AnchoredOverlay() -> NodeId {
                 anchor=&anchor
                 placement=Placement::BelowStart
                 open={open}
-                on_dismiss={move || dismiss.set(false)}
+                on_dismiss={move |_: Dismiss| dismiss.set(false)}
             >
                 <Frame padding_vertical=4.0>
                     <Frame

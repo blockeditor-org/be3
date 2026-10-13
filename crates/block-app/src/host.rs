@@ -1,4 +1,4 @@
-use beui::styled::DocumentTheme;
+use beui::styled::{self, DocumentTheme, ThemeKind};
 use std::{
     cell::RefCell,
     sync::{
@@ -8,7 +8,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use beui::{Document, Event, FileFilter, FilePick, FilePickId, Key, PointerButton, Pos2, Waker};
+use beui::{Document, FileFilter, FilePick, FilePickId, Waker};
 use uuid::Uuid;
 
 static WAKER: OnceLock<Waker> = OnceLock::new();
@@ -48,24 +48,9 @@ pub(crate) fn waking_channel<T>() -> (WakingSender<T>, Receiver<T>) {
     (WakingSender(sender), receiver)
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct DragPayload {
-    pub(crate) block_id: Uuid,
-    pub(crate) block_type: Uuid,
-}
-
 #[derive(Clone, Debug)]
 pub(crate) enum HostCommand {
     RestartPlugin(String),
-}
-
-#[derive(Default)]
-pub(crate) struct Input {
-    pub(crate) events: Vec<Event>,
-    pub(crate) pointer: Option<Pos2>,
-    pub(crate) pressed: bool,
-    pub(crate) primary_released: bool,
-    pub(crate) primary_down: bool,
 }
 
 #[derive(Default)]
@@ -73,6 +58,7 @@ struct Output {
     fullscreen: Option<bool>,
     copied: Option<String>,
     file_picks: Vec<(FileFilter, PickSlot)>,
+    paste: bool,
     grab: Option<bool>,
     repaint: bool,
     repaint_after: Option<Duration>,
@@ -84,10 +70,7 @@ struct Host {
     pass: u64,
     pixels_per_point: f32,
     screen_scale: f32,
-    dark: bool,
-    input: Input,
-    pointer: Option<Pos2>,
-    drag: Option<DragPayload>,
+    theme: block_plugin_api::Theme,
     grabbed: bool,
     commands: Vec<HostCommand>,
     waiting_picks: Vec<(FilePickId, PickSlot)>,
@@ -102,10 +85,7 @@ impl Default for Host {
             pass: 0,
             pixels_per_point: 1.0,
             screen_scale: 1.0,
-            dark: true,
-            input: Input::default(),
-            pointer: None,
-            drag: None,
+            theme: block_plugin_api::Theme::Dark,
             grabbed: false,
             commands: Vec::new(),
             waiting_picks: Vec::new(),
@@ -120,13 +100,7 @@ fn with<R>(act: impl FnOnce(&mut Host) -> R) -> R {
 
 struct Frame {
     now: Option<Instant>,
-    events: Vec<Event>,
-    pointer: Option<Pos2>,
-    pressed: bool,
-    released: bool,
-    down: bool,
-    touch_position: Option<Pos2>,
-    dark: bool,
+    theme: block_plugin_api::Theme,
     pixels_per_point: f32,
     screen_scale: f32,
 }
@@ -135,13 +109,7 @@ impl Default for Frame {
     fn default() -> Self {
         Self {
             now: None,
-            events: Vec::new(),
-            pointer: None,
-            pressed: false,
-            released: false,
-            down: false,
-            touch_position: None,
-            dark: true,
+            theme: block_plugin_api::Theme::Dark,
             pixels_per_point: 1.0,
             screen_scale: 1.0,
         }
@@ -163,18 +131,11 @@ pub(crate) fn begin(context: &beui::Context, document: &Document) {
     for (deliver, pick) in picked {
         deliver(pick);
     }
-    let mut frame = context.screen_input(|input| Frame {
+    let mut frame = Frame {
         now: Some(context.now()),
-        events: input.events.clone(),
-        pointer: input.pointer.pos,
-        pressed: input.pointer.primary_pressed || input.touch.started(),
-        released: input.pointer.primary_released,
-        down: input.pointer.primary_down,
-        touch_position: input.touch.primary_pos(),
         ..Frame::default()
-    });
-    let [red, green, blue, _] = document.theme().background.to_array();
-    frame.dark = u32::from(red) + u32::from(green) + u32::from(blue) < 384;
+    };
+    frame.theme = plugin_theme(document.theme());
     frame.screen_scale = context.screen_scale();
     frame.pixels_per_point = context.pixels_per_point() * frame.screen_scale;
     start(frame);
@@ -182,7 +143,7 @@ pub(crate) fn begin(context: &beui::Context, document: &Document) {
 
 fn start(frame: Frame) {
     with(|host| {
-        host.dark = frame.dark;
+        host.theme = frame.theme;
         host.pass += 1;
         if let Some(now) = frame.now {
             let started = *host.started.get_or_insert(now);
@@ -191,26 +152,11 @@ fn start(frame: Frame) {
         host.pixels_per_point = frame.pixels_per_point;
         host.screen_scale = frame.screen_scale;
         host.output = Output::default();
-        if frame.pointer.is_some() {
-            host.pointer = frame.pointer;
-        }
-        host.input = Input {
-            events: frame.events,
-            pointer: frame.pointer.or(frame.touch_position).or(host.pointer),
-            pressed: frame.pressed,
-            primary_released: frame.released,
-            primary_down: frame.down,
-        };
     });
 }
 
 fn finish() -> Output {
-    with(|host| {
-        if host.input.primary_released && !host.input.primary_down {
-            host.drag = None;
-        }
-        std::mem::take(&mut host.output)
-    })
+    with(|host| std::mem::take(&mut host.output))
 }
 
 pub(crate) fn end(context: &beui::Context) {
@@ -224,6 +170,9 @@ pub(crate) fn end(context: &beui::Context) {
     for (filter, slot) in output.file_picks {
         let id = context.pick_file(filter);
         with(|host| host.waiting_picks.push((id, slot)));
+    }
+    if output.paste {
+        context.request_paste();
     }
     if let Some(grab) = output.grab
         && with(|host| std::mem::replace(&mut host.grabbed, grab)) != grab
@@ -254,24 +203,17 @@ pub(crate) fn pixels_per_point() -> f32 {
     with(|host| host.pixels_per_point)
 }
 
-pub(crate) fn dark() -> bool {
-    with(|host| host.dark)
+pub(crate) fn theme() -> block_plugin_api::Theme {
+    with(|host| host.theme)
 }
 
-pub(crate) fn input<R>(read: impl FnOnce(&Input) -> R) -> R {
-    with(|host| read(&host.input))
-}
-
-pub(crate) fn pointer() -> Option<Pos2> {
-    input(|input| input.pointer)
-}
-
-pub(crate) fn key_pressed(key: Key) -> bool {
-    input(|input| {
-        input.events.iter().any(|event| {
-            matches!(event, Event::Key { key: pressed, pressed: true, .. } if *pressed == key)
-        })
-    })
+fn plugin_theme(theme: styled::Theme) -> block_plugin_api::Theme {
+    match theme.kind {
+        ThemeKind::Dark => block_plugin_api::Theme::Dark,
+        ThemeKind::OledDark => block_plugin_api::Theme::OledDark,
+        ThemeKind::Light => block_plugin_api::Theme::Light,
+        ThemeKind::EInk => block_plugin_api::Theme::EInk,
+    }
 }
 
 pub(crate) fn set_fullscreen(fullscreen: bool) {
@@ -287,6 +229,10 @@ pub(crate) fn copy_text(text: String) {
 }
 
 type PickSlot = Option<Box<dyn FnOnce(FilePick)>>;
+
+pub(crate) fn request_paste() {
+    with(|host| host.output.paste = true);
+}
 
 pub(crate) fn pick_file(filter: FileFilter, deliver: impl FnOnce(FilePick) + 'static) {
     with(|host| {
@@ -309,22 +255,6 @@ pub(crate) fn request_repaint_after(delay: Duration) {
     });
 }
 
-pub(crate) fn start_drag(payload: DragPayload) {
-    with(|host| host.drag = Some(payload));
-}
-
-pub(crate) fn drag() -> Option<DragPayload> {
-    with(|host| host.drag)
-}
-
-pub(crate) fn pressed_at() -> Option<Pos2> {
-    input(|input| input.pressed.then_some(input.pointer).flatten())
-}
-
-pub(crate) fn drag_released() -> bool {
-    input(|input| input.primary_released)
-}
-
 pub(crate) fn push_command(command: HostCommand) {
     with(|host| host.commands.push(command));
     wake();
@@ -334,25 +264,11 @@ pub(crate) fn take_commands() -> Vec<HostCommand> {
     with(|host| std::mem::take(&mut host.commands))
 }
 
-pub(crate) fn pointer_button_index(button: PointerButton) -> u8 {
-    match button {
-        PointerButton::Primary => 0,
-        PointerButton::Secondary => 1,
-        PointerButton::Middle => 2,
-        PointerButton::Back => 3,
-        PointerButton::Forward => 4,
-    }
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum HostItem {
     Notice {
         text: String,
         spinner: bool,
-    },
-    Error {
-        text: String,
-        restart: Option<String>,
     },
     Fallback {
         name: String,
@@ -364,3 +280,6 @@ pub(crate) enum HostItem {
         block_type: Uuid,
     },
 }
+
+#[cfg(test)]
+mod tests;

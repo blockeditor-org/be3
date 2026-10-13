@@ -1,6 +1,7 @@
 use beui_macros::{component, view};
 
 use crate::scroll::scrollbar_style;
+use crate::text::Icon;
 use crate::text_input::text_input_style;
 use crate::theme::{
     BORDER_WIDTH, FOCUS_RING_WIDTH, FONT_BODY, RADIUS, ThemeStore, field_border, use_theme,
@@ -12,9 +13,11 @@ use beui_components_unstyled::{
 use beui_core::base::TextAlign;
 use beui_core::color::Color32;
 use beui_core::document::Document;
+use beui_core::icons::ICON_ARROW_DROP_DOWN;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Child, Children, Frame, Prop, Text, clone, create_memo, focus_ring,
+    Align, Callback, Child, Children, Direction, Frame, ItemSize, List, Memo, Prop, Text, clone,
+    create_memo, focus_ring,
 };
 
 const TRIGGER_MAX_WIDTH: f32 = 220.0;
@@ -24,16 +27,19 @@ const HEIGHT: f32 = 34.0;
 const PADDING_HORIZONTAL: f32 = 10.0;
 const OPTION_PADDING_VERTICAL: f32 = 6.0;
 const FOCUS_RING_OFFSET: f32 = 3.0;
+const ARROW_SPACING: f32 = 4.0;
 
 #[component]
 pub fn Select(
     options: Children<ChoiceOption>,
     selected: Prop<Option<usize>>,
     #[prop(default = String::new())] label: Prop<String>,
+    #[prop(default = String::new())] placeholder: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     on_change: Callback<Option<usize>>,
 ) -> NodeId {
     let options = options.into_run();
+    let placeholder = create_memo(move || placeholder.get());
     view! {
         <unstyled::Select
             options
@@ -48,7 +54,7 @@ pub fn Select(
             search_style={text_input_style()}
             scrollbar={scrollbar_style()}
             trigger={move |handle| view! {
-                <SelectTrigger handle />
+                <SelectTrigger handle placeholder={placeholder.clone()} />
             }}
             option={|handle| view! {
                 <SelectOption handle />
@@ -62,7 +68,7 @@ pub fn Select(
 }
 
 #[component]
-fn SelectTrigger(handle: SelectTriggerHandle) -> NodeId {
+fn SelectTrigger(handle: SelectTriggerHandle, placeholder: Memo<String>) -> NodeId {
     let SelectTriggerHandle {
         label,
         hovered,
@@ -71,7 +77,13 @@ fn SelectTrigger(handle: SelectTriggerHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let label_text = create_memo(move || label.get().unwrap_or_else(|| "Select...".to_owned()));
+    let empty = create_memo(clone!(label -> move || label.with(Option::is_none)));
+    let label_text = create_memo(move || {
+        label.get().unwrap_or_else(|| match placeholder.get() {
+            placeholder if placeholder.is_empty() => "Select...".to_owned(),
+            placeholder => placeholder,
+        })
+    });
     let border = create_memo(clone!(focused theme disabled -> move || {
         field_border(&theme, disabled.get(), focused.get(), hovered.get())
     }));
@@ -79,7 +91,13 @@ fn SelectTrigger(handle: SelectTriggerHandle) -> NodeId {
         true => theme.surface.get(),
         false => theme.surface_raised.get(),
     }));
-    let text_color = create_memo(clone!(theme disabled -> move || match disabled.get() {
+    let text_color = create_memo(
+        clone!(theme disabled -> move || match disabled.get() || empty.get() {
+            true => theme.text_muted.get(),
+            false => theme.text.get(),
+        }),
+    );
+    let arrow_color = create_memo(clone!(theme disabled -> move || match disabled.get() {
         true => theme.text_muted.get(),
         false => theme.text.get(),
     }));
@@ -101,13 +119,17 @@ fn SelectTrigger(handle: SelectTriggerHandle) -> NodeId {
                 outline_visible=true
                 padding_horizontal=PADDING_HORIZONTAL
             >
-                <Text
-                    string={label_text}
-                    font_size=FONT_BODY
-                    color={text_color}
-                    align=TextAlign::Start
-                    clip=true
-                />
+                <List direction=Direction::Horizontal align=Align::Center spacing=ARROW_SPACING>
+                    <Text
+                        string={label_text}
+                        font_size=FONT_BODY
+                        color={text_color}
+                        align=TextAlign::Start
+                        ellipsis=true
+                        @sizing=ItemSize::Percent(100.0)
+                    />
+                    <Icon glyph={ICON_ARROW_DROP_DOWN.to_owned()} color={arrow_color} />
+                </List>
             </Frame>
         </Frame>
     }

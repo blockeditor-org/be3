@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{TextContent, TextOp};
+use be_block::{TextBlock, TextContent};
 
 #[tokio::test]
 async fn a_follower_stops_saving_after_a_message_it_cannot_read() {
@@ -11,7 +11,7 @@ async fn a_follower_stops_saving_after_a_message_it_cannot_read() {
         .await
         .unwrap();
     first
-        .save(block, &TextContent::from("hello"), None)
+        .save(block, &TextBlock::of("hello"), None)
         .await
         .unwrap();
 
@@ -24,7 +24,7 @@ async fn a_follower_stops_saving_after_a_message_it_cannot_read() {
     let mut follower = Live::<_, TextContent>::join(Arc::clone(&follower_peer), block)
         .await
         .unwrap();
-    owner.edit(TextOp::insert(5, " world")).await.unwrap();
+    type_at(&mut owner, 5, " world").await;
 
     newer_peer
         .relay(block, None, &[0xff, 0xff, 0xff, 0xff])
@@ -38,7 +38,9 @@ async fn a_follower_stops_saving_after_a_message_it_cannot_read() {
     .await;
 
     assert!(follower.is_diverged());
-    assert!(follower.edit(TextOp::insert(0, ">> ")).await.is_err());
+    let refused = TextBlock::insert(follower.content(), follower.client(), 0, b">> ")
+        .expect("there is somewhere to type");
+    assert!(follower.edit(refused).await.is_err());
     assert!(follower.seal().await.is_err());
 
     assert!(!owner.is_diverged(), "the owner's own copy is still right");

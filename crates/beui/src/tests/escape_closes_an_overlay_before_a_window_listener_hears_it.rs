@@ -1,0 +1,52 @@
+use super::*;
+use crate::base::overlay::{OverlayAnchor, OverlayNode, Placement};
+use crate::reactive::{Frame, NodeRef, Overlay, build, create_signal, on_key, view};
+use crate::{Dismiss, KeyAt, KeyPhase};
+
+#[test]
+fn escape_closes_an_overlay_before_a_window_listener_hears_it() {
+    let (open, set_open) = create_signal(true);
+    let heard = Rc::new(Cell::new(0));
+    let overlay = NodeRef::new();
+    let document = build({
+        let (heard, overlay) = (Rc::clone(&heard), overlay.clone());
+        move || {
+            on_key(KeyAt::Window, KeyPhase::Bubble, move |event| {
+                let escaped = event
+                    .press()
+                    .is_some_and(|press| press.pressed && press.key == Key::Escape);
+                if escaped {
+                    heard.set(heard.get() + 1);
+                }
+                escaped
+            });
+            view! {
+                <Frame>
+                    <Overlay
+                        @node_ref=&overlay
+                        anchor=OverlayAnchor::Point(pos2(10.0, 10.0))
+                        placement=Placement::At
+                        open={open}
+                        on_dismiss={move |_: Dismiss| set_open.set(false)}
+                    >
+                        <Frame width=40.0 height=30.0 />
+                    </Overlay>
+                </Frame>
+            }
+        }
+    });
+    let mut harness = Harness::new(document);
+    harness.frame(Vec::new());
+    let overlay = kind_of::<OverlayNode>(harness.document(), overlay.get());
+    assert!(harness.document().is_overlay_open(overlay.id()));
+
+    harness.key(Key::Escape, Modifiers::NONE);
+    assert!(
+        !harness.document().is_overlay_open(overlay.id()),
+        "Escape closes the overlay"
+    );
+    assert_eq!(heard.get(), 0, "and goes no further");
+
+    harness.key(Key::Escape, Modifiers::NONE);
+    assert_eq!(heard.get(), 1, "with nothing to close, the window hears it");
+}

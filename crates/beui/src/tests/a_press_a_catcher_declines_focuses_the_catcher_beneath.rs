@@ -19,7 +19,7 @@ fn a_press_a_catcher_declines_focuses_the_catcher_beneath() {
                             focusable=true
                             on_forward={move |input: ForwardedInput| {
                                 if input.focused {
-                                    below.borrow_mut().extend(input.events);
+                                    below.borrow_mut().extend(flattened(input));
                                 }
                             }}
                         >
@@ -29,10 +29,10 @@ fn a_press_a_catcher_declines_focuses_the_catcher_beneath() {
                     <CanvasItem x=0.0 y=0.0 width=200.0 height=200.0>
                         <Interactive
                             focusable=true
-                            forward_at={|local: Pos2| local.x >= 100.0}
+                            hit_at={|local: Pos2| local.x >= 100.0}
                             on_forward={move |input: ForwardedInput| {
                                 if input.focused {
-                                    above.borrow_mut().extend(input.events);
+                                    above.borrow_mut().extend(flattened(input));
                                 }
                             }}
                         >

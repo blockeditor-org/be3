@@ -3,7 +3,7 @@ use beui_macros::{component, view};
 use beui_core::color::Color32;
 
 use crate::theme::{
-    BORDER_WIDTH, FOCUS_RING_WIDTH, RADIUS, ThemeStore, control_outline, control_outline_visible,
+    BORDER_WIDTH, FOCUS_RING_WIDTH, RADIUS, ThemeStore, knob_outline, knob_outline_visible,
     use_theme,
 };
 use beui_components_unstyled as unstyled;
@@ -30,6 +30,7 @@ pub fn Slider(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     on_change: Callback<f32>,
+    on_drag_change: Callback<bool>,
 ) -> NodeId {
     view! {
         <unstyled::Slider
@@ -41,6 +42,7 @@ pub fn Slider(
             disabled
             label
             on_change={move |value| on_change.call(value)}
+            on_drag_change={move |dragging| on_drag_change.call(dragging)}
         >
             {move |handle: SliderHandle| {
                 view! {
@@ -91,9 +93,9 @@ fn SliderTrack(handle: SliderHandle) -> NodeId {
                     width=KNOB_SIZE
                     height=KNOB_SIZE
                     color={knob_color}
-                    outline={control_outline(&theme)}
+                    outline={knob_outline(&theme)}
                     outline_width=BORDER_WIDTH
-                    outline_visible={control_outline_visible(&theme)}
+                    outline_visible={knob_outline_visible(&theme)}
                     radius=KNOB_RADIUS
                 />
                 <Frame

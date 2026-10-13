@@ -21,7 +21,7 @@ fn a_hovered_catcher_hears_where_the_pointer_is_while_another_holds_it() {
                     <CanvasItem x=200.0 y=0.0 width=100.0 height=100.0>
                         <Interactive
                             on_forward={move |input: ForwardedInput| {
-                                heard.borrow_mut().push((input.hovered, input.pointer, input.events.len()))
+                                heard.borrow_mut().push((input.hovered, input.pointer, flattened(input.clone()).len()))
                             }}
                         >
                             <Frame />

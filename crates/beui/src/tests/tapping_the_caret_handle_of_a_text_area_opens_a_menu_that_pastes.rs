@@ -51,8 +51,9 @@ fn tapping_the_caret_handle_of_a_text_area_opens_a_menu_that_pastes() {
         pos: row,
         force: None,
     }]);
-    assert!(output.paste_requested);
+    assert_eq!(output.paste, Some(crate::PasteRequest::Asked));
+    assert_eq!(output.window.paste_kinds, [crate::PasteKind::Text]);
 
-    harness.frame(vec![Event::Text("Say ".to_owned())]);
+    harness.frame(vec![Event::Paste(crate::Pasted::Text("Say ".to_owned()))]);
     assert_eq!(String::from_utf8_lossy(&state.bytes()), "Say Hello");
 }

@@ -21,11 +21,13 @@ async fn blocks_publish_and_read_back_through_the_server() {
             block,
             commit: first,
             expected: None,
+            parents: Vec::new(),
             chunks: chunks.clone(),
             time: 1_000,
             pinned: false,
             references_added: Vec::new(),
             references_removed: Vec::new(),
+            metadata: Vec::new(),
         })
         .await;
     assert!(
@@ -54,11 +56,13 @@ async fn blocks_publish_and_read_back_through_the_server() {
             block,
             commit: second,
             expected: Some(first),
+            parents: Some(first).into_iter().collect(),
             chunks: next_chunks,
             time: 2_000,
             pinned: false,
             references_added: Vec::new(),
             references_removed: Vec::new(),
+            metadata: Vec::new(),
         })
         .await;
     assert!(

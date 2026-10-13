@@ -1,12 +1,13 @@
 use std::sync::{
-    Arc, Mutex,
+    Arc, Mutex, OnceLock,
     atomic::{AtomicBool, AtomicI32, Ordering},
 };
 
 use block_gpu_abi as abi;
-use wasmtime::{Caller, Engine, Error, Linker, Module, SharedMemory, Store, TypedFunc};
+use wasmtime::{Caller, Engine, Error, Instance, Linker, SharedMemory, Store, TypedFunc};
 use wasmtime_wasi::{WasiCtxBuilder, p1};
 
+use crate::dylink::{self, Layout, Program};
 use crate::state::Threaded;
 use crate::wake::Wake;
 
@@ -21,7 +22,8 @@ pub(crate) trait Spawns {
 
 pub(crate) struct Spawner {
     engine: Engine,
-    module: Module,
+    program: Program,
+    layout: OnceLock<Layout>,
     memory: SharedMemory,
     wake: Arc<Wake>,
     next: AtomicI32,
@@ -32,19 +34,24 @@ pub(crate) struct Spawner {
 impl Spawner {
     pub(crate) fn new(
         engine: Engine,
-        module: Module,
+        program: Program,
         memory: SharedMemory,
         wake: Arc<Wake>,
     ) -> Arc<Self> {
         Arc::new(Self {
             engine,
-            module,
+            program,
+            layout: OnceLock::new(),
             memory,
             wake,
             next: AtomicI32::new(1),
             stopped: AtomicBool::new(false),
             failures: Mutex::new(Vec::new()),
         })
+    }
+
+    pub(crate) fn linked(&self, layout: Layout) {
+        let _ = self.layout.set(layout);
     }
 
     pub(crate) fn stop(&self) {
@@ -63,12 +70,22 @@ impl Spawner {
         if self.stopped.load(Ordering::Acquire) {
             return REFUSED;
         }
+        let thread_locals = match &self.program {
+            Program::Whole(_) => None,
+            Program::Linked { .. } => match dylink::spawned_thread_locals(&self.memory, argument) {
+                Ok(base) => Some(base),
+                Err(failure) => {
+                    self.fail(failure);
+                    return REFUSED;
+                }
+            },
+        };
         let thread = self.next.fetch_add(1, Ordering::Relaxed);
         let spawner = Arc::clone(self);
         let spawned = std::thread::Builder::new()
             .name(format!("plugin thread {thread}"))
             .spawn(move || {
-                if let Err(failure) = spawner.enter(thread, argument) {
+                if let Err(failure) = spawner.enter(thread, argument, thread_locals) {
                     spawner.fail(failure);
                 }
             });
@@ -81,7 +98,12 @@ impl Spawner {
         }
     }
 
-    fn enter(self: &Arc<Self>, thread: i32, argument: i32) -> Result<(), String> {
+    fn enter(
+        self: &Arc<Self>,
+        thread: i32,
+        argument: i32,
+        thread_locals: Option<u32>,
+    ) -> Result<(), String> {
         let wasi = WasiCtxBuilder::new().inherit_stderr().build_p1();
         let state = Threaded {
             wasi,
@@ -97,27 +119,56 @@ impl Spawner {
             .map_err(|error| format!("a plugin thread could not share memory: {error}"))?;
         link(&mut linker)?;
         crate::wake::link(&mut linker)?;
+        crate::panic::link(&mut linker)?;
         self.refuse_host_calls(&mut linker)?;
         linker
-            .define_unknown_imports_as_traps(&self.module)
+            .define_unknown_imports_as_traps(self.program.first())
             .map_err(|error| format!("a plugin thread could not stub its imports: {error}"))?;
         let instance = linker
-            .instantiate(&mut store, &self.module)
+            .instantiate(&mut store, self.program.first())
             .map_err(|error| format!("a plugin thread could not be instantiated: {error}"))?;
+        self.link_plugin(&mut store, &linker, &instance, thread_locals)?;
         let start: TypedFunc<(i32, i32), ()> = instance
             .get_typed_func(&mut store, START)
             .map_err(|error| format!("the plugin has no usable {START} export: {error}"))?;
-        start
-            .call(&mut store, (thread, argument))
-            .map_err(|error| format!("a plugin thread trapped: {error:?}"))
+        start.call(&mut store, (thread, argument)).map_err(|error| {
+            crate::panic::message(&error)
+                .unwrap_or_else(|| format!("a plugin thread trapped: {error:?}"))
+        })
+    }
+
+    fn link_plugin(
+        &self,
+        store: &mut Store<Threaded>,
+        linker: &Linker<Threaded>,
+        sdk: &Instance,
+        thread_locals: Option<u32>,
+    ) -> Result<(), String> {
+        let (Program::Linked { plugin, .. }, Some(base)) = (&self.program, thread_locals) else {
+            return Ok(());
+        };
+        let layout = self
+            .layout
+            .get()
+            .ok_or("a plugin thread started before its plugin was linked")?;
+        let instance = dylink::instantiate(store, linker, sdk, plugin, layout)?;
+        dylink::place_thread_locals(store, &instance, &self.memory, layout, base)
     }
 
     fn refuse_host_calls(&self, linker: &mut Linker<Threaded>) -> Result<(), String> {
-        for import in self.module.imports() {
+        linker.allow_shadowing(true);
+        for import in self
+            .program
+            .modules()
+            .into_iter()
+            .flat_map(|module| module.imports())
+        {
             if !matches!(import.module(), abi::GPU_MODULE | abi::HOST_MODULE) {
                 continue;
             }
-            if import.module() == abi::HOST_MODULE && import.name() == abi::HOST_WAKE {
+            if import.module() == abi::HOST_MODULE
+                && matches!(import.name(), abi::HOST_WAKE | abi::HOST_PANIC)
+            {
                 continue;
             }
             let Some(signature) = import.ty().func().cloned() else {
@@ -135,6 +186,10 @@ impl Spawner {
                 .map_err(|error| format!("a host call could not be refused: {error}"))?;
         }
         Ok(())
+    }
+
+    pub(crate) fn read(&self, pointer: u32, length: u32) -> Result<Vec<u8>, String> {
+        crate::state::read(&self.memory, pointer, length)
     }
 
     fn fail(&self, failure: String) {

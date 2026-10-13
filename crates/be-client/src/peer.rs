@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use be_block::{BlockContent, BlockMetadata, Streamed, payload_start};
+use be_block::{BlockContent, BlockMetadata, Entries, Streamed, derived_metadata, payload_start};
 use be_commit::{
     Commit, CommitId, CommitStore, CommitSummary, RetentionPolicy, now_milliseconds,
     plan_retention, reference_delta,
@@ -18,6 +18,7 @@ use uuid::Uuid;
 
 use crate::{ClientError, connection::Connection};
 
+#[derive(Clone)]
 pub enum Credentials {
     Register {
         email: String,
@@ -119,11 +120,21 @@ impl<S: ObjectStore> Peer<S> {
     pub async fn connect(config: PeerConfig, store: S) -> Result<Self, ClientError> {
         let connection = Connection::connect(&config.url).await?;
         let response = connection
-            .request(|request| config.credentials.message(request))
+            .request(|request| config.credentials.clone().message(request))
             .await?;
         let ServerMessage::Authenticated { account, token, .. } = response else {
             return Err(ClientError::Unexpected);
         };
+        Self::signed_in(connection, account, token, config, store).await
+    }
+
+    pub async fn signed_in(
+        connection: Arc<Connection>,
+        account: Uuid,
+        token: String,
+        config: PeerConfig,
+        store: S,
+    ) -> Result<Self, ClientError> {
         let workspace = match config.workspace {
             Some(workspace) => workspace,
             None => {
@@ -238,23 +249,74 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
-    pub async fn set_metadata(
+    pub async fn define(
         &self,
         block: Uuid,
-        metadata: &BlockMetadata,
+        edit: impl Fn(&mut BlockMetadata),
     ) -> Result<BlockSummary, ClientError> {
-        let metadata = self.seal_metadata(metadata);
-        let response = self
-            .connection
-            .request(|request| ClientMessage::SetMetadata {
-                request,
-                block,
-                metadata: metadata.clone(),
-            })
-            .await?;
-        match response {
-            ServerMessage::Block { block, .. } => Ok(block),
-            _ => Err(ClientError::Unexpected),
+        for _ in 0..8 {
+            let summary = self.summary(block).await?;
+            let current = match summary.head {
+                Some(head) => self.metadata_of(head).await?,
+                None => self.metadata(&summary)?,
+            };
+            let mut next = current.clone();
+            edit(&mut next);
+            let next = current.with_defined(next.defined);
+            if next == current {
+                return Ok(summary);
+            }
+            let Some(head) = summary.head else {
+                let sealed = self.seal_metadata(&next);
+                let response = self
+                    .connection
+                    .request(|request| ClientMessage::SetMetadata {
+                        request,
+                        block,
+                        metadata: sealed.clone(),
+                    })
+                    .await;
+                match response {
+                    Ok(ServerMessage::Block { block, .. }) => return Ok(block),
+                    Ok(_) => return Err(ClientError::Unexpected),
+                    Err(ClientError::Refused(ErrorCode::BlockHasContent, _)) => continue,
+                    Err(error) => return Err(error),
+                }
+            };
+            let commit = self.load_commit(head).await?;
+            let saved = self
+                .publish_manifest(
+                    block,
+                    commit.manifest,
+                    commit.references,
+                    Some(head),
+                    now_milliseconds(),
+                    false,
+                    Vec::new(),
+                    &next,
+                )
+                .await?;
+            if saved.published().is_some() {
+                return self.summary(block).await;
+            }
+        }
+        Err(ClientError::Contended)
+    }
+
+    pub async fn metadata_of(&self, commit: CommitId) -> Result<BlockMetadata, ClientError> {
+        Ok(BlockMetadata::decode(
+            &self.load_commit(commit).await?.metadata,
+        )?)
+    }
+
+    async fn metadata_at(
+        &self,
+        block: Uuid,
+        expected: Option<CommitId>,
+    ) -> Result<BlockMetadata, ClientError> {
+        match expected {
+            Some(head) => self.metadata_of(head).await,
+            None => self.metadata(&self.summary(block).await?),
         }
     }
 
@@ -298,23 +360,26 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn fetch(&self, hashes: &[Hash]) -> Result<(), ClientError> {
+        let mut missing = Vec::new();
         for hash in hashes {
-            if self.commits.vault().store().has(*hash)? {
-                continue;
+            if !self.commits.vault().store().has(*hash)? && !missing.contains(hash) {
+                missing.push(*hash);
             }
-            let response = self
-                .connection
-                .request(|request| ClientMessage::GetObject {
-                    request,
-                    hash: *hash,
-                })
-                .await?;
-            let ServerMessage::Object { bytes, .. } = response else {
+        }
+        let responses = futures_util::future::join_all(missing.iter().map(|hash| {
+            self.connection.request(|request| ClientMessage::GetObject {
+                request,
+                hash: *hash,
+            })
+        }))
+        .await;
+        for (hash, response) in missing.into_iter().zip(responses) {
+            let ServerMessage::Object { bytes, .. } = response? else {
                 return Err(ClientError::Unexpected);
             };
-            let bytes = bytes.ok_or(ClientError::MissingObject(*hash))?;
-            if self.commits.vault().store().put(&bytes)? != *hash {
-                return Err(ClientError::Tampered(*hash));
+            let bytes = bytes.ok_or(ClientError::MissingObject(hash))?;
+            if self.commits.vault().store().put(&bytes)? != hash {
+                return Err(ClientError::Tampered(hash));
             }
         }
         Ok(())
@@ -429,6 +494,7 @@ impl<S: ObjectStore> Peer<S> {
             now_milliseconds(),
             false,
             Vec::new(),
+            None,
         )
         .await
     }
@@ -448,6 +514,7 @@ impl<S: ObjectStore> Peer<S> {
             now_milliseconds(),
             true,
             Vec::new(),
+            None,
         )
         .await
     }
@@ -459,16 +526,21 @@ impl<S: ObjectStore> Peer<S> {
         parent: Option<CommitId>,
     ) -> Result<CommitId, ClientError> {
         let references = sorted(self.resolve(block, content.references_in(self.workspace())));
-        let id = self.commits.write(
-            C::CONTENT_TYPE,
-            &content.encode(),
-            self.account,
-            now_milliseconds(),
-            parent,
-            references,
-        )?;
+        let metadata = self
+            .metadata_at(block, parent)
+            .await?
+            .with_derived(derived_metadata(content));
+        let manifest = self
+            .commits
+            .vault()
+            .write(C::CONTENT_TYPE, &content.encode())?;
+        let commit = Commit::new(manifest, self.account, now_milliseconds())
+            .with_parent(parent)
+            .with_references(references)
+            .with_metadata(metadata.encode());
+        let id = self.commits.put(&commit)?;
         let mut objects = vec![id.hash()];
-        objects.extend(self.commits.get(id)?.manifest.chunk_hashes());
+        objects.extend(commit.manifest.chunk_hashes());
         self.push(&objects).await?;
         Ok(id)
     }
@@ -479,11 +551,21 @@ impl<S: ObjectStore> Peer<S> {
         content: &C,
         expected: Option<CommitId>,
         parents: Vec<CommitId>,
+        defined: Entries,
     ) -> Result<Saved, ClientError> {
-        self.save_at(block, content, expected, now_milliseconds(), false, parents)
-            .await
+        self.save_at(
+            block,
+            content,
+            expected,
+            now_milliseconds(),
+            false,
+            parents,
+            Some(defined),
+        )
+        .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn save_at<C: BlockContent>(
         &self,
         block: Uuid,
@@ -492,12 +574,21 @@ impl<S: ObjectStore> Peer<S> {
         time: i64,
         pinned: bool,
         extra_parents: Vec<CommitId>,
+        defined: Option<Entries>,
     ) -> Result<Saved, ClientError> {
         let references = self.resolve(block, content.references_in(self.workspace()));
         let manifest = self
             .commits
             .vault()
             .write(C::CONTENT_TYPE, &content.encode())?;
+        let defined = match defined {
+            Some(defined) => defined,
+            None => self.metadata_at(block, expected).await?.defined,
+        };
+        let metadata = BlockMetadata {
+            defined,
+            derived: derived_metadata(content),
+        };
         self.publish_manifest(
             block,
             manifest,
@@ -506,6 +597,7 @@ impl<S: ObjectStore> Peer<S> {
             time,
             pinned,
             extra_parents,
+            &metadata,
         )
         .await
     }
@@ -520,19 +612,27 @@ impl<S: ObjectStore> Peer<S> {
         time: i64,
         pinned: bool,
         extra_parents: Vec<CommitId>,
+        metadata: &BlockMetadata,
     ) -> Result<Saved, ClientError> {
         let previous = match expected {
             Some(head) => Some(self.load_commit(head).await?),
             None => None,
         };
         let references = sorted(references);
+        let encoded = metadata.encode();
         if let Some(previous) = &previous
             && previous.manifest == manifest
             && previous.references == references
+            && previous.metadata == encoded
         {
             return Ok(Saved::Unchanged(expected.expect("a previous commit")));
         }
         let mut parents: Vec<_> = expected.into_iter().collect();
+        let mut chunks = manifest.chunk_hashes();
+        for parent in &extra_parents {
+            chunks.push(parent.hash());
+            chunks.extend(self.commits.get(*parent)?.manifest.chunk_hashes());
+        }
         parents.extend(extra_parents);
         let kind = if parents.len() > 1 {
             be_commit::CommitKind::Merge
@@ -542,12 +642,12 @@ impl<S: ObjectStore> Peer<S> {
             be_commit::CommitKind::Autosave
         };
         let commit = Commit::new(manifest.clone(), self.account, time)
-            .with_parents(parents)
+            .with_parents(parents.clone())
             .with_kind(kind)
-            .with_references(references.clone());
+            .with_references(references.clone())
+            .with_metadata(encoded);
         let id = self.commits.put(&commit)?;
 
-        let chunks = manifest.chunk_hashes();
         let mut objects = vec![id.hash()];
         objects.extend(chunks.iter().copied());
         self.push(&objects).await?;
@@ -556,6 +656,7 @@ impl<S: ObjectStore> Peer<S> {
             .map(|previous| previous.references)
             .unwrap_or_default();
         let (added, removed) = reference_delta(&before, &references);
+        let sealed = self.seal_metadata(metadata);
         let response = self
             .connection
             .request(|request| ClientMessage::Publish {
@@ -563,11 +664,13 @@ impl<S: ObjectStore> Peer<S> {
                 block,
                 commit: id,
                 expected,
+                parents,
                 chunks: chunks.clone(),
                 time,
                 pinned,
                 references_added: added.clone(),
                 references_removed: removed.clone(),
+                metadata: sealed.clone(),
             })
             .await?;
         match response {

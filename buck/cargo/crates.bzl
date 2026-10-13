@@ -19,6 +19,7 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
+                    "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
@@ -27,9 +28,7 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
-                    "//crates/be-store:be-store",
-                ],
+                "test_deps": [],
                 "test_features": [],
             },
             "linux-arm64": {
@@ -37,6 +36,7 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
+                    "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
@@ -45,9 +45,7 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
-                    "//crates/be-store:be-store",
-                ],
+                "test_deps": [],
                 "test_features": [],
             },
             "linux-x86_64": {
@@ -55,6 +53,7 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
+                    "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
@@ -63,9 +62,7 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
-                    "//crates/be-store:be-store",
-                ],
+                "test_deps": [],
                 "test_features": [],
             },
             "macos-arm64": {
@@ -73,6 +70,7 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
+                    "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
@@ -81,9 +79,7 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
-                    "//crates/be-store:be-store",
-                ],
+                "test_deps": [],
                 "test_features": [],
             },
             "macos-x86_64": {
@@ -91,6 +87,7 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
+                    "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
@@ -99,9 +96,7 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
-                    "//crates/be-store:be-store",
-                ],
+                "test_deps": [],
                 "test_features": [],
             },
             "wasi": {
@@ -109,6 +104,7 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
+                    "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
@@ -125,6 +121,7 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
+                    "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
@@ -141,6 +138,7 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
+                    "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
@@ -149,9 +147,7 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
-                    "//crates/be-store:be-store",
-                ],
+                "test_deps": [],
                 "test_features": [],
             },
             "windows-x86_64": {
@@ -159,6 +155,7 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
+                    "//crates/be-store:be-store",
                     "//crates/logicgame:logicgame",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:postcard-1.1.3",
@@ -167,8 +164,292 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/be-cli": {
+        "binaries": [
+            {
+                "crate_root": "src/main.rs",
+                "name": "be",
+            },
+        ],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "be_cli",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "be-cli",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {
+                    "be": [
+                        "//crates/be-block:be-block",
+                        "//crates/be-client:be-client",
+                        "//crates/be-commit:be-commit",
+                        "//crates/be-graph:be-graph",
+                        "//crates/be-keys:be-keys",
+                        "//crates/be-protocol:be-protocol",
+                        "//crates/be-store:be-store",
+                        "//crates/block-ui:block-ui",
+                        "//crates/build-id:build-id",
+                        "//third-party/rust:serde_json-1.0.150",
+                        "//third-party/rust:tokio-1.52.3",
+                        "//third-party/rust:uuid-1.23.2",
+                    ],
+                },
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-client:be-client",
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
+                    "//crates/be-protocol:be-protocol",
                     "//crates/be-store:be-store",
+                    "//crates/block-ui:block-ui",
+                    "//crates/build-id:build-id",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/be-server:be-server",
+                ],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {
+                    "be": [
+                        "//crates/be-block:be-block",
+                        "//crates/be-client:be-client",
+                        "//crates/be-commit:be-commit",
+                        "//crates/be-graph:be-graph",
+                        "//crates/be-keys:be-keys",
+                        "//crates/be-protocol:be-protocol",
+                        "//crates/be-store:be-store",
+                        "//crates/block-ui:block-ui",
+                        "//crates/build-id:build-id",
+                        "//third-party/rust:serde_json-1.0.150",
+                        "//third-party/rust:tokio-1.52.3",
+                        "//third-party/rust:uuid-1.23.2",
+                    ],
+                },
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-client:be-client",
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-store:be-store",
+                    "//crates/block-ui:block-ui",
+                    "//crates/build-id:build-id",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/be-server:be-server",
+                ],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {
+                    "be": [
+                        "//crates/be-block:be-block",
+                        "//crates/be-client:be-client",
+                        "//crates/be-commit:be-commit",
+                        "//crates/be-graph:be-graph",
+                        "//crates/be-keys:be-keys",
+                        "//crates/be-protocol:be-protocol",
+                        "//crates/be-store:be-store",
+                        "//crates/block-ui:block-ui",
+                        "//crates/build-id:build-id",
+                        "//third-party/rust:serde_json-1.0.150",
+                        "//third-party/rust:tokio-1.52.3",
+                        "//third-party/rust:uuid-1.23.2",
+                    ],
+                },
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-client:be-client",
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-store:be-store",
+                    "//crates/block-ui:block-ui",
+                    "//crates/build-id:build-id",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/be-server:be-server",
+                ],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {
+                    "be": [
+                        "//crates/be-block:be-block",
+                        "//crates/be-client:be-client",
+                        "//crates/be-commit:be-commit",
+                        "//crates/be-graph:be-graph",
+                        "//crates/be-keys:be-keys",
+                        "//crates/be-protocol:be-protocol",
+                        "//crates/be-store:be-store",
+                        "//crates/block-ui:block-ui",
+                        "//crates/build-id:build-id",
+                        "//third-party/rust:serde_json-1.0.150",
+                        "//third-party/rust:tokio-1.52.3",
+                        "//third-party/rust:uuid-1.23.2",
+                    ],
+                },
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-client:be-client",
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-store:be-store",
+                    "//crates/block-ui:block-ui",
+                    "//crates/build-id:build-id",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/be-server:be-server",
+                ],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {
+                    "be": [
+                        "//crates/be-block:be-block",
+                        "//crates/be-client:be-client",
+                        "//crates/be-commit:be-commit",
+                        "//crates/be-graph:be-graph",
+                        "//crates/be-keys:be-keys",
+                        "//crates/be-protocol:be-protocol",
+                        "//crates/be-store:be-store",
+                        "//crates/block-ui:block-ui",
+                        "//crates/build-id:build-id",
+                        "//third-party/rust:serde_json-1.0.150",
+                        "//third-party/rust:tokio-1.52.3",
+                        "//third-party/rust:uuid-1.23.2",
+                    ],
+                },
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-client:be-client",
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-store:be-store",
+                    "//crates/block-ui:block-ui",
+                    "//crates/build-id:build-id",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/be-server:be-server",
+                ],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {
+                    "be": [
+                        "//crates/be-block:be-block",
+                        "//crates/be-client:be-client",
+                        "//crates/be-commit:be-commit",
+                        "//crates/be-graph:be-graph",
+                        "//crates/be-keys:be-keys",
+                        "//crates/be-protocol:be-protocol",
+                        "//crates/be-store:be-store",
+                        "//crates/block-ui:block-ui",
+                        "//crates/build-id:build-id",
+                        "//third-party/rust:serde_json-1.0.150",
+                        "//third-party/rust:tokio-1.52.3",
+                        "//third-party/rust:uuid-1.23.2",
+                    ],
+                },
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-client:be-client",
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-store:be-store",
+                    "//crates/block-ui:block-ui",
+                    "//crates/build-id:build-id",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/be-server:be-server",
+                ],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {
+                    "be": [
+                        "//crates/be-block:be-block",
+                        "//crates/be-client:be-client",
+                        "//crates/be-commit:be-commit",
+                        "//crates/be-graph:be-graph",
+                        "//crates/be-keys:be-keys",
+                        "//crates/be-protocol:be-protocol",
+                        "//crates/be-store:be-store",
+                        "//crates/block-ui:block-ui",
+                        "//crates/build-id:build-id",
+                        "//third-party/rust:serde_json-1.0.150",
+                        "//third-party/rust:tokio-1.52.3",
+                        "//third-party/rust:uuid-1.23.2",
+                    ],
+                },
+                "deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-client:be-client",
+                    "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-store:be-store",
+                    "//crates/block-ui:block-ui",
+                    "//crates/build-id:build-id",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/be-server:be-server",
                 ],
                 "test_features": [],
             },
@@ -196,10 +477,15 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
                     "//third-party/rust:futures-util-0.3.32",
+                    "//third-party/rust:httparse-1.10.1",
+                    "//third-party/rust:rustls-0.23.43",
                     "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:tokio-rustls-0.26.4",
                     "//third-party/rust:tokio-tungstenite-0.23.1",
                     "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:webpki-roots-0.26.11",
                 ],
                 "examples": {},
                 "features": [],
@@ -217,10 +503,15 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
                     "//third-party/rust:futures-util-0.3.32",
+                    "//third-party/rust:httparse-1.10.1",
+                    "//third-party/rust:rustls-0.23.43",
                     "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:tokio-rustls-0.26.4",
                     "//third-party/rust:tokio-tungstenite-0.23.1",
                     "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:webpki-roots-0.26.11",
                 ],
                 "examples": {},
                 "features": [],
@@ -238,10 +529,15 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
                     "//third-party/rust:futures-util-0.3.32",
+                    "//third-party/rust:httparse-1.10.1",
+                    "//third-party/rust:rustls-0.23.43",
                     "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:tokio-rustls-0.26.4",
                     "//third-party/rust:tokio-tungstenite-0.23.1",
                     "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:webpki-roots-0.26.11",
                 ],
                 "examples": {},
                 "features": [],
@@ -259,10 +555,15 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
                     "//third-party/rust:futures-util-0.3.32",
+                    "//third-party/rust:httparse-1.10.1",
+                    "//third-party/rust:rustls-0.23.43",
                     "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:tokio-rustls-0.26.4",
                     "//third-party/rust:tokio-tungstenite-0.23.1",
                     "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:webpki-roots-0.26.11",
                 ],
                 "examples": {},
                 "features": [],
@@ -280,10 +581,15 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
                     "//third-party/rust:futures-util-0.3.32",
+                    "//third-party/rust:httparse-1.10.1",
+                    "//third-party/rust:rustls-0.23.43",
                     "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:tokio-rustls-0.26.4",
                     "//third-party/rust:tokio-tungstenite-0.23.1",
                     "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:webpki-roots-0.26.11",
                 ],
                 "examples": {},
                 "features": [],
@@ -301,6 +607,7 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
                     "//third-party/rust:futures-channel-0.3.32",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:js-sys-0.3.99",
@@ -324,10 +631,15 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
                     "//third-party/rust:futures-util-0.3.32",
+                    "//third-party/rust:httparse-1.10.1",
+                    "//third-party/rust:rustls-0.23.43",
                     "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:tokio-rustls-0.26.4",
                     "//third-party/rust:tokio-tungstenite-0.23.1",
                     "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:webpki-roots-0.26.11",
                 ],
                 "examples": {},
                 "features": [],
@@ -345,10 +657,15 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
                     "//third-party/rust:futures-util-0.3.32",
+                    "//third-party/rust:httparse-1.10.1",
+                    "//third-party/rust:rustls-0.23.43",
                     "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:tokio-rustls-0.26.4",
                     "//third-party/rust:tokio-tungstenite-0.23.1",
                     "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:webpki-roots-0.26.11",
                 ],
                 "examples": {},
                 "features": [],
@@ -600,6 +917,420 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/be-drive": {
+        "binaries": [
+            {
+                "crate_root": "src/main.rs",
+                "name": "be-drive",
+            },
+        ],
+        "edition": "2024",
+        "examples": [],
+        "library": None,
+        "name": "be-drive",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {
+                    "be-drive": [
+                        "//crates/beui-core:beui-core",
+                        "//third-party/rust:image-0.25.10",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {
+                    "be-drive": [
+                        "//crates/beui-core:beui-core",
+                        "//third-party/rust:image-0.25.10",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {
+                    "be-drive": [
+                        "//crates/beui-core:beui-core",
+                        "//third-party/rust:image-0.25.10",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {
+                    "be-drive": [
+                        "//crates/beui-core:beui-core",
+                        "//third-party/rust:image-0.25.10",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {
+                    "be-drive": [
+                        "//crates/beui-core:beui-core",
+                        "//third-party/rust:image-0.25.10",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {
+                    "be-drive": [
+                        "//crates/beui-core:beui-core",
+                        "//third-party/rust:image-0.25.10",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {
+                    "be-drive": [
+                        "//crates/beui-core:beui-core",
+                        "//third-party/rust:image-0.25.10",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/be-frozen": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [
+            {
+                "crate_root": "examples/freeze.rs",
+                "name": "freeze",
+            },
+        ],
+        "library": {
+            "crate": "be_frozen",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "be-frozen",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {
+                    "freeze": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
+                },
+                "features": [],
+                "test_deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-cli:be-cli",
+                    "//crates/be-client:be-client",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-server:be-server",
+                    "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
+                    "//third-party/rust:rusqlite-0.32.1",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:zip-8.6.0",
+                ],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {
+                    "freeze": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
+                },
+                "features": [],
+                "test_deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-cli:be-cli",
+                    "//crates/be-client:be-client",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-server:be-server",
+                    "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
+                    "//third-party/rust:rusqlite-0.32.1",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:zip-8.6.0",
+                ],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {
+                    "freeze": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
+                },
+                "features": [],
+                "test_deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-cli:be-cli",
+                    "//crates/be-client:be-client",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-server:be-server",
+                    "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
+                    "//third-party/rust:rusqlite-0.32.1",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:zip-8.6.0",
+                ],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {
+                    "freeze": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
+                },
+                "features": [],
+                "test_deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-cli:be-cli",
+                    "//crates/be-client:be-client",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-server:be-server",
+                    "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
+                    "//third-party/rust:rusqlite-0.32.1",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:zip-8.6.0",
+                ],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {
+                    "freeze": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
+                },
+                "features": [],
+                "test_deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-cli:be-cli",
+                    "//crates/be-client:be-client",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-server:be-server",
+                    "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
+                    "//third-party/rust:rusqlite-0.32.1",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:zip-8.6.0",
+                ],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {
+                    "freeze": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
+                },
+                "features": [],
+                "test_deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-cli:be-cli",
+                    "//crates/be-client:be-client",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-server:be-server",
+                    "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
+                    "//third-party/rust:rusqlite-0.32.1",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:zip-8.6.0",
+                ],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {
+                    "freeze": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
+                },
+                "features": [],
+                "test_deps": [
+                    "//crates/be-block:be-block",
+                    "//crates/be-cli:be-cli",
+                    "//crates/be-client:be-client",
+                    "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
+                    "//crates/be-protocol:be-protocol",
+                    "//crates/be-server:be-server",
+                    "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
+                    "//third-party/rust:rusqlite-0.32.1",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:uuid-1.23.2",
+                    "//third-party/rust:zip-8.6.0",
+                ],
                 "test_features": [],
             },
         },
@@ -1126,6 +1857,9 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model-derive:be-model-derive",
+                    "//crates/be-store:be-store",
+                    "//crates/sequence:sequence",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -1140,6 +1874,9 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model-derive:be-model-derive",
+                    "//crates/be-store:be-store",
+                    "//crates/sequence:sequence",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -1154,6 +1891,9 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model-derive:be-model-derive",
+                    "//crates/be-store:be-store",
+                    "//crates/sequence:sequence",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -1168,6 +1908,9 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model-derive:be-model-derive",
+                    "//crates/be-store:be-store",
+                    "//crates/sequence:sequence",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -1182,6 +1925,9 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model-derive:be-model-derive",
+                    "//crates/be-store:be-store",
+                    "//crates/sequence:sequence",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -1196,6 +1942,9 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model-derive:be-model-derive",
+                    "//crates/be-store:be-store",
+                    "//crates/sequence:sequence",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -1210,6 +1959,9 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model-derive:be-model-derive",
+                    "//crates/be-store:be-store",
+                    "//crates/sequence:sequence",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -1224,6 +1976,9 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model-derive:be-model-derive",
+                    "//crates/be-store:be-store",
+                    "//crates/sequence:sequence",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -1238,6 +1993,9 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model-derive:be-model-derive",
+                    "//crates/be-store:be-store",
+                    "//crates/sequence:sequence",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -1265,6 +2023,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
                 ],
@@ -1276,6 +2035,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
                 ],
@@ -1287,6 +2047,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
                 ],
@@ -1298,6 +2059,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
                 ],
@@ -1309,6 +2071,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
                 ],
@@ -1320,6 +2083,7 @@ crates = {
             "wasi": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
                 ],
@@ -1331,6 +2095,7 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
                 ],
@@ -1342,6 +2107,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
                 ],
@@ -1353,6 +2119,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
                 ],
@@ -1532,9 +2299,12 @@ crates = {
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
+                        "//crates/build-id:build-id",
+                        "//crates/sqlite-schema:sqlite-schema",
                         "//third-party/rust:argon2-0.5.3",
                         "//third-party/rust:chacha20poly1305-0.10.1",
                         "//third-party/rust:futures-util-0.3.32",
+                        "//third-party/rust:httparse-1.10.1",
                         "//third-party/rust:rand-0.9.4",
                         "//third-party/rust:rusqlite-0.32.1",
                         "//third-party/rust:serde-1.0.228",
@@ -1553,9 +2323,12 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
+                    "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:argon2-0.5.3",
                     "//third-party/rust:chacha20poly1305-0.10.1",
                     "//third-party/rust:futures-util-0.3.32",
+                    "//third-party/rust:httparse-1.10.1",
                     "//third-party/rust:rand-0.9.4",
                     "//third-party/rust:rusqlite-0.32.1",
                     "//third-party/rust:serde-1.0.228",
@@ -1580,9 +2353,12 @@ crates = {
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
+                        "//crates/build-id:build-id",
+                        "//crates/sqlite-schema:sqlite-schema",
                         "//third-party/rust:argon2-0.5.3",
                         "//third-party/rust:chacha20poly1305-0.10.1",
                         "//third-party/rust:futures-util-0.3.32",
+                        "//third-party/rust:httparse-1.10.1",
                         "//third-party/rust:rand-0.9.4",
                         "//third-party/rust:rusqlite-0.32.1",
                         "//third-party/rust:serde-1.0.228",
@@ -1601,9 +2377,12 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
+                    "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:argon2-0.5.3",
                     "//third-party/rust:chacha20poly1305-0.10.1",
                     "//third-party/rust:futures-util-0.3.32",
+                    "//third-party/rust:httparse-1.10.1",
                     "//third-party/rust:rand-0.9.4",
                     "//third-party/rust:rusqlite-0.32.1",
                     "//third-party/rust:serde-1.0.228",
@@ -1628,9 +2407,12 @@ crates = {
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
+                        "//crates/build-id:build-id",
+                        "//crates/sqlite-schema:sqlite-schema",
                         "//third-party/rust:argon2-0.5.3",
                         "//third-party/rust:chacha20poly1305-0.10.1",
                         "//third-party/rust:futures-util-0.3.32",
+                        "//third-party/rust:httparse-1.10.1",
                         "//third-party/rust:rand-0.9.4",
                         "//third-party/rust:rusqlite-0.32.1",
                         "//third-party/rust:serde-1.0.228",
@@ -1649,9 +2431,12 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
+                    "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:argon2-0.5.3",
                     "//third-party/rust:chacha20poly1305-0.10.1",
                     "//third-party/rust:futures-util-0.3.32",
+                    "//third-party/rust:httparse-1.10.1",
                     "//third-party/rust:rand-0.9.4",
                     "//third-party/rust:rusqlite-0.32.1",
                     "//third-party/rust:serde-1.0.228",
@@ -1676,9 +2461,12 @@ crates = {
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
+                        "//crates/build-id:build-id",
+                        "//crates/sqlite-schema:sqlite-schema",
                         "//third-party/rust:argon2-0.5.3",
                         "//third-party/rust:chacha20poly1305-0.10.1",
                         "//third-party/rust:futures-util-0.3.32",
+                        "//third-party/rust:httparse-1.10.1",
                         "//third-party/rust:rand-0.9.4",
                         "//third-party/rust:rusqlite-0.32.1",
                         "//third-party/rust:serde-1.0.228",
@@ -1697,9 +2485,12 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
+                    "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:argon2-0.5.3",
                     "//third-party/rust:chacha20poly1305-0.10.1",
                     "//third-party/rust:futures-util-0.3.32",
+                    "//third-party/rust:httparse-1.10.1",
                     "//third-party/rust:rand-0.9.4",
                     "//third-party/rust:rusqlite-0.32.1",
                     "//third-party/rust:serde-1.0.228",
@@ -1724,9 +2515,12 @@ crates = {
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
+                        "//crates/build-id:build-id",
+                        "//crates/sqlite-schema:sqlite-schema",
                         "//third-party/rust:argon2-0.5.3",
                         "//third-party/rust:chacha20poly1305-0.10.1",
                         "//third-party/rust:futures-util-0.3.32",
+                        "//third-party/rust:httparse-1.10.1",
                         "//third-party/rust:rand-0.9.4",
                         "//third-party/rust:rusqlite-0.32.1",
                         "//third-party/rust:serde-1.0.228",
@@ -1745,9 +2539,12 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
+                    "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:argon2-0.5.3",
                     "//third-party/rust:chacha20poly1305-0.10.1",
                     "//third-party/rust:futures-util-0.3.32",
+                    "//third-party/rust:httparse-1.10.1",
                     "//third-party/rust:rand-0.9.4",
                     "//third-party/rust:rusqlite-0.32.1",
                     "//third-party/rust:serde-1.0.228",
@@ -1772,9 +2569,12 @@ crates = {
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
+                        "//crates/build-id:build-id",
+                        "//crates/sqlite-schema:sqlite-schema",
                         "//third-party/rust:argon2-0.5.3",
                         "//third-party/rust:chacha20poly1305-0.10.1",
                         "//third-party/rust:futures-util-0.3.32",
+                        "//third-party/rust:httparse-1.10.1",
                         "//third-party/rust:rand-0.9.4",
                         "//third-party/rust:rusqlite-0.32.1",
                         "//third-party/rust:serde-1.0.228",
@@ -1793,9 +2593,12 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
+                    "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:argon2-0.5.3",
                     "//third-party/rust:chacha20poly1305-0.10.1",
                     "//third-party/rust:futures-util-0.3.32",
+                    "//third-party/rust:httparse-1.10.1",
                     "//third-party/rust:rand-0.9.4",
                     "//third-party/rust:rusqlite-0.32.1",
                     "//third-party/rust:serde-1.0.228",
@@ -1820,9 +2623,12 @@ crates = {
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
+                        "//crates/build-id:build-id",
+                        "//crates/sqlite-schema:sqlite-schema",
                         "//third-party/rust:argon2-0.5.3",
                         "//third-party/rust:chacha20poly1305-0.10.1",
                         "//third-party/rust:futures-util-0.3.32",
+                        "//third-party/rust:httparse-1.10.1",
                         "//third-party/rust:rand-0.9.4",
                         "//third-party/rust:rusqlite-0.32.1",
                         "//third-party/rust:serde-1.0.228",
@@ -1841,9 +2647,12 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/build-id:build-id",
+                    "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:argon2-0.5.3",
                     "//third-party/rust:chacha20poly1305-0.10.1",
                     "//third-party/rust:futures-util-0.3.32",
+                    "//third-party/rust:httparse-1.10.1",
                     "//third-party/rust:rand-0.9.4",
                     "//third-party/rust:rusqlite-0.32.1",
                     "//third-party/rust:serde-1.0.228",
@@ -2006,7 +2815,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:chacha20poly1305-0.10.1",
-                    "//third-party/rust:postcard-1.1.3",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:rand-0.9.4",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:sha2-0.10.9",
@@ -2021,7 +2830,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:chacha20poly1305-0.10.1",
-                    "//third-party/rust:postcard-1.1.3",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:rand-0.9.4",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:sha2-0.10.9",
@@ -2036,7 +2845,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:chacha20poly1305-0.10.1",
-                    "//third-party/rust:postcard-1.1.3",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:rand-0.9.4",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:sha2-0.10.9",
@@ -2051,7 +2860,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:chacha20poly1305-0.10.1",
-                    "//third-party/rust:postcard-1.1.3",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:rand-0.9.4",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:sha2-0.10.9",
@@ -2066,7 +2875,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:chacha20poly1305-0.10.1",
-                    "//third-party/rust:postcard-1.1.3",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:rand-0.9.4",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:sha2-0.10.9",
@@ -2081,7 +2890,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:chacha20poly1305-0.10.1",
-                    "//third-party/rust:postcard-1.1.3",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:rand-0.9.4",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:sha2-0.10.9",
@@ -2096,7 +2905,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:chacha20poly1305-0.10.1",
-                    "//third-party/rust:postcard-1.1.3",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:rand-0.9.4",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:sha2-0.10.9",
@@ -2111,7 +2920,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:chacha20poly1305-0.10.1",
-                    "//third-party/rust:postcard-1.1.3",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:rand-0.9.4",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:sha2-0.10.9",
@@ -2126,7 +2935,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:chacha20poly1305-0.10.1",
-                    "//third-party/rust:postcard-1.1.3",
+                    "//third-party/rust:ciborium-0.2.2",
                     "//third-party/rust:rand-0.9.4",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:sha2-0.10.9",
@@ -2162,7 +2971,6 @@ crates = {
                     "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-store:be-store",
-                    "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -2177,7 +2985,6 @@ crates = {
                     "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-store:be-store",
-                    "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -2192,7 +2999,6 @@ crates = {
                     "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-store:be-store",
-                    "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -2207,7 +3013,6 @@ crates = {
                     "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-store:be-store",
-                    "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -2222,7 +3027,6 @@ crates = {
                     "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-store:be-store",
-                    "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -2237,7 +3041,6 @@ crates = {
                     "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-store:be-store",
-                    "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -2252,7 +3055,6 @@ crates = {
                     "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-store:be-store",
-                    "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -2267,7 +3069,6 @@ crates = {
                     "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-store:be-store",
-                    "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -2297,6 +3098,9 @@ crates = {
                     "//crates/be-dmabuf:be-dmabuf",
                     "//crates/beui:beui",
                     "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:gvdb-0.10.1",
+                    "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:resvg-0.48.1",
                     "//third-party/rust:rustix-1.1.4",
                     "//third-party/rust:smithay-0.7.0",
                     "//third-party/rust:wgpu-29.0.3",
@@ -2316,6 +3120,9 @@ crates = {
                     "//crates/be-dmabuf:be-dmabuf",
                     "//crates/beui:beui",
                     "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:gvdb-0.10.1",
+                    "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:resvg-0.48.1",
                     "//third-party/rust:rustix-1.1.4",
                     "//third-party/rust:smithay-0.7.0",
                     "//third-party/rust:wgpu-29.0.3",
@@ -2335,6 +3142,9 @@ crates = {
                     "//crates/be-dmabuf:be-dmabuf",
                     "//crates/beui:beui",
                     "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:gvdb-0.10.1",
+                    "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:resvg-0.48.1",
                     "//third-party/rust:rustix-1.1.4",
                     "//third-party/rust:smithay-0.7.0",
                     "//third-party/rust:wgpu-29.0.3",
@@ -2354,6 +3164,9 @@ crates = {
                     "//crates/be-dmabuf:be-dmabuf",
                     "//crates/beui:beui",
                     "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:gvdb-0.10.1",
+                    "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:resvg-0.48.1",
                     "//third-party/rust:rustix-1.1.4",
                     "//third-party/rust:smithay-0.7.0",
                     "//third-party/rust:wgpu-29.0.3",
@@ -2373,6 +3186,9 @@ crates = {
                     "//crates/be-dmabuf:be-dmabuf",
                     "//crates/beui:beui",
                     "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:gvdb-0.10.1",
+                    "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:resvg-0.48.1",
                     "//third-party/rust:rustix-1.1.4",
                     "//third-party/rust:smithay-0.7.0",
                     "//third-party/rust:wgpu-29.0.3",
@@ -2392,6 +3208,9 @@ crates = {
                     "//crates/be-dmabuf:be-dmabuf",
                     "//crates/beui:beui",
                     "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:gvdb-0.10.1",
+                    "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:resvg-0.48.1",
                     "//third-party/rust:rustix-1.1.4",
                     "//third-party/rust:smithay-0.7.0",
                     "//third-party/rust:wgpu-29.0.3",
@@ -2411,6 +3230,9 @@ crates = {
                     "//crates/be-dmabuf:be-dmabuf",
                     "//crates/beui:beui",
                     "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:gvdb-0.10.1",
+                    "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:resvg-0.48.1",
                     "//third-party/rust:rustix-1.1.4",
                     "//third-party/rust:smithay-0.7.0",
                     "//third-party/rust:wgpu-29.0.3",
@@ -2505,6 +3327,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-adapter-headless:beui-adapter-headless",
                     "//crates/beui-adapter-winit:beui-adapter-winit",
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -2521,6 +3344,7 @@ crates = {
                 "examples": {
                     "survey": {
                         "deps": [
+                            "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
                             "//crates/beui-components-styled:beui-components-styled",
                             "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -2563,6 +3387,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-adapter-headless:beui-adapter-headless",
                     "//crates/beui-adapter-winit:beui-adapter-winit",
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -2579,6 +3404,7 @@ crates = {
                 "examples": {
                     "survey": {
                         "deps": [
+                            "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
                             "//crates/beui-components-styled:beui-components-styled",
                             "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -2621,6 +3447,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-adapter-headless:beui-adapter-headless",
                     "//crates/beui-adapter-winit:beui-adapter-winit",
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -2637,6 +3464,7 @@ crates = {
                 "examples": {
                     "survey": {
                         "deps": [
+                            "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
                             "//crates/beui-components-styled:beui-components-styled",
                             "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -2679,6 +3507,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-adapter-headless:beui-adapter-headless",
                     "//crates/beui-adapter-winit:beui-adapter-winit",
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -2695,6 +3524,7 @@ crates = {
                 "examples": {
                     "survey": {
                         "deps": [
+                            "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
                             "//crates/beui-components-styled:beui-components-styled",
                             "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -2786,6 +3616,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-adapter-headless:beui-adapter-headless",
                     "//crates/beui-adapter-winit:beui-adapter-winit",
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -2802,6 +3633,7 @@ crates = {
                 "examples": {
                     "survey": {
                         "deps": [
+                            "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
                             "//crates/beui-components-styled:beui-components-styled",
                             "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -2844,6 +3676,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/beui-adapter-headless:beui-adapter-headless",
                     "//crates/beui-adapter-winit:beui-adapter-winit",
                     "//crates/beui-components-styled:beui-components-styled",
                     "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -2860,6 +3693,7 @@ crates = {
                 "examples": {
                     "survey": {
                         "deps": [
+                            "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
                             "//crates/beui-components-styled:beui-components-styled",
                             "//crates/beui-components-unstyled:beui-components-unstyled",
@@ -3002,8 +3836,10 @@ crates = {
                     "//crates/beui-core:beui-core",
                     "//crates/beui:beui",
                     "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:rustix-1.1.4",
                     "//third-party/rust:smithay-0.7.0",
                     "//third-party/rust:wgpu-29.0.3",
+                    "//third-party/rust:xcursor-0.3.10",
                 ],
                 "examples": {},
                 "features": [],
@@ -3017,8 +3853,10 @@ crates = {
                     "//crates/beui-core:beui-core",
                     "//crates/beui:beui",
                     "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:rustix-1.1.4",
                     "//third-party/rust:smithay-0.7.0",
                     "//third-party/rust:wgpu-29.0.3",
+                    "//third-party/rust:xcursor-0.3.10",
                 ],
                 "examples": {},
                 "features": [],
@@ -3032,8 +3870,10 @@ crates = {
                     "//crates/beui-core:beui-core",
                     "//crates/beui:beui",
                     "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:rustix-1.1.4",
                     "//third-party/rust:smithay-0.7.0",
                     "//third-party/rust:wgpu-29.0.3",
+                    "//third-party/rust:xcursor-0.3.10",
                 ],
                 "examples": {},
                 "features": [],
@@ -3047,8 +3887,10 @@ crates = {
                     "//crates/beui-core:beui-core",
                     "//crates/beui:beui",
                     "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:rustix-1.1.4",
                     "//third-party/rust:smithay-0.7.0",
                     "//third-party/rust:wgpu-29.0.3",
+                    "//third-party/rust:xcursor-0.3.10",
                 ],
                 "examples": {},
                 "features": [],
@@ -3062,8 +3904,10 @@ crates = {
                     "//crates/beui-core:beui-core",
                     "//crates/beui:beui",
                     "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:rustix-1.1.4",
                     "//third-party/rust:smithay-0.7.0",
                     "//third-party/rust:wgpu-29.0.3",
+                    "//third-party/rust:xcursor-0.3.10",
                 ],
                 "examples": {},
                 "features": [],
@@ -3077,8 +3921,10 @@ crates = {
                     "//crates/beui-core:beui-core",
                     "//crates/beui:beui",
                     "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:rustix-1.1.4",
                     "//third-party/rust:smithay-0.7.0",
                     "//third-party/rust:wgpu-29.0.3",
+                    "//third-party/rust:xcursor-0.3.10",
                 ],
                 "examples": {},
                 "features": [],
@@ -3092,8 +3938,109 @@ crates = {
                     "//crates/beui-core:beui-core",
                     "//crates/beui:beui",
                     "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:rustix-1.1.4",
                     "//third-party/rust:smithay-0.7.0",
                     "//third-party/rust:wgpu-29.0.3",
+                    "//third-party/rust:xcursor-0.3.10",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/beui-adapter-headless": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "beui_adapter_headless",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "beui-adapter-headless",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//third-party/rust:pollster-0.4.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//third-party/rust:pollster-0.4.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//third-party/rust:pollster-0.4.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//third-party/rust:pollster-0.4.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//third-party/rust:pollster-0.4.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//third-party/rust:pollster-0.4.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "examples": {},
                 "features": [],
@@ -3351,6 +4298,7 @@ crates = {
                     "//third-party/rust:accesskit_winit-0.33.2",
                     "//third-party/rust:arboard-3.6.1",
                     "//third-party/rust:ashpd-0.11.1",
+                    "//third-party/rust:image-0.25.10",
                     "//third-party/rust:pollster-0.4.0",
                     "//third-party/rust:winit-0.30.13",
                 ],
@@ -3367,6 +4315,7 @@ crates = {
                     "//third-party/rust:accesskit_winit-0.33.2",
                     "//third-party/rust:arboard-3.6.1",
                     "//third-party/rust:ashpd-0.11.1",
+                    "//third-party/rust:image-0.25.10",
                     "//third-party/rust:pollster-0.4.0",
                     "//third-party/rust:winit-0.30.13",
                 ],
@@ -3382,6 +4331,7 @@ crates = {
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:accesskit_winit-0.33.2",
                     "//third-party/rust:arboard-3.6.1",
+                    "//third-party/rust:image-0.25.10",
                     "//third-party/rust:pollster-0.4.0",
                     "//third-party/rust:rfd-0.15.4",
                     "//third-party/rust:winit-0.30.13",
@@ -3398,6 +4348,7 @@ crates = {
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:accesskit_winit-0.33.2",
                     "//third-party/rust:arboard-3.6.1",
+                    "//third-party/rust:image-0.25.10",
                     "//third-party/rust:pollster-0.4.0",
                     "//third-party/rust:rfd-0.15.4",
                     "//third-party/rust:winit-0.30.13",
@@ -3414,6 +4365,7 @@ crates = {
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:accesskit_winit-0.33.2",
                     "//third-party/rust:arboard-3.6.1",
+                    "//third-party/rust:image-0.25.10",
                     "//third-party/rust:pollster-0.4.0",
                     "//third-party/rust:rfd-0.15.4",
                     "//third-party/rust:winit-0.30.13",
@@ -3430,6 +4382,7 @@ crates = {
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:accesskit_winit-0.33.2",
                     "//third-party/rust:arboard-3.6.1",
+                    "//third-party/rust:image-0.25.10",
                     "//third-party/rust:pollster-0.4.0",
                     "//third-party/rust:rfd-0.15.4",
                     "//third-party/rust:winit-0.30.13",
@@ -4911,6 +5864,7 @@ crates = {
                 "deps": [
                     "//crates/beui-core:beui-core",
                     "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:pollster-0.4.0",
                     "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {},
@@ -4920,7 +5874,6 @@ crates = {
                     "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
-                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -4929,6 +5882,7 @@ crates = {
                 "deps": [
                     "//crates/beui-core:beui-core",
                     "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:pollster-0.4.0",
                     "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {},
@@ -4938,7 +5892,6 @@ crates = {
                     "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
-                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -4947,6 +5900,7 @@ crates = {
                 "deps": [
                     "//crates/beui-core:beui-core",
                     "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:pollster-0.4.0",
                     "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {},
@@ -4956,7 +5910,6 @@ crates = {
                     "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
-                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -4965,6 +5918,7 @@ crates = {
                 "deps": [
                     "//crates/beui-core:beui-core",
                     "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:pollster-0.4.0",
                     "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {},
@@ -4974,7 +5928,6 @@ crates = {
                     "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
-                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -4983,6 +5936,7 @@ crates = {
                 "deps": [
                     "//crates/beui-core:beui-core",
                     "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:pollster-0.4.0",
                     "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {},
@@ -4992,7 +5946,6 @@ crates = {
                     "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
-                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -5028,6 +5981,7 @@ crates = {
                 "deps": [
                     "//crates/beui-core:beui-core",
                     "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:pollster-0.4.0",
                     "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {},
@@ -5037,7 +5991,6 @@ crates = {
                     "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
-                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -5046,6 +5999,7 @@ crates = {
                 "deps": [
                     "//crates/beui-core:beui-core",
                     "//third-party/rust:bytemuck-1.25.0",
+                    "//third-party/rust:pollster-0.4.0",
                     "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {},
@@ -5055,7 +6009,6 @@ crates = {
                     "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
-                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -5379,7 +6332,9 @@ crates = {
                         "//crates/beui:beui",
                         "//crates/block-plugin-api:block-plugin-api",
                         "//crates/block-wasm-host:block-wasm-host",
+                        "//crates/build-id:build-id",
                         "//crates/reactive:reactive",
+                        "//crates/sqlite-schema:sqlite-schema",
                         "//crates/wasi-threads:wasi-threads",
                         "//third-party/rust:bytemuck-1.25.0",
                         "//third-party/rust:directories-next-2.0.0",
@@ -5413,7 +6368,9 @@ crates = {
                     "//crates/beui:beui",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-wasm-host:block-wasm-host",
+                    "//crates/build-id:build-id",
                     "//crates/reactive:reactive",
+                    "//crates/sqlite-schema:sqlite-schema",
                     "//crates/wasi-threads:wasi-threads",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:directories-next-2.0.0",
@@ -5467,16 +6424,21 @@ crates = {
                         "//crates/beui:beui",
                         "//crates/block-plugin-api:block-plugin-api",
                         "//crates/block-wasm-host:block-wasm-host",
+                        "//crates/build-id:build-id",
                         "//crates/reactive:reactive",
+                        "//crates/sqlite-schema:sqlite-schema",
                         "//crates/wasi-threads:wasi-threads",
-                        "//third-party/rust:arboard-3.6.1",
                         "//third-party/rust:ashpd-0.11.1",
+                        "//third-party/rust:async-executor-1.14.0",
+                        "//third-party/rust:async-io-2.6.0",
+                        "//third-party/rust:async-lock-3.4.2",
                         "//third-party/rust:bytemuck-1.25.0",
                         "//third-party/rust:directories-next-2.0.0",
                         "//third-party/rust:futures-util-0.3.32",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:libc-0.2.186",
                         "//third-party/rust:pollster-0.4.0",
+                        "//third-party/rust:pulseaudio-0.3.1",
                         "//third-party/rust:rodio-0.20.1",
                         "//third-party/rust:rusqlite-0.32.1",
                         "//third-party/rust:serde-1.0.228",
@@ -5487,6 +6449,7 @@ crates = {
                         "//third-party/rust:wgpu-29.0.3",
                         "//third-party/rust:winit-0.30.13",
                         "//third-party/rust:wry-0.55.1",
+                        "//third-party/rust:zbus-5.18.0",
                     ],
                 },
                 "deps": [
@@ -5506,16 +6469,21 @@ crates = {
                     "//crates/beui:beui",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-wasm-host:block-wasm-host",
+                    "//crates/build-id:build-id",
                     "//crates/reactive:reactive",
+                    "//crates/sqlite-schema:sqlite-schema",
                     "//crates/wasi-threads:wasi-threads",
-                    "//third-party/rust:arboard-3.6.1",
                     "//third-party/rust:ashpd-0.11.1",
+                    "//third-party/rust:async-executor-1.14.0",
+                    "//third-party/rust:async-io-2.6.0",
+                    "//third-party/rust:async-lock-3.4.2",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:directories-next-2.0.0",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:libc-0.2.186",
                     "//third-party/rust:pollster-0.4.0",
+                    "//third-party/rust:pulseaudio-0.3.1",
                     "//third-party/rust:rodio-0.20.1",
                     "//third-party/rust:rusqlite-0.32.1",
                     "//third-party/rust:serde-1.0.228",
@@ -5526,6 +6494,7 @@ crates = {
                     "//third-party/rust:wgpu-29.0.3",
                     "//third-party/rust:winit-0.30.13",
                     "//third-party/rust:wry-0.55.1",
+                    "//third-party/rust:zbus-5.18.0",
                 ],
                 "examples": {},
                 "features": [
@@ -5561,16 +6530,21 @@ crates = {
                         "//crates/beui:beui",
                         "//crates/block-plugin-api:block-plugin-api",
                         "//crates/block-wasm-host:block-wasm-host",
+                        "//crates/build-id:build-id",
                         "//crates/reactive:reactive",
+                        "//crates/sqlite-schema:sqlite-schema",
                         "//crates/wasi-threads:wasi-threads",
-                        "//third-party/rust:arboard-3.6.1",
                         "//third-party/rust:ashpd-0.11.1",
+                        "//third-party/rust:async-executor-1.14.0",
+                        "//third-party/rust:async-io-2.6.0",
+                        "//third-party/rust:async-lock-3.4.2",
                         "//third-party/rust:bytemuck-1.25.0",
                         "//third-party/rust:directories-next-2.0.0",
                         "//third-party/rust:futures-util-0.3.32",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:libc-0.2.186",
                         "//third-party/rust:pollster-0.4.0",
+                        "//third-party/rust:pulseaudio-0.3.1",
                         "//third-party/rust:rodio-0.20.1",
                         "//third-party/rust:rusqlite-0.32.1",
                         "//third-party/rust:serde-1.0.228",
@@ -5581,6 +6555,7 @@ crates = {
                         "//third-party/rust:wgpu-29.0.3",
                         "//third-party/rust:winit-0.30.13",
                         "//third-party/rust:wry-0.55.1",
+                        "//third-party/rust:zbus-5.18.0",
                     ],
                 },
                 "deps": [
@@ -5600,16 +6575,21 @@ crates = {
                     "//crates/beui:beui",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-wasm-host:block-wasm-host",
+                    "//crates/build-id:build-id",
                     "//crates/reactive:reactive",
+                    "//crates/sqlite-schema:sqlite-schema",
                     "//crates/wasi-threads:wasi-threads",
-                    "//third-party/rust:arboard-3.6.1",
                     "//third-party/rust:ashpd-0.11.1",
+                    "//third-party/rust:async-executor-1.14.0",
+                    "//third-party/rust:async-io-2.6.0",
+                    "//third-party/rust:async-lock-3.4.2",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:directories-next-2.0.0",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:libc-0.2.186",
                     "//third-party/rust:pollster-0.4.0",
+                    "//third-party/rust:pulseaudio-0.3.1",
                     "//third-party/rust:rodio-0.20.1",
                     "//third-party/rust:rusqlite-0.32.1",
                     "//third-party/rust:serde-1.0.228",
@@ -5620,6 +6600,7 @@ crates = {
                     "//third-party/rust:wgpu-29.0.3",
                     "//third-party/rust:winit-0.30.13",
                     "//third-party/rust:wry-0.55.1",
+                    "//third-party/rust:zbus-5.18.0",
                 ],
                 "examples": {},
                 "features": [
@@ -5652,9 +6633,10 @@ crates = {
                         "//crates/beui:beui",
                         "//crates/block-plugin-api:block-plugin-api",
                         "//crates/block-wasm-host:block-wasm-host",
+                        "//crates/build-id:build-id",
                         "//crates/reactive:reactive",
+                        "//crates/sqlite-schema:sqlite-schema",
                         "//crates/wasi-threads:wasi-threads",
-                        "//third-party/rust:arboard-3.6.1",
                         "//third-party/rust:bytemuck-1.25.0",
                         "//third-party/rust:directories-next-2.0.0",
                         "//third-party/rust:futures-util-0.3.32",
@@ -5688,9 +6670,10 @@ crates = {
                     "//crates/beui:beui",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-wasm-host:block-wasm-host",
+                    "//crates/build-id:build-id",
                     "//crates/reactive:reactive",
+                    "//crates/sqlite-schema:sqlite-schema",
                     "//crates/wasi-threads:wasi-threads",
-                    "//third-party/rust:arboard-3.6.1",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:directories-next-2.0.0",
                     "//third-party/rust:futures-util-0.3.32",
@@ -5740,9 +6723,10 @@ crates = {
                         "//crates/beui:beui",
                         "//crates/block-plugin-api:block-plugin-api",
                         "//crates/block-wasm-host:block-wasm-host",
+                        "//crates/build-id:build-id",
                         "//crates/reactive:reactive",
+                        "//crates/sqlite-schema:sqlite-schema",
                         "//crates/wasi-threads:wasi-threads",
-                        "//third-party/rust:arboard-3.6.1",
                         "//third-party/rust:bytemuck-1.25.0",
                         "//third-party/rust:directories-next-2.0.0",
                         "//third-party/rust:futures-util-0.3.32",
@@ -5776,9 +6760,10 @@ crates = {
                     "//crates/beui:beui",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-wasm-host:block-wasm-host",
+                    "//crates/build-id:build-id",
                     "//crates/reactive:reactive",
+                    "//crates/sqlite-schema:sqlite-schema",
                     "//crates/wasi-threads:wasi-threads",
-                    "//third-party/rust:arboard-3.6.1",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:directories-next-2.0.0",
                     "//third-party/rust:futures-util-0.3.32",
@@ -5826,6 +6811,7 @@ crates = {
                     "//crates/beui-plugin-input:beui-plugin-input",
                     "//crates/beui:beui",
                     "//crates/block-plugin-api:block-plugin-api",
+                    "//crates/build-id:build-id",
                     "//crates/reactive:reactive",
                     "//crates/wasi-threads:wasi-threads",
                     "//third-party/rust:bytemuck-1.25.0",
@@ -5866,9 +6852,10 @@ crates = {
                         "//crates/beui:beui",
                         "//crates/block-plugin-api:block-plugin-api",
                         "//crates/block-wasm-host:block-wasm-host",
+                        "//crates/build-id:build-id",
                         "//crates/reactive:reactive",
+                        "//crates/sqlite-schema:sqlite-schema",
                         "//crates/wasi-threads:wasi-threads",
-                        "//third-party/rust:arboard-3.6.1",
                         "//third-party/rust:bytemuck-1.25.0",
                         "//third-party/rust:directories-next-2.0.0",
                         "//third-party/rust:futures-util-0.3.32",
@@ -5883,7 +6870,6 @@ crates = {
                         "//third-party/rust:ureq-2.12.1",
                         "//third-party/rust:uuid-1.23.2",
                         "//third-party/rust:wgpu-29.0.3",
-                        "//third-party/rust:windows-sys-0.59.0",
                         "//third-party/rust:winit-0.30.13",
                         "//third-party/rust:wry-0.55.1",
                     ],
@@ -5902,9 +6888,10 @@ crates = {
                     "//crates/beui:beui",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-wasm-host:block-wasm-host",
+                    "//crates/build-id:build-id",
                     "//crates/reactive:reactive",
+                    "//crates/sqlite-schema:sqlite-schema",
                     "//crates/wasi-threads:wasi-threads",
-                    "//third-party/rust:arboard-3.6.1",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:directories-next-2.0.0",
                     "//third-party/rust:futures-util-0.3.32",
@@ -5919,7 +6906,6 @@ crates = {
                     "//third-party/rust:ureq-2.12.1",
                     "//third-party/rust:uuid-1.23.2",
                     "//third-party/rust:wgpu-29.0.3",
-                    "//third-party/rust:windows-sys-0.59.0",
                     "//third-party/rust:winit-0.30.13",
                     "//third-party/rust:wry-0.55.1",
                 ],
@@ -5954,9 +6940,10 @@ crates = {
                         "//crates/beui:beui",
                         "//crates/block-plugin-api:block-plugin-api",
                         "//crates/block-wasm-host:block-wasm-host",
+                        "//crates/build-id:build-id",
                         "//crates/reactive:reactive",
+                        "//crates/sqlite-schema:sqlite-schema",
                         "//crates/wasi-threads:wasi-threads",
-                        "//third-party/rust:arboard-3.6.1",
                         "//third-party/rust:bytemuck-1.25.0",
                         "//third-party/rust:directories-next-2.0.0",
                         "//third-party/rust:futures-util-0.3.32",
@@ -5971,7 +6958,6 @@ crates = {
                         "//third-party/rust:ureq-2.12.1",
                         "//third-party/rust:uuid-1.23.2",
                         "//third-party/rust:wgpu-29.0.3",
-                        "//third-party/rust:windows-sys-0.59.0",
                         "//third-party/rust:winit-0.30.13",
                         "//third-party/rust:wry-0.55.1",
                     ],
@@ -5990,9 +6976,10 @@ crates = {
                     "//crates/beui:beui",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-wasm-host:block-wasm-host",
+                    "//crates/build-id:build-id",
                     "//crates/reactive:reactive",
+                    "//crates/sqlite-schema:sqlite-schema",
                     "//crates/wasi-threads:wasi-threads",
-                    "//third-party/rust:arboard-3.6.1",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:directories-next-2.0.0",
                     "//third-party/rust:futures-util-0.3.32",
@@ -6007,7 +6994,6 @@ crates = {
                     "//third-party/rust:ureq-2.12.1",
                     "//third-party/rust:uuid-1.23.2",
                     "//third-party/rust:wgpu-29.0.3",
-                    "//third-party/rust:windows-sys-0.59.0",
                     "//third-party/rust:winit-0.30.13",
                     "//third-party/rust:wry-0.55.1",
                 ],
@@ -6140,7 +7126,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
                 "test_features": [],
             },
             "windows-arm64": {
@@ -6680,7 +7668,9 @@ crates = {
                 "deps": [
                     "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/block-gpu-host:block-gpu-host",
+                    "//crates/wasm-dylink:wasm-dylink",
                     "//third-party/rust:js-sys-0.3.99",
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:wasm-bindgen-0.2.122",
                     "//third-party/rust:wasm-bindgen-futures-0.4.72",
                     "//third-party/rust:web-sys-0.3.99",
@@ -6824,6 +7814,126 @@ crates = {
                     "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/block-plugin-sdk": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "block_plugin_sdk",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "block-plugin-sdk",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -7227,7 +8337,9 @@ crates = {
                     "precompile": [
                         "//crates/block-gpu-abi:block-gpu-abi",
                         "//crates/block-gpu-host:block-gpu-host",
+                        "//crates/wasm-dylink:wasm-dylink",
                         "//third-party/rust:bytes-1.11.1",
+                        "//third-party/rust:rustc-demangle-0.1.28",
                         "//third-party/rust:tokio-1.52.3",
                         "//third-party/rust:wasmtime-48.0.1",
                         "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -7237,7 +8349,9 @@ crates = {
                 "deps": [
                     "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/block-gpu-host:block-gpu-host",
+                    "//crates/wasm-dylink:wasm-dylink",
                     "//third-party/rust:bytes-1.11.1",
+                    "//third-party/rust:rustc-demangle-0.1.28",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:wasmtime-48.0.1",
                     "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -7249,7 +8363,10 @@ crates = {
                             "//crates/block-gpu-abi:block-gpu-abi",
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-plugin-api:block-plugin-api",
+                            "//crates/wasm-dylink:wasm-dylink",
                             "//third-party/rust:bytes-1.11.1",
+                            "//third-party/rust:rustc-demangle-0.1.28",
+                            "//third-party/rust:sha2-0.10.9",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:wasmtime-48.0.1",
                             "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -7261,6 +8378,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-plugin-api:block-plugin-api",
+                    "//third-party/rust:sha2-0.10.9",
                 ],
                 "test_features": [],
             },
@@ -7269,7 +8387,9 @@ crates = {
                     "precompile": [
                         "//crates/block-gpu-abi:block-gpu-abi",
                         "//crates/block-gpu-host:block-gpu-host",
+                        "//crates/wasm-dylink:wasm-dylink",
                         "//third-party/rust:bytes-1.11.1",
+                        "//third-party/rust:rustc-demangle-0.1.28",
                         "//third-party/rust:tokio-1.52.3",
                         "//third-party/rust:wasmtime-48.0.1",
                         "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -7279,7 +8399,9 @@ crates = {
                 "deps": [
                     "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/block-gpu-host:block-gpu-host",
+                    "//crates/wasm-dylink:wasm-dylink",
                     "//third-party/rust:bytes-1.11.1",
+                    "//third-party/rust:rustc-demangle-0.1.28",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:wasmtime-48.0.1",
                     "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -7291,7 +8413,10 @@ crates = {
                             "//crates/block-gpu-abi:block-gpu-abi",
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-plugin-api:block-plugin-api",
+                            "//crates/wasm-dylink:wasm-dylink",
                             "//third-party/rust:bytes-1.11.1",
+                            "//third-party/rust:rustc-demangle-0.1.28",
+                            "//third-party/rust:sha2-0.10.9",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:wasmtime-48.0.1",
                             "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -7303,6 +8428,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-plugin-api:block-plugin-api",
+                    "//third-party/rust:sha2-0.10.9",
                 ],
                 "test_features": [],
             },
@@ -7311,7 +8437,9 @@ crates = {
                     "precompile": [
                         "//crates/block-gpu-abi:block-gpu-abi",
                         "//crates/block-gpu-host:block-gpu-host",
+                        "//crates/wasm-dylink:wasm-dylink",
                         "//third-party/rust:bytes-1.11.1",
+                        "//third-party/rust:rustc-demangle-0.1.28",
                         "//third-party/rust:tokio-1.52.3",
                         "//third-party/rust:wasmtime-48.0.1",
                         "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -7321,7 +8449,9 @@ crates = {
                 "deps": [
                     "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/block-gpu-host:block-gpu-host",
+                    "//crates/wasm-dylink:wasm-dylink",
                     "//third-party/rust:bytes-1.11.1",
+                    "//third-party/rust:rustc-demangle-0.1.28",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:wasmtime-48.0.1",
                     "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -7333,7 +8463,10 @@ crates = {
                             "//crates/block-gpu-abi:block-gpu-abi",
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-plugin-api:block-plugin-api",
+                            "//crates/wasm-dylink:wasm-dylink",
                             "//third-party/rust:bytes-1.11.1",
+                            "//third-party/rust:rustc-demangle-0.1.28",
+                            "//third-party/rust:sha2-0.10.9",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:wasmtime-48.0.1",
                             "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -7345,6 +8478,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-plugin-api:block-plugin-api",
+                    "//third-party/rust:sha2-0.10.9",
                 ],
                 "test_features": [],
             },
@@ -7353,7 +8487,9 @@ crates = {
                     "precompile": [
                         "//crates/block-gpu-abi:block-gpu-abi",
                         "//crates/block-gpu-host:block-gpu-host",
+                        "//crates/wasm-dylink:wasm-dylink",
                         "//third-party/rust:bytes-1.11.1",
+                        "//third-party/rust:rustc-demangle-0.1.28",
                         "//third-party/rust:tokio-1.52.3",
                         "//third-party/rust:wasmtime-48.0.1",
                         "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -7363,7 +8499,9 @@ crates = {
                 "deps": [
                     "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/block-gpu-host:block-gpu-host",
+                    "//crates/wasm-dylink:wasm-dylink",
                     "//third-party/rust:bytes-1.11.1",
+                    "//third-party/rust:rustc-demangle-0.1.28",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:wasmtime-48.0.1",
                     "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -7375,7 +8513,10 @@ crates = {
                             "//crates/block-gpu-abi:block-gpu-abi",
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-plugin-api:block-plugin-api",
+                            "//crates/wasm-dylink:wasm-dylink",
                             "//third-party/rust:bytes-1.11.1",
+                            "//third-party/rust:rustc-demangle-0.1.28",
+                            "//third-party/rust:sha2-0.10.9",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:wasmtime-48.0.1",
                             "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -7387,6 +8528,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-plugin-api:block-plugin-api",
+                    "//third-party/rust:sha2-0.10.9",
                 ],
                 "test_features": [],
             },
@@ -7395,7 +8537,9 @@ crates = {
                     "precompile": [
                         "//crates/block-gpu-abi:block-gpu-abi",
                         "//crates/block-gpu-host:block-gpu-host",
+                        "//crates/wasm-dylink:wasm-dylink",
                         "//third-party/rust:bytes-1.11.1",
+                        "//third-party/rust:rustc-demangle-0.1.28",
                         "//third-party/rust:tokio-1.52.3",
                         "//third-party/rust:wasmtime-48.0.1",
                         "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -7405,7 +8549,9 @@ crates = {
                 "deps": [
                     "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/block-gpu-host:block-gpu-host",
+                    "//crates/wasm-dylink:wasm-dylink",
                     "//third-party/rust:bytes-1.11.1",
+                    "//third-party/rust:rustc-demangle-0.1.28",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:wasmtime-48.0.1",
                     "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -7417,7 +8563,10 @@ crates = {
                             "//crates/block-gpu-abi:block-gpu-abi",
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-plugin-api:block-plugin-api",
+                            "//crates/wasm-dylink:wasm-dylink",
                             "//third-party/rust:bytes-1.11.1",
+                            "//third-party/rust:rustc-demangle-0.1.28",
+                            "//third-party/rust:sha2-0.10.9",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:wasmtime-48.0.1",
                             "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -7429,6 +8578,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-plugin-api:block-plugin-api",
+                    "//third-party/rust:sha2-0.10.9",
                 ],
                 "test_features": [],
             },
@@ -7437,7 +8587,9 @@ crates = {
                     "precompile": [
                         "//crates/block-gpu-abi:block-gpu-abi",
                         "//crates/block-gpu-host:block-gpu-host",
+                        "//crates/wasm-dylink:wasm-dylink",
                         "//third-party/rust:bytes-1.11.1",
+                        "//third-party/rust:rustc-demangle-0.1.28",
                         "//third-party/rust:tokio-1.52.3",
                         "//third-party/rust:wasmtime-48.0.1",
                         "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -7447,7 +8599,9 @@ crates = {
                 "deps": [
                     "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/block-gpu-host:block-gpu-host",
+                    "//crates/wasm-dylink:wasm-dylink",
                     "//third-party/rust:bytes-1.11.1",
+                    "//third-party/rust:rustc-demangle-0.1.28",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:wasmtime-48.0.1",
                     "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -7459,7 +8613,10 @@ crates = {
                             "//crates/block-gpu-abi:block-gpu-abi",
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-plugin-api:block-plugin-api",
+                            "//crates/wasm-dylink:wasm-dylink",
                             "//third-party/rust:bytes-1.11.1",
+                            "//third-party/rust:rustc-demangle-0.1.28",
+                            "//third-party/rust:sha2-0.10.9",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:wasmtime-48.0.1",
                             "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -7471,6 +8628,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-plugin-api:block-plugin-api",
+                    "//third-party/rust:sha2-0.10.9",
                 ],
                 "test_features": [],
             },
@@ -7479,7 +8637,9 @@ crates = {
                     "precompile": [
                         "//crates/block-gpu-abi:block-gpu-abi",
                         "//crates/block-gpu-host:block-gpu-host",
+                        "//crates/wasm-dylink:wasm-dylink",
                         "//third-party/rust:bytes-1.11.1",
+                        "//third-party/rust:rustc-demangle-0.1.28",
                         "//third-party/rust:tokio-1.52.3",
                         "//third-party/rust:wasmtime-48.0.1",
                         "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -7489,7 +8649,9 @@ crates = {
                 "deps": [
                     "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/block-gpu-host:block-gpu-host",
+                    "//crates/wasm-dylink:wasm-dylink",
                     "//third-party/rust:bytes-1.11.1",
+                    "//third-party/rust:rustc-demangle-0.1.28",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:wasmtime-48.0.1",
                     "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -7501,7 +8663,10 @@ crates = {
                             "//crates/block-gpu-abi:block-gpu-abi",
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-plugin-api:block-plugin-api",
+                            "//crates/wasm-dylink:wasm-dylink",
                             "//third-party/rust:bytes-1.11.1",
+                            "//third-party/rust:rustc-demangle-0.1.28",
+                            "//third-party/rust:sha2-0.10.9",
                             "//third-party/rust:tokio-1.52.3",
                             "//third-party/rust:wasmtime-48.0.1",
                             "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -7513,6 +8678,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-plugin-api:block-plugin-api",
+                    "//third-party/rust:sha2-0.10.9",
                 ],
                 "test_features": [],
             },
@@ -7671,6 +8837,85 @@ crates = {
                     "//third-party/rust:toml-0.9.12+spec-1.1.0",
                     "//third-party/rust:zip-8.6.0",
                 ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/build-id": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "build_id",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "build-id",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -7976,6 +9221,35 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/editors/display-settings": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "display_settings",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "display_settings",
+        "platforms": {
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/editors/file-tree": {
         "binaries": [],
         "edition": "2024",
@@ -8054,6 +9328,35 @@ crates = {
                     "//crates/block-editor-beui:block-editor-beui",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/editors/input-settings": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "input_settings",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "input_settings",
+        "platforms": {
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
@@ -8427,6 +9730,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-ui-test:block-ui-test",
+                    "//third-party/rust:serde_json-1.0.150",
                 ],
                 "test_features": [],
             },
@@ -8895,6 +10199,118 @@ crates = {
                 "test_deps": [
                     "//third-party/rust:serde_json-1.0.150",
                 ],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/local-tools": {
+        "binaries": [
+            {
+                "crate_root": "src/main.rs",
+                "name": "local-tools",
+            },
+        ],
+        "edition": "2024",
+        "examples": [],
+        "library": None,
+        "name": "local-tools",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {
+                    "local-tools": [
+                        "//third-party/rust:libc-0.2.186",
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:ureq-2.12.1",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {
+                    "local-tools": [
+                        "//third-party/rust:libc-0.2.186",
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:ureq-2.12.1",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {
+                    "local-tools": [
+                        "//third-party/rust:libc-0.2.186",
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:ureq-2.12.1",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {
+                    "local-tools": [
+                        "//third-party/rust:libc-0.2.186",
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:ureq-2.12.1",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {
+                    "local-tools": [
+                        "//third-party/rust:libc-0.2.186",
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:ureq-2.12.1",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {
+                    "local-tools": [
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:ureq-2.12.1",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {
+                    "local-tools": [
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:ureq-2.12.1",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
                 "test_features": [],
             },
         },
@@ -9790,6 +11206,210 @@ crates = {
                     "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/sequence": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "sequence",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "sequence",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:postcard-1.1.3",
+                ],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:postcard-1.1.3",
+                ],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:postcard-1.1.3",
+                ],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:postcard-1.1.3",
+                ],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:postcard-1.1.3",
+                ],
+                "test_features": [],
+            },
+            "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:postcard-1.1.3",
+                ],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:postcard-1.1.3",
+                ],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/sqlite-schema": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "sqlite_schema",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "sqlite-schema",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:rusqlite-0.32.1",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:rusqlite-0.32.1",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:rusqlite-0.32.1",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:rusqlite-0.32.1",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:rusqlite-0.32.1",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:rusqlite-0.32.1",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:rusqlite-0.32.1",
                 ],
                 "examples": {},
                 "features": [],
@@ -10921,6 +12541,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:similar-3.1.1",
@@ -10929,7 +12550,6 @@ crates = {
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
                     "//third-party/rust:unicode-segmentation-1.13.3",
-                    "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
                 "features": [],
@@ -10939,6 +12559,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:similar-3.1.1",
@@ -10947,7 +12568,6 @@ crates = {
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
                     "//third-party/rust:unicode-segmentation-1.13.3",
-                    "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
                 "features": [],
@@ -10957,6 +12577,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:similar-3.1.1",
@@ -10965,7 +12586,6 @@ crates = {
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
                     "//third-party/rust:unicode-segmentation-1.13.3",
-                    "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
                 "features": [],
@@ -10975,6 +12595,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:similar-3.1.1",
@@ -10983,7 +12604,6 @@ crates = {
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
                     "//third-party/rust:unicode-segmentation-1.13.3",
-                    "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
                 "features": [],
@@ -10993,6 +12613,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:similar-3.1.1",
@@ -11001,7 +12622,6 @@ crates = {
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
                     "//third-party/rust:unicode-segmentation-1.13.3",
-                    "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
                 "features": [],
@@ -11011,6 +12631,7 @@ crates = {
             "wasi": {
                 "binaries": {},
                 "deps": [
+                    "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:similar-3.1.1",
@@ -11019,7 +12640,6 @@ crates = {
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
                     "//third-party/rust:unicode-segmentation-1.13.3",
-                    "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
                 "features": [],
@@ -11029,6 +12649,7 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
+                    "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:similar-3.1.1",
@@ -11037,7 +12658,6 @@ crates = {
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
                     "//third-party/rust:unicode-segmentation-1.13.3",
-                    "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
                 "features": [],
@@ -11047,6 +12667,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:similar-3.1.1",
@@ -11055,7 +12676,6 @@ crates = {
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
                     "//third-party/rust:unicode-segmentation-1.13.3",
-                    "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
                 "features": [],
@@ -11065,6 +12685,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:similar-3.1.1",
@@ -11073,7 +12694,6 @@ crates = {
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
                     "//third-party/rust:unicode-segmentation-1.13.3",
-                    "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},
                 "features": [],
@@ -11162,6 +12782,241 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/wasm-dylink": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "wasm_dylink",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "wasm-dylink",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasm32": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/wasm-link": {
+        "binaries": [
+            {
+                "crate_root": "src/main.rs",
+                "name": "wasm-link",
+            },
+        ],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "wasm_link",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "wasm-link",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {
+                    "wasm-link": [
+                        "//crates/wasm-dylink:wasm-dylink",
+                        "//third-party/rust:sha2-0.10.9",
+                    ],
+                },
+                "deps": [
+                    "//crates/wasm-dylink:wasm-dylink",
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {
+                    "wasm-link": [
+                        "//crates/wasm-dylink:wasm-dylink",
+                        "//third-party/rust:sha2-0.10.9",
+                    ],
+                },
+                "deps": [
+                    "//crates/wasm-dylink:wasm-dylink",
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {
+                    "wasm-link": [
+                        "//crates/wasm-dylink:wasm-dylink",
+                        "//third-party/rust:sha2-0.10.9",
+                    ],
+                },
+                "deps": [
+                    "//crates/wasm-dylink:wasm-dylink",
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {
+                    "wasm-link": [
+                        "//crates/wasm-dylink:wasm-dylink",
+                        "//third-party/rust:sha2-0.10.9",
+                    ],
+                },
+                "deps": [
+                    "//crates/wasm-dylink:wasm-dylink",
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {
+                    "wasm-link": [
+                        "//crates/wasm-dylink:wasm-dylink",
+                        "//third-party/rust:sha2-0.10.9",
+                    ],
+                },
+                "deps": [
+                    "//crates/wasm-dylink:wasm-dylink",
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {
+                    "wasm-link": [
+                        "//crates/wasm-dylink:wasm-dylink",
+                        "//third-party/rust:sha2-0.10.9",
+                    ],
+                },
+                "deps": [
+                    "//crates/wasm-dylink:wasm-dylink",
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {
+                    "wasm-link": [
+                        "//crates/wasm-dylink:wasm-dylink",
+                        "//third-party/rust:sha2-0.10.9",
+                    ],
+                },
+                "deps": [
+                    "//crates/wasm-dylink:wasm-dylink",
+                    "//third-party/rust:sha2-0.10.9",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -12582,7 +14437,6 @@ third_party = {
                 ],
                 "features": [
                     "core-graphics",
-                    "default",
                     "image",
                     "image-data",
                     "windows-sys",
@@ -12598,7 +14452,6 @@ third_party = {
                 ],
                 "features": [
                     "core-graphics",
-                    "default",
                     "image",
                     "image-data",
                     "windows-sys",
@@ -12615,7 +14468,6 @@ third_party = {
                 ],
                 "features": [
                     "core-graphics",
-                    "default",
                     "image",
                     "image-data",
                     "windows-sys",
@@ -12632,7 +14484,6 @@ third_party = {
                 ],
                 "features": [
                     "core-graphics",
-                    "default",
                     "image",
                     "image-data",
                     "windows-sys",
@@ -12647,7 +14498,6 @@ third_party = {
                 ],
                 "features": [
                     "core-graphics",
-                    "default",
                     "image",
                     "image-data",
                     "windows-sys",
@@ -12662,7 +14512,6 @@ third_party = {
                 ],
                 "features": [
                     "core-graphics",
-                    "default",
                     "image",
                     "image-data",
                     "windows-sys",
@@ -12813,8 +14662,13 @@ third_party = {
         },
         "name": "arrayref",
         "platforms": {
+            "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
+            "macos-arm64": {},
+            "macos-x86_64": {},
+            "windows-arm64": {},
+            "windows-x86_64": {},
         },
         "profile_flags": [
             "-Cdebuginfo=0",
@@ -14810,6 +16664,11 @@ third_party = {
                     ":generic-array-0.14.7",
                 ],
             },
+            "wasm32": {
+                "deps": [
+                    ":generic-array-0.14.7",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":generic-array-0.14.7",
@@ -15078,6 +16937,7 @@ third_party = {
                     ":bytemuck_derive-1.10.2",
                 ],
                 "features": [
+                    "aarch64_simd",
                     "bytemuck_derive",
                     "derive",
                     "extern_crate_alloc",
@@ -15113,6 +16973,7 @@ third_party = {
                     ":bytemuck_derive-1.10.2",
                 ],
                 "features": [
+                    "aarch64_simd",
                     "bytemuck_derive",
                     "derive",
                     "extern_crate_alloc",
@@ -15124,6 +16985,7 @@ third_party = {
                     ":bytemuck_derive-1.10.2",
                 ],
                 "features": [
+                    "aarch64_simd",
                     "bytemuck_derive",
                     "derive",
                     "extern_crate_alloc",
@@ -15168,6 +17030,7 @@ third_party = {
                     ":bytemuck_derive-1.10.2",
                 ],
                 "features": [
+                    "aarch64_simd",
                     "bytemuck_derive",
                     "derive",
                     "extern_crate_alloc",
@@ -15179,6 +17042,7 @@ third_party = {
                     ":bytemuck_derive-1.10.2",
                 ],
                 "features": [
+                    "aarch64_simd",
                     "bytemuck_derive",
                     "derive",
                     "extern_crate_alloc",
@@ -16789,6 +18653,294 @@ third_party = {
         "size_bytes": 68485,
         "version": "0.10.1",
     },
+    "ciborium-0.2.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Nathaniel McCallum <npmccallum@profian.com>",
+            "CARGO_PKG_DESCRIPTION": "serde implementation of CBOR using ciborium-basic",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/enarx/ciborium",
+            "CARGO_PKG_LICENSE": "Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/enarx/ciborium",
+            "CARGO_PKG_RUST_VERSION": "1.58",
+        },
+        "library": {
+            "crate": "ciborium",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "ciborium",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":ciborium-ll-0.2.2",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":ciborium-ll-0.2.2",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":ciborium-ll-0.2.2",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":ciborium-ll-0.2.2",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":ciborium-ll-0.2.2",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":ciborium-ll-0.2.2",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":ciborium-ll-0.2.2",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":ciborium-ll-0.2.2",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":ciborium-ll-0.2.2",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "42e69ffd6f0917f5c029256a24d0161db17cea3997d185db0d35926308770f0e",
+        "size_bytes": 35611,
+        "version": "0.2.2",
+    },
+    "ciborium-io-0.2.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Nathaniel McCallum <npmccallum@profian.com>",
+            "CARGO_PKG_DESCRIPTION": "Simplified Read/Write traits for no_std usage",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/enarx/ciborium",
+            "CARGO_PKG_LICENSE": "Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/enarx/ciborium",
+            "CARGO_PKG_RUST_VERSION": "1.58",
+        },
+        "library": {
+            "crate": "ciborium_io",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "ciborium-io",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "05afea1e0a06c9be33d539b876f1ce3692f4afea2cb41f740e7743225ed1c757",
+        "size_bytes": 6697,
+        "version": "0.2.2",
+    },
+    "ciborium-ll-0.2.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Nathaniel McCallum <npmccallum@profian.com>",
+            "CARGO_PKG_DESCRIPTION": "Low-level CBOR codec primitives",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/enarx/ciborium",
+            "CARGO_PKG_LICENSE": "Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/enarx/ciborium",
+            "CARGO_PKG_RUST_VERSION": "1.58",
+        },
+        "library": {
+            "crate": "ciborium_ll",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "ciborium-ll",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":half-2.7.1",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":half-2.7.1",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":half-2.7.1",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":half-2.7.1",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":half-2.7.1",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":half-2.7.1",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":half-2.7.1",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":half-2.7.1",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":ciborium-io-0.2.2",
+                    ":half-2.7.1",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "57663b653d948a338bfb3eeba9bb2fd5fcfaecb9e199e87e1eda4d9e8b240fd9",
+        "size_bytes": 14695,
+        "version": "0.2.2",
+    },
     "cipher-0.4.4": {
         "build_script": None,
         "env": {
@@ -17970,6 +20122,97 @@ third_party = {
         "sha256": "873dab07c8f743075e57f524c583985fbaf745602acbe916a01539364369a779",
         "size_bytes": 100083,
         "version": "0.15.3",
+    },
+    "cpp_demangle-0.5.1": {
+        "build_script": {
+            "crate_root": "build.rs",
+            "edition": "2018",
+        },
+        "env": {
+            "CARGO_PKG_AUTHORS": "Nick Fitzgerald <fitzgen@gmail.com>:Jim Blandy <jimb@red-bean.com>:Kyle Huey <khuey@kylehuey.com>",
+            "CARGO_PKG_DESCRIPTION": "A crate for demangling C++ symbols",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/gimli-rs/cpp_demangle",
+        },
+        "library": {
+            "crate": "cpp_demangle",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "cpp_demangle",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "0667304c32ea56cb4cd6d2d7c0cfe9a2f8041229db8c033af7f8d69492429def",
+        "size_bytes": 83067,
+        "version": "0.5.1",
     },
     "cpufeatures-0.2.17": {
         "build_script": None,
@@ -19764,6 +22007,15 @@ third_party = {
                     "std",
                 ],
             },
+            "wasm32": {
+                "deps": [
+                    ":generic-array-0.14.7",
+                    ":typenum-1.20.1",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":generic-array-0.14.7",
@@ -20197,6 +22449,81 @@ third_party = {
         "size_bytes": 22677,
         "version": "2.11.0",
     },
+    "data-url-0.3.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Simon Sapin <simon.sapin@exyr.org>",
+            "CARGO_PKG_DESCRIPTION": "Processing of data: URL according to WHATWG’s Fetch Standard",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/servo/rust-url",
+            "CARGO_PKG_RUST_VERSION": "1.51",
+        },
+        "library": {
+            "crate": "data_url",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "data-url",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "be1e0bca6c3637f992fc1cc7cbc52a78c1ef6db076dbf1059c4323d6a2048376",
+        "size_bytes": 23862,
+        "version": "0.3.2",
+    },
     "deranged-0.5.8": {
         "build_script": None,
         "env": {
@@ -20367,6 +22694,19 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":block-buffer-0.10.4",
+                    ":crypto-common-0.1.7",
+                ],
+                "features": [
+                    "alloc",
+                    "block-buffer",
+                    "core-api",
+                    "default",
+                    "std",
+                ],
+            },
+            "wasm32": {
                 "deps": [
                     ":block-buffer-0.10.4",
                     ":crypto-common-0.1.7",
@@ -21590,6 +23930,12 @@ third_party = {
         },
         "name": "endi",
         "platforms": {
+            "android-arm64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
             "linux-arm64": {
                 "features": [
                     "default",
@@ -21597,6 +23943,30 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
                 "features": [
                     "default",
                     "std",
@@ -21635,6 +24005,40 @@ third_party = {
         "sha256": "b5320ae4c3782150d900b79807611a59a99fc9a1d61d686faafc24b93fc8d7ca",
         "size_bytes": 24795,
         "version": "1.0.1",
+    },
+    "enum-primitive-derive-0.3.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Doug Goldstein <cardoe@cardoe.com>",
+            "CARGO_PKG_DESCRIPTION": "enum_primitive implementation using procedural macros to have a custom derive",
+            "CARGO_PKG_HOMEPAGE": "https://gitlab.com/cardoe/enum-primitive-derive",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://gitlab.com/cardoe/enum-primitive-derive.git",
+            "CARGO_PKG_RUST_VERSION": "1.56",
+        },
+        "library": {
+            "crate": "enum_primitive_derive",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": True,
+        },
+        "name": "enum-primitive-derive",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                    ":quote-1.0.45",
+                    ":syn-2.0.117",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "ba7795da175654fe16979af73f81f26a8ea27638d8d9823d317016888a63dc4c",
+        "size_bytes": 4664,
+        "version": "0.3.0",
     },
     "enumflags2-0.7.12": {
         "build_script": None,
@@ -22487,48 +24891,60 @@ third_party = {
                 "deps": [
                     ":crc32fast-1.5.0",
                     ":miniz_oxide-0.8.9",
+                    ":zlib-rs-0.6.7",
                 ],
                 "features": [
                     "any_impl",
+                    "any_zlib",
                     "default",
                     "miniz_oxide",
                     "rust_backend",
+                    "zlib-rs",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
                     ":crc32fast-1.5.0",
                     ":miniz_oxide-0.8.9",
+                    ":zlib-rs-0.6.7",
                 ],
                 "features": [
                     "any_impl",
+                    "any_zlib",
                     "default",
                     "miniz_oxide",
                     "rust_backend",
+                    "zlib-rs",
                 ],
             },
             "macos-arm64": {
                 "deps": [
                     ":crc32fast-1.5.0",
                     ":miniz_oxide-0.8.9",
+                    ":zlib-rs-0.6.7",
                 ],
                 "features": [
                     "any_impl",
+                    "any_zlib",
                     "default",
                     "miniz_oxide",
                     "rust_backend",
+                    "zlib-rs",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
                     ":crc32fast-1.5.0",
                     ":miniz_oxide-0.8.9",
+                    ":zlib-rs-0.6.7",
                 ],
                 "features": [
                     "any_impl",
+                    "any_zlib",
                     "default",
                     "miniz_oxide",
                     "rust_backend",
+                    "zlib-rs",
                 ],
             },
             "wasi": {
@@ -22559,24 +24975,30 @@ third_party = {
                 "deps": [
                     ":crc32fast-1.5.0",
                     ":miniz_oxide-0.8.9",
+                    ":zlib-rs-0.6.7",
                 ],
                 "features": [
                     "any_impl",
+                    "any_zlib",
                     "default",
                     "miniz_oxide",
                     "rust_backend",
+                    "zlib-rs",
                 ],
             },
             "windows-x86_64": {
                 "deps": [
                     ":crc32fast-1.5.0",
                     ":miniz_oxide-0.8.9",
+                    ":zlib-rs-0.6.7",
                 ],
                 "features": [
                     "any_impl",
+                    "any_zlib",
                     "default",
                     "miniz_oxide",
                     "rust_backend",
+                    "zlib-rs",
                 ],
             },
         },
@@ -22586,6 +25008,66 @@ third_party = {
         "sha256": "843fba2746e448b37e26a819579957415c8cef339bf08564fe8b7ddbd959573c",
         "size_bytes": 82745,
         "version": "1.1.9",
+    },
+    "float-cmp-0.9.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Mike Dilger <mike@mikedilger.com>",
+            "CARGO_PKG_DESCRIPTION": "Floating point approximate comparison traits",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/mikedilger/float-cmp",
+        },
+        "library": {
+            "crate": "float_cmp",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "float-cmp",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4",
+        "size_bytes": 10102,
+        "version": "0.9.0",
     },
     "fnv-1.0.7": {
         "build_script": None,
@@ -23278,20 +25760,38 @@ third_party = {
                 "deps": [
                     ":futures-channel-0.3.32",
                     ":futures-core-0.3.32",
+                    ":futures-executor-0.3.32",
                     ":futures-io-0.3.33",
                     ":futures-sink-0.3.32",
                     ":futures-task-0.3.32",
                     ":futures-util-0.3.32",
+                ],
+                "features": [
+                    "alloc",
+                    "async-await",
+                    "default",
+                    "executor",
+                    "futures-executor",
+                    "std",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
                     ":futures-channel-0.3.32",
                     ":futures-core-0.3.32",
+                    ":futures-executor-0.3.32",
                     ":futures-io-0.3.33",
                     ":futures-sink-0.3.32",
                     ":futures-task-0.3.32",
                     ":futures-util-0.3.32",
+                ],
+                "features": [
+                    "alloc",
+                    "async-await",
+                    "default",
+                    "executor",
+                    "futures-executor",
+                    "std",
                 ],
             },
             "macos-arm64": {
@@ -23608,7 +26108,11 @@ third_party = {
         },
         "name": "futures-io",
         "platforms": {
-            "android-arm64": {},
+            "android-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
             "linux-arm64": {
                 "features": [
                     "default",
@@ -23621,10 +26125,31 @@ third_party = {
                     "std",
                 ],
             },
-            "macos-arm64": {},
-            "macos-x86_64": {},
-            "windows-arm64": {},
-            "windows-x86_64": {},
+            "macos-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "wasi": {
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
@@ -23747,8 +26272,18 @@ third_party = {
         "name": "futures-sink",
         "platforms": {
             "android-arm64": {},
-            "linux-arm64": {},
-            "linux-x86_64": {},
+            "linux-arm64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
             "macos-arm64": {},
             "macos-x86_64": {},
             "windows-arm64": {},
@@ -23868,27 +26403,6 @@ third_party = {
             "android-arm64": {
                 "deps": [
                     ":futures-core-0.3.32",
-                    ":futures-macro-0.3.32",
-                    ":futures-sink-0.3.32",
-                    ":futures-task-0.3.32",
-                    ":pin-project-lite-0.2.17",
-                    ":slab-0.4.12",
-                ],
-                "features": [
-                    "alloc",
-                    "async-await",
-                    "async-await-macro",
-                    "default",
-                    "futures-macro",
-                    "futures-sink",
-                    "sink",
-                    "slab",
-                    "std",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":futures-core-0.3.32",
                     ":futures-io-0.3.33",
                     ":futures-macro-0.3.32",
                     ":futures-sink-0.3.32",
@@ -23912,8 +26426,9 @@ third_party = {
                     "std",
                 ],
             },
-            "linux-x86_64": {
+            "linux-arm64": {
                 "deps": [
+                    ":futures-channel-0.3.32",
                     ":futures-core-0.3.32",
                     ":futures-io-0.3.33",
                     ":futures-macro-0.3.32",
@@ -23927,7 +26442,38 @@ third_party = {
                     "alloc",
                     "async-await",
                     "async-await-macro",
+                    "channel",
                     "default",
+                    "futures-channel",
+                    "futures-io",
+                    "futures-macro",
+                    "futures-sink",
+                    "io",
+                    "memchr",
+                    "sink",
+                    "slab",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":futures-channel-0.3.32",
+                    ":futures-core-0.3.32",
+                    ":futures-io-0.3.33",
+                    ":futures-macro-0.3.32",
+                    ":futures-sink-0.3.32",
+                    ":futures-task-0.3.32",
+                    ":memchr-2.8.1",
+                    ":pin-project-lite-0.2.17",
+                    ":slab-0.4.12",
+                ],
+                "features": [
+                    "alloc",
+                    "async-await",
+                    "async-await-macro",
+                    "channel",
+                    "default",
+                    "futures-channel",
                     "futures-io",
                     "futures-macro",
                     "futures-sink",
@@ -23941,9 +26487,11 @@ third_party = {
             "macos-arm64": {
                 "deps": [
                     ":futures-core-0.3.32",
+                    ":futures-io-0.3.33",
                     ":futures-macro-0.3.32",
                     ":futures-sink-0.3.32",
                     ":futures-task-0.3.32",
+                    ":memchr-2.8.1",
                     ":pin-project-lite-0.2.17",
                     ":slab-0.4.12",
                 ],
@@ -23952,8 +26500,11 @@ third_party = {
                     "async-await",
                     "async-await-macro",
                     "default",
+                    "futures-io",
                     "futures-macro",
                     "futures-sink",
+                    "io",
+                    "memchr",
                     "sink",
                     "slab",
                     "std",
@@ -23962,9 +26513,11 @@ third_party = {
             "macos-x86_64": {
                 "deps": [
                     ":futures-core-0.3.32",
+                    ":futures-io-0.3.33",
                     ":futures-macro-0.3.32",
                     ":futures-sink-0.3.32",
                     ":futures-task-0.3.32",
+                    ":memchr-2.8.1",
                     ":pin-project-lite-0.2.17",
                     ":slab-0.4.12",
                 ],
@@ -23973,8 +26526,11 @@ third_party = {
                     "async-await",
                     "async-await-macro",
                     "default",
+                    "futures-io",
                     "futures-macro",
                     "futures-sink",
+                    "io",
+                    "memchr",
                     "sink",
                     "slab",
                     "std",
@@ -23983,8 +26539,10 @@ third_party = {
             "wasi": {
                 "deps": [
                     ":futures-core-0.3.32",
+                    ":futures-io-0.3.33",
                     ":futures-macro-0.3.32",
                     ":futures-task-0.3.32",
+                    ":memchr-2.8.1",
                     ":pin-project-lite-0.2.17",
                     ":slab-0.4.12",
                 ],
@@ -23993,7 +26551,10 @@ third_party = {
                     "async-await",
                     "async-await-macro",
                     "default",
+                    "futures-io",
                     "futures-macro",
+                    "io",
+                    "memchr",
                     "slab",
                     "std",
                 ],
@@ -24027,9 +26588,11 @@ third_party = {
             "windows-arm64": {
                 "deps": [
                     ":futures-core-0.3.32",
+                    ":futures-io-0.3.33",
                     ":futures-macro-0.3.32",
                     ":futures-sink-0.3.32",
                     ":futures-task-0.3.32",
+                    ":memchr-2.8.1",
                     ":pin-project-lite-0.2.17",
                     ":slab-0.4.12",
                 ],
@@ -24038,8 +26601,11 @@ third_party = {
                     "async-await",
                     "async-await-macro",
                     "default",
+                    "futures-io",
                     "futures-macro",
                     "futures-sink",
+                    "io",
+                    "memchr",
                     "sink",
                     "slab",
                     "std",
@@ -24048,9 +26614,11 @@ third_party = {
             "windows-x86_64": {
                 "deps": [
                     ":futures-core-0.3.32",
+                    ":futures-io-0.3.33",
                     ":futures-macro-0.3.32",
                     ":futures-sink-0.3.32",
                     ":futures-task-0.3.32",
+                    ":memchr-2.8.1",
                     ":pin-project-lite-0.2.17",
                     ":slab-0.4.12",
                 ],
@@ -24059,8 +26627,11 @@ third_party = {
                     "async-await",
                     "async-await-macro",
                     "default",
+                    "futures-io",
                     "futures-macro",
                     "futures-sink",
+                    "io",
+                    "memchr",
                     "sink",
                     "slab",
                     "std",
@@ -24648,6 +27219,14 @@ third_party = {
                     "more_lengths",
                 ],
             },
+            "wasm32": {
+                "deps": [
+                    ":typenum-1.20.1",
+                ],
+                "features": [
+                    "more_lengths",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":typenum-1.20.1",
@@ -24691,6 +27270,11 @@ third_party = {
         },
         "name": "gethostname",
         "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":rustix-1.1.4",
+                ],
+            },
             "linux-arm64": {
                 "deps": [
                     ":rustix-1.1.4",
@@ -24699,6 +27283,26 @@ third_party = {
             "linux-x86_64": {
                 "deps": [
                     ":rustix-1.1.4",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":rustix-1.1.4",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":rustix-1.1.4",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":windows-link-0.2.1",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":windows-link-0.2.1",
                 ],
             },
         },
@@ -26217,6 +28821,101 @@ third_party = {
         "sha256": "52ff3c5b21f14f0736fed6dcfc0bfb4225ebf5725f3c0209edeec181e4d73e9d",
         "size_bytes": 5508,
         "version": "0.18.2",
+    },
+    "gvdb-0.10.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Implementation of the glib gvdb file format",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/felinira/gvdb-rs",
+            "CARGO_PKG_RUST_VERSION": "1.92",
+        },
+        "library": {
+            "crate": "gvdb",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "gvdb",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":serde-1.0.228",
+                    ":zerocopy-0.8.50",
+                    ":zvariant-5.13.1",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":serde-1.0.228",
+                    ":zerocopy-0.8.50",
+                    ":zvariant-5.13.1",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":serde-1.0.228",
+                    ":zerocopy-0.8.50",
+                    ":zvariant-5.13.1",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":serde-1.0.228",
+                    ":zerocopy-0.8.50",
+                    ":zvariant-5.13.1",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":serde-1.0.228",
+                    ":zerocopy-0.8.50",
+                    ":zvariant-5.13.1",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":serde-1.0.228",
+                    ":zerocopy-0.8.50",
+                    ":zvariant-5.13.1",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":serde-1.0.228",
+                    ":zerocopy-0.8.50",
+                    ":zvariant-5.13.1",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "c28284f834fe0083db924efe590a684fe81c661c6269fc536ae964ab01adc111",
+        "size_bytes": 57506,
+        "version": "0.10.1",
     },
     "half-2.7.1": {
         "build_script": None,
@@ -29015,6 +31714,255 @@ third_party = {
         "size_bytes": 68478,
         "version": "0.2.4",
     },
+    "imagesize-0.15.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Maid Dog <maiddogsrl@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Quick probing of image dimensions without loading the entire file.",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/Roughsketch/imagesize",
+        },
+        "library": {
+            "crate": "imagesize",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "imagesize",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "aesprite",
+                    "astc",
+                    "atc",
+                    "bmp",
+                    "dds",
+                    "default",
+                    "eac",
+                    "etc2",
+                    "exr",
+                    "farbfeld",
+                    "gif",
+                    "hdr",
+                    "heif",
+                    "ico",
+                    "ilbm",
+                    "jpeg",
+                    "jxl",
+                    "ktx2",
+                    "mod",
+                    "png",
+                    "pnm",
+                    "psd",
+                    "pvrtc",
+                    "qoi",
+                    "tga",
+                    "tiff",
+                    "vtf",
+                    "webp",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "aesprite",
+                    "astc",
+                    "atc",
+                    "bmp",
+                    "dds",
+                    "default",
+                    "eac",
+                    "etc2",
+                    "exr",
+                    "farbfeld",
+                    "gif",
+                    "hdr",
+                    "heif",
+                    "ico",
+                    "ilbm",
+                    "jpeg",
+                    "jxl",
+                    "ktx2",
+                    "mod",
+                    "png",
+                    "pnm",
+                    "psd",
+                    "pvrtc",
+                    "qoi",
+                    "tga",
+                    "tiff",
+                    "vtf",
+                    "webp",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "aesprite",
+                    "astc",
+                    "atc",
+                    "bmp",
+                    "dds",
+                    "default",
+                    "eac",
+                    "etc2",
+                    "exr",
+                    "farbfeld",
+                    "gif",
+                    "hdr",
+                    "heif",
+                    "ico",
+                    "ilbm",
+                    "jpeg",
+                    "jxl",
+                    "ktx2",
+                    "mod",
+                    "png",
+                    "pnm",
+                    "psd",
+                    "pvrtc",
+                    "qoi",
+                    "tga",
+                    "tiff",
+                    "vtf",
+                    "webp",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "aesprite",
+                    "astc",
+                    "atc",
+                    "bmp",
+                    "dds",
+                    "default",
+                    "eac",
+                    "etc2",
+                    "exr",
+                    "farbfeld",
+                    "gif",
+                    "hdr",
+                    "heif",
+                    "ico",
+                    "ilbm",
+                    "jpeg",
+                    "jxl",
+                    "ktx2",
+                    "mod",
+                    "png",
+                    "pnm",
+                    "psd",
+                    "pvrtc",
+                    "qoi",
+                    "tga",
+                    "tiff",
+                    "vtf",
+                    "webp",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "aesprite",
+                    "astc",
+                    "atc",
+                    "bmp",
+                    "dds",
+                    "default",
+                    "eac",
+                    "etc2",
+                    "exr",
+                    "farbfeld",
+                    "gif",
+                    "hdr",
+                    "heif",
+                    "ico",
+                    "ilbm",
+                    "jpeg",
+                    "jxl",
+                    "ktx2",
+                    "mod",
+                    "png",
+                    "pnm",
+                    "psd",
+                    "pvrtc",
+                    "qoi",
+                    "tga",
+                    "tiff",
+                    "vtf",
+                    "webp",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "aesprite",
+                    "astc",
+                    "atc",
+                    "bmp",
+                    "dds",
+                    "default",
+                    "eac",
+                    "etc2",
+                    "exr",
+                    "farbfeld",
+                    "gif",
+                    "hdr",
+                    "heif",
+                    "ico",
+                    "ilbm",
+                    "jpeg",
+                    "jxl",
+                    "ktx2",
+                    "mod",
+                    "png",
+                    "pnm",
+                    "psd",
+                    "pvrtc",
+                    "qoi",
+                    "tga",
+                    "tiff",
+                    "vtf",
+                    "webp",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "aesprite",
+                    "astc",
+                    "atc",
+                    "bmp",
+                    "dds",
+                    "default",
+                    "eac",
+                    "etc2",
+                    "exr",
+                    "farbfeld",
+                    "gif",
+                    "hdr",
+                    "heif",
+                    "ico",
+                    "ilbm",
+                    "jpeg",
+                    "jxl",
+                    "ktx2",
+                    "mod",
+                    "png",
+                    "pnm",
+                    "psd",
+                    "pvrtc",
+                    "qoi",
+                    "tga",
+                    "tiff",
+                    "vtf",
+                    "webp",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "65b27460c2c92b037f3f94c538ed9a3342f3fdf923606781629ccb35f82d042a",
+        "size_bytes": 29653,
+        "version": "0.15.0",
+    },
     "indexmap-2.14.0": {
         "build_script": None,
         "env": {
@@ -30034,6 +32982,7 @@ third_party = {
             "macos-x86_64": {},
             "wasi": {},
             "wasi-guest": {},
+            "wasm32": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -30678,6 +33627,108 @@ third_party = {
         "sha256": "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc",
         "size_bytes": 599718,
         "version": "3.1.0",
+    },
+    "kurbo-0.13.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "A 2D curves library",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/linebender/kurbo",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "kurbo",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "kurbo",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                    ":polycool-0.4.0",
+                    ":smallvec-1.15.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                    ":polycool-0.4.0",
+                    ":smallvec-1.15.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                    ":polycool-0.4.0",
+                    ":smallvec-1.15.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                    ":polycool-0.4.0",
+                    ":smallvec-1.15.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                    ":polycool-0.4.0",
+                    ":smallvec-1.15.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                    ":polycool-0.4.0",
+                    ":smallvec-1.15.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                    ":polycool-0.4.0",
+                    ":smallvec-1.15.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "4b60dfc32f652b926df6192e55525b16d186c69d47876c3ead4da5cc9f8450e2",
+        "size_bytes": 169000,
+        "version": "0.13.1",
     },
     "lazy_static-1.5.0": {
         "build_script": None,
@@ -31427,6 +34478,7 @@ third_party = {
                     "netlink",
                     "no_std",
                     "prctl",
+                    "system",
                     "xdp",
                 ],
             },
@@ -32034,6 +35086,12 @@ third_party = {
                     "std",
                 ],
             },
+            "wasm32": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
             "windows-arm64": {
                 "features": [
                     "alloc",
@@ -32406,8 +35464,11 @@ third_party = {
             "linux-arm64": {
                 "deps": [
                     ":libc-0.2.186",
+                    ":log-0.4.31",
                 ],
                 "features": [
+                    "default",
+                    "log",
                     "net",
                     "os-ext",
                     "os-poll",
@@ -32416,8 +35477,11 @@ third_party = {
             "linux-x86_64": {
                 "deps": [
                     ":libc-0.2.186",
+                    ":log-0.4.31",
                 ],
                 "features": [
+                    "default",
+                    "log",
                     "net",
                     "os-ext",
                     "os-poll",
@@ -36240,6 +39304,73 @@ third_party = {
         "size_bytes": 16141,
         "version": "0.13.1",
     },
+    "pico-args-0.5.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Yevhenii Reizner <razrfalcon@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "An ultra simple CLI arguments parser.",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RazrFalcon/pico-args",
+        },
+        "library": {
+            "crate": "pico_args",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "pico-args",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "default",
+                    "eq-separator",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "default",
+                    "eq-separator",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "default",
+                    "eq-separator",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "default",
+                    "eq-separator",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "default",
+                    "eq-separator",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "default",
+                    "eq-separator",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "default",
+                    "eq-separator",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "5be167a7af36ee22fe3115051bc51f6e6c7054c9348e28deb4f49bd6f705a315",
+        "size_bytes": 11545,
+        "version": "0.5.0",
+    },
     "pin-project-lite-0.2.17": {
         "build_script": None,
         "env": {
@@ -36648,6 +39779,86 @@ third_party = {
         "sha256": "8159bd90725d2df49889a078b54f4f79e87f1f8a8444194cdca81d38f5393abf",
         "size_bytes": 32633,
         "version": "0.8.0",
+    },
+    "polycool-0.4.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Polynomial root-finding",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/linebender/kurbo",
+        },
+        "library": {
+            "crate": "polycool",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "polycool",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":arrayvec-0.7.6",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "50596ddc09eb5ad5f75cacd40209568e66df71baf86e1499a0e99c4cff12a5a6",
+        "size_bytes": 22738,
+        "version": "0.4.0",
     },
     "portable-pty-0.9.0": {
         "build_script": None,
@@ -37380,6 +40591,15 @@ third_party = {
         },
         "name": "proc-macro2",
         "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":unicode-ident-1.0.24",
+                ],
+                "features": [
+                    "default",
+                    "proc-macro",
+                ],
+            },
             "linux-arm64": {
                 "deps": [
                     ":unicode-ident-1.0.24",
@@ -37390,6 +40610,42 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":unicode-ident-1.0.24",
+                ],
+                "features": [
+                    "default",
+                    "proc-macro",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":unicode-ident-1.0.24",
+                ],
+                "features": [
+                    "default",
+                    "proc-macro",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":unicode-ident-1.0.24",
+                ],
+                "features": [
+                    "default",
+                    "proc-macro",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":unicode-ident-1.0.24",
+                ],
+                "features": [
+                    "default",
+                    "proc-macro",
+                ],
+            },
+            "windows-x86_64": {
                 "deps": [
                     ":unicode-ident-1.0.24",
                 ],
@@ -37715,6 +40971,55 @@ third_party = {
         "size_bytes": 2345,
         "version": "48.0.1",
     },
+    "pulseaudio-0.3.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Colin Marc <hi@colinmarc.com>",
+            "CARGO_PKG_DESCRIPTION": "A native rust implementation of the PulseAudio protocol.",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/colinmarc/pulseaudio-rs",
+        },
+        "library": {
+            "crate": "pulseaudio",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "pulseaudio",
+        "platforms": {
+            "linux-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":byteorder-1.5.0",
+                    ":enum-primitive-derive-0.3.0",
+                    ":futures-0.3.32",
+                    ":log-0.4.31",
+                    ":mio-1.2.1",
+                    ":num-traits-0.2.19",
+                    ":thiserror-1.0.69",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":byteorder-1.5.0",
+                    ":enum-primitive-derive-0.3.0",
+                    ":futures-0.3.32",
+                    ":log-0.4.31",
+                    ":mio-1.2.1",
+                    ":num-traits-0.2.19",
+                    ":thiserror-1.0.69",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "d70623bd7967a9ca4c2ae0e807fc380b291f98480fc037042305ec643a4d3373",
+        "size_bytes": 781833,
+        "version": "0.3.1",
+    },
     "pxfm-0.1.29": {
         "build_script": None,
         "env": {
@@ -37838,6 +41143,15 @@ third_party = {
         },
         "name": "quote",
         "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                ],
+                "features": [
+                    "default",
+                    "proc-macro",
+                ],
+            },
             "linux-arm64": {
                 "deps": [
                     ":proc-macro2-1.0.106",
@@ -37848,6 +41162,42 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                ],
+                "features": [
+                    "default",
+                    "proc-macro",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                ],
+                "features": [
+                    "default",
+                    "proc-macro",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                ],
+                "features": [
+                    "default",
+                    "proc-macro",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                ],
+                "features": [
+                    "default",
+                    "proc-macro",
+                ],
+            },
+            "windows-x86_64": {
                 "deps": [
                     ":proc-macro2-1.0.106",
                 ],
@@ -40493,6 +43843,108 @@ third_party = {
         "size_bytes": 10366,
         "version": "1.1.0",
     },
+    "resvg-0.48.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "An SVG rendering library.",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/linebender/resvg",
+            "CARGO_PKG_RUST_VERSION": "1.85.0",
+        },
+        "library": {
+            "crate": "resvg",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "resvg",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":log-0.4.31",
+                    ":pico-args-0.5.0",
+                    ":rgb-0.8.53",
+                    ":svgtypes-0.16.1",
+                    ":tiny-skia-0.12.0",
+                    ":usvg-0.48.1",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":log-0.4.31",
+                    ":pico-args-0.5.0",
+                    ":rgb-0.8.53",
+                    ":svgtypes-0.16.1",
+                    ":tiny-skia-0.12.0",
+                    ":usvg-0.48.1",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":log-0.4.31",
+                    ":pico-args-0.5.0",
+                    ":rgb-0.8.53",
+                    ":svgtypes-0.16.1",
+                    ":tiny-skia-0.12.0",
+                    ":usvg-0.48.1",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":log-0.4.31",
+                    ":pico-args-0.5.0",
+                    ":rgb-0.8.53",
+                    ":svgtypes-0.16.1",
+                    ":tiny-skia-0.12.0",
+                    ":usvg-0.48.1",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":log-0.4.31",
+                    ":pico-args-0.5.0",
+                    ":rgb-0.8.53",
+                    ":svgtypes-0.16.1",
+                    ":tiny-skia-0.12.0",
+                    ":usvg-0.48.1",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":log-0.4.31",
+                    ":pico-args-0.5.0",
+                    ":rgb-0.8.53",
+                    ":svgtypes-0.16.1",
+                    ":tiny-skia-0.12.0",
+                    ":usvg-0.48.1",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":log-0.4.31",
+                    ":pico-args-0.5.0",
+                    ":rgb-0.8.53",
+                    ":svgtypes-0.16.1",
+                    ":tiny-skia-0.12.0",
+                    ":usvg-0.48.1",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "67e3803f97b999e80cbf7c6ecdd07a8102204d92e1633cf48783720c521196bd",
+        "size_bytes": 78696,
+        "version": "0.48.1",
+    },
     "rfd-0.15.4": {
         "build_script": {
             "crate_root": "build.rs",
@@ -40590,6 +44042,117 @@ third_party = {
         "sha256": "ef2bee61e6cffa4635c72d7d81a84294e28f0930db0ddcb0f66d10244674ebed",
         "size_bytes": 56785,
         "version": "0.15.4",
+    },
+    "rgb-0.8.53": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Kornel Lesiński <kornel@geekhood.net>:James Forster <james.forsterer@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "`struct RGB/RGBA/etc.` for sharing pixels between crates + convenience methods for color manipulation.\nAllows no-copy high-level interoperability. Also adds common convenience methods and implements standard Rust traits to make `RGB`/`RGBA` pixels and slices first-class Rust objects.",
+            "CARGO_PKG_HOMEPAGE": "https://lib.rs/crates/rgb",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/kornelski/rust-rgb",
+            "CARGO_PKG_RUST_VERSION": "1.64",
+        },
+        "library": {
+            "crate": "rgb",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "rgb",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "argb",
+                    "as-bytes",
+                    "bytemuck",
+                    "default",
+                    "grb",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "argb",
+                    "as-bytes",
+                    "bytemuck",
+                    "default",
+                    "grb",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "argb",
+                    "as-bytes",
+                    "bytemuck",
+                    "default",
+                    "grb",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "argb",
+                    "as-bytes",
+                    "bytemuck",
+                    "default",
+                    "grb",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "argb",
+                    "as-bytes",
+                    "bytemuck",
+                    "default",
+                    "grb",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "argb",
+                    "as-bytes",
+                    "bytemuck",
+                    "default",
+                    "grb",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "argb",
+                    "as-bytes",
+                    "bytemuck",
+                    "default",
+                    "grb",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "47b34b781b31e5d73e9fbc8689c70551fd1ade9a19e3e28cfec8580a79290cc4",
+        "size_bytes": 18607,
+        "version": "0.8.53",
     },
     "ring-0.17.14": {
         "build_script": {
@@ -40973,6 +44536,102 @@ third_party = {
         "size_bytes": 36120,
         "version": "0.17.0",
     },
+    "roxmltree-0.21.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Yevhenii Reizner <razrfalcon@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Represent an XML as a read-only tree.",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RazrFalcon/roxmltree",
+            "CARGO_PKG_RUST_VERSION": "1.60",
+        },
+        "library": {
+            "crate": "roxmltree",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "roxmltree",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":memchr-2.8.1",
+                ],
+                "features": [
+                    "default",
+                    "positions",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":memchr-2.8.1",
+                ],
+                "features": [
+                    "default",
+                    "positions",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":memchr-2.8.1",
+                ],
+                "features": [
+                    "default",
+                    "positions",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":memchr-2.8.1",
+                ],
+                "features": [
+                    "default",
+                    "positions",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":memchr-2.8.1",
+                ],
+                "features": [
+                    "default",
+                    "positions",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":memchr-2.8.1",
+                ],
+                "features": [
+                    "default",
+                    "positions",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":memchr-2.8.1",
+                ],
+                "features": [
+                    "default",
+                    "positions",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "f1964b10c76125c36f8afe190065a4bf9a87bf324842c05701330bba9f1cacbb",
+        "size_bytes": 56837,
+        "version": "0.21.1",
+    },
     "rusqlite-0.32.1": {
         "build_script": None,
         "env": {
@@ -41095,6 +44754,67 @@ third_party = {
         "sha256": "7753b721174eb8ff87a9a0e799e2d7bc3749323e773db92e0984debb00019d6e",
         "size_bytes": 155563,
         "version": "0.32.1",
+    },
+    "rustc-demangle-0.1.28": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Alex Crichton <alex@alexcrichton.com>",
+            "CARGO_PKG_DESCRIPTION": "Rust compiler symbol demangling.\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/rust-lang/rustc-demangle",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-lang/rustc-demangle",
+        },
+        "library": {
+            "crate": "rustc_demangle",
+            "crate_root": "src/lib.rs",
+            "edition": "2015",
+            "proc_macro": False,
+        },
+        "name": "rustc-demangle",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "b74b56ffa8bb2830709a538c2cbcae9aa062db0d2a42563bfb09bdaae44020eb",
+        "size_bytes": 30857,
+        "version": "0.1.28",
     },
     "rustc-hash-1.1.0": {
         "build_script": None,
@@ -41499,6 +45219,7 @@ third_party = {
                     "process",
                     "shm",
                     "std",
+                    "system",
                     "termios",
                     "time",
                 ],
@@ -41567,6 +45288,7 @@ third_party = {
                     "process",
                     "shm",
                     "std",
+                    "system",
                     "termios",
                     "time",
                 ],
@@ -41591,6 +45313,7 @@ third_party = {
                     "process",
                     "shm",
                     "std",
+                    "system",
                     "termios",
                     "time",
                 ],
@@ -41614,6 +45337,7 @@ third_party = {
                     "process",
                     "shm",
                     "std",
+                    "system",
                     "time",
                 ],
                 "named_deps": {
@@ -41636,6 +45360,7 @@ third_party = {
                     "process",
                     "shm",
                     "std",
+                    "system",
                     "time",
                 ],
                 "named_deps": {
@@ -42197,15 +45922,50 @@ third_party = {
         },
         "name": "scopeguard",
         "platforms": {
-            "android-arm64": {},
-            "linux-arm64": {},
-            "linux-x86_64": {},
-            "macos-arm64": {},
-            "macos-x86_64": {},
+            "android-arm64": {
+                "features": [
+                    "default",
+                    "use_std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "default",
+                    "use_std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "default",
+                    "use_std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "default",
+                    "use_std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "default",
+                    "use_std",
+                ],
+            },
             "wasi": {},
             "wasm32": {},
-            "windows-arm64": {},
-            "windows-x86_64": {},
+            "windows-arm64": {
+                "features": [
+                    "default",
+                    "use_std",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "default",
+                    "use_std",
+                ],
+            },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
@@ -42859,6 +46619,18 @@ third_party = {
                     "std",
                 ],
             },
+            "wasm32": {
+                "deps": [
+                    ":itoa-1.0.18",
+                    ":memchr-2.8.1",
+                    ":serde_core-1.0.228",
+                    ":zmij-1.0.21",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":itoa-1.0.18",
@@ -43296,6 +47068,16 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":digest-0.10.7",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "wasm32": {
                 "deps": [
                     ":cfg-if-1.0.4",
                     ":digest-0.10.7",
@@ -43875,6 +47657,94 @@ third_party = {
         "size_bytes": 79833,
         "version": "3.1.1",
     },
+    "simplecss-0.2.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "A simple CSS 2 parser and selector.",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/linebender/simplecss",
+            "CARGO_PKG_RUST_VERSION": "1.65",
+        },
+        "library": {
+            "crate": "simplecss",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "simplecss",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":log-0.4.31",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":log-0.4.31",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":log-0.4.31",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":log-0.4.31",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":log-0.4.31",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":log-0.4.31",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":log-0.4.31",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "7a9c6883ca9c3c7c90e888de77b7a5c849c779d25d74a1269b0218b14e8b136c",
+        "size_bytes": 22136,
+        "version": "0.2.2",
+    },
     "siphasher-1.0.3": {
         "build_script": None,
         "env": {
@@ -44224,6 +48094,7 @@ third_party = {
                     ":drm-0.14.1",
                     ":drm-ffi-0.9.1",
                     ":drm-fourcc-2.2.0",
+                    ":encoding_rs-0.8.35",
                     ":errno-0.3.14",
                     ":gbm-0.18.0",
                     ":indexmap-2.14.0",
@@ -44233,6 +48104,7 @@ third_party = {
                     ":profiling-1.0.18",
                     ":rand-0.9.4",
                     ":rustix-1.1.4",
+                    ":scopeguard-1.2.0",
                     ":sha2-0.10.9",
                     ":smallvec-1.15.1",
                     ":tempfile-3.27.0",
@@ -44243,6 +48115,7 @@ third_party = {
                     ":wayland-protocols-misc-0.3.12",
                     ":wayland-protocols-wlr-0.3.12",
                     ":wayland-server-0.31.14",
+                    ":x11rb-0.13.2",
                     ":xkbcommon-0.8.0",
                 ],
                 "features": [
@@ -44256,10 +48129,12 @@ third_party = {
                     "desktop",
                     "drm",
                     "drm-ffi",
+                    "encoding_rs",
                     "gbm",
                     "input",
                     "libseat",
                     "pkg-config",
+                    "scopeguard",
                     "tempfile",
                     "udev",
                     "wayland-protocols",
@@ -44267,6 +48142,9 @@ third_party = {
                     "wayland-protocols-wlr",
                     "wayland-server",
                     "wayland_frontend",
+                    "x11rb",
+                    "x11rb_event_source",
+                    "xwayland",
                 ],
             },
             "linux-arm64": {
@@ -44281,6 +48159,7 @@ third_party = {
                     ":drm-0.14.1",
                     ":drm-ffi-0.9.1",
                     ":drm-fourcc-2.2.0",
+                    ":encoding_rs-0.8.35",
                     ":errno-0.3.14",
                     ":gbm-0.18.0",
                     ":indexmap-2.14.0",
@@ -44290,6 +48169,7 @@ third_party = {
                     ":profiling-1.0.18",
                     ":rand-0.9.4",
                     ":rustix-1.1.4",
+                    ":scopeguard-1.2.0",
                     ":sha2-0.10.9",
                     ":smallvec-1.15.1",
                     ":tempfile-3.27.0",
@@ -44300,6 +48180,7 @@ third_party = {
                     ":wayland-protocols-misc-0.3.12",
                     ":wayland-protocols-wlr-0.3.12",
                     ":wayland-server-0.31.14",
+                    ":x11rb-0.13.2",
                     ":xkbcommon-0.8.0",
                 ],
                 "features": [
@@ -44313,10 +48194,12 @@ third_party = {
                     "desktop",
                     "drm",
                     "drm-ffi",
+                    "encoding_rs",
                     "gbm",
                     "input",
                     "libseat",
                     "pkg-config",
+                    "scopeguard",
                     "tempfile",
                     "udev",
                     "wayland-protocols",
@@ -44324,6 +48207,9 @@ third_party = {
                     "wayland-protocols-wlr",
                     "wayland-server",
                     "wayland_frontend",
+                    "x11rb",
+                    "x11rb_event_source",
+                    "xwayland",
                 ],
             },
             "linux-x86_64": {
@@ -44338,6 +48224,7 @@ third_party = {
                     ":drm-0.14.1",
                     ":drm-ffi-0.9.1",
                     ":drm-fourcc-2.2.0",
+                    ":encoding_rs-0.8.35",
                     ":errno-0.3.14",
                     ":gbm-0.18.0",
                     ":indexmap-2.14.0",
@@ -44347,6 +48234,7 @@ third_party = {
                     ":profiling-1.0.18",
                     ":rand-0.9.4",
                     ":rustix-1.1.4",
+                    ":scopeguard-1.2.0",
                     ":sha2-0.10.9",
                     ":smallvec-1.15.1",
                     ":tempfile-3.27.0",
@@ -44357,6 +48245,7 @@ third_party = {
                     ":wayland-protocols-misc-0.3.12",
                     ":wayland-protocols-wlr-0.3.12",
                     ":wayland-server-0.31.14",
+                    ":x11rb-0.13.2",
                     ":xkbcommon-0.8.0",
                 ],
                 "features": [
@@ -44370,10 +48259,12 @@ third_party = {
                     "desktop",
                     "drm",
                     "drm-ffi",
+                    "encoding_rs",
                     "gbm",
                     "input",
                     "libseat",
                     "pkg-config",
+                    "scopeguard",
                     "tempfile",
                     "udev",
                     "wayland-protocols",
@@ -44381,6 +48272,9 @@ third_party = {
                     "wayland-protocols-wlr",
                     "wayland-server",
                     "wayland_frontend",
+                    "x11rb",
+                    "x11rb_event_source",
+                    "xwayland",
                 ],
             },
             "macos-arm64": {
@@ -44395,6 +48289,7 @@ third_party = {
                     ":drm-0.14.1",
                     ":drm-ffi-0.9.1",
                     ":drm-fourcc-2.2.0",
+                    ":encoding_rs-0.8.35",
                     ":errno-0.3.14",
                     ":gbm-0.18.0",
                     ":indexmap-2.14.0",
@@ -44404,6 +48299,7 @@ third_party = {
                     ":profiling-1.0.18",
                     ":rand-0.9.4",
                     ":rustix-1.1.4",
+                    ":scopeguard-1.2.0",
                     ":sha2-0.10.9",
                     ":smallvec-1.15.1",
                     ":tempfile-3.27.0",
@@ -44414,6 +48310,7 @@ third_party = {
                     ":wayland-protocols-misc-0.3.12",
                     ":wayland-protocols-wlr-0.3.12",
                     ":wayland-server-0.31.14",
+                    ":x11rb-0.13.2",
                     ":xkbcommon-0.8.0",
                 ],
                 "features": [
@@ -44427,10 +48324,12 @@ third_party = {
                     "desktop",
                     "drm",
                     "drm-ffi",
+                    "encoding_rs",
                     "gbm",
                     "input",
                     "libseat",
                     "pkg-config",
+                    "scopeguard",
                     "tempfile",
                     "udev",
                     "wayland-protocols",
@@ -44438,6 +48337,9 @@ third_party = {
                     "wayland-protocols-wlr",
                     "wayland-server",
                     "wayland_frontend",
+                    "x11rb",
+                    "x11rb_event_source",
+                    "xwayland",
                 ],
             },
             "macos-x86_64": {
@@ -44452,6 +48354,7 @@ third_party = {
                     ":drm-0.14.1",
                     ":drm-ffi-0.9.1",
                     ":drm-fourcc-2.2.0",
+                    ":encoding_rs-0.8.35",
                     ":errno-0.3.14",
                     ":gbm-0.18.0",
                     ":indexmap-2.14.0",
@@ -44461,6 +48364,7 @@ third_party = {
                     ":profiling-1.0.18",
                     ":rand-0.9.4",
                     ":rustix-1.1.4",
+                    ":scopeguard-1.2.0",
                     ":sha2-0.10.9",
                     ":smallvec-1.15.1",
                     ":tempfile-3.27.0",
@@ -44471,6 +48375,7 @@ third_party = {
                     ":wayland-protocols-misc-0.3.12",
                     ":wayland-protocols-wlr-0.3.12",
                     ":wayland-server-0.31.14",
+                    ":x11rb-0.13.2",
                     ":xkbcommon-0.8.0",
                 ],
                 "features": [
@@ -44484,10 +48389,12 @@ third_party = {
                     "desktop",
                     "drm",
                     "drm-ffi",
+                    "encoding_rs",
                     "gbm",
                     "input",
                     "libseat",
                     "pkg-config",
+                    "scopeguard",
                     "tempfile",
                     "udev",
                     "wayland-protocols",
@@ -44495,6 +48402,9 @@ third_party = {
                     "wayland-protocols-wlr",
                     "wayland-server",
                     "wayland_frontend",
+                    "x11rb",
+                    "x11rb_event_source",
+                    "xwayland",
                 ],
             },
             "windows-arm64": {
@@ -44509,6 +48419,7 @@ third_party = {
                     ":drm-0.14.1",
                     ":drm-ffi-0.9.1",
                     ":drm-fourcc-2.2.0",
+                    ":encoding_rs-0.8.35",
                     ":errno-0.3.14",
                     ":gbm-0.18.0",
                     ":indexmap-2.14.0",
@@ -44518,6 +48429,7 @@ third_party = {
                     ":profiling-1.0.18",
                     ":rand-0.9.4",
                     ":rustix-1.1.4",
+                    ":scopeguard-1.2.0",
                     ":sha2-0.10.9",
                     ":smallvec-1.15.1",
                     ":tempfile-3.27.0",
@@ -44528,6 +48440,7 @@ third_party = {
                     ":wayland-protocols-misc-0.3.12",
                     ":wayland-protocols-wlr-0.3.12",
                     ":wayland-server-0.31.14",
+                    ":x11rb-0.13.2",
                     ":xkbcommon-0.8.0",
                 ],
                 "features": [
@@ -44541,10 +48454,12 @@ third_party = {
                     "desktop",
                     "drm",
                     "drm-ffi",
+                    "encoding_rs",
                     "gbm",
                     "input",
                     "libseat",
                     "pkg-config",
+                    "scopeguard",
                     "tempfile",
                     "udev",
                     "wayland-protocols",
@@ -44552,6 +48467,9 @@ third_party = {
                     "wayland-protocols-wlr",
                     "wayland-server",
                     "wayland_frontend",
+                    "x11rb",
+                    "x11rb_event_source",
+                    "xwayland",
                 ],
             },
             "windows-x86_64": {
@@ -44566,6 +48484,7 @@ third_party = {
                     ":drm-0.14.1",
                     ":drm-ffi-0.9.1",
                     ":drm-fourcc-2.2.0",
+                    ":encoding_rs-0.8.35",
                     ":errno-0.3.14",
                     ":gbm-0.18.0",
                     ":indexmap-2.14.0",
@@ -44575,6 +48494,7 @@ third_party = {
                     ":profiling-1.0.18",
                     ":rand-0.9.4",
                     ":rustix-1.1.4",
+                    ":scopeguard-1.2.0",
                     ":sha2-0.10.9",
                     ":smallvec-1.15.1",
                     ":tempfile-3.27.0",
@@ -44585,6 +48505,7 @@ third_party = {
                     ":wayland-protocols-misc-0.3.12",
                     ":wayland-protocols-wlr-0.3.12",
                     ":wayland-server-0.31.14",
+                    ":x11rb-0.13.2",
                     ":xkbcommon-0.8.0",
                 ],
                 "features": [
@@ -44598,10 +48519,12 @@ third_party = {
                     "desktop",
                     "drm",
                     "drm-ffi",
+                    "encoding_rs",
                     "gbm",
                     "input",
                     "libseat",
                     "pkg-config",
+                    "scopeguard",
                     "tempfile",
                     "udev",
                     "wayland-protocols",
@@ -44609,6 +48532,9 @@ third_party = {
                     "wayland-protocols-wlr",
                     "wayland-server",
                     "wayland_frontend",
+                    "x11rb",
+                    "x11rb_event_source",
+                    "xwayland",
                 ],
             },
         },
@@ -45432,8 +49358,76 @@ third_party = {
         },
         "name": "strict-num",
         "platforms": {
-            "linux-arm64": {},
-            "linux-x86_64": {},
+            "android-arm64": {
+                "deps": [
+                    ":float-cmp-0.9.0",
+                ],
+                "features": [
+                    "approx-eq",
+                    "default",
+                    "float-cmp",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":float-cmp-0.9.0",
+                ],
+                "features": [
+                    "approx-eq",
+                    "default",
+                    "float-cmp",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":float-cmp-0.9.0",
+                ],
+                "features": [
+                    "approx-eq",
+                    "default",
+                    "float-cmp",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":float-cmp-0.9.0",
+                ],
+                "features": [
+                    "approx-eq",
+                    "default",
+                    "float-cmp",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":float-cmp-0.9.0",
+                ],
+                "features": [
+                    "approx-eq",
+                    "default",
+                    "float-cmp",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":float-cmp-0.9.0",
+                ],
+                "features": [
+                    "approx-eq",
+                    "default",
+                    "float-cmp",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":float-cmp-0.9.0",
+                ],
+                "features": [
+                    "approx-eq",
+                    "default",
+                    "float-cmp",
+                ],
+            },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
@@ -45476,6 +49470,101 @@ third_party = {
         "sha256": "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292",
         "size_bytes": 14562,
         "version": "2.6.1",
+    },
+    "svgtypes-0.16.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "SVG types parser.",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/linebender/svgtypes",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "svgtypes",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "svgtypes",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":kurbo-0.13.1",
+                    ":siphasher-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":kurbo-0.13.1",
+                    ":siphasher-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":kurbo-0.13.1",
+                    ":siphasher-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":kurbo-0.13.1",
+                    ":siphasher-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":kurbo-0.13.1",
+                    ":siphasher-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":kurbo-0.13.1",
+                    ":siphasher-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":kurbo-0.13.1",
+                    ":siphasher-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "695b5790b3131dafa99b3bbfd25a216edb3d216dad9ca208d4657bfb8f2abc3d",
+        "size_bytes": 45181,
+        "version": "0.16.1",
     },
     "symphonia-0.5.5": {
         "build_script": None,
@@ -45939,6 +50028,23 @@ third_party = {
         },
         "name": "syn",
         "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":unicode-ident-1.0.24",
+                ],
+                "features": [
+                    "clone-impls",
+                    "default",
+                    "derive",
+                    "extra-traits",
+                    "full",
+                    "parsing",
+                    "printing",
+                    "proc-macro",
+                ],
+            },
             "linux-arm64": {
                 "deps": [
                     ":proc-macro2-1.0.106",
@@ -45974,6 +50080,74 @@ third_party = {
                     "proc-macro",
                     "visit",
                     "visit-mut",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":unicode-ident-1.0.24",
+                ],
+                "features": [
+                    "clone-impls",
+                    "default",
+                    "derive",
+                    "extra-traits",
+                    "full",
+                    "parsing",
+                    "printing",
+                    "proc-macro",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":unicode-ident-1.0.24",
+                ],
+                "features": [
+                    "clone-impls",
+                    "default",
+                    "derive",
+                    "extra-traits",
+                    "full",
+                    "parsing",
+                    "printing",
+                    "proc-macro",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":unicode-ident-1.0.24",
+                ],
+                "features": [
+                    "clone-impls",
+                    "default",
+                    "derive",
+                    "extra-traits",
+                    "full",
+                    "parsing",
+                    "printing",
+                    "proc-macro",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":unicode-ident-1.0.24",
+                ],
+                "features": [
+                    "clone-impls",
+                    "default",
+                    "derive",
+                    "extra-traits",
+                    "full",
+                    "parsing",
+                    "printing",
+                    "proc-macro",
                 ],
             },
         },
@@ -47148,6 +51322,150 @@ third_party = {
         "size_bytes": 201082,
         "version": "0.11.4",
     },
+    "tiny-skia-0.12.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Yevhenii Reizner <razrfalcon@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "A tiny Skia subset ported to Rust.",
+            "CARGO_PKG_LICENSE": "BSD-3-Clause",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/linebender/tiny-skia",
+        },
+        "library": {
+            "crate": "tiny_skia",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "tiny-skia",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":arrayref-0.3.9",
+                    ":arrayvec-0.7.6",
+                    ":bytemuck-1.25.0",
+                    ":cfg-if-1.0.4",
+                    ":log-0.4.31",
+                    ":png-0.18.1",
+                    ":tiny-skia-path-0.12.0",
+                ],
+                "features": [
+                    "default",
+                    "png-format",
+                    "simd",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":arrayref-0.3.9",
+                    ":arrayvec-0.7.6",
+                    ":bytemuck-1.25.0",
+                    ":cfg-if-1.0.4",
+                    ":log-0.4.31",
+                    ":png-0.18.1",
+                    ":tiny-skia-path-0.12.0",
+                ],
+                "features": [
+                    "default",
+                    "png-format",
+                    "simd",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":arrayref-0.3.9",
+                    ":arrayvec-0.7.6",
+                    ":bytemuck-1.25.0",
+                    ":cfg-if-1.0.4",
+                    ":log-0.4.31",
+                    ":png-0.18.1",
+                    ":tiny-skia-path-0.12.0",
+                ],
+                "features": [
+                    "default",
+                    "png-format",
+                    "simd",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":arrayref-0.3.9",
+                    ":arrayvec-0.7.6",
+                    ":bytemuck-1.25.0",
+                    ":cfg-if-1.0.4",
+                    ":log-0.4.31",
+                    ":png-0.18.1",
+                    ":tiny-skia-path-0.12.0",
+                ],
+                "features": [
+                    "default",
+                    "png-format",
+                    "simd",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":arrayref-0.3.9",
+                    ":arrayvec-0.7.6",
+                    ":bytemuck-1.25.0",
+                    ":cfg-if-1.0.4",
+                    ":log-0.4.31",
+                    ":png-0.18.1",
+                    ":tiny-skia-path-0.12.0",
+                ],
+                "features": [
+                    "default",
+                    "png-format",
+                    "simd",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":arrayref-0.3.9",
+                    ":arrayvec-0.7.6",
+                    ":bytemuck-1.25.0",
+                    ":cfg-if-1.0.4",
+                    ":log-0.4.31",
+                    ":png-0.18.1",
+                    ":tiny-skia-path-0.12.0",
+                ],
+                "features": [
+                    "default",
+                    "png-format",
+                    "simd",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":arrayref-0.3.9",
+                    ":arrayvec-0.7.6",
+                    ":bytemuck-1.25.0",
+                    ":cfg-if-1.0.4",
+                    ":log-0.4.31",
+                    ":png-0.18.1",
+                    ":tiny-skia-path-0.12.0",
+                ],
+                "features": [
+                    "default",
+                    "png-format",
+                    "simd",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "47ffee5eaaf5527f630fb0e356b90ebdec84d5d18d937c5e440350f88c5a91ea",
+        "size_bytes": 268071,
+        "version": "0.12.0",
+    },
     "tiny-skia-path-0.11.4": {
         "build_script": None,
         "env": {
@@ -47192,6 +51510,108 @@ third_party = {
         "sha256": "9c9e7fc0c2e86a30b117d0462aa261b72b7a99b7ebd7deb3a14ceda95c5bdc93",
         "size_bytes": 47764,
         "version": "0.11.4",
+    },
+    "tiny-skia-path-0.12.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Yevhenii Reizner <razrfalcon@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "A tiny-skia Bezier path implementation",
+            "CARGO_PKG_LICENSE": "BSD-3-Clause",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/linebender/tiny-skia/tree/master/path",
+        },
+        "library": {
+            "crate": "tiny_skia_path",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "tiny-skia-path",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":arrayref-0.3.9",
+                    ":bytemuck-1.25.0",
+                    ":strict-num-0.1.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":arrayref-0.3.9",
+                    ":bytemuck-1.25.0",
+                    ":strict-num-0.1.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":arrayref-0.3.9",
+                    ":bytemuck-1.25.0",
+                    ":strict-num-0.1.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":arrayref-0.3.9",
+                    ":bytemuck-1.25.0",
+                    ":strict-num-0.1.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":arrayref-0.3.9",
+                    ":bytemuck-1.25.0",
+                    ":strict-num-0.1.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":arrayref-0.3.9",
+                    ":bytemuck-1.25.0",
+                    ":strict-num-0.1.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":arrayref-0.3.9",
+                    ":bytemuck-1.25.0",
+                    ":strict-num-0.1.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "edca365c3faccca67d06593c5980fa6c57687de727a03131735bb85f01fdeeb9",
+        "size_bytes": 49022,
+        "version": "0.12.0",
     },
     "tinystr-0.8.3": {
         "build_script": None,
@@ -47715,11 +52135,21 @@ third_party = {
                     ":rustls-0.23.43",
                     ":tokio-1.52.3",
                 ],
+                "features": [
+                    "logging",
+                    "ring",
+                    "tls12",
+                ],
             },
             "linux-arm64": {
                 "deps": [
                     ":rustls-0.23.43",
                     ":tokio-1.52.3",
+                ],
+                "features": [
+                    "logging",
+                    "ring",
+                    "tls12",
                 ],
             },
             "linux-x86_64": {
@@ -47727,11 +52157,21 @@ third_party = {
                     ":rustls-0.23.43",
                     ":tokio-1.52.3",
                 ],
+                "features": [
+                    "logging",
+                    "ring",
+                    "tls12",
+                ],
             },
             "macos-arm64": {
                 "deps": [
                     ":rustls-0.23.43",
                     ":tokio-1.52.3",
+                ],
+                "features": [
+                    "logging",
+                    "ring",
+                    "tls12",
                 ],
             },
             "macos-x86_64": {
@@ -47739,17 +52179,32 @@ third_party = {
                     ":rustls-0.23.43",
                     ":tokio-1.52.3",
                 ],
+                "features": [
+                    "logging",
+                    "ring",
+                    "tls12",
+                ],
             },
             "windows-arm64": {
                 "deps": [
                     ":rustls-0.23.43",
                     ":tokio-1.52.3",
                 ],
+                "features": [
+                    "logging",
+                    "ring",
+                    "tls12",
+                ],
             },
             "windows-x86_64": {
                 "deps": [
                     ":rustls-0.23.43",
                     ":tokio-1.52.3",
+                ],
+                "features": [
+                    "logging",
+                    "ring",
+                    "tls12",
                 ],
             },
         },
@@ -50137,6 +54592,7 @@ third_party = {
             "macos-x86_64": {},
             "wasi": {},
             "wasi-guest": {},
+            "wasm32": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -50958,6 +55414,136 @@ third_party = {
         "sha256": "ff67a8a4397373c3ef660812acab3268222035010ab8680ec4215f38ba3d0eed",
         "size_bytes": 86512,
         "version": "2.5.8",
+    },
+    "usvg-0.48.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "An SVG simplification library.",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/linebender/resvg",
+            "CARGO_PKG_RUST_VERSION": "1.85.0",
+        },
+        "library": {
+            "crate": "usvg",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "usvg",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":data-url-0.3.2",
+                    ":imagesize-0.15.0",
+                    ":kurbo-0.13.1",
+                    ":log-0.4.31",
+                    ":pico-args-0.5.0",
+                    ":roxmltree-0.21.1",
+                    ":simplecss-0.2.2",
+                    ":siphasher-1.0.3",
+                    ":strict-num-0.1.1",
+                    ":svgtypes-0.16.1",
+                    ":tiny-skia-path-0.12.0",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":data-url-0.3.2",
+                    ":imagesize-0.15.0",
+                    ":kurbo-0.13.1",
+                    ":log-0.4.31",
+                    ":pico-args-0.5.0",
+                    ":roxmltree-0.21.1",
+                    ":simplecss-0.2.2",
+                    ":siphasher-1.0.3",
+                    ":strict-num-0.1.1",
+                    ":svgtypes-0.16.1",
+                    ":tiny-skia-path-0.12.0",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":data-url-0.3.2",
+                    ":imagesize-0.15.0",
+                    ":kurbo-0.13.1",
+                    ":log-0.4.31",
+                    ":pico-args-0.5.0",
+                    ":roxmltree-0.21.1",
+                    ":simplecss-0.2.2",
+                    ":siphasher-1.0.3",
+                    ":strict-num-0.1.1",
+                    ":svgtypes-0.16.1",
+                    ":tiny-skia-path-0.12.0",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":data-url-0.3.2",
+                    ":imagesize-0.15.0",
+                    ":kurbo-0.13.1",
+                    ":log-0.4.31",
+                    ":pico-args-0.5.0",
+                    ":roxmltree-0.21.1",
+                    ":simplecss-0.2.2",
+                    ":siphasher-1.0.3",
+                    ":strict-num-0.1.1",
+                    ":svgtypes-0.16.1",
+                    ":tiny-skia-path-0.12.0",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":data-url-0.3.2",
+                    ":imagesize-0.15.0",
+                    ":kurbo-0.13.1",
+                    ":log-0.4.31",
+                    ":pico-args-0.5.0",
+                    ":roxmltree-0.21.1",
+                    ":simplecss-0.2.2",
+                    ":siphasher-1.0.3",
+                    ":strict-num-0.1.1",
+                    ":svgtypes-0.16.1",
+                    ":tiny-skia-path-0.12.0",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":data-url-0.3.2",
+                    ":imagesize-0.15.0",
+                    ":kurbo-0.13.1",
+                    ":log-0.4.31",
+                    ":pico-args-0.5.0",
+                    ":roxmltree-0.21.1",
+                    ":simplecss-0.2.2",
+                    ":siphasher-1.0.3",
+                    ":strict-num-0.1.1",
+                    ":svgtypes-0.16.1",
+                    ":tiny-skia-path-0.12.0",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":data-url-0.3.2",
+                    ":imagesize-0.15.0",
+                    ":kurbo-0.13.1",
+                    ":log-0.4.31",
+                    ":pico-args-0.5.0",
+                    ":roxmltree-0.21.1",
+                    ":simplecss-0.2.2",
+                    ":siphasher-1.0.3",
+                    ":strict-num-0.1.1",
+                    ":svgtypes-0.16.1",
+                    ":tiny-skia-path-0.12.0",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "977d0a4abdef933f424a99fe09f95576e089b90aebc6f016a3bc813762493e91",
+        "size_bytes": 146652,
+        "version": "0.48.1",
     },
     "utf-8-0.7.6": {
         "build_script": None,
@@ -52544,6 +57130,7 @@ third_party = {
                     "cache",
                     "component-model",
                     "cranelift",
+                    "demangle",
                     "gc",
                     "gc-drc",
                     "once_cell",
@@ -52595,6 +57182,7 @@ third_party = {
                     "cache",
                     "component-model",
                     "cranelift",
+                    "demangle",
                     "gc",
                     "gc-drc",
                     "once_cell",
@@ -52646,6 +57234,7 @@ third_party = {
                     "cache",
                     "component-model",
                     "cranelift",
+                    "demangle",
                     "gc",
                     "gc-drc",
                     "once_cell",
@@ -52697,6 +57286,7 @@ third_party = {
                     "cache",
                     "component-model",
                     "cranelift",
+                    "demangle",
                     "gc",
                     "gc-drc",
                     "once_cell",
@@ -52748,6 +57338,7 @@ third_party = {
                     "cache",
                     "component-model",
                     "cranelift",
+                    "demangle",
                     "gc",
                     "gc-drc",
                     "once_cell",
@@ -52798,6 +57389,7 @@ third_party = {
                     "cache",
                     "component-model",
                     "cranelift",
+                    "demangle",
                     "gc",
                     "gc-drc",
                     "once_cell",
@@ -52848,6 +57440,7 @@ third_party = {
                     "cache",
                     "component-model",
                     "cranelift",
+                    "demangle",
                     "gc",
                     "gc-drc",
                     "once_cell",
@@ -52901,6 +57494,7 @@ third_party = {
             "android-arm64": {
                 "deps": [
                     ":anyhow-1.0.104",
+                    ":cpp_demangle-0.5.1",
                     ":cranelift-bforest-0.135.1",
                     ":cranelift-bitset-0.135.1",
                     ":cranelift-entity-0.135.1",
@@ -52910,6 +57504,7 @@ third_party = {
                     ":log-0.4.31",
                     ":object-0.39.1",
                     ":postcard-1.1.3",
+                    ":rustc-demangle-0.1.28",
                     ":semver-1.0.28",
                     ":serde-1.0.228",
                     ":serde_derive-1.0.228",
@@ -52923,6 +57518,7 @@ third_party = {
                 "features": [
                     "compile",
                     "component-model",
+                    "demangle",
                     "gc",
                     "gc-copying",
                     "gc-drc",
@@ -52939,6 +57535,7 @@ third_party = {
             "linux-arm64": {
                 "deps": [
                     ":anyhow-1.0.104",
+                    ":cpp_demangle-0.5.1",
                     ":cranelift-bforest-0.135.1",
                     ":cranelift-bitset-0.135.1",
                     ":cranelift-entity-0.135.1",
@@ -52948,6 +57545,7 @@ third_party = {
                     ":log-0.4.31",
                     ":object-0.39.1",
                     ":postcard-1.1.3",
+                    ":rustc-demangle-0.1.28",
                     ":semver-1.0.28",
                     ":serde-1.0.228",
                     ":serde_derive-1.0.228",
@@ -52961,6 +57559,7 @@ third_party = {
                 "features": [
                     "compile",
                     "component-model",
+                    "demangle",
                     "gc",
                     "gc-copying",
                     "gc-drc",
@@ -52977,6 +57576,7 @@ third_party = {
             "linux-x86_64": {
                 "deps": [
                     ":anyhow-1.0.104",
+                    ":cpp_demangle-0.5.1",
                     ":cranelift-bforest-0.135.1",
                     ":cranelift-bitset-0.135.1",
                     ":cranelift-entity-0.135.1",
@@ -52986,6 +57586,7 @@ third_party = {
                     ":log-0.4.31",
                     ":object-0.39.1",
                     ":postcard-1.1.3",
+                    ":rustc-demangle-0.1.28",
                     ":semver-1.0.28",
                     ":serde-1.0.228",
                     ":serde_derive-1.0.228",
@@ -52999,6 +57600,7 @@ third_party = {
                 "features": [
                     "compile",
                     "component-model",
+                    "demangle",
                     "gc",
                     "gc-copying",
                     "gc-drc",
@@ -53015,6 +57617,7 @@ third_party = {
             "macos-arm64": {
                 "deps": [
                     ":anyhow-1.0.104",
+                    ":cpp_demangle-0.5.1",
                     ":cranelift-bforest-0.135.1",
                     ":cranelift-bitset-0.135.1",
                     ":cranelift-entity-0.135.1",
@@ -53024,6 +57627,7 @@ third_party = {
                     ":log-0.4.31",
                     ":object-0.39.1",
                     ":postcard-1.1.3",
+                    ":rustc-demangle-0.1.28",
                     ":semver-1.0.28",
                     ":serde-1.0.228",
                     ":serde_derive-1.0.228",
@@ -53037,6 +57641,7 @@ third_party = {
                 "features": [
                     "compile",
                     "component-model",
+                    "demangle",
                     "gc",
                     "gc-copying",
                     "gc-drc",
@@ -53053,6 +57658,7 @@ third_party = {
             "macos-x86_64": {
                 "deps": [
                     ":anyhow-1.0.104",
+                    ":cpp_demangle-0.5.1",
                     ":cranelift-bforest-0.135.1",
                     ":cranelift-bitset-0.135.1",
                     ":cranelift-entity-0.135.1",
@@ -53062,6 +57668,7 @@ third_party = {
                     ":log-0.4.31",
                     ":object-0.39.1",
                     ":postcard-1.1.3",
+                    ":rustc-demangle-0.1.28",
                     ":semver-1.0.28",
                     ":serde-1.0.228",
                     ":serde_derive-1.0.228",
@@ -53075,6 +57682,7 @@ third_party = {
                 "features": [
                     "compile",
                     "component-model",
+                    "demangle",
                     "gc",
                     "gc-copying",
                     "gc-drc",
@@ -53091,6 +57699,7 @@ third_party = {
             "windows-arm64": {
                 "deps": [
                     ":anyhow-1.0.104",
+                    ":cpp_demangle-0.5.1",
                     ":cranelift-bforest-0.135.1",
                     ":cranelift-bitset-0.135.1",
                     ":cranelift-entity-0.135.1",
@@ -53100,6 +57709,7 @@ third_party = {
                     ":log-0.4.31",
                     ":object-0.39.1",
                     ":postcard-1.1.3",
+                    ":rustc-demangle-0.1.28",
                     ":semver-1.0.28",
                     ":serde-1.0.228",
                     ":serde_derive-1.0.228",
@@ -53113,6 +57723,7 @@ third_party = {
                 "features": [
                     "compile",
                     "component-model",
+                    "demangle",
                     "gc",
                     "gc-copying",
                     "gc-drc",
@@ -53129,6 +57740,7 @@ third_party = {
             "windows-x86_64": {
                 "deps": [
                     ":anyhow-1.0.104",
+                    ":cpp_demangle-0.5.1",
                     ":cranelift-bforest-0.135.1",
                     ":cranelift-bitset-0.135.1",
                     ":cranelift-entity-0.135.1",
@@ -53138,6 +57750,7 @@ third_party = {
                     ":log-0.4.31",
                     ":object-0.39.1",
                     ":postcard-1.1.3",
+                    ":rustc-demangle-0.1.28",
                     ":semver-1.0.28",
                     ":serde-1.0.228",
                     ":serde_derive-1.0.228",
@@ -53151,6 +57764,7 @@ third_party = {
                 "features": [
                     "compile",
                     "component-model",
+                    "demangle",
                     "gc",
                     "gc-copying",
                     "gc-drc",
@@ -55771,6 +60385,7 @@ third_party = {
                     "OffscreenCanvas",
                     "OffscreenCanvasRenderingContext2d",
                     "OvrMultiview2",
+                    "Performance",
                     "VideoFrame",
                     "WebGl2RenderingContext",
                     "WebGlActiveInfo",
@@ -59315,8 +63930,6 @@ third_party = {
                     "Win32_System_SystemServices",
                     "Win32_System_Threading",
                     "Win32_UI",
-                    "Win32_UI_Input",
-                    "Win32_UI_Input_KeyboardAndMouse",
                     "Win32_UI_Shell",
                     "Win32_UI_Shell_Common",
                     "Win32_UI_WindowsAndMessaging",
@@ -59351,8 +63964,6 @@ third_party = {
                     "Win32_System_SystemServices",
                     "Win32_System_Threading",
                     "Win32_UI",
-                    "Win32_UI_Input",
-                    "Win32_UI_Input_KeyboardAndMouse",
                     "Win32_UI_Shell",
                     "Win32_UI_Shell_Common",
                     "Win32_UI_WindowsAndMessaging",
@@ -60118,7 +64729,16 @@ third_party = {
         },
         "name": "winnow",
         "platforms": {
-            "android-arm64": {},
+            "android-arm64": {
+                "features": [
+                    "alloc",
+                    "ascii",
+                    "binary",
+                    "default",
+                    "parser",
+                    "std",
+                ],
+            },
             "linux-arm64": {
                 "features": [
                     "alloc",
@@ -60139,10 +64759,46 @@ third_party = {
                     "std",
                 ],
             },
-            "macos-arm64": {},
-            "macos-x86_64": {},
-            "windows-arm64": {},
-            "windows-x86_64": {},
+            "macos-arm64": {
+                "features": [
+                    "alloc",
+                    "ascii",
+                    "binary",
+                    "default",
+                    "parser",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "alloc",
+                    "ascii",
+                    "binary",
+                    "default",
+                    "parser",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "alloc",
+                    "ascii",
+                    "binary",
+                    "default",
+                    "parser",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "alloc",
+                    "ascii",
+                    "binary",
+                    "default",
+                    "parser",
+                    "std",
+                ],
+            },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
@@ -60689,6 +65345,21 @@ third_party = {
         },
         "name": "x11rb",
         "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":gethostname-1.1.0",
+                    ":rustix-1.1.4",
+                    ":x11rb-protocol-0.13.2",
+                ],
+                "features": [
+                    "composite",
+                    "randr",
+                    "render",
+                    "res",
+                    "shape",
+                    "xfixes",
+                ],
+            },
             "linux-arm64": {
                 "deps": [
                     ":as-raw-xcb-connection-1.0.1",
@@ -60702,12 +65373,14 @@ third_party = {
                 "features": [
                     "allow-unsafe-code",
                     "as-raw-xcb-connection",
+                    "composite",
                     "dl-libxcb",
                     "libc",
                     "libloading",
                     "once_cell",
                     "randr",
                     "render",
+                    "res",
                     "resource_manager",
                     "shape",
                     "xfixes",
@@ -60728,17 +65401,79 @@ third_party = {
                 "features": [
                     "allow-unsafe-code",
                     "as-raw-xcb-connection",
+                    "composite",
                     "dl-libxcb",
                     "libc",
                     "libloading",
                     "once_cell",
                     "randr",
                     "render",
+                    "res",
                     "resource_manager",
                     "shape",
                     "xfixes",
                     "xinput",
                     "xkb",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":gethostname-1.1.0",
+                    ":rustix-1.1.4",
+                    ":x11rb-protocol-0.13.2",
+                ],
+                "features": [
+                    "composite",
+                    "randr",
+                    "render",
+                    "res",
+                    "shape",
+                    "xfixes",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":gethostname-1.1.0",
+                    ":rustix-1.1.4",
+                    ":x11rb-protocol-0.13.2",
+                ],
+                "features": [
+                    "composite",
+                    "randr",
+                    "render",
+                    "res",
+                    "shape",
+                    "xfixes",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":gethostname-1.1.0",
+                    ":rustix-1.1.4",
+                    ":x11rb-protocol-0.13.2",
+                ],
+                "features": [
+                    "composite",
+                    "randr",
+                    "render",
+                    "res",
+                    "shape",
+                    "xfixes",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":gethostname-1.1.0",
+                    ":rustix-1.1.4",
+                    ":x11rb-protocol-0.13.2",
+                ],
+                "features": [
+                    "composite",
+                    "randr",
+                    "render",
+                    "res",
+                    "shape",
+                    "xfixes",
                 ],
             },
         },
@@ -60767,10 +65502,23 @@ third_party = {
         },
         "name": "x11rb-protocol",
         "platforms": {
-            "linux-arm64": {
+            "android-arm64": {
                 "features": [
+                    "composite",
                     "randr",
                     "render",
+                    "res",
+                    "shape",
+                    "std",
+                    "xfixes",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "composite",
+                    "randr",
+                    "render",
+                    "res",
                     "resource_manager",
                     "shape",
                     "std",
@@ -60781,14 +65529,60 @@ third_party = {
             },
             "linux-x86_64": {
                 "features": [
+                    "composite",
                     "randr",
                     "render",
+                    "res",
                     "resource_manager",
                     "shape",
                     "std",
                     "xfixes",
                     "xinput",
                     "xkb",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "composite",
+                    "randr",
+                    "render",
+                    "res",
+                    "shape",
+                    "std",
+                    "xfixes",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "composite",
+                    "randr",
+                    "render",
+                    "res",
+                    "shape",
+                    "std",
+                    "xfixes",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "composite",
+                    "randr",
+                    "render",
+                    "res",
+                    "shape",
+                    "std",
+                    "xfixes",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "composite",
+                    "randr",
+                    "render",
+                    "res",
+                    "shape",
+                    "std",
+                    "xfixes",
                 ],
             },
         },
@@ -60955,8 +65749,13 @@ third_party = {
         },
         "name": "xcursor",
         "platforms": {
+            "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
+            "macos-arm64": {},
+            "macos-x86_64": {},
+            "windows-arm64": {},
+            "windows-x86_64": {},
         },
         "profile_flags": [
             "-Cdebuginfo=0",
@@ -62315,10 +67114,14 @@ third_party = {
                     ":indexmap-2.14.0",
                     ":memchr-2.8.1",
                     ":typed-path-0.12.3",
+                    ":zopfli-0.8.3",
                 ],
                 "features": [
                     "_deflate-any",
+                    "deflate",
                     "deflate-flate2",
+                    "deflate-flate2-zlib-rs",
+                    "deflate-zopfli",
                 ],
             },
             "linux-x86_64": {
@@ -62328,10 +67131,14 @@ third_party = {
                     ":indexmap-2.14.0",
                     ":memchr-2.8.1",
                     ":typed-path-0.12.3",
+                    ":zopfli-0.8.3",
                 ],
                 "features": [
                     "_deflate-any",
+                    "deflate",
                     "deflate-flate2",
+                    "deflate-flate2-zlib-rs",
+                    "deflate-zopfli",
                 ],
             },
             "macos-arm64": {
@@ -62341,10 +67148,14 @@ third_party = {
                     ":indexmap-2.14.0",
                     ":memchr-2.8.1",
                     ":typed-path-0.12.3",
+                    ":zopfli-0.8.3",
                 ],
                 "features": [
                     "_deflate-any",
+                    "deflate",
                     "deflate-flate2",
+                    "deflate-flate2-zlib-rs",
+                    "deflate-zopfli",
                 ],
             },
             "macos-x86_64": {
@@ -62354,10 +67165,14 @@ third_party = {
                     ":indexmap-2.14.0",
                     ":memchr-2.8.1",
                     ":typed-path-0.12.3",
+                    ":zopfli-0.8.3",
                 ],
                 "features": [
                     "_deflate-any",
+                    "deflate",
                     "deflate-flate2",
+                    "deflate-flate2-zlib-rs",
+                    "deflate-zopfli",
                 ],
             },
             "windows-arm64": {
@@ -62367,10 +67182,14 @@ third_party = {
                     ":indexmap-2.14.0",
                     ":memchr-2.8.1",
                     ":typed-path-0.12.3",
+                    ":zopfli-0.8.3",
                 ],
                 "features": [
                     "_deflate-any",
+                    "deflate",
                     "deflate-flate2",
+                    "deflate-flate2-zlib-rs",
+                    "deflate-zopfli",
                 ],
             },
             "windows-x86_64": {
@@ -62380,10 +67199,14 @@ third_party = {
                     ":indexmap-2.14.0",
                     ":memchr-2.8.1",
                     ":typed-path-0.12.3",
+                    ":zopfli-0.8.3",
                 ],
                 "features": [
                     "_deflate-any",
+                    "deflate",
                     "deflate-flate2",
+                    "deflate-flate2-zlib-rs",
+                    "deflate-zopfli",
                 ],
             },
         },
@@ -62413,6 +67236,42 @@ third_party = {
         "name": "zlib-rs",
         "platforms": {
             "android-arm64": {
+                "features": [
+                    "rust-allocator",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "rust-allocator",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "rust-allocator",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "rust-allocator",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "rust-allocator",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "rust-allocator",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
                 "features": [
                     "rust-allocator",
                     "std",
@@ -62454,6 +67313,7 @@ third_party = {
             "macos-x86_64": {},
             "wasi": {},
             "wasi-guest": {},
+            "wasm32": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -62483,6 +67343,90 @@ third_party = {
         "name": "zopfli",
         "platforms": {
             "android-arm64": {
+                "deps": [
+                    ":bumpalo-3.20.3",
+                    ":crc32fast-1.5.0",
+                    ":log-0.4.31",
+                    ":simd-adler32-0.3.9",
+                ],
+                "features": [
+                    "default",
+                    "gzip",
+                    "std",
+                    "zlib",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":bumpalo-3.20.3",
+                    ":crc32fast-1.5.0",
+                    ":log-0.4.31",
+                    ":simd-adler32-0.3.9",
+                ],
+                "features": [
+                    "default",
+                    "gzip",
+                    "std",
+                    "zlib",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bumpalo-3.20.3",
+                    ":crc32fast-1.5.0",
+                    ":log-0.4.31",
+                    ":simd-adler32-0.3.9",
+                ],
+                "features": [
+                    "default",
+                    "gzip",
+                    "std",
+                    "zlib",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":bumpalo-3.20.3",
+                    ":crc32fast-1.5.0",
+                    ":log-0.4.31",
+                    ":simd-adler32-0.3.9",
+                ],
+                "features": [
+                    "default",
+                    "gzip",
+                    "std",
+                    "zlib",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bumpalo-3.20.3",
+                    ":crc32fast-1.5.0",
+                    ":log-0.4.31",
+                    ":simd-adler32-0.3.9",
+                ],
+                "features": [
+                    "default",
+                    "gzip",
+                    "std",
+                    "zlib",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":bumpalo-3.20.3",
+                    ":crc32fast-1.5.0",
+                    ":log-0.4.31",
+                    ":simd-adler32-0.3.9",
+                ],
+                "features": [
+                    "default",
+                    "gzip",
+                    "std",
+                    "zlib",
+                ],
+            },
+            "windows-x86_64": {
                 "deps": [
                     ":bumpalo-3.20.3",
                     ":crc32fast-1.5.0",
@@ -62932,6 +67876,18 @@ third_party = {
         },
         "name": "zvariant",
         "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":endi-1.1.1",
+                    ":serde-1.0.228",
+                    ":winnow-1.0.3",
+                    ":zvariant_derive-5.13.1",
+                    ":zvariant_utils-3.5.0",
+                ],
+                "features": [
+                    "gvariant",
+                ],
+            },
             "linux-arm64": {
                 "deps": [
                     ":endi-1.1.1",
@@ -62945,6 +67901,7 @@ third_party = {
                 "features": [
                     "default",
                     "enumflags2",
+                    "gvariant",
                     "url",
                 ],
             },
@@ -62961,7 +67918,56 @@ third_party = {
                 "features": [
                     "default",
                     "enumflags2",
+                    "gvariant",
                     "url",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":endi-1.1.1",
+                    ":serde-1.0.228",
+                    ":winnow-1.0.3",
+                    ":zvariant_derive-5.13.1",
+                    ":zvariant_utils-3.5.0",
+                ],
+                "features": [
+                    "gvariant",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":endi-1.1.1",
+                    ":serde-1.0.228",
+                    ":winnow-1.0.3",
+                    ":zvariant_derive-5.13.1",
+                    ":zvariant_utils-3.5.0",
+                ],
+                "features": [
+                    "gvariant",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":endi-1.1.1",
+                    ":serde-1.0.228",
+                    ":winnow-1.0.3",
+                    ":zvariant_derive-5.13.1",
+                    ":zvariant_utils-3.5.0",
+                ],
+                "features": [
+                    "gvariant",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":endi-1.1.1",
+                    ":serde-1.0.228",
+                    ":winnow-1.0.3",
+                    ":zvariant_derive-5.13.1",
+                    ":zvariant_utils-3.5.0",
+                ],
+                "features": [
+                    "gvariant",
                 ],
             },
         },
@@ -63000,6 +68006,7 @@ third_party = {
                 ],
                 "features": [
                     "default",
+                    "gvariant",
                 ],
             },
         },
@@ -63028,6 +68035,19 @@ third_party = {
         },
         "name": "zvariant_utils",
         "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":serde-1.0.228",
+                    ":syn-2.0.117",
+                    ":winnow-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "gvariant",
+                ],
+            },
             "linux-arm64": {
                 "deps": [
                     ":proc-macro2-1.0.106",
@@ -63038,6 +68058,7 @@ third_party = {
                 ],
                 "features": [
                     "default",
+                    "gvariant",
                 ],
             },
             "linux-x86_64": {
@@ -63050,6 +68071,59 @@ third_party = {
                 ],
                 "features": [
                     "default",
+                    "gvariant",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":serde-1.0.228",
+                    ":syn-2.0.117",
+                    ":winnow-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "gvariant",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":serde-1.0.228",
+                    ":syn-2.0.117",
+                    ":winnow-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "gvariant",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":serde-1.0.228",
+                    ":syn-2.0.117",
+                    ":winnow-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "gvariant",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":serde-1.0.228",
+                    ":syn-2.0.117",
+                    ":winnow-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "gvariant",
                 ],
             },
         },

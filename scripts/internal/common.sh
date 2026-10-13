@@ -257,6 +257,33 @@ buck2_path() {
     echo "$repository/target/tools/buck2-$buck2_version/buck2$(buck2_binary_suffix)"
 }
 
+# Which build this checkout makes, for buck/app's build-id file: the hash of
+# the working tree, taken through a throwaway index so untracked files count
+# and ignored ones do not. It names the content rather than a commit, so a
+# merge queue's commit, or any other commit of the same tree, is the same
+# build, and everything that carries the id is cached across them.
+build_id() {
+    local index tree
+    index="$(mktemp)"
+    cp "$(git -C "$repository" rev-parse --path-format=absolute --git-path index 2> /dev/null)" "$index" 2> /dev/null || true
+    tree="$(GIT_INDEX_FILE="$index" git -C "$repository" add -A 2> /dev/null &&
+        GIT_INDEX_FILE="$index" git -C "$repository" write-tree 2> /dev/null)" || tree=''
+    rm -f "$index"
+    echo "${tree:-unknown}"
+}
+
+# Writes the build id where //buck/app:build-id reads it, buck/app/build-id,
+# which git ignores. As a source file, a new id invalidates only what reads
+# it, and it is rewritten only when it changes.
+write_build_id() {
+    local path="$repository/buck/app/build-id" id
+    id="${BE3_BUILD_ID:-$(build_id)}"
+    if [[ "$(cat "$path" 2> /dev/null)" != "$id" ]]; then
+        printf '%s\n' "$id" > "$path.$$"
+        mv -f "$path.$$" "$path"
+    fi
+}
+
 # The target platform in buck/platforms for this machine, for what
 # ./scripts/buck runs here. Builds are for Linux on x86_64 wherever they are
 # asked for; something that is to run on this machine is built for it instead.
@@ -302,6 +329,26 @@ buck2_release_sha256() {
         return 1
     fi
     echo "${!name}"
+}
+
+# The be release ./scripts/be runs: the tracker's command line tool
+# (guides/tracker.md), built from the same tree as the be-server the tracker
+# lives on. The release is that server's build id (its build-id file), which
+# install-be.sh writes beside be, so the server refuses this be once it is
+# deployed from another build. Each platform's :be bundle is uploaded to the
+# mirror as be/<release>/be-<triple>/, by the same triple buck2's releases are
+# named after, and its be is checked against these hashes. An empty hash is a platform with no
+# release uploaded yet.
+be_release='e80eaf7d6179797087c7f0f260313674168dcffb'
+be_sha256_x86_64_unknown_linux_gnu='456a16e9db7b46e35882eca4b3c8621e6b2a192e7f8e9bcdeefc76f546ad8334'
+be_sha256_aarch64_unknown_linux_gnu='622641d0372c82cfbacff1de92fec556a95a6c7ecec968ecd493035b31c726a7'
+be_sha256_x86_64_apple_darwin=''
+be_sha256_aarch64_apple_darwin=''
+
+# Where the pinned be is installed, under a directory named after the release
+# so that moving the release installs the new one.
+be_path() {
+    echo "$repository/target/tools/be-$be_release/be"
 }
 
 # The nsc release ./scripts/buck runs: Namespace's command-line tool, which
@@ -391,8 +438,15 @@ write_if_changed() {
 # uploaded, so the daemon is stopped whenever the file changes; the file names
 # the hosts even when the relays' addresses are all buck2 reads from it, so
 # that a change of host behind a relay is a change to the file too.
-re_relay_engine_address='127.0.0.1:18980'
-re_relay_storage_address='127.0.0.1:18981'
+#
+# Each checkout has relays of its own, on a pair of 2000 picked from its path,
+# and shares them only when two paths pick the same pair. A relay serves one
+# host, and a checkout that asks for another replaces it, which cut off every
+# other checkout's calls through it, mid-download, and sent the rest to the
+# wrong server.
+re_relay_port="$((20000 + $(printf '%s' "$repository" | cksum | cut -d ' ' -f 1) % 2000 * 2))"
+re_relay_engine_address="127.0.0.1:$re_relay_port"
+re_relay_storage_address="127.0.0.1:$((re_relay_port + 1))"
 namespace_directory="$repository/target/namespace"
 namespace_cluster_key='buildserver'
 

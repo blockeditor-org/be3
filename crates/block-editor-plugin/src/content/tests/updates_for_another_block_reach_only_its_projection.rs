@@ -8,12 +8,9 @@ fn updates_for_another_block_reach_only_its_projection() {
     let (_, add) = Checklist::add("from elsewhere");
     let mut content = ChecklistContent::default();
     content.apply(&add);
-    fixture.host.set_content_of(
-        other_block,
-        ChecklistContent::CONTENT_TYPE,
-        content.encode(),
-        0,
-    );
+    fixture
+        .host
+        .set_content_of(other_block, HostContent::of(&content));
 
     other.pump();
     fixture.projection.pump();

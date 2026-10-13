@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::Duration;
@@ -19,6 +20,7 @@ use beui_core::context::RendererChoices;
 use beui_core::document::Document;
 use beui_core::filter::{ColorVision, MAX_BLUR};
 use beui_core::icons::ICON_CLOSE;
+use beui_core::input::{BackEdge, BackGesture};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Prop, ReadSignal, Show,
@@ -44,6 +46,7 @@ const PERFORMANCE_SPACING: f32 = 10.0;
 const TIMING_SPACING: f32 = 4.0;
 const BLUR_MIDPOINT: f32 = 12.0;
 const RENDERER_LABEL_WIDTH: f32 = 104.0;
+const PROPERTIES_SHARE: f32 = 45.0;
 const BAR_PADDING_HORIZONTAL: f32 = 8.0;
 const BAR_PADDING_VERTICAL: f32 = 6.0;
 const PIXEL_RATIOS: [(&str, Option<f32>); 5] = [
@@ -53,7 +56,6 @@ const PIXEL_RATIOS: [(&str, Option<f32>); 5] = [
     ("2x", Some(2.0)),
     ("3x", Some(3.0)),
 ];
-const THEMES: [(&str, Theme); 2] = [("Dark", Theme::DARK), ("E-ink", Theme::EINK)];
 
 fn labels<T>(options: &[(&'static str, T)]) -> Vec<&'static str> {
     options.iter().map(|(label, _)| *label).collect()
@@ -97,8 +99,10 @@ pub struct Summary {
     pub native_pixel_ratio: String,
     pub picking: bool,
     pub responsive: bool,
+    pub handles_back: bool,
     pub selection: String,
     pub bounds: String,
+    pub properties: Vec<(String, String)>,
 }
 
 #[derive(Clone, Default, PartialEq)]
@@ -238,11 +242,28 @@ pub fn build(state: &Rc<State>) -> Panel {
             let summary = summary.clone();
             move || summary.with(|summary| summary.responsive)
         });
+        let handles_back = create_memo({
+            let summary = summary.clone();
+            move || summary.with(|summary| summary.handles_back)
+        });
         let selection_text = create_memo({
             let summary = summary.clone();
             move || summary.with(|summary| summary.selection.clone())
         });
-        let bounds_text = create_memo(move || summary.with(|summary| summary.bounds.clone()));
+        let bounds_text = create_memo({
+            let summary = summary.clone();
+            move || summary.with(|summary| summary.bounds.clone())
+        });
+        let properties = create_memo(move || summary.with(|summary| summary.properties.clone()));
+        let has_properties = create_memo(clone!(properties -> move || {
+            properties.with(|properties| !properties.is_empty())
+        }));
+        let properties_size = create_memo(clone!(has_properties -> move || {
+            match has_properties.get() {
+                true => ItemSize::Percent(PROPERTIES_SHARE),
+                false => ItemSize::Fixed(0.0),
+            }
+        }));
         let (select_state, expand_state, hover_state, reveal_state) =
             (state.clone(), state.clone(), state.clone(), state.clone());
         let selected =
@@ -309,36 +330,44 @@ pub fn build(state: &Rc<State>) -> Panel {
                         <Frame @sizing=ItemSize::Percent(100.0)>
                             <List spacing=0.0>
                                 <ShowKeepAlive condition={body_tree_visible}>
-                                    <Tree
-                                        @sizing=ItemSize::Percent(100.0)
-                                        @node_ref=&tree_ref
-                                        keys
-                                        item={move |key: Key| item(&item_entries, key)}
-                                        selected={selected}
-                                        ancestors={move |key: Key| ancestors(&lineage, key)}
-                                        padding=BODY_PADDING
-                                        selection_follows_focus=true
-                                        focus_color={Some(THEME.accent)}
-                                        row_test_id={move |key: Key| key.test_id()}
-                                        reveal_test_id={"inspector.reveal".to_owned()}
-                                        on_select={move |key: Key| select_state.select_row(key)}
-                                        on_expand={move |(key, expanded): (Key, bool)| {
-                                            expand_state.set_expanded(key, expanded);
-                                        }}
-                                        on_reveal={move |key: Key| {
-                                            reveal_state.expand_ancestors(&ancestors(&selection, key));
-                                        }}
-                                        on_hover_change={move |(key, hovered): (Key, bool)| {
-                                            hover_state.hover(key.node(), hovered);
-                                        }}
-                                    >
-                                        {move |row: TreeRowFace<Key>| view! {
-                                            <TreeCells
-                                                row_key={row.key}
-                                                entries={row_entries.clone()}
-                                            />
-                                        }}
-                                    </Tree>
+                                    <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                                        <Tree
+                                            @sizing=ItemSize::Percent(100.0 - PROPERTIES_SHARE)
+                                            @node_ref=&tree_ref
+                                            keys
+                                            item={move |key: Key| item(&item_entries, key)}
+                                            selected={selected}
+                                            ancestors={move |key: Key| ancestors(&lineage, key)}
+                                            padding=BODY_PADDING
+                                            focus_color={Some(THEME.accent)}
+                                            row_test_id={move |key: Key| key.test_id()}
+                                            reveal_test_id={"inspector.reveal".to_owned()}
+                                            on_select={move |key: Key| select_state.select_row(key)}
+                                            on_expand={move |(key, expanded): (Key, bool)| {
+                                                expand_state.set_expanded(key, expanded);
+                                            }}
+                                            on_reveal={move |key: Key| {
+                                                reveal_state.expand_ancestors(&ancestors(&selection, key));
+                                            }}
+                                            on_hover_change={move |(key, hovered): (Key, bool)| {
+                                                hover_state.hover(key.node(), hovered);
+                                            }}
+                                        >
+                                            {move |row: TreeRowFace<Key>| view! {
+                                                <TreeCells
+                                                    row_key={row.key}
+                                                    entries={row_entries.clone()}
+                                                />
+                                            }}
+                                        </Tree>
+                                        <Frame
+                                            @sizing={properties_size}
+                                            @test_id={"inspector.properties"}
+                                            visible={has_properties}
+                                        >
+                                            <PropertiesSection properties />
+                                        </Frame>
+                                    </List>
                                 </ShowKeepAlive>
                                 <ShowKeepAlive condition={body_performance_visible}>
                                     <PerformancePanel
@@ -355,6 +384,7 @@ pub fn build(state: &Rc<State>) -> Panel {
                                         @sizing=ItemSize::Percent(100.0)
                                         state={simulation_state.clone()}
                                         responsive={responsive.clone()}
+                                        handles_back={handles_back.clone()}
                                     />
                                 </ShowKeepAlive>
                             </List>
@@ -451,14 +481,14 @@ pub fn build_bar(state: &Rc<State>) -> Bar {
 }
 
 #[component]
-fn SimulationPanel(state: Rc<State>, responsive: Memo<bool>) -> NodeId {
+fn SimulationPanel(state: Rc<State>, responsive: Memo<bool>, handles_back: Memo<bool>) -> NodeId {
     let simulated = state.simulated_pixels_per_point.get();
     let selected = PIXEL_RATIOS
         .iter()
         .position(|(_, ratio)| *ratio == simulated)
         .unwrap_or(0);
     let theme = state.theme.get();
-    let selected_theme = THEMES
+    let selected_theme = Theme::BUILT_IN
         .iter()
         .position(|(_, candidate)| *candidate == theme)
         .unwrap_or(0);
@@ -468,6 +498,7 @@ fn SimulationPanel(state: Rc<State>, responsive: Memo<bool>) -> NodeId {
     let filter_state = state.clone();
     let band_state = state.clone();
     let screen_state = state.clone();
+    let back_state = state.clone();
     view! {
         <Scroll focus_color={Some(THEME.accent)}>
             <Frame padding_horizontal=BODY_PADDING padding_vertical=BODY_PADDING>
@@ -522,7 +553,7 @@ fn SimulationPanel(state: Rc<State>, responsive: Memo<bool>) -> NodeId {
                         <RadioGroup
                             @test_id={"inspector.simulation.theme"}
                             options={view! {
-                                <ForEach keys={labels(&THEMES)}>
+                                <ForEach keys={labels(&Theme::BUILT_IN)}>
                                     {|label: &'static str| view! {
                                         <ChoiceOption label />
                                     }}
@@ -530,12 +561,14 @@ fn SimulationPanel(state: Rc<State>, responsive: Memo<bool>) -> NodeId {
                             }}
                             selected={Some(selected_theme)}
                             on_change={move |index: Option<usize>| {
-                                if let Some((_, theme)) = index.and_then(|index| THEMES.get(index)) {
+                                if let Some((_, theme)) = index.and_then(|index| Theme::BUILT_IN.get(index)) {
                                     theme_state.choose_theme(*theme);
                                 }
                             }}
                         />
                     </List>
+                    <Separator />
+                    <BackSection state={back_state} handles_back />
                     <Separator />
                     <FilterSection state={filter_state} />
                     <Separator />
@@ -543,6 +576,83 @@ fn SimulationPanel(state: Rc<State>, responsive: Memo<bool>) -> NodeId {
                 </List>
             </Frame>
         </Scroll>
+    }
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum Swipe {
+    Idle,
+    Swiping,
+    Done,
+}
+
+#[component]
+fn BackSection(state: Rc<State>, handles_back: Memo<bool>) -> NodeId {
+    let (progress, set_progress) = create_signal(0.0_f32);
+    let swipe = Rc::new(Cell::new(Swipe::Idle));
+    let dragging = Rc::new(Cell::new(false));
+    let (from_right, set_from_right) = create_signal(false);
+    let caption = create_memo(move || match handles_back.get() {
+        true => "Drag to the end to go back, or let go early to cancel.".to_owned(),
+        false => "Nothing in the app takes back: the system would leave it.".to_owned(),
+    });
+    let moved = clone!(state swipe dragging set_progress from_right -> move |value: f32| {
+        set_progress.set(value);
+        match swipe.get() {
+            Swipe::Done => return,
+            Swipe::Idle if value <= 0.0 => return,
+            Swipe::Idle => {
+                swipe.set(Swipe::Swiping);
+                state.simulate_back(BackGesture::Started {
+                    edge: match from_right.get_untracked() {
+                        true => BackEdge::Right,
+                        false => BackEdge::Left,
+                    },
+                });
+            }
+            Swipe::Swiping => {}
+        }
+        state.simulate_back(BackGesture::Progressed(value));
+        if value >= 1.0 {
+            state.simulate_back(BackGesture::Invoked);
+            set_progress.set(0.0);
+            swipe.set(match dragging.get() {
+                true => Swipe::Done,
+                false => Swipe::Idle,
+            });
+        } else if value <= 0.0 && !dragging.get() {
+            state.simulate_back(BackGesture::Cancelled);
+            swipe.set(Swipe::Idle);
+        }
+    });
+    let released = move |held: bool| {
+        dragging.set(held);
+        if held {
+            return;
+        }
+        if swipe.replace(Swipe::Idle) == Swipe::Swiping {
+            state.simulate_back(BackGesture::Cancelled);
+        }
+        set_progress.set(0.0);
+    };
+    view! {
+        <List spacing=TIMING_SPACING>
+            <Heading content="Back gesture" />
+            <Caption content={caption} />
+            <Slider
+                @test_id={"inspector.simulation.back"}
+                label="Back gesture progress"
+                value={progress}
+                on_change={moved}
+                on_drag_change={released}
+            />
+            <Checkbox
+                @test_id={"inspector.simulation.back_from_right"}
+                label="Swipe from the right edge"
+                checked={from_right}
+                on_change={move |right| set_from_right.set(right)}
+            />
+        </List>
     }
 }
 
@@ -810,7 +920,7 @@ fn RendererSection(
             </Show>
             <ForEach keys={rows}>
                 {|(label, value): (&'static str, String)| view! {
-                    <RendererRow label value />
+                    <LabeledRow label={label.to_owned()} value />
                 }}
             </ForEach>
         </List>
@@ -818,10 +928,31 @@ fn RendererSection(
 }
 
 #[component]
-fn RendererRow(label: &'static str, value: String) -> NodeId {
+fn PropertiesSection(properties: Memo<Vec<(String, String)>>) -> NodeId {
+    view! {
+        <List spacing=0.0>
+            <Separator />
+            <Scroll @sizing=ItemSize::Percent(100.0) focus_color={Some(THEME.accent)}>
+                <Frame padding_horizontal=BODY_PADDING padding_vertical=BODY_PADDING>
+                    <List spacing=TIMING_SPACING>
+                        <Heading content="Properties" />
+                        <ForEach keys={properties}>
+                            {|(label, value): (String, String)| view! {
+                                <LabeledRow label value />
+                            }}
+                        </ForEach>
+                    </List>
+                </Frame>
+            </Scroll>
+        </List>
+    }
+}
+
+#[component]
+fn LabeledRow(label: String, value: String) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=TIMING_SPACING>
-            <Caption @sizing=ItemSize::Fixed(RENDERER_LABEL_WIDTH) content={label.to_owned()} />
+            <Caption @sizing=ItemSize::Fixed(RENDERER_LABEL_WIDTH) content={label} />
             <Caption
                 @sizing=ItemSize::Percent(100.0)
                 content={value}

@@ -1,0 +1,6 @@
+load("@root//buck/wasm:defs.bzl", "editor")
+
+editor(
+    name = "display_settings",
+    module = "display_settings",
+)

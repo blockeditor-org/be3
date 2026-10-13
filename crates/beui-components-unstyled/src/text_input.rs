@@ -10,17 +10,16 @@ use text_editor_core::{EditorCommand, TextBuffer, TextLanguage};
 use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Vec2};
-use beui_core::input::KeyPress;
 
 use crate::SyntaxColors;
 use crate::TextArea;
 use crate::TextAreaColors;
 use crate::TextAreaState;
-use crate::context_menu::MenuStyle;
 use crate::context_menu_menu;
 use crate::context_menu_overlay;
 use crate::menu_list_len;
 use crate::menu_list_row_button;
+use crate::menu_popup::MenuStyle;
 use crate::text_area_index_at;
 use crate::text_area_shown;
 use crate::text_menu::TextContextMenu;
@@ -95,7 +94,6 @@ pub fn TextInput(
     on_submit: Callback<String>,
     on_hover_change: Callback<bool>,
     on_focus_change: Callback<bool>,
-    on_key_override: Callback<KeyPress, bool>,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
     let TextInputStyle {
@@ -186,7 +184,6 @@ pub fn TextInput(
             padding=Vec2::ZERO
             accessibility
             on_menu={open_menu}
-            on_key_override={move |press: KeyPress| on_key_override.call(press)}
             on_submit={move || on_submit.call(text_of(&submit_state))}
             on_focus_change={move |focused: bool| {
                 if focused && select_on_focus.peek() {

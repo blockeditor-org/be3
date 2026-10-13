@@ -1,5 +1,6 @@
 mod descriptors;
 mod enums;
+mod functions;
 
 #[cfg(test)]
 mod tests;
@@ -12,6 +13,7 @@ use serde::{Serialize, de::DeserializeOwned};
 pub const GPU_MODULE: &str = "be3_gpu";
 pub const HOST_MODULE: &str = "be3_host";
 pub const HOST_WAKE: &str = "host_wake";
+pub const HOST_PANIC: &str = "host_panic";
 
 pub const ABI_VERSION: u32 = 1;
 

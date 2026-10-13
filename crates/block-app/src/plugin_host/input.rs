@@ -1,29 +1,20 @@
-use beui::{Event, Pos2, Rect, Vec2};
+use beui::{Event, Forwarded, PointerEvent, PointerId, PointerPhase, Pos2, Rect, Vec2};
 use block_plugin_api::{
-    DroppedFile, InputBatch, InputEvent, Message, Modifiers, PointerButton, ScreenId,
+    DroppedFile, InputBatch, InputEvent, Message, Modifiers, Monitor, ScreenId, TouchPhase,
     ViewportMetrics, WheelUnit,
 };
-use std::collections::HashSet;
 use uuid::Uuid;
 
-use crate::host;
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct BlockDrag {
+    pub(crate) block_id: Uuid,
+    pub(crate) block_type: Uuid,
+}
 
 pub(super) struct BlockDragEvent {
     pub(super) position: Vec2,
-    pub(super) block_id: Uuid,
-    pub(super) block_type: Uuid,
+    pub(super) drag: BlockDrag,
     pub(super) dropped: bool,
-}
-
-pub(super) fn block_drag(input: &beui::ForwardedInput) -> Option<BlockDragEvent> {
-    let payload = host::drag()?;
-    let pointer = input.pointer.filter(|_| input.hovered)?;
-    Some(BlockDragEvent {
-        position: pointer - input.rect.min,
-        block_id: payload.block_id,
-        block_type: payload.block_type,
-        dropped: host::drag_released(),
-    })
 }
 
 pub(super) struct FileDropEvent {
@@ -36,7 +27,7 @@ pub(super) fn file_drop(input: &beui::ForwardedInput, dropping: bool) -> Option<
     let mut hovering = dropping;
     let mut dropped = false;
     let mut files = Vec::new();
-    for event in &input.events {
+    for event in input.inputs() {
         match event {
             Event::FileHovered => hovering = true,
             Event::FileHoverCancelled => hovering = false,
@@ -69,25 +60,14 @@ fn read_dropped(file: beui::DroppedFile) -> Option<DroppedFile> {
     Some(DroppedFile { name, data })
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn read_path(path: &std::path::Path) -> Option<Vec<u8>> {
     std::fs::read(path).ok()
 }
 
-#[cfg(target_arch = "wasm32")]
-fn read_path(_path: &std::path::Path) -> Option<Vec<u8>> {
-    None
-}
-
 #[derive(Default)]
 pub(super) struct InputAdapter {
-    captured: bool,
-    pointer_inside: bool,
-    pressed_buttons: u8,
     focused: bool,
     modifiers: Modifiers,
-    paste_shortcut_down: bool,
-    captured_touches: HashSet<(u64, u64)>,
 }
 
 impl InputAdapter {
@@ -100,29 +80,9 @@ impl InputAdapter {
         input: &beui::ForwardedInput,
         screen: ScreenId,
     ) -> Vec<Message> {
-        let rect = input.rect;
         let mut output = Vec::new();
-        if input.focused != self.focused {
-            output.push(InputEvent::Focus(input.focused));
-            self.focused = input.focused;
-            if !input.focused {
-                self.captured = false;
-                self.pressed_buttons = 0;
-                self.captured_touches.clear();
-            }
-        }
         for event in &input.events {
-            self.forward_event(event, rect, input.modifiers, &mut output);
-        }
-        if !input.hovered && self.pressed_buttons == 0 {
-            self.captured = false;
-            self.leave(&mut output);
-        }
-        let shortcut_down = super::clipboard::paste_shortcut_down();
-        let shortcut_pressed = shortcut_down && !self.paste_shortcut_down;
-        self.paste_shortcut_down = shortcut_down;
-        if input.focused && shortcut_pressed {
-            output.push(InputEvent::Paste(String::new()));
+            self.forward_event(event, input.rect, &mut output);
         }
         match output.is_empty() {
             true => Vec::new(),
@@ -133,124 +93,127 @@ impl InputAdapter {
         }
     }
 
-    fn forward_event(
-        &mut self,
-        event: &Event,
-        rect: Rect,
-        modifiers: beui::Modifiers,
-        output: &mut Vec<InputEvent>,
-    ) {
+    fn forward_event(&mut self, event: &Forwarded, rect: Rect, output: &mut Vec<InputEvent>) {
         match event {
-            Event::PointerMoved(position) => {
-                self.pointer_inside = true;
-                let position = *position - rect.min;
-                output.push(InputEvent::PointerMoved {
-                    x: position.x,
-                    y: position.y,
-                });
+            Forwarded::Pointer { event, .. } => self.pointer(event, rect, output),
+            Forwarded::Left => output.push(InputEvent::PointerLeft),
+            Forwarded::Focus(focused) | Forwarded::Input(Event::Focus(focused)) => {
+                if self.focused != *focused {
+                    self.focused = *focused;
+                    output.push(InputEvent::Focus(*focused));
+                }
             }
-            Event::PointerGone => self.leave(output),
-            Event::PointerMotion(delta) => output.push(InputEvent::PointerMotion {
-                x: delta.x,
-                y: delta.y,
-            }),
-            Event::PointerButton {
-                pos,
-                button,
-                pressed,
-                modifiers,
-            } => {
-                let button_mask = 1 << host::pointer_button_index(*button);
-                self.pressed_buttons = match pressed {
-                    true => self.pressed_buttons | button_mask,
-                    false => self.pressed_buttons & !button_mask,
-                };
-                self.captured = self.pressed_buttons != 0;
-                let position = *pos - rect.min;
-                push_modifiers(&mut self.modifiers, *modifiers, output);
+            Forwarded::Input(event) => self.input(event, output),
+        }
+    }
+
+    fn pointer(&mut self, event: &PointerEvent, rect: Rect, output: &mut Vec<InputEvent>) {
+        let position = event.pos - rect.min;
+        let (x, y) = (position.x, position.y);
+        if let PointerId::Touch(id) = event.pointer {
+            let phase = match event.phase {
+                PointerPhase::Down(_) => TouchPhase::Start,
+                PointerPhase::Move => TouchPhase::Move,
+                PointerPhase::Up(_) => TouchPhase::End,
+                PointerPhase::Cancel => TouchPhase::Cancel,
+                _ => return,
+            };
+            output.push(InputEvent::Touch {
+                device: id.device,
+                finger: id.finger,
+                phase,
+                x,
+                y,
+                force: event.force,
+            });
+            return;
+        }
+        match event.phase {
+            PointerPhase::Move => output.push(InputEvent::PointerMoved { x, y }),
+            PointerPhase::Down(button) | PointerPhase::Up(button) => {
+                push_modifiers(&mut self.modifiers, event.modifiers, output);
                 output.push(InputEvent::PointerButton {
-                    button: beui_plugin_input::pointer_button(*button),
-                    pressed: *pressed,
-                    x: position.x,
-                    y: position.y,
+                    button: beui_plugin_input::pointer_button(button),
+                    pressed: matches!(event.phase, PointerPhase::Down(_)),
+                    x,
+                    y,
                 });
             }
-            Event::Scroll(delta) => {
-                push_modifiers(&mut self.modifiers, modifiers, output);
+            PointerPhase::Scroll(delta) => {
+                push_modifiers(&mut self.modifiers, event.modifiers, output);
                 output.push(InputEvent::Wheel {
                     x: delta.x,
                     y: delta.y,
                     unit: WheelUnit::Pixels,
                 });
             }
-            Event::ScrollEnded => output.push(InputEvent::WheelEnded),
-            Event::Zoom(factor) => output.push(InputEvent::Zoom { factor: *factor }),
-            Event::Touch {
-                id,
-                phase,
-                pos,
-                force,
-            } => {
-                let position = *pos - rect.min;
-                output.push(InputEvent::Touch {
-                    device: id.device,
-                    finger: id.finger,
-                    phase: beui_plugin_input::touch_phase(*phase),
-                    x: position.x,
-                    y: position.y,
-                    force: *force,
-                });
-                if *phase == beui::TouchPhase::Cancel && self.pressed_buttons & 1 != 0 {
-                    self.pressed_buttons &= !1;
-                    self.captured = self.pressed_buttons != 0;
-                    output.push(InputEvent::PointerButton {
-                        button: PointerButton::Primary,
-                        pressed: false,
-                        x: position.x,
-                        y: position.y,
-                    });
+            PointerPhase::ScrollEnded { .. } => output.push(InputEvent::WheelEnded),
+            PointerPhase::Zoom(factor) => output.push(InputEvent::Zoom { factor }),
+            PointerPhase::Cancel | PointerPhase::Gone => {}
+        }
+    }
+
+    fn input(&mut self, event: &Event, output: &mut Vec<InputEvent>) {
+        match event {
+            Event::PointerMotion(delta) => output.push(InputEvent::PointerMotion {
+                x: delta.x,
+                y: delta.y,
+            }),
+            Event::Key { press, text, .. } => {
+                push_modifiers(&mut self.modifiers, press.modifiers, output);
+                match beui_plugin_input::protocol_key(press.key) {
+                    Some(key) => output.push(InputEvent::Key {
+                        key,
+                        pressed: press.pressed,
+                        repeat: press.repeat,
+                        text: text.clone(),
+                    }),
+                    None => output.extend(text.clone().map(InputEvent::Text)),
                 }
-            }
-            Event::Key {
-                key,
-                pressed,
-                repeat,
-                modifiers,
-            } => {
-                push_modifiers(&mut self.modifiers, *modifiers, output);
-                output.push(InputEvent::Key {
-                    key: beui_plugin_input::protocol_key(*key),
-                    pressed: *pressed,
-                    repeat: *repeat,
-                });
             }
             Event::Modifiers(modifiers) => push_modifiers(&mut self.modifiers, *modifiers, output),
             Event::Text(text) => output.push(InputEvent::Text(text.clone())),
-            Event::Ime(ime) => output.push(InputEvent::Ime(beui_plugin_input::protocol_ime(ime))),
-            Event::Focus(false) if self.focused => {
-                self.focused = false;
-                self.captured = false;
-                self.pressed_buttons = 0;
-                self.captured_touches.clear();
-                output.push(InputEvent::Focus(false));
+            Event::Paste(beui::Pasted::Text(text)) => {
+                output.extend(block_plugin_api::paste_events(text))
             }
+            Event::Paste(pasted) => output.push(InputEvent::Paste(
+                beui_plugin_input::protocol_pasted(pasted.clone()),
+            )),
+            Event::Ime(ime) => output.push(InputEvent::Ime(beui_plugin_input::protocol_ime(ime))),
             _ => {}
         }
+    }
+
+    pub(super) fn intercepted(
+        &mut self,
+        press: Option<beui::KeyPress>,
+        modifiers: beui::Modifiers,
+    ) -> Vec<InputEvent> {
+        let mut output = Vec::new();
+        push_modifiers(&mut self.modifiers, modifiers, &mut output);
+        if let Some(press) = press
+            && let Some(key) = beui_plugin_input::protocol_key(press.key)
+        {
+            output.push(InputEvent::InterceptedKey {
+                key,
+                pressed: press.pressed,
+                repeat: press.repeat,
+            });
+        }
+        output
     }
 
     pub(super) fn back(&self, gesture: beui::BackGesture) -> InputEvent {
         InputEvent::Back(beui_plugin_input::back_phase(gesture))
     }
-
-    fn leave(&mut self, output: &mut Vec<InputEvent>) {
-        if self.pointer_inside && !self.captured {
-            self.pointer_inside = false;
-            output.push(InputEvent::PointerLeft);
-        }
-    }
 }
 
-pub(super) fn viewport_metrics(size: Vec2, visible: Rect, scale_factor: f32) -> ViewportMetrics {
+pub(super) fn viewport_metrics(
+    size: Vec2,
+    visible: Rect,
+    scale_factor: f32,
+    monitors: Vec<Monitor>,
+) -> ViewportMetrics {
     let logical_width = size.x.max(0.0);
     let logical_height = size.y.max(0.0);
     let visible = visible.intersect(Rect::from_min_size(Pos2::ZERO, size));
@@ -262,6 +225,7 @@ pub(super) fn viewport_metrics(size: Vec2, visible: Rect, scale_factor: f32) -> 
         pixel_width: (visible.width().max(0.0) * scale_factor).round() as u32,
         pixel_height: (visible.height().max(0.0) * scale_factor).round() as u32,
         scale_factor,
+        monitors,
     }
 }
 

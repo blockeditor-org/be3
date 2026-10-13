@@ -2,14 +2,16 @@ use super::*;
 
 #[test]
 fn the_same_range_deleted_by_two_peers_at_once_is_deleted_once() {
-    let base = "hello brave new world";
-    let theirs = TextOp::delete(6, 6);
+    let base = TextBlock::of("hello brave new world");
+    let theirs = TextBlock::delete(&base, 6..12).expect("there is something to delete");
+    let ours = TextBlock::delete(&base, 6..16).expect("there is something to delete");
 
     assert_eq!(
-        TextContent::rebase(TextOp::delete(6, 6), std::slice::from_ref(&theirs)),
-        None
+        TextBlock::text(&edited(&base, [theirs.clone(), theirs.clone()])),
+        "hello new world"
     );
-    let ours = TextContent::rebase(TextOp::delete(6, 10), std::slice::from_ref(&theirs))
-        .expect("part of the delete is left");
-    assert_eq!(applied(base, &[theirs, ours]), "hello world");
+    assert_eq!(
+        TextBlock::text(&edited(&base, [theirs, ours])),
+        "hello world"
+    );
 }

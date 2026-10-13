@@ -29,11 +29,11 @@ fn a_pointer_lock_reports_motion_only_while_it_holds_the_pointer() {
         Vec2::ZERO,
         "motion should go nowhere while the pointer is free"
     );
-    assert!(!harness.frame(Vec::new()).pointer_locked);
+    assert!(!harness.frame(Vec::new()).window.pointer_locked);
 
     harness.click(pos2(50.0, 50.0));
     assert!(
-        harness.frame(Vec::new()).pointer_locked,
+        harness.frame(Vec::new()).window.pointer_locked,
         "pressing the region should ask for the pointer"
     );
 
@@ -46,7 +46,7 @@ fn a_pointer_lock_reports_motion_only_while_it_holds_the_pointer() {
 
     harness.key(Key::Escape, Modifiers::NONE);
     assert!(
-        !harness.frame(Vec::new()).pointer_locked,
+        !harness.frame(Vec::new()).window.pointer_locked,
         "escape should let the pointer go"
     );
 

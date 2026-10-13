@@ -1,51 +1,90 @@
-use std::cell::RefCell;
 use std::rc::Rc;
 
-use block_editor_beui::be_block::{EditorViewContent, WORKSPACE_EDITOR};
+use block_editor_beui::BlockParent;
+use block_editor_beui::be_block::{
+    EditorView, EditorViewContent, Settings, SettingsContent, WORKSPACE_EDITOR,
+};
 use block_editor_beui::beui::reactive::{Memo, create_memo};
-use block_editor_beui::root_settings::{RootSettings, SettingsGraph};
+use block_editor_beui::root_settings::RootSettings;
 use block_shell::Workspace;
 use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Session {
-    pub(crate) profile: Uuid,
+    pub(crate) block: Uuid,
     pub(crate) name: String,
 }
 
-pub(crate) fn sessions(workspace: &Rc<Workspace>) -> Memo<Vec<Session>> {
-    let workspace = Rc::clone(workspace);
-    let settings = RefCell::new(RootSettings::default());
-    create_memo(move || {
-        let editor = workspace.editor();
-        let Some(block) = settings.borrow_mut().find(editor) else {
-            return Vec::new();
+#[derive(Clone)]
+pub(crate) struct Sessions {
+    workspace: Rc<Workspace>,
+    pub(crate) settings: Memo<Option<Uuid>>,
+    pub(crate) listed: Memo<Vec<Session>>,
+}
+
+impl Sessions {
+    pub(crate) fn new(workspace: &Rc<Workspace>) -> Self {
+        let found = RootSettings::default();
+        let finding = Rc::clone(workspace);
+        let settings = create_memo(move || found.find(finding.editor()));
+        let listing = Rc::clone(workspace);
+        let listed = create_memo(move || listed(&listing));
+        Self {
+            workspace: Rc::clone(workspace),
+            settings,
+            listed,
+        }
+    }
+
+    pub(crate) fn open(&self, session: Uuid) {
+        self.workspace.open_block(session, WORKSPACE_EDITOR);
+    }
+
+    pub(crate) fn create(&self) {
+        let Some(settings) = self.settings.get_untracked() else {
+            return;
         };
-        let Some(held) = editor.settings(block) else {
-            return Vec::new();
-        };
-        let mut sessions: Vec<Session> = held
-            .profiles()
-            .into_iter()
-            .filter(|profile| {
-                editor
-                    .content_of::<EditorViewContent>(*profile)
-                    .read(|view| view.root().editor)
-                    == Some(WORKSPACE_EDITOR)
-            })
-            .map(|profile| Session {
-                profile,
-                name: workspace
-                    .info(profile)
-                    .and_then(|info| info.name)
-                    .unwrap_or_else(|| "Session".to_owned()),
-            })
-            .collect();
-        sessions.sort_by(|left, right| {
-            left.name
-                .cmp(&right.name)
-                .then(left.profile.cmp(&right.profile))
-        });
-        sessions
-    })
+        let editor = self.workspace.editor();
+        let count = self.listed.with_untracked(Vec::len);
+        let session = editor.blocks().create_named(
+            &EditorView::document(WORKSPACE_EDITOR, None),
+            BlockParent::Block(settings),
+            format!("Session {}", count + 1),
+        );
+        editor
+            .content_of::<SettingsContent>(settings)
+            .operate(Settings::list_session(session));
+        self.open(session);
+    }
+}
+
+fn listed(workspace: &Workspace) -> Vec<Session> {
+    let editor = workspace.editor();
+    let Some(held) = RootSettings::default().read(editor) else {
+        return Vec::new();
+    };
+    let mut sessions: Vec<Session> = held
+        .settings
+        .sessions()
+        .into_iter()
+        .filter(|session| {
+            editor
+                .content_of::<EditorViewContent>(*session)
+                .read(|view| view.root().editor)
+                == Some(WORKSPACE_EDITOR)
+        })
+        .map(|block| Session {
+            block,
+            name: workspace
+                .info(block)
+                .and_then(|info| info.name())
+                .unwrap_or_else(|| "Session".to_owned()),
+        })
+        .collect();
+    sessions.sort_by(|left, right| {
+        left.name
+            .cmp(&right.name)
+            .then(left.block.cmp(&right.block))
+    });
+    sessions
 }

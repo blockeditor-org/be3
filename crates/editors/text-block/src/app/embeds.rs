@@ -58,8 +58,8 @@ pub(crate) fn resolve_embeds(state: &State) -> Vec<ResolvedEmbed> {
                 reference.id,
                 (
                     reference.block_type,
-                    reference.name.clone(),
-                    reference.named_by_hand,
+                    reference.name(),
+                    reference.named_by_hand(),
                 ),
             )
         })
@@ -75,7 +75,7 @@ pub(crate) fn resolve_embeds(state: &State) -> Vec<ResolvedEmbed> {
                 state
                     .client
                     .info(id)
-                    .map(|block| (block.block_type, block.name, block.named_by_hand))
+                    .map(|block| (block.block_type, block.name(), block.named_by_hand()))
             });
             let frame_size = embed
                 .large
@@ -115,12 +115,13 @@ pub(crate) fn resolve_embeds(state: &State) -> Vec<ResolvedEmbed> {
 }
 
 pub(crate) fn image_embed_directive(
+    link_base: &str,
     workspace_id: Uuid,
     reference: &Uuid,
     source_name: &str,
     markdown: bool,
 ) -> String {
-    let url = block_url(workspace_id, *reference);
+    let url = block_url(link_base, workspace_id, *reference);
     if markdown {
         format!("![{source_name}]({url})")
     } else {

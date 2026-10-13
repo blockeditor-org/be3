@@ -1,5 +1,3 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use block_editor_beui::be_block::{CalendarEvent, Item, ObjectId};
 use block_editor_beui::beui::datetime::DateTime;
 pub(crate) use block_ui::datetime::SECONDS_PER_DAY;
@@ -191,10 +189,9 @@ pub(crate) fn week_start(day: i64) -> i64 {
 }
 
 pub(crate) fn today_days_since_epoch() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| (duration.as_secs() / SECONDS_PER_DAY as u64) as i64)
-        .unwrap_or(0)
+    let seconds = i64::try_from(block_editor_beui::wall_clock().as_secs()).unwrap_or(0)
+        + i64::from(block_editor_beui::utc_offset());
+    seconds.div_euclid(SECONDS_PER_DAY)
 }
 
 pub(crate) fn weekday_from_days(days_since_epoch: i64) -> u8 {

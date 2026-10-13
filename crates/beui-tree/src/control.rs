@@ -19,14 +19,6 @@ fn build_in_slot<C: SlotChild>(
     (stored, scope)
 }
 
-fn discard_previous<C: SlotChild>(previous: Option<(C::Stored, Scope)>) {
-    let Some((stored, scope)) = previous else {
-        return;
-    };
-    C::discard(&stored);
-    drop(scope);
-}
-
 type HeldChild<C> = Rc<RefCell<Option<(<C as SlotChild>::Stored, Scope)>>>;
 type KeyedChild<K, C> = Rc<RefCell<Option<(K, <C as SlotChild>::Stored, Scope)>>>;
 
@@ -38,13 +30,16 @@ where
     DynamicSegment::new(move |slot: ChildSlot<C>| {
         let held: HeldChild<C> = Rc::new(RefCell::new(None));
         let owned = held.clone();
-        on_cleanup(move || drop(owned));
+        on_cleanup(move || {
+            let taken = owned.borrow_mut().take();
+            drop(taken);
+        });
         create_effect(move || {
             let visible = condition.get();
             let mut held = held.borrow_mut();
             if !visible {
                 slot.fill(Vec::new());
-                discard_previous::<C>(held.take());
+                drop(held.take());
             } else if held.is_none() {
                 *held = Some(build_in_slot(&slot, || then.call(())));
             }
@@ -62,12 +57,10 @@ where
 {
     DynamicSegment::new(move |slot: ChildSlot<C>| {
         let held: HeldChild<C> = Rc::new(RefCell::new(None));
-        let parked = held.clone();
+        let owned = held.clone();
         on_cleanup(move || {
-            let held = parked.borrow_mut().take();
-            if let Some((stored, _)) = held {
-                C::discard(&stored);
-            }
+            let taken = owned.borrow_mut().take();
+            drop(taken);
         });
         let mut then = Some(then);
         create_effect(move || {
@@ -106,12 +99,15 @@ where
     DynamicSegment::new(move |slot: ChildSlot<C>| {
         let held: HeldChild<C> = Rc::new(RefCell::new(None));
         let owned = held.clone();
-        on_cleanup(move || drop(owned));
+        on_cleanup(move || {
+            let taken = owned.borrow_mut().take();
+            drop(taken);
+        });
         create_effect(move || {
             let value = value.get();
             let mut held = held.borrow_mut();
             let built = build_in_slot(&slot, || view.call(value));
-            discard_previous::<C>(held.replace(built));
+            drop(held.replace(built));
         });
     })
 }
@@ -132,12 +128,7 @@ where
         on_cleanup(move || drop(owned));
         create_effect(move || {
             let keys = keys.get();
-            rows.map(keys).commit(|items, removed| {
-                slot.fill(items);
-                for row in &removed {
-                    C::discard(row);
-                }
-            });
+            rows.map(keys).commit(|items, _| slot.fill(items));
         });
     })
 }
@@ -157,7 +148,10 @@ where
         let (current, set_current) = create_signal(value.peek());
         let held: KeyedChild<K, C> = Rc::new(RefCell::new(None));
         let owned = held.clone();
-        on_cleanup(move || drop(owned));
+        on_cleanup(move || {
+            let taken = owned.borrow_mut().take();
+            drop(taken);
+        });
         create_effect(move || {
             let value = value.get();
             let next = key.call(value.clone());
@@ -169,10 +163,7 @@ where
             let current = current.clone();
             let view = view.clone();
             let (stored, scope) = build_in_slot(&slot, move || view.call(current));
-            let previous = held
-                .replace((next, stored, scope))
-                .map(|(_, stored, scope)| (stored, scope));
-            discard_previous::<C>(previous);
+            drop(held.replace((next, stored, scope)));
         });
     })
 }

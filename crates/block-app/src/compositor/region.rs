@@ -7,17 +7,29 @@ use std::{
 use beui::reactive::{
     BackHandler, Canvas, CanvasItem, Drawing, Embed, EmbedPlacement, EmbedSlot, ForEach, Frame,
     Interactive, Layers, List, Memo, NodeRef, Prop, Show, clone, component, create_effect,
-    create_memo, draw_gpu, on_cleanup, use_context, view,
+    create_memo, draw_gpu, on_cleanup, try_with_document, untrack, use_context, use_screens, view,
 };
-use beui::{Align, CursorIcon, ForwardedInput, ImeCursor, NodeId, Pos2, Rect, Region, Vec2, pos2};
+use beui::styled::CrashNotice;
+use beui::unstyled::{DragPoint, DropHandle, DropTarget};
+use beui::{
+    Align, CursorIcon, ForwardedInput, ImeCursor, Modifiers, NodeId, Pos2, Rect, Region, Vec2, pos2,
+};
 use block_plugin_api::{ChildId, EditorInstanceId, EditorRegion, FrameSpec, PluginManifest};
 use uuid::Uuid;
 
 use crate::host::HostItem;
 use crate::plugin_host::{
-    self, EditorView, HostChild, InstanceRole, Piece, RegionPlacement, RegionSlot, RegionView,
+    self, BlockDrag, EditorView, HostChild, InstanceRole, Piece, RegionPlacement, RegionSlot,
+    RegionView,
 };
 use crate::surfaces::HostItemFace;
+
+#[derive(Clone, Debug, PartialEq)]
+struct Failure {
+    title: String,
+    detail: String,
+    restart: Option<String>,
+}
 
 #[derive(Clone)]
 pub(crate) struct RegionEditor {
@@ -67,6 +79,9 @@ pub(crate) fn PluginRegion(
 ) -> NodeId {
     let instance = editor.instance;
     let plugin_id = editor.plugin_id().to_owned();
+    let name = editor.plugin.identity.name.clone();
+    let crash_id = format!("{plugin_id}.{}.{region:?}.crashed", instance.0);
+    let block = editor.role.block().map(|block| block.id);
     plugin_host::mount_region(RegionSlot {
         plugin: &editor.plugin,
         block_types: &editor.block_types,
@@ -80,8 +95,9 @@ pub(crate) fn PluginRegion(
     }));
     let revision = super::listen(&plugin_id);
     let placed: Rc<Cell<Option<EmbedPlacement>>> = Rc::new(Cell::new(None));
+    let screens = use_screens();
     let place: Rc<dyn Fn(Option<EmbedPlacement>)> = Rc::new(
-        clone!(plugin_id frame view -> move |placement: Option<EmbedPlacement>| {
+        clone!(plugin_id frame view screens -> move |placement: Option<EmbedPlacement>| {
             match placement {
                 Some(placement) => plugin_host::place_region(
                     &plugin_id,
@@ -90,6 +106,7 @@ pub(crate) fn PluginRegion(
                     RegionPlacement {
                         rect: placement.rect,
                         clip: placement.clip,
+                        screens: screens.get_untracked(),
                     },
                     frame.peek(),
                     view.peek(),
@@ -106,6 +123,7 @@ pub(crate) fn PluginRegion(
     create_effect(clone!(placed place frame view -> move || {
         let _ = frame.get();
         let _ = view.get();
+        screens.with(|_| ());
         place(placed.get());
     }));
     let state = create_memo(clone!(revision -> move || {
@@ -132,6 +150,9 @@ pub(crate) fn PluginRegion(
             if let Some((_, block)) = placed.iter().find(|(placed, _)| *placed == child) {
                 super::editors::pick_frame_menu(*block, pick);
             }
+        }
+        for drag in plugin_host::take_block_drags(&plugin_id, instance) {
+            carry(drag);
         }
     }));
     let frames = create_memo(clone!(revision plugin_id -> move || {
@@ -207,6 +228,20 @@ pub(crate) fn PluginRegion(
         state.with(|view| view.cursor.unwrap_or(CursorIcon::Default))
     }));
     let handles_back = create_memo(clone!(state -> move || state.with(|view| view.handles_back)));
+    let pastes = create_memo(clone!(state -> move || state.with(|view| view.pastes.clone())));
+    let intercepted = create_memo(clone!(state -> move || {
+        state.with(|view| view.intercepted_keys.clone())
+    }));
+    let shell = super::shell();
+    super::intercept::intercept_keys(
+        plugin_id.clone(),
+        instance,
+        region,
+        intercepted,
+        move || region == EditorRegion::Frame && block.is_some() && shell.get_untracked() == block,
+    );
+    let catcher = NodeRef::new();
+    take_keyboard(&state, &catcher);
     let anchor = NodeRef::new();
     let ime = create_memo(clone!(state -> move || state.with(|view| view.ime.is_some())));
     let ime_cursor = create_memo(clone!(state anchor -> move || {
@@ -219,7 +254,13 @@ pub(crate) fn PluginRegion(
         })
     }));
     let ime_keyboard = create_memo(clone!(state -> move || {
-        state.with(|view| view.ime.as_ref().is_none_or(|area| area.keyboard))
+        state.with(|view| view.ime.as_ref().is_none_or(|area| area.keyboard.shown()))
+    }));
+    let keyboard_asks = create_memo(clone!(state -> move || {
+        Some(state.with(|view| match view.ime.as_ref().map(|area| area.keyboard) {
+            Some(beui::Keyboard::Shown { asks }) => asks,
+            _ => 0,
+        }))
     }));
     let ime_text = create_memo(clone!(state -> move || {
         state.with(|view| view.ime.as_ref().and_then(|area| area.text.clone()))
@@ -229,8 +270,12 @@ pub(crate) fn PluginRegion(
     }));
     let failure = create_memo(clone!(state plugin_id -> move || {
         state.with(|view| {
-            view.error.as_ref().map(|(text, restart)| HostItem::Error {
-                text: text.clone(),
+            view.error.as_ref().map(|(text, restart)| Failure {
+                title: match restart {
+                    true => format!("{name} stopped"),
+                    false => format!("{name} could not start"),
+                },
+                detail: text.clone(),
                 restart: restart.then(|| plugin_id.clone()),
             })
         })
@@ -249,7 +294,7 @@ pub(crate) fn PluginRegion(
         plugin_host::back_region(&plugin_id, instance, region, gesture);
     });
     let occluded = occlusion();
-    let takes = clone!(state passive -> move |local: Pos2| {
+    let takes: Rc<dyn Fn(Pos2) -> bool> = Rc::new(clone!(state passive -> move |local: Pos2| {
         !passive.peek()
             && state.with_untracked(|view| {
                 let position = local + view.rect.min.to_vec2();
@@ -258,52 +303,134 @@ pub(crate) fn PluginRegion(
                         occluded.with_untracked(|rects| rects.iter().any(|rect| rect.contains(position)))
                     })
             })
+    }));
+    let taken = clone!(state takes -> move |point: DragPoint| {
+        takes(point.pos - state.with_untracked(|view| view.rect.min.to_vec2()))
+    });
+    let over = clone!(plugin_id taken -> move |over: Option<(BlockDrag, DragPoint)>| {
+        let over = over
+            .filter(|(_, point)| taken(*point))
+            .map(|(drag, point)| (drag, point.pos));
+        plugin_host::drag_over_region(&plugin_id, instance, region, over, false);
+    });
+    let dropped = clone!(plugin_id -> move |(drag, point): (BlockDrag, DragPoint)| {
+        if taken(point) {
+            plugin_host::drag_over_region(&plugin_id, instance, region, Some((drag, point.pos)), true);
+        }
+    });
+    let pressed_outside = clone!(plugin_id -> move |_: Pos2| {
+        plugin_host::pressed_outside_region(&plugin_id, instance, region);
+    });
+    let takes = move |local: Pos2| takes(local);
+    let claims = clone!(state passive -> move |(position, held): (Pos2, beui::Modifiers)| {
+        !passive.peek() && state.with_untracked(|view| view.claims(position, held))
     });
     let below = Rc::clone(&child_view);
     let above = child_view;
     view! {
-        <Layers>
-            <RegionChildren
-                state={state.clone()}
-                rect={rect.clone()}
-                child_view={below}
-                below=true
-            />
-            <BackHandler enabled={handles_back} on_gesture={back}>
-                <Interactive
-                    focusable=true
-                    cursor={cursor}
-                    ime={ime}
-                    ime_keyboard={ime_keyboard}
-                    ime_cursor={ime_cursor}
-                    ime_text={ime_text}
-                    on_forward={forward}
-                    forward_at={takes}
-                >
-                    <Embed slot={slot} punch=false @node_ref={&anchor}>
-                        <Drawing draw={base} />
-                    </Embed>
-                </Interactive>
-            </BackHandler>
-            <Notices loading failure />
-            <RegionChildren state rect child_view={above} below=false />
-            <Drawing draw={floating} />
-        </Layers>
+        <DropTarget on_over={over} on_drop={dropped}>
+            {move |_: DropHandle| view! {
+                <Layers>
+                    <RegionChildren
+                        state={state.clone()}
+                        rect={rect.clone()}
+                        child_view={below}
+                        below=true
+                    />
+                    <BackHandler enabled={handles_back} on_gesture={back}>
+                        <Interactive
+                            @node_ref={&catcher}
+                            focusable=true
+                            cursor={cursor}
+                            ime={ime}
+                            ime_keyboard={ime_keyboard}
+                            keyboard_asks={keyboard_asks}
+                            ime_cursor={ime_cursor}
+                            ime_text={ime_text}
+                            pastes={pastes}
+                            on_forward={forward}
+                            hit_at={takes}
+                            claim_at={claims}
+                            on_press_outside={pressed_outside}
+                        >
+                            <Embed slot={slot} punch=false @node_ref={&anchor}>
+                                <Drawing draw={base} />
+                            </Embed>
+                        </Interactive>
+                    </BackHandler>
+                    <Notices loading failure id={crash_id.clone()} />
+                    <RegionChildren state rect child_view={above} below=false />
+                    <Drawing draw={floating} />
+                </Layers>
+            }}
+        </DropTarget>
     }
 }
 
+fn carry(drag: BlockDrag) {
+    let Some((board, pointer)) =
+        try_with_document(|document| (document.drag_board(), document.last_pointer))
+    else {
+        return;
+    };
+    let Some(pointer) = pointer.filter(|_| !board.carrying()) else {
+        return;
+    };
+    let point = DragPoint::at(pointer.pos, Modifiers::NONE);
+    board.begin(Rc::new(drag), point, Rc::new(|_| {}));
+}
+
+fn take_keyboard(state: &Memo<RegionView>, catcher: &NodeRef) {
+    let wants = create_memo(clone!(state -> move || state.with(|view| view.wants_keyboard)));
+    let before = Cell::new(None::<NodeId>);
+    let catcher = catcher.clone();
+    create_effect(move || {
+        let wanted = wants.get();
+        untrack(|| {
+            let Some(region) = catcher.try_get() else {
+                return;
+            };
+            try_with_document(|document| {
+                let focused = document.focused_node();
+                match wanted {
+                    true if focused != Some(region) => {
+                        before.set(focused);
+                        document.focus_focusable(region);
+                    }
+                    true => {}
+                    false => {
+                        let back = before.take().filter(|back| document.contains(*back));
+                        if let Some(back) = back
+                            && focused == Some(region)
+                        {
+                            document.focus_focusable(back);
+                        }
+                    }
+                }
+            });
+        });
+    });
+}
+
 #[component]
-fn Notices(loading: Memo<bool>, failure: Memo<Option<HostItem>>) -> NodeId {
+fn Notices(loading: Memo<bool>, failure: Memo<Option<Failure>>, id: String) -> NodeId {
     let failed = create_memo(clone!(failure -> move || failure.get().is_some()));
     let still_loading = create_memo(clone!(failure loading -> move || {
         loading.get() && failure.get().is_none()
     }));
-    let failure_item = create_memo(move || {
-        failure.get().unwrap_or(HostItem::Error {
-            text: String::new(),
-            restart: None,
-        })
-    });
+    let title = create_memo(clone!(failure -> move || {
+        failure.get().map(|failure| failure.title).unwrap_or_default()
+    }));
+    let detail = create_memo(clone!(failure -> move || {
+        failure.get().map(|failure| failure.detail).unwrap_or_default()
+    }));
+    let restart = create_memo(move || failure.get().and_then(|failure| failure.restart));
+    let reloadable = create_memo(clone!(restart -> move || restart.get().is_some()));
+    let reload = move || {
+        if let Some(plugin) = restart.get_untracked() {
+            crate::host::push_command(crate::host::HostCommand::RestartPlugin(plugin));
+        }
+    };
     let loading_item = create_memo(|| HostItem::Notice {
         text: "Loading plugin…".to_owned(),
         spinner: true,
@@ -312,7 +439,13 @@ fn Notices(loading: Memo<bool>, failure: Memo<Option<HostItem>>) -> NodeId {
         <Frame align_horizontal=Align::Center align_vertical=Align::Center>
             <List spacing=0.0>
                 <Show condition={failed}>
-                    <HostItemFace content={failure_item.clone()} />
+                    <CrashNotice
+                        title={title.clone()}
+                        detail={detail.clone()}
+                        reloadable={reloadable.clone()}
+                        on_reload={reload.clone()}
+                        id={id.clone()}
+                    />
                 </Show>
                 <Show condition={still_loading}>
                     <HostItemFace content={loading_item.clone()} />

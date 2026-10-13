@@ -11,8 +11,8 @@ use beui::reactive::{
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
     BarAction, ChildContent, ChildId, ChildLayer, ChildMode, CreationProgress, EditorCapabilities,
-    HostPanel, HostWindow, HostWindowId, InteractionMode, MenuEntry, ResizeMode, SettingsProgress,
-    TopBar, ViewChange, WebViewId,
+    HostAction, HostPanel, HostValue, HostWindowId, InteractionMode, MenuEntry, ResizeMode,
+    SettingsProgress, TopBar, ViewChange, WebViewId,
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;
@@ -189,7 +189,6 @@ impl SubregionContent {
 pub struct ChildState {
     pub placed: bool,
     pub available: bool,
-    pub hovered: bool,
     pub active: bool,
     pub intrinsic_size: Option<Vec2>,
     pub aspect_ratio: Option<f32>,
@@ -215,7 +214,6 @@ impl ChildState {
         Self {
             placed: true,
             available: status.available,
-            hovered: status.hovered,
             active: status.active,
             intrinsic_size: status
                 .intrinsic
@@ -376,6 +374,7 @@ struct EditorState {
     children_moved: Cell<bool>,
     wakes: Rc<RefCell<Vec<Wake>>>,
     pushed: Mirror,
+    host_values: RefCell<std::collections::HashMap<&'static str, Revision>>,
     files: ReadSignal<Option<FileDrop>>,
     set_files: WriteSignal<Option<FileDrop>>,
     placed: ReadSignal<Rect>,
@@ -448,6 +447,7 @@ impl Editor {
             children_moved: Cell::new(false),
             wakes: Rc::default(),
             pushed,
+            host_values: RefCell::default(),
             files,
             set_files,
             placed,
@@ -668,13 +668,24 @@ impl Editor {
         self.0.host.take_panel_requests()
     }
 
-    pub fn windows(&self) -> Memo<Vec<HostWindow>> {
+    pub fn host_value<T: HostValue>(&self) -> Memo<T::Value> {
         let host = self.0.host.clone();
-        let revision = self.pushed(Pushed::Windows);
+        let revision = self
+            .0
+            .host_values
+            .borrow_mut()
+            .entry(T::KEY)
+            .or_insert_with(|| create_signal(host.host_value_revision(T::KEY)))
+            .0
+            .clone();
         create_memo(move || {
             revision.get();
-            host.windows()
+            host.host_value::<T>()
         })
+    }
+
+    pub fn act<A: HostAction>(&self, action: A) {
+        self.0.host.act(action);
     }
 
     pub fn web_view_events(&self) -> ReadSignal<u64> {
@@ -967,6 +978,16 @@ impl Editor {
         }
         if pushed {
             self.0.pushed.sync(&self.0.host);
+            let keys: Vec<_> = self
+                .0
+                .host_values
+                .borrow()
+                .iter()
+                .map(|(key, (_, revision))| (*key, revision.clone()))
+                .collect();
+            for (key, revision) in keys {
+                revision.set(self.0.host.host_value_revision(key));
+            }
             self.0
                 .set_files
                 .set(self.0.host.files().map(|files| crate::FileDrop {
@@ -1203,6 +1224,35 @@ impl Creation {
     }
 }
 
+impl Editor {
+    pub fn inherited_settings<R>(&self) -> Memo<R>
+    where
+        R: be_block::Layered + PartialEq + 'static,
+        be_block::be_model::Document<R>: be_block::LiveEdit + Clone + Default,
+    {
+        let editor = self.clone();
+        create_memo(move || {
+            let below = crate::root_settings::RootSettings::default()
+                .read(&editor)
+                .map(|held| {
+                    crate::root_settings::layers(
+                        &editor,
+                        &held,
+                        R::CONTENT_TYPE,
+                        editor.host().client_id(),
+                    )
+                    .below(editor.block_id())
+                })
+                .unwrap_or_default();
+            be_block::layered(below.into_iter().filter_map(|block| {
+                editor
+                    .content_of::<be_block::be_model::Document<R>>(block)
+                    .read(|content| content.root())
+            }))
+        })
+    }
+}
+
 impl crate::root_settings::SettingsGraph for Editor {
     fn roots(&self) -> Option<Vec<(Uuid, Uuid, Uuid)>> {
         let mut roots = self.0.roots.borrow_mut();
@@ -1221,12 +1271,21 @@ impl crate::root_settings::SettingsGraph for Editor {
 
     fn settings(&self, block: Uuid) -> Option<be_block::Settings> {
         self.content_of::<be_block::SettingsContent>(block)
-            .read(|settings| settings.root().clone())
+            .read(|settings| settings.root())
     }
 
     fn create(&self, block_type: Uuid, content: Vec<u8>, parent: BlockParent) -> Uuid {
-        self.blocks()
-            .create_with(block_type, Some(content), parent, None, None)
+        self.blocks().create_with(
+            block_type,
+            Some(content),
+            parent,
+            be_block::BlockMetadata::default(),
+        )
+    }
+
+    fn settings_profile(&self, block: Uuid) -> Option<be_block::SettingsProfile> {
+        self.content_of::<be_block::SettingsProfileContent>(block)
+            .read(|profile| profile.root())
     }
 
     fn edit_settings(&self, block: Uuid, edit: be_block::Edit) {
@@ -1234,3 +1293,6 @@ impl crate::root_settings::SettingsGraph for Editor {
             .operate(edit);
     }
 }
+
+#[cfg(test)]
+mod tests;

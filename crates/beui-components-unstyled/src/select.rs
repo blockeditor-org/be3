@@ -6,13 +6,15 @@ use crate::text_input::{TextInputHandle, TextInputStyle};
 use beui_core::base::overlay::Placement;
 use beui_core::document::Document;
 use beui_core::input::{Key, KeyPress};
+use beui_core::keys::{KeyAt, KeyPhase};
+use beui_core::layer::Dismiss;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Callback, Child, Children, Frame, IntoProp, ItemSize, List, Memo, NodeRef, Prop, ReadSignal,
     Render, RenderFn, Run, Selector, WriteSignal, clone, create_effect, create_memo,
-    create_selector, create_signal, set_component_state,
+    create_selector, create_signal, on_key, set_component_state,
 };
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -41,7 +43,6 @@ pub struct SelectOptionHandle {
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum Focus {
     Away,
-    Trigger,
     Search,
 }
 
@@ -213,7 +214,16 @@ pub fn Select(
         state.clone(),
         state.clone(),
     );
-    let (trigger_blur, search_blur) = (state.clone(), state.clone());
+    on_key(
+        KeyAt::Node(state.search.clone()),
+        KeyPhase::Capture,
+        move |event| {
+            event
+                .press()
+                .is_some_and(|press| navigate(&navigate_state, press))
+        },
+    );
+    let search_blur = state.clone();
 
     view! {
         <List spacing=0.0>
@@ -221,8 +231,6 @@ pub fn Select(
                 @node_ref={&state.trigger}
                 accessibility={trigger_accessibility}
                 disabled={disabled}
-                focused={focused.memo(Focus::Trigger)}
-                on_focus_change={move |has_focus: bool| blur(&trigger_blur, has_focus, Focus::Trigger)}
                 content={trigger_content}
                 on_click={move || open(&open_state)}
                 on_key={move |press: KeyPress| trigger_key(&key_state, press)}
@@ -231,7 +239,7 @@ pub fn Select(
                 anchor={&state.trigger}
                 placement=Placement::BelowStart
                 open={is_open.clone()}
-                on_dismiss={move || dismiss(&dismiss_state)}
+                on_dismiss={move |_: Dismiss| dismiss(&dismiss_state)}
             >
                 {popup.call(view! {
                     <List spacing=6.0>
@@ -250,7 +258,6 @@ pub fn Select(
                                     confirm(&submit_state, index);
                                 }
                             }}
-                            on_key_override={move |press: KeyPress| navigate(&navigate_state, press)}
                         />
                         <unstyled::Scroll
                             @sizing=ItemSize::Fixed(OPTIONS_MAX_HEIGHT)
@@ -400,12 +407,12 @@ fn open(state: &State) {
 
 fn dismiss(state: &State) {
     state.set_open.set(false);
-    state.set_focus.set(Focus::Trigger);
+    state.set_focus.set(Focus::Away);
 }
 
 fn confirm(state: &State, index: usize) {
     apply_selection(state, Some(index));
-    state.set_open.set(false);
+    dismiss(state);
 }
 
 fn apply_selection(state: &State, selected: Option<usize>) {

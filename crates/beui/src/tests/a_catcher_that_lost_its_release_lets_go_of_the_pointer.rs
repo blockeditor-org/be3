@@ -14,7 +14,7 @@ fn a_catcher_that_lost_its_release_lets_go_of_the_pointer() {
         move |input: ForwardedInput| {
             heard
                 .borrow_mut()
-                .extend(input.events.into_iter().map(|event| (index, event)))
+                .extend(flattened(input).into_iter().map(|event| (index, event)))
         }
     };
     let document = build({

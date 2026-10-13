@@ -11,7 +11,7 @@ fn the_components_tab_lists_components_instead_of_base_nodes() {
     let mut harness = Harness::new(document);
 
     harness.toggle_inspector();
-    assert_eq!(harness.tree(), ["column", "  frame", "    text"]);
+    assert_eq!(harness.tree(), ["list", "  frame", "    text"]);
 
     harness.click(harness.components_tab_center());
     harness.frame(Vec::new());

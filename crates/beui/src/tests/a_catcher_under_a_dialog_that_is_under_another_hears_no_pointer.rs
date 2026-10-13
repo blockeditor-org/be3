@@ -24,7 +24,7 @@ fn a_catcher_under_a_dialog_that_is_under_another_hears_no_pointer() {
                         <Interactive
                             @node_ref={&catcher}
                             on_forward={move |input: ForwardedInput| {
-                                heard.borrow_mut().extend(input.events)
+                                heard.borrow_mut().extend(flattened(input))
                             }}
                         >
                             <Frame height=300.0 />

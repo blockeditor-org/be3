@@ -1,22 +1,39 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-use be_block::settings::Settings;
+use be_block::settings::{Settings, SettingsProfile};
 use be_block::{
     BlockContent, BlockMetadata, EditorView, EditorViewContent, LINUX_DESKTOP_EDITOR, LiveEdit,
-    Root, SettingsContent,
+    Root, SettingsContent, SettingsProfileContent, WORKSPACE_EDITOR,
 };
 use be_graph::BlockParent;
 use uuid::Uuid;
 
 use crate::be;
 
-pub(crate) fn settings(block: Uuid) -> Option<Settings> {
-    be::hold(block, SettingsContent::CONTENT_TYPE);
-    let content = be::content(block)?;
-    SettingsContent::decode(&content.bytes)
-        .ok()
-        .map(|document| document.root().clone())
+pub(crate) const SESSION_TYPES: [(Uuid, &str); 2] = [
+    (WORKSPACE_EDITOR, "Workspace UI"),
+    (LINUX_DESKTOP_EDITOR, "Linux desktop"),
+];
+
+pub(crate) fn session_type_name(editor: Uuid) -> &'static str {
+    SESSION_TYPES
+        .iter()
+        .find(|(id, _)| *id == editor)
+        .map_or("Other", |(_, name)| name)
+}
+
+pub(crate) struct SessionEntry {
+    pub(crate) id: Uuid,
+    pub(crate) name: String,
+    pub(crate) editor: Uuid,
+    pub(crate) current: bool,
+}
+
+pub(crate) struct ProfileEntry {
+    pub(crate) id: Uuid,
+    pub(crate) name: String,
+    pub(crate) current: bool,
 }
 
 pub(crate) fn device_name() -> &'static str {
@@ -29,24 +46,59 @@ pub(crate) fn device_name() -> &'static str {
     }
 }
 
+fn decode<C: BlockContent>(block: Uuid) -> Option<C> {
+    be::hold(block, C::CONTENT_TYPE);
+    C::decode(&be::content(block)?.bytes).ok()
+}
+
+#[derive(Default)]
+struct Cache {
+    owned: Option<(u64, Vec<Uuid>)>,
+    settings: HashMap<Uuid, (u64, Settings)>,
+    profiles: HashMap<Uuid, (u64, SettingsProfile)>,
+    editors: HashMap<Uuid, (u64, Uuid)>,
+}
+
+impl Cache {
+    fn read<T: Clone>(
+        held: &mut HashMap<Uuid, (u64, T)>,
+        block: Uuid,
+        content_type: Uuid,
+        decode: impl FnOnce() -> Option<T>,
+    ) -> Option<T> {
+        be::hold(block, content_type);
+        let revision = be::content_revision(block)?;
+        if let Some((seen, value)) = held.get(&block)
+            && *seen == revision
+        {
+            return Some(value.clone());
+        }
+        let value = decode()?;
+        held.insert(block, (revision, value.clone()));
+        Some(value)
+    }
+}
+
 pub(crate) struct RootSettings {
     shell: Uuid,
-    block: Option<Uuid>,
+    created: Option<Uuid>,
+    created_session: Option<Uuid>,
+    chosen_session: Option<Uuid>,
     created_profile: Option<Uuid>,
     chosen_profile: Option<Uuid>,
-    decoded: RefCell<Option<(u64, Settings)>>,
-    editors: RefCell<HashMap<Uuid, (u64, Uuid)>>,
+    cache: RefCell<Cache>,
 }
 
 impl RootSettings {
     pub(crate) fn new(shell: Uuid) -> Self {
         Self {
             shell,
-            block: None,
+            created: None,
+            created_session: None,
+            chosen_session: None,
             created_profile: None,
             chosen_profile: None,
-            decoded: RefCell::default(),
-            editors: RefCell::default(),
+            cache: RefCell::default(),
         }
     }
 
@@ -54,48 +106,27 @@ impl RootSettings {
         self.shell
     }
 
-    fn session_document(&self) -> Vec<u8> {
-        EditorView::document(self.shell, None).encode()
-    }
-
-    fn profile_name(&self) -> &'static str {
-        match self.shell == LINUX_DESKTOP_EDITOR {
-            true => "Desktop",
-            false => device_name(),
-        }
-    }
-
-    fn editor_of(&self, profile: Uuid) -> Option<Uuid> {
-        be::hold(profile, EditorViewContent::CONTENT_TYPE);
-        let revision = be::content_revision(profile)?;
-        if let Some((held, editor)) = self.editors.borrow().get(&profile)
-            && *held == revision
+    fn owned(&self) -> Option<Vec<Uuid>> {
+        let account = be::account()?;
+        let revision = be::graph_revision();
+        let mut cache = self.cache.borrow_mut();
+        if let Some((seen, owned)) = &cache.owned
+            && *seen == revision
         {
-            return Some(*editor);
+            return Some(owned.clone());
         }
-        let content = be::content(profile)?;
-        let editor = EditorViewContent::decode(&content.bytes)
-            .ok()?
-            .root()
-            .editor;
-        self.editors
-            .borrow_mut()
-            .insert(profile, (revision, editor));
-        Some(editor)
+        let mut owned: Vec<Uuid> = be::query(be::Query::Roots)
+            .into_iter()
+            .filter(|node| node.content_type == Settings::CONTENT_TYPE && node.author == account)
+            .map(|node| node.id)
+            .collect();
+        owned.sort_unstable();
+        cache.owned = Some((revision, owned.clone()));
+        Some(owned)
     }
 
-    pub(crate) fn find(&mut self) -> Option<Uuid> {
-        if self.block.is_none() {
-            let account = be::account()?;
-            self.block = be::query(be::Query::Roots)
-                .into_iter()
-                .filter(|node| {
-                    node.content_type == Settings::CONTENT_TYPE && node.author == account
-                })
-                .map(|node| node.id)
-                .min();
-        }
-        self.block
+    pub(crate) fn find(&self) -> Option<Uuid> {
+        self.owned()?.first().copied().or(self.created)
     }
 
     pub(crate) fn ensure(&mut self) -> Option<Uuid> {
@@ -108,115 +139,241 @@ impl RootSettings {
                 BlockMetadata::default(),
                 Some(SettingsContent::default().encode()),
             );
-            self.block = Some(block);
+            self.created = Some(block);
         }
-        self.block
+        self.find()
+    }
+
+    pub(crate) fn settings(&self) -> Option<Settings> {
+        let mut blocks = self.owned()?;
+        if blocks.is_empty() {
+            blocks.extend(self.created);
+        }
+        if blocks.is_empty() {
+            return None;
+        }
+        let mut cache = self.cache.borrow_mut();
+        let held = blocks
+            .into_iter()
+            .map(|block| {
+                Cache::read(&mut cache.settings, block, Settings::CONTENT_TYPE, || {
+                    decode::<SettingsContent>(block).map(|document| document.root())
+                })
+            })
+            .collect::<Option<Vec<Settings>>>()?;
+        Some(Settings::merged(held))
     }
 
     pub(crate) fn loaded(&self) -> bool {
-        self.block
-            .is_some_and(|block| self.decoded(block).is_some())
+        self.settings().is_some()
     }
 
-    fn decoded(&self, block: Uuid) -> Option<Settings> {
-        be::hold(block, SettingsContent::CONTENT_TYPE);
-        let revision = be::content_revision(block)?;
-        let mut decoded = self.decoded.borrow_mut();
-        match &*decoded {
-            Some((held, settings)) if *held == revision => Some(settings.clone()),
-            _ => {
-                let settings = settings(block)?;
-                *decoded = Some((revision, settings.clone()));
-                Some(settings)
-            }
-        }
+    fn settings_profile(&self, profile: Uuid) -> Option<SettingsProfile> {
+        let mut cache = self.cache.borrow_mut();
+        Cache::read(
+            &mut cache.profiles,
+            profile,
+            SettingsProfile::CONTENT_TYPE,
+            || decode::<SettingsProfileContent>(profile).map(|document| document.root()),
+        )
     }
 
-    pub(crate) fn profiles(&self, client: Uuid) -> Vec<(Uuid, String, bool)> {
-        let Some(settings) = self.block.and_then(|block| self.decoded(block)) else {
+    pub(crate) fn session_editor(&self, session: Uuid) -> Option<Uuid> {
+        let mut cache = self.cache.borrow_mut();
+        Cache::read(
+            &mut cache.editors,
+            session,
+            EditorViewContent::CONTENT_TYPE,
+            || {
+                Some(
+                    decode::<EditorViewContent>(session)
+                        .map_or(self.shell, |document| document.root().editor),
+                )
+            },
+        )
+    }
+
+    fn edit(&self, edit: &be_block::Edit) {
+        let Some(block) = self.find() else {
+            return;
+        };
+        be::operate_from(
+            block,
+            be::next_origin(),
+            SettingsContent::encode_operation(edit),
+        );
+    }
+
+    fn named(block: Uuid, fallback: &str) -> String {
+        be::node(block)
+            .and_then(|node| node.metadata.name())
+            .unwrap_or_else(|| fallback.to_owned())
+    }
+
+    pub(crate) fn layers(&self, kind: Uuid, client: Uuid) -> Vec<Uuid> {
+        let Some(settings) = self.settings() else {
             return Vec::new();
         };
-        let current = self.chosen_profile.or(settings.profile(self.shell, client));
-        let mut profiles: Vec<(Uuid, String, bool)> = settings
-            .profiles()
+        let profile = self
+            .current_profile(&settings, client)
+            .and_then(|profile| self.settings_profile(profile));
+        settings.layers(kind, profile.as_ref())
+    }
+
+    fn current_profile(&self, settings: &Settings, client: Uuid) -> Option<Uuid> {
+        self.chosen_profile
+            .or(settings.profile(client))
+            .or(self.created_profile)
+    }
+
+    pub(crate) fn sessions(&self, client: Uuid, every_type: bool) -> Vec<SessionEntry> {
+        let Some(settings) = self.settings() else {
+            return Vec::new();
+        };
+        let current = self.chosen_session.or(settings.session(self.shell, client));
+        let mut sessions: Vec<SessionEntry> = settings
+            .sessions()
             .into_iter()
-            .filter(|profile| self.editor_of(*profile) == Some(self.shell))
-            .map(|profile| {
-                let name = be::node(profile)
-                    .and_then(|node| node.metadata.name)
-                    .unwrap_or_else(|| "Profile".to_owned());
-                (profile, name, current == Some(profile))
+            .filter_map(|session| {
+                let editor = self.session_editor(session)?;
+                if !every_type && editor != self.shell {
+                    return None;
+                }
+                Some(SessionEntry {
+                    id: session,
+                    name: Self::named(session, "Session"),
+                    editor,
+                    current: current == Some(session),
+                })
             })
             .collect();
-        profiles.sort_by(|left, right| left.1.cmp(&right.1).then(left.0.cmp(&right.0)));
+        sessions.sort_by(|left, right| left.name.cmp(&right.name).then(left.id.cmp(&right.id)));
+        sessions
+    }
+
+    pub(crate) fn profiles(&self, client: Uuid) -> Vec<ProfileEntry> {
+        let Some(settings) = self.settings() else {
+            return Vec::new();
+        };
+        let current = self.current_profile(&settings, client);
+        let mut profiles: Vec<ProfileEntry> = settings
+            .profiles()
+            .into_iter()
+            .map(|profile| ProfileEntry {
+                id: profile,
+                name: Self::named(profile, "Profile"),
+                current: current == Some(profile),
+            })
+            .collect();
+        profiles.sort_by(|left, right| left.name.cmp(&right.name).then(left.id.cmp(&right.id)));
         profiles
     }
 
+    pub(crate) fn use_session(&mut self, client: Uuid, session: Uuid) {
+        self.edit(&Settings::use_session(self.shell, client, session));
+        self.chosen_session = Some(session);
+    }
+
     pub(crate) fn use_profile(&mut self, client: Uuid, profile: Uuid) {
-        let Some(settings_block) = self.find() else {
-            return;
-        };
-        be::operate_from(
-            settings_block,
-            be::next_origin(),
-            SettingsContent::encode_operation(&Settings::use_profile(self.shell, client, profile)),
-        );
+        self.edit(&Settings::use_profile(client, profile));
         self.chosen_profile = Some(profile);
     }
 
-    pub(crate) fn new_profile(&mut self, client: Uuid) {
-        let Some(settings_block) = self.find() else {
-            return;
-        };
-        let count = self
-            .decoded(settings_block)
-            .map_or(0, |settings| settings.profiles().len());
+    fn create_session(&self, editor: Uuid, name: String) -> Option<Uuid> {
+        let settings = self.find()?;
+        let session = Uuid::new_v4();
+        be::create(
+            session,
+            EditorViewContent::CONTENT_TYPE,
+            BlockParent::Block(settings),
+            BlockMetadata::named(name),
+            Some(EditorView::document(editor, None).encode()),
+        );
+        Some(session)
+    }
+
+    fn create_profile(&self, name: String) -> Option<Uuid> {
+        let settings = self.find()?;
         let profile = Uuid::new_v4();
         be::create(
             profile,
-            EditorViewContent::CONTENT_TYPE,
-            BlockParent::Block(settings_block),
-            BlockMetadata::named(format!("Profile {}", count + 1)),
-            Some(self.session_document()),
+            SettingsProfileContent::CONTENT_TYPE,
+            BlockParent::Block(settings),
+            BlockMetadata::named(name),
+            Some(SettingsProfileContent::default().encode()),
         );
-        be::operate_from(
-            settings_block,
-            be::next_origin(),
-            SettingsContent::encode_operation(&Settings::add_profile(self.shell, client, profile)),
-        );
+        Some(profile)
+    }
+
+    pub(crate) fn new_session(&mut self, client: Uuid, editor: Uuid) {
+        let count = self
+            .settings()
+            .map_or(0, |settings| settings.sessions().len());
+        let Some(session) = self.create_session(editor, format!("Session {}", count + 1)) else {
+            return;
+        };
+        self.edit(&Settings::add_session(self.shell, client, session));
+        self.chosen_session = Some(session);
+    }
+
+    pub(crate) fn new_profile(&mut self, client: Uuid) {
+        let count = self
+            .settings()
+            .map_or(0, |settings| settings.profiles().len());
+        let Some(profile) = self.create_profile(format!("Profile {}", count + 1)) else {
+            return;
+        };
+        self.edit(&Settings::add_profile(client, profile));
         self.chosen_profile = Some(profile);
     }
 
     pub(crate) fn ensure_profile(&mut self, client: Uuid) -> Option<Uuid> {
-        let settings_block = self.ensure()?;
-        let settings = self.decoded(settings_block)?;
+        self.ensure()?;
+        let settings = self.settings()?;
+        let stored = settings.profile(client);
         if let Some(chosen) = self.chosen_profile {
-            if settings.profile(self.shell, client) != Some(chosen) {
+            if stored != Some(chosen) {
                 return Some(chosen);
             }
             self.chosen_profile = None;
         }
-        if let Some(profile) = settings.profile(self.shell, client) {
+        if stored.is_some() {
             self.created_profile = None;
-            return Some(profile);
+            return stored;
         }
         if self.created_profile.is_some() {
             return self.created_profile;
         }
-        let profile = Uuid::new_v4();
-        be::create(
-            profile,
-            EditorViewContent::CONTENT_TYPE,
-            BlockParent::Block(settings_block),
-            BlockMetadata::named(self.profile_name()),
-            Some(self.session_document()),
-        );
-        be::operate_from(
-            settings_block,
-            be::next_origin(),
-            SettingsContent::encode_operation(&Settings::add_profile(self.shell, client, profile)),
-        );
+        let profile = self.create_profile(device_name().to_owned())?;
+        self.edit(&Settings::add_profile(client, profile));
         self.created_profile = Some(profile);
         Some(profile)
+    }
+
+    pub(crate) fn ensure_session(&mut self, client: Uuid) -> Option<Uuid> {
+        self.ensure()?;
+        let settings = self.settings()?;
+        let stored = settings.session(self.shell, client);
+        if let Some(chosen) = self.chosen_session {
+            if stored != Some(chosen) {
+                return Some(chosen);
+            }
+            self.chosen_session = None;
+        }
+        if stored.is_some() {
+            self.created_session = None;
+            return stored;
+        }
+        if self.created_session.is_some() {
+            return self.created_session;
+        }
+        let name = match self.shell == LINUX_DESKTOP_EDITOR {
+            true => "Desktop",
+            false => device_name(),
+        };
+        let session = self.create_session(self.shell, name.to_owned())?;
+        self.edit(&Settings::add_session(self.shell, client, session));
+        self.created_session = Some(session);
+        Some(session)
     }
 }

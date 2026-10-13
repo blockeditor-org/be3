@@ -13,11 +13,13 @@ fn a_card_cannot_be_moved_after_itself_or_into_something_that_is_not_a_list() {
                 object: write,
                 place: Column::NAME.of(done),
                 anchor: Anchor::End,
+                client: crate::local_client(),
             },
             Change::Move {
                 object: write,
                 place: Column::CARDS.of(ObjectId::new()),
                 anchor: Anchor::End,
+                client: crate::local_client(),
             },
         ],
     );

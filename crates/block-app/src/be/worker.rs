@@ -26,7 +26,11 @@ const HISTORY_STEPS: usize = 200;
 type AccessReply = Box<dyn FnOnce(Result<Vec<AccessEntry>, String>) + Send>;
 
 pub(super) enum Command {
-    Open(Uuid, Uuid),
+    Open {
+        block: Uuid,
+        content_type: Uuid,
+        owned: bool,
+    },
     Close(Uuid),
     Operate(Uuid, Option<u64>, Vec<u8>),
     Duplicate {
@@ -66,9 +70,9 @@ pub(super) enum Command {
         block: Uuid,
         parent: BlockParent,
     },
-    SetMetadata {
+    Define {
         block: Uuid,
-        metadata: BlockMetadata,
+        changes: Vec<be_block::Definition>,
     },
     SetAccess {
         block: Uuid,
@@ -118,6 +122,10 @@ pub(crate) struct Shared {
     pub(crate) version_watch: std::collections::HashSet<Uuid>,
     pub(crate) versions: HashMap<Uuid, super::version::VersionState>,
     pub(crate) touched: std::collections::HashSet<Uuid>,
+    pub(crate) pending: usize,
+    pub(crate) owned: std::collections::HashSet<Uuid>,
+    pub(crate) unreadable: HashMap<Uuid, String>,
+    pub(crate) stale_revision: u64,
 }
 
 impl Shared {
@@ -215,6 +223,8 @@ pub(super) trait Session {
     fn content_type(&self) -> Uuid;
 
     fn bytes(&self) -> Vec<u8>;
+
+    fn session_state(&self) -> Vec<u8>;
 
     fn head(&self) -> Option<CommitId>;
 
@@ -327,6 +337,10 @@ where
 
     fn bytes(&self) -> Vec<u8> {
         self.live.content().encode()
+    }
+
+    fn session_state(&self) -> Vec<u8> {
+        self.live.content().session_state()
     }
 
     fn head(&self) -> Option<CommitId> {
@@ -508,6 +522,10 @@ where
         self.live.content().encode()
     }
 
+    fn session_state(&self) -> Vec<u8> {
+        self.live.content().session_state()
+    }
+
     fn head(&self) -> Option<CommitId> {
         self.live.head()
     }
@@ -604,7 +622,7 @@ where
 
 pub(crate) enum Logged {
     Operation { bytes: Vec<u8>, origin: Option<u64> },
-    Replaced,
+    Replaced { acknowledged: HashMap<u64, u64> },
 }
 
 fn drain<C>(live: &mut Live<Store, C>, log: &mut Vec<Logged>, origin: Option<u64>)
@@ -621,9 +639,30 @@ where
                 bytes: C::encode_operation(&operation),
                 origin: None,
             }),
-            Journaled::Replaced => {
-                log.clear();
-                log.push(Logged::Replaced);
+            Journaled::Replaced { edits } => {
+                let mut acknowledged = HashMap::new();
+                for logged in log.drain(..) {
+                    match logged {
+                        Logged::Operation {
+                            origin: Some(origin),
+                            ..
+                        } => *acknowledged.entry(origin).or_default() += 1,
+                        Logged::Operation { origin: None, .. } => {}
+                        Logged::Replaced {
+                            acknowledged: earlier,
+                        } => {
+                            for (origin, count) in earlier {
+                                *acknowledged.entry(origin).or_default() += count;
+                            }
+                        }
+                    }
+                }
+                if let Some(origin) = origin
+                    && edits > 0
+                {
+                    *acknowledged.entry(origin).or_default() += edits;
+                }
+                log.push(Logged::Replaced { acknowledged });
             }
         }
     }
@@ -735,9 +774,10 @@ async fn connected<S: Fn() -> Result<Store, String>>(
     let mut unsealed_since: Option<Instant> = None;
     let mut flushes = Vec::new();
     loop {
-        let woken = match unsealed_since {
-            Some(since) => {
-                let remaining = SEAL_INTERVAL.saturating_sub(since.elapsed());
+        let deadline = unsealed_since.map(|since| since + SEAL_INTERVAL);
+        let woken = match deadline {
+            Some(deadline) => {
+                let remaining = deadline.saturating_duration_since(Instant::now());
                 let waited = std::pin::pin!(wait(commands, &mut events, &mut gone));
                 let timer = std::pin::pin!(platform::sleep(remaining));
                 match select(waited, timer).await {
@@ -755,7 +795,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
             }
             Woken::Disconnected => return Outcome::Lost,
             Woken::Command(command) => {
-                apply(
+                let applied = apply(
                     &peer,
                     &mut sessions,
                     shared,
@@ -764,7 +804,13 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                     &mut flushes,
                     command,
                 )
-                .await
+                .await;
+                {
+                    let mut held = shared.lock().unwrap();
+                    held.pending = held.pending.saturating_sub(1);
+                }
+                crate::host::wake();
+                applied
             }
             Woken::Event(event) => {
                 match event {
@@ -796,8 +842,11 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                 false
             }
             Woken::Deadline => {
-                seal_all(&mut sessions, shared).await;
-                true
+                let due = unsealed_since.is_some_and(|since| since.elapsed() >= SEAL_INTERVAL);
+                if due {
+                    seal_all(&mut sessions, shared).await;
+                }
+                due
             }
         };
         if sealed {
@@ -964,14 +1013,68 @@ async fn rejoin(
     block: Uuid,
     content_type: Uuid,
 ) {
-    let Some(join) = super::join_for(content_type) else {
+    let Some(kind) = super::kind_of(content_type) else {
         return;
     };
-    match join(peer, block).await {
-        Ok(session) => {
+    let owned = !kind.frozen && shared.lock().unwrap().owned.contains(&block);
+    match (kind.join)(peer, block).await {
+        Ok(mut session) => {
+            set_unreadable(shared, block, None);
+            if owned && reshaped(shared, block, kind) {
+                match session.replace((kind.blank)()).await {
+                    Ok(()) => reset_notice(),
+                    Err(error) => record(shared, error),
+                }
+            }
             sessions.insert(block, session);
         }
+        Err(ClientError::Content(_)) if owned => {
+            if let Err(error) = (kind.replace)(peer, block, (kind.blank)()).await {
+                set_unreadable(shared, block, Some(error.to_string()));
+                return;
+            }
+            reset_notice();
+            match (kind.join)(peer, block).await {
+                Ok(session) => {
+                    set_unreadable(shared, block, None);
+                    sessions.insert(block, session);
+                }
+                Err(error) => set_unreadable(shared, block, Some(error.to_string())),
+            }
+        }
+        Err(ClientError::Content(error)) => set_unreadable(shared, block, Some(error.to_string())),
         Err(error) => record(shared, error),
+    }
+}
+
+fn reshaped(shared: &Arc<Mutex<Shared>>, block: Uuid, kind: &super::Kind) -> bool {
+    shared
+        .lock()
+        .unwrap()
+        .graph
+        .get(block)
+        .and_then(|node| node.metadata.get(&be_block::SCHEMA))
+        .is_some_and(|stamped| stamped != (kind.schema)())
+}
+
+fn reset_notice() {
+    crate::notices::report(
+        "Some of this device's settings were saved by another build of Block, so they were reset."
+            .to_owned(),
+    );
+}
+
+fn set_unreadable(shared: &Arc<Mutex<Shared>>, block: Uuid, error: Option<String>) {
+    let mut held = shared.lock().unwrap();
+    let changed = match error {
+        Some(error) => held.unreadable.insert(block, error.clone()) != Some(error),
+        None => held.unreadable.remove(&block).is_some(),
+    };
+    if changed {
+        held.stale_revision += 1;
+        held.touch(block);
+        drop(held);
+        crate::host::wake();
     }
 }
 
@@ -1051,7 +1154,14 @@ async fn apply(
             set_busy(shared, block, false, outcome.err());
             true
         }
-        Command::Open(block, content_type) => {
+        Command::Open {
+            block,
+            content_type,
+            owned,
+        } => {
+            if owned {
+                shared.lock().unwrap().owned.insert(block);
+            }
             open.insert(block, content_type);
             if sessions.contains_key(&block) {
                 return false;
@@ -1070,6 +1180,7 @@ async fn apply(
             let _ = peer.leave_session(block).await;
             let mut held = shared.lock().unwrap();
             held.blocks.remove(&block);
+            held.graph.forget_derived(block);
             held.histories.remove(&block);
             held.presence.remove(&block);
             held.touch(block);
@@ -1120,8 +1231,12 @@ async fn apply(
                     None => Ok(()),
                 },
             };
-            if let Err(error) = outcome {
-                record(shared, error);
+            match outcome {
+                Ok(()) if !sessions.contains_key(&block) && open.contains_key(&block) => {
+                    rejoin(peer, sessions, shared, block, content_type).await;
+                }
+                Ok(()) => {}
+                Err(error) => record(shared, error),
             }
             remember_head(peer, shared, block);
             false
@@ -1194,9 +1309,18 @@ async fn apply(
             }
             true
         }
-        Command::SetMetadata { block, metadata } => {
-            let changed = peer.set_metadata(block, &metadata).await;
-            if let Err(error) = settled(peer, shared, block, changed).await {
+        Command::Define { block, changes } => {
+            let defined = peer
+                .define(block, |metadata| metadata.define(&changes))
+                .await;
+            if let Ok(summary) = &defined
+                && let Some(head) = summary.head
+                && let Some(session) = sessions.get_mut(&block)
+                && let Err(error) = session.published_elsewhere(head).await
+            {
+                record(shared, error);
+            }
+            if let Err(error) = settled(peer, shared, block, defined).await {
                 record(shared, error);
             }
             true
@@ -1233,7 +1357,9 @@ async fn load_graph(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
     match peer.list_blocks().await {
         Ok(blocks) => {
             let nodes = blocks.iter().map(|block| node_of(peer, block)).collect();
-            shared.lock().unwrap().graph.load(nodes);
+            let mut held = shared.lock().unwrap();
+            held.graph.load(nodes);
+            held.stale_revision += 1;
         }
         Err(error) => record(shared, error),
     }
@@ -1281,7 +1407,6 @@ pub(super) fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
         parent: summary.parent,
         access: summary.access,
         references: summary.references.clone(),
-        unreadable_metadata: metadata.is_err(),
         metadata: metadata.unwrap_or_default(),
         head: summary.head,
         version: summary.version,
@@ -1331,7 +1456,11 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
         let Some(content) = held.blocks.get_mut(block) else {
             held.blocks.insert(
                 *block,
-                Content::new(session.content_type(), session.bytes()),
+                Content::new(
+                    session.content_type(),
+                    session.bytes(),
+                    session.session_state(),
+                ),
             );
             held.touch(*block);
             changed = true;
@@ -1344,6 +1473,7 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
             content.record(entry);
         }
         content.bytes = session.bytes();
+        content.session = session.session_state();
         held.touch(*block);
         changed = true;
     }

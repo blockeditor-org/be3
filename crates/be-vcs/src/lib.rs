@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub use be_block::ConflictKind;
 
-use be_block::BlockMetadata;
+use be_block::{BlockMetadata, NAME};
 use be_commit::{Commit, CommitId, CommitKind, CommitStore};
 use be_store::{Hash, Manifest, ObjectStore, StoreError, Vault};
 use serde::{Deserialize, Serialize};
@@ -27,13 +27,11 @@ pub struct Entry {
 
 impl Tree {
     pub fn write<S: ObjectStore>(&self, vault: &Vault<S>) -> Result<Manifest, StoreError> {
-        let encoded = postcard::to_stdvec(self).map_err(|_| StoreError::Encoding)?;
-        vault.write(TREE_CONTENT_TYPE, &encoded)
+        vault.write(TREE_CONTENT_TYPE, &be_store::encode_value(self)?)
     }
 
     pub fn read<S: ObjectStore>(vault: &Vault<S>, manifest: &Manifest) -> Result<Self, StoreError> {
-        let bytes = vault.read(manifest)?;
-        postcard::from_bytes(&bytes).map_err(|_| StoreError::Encoding)
+        be_store::decode_value(&vault.read(manifest)?)
     }
 
     pub fn objects(&self) -> BTreeSet<Hash> {
@@ -113,7 +111,7 @@ pub fn diff(base: &Tree, current: &Tree) -> Vec<Difference> {
                 (Some(before), Some(after)) => {
                     let content = before.content != after.content;
                     let placement = before.parent != after.parent;
-                    let metadata = named(&before.metadata) != named(&after.metadata);
+                    let metadata = before.metadata.defined != after.metadata.defined;
                     if !(content || placement || metadata) {
                         return None;
                     }
@@ -128,10 +126,6 @@ pub fn diff(base: &Tree, current: &Tree) -> Vec<Difference> {
             Some(Difference { block, change })
         })
         .collect()
-}
-
-fn named(metadata: &BlockMetadata) -> Option<&BlockMetadata> {
-    metadata.named_by_hand.then_some(metadata)
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
@@ -218,24 +212,30 @@ fn merge_entry(
             kind: ConflictKind::Placement,
         }),
     }
-    let metadata = before.map(|before| before.metadata.clone());
-    match pick(
-        &metadata,
-        &Some(ours.metadata.clone()),
-        &Some(theirs.metadata.clone()),
-    ) {
-        Some(Some(chosen)) => merged.metadata = chosen,
-        _ if !ours.metadata.named_by_hand && !theirs.metadata.named_by_hand => {}
-        _ => plan.conflicts.push(Conflict {
+    let blank = BlockMetadata::default();
+    let (defined, conflicted) = BlockMetadata::merge_defined(
+        before.map_or(&blank, |before| &before.metadata),
+        &ours.metadata,
+        &theirs.metadata,
+    );
+    merged.metadata.defined = defined;
+    for key in conflicted {
+        plan.conflicts.push(Conflict {
             block,
-            kind: ConflictKind::Name,
-        }),
+            kind: match key == NAME.id {
+                true => ConflictKind::Name,
+                false => ConflictKind::Metadata,
+            },
+        });
     }
     let content = before.map(|before| (before.content.clone(), before.references.clone()));
     let ours_content = Some((ours.content.clone(), ours.references.clone()));
     let theirs_content = Some((theirs.content.clone(), theirs.references.clone()));
     match pick(&content, &ours_content, &theirs_content) {
         Some(Some((content, references))) => {
+            if content != ours.content {
+                merged.metadata.derived.clone_from(&theirs.metadata.derived);
+            }
             merged.content = content;
             merged.references = references;
         }

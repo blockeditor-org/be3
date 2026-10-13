@@ -821,7 +821,7 @@ impl LogicGridEditor {
                 let source_name = editor
                     .blocks()
                     .info(source_id)
-                    .and_then(|info| info.name)
+                    .and_then(|info| info.name())
                     .unwrap_or_else(|| DISPLAY_NAME.to_owned());
                 let name = dynamic_artifact::artifact_name(&source_name);
                 let id = editor.blocks().create_artifact(

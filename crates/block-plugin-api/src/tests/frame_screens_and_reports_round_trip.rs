@@ -42,7 +42,53 @@ fn frame_screens_and_reports_round_trip() {
             width: 120.0,
             height: 90.0,
         }],
-        handles_back: true,
+        claims: vec![PressClaim {
+            modifiers: Modifiers {
+                logo: true,
+                ..Modifiers::default()
+            },
+            rect: ChildRect {
+                x: 0.0,
+                y: 40.0,
+                width: 320.0,
+                height: 440.0,
+            },
+        }],
+        description: Some(Description {
+            nodes: vec![DescribedNode {
+                depth: 0,
+                role: "CheckBox".to_owned(),
+                label: "Buy milk".to_owned(),
+                value: "x".repeat(MAX_STRING_BYTES + 1),
+                toggled: Some(Toggled::On),
+                disabled: false,
+                focused: true,
+                rect: Some(ChildRect {
+                    x: 8.0,
+                    y: 48.0,
+                    width: 200.0,
+                    height: 24.0,
+                }),
+                actions: vec!["Click".to_owned(), "Focus".to_owned()],
+            }],
+            test_ids: vec![TestIdRect {
+                id: "checklist.add".to_owned(),
+                rect: ChildRect {
+                    x: 8.0,
+                    y: 80.0,
+                    width: 60.0,
+                    height: 24.0,
+                },
+            }],
+            actions: vec![DescribedAction {
+                id: "checklist.clear".to_owned(),
+                label: "Clear completed".to_owned(),
+                shortcut: Some("Ctrl+Shift+K".to_owned()),
+                enabled: false,
+                checked: None,
+                live: true,
+            }],
+        }),
     }]);
     assert_eq!(
         decode_frame(&encode_frame(&frames).unwrap()).unwrap(),

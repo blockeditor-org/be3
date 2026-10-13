@@ -12,16 +12,9 @@ The accepted handshake carries the theme the host is drawn in, which is what
 a plugin's own interface follows, so an editor looks the same as the app it is
 embedded in wherever it runs.
 
-The initial handshake advertises an inclusive supported-version range. Peers
-may communicate only after selecting one version in the intersection. A peer
-rejects an absent intersection with `UnsupportedVersion` and closes the
-session.
-
-Adding an optional capability or a message that cannot be sent before its
-capability is negotiated is compatible within a protocol version. Changing a
-message representation, ordering requirement, validation rule, or existing
-semantic requires incrementing `PROTOCOL_VERSION`. Unknown message variants
-are never silently ignored.
+The protocol has no version and the handshake checks none: the app and its
+plugins are built together, so a change to a message needs no bookkeeping.
+Unknown message variants are never silently ignored.
 
 Messages with request identifiers are answered with the same identifier by a
 response, `Acknowledged`, or `Error`. Lifecycle messages and input events are
@@ -249,12 +242,13 @@ nothing else, and on the drop it is told the same position along with each
 file's name and the bytes the host read. Only the host can read a file on
 every platform, so a plugin never sees a path.
 
-An editor instance may ask the host for the image on the clipboard, which
-only the host can read on any platform. A paste reaches the instance as a
-paste event of its own rather than as ordinary typed text, so an editor that
-takes images can tell one from the other; the request is answered exactly
-once, with the image the host read, with nothing when the clipboard holds no
-image, or with why it could not be read.
+Only the host can read the clipboard on any platform. Each frame an editor
+instance reports the kinds of paste its focus takes (text, images), in the
+order it prefers them, and the host pastes the first of those the clipboard
+holds into the focused instance as a paste event of its own rather than as
+ordinary typed text: text, split into pieces under the text limit, or an
+image's name and bytes. The host pastes on the paste shortcut it sees itself,
+and when an instance asks it to paste, as a menu's Paste does.
 
 An editor instance may ask the host to play the audio in one of its blocks,
 which only the host can do: a plugin has no sound device on any platform, and
@@ -306,8 +300,8 @@ alongside the events it already sends, since there is no position to report.
 An editor instance may ask the host to put text on the clipboard, which only
 the host can reach: the plugin's own ui context has no window under it. The
 text an instance copied while drawing is sent as it is drawn and the host puts
-it on the clipboard for it; a paste comes back the other way as an ordinary
-paste event.
+it on the clipboard for it; a paste comes back the other way as a paste
+event.
 
 The host describes its registered block types once per plugin runtime, before
 the first editor instance is opened, so an editor can name and illustrate
@@ -344,6 +338,16 @@ one tab bottom-up: every frame's painted area first, then every frame's
 floating rectangles, so a menu opened by an editor underneath still falls over
 the frame above it. The two passes are cut into disjoint rectangles, so no
 pixel is blended twice.
+
+A frame report may also carry press claims: a set of modifiers and a
+rectangle. While every one of those modifiers is held, a pointer press inside
+the rectangle belongs to the instance itself, not to the children placed
+under it there: the host delivers that press, its drag and its release to the
+instance, and none of it to the child (another editor, or a program's
+window). A window manager written as a plugin claims the windows it places
+this way, so a drag with the modifier held moves or resizes the window rather
+than reaching the program inside it. The claims of an editor nested in another
+yield to the claims of the editor around it.
 
 An instance whose chrome is only reserved keeps the bands exactly where they
 were and paints nothing in them, so selecting or leaving a child moves neither

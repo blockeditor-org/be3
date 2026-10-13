@@ -26,11 +26,13 @@ async fn a_watcher_is_told_when_the_head_moves() {
             block,
             commit: head,
             expected: None,
+            parents: Vec::new(),
             chunks,
             time: 1_000,
             pinned: false,
             references_added: Vec::new(),
             references_removed: Vec::new(),
+            metadata: Vec::new(),
         })
         .await;
 

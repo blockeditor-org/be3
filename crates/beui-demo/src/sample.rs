@@ -19,7 +19,7 @@ pub(crate) fn Sample(title: &'static str, code: Vec<&'static str>, children: Chi
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Heading @sizing=ItemSize::Percent(100.0) content={title} />
+                <Heading @sizing=ItemSize::Percent(100.0) content={title} wrap=true />
                 <ToggleButton
                     @test_id={format!("demo.code.{title}")}
                     label="Code"

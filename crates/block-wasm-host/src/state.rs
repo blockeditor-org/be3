@@ -1,10 +1,12 @@
 use std::{
-    collections::VecDeque,
     sync::Arc,
     time::{Duration, Instant},
 };
 
-use block_gpu_host::Gpu;
+use block_gpu_host::{
+    Gpu,
+    calls::{Guest, Transport},
+};
 use wasmtime::SharedMemory;
 use wasmtime_wasi::p1::WasiP1Ctx;
 
@@ -40,9 +42,7 @@ pub struct State {
     pub(crate) memory: SharedMemory,
     pub(crate) device: Device,
     pub(crate) error: Option<String>,
-    pub(crate) inbox: VecDeque<Vec<u8>>,
-    pub(crate) outbox: Vec<Vec<u8>>,
-    pub(crate) started: Instant,
+    pub(crate) transport: Transport,
     pub(crate) threads: Arc<Spawner>,
     pub(crate) wake: Arc<Wake>,
     pub(crate) gpu_time: Duration,
@@ -79,38 +79,31 @@ impl Wakes for Threaded {
     }
 }
 
-impl State {
-    pub(crate) fn read(&self, pointer: u32, length: u32) -> Result<Vec<u8>, String> {
-        let data = self.memory.data();
-        let start = pointer as usize;
-        let end = start
-            .checked_add(length as usize)
-            .ok_or_else(|| "a plugin pointer overflowed".to_owned())?;
-        if end > data.len() {
-            return Err(format!(
-                "a plugin pointer ran past its memory: {start}..{end} of {}",
-                data.len()
-            ));
-        }
-        let mut bytes = vec![0u8; length as usize];
-        for (offset, byte) in bytes.iter_mut().enumerate() {
-            *byte = unsafe { *data[start + offset].get() };
-        }
-        Ok(bytes)
+pub(crate) fn read(memory: &SharedMemory, pointer: u32, length: u32) -> Result<Vec<u8>, String> {
+    let data = memory.data();
+    let start = pointer as usize;
+    let end = start
+        .checked_add(length as usize)
+        .ok_or_else(|| "a plugin pointer overflowed".to_owned())?;
+    if end > data.len() {
+        return Err(format!(
+            "a plugin pointer ran past its memory: {start}..{end} of {}",
+            data.len()
+        ));
+    }
+    let mut bytes = vec![0u8; length as usize];
+    for (offset, byte) in bytes.iter_mut().enumerate() {
+        *byte = unsafe { *data[start + offset].get() };
+    }
+    Ok(bytes)
+}
+
+impl Guest for State {
+    fn read(&mut self, pointer: u32, length: u32) -> Result<Vec<u8>, String> {
+        read(&self.memory, pointer, length)
     }
 
-    pub(crate) fn read_words(&self, pointer: u32, count: u32) -> Result<Vec<u32>, String> {
-        let bytes = self.read(pointer, count.saturating_mul(4))?;
-        Ok(bytes
-            .as_chunks::<4>()
-            .0
-            .iter()
-            .copied()
-            .map(u32::from_le_bytes)
-            .collect())
-    }
-
-    pub(crate) fn write(&self, pointer: u32, capacity: u32, bytes: &[u8]) -> u32 {
+    fn write(&mut self, pointer: u32, capacity: u32, bytes: &[u8]) -> u32 {
         let needed = bytes.len() as u32;
         if needed > capacity {
             return needed;
@@ -126,7 +119,7 @@ impl State {
         needed
     }
 
-    pub(crate) fn with_gpu<R: Default>(&mut self, call: impl FnOnce(&mut Gpu) -> R) -> R {
+    fn gpu<R: Default>(&mut self, call: impl FnOnce(&mut Gpu) -> R) -> R {
         if let Device::Unconnected(connect) = &self.device {
             self.device = match connect() {
                 Ok((device, queue)) => Device::Ready(Box::new(Gpu::new(device, queue))),
@@ -151,15 +144,25 @@ impl State {
         }
     }
 
-    pub(crate) fn report(&mut self, message: String) {
+    fn report(&mut self, message: String) {
         if self.error.is_none() {
             self.error = Some(message);
         }
     }
 
-    pub(crate) fn take_error(&mut self) -> Option<String> {
+    fn take_error(&mut self) -> Option<String> {
         self.error
             .take()
             .or_else(|| self.device.ready_mut().and_then(Gpu::take_error))
+    }
+
+    fn transport(&mut self) -> &mut Transport {
+        &mut self.transport
+    }
+
+    fn submit(&mut self, handles: &[u32]) {
+        let started = Instant::now();
+        self.gpu(|gpu| gpu.submit(handles));
+        self.submit_time += started.elapsed();
     }
 }

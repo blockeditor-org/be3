@@ -18,9 +18,7 @@ fn an_undecodable_operation_asks_for_a_fresh_snapshot() {
 
     let mut content = fixture.projection.read(|content| content.clone()).unwrap();
     content.apply(&rename);
-    fixture
-        .host
-        .set_block_content(ChecklistContent::CONTENT_TYPE, content.encode(), 0);
+    fixture.host.set_block_content(HostContent::of(&content));
     fixture.projection.pump();
 
     assert_eq!(fixture.text(fixture.second), "free range eggs");

@@ -10,7 +10,7 @@ use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Callback, Interactive, Memo, Prop, ReadSignal, Render, clone, component_accessibility,
-    component_rect, create_effect, create_memo, create_signal, set_component_state, untrack,
+    create_effect, create_memo, create_signal, set_component_state, untrack,
 };
 
 const STEP: f32 = 0.05;
@@ -128,24 +128,29 @@ pub fn Slider(
             on_change.call(next);
         }
     };
-    let placed = component_rect();
     let grab = Rc::new(Cell::new(0.0f32));
     let press_grab = grab.clone();
-    let press_rect = placed.clone();
     let press_fraction = fraction.clone();
-    let grabbed = move |press: PointerPress| {
-        let rect = press_rect.get_untracked();
-        let travel = (rect.width() - thumb).max(0.0);
-        let centre = rect.left() + thumb / 2.0 + press_fraction.get_untracked() * travel;
-        let on_thumb = thumb > 0.0 && (press.pos.x - centre).abs() <= thumb / 2.0;
-        press_grab.set(if on_thumb { centre - press.pos.x } else { 0.0 });
-    };
     let dragged_to = move |press: PointerPress| {
-        let rect = placed.get_untracked();
-        let travel = rect.width() - thumb;
+        let travel = press.size.x - thumb;
         match travel > 0.0 {
-            true => (press.pos.x + grab.get() - rect.left() - thumb / 2.0) / travel,
+            true => (press.local.x + grab.get() - thumb / 2.0) / travel,
             false => press.fraction.x,
+        }
+    };
+    let jump_to = dragged_to.clone();
+    let jump_value = set_value.clone();
+    let grabbed = move |press: PointerPress| {
+        let travel = (press.size.x - thumb).max(0.0);
+        let centre = thumb / 2.0 + press_fraction.get_untracked() * travel;
+        let on_thumb = thumb > 0.0 && (press.local.x - centre).abs() <= thumb / 2.0;
+        press_grab.set(if on_thumb {
+            centre - press.local.x
+        } else {
+            0.0
+        });
+        if !on_thumb {
+            jump_value(scale.value_at(jump_to(press), min, max));
         }
     };
     let step_value = set_value.clone();

@@ -63,13 +63,14 @@ fn record_use(accepted: &Path) {
     let Some(used) = std::env::var_os("USED_PAINTINGS") else {
         return;
     };
-    write(&PathBuf::from(used).join(file_name(accepted)), &[]);
+    let compared = std::fs::read(accepted).unwrap_or_default();
+    write(&PathBuf::from(used).join(file_name(accepted)), &compared);
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 fn only_in_wasm() {
     panic!(
-        "a plugin paints as the wasm guest it ships as, so its tests only run there: ./scripts/verify --plugin-tests, or ./scripts/buck test //crates/editors/<plugin>:test"
+        "this test compares a painting but was compiled natively. Paintings are only compared where tests run as wasm, an editor's or beui-demo's: put the test in one of those and run it with ./scripts/test NAME"
     );
 }
 

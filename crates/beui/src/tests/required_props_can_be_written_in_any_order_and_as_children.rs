@@ -42,7 +42,7 @@ fn required_props_can_be_written_in_any_order_and_as_children() {
     assert_eq!(
         harness.tree(),
         [
-            "column", "  column", "    text", "    text", "  column", "    text", "    text",
+            "list", "  list", "    text", "    text", "  list", "    text", "    text",
         ]
     );
 }

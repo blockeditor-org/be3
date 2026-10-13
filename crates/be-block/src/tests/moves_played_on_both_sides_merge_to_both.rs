@@ -18,7 +18,7 @@ fn moves_played_on_both_sides_merge_to_both() {
         .root()
         .moves
         .iter()
-        .map(|played| (played.actor, played.action.clone()))
+        .map(|played| (played.actor, played.action.to_vec()))
         .collect();
     moves.sort();
     let mut expected = vec![(alice, vec![1]), (bob, vec![2])];

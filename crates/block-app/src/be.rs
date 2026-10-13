@@ -48,16 +48,18 @@ const LOG_LIMIT: usize = 512;
 pub(crate) struct Content {
     pub(crate) content_type: Uuid,
     pub(crate) bytes: Vec<u8>,
+    pub(crate) session: Vec<u8>,
     pub(crate) revision: u64,
     log: std::collections::VecDeque<(Vec<u8>, Option<u64>)>,
     taken: std::collections::HashMap<u64, u64>,
 }
 
 impl Content {
-    pub(crate) fn new(content_type: Uuid, bytes: Vec<u8>) -> Self {
+    pub(crate) fn new(content_type: Uuid, bytes: Vec<u8>, session: Vec<u8>) -> Self {
         Self {
             content_type,
             bytes,
+            session,
             revision: 1,
             log: std::collections::VecDeque::new(),
             taken: std::collections::HashMap::new(),
@@ -76,7 +78,12 @@ impl Content {
                     self.log.pop_front();
                 }
             }
-            worker::Logged::Replaced => self.log.clear(),
+            worker::Logged::Replaced { acknowledged } => {
+                for (origin, count) in acknowledged {
+                    *self.taken.entry(origin).or_default() += count;
+                }
+                self.log.clear();
+            }
         }
     }
 
@@ -93,6 +100,7 @@ impl Content {
             _ => Update::Snapshot {
                 content_type: self.content_type,
                 bytes: self.bytes.clone(),
+                session: self.session.clone(),
                 applied: self.taken.get(&origin).copied().unwrap_or_default(),
             },
         }
@@ -104,6 +112,7 @@ pub(crate) enum Update {
     Snapshot {
         content_type: Uuid,
         bytes: Vec<u8>,
+        session: Vec<u8>,
         applied: u64,
     },
     Operations(Vec<(Vec<u8>, bool)>),
@@ -133,11 +142,14 @@ type ContentReferences = fn(&[u8], Uuid) -> Vec<Uuid>;
 
 struct Kind {
     content_type: Uuid,
+    frozen: bool,
+    schema: fn() -> String,
+    blank: fn() -> Vec<u8>,
     join: worker::Join,
     copy: worker::Copy,
     seed: worker::Seed,
     replace: worker::Seed,
-    describe: fn(&[u8]) -> Option<Described>,
+    describe: fn(&[u8]) -> Option<be_block::Entries>,
     child: ChildOperations,
     merge: MergeContent,
     references: ContentReferences,
@@ -149,6 +161,9 @@ where
 {
     Kind {
         content_type: C::CONTENT_TYPE,
+        frozen: C::FROZEN,
+        schema: be_block::schema_fingerprint::<C>,
+        blank: blank::<C>,
         join: worker::join::<C>,
         copy: worker::copy::<C>,
         seed: worker::seed::<C>,
@@ -166,6 +181,9 @@ where
 {
     Kind {
         content_type: C::CONTENT_TYPE,
+        frozen: C::FROZEN,
+        schema: be_block::schema_fingerprint::<C>,
+        blank: blank::<C>,
         join: worker::join_with_history::<C>,
         copy: worker::copy::<C>,
         seed: worker::seed::<C>,
@@ -177,18 +195,12 @@ where
     }
 }
 
-#[derive(Default)]
-pub(crate) struct Described {
-    pub(crate) name: Option<String>,
-    pub(crate) derived: be_block::DerivedMetadata,
+fn blank<C: be_block::BlockContent + Default>() -> Vec<u8> {
+    C::default().encode()
 }
 
-fn describe<C: be_block::BlockContent>(bytes: &[u8]) -> Option<Described> {
-    let content = C::decode(bytes).ok()?;
-    Some(Described {
-        name: content.name(),
-        derived: content.derived_metadata(),
-    })
+fn describe<C: be_block::BlockContent>(bytes: &[u8]) -> Option<be_block::Entries> {
+    Some(be_block::derived_metadata(&C::decode(bytes).ok()?))
 }
 
 fn merge_content<C: be_block::Merge + Default>(
@@ -242,11 +254,14 @@ const KINDS: &[Kind] = &[
     kind::<be_block::PdfContent>(),
     kind_with_history::<be_block::PixelArtContent>(),
     kind_with_history::<be_block::PresentationContent>(),
-    kind::<be_block::TextContent>(),
+    kind_with_history::<be_block::TextContent>(),
     kind_with_history::<be_block::VideoContent>(),
     kind::<be_block::UiSettingsContent>(),
+    kind::<be_block::InputSettingsContent>(),
+    kind::<be_block::DisplaySettingsContent>(),
     kind::<be_block::BrowserTabContent>(),
     kind_with_history::<be_block::SettingsContent>(),
+    kind_with_history::<be_block::SettingsProfileContent>(),
     kind::<be_block::FolderContent>(),
     kind_with_history::<be_block::PixelRayTracerContent>(),
     kind::<be_block::EditorViewContent>(),
@@ -261,8 +276,60 @@ fn kind_of(content_type: Uuid) -> Option<&'static Kind> {
     KINDS.iter().find(|kind| kind.content_type == content_type)
 }
 
-pub(crate) fn describe_of(content: &Content) -> Option<Described> {
+pub(crate) fn describe_of(content: &Content) -> Option<be_block::Entries> {
     (kind_of(content.content_type)?.describe)(&content.bytes)
+}
+
+pub(crate) fn derived_for(content_type: Uuid, bytes: &[u8]) -> Option<be_block::Entries> {
+    (kind_of(content_type)?.describe)(bytes)
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Stale {
+    Unreadable(String),
+    Reshaped,
+}
+
+pub(crate) fn staleness(block: Uuid) -> Option<Stale> {
+    let guard = stack().lock().unwrap();
+    let stack = guard.as_ref()?;
+    if stack.tried.contains(&block) {
+        return None;
+    }
+    let shared = stack.shared.lock().unwrap();
+    let node = shared.graph.get(block)?;
+    let kind = kind_of(node.content_type)?;
+    if kind.frozen {
+        return None;
+    }
+    if let Some(error) = shared.unreadable.get(&block) {
+        return Some(Stale::Unreadable(error.clone()));
+    }
+    let stamped = node.metadata.get(&be_block::SCHEMA)?;
+    (stamped != (kind.schema)()).then_some(Stale::Reshaped)
+}
+
+pub(crate) fn reset(block: Uuid) {
+    let Some(node) = node(block) else {
+        return;
+    };
+    let Some(kind) = kind_of(node.content_type) else {
+        return;
+    };
+    if let Some(stack) = stack().lock().unwrap().as_mut() {
+        stack.tried.remove(&block);
+    }
+    replace(block, node.content_type, (kind.blank)());
+}
+
+pub(crate) fn try_anyway(block: Uuid) {
+    if !matches!(staleness(block), Some(Stale::Reshaped)) {
+        return;
+    }
+    if let Some(stack) = stack().lock().unwrap().as_mut() {
+        stack.tried.insert(block);
+    }
+    crate::compositor::changed();
 }
 
 pub(crate) fn is_known(content_type: Uuid) -> bool {
@@ -299,6 +366,7 @@ struct Stack {
     commands: Option<UnboundedSender<Command>>,
     held: std::collections::HashSet<Uuid>,
     versioned: std::collections::HashSet<Uuid>,
+    tried: std::collections::HashSet<Uuid>,
     shared: Arc<Mutex<Shared>>,
     #[cfg_attr(not(test), allow(dead_code))]
     changed: Arc<Condvar>,
@@ -334,6 +402,7 @@ pub(crate) fn start(config: Config) {
         commands: Some(commands),
         held: std::collections::HashSet::new(),
         versioned: std::collections::HashSet::new(),
+        tried: std::collections::HashSet::new(),
         shared,
         changed,
         running,
@@ -360,7 +429,11 @@ pub(crate) fn flush() {
 }
 
 pub(crate) fn open(block: Uuid, content_type: Uuid) {
-    send(Command::Open(block, content_type));
+    send(Command::Open {
+        block,
+        content_type,
+        owned: false,
+    });
 }
 
 pub(crate) fn close(block: Uuid) {
@@ -384,7 +457,11 @@ pub(crate) fn hold(block: Uuid, content_type: Uuid) {
         .as_mut()
         .is_some_and(|stack| stack.held.insert(block));
     if fresh {
-        send(Command::Open(block, content_type));
+        send(Command::Open {
+            block,
+            content_type,
+            owned: true,
+        });
     }
 }
 
@@ -433,6 +510,10 @@ pub(crate) fn is_versioned(content_type: Uuid) -> bool {
         || content_type == <be_block::Repository as be_block::Root>::CONTENT_TYPE
 }
 
+pub(crate) fn operate(block: Uuid, operation: Vec<u8>) {
+    send(Command::Operate(block, None, operation));
+}
+
 pub(crate) fn operate_from(block: Uuid, origin: u64, operation: Vec<u8>) {
     send(Command::Operate(block, Some(origin), operation));
 }
@@ -474,7 +555,7 @@ pub(crate) fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
     kind_of(source.content_type)?;
     let to = Uuid::new_v4();
     let mut metadata = source.metadata.clone();
-    metadata.artifact = None;
+    metadata.remove(&be_block::ARTIFACT);
     let author = account().unwrap_or_default();
     with_shared_mut(|shared| {
         shared.graph.change(Node {
@@ -485,7 +566,6 @@ pub(crate) fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
             access: be_graph::Access::Edit,
             references: source.references.clone(),
             metadata: metadata.clone(),
-            unreadable_metadata: false,
             head: None,
             version: 0,
         });
@@ -523,7 +603,7 @@ pub(crate) fn content_revision(block: Uuid) -> Option<u64> {
     with_shared(|shared| shared.blocks.get(&block).map(|content| content.revision))?
 }
 
-pub(crate) fn describe_block(block: Uuid) -> Option<Described> {
+pub(crate) fn describe_block(block: Uuid) -> Option<be_block::Entries> {
     with_shared(|shared| shared.blocks.get(&block).and_then(describe_of))?
 }
 
@@ -553,14 +633,21 @@ pub(crate) fn status() -> Status {
 }
 
 fn send(command: Command) {
-    if let Some(commands) = stack()
-        .lock()
-        .unwrap()
-        .as_ref()
-        .and_then(|stack| stack.commands.as_ref())
-    {
-        let _ = commands.send(command);
+    let held = stack().lock().unwrap();
+    let Some(stack) = held.as_ref() else {
+        return;
+    };
+    let Some(commands) = &stack.commands else {
+        return;
+    };
+    stack.shared.lock().unwrap().pending += 1;
+    if commands.send(command).is_err() {
+        stack.shared.lock().unwrap().pending -= 1;
     }
+}
+
+pub(crate) fn busy() -> bool {
+    with_shared(|shared| shared.pending > 0 || !shared.graph.loaded).unwrap_or_default()
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
@@ -604,6 +691,10 @@ pub(crate) fn identity() -> Option<(Uuid, Uuid)> {
         .unwrap()
         .as_ref()
         .map(|stack| (stack.account, stack.workspace))
+}
+
+pub(crate) fn stale_revision() -> u64 {
+    with_shared(|shared| shared.stale_revision).unwrap_or_default()
 }
 
 pub(crate) fn graph_revision() -> u64 {
@@ -655,8 +746,13 @@ pub(crate) fn create(
     content: Option<Vec<u8>>,
 ) {
     if let Some(name) = PENDING_NAMES.with(|pending| pending.borrow_mut().remove(&block)) {
-        metadata.name = Some(name);
-        metadata.named_by_hand = true;
+        metadata.insert(&be_block::NAME, &name);
+    }
+    if metadata.derived.is_empty()
+        && let Some(kind) = kind_of(content_type)
+    {
+        let bytes = content.clone().unwrap_or_else(kind.blank);
+        metadata.derived = (kind.describe)(&bytes).unwrap_or_default();
     }
     let author = account().unwrap_or_default();
     with_shared_mut(|shared| {
@@ -668,7 +764,6 @@ pub(crate) fn create(
             access: be_graph::Access::Edit,
             references: Vec::new(),
             metadata: metadata.clone(),
-            unreadable_metadata: false,
             head: None,
             version: 0,
         });
@@ -687,44 +782,31 @@ pub(crate) fn set_parent(block: Uuid, parent: be_graph::BlockParent) {
     send(Command::SetParent { block, parent });
 }
 
-pub(crate) fn set_metadata(block: Uuid, metadata: be_block::BlockMetadata) {
-    if node(block).is_some_and(|node| node.unreadable_metadata) {
-        with_shared_mut(|shared| {
-            shared.error = Some(format!(
-                "block {block} has metadata this version cannot read, so it was left unchanged"
-            ));
-        });
+pub(crate) fn define(block: Uuid, changes: Vec<be_block::Definition>) {
+    let Some(metadata) = node(block).map(|node| node.metadata) else {
+        return;
+    };
+    let mut next = metadata.clone();
+    next.define(&changes);
+    if next == metadata {
         return;
     }
+    let derived = describe_block(block);
     with_shared_mut(|shared| {
-        shared
-            .graph
-            .update(block, |node| node.metadata = metadata.clone());
+        shared.graph.update(block, |node| node.metadata = next);
+        if let Some(derived) = derived {
+            shared.graph.derive(block, derived);
+        }
     });
-    send(Command::SetMetadata { block, metadata });
+    send(Command::Define { block, changes });
 }
 
 pub(crate) fn set_name(block: Uuid, name: Option<String>) {
-    let Some(mut metadata) = node(block).map(|node| node.metadata) else {
-        return;
-    };
-    metadata.named_by_hand = name.is_some();
-    metadata.name = name.or_else(|| describe_block(block).and_then(|described| described.name));
-    set_metadata(block, metadata);
+    define(block, vec![be_block::NAME.definition(name.as_ref())]);
 }
 
-pub(crate) fn describe_implicitly(block: Uuid, described: Described) {
-    let Some(original) = node(block).map(|node| node.metadata) else {
-        return;
-    };
-    let mut metadata = original.clone();
-    if !metadata.named_by_hand {
-        metadata.name = described.name;
-    }
-    metadata.derived = described.derived;
-    if metadata != original {
-        set_metadata(block, metadata);
-    }
+pub(crate) fn describe_implicitly(block: Uuid, derived: be_block::Entries) {
+    with_shared_mut(|shared| shared.graph.derive(block, derived));
 }
 
 pub(crate) fn set_access(block: Uuid, account: Uuid, access: be_graph::Access) {

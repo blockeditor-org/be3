@@ -1,6 +1,6 @@
 use block_plugin_api::{
-    BackEdge, BackPhase, CursorIcon, FilePick, ImeInput, ImeText, Key, Modifiers, PointerButton,
-    TouchPhase,
+    BackEdge, BackPhase, CursorIcon, FilePick, ImeInput, ImeText, Key, KeyChord, Modifiers,
+    PasteKind, Pasted, PointerButton, TouchPhase,
 };
 
 pub fn protocol_modifiers(modifiers: beui::Modifiers) -> Modifiers {
@@ -8,8 +8,33 @@ pub fn protocol_modifiers(modifiers: beui::Modifiers) -> Modifiers {
         alt: modifiers.alt,
         control: modifiers.ctrl,
         shift: modifiers.shift,
-        command: modifiers.ctrl,
+        logo: modifiers.logo,
     }
+}
+
+pub fn beui_modifiers(modifiers: Modifiers) -> beui::Modifiers {
+    beui::Modifiers {
+        alt: modifiers.alt,
+        ctrl: modifiers.control,
+        shift: modifiers.shift,
+        logo: modifiers.logo,
+    }
+}
+
+pub fn protocol_chord(chord: beui::KeyChord) -> Option<KeyChord> {
+    Some(KeyChord {
+        key: protocol_key(chord.key)?,
+        modifiers: protocol_modifiers(chord.modifiers),
+        tap: chord.tap,
+    })
+}
+
+pub fn beui_chord(chord: KeyChord) -> Option<beui::KeyChord> {
+    Some(beui::KeyChord {
+        key: beui_key(chord.key)?,
+        modifiers: beui_modifiers(chord.modifiers),
+        tap: chord.tap,
+    })
 }
 
 pub fn pointer_button(button: beui::PointerButton) -> PointerButton {
@@ -61,8 +86,8 @@ pub fn beui_back(phase: BackPhase) -> beui::BackGesture {
     }
 }
 
-pub fn protocol_key(key: beui::Key) -> Key {
-    match key {
+pub fn protocol_key(key: beui::Key) -> Option<Key> {
+    Some(match key {
         beui::Key::ArrowDown => Key::ArrowDown,
         beui::Key::ArrowLeft => Key::ArrowLeft,
         beui::Key::ArrowRight => Key::ArrowRight,
@@ -100,6 +125,20 @@ pub fn protocol_key(key: beui::Key) -> Key {
         beui::Key::Semicolon => Key::Semicolon,
         beui::Key::Quote => Key::Quote,
         beui::Key::BrowserBack => Key::BrowserBack,
+        beui::Key::VolumeUp => Key::VolumeUp,
+        beui::Key::VolumeDown => Key::VolumeDown,
+        beui::Key::VolumeMute => Key::VolumeMute,
+        beui::Key::MicMute => Key::MicMute,
+        beui::Key::BrightnessUp => Key::BrightnessUp,
+        beui::Key::BrightnessDown => Key::BrightnessDown,
+        beui::Key::MediaPlayPause => Key::MediaPlayPause,
+        beui::Key::MediaNext => Key::MediaNext,
+        beui::Key::MediaPrevious => Key::MediaPrevious,
+        beui::Key::MediaStop => Key::MediaStop,
+        beui::Key::Shift => Key::Shift,
+        beui::Key::Ctrl => Key::Control,
+        beui::Key::Alt => Key::Alt,
+        beui::Key::Logo => Key::Logo,
         beui::Key::A => Key::A,
         beui::Key::B => Key::B,
         beui::Key::C => Key::C,
@@ -150,7 +189,8 @@ pub fn protocol_key(key: beui::Key) -> Key {
         beui::Key::F22 => Key::F22,
         beui::Key::F23 => Key::F23,
         beui::Key::F24 => Key::F24,
-    }
+        beui::Key::Unidentified => return None,
+    })
 }
 
 pub fn beui_key(key: Key) -> Option<beui::Key> {
@@ -192,6 +232,20 @@ pub fn beui_key(key: Key) -> Option<beui::Key> {
         Key::Semicolon => beui::Key::Semicolon,
         Key::Quote => beui::Key::Quote,
         Key::BrowserBack => beui::Key::BrowserBack,
+        Key::VolumeUp => beui::Key::VolumeUp,
+        Key::VolumeDown => beui::Key::VolumeDown,
+        Key::VolumeMute => beui::Key::VolumeMute,
+        Key::MicMute => beui::Key::MicMute,
+        Key::BrightnessUp => beui::Key::BrightnessUp,
+        Key::BrightnessDown => beui::Key::BrightnessDown,
+        Key::MediaPlayPause => beui::Key::MediaPlayPause,
+        Key::MediaNext => beui::Key::MediaNext,
+        Key::MediaPrevious => beui::Key::MediaPrevious,
+        Key::MediaStop => beui::Key::MediaStop,
+        Key::Shift => beui::Key::Shift,
+        Key::Control => beui::Key::Ctrl,
+        Key::Alt => beui::Key::Alt,
+        Key::Logo => beui::Key::Logo,
         Key::A => beui::Key::A,
         Key::B => beui::Key::B,
         Key::C => beui::Key::C,
@@ -362,7 +416,25 @@ pub fn protocol_cursor(cursor: beui::CursorIcon) -> CursorIcon {
         beui::CursorIcon::Move => CursorIcon::Move,
         beui::CursorIcon::Progress => CursorIcon::Progress,
         beui::CursorIcon::Help => CursorIcon::Help,
-        beui::CursorIcon::Alias => CursorIcon::Pointer,
+        beui::CursorIcon::Alias => CursorIcon::Alias,
+        beui::CursorIcon::ContextMenu => CursorIcon::ContextMenu,
+        beui::CursorIcon::Cell => CursorIcon::Cell,
+        beui::CursorIcon::VerticalText => CursorIcon::VerticalText,
+        beui::CursorIcon::Copy => CursorIcon::Copy,
+        beui::CursorIcon::NoDrop => CursorIcon::NoDrop,
+        beui::CursorIcon::AllScroll => CursorIcon::AllScroll,
+        beui::CursorIcon::ZoomIn => CursorIcon::ZoomIn,
+        beui::CursorIcon::ZoomOut => CursorIcon::ZoomOut,
+        beui::CursorIcon::ResizeColumn => CursorIcon::ResizeColumn,
+        beui::CursorIcon::ResizeRow => CursorIcon::ResizeRow,
+        beui::CursorIcon::ResizeNorth => CursorIcon::ResizeNorth,
+        beui::CursorIcon::ResizeEast => CursorIcon::ResizeEast,
+        beui::CursorIcon::ResizeSouth => CursorIcon::ResizeSouth,
+        beui::CursorIcon::ResizeWest => CursorIcon::ResizeWest,
+        beui::CursorIcon::ResizeNorthEast => CursorIcon::ResizeNorthEast,
+        beui::CursorIcon::ResizeNorthWest => CursorIcon::ResizeNorthWest,
+        beui::CursorIcon::ResizeSouthEast => CursorIcon::ResizeSouthEast,
+        beui::CursorIcon::ResizeSouthWest => CursorIcon::ResizeSouthWest,
     }
 }
 
@@ -371,5 +443,36 @@ pub fn beui_file_pick(pick: FilePick) -> beui::FilePick {
         FilePick::Chosen { name, data } => Ok(Some(beui::PickedFile { name, data })),
         FilePick::Cancelled => Ok(None),
         FilePick::Failed(error) => Err(error),
+    }
+}
+
+pub fn protocol_paste_kind(kind: beui::PasteKind) -> PasteKind {
+    match kind {
+        beui::PasteKind::Text => PasteKind::Text,
+        beui::PasteKind::Image => PasteKind::Image,
+    }
+}
+
+pub fn beui_paste_kind(kind: PasteKind) -> beui::PasteKind {
+    match kind {
+        PasteKind::Text => beui::PasteKind::Text,
+        PasteKind::Image => beui::PasteKind::Image,
+    }
+}
+
+pub fn protocol_pasted(pasted: beui::Pasted) -> Pasted {
+    match pasted {
+        beui::Pasted::Text(text) => Pasted::Text(text),
+        beui::Pasted::Image(file) => Pasted::Image {
+            name: file.name,
+            data: file.data,
+        },
+    }
+}
+
+pub fn beui_pasted(pasted: Pasted) -> beui::Pasted {
+    match pasted {
+        Pasted::Text(text) => beui::Pasted::Text(text),
+        Pasted::Image { name, data } => beui::Pasted::Image(beui::PickedFile { name, data }),
     }
 }

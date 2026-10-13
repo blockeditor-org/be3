@@ -1,6 +1,6 @@
 use beui::icons::{
-    ICON_ADD, ICON_CLOUD, ICON_COMPUTER, ICON_GROUP_ADD, ICON_KEYBOARD_ARROW_DOWN, ICON_MORE_HORIZ,
-    ICON_REFRESH, ICON_SWITCH_ACCOUNT, ICON_WORKSPACES,
+    ICON_ADD, ICON_CHECK, ICON_CLOUD, ICON_COMPUTER, ICON_GROUP_ADD, ICON_KEYBOARD_ARROW_DOWN,
+    ICON_MORE_HORIZ, ICON_REFRESH, ICON_SWITCH_ACCOUNT, ICON_WORKSPACES,
 };
 use beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, Justify, List, Memo, Show, Spacer, clone,
@@ -8,7 +8,7 @@ use beui::reactive::{
 };
 use beui::styled::{
     Button, ButtonVariant, Caption, Card, Dialog, Heading, Icon, IconButton, MenuButton, Paragraph,
-    Scroll, Spinner, Tabs, TextInput, Title, Tooltip, use_theme,
+    Scroll, Spinner, SplitButton, Switch, Tabs, TextInput, Title, Tooltip, use_theme,
 };
 use beui::unstyled::{ChoiceOption, MenuItem};
 use beui::{NodeId, TextAlign};
@@ -16,6 +16,7 @@ use uuid::Uuid;
 
 use super::{AccountForm, AccountRow, AppViewStore, ErrorAction, UiCommand, WorkspacesState, send};
 use crate::platform;
+use crate::root_settings::{SESSION_TYPES, session_type_name};
 
 const COLUMN_WIDTH: f32 = 460.0;
 
@@ -276,16 +277,18 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
     let (register, set_register) = create_signal(false);
     let (remote, set_remote) = create_signal(!platform::HAS_EMBEDDED_SERVER);
     let (remote_url, set_remote_url) = create_signal(String::new());
+    let (authorization, set_authorization) = create_signal(String::new());
     let (email, set_email) = create_signal(String::new());
     let (display_name, set_display_name) = create_signal(String::new());
     let (password, set_password) = create_signal(String::new());
     create_effect(clone!(
-        set_register set_remote set_remote_url set_email set_display_name set_password -> move || {
+        set_register set_remote set_remote_url set_authorization set_email set_display_name set_password -> move || {
             generation.get();
             untrack(|| {
                 set_register.set(false);
                 set_remote.set(!platform::HAS_EMBEDDED_SERVER);
                 set_remote_url.set(String::new());
+                set_authorization.set(String::new());
                 set_email.set(String::new());
                 set_display_name.set(String::new());
                 set_password.set(String::new());
@@ -307,7 +310,7 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
     }));
     let register_index = create_memo(clone!(register -> move || usize::from(register.get())));
     let remote_index = create_memo(clone!(remote -> move || usize::from(remote.get())));
-    let submit = clone!(ready register remote remote_url email display_name password -> move || {
+    let submit = clone!(ready register remote remote_url authorization email display_name password -> move || {
         if !ready.get_untracked() {
             return;
         }
@@ -315,6 +318,7 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
             register: register.get_untracked(),
             remote: remote.get_untracked(),
             remote_url: remote_url.get_untracked(),
+            authorization: authorization.get_untracked(),
             email: email.get_untracked(),
             display_name: display_name.get_untracked(),
             password: password.get_untracked(),
@@ -351,13 +355,26 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
                     })}
                 </Show>
                 <Show condition={remote}>
-                    {move || clone!(set_remote_url -> view! {
-                        <TextInput
-                            value={remote_url.clone()}
-                            placeholder="https://example.com"
-                            label="Server address"
-                            on_change={move |value: String| set_remote_url.set(value)}
-                        />
+                    {move || clone!(remote_url set_remote_url authorization set_authorization -> view! {
+                        <List spacing=10.0>
+                            <TextInput
+                                value={remote_url.clone()}
+                                placeholder="https://example.com"
+                                label="Server address"
+                                on_change={move |value: String| set_remote_url.set(value)}
+                            />
+                            <Show condition={platform::SENDS_HEADERS}>
+                                {move || clone!(authorization set_authorization -> view! {
+                                    <TextInput
+                                        value={authorization}
+                                        placeholder="Authorization header (optional)"
+                                        label="Authorization header"
+                                        password=true
+                                        on_change={move |value: String| set_authorization.set(value)}
+                                    />
+                                })}
+                            </Show>
+                        </List>
                     })}
                 </Show>
                 <Caption content="Email address" />
@@ -502,8 +519,8 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
                             />
                             <IconButton
                                 glyph={ICON_KEYBOARD_ARROW_DOWN.to_owned()}
-                                label="Choose a profile"
-                                on_click={move || send(UiCommand::ChooseProfile(id))}
+                                label="Choose a session or profile"
+                                on_click={move || send(UiCommand::ChooseSession(id))}
                             />
                         </List>
                     }
@@ -574,9 +591,17 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-pub(super) fn ProfilesScreen(view: AppViewStore) -> NodeId {
+pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
     let status = view.status.clone();
-    let keys = create_memo(clone!(status -> move || {
+    let session_keys = create_memo(clone!(status -> move || {
+        status
+            .get()
+            .sessions
+            .into_iter()
+            .map(|session| session.id)
+            .collect::<Vec<_>>()
+    }));
+    let profile_keys = create_memo(clone!(status -> move || {
         status
             .get()
             .profiles
@@ -584,31 +609,87 @@ pub(super) fn ProfilesScreen(view: AppViewStore) -> NodeId {
             .map(|profile| profile.id)
             .collect::<Vec<_>>()
     }));
-    let loaded = create_memo(clone!(status -> move || status.get().profiles_loaded));
+    let loaded = create_memo(clone!(status -> move || status.get().settings_loaded));
     let loading = create_memo(clone!(loaded -> move || !loaded.get()));
     let title = create_memo(clone!(status -> move || status.get().workspace));
-    let rows = status;
+    let every_type = create_memo(clone!(status -> move || status.get().every_session_type));
+    let session_type = create_memo(clone!(status -> move || status.get().session_type));
+    let new_label = create_memo(clone!(session_type -> move || {
+        format!("New {} session", session_type_name(session_type.get()))
+    }));
+    let new_type = session_type;
+    let (sessions, profiles) = (status.clone(), status);
     view! {
         <Column>
             <Title content={title} />
-            <Caption content="Choose a profile to open." />
             <Show condition={loading.clone()}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Spinner />
-                    <Caption content="Loading profiles…" />
+                    <Caption content="Loading sessions and profiles…" />
                 </List>
             </Show>
-            <ForEach keys={keys}>
+            <Heading content="Settings profile" />
+            <Caption
+                content="The settings this device uses. Each device starts with a profile of its own."
+            />
+            <ForEach keys={profile_keys}>
                 {move |id: Uuid| {
-                    let rows = rows.clone();
+                    let row = create_memo(clone!(profiles -> move || {
+                        profiles.get().profiles.into_iter().find(|profile| profile.id == id)
+                    }));
+                    let label = create_memo(clone!(row -> move || match row.get() {
+                        Some(profile) if profile.current => format!("{} (this device)", profile.name),
+                        Some(profile) => profile.name,
+                        None => String::new(),
+                    }));
+                    let glyph = create_memo(move || match row.get().is_some_and(|profile| profile.current) {
+                        true => ICON_CHECK.to_owned(),
+                        false => String::new(),
+                    });
+                    view! {
+                        <Button
+                            label={label}
+                            glyph={glyph}
+                            variant=ButtonVariant::Secondary
+                            @test_id={format!("sessions.profile.{id}")}
+                            on_click={move || send(UiCommand::UseProfile(id))}
+                        />
+                    }
+                }}
+            </ForEach>
+            <Button
+                label="New settings profile"
+                glyph={ICON_ADD.to_owned()}
+                variant=ButtonVariant::Ghost
+                disabled={loading.clone()}
+                @test_id={"sessions.new-profile"}
+                on_click={|| send(UiCommand::NewProfile)}
+            />
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <Heading @sizing=ItemSize::Percent(100.0) content="Session" />
+                <Caption content="Show every type" />
+                <Switch
+                    on={every_type}
+                    label="Show sessions of every type"
+                    on_change={|every: bool| send(UiCommand::EverySessionType(every))}
+                />
+            </List>
+            <Caption
+                content="The blocks you had open. Start a new session to begin again with the same settings."
+            />
+            <ForEach keys={session_keys}>
+                {move |id: Uuid| {
+                    let sessions = sessions.clone();
                     let label = create_memo(move || {
-                        rows.get()
-                            .profiles
+                        sessions.get()
+                            .sessions
                             .into_iter()
-                            .find(|profile| profile.id == id)
-                            .map(|profile| match profile.current {
-                                true => format!("{} (last used)", profile.name),
-                                false => profile.name,
+                            .find(|session| session.id == id)
+                            .map(|session| match (session.kind, session.current) {
+                                (Some(kind), true) => format!("{} ({kind}, last used)", session.name),
+                                (Some(kind), false) => format!("{} ({kind})", session.name),
+                                (None, true) => format!("{} (last used)", session.name),
+                                (None, false) => session.name,
                             })
                             .unwrap_or_default()
                     });
@@ -616,23 +697,45 @@ pub(super) fn ProfilesScreen(view: AppViewStore) -> NodeId {
                         <Button
                             label={label}
                             variant=ButtonVariant::Secondary
-                            on_click={move || send(UiCommand::OpenProfile(id))}
+                            @test_id={format!("sessions.session.{id}")}
+                            on_click={move || send(UiCommand::OpenSession(id))}
                         />
                     }
                 }}
             </ForEach>
-            <Button
-                label="New profile"
+            <SplitButton
+                label={new_label}
                 glyph={ICON_ADD.to_owned()}
                 variant=ButtonVariant::Secondary
+                menu_label="New session of another type"
                 disabled={loading}
-                on_click={|| send(UiCommand::OpenNewProfile)}
+                items={view! {
+                    <ForEach keys={(0..SESSION_TYPES.len()).collect::<Vec<_>>()}>
+                        {|index: usize| view! {
+                            <MenuItem label={format!("New {} session", SESSION_TYPES[index].1)} />
+                        }}
+                    </ForEach>
+                }}
+                on_click={move || send(UiCommand::OpenNewSession(new_type.get_untracked()))}
+                on_select={|path: Vec<usize>| {
+                    if let Some((editor, _)) = path.first().and_then(|index| SESSION_TYPES.get(*index)) {
+                        send(UiCommand::OpenNewSession(*editor));
+                    }
+                }}
             />
-            <Button
-                label="Back to workspaces"
-                variant=ButtonVariant::Ghost
-                on_click={|| send(UiCommand::SwitchWorkspace)}
-            />
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <Button
+                    label="Keep the current session"
+                    variant=ButtonVariant::Ghost
+                    @test_id={"sessions.keep"}
+                    on_click={|| send(UiCommand::CloseSessions)}
+                />
+                <Button
+                    label="Back to workspaces"
+                    variant=ButtonVariant::Ghost
+                    on_click={|| send(UiCommand::SwitchWorkspace)}
+                />
+            </List>
         </Column>
     }
 }

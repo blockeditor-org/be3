@@ -1,16 +1,15 @@
 use std::rc::Rc;
 
 use crate::reactive::{
-    BuildsNode, Child, ChildScope, ChildSegment, ChildValue, Children, ComponentContext, IntoChild,
-    IntoProp, IntoSegment, Memo, NodeSlot, Prop, ReadSignal, Scope, SlotChild, create_effect,
-    on_cleanup, with_document,
+    Child, ChildSegment, ChildValue, Children, ComponentContext, FromPlaced, IntoChild, IntoProp,
+    IntoSegment, IntoSlotHost, Memo, Placed, Prop, ReadSignal, Scope, SlotChild, SlotHost, SlotId,
+    create_effect, with_document,
 };
 use beui_core::base::text::{SpanContent, SpanHandle, TextNode, TextPart};
 use beui_core::color::Color32;
 use beui_core::font::FontId;
 use beui_core::node::{NodeId, NodeOf};
 use beui_core::rich::{TextCaret, TextMark};
-use beui_core::tree::remove_stored_node;
 
 use beui_core::base::text::DEFAULT_FONT_SIZE;
 use beui_core::font::TextAlign;
@@ -114,30 +113,41 @@ impl SlotChild for TextChild {
     fn store(self) -> TextPart {
         match self {
             TextChild::Span(span) => TextPart::Span(SpanHandle::new(span.peek())),
-            TextChild::Item(item) => item.part(),
-        }
-    }
-
-    fn discard(stored: &TextPart) {
-        match stored {
-            TextPart::Span(_) => {}
-            TextPart::Inline(node) | TextPart::Anchored(node) => remove_stored_node(*node),
+            TextChild::Item(item) => item.store(),
         }
     }
 }
 
-impl NodeSlot for TextChild {
-    type Host = TextNode;
+struct TextHost(NodeOf<TextNode>);
 
-    fn store_in(self, parent: NodeId) -> TextPart {
-        match self {
-            TextChild::Span(span) => {
-                let text = with_document(|document| document.arena.kind_of::<TextNode>(parent))
-                    .expect("a span is kept by a text");
-                TextPart::Span(span.bind(text))
-            }
-            TextChild::Item(item) => item.part(),
+impl SlotHost<TextChild> for TextHost {
+    fn store(&self, child: TextChild) -> TextPart {
+        match child {
+            TextChild::Span(span) => TextPart::Span(span.bind(self.0)),
+            TextChild::Item(item) => item.store(),
         }
+    }
+
+    fn append(&self, stored: TextPart) {
+        with_document(|document| document.append_child_item(self.0, stored));
+    }
+
+    fn open(&self) -> SlotId {
+        with_document(|document| document.open_child_slot(self.0))
+    }
+
+    fn fill(&self, slot: SlotId, items: Vec<TextPart>) {
+        with_document(|document| {
+            if document.contains(self.0) {
+                document.fill_child_slot(self.0, slot, items);
+            }
+        });
+    }
+}
+
+impl IntoSlotHost<TextChild> for NodeOf<TextNode> {
+    fn into_slot_host(self) -> Rc<dyn SlotHost<TextChild>> {
+        Rc::new(TextHost(self))
     }
 }
 
@@ -185,15 +195,9 @@ impl IntoSegment<TextChild> for Span {
     }
 }
 
-impl IntoChild<TextChild> for TextItem {
-    fn into_child(self) -> TextChild {
-        TextChild::Item(self)
-    }
-}
-
-impl IntoSegment<TextChild> for TextItem {
-    fn into_segment(self) -> ChildSegment<TextChild> {
-        ChildSegment::One(TextChild::Item(self))
+impl FromPlaced<TextNode> for TextChild {
+    fn from_placed(child: TextItem) -> Self {
+        TextChild::Item(child)
     }
 }
 
@@ -208,12 +212,11 @@ pub struct Span {
     underline: Option<Prop<bool>>,
     strikethrough: Option<Prop<bool>>,
     break_after: Prop<bool>,
-    scope: ChildScope,
 }
 
 impl ChildValue for Span {
     fn adopt_scope(&mut self, scope: Scope) {
-        self.scope.adopt(scope);
+        scope.into_parent();
     }
 }
 
@@ -246,7 +249,6 @@ impl Span {
             underline: None,
             strikethrough: None,
             break_after: Prop::Static(false),
-            scope: ChildScope::default(),
         }
     }
 
@@ -281,8 +283,6 @@ impl Span {
         bind(text, &handle, Some(self.break_after), |content, value| {
             content.break_after = value;
         });
-        let scope = self.scope;
-        on_cleanup(move || drop(scope));
         handle
     }
 }
@@ -310,39 +310,10 @@ pub fn Span(
         underline,
         strikethrough,
         break_after,
-        scope: ChildScope::default(),
     }
 }
 
-pub struct TextItem {
-    node: NodeId,
-    anchored: bool,
-}
-
-impl TextItem {
-    fn part(self) -> TextPart {
-        match self.anchored {
-            true => TextPart::Anchored(self.node),
-            false => TextPart::Inline(self.node),
-        }
-    }
-}
-
-impl BuildsNode for TextItem {
-    fn built_node(&self) -> NodeId {
-        self.node
-    }
-}
-
-impl ChildValue for TextItem {
-    fn adopt_scope(&mut self, scope: Scope) {
-        self.node.adopt_scope(scope);
-    }
-
-    fn finish_component(&mut self, component: &ComponentContext, scope: &Scope) {
-        self.node.finish_component(component, scope);
-    }
-}
+pub type TextItem = Placed<TextNode>;
 
 #[component]
 pub fn TextItem(at: Option<Prop<Option<usize>>>, children: Option<Child>) -> TextItem {
@@ -357,8 +328,5 @@ pub fn TextItem(at: Option<Prop<Option<usize>>>, children: Option<Child>) -> Tex
     if let Some(at) = at {
         create_effect(move || with_document(|document| document.set_text_item_at(item, at.get())));
     }
-    TextItem {
-        node: item.id(),
-        anchored,
-    }
+    TextItem::new(item.id(), anchored)
 }

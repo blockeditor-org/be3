@@ -2,9 +2,7 @@ use std::sync::Arc;
 
 use super::*;
 
-mod a_large_buffer_only_anchors_the_positions_in_use;
 mod a_long_fenced_block_stays_code_wherever_it_is_read;
-mod anchors_follow_edits_and_die_with_their_bytes;
 mod atomic_units_are_single_cursor_units;
 mod changes_since_coalesce_the_edits_after_a_revision;
 mod collapse_and_uncollapse_affect_touched_lines;
@@ -46,6 +44,8 @@ mod markdown_plain_punctuation;
 mod markdown_styles_hold_across_style_windows;
 mod markdown_tables;
 mod markdown_windows_follow_edits_inside_them;
+mod positions_follow_edits_and_come_back_with_undo;
+mod positions_in_a_large_buffer_resolve_back_to_their_index;
 mod raw_bytes;
 mod replace_all_matches_does_nothing_when_there_are_no_matches;
 mod replace_all_matches_replaces_every_match;

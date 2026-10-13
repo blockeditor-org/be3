@@ -1,5 +1,6 @@
 use beui::{
-    Color32, Document, Event, Key, Modifiers, PointerButton, Pos2, Rect, TouchId, TouchPhase, Vec2,
+    Color32, Document, Event, Key, KeyChord, KeyPress, Modifiers, PointerButton, Pos2, Rect,
+    TouchId, TouchPhase, Vec2,
 };
 use block_editor_beui::be_block::LiveEdit;
 use block_editor_beui::headless::{Adopted, HeadlessPlugin};
@@ -10,8 +11,8 @@ use block_editor_beui::{
 };
 use block_plugin_api::{
     BarAction, BlockTypeDescriptor, Catalog, ChildId, ChildRect, EditorMessage, FrameChrome,
-    FrameReport, HelloAccepted, InputBatch, MenuEntry, Message, PROTOCOL_VERSION, ScreenId,
-    ScreenRequest, ScreenSet, SurfaceFormat, SurfaceSpec, Theme, TopBar, ViewportMetrics,
+    FrameReport, HelloAccepted, InputBatch, MenuEntry, Message, ScreenId, ScreenRequest, ScreenSet,
+    SurfaceFormat, SurfaceSpec, Theme, TopBar, ViewportMetrics,
 };
 use std::marker::PhantomData;
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
@@ -19,7 +20,7 @@ use uuid::Uuid;
 
 use crate::document::FRAME_INTERVAL;
 use crate::input::Input;
-use crate::{ContentStore, snapshot};
+use crate::{ContentStore, overflow, snapshot};
 
 pub(crate) mod capture;
 
@@ -31,6 +32,7 @@ const MINIMUM_ZOOM: f32 = 1.0 / 64.0;
 const MAXIMUM_ZOOM: f32 = 32.0;
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 const SCREEN: ScreenId = ScreenId(1);
+const WALL_CLOCK: std::time::Duration = std::time::Duration::from_secs(1_772_444_460);
 
 pub struct BeuiTest<A: BeuiApp> {
     plugin: HeadlessPlugin,
@@ -39,6 +41,7 @@ pub struct BeuiTest<A: BeuiApp> {
     store: ContentStore,
     size: Vec2,
     scale_factor: f32,
+    monitors: Vec<block_plugin_api::Monitor>,
     frame: Option<block_plugin_api::FrameSpec>,
     input: Input,
     frames: Vec<Vec<Event>>,
@@ -47,10 +50,12 @@ pub struct BeuiTest<A: BeuiApp> {
     menu: Vec<MenuEntry>,
     output: Option<beui::FrameOutput>,
     recording: Option<snapshot::Snapshot>,
+    overflows: Vec<String>,
     viewport: Option<Viewport>,
     children: Vec<ChildPlacement>,
     occluders: Vec<Occluder>,
     report: Option<FrameReport>,
+    window: block_plugin_api::WindowRequests,
     intrinsic: Option<Vec2>,
     exited: bool,
     draft: Vec<u8>,
@@ -129,6 +134,7 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     fn open(kind: Kind, adopted: Adopted, data: Vec<u8>) -> Self {
         beui::verify_paint(true);
+        block_editor_beui::pin_wall_clock(Some(WALL_CLOCK));
         let host = match &adopted {
             Adopted::Editor(editor, _) | Adopted::Preview(editor) => editor.host().clone(),
             Adopted::Creation(creation) => creation.host().clone(),
@@ -199,6 +205,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             store,
             size: SIZE,
             scale_factor: 1.0,
+            monitors: Vec::new(),
             frame,
             input: Input::default(),
             frames: Vec::new(),
@@ -207,10 +214,12 @@ impl<A: BeuiApp> BeuiTest<A> {
             menu: Vec::new(),
             output: None,
             recording: None,
+            overflows: Vec::new(),
             viewport: None,
             children: Vec::new(),
             occluders: Vec::new(),
             report: None,
+            window: block_plugin_api::WindowRequests::default(),
             intrinsic: None,
             exited: false,
             draft: data,
@@ -223,7 +232,6 @@ impl<A: BeuiApp> BeuiTest<A> {
         let hello = test.plugin.hello();
         test.deliver(roundtrip(hello, "the plugin's hello"));
         test.deliver(Message::HelloAccepted(HelloAccepted {
-            version: PROTOCOL_VERSION,
             host_name: "block-ui-test".to_owned(),
             surface: Some(SurfaceSpec {
                 format: SurfaceFormat::Rgba8UnormSrgb,
@@ -259,6 +267,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             pixel_width: (self.size.x * self.scale_factor).round() as u32,
             pixel_height: (self.size.y * self.scale_factor).round() as u32,
             scale_factor: self.scale_factor,
+            monitors: self.monitors.clone(),
         };
         self.inbox.push(Message::Screens(ScreenSet {
             request_id: self.screens,
@@ -432,6 +441,24 @@ impl<A: BeuiApp> BeuiTest<A> {
         self
     }
 
+    pub fn set_monitors(&mut self, monitors: Vec<(&str, Rect)>) {
+        self.monitors = monitors
+            .into_iter()
+            .map(|(id, rect)| block_plugin_api::Monitor {
+                id: id.to_owned(),
+                name: id.to_owned(),
+                rect: block_plugin_api::ChildRect {
+                    x: rect.min.x,
+                    y: rect.min.y,
+                    width: rect.width(),
+                    height: rect.height(),
+                },
+            })
+            .collect();
+        self.place();
+        self.run();
+    }
+
     pub fn block_types(&mut self, descriptors: Vec<BlockTypeDescriptor>) {
         self.catalog(Catalog {
             types: descriptors,
@@ -590,6 +617,20 @@ impl<A: BeuiApp> BeuiTest<A> {
             }));
     }
 
+    pub fn set_host_value<T: block_plugin_api::HostValue>(&mut self, value: &T::Value) {
+        self.inbox.push(Message::Editor(EditorMessage::HostValue {
+            instance: INSTANCE,
+            key: T::KEY.to_owned(),
+            value: block_plugin_api::encode_host(value),
+        }));
+    }
+
+    pub fn watches<T: block_plugin_api::HostValue>(&self) -> bool {
+        self.sent.iter().any(
+            |message| matches!(message, EditorMessage::WatchHostValue { key, .. } if key == T::KEY),
+        )
+    }
+
     pub fn reply(&mut self, request_id: u64, reply: HostReply) {
         self.inbox.push(Message::Editor(EditorMessage::Replied {
             instance: INSTANCE,
@@ -620,7 +661,6 @@ impl<A: BeuiApp> BeuiTest<A> {
             available: true,
             intrinsic: None,
             aspect_ratio: None,
-            hovered: false,
             active: false,
             interaction: block_editor_beui::InteractionMode::Preview,
             capabilities: block_editor_beui::EditorCapabilities::default(),
@@ -655,6 +695,13 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn advance(&mut self, by: std::time::Duration) {
         self.clock += by;
         self.run();
+    }
+
+    pub fn wait(&mut self, by: std::time::Duration) {
+        self.clock += by;
+        for message in std::mem::take(&mut self.inbox) {
+            self.deliver(message);
+        }
     }
 
     pub fn settle(&mut self) {
@@ -762,6 +809,11 @@ impl<A: BeuiApp> BeuiTest<A> {
                     }
                     EditorMessage::ArtifactEdited { data, .. } => self.draft.clone_from(data),
                     EditorMessage::Menu { entries, .. } => self.menu.clone_from(entries),
+                    EditorMessage::Window {
+                        region: EditorRegion::Frame,
+                        window,
+                        ..
+                    } => self.window.clone_from(window),
                     _ => {}
                 }
                 self.sent.push(message);
@@ -816,9 +868,17 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn take_renames(&mut self) -> Vec<(Uuid, Option<String>)> {
         self.take_where(|message| match message {
-            EditorMessage::SetName { block_id, name, .. } => {
-                Some((Uuid::from_bytes(*block_id), name.clone()))
-            }
+            EditorMessage::Define {
+                block_id,
+                key,
+                value,
+                ..
+            } if *key == block_editor_beui::be_block::NAME.id.into_bytes() => Some((
+                Uuid::from_bytes(*block_id),
+                value
+                    .as_ref()
+                    .and_then(|value| block_editor_beui::be_block::be_model::from_cbor(value)),
+            )),
             _ => None,
         })
     }
@@ -923,6 +983,14 @@ impl<A: BeuiApp> BeuiTest<A> {
         })
     }
 
+    pub fn actions<Act: block_plugin_api::HostAction>(&self) -> Vec<Act> {
+        self.sent.iter().filter_map(host_action::<Act>).collect()
+    }
+
+    pub fn take_actions<Act: block_plugin_api::HostAction>(&mut self) -> Vec<Act> {
+        self.take_where(host_action::<Act>)
+    }
+
     pub fn take_version_commands(&mut self) -> Vec<(Uuid, block_editor_beui::VersionCommand)> {
         self.take_where(|message| match message {
             EditorMessage::VersionControl {
@@ -977,6 +1045,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.output
             .as_ref()
             .expect("the editor has not drawn a frame yet")
+            .window
             .pointer_locked
     }
 
@@ -1014,9 +1083,56 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn handles_back(&self) -> bool {
-        self.report
-            .as_ref()
-            .is_some_and(|report| report.handles_back)
+        self.window.handles_back
+    }
+
+    pub fn wants_keyboard(&self) -> bool {
+        self.window.wants_keyboard
+    }
+
+    pub fn intercepted_keys(&self) -> Vec<KeyChord> {
+        self.window
+            .intercepted_keys
+            .iter()
+            .filter_map(|chord| beui_plugin_input::beui_chord(*chord))
+            .collect()
+    }
+
+    pub fn app_key(&mut self, modifiers: Modifiers, key: Key) -> bool {
+        self.hold_app_key(modifiers, key, 0)
+    }
+
+    pub fn hold_app_key(&mut self, modifiers: Modifiers, key: Key, repeats: usize) -> bool {
+        if !self
+            .intercepted_keys()
+            .contains(&KeyChord::new(key, modifiers))
+        {
+            return false;
+        }
+        let presses = std::iter::once((true, false))
+            .chain(std::iter::repeat_n((true, true), repeats))
+            .chain(std::iter::once((false, false)));
+        for (pressed, repeat) in presses {
+            self.push(Event::InterceptedKey(KeyPress {
+                key,
+                pressed,
+                repeat,
+                modifiers,
+            }));
+        }
+        true
+    }
+
+    pub fn app_tap(&mut self, key: Key) -> bool {
+        if !self.intercepted_keys().contains(&KeyChord::tap(key)) {
+            return false;
+        }
+        self.push(Event::InterceptedTap(key));
+        true
+    }
+
+    pub fn hold_modifiers(&mut self, modifiers: Modifiers) {
+        self.push(Event::Modifiers(modifiers));
     }
 
     pub fn hover_at(&mut self, pos: Pos2) {
@@ -1076,20 +1192,31 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn click_at(&mut self, pos: Pos2) {
+        self.click_button_at(pos, PointerButton::Primary);
+    }
+
+    pub fn click_button(&mut self, test_id: &str, button: PointerButton) {
+        self.click_button_at(self.point_of(test_id), button);
+    }
+
+    pub fn click_button_at(&mut self, pos: Pos2, button: PointerButton) {
         let modifiers = self.input.held();
         self.hover_at(pos);
-        self.push(Event::PointerButton {
-            pos,
-            button: PointerButton::Primary,
-            pressed: true,
-            modifiers,
-        });
-        self.push(Event::PointerButton {
-            pos,
-            button: PointerButton::Primary,
-            pressed: false,
-            modifiers,
-        });
+        for pressed in [true, false] {
+            self.push(Event::PointerButton {
+                pos,
+                button,
+                pressed,
+                modifiers,
+            });
+        }
+    }
+
+    pub fn scroll(&mut self, test_id: &str, delta: Vec2) {
+        self.hover_at(self.point_of(test_id));
+        self.push(Event::Scroll(delta));
+        self.next_frame();
+        self.push(Event::ScrollEnded);
     }
 
     pub fn drag(&mut self, from: Pos2, to: Pos2) {
@@ -1170,18 +1297,8 @@ impl<A: BeuiApp> BeuiTest<A> {
         if modifiers != held {
             self.push(Event::Modifiers(modifiers));
         }
-        self.push(Event::Key {
-            key,
-            pressed: true,
-            repeat: false,
-            modifiers,
-        });
-        self.push(Event::Key {
-            key,
-            pressed: false,
-            repeat: false,
-            modifiers,
-        });
+        self.push(Event::key(KeyPress::down(key, modifiers)));
+        self.push(Event::key(KeyPress::up(key, modifiers)));
         if modifiers != held {
             self.push(Event::Modifiers(held));
         }
@@ -1193,6 +1310,8 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn record(&mut self) {
         let frame = self.painted();
+        let found = overflow::overflows(self.document());
+        self.overflows.extend(found);
         match &mut self.recording {
             Some(recording) => recording.append(frame),
             None => self.recording = Some(frame),
@@ -1202,9 +1321,14 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn snapshot(&mut self, name: &str) {
         let painting = match self.recording.take() {
             Some(recording) => recording,
-            None => self.painted(),
+            None => {
+                let found = overflow::overflows(self.document());
+                self.overflows.extend(found);
+                self.painted()
+            }
         };
         snapshot::assert_snapshot(name, &painting);
+        overflow::assert_fits(name, std::mem::take(&mut self.overflows));
     }
 
     fn painted(&mut self) -> snapshot::Snapshot {
@@ -1212,13 +1336,8 @@ impl<A: BeuiApp> BeuiTest<A> {
             .output
             .as_ref()
             .expect("the editor has not drawn a frame yet");
-        capture::capture(
-            output,
-            Rect::from_min_size(Pos2::ZERO, self.size),
-            output.pixels_per_point(),
-            Color32::BLACK,
-        )
-        .expect("the painting could not be rendered")
+        capture::capture(output, self.size, output.pixels_per_point(), Color32::BLACK)
+            .expect("the painting could not be rendered")
     }
 }
 
@@ -1314,5 +1433,14 @@ impl Viewport {
                 ViewChange::Fit | ViewChange::ResumeAutoFit => self.fitting = true,
             }
         }
+    }
+}
+
+fn host_action<A: block_plugin_api::HostAction>(message: &EditorMessage) -> Option<A> {
+    match message {
+        EditorMessage::HostAction { key, action, .. } if key == A::KEY => {
+            block_plugin_api::decode_host(action)
+        }
+        _ => None,
     }
 }

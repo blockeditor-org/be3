@@ -50,10 +50,9 @@ fn a_mock_dom_row_that_leaves_disposes_the_effects_it_built() {
     );
 
     drop(scope);
-    list.release();
     assert_eq!(
         cleanups.get(),
         2,
-        "releasing the tree disposes the rows it still holds"
+        "disposing the scope that built the tree disposes the rows it still holds"
     );
 }

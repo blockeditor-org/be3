@@ -2,7 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 
-use be_block::ArtifactSource;
+use be_block::{ArtifactSource, BlockMetadata, Definition, Entries};
 use block_plugin_api::{AccessLevel, BlockLocation};
 use reactive::{ReadSignal, WriteSignal, create_signal};
 use uuid::Uuid;
@@ -89,12 +89,9 @@ pub struct BlockInfo {
     pub block_type: Uuid,
     pub author: Uuid,
     pub parent: BlockParent,
-    pub name: Option<String>,
-    pub named_by_hand: bool,
     pub references: Vec<Uuid>,
     pub access: AccessLevel,
-    pub artifact: Option<ArtifactSource>,
-    pub thumbhash: Option<be_block::Thumbhash>,
+    pub metadata: BlockMetadata,
 }
 
 impl BlockInfo {
@@ -104,25 +101,51 @@ impl BlockInfo {
             block_type,
             author: Uuid::nil(),
             parent,
-            name: None,
-            named_by_hand: false,
             references: Vec::new(),
             access: AccessLevel::Edit,
-            artifact: None,
-            thumbhash: None,
+            metadata: BlockMetadata::default(),
         }
     }
 
+    pub fn name(&self) -> Option<String> {
+        self.metadata.name()
+    }
+
+    pub fn set_name(&mut self, name: impl Into<String>) {
+        self.metadata.insert(&be_block::NAME, &name.into());
+    }
+
+    pub fn set_intrinsic_name(&mut self, name: impl Into<String>) {
+        self.metadata
+            .insert(&be_block::INTRINSIC_NAME, &name.into());
+    }
+
+    pub fn set_thumbhash(&mut self, thumbhash: &be_block::Thumbhash) {
+        self.metadata.insert(&be_block::THUMBHASH, thumbhash);
+    }
+
+    pub fn named_by_hand(&self) -> bool {
+        self.metadata.named_by_hand()
+    }
+
+    pub fn artifact(&self) -> Option<ArtifactSource> {
+        self.metadata.get(&be_block::ARTIFACT)
+    }
+
+    pub fn thumbhash(&self) -> Option<be_block::Thumbhash> {
+        self.metadata.get(&be_block::THUMBHASH)
+    }
+
     pub fn is_artifact(&self) -> bool {
-        self.artifact.is_some()
+        self.metadata.contains(&be_block::ARTIFACT)
     }
 
     pub fn label(&self, types: &dyn block_ui::BlockTypes) -> block_ui::BlockLabel {
         block_ui::BlockLabel::new(
             types,
             self.block_type,
-            self.name.as_deref(),
-            self.named_by_hand,
+            self.name().as_deref(),
+            self.named_by_hand(),
         )
     }
 
@@ -132,25 +155,12 @@ impl BlockInfo {
             block_type: self.block_type.into_bytes(),
             author: self.author.into_bytes(),
             parent: self.parent.encode(),
-            name: self.name.clone(),
-            named_by_hand: self.named_by_hand,
             references: self.references.iter().map(|id| id.into_bytes()).collect(),
             access: self.access,
-            artifact: self
-                .artifact
-                .as_ref()
-                .map(|artifact| block_plugin_api::ArtifactSource {
-                    source_type: artifact.source_type.into_bytes(),
-                    data: artifact.data.clone(),
-                }),
-            thumbhash: self
-                .thumbhash
-                .as_ref()
-                .map(|thumbhash| block_plugin_api::Thumbhash {
-                    hash: thumbhash.hash.clone(),
-                    width: thumbhash.width,
-                    height: thumbhash.height,
-                }),
+            metadata: block_plugin_api::BlockMetadata {
+                defined: wire_entries(&self.metadata.defined),
+                derived: wire_entries(&self.metadata.derived),
+            },
         }
     }
 
@@ -160,21 +170,28 @@ impl BlockInfo {
             block_type: Uuid::from_bytes(info.block_type),
             author: Uuid::from_bytes(info.author),
             parent: BlockParent::decode(info.parent),
-            name: info.name,
-            named_by_hand: info.named_by_hand,
             references: info.references.into_iter().map(Uuid::from_bytes).collect(),
             access: info.access,
-            artifact: info.artifact.map(|artifact| ArtifactSource {
-                source_type: Uuid::from_bytes(artifact.source_type),
-                data: artifact.data,
-            }),
-            thumbhash: info.thumbhash.map(|thumbhash| be_block::Thumbhash {
-                hash: thumbhash.hash,
-                width: thumbhash.width,
-                height: thumbhash.height,
-            }),
+            metadata: BlockMetadata {
+                defined: entries_of(info.metadata.defined),
+                derived: entries_of(info.metadata.derived),
+            },
         }
     }
+}
+
+pub fn wire_entries(entries: &Entries) -> block_plugin_api::MetadataEntries {
+    entries
+        .iter()
+        .map(|(key, value)| (key.into_bytes(), serde_bytes::ByteBuf::from(value.clone())))
+        .collect()
+}
+
+pub fn entries_of(entries: block_plugin_api::MetadataEntries) -> Entries {
+    entries
+        .into_iter()
+        .map(|(key, value)| (Uuid::from_bytes(key), value.into_vec()))
+        .collect()
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -183,17 +200,17 @@ pub enum GraphCommand {
         id: Uuid,
         block_type: Uuid,
         parent: BlockParent,
-        name: Option<String>,
-        artifact: Option<ArtifactSource>,
+        defined: Entries,
         content: Option<Vec<u8>>,
     },
     SetParent {
         id: Uuid,
         parent: BlockParent,
     },
-    SetName {
+    Define {
         id: Uuid,
-        name: Option<String>,
+        key: Uuid,
+        value: Option<Vec<u8>>,
     },
 }
 
@@ -321,15 +338,12 @@ impl GraphState {
             id,
             block_type,
             parent,
-            name,
-            artifact,
+            defined,
             ..
         } = &command
         {
             let mut info = BlockInfo::new(*id, *block_type, *parent);
-            info.name.clone_from(name);
-            info.named_by_hand = name.is_some();
-            info.artifact.clone_from(artifact);
+            info.metadata.defined.clone_from(defined);
             self.known.borrow_mut().insert(*id, info);
             self.changed();
         }
@@ -354,7 +368,12 @@ impl Blocks {
     }
 
     pub fn create<C: be_block::BlockContent>(&self, content: &C, parent: BlockParent) -> Uuid {
-        self.create_with(C::CONTENT_TYPE, Some(content.encode()), parent, None, None)
+        self.create_with(
+            C::CONTENT_TYPE,
+            Some(content.encode()),
+            parent,
+            BlockMetadata::default(),
+        )
     }
 
     pub fn create_named<C: be_block::BlockContent>(
@@ -367,8 +386,7 @@ impl Blocks {
             C::CONTENT_TYPE,
             Some(content.encode()),
             parent,
-            Some(name.into()),
-            None,
+            BlockMetadata::named(name),
         )
     }
 
@@ -379,13 +397,10 @@ impl Blocks {
         name: Option<String>,
         artifact: ArtifactSource,
     ) -> Uuid {
-        self.create_with(
-            C::CONTENT_TYPE,
-            Some(content.encode()),
-            parent,
-            name,
-            Some(artifact),
-        )
+        let mut metadata = BlockMetadata::default();
+        metadata.put(&be_block::NAME, name.as_ref());
+        metadata.insert(&be_block::ARTIFACT, &artifact);
+        self.create_with(C::CONTENT_TYPE, Some(content.encode()), parent, metadata)
     }
 
     pub fn create_with(
@@ -393,16 +408,14 @@ impl Blocks {
         block_type: Uuid,
         content: Option<Vec<u8>>,
         parent: BlockParent,
-        name: Option<String>,
-        artifact: Option<ArtifactSource>,
+        metadata: BlockMetadata,
     ) -> Uuid {
         let id = Uuid::new_v4();
         self.graph.push(GraphCommand::Create {
             id,
             block_type,
             parent,
-            name,
-            artifact,
+            defined: metadata.defined,
             content,
         });
         self.waker.wake();
@@ -415,7 +428,11 @@ impl Blocks {
     }
 
     pub fn set_name(&self, id: Uuid, name: Option<String>) {
-        self.graph.push(GraphCommand::SetName { id, name });
+        self.define(id, be_block::NAME.definition(name.as_ref()));
+    }
+
+    pub fn define(&self, id: Uuid, (key, value): Definition) {
+        self.graph.push(GraphCommand::Define { id, key, value });
         self.waker.wake();
     }
 

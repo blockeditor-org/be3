@@ -696,6 +696,11 @@ pub(super) fn install(setup: &beui::Setup) -> Availability {
     availability
 }
 
+pub(super) fn stop() {
+    let presenter = PRESENTER.with(|presenter| presenter.borrow_mut().take());
+    drop(presenter);
+}
+
 pub(super) fn release(slot: u32, status: &PresenterStatus) {
     PRESENTER.with(|presenter| {
         if let Some(platform) = presenter

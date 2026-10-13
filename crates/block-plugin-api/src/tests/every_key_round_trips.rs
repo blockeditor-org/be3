@@ -13,6 +13,7 @@ fn every_key_round_trips() {
                 key,
                 pressed: true,
                 repeat: false,
+                text: None,
             }],
         });
         assert_eq!(

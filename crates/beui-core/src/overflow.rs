@@ -1,0 +1,172 @@
+use std::fmt;
+
+use crate::base::canvas::CanvasNode;
+use crate::base::list::Direction;
+use crate::base::offset::OffsetNode;
+use crate::document::Document;
+use crate::geometry::Rect;
+use crate::node::{NodeId, SpaceId};
+
+const TOLERANCE: f32 = 1.0;
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum OverflowKind {
+    CutOff,
+    Spills,
+}
+
+#[derive(Clone, Debug)]
+pub struct Overflow {
+    pub node: NodeId,
+    pub kind: OverflowKind,
+    pub rect: Rect,
+    pub bounds: Rect,
+    pub path: String,
+}
+
+impl fmt::Display for Overflow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let what = match self.kind {
+            OverflowKind::CutOff => "is cut off by a clip nothing scrolls",
+            OverflowKind::Spills => "draws outside its own box",
+        };
+        let rect = self.rect;
+        let bounds = self.bounds;
+        write!(
+            f,
+            "{} {what}: [{:.1},{:.1}]-[{:.1},{:.1}] against [{:.1},{:.1}]-[{:.1},{:.1}]",
+            self.path,
+            rect.min.x,
+            rect.min.y,
+            rect.max.x,
+            rect.max.y,
+            bounds.min.x,
+            bounds.min.y,
+            bounds.max.x,
+            bounds.max.y,
+        )
+    }
+}
+
+impl Document {
+    pub fn overflows(&self) -> Vec<Overflow> {
+        let mut found = Vec::new();
+        let Some(root) = self.root() else {
+            return found;
+        };
+        let mut pending = vec![(root, false)];
+        while let Some((id, parent_cut)) = pending.pop() {
+            if !self.arena.contains(id) {
+                continue;
+            }
+            let Some(rect) = self.rects.get(&id) else {
+                continue;
+            };
+            let bounds = self.reachable(id);
+            let cut = rect.is_positive() && !within(rect, bounds);
+            if cut && !parent_cut {
+                found.push(self.overflow(id, OverflowKind::CutOff, rect, bounds));
+            }
+            if let Some(ink) = self.arena.get(id).ink() {
+                let ink = ink.translate(rect.min.to_vec2());
+                if ink.is_positive() && !within(ink, rect) {
+                    found.push(self.overflow(id, OverflowKind::Spills, ink, rect));
+                }
+            }
+            for child in self.arena.get(id).live_children() {
+                pending.push((child, cut));
+            }
+        }
+        found
+    }
+
+    fn reachable(&self, id: NodeId) -> Rect {
+        let mut bounds = Rect::EVERYTHING;
+        let (mut free_x, mut free_y) = (false, false);
+        for (space, clip) in self.rects.clips_above(&id) {
+            let (x, y) = self.scrolls(space);
+            free_x |= x;
+            free_y |= y;
+            let mut clip = clip;
+            if free_x {
+                clip.min.x = f32::NEG_INFINITY;
+                clip.max.x = f32::INFINITY;
+            }
+            if free_y {
+                clip.min.y = f32::NEG_INFINITY;
+                clip.max.y = f32::INFINITY;
+            }
+            bounds = bounds.intersect(clip);
+        }
+        bounds
+    }
+
+    fn scrolls(&self, space: SpaceId) -> (bool, bool) {
+        let host = space.node();
+        if space.slot() == 0 || !self.arena.contains(host) {
+            return (false, false);
+        }
+        let element = self.arena.get(host).as_any();
+        if let Some(offset) = element.downcast_ref::<OffsetNode>() {
+            return match offset.direction {
+                Direction::Horizontal => (true, false),
+                Direction::Vertical => (false, true),
+            };
+        }
+        let pans = element
+            .downcast_ref::<CanvasNode>()
+            .is_some_and(CanvasNode::pans);
+        (pans, pans)
+    }
+
+    fn overflow(&self, id: NodeId, kind: OverflowKind, rect: Rect, bounds: Rect) -> Overflow {
+        Overflow {
+            node: id,
+            kind,
+            rect,
+            bounds,
+            path: self.node_path(id),
+        }
+    }
+
+    pub fn node_path(&self, id: NodeId) -> String {
+        let mut parts = Vec::new();
+        let mut current = Some(id);
+        while let Some(node) = current {
+            if !self.arena.contains(node) || parts.len() > 64 {
+                break;
+            }
+            let mut part = self.node_kind(node).to_string();
+            if let Some(detail) = self
+                .node_detail(node)
+                .filter(|_| self.node_kind(node) != "portal")
+            {
+                let detail: String = detail.chars().take(40).collect();
+                part.push_str(&format!(" {detail:?}"));
+            }
+            let ids = self.node_test_ids(node);
+            if !ids.is_empty() {
+                part.push_str(&format!(" #{}", ids.join(" #")));
+            }
+            parts.push(part);
+            current = self.node_parent(node);
+        }
+        let mut shown: Vec<&str> = parts.iter().take(3).map(String::as_str).collect();
+        let named = parts.iter().skip(3).find(|part| part.contains(" #"));
+        if parts.len() > 3 {
+            shown.push("…");
+        }
+        if let Some(named) = named {
+            shown.push(named);
+        }
+        shown.join(" < ")
+    }
+}
+
+fn within(inner: Rect, outer: Rect) -> bool {
+    let outer = outer.expand(TOLERANCE);
+    inner.min.x >= outer.min.x
+        && inner.min.y >= outer.min.y
+        && inner.max.x <= outer.max.x
+        && inner.max.y <= outer.max.y
+}

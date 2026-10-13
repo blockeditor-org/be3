@@ -1,9 +1,10 @@
 use crate::reactive::{Callback, Child, ClickCallback, Prop, create_effect, with_document};
 use beui_core::base::list::Direction;
+use beui_core::clipboard::{PasteKind, Pasted};
 use beui_core::geometry::{Pos2, Vec2};
 use beui_core::input::{
-    AutoscrollGesture, CursorIcon, DragGesture, ImeEvent, ImeText, KeyPress, PointerPress,
-    ScrollGesture, SecondaryDrag, ZoomGesture,
+    AutoscrollGesture, CursorIcon, DragGesture, ImeEvent, ImeText, KeyPress, Modifiers,
+    PointerPress, ScrollGesture, SecondaryDrag, ZoomGesture,
 };
 use beui_core::node::NodeId;
 
@@ -20,6 +21,7 @@ pub fn Interactive(
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] ime: Prop<bool>,
     #[prop(default = true)] keyboard_on_focus: bool,
+    #[prop(default = None)] keyboard_asks: Prop<Option<u32>>,
     #[prop(default = true)] ime_keyboard: Prop<bool>,
     #[prop(default = None)] ime_cursor: Prop<Option<ImeCursor>>,
     #[prop(default = None)] ime_text: Prop<Option<ImeText>>,
@@ -29,9 +31,10 @@ pub fn Interactive(
     on_step: Callback<f32>,
     on_text: Callback<String>,
     #[prop(default = true)] takes_text: bool,
+    #[prop(default = Vec::new())] pastes: Prop<Vec<PasteKind>>,
+    on_paste: Callback<Pasted>,
     on_ime: Callback<ImeEvent>,
     on_key: Callback<KeyPress, bool>,
-    on_ancestor_key: Callback<KeyPress, bool>,
     on_motion: Callback<Vec2>,
     cursor: Option<Prop<CursorIcon>>,
     #[prop(default = false)] key_active: Prop<bool>,
@@ -59,9 +62,12 @@ pub fn Interactive(
     on_autoscroll: Callback<AutoscrollGesture>,
     on_zoom: Callback<ZoomGesture>,
     capture_at: Callback<Pos2, bool>,
-    intercept_at: Callback<Pos2, bool>,
+    hit_at: Callback<Pos2, bool>,
     on_forward: Callback<ForwardedInput>,
-    forward_at: Callback<Pos2, bool>,
+    #[prop(default = false)] inhibits_shortcuts: Prop<bool>,
+    #[prop(default = None)] claim_modifiers: Prop<Option<Modifiers>>,
+    claim_at: Callback<(Pos2, Modifiers), bool>,
+    on_press_outside: Callback<Pos2>,
     children: Option<Child>,
 ) -> NodeId {
     assert!(
@@ -71,9 +77,9 @@ pub fn Interactive(
                 && on_activate.is_empty()
                 && on_step.is_empty()
                 && on_text.is_empty()
+                && on_paste.is_empty()
                 && on_ime.is_empty()
                 && on_key.is_empty()
-                && on_ancestor_key.is_empty()
                 && on_motion.is_empty()),
         "an Interactive handed focus callbacks has to be focusable"
     );
@@ -89,9 +95,9 @@ pub fn Interactive(
             if takes_text {
                 focus.on_text = on_text;
             }
+            focus.on_paste = on_paste;
             focus.on_ime = on_ime;
             focus.on_key = on_key;
-            focus.on_ancestor_key = on_ancestor_key;
             focus.on_motion = on_motion;
         }
         node.on_click = on_click;
@@ -112,9 +118,10 @@ pub fn Interactive(
         node.on_autoscroll = on_autoscroll;
         node.on_zoom = on_zoom;
         node.capture_at = capture_at;
-        node.intercept_at = intercept_at;
+        node.hit_at = hit_at;
         node.on_forward = on_forward;
-        node.forward_at = forward_at;
+        document.set_interactive_claim_at(interactive, claim_at);
+        document.set_interactive_on_press_outside(interactive, on_press_outside);
         if let Some(child) = children {
             document.set_interactive_child(interactive, child);
         }
@@ -133,8 +140,16 @@ pub fn Interactive(
             with_document(|document| document.set_focusable_ime(interactive, ime.get()))
         });
         create_effect(move || {
+            let pastes = pastes.get();
+            with_document(|document| document.set_focusable_pastes(interactive, pastes))
+        });
+        create_effect(move || {
             let keyboard = ime_keyboard.get();
             with_document(|document| document.set_focusable_ime_keyboard(interactive, keyboard))
+        });
+        create_effect(move || {
+            let asks = keyboard_asks.get();
+            with_document(|document| document.set_focusable_keyboard_asks(interactive, asks))
         });
         create_effect(move || {
             let cursor = ime_cursor.get();
@@ -194,6 +209,14 @@ pub fn Interactive(
     });
     create_effect(move || {
         with_document(|document| document.set_interactive_key_active(interactive, key_active.get()))
+    });
+    create_effect(move || {
+        let inhibits = inhibits_shortcuts.get();
+        with_document(|document| document.set_interactive_inhibits_shortcuts(interactive, inhibits))
+    });
+    create_effect(move || {
+        let claimed = claim_modifiers.get();
+        with_document(|document| document.set_interactive_claim_modifiers(interactive, claimed))
     });
     interactive.id()
 }

@@ -2,7 +2,7 @@ use std::cell::Cell;
 
 use beui::reactive::{
     Align, Direction, Draw, Drawing, ForEach, Frame, Interactive, ItemSize, List, Memo, Prop, Show,
-    Spacer, clone, component, component_rect, create_memo, create_signal, view,
+    Spacer, clone, component, create_memo, create_signal, view,
 };
 use beui::styled::{
     Accordion, Body, Button, ButtonVariant, Caption, Code, Dialog, ListRow, Scroll, Separator,
@@ -87,7 +87,7 @@ fn Field(label: Prop<String>, value: Prop<String>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <Caption @sizing=ItemSize::Fixed(LABEL_WIDTH) content={label} />
-            <Code @sizing=ItemSize::Percent(100.0) content={value} />
+            <Code @sizing=ItemSize::Percent(100.0) content={value} wrap=true />
         </List>
     }
 }
@@ -1087,11 +1087,9 @@ fn GraphCanvas(
     height: Memo<Option<f32>>,
     draw: Prop<Draw>,
 ) -> NodeId {
-    let placed = component_rect();
     let hovered = Rc::new(Cell::new(None::<usize>));
     let over = clone!(session hovered -> move |press: PointerPress| {
-        let rect = placed.get_untracked();
-        let local = Pos2::new(press.pos.x - rect.min.x, press.pos.y - rect.min.y);
+        let local = press.local;
         let shape = shape.get_untracked();
         let node = shape.positions.iter().position(|center| {
             (local.x - center.x).abs() <= GRAPH_NODE_SIZE.x * 0.5

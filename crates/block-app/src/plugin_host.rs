@@ -9,9 +9,10 @@ use uuid::Uuid;
 
 mod audio;
 mod backend;
-mod clipboard;
+mod description;
 mod fonts;
 pub(crate) mod graph;
+mod host_values;
 mod input;
 mod instances;
 mod pieces;
@@ -24,27 +25,33 @@ mod wasm;
 #[cfg(target_arch = "wasm32")]
 mod web;
 mod web_view;
+mod worker;
 
+pub(crate) use description::describe;
+pub(crate) use input::BlockDrag;
 pub(crate) use instances::EditorView;
 pub(crate) use presenter::Piece;
 #[cfg(target_arch = "wasm32")]
 pub(crate) use presenter::shown as shown_blits;
 #[cfg(target_arch = "wasm32")]
 pub(crate) use runtime::place_screens;
+#[cfg(target_os = "linux")]
+pub(crate) use runtime::watched;
 pub(crate) use runtime::{
-    PACING, artifact, artifact_draft, aspect_ratio, block_picked, close, commit_creation, creation,
-    creation_ready, flush, frame_child, frame_rects, hold, install, intrinsic_size, kill, menu,
-    menu_pick, poll, present, presenting, record_pacing, regenerate_artifact, region_size,
-    replace_child, report_child_bars, report_child_views, report_children, request_pick, resized,
-    revoke_frame_child, running, set_artifact_states, set_focus, set_presence_visible, set_windows,
-    settle, show_block, show_dialog, show_panel, start_frames, take_artifact_outcome,
-    take_artifact_watch, take_bar_actions, take_block_pick, take_child_commits,
-    take_child_menu_picks, take_closed_windows, take_created, take_focus_report, take_leaving,
-    take_pick_answers, take_view_changes,
+    PACING, artifact, artifact_draft, aspect_ratio, block_picked, busy, close, commit_creation,
+    creation, creation_ready, flush, frame_child, frame_rects, hold, install, intrinsic_size, kill,
+    menu, menu_pick, poll, present, presenting, publish, record_pacing, regenerate_artifact,
+    region_size, replace_child, replace_gpu, report_child_bars, report_child_views,
+    report_children, request_pick, resized, revoke_frame_child, running, set_artifact_states,
+    set_focus, set_presence_visible, set_shell, settle, show_block, show_dialog, show_panel,
+    start_frames, take_actions, take_artifact_outcome, take_artifact_watch, take_bar_actions,
+    take_block_pick, take_child_commits, take_child_menu_picks, take_created, take_focus_report,
+    take_leaving, take_pick_answers, take_view_changes,
 };
 pub(crate) use runtime::{
-    RegionPlacement, RegionSlot, RegionView, back_region, forward_region, frames, mount_region,
-    place_region, region_damage, region_drawing, region_placed, region_view, take_changed,
+    RegionPlacement, RegionSlot, RegionView, back_region, drag_over_region, forward_region, frames,
+    intercept_region, intercept_tap, mount_region, place_region, pressed_outside_region,
+    region_damage, region_drawing, region_placed, region_view, take_block_drags, take_changed,
     take_region_actions, unmount_region, unplace_region,
 };
 #[cfg(all(
@@ -57,6 +64,15 @@ pub(crate) use web_view::install as install_web_view;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn cache_in(directory: std::path::PathBuf) {
     wasm::cache_in(directory);
+}
+
+pub(crate) fn exiting() {
+    runtime::exiting();
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        surface::stop();
+        wasm::wait_for_workers(std::time::Duration::from_secs(2));
+    }
 }
 
 pub(crate) const MAX_LIVE_CHILDREN: usize = 16;
@@ -126,7 +142,6 @@ pub(crate) struct HostChildStatus {
     pub(crate) available: bool,
     pub(crate) intrinsic: Option<Vec2>,
     pub(crate) aspect_ratio: Option<f32>,
-    pub(crate) hovered: bool,
     pub(crate) active: bool,
     pub(crate) interaction: InteractionMode,
     pub(crate) capabilities: EditorCapabilities,

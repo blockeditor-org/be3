@@ -6,11 +6,22 @@ How the server runs on a VPS for real notes. The files referred to are in
 ## Layout
 
 - be-server listens on `127.0.0.1:9090` and is never exposed directly: it
-  speaks plain websockets with no TLS.
+  speaks plain websockets with no TLS, and the same protocol over HTTP posts
+  at `/api/be/http` for clients behind a proxy that refuses websockets (`be`).
+- It never reads `Authorization`, so Caddy can gate the site on that header;
+  the app (Authorization header when adding an account on a remote server) and
+  `be` (`authorization=` in `external/.tracker-credentials`) send one.  `Caddyfile.gated`
+  is the site behind such a key: a browser cannot put a header on a websocket,
+  so anyone else gets a page that asks for the key and keeps it in a cookie,
+  which Caddy accepts as well, and the key never goes in a URL.
 - Caddy terminates TLS for the domain, passes `/api*` to be-server, and serves
   the web bundle from `/srv/be3-web` if it is wanted (`Caddyfile`; build it
   with `./scripts/buck build //crates/block-app:web --out DIR`).
-- Data lives in `/var/lib/be-server`: `metadata.sqlite` and `objects/`.
+- Data lives in `/var/lib/be-server`: `metadata.sqlite` and `objects/`. On
+  start the server checks `metadata.sqlite` against the schema it declares,
+  adding missing tables, indexes and defaulted columns, and refuses to start on
+  anything else. The directory and its backups are frozen formats
+  (guides/frozen_formats.md): every later server reads them.
 - Sign-ins with a password are off, so only devices that are already signed
   in connect, with the session tokens they hold. To sign in a new device,
   put `BE_SERVER_FLAGS=--allow-login` in `/etc/be-server/server.env`, restart
@@ -23,15 +34,37 @@ How the server runs on a VPS for real notes. The files referred to are in
 
 ## Install
 
-1. Build `//crates/be-server:be-server-bin` for the VPS
-   (`./scripts/buck build //crates/be-server:be-server-bin --out be-server`) and
-   copy it to `/usr/local/bin/be-server`.
+1. Build `//crates/block-app:dist` for the VPS
+   (`./scripts/buck build //crates/block-app:dist --out DIR`), copy `DIR/be-server`
+   to `/usr/local/bin/be-server` and `DIR/build-id` to `/etc/be-server/build-id`.
+   The server refuses clients of any other build, so upgrade it together with
+   the web bundle and every device, all from one commit.
 2. `useradd --system --home /var/lib/be-server be-server`.
 3. Copy `be-server.service`, `be-backup.service` and `be-backup.timer` to
    `/etc/systemd/system/`, then `systemctl enable --now be-server be-backup.timer`.
 4. Put `Caddyfile` (with the real domain) in Caddy's config and reload it.
 5. `journalctl -u be-server` shows its log; `RUST_LOG=debug` in the unit shows
    each connection.
+
+## Deploying
+
+`./scripts/deploy` builds be-server and `be` in release in one buck2 command
+(local-tools deploy, in crates/local-tools) and then, from that build:
+
+- uploads each `be` bundle (Linux x86_64 and arm64) to the storage zone as
+  `be/BUILD/be-TRIPLE/` (`BUNNY_STORAGE_KEY`), reads it back from
+  `lfs.pfg.pw` to check the hash, and pins it in `scripts/internal/common.sh`,
+  which `./scripts/be` must match the server by (guides/tracker.md);
+- copies `be-server`, its `build-id` and the web bundle (`//crates/block-app:web`,
+  with every plugin) to the VPS beside the running ones, stops Caddy and
+  be-server, moves them into place (the bundle to `/srv/be3-web`, keeping the
+  last one as `/srv/be3-web.old`) and starts both again. The app, the web app
+  and `be` are then all one build, which the server requires.
+
+It refuses a working tree that differs from its commit, so every deployed build
+can be built again. Commit the pin it writes. `--dry-run` prints each step and
+changes nothing; `./scripts/deploy --help` lists the rest, and the environment
+that names the host, the directory there and the storage zone.
 
 ## Backups
 

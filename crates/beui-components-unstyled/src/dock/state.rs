@@ -8,8 +8,10 @@ use beui_core::geometry::{Pos2, Rect, Vec2};
 use serde::{Deserialize, Serialize};
 
 mod spec;
+mod switch;
 
 pub use spec::{DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow};
+pub use switch::DockSwitch;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct TabId(u64);
@@ -467,6 +469,12 @@ impl fmt::Debug for Lookup {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DockFullscreen {
+    pub tab: TabId,
+    pub area: Option<Rect>,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DockState {
     surfaces: Vec<Surface>,
@@ -476,6 +484,10 @@ pub struct DockState {
     recent: Vec<TabId>,
     next: u64,
     seeded: bool,
+    #[serde(skip)]
+    fullscreen: Option<DockFullscreen>,
+    #[serde(skip)]
+    switch: Option<DockSwitch>,
     #[serde(skip)]
     lookup: Lookup,
 }
@@ -496,6 +508,8 @@ impl DockState {
             recent: Vec::new(),
             next: 0,
             seeded: false,
+            fullscreen: None,
+            switch: None,
             lookup: Lookup::default(),
         };
         let leaf = state.new_leaf(tabs.into_iter().map(Entry::Tab).collect());
@@ -779,8 +793,47 @@ impl DockState {
         })
     }
 
+    pub fn fullscreen(&self) -> Option<DockFullscreen> {
+        self.fullscreen
+            .filter(|fullscreen| self.contains(fullscreen.tab))
+    }
+
+    pub fn set_fullscreen(&mut self, fullscreen: Option<DockFullscreen>) {
+        let fullscreen = fullscreen.filter(|fullscreen| self.contains(fullscreen.tab));
+        if let Some(fullscreen) = fullscreen {
+            self.show(fullscreen.tab);
+        }
+        self.fullscreen = fullscreen;
+    }
+
     pub fn contains(&self, tab: TabId) -> bool {
         self.find(tab).is_some()
+    }
+
+    pub fn is_shown(&self, tab: TabId, stacked: bool) -> bool {
+        if self.fullscreen().is_some_and(|shown| shown.tab == tab) {
+            return true;
+        }
+        if stacked {
+            return self.stacked_tab() == Some(tab);
+        }
+        let Some(position) = self.find(tab) else {
+            return false;
+        };
+        let mut leaf = position.leaf;
+        if self.active_tab(leaf) != Some(tab) {
+            return false;
+        }
+        while let Some(Tree::Group(group)) = self.tree_of(leaf) {
+            let Some((holder, index)) = self.holder(group) else {
+                return false;
+            };
+            if self.active_index(holder) != index {
+                return false;
+            }
+            leaf = holder;
+        }
+        true
     }
 
     pub fn all_tabs(&self) -> Vec<TabId> {

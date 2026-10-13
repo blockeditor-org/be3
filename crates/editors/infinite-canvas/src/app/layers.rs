@@ -3,8 +3,8 @@ use std::rc::Rc;
 use block_editor_beui::be_block::canvas::{CanvasEntity, CanvasEntityKind};
 use block_editor_beui::beui::icons::{ICON_VISIBILITY, ICON_VISIBILITY_OFF};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Show, clone, component, component_rect,
-    create_memo, create_signal, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Show, clone, component, create_memo,
+    create_signal, view,
 };
 use block_editor_beui::beui::styled::{
     Accordion, Body, ButtonVariant, Caption, IconButton, IconButtonSize, use_theme,
@@ -57,7 +57,6 @@ pub(crate) fn LayersSection(state: Rc<CanvasState>) -> NodeId {
 
 #[component]
 fn LayerRow(state: Rc<CanvasState>, id: Uuid) -> NodeId {
-    let rect = component_rect();
     let entity = create_memo(clone!(state -> move || {
         state.entities.get().into_iter().find(|entity| entity.id == id)
     }));
@@ -87,7 +86,7 @@ fn LayerRow(state: Rc<CanvasState>, id: Uuid) -> NodeId {
     let toggle = clone!(state hidden -> move || state.set_hidden(id, !hidden.get_untracked()));
     let select = clone!(state -> move || state.select(id, false));
     let dropped = clone!(state -> move |(Layer(moved), point): (Layer, DragPoint)| {
-        let in_front = point.pos.y < rect.get_untracked().center().y;
+        let in_front = point.fraction.y < 0.5;
         state.move_layer(moved, id, in_front);
     });
     let ghost = clone!(label -> move |_: Layer| view! {

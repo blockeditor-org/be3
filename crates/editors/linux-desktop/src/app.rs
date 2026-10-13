@@ -1,5 +1,15 @@
 mod bar;
+mod calendar;
+mod fullscreen;
+pub(crate) mod launcher;
+pub(crate) mod media;
+mod notifications;
+mod popup;
+mod power;
 mod sessions;
+mod switcher;
+mod tray;
+mod volume;
 
 use std::rc::Rc;
 
@@ -11,13 +21,17 @@ use block_editor_beui::beui::styled::{Docking, use_theme};
 use block_editor_beui::beui::unstyled::{
     Container, DockNode, DockPane, DockWindow, TabId, container_size,
 };
-use block_editor_beui::beui::{NodeId, Rect, Vec2, pos2, vec2};
+use block_editor_beui::beui::{Modifiers, NodeId, Rect, Vec2, pos2, vec2};
 use block_editor_beui::{HostPanel, HostWindowId};
 use block_shell::{
-    BlockTab, DialogWindow, Failure, PanelWindow, PickerDialogs, Workspace, WorkspaceDialogs,
+    AttachedWindow, BlockTab, Failure, FloatingWindow, PanelWindow, PickerDialogs, Workspace,
+    WorkspaceDialogs,
 };
 
 use bar::DesktopBar;
+use launcher::{ProgramLauncher, ProgramLauncherOverlay};
+use media::MediaKeys;
+use notifications::{DesktopNotifications, DesktopToasts};
 
 const WINDOW_ORIGIN: f32 = 48.0;
 const WINDOW_CASCADE: f32 = 32.0;
@@ -54,12 +68,14 @@ fn DesktopBody(workspace: Rc<Workspace>) -> NodeId {
     let surface = NodeRef::new();
     workspace.editor().content(&surface);
     let layout = workspace.layout();
+    switcher::bind_window_switcher(&layout);
+    fullscreen::bind_fullscreen(workspace.editor());
     let failure = workspace.error();
     let failed = create_memo(clone!(failure -> move || failure.get().is_some()));
     let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
     let block_tabs = workspace.block_tabs();
-    let top_windows = workspace.windows(false);
-    let dialog_windows = workspace.windows(true);
+    let top_windows = workspace.windows();
+    let dialog_windows = workspace.dialogs();
     let panels = workspace.panels();
     let blocks = Rc::clone(&workspace);
     let programs = Rc::clone(&workspace);
@@ -68,12 +84,21 @@ fn DesktopBody(workspace: Rc<Workspace>) -> NodeId {
     let bar = Rc::clone(&workspace);
     let pickers = Rc::clone(&workspace);
     let shell_dialogs = Rc::clone(&workspace);
+    let editor = workspace.editor().clone();
+    let launcher = ProgramLauncher::new(editor.clone());
+    let opener = launcher.clone();
+    let notifications = DesktopNotifications::new(&editor);
+    let bar_node = NodeRef::new();
     let theme = use_theme();
     view! {
         <Frame @node_ref={&surface} color={theme.background.clone()}>
             <List spacing=0.0>
                 <Failure failed={failed} reason={reason} />
-                <Docking @sizing=ItemSize::Percent(100.0) layout>
+                <Docking
+                    @sizing=ItemSize::Percent(100.0)
+                    layout
+                    drag_modifier={Some(Modifiers::LOGO)}
+                >
                     <ForEach keys={block_tabs}>
                         {move |tab: TabId| view! {
                             <BlockWindow workspace={Rc::clone(&blocks)} tab />
@@ -81,12 +106,12 @@ fn DesktopBody(workspace: Rc<Workspace>) -> NodeId {
                     </ForEach>
                     <ForEach keys={top_windows}>
                         {move |window: HostWindowId| view! {
-                            <DialogWindow workspace={Rc::clone(&programs)} window />
+                            <FloatingWindow workspace={Rc::clone(&programs)} window />
                         }}
                     </ForEach>
                     <ForEach keys={dialog_windows}>
-                        {move |window: HostWindowId| view! {
-                            <DialogWindow workspace={Rc::clone(&dialogs)} window />
+                        {move |(window, parent): (HostWindowId, HostWindowId)| view! {
+                            <AttachedWindow workspace={Rc::clone(&dialogs)} window parent />
                         }}
                     </ForEach>
                     <ForEach keys={panels}>
@@ -95,9 +120,17 @@ fn DesktopBody(workspace: Rc<Workspace>) -> NodeId {
                         }}
                     </ForEach>
                 </Docking>
-                <DesktopBar workspace={bar} />
+                <DesktopBar
+                    @node_ref=&bar_node
+                    workspace={bar}
+                    notifications={notifications.clone()}
+                    launcher={opener}
+                />
                 <PickerDialogs workspace={pickers} />
                 <WorkspaceDialogs workspace={shell_dialogs} />
+                <MediaKeys editor />
+                <ProgramLauncherOverlay launcher />
+                <DesktopToasts notifications bar={bar_node} />
             </List>
         </Frame>
     }

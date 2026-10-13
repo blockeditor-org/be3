@@ -6,12 +6,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use rustix::event::{EventfdFlags, PollFd, PollFlags, eventfd, poll};
+use smithay::reexports::calloop::EventLoop;
 use smithay::reexports::wayland_server::{Client, Display, ListeningSocket};
 
 use crate::state::{ClientState, State};
 
 pub struct Server {
     display: Display<State>,
+    event_loop: EventLoop<'static, State>,
     socket: Option<ListeningSocket>,
     name: Option<OsString>,
     pub state: State,
@@ -38,9 +40,11 @@ impl Server {
 
     pub fn headless() -> Result<Self, Box<dyn Error>> {
         let display = Display::new()?;
-        let state = State::new(&display.handle(), Waiter::new()?);
+        let event_loop = EventLoop::try_new()?;
+        let state = State::new(&display.handle(), Waiter::new()?, event_loop.handle());
         Ok(Self {
             display,
+            event_loop,
             socket: None,
             name: None,
             state,
@@ -49,6 +53,14 @@ impl Server {
 
     pub fn socket_name(&self) -> Option<&OsStr> {
         self.name.as_deref()
+    }
+
+    pub fn start_xwayland(&mut self) -> std::io::Result<u32> {
+        self.state.start_xwayland()
+    }
+
+    pub fn x11_display(&self) -> Option<u32> {
+        self.state.xwayland.display()
     }
 
     pub fn connect(&mut self, stream: UnixStream) -> std::io::Result<Client> {
@@ -67,8 +79,19 @@ impl Server {
             }
         }
         self.state.release_blockers();
+        let _ = self
+            .event_loop
+            .dispatch(Some(std::time::Duration::ZERO), &mut self.state);
+        self.state.settle_xwayland();
         let _ = self.display.dispatch_clients(&mut self.state);
+        for client in self.state.take_disconnected() {
+            let _ = self
+                .display
+                .backend()
+                .dispatch_single_client(&mut self.state, client);
+        }
         self.state.release_blockers();
+        self.state.fetch_selection();
         self.state.cleanup();
         self.flush();
     }
@@ -78,7 +101,10 @@ impl Server {
     }
 
     pub fn watch(&mut self, wake: impl Fn() + Send + 'static) -> std::io::Result<Watch> {
-        let mut fds = vec![rustix::io::dup(self.display.backend().poll_fd())?];
+        let mut fds = vec![
+            rustix::io::dup(self.display.backend().poll_fd())?,
+            rustix::io::dup(self.event_loop.as_fd())?,
+        ];
         if let Some(socket) = &self.socket {
             fds.push(rustix::io::dup(socket.as_fd())?);
         }

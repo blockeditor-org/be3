@@ -2,8 +2,9 @@ use std::rc::Rc;
 
 use block_editor_beui::be_block::map::MapPoint;
 use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, Child, ForEach, Frame, Interactive, ItemSize, List, Memo, NodeRef, clone,
-    component, create_effect, create_memo, create_selector, untrack, view,
+    Canvas, CanvasItem, Child, ForEach, Frame, Interactive, ItemSize, List, Memo, NodeRef,
+    PasteKind, Pasted, clone, component, create_effect, create_memo, create_selector, untrack,
+    view,
 };
 use block_editor_beui::beui::styled::{Caption, use_theme};
 use block_editor_beui::beui::{
@@ -234,15 +235,14 @@ fn MapSurface(state: Rc<MapState>, children: Option<Child>) -> NodeId {
     let dragging = Rc::clone(&state);
     let releasing = Rc::clone(&state);
     let pasting = Rc::clone(&state);
+    let pasted_state = Rc::clone(&state);
     let panning = Rc::clone(&state);
     view! {
         <Interactive
             focusable=true
+            pastes={vec![PasteKind::Image]}
+            on_paste={move |pasted: Pasted| pasted_state.take_paste(pasted)}
             on_key={move |press: KeyPress| {
-                if press.key == Key::V && press.modifiers.ctrl {
-                    pasting.ask_to_paste();
-                    return true;
-                }
                 if (press.key == Key::Delete || press.key == Key::Backspace)
                     && let Some(id) = pasting.selected.get_untracked() {
                         pasting.remove_point(id);

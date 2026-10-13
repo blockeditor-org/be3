@@ -2,36 +2,37 @@ use std::{collections::BTreeMap, marker::PhantomData, ops::Deref};
 
 use serde::{Serialize, de::DeserializeOwned};
 
-use crate::{Anchor, Change, Model, Object, ObjectId, Place, Tree, Value};
+use crate::stored::{decode, encode};
+use crate::{Anchor, Change, Items, Model, Object, ObjectId, Place, Shape, Tree, Value, schema};
 
 pub trait Field: Sized {
     fn blank() -> Value;
 
+    fn shape() -> Shape;
+
     fn read(tree: &Tree, value: &Value) -> Self;
 
     fn write(&self, owner: ObjectId, field: u16, out: &mut Vec<(ObjectId, Object)>) -> Value;
-
-    fn upgrade(tree: &mut Tree, owner: ObjectId, field: u16) {
-        let _ = (tree, owner, field);
-    }
 }
 
 pub trait Register: Serialize + DeserializeOwned + Clone + PartialEq + Default {}
 
 impl<T: Serialize + DeserializeOwned + Clone + PartialEq + Default> Register for T {}
 
-pub(crate) fn encode<T: Serialize>(value: &T) -> Vec<u8> {
-    postcard::to_stdvec(value).unwrap_or_default()
-}
-
 impl<T: Register> Field for T {
     fn blank() -> Value {
         Value::Register(encode(&T::default()))
     }
 
+    fn shape() -> Shape {
+        Shape::Register {
+            accepts: schema::accepts::<T>,
+        }
+    }
+
     fn read(_tree: &Tree, value: &Value) -> Self {
         match value {
-            Value::Register(bytes) => postcard::from_bytes(bytes).unwrap_or_default(),
+            Value::Register(bytes) => decode(bytes).unwrap_or_default(),
             _ => T::default(),
         }
     }
@@ -53,6 +54,10 @@ impl Count {
 impl Field for Count {
     fn blank() -> Value {
         Value::Count(0)
+    }
+
+    fn shape() -> Shape {
+        Shape::Count
     }
 
     fn read(_tree: &Tree, value: &Value) -> Self {
@@ -93,6 +98,15 @@ impl<T> Default for List<T> {
 }
 
 impl<T> List<T> {
+    pub fn with_ids(items: impl IntoIterator<Item = (ObjectId, T)>) -> Self {
+        Self {
+            items: items
+                .into_iter()
+                .map(|(id, value)| Item { id, value })
+                .collect(),
+        }
+    }
+
     pub fn get(&self, id: ObjectId) -> Option<&Item<T>> {
         self.items.iter().find(|item| item.id == id)
     }
@@ -130,7 +144,11 @@ impl<T> FromIterator<T> for List<T> {
 
 impl<T: Model> Field for List<T> {
     fn blank() -> Value {
-        Value::List(Vec::new())
+        Value::List(Items::default())
+    }
+
+    fn shape() -> Shape {
+        Shape::List(T::kind)
     }
 
     fn read(tree: &Tree, value: &Value) -> Self {
@@ -157,15 +175,6 @@ impl<T: Model> Field for List<T> {
             item.value.write(item.id, Some(place), out);
         }
         Value::List(self.items.iter().map(|item| item.id).collect())
-    }
-
-    fn upgrade(tree: &mut Tree, owner: ObjectId, field: u16) {
-        for id in tree.list_ids(Place {
-            object: owner,
-            field,
-        }) {
-            T::upgrade(tree, id);
-        }
     }
 }
 
@@ -235,6 +244,7 @@ impl<M, T: Model> FieldRef<M, List<T>> {
         Change::Insert {
             place,
             anchor,
+            client: crate::local_client(),
             objects,
         }
     }
@@ -244,6 +254,7 @@ impl<M, T: Model> FieldRef<M, List<T>> {
             object,
             place: self.of(owner),
             anchor,
+            client: crate::local_client(),
         }
     }
 }
@@ -282,18 +293,17 @@ impl<K: Serialize + DeserializeOwned + Ord, V: Serialize + DeserializeOwned> Fie
         Value::Map(BTreeMap::new())
     }
 
+    fn shape() -> Shape {
+        Shape::Map
+    }
+
     fn read(_tree: &Tree, value: &Value) -> Self {
         let Value::Map(entries) = value else {
             return Self::default();
         };
         entries
             .iter()
-            .filter_map(|(key, value)| {
-                Some((
-                    postcard::from_bytes(key).ok()?,
-                    postcard::from_bytes(value).ok()?,
-                ))
-            })
+            .filter_map(|(key, value)| Some((decode(key)?, decode(value)?)))
             .collect()
     }
 

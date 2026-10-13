@@ -9,7 +9,8 @@ use std::sync::Arc;
 
 use text_editor_core::{
     CollapsibleSection, CopyMode, Core, CursorPosition, EditorCommand, FindDirection, FindStatus,
-    Position, SyntaxHighlight, TextChange, TextIndentation, TextLanguage, markdown_checkbox_marker,
+    Position, SyntaxHighlight, TextChange, TextIndentation, TextLanguage, TextRun,
+    markdown_checkbox_marker,
 };
 
 use beui_core::geometry::{Pos2, Rect, Vec2};
@@ -45,11 +46,21 @@ pub struct Snapshot {
     pub hidden: Vec<Range<usize>>,
     pub checkboxes: Vec<MarkdownCheckbox>,
     pub highlight: Option<SyntaxHighlight>,
+    pub runs: Option<Rc<Vec<TextRun>>>,
 }
 
 const MEASURED_BYTES: usize = 64 * 1024;
 
 impl Snapshot {
+    pub fn runs_in(&self, start: usize, end: usize) -> &[TextRun] {
+        let Some(runs) = &self.runs else {
+            return &[];
+        };
+        let first = runs.partition_point(|run| run.at < start);
+        let last = runs.partition_point(|run| run.at <= end);
+        &runs[first..last.max(first)]
+    }
+
     pub fn highlight(&self) -> &SyntaxHighlight {
         self.highlight
             .as_ref()
@@ -141,6 +152,7 @@ struct Inner {
     canvas: NodeRef,
     cursor_cache: RefCell<(Vec<CursorPosition>, Option<std::ops::Range<usize>>)>,
     selecting: Cell<bool>,
+    show_runs: Cell<bool>,
     touch_mode: ReadSignal<bool>,
     set_touch_mode: WriteSignal<bool>,
     caret_handle: ReadSignal<bool>,
@@ -190,6 +202,7 @@ impl TextAreaState {
             canvas: NodeRef::new(),
             cursor_cache: RefCell::new((Vec::new(), None)),
             selecting: Cell::new(false),
+            show_runs: Cell::new(false),
             touch_mode,
             set_touch_mode,
             caret_handle,
@@ -243,6 +256,11 @@ impl TextAreaState {
     pub fn sync(&self) {
         self.sync_document();
         self.sync_cursors();
+    }
+
+    pub fn set_show_runs(&self, shown: bool) {
+        self.0.show_runs.set(shown);
+        self.sync_document();
     }
 
     pub fn content(&self) -> ReadSignal<u64> {
@@ -447,6 +465,7 @@ impl TextAreaState {
             let inputs = RowInputs {
                 snapshot: &snapshot,
                 widgets,
+                client_colors: &[],
                 composition: None,
                 selection: &[],
                 colors: &colors,
@@ -637,6 +656,7 @@ impl TextAreaState {
                 && snapshot.revision == revision
                 && snapshot.language == language
                 && snapshot.sections == sections
+                && snapshot.runs.is_some() == self.0.show_runs.get()
             {
                 return;
             }
@@ -675,6 +695,15 @@ impl TextAreaState {
             _ => Vec::new(),
         };
         let hidden = hidden_ranges(&sections);
+        let runs = self.0.show_runs.get().then(|| {
+            let core = self.0.core.borrow();
+            Rc::new(
+                core.document()
+                    .read()
+                    .map(|read| read.runs())
+                    .unwrap_or_default(),
+            )
+        });
         *self.0.snapshot.borrow_mut() = Snapshot {
             loaded,
             revision,
@@ -685,6 +714,7 @@ impl TextAreaState {
             hidden,
             checkboxes,
             highlight: Some(highlight),
+            runs,
         };
         self.0.content_counter.set(self.0.content_counter.get() + 1);
         self.0.set_content.set(self.0.content_counter.get());
@@ -748,6 +778,9 @@ fn line_key(
         .iter()
         .any(|section| section.collapsed && section.line_start == start)
         .hash(&mut hasher);
+    for run in snapshot.runs_in(start, end) {
+        (run.at - start, run.pos, run.len, run.visible, &run.deleted).hash(&mut hasher);
+    }
     hasher.finish()
 }
 

@@ -1,0 +1,51 @@
+#builtin.build .= () => std.Folder[
+  "point.txt" .= std.File: describe_point(Point["x" .= 3, "y" .= 4])
+  "origin.txt" .= std.File: describe_point(Point.origin())
+  "circle.txt" .= std.File: describe_shape(.circle(2))
+  "dot.txt" .= std.File: describe_shape(.dot)
+  "bool.txt" .= std.File: describe_bool(.false)
+  "moved.txt" .= std.File: describe_point(moved(Point["x" .= 3, "y" .= 4]))
+]
+
+Point :: std.Type[
+  .fields .= [
+    "x" .= kw.int
+    "y" .= kw.int
+  ]
+  .statics .= [
+    "origin" .= () => Point["x" .= 0, "y" .= 0]
+  ]
+  .methods .= [
+    "len2" .= (p: Point) => kw.int: p.x * p.x + p.y * p.y
+  ]
+]
+
+Shape :: std.Enum["circle" .= kw.int, "dot"]
+
+describe_point :: (p: Point) => kw.string: kw.string.from_int(p.x) + "," + kw.string.from_int(p.y) + " len2=" + kw.string.from_int(p.len2())
+
+moved :: (p: Point) => Point: {
+  q := kw.mut(Point).new: Point[...p, "y" .= 0]
+  q.x += 10
+  -> q.*
+}
+
+describe_shape :: (s: Shape) => kw.string: :return {
+  kw.match (s) [
+    .circle .= (r) => {
+      return: "circle of radius " + kw.string.from_int(r)
+    }
+    .dot .= () => {
+      return: "dot"
+    }
+  ]
+}
+
+describe_bool :: (b: kw.bool) => kw.string: :return {
+  kw.if (_ := b.false) {
+    return: "false"
+  }
+  -> "true"
+}
+std :: #builtin.std
+kw :: std.kw

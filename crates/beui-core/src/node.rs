@@ -2,8 +2,7 @@ use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::marker::PhantomData;
 
-use crate::geometry::{Pos2, Rect, Vec2};
-use crate::input::{Modifiers, SecondaryDrag};
+use crate::geometry::{Rect, Vec2};
 use crate::painter::Painter;
 
 use crate::document::Document;
@@ -76,48 +75,6 @@ impl NodeId {
     }
 }
 
-#[derive(Clone, Copy)]
-pub struct InteractInput {
-    pub pointer_pos: Option<Pos2>,
-    pub pointer_down: bool,
-    pub pressed_this_frame: bool,
-    pub released_this_frame: bool,
-    pub secondary_pressed_this_frame: bool,
-    pub secondary_drag: Option<SecondaryDrag>,
-    pub middle_down: bool,
-    pub middle_pressed_this_frame: bool,
-    pub middle_released_this_frame: bool,
-    pub scroll: Vec2,
-    pub scroll_fling: Vec2,
-    pub zoom: f32,
-    pub touch_pan: Vec2,
-    pub zoom_pos: Option<Pos2>,
-    pub wheel_target: Option<NodeId>,
-    pub zoom_target: Option<NodeId>,
-    pub touch_started: bool,
-    pub touch_active: bool,
-    pub touch_ended: bool,
-    pub touch_cancelled: bool,
-    pub touch_dragged: bool,
-    pub touch_scrolling: bool,
-    pub touch_scroll_delta: Vec2,
-    pub touch_velocity: Vec2,
-    pub touch_scroll_target: Option<NodeId>,
-    pub clicks: u32,
-    pub modifiers: Modifiers,
-    pub visible: Rect,
-}
-
-impl InteractInput {
-    pub fn over(&self, rect: Rect, pos: Pos2) -> bool {
-        rect.contains_half_open(pos) && self.visible.contains_half_open(pos)
-    }
-
-    pub fn pointer_over(&self, rect: Rect) -> bool {
-        self.pointer_pos.is_some_and(|pos| self.over(rect, pos))
-    }
-}
-
 pub type Handler<V, R = ()> = Box<dyn FnMut(V) -> R>;
 pub type ClickHandler = Box<dyn FnMut()>;
 
@@ -148,34 +105,13 @@ pub trait Element: Any {
         false
     }
 
-    fn engaged(&self) -> bool {
-        false
-    }
-
-    fn disengage(&mut self, _doc: &mut Document) {}
-
-    fn captures(&mut self, _doc: &mut Document, _pos: Pos2, _rect: Rect) -> bool {
-        false
-    }
-
-    fn intercepts(&mut self, _doc: &mut Document, _pos: Pos2, _rect: Rect) -> bool {
-        false
-    }
-
-    fn interact(
-        &mut self,
-        doc: &mut Document,
-        painter: &Painter,
-        input: &InteractInput,
-        id: NodeId,
-        rect: Rect,
-        focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    );
-
     fn children(&self) -> Vec<NodeId>;
 
     fn live_children(&self) -> Vec<NodeId> {
+        self.children()
+    }
+
+    fn pointer_children(&self) -> Vec<NodeId> {
         self.children()
     }
 
@@ -185,8 +121,16 @@ pub trait Element: Any {
 
     fn kind(&self) -> &'static str;
 
+    fn ink(&self) -> Option<Rect> {
+        None
+    }
+
     fn detail(&self) -> Option<String> {
         None
+    }
+
+    fn properties(&self) -> Vec<(&'static str, String)> {
+        Vec::new()
     }
 
     fn as_any(&self) -> &dyn Any;
@@ -302,6 +246,14 @@ pub struct SpaceId {
 impl SpaceId {
     pub fn of(node: NodeId) -> Self {
         Self { node, slot: 0 }
+    }
+
+    pub fn node(self) -> NodeId {
+        self.node
+    }
+
+    pub fn slot(self) -> u8 {
+        self.slot
     }
 
     pub fn inside(node: NodeId, slot: u8) -> Self {
@@ -476,6 +428,22 @@ impl Rects {
         clip
     }
 
+    pub fn clips_above(&self, id: &NodeId) -> Vec<(SpaceId, Rect)> {
+        let mut clips = Vec::new();
+        let mut current = Some(SpaceId::of(*id));
+        while let Some(id) = current {
+            let Some(space) = self.space(id) else {
+                break;
+            };
+            if clips.len() >= ANCESTOR_LIMIT {
+                break;
+            }
+            clips.push((id, space.clip.translate(self.offset(space.parent))));
+            current = space.parent;
+        }
+        clips
+    }
+
     pub fn visible(&self, id: &NodeId) -> Option<Rect> {
         let rect = self.get(id)?;
         let own = Some(SpaceId::of(*id));
@@ -498,7 +466,13 @@ pub const ANCESTOR_LIMIT: usize = 4096;
 pub struct Arena {
     nodes: Vec<Option<Box<dyn Element>>>,
     generations: Vec<u32>,
-    parents: Vec<Option<NodeId>>,
+    kinds: Vec<std::any::TypeId>,
+    parents: RefCell<Vec<Option<NodeId>>>,
+    owners: Vec<Option<::reactive::ScopeContext>>,
+    removed: Vec<bool>,
+    removals: std::rc::Rc<RefCell<Vec<NodeId>>>,
+    fence: Option<NodeId>,
+    adopting: RefCell<Vec<NodeId>>,
     stale: Vec<bool>,
     unplaced: Vec<bool>,
     free: Vec<u32>,
@@ -512,6 +486,7 @@ pub struct Arena {
     relaid: Vec<NodeId>,
     repaints: Vec<NodeId>,
     everything: bool,
+    reparented: Cell<bool>,
 }
 
 impl Arena {
@@ -528,7 +503,10 @@ impl Arena {
             Some(index) => {
                 let slot = index as usize;
                 self.nodes[slot] = Some(Box::new(element));
-                self.parents[slot] = None;
+                self.kinds[slot] = std::any::TypeId::of::<T>();
+                self.parents.get_mut()[slot] = None;
+                self.owners[slot] = None;
+                self.removed[slot] = false;
                 self.stale[slot] = true;
                 self.unplaced[slot] = true;
                 NodeId {
@@ -540,7 +518,10 @@ impl Arena {
                 let index = self.nodes.len() as u32;
                 self.nodes.push(Some(Box::new(element)));
                 self.generations.push(0);
-                self.parents.push(None);
+                self.kinds.push(std::any::TypeId::of::<T>());
+                self.parents.get_mut().push(None);
+                self.owners.push(None);
+                self.removed.push(false);
                 self.stale.push(true);
                 self.unplaced.push(true);
                 NodeId {
@@ -551,10 +532,40 @@ impl Arena {
         };
         self.live += 1;
         self.invalidate_node(id);
+        self.own(id);
         NodeOf {
             id,
             kind: PhantomData,
         }
+    }
+
+    fn own(&mut self, id: NodeId) {
+        let Some(owner) = ::reactive::current_scope() else {
+            return;
+        };
+        let removals = std::rc::Rc::clone(&self.removals);
+        ::reactive::on_cleanup(move || removals.borrow_mut().push(id));
+        self.owners[id.index as usize] = Some(owner);
+    }
+
+    pub(crate) fn take_removals(&self) -> Vec<NodeId> {
+        std::mem::take(&mut *self.removals.borrow_mut())
+    }
+
+    pub(crate) fn removals_pending(&self) -> bool {
+        !self.removals.borrow().is_empty()
+    }
+
+    pub fn owner(&self, id: NodeId) -> Option<::reactive::ScopeContext> {
+        self.owners[self.slot(id)?].clone()
+    }
+
+    pub fn owned(&self, id: NodeId) -> bool {
+        self.slot(id).is_some_and(|slot| {
+            self.owners[slot]
+                .as_ref()
+                .is_some_and(|owner| owner.is_alive())
+        })
     }
 
     fn slot(&self, id: NodeId) -> Option<usize> {
@@ -585,6 +596,10 @@ impl Arena {
         self.nodes[slot].as_deref_mut().expect("node was removed")
     }
 
+    pub fn try_get(&self, id: impl Into<NodeId>) -> Option<&dyn Element> {
+        self.element(id.into())
+    }
+
     pub fn get(&self, id: impl Into<NodeId>) -> &dyn Element {
         let id = id.into();
         self.element(id).expect("node was removed")
@@ -596,6 +611,10 @@ impl Arena {
         self.element_mut(id)
     }
 
+    pub fn state_mut(&mut self, id: impl Into<NodeId>) -> &mut dyn Element {
+        self.element_mut(id.into())
+    }
+
     pub fn paint_mut_as<T: Element>(&mut self, node: NodeOf<T>) -> &mut T {
         self.repaint_node(node.id);
         self.downcast_mut(node)
@@ -604,6 +623,10 @@ impl Arena {
     pub fn touch_mut_as<T: Element>(&mut self, node: NodeOf<T>) -> &mut T {
         self.changed.push(node.id);
         self.downcast_mut(node)
+    }
+
+    pub fn touch(&mut self, id: NodeId) {
+        self.changed.push(id);
     }
 
     pub fn touch_mut(&mut self, id: NodeId) -> &mut dyn Element {
@@ -630,6 +653,18 @@ impl Arena {
             .as_any_mut()
             .downcast_mut::<T>()
             .expect("a node keeps the kind it was made as")
+    }
+
+    pub fn made_as<T: Element>(&self, id: NodeId) -> Option<NodeOf<T>> {
+        let slot = self.slot(id)?;
+        (self.kinds[slot] == std::any::TypeId::of::<T>()).then_some(NodeOf {
+            id,
+            kind: PhantomData,
+        })
+    }
+
+    pub fn taken(&self, id: NodeId) -> bool {
+        self.slot(id).is_some_and(|slot| self.nodes[slot].is_none())
     }
 
     pub fn kind_of<T: Element>(&self, id: NodeId) -> Option<NodeOf<T>> {
@@ -667,6 +702,7 @@ impl Arena {
         self.relaid.push(id);
         self.repaint_node(id);
         self.mark_stale(id);
+        self.adopting.get_mut().push(id);
     }
 
     pub fn repaint_node(&mut self, id: NodeId) {
@@ -684,6 +720,9 @@ impl Arena {
     }
 
     fn mark_stale(&mut self, id: NodeId) {
+        if self.adopt() {
+            self.marked = None;
+        }
         if self.marked == Some(id) {
             return;
         }
@@ -693,6 +732,9 @@ impl Arena {
             let Some((node, slot)) = current.and_then(|node| Some((node, self.slot(node)?))) else {
                 return;
             };
+            if self.fence == Some(node) {
+                return;
+            }
             if node != id
                 && self.nodes[slot]
                     .as_deref()
@@ -704,8 +746,13 @@ impl Arena {
             }
             self.stale[slot] = true;
             self.unplaced[slot] = true;
-            current = self.parents[slot];
+            current = self.parents.get_mut()[slot];
         }
+    }
+
+    pub(crate) fn fence(&mut self, fence: Option<NodeId>) -> Option<NodeId> {
+        self.marked = None;
+        std::mem::replace(&mut self.fence, fence)
     }
 
     pub fn take_boundaries(&mut self) -> Vec<NodeId> {
@@ -737,19 +784,53 @@ impl Arena {
         self.marked = None;
     }
 
-    pub fn set_parent(&mut self, id: NodeId, parent: Option<NodeId>) {
-        let Some(slot) = self.slot(id) else {
-            return;
-        };
-        if self.parents[slot] == parent {
-            return;
+    fn adopt(&self) -> bool {
+        let pending = std::mem::take(&mut *self.adopting.borrow_mut());
+        if pending.is_empty() {
+            return false;
         }
-        self.parents[slot] = parent;
-        self.marked = None;
+        let mut moved = false;
+        let mut waiting = Vec::new();
+        let mut parents = self.parents.borrow_mut();
+        for parent in pending {
+            let Some(slot) = self.slot(parent) else {
+                continue;
+            };
+            let Some(element) = self.nodes[slot].as_deref() else {
+                waiting.push(parent);
+                continue;
+            };
+            for child in element.children() {
+                let Some(held) = self.slot(child).map(|slot| &mut parents[slot]) else {
+                    continue;
+                };
+                if *held != Some(parent) {
+                    *held = Some(parent);
+                    moved = true;
+                }
+            }
+        }
+        drop(parents);
+        self.adopting.borrow_mut().extend(waiting);
+        if moved {
+            self.reparented.set(true);
+        }
+        moved
+    }
+
+    pub fn adopt_children(&mut self, id: NodeId) {
+        self.adopting.get_mut().push(id);
+    }
+
+    pub fn take_reparented(&mut self) -> bool {
+        self.adopt();
+        self.reparented.replace(false)
     }
 
     pub fn parent(&self, id: NodeId) -> Option<NodeId> {
-        self.parents[self.slot(id)?].filter(|parent| self.current(*parent))
+        self.adopt();
+        self.parents.borrow()[self.slot(id)?]
+            .filter(|parent| self.slot(*parent).is_some_and(|slot| !self.removed[slot]))
     }
 
     pub fn relaid_len(&self) -> usize {
@@ -776,15 +857,15 @@ impl Arena {
         std::mem::take(&mut self.everything)
     }
 
-    pub fn remove(&mut self, id: NodeId) {
+    pub fn remove(&mut self, id: NodeId) -> Option<Box<dyn Element>> {
         self.invalidate_node(id);
-        let Some(slot) = self.slot(id) else {
-            return;
-        };
-        if self.nodes[slot].take().is_some() {
-            self.live -= 1;
-            self.released.push(id.index);
-        }
+        let slot = self.slot(id)?;
+        self.owners[slot] = None;
+        let element = self.nodes[slot].take()?;
+        self.removed[slot] = true;
+        self.live -= 1;
+        self.released.push(id.index);
+        Some(element)
     }
 
     pub fn take_released(&mut self) -> Vec<u32> {

@@ -14,10 +14,12 @@ use crate::{
         DatabaseSchemaContent,
     },
     database_view::{DatabaseView, DatabaseViewContent},
+    display_settings::{DisplaySettings, DisplaySettingsContent},
     image::{ImageContent, ImageHeader},
+    input_settings::{InputSettings, InputSettingsContent},
     logic_game::LogicGameContent,
     logic_grid::{LogicGridContent, LogicGridOperation},
-    text::{TextContent, TextLanguage, TextOp},
+    text::{TextBlock, TextContent, TextLanguage},
     ui_settings::{UiSettings, UiSettingsContent},
 };
 use be_model::ObjectId;
@@ -27,6 +29,7 @@ use logicgame::grid::{
 use uuid::Uuid;
 
 mod a_block_added_to_a_folder_by_both_sides_is_listed_once;
+mod a_block_link_is_found_by_its_fragment_whatever_its_host;
 mod a_browser_tab_is_named_after_its_page;
 mod a_browser_tab_push_discards_forward_history;
 mod a_calendar_undo_keeps_what_someone_else_changed_since;
@@ -34,32 +37,38 @@ mod a_calendar_update_writes_only_the_fields_that_changed;
 mod a_canvas_entity_removed_on_one_side_and_moved_on_the_other_stays_removed;
 mod a_cell_set_while_someone_clears_the_last_one_in_its_row_is_kept;
 mod a_checkout_copy_answers_to_its_local_id_only_in_its_own_scope;
-mod a_client_uses_the_profile_it_picked_and_profiles_follow_their_blocks;
 mod a_component_added_to_one_entity_on_both_sides_is_kept_once;
 mod a_component_moved_on_both_sides_conflicts_and_keeps_ours;
 mod a_component_removed_on_one_side_and_turned_on_the_other_stays_removed;
 mod a_counter_reset_undoes_back_to_its_count;
 mod a_database_and_its_views_reference_what_they_link_to;
+mod a_database_follows_the_pages_and_databases_its_rows_link_to;
 mod a_database_grows_rows_to_fill_a_cell_and_drops_trailing_empty_ones;
 mod a_deleted_child_of_a_view_is_blanked_in_the_state_that_referenced_it;
-mod a_desktop_session_keeps_its_own_profile_apart_from_the_app;
+mod a_device_uses_the_settings_profile_and_session_it_picked;
 mod a_folder_lists_each_block_once_and_follows_its_children;
 mod a_language_changed_on_both_sides_counts_a_conflict;
 mod a_logic_grid_edit_keeps_its_wires_normalized_and_follows_its_children;
 mod a_map_keeps_its_points_in_bounds_and_follows_its_children;
+mod a_monitor_back_at_its_default_mode_is_forgotten;
 mod a_pixel_painted_outside_the_other_sides_crop_counts_as_a_conflict;
 mod a_presentation_moves_slides_by_index_and_follows_its_children;
+mod a_profile_layers_its_settings_over_the_defaults;
 mod a_repository_moves_and_drops_branches;
 mod a_reset_racing_an_increment_keeps_the_increment;
 mod a_review_forgets_or_repoints_an_approval_with_its_snapshot;
+mod a_row_is_found_by_its_short_id_with_or_without_its_prefix;
 mod a_schema_field_removed_on_one_side_and_renamed_on_the_other_stays_removed;
 mod a_schema_normalizes_number_options_and_keeps_option_ids;
+mod a_view_hides_closed_choices_and_matches_any_of_several_values;
+mod a_view_shows_only_the_rows_every_filter_matches;
 mod a_wire_cut_on_one_side_stays_cut_when_the_other_extends_it;
 mod a_wire_cut_stays_cut_when_someone_extends_it_at_once;
 mod a_wire_removed_on_one_side_stays_removed_when_the_other_branches_off_it;
 mod an_event_rescheduled_on_both_sides_conflicts_and_keeps_ours;
 mod an_image_merges_only_when_one_side_changed_it;
 mod an_update_for_an_event_someone_removed_does_not_bring_it_back;
+mod block_metadata_keeps_keys_it_does_not_know_and_reads_each_key_alone;
 mod block_urls_include_workspace_and_reject_malformed_paths;
 mod calendars_merge_each_event_field_by_field;
 mod canvas_children_are_removed_repointed_or_merged;
@@ -77,33 +86,45 @@ mod compiling_a_grid_derives_ports_from_its_inputs_and_outputs;
 mod compiling_an_empty_grid_is_refused;
 mod components_added_by_two_peers_at_once_are_both_kept;
 mod components_added_on_both_sides_offline_are_both_kept;
+mod content_is_stamped_with_the_shape_it_was_saved_in;
+mod databases_saved_by_the_first_tracker_build_still_load;
+mod defined_metadata_merges_key_by_key;
 mod deleting_or_replacing_a_linked_block_rewrites_the_cells_that_link_it;
 mod entities_brought_forward_on_both_sides_merge_to_both_moves;
 mod enum_options_added_on_both_sides_merge_to_both;
 mod file_contents_check_what_they_hold_and_round_trip;
+mod frozen_database;
+mod frozen_database_schema;
+mod frozen_database_view;
+mod frozen_folder;
+mod frozen_text;
+mod input_settings_keep_their_values_in_bounds;
 mod inserts_at_one_place_from_two_peers_keep_each_peers_text_whole;
 mod items_added_by_two_peers_at_once_are_both_kept;
+mod links_added_on_both_sides_are_both_kept_and_show_on_the_rows_they_point_at;
 mod logic_game_solutions_keep_their_order_per_challenge;
 mod logic_grids_merge_a_move_and_a_turn_of_one_component;
 mod moves_played_on_both_sides_merge_to_both;
 mod pages_opened_on_both_sides_are_both_kept_in_history;
 mod pixel_art_fills_resizes_and_keeps_a_paint_made_during_a_resize;
 mod resetting_a_ray_traced_scene_clears_pixels_and_entities;
-mod settings_resolve_per_client_and_follow_their_children;
+mod screens_turn_off_after_ten_minutes_unless_told_otherwise;
+mod setting_every_pointer_replaces_what_each_device_overrode;
+mod settings_split_across_two_blocks_read_as_one;
 mod slides_moved_by_two_peers_at_once_both_move;
 mod slides_moved_on_both_sides_merge_to_both_moves;
 mod solutions_and_quiz_answers_made_on_both_sides_merge_to_both;
 mod streamed_content_separates_its_header_from_its_payload;
+mod text_and_folders_saved_before_they_were_frozen_still_load;
 mod text_edited_in_different_paragraphs_merges_cleanly;
 mod text_merges_line_by_line_and_marks_real_conflicts;
-mod text_operations_rebase_onto_concurrent_edits;
 mod text_typed_inside_a_range_someone_deletes_at_once_survives;
+mod the_frozen_blocks_read_every_register_without_any_one_field;
 mod the_same_range_deleted_by_two_peers_at_once_is_deleted_once;
 mod the_same_solution_inserted_by_two_peers_at_once_is_listed_once;
 mod the_same_wire_drawn_on_both_sides_merges_to_one;
 mod two_checklists_merge_every_item_either_side_added;
 mod two_counters_merge_by_keeping_both_sides_of_the_count;
-mod ui_settings_keep_the_zoom_in_bounds;
 mod undoing_a_clear_keeps_a_pixel_painted_since;
 mod undoing_a_clear_puts_the_items_back_in_order;
 mod undoing_a_component_removal_brings_it_back_with_its_wires_untouched;
@@ -129,14 +150,6 @@ fn header(name: &str) -> ImageHeader {
 
 fn image(name: &str, payload: &[u8]) -> ImageContent {
     ImageContent::new(header(name), payload.to_vec())
-}
-
-fn applied(start: &str, operations: &[TextOp]) -> String {
-    let mut content = TextContent::from(start);
-    for operation in operations {
-        content.apply(operation);
-    }
-    content.text()
 }
 
 fn edited<C: LiveEdit + Clone>(start: &C, edits: impl IntoIterator<Item = C::Op>) -> C {

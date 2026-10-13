@@ -2,13 +2,15 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
+use beui_core::color::Color32;
 use beui_core::geometry::{Vec2, vec2};
 use beui_core::input::{BackEdge, BackGesture};
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::reactive::{
-    BackHandler, Callback, Child, ClickCallback, Prop, Shift, Timer, WriteSignal, clone,
-    create_effect, create_signal, create_timer, on_cleanup, untrack, with_document,
+    BackHandler, Callback, Child, ClickCallback, Frame, Layers, Prop, RenderFn, Shift, Show, Timer,
+    WriteSignal, clone, create_effect, create_signal, create_timer, on_cleanup, untrack,
+    with_document,
 };
 
 use super::rubber_band::MAX_ANIMATION_STEP;
@@ -18,6 +20,8 @@ const RETURN_SECONDS: f32 = 0.25;
 const LEAVE_SECONDS: f32 = 0.2;
 const ENTER_SECONDS: f32 = 0.3;
 const ENTER_SHARE: f32 = 0.25;
+const BEHIND_SHARE: f32 = 0.25;
+const SHADE: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 110);
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Phase {
@@ -40,6 +44,10 @@ struct Slide {
     state: Rc<RefCell<State>>,
     animation: Rc<RefCell<Option<Timer>>>,
     set_shift: WriteSignal<Vec2>,
+    set_behind_shift: WriteSignal<Vec2>,
+    set_shade: WriteSignal<Color32>,
+    set_revealing: WriteSignal<bool>,
+    behind: bool,
     enters: bool,
     on_back: ClickCallback,
     on_presence: Callback<f32>,
@@ -58,6 +66,10 @@ impl Slide {
         };
         let width = with_document(|document| document.viewport_rect().width());
         self.set_shift.set(vec2(direction * position * width, 0.0));
+        let behind = -direction * BEHIND_SHARE * (1.0 - position.clamp(0.0, 1.0)) * width;
+        self.set_behind_shift.set(vec2(behind, 0.0));
+        self.set_shade
+            .set(SHADE.scale_alpha(1.0 - position.clamp(0.0, 1.0)));
         self.on_presence.call(1.0 - position.clamp(0.0, 1.0));
     }
 
@@ -67,6 +79,7 @@ impl Slide {
             state.phase = phase;
             !matches!(phase, Phase::Still | Phase::Dragging)
         };
+        self.reveal(phase);
         let Some(animation) = self.animation.borrow().clone() else {
             return;
         };
@@ -79,6 +92,16 @@ impl Slide {
             }
             false => animation.stop(),
         }
+    }
+
+    fn reveal(&self, phase: Phase) {
+        self.set_revealing.set(
+            self.behind
+                && matches!(
+                    phase,
+                    Phase::Dragging | Phase::Returning { .. } | Phase::Leaving { .. }
+                ),
+        );
     }
 
     fn gesture(&self, gesture: BackGesture) {
@@ -128,7 +151,7 @@ impl Slide {
 
     fn gone(&self) {
         self.on_back.call();
-        match self.enters {
+        match self.enters && !self.behind {
             true => {
                 self.state.borrow_mut().direction *= -1.0;
                 self.start(Phase::Entering { elapsed: 0.0 });
@@ -190,6 +213,7 @@ impl Slide {
             }
         };
         self.state.borrow_mut().phase = next;
+        self.reveal(next);
         self.place(position);
         self.running()
     }
@@ -208,9 +232,13 @@ pub fn BackSlide(
     #[prop(default = true)] enters: bool,
     #[prop(default = ClickCallback::default())] on_back: ClickCallback,
     #[prop(default = Callback::default())] on_presence: Callback<f32>,
+    #[prop(default = None)] behind: Option<RenderFn<()>>,
     children: Child,
 ) -> NodeId {
     let (shift, set_shift) = create_signal(Vec2::ZERO);
+    let (behind_shift, set_behind_shift) = create_signal(Vec2::ZERO);
+    let (shade, set_shade) = create_signal(SHADE);
+    let (revealing, set_revealing) = create_signal(false);
     let slide = Slide {
         state: Rc::new(RefCell::new(State {
             phase: Phase::Still,
@@ -220,6 +248,10 @@ pub fn BackSlide(
         })),
         animation: Rc::new(RefCell::new(None)),
         set_shift,
+        set_behind_shift,
+        set_shade,
+        set_revealing,
+        behind: behind.is_some(),
         enters,
         on_back,
         on_presence,
@@ -241,12 +273,34 @@ pub fn BackSlide(
             });
         }
     }));
-    view! {
+    let page = view! {
         <BackHandler
             enabled={enabled}
             on_gesture={move |gesture: BackGesture| slide.gesture(gesture)}
         >
             <Shift by={shift}>{children}</Shift>
         </BackHandler>
+    };
+    let Some(behind) = behind else {
+        return page;
+    };
+    view! {
+        <Layers>
+            <Show condition={revealing}>
+                {move || {
+                    let page = behind.call(());
+                    let shade = shade.clone();
+                    view! {
+                        <Shift by={behind_shift.clone()}>
+                            <Layers>
+                                {page}
+                                <Frame color={shade} />
+                            </Layers>
+                        </Shift>
+                    }
+                }}
+            </Show>
+            {page}
+        </Layers>
     }
 }

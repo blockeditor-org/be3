@@ -1,25 +1,37 @@
+use std::any::Any;
 use std::error::Error;
 use std::future::Future;
-use std::path::PathBuf;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::pin::Pin;
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::Duration;
 
 use accesskit::TreeUpdate;
 
 use crate::app::accessibility_dump::AccessibilityDump;
-use crate::app::{App, SafeArea, Setup, next_batch, safe_rect};
-use crate::context::{Context, FrameOutput};
-use crate::file_picker::FilePickRequest;
+use crate::app::automation::{Automation, Inbox, Settled, Simulation, View, World};
+use crate::app::{App, SafeArea, Setup, Waker, next_batch, safe_rect};
+use crate::clipboard::{PasteAnswer, PasteKind, PasteRequest, Pasted};
+use crate::context::{ActionGroup, Context, FrameOutput};
+use crate::file_picker::{FilePick, FilePickAnswer, FilePickId, FilePickRequest};
 use crate::geometry::Vec2;
-use crate::input::{CursorIcon, Event, ImeArea, RawInput};
+use crate::input::{Event, RawInput};
 use crate::renderer::{Loaded, Renderers};
+use crate::window::{WindowReports, WindowState};
+
+mod intake;
+
+use intake::{Drain, Intake};
+pub use intake::{Input, Keystroke, SCROLL_LINE, SCROLL_PAGE, ScrollDelta};
+
+type Answered = (FilePickId, FilePick);
 
 pub struct RunOptions {
     pub title: String,
     pub app_id: Option<String>,
     pub size: Vec2,
-    pub accessibility_dump: Option<PathBuf>,
     pub accessibility_tree: bool,
+    pub automation: Option<Inbox>,
 }
 
 impl RunOptions {
@@ -28,8 +40,8 @@ impl RunOptions {
             title: title.into(),
             app_id: None,
             size: Vec2::new(1280.0, 800.0),
-            accessibility_dump: None,
             accessibility_tree: false,
+            automation: None,
         }
     }
 }
@@ -49,21 +61,29 @@ pub trait Adapter {
 }
 
 pub trait Platform {
-    fn copy(&mut self, text: String);
+    fn copy(&mut self, _text: String) {}
 
-    fn paste(&mut self) -> Option<String>;
+    fn paste(&mut self, kinds: &[PasteKind], answer: PasteAnswer) {
+        let _ = kinds;
+        answer.send(None);
+    }
 
-    fn pick_file(&mut self, request: FilePickRequest);
+    fn pick_file(&mut self, request: FilePickRequest, answer: FilePickAnswer) {
+        let _ = request;
+        answer.send(Err("Choosing a file is unavailable here".to_owned()));
+    }
 
-    fn set_cursor(&mut self, _icon: CursorIcon, _touch_emulation: bool) {}
+    fn delivers_paste_shortcut(&self) -> bool {
+        false
+    }
 
-    fn lock_pointer(&mut self, _locked: bool) {}
+    fn show_window(&mut self, _window: &WindowState, _shown: &WindowState) {}
+
+    fn simulation(&mut self) -> Option<&mut Simulation> {
+        None
+    }
 
     fn set_fullscreen(&mut self, _fullscreen: bool) {}
-
-    fn set_handles_back(&mut self, _handles: bool) {}
-
-    fn show_ime(&mut self, _ime: Option<&ImeArea>) {}
 
     fn publish_accessibility(&mut self, _tree: &mut dyn FnMut() -> TreeUpdate) {}
 }
@@ -73,22 +93,32 @@ pub struct Frame {
     pub deferred: bool,
     pub repaint: bool,
     pub repaint_after: Duration,
-    pub close_requested: bool,
 }
 
 impl Frame {
     pub fn again(&self) -> bool {
         self.deferred || self.repaint || self.repaint_after.is_zero()
     }
+
+    pub fn wait(&self) -> Option<Duration> {
+        match self.again() {
+            true => Some(Duration::ZERO),
+            false => (self.repaint_after != Duration::MAX).then_some(self.repaint_after),
+        }
+    }
+
+    pub fn next(&self, presenting: bool) -> Option<Duration> {
+        match presenting {
+            true => Some(Duration::ZERO),
+            false => self.wait(),
+        }
+    }
 }
 
-#[derive(Default)]
-struct Shown {
-    cursor_icon: CursorIcon,
-    touch_emulation: bool,
-    pointer_locked: bool,
-    fullscreen: bool,
-    handles_back: bool,
+struct Exited;
+
+impl App for Exited {
+    fn update(&mut self, _context: &Context, _rect: crate::geometry::Rect) {}
 }
 
 pub struct Runner {
@@ -96,11 +126,26 @@ pub struct Runner {
     context: Context,
     title: String,
     renderers: Option<Renderers>,
+    waker: Option<Waker>,
     events: Vec<Event>,
+    intake: Intake,
+    picks: (Sender<Answered>, Receiver<Answered>),
+    pastes: (Sender<Pasted>, Receiver<Pasted>),
     accessibility: Option<AccessibilityDump>,
-    shown: Shown,
+    publishing_accessibility: bool,
+    automation: Option<Automation>,
+    actions: Vec<ActionGroup>,
+    test_ids: std::collections::HashMap<String, crate::geometry::Rect>,
+    unpresented: bool,
+    closing: bool,
+    asked: WindowState,
+    shown: WindowState,
+    reports: WindowReports,
+    native: f32,
     output: Option<FrameOutput>,
+    reports_screens: bool,
     exited: bool,
+    failure: Option<String>,
 }
 
 impl Runner {
@@ -110,25 +155,38 @@ impl Runner {
             context,
             app,
         } = launch;
-        #[cfg(not(target_arch = "wasm32"))]
-        let dump = options.accessibility_dump.map(AccessibilityDump::new);
-        #[cfg(target_arch = "wasm32")]
-        let dump = None;
-        let accessibility = dump.or_else(|| {
-            options
-                .accessibility_tree
-                .then(AccessibilityDump::in_memory)
-        });
+        let automation = options.automation.map(Automation::new);
+        context.set_test_ids_published(automation.is_some());
+        if automation.is_some() {
+            context.set_automated(true);
+        }
+        let accessibility =
+            (options.accessibility_tree || automation.is_some()).then(AccessibilityDump::new);
         Self {
             app,
             context,
             title: options.title,
             renderers: None,
+            waker: None,
             events: Vec::new(),
+            intake: Intake::default(),
+            picks: mpsc::channel(),
+            pastes: mpsc::channel(),
             accessibility,
-            shown: Shown::default(),
+            publishing_accessibility: false,
+            automation,
+            actions: Vec::new(),
+            test_ids: std::collections::HashMap::new(),
+            unpresented: false,
+            closing: false,
+            asked: WindowState::default(),
+            shown: WindowState::default(),
+            reports: WindowReports::default(),
+            native: 1.0,
             output: None,
+            reports_screens: false,
             exited: false,
+            failure: None,
         }
     }
 
@@ -144,6 +202,10 @@ impl Runner {
         let renderers = Renderers::new(&self.context, loaded)?;
         renderers.provide(&mut setup);
         self.renderers = Some(renderers);
+        self.waker = Some(setup.waker.clone());
+        if let Some(automation) = &self.automation {
+            automation.inbox().set_waker(setup.waker.clone());
+        }
         self.app.setup(&setup);
         Ok(())
     }
@@ -156,30 +218,95 @@ impl Runner {
         self.renderers.as_mut()
     }
 
-    pub fn push(&mut self, event: Event) {
-        self.events.push(event);
+    pub fn push(&mut self, input: impl Into<Input>) {
+        self.intake.incoming.push(input.into());
+    }
+
+    pub fn pointer_button(
+        &mut self,
+        pos: crate::geometry::Pos2,
+        button: crate::input::PointerButton,
+        pressed: bool,
+    ) {
+        self.push(Event::PointerButton {
+            pos,
+            button,
+            pressed,
+            modifiers: crate::input::Modifiers::NONE,
+        });
+    }
+
+    pub fn modifiers(&self) -> crate::input::Modifiers {
+        self.intake.modifiers()
     }
 
     pub fn has_events(&self) -> bool {
-        !self.events.is_empty()
+        !self.events.is_empty() || !self.intake.incoming.is_empty() || self.reports.pending()
+    }
+
+    pub fn reports(&self) -> &WindowReports {
+        &self.reports
+    }
+
+    pub fn window(&self) -> &WindowState {
+        &self.shown
     }
 
     pub fn take_output(&mut self) -> Option<FrameOutput> {
         self.output.take()
     }
 
+    pub fn keep_accessibility(&mut self) {
+        if self.accessibility.is_none() {
+            self.accessibility = Some(AccessibilityDump::new());
+            self.context.reset_accessibility();
+        }
+    }
+
+    pub fn accessibility_requested(&mut self) {
+        self.publishing_accessibility = true;
+        self.context.reset_accessibility();
+    }
+
+    pub fn accessibility_deactivated(&mut self) {
+        self.publishing_accessibility = false;
+    }
+
+    pub fn accessibility_action(&mut self, request: accesskit::ActionRequest) {
+        self.context.accessibility_action(request);
+    }
+
+    pub fn accessibility(&self) -> Option<&AccessibilityDump> {
+        self.accessibility.as_ref()
+    }
+
+    pub fn output(&self) -> Option<&FrameOutput> {
+        self.output.as_ref()
+    }
+
     pub fn accessibility_text(&self) -> Option<&str> {
         self.accessibility.as_ref().map(AccessibilityDump::text)
     }
 
-    pub fn close_requested(&mut self) -> bool {
-        self.app.close_requested()
+    pub fn os_close(&mut self) -> bool {
+        let accepted = self
+            .contain(|runner| runner.app.close_requested())
+            .unwrap_or(true);
+        if accepted {
+            self.exit();
+        }
+        accepted
     }
 
     pub fn exit(&mut self) {
         if !self.exited {
             self.exited = true;
-            self.app.exiting();
+            let app = &mut self.app;
+            if let Err(payload) = catch_unwind(AssertUnwindSafe(|| app.exiting())) {
+                self.failure
+                    .get_or_insert_with(|| format!("while exiting: {}", panic_message(&*payload)));
+            }
+            self.app = Box::new(Exited);
         }
     }
 
@@ -187,32 +314,139 @@ impl Runner {
         self.exited
     }
 
-    pub fn frame(
-        &mut self,
-        platform: &mut dyn Platform,
-        pixels_per_point: f32,
-        safe_area: SafeArea,
-    ) -> Option<Frame> {
+    pub fn failure(&self) -> Option<&str> {
+        self.failure.as_deref()
+    }
+
+    pub fn finish(mut self) -> Result<(), Box<dyn Error>> {
+        self.exit();
+        match self.failure.take() {
+            Some(failure) => Err(format!("the app stopped after a panic: {failure}").into()),
+            None => Ok(()),
+        }
+    }
+
+    pub fn frame(&mut self, platform: &mut dyn Platform, safe_area: SafeArea) -> Option<Frame> {
+        if self.exited {
+            return None;
+        }
+        self.contain(|runner| runner.run_frame(platform, safe_area))
+            .flatten()
+    }
+
+    fn contain<R>(&mut self, act: impl FnOnce(&mut Self) -> R) -> Option<R> {
+        match catch_unwind(AssertUnwindSafe(|| act(self))) {
+            Ok(done) => Some(done),
+            Err(payload) => {
+                self.failure.get_or_insert_with(|| panic_message(&*payload));
+                self.exit();
+                None
+            }
+        }
+    }
+
+    fn run_frame(&mut self, platform: &mut dyn Platform, safe_area: SafeArea) -> Option<Frame> {
         let renderers = self.renderers.as_mut()?;
+        match renderers.recover() {
+            Ok(false) => {}
+            Ok(true) => {
+                if let Some(waker) = &self.waker {
+                    let mut setup = Setup::new(waker.clone());
+                    renderers.provide(&mut setup);
+                    self.app.renderer_replaced(&setup);
+                }
+            }
+            Err(error) => panic!("beui: the GPU was lost and could not be reopened: {error}"),
+        }
+        while let Ok(pasted) = self.pastes.1.try_recv() {
+            self.events.push(Event::Paste(pasted));
+        }
         if let Err(error) = renderers.follow_choice(&self.context) {
             eprintln!("beui: could not switch renderers: {error}");
         }
+        if let Some(automation) = &mut self.automation
+            && let Some(dump) = &self.accessibility
+        {
+            let view = View {
+                lines: dump.lines(),
+                tree: dump.text(),
+                test_ids: &self.test_ids,
+                pixels_per_point: self.context.pixels_per_point(),
+                now: self.context.now(),
+                window: &self.asked,
+                fullscreen: self.context.fullscreen(),
+                actions: &self.actions,
+            };
+            let mut world = World {
+                events: &mut self.events,
+                simulation: platform.simulation(),
+                context: &self.context,
+            };
+            automation.begin(&view, &mut world);
+            if automation.take_close() {
+                let accepted = self.app.close_requested();
+                automation.closed(accepted);
+                self.closing |= accepted;
+            }
+        }
+        while let Ok((id, pick)) = self.picks.1.try_recv() {
+            self.context.file_picked(id, pick);
+        }
+        if let Some(fullscreen) = self.reports.take_fullscreen() {
+            self.context.fullscreen_changed(fullscreen);
+        }
+        if let Some((width, height)) = self.reports.take_size() {
+            renderers.resize(width, height);
+        }
+        if let Some(scale) = self.reports.take_scale() {
+            self.native = scale;
+        }
+        let pixels_per_point = self.native;
         let Some(physical) = renderers.physical() else {
             self.events.clear();
+            self.intake.incoming.clear();
             return None;
         };
         self.context.set_pixels_per_point(pixels_per_point);
         let scale = self.context.pixels_per_point();
+        self.intake.drain(
+            &mut Drain {
+                pixels_per_point: scale,
+                touch_emulation: self.context.touch_emulation(),
+            },
+            &mut self.events,
+        );
         let screen = physical / scale;
+        match renderers.screens() {
+            Some(screens) => {
+                self.context.set_screens(
+                    screens
+                        .iter()
+                        .map(|screen| screen.scaled(scale.recip()))
+                        .collect(),
+                );
+                self.reports_screens = true;
+            }
+            None if std::mem::take(&mut self.reports_screens) => {
+                self.context.set_screens(Vec::new());
+            }
+            None => {}
+        }
         let raw = RawInput {
             events: next_batch(&mut self.events),
         };
+        let typed = raw
+            .events
+            .iter()
+            .any(|event| matches!(event, Event::Ime(_) | Event::Text(_)));
         let app = &mut self.app;
         let mut output = self.context.run(raw, |context| {
             app.update(context, safe_rect(screen, safe_area, scale));
         });
         let title = &self.title;
-        platform.publish_accessibility(&mut || output.accessibility_tree(title, screen));
+        if self.publishing_accessibility {
+            platform.publish_accessibility(&mut || output.accessibility_tree(title, screen));
+        }
         if let Some(dump) = &mut self.accessibility {
             dump.update(output.accessibility_tree(title, screen));
         }
@@ -221,52 +455,116 @@ impl Runner {
             platform.copy(text.clone());
         }
         for request in std::mem::take(&mut output.file_picks) {
-            platform.pick_file(request);
+            let answer = FilePickAnswer::new(request.id, self.picks.0.clone(), self.waker.clone());
+            platform.pick_file(request, answer);
         }
-        if output.paste_requested
-            && let Some(text) = platform.paste()
-        {
-            self.events.push(Event::Text(text));
+        let delivered =
+            output.paste == Some(PasteRequest::Shortcut) && platform.delivers_paste_shortcut();
+        if output.paste.is_some() && !delivered && !output.window.paste_kinds.is_empty() {
+            let answer = PasteAnswer::new(self.pastes.0.clone(), self.waker.clone());
+            platform.paste(&output.window.paste_kinds, answer);
+            while let Ok(pasted) = self.pastes.1.try_recv() {
+                self.events.push(Event::Paste(pasted));
+            }
         }
-        let shown = &mut self.shown;
-        if output.pointer_locked != shown.pointer_locked {
-            shown.pointer_locked = output.pointer_locked;
-            platform.lock_pointer(output.pointer_locked);
+        let window_units = scale / self.context.native_pixels_per_point();
+        let window = output.window.clone().scaled(window_units);
+        if typed || window != self.shown {
+            platform.show_window(&window, &self.shown);
+            self.shown = window;
         }
-        let touch_emulation = self.context.touch_emulation();
-        if output.cursor_icon != shown.cursor_icon || touch_emulation != shown.touch_emulation {
-            shown.cursor_icon = output.cursor_icon;
-            shown.touch_emulation = touch_emulation;
-            platform.set_cursor(output.cursor_icon, touch_emulation);
-        }
-        platform.show_ime(output.ime.as_ref());
+        self.asked.clone_from(&output.window);
         if let Some(fullscreen) = output.fullscreen
-            && fullscreen != shown.fullscreen
+            && fullscreen != self.context.fullscreen()
         {
-            shown.fullscreen = fullscreen;
             platform.set_fullscreen(fullscreen);
-        }
-        if output.handles_back != shown.handles_back {
-            shown.handles_back = output.handles_back;
-            platform.set_handles_back(output.handles_back);
         }
 
         let pending = renderers.prepare(&output, scale, self.app.clear_color());
-        let frame = Frame {
+        let mut frame = Frame {
             pending,
-            deferred: !self.events.is_empty(),
+            deferred: !self.events.is_empty() || self.reports.pending(),
             repaint: output.repaint,
             repaint_after: output.repaint_after,
-            close_requested: output.close_requested,
         };
+        let closing = output.close_requested || self.closing;
+        self.unpresented |= pending;
+        if let Some(automation) = &mut self.automation
+            && let Some(dump) = &self.accessibility
+        {
+            self.test_ids.clone_from(output.test_ids());
+            self.actions = std::mem::take(&mut output.actions);
+            let view = View {
+                lines: dump.lines(),
+                tree: dump.text(),
+                test_ids: &self.test_ids,
+                pixels_per_point: scale,
+                now: self.context.now(),
+                window: &self.asked,
+                fullscreen: self.context.fullscreen(),
+                actions: &self.actions,
+            };
+            let settled = Settled {
+                busy: self.app.busy(),
+                again: match automation.clock_stopped() {
+                    true => frame.deferred,
+                    false => frame.again(),
+                },
+            };
+            let mut world = World {
+                events: &mut self.events,
+                simulation: platform.simulation(),
+                context: &self.context,
+            };
+            automation.end(&view, settled, &mut world, &output.unran_actions);
+            if let Some(after) = automation.wants_frame(self.context.now()) {
+                frame.repaint |= after.is_zero();
+                frame.repaint_after = frame.repaint_after.min(after);
+            }
+            if automation.wants_capture() && !self.unpresented {
+                automation.captured(renderers.capture());
+            }
+        }
         self.output = Some(output);
+        if closing {
+            self.exit();
+            return None;
+        }
         Some(frame)
     }
 
     pub fn present(&mut self) -> bool {
+        if self.exited {
+            return false;
+        }
+        self.contain(Self::run_present).unwrap_or(false)
+    }
+
+    fn run_present(&mut self) -> bool {
         let background = self.app.clear_color();
-        self.renderers
-            .as_mut()
-            .is_some_and(|renderers| renderers.present(background))
+        let Some(renderers) = self.renderers.as_mut() else {
+            return false;
+        };
+        let again = renderers.present(background);
+        if !again {
+            self.unpresented = false;
+            if let Some(automation) = &mut self.automation
+                && automation.wants_capture()
+            {
+                automation.captured(renderers.capture());
+            }
+        }
+        again
+    }
+}
+
+pub fn panic_message(payload: &(dyn Any + Send)) -> String {
+    match (
+        payload.downcast_ref::<&str>(),
+        payload.downcast_ref::<String>(),
+    ) {
+        (Some(message), _) => (*message).to_owned(),
+        (None, Some(message)) => message.clone(),
+        (None, None) => "a panic without a message".to_owned(),
     }
 }

@@ -1,29 +1,37 @@
 use std::cell::RefCell;
-use std::process::{Child, Command as Process, Stdio};
+use std::process::{Command as Process, Stdio};
 use std::rc::Rc;
+use std::sync::mpsc::{Receiver, Sender, channel};
+use std::time::{Duration, Instant};
 
 use beui::reactive::with_reactive_scope;
-use beui::{Context, CursorIcon, Document, Event, PointerButton, Pos2, Rect, Vec2, Waker};
+use beui::{
+    Context, CursorIcon, Document, Event, Forwarded, ForwardedInput, NodeId, PointerButton,
+    PointerId, PointerPhase, Pos2, Rect, Vec2, Waker,
+};
 use smithay::backend::renderer::utils::with_renderer_surface_state;
 use smithay::input::pointer::{CursorImageStatus, CursorImageSurfaceData};
 use smithay::wayland::compositor::with_states;
 
+use crate::presentation::{Place, Presented};
 use crate::render::{Gpu, Textures, WindowDraw};
 use crate::server::{Server, Watch};
-use crate::state::{ServerEvent, WindowId};
-use crate::windows::{Command, WindowInfo, Windows};
+use crate::state::{KeyboardConfig, ServerEvent, WindowId};
+use crate::windows::{Command, Launch, Popups, WindowInfo, Windows};
 
 const BUTTON_LEFT: u32 = 0x110;
 const BUTTON_RIGHT: u32 = 0x111;
 const BUTTON_MIDDLE: u32 = 0x112;
 const BUTTON_SIDE: u32 = 0x113;
 const BUTTON_EXTRA: u32 = 0x114;
+const MAX_ANCESTORS: usize = 32;
 
 pub struct CursorImage {
     pub texture: wgpu::Texture,
     pub size: Vec2,
     pub hotspot: Vec2,
     pub opaque: bool,
+    pub revision: u64,
 }
 
 pub struct Compositor {
@@ -32,14 +40,36 @@ pub struct Compositor {
     textures: Rc<RefCell<Textures>>,
     watch: Option<Watch>,
     waker: Option<Waker>,
-    children: Vec<Child>,
-    grab: Option<WindowId>,
-    held: Vec<u32>,
-    configured: std::collections::HashMap<WindowId, ((i32, i32), bool)>,
+    children: Vec<rustix::process::Pid>,
+    exited: (Sender<Exit>, Receiver<Exit>),
+    on_failure: Option<Box<dyn Fn(String)>>,
+    configured: std::collections::HashMap<WindowId, Configured>,
+    area: Rect,
+    screens: Vec<Rect>,
+    fullscreen: Option<(WindowId, Pos2)>,
+    raise: Option<WindowId>,
+    relist: bool,
+    input_frames: u64,
+    forced: bool,
+    locked: bool,
+    clipboard: clipboard::Clipboard,
+    gtk_profile: Option<std::path::PathBuf>,
+    cursor_surface: Option<smithay::reexports::wayland_server::protocol::wl_surface::WlSurface>,
+    cursor_revision: u64,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+struct Configured {
+    size: (i32, i32),
+    activated: bool,
+    fullscreen: bool,
 }
 
 impl Compositor {
     pub fn new(server: Server, windows: Windows) -> Self {
+        let gtk_profile = server
+            .socket_name()
+            .and_then(|_| crate::gtk_settings::profile());
         Self {
             server,
             windows,
@@ -47,14 +77,136 @@ impl Compositor {
             watch: None,
             waker: None,
             children: Vec::new(),
-            grab: None,
-            held: Vec::new(),
+            exited: channel(),
+            on_failure: None,
             configured: std::collections::HashMap::new(),
+            area: Rect::ZERO,
+            screens: Vec::new(),
+            fullscreen: None,
+            raise: None,
+            relist: false,
+            input_frames: 0,
+            forced: false,
+            locked: false,
+            clipboard: clipboard::Clipboard::default(),
+            gtk_profile,
+            cursor_surface: None,
+            cursor_revision: 0,
         }
     }
 
     pub fn server(&mut self) -> &mut Server {
         &mut self.server
+    }
+
+    pub fn set_keyboard(&mut self, keyboard: &KeyboardConfig) -> bool {
+        self.server.state.set_keyboard(keyboard)
+    }
+
+    pub fn set_blank_after(&mut self, after: Option<Duration>) {
+        self.server.state.idle.set_blank_after(after);
+    }
+
+    pub fn set_lock_after(&mut self, after: Option<Duration>) {
+        self.server.state.idle.set_lock_after(after);
+    }
+
+    pub fn lock_due(&self) -> bool {
+        self.server.state.idle.lock_due()
+    }
+
+    pub fn set_locked(&mut self, locked: bool) {
+        if self.locked == locked {
+            return;
+        }
+        self.locked = locked;
+        if !locked {
+            return;
+        }
+        self.server.state.dismiss_popups();
+        self.server.state.release_buttons();
+        if self.server.state.pointer_window().is_some() {
+            self.server.state.pointer_motion(None);
+        }
+        self.server.flush();
+    }
+
+    pub fn locked(&self) -> bool {
+        self.locked
+    }
+
+    pub fn woke(&mut self) {
+        self.server.state.idle.woke();
+    }
+
+    pub fn idle(&self) -> bool {
+        self.server.state.idle.blanked()
+    }
+
+    pub fn set_screens(&mut self, screens: Vec<Rect>) {
+        self.screens = screens;
+    }
+
+    pub fn set_fullscreen(&mut self, id: WindowId, fullscreen: bool) {
+        let current = self.fullscreen.map(|(id, _)| id);
+        if fullscreen {
+            if let Some(previous) = current.filter(|previous| *previous != id) {
+                self.server.state.set_fullscreen(previous, false);
+                self.windows.push(Command::Configure(previous));
+            }
+            if current != Some(id) {
+                let anchor = self
+                    .windows
+                    .rect(id)
+                    .map_or(self.area.center(), |rect| rect.center());
+                self.fullscreen = Some((id, anchor));
+            }
+            self.raise = Some(id);
+        } else if current == Some(id) {
+            self.fullscreen = None;
+        }
+        self.server.state.set_fullscreen(id, fullscreen);
+        self.windows.push(Command::Configure(id));
+        self.relist = true;
+    }
+
+    fn fullscreen_area(&self, id: WindowId) -> Option<Rect> {
+        let (shown, anchor) = self.fullscreen?;
+        if shown != id {
+            return None;
+        }
+        let area = self.area;
+        Some(
+            self.screens
+                .iter()
+                .find(|screen| screen.contains(anchor))
+                .map_or(area, |screen| screen.intersect(area)),
+        )
+    }
+
+    fn publish(&mut self, document: &mut Document) {
+        for (id, fullscreen) in self.windows.take_fullscreen_requests() {
+            self.set_fullscreen(id, fullscreen);
+        }
+        if let Some((id, _)) = self.fullscreen
+            && !self.server.state.windows().contains(&id)
+        {
+            self.fullscreen = None;
+            self.relist = true;
+        }
+        let list =
+            (std::mem::take(&mut self.relist) || self.fullscreen.is_some()).then(|| self.list());
+        let raise = self.raise.take().or_else(|| self.windows.take_activation());
+        let raise = raise.filter(|_| !self.locked);
+        let windows = self.windows.clone();
+        with_reactive_scope(document, || {
+            if let Some(list) = list {
+                windows.set_list(list);
+            }
+            if let Some(id) = raise {
+                windows.raise(id);
+            }
+        });
     }
 
     pub fn windows(&self) -> Windows {
@@ -67,34 +219,112 @@ impl Compositor {
             .map(|name| name.to_string_lossy().into_owned())
     }
 
-    fn launch(&mut self, line: &str) {
-        let mut process = Process::new("sh");
+    pub fn x11_display(&self) -> Option<String> {
+        self.server
+            .x11_display()
+            .map(|display| format!(":{display}"))
+    }
+
+    pub fn environment(&self) -> Vec<(&'static str, String)> {
+        let wayland = self.socket().map(|socket| ("WAYLAND_DISPLAY", socket));
+        let x11 = self.x11_display().map(|display| ("DISPLAY", display));
+        let gtk = self
+            .gtk_profile
+            .as_ref()
+            .map(|profile| ("DCONF_PROFILE", profile.to_string_lossy().into_owned()));
+        wayland.into_iter().chain(x11).chain(gtk).collect()
+    }
+
+    fn launch(&mut self, launch: &Launch, now: Instant) {
+        let Some((program, arguments)) = launch.arguments.split_first() else {
+            return;
+        };
+        let token = self.server.state.activation.launch_token(now);
+        let mut process = Process::new(program);
+        if let Some(dir) = &launch.working_dir {
+            process.current_dir(dir);
+        }
         process
-            .arg("-c")
-            .arg(line)
-            .env("WAYLAND_DISPLAY", self.socket().unwrap_or_default())
+            .args(arguments)
+            .env("XDG_ACTIVATION_TOKEN", &token)
+            .env("DESKTOP_STARTUP_ID", &token)
+            .env_remove("WAYLAND_DISPLAY")
             .env_remove("DISPLAY")
+            .envs(self.environment())
+            .env_remove("BEUI_AUTOMATION")
+            .env_remove("BEUI_HEADLESS")
+            .env_remove("BEUI_HEADLESS_SCREEN")
             .env("GDK_BACKEND", "wayland")
             .env("QT_QPA_PLATFORM", "wayland")
             .env("SDL_VIDEODRIVER", "wayland")
             .env("MOZ_ENABLE_WAYLAND", "1")
             .env("ELECTRON_OZONE_PLATFORM_HINT", "wayland")
             .stdin(Stdio::null());
-        match process.spawn() {
-            Ok(child) => self.children.push(child),
-            Err(error) => eprintln!("be-wayland: could not run {line}: {error}"),
+        let mut child = match process.spawn() {
+            Ok(child) => child,
+            Err(error) => {
+                self.fail(format!("Could not run {}: {error}", launch_name(launch)));
+                return;
+            }
+        };
+        let pid = rustix::process::Pid::from_child(&child);
+        self.children.push(pid);
+        let exited = self.exited.0.clone();
+        let waker = self.waker.clone();
+        let line = launch_name(launch);
+        std::thread::spawn(move || {
+            let status = child.wait().ok().and_then(|status| status.code());
+            let _ = exited.send(Exit { pid, line, status });
+            if let Some(waker) = waker {
+                waker.wake();
+            }
+        });
+    }
+
+    pub fn on_failure(&mut self, report: impl Fn(String) + 'static) {
+        self.on_failure = Some(Box::new(report));
+    }
+
+    fn fail(&self, problem: String) {
+        eprintln!("be-wayland: {problem}");
+        if let Some(report) = &self.on_failure {
+            report(problem);
         }
     }
 
-    fn receive(&mut self, document: &mut Document) {
+    fn reap(&mut self) {
+        while let Ok(exit) = self.exited.1.try_recv() {
+            self.children.retain(|pid| *pid != exit.pid);
+            if let Some(problem) = exit.problem() {
+                self.fail(problem);
+            }
+        }
+    }
+
+    fn receive(&mut self, context: &Context, document: &mut Document) {
+        self.server.state.activation.tick(context.now());
         self.server.dispatch();
+        self.sync_clipboard(context);
+        self.watch_pings(context);
         let events = self.server.state.take_events();
+        let cursor = match self.server.state.cursor() {
+            CursorImageStatus::Surface(surface) => Some(surface.clone()),
+            _ => None,
+        };
+        let mut cursor_changed = cursor != self.cursor_surface;
         for surface in self.server.state.take_committed() {
             self.textures.borrow_mut().upload(&surface);
+            cursor_changed |= cursor.as_ref() == Some(&surface);
+        }
+        if cursor_changed {
+            self.cursor_surface = cursor;
+            self.cursor_revision += 1;
         }
         self.textures.borrow_mut().prune();
         let mut redraw = Vec::new();
         let mut changed = false;
+        let mut fullscreen = Vec::new();
+        let mut activated = None;
         let windows = self.windows.clone();
         with_reactive_scope(document, || {
             for event in events {
@@ -105,6 +335,8 @@ impl Compositor {
                         changed = true;
                     }
                     ServerEvent::Titled(..) | ServerEvent::Changed(_) => changed = true,
+                    ServerEvent::Fullscreen(id, on) => fullscreen.push((id, on)),
+                    ServerEvent::Activated(id) => activated = Some(id),
                     ServerEvent::Committed(id) => {
                         if !windows.listed(id) {
                             changed = true;
@@ -116,6 +348,12 @@ impl Compositor {
                 }
             }
         });
+        for (id, on) in fullscreen {
+            self.set_fullscreen(id, on);
+        }
+        if let Some(id) = activated {
+            self.windows.activate(id);
+        }
         let open = self.server.state.windows();
         self.configured.retain(|id, _| open.contains(id));
         if changed {
@@ -126,6 +364,49 @@ impl Compositor {
         if !redraw.is_empty() {
             self.redraw(redraw, document);
         }
+    }
+
+    fn watch_pings(&mut self, context: &Context) {
+        let now = context.now();
+        if let Some(due) = self.server.state.check_pings(now) {
+            context.request_repaint_after(due.saturating_duration_since(now));
+        }
+    }
+
+    fn force_close(&mut self, id: WindowId) {
+        let pid = self
+            .server
+            .state
+            .client_pid(id)
+            .and_then(rustix::process::Pid::from_raw);
+        if let Some(pid) = pid {
+            self.end_launched(pid);
+        }
+        self.server.state.disconnect(id);
+        self.forced = true;
+    }
+
+    fn end_launched(&self, pid: rustix::process::Pid) -> bool {
+        let Ok(process) = rustix::process::pidfd_open(pid, rustix::process::PidfdFlags::empty())
+        else {
+            return false;
+        };
+        self.launched(pid)
+            && rustix::process::pidfd_send_signal(&process, rustix::process::Signal::KILL).is_ok()
+    }
+
+    fn launched(&self, pid: rustix::process::Pid) -> bool {
+        let mut pid = pid;
+        for _ in 0..MAX_ANCESTORS {
+            if self.children.contains(&pid) {
+                return true;
+            }
+            match parent(pid) {
+                Some(parent) => pid = parent,
+                None => return false,
+            }
+        }
+        false
     }
 
     fn list(&self) -> Vec<WindowInfo> {
@@ -140,6 +421,11 @@ impl Compositor {
                     title: state.title(id).unwrap_or_default(),
                     app_id: state.app_id(id).unwrap_or_default(),
                     parent: state.parent(id),
+                    modal: state.modal(id),
+                    fullscreen: self.fullscreen_area(id),
+                    responding: state.responding(id),
+                    icon: state.icon(id),
+                    inhibits_shortcuts: state.inhibits_shortcuts(id),
                 })
             })
             .collect()
@@ -150,10 +436,14 @@ impl Compositor {
             .into_iter()
             .map(|id| (id, self.drawing(id)))
             .collect();
+        for (id, _) in &drawings {
+            let callbacks = self.server.state.take_feedback(*id);
+            self.server.state.presentation.drawn(*id, callbacks);
+        }
         let store = self.windows.clone();
         with_reactive_scope(document, || {
-            for (id, drawing) in drawings {
-                store.draw(id, drawing);
+            for (id, (drawing, popups)) in drawings {
+                store.draw(id, drawing, popups);
             }
         });
     }
@@ -182,147 +472,243 @@ impl Compositor {
             size: beui::vec2(size.w as f32, size.h as f32),
             hotspot: beui::vec2(hotspot.x as f32, hotspot.y as f32),
             opaque: current.texture.opaque(),
+            revision: self.cursor_revision,
         })
     }
 
-    fn drawing(&self, id: WindowId) -> Option<beui::Drawing> {
+    fn drawing(&self, id: WindowId) -> (Option<beui::Drawing>, Option<Popups>) {
         let textures = self.textures.borrow();
-        let gpu = textures.gpu()?;
-        let signals = self.windows.signals(id)?;
-        let layers = self
+        let (Some(gpu), Some(signals)) = (textures.gpu(), self.windows.signals(id)) else {
+            return (None, None);
+        };
+        let (popups, own): (Vec<_>, Vec<_>) = self
             .server
             .state
             .layers(id)
             .into_iter()
             .filter_map(|layer| Some((textures.get(&layer.surface)?, layer)))
-            .collect();
-        Some(WindowDraw::drawing(
-            gpu,
-            layers,
+            .partition(|(_, layer)| layer.popup);
+        let drawing = WindowDraw::drawing(
+            gpu.clone(),
+            own,
             signals.painted.clone(),
             self.waker.clone(),
-        ))
-    }
-
-    fn keyboard(&mut self, context: &Context) {
-        let Some(id) = self.windows.focused() else {
-            return;
-        };
-        if self.server.state.keyboard_window() != Some(id) {
-            return;
-        }
-        let keys: Vec<(u32, bool)> = context.input(|input| {
-            input
-                .events
+        );
+        let bounds = popups
+            .iter()
+            .map(|(_, layer)| layer.rect)
+            .reduce(|bounds, rect| bounds.merge(rect));
+        let popups = bounds.map(|bounds| {
+            let areas = popups
                 .iter()
-                .filter_map(|event| match event {
-                    Event::PhysicalKey { code, pressed } => Some((*code, *pressed)),
-                    _ => None,
+                .map(|(_, layer)| {
+                    let at = layer.rect.loc - bounds.loc;
+                    Rect::from_min_size(
+                        Pos2::new(at.x as f32, at.y as f32),
+                        Vec2::new(layer.rect.size.w as f32, layer.rect.size.h as f32),
+                    )
                 })
-                .collect()
+                .collect();
+            let layers = popups
+                .into_iter()
+                .map(|(texture, mut layer)| {
+                    layer.rect.loc -= bounds.loc;
+                    (texture, layer)
+                })
+                .collect();
+            Popups {
+                areas,
+                rect: Rect::from_min_size(
+                    Pos2::new(bounds.loc.x as f32, bounds.loc.y as f32),
+                    Vec2::new(bounds.size.w as f32, bounds.size.h as f32),
+                ),
+                drawing: WindowDraw::drawing(
+                    gpu,
+                    layers,
+                    signals.painted.clone(),
+                    self.waker.clone(),
+                ),
+            }
         });
-        for (code, pressed) in keys {
-            self.server.state.key(code, pressed);
-        }
-        context.retain_events(|event| {
-            !matches!(
-                event,
-                Event::Key { .. } | Event::Text(_) | Event::Ime(_) | Event::PhysicalKey { .. }
-            )
-        });
+        (Some(drawing), popups)
     }
 
-    fn pointer(&mut self, context: &Context) {
-        let events = context.input(|input| input.events.clone());
-        for event in events {
-            match event {
-                Event::PointerMoved(position) => self.move_pointer(position),
-                Event::PointerGone if self.grab.is_none() => {
-                    if self.server.state.pointer_window().is_some() {
-                        self.server.state.pointer_motion(None);
-                    }
-                }
-                Event::PointerButton {
-                    pos,
-                    button,
-                    pressed,
+    fn input(&mut self, now: Instant) {
+        let inputs = self.windows.take_input();
+        for (id, input) in &inputs {
+            let id = *id;
+            if !self.server.state.windows().contains(&id) {
+                continue;
+            }
+            let hovered = inputs
+                .iter()
+                .any(|(other, input)| *other == id && input.hovered);
+            match self.windows.blocked_by(id) {
+                Some(dialog) => self.refuse(id, dialog, input, now),
+                None => self.deliver(id, input, hovered, now),
+            }
+        }
+    }
+
+    fn refuse(&mut self, id: WindowId, dialog: WindowId, input: &ForwardedInput, now: Instant) {
+        let pressed = mouse(input).any(|event| matches!(event.phase, PointerPhase::Down(_)));
+        if pressed {
+            self.raise = Some(dialog);
+        }
+        if self.server.state.buttons_held() && self.server.state.pointer_window() == Some(id) {
+            let releases = ForwardedInput {
+                events: input
+                    .events
+                    .iter()
+                    .filter(|event| {
+                        matches!(
+                            event,
+                            Forwarded::Pointer { event, .. }
+                                if matches!(event.phase, PointerPhase::Up(_))
+                        )
+                    })
+                    .cloned()
+                    .collect(),
+                ..input.clone()
+            };
+            self.deliver(id, &releases, false, now);
+        }
+        let state = &mut self.server.state;
+        if !state.buttons_held() && state.pointer_window() == Some(id) {
+            state.pointer_motion(None);
+        }
+    }
+
+    fn deliver(&mut self, id: WindowId, input: &ForwardedInput, hovered: bool, now: Instant) {
+        let state = &mut self.server.state;
+        let dragging = state.dragging();
+        let windows = &self.windows;
+        let at = |over: Option<NodeId>, pos: Pos2| {
+            let (id, rect) = match dragging {
+                true => windows
+                    .caught_at(over?)
+                    .filter(|(target, _)| windows.blocked_by(*target).is_none())?,
+                false => (id, input.rect),
+            };
+            let local = pos - rect.min;
+            Some((id, (f64::from(local.x), f64::from(local.y)).into()))
+        };
+        for forwarded in &input.events {
+            match forwarded {
+                Forwarded::Input(Event::Key {
+                    press,
+                    code: Some(code),
                     ..
-                } => {
-                    self.move_pointer(pos);
-                    let code = button_code(button);
-                    if pressed {
-                        let Some(id) = self.grab.or(self.windows.hovered()) else {
-                            continue;
-                        };
-                        self.grab = Some(id);
-                        if !self.held.contains(&code) {
-                            self.held.push(code);
+                }) if !press.repeat && state.keyboard_window() == Some(id) => {
+                    if press.pressed {
+                        state.ping(id, now);
+                    }
+                    state.key(*code, press.pressed);
+                }
+                Forwarded::Pointer { event, over } if event.pointer == PointerId::Mouse => {
+                    match event.phase {
+                        PointerPhase::Move => state.pointer_motion(at(*over, event.pos)),
+                        PointerPhase::Down(button) | PointerPhase::Up(button) => {
+                            let pressed = matches!(event.phase, PointerPhase::Down(_));
+                            state.pointer_motion(at(*over, event.pos));
+                            if pressed {
+                                state.ping(id, now);
+                            }
+                            state.pointer_button(button_code(button), pressed);
                         }
-                        self.server.state.pointer_button(code, true);
-                    } else if self.held.contains(&code) {
-                        self.held.retain(|held| *held != code);
-                        self.server.state.pointer_button(code, false);
-                        if self.held.is_empty() {
-                            self.grab = None;
-                            self.move_pointer(pos);
+                        PointerPhase::Scroll(delta) => {
+                            if state.pointer_window() != Some(id) {
+                                state.pointer_motion(at(*over, event.pos));
+                            }
+                            state.pointer_axis((-f64::from(delta.x), -f64::from(delta.y)));
                         }
+                        _ => {}
                     }
                 }
-                Event::Scroll(delta) if self.grab.or(self.windows.hovered()).is_some() => {
-                    self.server
-                        .state
-                        .pointer_axis((-f64::from(delta.x), -f64::from(delta.y)));
+                Forwarded::Left
+                    if !hovered && !state.buttons_held() && state.pointer_window() == Some(id) =>
+                {
+                    state.pointer_motion(None);
                 }
                 _ => {}
             }
         }
     }
 
-    fn move_pointer(&mut self, position: Pos2) {
-        let target = self.grab.or(self.windows.hovered());
-        let local = target.and_then(|id| {
-            let rect = self.windows.rect(id)?;
-            let local = position - rect.min;
-            Some((id, (f64::from(local.x), f64::from(local.y)).into()))
-        });
-        if local.is_none() && self.server.state.pointer_window().is_none() {
+    fn focus(&mut self, now: Instant) {
+        let focused = self
+            .windows
+            .focused()
+            .map(|id| self.windows.blocked_by(id).unwrap_or(id));
+        if self.server.state.keyboard_window() == focused {
             return;
         }
-        self.server.state.pointer_motion(local);
+        let previous = self.server.state.keyboard_window();
+        self.server.state.focus_keyboard(focused);
+        if let Some(id) = focused {
+            self.server.state.ping(id, now);
+        }
+        for id in previous.into_iter().chain(focused) {
+            self.windows.push(Command::Configure(id));
+        }
     }
 
-    fn apply(&mut self, document: &mut Document) {
-        let focused = self.windows.focused();
-        if self.server.state.keyboard_window() != focused {
-            let previous = self.server.state.keyboard_window();
-            self.server.state.focus_keyboard(focused);
-            for id in previous.into_iter().chain(focused) {
-                self.windows.push(Command::Configure(id));
-            }
-        }
+    fn apply(&mut self, now: Instant, document: &mut Document) {
+        let focused = self.server.state.keyboard_window();
         for command in self.windows.take_commands() {
             match command {
                 Command::Configure(id) => {
-                    let Some(rect) = self.windows.rect(id) else {
+                    if let Some(rect) = self.windows.rect(id) {
+                        let position = rect.min - self.area.min;
+                        self.server.state.place(
+                            id,
+                            (position.x.round() as i32, position.y.round() as i32).into(),
+                        );
+                    }
+                    let size = self
+                        .windows
+                        .rect(id)
+                        .map(|rect| (rect.width().round() as i32, rect.height().round() as i32))
+                        .or_else(|| self.configured.get(&id).map(|configured| configured.size))
+                        .or_else(|| {
+                            self.fullscreen_area(id).map(|area| {
+                                (area.width().round() as i32, area.height().round() as i32)
+                            })
+                        });
+                    let own = !self.configured.contains_key(&id)
+                        && size.is_some_and(|size| {
+                            self.server.state.own_size(id) == Some(size.into())
+                        });
+                    let Some(size) = size.filter(|size| size.0 >= 1 && size.1 >= 1 && !own) else {
+                        self.server
+                            .state
+                            .configure_sized(id, None, focused == Some(id));
                         continue;
                     };
-                    let size = (rect.width().round() as i32, rect.height().round() as i32);
-                    if size.0 < 1 || size.1 < 1 {
+                    let configured = Configured {
+                        size,
+                        activated: focused == Some(id),
+                        fullscreen: self.server.state.fullscreen(id),
+                    };
+                    if self.configured.get(&id) == Some(&configured) {
                         continue;
                     }
-                    let activated = focused == Some(id);
-                    if self.configured.get(&id) == Some(&(size, activated)) {
-                        continue;
-                    }
-                    self.configured.insert(id, (size, activated));
-                    self.server.state.configure(id, size.into(), activated);
+                    self.configured.insert(id, configured);
+                    self.server
+                        .state
+                        .configure(id, size.into(), configured.activated);
                 }
-                Command::Close(id) => self.server.state.close(id),
-                Command::Launch(line) => self.launch(&line),
+                Command::Close(id) if self.server.state.responding(id) => {
+                    self.server.state.close(id);
+                    self.server.state.ping(id, now);
+                }
+                Command::Close(id) => self.force_close(id),
+                Command::RestoreShortcuts(id) => {
+                    self.server.state.restore_shortcuts(id);
+                    self.forced = true;
+                }
+                Command::Launch(launch) => self.launch(&launch, now),
             }
-        }
-        for id in self.windows.take_painted() {
-            self.server.state.send_frames(id);
         }
         let cursor = match self.server.state.cursor() {
             CursorImageStatus::Hidden => CursorIcon::None,
@@ -331,12 +717,22 @@ impl Compositor {
         };
         let windows = self.windows.clone();
         with_reactive_scope(document, || windows.set_cursor(cursor));
-        self.children
-            .retain_mut(|child| matches!(child.try_wait(), Ok(None)));
+        self.reap();
     }
 }
 
 impl Compositor {
+    pub fn replace_gpu(
+        &mut self,
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+        format: wgpu::TextureFormat,
+    ) {
+        self.textures
+            .borrow_mut()
+            .set_gpu(Gpu::new(device, queue, format));
+    }
+
     pub fn start(
         &mut self,
         device: wgpu::Device,
@@ -370,28 +766,173 @@ impl Compositor {
 }
 
 impl Compositor {
+    pub fn pace_to_flips(&mut self) {
+        self.server.state.presentation.pace_to_flips();
+    }
+
+    pub fn presented(&mut self, screen: Rect, presented: Presented) {
+        self.server.state.presentation.flipped(screen, presented);
+    }
+
+    pub fn awaits_flip(&self) -> bool {
+        self.server.state.presentation.awaits_flip()
+    }
+
+    fn place_of(&self, id: WindowId) -> Place {
+        let Some(rect) = self.windows.rect(id) else {
+            return Place::Anywhere;
+        };
+        if self.screens.is_empty() {
+            return Place::Anywhere;
+        }
+        let area = |screen: &Rect| {
+            let shared = screen.intersect(rect);
+            shared.width().max(0.0) * shared.height().max(0.0)
+        };
+        self.screens
+            .iter()
+            .copied()
+            .filter(|screen| area(screen) > 0.0)
+            .max_by(|left, right| area(left).total_cmp(&area(right)))
+            .map_or(Place::Nowhere, Place::On)
+    }
+
+    fn show_painted(&mut self, context: &Context) {
+        let open = self.server.state.windows();
+        let presentation = &mut self.server.state.presentation;
+        for id in self.windows.take_painted() {
+            presentation.painted(id);
+        }
+        presentation.forget_closed(&open);
+        let places: Vec<_> = open.iter().map(|id| (*id, self.place_of(*id))).collect();
+        let shown = self
+            .server
+            .state
+            .presentation
+            .take_shown(context.now(), |id| {
+                places
+                    .iter()
+                    .find(|(held, _)| *held == id)
+                    .map_or(Place::Anywhere, |(_, place)| *place)
+            });
+        for shown in shown {
+            self.server.state.present(shown);
+        }
+    }
+
     pub fn before(&mut self, context: &Context, rect: Rect, document: &mut Document) {
-        self.receive(document);
+        self.show_painted(context);
+        self.receive(context, document);
         let scale = context.pixels_per_point().ceil().max(1.0) as i32;
         let size = (rect.width().round() as i32, rect.height().round() as i32);
         self.server.state.set_scale(scale, size.into());
-        self.keyboard(context);
+        self.area = rect;
+        let screens = self
+            .screens
+            .iter()
+            .map(|screen| screen.intersect(rect).translate(-rect.min.to_vec2()))
+            .filter(|screen| screen.width() > 0.0 && screen.height() > 0.0)
+            .map(|screen| {
+                smithay::utils::Rectangle::new(
+                    (screen.min.x.round() as i32, screen.min.y.round() as i32).into(),
+                    (
+                        screen.width().round() as i32,
+                        screen.height().round() as i32,
+                    )
+                        .into(),
+                )
+            })
+            .collect();
+        self.server.state.set_screens(screens);
+        self.publish(document);
+    }
+
+    fn watch_idle(&mut self, context: &Context, document: &mut Document) {
+        let now = context.now();
+        let active = document.input_frames() != self.input_frames;
+        self.input_frames = document.input_frames();
+        let inhibited = !self.locked
+            && self
+                .server
+                .state
+                .inhibiting_windows()
+                .into_iter()
+                .any(|id| self.shown(id));
+        if let Some(due) = self.server.state.idle.tick(now, active, inhibited) {
+            context.request_repaint_after(due.saturating_duration_since(now));
+        }
+        let idle = self.server.state.idle.blanked();
+        if self.windows.idle().get_untracked() != idle {
+            let windows = self.windows.clone();
+            with_reactive_scope(document, || windows.set_idle(idle));
+        }
+    }
+
+    fn shown(&self, id: WindowId) -> bool {
+        self.windows.rect(id).is_some_and(|rect| {
+            let visible = rect.intersect(self.area);
+            visible.width() > 0.0 && visible.height() > 0.0
+        })
     }
 
     pub fn after(&mut self, context: &Context, document: &mut Document) {
-        self.pointer(context);
-        self.apply(document);
+        let now = context.now();
+        self.watch_idle(context, document);
+        self.focus(now);
+        self.input(now);
+        self.apply(now, document);
         self.server.flush();
+        self.watch_pings(context);
+        if std::mem::take(&mut self.forced) {
+            context.request_repaint();
+        }
         if let Some(watch) = &self.watch {
             watch.resume();
         }
     }
 
     pub fn exiting(&mut self) {
-        for child in &mut self.children {
-            let _ = child.kill();
+        self.reap();
+        for pid in &self.children {
+            let _ = rustix::process::kill_process(*pid, rustix::process::Signal::KILL);
         }
     }
+}
+
+struct Exit {
+    pid: rustix::process::Pid,
+    line: String,
+    status: Option<i32>,
+}
+
+impl Exit {
+    fn problem(&self) -> Option<String> {
+        launch_problem(&self.line, self.status)
+    }
+}
+
+fn launch_name(launch: &Launch) -> String {
+    match launch.arguments.as_slice() {
+        [shell, flag, line] if shell == "sh" && flag == "-c" => line.clone(),
+        arguments => arguments.join(" "),
+    }
+}
+
+pub(crate) fn launch_problem(line: &str, status: Option<i32>) -> Option<String> {
+    match status {
+        Some(127) => Some(format!("Could not run {line}: the command was not found")),
+        Some(126) => Some(format!(
+            "Could not run {line}: the command could not be started"
+        )),
+        _ => None,
+    }
+}
+
+fn parent(pid: rustix::process::Pid) -> Option<rustix::process::Pid> {
+    let stat = std::fs::read_to_string(format!("/proc/{}/stat", pid.as_raw_nonzero())).ok()?;
+    let (_, fields) = stat.rsplit_once(')')?;
+    let parent = fields.split_whitespace().nth(1)?.parse().ok()?;
+    rustix::process::Pid::from_raw(parent).filter(|parent| !parent.is_init())
 }
 
 fn button_code(button: PointerButton) -> u32 {
@@ -405,30 +946,16 @@ fn button_code(button: PointerButton) -> u32 {
 }
 
 fn cursor_icon(icon: smithay::input::pointer::CursorIcon) -> CursorIcon {
-    use smithay::input::pointer::CursorIcon as Named;
-    match icon {
-        Named::Crosshair => CursorIcon::Crosshair,
-        Named::Grab => CursorIcon::Grab,
-        Named::Grabbing => CursorIcon::Grabbing,
-        Named::NotAllowed | Named::NoDrop => CursorIcon::NotAllowed,
-        Named::Pointer => CursorIcon::PointingHand,
-        Named::EwResize | Named::EResize | Named::WResize | Named::ColResize => {
-            CursorIcon::ResizeHorizontal
-        }
-        Named::NsResize | Named::NResize | Named::SResize | Named::RowResize => {
-            CursorIcon::ResizeVertical
-        }
-        Named::NeswResize | Named::NeResize | Named::SwResize => CursorIcon::ResizeNeSw,
-        Named::NwseResize | Named::NwResize | Named::SeResize => CursorIcon::ResizeNwSe,
-        Named::Text | Named::VerticalText => CursorIcon::Text,
-        Named::Wait => CursorIcon::Wait,
-        Named::Move | Named::AllScroll => CursorIcon::Move,
-        Named::Progress => CursorIcon::Progress,
-        Named::Help => CursorIcon::Help,
-        Named::Alias => CursorIcon::Alias,
-        _ => CursorIcon::Default,
-    }
+    CursorIcon::from_name(icon.name()).unwrap_or_default()
 }
+
+mod clipboard;
 
 #[cfg(test)]
 mod tests;
+
+fn mouse(input: &ForwardedInput) -> impl Iterator<Item = &beui::PointerEvent> {
+    input
+        .pointer_events()
+        .filter(|event| event.pointer == PointerId::Mouse)
+}

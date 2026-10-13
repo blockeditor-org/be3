@@ -1,0 +1,18 @@
+[package]
+name = "sequence"
+description = "An ordered sequence whose elements keep their positions while a live session edits it"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+postcard = { version = "1", features = ["use-std"] }
+
+[features]
+fuzzing = []
+
+[lints]
+workspace = true

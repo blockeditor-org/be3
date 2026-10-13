@@ -10,13 +10,12 @@ fn session() -> HostSession {
         Some(SurfaceSpec {
             format: SurfaceFormat::Rgba8Unorm,
         }),
-        Theme { dark: true },
+        Theme::Dark,
     )
 }
 
 fn hello() -> Message {
     Message::Hello(Hello {
-        version: PROTOCOL_VERSION,
         plugin: PluginIdentity {
             id: "demo".into(),
             name: "Plugin Demo".into(),

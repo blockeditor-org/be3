@@ -7,9 +7,9 @@ use crate::base::list::Direction;
 use crate::base::offset::item_rect;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
-use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
-use ::reactive::{KeyedItems, ScopeContext, numbered, owner_scope, settle};
+use ::reactive::{KeyedItems, ScopeContext, numbered, owner_scope};
 
 const ROW_LIMIT: usize = 4096;
 const ANCHOR_SLACK: f32 = 4.0;
@@ -145,7 +145,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         }
     }
 
-    fn set_keys(&mut self, keys: Vec<K>) -> Vec<NodeId> {
+    fn set_keys(&mut self, keys: Vec<K>) {
         let indices: HashMap<K, usize> = keys
             .iter()
             .enumerate()
@@ -176,7 +176,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         self.keys = keys;
         self.indices = indices;
         let kept: Vec<K> = self.placed.iter().map(|row| row.key.clone()).collect();
-        self.rows.retain(&kept)
+        self.rows.retain(&kept);
     }
 
     fn window(&self, doc: &Document, painter: &Painter, start: f32, main: f32) -> (f32, f32) {
@@ -192,26 +192,28 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         (first, last)
     }
 
-    fn build(&self, key: K) -> NodeId {
+    fn build(&self, doc: &mut Document, list: NodeId, key: K) -> NodeId {
         if let Some(node) = self.rows.get(&key) {
             return node;
         }
         let rows = self.rows.clone();
-        match self.owner.as_ref().filter(|owner| owner.is_alive()) {
-            Some(owner) => settle(|| owner.run(|| rows.entry(key))),
-            None => settle(|| rows.entry(key)),
-        }
+        let owner = self.owner.clone().filter(ScopeContext::is_alive);
+        doc.build_within(list, move || match owner {
+            Some(owner) => owner.run(|| rows.entry_owned(key)),
+            None => rows.entry_owned(key),
+        })
     }
 
     fn measured_row(
         &mut self,
         doc: &mut Document,
+        list: NodeId,
         painter: &Painter,
         index: usize,
         cross: f32,
     ) -> (K, NodeId, f32) {
         let key = self.keys[index].clone();
-        let node = self.build(key.clone());
+        let node = self.build(doc, list, key.clone());
         let offer = self.direction.axes(f32::INFINITY, cross);
         let length = self
             .direction
@@ -238,6 +240,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
     fn realize(
         &mut self,
         doc: &mut Document,
+        list: NodeId,
         painter: &Painter,
         window: (f32, f32),
         main: f32,
@@ -246,7 +249,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         let (first, last) = window;
         if self.metrics.count == 0 || last <= first {
             self.origin = None;
-            self.keep(doc, Vec::new());
+            self.keep(Vec::new());
             return 0.0;
         }
         let (index, position) = self.anchor(window);
@@ -255,7 +258,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         while at < self.metrics.count && cursor < last && scanned < ROW_LIMIT {
             let estimate = self.metrics.height(at);
             let row = match cursor + estimate > first {
-                true => Some(self.measured_row(doc, painter, at, cross)),
+                true => Some(self.measured_row(doc, list, painter, at, cross)),
                 false => None,
             };
             let length = row.as_ref().map_or(estimate, |(_, _, length)| *length);
@@ -281,7 +284,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
             scanned += 1;
             let estimate = self.metrics.height(at);
             let row = match cursor - estimate < last {
-                true => Some(self.measured_row(doc, painter, at, cross)),
+                true => Some(self.measured_row(doc, list, painter, at, cross)),
                 false => None,
             };
             let length = row.as_ref().map_or(estimate, |(_, _, length)| *length);
@@ -319,7 +322,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
                 0.0
             }
         };
-        self.keep(doc, rows);
+        self.keep(rows);
         shift
     }
 
@@ -337,12 +340,10 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         0.0
     }
 
-    fn keep(&mut self, doc: &mut Document, rows: Vec<Row<K>>) {
+    fn keep(&mut self, rows: Vec<Row<K>>) {
         let kept: Vec<K> = rows.iter().map(|row| row.key.clone()).collect();
         self.placed = rows;
-        for node in self.rows.retain(&kept) {
-            doc.remove_node(node);
-        }
+        self.rows.retain(&kept);
     }
 }
 
@@ -362,18 +363,14 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
-        let node = doc.laying_out();
+        let Some(node) = doc.laying_out() else {
+            return;
+        };
         let (main, cross) = self.direction.main_and_cross(rect.size());
         let start = self.direction.main(rect.min.to_vec2());
-        let live = doc.delivering();
         let total = self.metrics.total();
-        let shift = match live {
-            true => {
-                let window = self.window(doc, painter, start, main);
-                self.realize(doc, painter, window, main, cross)
-            }
-            false => 0.0,
-        };
+        let window = self.window(doc, painter, start, main);
+        let shift = self.realize(doc, node, painter, window, main, cross);
         let grid = doc.pixel_grid();
         for row in &self.placed {
             let placed = item_rect(
@@ -384,22 +381,18 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
             );
             crate::layout::layout(doc, painter, row.node, placed, out);
         }
-        if !live {
-            return;
-        }
-        if let Some(node) = node
-            && self.metrics.total() != total
-        {
-            doc.invalidate_measurement(node);
+        doc.arena.adopt_children(node);
+        if self.metrics.total() != total {
+            doc.arena.invalidate_node(node);
         }
         if shift != 0.0 {
             doc.record_scroll_shift(shift);
         }
     }
 
-    fn unplaced(&mut self, doc: &mut Document) {
+    fn unplaced(&mut self, _doc: &mut Document) {
         self.origin = None;
-        self.keep(doc, Vec::new());
+        self.keep(Vec::new());
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, _rect: Rect) {
@@ -408,19 +401,6 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
                 crate::paint::paint(doc, painter, rects, row.node);
             }
         }
-    }
-
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        children.extend(self.placed.iter().map(|row| row.node));
     }
 
     fn children(&self) -> Vec<NodeId> {
@@ -447,6 +427,15 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
             .collect::<Vec<_>>()
             .join(" ");
         (!detail.is_empty()).then_some(detail)
+    }
+
+    fn properties(&self) -> Vec<(&'static str, String)> {
+        vec![
+            ("direction", format!("{:?}", self.direction)),
+            ("rows", self.metrics.count.to_string()),
+            ("realized", self.placed.len().to_string()),
+            ("estimated row length", self.metrics.estimated.to_string()),
+        ]
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -494,13 +483,9 @@ impl Document {
         if self.arena.get_as::<VirtualListNode<(K, usize)>>(list).keys == keys {
             return;
         }
-        let evicted = self
-            .arena
+        self.arena
             .get_mut_as::<VirtualListNode<(K, usize)>>(list)
             .set_keys(keys);
-        for row in evicted {
-            self.remove_node(row);
-        }
     }
 
     pub fn virtual_list_offset<K: Clone + Hash + Eq + 'static>(

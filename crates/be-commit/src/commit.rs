@@ -59,6 +59,8 @@ pub struct Commit {
     pub time: i64,
     pub kind: CommitKind,
     pub references: Vec<Uuid>,
+    #[serde(with = "be_store::bytes")]
+    pub metadata: Vec<u8>,
 }
 
 impl Commit {
@@ -70,6 +72,7 @@ impl Commit {
             time,
             kind: CommitKind::Autosave,
             references: Vec::new(),
+            metadata: Vec::new(),
         }
     }
 
@@ -85,6 +88,11 @@ impl Commit {
 
     pub fn with_kind(mut self, kind: CommitKind) -> Self {
         self.kind = kind;
+        self
+    }
+
+    pub fn with_metadata(mut self, metadata: Vec<u8>) -> Self {
+        self.metadata = metadata;
         self
     }
 

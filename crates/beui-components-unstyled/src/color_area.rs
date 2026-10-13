@@ -11,7 +11,7 @@ use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Callback, Interactive, Memo, Prop, ReadSignal, Render, clone, component_accessibility,
-    component_rect, create_effect, create_memo, create_signal, set_component_state,
+    create_effect, create_memo, create_signal, set_component_state,
 };
 
 const STEP: f32 = 0.01;
@@ -84,46 +84,34 @@ pub fn ColorArea(
         }
     };
     let (drag_set, key_set, step_set) = (set.clone(), set.clone(), set);
-    let placed = component_rect();
     let grab = Rc::new(Cell::new(Vec2::ZERO));
-    let (press_grab, press_rect, press_color) = (grab.clone(), placed.clone(), color.clone());
+    let (press_grab, press_color) = (grab.clone(), color.clone());
     let grabbed = move |press: PointerPress| {
-        let rect = press_rect.get_untracked();
         let color = press_color.get_untracked();
-        let centre = pos2(
-            rect.left() + color.saturation * rect.width(),
-            rect.top() + (1.0 - color.value) * rect.height(),
-        );
-        let offset = centre - press.pos;
+        let offset = thumb_centre(press.size, color) - press.local;
         let on_thumb = thumb > 0.0 && offset.length() <= thumb / 2.0;
         press_grab.set(if on_thumb { offset } else { Vec2::ZERO });
     };
-    let drag_rect = placed.clone();
     let dragged_to = move |press: PointerPress| {
-        let rect = drag_rect.get_untracked();
-        let target = press.pos + grab.get();
-        match rect.width() > 0.0 && rect.height() > 0.0 {
+        let size = press.size;
+        let target = press.local + grab.get();
+        match size.x > 0.0 && size.y > 0.0 {
             true => (
-                ((target.x - rect.left()) / rect.width()).clamp(0.0, 1.0),
-                ((target.y - rect.top()) / rect.height()).clamp(0.0, 1.0),
+                (target.x / size.x).clamp(0.0, 1.0),
+                (target.y / size.y).clamp(0.0, 1.0),
             ),
             false => (press.fraction.x, press.fraction.y),
         }
     };
-    let (pointer, set_pointer) = create_signal(None::<Pos2>);
-    let cursor = create_memo(clone!(color placed dragging hovered -> move || {
+    let (pointer, set_pointer) = create_signal(None::<PointerPress>);
+    let cursor = create_memo(clone!(color dragging hovered -> move || {
         if dragging.get() {
             return CursorIcon::Grabbing;
         }
         let over = hovered.get()
-            && pointer.get().is_some_and(|pos| {
-                let rect = placed.get();
-                let color = color.get();
-                let centre = pos2(
-                    rect.left() + color.saturation * rect.width(),
-                    rect.top() + (1.0 - color.value) * rect.height(),
-                );
-                thumb > 0.0 && (centre - pos).length() <= thumb / 2.0
+            && pointer.get().is_some_and(|press| {
+                let centre = thumb_centre(press.size, color.get());
+                thumb > 0.0 && (centre - press.local).length() <= thumb / 2.0
             });
         match over {
             true => CursorIcon::Grab,
@@ -177,7 +165,7 @@ pub fn ColorArea(
             cursor
             touch_drags=true
             on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
-            on_hover_move={move |press: PointerPress| set_pointer.set(Some(press.pos))}
+            on_hover_move={move |press: PointerPress| set_pointer.set(Some(press))}
             on_press={grabbed}
             on_drag={move |press: PointerPress| {
                 let (x, y) = dragged_to(press);
@@ -190,6 +178,10 @@ pub fn ColorArea(
             children={content_node}
         />
     }
+}
+
+fn thumb_centre(size: Vec2, color: Hsva) -> Pos2 {
+    pos2(color.saturation * size.x, (1.0 - color.value) * size.y)
 }
 
 pub fn color_area_value(document: &Document, area: NodeId) -> Hsva {

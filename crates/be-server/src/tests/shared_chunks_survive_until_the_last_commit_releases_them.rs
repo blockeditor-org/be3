@@ -30,11 +30,13 @@ async fn shared_chunks_survive_until_the_last_commit_releases_them() {
             block,
             commit: first,
             expected: None,
+            parents: Vec::new(),
             chunks: first_chunks.clone(),
             time: 1_000,
             pinned: false,
             references_added: Vec::new(),
             references_removed: Vec::new(),
+            metadata: Vec::new(),
         })
         .await;
     client
@@ -46,11 +48,13 @@ async fn shared_chunks_survive_until_the_last_commit_releases_them() {
             block,
             commit: second,
             expected: Some(first),
+            parents: Some(first).into_iter().collect(),
             chunks: second_chunks.clone(),
             time: 2_000,
             pinned: false,
             references_added: Vec::new(),
             references_removed: Vec::new(),
+            metadata: Vec::new(),
         })
         .await;
 

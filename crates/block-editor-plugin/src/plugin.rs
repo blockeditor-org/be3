@@ -2,7 +2,7 @@ use std::time::Duration;
 
 #[cfg(target_arch = "wasm32")]
 use block_plugin_api::SurfaceRect;
-use block_plugin_api::{CursorIcon, EditorRegion, FrameChrome, FrameSpec, InputEvent};
+use block_plugin_api::{CursorIcon, EditorRegion, FrameChrome, FrameSpec, InputEvent, KeyChord};
 use geometry::{Rect, Vec2};
 use uuid::Uuid;
 
@@ -51,6 +51,17 @@ pub trait Instance: std::any::Any {
 
     fn input(&mut self, region: &Region, event: &InputEvent);
 
+    fn run_action(&mut self, _region: &Region, _id: &str) {}
+
+    fn node_action(
+        &mut self,
+        _region: &Region,
+        _node: usize,
+        _action: &str,
+        _value: Option<block_plugin_api::NodeValue>,
+    ) {
+    }
+
     fn update(&mut self, region: &Region, settings: Option<&mut Vec<u8>>) -> Frame;
 
     #[cfg(target_arch = "wasm32")]
@@ -65,6 +76,15 @@ pub struct Region {
     pub pixels: [u32; 2],
     pub age: u32,
     pub spec: FrameSpec,
+    pub monitors: Vec<RegionMonitor>,
+    pub describe: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct RegionMonitor {
+    pub id: String,
+    pub name: String,
+    pub rect: Rect,
 }
 
 impl Region {
@@ -77,12 +97,48 @@ impl Region {
 pub struct Frame {
     pub changed: bool,
     pub repaint_after: Option<Duration>,
-    pub cursor: CursorIcon,
     pub content: Option<Rect>,
     pub painted: Vec<Rect>,
     pub floating: Vec<Rect>,
+    pub claims: Vec<Claim>,
+    pub window: WindowRequests,
+    pub description: Option<Description>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct WindowRequests {
+    pub cursor: CursorIcon,
     pub ime: Option<Ime>,
     pub handles_back: bool,
+    pub wants_keyboard: bool,
+    pub intercepted_keys: Vec<KeyChord>,
+    pub pastes: Vec<block_plugin_api::PasteKind>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Description {
+    pub nodes: Vec<DescribedNode>,
+    pub test_ids: Vec<(String, Rect)>,
+    pub actions: Vec<block_plugin_api::DescribedAction>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct DescribedNode {
+    pub depth: u16,
+    pub role: String,
+    pub label: String,
+    pub value: String,
+    pub toggled: Option<block_plugin_api::Toggled>,
+    pub disabled: bool,
+    pub focused: bool,
+    pub rect: Option<Rect>,
+    pub actions: Vec<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Claim {
+    pub modifiers: block_plugin_api::Modifiers,
+    pub rect: Rect,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -90,7 +146,7 @@ pub struct Ime {
     pub rect: Rect,
     pub cursor: Rect,
     pub text: Option<block_plugin_api::ImeText>,
-    pub keyboard: bool,
+    pub keyboard: block_plugin_api::Keyboard,
 }
 
 #[cfg(target_arch = "wasm32")]

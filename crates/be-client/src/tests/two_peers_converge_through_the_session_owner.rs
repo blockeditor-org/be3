@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{TextContent, TextOp};
+use be_block::{TextBlock, TextContent};
 
 #[tokio::test]
 async fn two_peers_converge_through_the_session_owner() {
@@ -11,7 +11,7 @@ async fn two_peers_converge_through_the_session_owner() {
         .await
         .unwrap();
     first
-        .save(block, &TextContent::from("hello world"), None)
+        .save(block, &TextBlock::of("hello world"), None)
         .await
         .unwrap();
 
@@ -27,29 +27,29 @@ async fn two_peers_converge_through_the_session_owner() {
 
     assert!(owner.is_owner());
     assert!(!follower.is_owner());
-    assert_eq!(owner.content().text(), "hello world");
-    assert_eq!(follower.content().text(), "hello world");
+    assert_eq!(owner.content().to_text(), "hello world");
+    assert_eq!(follower.content().to_text(), "hello world");
 
-    owner.edit(TextOp::insert(0, ">> ")).await.unwrap();
-    follower.edit(TextOp::insert(11, "!")).await.unwrap();
+    type_at(&mut owner, 0, ">> ").await;
+    type_at(&mut follower, 11, "!").await;
     settle(&mut [&mut owner, &mut follower]).await;
 
     assert_eq!(
-        owner.content().text(),
+        owner.content().to_text(),
         ">> hello world!",
         "the owner did not absorb the follower's concurrent edit"
     );
     assert_eq!(
-        follower.content().text(),
-        owner.content().text(),
+        follower.content().to_text(),
+        owner.content().to_text(),
         "the peers did not converge"
     );
 
-    follower.edit(TextOp::delete(3, 5)).await.unwrap();
-    follower.edit(TextOp::insert(3, "goodbye")).await.unwrap();
+    erase(&mut follower, 3..8).await;
+    type_at(&mut follower, 3, "goodbye").await;
     settle(&mut [&mut owner, &mut follower]).await;
-    assert_eq!(follower.content().text(), ">> goodbye world!");
-    assert_eq!(owner.content().text(), follower.content().text());
+    assert_eq!(follower.content().to_text(), ">> goodbye world!");
+    assert_eq!(owner.content().to_text(), follower.content().to_text());
 
     let saved = owner.seal().await.unwrap();
     let head = saved.published().expect("the owner sealed a commit");
@@ -60,7 +60,7 @@ async fn two_peers_converge_through_the_session_owner() {
             .await
             .unwrap()
             .unwrap()
-            .text(),
+            .to_text(),
         ">> goodbye world!"
     );
     assert_eq!(owner.head(), Some(head));

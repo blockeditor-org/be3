@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::TextContent;
+use be_block::{TextBlock, TextContent};
 use be_commit::MergeResult;
 
 #[tokio::test]
@@ -14,7 +14,7 @@ async fn an_offline_edit_elsewhere_merges_cleanly() {
 
     let base = "title\n\nfirst paragraph\n\nsecond paragraph\n";
     let shared = author
-        .save(block, &TextContent::from(base), None)
+        .save(block, &TextBlock::of(base), None)
         .await
         .unwrap()
         .published()
@@ -24,7 +24,7 @@ async fn an_offline_edit_elsewhere_merges_cleanly() {
     online
         .save(
             block,
-            &TextContent::from(
+            &TextBlock::of(
                 base.replace("second paragraph", "second paragraph, revised")
                     .as_str(),
             ),
@@ -40,7 +40,7 @@ async fn an_offline_edit_elsewhere_merges_cleanly() {
         .commits()
         .write(
             TextContent::CONTENT_TYPE,
-            TextContent::from(
+            TextBlock::of(
                 base.replace("first paragraph", "first paragraph, expanded")
                     .as_str(),
             )
@@ -63,7 +63,7 @@ async fn an_offline_edit_elsewhere_merges_cleanly() {
         "edits to separate paragraphs conflicted"
     );
 
-    let merged = session.content().text();
+    let merged = session.content().to_text();
     assert!(merged.contains("first paragraph, expanded"), "{merged}");
     assert!(merged.contains("second paragraph, revised"), "{merged}");
     assert!(!merged.contains("<<<<<<<"), "{merged}");
@@ -74,7 +74,7 @@ async fn an_offline_edit_elsewhere_merges_cleanly() {
             .await
             .unwrap()
             .unwrap()
-            .text(),
+            .to_text(),
         merged
     );
     let history = online.history(block).await.unwrap();

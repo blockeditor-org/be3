@@ -1,5 +1,5 @@
 use std::ffi::CStr;
-use std::os::fd::{AsFd, AsRawFd, IntoRawFd};
+use std::os::fd::{AsFd, AsRawFd, FromRawFd, IntoRawFd, OwnedFd};
 
 use ash::vk;
 use smithay::backend::allocator::dmabuf::Dmabuf;
@@ -101,6 +101,7 @@ pub struct Vulkan {
     device: ash::Device,
     physical: vk::PhysicalDevice,
     memory_fd: ash::khr::external_memory_fd::Device,
+    semaphore_fd: Option<ash::khr::external_semaphore_fd::Device>,
     modifiers: bool,
     render_node: Option<u64>,
 }
@@ -168,12 +169,16 @@ impl Vulkan {
         let raw = hal.raw_device().clone();
         let physical = hal.raw_physical_device();
         let memory_fd = ash::khr::external_memory_fd::Device::new(&instance, &raw);
+        let semaphore_fd = enabled
+            .contains(&ash::khr::external_semaphore_fd::NAME)
+            .then(|| ash::khr::external_semaphore_fd::Device::new(&instance, &raw));
         let render_node = render_node(&instance, physical);
         Some(Self {
             instance,
             device: raw,
             physical,
             memory_fd,
+            semaphore_fd,
             modifiers,
             render_node,
         })
@@ -181,6 +186,36 @@ impl Vulkan {
 
     pub fn render_node(&self) -> Option<u64> {
         self.render_node
+    }
+
+    pub fn sync_files(&self) -> Option<SyncFiles> {
+        let semaphore_fd = self.semaphore_fd.clone()?;
+        let info = vk::PhysicalDeviceExternalSemaphoreInfo::default()
+            .handle_type(vk::ExternalSemaphoreHandleTypeFlags::SYNC_FD);
+        let mut properties = vk::ExternalSemaphoreProperties::default();
+        unsafe {
+            self.instance
+                .get_physical_device_external_semaphore_properties(
+                    self.physical,
+                    &info,
+                    &mut properties,
+                )
+        };
+        if !properties
+            .external_semaphore_features
+            .contains(vk::ExternalSemaphoreFeatureFlags::EXPORTABLE)
+        {
+            return None;
+        }
+        let mut export = vk::ExportSemaphoreCreateInfo::default()
+            .handle_types(vk::ExternalSemaphoreHandleTypeFlags::SYNC_FD);
+        let create = vk::SemaphoreCreateInfo::default().push_next(&mut export);
+        let semaphore = unsafe { self.device.create_semaphore(&create, None) }.ok()?;
+        Some(SyncFiles {
+            device: self.device.clone(),
+            semaphore_fd,
+            semaphore,
+        })
     }
 
     pub fn formats(&self, usage: Usage) -> Vec<Format> {
@@ -453,6 +488,43 @@ impl Vulkan {
             return Err(format!("the buffer's memory could not be bound: {error}"));
         }
         Ok(memory)
+    }
+}
+
+pub struct SyncFiles {
+    device: ash::Device,
+    semaphore_fd: ash::khr::external_semaphore_fd::Device,
+    semaphore: vk::Semaphore,
+}
+
+impl SyncFiles {
+    pub fn submit(
+        &self,
+        queue: &wgpu::Queue,
+        commands: wgpu::CommandBuffer,
+    ) -> Result<Option<OwnedFd>, String> {
+        let signalled = unsafe { queue.as_hal::<Api>() }
+            .map(|hal| hal.add_signal_semaphore(self.semaphore, None))
+            .is_some();
+        queue.submit([commands]);
+        if !signalled {
+            return Err("the queue is not a Vulkan queue".to_owned());
+        }
+        let info = vk::SemaphoreGetFdInfoKHR::default()
+            .semaphore(self.semaphore)
+            .handle_type(vk::ExternalSemaphoreHandleTypeFlags::SYNC_FD);
+        let fd = unsafe { self.semaphore_fd.get_semaphore_fd(&info) }
+            .map_err(|error| format!("the submission's fence could not be exported: {error}"))?;
+        Ok((fd >= 0).then(|| unsafe { OwnedFd::from_raw_fd(fd) }))
+    }
+}
+
+impl Drop for SyncFiles {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = self.device.device_wait_idle();
+            self.device.destroy_semaphore(self.semaphore, None);
+        }
     }
 }
 

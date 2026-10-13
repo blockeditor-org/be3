@@ -177,14 +177,11 @@ impl EntityPaint {
     }
 
     fn draw_pen(&self, painter: &Painter, color: Color32, width: f32, points: &[CanvasPoint]) {
-        for window in points.windows(2) {
-            painter.line(
-                self.at(local_to_world(self.entity.transform, window[0])),
-                self.at(local_to_world(self.entity.transform, window[1])),
-                width,
-                color,
-            );
-        }
+        let points: Vec<Pos2> = points
+            .iter()
+            .map(|point| self.at(local_to_world(self.entity.transform, *point)))
+            .collect();
+        stroke(painter, &points, width, color);
     }
 
     fn draw_text(
@@ -479,4 +476,17 @@ pub(crate) fn measure_text(entity: &CanvasEntity, scale: f32) -> Option<Vec2> {
     )?;
     let size = galley.size();
     Some(Vec2::new(size.x / scale, size.y / scale))
+}
+
+pub(crate) fn stroke(painter: &Painter, points: &[Pos2], width: f32, color: Color32) {
+    if let [dot] = points {
+        painter.rect_filled(
+            Rect::from_center_size(*dot, Vec2::splat(width)),
+            width / 2.0,
+            color,
+        );
+    }
+    for window in points.windows(2) {
+        painter.line(window[0], window[1], width, color);
+    }
 }

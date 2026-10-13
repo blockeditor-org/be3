@@ -310,7 +310,7 @@ for it, whether or not it is paused itself. This is what keeps a hidden
 ## beui integration
 
 `beui::reactive` (re-exporting `create_signal`, `create_effect`, `create_memo`,
-`create_selector`, `clone!`, `Scope`, `batch`, `settle`, `untrack`, `on_cleanup`,
+`create_selector`, `clone!`, `Scope`, `batch`, `untrack`, `on_cleanup`,
 `provide_context`, and `use_context` from this crate) binds signals and
 memos directly to `Document` nodes. Nothing in a view takes a `&mut Document`
 parameter, so tags nest the way JSX or solidjs would nest them: write the tree
@@ -603,7 +603,9 @@ that state on its own — a click moves focus, a scrim click dismisses an overla
 pair the prop with the matching callback and write the signal back:
 `on_focus_change` for `focused` and `on_dismiss` for `open`. Without the write
 back the signal goes stale and the next write of the value it already holds
-changes nothing.
+changes nothing. `on_dismiss` reports only the document closing the overlay,
+never the owner writing `open` false, so it can mean "cancel" without guarding
+against the owner's own close.
 
 A `Selector` is the natural source for `focused` in a list: keep one signal
 naming the row that should have focus and give each row `focused={selection
@@ -737,12 +739,14 @@ like any other wrapper.
 Layout sizes are available reactively: `node_size(id)` returns a
 `ReadSignal<Vec2>` that the document updates from that node's laid-out rect.
 `Document::show` runs layout, publishes the sizes that changed, and lets the
-effects that woke up rebuild before it lays out again — up to a few passes per
-frame — so a size-driven change is visible in the frame that caused it rather
-than one frame later. The signal reads `Vec2::ZERO` until the first layout.
+effects that woke up rebuild before it lays out what they changed again, so a
+size-driven change is visible in the frame that caused it rather than one frame
+later. The signal reads `Vec2::ZERO` until the first layout.
 
-`unstyled::container` ties the two together: it measures its returned base node,
-provides that size as `ContainerSize`, and hands the signal to its `content`
+`unstyled::container` ties the two together: it is a `LayoutBuilder`, which
+builds its content in a scope of its own under the caller's, the way `Show`
+and `Dynamic` do, so context the caller provides still reaches it. It provides
+the size it is laid out at as `ContainerSize`, and hands the signal to its `content`
 render prop. Anything below it can then ask `container_size()`, or
 `narrower_than(width)` for a `Memo<bool>` that is true when the nearest container
 is narrower than `width` (false when nothing provides a size, and false until the
@@ -759,45 +763,57 @@ Measuring a node whose size depends on its own content — an intrinsically size
 container whose children react to its width — can oscillate. Give containers a
 width that comes from their parent.
 
-Each `Document` owns a root `reactive::Scope` (`Document::reactive_scope`), and
-every `#[component]` owns a scope of its own, registered against the base node
-it returns. Several component scopes can share a node when wrapper components
-return the same base node. A component's scope is a child of the scope that
-built it. `Document::remove_node` disposes every scope registered against the
-subtree it removes: the effects that were created while building those nodes
-stop, and the `on_cleanup` callbacks they registered run. Without that, an
-effect left alive by a removed component panics with "node was removed" the next
-time one of its inputs changes.
+Each `Document` owns a root `reactive::Scope` (`Document::reactive_scope`).
+Every node belongs to the scope that was current when it was created, just as an
+effect does, and disposing that scope removes the nodes it still owns: a scope's
+nodes, effects and `on_cleanup` callbacks go together. Every `#[component]`
+runs in a child scope of the scope that built it, which it hands back to that
+scope, so a component lives exactly as long as its caller. Code built directly
+in `build`'s closure belongs to the document's root scope and lives as long as
+the document.
 
-Effects created outside any component body — directly in `build`'s closure, for
-instance — belong to the document's root scope and live as long as the document.
-`show`, `dynamic`, `keyed`, `for_each`, and `VirtualList` open a scope per child they
-build, registered against that child's node, so dropping a row or scrolling one
-out of view disposes exactly that row's effects. Any other code that builds a subtree
-it will later remove on its own must do the same, with `in_new_scope`; building
-it in the enclosing component's scope instead leaves the subtree's effects alive
-after `remove_node` and they panic the next time an input changes.
+`Show`, `Dynamic`, `Keyed`, `ForEach` and `VirtualList` build each child in a
+scope of its own and drop that scope to drop the child: `Show` disposes its
+child's scope when it hides it, where `ShowKeepAlive` pauses it. Anything else
+that drops part of a view on its own keeps a `Scope` for it and drops that,
+as the dock does for each tab's panel; nothing removes nodes by hand.
 
-An effect that writes one particular node belongs to that node rather than to
-whichever scope is running: `bind(node, || ...)` creates it in a scope
-registered against the node, so removing the node stops it wherever it was
-written. A `NodeRef` lets go of its node when the node is removed, so an effect
-that reaches a node through `try_get` finds nothing rather than a removed id.
+The scope that owns a node and the node that holds it can differ. When a node is
+removed, its children that belong to another, still-live scope are detached
+rather than removed, and live on until their own scope goes, which is what lets
+a `Portal` show a subtree built elsewhere. The other way round, a node whose
+scope is disposed while a parent still holds it leaves that parent holding a
+removed id, so take a child out of its parent before dropping its scope, as the
+control-flow components do by filling their slot first.
+
+An effect that writes one particular node belongs with that node rather than
+with whichever scope is running: `bind(node, || ...)` creates it in the scope
+that owns the node, so it stops when the node goes, wherever it was written.
+A `NodeRef` lets go of its node when the node is removed, so an effect that
+reaches a node through `try_get` finds nothing rather than a removed id.
 
 None of these functions hold `&mut Document` across a call boundary: each reads
 it back out of a thread-local (`with_document`) installed by whichever ambient
 context is active, and releases it before returning. `build` installs the
 document (and enters its scope, so a `Prop` bound to a signal can create its
 effect) for the duration of the tree-building closure. `Document::show` installs
-itself before dispatching interaction events and flushes queued effects
-immediately after, before the frame's paint check, so a signal write from a
-click handler is visible in the same frame.
+itself for each event it dispatches and flushes the effects that event queued
+before the next one, outside any walk, so a signal write from a click handler
+is visible in the same frame and to the events after it. A write inside a
+batch is seen by effects when the outermost batch ends, with one exception:
+`ScopeContext::flush_owned` (and `Scope::flush_owned`) runs, there and then,
+the queued effects owned by that scope and the scopes under it, and leaves
+every other effect queued. `KeyedItems::entry_owned` builds an entry and
+flushes its scope that way. This is what a node uses to build its own subtree
+during layout (see "One layout per frame" in the beui guide); nothing else
+should need it.
 
-`settle` runs a closure and then flushes the effects it queued even when an
-outer batch is still open. `VirtualList` builds each row inside one, because it
-measures the row immediately afterwards and the row's own props are applied by
-effects; without it a row would measure as empty and the list would build every
-item in the collection on its first frame.
+Disposing a scope never removes its nodes on the spot. Each node's cleanup
+queues its id with the document that made it, and the document removes them
+once the code that disposed the scope has returned: after each event, after
+layout, and when `with_reactive_scope` returns. A node therefore never leaves
+the arena while something is walking it, and a scope disposed while another
+document is installed still removes its nodes from its own.
 
 `with_document` asserts when no document is installed at all; nested calls are
 fine, and reach the same installed document. Event handlers are plain `FnMut`

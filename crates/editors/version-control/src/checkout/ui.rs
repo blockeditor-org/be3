@@ -43,6 +43,7 @@ fn conflict_label(kind: ConflictKind) -> &'static str {
         ConflictKind::Placement => "Both sides moved it",
         ConflictKind::Name => "Both sides renamed it",
         ConflictKind::EditedAndRemoved => "Changed on one side and removed on the other",
+        ConflictKind::Metadata => "Both sides changed its details",
     }
 }
 

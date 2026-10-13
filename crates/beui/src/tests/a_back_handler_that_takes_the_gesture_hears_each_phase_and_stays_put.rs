@@ -21,7 +21,7 @@ fn a_back_handler_that_takes_the_gesture_hears_each_phase_and_stays_put() {
     });
 
     let mut harness = Harness::new(document);
-    assert!(harness.frame(Vec::new()).handles_back);
+    assert!(harness.frame(Vec::new()).window.handles_back);
     let resting = harness.rect(page.get());
 
     let started = BackGesture::Started {

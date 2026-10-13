@@ -297,6 +297,7 @@ fn PointList(state: Rc<MapState>) -> NodeId {
             <Show condition={empty}>
                 <Caption
                     content="Add blocks with the + button, by dragging them in from Files, or by pasting an image."
+                    wrap=true
                     color={hint.clone()}
                 />
             </Show>

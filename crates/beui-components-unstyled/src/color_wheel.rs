@@ -12,7 +12,7 @@ use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Callback, Interactive, Memo, Prop, ReadSignal, Render, clone, component_accessibility,
-    component_rect, create_effect, create_memo, create_signal, set_component_state,
+    create_effect, create_memo, create_signal, set_component_state,
 };
 
 const STEP: f32 = 0.01;
@@ -239,12 +239,12 @@ pub fn ColorWheel(
         }
     };
     let (drag_set, key_set, step_set) = (set.clone(), set.clone(), set);
-    let placed = component_rect();
-    let geometry = move |rect: Rect| WheelGeometry::new(rect, ring_width);
+    let geometry =
+        move |size: Vec2| WheelGeometry::new(Rect::from_min_size(Pos2::ZERO, size), ring_width);
     let over_thumb = {
         let point = point.clone();
-        move |rect: Rect, pos: Pos2| {
-            let wheel = geometry(rect);
+        move |press: PointerPress| {
+            let (wheel, pos) = (geometry(press.size), press.local);
             let point = point.get_untracked();
             [
                 (Part::Triangle, wheel.point(point)),
@@ -259,11 +259,10 @@ pub fn ColorWheel(
     };
     let part = Rc::new(Cell::new(Part::Triangle));
     let grab = Rc::new(Cell::new(Vec2::ZERO));
-    let grabbed = clone!(part grab placed over_thumb -> move |press: PointerPress| {
-        let rect = placed.get_untracked();
-        let (pressed, offset) = match over_thumb(rect, press.pos) {
-            Some((pressed, centre)) => (pressed, centre - press.pos),
-            None => match geometry(rect).on_ring(press.pos) {
+    let grabbed = clone!(part grab over_thumb -> move |press: PointerPress| {
+        let (pressed, offset) = match over_thumb(press) {
+            Some((pressed, centre)) => (pressed, centre - press.local),
+            None => match geometry(press.size).on_ring(press.local) {
                 true => (Part::Ring, Vec2::ZERO),
                 false => (Part::Triangle, Vec2::ZERO),
             },
@@ -272,26 +271,36 @@ pub fn ColorWheel(
         grab.set(offset);
     });
     let drag_point = point.clone();
-    let dragged_to = clone!(placed -> move |press: PointerPress| {
-        let wheel = geometry(placed.get_untracked());
-        let target = press.pos + grab.get();
+    let dragged_to = move |press: PointerPress| {
+        let wheel = geometry(press.size);
+        let target = press.local + grab.get();
         let current = drag_point.get_untracked();
         match part.get() {
-            Part::Ring => WheelPoint { hue: wheel.hue_at(target), ..current },
+            Part::Ring => WheelPoint {
+                hue: wheel.hue_at(target),
+                ..current
+            },
             Part::Triangle => match wheel.triangle_at(current.hue, target) {
-                Some((saturation, value)) => WheelPoint { saturation, value, ..current },
-                None => WheelPoint { value: 0.0, ..current },
+                Some((saturation, value)) => WheelPoint {
+                    saturation,
+                    value,
+                    ..current
+                },
+                None => WheelPoint {
+                    value: 0.0,
+                    ..current
+                },
             },
         }
-    });
-    let (pointer, set_pointer) = create_signal(None::<Pos2>);
-    let cursor = create_memo(clone!(point placed dragging hovered -> move || {
+    };
+    let (pointer, set_pointer) = create_signal(None::<PointerPress>);
+    let cursor = create_memo(clone!(point dragging hovered -> move || {
         if dragging.get() {
             return CursorIcon::Grabbing;
         }
         let _ = point.get();
         let over = hovered.get()
-            && pointer.get().is_some_and(|pos| over_thumb(placed.get(), pos).is_some());
+            && pointer.get().is_some_and(|press| over_thumb(press).is_some());
         match over {
             true => CursorIcon::Grab,
             false => CursorIcon::Crosshair,
@@ -342,7 +351,7 @@ pub fn ColorWheel(
             cursor
             touch_drags=true
             on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
-            on_hover_move={move |press: PointerPress| set_pointer.set(Some(press.pos))}
+            on_hover_move={move |press: PointerPress| set_pointer.set(Some(press))}
             on_press={grabbed}
             on_drag={move |press: PointerPress| drag_set(dragged_to(press))}
             on_active_change={move |active: bool| {

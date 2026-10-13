@@ -1,10 +1,12 @@
 use block_editor_beui::ResizeMode;
 use block_editor_beui::be_block::canvas::CanvasPoint;
-use block_editor_beui::beui::{Color32, FontId, Painter, Rect, TextAlign, TextLayout, Vec2, pos2};
+use block_editor_beui::beui::{
+    Color32, FontId, Painter, Pos2, Rect, TextAlign, TextLayout, Vec2, pos2,
+};
 
 use crate::geometry::*;
 
-use super::paint::{Camera, Palette, SELECTION, arrowhead, handle, outline};
+use super::paint::{Camera, Palette, SELECTION, arrowhead, handle, outline, stroke};
 use super::state::{Gesture, Presence, Tool};
 
 const HINT: &str = "Scroll or use two fingers to move around  ·  Pick a tool to draw\nDrop or paste images, or use Block to add content";
@@ -127,14 +129,8 @@ impl Overlay {
                 Tool::Select | Tool::Pen => {}
             },
             Some(Gesture::Pen { points }) => {
-                for window in points.windows(2) {
-                    painter.line(
-                        self.camera.at(window[0]),
-                        self.camera.at(window[1]),
-                        2.0,
-                        color,
-                    );
-                }
+                let points: Vec<Pos2> = points.iter().map(|point| self.camera.at(*point)).collect();
+                stroke(painter, &points, 2.0, color);
             }
             Some(Gesture::SelectBox {
                 start,

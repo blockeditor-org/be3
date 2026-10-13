@@ -1,4 +1,4 @@
-use crate::{Change, Edit, Tree};
+use crate::{Change, Edit, SeqOp, Tree};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Step {
@@ -16,7 +16,7 @@ impl Step {
     }
 
     pub fn absorb(&mut self, next: Self) -> Result<(), Self> {
-        if strokes(&self.redo, &next.redo) {
+        if strokes(&self.redo, &next.redo) || typing(&self.redo, &next.redo) {
             self.undo.extend(next.undo);
             self.redo.extend(next.redo);
             return Ok(());
@@ -78,6 +78,27 @@ fn strokes(done: &[Change], following: &[Change]) -> bool {
                 field: into,
                 ..
             } if painted == object && into == field
+        )
+    })
+}
+
+fn typing(done: &[Change], following: &[Change]) -> bool {
+    let Some(Change::Text { object, field, op }) = done.first() else {
+        return false;
+    };
+    let deleting = matches!(op, SeqOp::Delete { .. });
+    let burst = |op: &SeqOp<u8>| match deleting {
+        true => matches!(op, SeqOp::Delete { .. }),
+        false => matches!(op, SeqOp::Undelete { .. }),
+    };
+    done.iter().chain(following).all(|change| {
+        matches!(
+            change,
+            Change::Text {
+                object: edited,
+                field: into,
+                op,
+            } if edited == object && into == field && burst(op)
         )
     })
 }

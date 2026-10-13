@@ -33,7 +33,7 @@ fn picking_a_hidden_node_reveals_it_when_the_reveal_button_is_clicked() {
     harness.toggle_inspector();
     assert_eq!(
         harness.tree(),
-        ["column", "  frame", "    frame", "      frame"]
+        ["list", "  frame", "    frame", "      frame"]
     );
 
     harness.toggle_picking();
@@ -51,7 +51,7 @@ fn picking_a_hidden_node_reveals_it_when_the_reveal_button_is_clicked() {
     assert_eq!(harness.inspector().state.selected.get(), Some(text));
     assert_eq!(
         harness.tree(),
-        ["column", "  frame", "    frame", "      frame"],
+        ["list", "  frame", "    frame", "      frame"],
         "picking a node leaves the tree as it was"
     );
     assert!(harness.reveal_shown(), "a hidden pick offers to reveal it");
@@ -62,7 +62,7 @@ fn picking_a_hidden_node_reveals_it_when_the_reveal_button_is_clicked() {
     assert_eq!(
         harness.tree(),
         [
-            "column",
+            "list",
             "  frame",
             "    frame",
             "      frame",

@@ -8,6 +8,7 @@ fn block_content_and_operations_round_trip() {
             block_id: [4; 16],
             content_type: [9; 16],
             bytes: vec![1, 2, 3, 4, 5, 6, 7, 8],
+            session: vec![9, 10],
             applied: 3,
         },
         EditorMessage::Content {
@@ -15,6 +16,7 @@ fn block_content_and_operations_round_trip() {
             block_id: [4; 16],
             content_type: [9; 16],
             bytes: Vec::new(),
+            session: Vec::new(),
             applied: 0,
         },
         EditorMessage::ContentOperations {

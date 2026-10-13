@@ -19,11 +19,13 @@ async fn a_stale_publish_is_rejected_with_the_current_head() {
             block,
             commit: base,
             expected: None,
+            parents: Vec::new(),
             chunks: base_chunks,
             time: 1_000,
             pinned: false,
             references_added: Vec::new(),
             references_removed: Vec::new(),
+            metadata: Vec::new(),
         })
         .await;
 
@@ -37,11 +39,13 @@ async fn a_stale_publish_is_rejected_with_the_current_head() {
             block,
             commit: ours,
             expected: None,
+            parents: Vec::new(),
             chunks: ours_chunks.clone(),
             time: 2_000,
             pinned: false,
             references_added: Vec::new(),
             references_removed: Vec::new(),
+            metadata: Vec::new(),
         })
         .await;
     assert!(
@@ -56,11 +60,13 @@ async fn a_stale_publish_is_rejected_with_the_current_head() {
             block,
             commit: ours,
             expected: Some(base),
+            parents: Some(base).into_iter().collect(),
             chunks: ours_chunks,
             time: 2_000,
             pinned: false,
             references_added: Vec::new(),
             references_removed: Vec::new(),
+            metadata: Vec::new(),
         })
         .await;
     assert!(

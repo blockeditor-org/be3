@@ -1,9 +1,9 @@
 use beui::reactive::{
-    Frame, List, clone, component, create_effect, create_memo, request_paste, untrack, view,
+    Frame, List, PickedFile, clone, component, create_effect, create_memo, untrack, view,
 };
 use beui::styled::{Button, ButtonVariant, TextArea};
 use beui::unstyled::{RemoteTextCursor, TextWidget};
-use beui::{Key, KeyPress, NodeId, Vec2};
+use beui::{NodeId, Vec2};
 use block_editor_beui::{Drag, block_ui::BlockLabel};
 use text_editor_core::{CursorLeftRightStop, CursorPosition, EditorCommand};
 
@@ -49,9 +49,6 @@ pub(crate) fn TextSurface(state: Shared) -> NodeId {
         }
     };
 
-    state
-        .editor
-        .on_reply(clone!(state -> move || take_paste(&state, false)));
     let dragged = state.editor.drag();
     create_effect(clone!(state -> move || {
         let drag = dragged.get();
@@ -81,7 +78,7 @@ pub(crate) fn TextSurface(state: Shared) -> NodeId {
     }));
 
     let press_state = state.clone();
-    let key_state = state.clone();
+    let paste_state = state.clone();
     let typing = state.set_typing.clone();
     view! {
         <TextArea
@@ -91,8 +88,9 @@ pub(crate) fn TextSurface(state: Shared) -> NodeId {
             drop_caret={drop_caret}
             @test_id={"text.surface"}
             on_widget_press={move |widget: usize| focus_embed(&press_state, widget)}
-            on_key_override={move |press: KeyPress| paste_key(&key_state, press)}
             on_focus_change={move |focused: bool| typing.set(focused)}
+            pastes_images=true
+            on_image_paste={move |image: PickedFile| paste_image(&paste_state, image)}
             block={embed_row}
             selected_widget={open_row}
         />
@@ -142,14 +140,6 @@ fn focus_embed(state: &Shared, widget: usize) -> bool {
         state.focus_confirmed.set(false);
     }
     true
-}
-
-fn paste_key(state: &Shared, press: KeyPress) -> bool {
-    if press.pressed && press.modifiers.ctrl && press.key == Key::V {
-        take_paste(state, true);
-        return true;
-    }
-    false
 }
 
 fn drop_target(state: &Shared, drag: Option<Drag>) -> Option<usize> {
@@ -212,24 +202,10 @@ fn take_drag(state: &Shared, drag: Option<Drag>) {
     state.text.reveal_cursor();
 }
 
-fn take_paste(state: &Shared, asked: bool) {
-    let pasted = state.paster.borrow_mut().paste(state.host(), asked);
-    let Some(pasted) = pasted else {
-        return;
-    };
-    match pasted {
-        block_editor_beui::PastedImage::Image { name, data } => {
-            let image = block_editor_beui::be_block::ImageContent::from_file(name, data);
-            let source_name = image.header().source_name.clone();
-            let id = state.create_image_block(&image);
-            state.insert_image_embed(id, &source_name);
-            state.set_import_error.set(None);
-        }
-        block_editor_beui::PastedImage::Failed(error) => {
-            state.set_import_error.set(Some(error));
-        }
-        block_editor_beui::PastedImage::Empty => {
-            request_paste();
-        }
-    }
+fn paste_image(state: &Shared, file: PickedFile) {
+    let image = block_editor_beui::be_block::ImageContent::from_file(file.name, file.data);
+    let source_name = image.header().source_name.clone();
+    let id = state.create_image_block(&image);
+    state.insert_image_embed(id, &source_name);
+    state.set_import_error.set(None);
 }

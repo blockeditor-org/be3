@@ -12,5 +12,7 @@ fn keysyms_map_to_the_keys_beui_knows() {
     assert_eq!(key(keysyms::KEY_F12), Some(Key::F12));
     assert_eq!(key(keysyms::KEY_KP_Enter), Some(Key::Enter));
     assert_eq!(key(keysyms::KEY_ISO_Left_Tab), Some(Key::Tab));
-    assert_eq!(key(keysyms::KEY_Shift_L), None, "modifiers are not keys");
+    assert_eq!(key(keysyms::KEY_Shift_L), Some(Key::Shift));
+    assert_eq!(key(keysyms::KEY_Super_R), Some(Key::Logo));
+    assert_eq!(key(keysyms::KEY_Caps_Lock), None, "locks are not keys");
 }

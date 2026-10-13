@@ -3,9 +3,9 @@ use beui_macros::{component, view};
 
 use crate as unstyled;
 use crate::ButtonHandle;
-use crate::context_menu::MenuStyle;
 use crate::menu::MenuItem;
-use crate::menu_button::{MenuButtonHandle, MenuSheet};
+use crate::menu_button::MenuButtonHandle;
+use crate::menu_popup::MenuStyle;
 use beui_core::base::Direction;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
@@ -21,7 +21,6 @@ pub fn SplitButton(
     #[prop(default = false)] disabled: Prop<bool>,
     items: Children<MenuItem>,
     #[prop(default = MenuStyle::default())] menu: MenuStyle,
-    sheet: Option<MenuSheet>,
     main: Render<ButtonHandle>,
     arrow: Render<MenuButtonHandle>,
     on_click: ClickCallback,
@@ -48,7 +47,6 @@ pub fn SplitButton(
                 label={menu_label}
                 disabled
                 menu
-                sheet
                 trigger={arrow}
                 on_select={move |path: Vec<usize>| on_select.call(path)}
             />

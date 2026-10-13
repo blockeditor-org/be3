@@ -1,11 +1,12 @@
-use crate::base::embed::EmbedNode;
 use crate::base::interactive::InteractiveNode;
 use crate::base::list::Direction;
 use crate::context::Context;
 use crate::document::Document;
-use crate::geometry::{Pos2, Vec2};
-use crate::input::{AutoscrollGesture, CursorIcon, Event, Key};
-use crate::node::{Element, InteractInput, NodeId, Rects};
+use crate::geometry::Pos2;
+use crate::input::{
+    AutoscrollGesture, CursorIcon, Event, PointerButton, PointerEvent, PointerId, PointerPhase,
+};
+use crate::node::NodeId;
 
 pub const AUTOSCROLL_DEAD_ZONE: f32 = 10.0;
 
@@ -18,81 +19,82 @@ pub struct Autoscroll {
     travelled: bool,
 }
 
-pub struct Tracked {
-    pub input: InteractInput,
-    pub swallows_escape: bool,
+pub(crate) fn start(doc: &mut Document, target: NodeId, pos: Pos2) {
+    let autoscroll = Autoscroll {
+        target,
+        origin: pos,
+        pos,
+        held: true,
+        travelled: false,
+    };
+    doc.autoscroll = Some(autoscroll);
+    report(doc, &autoscroll, false);
 }
 
-pub fn track(
-    doc: &mut Document,
-    ctx: &Context,
-    rects: &Rects,
-    root: NodeId,
-    input: InteractInput,
-) -> Tracked {
-    let Some(mut autoscroll) = doc.autoscroll else {
-        return start(doc, rects, root, input);
+pub(crate) fn frame(doc: &mut Document, ctx: &Context) {
+    let Some(autoscroll) = doc.autoscroll else {
+        return;
     };
-    if !doc.contains(autoscroll.target) || catcher(doc, autoscroll.target).is_none() {
+    if catcher(doc, autoscroll.target).is_none() {
         doc.autoscroll = None;
-        return Tracked {
-            input,
-            swallows_escape: false,
-        };
+        return;
     }
-    let mut swallows_escape = false;
-    let mut ended = false;
-    for event in ctx.input(|input| input.events.clone()) {
-        match event {
-            Event::Key {
-                key, pressed: true, ..
-            } => {
-                ended = true;
-                swallows_escape |= key == Key::Escape;
+    let lost = ctx.input(|input| input.events.contains(&Event::Focus(false)));
+    if lost {
+        finish(doc, &autoscroll);
+    }
+}
+
+pub(crate) fn end(doc: &mut Document) -> bool {
+    let Some(autoscroll) = doc.autoscroll else {
+        return false;
+    };
+    finish(doc, &autoscroll);
+    true
+}
+
+pub(crate) fn pointer(doc: &mut Document, event: &PointerEvent) -> bool {
+    let Some(mut autoscroll) = doc.autoscroll else {
+        return false;
+    };
+    match event.phase {
+        PointerPhase::Down(_) => {
+            finish(doc, &autoscroll);
+            true
+        }
+        PointerPhase::Move if event.pointer == PointerId::Mouse => {
+            autoscroll.travelled |=
+                autoscroll.held && event.pos.distance(autoscroll.origin) > AUTOSCROLL_DEAD_ZONE;
+            if event.pos != autoscroll.pos {
+                autoscroll.pos = event.pos;
+                report(doc, &autoscroll, false);
             }
-            Event::Focus(false) => ended = true,
-            _ => {}
+            doc.autoscroll = Some(autoscroll);
+            false
         }
-    }
-    let pressed = input.pressed_this_frame
-        || input.secondary_pressed_this_frame
-        || input.middle_pressed_this_frame;
-    ended |= pressed || input.touch_started || input.scroll != Vec2::ZERO;
-    let input = match pressed || input.scroll != Vec2::ZERO {
-        false => input,
-        true => InteractInput {
-            pressed_this_frame: false,
-            secondary_pressed_this_frame: false,
-            middle_pressed_this_frame: false,
-            secondary_drag: input.secondary_drag.filter(|drag| !drag.started),
-            scroll: Vec2::ZERO,
-            scroll_fling: Vec2::ZERO,
-            ..input
-        },
-    };
-    if !ended && let Some(pos) = input.pointer_pos {
-        autoscroll.travelled |=
-            autoscroll.held && pos.distance(autoscroll.origin) > AUTOSCROLL_DEAD_ZONE;
-        if pos != autoscroll.pos {
-            autoscroll.pos = pos;
-            report(doc, &autoscroll, false);
+        PointerPhase::Up(PointerButton::Middle) if autoscroll.held => {
+            autoscroll.held = false;
+            match autoscroll.travelled {
+                true => finish(doc, &autoscroll),
+                false => doc.autoscroll = Some(autoscroll),
+            }
+            false
         }
-    }
-    if autoscroll.held && !input.middle_down {
-        autoscroll.held = false;
-        ended |= autoscroll.travelled;
-    }
-    doc.autoscroll = match ended {
-        true => {
-            report(doc, &autoscroll, true);
-            None
+        PointerPhase::Cancel | PointerPhase::Gone => {
+            finish(doc, &autoscroll);
+            false
         }
-        false => Some(autoscroll),
-    };
-    Tracked {
-        input,
-        swallows_escape,
+        PointerPhase::Scroll(_) => {
+            finish(doc, &autoscroll);
+            true
+        }
+        _ => false,
     }
+}
+
+fn finish(doc: &mut Document, autoscroll: &Autoscroll) {
+    doc.autoscroll = None;
+    report(doc, autoscroll, true);
 }
 
 pub fn show_cursor(doc: &Document, ctx: &Context) {
@@ -109,55 +111,8 @@ pub fn show_cursor(doc: &Document, ctx: &Context) {
     });
 }
 
-fn start(doc: &mut Document, rects: &Rects, root: NodeId, input: InteractInput) -> Tracked {
-    let untouched = Tracked {
-        input,
-        swallows_escape: false,
-    };
-    if !input.middle_pressed_this_frame {
-        return untouched;
-    }
-    let Some(pos) = input.pointer_pos else {
-        return untouched;
-    };
-    let Some(target) = super::target(doc, rects, root, Some(pos), &claims_middle) else {
-        return untouched;
-    };
-    if !catcher(doc, target).is_some_and(InteractiveNode::wants_autoscroll) {
-        return untouched;
-    }
-    let autoscroll = Autoscroll {
-        target,
-        origin: pos,
-        pos,
-        held: true,
-        travelled: false,
-    };
-    doc.autoscroll = Some(autoscroll);
-    report(doc, &autoscroll, false);
-    Tracked {
-        input: InteractInput {
-            middle_pressed_this_frame: false,
-            ..input
-        },
-        swallows_escape: false,
-    }
-}
-
-fn claims_middle(element: &dyn Element) -> bool {
-    let any = element.as_any();
-    any.is::<EmbedNode>()
-        || any
-            .downcast_ref::<InteractiveNode>()
-            .is_some_and(InteractiveNode::claims_middle)
-}
-
 fn catcher(doc: &Document, id: NodeId) -> Option<&InteractiveNode> {
-    doc.arena
-        .get(id)
-        .as_any()
-        .downcast_ref::<InteractiveNode>()
-        .filter(|catcher| catcher.wants_autoscroll())
+    super::hit::interactive(doc, id).filter(|catcher| catcher.wants_autoscroll())
 }
 
 fn report(doc: &Document, autoscroll: &Autoscroll, ended: bool) {

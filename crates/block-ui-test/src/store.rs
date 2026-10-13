@@ -13,6 +13,8 @@ trait Held: Any {
 
     fn encode(&self) -> Vec<u8>;
 
+    fn session_state(&self) -> Vec<u8>;
+
     fn content_type(&self) -> Uuid;
 
     fn references(&self, workspace: Uuid) -> Vec<Uuid>;
@@ -29,6 +31,10 @@ impl<C: LiveEdit> Held for C {
 
     fn encode(&self) -> Vec<u8> {
         BlockContent::encode(self)
+    }
+
+    fn session_state(&self) -> Vec<u8> {
+        LiveEdit::session_state(self)
     }
 
     fn content_type(&self) -> Uuid {
@@ -73,6 +79,13 @@ impl Stored {
         match self {
             Self::Typed(held) => held.encode(),
             Self::Written { bytes, .. } => bytes.clone(),
+        }
+    }
+
+    fn session_state(&self) -> Vec<u8> {
+        match self {
+            Self::Typed(held) => held.session_state(),
+            Self::Written { .. } => Vec::new(),
         }
     }
 
@@ -161,6 +174,7 @@ impl Block {
                 block_id: block.into_bytes(),
                 content_type: self.content.content_type().into_bytes(),
                 bytes: self.content.bytes(),
+                session: self.content.session_state(),
                 applied: self.taken,
             },
         };
@@ -363,8 +377,7 @@ impl ContentStore {
                 block_id,
                 content_type,
                 parent,
-                name,
-                artifact,
+                defined,
                 content,
                 ..
             } => {
@@ -375,12 +388,12 @@ impl ContentStore {
                     block_type: *content_type,
                     author: Uuid::nil().into_bytes(),
                     parent: *parent,
-                    name: name.clone(),
-                    named_by_hand: name.is_some(),
                     references: Vec::new(),
                     access: block_plugin_api::AccessLevel::Edit,
-                    artifact: artifact.clone(),
-                    thumbhash: None,
+                    metadata: block_plugin_api::BlockMetadata {
+                        defined: defined.clone(),
+                        ..block_plugin_api::BlockMetadata::default()
+                    },
                 });
                 {
                     let mut inner = self.0.borrow_mut();
@@ -403,15 +416,22 @@ impl ContentStore {
                     info.parent = BlockParent::decode(*parent);
                 }
             }
-            EditorMessage::SetName { block_id, name, .. } => {
+            EditorMessage::Define {
+                block_id,
+                key,
+                value,
+                ..
+            } => {
                 if let Some(info) = self
                     .0
                     .borrow_mut()
                     .graph
                     .get_mut(&Uuid::from_bytes(*block_id))
                 {
-                    info.named_by_hand = name.is_some();
-                    info.name.clone_from(name);
+                    info.metadata.define(&[(
+                        Uuid::from_bytes(*key),
+                        value.as_ref().map(|value| value.to_vec()),
+                    )]);
                 }
             }
             EditorMessage::WatchBlocks { queries, .. } => {

@@ -1,5 +1,5 @@
 use beui::{Pos2, Vec2};
-use block_editor_beui::be_block::TextContent;
+use block_editor_beui::be_block::TextBlock;
 use block_editor_beui::{Editor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
@@ -17,7 +17,7 @@ fn a_tap_near_the_bottom_places_the_caret_while_the_format_bar_opens() {
         .on_phone();
     editor.hold(
         None,
-        TextContent::from(format!("top{}", "\n".repeat(60)).as_str()),
+        TextBlock::of(format!("top{}", "\n".repeat(60)).as_str()),
     );
     editor.run();
     assert!(!editor.shown("text.format.bold"));

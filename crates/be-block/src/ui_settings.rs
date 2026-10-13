@@ -3,49 +3,55 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::Root;
+use crate::settings::Layered;
 
-pub const MIN_ZOOM: f32 = 0.5;
-pub const MAX_ZOOM: f32 = 3.0;
-
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
-pub struct Zoom(f32);
-
-impl Default for Zoom {
-    fn default() -> Self {
-        Self(1.0)
-    }
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub enum Theme {
+    #[default]
+    Dark,
+    OledDark,
+    Light,
+    EInk,
 }
 
-impl Zoom {
-    pub fn new(zoom: f32) -> Self {
-        match zoom.is_finite() {
-            true => Self(zoom.clamp(MIN_ZOOM, MAX_ZOOM)),
-            false => Self::default(),
-        }
-    }
+impl Theme {
+    pub const ALL: [Self; 4] = [Self::Light, Self::Dark, Self::OledDark, Self::EInk];
 
-    pub fn get(self) -> f32 {
-        Self::new(self.0).0
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Dark => "Dark",
+            Self::OledDark => "OLED dark",
+            Self::Light => "Light",
+            Self::EInk => "E-ink",
+        }
     }
 }
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct UiSettings {
-    pub zoom: Zoom,
+    pub theme: Option<Theme>,
 }
 
 impl UiSettings {
-    pub fn zoom(&self) -> f32 {
-        self.zoom.get()
+    pub fn theme(&self) -> Theme {
+        self.theme.unwrap_or_default()
     }
 
-    pub fn set_zoom(zoom: f32) -> Edit {
-        Self::ZOOM.set(ObjectId::ROOT, &Zoom::new(zoom)).into()
+    pub fn set_theme(theme: Option<Theme>) -> Edit {
+        Self::THEME.set(ObjectId::ROOT, &theme).into()
+    }
+}
+
+impl Layered for UiSettings {
+    fn over(&self, lower: &Self) -> Self {
+        Self {
+            theme: self.theme.or(lower.theme),
+        }
     }
 }
 
 impl Root for UiSettings {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7569_2d73_6574_7469_6e67_732d_626c_6b31);
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7569_2d73_6574_7469_6e67_732d_626c_6b32);
 }
 
 pub type UiSettingsContent = Document<UiSettings>;

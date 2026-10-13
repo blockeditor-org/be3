@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
 use crate::computation::Computation;
-use crate::runtime::{Context, RUNTIME, batch, flush, next_sequence};
+use crate::runtime::{Context, RUNTIME, batch, flush, flush_within, next_sequence};
 
 pub(crate) struct Gate {
     parent: Option<Rc<Gate>>,
@@ -57,6 +57,17 @@ impl Owner {
         }
     }
 
+    pub(crate) fn within(self: &Rc<Self>, root: &Owner) -> bool {
+        let mut current = Some(Rc::clone(self));
+        while let Some(owner) = current {
+            if std::ptr::eq(Rc::as_ptr(&owner), root) {
+                return true;
+            }
+            current = owner.parent.upgrade();
+        }
+        false
+    }
+
     pub(crate) fn add(&self, cleanup: impl FnOnce() + 'static) {
         assert!(!self.disposed.get(), "reactive scope was disposed");
         self.cleanups.borrow_mut().push(Box::new(cleanup));
@@ -90,6 +101,7 @@ impl Owner {
 pub struct Scope {
     owner: Rc<Owner>,
     gate: Option<Rc<Gate>>,
+    handed: bool,
 }
 
 impl Scope {
@@ -118,7 +130,11 @@ impl Scope {
             ),
             ..Owner::default()
         });
-        Self { owner, gate: None }
+        Self {
+            owner,
+            gate: None,
+            handed: false,
+        }
     }
 
     pub fn pausable(mut self) -> Self {
@@ -177,12 +193,20 @@ impl Scope {
         batch(|| self.owner.dispose());
     }
 
+    pub fn into_parent(mut self) {
+        self.handed = true;
+    }
+
     pub fn is_disposed(&self) -> bool {
         self.owner.disposed.get()
     }
 
     pub fn context(&self) -> ScopeContext {
         ScopeContext(Rc::downgrade(&self.owner))
+    }
+
+    pub fn flush_owned(&self) {
+        flush_within(&self.owner);
     }
 }
 
@@ -202,9 +226,21 @@ impl ScopeContext {
         self.0.upgrade().is_some_and(|owner| !owner.disposed.get())
     }
 
+    pub fn flush_owned(&self) {
+        if let Some(owner) = self.0.upgrade() {
+            flush_within(&owner);
+        }
+    }
+
     pub fn child(&self) -> Option<Scope> {
         self.is_alive().then(|| self.run(Scope::new))
     }
+}
+
+pub fn current_scope() -> Option<ScopeContext> {
+    let owner = RUNTIME.with(|runtime| runtime.owner.borrow().clone());
+    let context = ScopeContext(owner);
+    context.is_alive().then_some(context)
 }
 
 pub fn owner_scope() -> Option<ScopeContext> {
@@ -228,6 +264,9 @@ impl Default for Scope {
 
 impl Drop for Scope {
     fn drop(&mut self) {
+        if self.handed {
+            return;
+        }
         if std::thread::panicking() {
             self.owner.dispose();
         } else {

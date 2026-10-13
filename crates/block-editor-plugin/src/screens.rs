@@ -13,7 +13,7 @@ use uuid::Uuid;
 use crate::{
     Waker,
     editor_session::{EditorSession, Open},
-    host::BlockDrag,
+    host::{BlockDrag, HostContent},
 };
 
 pub(crate) type Opener = Open;
@@ -141,9 +141,12 @@ impl Screens {
         match message {
             Message::HelloAccepted(accepted) => {
                 self.surface = accepted.surface;
+                crate::theme::receive(accepted.theme);
             }
+            Message::Theme(theme) => crate::theme::receive(*theme),
             Message::Fonts(fonts) => crate::fonts::receive(fonts),
             Message::UtcOffset(seconds) => crate::clock::receive(*seconds),
+            Message::Describe(on) => DESCRIBE.store(*on, std::sync::atomic::Ordering::Relaxed),
             Message::DrawFrame { now_micros } => {
                 crate::clock::set_frame_time(std::time::Duration::from_micros(*now_micros));
                 return false;
@@ -245,6 +248,7 @@ impl Screens {
                 block_id,
                 content_type,
                 bytes,
+                session: state,
                 applied,
             }) => {
                 let Some(session) = self.sessions.get(instance) else {
@@ -252,9 +256,12 @@ impl Screens {
                 };
                 session.set_block_content(
                     Uuid::from_bytes(*block_id),
-                    Uuid::from_bytes(*content_type),
-                    bytes.clone(),
-                    *applied,
+                    HostContent {
+                        content_type: Uuid::from_bytes(*content_type),
+                        bytes: bytes.clone(),
+                        session: state.clone(),
+                        applied: *applied,
+                    },
                 );
             }
             Message::Editor(EditorMessage::Blocks {
@@ -460,9 +467,13 @@ impl Screens {
                     session.show_panel(*panel);
                 }
             }
-            Message::Editor(EditorMessage::Windows { instance, windows }) => {
+            Message::Editor(EditorMessage::HostValue {
+                instance,
+                key,
+                value,
+            }) => {
                 if let Some(session) = self.sessions.get(instance) {
-                    session.set_windows(windows.clone());
+                    session.host_value(key.clone(), value.clone());
                 }
             }
             Message::Editor(EditorMessage::MenuPick { instance, id }) => {
@@ -479,6 +490,29 @@ impl Screens {
             Message::Screens(set) => {
                 self.requests = set.screens.clone();
                 self.relayout();
+            }
+            Message::NodeAction {
+                screen,
+                node,
+                action,
+                value,
+            } => {
+                let Some((instance, region)) = self.screen(*screen) else {
+                    return false;
+                };
+                let Some(session) = self.sessions.get_mut(&instance) else {
+                    return false;
+                };
+                session.node_action(region, *node as usize, action, value.clone());
+            }
+            Message::RunAction { screen, id } => {
+                let Some((instance, region)) = self.screen(*screen) else {
+                    return false;
+                };
+                let Some(session) = self.sessions.get_mut(&instance) else {
+                    return false;
+                };
+                session.run_action(region, id);
             }
             Message::Input(batch) => {
                 let Some((instance, region)) = self.screen(batch.screen) else {
@@ -592,6 +626,12 @@ impl Screens {
                 Some((instance, _)) => self.mark(instance),
                 None => return false,
             },
+            Message::RunAction { screen, .. } | Message::NodeAction { screen, .. } => {
+                match self.screen(*screen) {
+                    Some((instance, _)) => self.mark(instance),
+                    None => return false,
+                }
+            }
             Message::ChildStatuses(statuses) => {
                 for status in statuses {
                     self.mark(status.instance);
@@ -704,4 +744,10 @@ fn catalog(catalog: &Catalog) -> BlockCatalog {
         },
         dialog: template.dialog,
     }))
+}
+
+static DESCRIBE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub(crate) fn describing() -> bool {
+    DESCRIBE.load(std::sync::atomic::Ordering::Relaxed)
 }

@@ -1,6 +1,19 @@
-use block_plugin_api::{Message, encode_frame};
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::VecDeque,
+    convert::Infallible,
+    rc::Rc,
+    sync::{Arc, atomic::AtomicBool},
+    time::Duration,
+};
+
 use wasm_bindgen::{JsCast, prelude::*};
+
+use super::canvases::{Canvases, Placement};
+use crate::plugin_host::{
+    backend::StepTime,
+    worker::{self, Event, Produced, Received},
+};
 
 const WORKER_SOURCE: &str = r#"
 // The worker one plugin runs in.
@@ -9,52 +22,26 @@ const WORKER_SOURCE: &str = r#"
 // to plugin.js, which answers the plugin's gpu abi with block-gpu-shim and a
 // device of the worker's own. What the plugin shows is drawn into canvases the
 // page transferred here and keeps behind the app, so a frame never leaves the
-// worker. Stepping is scheduled rather than immediate: a step that produced
-// something schedules the next one, and a quiet plugin stops until the host
-// says something.
+// worker. The page steps the plugin the way the native host does: it says
+// "step" with what it has for the plugin, and the worker steps once and answers
+// with what came out. A plugin that wakes between steps says so, so the page
+// steps it again.
 let plugin = null;
-const queued = [];
 const shown = new Map();
-let scheduled = false;
 
 function fail(error) {
+    plugin = null;
     self.postMessage({ kind: "error", message: String((error && error.message) || error) });
 }
 
-function schedule() {
-    if (scheduled || plugin === null) {
-        return;
-    }
-    scheduled = true;
-    setTimeout(step, 0);
-}
-
-function drain() {
-    plugin.paint();
+function report(kind, step) {
+    const painted = plugin.paint();
     const frames = plugin.collect();
-    if (frames.length > 0) {
-        self.postMessage({ kind: "frames", frames });
-    }
-    if (frames.length > 0 || plugin.woken()) {
-        schedule();
-    }
+    const [gpu, submit] = plugin.took();
+    self.postMessage({ kind, frames, painted, woken: plugin.woken(), step, gpu, submit });
     const failure = plugin.failure();
     if (failure) {
         fail(failure);
-    }
-}
-
-function step() {
-    scheduled = false;
-    if (plugin === null) {
-        return;
-    }
-    try {
-        plugin.step();
-        drain();
-    } catch (error) {
-        plugin = null;
-        fail(error);
     }
 }
 
@@ -70,24 +57,21 @@ self.onmessage = async (event) => {
             plugin = await bootstrap.boot(
                 new URL("./block_gpu_shim.js", data.url).href,
                 data.url,
-                schedule,
+                () => self.postMessage({ kind: "wake" }),
             );
-            self.postMessage({ kind: "ready" });
             for (const pending of shown.values()) show(pending);
             shown.clear();
-            drain();
-            for (const frame of queued.splice(0)) plugin.deliver(frame);
-            schedule();
-        } else if (data.kind === "frames") {
-            for (const frame of data.frames) {
-                if (plugin) plugin.deliver(frame);
-                else queued.push(frame);
-            }
-            schedule();
+            report("ready", 0);
+        } else if (data.kind === "step") {
+            if (plugin === null) return;
+            for (const frame of data.frames) plugin.deliver(frame);
+            const started = performance.now();
+            plugin.step();
+            report("stepped", performance.now() - started);
         } else if (data.kind === "show") {
             if (plugin) {
                 show(data);
-                drain();
+                plugin.paint();
             } else {
                 const pending = shown.get(data.id);
                 shown.set(data.id, { ...data, canvas: data.canvas ?? pending?.canvas });
@@ -107,23 +91,22 @@ self.onmessage = async (event) => {
 
 #[derive(Default)]
 struct Inbox {
-    ready: bool,
-    delivered: Vec<Vec<Vec<u8>>>,
-    error: Option<String>,
+    events: VecDeque<Event<Infallible>>,
+    stopped: bool,
 }
 
-pub(super) struct WebProtocolAdapter {
+pub(in crate::plugin_host) struct WebProtocolAdapter {
     worker: web_sys::Worker,
     inbox: Rc<RefCell<Inbox>>,
-    spoken: bool,
+    canvases: Canvases,
     _onmessage: Closure<dyn FnMut(web_sys::MessageEvent)>,
 }
 
 impl WebProtocolAdapter {
-    pub(super) fn start(url: &str) -> Result<Self, String> {
+    pub(super) fn start(url: &str, waiting: Arc<AtomicBool>) -> Result<Self, String> {
         let worker = spawn()?;
         let inbox = Rc::new(RefCell::new(Inbox::default()));
-        let onmessage = listen(&worker, Rc::clone(&inbox));
+        let onmessage = listen(&worker, Rc::clone(&inbox), waiting);
         let message = js_sys::Object::new();
         set(&message, "kind", &"start".into());
         set(&message, "url", &absolute(url).into());
@@ -133,34 +116,19 @@ impl WebProtocolAdapter {
         Ok(Self {
             worker,
             inbox,
-            spoken: false,
+            canvases: Canvases::default(),
             _onmessage: onmessage,
         })
     }
 
-    pub(super) fn ready(&self) -> bool {
-        self.inbox.borrow().ready
-    }
-
-    pub(super) fn running(&self) -> bool {
-        self.spoken
-    }
-
-    pub(super) fn send(&mut self, messages: Vec<Message>) -> Result<(), String> {
-        let frames = js_sys::Array::new();
-        for message in messages {
-            let frame = encode_frame(&message).map_err(|error| error.to_string())?;
-            frames.push(&js_sys::Uint8Array::from(frame.as_slice()).into());
-        }
-        if frames.length() == 0 {
-            return Ok(());
-        }
-        let message = js_sys::Object::new();
-        set(&message, "kind", &"frames".into());
-        set(&message, "frames", &frames);
-        self.worker
-            .post_message(&message)
-            .map_err(|_| "the plugin worker stopped listening".to_owned())
+    pub(in crate::plugin_host) fn place(
+        &mut self,
+        placements: Vec<Placement>,
+    ) -> Result<(), String> {
+        let mut canvases = std::mem::take(&mut self.canvases);
+        let placed = canvases.place(self, placements);
+        self.canvases = canvases;
+        placed
     }
 
     pub(super) fn show(
@@ -190,24 +158,11 @@ impl WebProtocolAdapter {
         set(&message, "id", &id.into());
         let _ = self.worker.post_message(&message);
     }
+}
 
-    pub(super) fn poll(&mut self) -> Result<Vec<Message>, String> {
-        let (delivered, error) = {
-            let mut inbox = self.inbox.borrow_mut();
-            (std::mem::take(&mut inbox.delivered), inbox.error.take())
-        };
-        if let Some(error) = error {
-            return Err(error);
-        }
-        let mut messages = Vec::new();
-        for frame in delivered.into_iter().flatten() {
-            messages.push(decode(&frame)?);
-            self.spoken = true;
-        }
-        Ok(messages)
-    }
-
-    pub(super) fn shutdown(&mut self) {
+impl Drop for WebProtocolAdapter {
+    fn drop(&mut self) {
+        self.canvases.clear();
         let message = js_sys::Object::new();
         set(&message, "kind", &"shutdown".into());
         let _ = self.worker.post_message(&message);
@@ -215,32 +170,76 @@ impl WebProtocolAdapter {
     }
 }
 
+impl worker::Channel for WebProtocolAdapter {
+    type Presented = Infallible;
+
+    fn step(&mut self, frames: Vec<Vec<u8>>) -> bool {
+        let posted = js_sys::Array::new();
+        for frame in frames {
+            posted.push(&js_sys::Uint8Array::from(frame.as_slice()).into());
+        }
+        let message = js_sys::Object::new();
+        set(&message, "kind", &"step".into());
+        set(&message, "frames", &posted);
+        self.worker.post_message(&message).is_ok()
+    }
+
+    fn receive(&mut self) -> Received<Infallible> {
+        let mut inbox = self.inbox.borrow_mut();
+        match inbox.events.pop_front() {
+            Some(event) => Received::Event(event),
+            None if inbox.stopped => Received::Stopped,
+            None => Received::Empty,
+        }
+    }
+}
+
+fn milliseconds(data: &JsValue, key: &str) -> Duration {
+    Duration::from_secs_f64(get(data, key).as_f64().unwrap_or_default().max(0.0) / 1000.0)
+}
+
+fn produced(data: &JsValue) -> Produced<Infallible> {
+    Produced {
+        outbound: js_sys::Array::from(&get(data, "frames"))
+            .iter()
+            .map(|frame| js_sys::Uint8Array::new(&frame).to_vec())
+            .collect(),
+        presented: Vec::new(),
+        painted: get(data, "painted").is_truthy(),
+        took: StepTime {
+            step: milliseconds(data, "step"),
+            gpu: milliseconds(data, "gpu"),
+            submit: milliseconds(data, "submit"),
+        },
+    }
+}
+
 fn listen(
     worker: &web_sys::Worker,
     inbox: Rc<RefCell<Inbox>>,
+    waiting: Arc<AtomicBool>,
 ) -> Closure<dyn FnMut(web_sys::MessageEvent)> {
-    let onmessage = Closure::wrap(Box::new(move |event: web_sys::MessageEvent| {
-        let data = event.data();
+    let onmessage = Closure::wrap(Box::new(move |message: web_sys::MessageEvent| {
+        let data = message.data();
         let kind = get(&data, "kind").as_string().unwrap_or_default();
-        let mut inbox = inbox.borrow_mut();
-        match kind.as_str() {
-            "ready" => inbox.ready = true,
-            "frames" => {
-                let frames = js_sys::Array::from(&get(&data, "frames"))
-                    .iter()
-                    .map(|frame| js_sys::Uint8Array::new(&frame).to_vec())
-                    .collect();
-                inbox.delivered.push(frames);
+        let event = match kind.as_str() {
+            "wake" => {
+                crate::host::wake();
+                return;
             }
-            _ => {
-                inbox.error = Some(
-                    get(&data, "message")
-                        .as_string()
-                        .unwrap_or_else(|| "The plugin worker failed.".to_owned()),
-                );
-            }
+            "ready" => Event::Ready(produced(&data)),
+            "stepped" => Event::Stepped(produced(&data)),
+            _ => Event::Failed(
+                get(&data, "message")
+                    .as_string()
+                    .unwrap_or_else(|| "The plugin worker failed.".to_owned()),
+            ),
+        };
+        let wakes = event.wakes(get(&data, "woken").is_truthy(), &waiting);
+        inbox.borrow_mut().events.push_back(event);
+        if wakes {
+            crate::host::wake();
         }
-        crate::host::wake();
     }) as Box<dyn FnMut(web_sys::MessageEvent)>);
     worker.set_onmessage(Some(onmessage.as_ref().unchecked_ref()));
     onmessage
@@ -278,8 +277,4 @@ fn set(object: &js_sys::Object, key: &str, value: &JsValue) {
 
 fn get(object: &JsValue, key: &str) -> JsValue {
     js_sys::Reflect::get(object, &key.into()).unwrap_or(JsValue::UNDEFINED)
-}
-
-fn decode(frame: &[u8]) -> Result<Message, String> {
-    block_plugin_api::decode_frame(frame).map_err(|error| error.to_string())
 }

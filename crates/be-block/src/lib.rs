@@ -16,11 +16,13 @@ pub mod counter;
 pub mod database;
 pub mod database_schema;
 pub mod database_view;
+pub mod display_settings;
 pub mod editor_view;
 pub mod folder;
 pub mod game;
 pub mod hotbar;
 pub mod image;
+pub mod input_settings;
 pub mod kinds;
 pub mod logic_game;
 pub mod logic_grid;
@@ -54,16 +56,21 @@ pub use counter::{Counter, CounterContent};
 pub use database::{Database, DatabaseContent};
 pub use database_schema::{DatabaseSchema, DatabaseSchemaContent};
 pub use database_view::{DatabaseView, DatabaseViewContent};
+pub use display_settings::{DisplaySettings, DisplaySettingsContent};
 pub use editor_view::{EditorView, EditorViewContent, ViewState};
 pub use folder::{Folder, FolderContent};
 pub use game::{DeterministicGame, DeterministicGameContent, GameModuleContent, GameMove};
 pub use hotbar::{Hotbar, HotbarContent, HotbarSlot, SlotKind};
 pub use image::{ImageContent, ImageHeader, ImageOp};
+pub use input_settings::{InputSettings, InputSettingsContent};
 pub use kinds::{PanZoomContent, Scene3dContent, TriangleContent};
 pub use logic_game::{LogicGameContent, LogicGameProgress};
 pub use logic_grid::{LogicGridContent, LogicGridDocument};
 pub use map::{Map, MapContent};
-pub use metadata::{ArtifactSource, BlockMetadata, DerivedMetadata, Thumbhash};
+pub use metadata::{
+    ARTIFACT, ArtifactSource, BlockMetadata, Definition, Entries, INTRINSIC_NAME, LOCAL_ID,
+    MetaKey, NAME, Origin, ROW_PREFIX, SCHEMA, THUMBHASH, Thumbhash,
+};
 pub use model::Root;
 pub use paint::{PaintReview, PaintReviewContent, PaintSnapshotContent, PaintSnapshotHeader};
 pub use pdf::{PdfContent, PdfHeader};
@@ -71,12 +78,14 @@ pub use pixel_art::{PixelArtContent, PixelArtDocument};
 pub use pixel_ray_tracer::PixelRayTracerContent;
 pub use presentation::{Presentation, PresentationContent};
 pub use profile::{FILES_EDITOR, LINUX_DESKTOP_EDITOR, RecentBlock, Recents, WORKSPACE_EDITOR};
-pub use settings::{Settings, SettingsContent};
+pub use settings::{
+    Layered, Settings, SettingsContent, SettingsProfile, SettingsProfileContent, layered,
+};
 pub use streamed::{
     HEADER_PREFIX_BYTES, Streamed, decode_streamed, encode_streamed, payload_start,
 };
-pub use text::{TextContent, TextHeader, TextIndentation, TextLanguage, TextOp};
-pub use ui_settings::{UiSettings, UiSettingsContent, Zoom};
+pub use text::{TextBlock, TextContent, TextIndentation, TextLanguage};
+pub use ui_settings::{Theme, UiSettings, UiSettingsContent};
 pub use version_control::{
     Checkout, CheckoutConflict, CheckoutContent, ConflictKind, MAIN_BRANCH, Repository,
     RepositoryContent,
@@ -103,6 +112,12 @@ impl Error for ContentError {}
 pub trait BlockContent: Sized + Send + Sync + 'static {
     const CONTENT_TYPE: Uuid;
 
+    const FROZEN: bool = false;
+
+    fn schema() -> String {
+        String::new()
+    }
+
     fn encode(&self) -> Vec<u8>;
 
     fn decode(bytes: &[u8]) -> Result<Self, ContentError>;
@@ -120,9 +135,23 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
         None
     }
 
-    fn derived_metadata(&self) -> DerivedMetadata {
-        DerivedMetadata::default()
+    fn describe(&self, metadata: &mut BlockMetadata) {
+        let _ = metadata;
     }
+}
+
+pub fn schema_fingerprint<C: BlockContent>() -> String {
+    be_store::Hash::of(C::schema().as_bytes()).to_hex()[..16].to_owned()
+}
+
+pub fn derived_metadata<C: BlockContent>(content: &C) -> Entries {
+    let mut metadata = BlockMetadata::default();
+    metadata.insert(&SCHEMA, &schema_fingerprint::<C>());
+    if let Some(name) = content.name() {
+        metadata.insert(&INTRINSIC_NAME, &name);
+    }
+    content.describe(&mut metadata);
+    metadata.derived
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -152,12 +181,26 @@ pub trait LiveEdit: BlockContent {
         Some(operation)
     }
 
+    fn absorb_operation(operation: &mut Self::Op, next: Self::Op) -> Option<Self::Op> {
+        let _ = operation;
+        Some(next)
+    }
+
     fn encode_operation(operation: &Self::Op) -> Vec<u8> {
         postcard::to_stdvec(operation).unwrap_or_default()
     }
 
     fn decode_operation(bytes: &[u8]) -> Result<Self::Op, ContentError> {
         postcard::from_bytes(bytes).map_err(|_| ContentError::Malformed("operation"))
+    }
+
+    fn session_state(&self) -> Vec<u8> {
+        Vec::new()
+    }
+
+    fn adopt_session_state(&mut self, state: &[u8]) -> Result<(), ContentError> {
+        let _ = state;
+        Ok(())
     }
 }
 

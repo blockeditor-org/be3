@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashSet};
 
-use be_model::{Anchor, Change, Document, Edit, List, Map, Model, ObjectId};
+use be_model::{Anchor, BlockRef, Change, Document, Edit, List, Map, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -8,6 +8,7 @@ use crate::database::DatabaseValue;
 use crate::{ChildChange, Root};
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[serde(default)]
 pub struct CanvasPoint {
     pub x: f32,
     pub y: f32,
@@ -42,21 +43,29 @@ pub enum CanvasEntityKind {
     Line,
     Rectangle,
     Text {
+        #[serde(default)]
         text: String,
+        #[serde(default)]
         text_style: CanvasTextStyle,
+        #[serde(default)]
         placeholder: String,
     },
     Pen {
+        #[serde(default)]
         points: Vec<CanvasPoint>,
     },
     Block {
+        #[serde(with = "be_model::references::block_ref")]
         block_id: Uuid,
     },
     DirectEditor {
+        #[serde(with = "be_model::references::block_ref")]
         block_id: Uuid,
+        #[serde(default = "one")]
         scale: f32,
     },
     Artboard {
+        #[serde(default)]
         name: String,
     },
 }
@@ -78,7 +87,12 @@ pub enum CanvasTextAlign {
     Right,
 }
 
+fn one() -> f32 {
+    1.0
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(default)]
 pub struct CanvasTextStyle {
     pub font_size: f32,
     pub weight: CanvasTextWeight,
@@ -105,14 +119,19 @@ pub enum CanvasColor {
     #[default]
     Auto,
     Rgba {
+        #[serde(default)]
         red: u8,
+        #[serde(default)]
         green: u8,
+        #[serde(default)]
         blue: u8,
+        #[serde(default)]
         alpha: u8,
     },
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(default)]
 pub struct CanvasEntityStyle {
     pub foreground: CanvasColor,
     pub line_width: f32,
@@ -188,13 +207,14 @@ pub enum InfiniteCanvasOperation {
 }
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
+#[model(kind = "canvas")]
 pub struct Canvas {
     pub entities: List<Entity>,
 }
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
+#[model(kind = "canvas.entity")]
 pub struct Entity {
-    pub entity: Uuid,
     pub center: CanvasPoint,
     pub size: CanvasPoint,
     pub rotation: f32,
@@ -206,15 +226,15 @@ pub struct Entity {
 }
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
+#[model(kind = "canvas.component")]
 pub struct Component {
-    pub schema: Option<Uuid>,
+    pub schema: Option<BlockRef>,
     pub values: Map<Uuid, DatabaseValue>,
 }
 
 impl Entity {
     fn of(entity: &CanvasEntity) -> Self {
         Self {
-            entity: entity.id,
             center: entity.transform.center,
             size: entity.transform.size,
             rotation: entity.transform.rotation,
@@ -226,9 +246,9 @@ impl Entity {
         }
     }
 
-    fn view(&self) -> Option<CanvasEntity> {
+    fn view(&self, id: ObjectId) -> Option<CanvasEntity> {
         Some(CanvasEntity {
-            id: self.entity,
+            id: id.as_uuid(),
             transform: CanvasTransform::new(self.center, self.size, self.rotation),
             kind: self.kind.clone()?,
             style: self.style,
@@ -246,7 +266,7 @@ impl Entity {
 impl Component {
     fn of(component: &CanvasComponent) -> Self {
         Self {
-            schema: Some(component.schema_id),
+            schema: Some(BlockRef(component.schema_id)),
             values: component
                 .values
                 .iter()
@@ -257,7 +277,7 @@ impl Component {
 
     fn view(&self) -> Option<CanvasComponent> {
         Some(CanvasComponent {
-            schema_id: self.schema?,
+            schema_id: self.schema?.0,
             values: self
                 .values
                 .iter()
@@ -269,40 +289,48 @@ impl Component {
 
 impl Canvas {
     pub fn with_entities(entities: impl IntoIterator<Item = CanvasEntity>) -> Self {
+        let mut seen = HashSet::new();
         Self {
-            entities: entities
-                .into_iter()
-                .map(|entity| Entity::of(&normalized_entity(entity)))
-                .collect(),
+            entities: List::with_ids(
+                entities
+                    .into_iter()
+                    .filter(|entity| !entity.id.is_nil() && seen.insert(entity.id))
+                    .map(|entity| {
+                        (
+                            ObjectId::from_uuid(entity.id),
+                            Entity::of(&normalized_entity(entity)),
+                        )
+                    }),
+            ),
         }
     }
 
     pub fn entities(&self) -> Vec<CanvasEntity> {
-        let mut seen = HashSet::new();
         self.entities
             .iter()
-            .filter(|held| seen.insert(held.entity))
-            .filter_map(|held| held.view())
+            .filter_map(|held| held.view(held.id))
             .collect()
     }
 
     fn holding(&self, id: Uuid) -> impl Iterator<Item = &be_model::Item<Entity>> {
-        self.entities.iter().filter(move |held| held.entity == id)
+        self.entities
+            .iter()
+            .filter(move |held| held.id == ObjectId::from_uuid(id))
     }
 
     pub fn edit_for(&self, operation: &InfiniteCanvasOperation) -> Edit {
         match operation {
             InfiniteCanvasOperation::Add { entity } => {
-                if self.holding(entity.id).next().is_some() {
+                if entity.id.is_nil() || self.holding(entity.id).next().is_some() {
                     return Edit::default();
                 }
                 Self::ENTITIES
-                    .insert(
+                    .insert_as(
+                        ObjectId::from_uuid(entity.id),
                         ObjectId::ROOT,
                         Anchor::End,
                         &Entity::of(&normalized_entity(entity.clone())),
                     )
-                    .1
                     .into()
             }
             InfiniteCanvasOperation::Update { entities } => entities
@@ -317,15 +345,15 @@ impl Canvas {
             InfiniteCanvasOperation::Remove { ids } => self
                 .entities
                 .iter()
-                .filter(|held| ids.contains(&held.entity))
+                .filter(|held| ids.contains(&held.id.as_uuid()))
                 .map(|held| Change::remove(held.id))
                 .collect(),
             InfiniteCanvasOperation::Reorder { ids, movement } => {
-                let order: Vec<Uuid> = self.entities.iter().map(|held| held.entity).collect();
+                let order: Vec<Uuid> = self.entities.iter().map(|held| held.id.as_uuid()).collect();
                 self.reorder_to(&reordered(&order, ids, *movement), ids)
             }
             InfiniteCanvasOperation::ExactOrder { ids } => {
-                let order: Vec<Uuid> = self.entities.iter().map(|held| held.entity).collect();
+                let order: Vec<Uuid> = self.entities.iter().map(|held| held.id.as_uuid()).collect();
                 self.reorder_to(&exactly_ordered(&order, ids), ids)
             }
         }
@@ -335,7 +363,7 @@ impl Canvas {
         let objects: Vec<(Uuid, ObjectId)> = self
             .entities
             .iter()
-            .map(|held| (held.entity, held.id))
+            .map(|held| (held.id.as_uuid(), held.id))
             .collect();
         let current: Vec<Uuid> = objects.iter().map(|(entity, _)| *entity).collect();
         if current == target {
@@ -413,7 +441,7 @@ fn update_components(held: &be_model::Item<Entity>, wanted: &[CanvasComponent]) 
     for component in held.components.iter() {
         let Some(update) = wanted
             .iter()
-            .find(|wanted| Some(wanted.schema_id) == component.schema)
+            .find(|wanted| Some(BlockRef(wanted.schema_id)) == component.schema)
         else {
             changes.push(Change::remove(component.id));
             continue;
@@ -435,7 +463,7 @@ fn update_components(held: &be_model::Item<Entity>, wanted: &[CanvasComponent]) 
         if !held
             .components
             .iter()
-            .any(|existing| existing.schema == Some(component.schema_id))
+            .any(|existing| existing.schema == Some(BlockRef(component.schema_id)))
         {
             let id = ObjectId::from_uuid(Uuid::from_u128(
                 held.id.as_uuid().as_u128() ^ component.schema_id.as_u128(),
@@ -505,29 +533,6 @@ fn exactly_ordered(order: &[Uuid], ids: &[Uuid]) -> Vec<Uuid> {
 impl Root for Canvas {
     const CONTENT_TYPE: Uuid = Uuid::from_u128(0x696e_6669_6e69_7465_2d63_616e_7661_7301);
 
-    fn references(&self) -> Vec<Uuid> {
-        let mut references = Vec::new();
-        for held in self.entities.iter() {
-            if let Some(
-                CanvasEntityKind::Block { block_id }
-                | CanvasEntityKind::DirectEditor { block_id, .. },
-            ) = &held.kind
-            {
-                references.extend(Some(block_id));
-            }
-            for component in held.components.iter() {
-                references.extend(component.schema);
-                references.extend(component.values.values().filter_map(|value| match value {
-                    DatabaseValue::Block(reference) => Some(reference),
-                    _ => None,
-                }));
-            }
-        }
-        let mut seen = HashSet::new();
-        references.retain(|reference| seen.insert(*reference));
-        references
-    }
-
     fn child_edit(&self, change: ChildChange) -> Option<Edit> {
         match change {
             ChildChange::Add(_) => None,
@@ -538,7 +543,7 @@ impl Root for Canvas {
                     .collect();
                 for held in self.entities.iter() {
                     for component in held.components.iter() {
-                        if component.schema == Some(old) {
+                        if component.schema == Some(BlockRef(old)) {
                             changes.push(Change::remove(component.id));
                             continue;
                         }
@@ -571,9 +576,9 @@ impl Root for Canvas {
                     let existing = held
                         .components
                         .iter()
-                        .find(|component| component.schema == Some(new));
+                        .find(|component| component.schema == Some(BlockRef(new)));
                     for component in held.components.iter() {
-                        if component.schema == Some(old) {
+                        if component.schema == Some(BlockRef(old)) {
                             match existing {
                                 Some(existing) => {
                                     for (field, value) in component.values.iter() {
@@ -588,7 +593,9 @@ impl Root for Canvas {
                                     changes.push(Change::remove(component.id));
                                 }
                                 None => {
-                                    changes.push(Component::SCHEMA.set(component.id, &Some(new)));
+                                    changes.push(
+                                        Component::SCHEMA.set(component.id, &Some(BlockRef(new))),
+                                    );
                                 }
                             }
                         }

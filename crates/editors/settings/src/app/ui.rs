@@ -1,67 +1,263 @@
-use block_editor_beui::be_block::settings::{ActivationCondition, Settings};
-use block_editor_beui::be_block::{BlockContent, SettingsContent, UiSettingsContent};
-use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::reactive::{
-    Align, Direction, Frame, List, clone, component, create_memo, view,
+use std::rc::Rc;
+
+use block_editor_beui::be_block::settings::{Settings, SettingsProfile};
+use block_editor_beui::be_block::{
+    BlockContent, DisplaySettingsContent, InputSettingsContent, LiveEdit, SettingsContent,
+    SettingsProfileContent, UiSettingsContent,
 };
-use block_editor_beui::beui::styled::{Button, ButtonVariant, Caption, Heading, use_theme};
-use block_editor_beui::{ContentProjection, Editor};
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::{ICON_ADD, ICON_CHECK};
+use block_editor_beui::beui::reactive::{
+    Align, Direction, ForEach, Frame, List, Memo, Show, clone, component, create_memo, view,
+};
+use block_editor_beui::beui::styled::{Button, ButtonVariant, Caption, Heading, Scroll, use_theme};
+use block_editor_beui::root_settings::is_own_settings;
+use block_editor_beui::{BlockParent, BlockQuery, ContentProjection, Editor};
 use uuid::Uuid;
 
 const PADDING: f32 = 20.0;
+const SPACING: f32 = 10.0;
+
+const NOT_OURS: &str = "These settings belong to another account. This device never uses them, and they stay as they are.";
+
+trait Layer: LiveEdit + Clone + Default + 'static {
+    fn kind(&self, kind: Uuid) -> Option<Uuid>;
+    fn set_kind(kind: Uuid, block: Uuid) -> Self::Op;
+}
+
+impl Layer for SettingsContent {
+    fn kind(&self, kind: Uuid) -> Option<Uuid> {
+        self.root().kind(kind)
+    }
+
+    fn set_kind(kind: Uuid, block: Uuid) -> Self::Op {
+        Settings::set_kind(kind, block)
+    }
+}
+
+impl Layer for SettingsProfileContent {
+    fn kind(&self, kind: Uuid) -> Option<Uuid> {
+        self.root().kind(kind)
+    }
+
+    fn set_kind(kind: Uuid, block: Uuid) -> Self::Op {
+        SettingsProfile::set_kind(kind, block)
+    }
+}
 
 #[component]
 pub fn SettingsView(editor: Editor) -> NodeId {
     let settings = editor.block_content::<SettingsContent>();
-    let client_id = editor.host().client_id();
-    let loaded = settings.project(|_| true);
-    let ui_settings = settings.project(move |settings| {
-        settings
-            .root()
-            .resolve(UiSettingsContent::CONTENT_TYPE, client_id)
-    });
-    let read_only = editor.read_only();
-    let blocked = create_memo(clone!(loaded read_only -> move || !loaded.get() || read_only.get()));
-    let host = editor.host().clone();
+    let block = editor.block_id();
+    let own = create_memo(clone!(editor -> move || is_own_settings(&editor, block)));
+    let others = create_memo(clone!(own -> move || !own.get()));
+    let blocked = blocked(&editor, &settings, &own);
+    let profiles = settings.project(|settings| settings.root().profiles());
+    let client = editor.host().client_id();
+    let used = settings.project(move |settings| settings.root().profile(client));
     let creator = editor.clone();
-    let open = clone!(settings ui_settings -> move || {
-        let Some(id) = ui_settings
-            .get_untracked()
-            .or_else(|| create_ui_settings(&creator, &settings))
-        else {
-            return;
-        };
-        host.open_block(id, UiSettingsContent::CONTENT_TYPE);
-    });
+    let adding = settings.clone();
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()} padding_horizontal=PADDING padding_vertical=PADDING>
-            <List spacing=10.0>
-                <Heading content="Settings" />
-                <Caption content="Settings this workspace resolves for every editor." />
-                <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
-                    <Button
-                        label="UI settings"
-                        variant=ButtonVariant::Primary
-                        disabled={blocked}
-                        @test_id={"settings.ui-settings"}
-                        on_click={open}
-                    />
-                </List>
-            </List>
+        <Frame color={theme.background.clone()}>
+            <Scroll>
+                <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                    <List spacing=SPACING>
+                        <Heading content="Settings" />
+                        <Show condition={others}>
+                            <Caption content=NOT_OURS />
+                        </Show>
+                        <Caption
+                            content="Settings for every device. A settings profile can change any of them for the devices that use it."
+                        />
+                        <Kinds
+                            editor={editor.clone()}
+                            layer={settings.clone()}
+                            blocked={blocked.clone()}
+                        />
+                        <Heading content="Settings profiles" />
+                        <Caption content="Each device uses one, and starts with one of its own." />
+                        <ForEach keys={profiles}>
+                            {move |profile: Uuid| {
+                                let editor = editor.clone();
+                                let listed = editor.blocks().watch(BlockQuery::Block(profile));
+                                let label = create_memo(move || {
+                                    listed
+                                        .read()
+                                        .into_iter()
+                                        .next()
+                                        .and_then(|info| info.name())
+                                        .unwrap_or_else(|| "Profile".to_owned())
+                                });
+                                let glyph = create_memo(clone!(used -> move || match used.get() == Some(profile) {
+                                    true => ICON_CHECK.to_owned(),
+                                    false => String::new(),
+                                }));
+                                view! {
+                                    <Button
+                                        label={label}
+                                        glyph={glyph}
+                                        variant=ButtonVariant::Secondary
+                                        @test_id={format!("settings.profile.{profile}")}
+                                        on_click={move || {
+                                            editor
+                                                .host()
+                                                .open_block(profile, SettingsProfileContent::CONTENT_TYPE)
+                                        }}
+                                    />
+                                }
+                            }}
+                        </ForEach>
+                        <Button
+                            label="New settings profile"
+                            glyph={ICON_ADD.to_owned()}
+                            variant=ButtonVariant::Ghost
+                            disabled={blocked}
+                            @test_id={"settings.new-profile"}
+                            on_click={move || {
+                                let count = adding
+                                    .read(|settings| settings.root().profiles().len())
+                                    .unwrap_or(0);
+                                let profile = creator.blocks().create_named(
+                                    &SettingsProfileContent::default(),
+                                    BlockParent::Block(creator.block_id()),
+                                    format!("Profile {}", count + 1),
+                                );
+                                adding.operate(Settings::list_profile(profile));
+                            }}
+                        />
+                    </List>
+                </Frame>
+            </Scroll>
         </Frame>
     }
 }
 
-fn create_ui_settings(
+#[component]
+pub fn SettingsProfileView(editor: Editor) -> NodeId {
+    let profile = editor.block_content::<SettingsProfileContent>();
+    let block = editor.block_id();
+    let listed = editor.blocks().watch(BlockQuery::Block(block));
+    let parent = create_memo(move || {
+        listed
+            .read()
+            .into_iter()
+            .next()
+            .and_then(|info| match info.parent {
+                BlockParent::Block(parent) => Some(parent),
+                _ => None,
+            })
+    });
+    let own = create_memo(clone!(editor parent -> move || {
+        parent.get().is_some_and(|parent| is_own_settings(&editor, parent))
+    }));
+    let others = create_memo(clone!(own -> move || !own.get()));
+    let blocked = blocked(&editor, &profile, &own);
+    let client = editor.host().client_id();
+    let used = create_memo(clone!(editor parent -> move || {
+        parent.get().and_then(|parent| {
+            editor
+                .content_of::<SettingsContent>(parent)
+                .read(|settings| settings.root().profile(client))
+        }) == Some(Some(block))
+    }));
+    let unused = create_memo(clone!(used blocked -> move || !used.get() && !blocked.get()));
+    let using = editor.clone();
+    let theme = use_theme();
+    view! {
+        <Frame color={theme.background.clone()}>
+            <Scroll>
+                <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                    <List spacing=SPACING>
+                        <Heading content="Settings profile" />
+                        <Show condition={others}>
+                            <Caption content=NOT_OURS />
+                        </Show>
+                        <Caption
+                            content="What is set here replaces the settings for every device, on the devices that use this profile. What is not set follows them."
+                        />
+                        <Show condition={used}>
+                            <Caption content="This device uses this profile." />
+                        </Show>
+                        <Show condition={unused}>
+                            <Button
+                                label="Use on this device"
+                                variant=ButtonVariant::Primary
+                                @test_id={"settings-profile.use"}
+                                on_click={clone!(parent using -> move || {
+                                    if let Some(settings) = parent.get_untracked() {
+                                        using
+                                            .content_of::<SettingsContent>(settings)
+                                            .operate(Settings::add_profile(client, block));
+                                    }
+                                })}
+                            />
+                        </Show>
+                        <Kinds editor={editor.clone()} layer={profile} blocked={blocked} />
+                    </List>
+                </Frame>
+            </Scroll>
+        </Frame>
+    }
+}
+
+fn blocked<C: Layer>(
     editor: &Editor,
-    settings: &ContentProjection<SettingsContent>,
-) -> Option<Uuid> {
-    let block = editor.create_child(&UiSettingsContent::default());
-    settings.operate(Settings::set_entry(
-        UiSettingsContent::CONTENT_TYPE,
-        ActivationCondition::Fallback,
-        block,
-    ));
-    Some(block)
+    layer: &Rc<ContentProjection<C>>,
+    own: &Memo<bool>,
+) -> Memo<bool> {
+    let loaded = layer.project(|_| true);
+    let read_only = editor.read_only();
+    create_memo(clone!(own -> move || !loaded.get() || read_only.get() || !own.get()))
+}
+
+#[component]
+fn Kinds<C: Layer>(editor: Editor, layer: Rc<ContentProjection<C>>, blocked: Memo<bool>) -> NodeId {
+    let open_ui = opener::<C, UiSettingsContent>(&editor, &layer);
+    let open_input = opener::<C, InputSettingsContent>(&editor, &layer);
+    let open_display = opener::<C, DisplaySettingsContent>(&editor, &layer);
+    let (ui_blocked, input_blocked) = (blocked.clone(), blocked.clone());
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+            <Button
+                label="UI settings"
+                variant=ButtonVariant::Secondary
+                disabled={ui_blocked}
+                @test_id={"settings.ui-settings"}
+                on_click={open_ui}
+            />
+            <Button
+                label="Input settings"
+                variant=ButtonVariant::Secondary
+                disabled={input_blocked}
+                @test_id={"settings.input-settings"}
+                on_click={open_input}
+            />
+            <Button
+                label="Display settings"
+                variant=ButtonVariant::Secondary
+                disabled={blocked}
+                @test_id={"settings.display-settings"}
+                on_click={open_display}
+            />
+        </List>
+    }
+}
+
+fn opener<C: Layer, K: BlockContent + Default>(
+    editor: &Editor,
+    layer: &Rc<ContentProjection<C>>,
+) -> impl Fn() + Clone + use<C, K> {
+    let resolved = layer.project(|layer| layer.kind(K::CONTENT_TYPE));
+    let host = editor.host().clone();
+    let creator = editor.clone();
+    let layer = layer.clone();
+    move || {
+        let id = resolved.get_untracked().unwrap_or_else(|| {
+            let block = creator.create_child(&K::default());
+            layer.operate(C::set_kind(K::CONTENT_TYPE, block));
+            block
+        });
+        host.open_block(id, K::CONTENT_TYPE);
+    }
 }

@@ -41,7 +41,6 @@ impl Message {
             }
             Self::Hello(_)
             | Self::HelloAccepted(_)
-            | Self::HelloRejected(_)
             | Self::Theme(_)
             | Self::UtcOffset(_)
             | Self::Fonts(_)
@@ -59,7 +58,10 @@ impl Message {
             | Self::Shutdown
             | Self::ShutdownAcknowledged
             | Self::BlockTypes(_)
-            | Self::ChildStatuses(_) => {}
+            | Self::ChildStatuses(_)
+            | Self::Describe(_)
+            | Self::RunAction { .. }
+            | Self::NodeAction { .. } => {}
         }
     }
 }
@@ -89,7 +91,7 @@ impl EditorMessage {
             | Self::DragOver { block_id, .. }
             | Self::PlayAudio { block_id, .. }
             | Self::OpenArtifact { block_id, .. }
-            | Self::SetName { block_id, .. }
+            | Self::Define { block_id, .. }
             | Self::VersionStatus { block_id, .. } => existing(block_id),
             Self::ShowDialog { block_id, .. } | Self::SetAccess { block_id, .. } => {
                 existing(block_id);
@@ -155,7 +157,6 @@ impl EditorMessage {
                 HostRequest::ListAccess(block_id) => existing(block_id),
                 HostRequest::PickFile(_)
                 | HostRequest::SaveFile(_)
-                | HostRequest::PasteImage
                 | HostRequest::Fetch(_)
                 | HostRequest::ListData
                 | HostRequest::ReadData(_) => {}
@@ -165,7 +166,6 @@ impl EditorMessage {
                 HostReply::BlockPicked(BlockPick::Cancelled | BlockPick::Failed(_))
                 | HostReply::FilePicked(_)
                 | HostReply::FileSaved(_)
-                | HostReply::ImagePasted(_)
                 | HostReply::Fetched(_)
                 | HostReply::DataListed(_)
                 | HostReply::DataRead(_)
@@ -258,8 +258,9 @@ impl EditorMessage {
             | Self::GrabCursor { .. }
             | Self::WebViewCommand { .. }
             | Self::ShowPanel { .. }
-            | Self::Windows { .. }
-            | Self::CloseWindow { .. }
+            | Self::WatchHostValue { .. }
+            | Self::HostValue { .. }
+            | Self::HostAction { .. }
             | Self::WebViewEvent { .. }
             | Self::OpenCreation { .. }
             | Self::CreationReady { .. }
@@ -268,14 +269,13 @@ impl EditorMessage {
             | Self::ArtifactEdited { .. }
             | Self::RegenerateArtifact { .. }
             | Self::ArtifactRegenerated { .. }
-            | Self::Cursor { .. }
-            | Self::Ime { .. }
+            | Self::Window { .. }
             | Self::Presence { .. }
             | Self::ChildReplaced { .. }
             | Self::ChildView { .. }
             | Self::ChildBar { .. }
             | Self::CopyText { .. }
-            | Self::PasteText { .. }
+            | Self::Paste { .. }
             | Self::AspectRatio { .. }
             | Self::IntrinsicSize { .. }
             | Self::Performance { .. }

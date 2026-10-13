@@ -24,15 +24,18 @@ pub fn Scroll(
     #[prop(default = None)] reveal: Prop<Option<usize>>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(default = None)] focus_color: Prop<Option<Color32>>,
+    #[prop(default = None)] max_length: Option<f32>,
     on_change: Callback<ScrollPosition>,
     children: Children<ListChild>,
 ) -> NodeId {
     let focus = focus_ring(focus_color);
-    view! {
+    let along = direction.clone();
+    let scroll = view! {
         <unstyled::Scroll
             offset
             reveal
             direction
+            fit={max_length.is_some()}
             focus_color={focus}
             scrollbar={scrollbar_style()}
             marker={|axis: Memo<Direction>| view! {
@@ -42,6 +45,14 @@ pub fn Scroll(
         >
             {children}
         </unstyled::Scroll>
+    };
+    let Some(max_length) = max_length else {
+        return scroll;
+    };
+    view! {
+        <List direction={along} spacing=0.0>
+            {scroll} @sizing={ItemSize::Intrinsic.max(max_length)}
+        </List>
     }
 }
 

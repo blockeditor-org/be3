@@ -36,6 +36,7 @@ pub(crate) fn ToolsPanel(state: Rc<RayState>) -> NodeId {
             </ForEach>
             <Caption
                 content="Scroll: pan · Ctrl scroll: zoom · Middle drag: pan · Delete: remove entity"
+                wrap=true
                 color={theme.text_muted.clone()}
             />
         </List>

@@ -25,13 +25,8 @@ async fn a_closed_server_refuses_new_accounts_and_sign_ins_but_not_tokens() {
     let server = tokio::spawn(async move {
         serve_with_config(listener, data_dir, ServerConfig::default(), receiver).await
     });
-    let (socket, _) = connect_async(format!("ws://{address}")).await.unwrap();
-    let mut client = TestClient {
-        socket,
-        next: 0,
-        notifications: Vec::new(),
-        token: String::new(),
-    };
+    build_id::install(BUILD);
+    let mut client = TestClient::connect(&format!("ws://{address}")).await;
 
     let refused = client
         .send(|request| ClientMessage::Register {

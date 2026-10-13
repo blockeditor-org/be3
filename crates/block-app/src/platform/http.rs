@@ -8,4 +8,4 @@ mod web;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) use native::{Fetch, fetch};
 #[cfg(target_arch = "wasm32")]
-pub(crate) use web::{Fetch, fetch};
+pub(crate) use web::{Fetch, fetch, run as get};

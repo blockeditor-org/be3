@@ -13,6 +13,11 @@ pub(super) fn gpu() -> Option<(wgpu::Device, wgpu::Queue)> {
     GPU.with(|gpu| gpu.borrow().clone())
 }
 
+pub(super) fn stop() {
+    let gpu = GPU.with(|gpu| gpu.borrow_mut().take());
+    drop(gpu);
+}
+
 pub(crate) struct SurfaceFrame {
     pub(crate) textures: Vec<PresentedTexture>,
     pub(crate) presents: u64,

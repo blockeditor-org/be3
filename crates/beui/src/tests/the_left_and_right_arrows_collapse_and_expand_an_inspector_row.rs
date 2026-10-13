@@ -11,7 +11,7 @@ fn the_left_and_right_arrows_collapse_and_expand_an_inspector_row() {
     harness.key(Key::ArrowDown, Modifiers::NONE);
     harness.key(Key::ArrowLeft, Modifiers::NONE);
 
-    assert_eq!(harness.tree(), ["column", "  frame"]);
+    assert_eq!(harness.tree(), ["list", "  frame"]);
     assert_eq!(harness.focused_row_index(), Some(1));
 
     harness.key(Key::ArrowLeft, Modifiers::NONE);
@@ -25,7 +25,7 @@ fn the_left_and_right_arrows_collapse_and_expand_an_inspector_row() {
     harness.key(Key::ArrowDown, Modifiers::NONE);
     harness.key(Key::ArrowRight, Modifiers::NONE);
 
-    assert_eq!(harness.tree(), ["column", "  frame", "    text"]);
+    assert_eq!(harness.tree(), ["list", "  frame", "    text"]);
     assert_eq!(harness.focused_row_index(), Some(1));
 
     harness.key(Key::ArrowRight, Modifiers::NONE);

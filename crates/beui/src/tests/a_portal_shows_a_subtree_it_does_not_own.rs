@@ -1,7 +1,5 @@
 use super::*;
-use crate::reactive::{
-    NodeRef, Portal, Show, clone, create_signal, in_new_scope, with_reactive_scope,
-};
+use crate::reactive::{NodeRef, Portal, Show, clone, create_signal, with_reactive_scope};
 
 #[test]
 fn a_portal_shows_a_subtree_it_does_not_own() {
@@ -12,11 +10,9 @@ fn a_portal_shows_a_subtree_it_does_not_own() {
     let document = {
         let held = held.clone();
         build(move || {
-            let node = in_new_scope(|| {
-                view! {
-                    <Frame @node_ref=&held @test_id="held" height=20.0 />
-                }
-            });
+            let node = view! {
+                <Frame @node_ref=&held @test_id="held" height=20.0 />
+            };
             set_first.set(Some(node));
             view! {
                 <List spacing=0.0>

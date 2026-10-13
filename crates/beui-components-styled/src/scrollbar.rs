@@ -2,12 +2,12 @@ use beui_macros::{component, view};
 
 use beui_core::color::Color32;
 
-use crate::theme::{ThemeStore, use_theme};
+use crate::theme::{SCROLLBAR_INSET, ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{ScrollbarHandle, thumb_length, thumb_start};
+use beui_components_unstyled::{ScrollbarHandle, ScrollbarThumb};
 use beui_core::base::{Direction, ScrollPosition};
 use beui_core::node::NodeId;
-use beui_view::reactive::{Callback, Frame, ItemSize, List, Prop, Spacer, clone, create_memo};
+use beui_view::reactive::{Callback, Frame, Memo, Prop, clone, create_memo};
 
 const RADIUS: u8 = 3;
 
@@ -17,19 +17,36 @@ pub fn Scrollbar(
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     on_scroll_to: Callback<f32>,
 ) -> NodeId {
+    let ends_horizontal = inset_when(&direction, Direction::Horizontal);
+    let ends_vertical = inset_when(&direction, Direction::Vertical);
     view! {
-        <unstyled::Scrollbar
-            position
-            direction
-            on_scroll_to={move |offset: f32| on_scroll_to.call(offset)}
-        >
-            {move |handle: ScrollbarHandle| {
-                view! {
-                    <ScrollbarTrack handle />
-                }
-            }}
-        </unstyled::Scrollbar>
+        <Frame padding_horizontal={ends_horizontal} padding_vertical={ends_vertical}>
+            <unstyled::Scrollbar
+                position
+                direction
+                on_scroll_to={move |offset: f32| on_scroll_to.call(offset)}
+            >
+                {move |handle: ScrollbarHandle| {
+                    view! {
+                        <ScrollbarTrack handle />
+                    }
+                }}
+            </unstyled::Scrollbar>
+        </Frame>
     }
+}
+
+fn inset_when(direction: &Prop<Direction>, along: Direction) -> Memo<f32> {
+    let direction = direction.clone();
+    create_memo(move || match direction.get() == along {
+        true => SCROLLBAR_INSET,
+        false => 0.0,
+    })
+}
+
+fn outer_side_inset(direction: &Prop<Direction>, along: Direction) -> Memo<Option<f32>> {
+    let direction = direction.clone();
+    create_memo(move || (direction.get() == along).then_some(SCROLLBAR_INSET))
 }
 
 #[component]
@@ -42,36 +59,20 @@ fn ScrollbarTrack(handle: ScrollbarHandle) -> NodeId {
     } = handle;
     let theme = use_theme();
 
-    let before = create_memo(clone!(position -> move || before_percent(position.get())));
-    let thumb = create_memo(clone!(position -> move || thumb_percent(position.get())));
-    let after = create_memo(clone!(position -> move || after_percent(position.get())));
     let color = create_memo(clone!(theme position -> move || {
         thumb_color(&theme, position.get(), hovered.get(), dragging.get())
     }));
-    let track = create_memo(clone!(theme -> move || track_color(&theme, position.get())));
+    let track = create_memo(clone!(theme position -> move || track_color(&theme, position.get())));
+    let right = outer_side_inset(&direction, Direction::Vertical);
+    let bottom = outer_side_inset(&direction, Direction::Horizontal);
 
     view! {
-        <Frame color={track} radius=RADIUS>
-            <List direction spacing=0.0>
-                <Spacer @sizing={before} />
-                <Frame @sizing={thumb} color radius=RADIUS></Frame>
-                <Spacer @sizing={after} />
-            </List>
+        <Frame padding_right={right} padding_bottom={bottom}>
+            <Frame color={track} radius=RADIUS>
+                <ScrollbarThumb position direction color radius={f32::from(RADIUS)} />
+            </Frame>
         </Frame>
     }
-}
-
-fn before_percent(position: ScrollPosition) -> ItemSize {
-    ItemSize::Percent(thumb_start(position) * 100.0)
-}
-
-fn thumb_percent(position: ScrollPosition) -> ItemSize {
-    ItemSize::Percent(thumb_length(position) * 100.0)
-}
-
-fn after_percent(position: ScrollPosition) -> ItemSize {
-    let rest = 1.0 - thumb_start(position) - thumb_length(position);
-    ItemSize::Percent(rest.max(0.0) * 100.0)
 }
 
 fn thumb_color(

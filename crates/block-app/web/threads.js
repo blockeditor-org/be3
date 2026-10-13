@@ -7,15 +7,25 @@
 // the very same module against the very same shared memory and calls the
 // module's wasi_thread_start with the id and argument agreed here.
 //
-// Only the module and its memory are shared. Apart from the wake, which the
+// A plugin linked against the plugin SDK is two modules: the thread
+// instantiates the SDK, links the plugin to it by the plan the plugin's own
+// thread made (dylink.js), and points the plugin's thread-locals at the block
+// wasi-libc laid out for the new thread.
+//
+// Only the modules and their memory are shared. Apart from the wake, which the
 // thread reports back here as a message, every other import the thread's
 // instance is given is a stub that throws, because the JavaScript state that
 // wasm-bindgen keeps beside a module — its object table, its cached views —
 // belongs to the thread that made it. A thread is for computing, and reaching
 // out of the module from one is a mistake worth hearing about.
 
+import { spawnedThreadLocals } from "./dylink.js";
+
 /** @type {{module: WebAssembly.Module, memory: WebAssembly.Memory} | null} */
 let context = null;
+
+/** @type {{plugin: WebAssembly.Module, layout: object} | null} */
+let linked = null;
 
 /** @type {(() => void) | null} */
 let onWake = null;
@@ -42,6 +52,14 @@ export function bindThreads(module, memory) {
     context = { module, memory };
 }
 
+/**
+ * Says that the module bound is the plugin SDK, with this plugin linked to it
+ * by this plan, so that a thread links the plugin too.
+ */
+export function bindPlugin(plugin, layout) {
+    linked = { plugin, layout };
+}
+
 function threadSpawn(startArgument) {
     if (context === null) {
         console.error("a thread was spawned before bindThreads was called");
@@ -62,6 +80,9 @@ function threadSpawn(startArgument) {
         memory: context.memory,
         id,
         startArgument,
+        plugin: linked?.plugin,
+        layout: linked?.layout,
+        threadLocals: linked && spawnedThreadLocals(context.memory, startArgument),
     });
     return id;
 }

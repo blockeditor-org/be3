@@ -11,7 +11,7 @@ _DESKTOP_PLATFORMS = [
     "root//buck/platforms:macos_arm64",
 ]
 
-_DESKTOP_PROGRAMS = "set(//crates/block-app:block-app-bin //crates/be-server:be-server-bin //crates/be-launcher:launcher //crates/beui-demo:demo)"
+_DESKTOP_PROGRAMS = "set(//crates/block-app:block-app-bin //crates/be-server:be-server-bin //crates/be-launcher:launcher //crates/beui-demo:demo //crates/local-tools:local-tools-bin)"
 
 # Every first-party Rust target in every configuration //:check and clippy
 # cover.

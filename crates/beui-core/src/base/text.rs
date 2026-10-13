@@ -5,7 +5,7 @@ use std::ops::Range;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use crate::color::Color32;
+use crate::color::{Color32, format_hex};
 use crate::font::TextAlign;
 use crate::font::{FontFamily, FontId, Galley, TextLayout};
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
@@ -13,7 +13,7 @@ use crate::painter::Painter;
 
 use crate::base::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
 use crate::document::Document;
-use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeId, NodeOf, Rects};
 use crate::rich::{
     CaretHandle, OBJECT, Piece, RichLayout, RichOptions, Shaper, SpanStyle, TextCaret, TextMark,
     handle_shape,
@@ -615,9 +615,9 @@ impl TextNode {
             }
             let area = layout.caret_rect(caret.at, caret.width).translate(origin);
             if let Some(handle) = caret.handle {
-                let top = painter.on_top();
                 let (shape, corners, angle) = handle_shape(area, handle);
-                top.rotated(shape.center(), angle)
+                painter
+                    .rotated(shape.center(), angle)
                     .rect_filled(shape, corners, caret.color);
                 continue;
             }
@@ -631,11 +631,11 @@ impl TextNode {
             }
         }
         if !self.handles.is_empty() {
-            let top = painter.on_top();
             for (index, handle, color) in &self.handles {
                 let caret = layout.caret_rect(*index, 0.0).translate(origin);
                 let (shape, corners, angle) = handle_shape(caret, *handle);
-                top.rotated(shape.center(), angle)
+                painter
+                    .rotated(shape.center(), angle)
                     .rect_filled(shape, corners, *color);
             }
         }
@@ -665,19 +665,6 @@ impl Element for TextNode {
         self.paint_layout(doc, &clipped, rects, rect);
     }
 
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        children.extend(self.parts.nodes());
-    }
-
     fn children(&self) -> Vec<NodeId> {
         self.parts.nodes()
     }
@@ -686,8 +673,72 @@ impl Element for TextNode {
         "text"
     }
 
+    fn ink(&self) -> Option<Rect> {
+        let placed = self.placed.borrow();
+        let placed = placed.as_ref()?;
+        Some(Rect::from_min_size(
+            placed.origin - placed.rect.min.to_vec2(),
+            placed.layout.size,
+        ))
+    }
+
     fn detail(&self) -> Option<String> {
         Some(format!("\"{}\"", self.content))
+    }
+
+    fn properties(&self) -> Vec<(&'static str, String)> {
+        let styles: Vec<&str> = [
+            (self.bold, "bold"),
+            (self.italic, "italic"),
+            (self.underline, "underline"),
+            (self.monospace, "monospace"),
+            (self.icon, "icon"),
+        ]
+        .into_iter()
+        .filter_map(|(on, name)| on.then_some(name))
+        .collect();
+        let overflow: Vec<&str> = [
+            (self.wrap, "wrap"),
+            (self.clip, "clip"),
+            (self.ellipsis, "ellipsis"),
+        ]
+        .into_iter()
+        .filter_map(|(on, name)| on.then_some(name))
+        .collect();
+        let none = |names: Vec<&str>| match names.is_empty() {
+            true => "none".to_owned(),
+            false => names.join(" "),
+        };
+        let spans = self
+            .parts
+            .iter()
+            .filter(|part| matches!(part, TextPart::Span(_)))
+            .count();
+        vec![
+            ("content", self.content.clone()),
+            ("characters", self.content.chars().count().to_string()),
+            ("font size", self.font_size.to_string()),
+            (
+                "line height",
+                self.line_height
+                    .map_or_else(|| "auto".to_owned(), |height| height.to_string()),
+            ),
+            ("color", format_hex(self.color, true)),
+            (
+                "align",
+                format!("{:?} {:?}", self.horizontal, self.vertical),
+            ),
+            ("style", none(styles)),
+            ("overflow", none(overflow)),
+            ("spans", spans.to_string()),
+            (
+                "selection",
+                self.selection.as_ref().map_or_else(
+                    || "none".to_owned(),
+                    |(range, _)| format!("{}..{}", range.start, range.end),
+                ),
+            ),
+        ]
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -923,19 +974,6 @@ impl Element for TextItemNode {
         if let Some(child) = self.child {
             crate::paint::paint(doc, painter, rects, child);
         }
-    }
-
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        children.extend(self.child);
     }
 
     fn children(&self) -> Vec<NodeId> {

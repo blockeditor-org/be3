@@ -2,10 +2,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use beui::reactive::{
-    ForEach, Frame, Interactive, List, Memo, ReadSignal, Text, WriteSignal, clone, component,
-    component_size, create_effect, create_memo, create_signal, layout_text, untrack, view,
+    ForEach, Frame, Interactive, LayoutBuilder, List, Memo, ReadSignal, Text, WriteSignal, clone,
+    component, create_effect, create_memo, create_signal, layout_text, untrack, view,
 };
-use beui::{Color32, Direction, FontId, KeyPress, NodeId, ScrollGesture, TextLayout};
+use beui::{Color32, Direction, FontId, KeyPress, NodeId, ScrollGesture, TextLayout, Vec2};
 use ghostty_vt::{Renderer, Rgb, Terminal};
 
 use crate::keys::key_bytes;
@@ -180,52 +180,61 @@ fn color(color: Rgb) -> Color32 {
 
 #[component]
 pub(crate) fn TerminalPane(pane: Pane) -> NodeId {
-    let size = component_size();
-    create_effect(clone!(pane -> move || {
-        let size = size.get();
-        let Some(cell) = layout_text("M", FontId::monospace(FONT_SIZE), TextLayout::DEFAULT)
-            .map(|galley| galley.size())
-        else {
-            return;
-        };
-        if cell.x <= 0.0 || cell.y <= 0.0 {
-            return;
-        }
-        let cols = ((size.x - 2.0 * PADDING) / cell.x).floor().max(1.0) as u16;
-        let rows = ((size.y - 2.0 * PADDING) / cell.y).floor().max(1.0) as u16;
-        untrack(|| pane.resize(cols, rows, cell.x as u32, cell.y as u32));
-    }));
-    let rows = pane.rows.clone();
-    let keys = create_memo(clone!(rows -> move || (0..rows.with(Vec::len)).collect::<Vec<_>>()));
-    let background = pane.background.clone();
-    let typed = pane.clone();
-    let pressed = pane.clone();
     view! {
-        <Interactive
-            focusable=true
-            on_text={move |text: String| typed.type_text(&text)}
-            on_key={move |press: KeyPress| pressed.press(press)}
-            on_scroll={move |gesture: ScrollGesture| {
-                let rows = (gesture.delta.y / (FONT_SIZE * LINE_SPACING)).round() as isize;
-                if rows != 0 {
-                    pane.scroll(-rows);
-                }
-            }}
-        >
-            <Frame color={background} padding_horizontal=PADDING padding_vertical=PADDING>
-                <List spacing=0.0>
-                    <ForEach keys>
-                        {move |index: usize| {
-                            let rows = rows.clone();
-                            let row = create_memo(move || rows.with(|rows| rows.get(index).cloned()).unwrap_or_default());
-                            view! {
-                                <TerminalLine row />
+        <LayoutBuilder>
+            {move |size: ReadSignal<Vec2>| {
+                create_effect(clone!(pane -> move || {
+                    let size = size.get();
+                    let Some(cell) = layout_text("M", FontId::monospace(FONT_SIZE), TextLayout::DEFAULT)
+                        .map(|galley| galley.size())
+                    else {
+                        return;
+                    };
+                    if cell.x <= 0.0 || cell.y <= 0.0 {
+                        return;
+                    }
+                    let cols = ((size.x - 2.0 * PADDING) / cell.x).floor().max(1.0) as u16;
+                    let rows = ((size.y - 2.0 * PADDING) / cell.y).floor().max(1.0) as u16;
+                    untrack(|| pane.resize(cols, rows, cell.x as u32, cell.y as u32));
+                }));
+                let rows = pane.rows.clone();
+                let keys = create_memo(clone!(rows -> move || (0..rows.with(Vec::len)).collect::<Vec<_>>()));
+                let background = pane.background.clone();
+                let typed = pane.clone();
+                let pressed = pane.clone();
+                view! {
+                    <Interactive
+                        focusable=true
+                        on_text={move |text: String| typed.type_text(&text)}
+                        on_key={move |press: KeyPress| pressed.press(press)}
+                        on_scroll={move |gesture: ScrollGesture| {
+                            let rows = (gesture.delta.y / (FONT_SIZE * LINE_SPACING)).round() as isize;
+                            if rows != 0 {
+                                pane.scroll(-rows);
                             }
                         }}
-                    </ForEach>
-                </List>
-            </Frame>
-        </Interactive>
+                    >
+                        <Frame
+                            color={background}
+                            padding_horizontal=PADDING
+                            padding_vertical=PADDING
+                        >
+                            <List spacing=0.0>
+                                <ForEach keys>
+                                    {move |index: usize| {
+                                        let rows = rows.clone();
+                                        let row = create_memo(move || rows.with(|rows| rows.get(index).cloned()).unwrap_or_default());
+                                        view! {
+                                            <TerminalLine row />
+                                        }
+                                    }}
+                                </ForEach>
+                            </List>
+                        </Frame>
+                    </Interactive>
+                }
+            }}
+        </LayoutBuilder>
     }
 }
 

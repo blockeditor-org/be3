@@ -7,7 +7,7 @@ use crate::pixel_grid::PixelGrid;
 use crate::base::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
 use crate::base::share::{Part, share, snapped_run};
 use crate::document::Document;
-use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeId, NodeOf, Rects};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Direction {
@@ -482,19 +482,6 @@ impl Element for ListNode {
         }
     }
 
-    fn interact(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _input: &InteractInput,
-        _id: NodeId,
-        _rect: Rect,
-        _focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        children.extend(self.items.iter().filter_map(ChildItem::node));
-    }
-
     fn children(&self) -> Vec<NodeId> {
         self.items.nodes()
     }
@@ -504,10 +491,21 @@ impl Element for ListNode {
     }
 
     fn kind(&self) -> &'static str {
-        match self.direction {
-            Direction::Horizontal => "row",
-            Direction::Vertical => "column",
-        }
+        "list"
+    }
+
+    fn detail(&self) -> Option<String> {
+        (self.direction == Direction::Horizontal).then(|| "horizontal".to_owned())
+    }
+
+    fn properties(&self) -> Vec<(&'static str, String)> {
+        vec![
+            ("direction", format!("{:?}", self.direction)),
+            ("spacing", self.spacing.to_string()),
+            ("align", format!("{:?}", self.align)),
+            ("justify", format!("{:?}", self.justify)),
+            ("wrap", self.wrap.to_string()),
+        ]
     }
 
     fn as_any(&self) -> &dyn Any {

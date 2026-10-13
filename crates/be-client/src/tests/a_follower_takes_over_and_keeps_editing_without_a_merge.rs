@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{TextContent, TextOp};
+use be_block::{TextBlock, TextContent};
 use be_commit::MergeResult;
 
 #[tokio::test]
@@ -12,7 +12,7 @@ async fn a_follower_takes_over_and_keeps_editing_without_a_merge() {
         .await
         .unwrap();
     phone
-        .save(block, &TextContent::from("notes\n"), None)
+        .save(block, &TextBlock::of("notes\n"), None)
         .await
         .unwrap();
 
@@ -28,14 +28,11 @@ async fn a_follower_takes_over_and_keeps_editing_without_a_merge() {
     assert!(on_phone.is_owner());
     assert!(!on_laptop.is_owner());
 
-    on_phone
-        .edit(TextOp::insert(6, "typed on the phone\n"))
-        .await
-        .unwrap();
+    type_at(&mut on_phone, 6, "typed on the phone\n").await;
     settle(&mut [&mut on_phone, &mut on_laptop]).await;
     let sealed = on_phone.seal().await.unwrap().published().unwrap();
     assert!(on_phone.is_clean());
-    assert_eq!(on_laptop.content().text(), "notes\ntyped on the phone\n");
+    assert_eq!(on_laptop.content().to_text(), "notes\ntyped on the phone\n");
 
     phone.leave_session(block).await.unwrap();
     settle(&mut [&mut on_laptop]).await;
@@ -50,10 +47,7 @@ async fn a_follower_takes_over_and_keeps_editing_without_a_merge() {
     );
     assert_eq!(on_laptop.head(), Some(sealed));
 
-    on_laptop
-        .edit(TextOp::insert(25, "continued on the laptop\n"))
-        .await
-        .unwrap();
+    type_at(&mut on_laptop, 25, "continued on the laptop\n").await;
     let head = on_laptop.seal().await.unwrap().published().unwrap();
     assert_ne!(head, sealed);
     assert_eq!(
@@ -62,7 +56,7 @@ async fn a_follower_takes_over_and_keeps_editing_without_a_merge() {
             .await
             .unwrap()
             .unwrap()
-            .text(),
+            .to_text(),
         "notes\ntyped on the phone\ncontinued on the laptop\n"
     );
 

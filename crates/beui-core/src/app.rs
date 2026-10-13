@@ -7,6 +7,7 @@ use crate::geometry::{Rect, Vec2, pos2};
 use crate::input::{Event, TouchPhase};
 
 pub mod accessibility_dump;
+pub mod automation;
 pub mod ime_mirror;
 
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
@@ -35,11 +36,17 @@ pub trait App {
 
     fn setup(&mut self, _setup: &Setup) {}
 
+    fn renderer_replaced(&mut self, _setup: &Setup) {}
+
     fn close_requested(&mut self) -> bool {
         true
     }
 
     fn exiting(&mut self) {}
+
+    fn busy(&self) -> bool {
+        false
+    }
 }
 
 pub struct Setup {
@@ -86,9 +93,11 @@ impl std::fmt::Debug for Waker {
 }
 
 pub fn next_batch(pending: &mut Vec<Event>) -> Vec<Event> {
-    let typed = pending
-        .iter()
-        .position(|event| matches!(event, Event::Text(_) | Event::Key { .. } | Event::Ime(_)));
+    let typed = pending.iter().position(|event| match event {
+        Event::Key { press, .. } => !press.key.is_modifier(),
+        Event::Text(_) | Event::Paste(_) | Event::Ime(_) => true,
+        _ => false,
+    });
     let press = typed.and_then(|start| {
         pending[start..]
             .iter()

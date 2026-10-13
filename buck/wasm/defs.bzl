@@ -103,12 +103,45 @@ wasi_app_flags = plugin_exports + [
     "-Clink-arg=$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/libsetjmp.a",
 ]
 
+# The plugin SDK (guides/plugin_sdk.md): every crate the plugins have in
+# common, linked whole into one module that exports all of it, which each
+# plugin is linked against and the host links it to when it loads. Its
+# :module is what a plugin's identity names, so the plugins are relinked when
+# it changes.
+PLUGIN_SDK = "root//crates/block-plugin-sdk:module"
+
+def plugin_sdk():
+    facts = cargo_wasm_facts()
+    native.rust_library(
+        name = facts.crate.replace("_", "-") + "_wasm",
+        crate = facts.crate,
+        crate_root = facts.crate_root,
+        deps = facts.deps,
+        edition = facts.edition,
+        env = facts.env,
+        features = facts.features,
+        linker_flags = ["--be3-sdk"],
+        preferred_linkage = "shared",
+        rustc_flags = plugin_exports,
+        srcs = native.glob(["src/**/*.rs"]),
+        target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
+    )
+    wasi_module(
+        name = "module",
+        library = ":" + facts.crate.replace("_", "-") + "_wasm",
+        module = "sdk",
+        visibility = ["PUBLIC"],
+    )
+
 # An editor: the guest cdylib (wasm32 only; a plugin is all behind
 # cfg(target_arch = "wasm32")), :module named after its manifest's entry point,
 # :manifest, and its wasm :test. test_env is extra environment for compiling the
 # tests, which is how a test names a module it loads with include_bytes!.
 # extra_deps are what cargo cannot name, such as a C library the plugin links.
-def editor(name, module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps = []):
+# A plugin is linked against the plugin SDK unless shared_sdk is False, which a
+# plugin needs when it links a library that is not position-independent (the
+# PDF plugin's PDFium): it then carries everything it uses itself.
+def editor(name, module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps = [], shared_sdk = True):
     facts = cargo_wasm_facts()
     native.rust_library(
         name = name + "_wasm",
@@ -118,6 +151,7 @@ def editor(name, module, visibility = ["PUBLIC"], test_env = {}, data = {}, extr
         edition = facts.edition,
         env = facts.env,
         features = facts.features,
+        linker_flags = ["--be3-plugin=$(location {})".format(PLUGIN_SDK)] if shared_sdk else [],
         preferred_linkage = "shared",
         rustc_flags = plugin_exports,
         srcs = native.glob(["src/**/*.rs", "src/**/*.wgsl", "manifest.json"]),
@@ -245,9 +279,10 @@ wasi_test = rule(
 # The plugin tests as an action, which is how ./scripts/verify runs them: on a worker,
 # and answered from the cache when nothing they read has changed, which a test
 # never is. They read the accepted paintings from snapshots/ and accept every
-# painting, writing the ones that changed or are new to changed/ and naming the
-# ones they compared in used/; ./scripts/verify copies changed/ into snapshots/, or
-# under --check fails on it. They draw through lavapipe, as the renderer's tests
+# painting, writing the ones that changed or are new to changed/ and each
+# accepted painting they compared, as they read it, to used/ (empty when there
+# was none); ./scripts/verify copies into snapshots/ the paintings in changed/
+# whose accepted painting still reads the same, or under --check fails on them. They draw through lavapipe, as the renderer's tests
 # do, with LD_LIBRARY_PATH carried as BE3_LD_LIBRARY_PATH for the same reason
 # (library_path_test in buck/cargo/defs.bzl).
 def _plugin_test_run_impl(ctx: AnalysisContext) -> list[Provider]:

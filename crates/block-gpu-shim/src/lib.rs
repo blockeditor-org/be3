@@ -1,11 +1,12 @@
 #![cfg(target_arch = "wasm32")]
 
+mod dylink;
 mod exports;
 mod screens;
 
-use std::{cell::RefCell, collections::VecDeque};
+use std::cell::RefCell;
 
-use block_gpu_host::Gpu;
+use block_gpu_host::{Gpu, calls::Transport};
 use wasm_bindgen::{JsCast, prelude::*};
 
 use screens::Screens;
@@ -17,10 +18,10 @@ thread_local! {
 struct Shim {
     gpu: Gpu,
     screens: Screens,
-    inbox: VecDeque<Vec<u8>>,
-    outbox: Vec<Vec<u8>>,
-    scratch: Vec<u8>,
-    started: f64,
+    memory: Option<js_sys::WebAssembly::Memory>,
+    transport: Transport,
+    gpu_time: f64,
+    submit_time: f64,
     woken: bool,
     failure: Option<String>,
 }
@@ -51,15 +52,20 @@ pub async fn start() -> Result<(), JsValue> {
     let shim = Shim {
         gpu: Gpu::new(device, queue),
         screens,
-        inbox: VecDeque::new(),
-        outbox: Vec::new(),
-        scratch: Vec::new(),
-        started: now(),
+        memory: None,
+        transport: Transport::default(),
+        gpu_time: 0.0,
+        submit_time: 0.0,
         woken: false,
         failure: None,
     };
     SHIM.with(|current| *current.borrow_mut() = Some(shim));
     Ok(())
+}
+
+#[wasm_bindgen]
+pub fn bind(memory: JsValue) {
+    with(|shim| shim.memory = exports::memory(memory), ());
 }
 
 #[wasm_bindgen]
@@ -80,21 +86,36 @@ pub fn forget(id: u32) {
 }
 
 #[wasm_bindgen]
-pub fn paint() {
+pub fn paint() -> bool {
     with(
         |shim| {
-            shim.screens.presented(&shim.gpu.take_presented());
+            let presented = shim.gpu.take_presented();
+            shim.screens.presented(&presented);
             let gpu = &shim.gpu;
             let painted = shim.screens.paint(|surface| gpu.surface(surface));
             shim.fail(painted);
+            !presented.is_empty()
         },
-        (),
-    );
+        false,
+    )
+}
+
+#[wasm_bindgen]
+pub fn took() -> Vec<f64> {
+    with(
+        |shim| {
+            vec![
+                std::mem::take(&mut shim.gpu_time),
+                std::mem::take(&mut shim.submit_time),
+            ]
+        },
+        vec![0.0, 0.0],
+    )
 }
 
 #[wasm_bindgen]
 pub fn deliver(frame: &[u8]) {
-    with(|shim| shim.inbox.push_back(frame.to_vec()), ());
+    with(|shim| shim.transport.inbox.push_back(frame.to_vec()), ());
 }
 
 #[wasm_bindgen]
@@ -102,7 +123,7 @@ pub fn collect() -> js_sys::Array {
     let frames = js_sys::Array::new();
     with(
         |shim| {
-            for frame in std::mem::take(&mut shim.outbox) {
+            for frame in std::mem::take(&mut shim.transport.outbox) {
                 frames.push(&js_sys::Uint8Array::from(frame.as_slice()).into());
             }
         },
@@ -125,5 +146,9 @@ pub fn failure() -> Option<String> {
 }
 
 fn now() -> f64 {
-    js_sys::Date::now()
+    js_sys::global()
+        .dyn_into::<web_sys::WorkerGlobalScope>()
+        .ok()
+        .and_then(|scope| scope.performance())
+        .map_or(0.0, |performance| performance.now())
 }

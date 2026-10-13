@@ -9,6 +9,7 @@ use beui_core::damage::Region;
 use beui_core::filter::Filter;
 use beui_core::geometry::{Rect, Vec2, vec2};
 use beui_core::renderer::Renderer;
+use beui_core::screens::Screen;
 use block_plugin_api::SurfaceRect;
 
 #[cfg(target_arch = "wasm32")]
@@ -39,7 +40,8 @@ pub(crate) struct Surface {
     pub(crate) size: Option<(u32, u32)>,
     pub(crate) age: u32,
     pub(crate) laid: Rect,
-    look: Option<(Option<Filter>, f32, Rect)>,
+    pub(crate) screens: Vec<Screen>,
+    look: Option<(Vec<Filter>, f32, Rect)>,
     pending: Option<Damage>,
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     history: VecDeque<Option<Damage>>,
@@ -73,6 +75,7 @@ impl Default for Surface {
             size: None,
             age: 0,
             laid: Rect::NOTHING,
+            screens: Vec::new(),
             look: None,
             pending: None,
             history: VecDeque::new(),
@@ -88,8 +91,8 @@ impl Default for Surface {
 
 impl Surface {
     fn note(&mut self, output: &FrameOutput, scale: f32) {
-        let look = (output.filter(), scale, self.laid);
-        let moved = self.look != Some(look);
+        let look = (output.filters(), scale, self.laid);
+        let moved = self.look.as_ref() != Some(&look);
         self.look = Some(look);
         let damage = match output.damaged() {
             _ if moved => Damage::Everything,
@@ -280,6 +283,10 @@ impl Renderer for SurfaceRenderer {
     fn physical(&self) -> Option<Vec2> {
         let (width, height) = self.0.borrow().size?;
         Some(vec2(width as f32, height as f32))
+    }
+
+    fn screens(&self) -> Option<Vec<Screen>> {
+        Some(self.0.borrow().screens.clone())
     }
 
     fn prepare(&mut self, output: &FrameOutput, scale: f32, _background: Color32) -> bool {

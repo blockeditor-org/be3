@@ -11,7 +11,6 @@ use beui_core::node::NodeId;
 use super::tree;
 
 const HIGHLIGHT: Color32 = Color32::from_rgba_unmultiplied(82, 137, 255, 56);
-const HIGHLIGHT_MUTED: Color32 = Color32::from_rgba_unmultiplied(82, 137, 255, 24);
 const OUTLINE_WIDTH: f32 = 1.0;
 const FLASH_FILL: f32 = 48.0;
 const FLASH_OUTLINE: f32 = 220.0;
@@ -36,16 +35,13 @@ fn deepest(target: &Document, id: NodeId, pos: Pos2) -> Option<NodeId> {
         .or(Some(id))
 }
 
-pub fn highlight(painter: &Painter, target: &Document, id: NodeId, strong: bool, scale: f32) {
+pub fn highlight(painter: &Painter, target: &Document, id: NodeId, scale: f32) {
     let Some(rect) = target.node_rect(id).map(|rect| rect.scaled(scale)) else {
         return;
     };
-    let fill = if strong { HIGHLIGHT } else { HIGHLIGHT_MUTED };
-    painter.rect_filled(rect, 0.0, fill);
+    painter.rect_filled(rect, 0.0, HIGHLIGHT);
     painter.rect_stroke(rect, 0.0, OUTLINE_WIDTH, Theme::DARK.accent);
-    if strong {
-        label(painter, rect, &tree::label(target, id));
-    }
+    label(painter, rect, &tree::label(target, id));
 }
 
 pub fn flash(painter: &Painter, rect: Rect, color: Color32, remaining: f32) {

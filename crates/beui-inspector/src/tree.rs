@@ -233,6 +233,52 @@ pub fn count(target: &Document, id: NodeId) -> usize {
         .sum::<usize>()
 }
 
+pub fn properties(target: &Document, id: NodeId) -> Vec<(String, String)> {
+    let mut rows = vec![(
+        "node".to_owned(),
+        format!("{} #{}", target.node_kind(id), id.index()),
+    )];
+    let names = target.component_names(id);
+    if !names.is_empty() {
+        rows.push(("components".to_owned(), names.join(" > ")));
+    }
+    let test_ids = target.node_test_ids(id);
+    if !test_ids.is_empty() {
+        rows.push(("test id".to_owned(), test_ids.join(", ")));
+    }
+    if let Some(rect) = target.node_rect(id) {
+        rows.push((
+            "position".to_owned(),
+            format!("{}, {}", rect.left().round(), rect.top().round()),
+        ));
+        rows.push((
+            "size".to_owned(),
+            format!("{} x {}", rect.width().round(), rect.height().round()),
+        ));
+    }
+    if let Some(parent) = target.node_parent(id) {
+        rows.push((
+            "parent".to_owned(),
+            format!("{} #{}", target.node_kind(parent), parent.index()),
+        ));
+    }
+    rows.push(("children".to_owned(), target.children(id).len().to_string()));
+    rows.push((
+        "descendants".to_owned(),
+        (count(target, id) - 1).to_string(),
+    ));
+    if target.focused_node() == Some(id) {
+        rows.push(("focused".to_owned(), "true".to_owned()));
+    }
+    rows.extend(
+        target
+            .node_properties(id)
+            .into_iter()
+            .map(|(name, value)| (name.to_owned(), value)),
+    );
+    rows
+}
+
 pub fn label(target: &Document, id: NodeId) -> String {
     match target.node_detail(id) {
         Some(detail) => format!("{} {}", target.node_kind(id), trim(&detail)),

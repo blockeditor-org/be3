@@ -363,13 +363,16 @@ pub(crate) fn hit_entity(entity: &CanvasEntity, point: CanvasPoint, radius: f32)
             let b = local_to_world(entity.transform, CanvasPoint::new(0.5, 0.0));
             point_segment_distance(point, a, b) <= radius
         }
-        CanvasEntityKind::Pen { points } => points.windows(2).any(|segment| {
-            point_segment_distance(
-                point,
-                local_to_world(entity.transform, segment[0]),
-                local_to_world(entity.transform, segment[1]),
-            ) <= radius
-        }),
+        CanvasEntityKind::Pen { points } => match points.as_slice() {
+            [dot] => distance(point, local_to_world(entity.transform, *dot)) <= radius,
+            _ => points.windows(2).any(|segment| {
+                point_segment_distance(
+                    point,
+                    local_to_world(entity.transform, segment[0]),
+                    local_to_world(entity.transform, segment[1]),
+                ) <= radius
+            }),
+        },
         CanvasEntityKind::Rectangle | CanvasEntityKind::Artboard { .. }
             if entity.style.fill.is_none() || entity.is_artboard() =>
         {

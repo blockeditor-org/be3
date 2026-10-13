@@ -12,13 +12,17 @@ fn a_back_gesture_slides_a_dialog_away_before_it_closes() {
     let body_ref = body.clone();
     let document = build({
         let open = open.clone();
+        let closing = set_open.clone();
         move || {
             view! {
                 <List spacing=0.0>
                     <Dialog
                         open={open}
                         width=300.0
-                        on_dismiss={move || reports.set(reports.get() + 1)}
+                        on_dismiss={move || {
+                            reports.set(reports.get() + 1);
+                            closing.set(false);
+                        }}
                     >
                         <Text
                             string="Body"
@@ -33,11 +37,11 @@ fn a_back_gesture_slides_a_dialog_away_before_it_closes() {
     });
 
     let mut harness = Harness::new(document);
-    assert!(!harness.frame(Vec::new()).handles_back);
+    assert!(!harness.frame(Vec::new()).window.handles_back);
 
     let opening = set_open.clone();
     with_reactive_scope(harness.document_mut(), move || opening.set(true));
-    assert!(harness.frame(Vec::new()).handles_back);
+    assert!(harness.frame(Vec::new()).window.handles_back);
     harness.frame(Vec::new());
     let resting = harness.rect(body.get());
 
@@ -84,11 +88,8 @@ fn a_back_gesture_slides_a_dialog_away_before_it_closes() {
     assert_eq!(dismissed.get(), 0, "and closes only once it is gone");
     harness.settle();
     assert_eq!(dismissed.get(), 1);
-    assert!(!harness.frame(Vec::new()).handles_back);
+    assert!(!harness.frame(Vec::new()).window.handles_back);
 
-    let closing = set_open.clone();
-    with_reactive_scope(harness.document_mut(), move || closing.set(false));
-    harness.frame(Vec::new());
     with_reactive_scope(harness.document_mut(), move || set_open.set(true));
     harness.frame(Vec::new());
     harness.frame(Vec::new());

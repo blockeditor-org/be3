@@ -6,7 +6,6 @@ use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_WEB_ASSET;
 use block_editor_beui::beui::reactive::{
     Frame, ItemSize, List, Memo, ReadSignal, Spacer, WriteSignal, batch, clone, component,
@@ -14,12 +13,13 @@ use block_editor_beui::beui::reactive::{
 };
 use block_editor_beui::beui::styled::{Caption, use_theme};
 use block_editor_beui::beui::unstyled::{
-    DockEntry, DockNode, DockPane, DockTab, DockWindow, DockingLayout, TabId,
+    DockDialog, DockEntry, DockNode, DockPane, DockTab, DockWindow, DockingLayout, TabId,
 };
+use block_editor_beui::beui::{NodeId, Rect, Vec2, pos2, vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
     AccessLevel, BlockFilter, BlockPick, ChildState, Editor, EditorHost, FocusedBlock, HostPanel,
-    HostWindow, HostWindowId, PickedBlock, Pushed, ShellDialog,
+    HostWindow, HostWindowId, HostWindows, PickedBlock, Pushed, ShellDialog, WindowAction,
 };
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
@@ -31,7 +31,9 @@ use super::picker::{Pick, PickAction, PickOutcome};
 use super::saved::{self, LAYOUT};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
-use super::window::{WindowPanel, dialog_window, tab_window, window_tab, window_title};
+use super::window::{
+    WindowPanel, floating_window, shown_size, tab_window, window_picture, window_tab, window_title,
+};
 
 pub const FILES: TabId = TabId::new(1);
 const FIRST_BLOCK_TAB: u64 = 2;
@@ -105,7 +107,7 @@ impl Workspace {
         let (dialog, set_dialog) = create_signal(None);
         let (share, set_share) = create_signal(None);
         let (panels, set_panels) = create_signal(Vec::new());
-        let windows = editor.windows();
+        let windows = editor.host_value::<HostWindows>();
         let workspace = Rc::new(Self {
             editor,
             with_files,
@@ -191,7 +193,50 @@ impl Workspace {
                 workspace.watch_artifacts();
             }
         });
+        let raising = Rc::downgrade(&workspace);
+        let seen = RefCell::new(HashMap::new());
+        create_effect(move || {
+            if let Some(workspace) = raising.upgrade() {
+                workspace.show_raised(&mut seen.borrow_mut());
+            }
+        });
         workspace
+    }
+
+    fn show_raised(&self, seen: &mut HashMap<HostWindowId, u64>) {
+        let (raised, parents): (
+            HashMap<HostWindowId, u64>,
+            HashMap<HostWindowId, HostWindowId>,
+        ) = self.windows.with(|windows| {
+            (
+                windows
+                    .iter()
+                    .map(|window| (window.id, window.raised))
+                    .collect(),
+                windows
+                    .iter()
+                    .filter_map(|window| Some((window.id, window.parent?)))
+                    .collect(),
+            )
+        });
+        let forward: Vec<HostWindowId> = raised
+            .iter()
+            .filter(|(window, count)| seen.get(window).copied().unwrap_or_default() < **count)
+            .map(|(window, _)| *window)
+            .collect();
+        *seen = raised;
+        untrack(|| {
+            for window in forward {
+                let mut root = window;
+                for _ in 0..parents.len() {
+                    match parents.get(&root) {
+                        Some(parent) => root = *parent,
+                        None => break,
+                    }
+                }
+                self.layout.show(&window_tab(root));
+            }
+        });
     }
 
     pub fn editor(&self) -> &Editor {
@@ -227,14 +272,26 @@ impl Workspace {
         })
     }
 
-    pub fn windows(&self, dialogs: bool) -> Memo<Vec<HostWindowId>> {
+    pub fn windows(&self) -> Memo<Vec<HostWindowId>> {
         let windows = self.windows.clone();
         create_memo(move || {
             windows.with(|windows| {
                 windows
                     .iter()
-                    .filter(|window| window.parent.is_some() == dialogs)
+                    .filter(|window| window.parent.is_none())
                     .map(|window| window.id)
+                    .collect::<Vec<_>>()
+            })
+        })
+    }
+
+    pub fn dialogs(&self) -> Memo<Vec<(HostWindowId, HostWindowId)>> {
+        let windows = self.windows.clone();
+        create_memo(move || {
+            windows.with(|windows| {
+                windows
+                    .iter()
+                    .filter_map(|window| Some((window.id, window.parent?)))
                     .collect::<Vec<_>>()
             })
         })
@@ -275,11 +332,11 @@ impl Workspace {
             "type": info.block_type.to_string(),
             "author": info.author.to_string(),
             "parent": parent,
-            "name": info.name,
-            "named_by_hand": info.named_by_hand,
+            "name": info.name(),
+            "named_by_hand": info.named_by_hand(),
             "references": info.references.iter().map(Uuid::to_string).collect::<Vec<_>>(),
             "access": info.access.label(),
-            "artifact_source": info.artifact.as_ref().map(|artifact| artifact.source_type.to_string()),
+            "artifact_source": info.artifact().map(|artifact| artifact.source_type.to_string()),
         });
         serde_json::to_string(&data).ok()
     }
@@ -487,8 +544,7 @@ impl Workspace {
             EditorViewContent::CONTENT_TYPE,
             Some(EditorView::document(editor, content).encode()),
             BlockParent::Block(profile),
-            None,
-            None,
+            block_editor_beui::be_block::BlockMetadata::default(),
         ))
     }
 
@@ -734,7 +790,7 @@ impl Workspace {
 
     fn close(&self, tab: TabId) {
         if let Some(window) = tab_window(tab) {
-            self.host().close_window(window);
+            self.host().act(WindowAction::Close(window));
             return;
         }
         if let Some(panel) = tab_panel(tab) {
@@ -968,7 +1024,7 @@ pub fn BlockTab(workspace: Rc<Workspace>, tab: TabId) -> DockEntry<TabId> {
 #[component]
 pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<TabId> {
     let windows = workspace.windows.clone();
-    let title = create_memo(move || {
+    let name = create_memo(move || {
         windows.with(|windows| {
             windows
                 .iter()
@@ -976,6 +1032,60 @@ pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<Ta
                 .map_or_else(|| "Window".to_owned(), window_title)
         })
     });
+    let listed = workspace.windows.clone();
+    let responding = create_memo(move || {
+        listed.with(|windows| {
+            windows
+                .iter()
+                .find(|listed| listed.id == window)
+                .is_none_or(|listed| listed.responding)
+        })
+    });
+    let title = create_memo(clone!(name responding -> move || match responding.get() {
+        true => name.get(),
+        false => format!("{} (not responding)", name.get()),
+    }));
+    let listed = workspace.windows.clone();
+    let fullscreen = create_memo(move || {
+        listed.with(|windows| {
+            let area = windows
+                .iter()
+                .find(|listed| listed.id == window)?
+                .fullscreen?;
+            Some(Rect::from_min_size(
+                pos2(area.x, area.y),
+                vec2(area.width, area.height),
+            ))
+        })
+    });
+    let listed = workspace.windows.clone();
+    let focused = create_memo(move || {
+        listed.with(|windows| {
+            windows
+                .iter()
+                .any(|listed| listed.id == window && listed.focused)
+        })
+    });
+    let listed = workspace.windows.clone();
+    let size = create_memo(move || {
+        listed.with(|windows| {
+            windows
+                .iter()
+                .find(|listed| listed.id == window)
+                .map(|listed| vec2(listed.size.width, listed.size.height))
+        })
+    });
+    let listed = workspace.windows.clone();
+    let icon = create_memo(move || {
+        listed.with(|windows| {
+            windows
+                .iter()
+                .find(|listed| listed.id == window)?
+                .icon
+                .clone()
+        })
+    });
+    let picture = create_memo(move || icon.get().as_ref().and_then(window_picture));
     let closing = Rc::clone(&workspace);
     let editor = workspace.editor().clone();
     view! {
@@ -983,21 +1093,30 @@ pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<Ta
             id={window_tab(window)}
             title
             icon=ICON_WEB_ASSET
+            picture
             on_close={move || closing.close(window_tab(window))}
         >
-            <WindowPanel editor={editor.clone()} window />
+            <WindowPanel
+                editor={editor.clone()}
+                window
+                fullscreen={fullscreen.clone()}
+                name={name.clone()}
+                responding={responding.clone()}
+                focused={focused.clone()}
+                size={size.clone()}
+            />
         </DockTab>
     }
 }
 
 #[component]
-pub fn DialogWindow(workspace: Rc<Workspace>, window: HostWindowId) -> DockNode<TabId> {
+pub fn FloatingWindow(workspace: Rc<Workspace>, window: HostWindowId) -> DockNode<TabId> {
     let rect = workspace
         .windows
         .get_untracked()
         .iter()
         .find(|listed| listed.id == window)
-        .map(dialog_window)
+        .map(floating_window)
         .unwrap_or_else(|| panel_window(HostPanel::BlockStack));
     let key = format!("window.{}", window.0);
     view! {
@@ -1006,6 +1125,56 @@ pub fn DialogWindow(workspace: Rc<Workspace>, window: HostWindowId) -> DockNode<
                 <WindowTab workspace window />
             </DockPane>
         </DockWindow>
+    }
+}
+
+#[component]
+pub fn AttachedWindow(
+    workspace: Rc<Workspace>,
+    window: HostWindowId,
+    parent: HostWindowId,
+) -> DockNode<TabId> {
+    let listed = workspace.windows.clone();
+    let info = create_memo(move || {
+        listed.with(|windows| windows.iter().find(|listed| listed.id == window).cloned())
+    });
+    let title = create_memo(clone!(info -> move || {
+        info.get().map_or_else(|| "Window".to_owned(), |info| window_title(&info))
+    }));
+    let size = create_memo(clone!(info -> move || {
+        info.get().map_or(Vec2::ZERO, |info| {
+            shown_size(vec2(info.size.width, info.size.height))
+        })
+    }));
+    let followed = create_memo(|| None);
+    let modal = create_memo(clone!(info -> move || info.get().is_some_and(|info| info.modal)));
+    let responding = create_memo(clone!(info -> move || {
+        info.get().is_none_or(|info| info.responding)
+    }));
+    let focused = create_memo(clone!(info -> move || info.get().is_some_and(|info| info.focused)));
+    let fullscreen = create_memo(|| None);
+    let closing = Rc::clone(&workspace);
+    let editor = workspace.editor().clone();
+    view! {
+        <DockDialog
+            id={window_tab(window)}
+            parent={window_tab(parent)}
+            title={title.clone()}
+            icon=ICON_WEB_ASSET
+            size
+            modal
+            on_close={move || closing.close(window_tab(window))}
+        >
+            <WindowPanel
+                editor={editor.clone()}
+                window
+                fullscreen={fullscreen.clone()}
+                name={title.clone()}
+                responding={responding.clone()}
+                focused={focused.clone()}
+                size={followed.clone()}
+            />
+        </DockDialog>
     }
 }
 

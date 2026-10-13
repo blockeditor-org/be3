@@ -1,0 +1,122 @@
+use crate::clipboard::{PasteAnswer, PasteKind, Pasted};
+use crate::file_picker::{FilePickAnswer, FilePickRequest};
+use crate::geometry::Vec2;
+use crate::runner::Platform;
+use crate::window::WindowReports;
+
+pub const MAX_PIXELS: f32 = 8192.0;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WindowSize {
+    pub size: Vec2,
+    pub scale: f32,
+}
+
+impl WindowSize {
+    pub fn parse(text: &str) -> Option<Self> {
+        let (size, scale) = match text.split_once('@') {
+            Some((size, scale)) => (
+                size,
+                scale
+                    .parse::<f32>()
+                    .ok()
+                    .filter(|scale| scale.is_finite() && *scale > 0.0)?,
+            ),
+            None => (text, 1.0),
+        };
+        let (width, height) = size.split_once('x')?;
+        let size = Vec2::new(width.parse().ok()?, height.parse().ok()?);
+        Some(Self { size, scale }).filter(Self::fits)
+    }
+
+    pub fn fits(&self) -> bool {
+        let fits = |length: f32| {
+            (1.0..=MAX_PIXELS).contains(&length)
+                && (1.0..=MAX_PIXELS).contains(&(length * self.scale))
+        };
+        fits(self.size.x) && fits(self.size.y)
+    }
+}
+
+pub struct Simulation {
+    pub window: WindowSize,
+    pub screen: Vec2,
+    pub fullscreen: bool,
+    pub focused: bool,
+    pub clipboard: Option<String>,
+    pub picks: Vec<(FilePickRequest, FilePickAnswer)>,
+    reports: WindowReports,
+}
+
+impl Simulation {
+    pub fn new(window: WindowSize, screen: Option<Vec2>, reports: WindowReports) -> Self {
+        let simulation = Self {
+            window,
+            screen: screen.unwrap_or(window.size),
+            fullscreen: false,
+            focused: true,
+            clipboard: None,
+            picks: Vec::new(),
+            reports,
+        };
+        simulation.report_size();
+        simulation
+    }
+
+    pub fn shown(&self) -> Vec2 {
+        match self.fullscreen {
+            true => self.screen,
+            false => self.window.size,
+        }
+    }
+
+    pub fn physical(&self) -> (u32, u32) {
+        let shown = self.shown() * self.window.scale;
+        (
+            shown.x.round().max(1.0) as u32,
+            shown.y.round().max(1.0) as u32,
+        )
+    }
+
+    pub fn resize(&mut self, window: WindowSize, screen: Vec2) {
+        self.window = window;
+        self.screen = screen;
+        self.report_size();
+    }
+
+    fn report_size(&self) {
+        let (width, height) = self.physical();
+        self.reports.resized(width, height);
+        self.reports.scaled(self.window.scale);
+    }
+}
+
+impl Platform for Simulation {
+    fn copy(&mut self, text: String) {
+        self.clipboard = Some(text);
+    }
+
+    fn paste(&mut self, kinds: &[PasteKind], answer: PasteAnswer) {
+        let text = self
+            .clipboard
+            .clone()
+            .filter(|_| kinds.contains(&PasteKind::Text));
+        answer.send(text.map(Pasted::Text));
+    }
+
+    fn pick_file(&mut self, request: FilePickRequest, answer: FilePickAnswer) {
+        self.picks.push((request, answer));
+    }
+
+    fn set_fullscreen(&mut self, fullscreen: bool) {
+        if self.fullscreen != fullscreen {
+            self.fullscreen = fullscreen;
+            self.reports.fullscreen(fullscreen);
+            self.report_size();
+        }
+    }
+
+    fn simulation(&mut self) -> Option<&mut Simulation> {
+        Some(self)
+    }
+}

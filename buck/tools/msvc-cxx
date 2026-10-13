@@ -8,7 +8,9 @@
 # fail to compile against it. Nothing C++17 removed is anything these libraries
 # use, so the newer standard is the one they get.
 #
-# The compiler is the first argument. The loop is the same as wasm-ld's.
+# The compiler is the first argument. The loop is the POSIX way to rewrite "$@"
+# without losing an argument that contains a space: take one off the front,
+# decide, and put the ones that survive back on the end.
 compiler="$1"
 shift
 count=$#
