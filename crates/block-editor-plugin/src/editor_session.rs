@@ -78,7 +78,6 @@ struct RegionState {
     reported_frame: Option<FrameReport>,
     window: block_plugin_api::WindowRequests,
     reported_window: Option<block_plugin_api::WindowRequests>,
-    show_keyboard: bool,
     children: Vec<ChildPlacement>,
     occluders: Vec<Occluder>,
     laid_out: Size,
@@ -693,12 +692,6 @@ impl EditorSession {
                     window: state.window.clone(),
                 });
             }
-            if std::mem::take(&mut state.show_keyboard) {
-                messages.push(EditorMessage::ShowKeyboard {
-                    instance,
-                    region: *region,
-                });
-            }
         }
         messages
     }
@@ -948,7 +941,6 @@ impl EditorSession {
                 intercepted_keys: window.intercepted_keys.clone(),
                 pastes: window.pastes.clone(),
             };
-            state.show_keyboard |= frame.show_keyboard;
             let reports = matches!(region, EditorRegion::Frame);
             state.report = reports.then(|| FrameReport {
                 screen,

@@ -268,14 +268,17 @@ hooks the higher crates fill in:
   intercepted keys, the paste kinds the focus takes, and the IME area), which
   the `Context` fills during a frame and `FrameOutput::window` carries. The
   runner hands it to `Platform::show_window` with the state it showed before,
-  and only when they differ, so an adapter compares just the fields it uses;
-  a new field is one more field there and in the adapters that act on it. The
-  IME area it hands over is in the window's own units (winit's logical
-  pixels, CSS pixels, a plugin region's points: physical pixels over the
-  platform's scale, so points times the zoom), and `Runner::window` is the
-  state last shown, which the web and Android adapters read each frame to
-  keep their input method's copy of the text in step. What happens once
-  rather than holds (a copy, a paste, a file pick, `show_keyboard`,
+  only when they differ or the app was just given IME or text input, so an
+  adapter compares just the fields it uses; a new field is one more field
+  there and in the adapters that act on it. Typing moves the platform's own
+  copy of the field (the web's hidden textarea, Android's editable) even
+  when the app turns the text away or a composition ends with the field
+  unchanged, so that is when the web and Android adapters bring that copy
+  back to the app's text, comparing against what they last sent. The IME
+  area it hands over is in the window's own units (winit's logical pixels,
+  CSS pixels, a plugin region's points: physical pixels over the platform's
+  scale, so points times the zoom), and `Runner::window` is the state last
+  shown. What happens once rather than holds (a copy, a paste, a file pick,
   `set_fullscreen`, closing) has a call or field of its own. Fullscreen goes
   both ways: `Context::set_fullscreen` asks the window to enter or leave it,
   the runner passing on each request that differs from what the window last

@@ -58,7 +58,7 @@ pub struct Document {
     pub(crate) focus_before: Option<NodeId>,
     pub composed: String,
     pub(crate) keyboard_held: bool,
-    pub(crate) keyboard_asked: bool,
+    pub(crate) keyboard_asks: u32,
     pub activated: Option<NodeId>,
     pub activation_key: Option<Key>,
     pub rects: Rc<Rects>,
@@ -254,7 +254,7 @@ impl Document {
             focus_before: None,
             composed: String::new(),
             keyboard_held: false,
-            keyboard_asked: false,
+            keyboard_asks: 0,
             activated: None,
             activation_key: None,
             drags: Rc::new(crate::drag_board::Board::new(Rc::clone(&rects))),
@@ -418,11 +418,6 @@ impl Document {
 
     pub fn watch_pixels_per_point(&self) -> ::reactive::ReadSignal<f32> {
         self.scale.0.clone()
-    }
-
-    pub fn request_keyboard(&mut self) {
-        self.keyboard_asked = true;
-        self.request_repaint_after(std::time::Duration::ZERO);
     }
 
     pub fn watch_fullscreen(&self) -> ::reactive::ReadSignal<bool> {
@@ -1096,13 +1091,9 @@ impl Document {
             FrameMeasurement::measure(&mut measurement.timings.layout, || {
                 self.update_layout(ctx, rect)
             });
-        let asked = std::mem::take(&mut self.keyboard_asked);
         if self.keyboard
             && let Some(area) = self.focused_ime_area()
         {
-            if asked && area.keyboard {
-                ctx.request_keyboard();
-            }
             ctx.set_ime_area(Some(area));
         }
         if ctx.test_ids_published() {

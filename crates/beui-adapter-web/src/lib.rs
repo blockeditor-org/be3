@@ -242,6 +242,7 @@ impl Platform for WebPlatform {
                 }
             }
         }
+        self.mirror(window.ime.as_ref());
         if window.ime != shown.ime {
             self.show_ime(window.ime.as_ref());
         }
@@ -264,7 +265,7 @@ impl Platform for WebPlatform {
 
 impl WebPlatform {
     fn show_ime(&self, ime: Option<&ImeArea>) {
-        let held = ime.filter(|area| !area.keyboard);
+        let held = ime.filter(|area| !area.keyboard.shown());
         let was_held = HELD_FIELD.replace(held.map(|area| area.rect)).is_some();
         match held {
             Some(_) => {
@@ -327,7 +328,6 @@ impl Runner {
         else {
             return;
         };
-        self.platform.mirror(self.runner.window().ime.as_ref());
         let presenting = frame.pending && self.runner.present();
         match frame.next(presenting) {
             Some(Duration::ZERO) => schedule(),

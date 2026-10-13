@@ -102,7 +102,6 @@ pub struct Frame {
     pub floating: Vec<Rect>,
     pub claims: Vec<Claim>,
     pub window: WindowRequests,
-    pub show_keyboard: bool,
     pub description: Option<Description>,
 }
 
@@ -147,7 +146,7 @@ pub struct Ime {
     pub rect: Rect,
     pub cursor: Rect,
     pub text: Option<block_plugin_api::ImeText>,
-    pub keyboard: bool,
+    pub keyboard: block_plugin_api::Keyboard,
 }
 
 #[cfg(target_arch = "wasm32")]

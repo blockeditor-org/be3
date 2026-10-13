@@ -31,7 +31,8 @@ use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePick, FilePickAnswer, FilePickId, FilePickRequest, PickedFile};
 use beui_core::geometry::{Vec2, pos2, vec2};
 use beui_core::input::{
-    BackEdge, BackGesture, Event, ImeArea, ImeEvent, ImeText, Key, Modifiers, TouchId, TouchPhase,
+    BackEdge, BackGesture, Event, ImeArea, ImeEvent, ImeText, Key, Keyboard, Modifiers, TouchId,
+    TouchPhase,
 };
 use beui_core::renderer::{Loaded, WindowHandle};
 use beui_core::runner::{Adapter, Keystroke, Launch, Platform, Running, ScrollDelta};
@@ -236,15 +237,14 @@ impl Platform for AndroidPlatform {
             self.set_back_handled(window.handles_back);
         }
         self.sync_ime(window.ime.as_ref());
-        let asked = shown.ime.as_ref().is_some_and(|area| area.keyboard);
-        let wanted = window.ime.as_ref().is_some_and(|area| area.keyboard);
-        if wanted != asked {
-            self.set_keyboard(wanted);
+        let asked = shown.ime.as_ref().map(|area| area.keyboard);
+        let wanted = window.ime.as_ref().map(|area| area.keyboard);
+        match wanted {
+            Some(Keyboard::Shown { .. }) if wanted != asked => self.set_keyboard(true),
+            Some(Keyboard::Shown { .. }) => {}
+            _ if asked.is_some_and(Keyboard::shown) => self.set_keyboard(false),
+            _ => {}
         }
-    }
-
-    fn show_keyboard(&mut self) {
-        self.set_keyboard(true);
     }
 
     fn publish_accessibility(&mut self, tree: &mut dyn FnMut() -> TreeUpdate) {
@@ -466,7 +466,11 @@ impl Runner {
                 platform.sent_ime = None;
                 let window = self.runner.window();
                 platform.sync_ime(window.ime.as_ref());
-                if window.ime.as_ref().is_some_and(|area| area.keyboard) {
+                if window
+                    .ime
+                    .as_ref()
+                    .is_some_and(|area| area.keyboard.shown())
+                {
                     platform.set_keyboard(true);
                 }
                 if window.handles_back {
@@ -605,7 +609,6 @@ impl Runner {
             }
             return false;
         };
-        self.platform.sync_ime(self.runner.window().ime.as_ref());
         self.next_update = frame
             .wait()
             .and_then(|wait| Instant::now().checked_add(wait));

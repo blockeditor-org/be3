@@ -452,7 +452,6 @@ struct Screen {
     dragging: bool,
     file_dropping: bool,
     window: WindowRequests,
-    keyboard_asks: u64,
     children: ChildTable,
     reported_statuses: HashMap<ChildId, ChildStatus>,
     revoked: HashSet<ChildId>,
@@ -687,7 +686,6 @@ impl Instances {
                 dragging: false,
                 file_dropping: false,
                 window: WindowRequests::default(),
-                keyboard_asks: 0,
                 children: ChildTable::default(),
                 reported_statuses: HashMap::new(),
                 revoked: HashSet::new(),
@@ -2051,7 +2049,10 @@ impl Instances {
             rect: host_rect(area.rect, origin, stretch),
             cursor: host_rect(area.cursor, origin, stretch),
             text: area.text.as_ref().map(beui_plugin_input::beui_ime_text),
-            keyboard: area.keyboard,
+            keyboard: match area.keyboard {
+                block_plugin_api::Keyboard::Held => beui::Keyboard::Held,
+                block_plugin_api::Keyboard::Shown { asks } => beui::Keyboard::Shown { asks },
+            },
         })
     }
 
@@ -2059,9 +2060,9 @@ impl Instances {
         &self,
         instance: EditorInstanceId,
         region: EditorRegion,
-    ) -> Option<(&WindowRequests, u64)> {
+    ) -> Option<&WindowRequests> {
         let screen = self.entries.get(&instance)?.screens.get(&region)?;
-        Some((&screen.window, screen.keyboard_asks))
+        Some(&screen.window)
     }
 
     pub(super) fn cursor(
@@ -2660,17 +2661,6 @@ impl Instances {
                 let changed = screen.window != window;
                 screen.window = window;
                 changed
-            }
-            EditorMessage::ShowKeyboard { instance, region } => {
-                let Some(screen) = self
-                    .entries
-                    .get_mut(&instance)
-                    .and_then(|entry| entry.screens.get_mut(&region))
-                else {
-                    return false;
-                };
-                screen.keyboard_asks += 1;
-                true
             }
             EditorMessage::CopyText { instance, text } => {
                 if !self.entries.contains_key(&instance) {

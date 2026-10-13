@@ -51,7 +51,7 @@ impl App for Field {
             rect: Rect::from_min_max(pos2(10.0, 10.0), pos2(30.0, 20.0)),
             cursor: Rect::from_min_max(pos2(12.0, 10.0), pos2(13.0, 20.0)),
             text: None,
-            keyboard: true,
+            keyboard: Keyboard::Shown { asks: 0 },
         }));
     }
 }

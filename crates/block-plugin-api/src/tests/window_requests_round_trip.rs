@@ -2,8 +2,8 @@ use super::*;
 
 #[test]
 fn window_requests_round_trip() {
-    for message in [
-        Message::Editor(EditorMessage::Window {
+    {
+        let message = Message::Editor(EditorMessage::Window {
             instance: EditorInstanceId(7),
             region: EditorRegion::Frame,
             window: WindowRequests {
@@ -18,12 +18,7 @@ fn window_requests_round_trip() {
                 }],
                 pastes: vec![PasteKind::Image, PasteKind::Text],
             },
-        }),
-        Message::Editor(EditorMessage::ShowKeyboard {
-            instance: EditorInstanceId(7),
-            region: EditorRegion::Frame,
-        }),
-    ] {
+        });
         assert_eq!(
             decode_frame(&encode_frame(&message).unwrap()).unwrap(),
             message

@@ -1695,7 +1695,6 @@ pub(crate) struct RegionView {
     pub(crate) wants_keyboard: bool,
     pub(crate) intercepted_keys: Vec<beui::KeyChord>,
     pub(crate) pastes: Vec<beui::PasteKind>,
-    pub(crate) keyboard_asks: u64,
     pub(crate) grabbed: bool,
 }
 
@@ -1720,7 +1719,6 @@ impl RegionView {
             wants_keyboard: false,
             intercepted_keys: Vec::new(),
             pastes: Vec::new(),
-            keyboard_asks: 0,
             grabbed: false,
         }
     }
@@ -1836,8 +1834,6 @@ fn placed_view(
                 .unwrap_or_default(),
         };
         let window = runtime.instances.window(instance, region);
-        let keyboard_asks = window.map_or(0, |(_, asks)| asks);
-        let window = window.map(|(window, _)| window);
         let handles_back = window.is_some_and(|window| window.handles_back);
         let claims = report
             .map(|report| {
@@ -1915,7 +1911,6 @@ fn placed_view(
                         .collect()
                 })
                 .unwrap_or_default(),
-            keyboard_asks,
             grabbed: runtime.instances.grabbing(),
         }
     }

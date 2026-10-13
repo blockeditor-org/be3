@@ -50,7 +50,6 @@ struct Inner {
     window: RefCell<WindowState>,
     fullscreen: Cell<Option<bool>>,
     fullscreen_shown: Cell<bool>,
-    keyboard_requested: Cell<bool>,
     close_requested: Cell<bool>,
     touch_emulation: Cell<bool>,
     input_simulation: RefCell<Option<Box<dyn InputSimulation>>>,
@@ -148,7 +147,6 @@ pub struct FrameOutput {
     ambiguous_test_ids: HashSet<String>,
     pub window: WindowState,
     pub fullscreen: Option<bool>,
-    pub show_keyboard: bool,
     pub close_requested: bool,
     pub copied_text: Option<String>,
     pub paste: Option<PasteRequest>,
@@ -246,7 +244,6 @@ impl Context {
                 window: RefCell::new(WindowState::default()),
                 fullscreen: Cell::new(None),
                 fullscreen_shown: Cell::new(false),
-                keyboard_requested: Cell::new(false),
                 close_requested: Cell::new(false),
                 touch_emulation: Cell::new(false),
                 input_simulation: RefCell::new(None),
@@ -423,7 +420,6 @@ impl Context {
         self.inner.paste.set(None);
         self.inner.window.borrow_mut().begin_frame();
         self.inner.fullscreen.set(None);
-        self.inner.keyboard_requested.set(false);
         self.inner.close_requested.set(false);
         self.inner.accessibility.borrow_mut().clear();
         self.inner.actions.borrow_mut().clear();
@@ -495,7 +491,6 @@ impl Context {
                 ..self.inner.window.borrow().clone()
             },
             fullscreen: self.inner.fullscreen.get(),
-            show_keyboard: self.inner.keyboard_requested.get(),
             close_requested: self.inner.close_requested.get(),
             repaint: self.inner.repaint.get(),
             accessibility: std::mem::take(&mut *self.inner.accessibility.borrow_mut()),
@@ -535,10 +530,6 @@ impl Context {
         if self.inner.fullscreen_shown.replace(fullscreen) != fullscreen {
             self.request_repaint();
         }
-    }
-
-    pub fn request_keyboard(&self) {
-        self.inner.keyboard_requested.set(true);
     }
 
     pub fn close_window(&self) {

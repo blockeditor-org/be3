@@ -1094,10 +1094,6 @@ pub enum EditorMessage {
         region: EditorRegion,
         window: WindowRequests,
     },
-    ShowKeyboard {
-        instance: EditorInstanceId,
-        region: EditorRegion,
-    },
     Presence {
         instance: EditorInstanceId,
         visible: bool,
@@ -1253,7 +1249,6 @@ impl EditorMessage {
             | Self::WatchHistory { instance, .. }
             | Self::HistoryStates { instance, .. }
             | Self::Window { instance, .. }
-            | Self::ShowKeyboard { instance, .. }
             | Self::Presence { instance, .. }
             | Self::ReplaceChild { instance, .. }
             | Self::ChildReplaced { instance, .. }
@@ -1849,7 +1844,6 @@ impl EditorMessage {
             | Self::WatchArtifacts { .. }
             | Self::WatchHistory { .. }
             | Self::Window { .. }
-            | Self::ShowKeyboard { .. }
             | Self::ChildReplaced { .. }
             | Self::CopyText { .. }
             | Self::Paste { .. }
@@ -2098,7 +2092,13 @@ pub struct ImeArea {
     pub rect: ChildRect,
     pub cursor: ChildRect,
     pub text: Option<ImeText>,
-    pub keyboard: bool,
+    pub keyboard: Keyboard,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Keyboard {
+    Held,
+    Shown { asks: u32 },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

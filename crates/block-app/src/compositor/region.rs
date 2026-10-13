@@ -254,16 +254,14 @@ pub(crate) fn PluginRegion(
         })
     }));
     let ime_keyboard = create_memo(clone!(state -> move || {
-        state.with(|view| view.ime.as_ref().is_none_or(|area| area.keyboard))
+        state.with(|view| view.ime.as_ref().is_none_or(|area| area.keyboard.shown()))
     }));
-    let keyboard_asks = create_memo(clone!(state -> move || state.with(|view| view.keyboard_asks)));
-    let asked = std::cell::Cell::new(keyboard_asks.get_untracked());
-    create_effect(move || {
-        let asks = keyboard_asks.get();
-        if asked.replace(asks) != asks {
-            try_with_document(|document| document.request_keyboard());
-        }
-    });
+    let keyboard_asks = create_memo(clone!(state -> move || {
+        Some(state.with(|view| match view.ime.as_ref().map(|area| area.keyboard) {
+            Some(beui::Keyboard::Shown { asks }) => asks,
+            _ => 0,
+        }))
+    }));
     let ime_text = create_memo(clone!(state -> move || {
         state.with(|view| view.ime.as_ref().and_then(|area| area.text.clone()))
     }));
@@ -346,7 +344,7 @@ pub(crate) fn PluginRegion(
                             cursor={cursor}
                             ime={ime}
                             ime_keyboard={ime_keyboard}
-                            keyboard_on_tap=false
+                            keyboard_asks={keyboard_asks}
                             ime_cursor={ime_cursor}
                             ime_text={ime_text}
                             pastes={pastes}

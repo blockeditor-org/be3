@@ -9,6 +9,7 @@ use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
 use beui_core::app::{App, SafeArea, Setup, Waker};
 use beui_core::context::{Context, FrameOutput};
 use beui_core::geometry::Rect;
+use beui_core::input::Keyboard;
 use beui_core::renderer::Loaded;
 use beui_core::runner::{Adapter, Launch, RunOptions, Runner, Running};
 use beui_core::screens::Screen;
@@ -178,8 +179,7 @@ impl PluginSurface {
             return Frame::default();
         };
         let description = region.describe.then(|| self.describe(region));
-        let show_keyboard = std::mem::take(&mut self.platform.show_keyboard);
-        frame_for(self.runner.window(), &frame, show_keyboard, description)
+        frame_for(self.runner.window(), &frame, description)
     }
 
     fn describe(&self, region: &Region) -> Description {
@@ -275,7 +275,6 @@ impl PluginSurface {
 fn frame_for(
     window: &WindowState,
     frame: &beui_core::runner::Frame,
-    show_keyboard: bool,
     description: Option<Description>,
 ) -> Frame {
     Frame {
@@ -294,7 +293,10 @@ fn frame_for(
                 rect: area.rect,
                 cursor: area.cursor,
                 text: area.text.as_ref().map(beui_plugin_input::protocol_ime_text),
-                keyboard: area.keyboard,
+                keyboard: match area.keyboard {
+                    Keyboard::Held => block_plugin_api::Keyboard::Held,
+                    Keyboard::Shown { asks } => block_plugin_api::Keyboard::Shown { asks },
+                },
             }),
             handles_back: window.handles_back,
             wants_keyboard: window.wants_keyboard,
@@ -309,7 +311,6 @@ fn frame_for(
                 .map(|kind| beui_plugin_input::protocol_paste_kind(*kind))
                 .collect(),
         },
-        show_keyboard,
         description,
     }
 }

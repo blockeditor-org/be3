@@ -270,7 +270,6 @@ impl EditorMessage {
             | Self::RegenerateArtifact { .. }
             | Self::ArtifactRegenerated { .. }
             | Self::Window { .. }
-            | Self::ShowKeyboard { .. }
             | Self::Presence { .. }
             | Self::ChildReplaced { .. }
             | Self::ChildView { .. }

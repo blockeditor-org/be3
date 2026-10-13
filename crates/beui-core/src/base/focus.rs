@@ -3,7 +3,7 @@ use crate::base::interactive::InteractiveNode;
 use crate::base::overlay::OverlayNode;
 use crate::clipboard::{PasteKind, Pasted};
 use crate::geometry::{Rect, Vec2};
-use crate::input::{ImeArea, ImeEvent, ImeText, Key, KeyPress};
+use crate::input::{ImeArea, ImeEvent, ImeText, Key, KeyPress, Keyboard};
 
 use crate::callback::{Callback, ClickCallback};
 use crate::current::with_document;
@@ -23,7 +23,7 @@ pub struct Focus {
     pub press_focus: bool,
     pub ime: bool,
     pub keyboard_on_focus: bool,
-    pub keyboard_on_tap: bool,
+    pub keyboard_asks: Option<u32>,
     pub ime_keyboard: bool,
     pub ime_cursor: Option<ImeCursor>,
     pub ime_text: Option<ImeText>,
@@ -52,7 +52,7 @@ impl Focus {
             press_focus: true,
             ime: false,
             keyboard_on_focus: true,
-            keyboard_on_tap: true,
+            keyboard_asks: None,
             ime_keyboard: true,
             ime_cursor: None,
             ime_text: None,
@@ -218,6 +218,16 @@ impl Document {
         }
     }
 
+    pub fn set_focusable_keyboard_asks(
+        &mut self,
+        focusable: NodeOf<InteractiveNode>,
+        asks: Option<u32>,
+    ) {
+        if self.contains(focusable) {
+            self.focus_mut(focusable).keyboard_asks = asks;
+        }
+    }
+
     pub fn set_focusable_ime_cursor(
         &mut self,
         focusable: NodeOf<InteractiveNode>,
@@ -260,7 +270,12 @@ impl Document {
             rect,
             cursor,
             text: node.ime_text.clone(),
-            keyboard: node.ime_keyboard && !self.keyboard_held,
+            keyboard: match node.ime_keyboard && !self.keyboard_held {
+                true => Keyboard::Shown {
+                    asks: node.keyboard_asks.unwrap_or(self.keyboard_asks),
+                },
+                false => Keyboard::Held,
+            },
         })
     }
 
@@ -550,9 +565,11 @@ impl Document {
             && self.contains(target)
             && let Some(keyboard) = focus_of(self.arena.get(target))
                 .filter(|node| node.press_focus)
-                .map(|node| node.ime && node.ime_keyboard && node.keyboard_on_tap)
+                .map(|node| node.ime && node.ime_keyboard && node.keyboard_asks.is_none())
         {
-            self.keyboard_asked = keyboard;
+            if keyboard {
+                self.keyboard_asks = self.keyboard_asks.wrapping_add(1);
+            }
             self.keyboard_held = false;
         }
     }

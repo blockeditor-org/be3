@@ -81,8 +81,6 @@ pub trait Platform {
 
     fn set_fullscreen(&mut self, _fullscreen: bool) {}
 
-    fn show_keyboard(&mut self) {}
-
     fn publish_accessibility(&mut self, _tree: &mut dyn FnMut() -> TreeUpdate) {}
 }
 
@@ -453,6 +451,10 @@ impl Runner {
         let raw = RawInput {
             events: next_batch(&mut self.events),
         };
+        let typed = raw
+            .events
+            .iter()
+            .any(|event| matches!(event, Event::Ime(_) | Event::Text(_)));
         let app = &mut self.app;
         let mut output = self.context.run(raw, |context| {
             app.update(context, safe_rect(screen, safe_area, scale));
@@ -502,14 +504,11 @@ impl Runner {
         }
         let window_units = scale / self.context.native_pixels_per_point();
         let window = output.window.clone().scaled(window_units);
-        if window != self.shown {
+        if typed || window != self.shown {
             platform.show_window(&window, &self.shown);
             self.shown = window;
         }
         self.asked.clone_from(&output.window);
-        if output.show_keyboard {
-            platform.show_keyboard();
-        }
         if let Some(fullscreen) = output.fullscreen {
             match &mut self.simulation {
                 Some(simulation) => {
