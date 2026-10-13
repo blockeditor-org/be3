@@ -252,12 +252,13 @@ A native target depends on a wasm one through a transition in
   the plugin SDK as `sdk-<SHA-256>.wasm` with its `.cwasm`, precompiled in an action
   per module for the platform the app is built for, by
   `//crates/plugin-test-runner:precompiler`, which is always the Linux x86_64
-  build the workers can run.
+  build the workers can run. `plugins.json` lists the manifests: every
+  platform finds its plugins through it, beside the executable, in the APK's
+  assets, or at the bundle root.
 - `:dist` is a platform's release, and `:plugins` the plugins once for all.
 - `:web` is block-app for `wasi` and `block-gpu-shim` for `wasm32`, each run
   through `wasm-bindgen` (`buck/cargo:wasm-bindgen`, pinned to `Cargo.lock`'s
-  version), with the page and shims from `crates/block-app/web` and a
-  `plugins.json` the browser finds the plugins through. `:web-serve` runs Caddy
+  version), with the page and shims from `crates/block-app/web`. `:web-serve` runs Caddy
   (`buck/tools:caddy`) with `web/Caddyfile`, and `-- --domain DOMAIN` serves
   that domain over https, which is how the app is deployed.
 - The APK is assembled on a worker without Gradle (`buck-tools apk`):
