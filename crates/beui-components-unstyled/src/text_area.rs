@@ -63,7 +63,6 @@ pub struct TextCheckbox {
 
 pub const PADDING: Vec2 = Vec2::new(12.0, 8.0);
 pub const CARET_WIDTH: f32 = 2.0;
-const GUTTER_TEXT_SIZE: f32 = 12.0;
 const GUTTER_PADDING_LEFT: f32 = 10.0;
 const GUTTER_PADDING_RIGHT: f32 = 10.0;
 const GUTTER_ARROW_SIZE: f32 = 14.0;
@@ -921,8 +920,8 @@ fn field_key(cx: &Context, press: KeyPress) -> bool {
 }
 
 fn gutter_width(line_count: usize) -> f32 {
-    let digit = galley("0", FontId::monospace(GUTTER_TEXT_SIZE))
-        .map_or(GUTTER_TEXT_SIZE * 0.6, |galley| galley.size().x);
+    let digit =
+        galley("0", FontId::monospace(BODY_SIZE)).map_or(BODY_SIZE * 0.6, |galley| galley.size().x);
     let mut digits = 1;
     let mut value = line_count.max(1);
     while value >= 10 {

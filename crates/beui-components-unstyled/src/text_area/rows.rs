@@ -5,6 +5,7 @@ use text_editor_core::{
     MarkdownTableAlignment, SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize, TextRun,
 };
 
+use beui_core::base::text::DEFAULT_FONT_SIZE;
 use beui_core::color::Color32;
 use beui_core::font::{FontId, Galley, TextLayout, Wraps};
 use beui_core::geometry::Vec2;
@@ -14,8 +15,8 @@ use beui_view::reactive::layout_text;
 use super::colors::TextAreaColors;
 use super::state::Snapshot;
 
-pub const BODY_SIZE: f32 = 12.0;
-pub const CODE_SIZE: f32 = 12.0;
+pub const BODY_SIZE: f32 = DEFAULT_FONT_SIZE;
+pub const CODE_SIZE: f32 = BODY_SIZE;
 pub const CHECKBOX_WIDTH: f32 = 18.0;
 pub const INLINE_WIDGET_HEIGHT: f32 = 24.0;
 pub const INLINE_WIDGET_ICON_INSET: f32 = 13.0;
@@ -30,7 +31,6 @@ const OBJECT: &str = "\u{fffc}";
 const SPACER: &str = "\u{200b}";
 const NEWLINE_MARKER: &str = "\u{23ce}";
 const ELLIPSIS: &str = "...";
-const ELLIPSIS_SIZE: f32 = 12.0;
 const ELLIPSIS_GAP: f32 = 6.0;
 const DELETED_PREVIEW: usize = 48;
 
@@ -650,7 +650,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         .any(|section| section.collapsed && section.line_start == start)
     {
         builder.push(SPACER, end..end, false, body, SpanKind::Space(ELLIPSIS_GAP));
-        let style = SpanStyle::new(FontId::monospace(ELLIPSIS_SIZE), inputs.colors.gutter_arrow);
+        let style = SpanStyle::new(FontId::monospace(BODY_SIZE), inputs.colors.gutter_arrow);
         builder.push(ELLIPSIS, end..end, false, style, SpanKind::Text);
     }
     finish(builder, body)

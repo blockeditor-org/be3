@@ -7,6 +7,7 @@ use accesskit::{Node, Role};
 
 use text_editor_core::{EditorCommand, TextBuffer, TextLanguage};
 
+use beui_core::base::text::DEFAULT_FONT_SIZE;
 use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Vec2};
@@ -31,7 +32,6 @@ use beui_view::reactive::{
     create_effect, create_memo, create_signal, set_component_state,
 };
 
-const FONT_SIZE: f32 = 14.0;
 const PLACEHOLDER_COLOR: Color32 = Color32::from_gray(140);
 const SELECTION_COLOR: Color32 = Color32::from_rgba_unmultiplied(120, 160, 255, 90);
 
@@ -59,7 +59,7 @@ pub struct TextInputStyle {
 impl Default for TextInputStyle {
     fn default() -> Self {
         Self {
-            font_size: Prop::Static(FONT_SIZE),
+            font_size: Prop::Static(DEFAULT_FONT_SIZE),
             color: Prop::Static(Color32::WHITE),
             placeholder_color: Prop::Static(PLACEHOLDER_COLOR),
             selection_color: Prop::Static(SELECTION_COLOR),
