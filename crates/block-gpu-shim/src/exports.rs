@@ -51,7 +51,10 @@ impl Guest for Shim {
     }
 
     fn gpu<R: Default>(&mut self, call: impl FnOnce(&mut Gpu) -> R) -> R {
-        call(&mut self.gpu)
+        let started = crate::now();
+        let result = call(&mut self.gpu);
+        self.gpu_time += crate::now() - started;
+        result
     }
 
     fn take_error(&mut self) -> Option<String> {
@@ -60,6 +63,12 @@ impl Guest for Shim {
 
     fn transport(&mut self) -> &mut Transport {
         &mut self.transport
+    }
+
+    fn submit(&mut self, handles: &[u32]) {
+        let started = crate::now();
+        self.gpu(|gpu| gpu.submit(handles));
+        self.submit_time += crate::now() - started;
     }
 }
 

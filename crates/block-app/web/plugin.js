@@ -165,6 +165,7 @@ export async function boot(shimUrl, moduleUrl, wake) {
         show: (id, canvas, surface) => shimModule.show(id, canvas, surface),
         forget: (id) => shimModule.forget(id),
         paint: () => shimModule.paint(),
+        took: () => shimModule.took(),
         failure: () => shimModule.failure(),
         woken: () => shimModule.woken(),
         step: () => exports.plugin_step(),

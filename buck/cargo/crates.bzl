@@ -60397,6 +60397,7 @@ third_party = {
                     "OffscreenCanvas",
                     "OffscreenCanvasRenderingContext2d",
                     "OvrMultiview2",
+                    "Performance",
                     "VideoFrame",
                     "WebGl2RenderingContext",
                     "WebGlActiveInfo",

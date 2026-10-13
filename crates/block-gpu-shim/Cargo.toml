@@ -18,6 +18,8 @@ wasm-dylink = { path = "../wasm-dylink" }
 web-sys = { version = "0.3", features = [
     "OffscreenCanvas",
     "OffscreenCanvasRenderingContext2d",
+    "Performance",
+    "WorkerGlobalScope",
     "console",
 ] }
 wgpu = { version = "29", default-features = false, features = ["std", "webgl", "webgpu", "wgsl"] }

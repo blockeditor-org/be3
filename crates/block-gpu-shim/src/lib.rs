@@ -20,6 +20,8 @@ struct Shim {
     screens: Screens,
     memory: Option<js_sys::WebAssembly::Memory>,
     transport: Transport,
+    gpu_time: f64,
+    submit_time: f64,
     woken: bool,
     failure: Option<String>,
 }
@@ -52,6 +54,8 @@ pub async fn start() -> Result<(), JsValue> {
         screens,
         memory: None,
         transport: Transport::default(),
+        gpu_time: 0.0,
+        submit_time: 0.0,
         woken: false,
         failure: None,
     };
@@ -82,16 +86,31 @@ pub fn forget(id: u32) {
 }
 
 #[wasm_bindgen]
-pub fn paint() {
+pub fn paint() -> bool {
     with(
         |shim| {
-            shim.screens.presented(&shim.gpu.take_presented());
+            let presented = shim.gpu.take_presented();
+            shim.screens.presented(&presented);
             let gpu = &shim.gpu;
             let painted = shim.screens.paint(|surface| gpu.surface(surface));
             shim.fail(painted);
+            !presented.is_empty()
         },
-        (),
-    );
+        false,
+    )
+}
+
+#[wasm_bindgen]
+pub fn took() -> Vec<f64> {
+    with(
+        |shim| {
+            vec![
+                std::mem::take(&mut shim.gpu_time),
+                std::mem::take(&mut shim.submit_time),
+            ]
+        },
+        vec![0.0, 0.0],
+    )
 }
 
 #[wasm_bindgen]
@@ -124,4 +143,12 @@ pub fn failure() -> Option<String> {
         |shim| shim.failure.take().or_else(|| shim.gpu.take_error()),
         None,
     )
+}
+
+fn now() -> f64 {
+    js_sys::global()
+        .dyn_into::<web_sys::WorkerGlobalScope>()
+        .ok()
+        .and_then(|scope| scope.performance())
+        .map_or(0.0, |performance| performance.now())
 }

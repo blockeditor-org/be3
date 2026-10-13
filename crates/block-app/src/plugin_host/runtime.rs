@@ -20,7 +20,7 @@ use crate::host;
 use super::{
     ArtifactSlot, ArtifactState, BlockPickRequest, CreationSlot, CreationState, HostChild,
     HostChildStatus, InstanceRole, RuntimeStatus, SurfaceStatus,
-    backend::{Availability, Backend, Deadline, Platform, ShownFrame},
+    backend::{Availability, Backend, Deadline, ShownFrame},
     input::{BlockDrag, BlockDragEvent},
     instances::{EditorView, Focus, Instances, Placement},
     presenter::{
@@ -135,7 +135,7 @@ impl Host {
 
 pub(super) struct Runtime {
     plugin: PluginManifest,
-    pub(super) backend: Platform,
+    pub(super) backend: Backend,
     session: HostSession,
     queued: Vec<Message>,
     pub(super) instances: Instances,
@@ -240,7 +240,7 @@ impl Presents {
 
 impl Runtime {
     fn new(plugin: &PluginManifest, surface: u32) -> Self {
-        let mut backend = Platform::new(plugin);
+        let mut backend = Backend::new(plugin);
         backend.start(plugin);
         let mut instances = Instances::default();
         instances.allow_network(plugin.network.clone());
@@ -537,21 +537,21 @@ impl Runtime {
             }
         }
         self.apply(forwarded);
-        if let Some(mut frame) = self.backend.received_frame() {
-            if let Some(took) = self.backend.took() {
-                let id = &self.plugin.identity.id;
-                for (name, duration) in [
-                    ("step", took.step),
-                    ("GPU calls", took.gpu),
-                    ("submit", took.submit),
-                ] {
-                    crate::performance::record_group_duration(
-                        PACING,
-                        &format!("{id} {name}"),
-                        duration,
-                    );
-                }
+        if let Some(took) = self.backend.took() {
+            let id = &self.plugin.identity.id;
+            for (name, duration) in [
+                ("step", took.step),
+                ("GPU calls", took.gpu),
+                ("submit", took.submit),
+            ] {
+                crate::performance::record_group_duration(
+                    PACING,
+                    &format!("{id} {name}"),
+                    duration,
+                );
             }
+        }
+        if let Some(mut frame) = self.backend.received_frame() {
             frame.set_damage(self.presents.damage_through(frame.presents()));
             self.shared.borrow_mut().publish(&self.layout, Some(frame));
             self.frames += 1;
@@ -667,12 +667,7 @@ impl Runtime {
         if !presented {
             return;
         }
-        let frame = self.backend.frame(&self.layout, self.pass);
-        if frame.is_some() {
-            self.frames += 1;
-            mark(&self.plugin.identity.id);
-        }
-        self.shared.borrow_mut().publish(&self.layout, frame);
+        self.shared.borrow_mut().publish(&self.layout, None);
     }
 
     fn template(&self, screen: ScreenId, drawn: Option<(u32, u32)>) -> Blit {
