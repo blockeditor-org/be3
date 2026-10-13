@@ -6,7 +6,7 @@ use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{ClickCallback, Frame, Func, Memo, create_memo};
 
-use super::{DockState, Handle, State, TabId};
+use super::{DockState, State, TabId};
 
 pub struct DockSwitchHandle {
     pub tabs: Memo<Vec<TabId>>,
@@ -32,7 +32,7 @@ impl State {
 }
 
 #[component]
-pub(super) fn DockSwitchView(dock: Handle) -> NodeId {
+pub(super) fn DockSwitchView(dock: State) -> NodeId {
     let state = dock.state;
     let switch = create_memo(move || state.with(DockState::switch));
     let open = create_memo(move || switch.with(Option::is_some));
@@ -46,7 +46,7 @@ pub(super) fn DockSwitchView(dock: Handle) -> NodeId {
     });
     let chosen =
         create_memo(move || switch.with(|switch| switch.as_ref().map(|switch| switch.chosen)));
-    let rows = dock.clone();
+    let rows = dock;
     let row = Func::new(move |tab: TabId| {
         let (titled, pictured, picked) = (rows.clone(), rows.clone(), rows.clone());
         DockSwitchRowHandle {
@@ -63,7 +63,7 @@ pub(super) fn DockSwitchView(dock: Handle) -> NodeId {
             <Frame />
         },
     };
-    let cancelled = dock.clone();
+    let cancelled = dock;
     view! {
         <Overlay
             anchor={OverlayAnchor::Point(Pos2::ZERO)}

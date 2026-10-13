@@ -293,9 +293,9 @@ fn EditCounter() -> NodeId {
 #[component]
 fn FullscreenTab() -> NodeId {
     let control = use_dock_tab();
-    let shown = create_memo(clone!(control -> move || {
+    let shown = create_memo(move || {
         control.as_ref().is_some_and(|control| control.fullscreen())
-    }));
+    });
     let label = create_memo(move || match shown.get() {
         true => "Leave fullscreen".to_owned(),
         false => "Show this tab fullscreen".to_owned(),

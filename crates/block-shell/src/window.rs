@@ -1,7 +1,7 @@
 use std::cell::Cell;
 
 use block_editor_beui::beui::reactive::{
-    Align, ClickCallback, Direction, Frame, Layers, List, Memo, NodeRef, clone, component,
+    Align, ClickCallback, Direction, Frame, Layers, List, Memo, NodeRef, component,
     create_effect, create_memo, create_signal, untrack, view,
 };
 use block_editor_beui::beui::styled::{Body, Button, ButtonVariant, WINDOW_CHROME, use_theme};
@@ -71,17 +71,17 @@ pub(crate) fn WindowPanel(
     size: Memo<Option<Vec2>>,
 ) -> NodeId {
     if let Some(tab) = use_dock_tab() {
-        create_effect(clone!(tab -> move || {
+        create_effect(move || {
             if let Some(size) = size.get().and_then(own_size) {
                 untrack(|| tab.resize_window(size + WINDOW_CHROME));
             }
-        }));
-        create_effect(clone!(tab -> move || {
+        });
+        create_effect(move || {
             if focused.get() {
                 untrack(|| tab.show());
             }
-        }));
-        let shown = create_memo(clone!(tab -> move || tab.focused()));
+        });
+        let shown = create_memo(move || tab.focused());
         let host = editor.host().clone();
         let settled = Cell::new(false);
         create_effect(move || {
@@ -90,18 +90,18 @@ pub(crate) fn WindowPanel(
                 host.act(WindowAction::Focus(window));
             }
         });
-        create_effect(clone!(tab -> move || match fullscreen.get() {
+        create_effect(move || match fullscreen.get() {
             Some(area) => tab.enter_fullscreen(Some(area)),
             None => untrack(|| tab.leave_fullscreen()),
-        }));
-        let called = create_memo(clone!(tab -> move || tab.attention()));
+        });
+        let called = create_memo(move || tab.attention());
         let host = editor.host().clone();
         create_effect(move || {
             if called.get().is_some() {
                 host.act(WindowAction::Focus(window));
             }
         });
-        let shown = create_memo(clone!(tab -> move || tab.fullscreen()));
+        let shown = create_memo(move || tab.fullscreen());
         let host = editor.host().clone();
         create_effect(move || {
             let shown = shown.get();

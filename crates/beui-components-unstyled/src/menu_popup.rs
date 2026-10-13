@@ -1,5 +1,4 @@
 use beui_core::layer::Dismiss;
-use std::rc::Rc;
 
 use beui_macros::{component, view};
 
@@ -17,25 +16,26 @@ pub struct MenuSheetHandle {
     pub menu: Child,
 }
 
+#[derive(Clone, Copy)]
 struct MenuParts {
     row: RenderFn<MenuRowHandle>,
     panel: RenderFn<Child>,
     sheet: Option<(RenderFn<MenuRowHandle>, RenderFn<MenuSheetHandle>)>,
 }
 
-#[derive(Clone, Default)]
-pub struct MenuStyle(Option<Rc<MenuParts>>);
+#[derive(Clone, Copy, Default)]
+pub struct MenuStyle(Option<MenuParts>);
 
 impl MenuStyle {
     pub fn new(
         row: impl Fn(MenuRowHandle) -> NodeId + 'static,
         panel: impl Fn(Child) -> NodeId + 'static,
     ) -> Self {
-        Self(Some(Rc::new(MenuParts {
+        Self(Some(MenuParts {
             row: RenderFn::new(row),
             panel: RenderFn::new(panel),
             sheet: None,
-        })))
+        }))
     }
 
     pub fn with_sheet(
@@ -44,11 +44,11 @@ impl MenuStyle {
         sheet: impl Fn(MenuSheetHandle) -> NodeId + 'static,
     ) -> Self {
         let (dropdown_row, panel) = self.parts();
-        Self(Some(Rc::new(MenuParts {
+        Self(Some(MenuParts {
             row: dropdown_row,
             panel,
             sheet: Some((RenderFn::new(row), RenderFn::new(sheet))),
-        })))
+        }))
     }
 
     pub fn is_some(&self) -> bool {
