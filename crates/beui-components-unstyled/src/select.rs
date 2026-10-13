@@ -57,7 +57,7 @@ struct State {
     trigger: NodeRef,
     search: NodeRef,
     options: Run<ChoiceOption>,
-    rows: RefCell<Vec<Row>>,
+    rows: Rc<RefCell<Vec<Row>>>,
     open: ReadSignal<bool>,
     set_open: WriteSignal<bool>,
     focus: ReadSignal<Focus>,
@@ -115,7 +115,7 @@ pub fn Select(
         trigger: NodeRef::new(),
         search: NodeRef::new(),
         options: options.clone(),
-        rows: RefCell::new(Vec::new()),
+        rows: Rc::default(),
         open: is_open.clone(),
         set_open: set_open.clone(),
         focus: focus.clone(),
@@ -171,34 +171,28 @@ pub fn Select(
     };
 
     let rows_state = state.clone();
-    let items = options.build(move |built: Vec<Rc<ChoiceOption>>| {
-        let state = rows_state.clone();
-        *state.rows.borrow_mut() = built
-            .into_iter()
-            .map(|option| {
-                let (visible, set_visible) = create_signal(true);
-                Row {
-                    button: NodeRef::new(),
-                    label: option.label(),
-                    visible,
-                    set_visible,
-                }
-            })
-            .collect();
-        let count = state.rows.borrow().len();
-        (0..count)
-            .map(|index| {
-                view! {
-                    <SelectRow
-                        state={state.clone()}
-                        index
-                        option={option.clone()}
-                        highlight={highlight.clone()}
-                    />
-                }
-            })
-            .collect()
-    });
+    let items = options.build_each(
+        state.rows.clone(),
+        |_, option| {
+            let (visible, set_visible) = create_signal(true);
+            Row {
+                button: NodeRef::new(),
+                label: option.label(),
+                visible,
+                set_visible,
+            }
+        },
+        move |index| {
+            view! {
+                <SelectRow
+                    state={rows_state.clone()}
+                    index
+                    option={option.clone()}
+                    highlight={highlight.clone()}
+                />
+            }
+        },
+    );
 
     create_effect(clone!(state -> move || {
         state.options.len();

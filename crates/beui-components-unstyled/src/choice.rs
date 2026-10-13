@@ -116,61 +116,61 @@ pub fn Choice(
     });
     set_component_state(state.clone());
     let buttons_state = state.clone();
-    let buttons = options.build(move |built: Vec<Rc<ChoiceOption>>| {
-        let state = buttons_state.clone();
-        built
-            .into_iter()
-            .enumerate()
-            .map(|(index, built)| {
-                let option = option.clone();
-                let label = built.label.clone();
-                let accessibility_label = label.clone();
-                let is_selected = selection.memo(Some(index));
-                let selected_accessibility = is_selected.clone();
-                let accessibility = create_memo(move || {
-                    let mut node = Node::new(match kind {
-                        ChoiceKind::Tabs => Role::Tab,
-                        ChoiceKind::Radio => Role::RadioButton,
-                        ChoiceKind::Listbox => Role::ListBoxOption,
-                    });
-                    node.set_label(accessibility_label.get());
-                    if kind == ChoiceKind::Radio {
-                        node.set_toggled(Toggled::from(selected_accessibility.get()));
-                    } else {
-                        node.set_selected(selected_accessibility.get());
-                    }
-                    node
+    let built_options: Rc<RefCell<Vec<Rc<ChoiceOption>>>> = Rc::default();
+    let row_options = built_options.clone();
+    let buttons = options.build_each(
+        built_options,
+        |_, option| option,
+        move |index| {
+            let state = buttons_state.clone();
+            let option = option.clone();
+            let label = row_options.borrow()[index].label.clone();
+            let accessibility_label = label.clone();
+            let is_selected = selection.memo(Some(index));
+            let selected_accessibility = is_selected.clone();
+            let accessibility = create_memo(move || {
+                let mut node = Node::new(match kind {
+                    ChoiceKind::Tabs => Role::Tab,
+                    ChoiceKind::Radio => Role::RadioButton,
+                    ChoiceKind::Listbox => Role::ListBoxOption,
                 });
-                let (blur, click, key_press, text) =
-                    (state.clone(), state.clone(), state.clone(), state.clone());
-                view! {
-                    <unstyled::Button
-                        tab_stop={tab_stop_owner.memo(index)}
-                        focused={focused.memo(Some(index))}
-                        accessibility
-                        on_focus_change={move |has_focus: bool| track_focus(&blur, index, has_focus)}
-                        content={move |button: ButtonHandle| {
-                            option.call(ChoiceOptionHandle {
-                                index,
-                                label: label.into_prop(),
-                                selected: is_selected,
-                                hovered: button.hovered,
-                                active: button.active,
-                                focused: button.focused,
-                            })
-                        }}
-                        on_click={move || select(&click, Some(index))}
-                        on_key={move |press: KeyPress| key(&key_press, index, press)}
-                        on_text={move |typed: String| {
-                            if text.kind == ChoiceKind::Listbox {
-                                typeahead(&text, index, &typed);
-                            }
-                        }}
-                    />
+                node.set_label(accessibility_label.get());
+                if kind == ChoiceKind::Radio {
+                    node.set_toggled(Toggled::from(selected_accessibility.get()));
+                } else {
+                    node.set_selected(selected_accessibility.get());
                 }
-            })
-            .collect()
-    });
+                node
+            });
+            let (blur, click, key_press, text) =
+                (state.clone(), state.clone(), state.clone(), state.clone());
+            view! {
+                <unstyled::Button
+                    tab_stop={tab_stop_owner.memo(index)}
+                    focused={focused.memo(Some(index))}
+                    accessibility
+                    on_focus_change={move |has_focus: bool| track_focus(&blur, index, has_focus)}
+                    content={move |button: ButtonHandle| {
+                        option.call(ChoiceOptionHandle {
+                            index,
+                            label: label.into_prop(),
+                            selected: is_selected,
+                            hovered: button.hovered,
+                            active: button.active,
+                            focused: button.focused,
+                        })
+                    }}
+                    on_click={move || select(&click, Some(index))}
+                    on_key={move |press: KeyPress| key(&key_press, index, press)}
+                    on_text={move |typed: String| {
+                        if text.kind == ChoiceKind::Listbox {
+                            typeahead(&text, index, &typed);
+                        }
+                    }}
+                />
+            }
+        },
+    );
 
     if kind == ChoiceKind::Listbox {
         let state = state.clone();

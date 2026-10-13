@@ -118,8 +118,7 @@ pub(crate) fn MenuPopup(
                 traps_focus
                 open={dropped}
                 on_dismiss={move |_: Dismiss| on_dismiss.call()}
-            >
-                {panel.call(view! {
+                content={move || panel.call(view! {
                     <MenuList
                         @node_ref=&content
                         items
@@ -129,7 +128,7 @@ pub(crate) fn MenuPopup(
                         on_select={move |path: Vec<usize>| choose.call(path)}
                     />
                 })}
-            </Overlay>
+            />
             <Show condition={sheeted}>
                 {move || {
                     let (row, sheet) = sheet.clone().unwrap_or_else(|| unreachable!());
