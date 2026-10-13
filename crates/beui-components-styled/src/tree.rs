@@ -71,7 +71,7 @@ where
     let outline = outline.unwrap_or_else(|| Func::new(|_| None));
     let rows = NodeRef::new();
     let viewport = NodeRef::new();
-    set_component_state(Parts { rows: rows });
+    set_component_state(Parts { rows });
     let tracked = rows;
     let ancestors = ancestors.unwrap_or_else(|| Func::new(|_| Vec::new()));
     view! {

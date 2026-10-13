@@ -10,7 +10,6 @@ fn a_text_of_spans_takes_its_alignment_and_line_height() {
     let _root = crate::reactive::RootScope::new();
     let text = NodeRef::new();
     let document = build({
-        let text = text;
         move || {
             view! {
                 <Frame width=WIDTH>

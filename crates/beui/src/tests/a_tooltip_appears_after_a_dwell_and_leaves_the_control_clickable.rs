@@ -14,7 +14,6 @@ fn a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable() {
     let button = NodeRef::new();
     let document = build({
         let clicked = Rc::clone(&clicked);
-        let button = button;
         move || {
             view! {
                 <List spacing=0.0>

@@ -419,7 +419,7 @@ fn Scrolling(
     let motion = Motion {
         node: with_document(|document| document.first_offset_within(node)),
         reported,
-        direction: direction,
+        direction,
         momentum: Rc::new(RefCell::new(Momentum::new())),
         animation: Rc::default(),
     };

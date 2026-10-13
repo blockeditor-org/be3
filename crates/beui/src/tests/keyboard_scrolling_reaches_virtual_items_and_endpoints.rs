@@ -7,7 +7,6 @@ fn keyboard_scrolling_reaches_virtual_items_and_endpoints() {
     let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
     let document = build({
-        let scroll = scroll;
         move || {
             view! {
                 <List spacing=0.0>

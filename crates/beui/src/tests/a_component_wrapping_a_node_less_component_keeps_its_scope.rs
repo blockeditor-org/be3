@@ -14,8 +14,6 @@ fn a_component_wrapping_a_node_less_component_keeps_its_scope() {
     let region = NodeRef::new();
     let (count, set_count) = create_signal(0usize);
     let document = crate::reactive::build({
-        let menu = menu;
-        let region = region;
         move || {
             view! {
                 <Rows @node_ref=&menu region={region} count={count} />

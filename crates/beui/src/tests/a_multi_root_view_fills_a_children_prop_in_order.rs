@@ -7,7 +7,6 @@ fn a_multi_root_view_fills_a_children_prop_in_order() {
     let column = NodeRef::new();
     let (first, second, third) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let document = build({
-        let column = column;
         let (first, second, third) = (first, second, third);
         move || {
             let toolbar = view! {

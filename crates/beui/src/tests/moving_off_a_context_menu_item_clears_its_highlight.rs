@@ -7,7 +7,6 @@ fn moving_off_a_context_menu_item_clears_its_highlight() {
     let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
     let (document, [menu]) = toolbar_of({
-        let region = region;
         move || {
             let items = view! {
                 <unstyled::MenuItem label="Copy" />

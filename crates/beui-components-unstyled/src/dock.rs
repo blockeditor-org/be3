@@ -1783,7 +1783,7 @@ fn DockPanelView(dock: Handle, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeI
                             vacant,
                             closable: dock.all_closable(contents),
                             menu,
-                            close: close,
+                            close,
                         });
                         let parts = ChromeParts {
                             floating,
@@ -2077,7 +2077,7 @@ fn DockTabView(
         focused,
         dragged,
         closable,
-        close: close,
+        close,
     });
     let menu = dock.menu.clone();
     let grouped = matches!(entry, Entry::Group(_));
@@ -2637,7 +2637,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                                             vacant,
                                                             closable: dock.all_closable(contents),
                                                             menu,
-                                                            close: close,
+                                                            close,
                                                         }),
                                                         body: pane,
                                                     };

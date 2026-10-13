@@ -15,7 +15,6 @@ fn a_scroll_keeps_the_pointer_off_the_part_of_a_row_it_clips() {
     let document = build({
         let hovers = hovers.clone();
         let clicks = clicks.clone();
-        let scroll = scroll;
         move || {
             view! {
                 <List spacing=0.0>

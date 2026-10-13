@@ -12,8 +12,6 @@ fn view_attributes_can_be_written_without_braces() {
     let box_ref = NodeRef::new();
     let label = NodeRef::new();
     let document = build({
-        let box_ref = box_ref;
-        let label = label;
         move || {
             view! {
                 <List spacing=0.0>

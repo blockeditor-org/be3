@@ -1553,7 +1553,6 @@ pub(crate) fn three_panels() -> ThreePanels {
     let list = NodeRef::new();
     let (top, middle, bottom) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let document = build({
-        let list = list;
         let (top, middle, bottom) = (top, middle, bottom);
         move || {
             view! {

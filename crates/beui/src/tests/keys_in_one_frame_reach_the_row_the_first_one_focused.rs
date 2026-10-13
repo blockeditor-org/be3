@@ -9,7 +9,6 @@ fn keys_in_one_frame_reach_the_row_the_first_one_focused() {
     let selected = Rc::new(RefCell::new(Vec::new()));
     let sink = selected.clone();
     let (document, _) = toolbar_of({
-        let button = button;
         move || {
             let items = view! {
                 <unstyled::MenuItem label="First" />

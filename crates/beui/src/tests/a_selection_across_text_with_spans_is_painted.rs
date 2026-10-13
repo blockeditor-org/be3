@@ -7,7 +7,6 @@ fn a_selection_across_text_with_spans_is_painted() {
     let _root = crate::reactive::RootScope::new();
     let text = NodeRef::new();
     let document = build({
-        let text = text;
         move || {
             view! {
                 <SelectableText>

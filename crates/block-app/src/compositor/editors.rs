@@ -570,7 +570,7 @@ fn TabFrame(block: Uuid, top_bar: Prop<TopBar>) -> NodeId {
     }));
     provide_context(TabContext {
         stack,
-        top_bar: top_bar,
+        top_bar,
         portals: set_portals,
         exit,
     });

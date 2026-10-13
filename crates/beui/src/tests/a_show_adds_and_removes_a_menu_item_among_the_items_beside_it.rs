@@ -10,7 +10,6 @@ fn a_show_adds_and_removes_a_menu_item_among_the_items_beside_it() {
     let selected = Rc::new(RefCell::new(Vec::new()));
     let sink = selected.clone();
     let (document, [menu]) = toolbar_of({
-        let region = region;
         move || {
             let items = view! {
                 <unstyled::MenuItem label="Copy" />

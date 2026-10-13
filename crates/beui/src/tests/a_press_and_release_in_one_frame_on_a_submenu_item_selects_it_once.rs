@@ -9,7 +9,6 @@ fn a_press_and_release_in_one_frame_on_a_submenu_item_selects_it_once() {
     let selected = Rc::new(RefCell::new(Vec::new()));
     let sink = selected.clone();
     let (document, _) = toolbar_of({
-        let button = button;
         move || {
             let items = view! {
                 <unstyled::MenuItem label="Profiles">

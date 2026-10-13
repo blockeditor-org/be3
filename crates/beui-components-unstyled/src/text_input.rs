@@ -115,7 +115,7 @@ pub fn TextInput(
     let (area, menu_node) = (NodeRef::new(), NodeRef::new());
     set_component_state(Input {
         state: state.clone(),
-        area: area,
+        area,
         menu: menu_node,
         focused: is_focused,
     });

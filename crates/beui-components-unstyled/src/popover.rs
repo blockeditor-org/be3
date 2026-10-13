@@ -101,7 +101,7 @@ pub fn Popover(
             set_open.set(false);
         }
     });
-    let anchor = anchor.unwrap_or_else(|| trigger_ref);
+    let anchor = anchor.unwrap_or(trigger_ref);
     let placement = match placement {
         PopoverPlacement::Below => Placement::BelowStart,
         PopoverPlacement::Over(inset) => Placement::Over(inset),

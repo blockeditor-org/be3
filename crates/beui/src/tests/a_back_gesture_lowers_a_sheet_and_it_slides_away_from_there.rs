@@ -10,7 +10,6 @@ fn a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there() {
     let (open, set_open) = create_signal(false);
     let closing = set_open;
     let document = build({
-        let sheet = sheet;
         move || {
             view! {
                 <List spacing=0.0>

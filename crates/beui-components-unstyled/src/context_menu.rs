@@ -37,10 +37,7 @@ pub fn ContextMenu(
     let (position, set_position) = create_signal(Pos2::ZERO);
     let anchor = create_memo(move || OverlayAnchor::Point(position.get()));
     let (overlay, content) = (NodeRef::new(), NodeRef::new());
-    set_component_state(State {
-        overlay: overlay,
-        content: content,
-    });
+    set_component_state(State { overlay, content });
 
     let (requested, requested_touch, requested_position, requested_focusing) =
         (set_open, set_touched, set_position, set_focusing);

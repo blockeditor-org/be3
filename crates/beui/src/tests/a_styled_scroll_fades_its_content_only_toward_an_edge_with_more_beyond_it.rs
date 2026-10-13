@@ -12,7 +12,6 @@ fn a_styled_scroll_fades_its_content_only_toward_an_edge_with_more_beyond_it() {
     let (rows, set_rows) = create_signal(2_usize);
     let scroll = NodeRef::new();
     let document = build({
-        let scroll = scroll;
         move || {
             let keys = create_memo(move || (0..rows.get()).collect::<Vec<usize>>());
             view! {

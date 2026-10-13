@@ -10,7 +10,6 @@ fn tabs_collapse_into_a_select_when_their_container_is_narrow() {
     let _root = crate::reactive::RootScope::new();
     let tabs = NodeRef::new();
     let document = build({
-        let tabs = tabs;
         move || {
             view! {
                 <Container>

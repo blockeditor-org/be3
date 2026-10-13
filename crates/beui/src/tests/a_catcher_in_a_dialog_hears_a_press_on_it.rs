@@ -14,7 +14,6 @@ fn a_catcher_in_a_dialog_hears_a_press_on_it() {
     let catcher = NodeRef::new();
     let document = build({
         let heard = Rc::clone(&heard);
-        let catcher = catcher;
         move || {
             view! {
                 <List spacing=0.0>

@@ -6,7 +6,6 @@ fn a_change_inside_a_fixed_size_frame_lays_out_only_that_frame() {
     let list = NodeRef::new();
     let (beside, fixed, inner) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let mut document = build({
-        let list = list;
         let (beside, fixed, inner) = (beside, fixed, inner);
         move || {
             view! {

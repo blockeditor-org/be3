@@ -12,8 +12,6 @@ fn a_press_outside_an_interactive_is_reported_to_it() {
     let elsewhere = NodeRef::new();
     let document = build({
         let heard = Rc::clone(&heard);
-        let watcher = watcher;
-        let elsewhere = elsewhere;
         move || {
             view! {
                 <List spacing=0.0>

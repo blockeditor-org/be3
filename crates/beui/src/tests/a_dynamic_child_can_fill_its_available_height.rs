@@ -6,7 +6,6 @@ fn a_dynamic_child_can_fill_its_available_height() {
     let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
     let document = build({
-        let scroll = scroll;
         move || {
             let (state, _) = create_signal(false);
             view! {

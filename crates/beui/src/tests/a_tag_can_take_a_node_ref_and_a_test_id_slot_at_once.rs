@@ -6,7 +6,6 @@ fn a_tag_can_take_a_node_ref_and_a_test_id_slot_at_once() {
     let _root = crate::reactive::RootScope::new();
     let spacer = NodeRef::new();
     let document = build({
-        let spacer = spacer;
         move || {
             view! {
                 <List spacing=0.0>

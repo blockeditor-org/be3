@@ -8,7 +8,6 @@ fn focus_loss_and_hidden_content_cancel_keyboard_activation() {
     let counter = clicks.clone();
     let button = NodeRef::new();
     let (document, [hidden, _after]) = toolbar_of({
-        let button = button;
         move || {
             [
                 view! {

@@ -7,7 +7,6 @@ fn holding_the_caret_handle_past_the_edge_of_a_narrow_input_keeps_scrolling() {
     let _root = crate::reactive::RootScope::new();
     let input = NodeRef::new();
     let (document, [_sized]) = toolbar_of({
-        let input = input;
         move || {
             [view! {
                 <Frame width=80.0>

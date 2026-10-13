@@ -8,7 +8,6 @@ fn percent_children_of_an_unbounded_list_use_their_intrinsic_length() {
     let _root = crate::reactive::RootScope::new();
     let inner = NodeRef::new();
     let document = build({
-        let inner = inner;
         move || {
             view! {
                 <List spacing=0.0>

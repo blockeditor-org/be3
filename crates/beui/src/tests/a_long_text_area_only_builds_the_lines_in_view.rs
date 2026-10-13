@@ -24,7 +24,6 @@ fn a_long_text_area_only_builds_the_lines_in_view() {
     let sink = held.clone();
     let area = NodeRef::new();
     let document = build({
-        let area = area;
         move || {
             let text = (0..LINES)
                 .map(|line| format!("line {line}"))

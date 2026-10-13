@@ -48,7 +48,6 @@ fn a_component_that_builds_no_node_owns_its_scope_through_the_value() {
     let legend = NodeRef::new();
     let disposals: Disposals = Rc::new(Cell::new(0));
     let document = build({
-        let legend = legend;
         let disposals = disposals.clone();
         move || {
             let loose = view! {

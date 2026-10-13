@@ -129,7 +129,7 @@ where
     let state: Handle<K> = Rc::new(State {
         nodes: nodes.clone(),
         keys,
-        item: item,
+        item,
         selected,
         shown,
         buried,

@@ -12,7 +12,6 @@ fn a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it() {
     let _root = crate::reactive::RootScope::new();
     let thumb = NodeRef::new();
     let document = build({
-        let thumb = thumb;
         move || {
             let (position, set_position) = create_signal(ScrollPosition::ZERO);
             view! {

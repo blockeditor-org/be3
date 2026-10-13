@@ -7,7 +7,6 @@ fn a_scroll_in_a_dialog_follows_the_wheel() {
     let _root = crate::reactive::RootScope::new();
     let first = NodeRef::new();
     let document = build({
-        let first = first;
         move || {
             view! {
                 <List spacing=0.0>

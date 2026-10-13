@@ -7,7 +7,6 @@ fn hovering_a_menu_item_with_children_opens_its_submenu_without_a_click() {
     let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
     let (document, [menu]) = toolbar_of({
-        let region = region;
         move || {
             let items = view! {
                 <unstyled::MenuItem label="Share">

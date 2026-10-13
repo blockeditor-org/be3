@@ -13,7 +13,6 @@ fn a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view() {
     let sink = built.clone();
     let scroll = NodeRef::new();
     let document = build({
-        let scroll = scroll;
         move || {
             view! {
                 <Container>

@@ -1184,7 +1184,7 @@ pub fn TextArea(
                             focused,
                             set_focused,
                             set_autoscroll,
-                            viewport: viewport,
+                            viewport,
                             list: NodeRef::new(),
                             anchor,
                             masked,

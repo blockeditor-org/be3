@@ -9,7 +9,6 @@ fn hover_only_repaints_when_its_handler_changes_a_node() {
     let (hover_paints, set_hover_paints) = create_signal(false);
     let fill = NodeRef::new();
     let mut document = build({
-        let fill = fill;
         move || {
             view! {
                 <Interactive

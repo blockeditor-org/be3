@@ -7,7 +7,6 @@ fn clicking_an_accordion_header_hides_its_content() {
     let _root = crate::reactive::RootScope::new();
     let body = NodeRef::new();
     let (document, [accordion]) = toolbar_of({
-        let body = body;
         move || {
             [view! {
                 <Accordion title="About" open=true>

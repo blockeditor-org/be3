@@ -13,7 +13,6 @@ fn arrow_keys_walk_a_tree_after_its_chevron_is_clicked_and_enter_selects() {
     let tree = NodeRef::new();
     let document = build({
         let chosen = Rc::clone(&chosen);
-        let tree = tree;
         move || {
             let (expanded, set_expanded) = create_signal(true);
             let keys = create_memo(move || match expanded.get() {

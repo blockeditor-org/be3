@@ -7,8 +7,6 @@ fn a_lone_child_fills_a_children_prop_as_a_run_of_one() {
     let column = NodeRef::new();
     let only = NodeRef::new();
     let document = build({
-        let column = column;
-        let only = only;
         move || {
             let lone = view! {
                 <Text @node_ref=&only string="One" font_size=14.0 color=Color32::WHITE />

@@ -7,7 +7,6 @@ fn a_scroll_in_a_dialog_copies_what_it_showed_over_the_page_beneath() {
     let _root = crate::reactive::RootScope::new();
     let first = NodeRef::new();
     let document = build({
-        let first = first;
         move || {
             view! {
                 <List spacing=0.0>

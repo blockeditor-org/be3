@@ -17,7 +17,6 @@ fn a_catcher_under_a_dialog_that_is_under_another_hears_no_pointer() {
     let catcher = NodeRef::new();
     let document = build({
         let heard = Rc::clone(&heard);
-        let catcher = catcher;
         move || {
             view! {
                 <List spacing=0.0>

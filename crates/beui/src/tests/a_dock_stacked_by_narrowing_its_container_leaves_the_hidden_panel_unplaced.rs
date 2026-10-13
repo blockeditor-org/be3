@@ -11,7 +11,6 @@ fn a_dock_stacked_by_narrowing_its_container_leaves_the_hidden_panel_unplaced() 
     let _root = crate::reactive::RootScope::new();
     let home = NodeRef::new();
     let document = build({
-        let home = home;
         move || {
             view! {
                 <Container>

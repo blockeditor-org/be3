@@ -11,7 +11,6 @@ fn a_frame_width_bound_to_a_signal_measures_intrinsically_once_it_clears() {
     let outer = NodeRef::new();
     let (width, set_width) = create_signal(Some(GIVEN_WIDTH));
     let document = build({
-        let outer = outer;
         move || {
             view! {
                 <List direction=Direction::Horizontal spacing=0.0>

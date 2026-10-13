@@ -129,7 +129,7 @@ pub fn Scrollbar(
 
     let content_node = content.call(ScrollbarHandle {
         position,
-        direction: direction,
+        direction,
         hovered,
         dragging,
     });

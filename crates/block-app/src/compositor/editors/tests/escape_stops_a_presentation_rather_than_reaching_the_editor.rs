@@ -12,7 +12,6 @@ fn escape_stops_a_presentation_rather_than_reaching_the_editor() {
     let mut document = build({
         let stopped = Rc::clone(&stopped);
         let heard = Rc::clone(&heard);
-        let catcher = catcher;
         move || {
             stop_on_escape(move || stopped.set(stopped.get() + 1));
             view! {

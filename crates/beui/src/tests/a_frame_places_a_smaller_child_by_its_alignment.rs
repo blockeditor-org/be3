@@ -21,7 +21,6 @@ fn a_frame_places_a_smaller_child_by_its_alignment() {
 fn child_rect(horizontal: Align, vertical: Align) -> Rect {
     let child = NodeRef::new();
     let document = build({
-        let child = child;
         move || {
             view! {
                 <Frame width=100.0 height=60.0 align_horizontal=horizontal align_vertical=vertical>

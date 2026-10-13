@@ -12,7 +12,6 @@ fn a_press_is_reported_in_the_coordinates_of_the_interactive_it_lands_on() {
     let target = NodeRef::new();
     let document = build({
         let heard = Rc::clone(&heard);
-        let target = target;
         move || {
             view! {
                 <List spacing=0.0>

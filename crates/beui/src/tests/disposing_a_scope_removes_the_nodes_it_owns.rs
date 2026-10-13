@@ -10,7 +10,6 @@ fn disposing_a_scope_removes_the_nodes_it_owns() {
     let text = NodeRef::new();
     let document = build({
         let cleaned = cleaned.clone();
-        let text = text;
         move || {
             view! {
                 <List spacing=0.0>

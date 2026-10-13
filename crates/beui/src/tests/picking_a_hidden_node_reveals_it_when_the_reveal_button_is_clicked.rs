@@ -6,7 +6,6 @@ fn picking_a_hidden_node_reveals_it_when_the_reveal_button_is_clicked() {
     let _root = crate::reactive::RootScope::new();
     let text = NodeRef::new();
     let document = build({
-        let text = text;
         move || {
             view! {
                 <List spacing=0.0>
