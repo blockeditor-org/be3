@@ -62,6 +62,8 @@ use unstyled_pages::{
 
 mod base_pages;
 mod collaboration;
+#[cfg(feature = "fuzzing")]
+pub mod fuzz;
 mod sample;
 mod styled_pages;
 mod unstyled_pages;

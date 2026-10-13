@@ -1,5 +1,5 @@
 load("@root//buck/app:drive.bzl", "headless")
-load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library")
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_fuzz", "cargo_library")
 load("@root//buck/wasm:defs.bzl", "plugin_tests")
 
 srcs = glob(["src/**/*.rs"])
@@ -20,3 +20,6 @@ headless(
     app_name = "beui-demo",
     program = "$(location :demo)",
 )
+
+# Input from libFuzzer, run through the whole demo without drawing it.
+cargo_fuzz(extra_features = ["fuzzing"], runs = 300)

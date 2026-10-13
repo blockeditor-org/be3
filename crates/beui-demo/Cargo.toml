@@ -19,5 +19,8 @@ beui = { path = "../beui" }
 [dev-dependencies]
 block-ui-test = { path = "../block-ui-test" }
 
+[features]
+fuzzing = []
+
 [lints]
 workspace = true

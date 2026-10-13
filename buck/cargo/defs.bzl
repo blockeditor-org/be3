@@ -46,10 +46,15 @@ def _env(crate, crate_name, env):
 def _srcs(kwargs):
     return kwargs.pop("srcs", native.glob(["src/**/*.rs"]))
 
-# Cargo.toml's [profile.dev.package] settings for the crate, ahead of the flags
-# its BUCK file passes.
+# Cargo.toml's [profile.dev.package] settings for the crate, and the coverage
+# instrumentation in a fuzz target's build, ahead of the flags its BUCK file
+# passes.
 def _rustc_flags(crate, kwargs):
-    return dev_only(crate.get("profile_flags", [])) + kwargs.pop("rustc_flags", [])
+    fuzzing = select({
+        "DEFAULT": [],
+        "root//buck/constraints:fuzzing": _FUZZ_FLAGS,
+    })
+    return dev_only(crate.get("profile_flags", [])) + fuzzing + kwargs.pop("rustc_flags", [])
 
 # The crate's library, named after the package. Another build of it, such as
 # one for a fuzz target, takes a name and extra_features.
@@ -263,20 +268,21 @@ _FUZZ_FLAGS = [
 
 # Every file in a crate's fuzz/ is a coverage-guided fuzz target: a
 # #![no_main] crate defining LLVMFuzzerTestOneInput over the crate's library,
-# which is built again with extra_features and the coverage instrumentation, and
-# linked with libFuzzer (//buck/tools:libfuzzer) for its main. fuzz/NAME.rs is
+# which is built again with extra_features, and linked with libFuzzer
+# (//buck/tools:libfuzzer) for its main. The binary is built in the fuzzing
+# configuration (fuzzing_transition), so every first-party crate under it
+# carries the coverage instrumentation, not only this one. fuzz/NAME.rs is
 # :fuzz-NAME, which `./scripts/buck run` fuzzes until it is stopped, keeping
 # what it finds in target/fuzz/<crate>/NAME (local-tools fuzz); //:fuzz runs
-# every one, taking turns. :fuzz-NAME-test runs it briefly from a fixed seed, so a
-# target that stops building or running fails verify.
-def cargo_fuzz(extra_features = []):
+# every one, taking turns. :fuzz-NAME-test runs it `runs` times from a fixed
+# seed, so a target that stops building or running fails verify.
+def cargo_fuzz(extra_features = [], runs = 20000):
     crate = _crate()
     library = crate["name"] + "-fuzzing"
     compatible = ["prelude//os:linux", "prelude//cpu:x86_64"]
     cargo_library(
         name = library,
         extra_features = extra_features,
-        rustc_flags = _FUZZ_FLAGS,
         target_compatible_with = compatible,
         visibility = [],
     )
@@ -284,13 +290,19 @@ def cargo_fuzz(extra_features = []):
         stem = root.removeprefix("fuzz/").removesuffix(".rs")
         name = "fuzz-" + stem
         native.rust_binary(
-            name = name + "-bin",
+            name = name + "-instrumented",
             crate = stem.replace("-", "_"),
             crate_root = root,
             deps = [":" + library, "root//buck/tools:libfuzzer"],
             edition = crate["edition"],
             rustc_flags = _FUZZ_FLAGS,
             srcs = [root],
+            target_compatible_with = compatible,
+            visibility = [],
+        )
+        fuzzing_binary(
+            name = name + "-bin",
+            binary = ":{}-instrumented".format(name),
             target_compatible_with = compatible,
         )
         fuzz_target(
@@ -301,11 +313,39 @@ def cargo_fuzz(extra_features = []):
         )
         native.sh_test(
             name = name + "-test",
-            args = ["-runs=20000", "-seed=1"],
+            args = ["-runs={}".format(runs), "-seed=1"],
             target_compatible_with = compatible,
             test = ":{}-bin".format(name),
         )
         test_run(name = name + "-test_run", target_compatible_with = compatible, test = ":{}-test".format(name))
+
+def _fuzzing_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
+    fuzzing = refs.fuzzing[ConstraintValueInfo]
+    if platform.configuration.constraints.get(fuzzing.setting.label) == fuzzing:
+        return platform
+    constraints = dict(platform.configuration.constraints)
+    constraints[fuzzing.setting.label] = fuzzing
+    return PlatformInfo(
+        configuration = ConfigurationInfo(constraints = constraints, values = platform.configuration.values),
+        label = platform.label + "_fuzzing",
+    )
+
+fuzzing_transition = transition(
+    impl = _fuzzing_transition_impl,
+    refs = {"fuzzing": "root//buck/constraints:fuzzing"},
+)
+
+# A binary built in the fuzzing configuration, run as it is.
+def _fuzzing_binary_impl(ctx: AnalysisContext) -> list[Provider]:
+    binary = ctx.attrs.binary
+    return [binary[DefaultInfo], binary[RunInfo]]
+
+fuzzing_binary = rule(
+    attrs = {
+        "binary": attrs.transition_dep(cfg = fuzzing_transition, providers = [RunInfo]),
+    },
+    impl = _fuzzing_binary_impl,
+)
 
 # What //buck/dev/fuzz.bxl finds every fuzz target by.
 FuzzTargetInfo = provider(fields = {"binary": Artifact, "id": str})

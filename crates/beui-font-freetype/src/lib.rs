@@ -31,6 +31,7 @@ pub struct FreetypeFonts {
     icons: Vec<usize>,
     glyphs: HashMap<GlyphId, Rc<GlyphImage>>,
     shaped: ShapedLines,
+    rasterize: bool,
 }
 
 impl FreetypeFonts {
@@ -48,8 +49,15 @@ impl FreetypeFonts {
             icons: Vec::new(),
             glyphs: HashMap::default(),
             shaped: ShapedLines::default(),
+            rasterize: true,
         };
         backend.load_families();
+        backend
+    }
+
+    pub fn measuring(fonts: FontLibrary) -> Self {
+        let mut backend = Self::new(fonts);
+        backend.rasterize = false;
         backend
     }
 
@@ -214,7 +222,10 @@ impl FreetypeFonts {
                 if cursors.last().is_none_or(|(previous, _)| *previous != at) {
                     cursors.push((at, pen / scale));
                 }
-                if let Some(glyph) = self.place(*glyph, shape, pixel_size, pen, cursor + baseline) {
+                if self.rasterize
+                    && let Some(glyph) =
+                        self.place(*glyph, shape, pixel_size, pen, cursor + baseline)
+                {
                     placed.push(glyph);
                 }
                 pen += glyph.x_advance;
