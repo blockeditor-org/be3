@@ -39,6 +39,7 @@ pub mod screens;
 pub mod sight;
 pub mod timer;
 pub mod tree;
+pub mod window;
 
 pub use ::geometry;
 pub use accesskit;

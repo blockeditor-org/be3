@@ -89,6 +89,10 @@ pub fn use_screens() -> ReadSignal<Vec<beui_core::screens::Screen>> {
     with_document(|document| document.watch_screens())
 }
 
+pub fn use_fullscreen() -> ReadSignal<bool> {
+    with_document(|document| document.watch_fullscreen())
+}
+
 pub fn focus_ring(focused: impl IntoProp<bool>) -> Memo<bool> {
     let focused = focused.into_prop();
     let visible = with_document(|document| document.watch_focus_visible());

@@ -244,6 +244,7 @@ mod a_signal_set_in_one_document_builds_nodes_in_the_document_that_watches_it;
 mod a_signal_write_from_a_click_handler_updates_its_bound_text_in_the_same_frame;
 mod a_simulated_mouse_click_lands_where_the_trackpad_moved_its_cursor;
 mod a_simulated_screen_larger_than_the_window_is_shrunk_to_fit;
+mod a_simulated_window_tells_the_app_it_went_fullscreen_in_the_next_frame;
 mod a_skipped_element_keeps_the_repaint_deadline_it_asked_for;
 mod a_slider_reports_and_steps_within_the_range_it_was_given;
 mod a_spinner_hidden_by_a_show_stops_asking_for_frames;
@@ -587,6 +588,7 @@ mod tapping_inside_a_selection_in_a_select_search_box_opens_its_menu;
 mod tapping_inside_a_touch_selection_opens_a_menu_that_copies_it;
 mod tapping_the_caret_handle_of_a_text_area_opens_a_menu_that_pastes;
 mod tapping_the_caret_handle_opens_a_menu_that_asks_the_host_to_paste;
+mod tapping_the_focused_text_input_again_asks_for_the_keyboard_again;
 mod tapping_then_dragging_on_the_simulated_trackpad_drags_from_where_the_tap_landed;
 mod text_laid_out_to_an_alignment_indents_each_line_to_it;
 mod text_that_does_not_fit_ends_in_an_ellipsis;
@@ -634,6 +636,9 @@ mod the_simulated_cursor_takes_the_shape_the_document_asks_for;
 mod the_simulated_input_bars_take_their_room_out_of_the_document;
 mod the_simulated_keyboard_types_into_the_focused_input;
 mod the_top_layer_takes_a_click_over_the_layer_below;
+mod the_window_is_asked_for_fullscreen_and_says_when_it_is;
+mod the_window_is_shown_the_ime_again_after_typing_into_it;
+mod the_window_is_told_where_the_caret_is_in_its_own_units;
 mod tiling_a_stacked_dock_with_its_switcher_open_closes_the_switcher;
 mod touch_dragging_a_horizontal_scroll_moves_it_sideways;
 mod touch_dragging_a_scroll_moves_it_without_activating_a_row;
@@ -2117,13 +2122,12 @@ impl Driven {
         self.runner
             .context()
             .advance_clock(Duration::from_micros(16_667));
-        if let Some(frame) = self.runner.frame(
+        self.runner.frame(
             &mut DrivenPlatform,
             1.0,
             beui_core::app::SafeArea::default(),
-        ) {
-            self.closed |= frame.close_requested;
-        }
+        );
+        self.closed |= self.runner.exited();
         if let Some(failure) = self.runner.failure() {
             panic!("the driven app panicked: {failure}");
         }

@@ -40,7 +40,7 @@ pub use beui_core::icons;
 pub use beui_core::image::{Image, ImageFit, ImageId, Thumbhash};
 pub use beui_core::input::{
     AutoscrollGesture, BackEdge, BackGesture, CursorIcon, DroppedFile, Event, ImeArea, ImeEvent,
-    ImeText, InputState, Key, KeyChord, KeyPress, Modifiers, PointerButton, PointerEvent,
+    ImeText, InputState, Key, KeyChord, KeyPress, Keyboard, Modifiers, PointerButton, PointerEvent,
     PointerId, PointerPhase, PointerPress, RawInput, ScrollGesture, SecondaryDrag, TouchId,
     TouchPhase, ZoomGesture,
 };

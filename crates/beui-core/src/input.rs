@@ -484,7 +484,19 @@ pub struct ImeArea {
     pub rect: crate::geometry::Rect,
     pub cursor: crate::geometry::Rect,
     pub text: Option<ImeText>,
-    pub keyboard: bool,
+    pub keyboard: Keyboard,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Keyboard {
+    Held,
+    Shown { asks: u32 },
+}
+
+impl Keyboard {
+    pub fn shown(self) -> bool {
+        matches!(self, Self::Shown { .. })
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Default, Debug)]

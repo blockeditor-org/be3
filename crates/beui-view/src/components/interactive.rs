@@ -21,6 +21,7 @@ pub fn Interactive(
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] ime: Prop<bool>,
     #[prop(default = true)] keyboard_on_focus: bool,
+    #[prop(default = None)] keyboard_asks: Prop<Option<u32>>,
     #[prop(default = true)] ime_keyboard: Prop<bool>,
     #[prop(default = None)] ime_cursor: Prop<Option<ImeCursor>>,
     #[prop(default = None)] ime_text: Prop<Option<ImeText>>,
@@ -145,6 +146,10 @@ pub fn Interactive(
         create_effect(move || {
             let keyboard = ime_keyboard.get();
             with_document(|document| document.set_focusable_ime_keyboard(interactive, keyboard))
+        });
+        create_effect(move || {
+            let asks = keyboard_asks.get();
+            with_document(|document| document.set_focusable_keyboard_asks(interactive, asks))
         });
         create_effect(move || {
             let cursor = ime_cursor.get();

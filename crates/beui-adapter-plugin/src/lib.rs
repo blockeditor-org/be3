@@ -9,9 +9,11 @@ use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
 use beui_core::app::{App, SafeArea, Setup, Waker};
 use beui_core::context::{Context, FrameOutput};
 use beui_core::geometry::Rect;
+use beui_core::input::Keyboard;
 use beui_core::renderer::Loaded;
 use beui_core::runner::{Adapter, Launch, RunOptions, Runner, Running};
 use beui_core::screens::Screen;
+use beui_core::window::WindowState;
 use block_editor_plugin::{
     DescribedAction, DescribedNode, Description, EditorHost, Frame, InputEvent, NodeValue, Region,
     Toggled,
@@ -160,7 +162,7 @@ impl PluginSurface {
             self.runner.context().set_clock(now);
         }
         self.platform.deliver_picks();
-        let ratio = self.ratio(region);
+        self.ratio(region);
         let scale = region.scale_factor;
         let rect = region.rect;
         let area = SafeArea {
@@ -177,31 +179,7 @@ impl PluginSurface {
             return Frame::default();
         };
         let description = region.describe.then(|| self.describe(region));
-        let unscale = ratio.recip();
-        Frame {
-            changed: frame.pending,
-            repaint_after: frame.wait(),
-            cursor: self.platform.cursor,
-            content: None,
-            painted: Vec::new(),
-            floating: Vec::new(),
-            claims: Vec::new(),
-            ime: self
-                .platform
-                .ime
-                .as_ref()
-                .map(|area| block_editor_plugin::Ime {
-                    rect: area.rect.scaled(unscale),
-                    cursor: area.cursor.scaled(unscale),
-                    text: area.text.as_ref().map(beui_plugin_input::protocol_ime_text),
-                    keyboard: area.keyboard,
-                }),
-            handles_back: self.platform.handles_back,
-            wants_keyboard: self.platform.wants_keyboard,
-            intercepted_keys: self.platform.intercepted_keys.clone(),
-            pastes: self.platform.pastes.clone(),
-            description,
-        }
+        frame_for(self.runner.window(), &frame, description)
     }
 
     fn describe(&self, region: &Region) -> Description {
@@ -279,7 +257,7 @@ impl PluginSurface {
     }
 
     pub fn pointer_locked(&self) -> bool {
-        self.platform.locked
+        self.runner.window().pointer_locked
     }
 
     pub fn take_output(&mut self) -> Option<FrameOutput> {
@@ -291,6 +269,49 @@ impl PluginSurface {
         self.surface.borrow_mut().aim(target);
         self.runner.present();
         self.surface.borrow_mut().take_drawn()
+    }
+}
+
+fn frame_for(
+    window: &WindowState,
+    frame: &beui_core::runner::Frame,
+    description: Option<Description>,
+) -> Frame {
+    Frame {
+        changed: frame.pending,
+        repaint_after: frame.wait(),
+        content: None,
+        painted: Vec::new(),
+        floating: Vec::new(),
+        claims: Vec::new(),
+        window: block_editor_plugin::WindowRequests {
+            cursor: match window.touch_emulation {
+                true => block_plugin_api::CursorIcon::Crosshair,
+                false => beui_plugin_input::protocol_cursor(window.cursor),
+            },
+            ime: window.ime.as_ref().map(|area| block_editor_plugin::Ime {
+                rect: area.rect,
+                cursor: area.cursor,
+                text: area.text.as_ref().map(beui_plugin_input::protocol_ime_text),
+                keyboard: match area.keyboard {
+                    Keyboard::Held => block_plugin_api::Keyboard::Held,
+                    Keyboard::Shown { asks } => block_plugin_api::Keyboard::Shown { asks },
+                },
+            }),
+            handles_back: window.handles_back,
+            wants_keyboard: window.wants_keyboard,
+            intercepted_keys: window
+                .intercepted_keys
+                .iter()
+                .filter_map(|chord| beui_plugin_input::protocol_chord(*chord))
+                .collect(),
+            pastes: window
+                .paste_kinds
+                .iter()
+                .map(|kind| beui_plugin_input::protocol_paste_kind(*kind))
+                .collect(),
+        },
+        description,
     }
 }
 

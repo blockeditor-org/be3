@@ -9,13 +9,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use beui::{
-    CursorIcon, Event, Launch, Modifiers, Platform, PointerButton, Pos2, ScrollDelta, Setup,
-    TouchId, TouchPhase, Waker, vec2,
+    Event, Launch, Modifiers, Platform, PointerButton, Pos2, ScrollDelta, Setup, TouchId,
+    TouchPhase, Waker, vec2,
 };
 use beui_core::app::SafeArea;
 use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::renderer::Loaded;
 use beui_core::runner::{Keystroke, Runner, panic_message};
+use beui_core::window::WindowState;
 use smithay::backend::allocator::gbm::GbmDevice;
 use smithay::backend::drm::{DrmDevice, DrmDeviceFd, DrmEvent, DrmEventMetadata, DrmEventTime};
 use smithay::backend::input::Event as _;
@@ -111,12 +112,11 @@ impl Platform for Seat {
         answer.send(text.map(Pasted::Text));
     }
 
-    fn set_cursor(&mut self, icon: CursorIcon, _touch_emulation: bool) {
-        self.displays.borrow_mut().icon = icon;
-    }
-
-    fn lock_pointer(&mut self, locked: bool) {
-        self.locked = locked;
+    fn show_window(&mut self, window: &WindowState, shown: &WindowState) {
+        if window.cursor != shown.cursor {
+            self.displays.borrow_mut().icon = window.cursor;
+        }
+        self.locked = window.pointer_locked;
     }
 }
 
@@ -177,6 +177,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         }],
         setup,
     )?;
+    runner.fullscreen_changed(true);
     let input = InputConfig::default();
     let platform = Seat {
         clipboard: None,
@@ -542,9 +543,6 @@ impl Session {
             }
             return;
         };
-        if frame.close_requested {
-            self.signal.stop();
-        }
         let wait = |after: Duration| (after != Duration::MAX).then(|| after.min(LONGEST_WAIT));
         match self.blanked {
             false => self.pacer.ran(

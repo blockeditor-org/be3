@@ -55,6 +55,7 @@ pub struct BeuiTest<A: BeuiApp> {
     children: Vec<ChildPlacement>,
     occluders: Vec<Occluder>,
     report: Option<FrameReport>,
+    window: block_plugin_api::WindowRequests,
     intrinsic: Option<Vec2>,
     exited: bool,
     draft: Vec<u8>,
@@ -218,6 +219,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             children: Vec::new(),
             occluders: Vec::new(),
             report: None,
+            window: block_plugin_api::WindowRequests::default(),
             intrinsic: None,
             exited: false,
             draft: data,
@@ -807,6 +809,11 @@ impl<A: BeuiApp> BeuiTest<A> {
                     }
                     EditorMessage::ArtifactEdited { data, .. } => self.draft.clone_from(data),
                     EditorMessage::Menu { entries, .. } => self.menu.clone_from(entries),
+                    EditorMessage::Window {
+                        region: EditorRegion::Frame,
+                        window,
+                        ..
+                    } => self.window.clone_from(window),
                     _ => {}
                 }
                 self.sent.push(message);
@@ -1038,6 +1045,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.output
             .as_ref()
             .expect("the editor has not drawn a frame yet")
+            .window
             .pointer_locked
     }
 
@@ -1075,21 +1083,17 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn handles_back(&self) -> bool {
-        self.report
-            .as_ref()
-            .is_some_and(|report| report.handles_back)
+        self.window.handles_back
     }
 
     pub fn wants_keyboard(&self) -> bool {
-        self.report
-            .as_ref()
-            .is_some_and(|report| report.wants_keyboard)
+        self.window.wants_keyboard
     }
 
     pub fn intercepted_keys(&self) -> Vec<KeyChord> {
-        self.report
+        self.window
+            .intercepted_keys
             .iter()
-            .flat_map(|report| &report.intercepted_keys)
             .filter_map(|chord| beui_plugin_input::beui_chord(*chord))
             .collect()
     }

@@ -262,8 +262,31 @@ hooks the higher crates fill in:
   turns the platform's input into `Event`s; everything one frame does is
   `beui_core::runner::Runner::frame`, shared by all of them: it runs the
   app, publishes accessibility, and tells the adapter's `Platform` (another
-  trait object) to copy, paste, pick a file, or change the cursor, pointer
-  lock, IME, fullscreen and back handling, only when one of them changed.
+  trait object) what the app asked of the window. Everything the window
+  shows for the app is one `beui_core::window::WindowState` (the cursor and
+  touch emulation, pointer lock, back handling, wanting the keyboard,
+  intercepted keys, the paste kinds the focus takes, and the IME area), which
+  the `Context` fills during a frame and `FrameOutput::window` carries. The
+  runner hands it to `Platform::show_window` with the state it showed before,
+  only when they differ or the app was just given IME or text input, so an
+  adapter compares just the fields it uses; a new field is one more field
+  there and in the adapters that act on it. Typing moves the platform's own
+  copy of the field (the web's hidden textarea, Android's editable) even
+  when the app turns the text away or a composition ends with the field
+  unchanged, so that is when the web and Android adapters bring that copy
+  back to the app's text, comparing against what they last sent. The IME
+  area it hands over is in the window's own units (winit's logical pixels,
+  CSS pixels, a plugin region's points: physical pixels over the platform's
+  scale, so points times the zoom), and `Runner::window` is the state last
+  shown. What happens once rather than holds (a copy, a paste, a file pick,
+  `set_fullscreen`, closing) has a call or field of its own. Fullscreen goes
+  both ways: `Context::set_fullscreen` asks the window to enter or leave it,
+  the runner passing on each request that differs from what the window last
+  said, and the adapter reports what the window actually did, whether the
+  app asked or not, with `Runner::fullscreen_changed`, which the app reads as
+  `Context::fullscreen` and a component as `use_fullscreen()`. The DRM
+  adapter is always fullscreen; Android, plugins and headless windows say
+  nothing (a headless window answers itself when it is simulated).
   The clipboard is the platform's: `Context::copy_text` writes it,
   `Context::watch_copies` hears every copy (which is how be-wayland hands the
   app's copies to Wayland programs), and a paste is the only way to read it.
@@ -276,8 +299,8 @@ hooks the higher crates fill in:
   (`Pasted::Text`, or `Pasted::Image` as a PNG `PickedFile`), handed to
   `on_paste`, or a text paste to `on_text` without one. A platform that
   delivers Ctrl+V's paste itself (`Platform::delivers_paste_shortcut`: the
-  browser, from its paste event's data and the kinds `set_paste_kinds` gave
-  it, and a plugin's host) is not asked again for the shortcut. The winit
+  browser, from its paste event's data and the window's `paste_kinds`, and a
+  plugin's host) is not asked again for the shortcut. The winit
   adapter reads images too; Android and DRM read text only.
   `Platform`'s methods all have defaults (no clipboard, no file picker), so a
   platform implements only what it has.
@@ -300,7 +323,15 @@ hooks the higher crates fill in:
   Accessibility trees are published only between
   `Runner::accessibility_requested` and `accessibility_deactivated`.
   `Frame::wait` is how long the adapter may sleep before the next frame
-  (`None` until something wakes it).
+  (`None` until something wakes it), and `Frame::next` the same once it
+  knows whether the frame it presented asks to be presented again.
+  Closing is the runner's: when the app calls `close_window` (or a driver's
+  close is accepted) the runner exits after that frame and `frame` returns
+  `None` with `Runner::exited` set, which every adapter answers by stopping
+  its loop (Android also finishes its activity; the web and plugin adapters
+  have nothing to close). An adapter whose window is closed from outside
+  calls `Runner::os_close`, which asks the app's `close_requested` and exits
+  if it agrees.
   A panic out of the app's `update` stops the runner rather than unwinding
   through the event loop: the app hears `exiting`, `frame` returns `None` from
   then on, `Runner::failure` says why, and the adapter ends its loop and

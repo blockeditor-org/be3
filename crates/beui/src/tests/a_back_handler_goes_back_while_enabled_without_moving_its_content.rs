@@ -23,12 +23,12 @@ fn a_back_handler_goes_back_while_enabled_without_moving_its_content() {
     });
 
     let mut harness = Harness::new(document);
-    assert!(!harness.frame(Vec::new()).handles_back);
+    assert!(!harness.frame(Vec::new()).window.handles_back);
     harness.frame(vec![Event::Back(BackGesture::Invoked)]);
     assert_eq!(backs.get(), 0);
 
     with_reactive_scope(harness.document_mut(), move || set_enabled.set(true));
-    assert!(harness.frame(Vec::new()).handles_back);
+    assert!(harness.frame(Vec::new()).window.handles_back);
     let resting = harness.rect(page.get());
 
     harness.frame(vec![

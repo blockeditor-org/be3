@@ -269,8 +269,7 @@ impl EditorMessage {
             | Self::ArtifactEdited { .. }
             | Self::RegenerateArtifact { .. }
             | Self::ArtifactRegenerated { .. }
-            | Self::Cursor { .. }
-            | Self::Ime { .. }
+            | Self::Window { .. }
             | Self::Presence { .. }
             | Self::ChildReplaced { .. }
             | Self::ChildView { .. }

@@ -21,13 +21,13 @@ use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
 use beui_core::geometry::{Pos2, Rect, pos2, vec2};
 use beui_core::input::{
-    CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, Modifiers, PointerButton, TouchId,
-    TouchPhase,
+    DroppedFile, Event, ImeArea, ImeEvent, Key, Modifiers, PointerButton, TouchId, TouchPhase,
 };
 use beui_core::renderer::Loaded;
 use beui_core::runner::{
     Adapter, Input, Keystroke, Launch, Platform, Running, SCROLL_LINE, SCROLL_PAGE, ScrollDelta,
 };
+use beui_core::window::WindowState;
 
 const PINCH_SPEED: f32 = 0.01;
 
@@ -85,6 +85,7 @@ thread_local! {
     static HELD_FIELD: Cell<Option<Rect>> = const { Cell::new(None) };
     static REFOCUSING: Cell<bool> = const { Cell::new(false) };
     static PASTE_KINDS: RefCell<Vec<PasteKind>> = const { RefCell::new(Vec::new()) };
+    static FULLSCREEN: Cell<Option<bool>> = const { Cell::new(None) };
 }
 
 const PASTED_NAME: &str = "Pasted Image.png";
@@ -189,8 +190,6 @@ struct Runner {
 struct WebPlatform {
     surface: web_sys::HtmlElement,
     agent: web_sys::HtmlTextAreaElement,
-    ime: Option<ImeArea>,
-    css_per_point: f32,
 }
 
 impl Platform for WebPlatform {
@@ -215,10 +214,6 @@ impl Platform for WebPlatform {
         });
     }
 
-    fn set_paste_kinds(&mut self, kinds: &[PasteKind]) {
-        PASTE_KINDS.with(|pastes| *pastes.borrow_mut() = kinds.to_vec());
-    }
-
     fn delivers_paste_shortcut(&self) -> bool {
         true
     }
@@ -227,18 +222,29 @@ impl Platform for WebPlatform {
         file_picker::open(request, answer);
     }
 
-    fn set_cursor(&mut self, icon: CursorIcon, _touch_emulation: bool) {
-        let _ = self.surface.style().set_property("cursor", icon.name());
-    }
-
-    fn lock_pointer(&mut self, locked: bool) {
-        match locked {
-            true => self.surface.request_pointer_lock(),
-            false => {
-                if let Some(document) = web_sys::window().and_then(|window| window.document()) {
-                    document.exit_pointer_lock();
+    fn show_window(&mut self, window: &WindowState, shown: &WindowState) {
+        if window.paste_kinds != shown.paste_kinds {
+            PASTE_KINDS.with(|pastes| pastes.borrow_mut().clone_from(&window.paste_kinds));
+        }
+        if window.cursor != shown.cursor {
+            let _ = self
+                .surface
+                .style()
+                .set_property("cursor", window.cursor.name());
+        }
+        if window.pointer_locked != shown.pointer_locked {
+            match window.pointer_locked {
+                true => self.surface.request_pointer_lock(),
+                false => {
+                    if let Some(document) = web_sys::window().and_then(|window| window.document()) {
+                        document.exit_pointer_lock();
+                    }
                 }
             }
+        }
+        self.mirror(window.ime.as_ref());
+        if window.ime != shown.ime {
+            self.show_ime(window.ime.as_ref());
         }
     }
 
@@ -255,8 +261,29 @@ impl Platform for WebPlatform {
             false => document.exit_fullscreen(),
         }
     }
+}
 
-    fn show_ime(&mut self, ime: Option<&ImeArea>) {
+impl WebPlatform {
+    fn show_ime(&self, ime: Option<&ImeArea>) {
+        let held = ime.filter(|area| !area.keyboard.shown());
+        let was_held = HELD_FIELD.replace(held.map(|area| area.rect)).is_some();
+        match held {
+            Some(_) => {
+                let _ = self.agent.set_attribute("inputmode", "none");
+            }
+            None if was_held => {
+                let _ = self.agent.remove_attribute("inputmode");
+            }
+            None => {}
+        }
+        if let Some(area) = ime {
+            let style = self.agent.style();
+            let _ = style.set_property("left", &format!("{}px", area.cursor.min.x));
+            let _ = style.set_property("top", &format!("{}px", area.cursor.max.y));
+        }
+    }
+
+    fn mirror(&self, ime: Option<&ImeArea>) {
         let mirrored = MIRROR.with(|mirror| {
             let mut mirror = mirror.borrow_mut();
             let text = ime.and_then(|area| area.text.as_ref());
@@ -267,29 +294,6 @@ impl Platform for WebPlatform {
         if let Some((value, (start, end))) = mirrored {
             self.agent.set_value(&value);
             let _ = self.agent.set_selection_range(start, end);
-        }
-        if ime == self.ime.as_ref() {
-            return;
-        }
-        let held = ime.filter(|area| !area.keyboard);
-        let was_held = HELD_FIELD
-            .replace(held.map(|area| area.rect.scaled(self.css_per_point)))
-            .is_some();
-        match held {
-            Some(_) => {
-                let _ = self.agent.set_attribute("inputmode", "none");
-            }
-            None if was_held => {
-                let _ = self.agent.remove_attribute("inputmode");
-            }
-            None => {}
-        }
-        self.ime = ime.cloned();
-        if let Some(area) = ime {
-            let css = self.css_per_point;
-            let style = self.agent.style();
-            let _ = style.set_property("left", &format!("{}px", area.cursor.min.x * css));
-            let _ = style.set_property("top", &format!("{}px", area.cursor.max.y * css));
         }
     }
 }
@@ -315,18 +319,17 @@ impl Runner {
         for input in INPUT.with(|pending| pending.inputs.take()) {
             self.runner.push(input);
         }
-        let context = self.runner.context();
-        context.set_pixels_per_point(ratio);
-        self.platform.css_per_point = context.pixels_per_point() / ratio;
+        if let Some(fullscreen) = FULLSCREEN.take() {
+            self.runner.fullscreen_changed(fullscreen);
+        }
         let Some(frame) = self
             .runner
             .frame(&mut self.platform, ratio, SafeArea::default())
         else {
             return;
         };
-        let again = frame.pending && self.runner.present();
-        match frame.wait() {
-            _ if again => schedule(),
+        let presenting = frame.pending && self.runner.present();
+        match frame.next(presenting) {
             Some(Duration::ZERO) => schedule(),
             Some(wait) => schedule_after(wait),
             None => {}
@@ -411,8 +414,6 @@ async fn run(element_id: &str, launch: Launch, load: Load) -> Result<(), Box<dyn
         platform: WebPlatform {
             surface: surface.clone(),
             agent: agent.clone(),
-            ime: None,
-            css_per_point: 1.0,
         },
         size: (0, 0),
     };
@@ -798,6 +799,13 @@ fn listen(
                 .pointer_lock_element()
                 .is_some_and(|element| element == surface);
             INPUT.with(|input| input.locked.set(locked));
+            schedule();
+        }
+    })?;
+    on(document_target, "fullscreenchange", {
+        let document = document.clone();
+        move |_event: web_sys::Event| {
+            FULLSCREEN.set(Some(document.fullscreen_element().is_some()));
             schedule();
         }
     })?;

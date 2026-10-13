@@ -6,6 +6,7 @@ use crate::{PasteAnswer, PasteKind, Pasted};
 use beui_core::app::SafeArea;
 use beui_core::renderer::{Loaded, Renderer};
 use beui_core::runner::{Launch, Platform, RunOptions, Runner};
+use beui_core::window::WindowState;
 
 type Log = Rc<RefCell<Vec<String>>>;
 
@@ -51,10 +52,13 @@ impl Platform for Recording {
         self.0.borrow_mut().push("pick".to_owned());
     }
 
-    fn set_cursor(&mut self, icon: CursorIcon, touch_emulation: bool) {
-        self.0
-            .borrow_mut()
-            .push(format!("cursor {icon:?} {touch_emulation}"));
+    fn show_window(&mut self, window: &WindowState, shown: &WindowState) {
+        if window.cursor != shown.cursor {
+            self.0.borrow_mut().push(format!(
+                "cursor {:?} {}",
+                window.cursor, window.touch_emulation
+            ));
+        }
     }
 }
 

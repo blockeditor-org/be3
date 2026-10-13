@@ -22,7 +22,7 @@ fn a_tap_intercepted_for_a_document_runs_its_tap_action() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     assert_eq!(
-        harness.frame(Vec::new()).intercepted_keys,
+        harness.frame(Vec::new()).window.intercepted_keys,
         [KeyChord::tap(Key::Logo)],
         "an intercepting tap is named as a tap"
     );

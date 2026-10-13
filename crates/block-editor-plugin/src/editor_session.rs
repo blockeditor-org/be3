@@ -1,10 +1,10 @@
 use be_block::presence::{PresenceKind, UserActive, pick_free_color};
 use block_plugin_api::{
     ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildRect,
-    ChildStatus, CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion,
-    FrameChrome, FrameReport, HostPanel, HostReply, ImeArea, InputEvent, MAX_CHILDREN,
-    MAX_COLLECTION_ITEMS, MenuEntry, Message, Occluder, RegionSize, ScreenPlacement, ScreenRequest,
-    Size, ViewChange, ViewportMetrics, WebViewEvent, WebViewId,
+    ChildStatus, CreationOutcome, EditorInstanceId, EditorMessage, EditorRegion, FrameChrome,
+    FrameReport, HostPanel, HostReply, ImeArea, InputEvent, MAX_CHILDREN, MAX_COLLECTION_ITEMS,
+    MenuEntry, Message, Occluder, RegionSize, ScreenPlacement, ScreenRequest, Size, ViewChange,
+    ViewportMetrics, WebViewEvent, WebViewId,
 };
 use block_ui::BlockCatalog;
 use geometry::{Rect, Vec2, pos2, vec2};
@@ -76,10 +76,8 @@ struct RegionState {
     reported: Option<Vec2>,
     report: Option<FrameReport>,
     reported_frame: Option<FrameReport>,
-    cursor: CursorIcon,
-    reported_cursor: Option<CursorIcon>,
-    ime: Option<ImeArea>,
-    reported_ime: Option<Option<ImeArea>>,
+    window: block_plugin_api::WindowRequests,
+    reported_window: Option<block_plugin_api::WindowRequests>,
     children: Vec<ChildPlacement>,
     occluders: Vec<Occluder>,
     laid_out: Size,
@@ -341,19 +339,8 @@ impl EditorSession {
                 measurements,
             }));
         }
-        for (region, cursor) in self.cursors() {
-            messages.push(Message::Editor(EditorMessage::Cursor {
-                instance,
-                region,
-                cursor,
-            }));
-        }
-        for (region, area) in self.ime_areas() {
-            messages.push(Message::Editor(EditorMessage::Ime {
-                instance,
-                region,
-                area,
-            }));
+        for message in self.window_messages() {
+            messages.push(Message::Editor(message));
         }
         for command in self.host.take_graph_commands() {
             messages.push(Message::Editor(match command {
@@ -693,28 +680,20 @@ impl EditorSession {
         messages
     }
 
-    fn cursors(&mut self) -> Vec<(EditorRegion, CursorIcon)> {
-        let mut cursors = Vec::new();
+    fn window_messages(&mut self) -> Vec<EditorMessage> {
+        let instance = self.instance;
+        let mut messages = Vec::new();
         for (region, state) in &mut self.regions {
-            if state.reported_cursor == Some(state.cursor) {
-                continue;
+            if state.reported_window.as_ref() != Some(&state.window) {
+                state.reported_window = Some(state.window.clone());
+                messages.push(EditorMessage::Window {
+                    instance,
+                    region: *region,
+                    window: state.window.clone(),
+                });
             }
-            state.reported_cursor = Some(state.cursor);
-            cursors.push((*region, state.cursor));
         }
-        cursors
-    }
-
-    fn ime_areas(&mut self) -> Vec<(EditorRegion, Option<ImeArea>)> {
-        let mut areas = Vec::new();
-        for (region, state) in &mut self.regions {
-            if state.reported_ime.as_ref() == Some(&state.ime) {
-                continue;
-            }
-            state.reported_ime = Some(state.ime.clone());
-            areas.push((*region, state.ime.clone()));
-        }
-        areas
+        messages
     }
 
     fn frame_reports(&mut self) -> Vec<FrameReport> {
@@ -948,13 +927,20 @@ impl EditorSession {
                 height: host.height(),
             };
             state.occluders = occluders;
-            state.cursor = frame.cursor;
-            state.ime = frame.ime.as_ref().map(|ime| ImeArea {
-                rect: reported(ime.rect),
-                cursor: reported(ime.cursor),
-                text: ime.text.clone(),
-                keyboard: ime.keyboard,
-            });
+            let window = &frame.window;
+            state.window = block_plugin_api::WindowRequests {
+                cursor: window.cursor,
+                ime: window.ime.as_ref().map(|ime| ImeArea {
+                    rect: reported(ime.rect),
+                    cursor: reported(ime.cursor),
+                    text: ime.text.clone(),
+                    keyboard: ime.keyboard,
+                }),
+                handles_back: window.handles_back,
+                wants_keyboard: window.wants_keyboard,
+                intercepted_keys: window.intercepted_keys.clone(),
+                pastes: window.pastes.clone(),
+            };
             let reports = matches!(region, EditorRegion::Frame);
             state.report = reports.then(|| FrameReport {
                 screen,
@@ -969,10 +955,6 @@ impl EditorSession {
                         rect: reported(claim.rect),
                     })
                     .collect(),
-                handles_back: frame.handles_back,
-                wants_keyboard: frame.wants_keyboard,
-                intercepted_keys: frame.intercepted_keys.clone(),
-                pastes: frame.pastes.clone(),
                 description: frame.description.as_ref().map(|description| {
                     block_plugin_api::Description {
                         nodes: description

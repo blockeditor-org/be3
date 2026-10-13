@@ -10,6 +10,7 @@ use super::*;
 mod a_copy_in_a_region_reaches_the_host;
 mod a_pointer_lands_where_the_region_is_scrolled_to;
 mod a_region_lays_out_over_its_whole_rect_not_just_what_shows;
+mod a_regions_keyboard_reaches_the_host_with_its_asks;
 
 fn region(rect: Rect, pixels: [u32; 2]) -> Region {
     Region {
