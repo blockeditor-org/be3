@@ -66,8 +66,8 @@ so dialogs, the file tree and every editor read like the host's own controls.
 - `drive find TARGET` says where a target is.
 - `drive state` is what the tree does not say: the window's size, scale and focus, whether it is
   fullscreen, the cursor's shape, the pointer and the fingers down, held keys, an input
-  method's composition, a back gesture under way, files being dragged in, the clipboard and any
-  open file dialog.
+  method's composition, a back gesture under way, files being dragged in, and any open file
+  dialog.
 - `drive actions` lists the actions the command palette would offer where the focus is
   (guides/beui_keyboard.md), with their shortcuts, and each plugin's under its `Pane`;
   `drive actions all` lists every registered one.
@@ -152,13 +152,14 @@ real one:
 
 - `drive resize 390x844@3` resizes it and sets its scale, which is how to see a phone's
   layout; `drive resize screen 1920x1080` sets the screen it fills when the app asks for
-  fullscreen.
+  fullscreen. Only a headless window can be resized this way.
 - `drive focus` and `drive blur` give it focus or take it away.
-- `drive clipboard` prints the clipboard and `drive clipboard TEXT` sets it; the app's own
-  copy and paste use it, and `drive key ctrl+v` pastes it.
-- A file dialog the app opens waits for drive: `drive upload FILE TARGET` clicks TARGET and
-  answers the dialog it opens with FILE (without TARGET it answers one already open), and
-  `drive dismiss` cancels it.
+- `drive clipboard` prints the window's clipboard and `drive clipboard TEXT` sets it; the
+  app's own copy and paste use it, and `drive key ctrl+v` pastes it. In a headless window
+  the clipboard is the window's own; in a real one it is the system's.
+- A file dialog the app opens waits for drive, in any window while drive is attached:
+  `drive upload FILE TARGET` clicks TARGET and answers the dialog it opens with FILE
+  (without TARGET it answers one already open), and `drive dismiss` cancels it.
 - `drive grab FILE...` drags files in from outside, over the pointer; `drive move` carries
   them, to try what hovering with them shows, `drive drop [TARGET]` drops them and
   `drive ungrab` takes them away again.
