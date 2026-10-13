@@ -11,3 +11,4 @@ shelley.db*
 /dist/
 __pycache__/
 /buck/android/ci-keystore.base64
+/buck/app/build-id

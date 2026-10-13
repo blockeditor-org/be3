@@ -70,8 +70,8 @@ use uuid::Uuid;
 #[cfg(not(target_arch = "wasm32"))]
 const APP_ID: &str = "Block";
 
-pub(crate) fn commit() -> &'static str {
-    build_id::current().map_or("no build id", build_id::commit)
+pub(crate) fn build() -> &'static str {
+    build_id::current().unwrap_or("no build id")
 }
 
 fn run_options() -> beui::RunOptions {

@@ -48,7 +48,8 @@ fn parse(arguments: &[String]) -> Result<Options, String> {
     }
     if options.out.is_empty() {
         return Err(
-            "usage: apk OUT --jdk DIR --build-tools DIR --platform DIR --manifest FILE ...".into(),
+            "usage: apk OUT --jdk DIR --build-tools DIR --android-jar FILE --manifest FILE ..."
+                .into(),
         );
     }
     Ok(options)
@@ -114,7 +115,7 @@ pub fn run(arguments: &[String]) -> Result<ExitCode, String> {
     let options = parse(arguments)?;
     let build_tools = Path::new(options.get("build-tools")?);
     let jdk = Path::new(options.get("jdk")?);
-    let android_jar = Path::new(options.get("platform")?).join("android.jar");
+    let android_jar = Path::new(options.get("android-jar")?);
     let scratch = std::env::temp_dir().join(format!("apk-{}", std::process::id()));
     std::fs::create_dir_all(&scratch).map_err(|error| error.to_string())?;
 
@@ -157,7 +158,7 @@ pub fn run(arguments: &[String]) -> Result<ExitCode, String> {
         link.arg("--manifest")
             .arg(&manifest_path)
             .arg("-I")
-            .arg(&android_jar)
+            .arg(android_jar)
             .args(["--min-sdk-version", options.get("min-sdk")?])
             .args(["--target-sdk-version", options.get("target-sdk")?])
             .args(["--version-code", options.get("version-code")?])
@@ -197,7 +198,7 @@ pub fn run(arguments: &[String]) -> Result<ExitCode, String> {
                     "11",
                     "-classpath",
                 ])
-                .arg(&android_jar)
+                .arg(android_jar)
                 .arg("-d")
                 .arg(&classes)
                 .args(&sources),
@@ -222,7 +223,7 @@ pub fn run(arguments: &[String]) -> Result<ExitCode, String> {
                     options.get("min-sdk")?,
                     "--lib",
                 ])
-                .arg(&android_jar)
+                .arg(android_jar)
                 .arg("--output")
                 .arg(&dexed)
                 .args(&compiled),
