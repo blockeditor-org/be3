@@ -1,27 +1,24 @@
-use super::{INDEX, Plugins};
+use std::{
+    future::Future,
+    pin::pin,
+    task::{Context, Poll, Waker},
+};
+
+use super::Plugins;
 
 pub(super) fn scan() -> Plugins {
-    if let Ok(id) = read(build_id::FILE) {
-        build_id::install(&String::from_utf8_lossy(&id));
+    let mut scanning = pin!(super::discover(|path| std::future::ready(read(&path))));
+    match scanning
+        .as_mut()
+        .poll(&mut Context::from_waker(Waker::noop()))
+    {
+        Poll::Ready(plugins) => plugins,
+        Poll::Pending => unreachable!("reading the bundle never waits"),
     }
-    let mut plugins = Plugins::default();
-    let manifests = read(INDEX).and_then(|document| {
-        serde_json::from_slice::<Vec<String>>(&document).map_err(|error| error.to_string())
-    });
-    match manifests {
-        Ok(manifests) => {
-            for manifest in manifests {
-                match read(&manifest)
-                    .and_then(|bytes| String::from_utf8(bytes).map_err(|error| error.to_string()))
-                {
-                    Ok(document) => plugins.add(&manifest, &document),
-                    Err(error) => plugins.error(&manifest, error),
-                }
-            }
-        }
-        Err(error) => plugins.error(INDEX, error),
-    }
-    plugins
+}
+
+pub(super) fn fetch(path: String, deliver: impl FnOnce(Result<Vec<u8>, String>) + Send + 'static) {
+    deliver(read(&path));
 }
 
 #[cfg(not(target_os = "android"))]

@@ -60,14 +60,8 @@ fn read_dropped(file: beui::DroppedFile) -> Option<DroppedFile> {
     Some(DroppedFile { name, data })
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn read_path(path: &std::path::Path) -> Option<Vec<u8>> {
     std::fs::read(path).ok()
-}
-
-#[cfg(target_arch = "wasm32")]
-fn read_path(_path: &std::path::Path) -> Option<Vec<u8>> {
-    None
 }
 
 #[derive(Default)]
