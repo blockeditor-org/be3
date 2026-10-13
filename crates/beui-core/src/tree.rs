@@ -51,10 +51,10 @@ pub fn component_placed() -> ReadSignal<bool> {
         return with_document(|document| document.watch_placed(target));
     }
     if let Some((read, _)) = bindings.placed.borrow().as_ref() {
-        return read.clone();
+        return *read;
     }
     let (read, write) = create_signal(false);
-    bindings.placed.replace(Some((read.clone(), write)));
+    bindings.placed.replace(Some((read, write)));
     read
 }
 

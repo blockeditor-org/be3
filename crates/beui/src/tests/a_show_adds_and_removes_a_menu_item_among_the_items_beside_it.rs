@@ -4,6 +4,7 @@ use crate::styled::ContextMenu;
 
 #[test]
 fn a_show_adds_and_removes_a_menu_item_among_the_items_beside_it() {
+    let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
     let (pasteable, set_pasteable) = create_signal(false);
     let selected = Rc::new(RefCell::new(Vec::new()));

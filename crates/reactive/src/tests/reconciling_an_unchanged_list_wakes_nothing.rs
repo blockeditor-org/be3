@@ -12,7 +12,6 @@ fn reconciling_an_unchanged_list_wakes_nothing() {
     scope.run(|| {
         let item = store.get(&1);
         let runs = runs.clone();
-        let keys = keys.clone();
         create_effect(move || {
             keys.with(|keys| assert_eq!(keys.len(), 3));
             item.with(|_| ());

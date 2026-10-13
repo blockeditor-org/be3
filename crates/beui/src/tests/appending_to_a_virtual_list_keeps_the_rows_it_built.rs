@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn appending_to_a_virtual_list_keeps_the_rows_it_built() {
+    let _root = crate::reactive::RootScope::new();
     let built = Rc::new(RefCell::new(Vec::new()));
     let (keys, set_keys) = create_signal(indices(VIRTUAL_ITEM_COUNT));
     let (scroll, list) = (NodeRef::new(), NodeRef::new());

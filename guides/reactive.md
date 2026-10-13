@@ -12,7 +12,7 @@ connects it to beui's components and `Document`; see "beui integration" below.
 use reactive::{create_effect, create_memo, create_signal, Scope};
 
 let scope = Scope::new();
-let (count, set_count) = create_signal(0);
+let (count, set_count) = scope.run(|| create_signal(0));
 
 scope.run(|| {
     let text = create_memo(move || format!("Count: {}", count.get()));
@@ -24,16 +24,22 @@ set_count.update(|count| *count += 1);
 ```
 
 Keep the scope alive for as long as the view exists. Dropping it or calling
-`scope.dispose()` stops its computations and runs their cleanup callbacks.
+`scope.dispose()` stops its computations, runs their cleanup callbacks, and
+frees the signals and memos created in it.
 Run `./scripts/buck run //crates/reactive:retained-example` for a complete example that
 updates retained state and batches changes around a mutable borrow.
 
 ## Signals and memos
 
 `create_signal(value)` returns `(ReadSignal<T>, WriteSignal<T>)`. Both handles
-are cheaply cloneable, including for values that do not implement `Clone`.
-Signals use reference-counted ownership and remain usable as long as a handle
-exists, independently of scopes. Handles and scopes cannot cross threads.
+are `Copy`, including for values that do not implement `Clone`, so a `move`
+closure takes its own copy and the original stays usable. A handle is a key into
+a thread-local arena, not a reference count: the signal belongs to the scope
+that was current when it was created and is freed when that scope is disposed.
+Creating one with no current scope panics. Reading a freed signal panics;
+`set` and `set_unconditionally` on one do nothing, since nothing can read the
+value they would write, and `is_alive()` asks whether it is still there.
+Handles and scopes cannot cross threads.
 
 - `get()` clones a value and subscribes the current computation.
 - `with(|value| ...)` borrows it and subscribes without requiring `Clone`.
@@ -45,7 +51,8 @@ exists, independently of scopes. Handles and scopes cannot cross threads.
 
 `create_memo(|| ...)` creates a read-only cached computation with `PartialEq`
 output. It computes once immediately, then refreshes on demand. Memos expose the
-same reading methods as signals. A changed dependency invalidates downstream
+same reading methods as signals, are `Copy` the same way, and are freed with
+their scope. A changed dependency invalidates downstream
 computations, but equal memo outputs suppress downstream execution. Reading a
 memo inside a batch returns its current value. Dependency chains and diamonds
 refresh before effects observe them, preventing intermediate derived values.
@@ -60,16 +67,41 @@ written inside a `create_memo` closure outside tests.
 `with` holds a shared borrow for the closure; `update` holds a mutable borrow.
 Do not access the same signal incompatibly from those closures.
 
+## Owning signals outside a scope
+
+State that outlives any one scope, or is made where no scope is current, owns
+its signals one of three ways:
+
+- `OwnedSignal::new(value)` is a signal that belongs to the value holding it and
+  is freed when that value drops. `read()` and `write()` hand out `Copy`
+  handles. Use it for a signal per entry in a map that outlives its readers
+  (`KeyedStore` keeps one per key, and `Document` one per watched node), or for
+  a struct field when the struct is made outside a scope.
+- `RootScope::new()` makes a detached scope current until it is dropped, so
+  everything created after it in the same block belongs to it. A test that
+  creates signals before building a document starts with
+  `let _root = RootScope::new();`. A constructor that creates many signals
+  starts the same way and ends with `owner.into_scope()`, which stops it being
+  current and returns the `Scope` for the struct to keep. Unlike `Scope::run`,
+  it neither batches nor flushes. Drop or hand back a `RootScope` in the block
+  that made it.
+- `Scope::run` creates them in an existing scope.
+
+A long-lived scope that keeps creating signals keeps all of them until it is
+disposed, so state that adds and removes items over its life gives each item an
+`OwnedSignal` or a scope of its own rather than creating them in the long-lived
+scope.
+
 ## Cloning handles into closures
 
-Signals, memos, selectors, and the `Rc` handles components keep are cheap to
-clone, and a `move` closure that keeps one has to own its own clone. `clone!`
+Signals, memos and selectors are `Copy`, so a `move` closure takes them without
+ceremony. The `Rc` handles components keep are cheap to clone but are not
+`Copy`, and a `move` closure that keeps one has to own its own clone. `clone!`
 writes those clones for you: it takes the names to clone, an arrow, and the
 expression they are in scope for.
 
 ```rust
-let text = create_memo(clone!(count -> move || count.get().to_string()));
-create_effect(clone!(count state -> move || state.show(count.get())));
+create_effect(clone!(state -> move || state.show(count.get())));
 ```
 
 `clone!(a b -> expr)` expands to `{ let a = a.clone(); let b = b.clone(); expr }`,
@@ -86,10 +118,9 @@ that gained it.
 
 ```rust
 let (selected, set_selected) = create_signal(Some(0usize));
-let selection = create_selector(clone!(selected -> move || selected.get()));
+let selection = create_selector(move || selected.get());
 
 for index in 0..rows {
-    let selection = selection.clone();
     create_effect(move || highlight(index, selection.is_selected(&Some(index))));
 }
 ```
@@ -113,7 +144,8 @@ field wakes every computation that reads any other. `#[derive(Store)]` splits it
 for `Foo` it writes a `FooStore` whose fields are the `ReadSignal`s of `Foo`'s
 fields, a `new(value)` that seeds them, a `set(value)` that writes each one (so a
 field whose value did not change notifies nobody), a `set_<field>(value)` per
-field, and a `get()` that reads the whole struct back.
+field, and a `get()` that reads the whole struct back. The store is `Copy`, and
+its signals belong to the scope it was created in.
 
 ```rust
 #[derive(Clone, PartialEq, Store)]
@@ -123,7 +155,7 @@ pub struct Theme {
 }
 
 let theme = ThemeStore::new(Theme::DARK);
-view! { <Frame color={theme.background.clone()} /> }
+view! { <Frame color={theme.background} /> }
 theme.set_accent(Color32::WHITE);
 ```
 
@@ -235,8 +267,8 @@ first answer arrives, and it changes whenever the host's answer does.
 
 ## Effects, batches, and ownership
 
-Create memos, effects, and cleanup callbacks inside `Scope::run` or another
-computation. `create_effect(|| ...)` schedules an initial execution, then runs
+Create signals, memos, effects, and cleanup callbacks inside `Scope::run` or
+another computation. `create_effect(|| ...)` schedules an initial execution, then runs
 again when its tracked inputs change. Effects run synchronously before a write
 returns, except inside `batch` or `Scope::run`, which flush when their outermost
 batch finishes. Multiple writes coalesce into one pending execution. Effects
@@ -255,8 +287,8 @@ to stop runaway feedback loops.
 
 A `Scope::new()` created inside an active scope becomes its child. Parent disposal
 also disposes children, even when a child handle remains alive. A scope cannot
-be entered after disposal; a memo read after its owning scope is disposed
-answers the value it last computed, without subscribing. Disposal is idempotent.
+be entered after disposal, and disposing it frees the signals, memos and
+selectors it owns. Disposal is idempotent.
 
 Inside a computation, the current scope is that computation's execution scope,
 which is thrown away every time it reruns. To open a scope that survives those
@@ -326,12 +358,11 @@ use beui::reactive::{
 #[component]
 fn App() -> beui::NodeId {
     let (count, set_count) = create_signal(0i64);
-    let decrement = set_count.clone();
     let count_text = create_memo(move || count.get().to_string());
     view! {
         <List spacing=0.0>
             <List direction=Direction::Horizontal spacing=8.0>
-                <Button on_click={move || decrement.update(|count| *count -= 1)}>
+                <Button on_click={move || set_count.update(|count| *count -= 1)}>
                     <Text string="-" />
                 </Button>
                 <Text string={count_text} /> // updates itself when `count` changes
@@ -452,7 +483,7 @@ the way in:
 ```rust
 let value = value.map(|value| value.clamp(0.0, 1.0));
 let (value_read, set_value) = create_signal(value.peek());
-create_effect(clone!(set_value -> move || set_value.set(value.get())));
+create_effect(move || set_value.set(value.get()));
 ```
 
 A component's child arity is part of its signature. A prop named `children`

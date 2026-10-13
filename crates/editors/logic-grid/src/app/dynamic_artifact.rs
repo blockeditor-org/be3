@@ -1,5 +1,5 @@
 use beui::NodeId;
-use beui::reactive::{Frame, List, Show, clone, component, create_memo, view};
+use beui::reactive::{Frame, List, Show, component, create_memo, view};
 use beui::styled::{Caption, Checkbox, use_theme};
 use block_editor_beui::be_block::compiled_logic::CompiledLogic;
 use block_editor_beui::be_block::{
@@ -80,26 +80,26 @@ const SETTINGS_SPACING: f32 = 12.0;
 #[component]
 pub(super) fn Settings(artifacts: Artifacts) -> NodeId {
     let data = artifacts.settings();
-    let decoded = create_memo(clone!(data -> move || ComponentArtifact::decode(&data.get()).ok()));
-    let readable = create_memo(clone!(decoded -> move || decoded.get().is_some()));
-    let unreadable = create_memo(clone!(decoded -> move || decoded.get().is_none()));
-    let renamed = create_memo(clone!(decoded -> move || {
+    let decoded = create_memo(move || ComponentArtifact::decode(&data.get()).ok());
+    let readable = create_memo(move || decoded.get().is_some());
+    let unreadable = create_memo(move || decoded.get().is_none());
+    let renamed = create_memo(move || {
         decoded
             .get()
             .is_some_and(|artifact| artifact.settings.rename_with_source)
-    }));
+    });
     let edited = artifacts.clone();
-    let rename = clone!(decoded -> move |on: bool| {
+    let rename = move |on: bool| {
         let Some(mut artifact) = decoded.get_untracked() else {
             return;
         };
         artifact.settings.rename_with_source = on;
         edited.edit_settings(artifact.encode());
-    });
+    };
     let theme = use_theme();
     view! {
         <Frame
-            color={theme.background.clone()}
+            color={theme.background}
             padding_horizontal=SETTINGS_PADDING
             padding_vertical=SETTINGS_PADDING
         >
@@ -107,7 +107,7 @@ pub(super) fn Settings(artifacts: Artifacts) -> NodeId {
                 <Show condition={readable}>
                     <Checkbox
                         label="Rename with the grid"
-                        checked={renamed.clone()}
+                        checked={renamed}
                         @test_id={"logic-grid.rename-with-source"}
                         on_change={rename.clone()}
                     />

@@ -38,9 +38,9 @@ impl Exporter {
         let (wanted, set_wanted) = create_signal(None::<Export>);
         let (error, set_error) = create_signal(None::<String>);
         let exporter = Rc::new(Self {
-            set_wanted: set_wanted.clone(),
+            set_wanted,
             error,
-            set_error: set_error.clone(),
+            set_error,
         });
         let saver = Rc::new(RefCell::new(FileSaver::default()));
         let saving = Rc::clone(&saver);
@@ -72,7 +72,7 @@ impl Exporter {
     }
 
     pub(crate) fn error(&self) -> Memo<Option<String>> {
-        let error = self.error.clone();
+        let error = self.error;
         create_memo(move || error.get())
     }
 }

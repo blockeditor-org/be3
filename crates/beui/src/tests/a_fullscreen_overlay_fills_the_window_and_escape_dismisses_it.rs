@@ -4,13 +4,13 @@ use crate::styled::Fullscreen;
 
 #[test]
 fn a_fullscreen_overlay_fills_the_window_and_escape_dismisses_it() {
+    let _root = crate::reactive::RootScope::new();
     let (open, set_open) = create_signal(false);
     let dismissed = Rc::new(Cell::new(0));
     let reports = dismissed.clone();
     let content = NodeRef::new();
     let content_ref = content.clone();
     let document = build({
-        let open = open.clone();
         move || {
             view! {
                 <List spacing=0.0>

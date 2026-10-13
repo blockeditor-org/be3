@@ -75,7 +75,7 @@ pub fn ModalSheet(
 fn SheetPanel(children: Child) -> NodeId {
     let theme = use_theme();
     view! {
-        <Frame color={theme.surface.clone()}>{children}</Frame>
+        <Frame color={theme.surface}>{children}</Frame>
     }
 }
 
@@ -84,14 +84,9 @@ fn SheetGrip() -> NodeId {
     let theme = use_theme();
     view! {
         <List spacing=0.0>
-            <Frame height=BORDER_WIDTH color={theme.border.clone()} />
+            <Frame height=BORDER_WIDTH color={theme.border} />
             <Frame height=HANDLE_HEIGHT align_horizontal=Align::Center align_vertical=Align::Center>
-                <Frame
-                    width=GRIP_WIDTH
-                    height=GRIP_HEIGHT
-                    radius=2
-                    color={theme.text_muted.clone()}
-                />
+                <Frame width=GRIP_WIDTH height=GRIP_HEIGHT radius=2 color={theme.text_muted} />
             </Frame>
         </List>
     }

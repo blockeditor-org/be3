@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{LayoutBuilder, ReadSignal, Text, build, clone, create_memo, view};
+use crate::reactive::{LayoutBuilder, ReadSignal, Text, build, create_memo, view};
 use crate::styled::Scroll;
 
 #[test]
@@ -10,11 +10,11 @@ fn a_layout_builder_in_a_scroll_rebuilds_for_the_width_it_is_given() {
                 <Frame height=900.0>
                     <LayoutBuilder>
                         {move |size: ReadSignal<Vec2>| {
-                            let wide = create_memo(clone!(size -> move || size.get().x >= 480.0));
-                            let direction = create_memo(clone!(wide -> move || match wide.get() {
+                            let wide = create_memo(move || size.get().x >= 480.0);
+                            let direction = create_memo(move || match wide.get() {
                                 true => Direction::Horizontal,
                                 false => Direction::Vertical,
-                            }));
+                            });
                             let label = create_memo(move || format!("{:.0} wide", size.get().x));
                             view! {
                                 <List direction spacing=8.0>

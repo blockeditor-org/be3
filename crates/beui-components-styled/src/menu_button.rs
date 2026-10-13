@@ -14,7 +14,7 @@ use beui_core::image::Image;
 use beui_core::input::ScrollGesture;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Callback, Children, ClickCallback, Frame, List, Memo, Prop, Show, clone, create_memo,
+    Align, Callback, Children, ClickCallback, Frame, List, Memo, Prop, Show, create_memo,
 };
 
 const PICTURE_PADDING: f32 = 6.0;
@@ -45,14 +45,14 @@ pub fn MenuButton(
             menu={menu_style()}
             trigger={move |handle: MenuButtonHandle| {
                 let MenuButtonHandle { open, button } = handle;
-                let quiet = create_memo(clone!(icon_only -> move || !icon_only.get() || open.get()));
+                let quiet = create_memo(move || !icon_only.get() || open.get());
                 view! {
-                    <Tooltip label={button.label.clone()} disabled={quiet}>
+                    <Tooltip label={button.label} disabled={quiet}>
                         <ButtonFace
                             handle={button}
                             variant
-                            trailing_glyph={trailing.clone()}
-                            icon_only={icon_only.clone()}
+                            trailing_glyph={trailing}
+                            icon_only={icon_only}
                         />
                     </Tooltip>
                 }
@@ -82,7 +82,7 @@ pub fn IconMenuButton(
             trigger={move |handle: MenuButtonHandle| {
                 let MenuButtonHandle { open, button } = handle;
                 view! {
-                    <Tooltip label={button.label.clone()} disabled={open}>
+                    <Tooltip label={button.label} disabled={open}>
                         <IconButtonFace handle={button} variant size />
                     </Tooltip>
                 }
@@ -110,8 +110,8 @@ pub fn PictureMenuButton(
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     let image = create_memo(move || image.get());
-    let pictured = create_memo(clone!(image -> move || image.with(Option::is_some)));
-    let plain = create_memo(clone!(pictured -> move || !pictured.get()));
+    let pictured = create_memo(move || image.with(Option::is_some));
+    let plain = create_memo(move || !pictured.get());
     let trigger = move |handle: MenuButtonHandle| {
         let MenuButtonHandle { open, button } = handle;
         let theme = use_theme();
@@ -124,14 +124,12 @@ pub fn PictureMenuButton(
             label,
             ..
         } = button;
-        let pressed = create_memo(clone!(open -> move || active.get() || open.get()));
-        let fill = create_memo(clone!(theme disabled -> move || {
+        let pressed = create_memo(move || active.get() || open.get());
+        let fill = create_memo(move || {
             ButtonVariant::Ghost.fill(&theme, disabled.get(), hovered.get(), pressed.get())
-        }));
-        let color = create_memo(
-            clone!(theme -> move || ButtonVariant::Ghost.label(&theme, disabled.get())),
-        );
-        let (image, pictured, plain) = (image.clone(), pictured.clone(), plain.clone());
+        });
+        let color = create_memo(move || ButtonVariant::Ghost.label(&theme, disabled.get()));
+        let (image, pictured, plain) = (image, pictured, plain);
         view! {
             <Tooltip label disabled={open}>
                 <FocusRing focused radius={RADIUS + 2} offset=PICTURE_FOCUS_RING_OFFSET>
@@ -144,14 +142,10 @@ pub fn PictureMenuButton(
                         <Frame width=size height=size>
                             <List spacing=0.0 align=Align::Center>
                                 <Show condition={pictured}>
-                                    <SizedPicture image={image.clone()} size />
+                                    <SizedPicture image={image} size />
                                 </Show>
                                 <Show condition={plain}>
-                                    <IconSized
-                                        glyph={glyph.clone()}
-                                        font_size=size
-                                        color={color.clone()}
-                                    />
+                                    <IconSized glyph={glyph} font_size=size color={color} />
                                 </Show>
                             </List>
                         </Frame>

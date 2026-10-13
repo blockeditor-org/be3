@@ -31,7 +31,7 @@ fn a_floating_child_pins_itself_over_the_scroll_it_names() {
                         <ForEach keys={(0..20).collect::<Vec<i64>>()}>
                             {move |row: i64| {
                                 let rows = Rc::clone(&rows);
-                                let set_over = set_over.clone();
+                                let set_over = set_over;
                                 view! {
                                     <Interactive
                                         on_hover_change={move |over: bool| {

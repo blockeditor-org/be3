@@ -210,6 +210,33 @@ impl Scope {
     }
 }
 
+pub struct RootScope {
+    _context: Context,
+    _scope: Scope,
+}
+
+impl RootScope {
+    pub fn new() -> Self {
+        let scope = Scope::detached();
+        Self {
+            _context: Context::enter(Weak::new(), Rc::downgrade(&scope.owner)),
+            _scope: scope,
+        }
+    }
+
+    pub fn into_scope(self) -> Scope {
+        let Self { _context, _scope } = self;
+        drop(_context);
+        _scope
+    }
+}
+
+impl Default for RootScope {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Clone)]
 pub struct ScopeContext(Weak<Owner>);
 
@@ -305,7 +332,7 @@ pub fn use_context<T: Clone + 'static>() -> Option<T> {
 pub(crate) fn current_owner() -> Rc<Owner> {
     let owner = RUNTIME
         .with(|runtime| runtime.owner.borrow().upgrade())
-        .expect("create memos, effects, and cleanups inside Scope::run");
+        .expect("create signals, memos, effects, and cleanups inside a scope");
     assert!(!owner.disposed.get(), "reactive scope was disposed");
     owner
 }

@@ -88,13 +88,13 @@ pub fn ColorPicker(
                             }}
                         </HueSlider>
                         <Show condition=alpha>
-                            {move || clone!(color -> view! {
+                            {move || view! {
                                 <AlphaSlider picker={alpha_picker.clone()} thumb=SLIDER_HEIGHT>
                                     {move |handle: SliderHandle| view! {
                                         <StripFace handle strip={Strip::Alpha(color)} />
                                     }}
                                 </AlphaSlider>
-                            })}
+                            }}
                         </Show>
                     </List>
                     <ColorSwatch color={shown} width=PREVIEW_SIZE height=PREVIEW_SIZE />
@@ -151,7 +151,7 @@ fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
                     {move || clone!(set_opacity -> view! {
                         <NumberInput
                             @sizing=ItemSize::Fixed(ALPHA_WIDTH)
-                            value={opacity.clone()}
+                            value={opacity}
                             min=0.0
                             max=100.0
                             label="Opacity percent"
@@ -230,7 +230,7 @@ fn ChannelLabel(content: Prop<String>) -> NodeId {
 #[component]
 fn PlaneFace(handle: ColorAreaHandle) -> NodeId {
     let ColorAreaHandle { color, focused, .. } = handle;
-    let hue = create_memo(clone!(color -> move || color.get().hue));
+    let hue = create_memo(move || color.get().hue);
     let plane = create_memo(move || plane_image(hue.get()));
     let place = create_memo(move || {
         let color = color.get();
@@ -279,7 +279,7 @@ fn StripFace(handle: SliderHandle, strip: Strip) -> NodeId {
     let SliderHandle {
         fraction, focused, ..
     } = handle;
-    let knob = create_memo(clone!(strip fraction -> move || match &strip {
+    let knob = create_memo(clone!(strip -> move || match &strip {
         Strip::Hue => Hsva::new(fraction.get() * 360.0, 1.0, 1.0, 1.0).to_color(),
         Strip::Alpha(color) => color.get().to_color(),
     }));
@@ -350,11 +350,11 @@ fn SwatchFace(handle: SwatchHandle) -> NodeId {
     } = handle;
     let theme = use_theme();
     let keyboard = focus_ring(focused);
-    let ring = create_memo(clone!(selected keyboard -> move || selected.get() || keyboard.get()));
-    let ring_color = create_memo(clone!(theme -> move || match keyboard.get() {
+    let ring = create_memo(move || selected.get() || keyboard.get());
+    let ring_color = create_memo(move || match keyboard.get() {
         true => theme.accent.get(),
         false => theme.text.get(),
-    }));
+    });
     view! {
         <Frame
             outline={ring_color}

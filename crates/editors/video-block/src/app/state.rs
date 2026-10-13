@@ -100,7 +100,7 @@ impl VideoState {
         create_effect(clone!(state -> move || state.publish_references()));
         create_effect(clone!(state -> move || state.synchronize()));
         let playback = create_timer(clone!(state -> move || state.advance_playback()));
-        let playing = state.playing.clone();
+        let playing = state.playing;
         create_effect(move || {
             if playing.get() {
                 playback.start(Duration::ZERO);

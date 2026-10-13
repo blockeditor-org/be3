@@ -9,6 +9,7 @@ use crate::{Dismiss, KeyEvent, LayerLevel};
 
 #[test]
 fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
+    let _root = crate::reactive::RootScope::new();
     let (locked, set_locked) = create_signal(false);
     let (menu, set_menu) = create_signal(false);
     let globals = Rc::new(Cell::new(0));
@@ -61,15 +62,14 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
     let lock = kind_of::<OverlayNode>(harness.document(), lock.get());
     let popup = kind_of::<OverlayNode>(harness.document(), popup.get());
     let outside = harness.find("outside");
-    let set = |harness: &mut Harness, signal: &WriteSignal<bool>, value: bool| {
-        let signal = signal.clone();
+    let set = |harness: &mut Harness, signal: WriteSignal<bool>, value: bool| {
         with_reactive_scope(harness.document_mut(), move || signal.set(value));
         harness.frame(Vec::new());
     };
 
     harness.key(Key::K, Modifiers::CTRL);
     assert_eq!(globals.get(), 2, "global keys are heard while unlocked");
-    set(&mut harness, &set_locked, true);
+    set(&mut harness, set_locked, true);
     assert!(harness.document().locked());
 
     harness.key(Key::Escape, Modifiers::NONE);
@@ -107,7 +107,7 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
         "a key intercepted for a plugin is not heard while locked"
     );
 
-    set(&mut harness, &set_menu, true);
+    set(&mut harness, set_menu, true);
     assert!(harness.document().is_overlay_open(popup.id()));
     assert_eq!(
         harness
@@ -140,7 +140,7 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
         "neither Escape nor a click on the scrim takes the focus from the lock's field"
     );
 
-    set(&mut harness, &set_locked, false);
+    set(&mut harness, set_locked, false);
     assert!(!harness.document().locked());
     let before = globals.get();
     harness.key(Key::K, Modifiers::CTRL);

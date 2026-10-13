@@ -162,7 +162,7 @@ pub(super) fn MediaKeys(editor: Editor) -> NodeId {
     let (shows, set_shows) = create_signal(0_u64);
     for (key, media_key) in BINDINGS {
         let editor = editor.clone();
-        let (set_shown, set_shows) = (set_shown.clone(), set_shows.clone());
+        let (set_shown, set_shows) = (set_shown, set_shows);
         Action::new(media_key.id(), media_key.label(), move || {
             let (request, showing) = media_key.request();
             editor.act(request);

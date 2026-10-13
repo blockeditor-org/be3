@@ -105,7 +105,7 @@ fn Inspector(state: Rc<CanvasState>) -> NodeId {
     let appearance = Rc::clone(&state);
     let arrange = Rc::clone(&state);
     let empty = create_memo(clone!(state -> move || state.selection.get().is_empty()));
-    let chosen = create_memo(clone!(empty -> move || !empty.get()));
+    let chosen = create_memo(move || !empty.get());
     let narrow = narrow_chrome();
     let roomy = create_memo(move || !narrow.get());
     let styled = create_memo(clone!(state -> move || {
@@ -117,8 +117,8 @@ fn Inspector(state: Rc<CanvasState>) -> NodeId {
             <Show condition={empty}>
                 <Caption content="Select an object to edit its appearance." wrap=true />
             </Show>
-            <Show condition={chosen.clone()}>
-                {move || clone!(appearance arrange artboard block components styled transform -> view! {
+            <Show condition={chosen}>
+                {move || clone!(appearance arrange artboard block components transform -> view! {
                     <List spacing=SPACING>
                         <Show condition={styled}>
                             <AppearanceSection state={appearance.clone()} />
@@ -152,22 +152,18 @@ fn ArtboardSection(state: Rc<CanvasState>) -> NodeId {
         };
         entity.is_artboard().then(|| entity.clone())
     }));
-    let shown = create_memo(clone!(artboard -> move || artboard.get().is_some()));
-    let name = create_memo(
-        clone!(artboard -> move || match artboard.get().map(|entity| entity.kind) {
-            Some(CanvasEntityKind::Artboard { name }) => name,
-            _ => String::new(),
-        }),
-    );
-    let locked = create_memo(clone!(artboard -> move || {
-        artboard.get().is_none_or(|entity| entity.locked)
-    }));
-    let first = create_memo(clone!(state artboard -> move || {
+    let shown = create_memo(move || artboard.get().is_some());
+    let name = create_memo(move || match artboard.get().map(|entity| entity.kind) {
+        Some(CanvasEntityKind::Artboard { name }) => name,
+        _ => String::new(),
+    });
+    let locked = create_memo(move || artboard.get().is_none_or(|entity| entity.locked));
+    let first = create_memo(clone!(state -> move || {
         artboard.get().is_some_and(|entity| {
             state.first_artboard().is_some_and(|first| first.id == entity.id)
         })
     }));
-    let renamed = clone!(state artboard -> move |name: String| {
+    let renamed = clone!(state -> move |name: String| {
         let Some(held) = artboard.get_untracked() else { return };
         let mut updated = held.clone();
         updated.kind = CanvasEntityKind::Artboard { name };
@@ -176,10 +172,10 @@ fn ArtboardSection(state: Rc<CanvasState>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                {move || clone!(first locked name renamed set_open -> view! {
+                {move || clone!(renamed -> view! {
                     <Accordion
                         title="Artboard"
-                        open={open.clone()}
+                        open={open}
                         on_toggle={move |open| set_open.set(open)}
                     >
                         <List spacing=6.0>
@@ -239,7 +235,7 @@ fn SelectionSummary(state: Rc<CanvasState>) -> NodeId {
 fn TransformSection(state: Rc<CanvasState>) -> NodeId {
     let (open, set_open) = create_signal(true);
     let single = create_memo(clone!(state -> move || state.selected_entities().len() == 1));
-    let many = create_memo(clone!(single -> move || !single.get()));
+    let many = create_memo(move || !single.get());
     let fields = Rc::clone(&state);
     view! {
         <Accordion title="Transform" open={open} on_toggle={move |open| set_open.set(open)}>
@@ -261,30 +257,24 @@ fn TransformSection(state: Rc<CanvasState>) -> NodeId {
 #[component]
 fn TransformFields(state: Rc<CanvasState>) -> NodeId {
     let entity = create_memo(clone!(state -> move || state.selected_entities().pop()));
-    let locked = create_memo(clone!(entity -> move || {
-        entity.get().is_none_or(|entity| entity.locked)
-    }));
-    let resize = create_memo(clone!(state entity -> move || match entity.get() {
+    let locked = create_memo(move || entity.get().is_none_or(|entity| entity.locked));
+    let resize = create_memo(clone!(state -> move || match entity.get() {
         Some(entity) => state.resize_mode(&entity),
         None => ResizeMode::None,
     }));
-    let no_width = create_memo(clone!(locked resize -> move || {
-        locked.get() || !resize.get().horizontal()
-    }));
-    let no_height = create_memo(clone!(locked resize -> move || {
-        locked.get() || !resize.get().vertical()
-    }));
-    let no_rotation = create_memo(clone!(state locked -> move || {
+    let no_width = create_memo(move || locked.get() || !resize.get().horizontal());
+    let no_height = create_memo(move || locked.get() || !resize.get().vertical());
+    let no_rotation = create_memo(clone!(state -> move || {
         locked.get() || !state.selection_allows_rotation()
     }));
     let field = |apply: fn(&mut CanvasEntity, f64)| {
-        let change = clone!(state entity -> move |value: f64| {
+        let change = clone!(state -> move |value: f64| {
             let Some(held) = entity.get_untracked() else { return };
             let mut updated = held.clone();
             apply(&mut updated, value);
             state.record_update(vec![held], vec![updated], true);
         });
-        let preview = clone!(state entity -> move |value: Option<f64>| {
+        let preview = clone!(state -> move |value: Option<f64>| {
             let typed = value.zip(entity.get_untracked()).map(|(value, mut held)| {
                 apply(&mut held, value);
                 held
@@ -301,15 +291,14 @@ fn TransformFields(state: Rc<CanvasState>) -> NodeId {
         field(|entity, value| entity.transform.size.y = (value as f32).max(MIN_SIZE));
     let (rotation, rotation_preview) =
         field(|entity, value| entity.transform.rotation = (value as f32).to_radians());
-    let at = |entity: &Memo<Option<CanvasEntity>>, read: fn(&CanvasEntity) -> f32| {
-        let entity = entity.clone();
+    let at = |entity: Memo<Option<CanvasEntity>>, read: fn(&CanvasEntity) -> f32| {
         create_memo(move || entity.get().map_or(0.0, |entity| read(&entity)) as f64)
     };
-    let center_x = at(&entity, |entity| entity.transform.center.x);
-    let center_y = at(&entity, |entity| entity.transform.center.y);
-    let size_x = at(&entity, |entity| entity.transform.size.x);
-    let size_y = at(&entity, |entity| entity.transform.size.y);
-    let angle = at(&entity, |entity| entity.transform.rotation.to_degrees());
+    let center_x = at(entity, |entity| entity.transform.center.x);
+    let center_y = at(entity, |entity| entity.transform.center.y);
+    let size_x = at(entity, |entity| entity.transform.size.x);
+    let size_y = at(entity, |entity| entity.transform.size.y);
+    let angle = at(entity, |entity| entity.transform.rotation.to_degrees());
     view! {
         <List spacing=6.0>
             <Grid
@@ -323,7 +312,7 @@ fn TransformFields(state: Rc<CanvasState>) -> NodeId {
                 <NumberInput
                     label="X"
                     value={center_x}
-                    disabled={locked.clone()}
+                    disabled={locked}
                     @test_id={"infinite-canvas.transform.x"}
                     on_change={x}
                     on_preview={x_preview}
@@ -334,7 +323,7 @@ fn TransformFields(state: Rc<CanvasState>) -> NodeId {
                 <NumberInput
                     label="Y"
                     value={center_y}
-                    disabled={locked.clone()}
+                    disabled={locked}
                     @test_id={"infinite-canvas.transform.y"}
                     on_change={y}
                     on_preview={y_preview}
@@ -394,17 +383,17 @@ fn BlockSection(state: Rc<CanvasState>) -> NodeId {
         )
         .then(|| entity.clone())
     }));
-    let shown = create_memo(clone!(entity -> move || entity.get().is_some()));
-    let direct = create_memo(clone!(entity -> move || {
+    let shown = create_memo(move || entity.get().is_some());
+    let direct = create_memo(move || {
         entity
             .get()
             .is_some_and(|entity| matches!(entity.kind, CanvasEntityKind::DirectEditor { .. }))
-    }));
-    let label = create_memo(clone!(direct -> move || match direct.get() {
+    });
+    let label = create_memo(move || match direct.get() {
         true => "Show preview only".to_owned(),
         false => "Use direct editor".to_owned(),
-    }));
-    let unavailable = create_memo(clone!(state entity direct -> move || {
+    });
+    let unavailable = create_memo(clone!(state -> move || {
         !direct.get()
             && entity
                 .get()
@@ -415,12 +404,8 @@ fn BlockSection(state: Rc<CanvasState>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                {move || clone!(direct label scaled set_open toggled unavailable -> view! {
-                    <Accordion
-                        title="Block"
-                        open={open.clone()}
-                        on_toggle={move |open| set_open.set(open)}
-                    >
+                {move || clone!(scaled toggled -> view! {
+                    <Accordion title="Block" open={open} on_toggle={move |open| set_open.set(open)}>
                         <List spacing=6.0>
                             <Button
                                 label={label}
@@ -443,17 +428,15 @@ fn BlockSection(state: Rc<CanvasState>) -> NodeId {
 #[component]
 fn EditorScale(state: Rc<CanvasState>) -> NodeId {
     let entity = create_memo(clone!(state -> move || state.selected_entities().pop()));
-    let scale = create_memo(clone!(entity -> move || match entity.get() {
+    let scale = create_memo(move || match entity.get() {
         Some(entity) => match entity.kind {
             CanvasEntityKind::DirectEditor { scale, .. } => scale as f64 * 100.0,
             _ => 100.0,
         },
         None => 100.0,
-    }));
-    let locked = create_memo(clone!(entity -> move || {
-        entity.get().is_none_or(|entity| entity.locked)
-    }));
-    let changed = clone!(state entity -> move |value: f64| {
+    });
+    let locked = create_memo(move || entity.get().is_none_or(|entity| entity.locked));
+    let changed = clone!(state -> move |value: f64| {
         let Some(held) = entity.get_untracked() else { return };
         let CanvasEntityKind::DirectEditor { block_id, scale } = held.kind else {
             return;
@@ -491,8 +474,8 @@ fn EditorScale(state: Rc<CanvasState>) -> NodeId {
 fn ArrangeSection(state: Rc<CanvasState>) -> NodeId {
     let (open, set_open) = create_signal(true);
     let movable = create_memo(clone!(state -> move || state.selected_unlocked().len()));
-    let cannot_align = create_memo(clone!(movable -> move || movable.get() < 2));
-    let cannot_distribute = create_memo(clone!(movable -> move || movable.get() < 3));
+    let cannot_align = create_memo(move || movable.get() < 2);
+    let cannot_distribute = create_memo(move || movable.get() < 3);
     let cannot_group = create_memo(clone!(state -> move || !state.selection_can_group()));
     let cannot_ungroup = create_memo(clone!(state -> move || {
         !state
@@ -526,7 +509,7 @@ fn ArrangeSection(state: Rc<CanvasState>) -> NodeId {
                                 <Button
                                     label={label}
                                     variant=ButtonVariant::Secondary
-                                    disabled={cannot_align.clone()}
+                                    disabled={cannot_align}
                                     @test_id={format!("infinite-canvas.align.{label}")}
                                     on_click={move || state.align_selection(alignment)}
                                 />
@@ -538,7 +521,7 @@ fn ArrangeSection(state: Rc<CanvasState>) -> NodeId {
                     <Button
                         label="Distribute horizontally"
                         variant=ButtonVariant::Secondary
-                        disabled={cannot_distribute.clone()}
+                        disabled={cannot_distribute}
                         @test_id={"infinite-canvas.distribute-horizontally"}
                         on_click={horizontal}
                     />
@@ -652,11 +635,10 @@ fn ForegroundRow(state: Rc<CanvasState>) -> NodeId {
                 .map(|entity| entity.style.foreground),
         )
     }));
-    let shown = create_memo(clone!(value -> move || !value.get().absent()));
+    let shown = create_memo(move || !value.get().absent());
     let theme = use_theme();
-    let custom = create_memo(clone!(value theme -> move || {
-        resolve_color(value.get().or(CanvasColor::Auto), theme.text.get())
-    }));
+    let custom =
+        create_memo(move || resolve_color(value.get().or(CanvasColor::Auto), theme.text.get()));
     let typed = clone!(state -> move |color: Color32| {
         let [red, green, blue, alpha] = color.to_array();
         let color = CanvasColor::Rgba {
@@ -670,7 +652,7 @@ fn ForegroundRow(state: Rc<CanvasState>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                {move || clone!(custom typed -> view! {
+                {move || clone!(typed -> view! {
                     <List spacing=6.0>
                         <Caption content="Color" />
                         <ColorInput
@@ -719,9 +701,9 @@ fn LineWidthRow(state: Rc<CanvasState>) -> NodeId {
                 .map(|entity| entity.style.line_width),
         )
     }));
-    let shown = create_memo(clone!(value -> move || !value.get().absent()));
-    let mixed = create_memo(clone!(value -> move || value.get().mixed()));
-    let width = create_memo(clone!(value -> move || value.get().or(2.0)));
+    let shown = create_memo(move || !value.get().absent());
+    let mixed = create_memo(move || value.get().mixed());
+    let width = create_memo(move || value.get().or(2.0));
     let changed = clone!(state -> move |width: f32| {
         state.update_selected(
             |kind| {
@@ -738,7 +720,7 @@ fn LineWidthRow(state: Rc<CanvasState>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                {move || clone!(changed mixed width -> view! {
+                {move || clone!(changed -> view! {
                     <List spacing=4.0>
                         <MixedLabel label="Line width" mixed={mixed} />
                         <Slider
@@ -778,17 +760,16 @@ fn LineOptions(state: Rc<CanvasState>) -> NodeId {
             .filter(|entity| matches!(entity.kind, CanvasEntityKind::Line))
             .collect::<Vec<_>>()
     }));
-    let shown = create_memo(clone!(lines -> move || !lines.with(Vec::is_empty)));
-    let flag = |lines: &Memo<Vec<CanvasEntity>>, read: fn(&CanvasEntity) -> bool| {
-        let lines = lines.clone();
+    let shown = create_memo(move || !lines.with(Vec::is_empty));
+    let flag = |lines: Memo<Vec<CanvasEntity>>, read: fn(&CanvasEntity) -> bool| {
         create_memo(move || {
             common_value(lines.with(|lines| lines.iter().map(read).collect::<Vec<bool>>()))
                 .or(false)
         })
     };
-    let dashed = flag(&lines, |entity| entity.style.dashed);
-    let start = flag(&lines, |entity| entity.style.arrow_start);
-    let end = flag(&lines, |entity| entity.style.arrow_end);
+    let dashed = flag(lines, |entity| entity.style.dashed);
+    let start = flag(lines, |entity| entity.style.arrow_start);
+    let end = flag(lines, |entity| entity.style.arrow_end);
     let set = |state: &Rc<CanvasState>,
                apply: fn(&mut block_editor_beui::be_block::canvas::CanvasEntityStyle, bool),
                value: bool| {
@@ -809,7 +790,7 @@ fn LineOptions(state: Rc<CanvasState>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                {move || clone!(arrow_end arrow_start dash dashed end start -> view! {
+                {move || clone!(arrow_end arrow_start dash -> view! {
                     <List spacing=6.0>
                         <Separator />
                         <Caption content="Line" />
@@ -847,27 +828,25 @@ fn RectangleOptions(state: Rc<CanvasState>) -> NodeId {
             .filter(|entity| matches!(entity.kind, CanvasEntityKind::Rectangle))
             .collect::<Vec<_>>()
     }));
-    let shown = create_memo(clone!(rectangles -> move || !rectangles.with(Vec::is_empty)));
-    let fill = create_memo(clone!(rectangles -> move || {
-        common_value(
-            rectangles.with(|rectangles| {
-                rectangles
-                    .iter()
-                    .map(|entity| entity.style.fill)
-                    .collect::<Vec<_>>()
-            }),
-        )
-    }));
-    let radius = create_memo(clone!(rectangles -> move || {
+    let shown = create_memo(move || !rectangles.with(Vec::is_empty));
+    let fill = create_memo(move || {
+        common_value(rectangles.with(|rectangles| {
+            rectangles
+                .iter()
+                .map(|entity| entity.style.fill)
+                .collect::<Vec<_>>()
+        }))
+    });
+    let radius = create_memo(move || {
         common_value(rectangles.with(|rectangles| {
             rectangles
                 .iter()
                 .map(|entity| entity.style.corner_radius)
                 .collect::<Vec<f32>>()
         }))
-    }));
-    let mixed = create_memo(clone!(radius -> move || radius.get().mixed()));
-    let corner = create_memo(clone!(radius -> move || radius.get().or(0.0)));
+    });
+    let mixed = create_memo(move || radius.get().mixed());
+    let corner = create_memo(move || radius.get().or(0.0));
     let rounded = clone!(state -> move |value: f32| {
         state.update_selected(
             |kind| matches!(kind, CanvasEntityKind::Rectangle),
@@ -877,9 +856,12 @@ fn RectangleOptions(state: Rc<CanvasState>) -> NodeId {
     let filling = Rc::clone(&state);
     let clearing = clone!(state -> move |_: bool| set_fill(&state, None));
     let theme = use_theme();
-    let custom = create_memo(clone!(fill theme -> move || {
-        resolve_color(fill.get().or(None).unwrap_or(CanvasColor::Auto), theme.text.get())
-    }));
+    let custom = create_memo(move || {
+        resolve_color(
+            fill.get().or(None).unwrap_or(CanvasColor::Auto),
+            theme.text.get(),
+        )
+    });
     let typed = clone!(filling -> move |color: Color32| {
         let [red, green, blue, alpha] = color.to_array();
         set_fill(
@@ -892,12 +874,12 @@ fn RectangleOptions(state: Rc<CanvasState>) -> NodeId {
             }),
         );
     });
-    let none = create_memo(clone!(fill -> move || fill.get() == CommonValue::Uniform(None)));
+    let none = create_memo(move || fill.get() == CommonValue::Uniform(None));
     let picking = Rc::clone(&state);
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                {move || clone!(clearing corner custom fill mixed none picking rounded typed -> view! {
+                {move || clone!(clearing picking rounded typed -> view! {
                     <List spacing=6.0>
                         <Separator />
                         <Caption content="Rectangle" />
@@ -918,13 +900,13 @@ fn RectangleOptions(state: Rc<CanvasState>) -> NodeId {
                                 {move |index: usize| {
                                     let (name, color) = PRESETS[index];
                                     let state = Rc::clone(&picking);
-                                    let value = create_memo(clone!(fill -> move || match fill.get() {
+                                    let value = create_memo(move || match fill.get() {
                                         CommonValue::Uniform(Some(color)) => CommonValue::Uniform(color),
                                         CommonValue::Uniform(None) | CommonValue::None => {
                                             CommonValue::None
                                         }
                                         CommonValue::Mixed => CommonValue::Mixed,
-                                    }));
+                                    });
                                     view! {
                                         <Swatch
                                             kind="fill"
@@ -977,8 +959,8 @@ fn OpacityRow(state: Rc<CanvasState>) -> NodeId {
                 .map(|entity| entity.style.opacity),
         )
     }));
-    let mixed = create_memo(clone!(value -> move || value.get().mixed()));
-    let opacity = create_memo(clone!(value -> move || value.get().or(1.0)));
+    let mixed = create_memo(move || value.get().mixed());
+    let opacity = create_memo(move || value.get().or(1.0));
     let changed = clone!(state -> move |value: f32| {
         state.update_selected(|_| true, |style| style.opacity = value);
     });
@@ -1016,7 +998,7 @@ fn TextOptions(state: Rc<CanvasState>) -> NodeId {
             })
             .collect::<Vec<_>>()
     }));
-    let shown = create_memo(clone!(styles -> move || !styles.with(Vec::is_empty)));
+    let shown = create_memo(move || !styles.with(Vec::is_empty));
     let single = create_memo(clone!(state -> move || {
         let selected = state.selected_entities();
         matches!(
@@ -1024,19 +1006,25 @@ fn TextOptions(state: Rc<CanvasState>) -> NodeId {
             [entity] if matches!(entity.kind, CanvasEntityKind::Text { .. })
         )
     }));
-    let font_size = create_memo(clone!(styles -> move || {
+    let font_size = create_memo(move || {
         common_value(styles.with(|styles| {
-            styles.iter().map(|style| style.font_size).collect::<Vec<f32>>()
+            styles
+                .iter()
+                .map(|style| style.font_size)
+                .collect::<Vec<f32>>()
         }))
         .or(18.0) as f64
-    }));
-    let line_height = create_memo(clone!(styles -> move || {
+    });
+    let line_height = create_memo(move || {
         common_value(styles.with(|styles| {
-            styles.iter().map(|style| style.line_height).collect::<Vec<f32>>()
+            styles
+                .iter()
+                .map(|style| style.line_height)
+                .collect::<Vec<f32>>()
         }))
         .or(1.2) as f64
-    }));
-    let bold = create_memo(clone!(styles -> move || {
+    });
+    let bold = create_memo(move || {
         common_value(styles.with(|styles| {
             styles
                 .iter()
@@ -1044,21 +1032,21 @@ fn TextOptions(state: Rc<CanvasState>) -> NodeId {
                 .collect::<Vec<bool>>()
         }))
         .or(false)
-    }));
-    let wrap = create_memo(clone!(styles -> move || {
-        common_value(styles.with(|styles| {
-            styles.iter().map(|style| style.wrap).collect::<Vec<bool>>()
-        }))
+    });
+    let wrap = create_memo(move || {
+        common_value(
+            styles.with(|styles| styles.iter().map(|style| style.wrap).collect::<Vec<bool>>()),
+        )
         .or(false)
-    }));
-    let alignment = create_memo(clone!(styles -> move || {
+    });
+    let alignment = create_memo(move || {
         common_value(styles.with(|styles| {
             styles
                 .iter()
                 .map(|style| style.alignment)
                 .collect::<Vec<CanvasTextAlign>>()
         }))
-    }));
+    });
     let sized = clone!(state -> move |value: f64| {
         let size = (value as f32).clamp(4.0, 256.0);
         state.update_selected_text(move |style| style.font_size = size);
@@ -1083,7 +1071,7 @@ fn TextOptions(state: Rc<CanvasState>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                {move || clone!(aligning alignment bold editing font_size line_height single sized spaced weighted wrap wrapped -> view! {
+                {move || clone!(aligning editing sized spaced weighted wrapped -> view! {
                     <List spacing=6.0>
                         <Separator />
                         <Caption content="Text" />
@@ -1131,9 +1119,9 @@ fn TextOptions(state: Rc<CanvasState>) -> NodeId {
                                 {move |index: usize| {
                                     let (label, wanted) = ALIGN_OPTIONS[index];
                                     let state = Rc::clone(&aligning);
-                                    let pressed = create_memo(clone!(alignment -> move || {
+                                    let pressed = create_memo(move || {
                                         alignment.get() == CommonValue::Uniform(wanted)
-                                    }));
+                                    });
                                     view! {
                                         <ToggleButton
                                             label={label}
@@ -1169,29 +1157,27 @@ fn TextOptions(state: Rc<CanvasState>) -> NodeId {
 #[component]
 fn TextContent(state: Rc<CanvasState>) -> NodeId {
     let entity = create_memo(clone!(state -> move || state.selected_entities().pop()));
-    let text = create_memo(clone!(entity -> move || match entity.get() {
+    let text = create_memo(move || match entity.get() {
         Some(entity) => match entity.kind {
             CanvasEntityKind::Text { text, .. } => text,
             _ => String::new(),
         },
         None => String::new(),
-    }));
-    let placeholder = create_memo(clone!(entity -> move || match entity.get() {
+    });
+    let placeholder = create_memo(move || match entity.get() {
         Some(entity) => match entity.kind {
             CanvasEntityKind::Text { placeholder, .. } => placeholder,
             _ => String::new(),
         },
         None => String::new(),
-    }));
-    let locked = create_memo(clone!(entity -> move || {
-        entity.get().is_none_or(|entity| entity.locked)
-    }));
-    let focused = create_memo(clone!(state entity -> move || {
+    });
+    let locked = create_memo(move || entity.get().is_none_or(|entity| entity.locked));
+    let focused = create_memo(clone!(state -> move || {
         entity
             .get()
             .is_some_and(|entity| state.editing_text.get() == Some(entity.id))
     }));
-    let changed = clone!(state entity -> move |typed: String| {
+    let changed = clone!(state -> move |typed: String| {
         let Some(held) = entity.get_untracked() else { return };
         let CanvasEntityKind::Text {
             text_style,

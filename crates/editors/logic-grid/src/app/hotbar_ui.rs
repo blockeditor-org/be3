@@ -101,17 +101,17 @@ pub(super) fn Hotbar(session: Rc<Session>) -> NodeId {
     let nested = create_memo(clone!(session -> move || {
         session.read(|model| !model.active_hotbar_folder.is_empty())
     }));
-    let top = create_memo(clone!(nested -> move || !nested.get()));
+    let top = create_memo(move || !nested.get());
     let title = create_memo(clone!(session -> move || {
         session.read(|model| match model.active_hotbar_folder.is_empty() {
             true => "Hotbar".to_owned(),
             false => hotbar_folder_name(&model.hotbar, &model.active_hotbar_folder).to_owned(),
         })
     }));
-    let columns = create_memo(clone!(nested -> move || match nested.get() {
+    let columns = create_memo(move || match nested.get() {
         true => vec![0_usize, 1],
         false => vec![0_usize],
-    }));
+    });
     let up = clone!(session -> move || {
         session.update(|model| {
             model.active_hotbar_folder.pop();
@@ -186,10 +186,10 @@ fn SlotDrop(
     folder: bool,
     children: Child,
 ) -> NodeId {
-    let accepts = Func::new(clone!(target -> move |source: Vec<usize>| {
+    let accepts = Func::new(move |source: Vec<usize>| {
         let target = target.get_untracked();
         source != target && !target.starts_with(&source)
-    }));
+    });
     let dropped = move |(source, _): (Vec<usize>, DragPoint)| {
         let target = target.get_untracked();
         let target = match folder {
@@ -208,7 +208,7 @@ fn SlotDrop(
                 let DropHandle { over, .. } = handle;
                 view! {
                     <Frame
-                        outline={theme.accent.clone()}
+                        outline={theme.accent}
                         outline_width=2.0
                         outline_offset=2.0
                         outline_visible={over}
@@ -240,14 +240,14 @@ fn HotbarColumn(session: Rc<Session>, column: usize) -> NodeId {
     let shown = create_memo(clone!(session -> move || {
         session.read(|model| model.column_view(column))
     }));
-    let title = create_memo(clone!(shown -> move || shown.get().title));
-    let entries = create_memo(clone!(shown -> move || shown.get().entries));
-    let empty = create_memo(clone!(entries -> move || entries.get().is_empty()));
+    let title = create_memo(move || shown.get().title);
+    let entries = create_memo(move || shown.get().entries);
+    let empty = create_memo(move || entries.get().is_empty());
     let theme = use_theme();
-    let fill = create_memo(clone!(theme shown -> move || match shown.get().active {
+    let fill = create_memo(move || match shown.get().active {
         true => theme.accent_soft.get(),
         false => theme.surface_raised.get(),
-    }));
+    });
     let slots = Rc::clone(&session);
     view! {
         <SlotDrop session={session} target={folder} folder=true>
@@ -282,21 +282,15 @@ fn HotbarSlotButton(session: Rc<Session>, path: Vec<usize>) -> NodeId {
     let shown = create_memo(clone!(session path -> move || {
         session.read(|model| model.slot_view(&path))
     }));
-    let label = create_memo(clone!(shown -> move || {
-        shown.get().map(|slot| slot.label).unwrap_or_default()
-    }));
-    let menu_disabled = create_memo(clone!(shown -> move || {
-        !shown.get().is_some_and(|slot| slot.component || slot.folder)
-    }));
-    let not_component = create_memo(clone!(shown -> move || {
-        !shown.get().is_some_and(|slot| slot.component)
-    }));
-    let not_folder = create_memo(clone!(shown -> move || {
-        !shown.get().is_some_and(|slot| slot.folder)
-    }));
-    let not_removable = create_memo(clone!(shown -> move || {
-        !shown.get().is_some_and(|slot| slot.removable)
-    }));
+    let label = create_memo(move || shown.get().map(|slot| slot.label).unwrap_or_default());
+    let menu_disabled = create_memo(move || {
+        !shown
+            .get()
+            .is_some_and(|slot| slot.component || slot.folder)
+    });
+    let not_component = create_memo(move || !shown.get().is_some_and(|slot| slot.component));
+    let not_folder = create_memo(move || !shown.get().is_some_and(|slot| slot.folder));
+    let not_removable = create_memo(move || !shown.get().is_some_and(|slot| slot.removable));
     let chose = clone!(session path -> move |chosen: Vec<usize>| match chosen.first() {
         Some(0) => session.update(|model| model.remove_hotbar_slot(&path)),
         Some(1) => session.update(|model| model.toggle_hotbar_folder(path.clone())),
@@ -304,13 +298,11 @@ fn HotbarSlotButton(session: Rc<Session>, path: Vec<usize>) -> NodeId {
         _ => {}
     });
     let (hovered, set_hovered) = create_signal(false);
-    let disabled = create_memo(clone!(shown -> move || {
-        shown.get().is_none_or(|slot| slot.disabled)
-    }));
-    let payload = create_memo(clone!(path disabled -> move || {
+    let disabled = create_memo(move || shown.get().is_none_or(|slot| slot.disabled));
+    let payload = create_memo(clone!(path -> move || {
         (!disabled.get()).then(|| path.clone())
     }));
-    let clicked = clone!(session path disabled -> move || {
+    let clicked = clone!(session path -> move || {
         if !disabled.get_untracked() {
             session.update(|model| model.click_hotbar_slot(path.clone()));
         }
@@ -381,7 +373,7 @@ fn HotbarSlotButton(session: Rc<Session>, path: Vec<usize>) -> NodeId {
 #[component]
 fn SlotFace(shown: Memo<Option<SlotView>>, hovered: ReadSignal<bool>) -> NodeId {
     let theme = use_theme();
-    let fill = create_memo(clone!(theme shown hovered -> move || {
+    let fill = create_memo(move || {
         let Some(slot) = shown.get() else {
             return theme.surface.get();
         };
@@ -396,36 +388,37 @@ fn SlotFace(shown: Memo<Option<SlotView>>, hovered: ReadSignal<bool>) -> NodeId 
         } else {
             theme.surface_raised.get()
         }
-    }));
-    let outline = create_memo(clone!(theme shown -> move || {
-        match shown.get() {
-            Some(slot) if slot.selected || slot.open_folder || slot.dragging || slot.droppable => {
-                theme.accent.get()
-            }
-            _ => theme.border.get(),
+    });
+    let outline = create_memo(move || match shown.get() {
+        Some(slot) if slot.selected || slot.open_folder || slot.dragging || slot.droppable => {
+            theme.accent.get()
         }
-    }));
-    let text = create_memo(clone!(theme shown -> move || {
-        match shown.get().is_none_or(|slot| slot.disabled || slot.dragging) {
+        _ => theme.border.get(),
+    });
+    let text = create_memo(move || {
+        match shown
+            .get()
+            .is_none_or(|slot| slot.disabled || slot.dragging)
+        {
             true => theme.text_muted.get(),
             false => theme.text.get(),
         }
-    }));
-    let image = create_memo(clone!(shown -> move || shown.get().map(|slot| slot.glyph.image())));
-    let tint = create_memo(clone!(shown -> move || {
-        match shown.get().is_none_or(|slot| slot.disabled) {
-            true => Color32::from_rgba_unmultiplied(255, 255, 255, 120),
-            false => Color32::WHITE,
-        }
-    }));
-    let label = create_memo(clone!(shown -> move || {
-        shown.get().map(|slot| slot.label).unwrap_or_default()
-    }));
-    let hotkey = create_memo(clone!(shown -> move || {
-        shown.get().and_then(|slot| slot.hotkey).unwrap_or_default().to_owned()
-    }));
-    let badged = create_memo(clone!(hotkey -> move || !hotkey.get().is_empty()));
-    let badge_text = text.clone();
+    });
+    let image = create_memo(move || shown.get().map(|slot| slot.glyph.image()));
+    let tint = create_memo(move || match shown.get().is_none_or(|slot| slot.disabled) {
+        true => Color32::from_rgba_unmultiplied(255, 255, 255, 120),
+        false => Color32::WHITE,
+    });
+    let label = create_memo(move || shown.get().map(|slot| slot.label).unwrap_or_default());
+    let hotkey = create_memo(move || {
+        shown
+            .get()
+            .and_then(|slot| slot.hotkey)
+            .unwrap_or_default()
+            .to_owned()
+    });
+    let badged = create_memo(move || !hotkey.get().is_empty());
+    let badge_text = text;
     view! {
         <Frame
             width=SLOT_SIZE
@@ -456,7 +449,7 @@ fn SlotFace(shown: Memo<Option<SlotView>>, hovered: ReadSignal<bool>) -> NodeId 
                     />
                 </CanvasItem>
                 <CanvasItem x=SLOT_INSET y=SLOT_INSET width=BADGE_SIZE height=BADGE_SIZE>
-                    <Frame visible={badged} color={theme.background.clone()} radius=3>
+                    <Frame visible={badged} color={theme.background} radius=3>
                         <Text
                             string={hotkey}
                             font_size=SLOT_FONT
@@ -512,7 +505,7 @@ pub(super) fn ToolSettings(session: Rc<Session>) -> NodeId {
     let merger = create_memo(clone!(session -> move || {
         session.read(|model| model.tool.kind == ToolKind::MergerSplitter)
     }));
-    let single = create_memo(clone!(merger -> move || !merger.get()));
+    let single = create_memo(move || !merger.get());
     let labelled = create_memo(clone!(session -> move || {
         session.read(|model| {
             matches!(model.tool.kind, ToolKind::Input | ToolKind::Output)
@@ -547,7 +540,7 @@ pub(super) fn ToolSettings(session: Rc<Session>) -> NodeId {
             </Show>
             <Show condition={labelled}>
                 <TextInput
-                    value={label.clone()}
+                    value={label}
                     label="Label"
                     placeholder="Label"
                     @test_id={"logic-grid.io-label"}

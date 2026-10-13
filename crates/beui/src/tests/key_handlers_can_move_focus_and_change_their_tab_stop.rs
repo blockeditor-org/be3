@@ -4,6 +4,7 @@ use crate::reactive::{NodeRef, create_memo, create_signal};
 
 #[test]
 fn key_handlers_can_move_focus_and_change_their_tab_stop() {
+    let _root = crate::reactive::RootScope::new();
     let (skipped, set_skipped) = create_signal(false);
     let second = NodeRef::new();
     let (document, [_first, _second]) = toolbar_of({

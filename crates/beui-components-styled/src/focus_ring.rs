@@ -14,7 +14,7 @@ pub fn FocusRing(
     let theme = use_theme();
     view! {
         <Frame
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=FOCUS_RING_WIDTH
             radius
             outline_offset=offset

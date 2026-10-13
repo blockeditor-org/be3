@@ -41,15 +41,15 @@ fn TooltipBubble(handle: TooltipHandle) -> NodeId {
     view! {
         <Frame padding_vertical=GAP max_width=MAX_WIDTH>
             <Frame
-                color={theme.surface_raised.clone()}
-                outline={theme.border.clone()}
+                color={theme.surface_raised}
+                outline={theme.border}
                 outline_width=BORDER_WIDTH
                 outline_visible=true
                 radius=RADIUS
                 padding_horizontal=PADDING_HORIZONTAL
                 padding_vertical=PADDING_VERTICAL
             >
-                <Caption content={label} color={theme.text.clone()} />
+                <Caption content={label} color={theme.text} />
             </Frame>
         </Frame>
     }

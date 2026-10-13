@@ -23,8 +23,9 @@ use beui_core::icons::ICON_CLOSE;
 use beui_core::input::{BackEdge, BackGesture};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Prop, ReadSignal, Show,
-    ShowKeepAlive, Spacer, WriteSignal, clone, component, create_memo, create_signal, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Prop, ReadSignal, RootScope,
+    Scope, Show, ShowKeepAlive, Spacer, WriteSignal, clone, component, create_memo, create_signal,
+    view,
 };
 
 use super::tree::{Entry, Key};
@@ -173,6 +174,7 @@ pub type RendererRows = Vec<(&'static str, String)>;
 
 pub struct Panel {
     pub document: Document,
+    pub scope: Scope,
     pub set_keys: WriteSignal<Vec<Key>>,
     pub set_entries: WriteSignal<HashMap<Key, Entry>>,
     pub set_summary: WriteSignal<Summary>,
@@ -185,6 +187,7 @@ pub struct Panel {
 }
 
 pub fn build(state: &Rc<State>) -> Panel {
+    let owner = RootScope::new();
     let (keys, set_keys) = create_signal(Vec::<Key>::new());
     let (entries, set_entries) = create_signal(HashMap::<Key, Entry>::new());
     let (summary, set_summary) = create_signal(Summary::default());
@@ -204,7 +207,7 @@ pub fn build(state: &Rc<State>) -> Panel {
 
     let document = beui_view::reactive::build(|| {
         let count_text = create_memo({
-            let (summary, performance, tab) = (summary.clone(), performance.clone(), tab.clone());
+            let (summary, performance, tab) = (summary, performance, tab);
             move || match tab.get() {
                 InspectorTab::Performance => {
                     performance.with(|performance| performance.samples.clone())
@@ -217,7 +220,6 @@ pub fn build(state: &Rc<State>) -> Panel {
             }
         });
         let tree_visible = create_memo({
-            let tab = tab.clone();
             move || {
                 matches!(
                     tab.get(),
@@ -225,59 +227,35 @@ pub fn build(state: &Rc<State>) -> Panel {
                 )
             }
         });
-        let performance_visible = create_memo({
-            let tab = tab.clone();
-            move || tab.get() == InspectorTab::Performance
-        });
+        let performance_visible = create_memo(move || tab.get() == InspectorTab::Performance);
         let simulation_visible = create_memo(move || tab.get() == InspectorTab::Simulation);
-        let native_pixel_ratio_text = create_memo({
-            let summary = summary.clone();
-            move || summary.with(|summary| summary.native_pixel_ratio.clone())
-        });
-        let picking = create_memo({
-            let summary = summary.clone();
-            move || summary.with(|summary| summary.picking)
-        });
-        let responsive = create_memo({
-            let summary = summary.clone();
-            move || summary.with(|summary| summary.responsive)
-        });
-        let handles_back = create_memo({
-            let summary = summary.clone();
-            move || summary.with(|summary| summary.handles_back)
-        });
-        let selection_text = create_memo({
-            let summary = summary.clone();
-            move || summary.with(|summary| summary.selection.clone())
-        });
-        let bounds_text = create_memo({
-            let summary = summary.clone();
-            move || summary.with(|summary| summary.bounds.clone())
-        });
+        let native_pixel_ratio_text =
+            create_memo(move || summary.with(|summary| summary.native_pixel_ratio.clone()));
+        let picking = create_memo(move || summary.with(|summary| summary.picking));
+        let responsive = create_memo(move || summary.with(|summary| summary.responsive));
+        let handles_back = create_memo(move || summary.with(|summary| summary.handles_back));
+        let selection_text = create_memo(move || summary.with(|summary| summary.selection.clone()));
+        let bounds_text = create_memo(move || summary.with(|summary| summary.bounds.clone()));
         let properties = create_memo(move || summary.with(|summary| summary.properties.clone()));
-        let has_properties = create_memo(clone!(properties -> move || {
-            properties.with(|properties| !properties.is_empty())
-        }));
-        let properties_size = create_memo(clone!(has_properties -> move || {
-            match has_properties.get() {
-                true => ItemSize::Percent(PROPERTIES_SHARE),
-                false => ItemSize::Fixed(0.0),
-            }
-        }));
+        let has_properties =
+            create_memo(move || properties.with(|properties| !properties.is_empty()));
+        let properties_size = create_memo(move || match has_properties.get() {
+            true => ItemSize::Percent(PROPERTIES_SHARE),
+            false => ItemSize::Fixed(0.0),
+        });
         let (select_state, expand_state, hover_state, reveal_state) =
             (state.clone(), state.clone(), state.clone(), state.clone());
-        let selected =
-            create_memo(clone!(selection -> move || selection.with(|path| path.last().copied())));
-        let lineage = selection.clone();
-        let row_entries = entries.clone();
-        let item_entries = entries.clone();
+        let selected = create_memo(move || selection.with(|path| path.last().copied()));
+        let lineage = selection;
+        let row_entries = entries;
+        let item_entries = entries;
         let pick_state = state.clone();
-        let header_tree_visible = tree_visible.clone();
-        let body_tree_visible = tree_visible.clone();
+        let header_tree_visible = tree_visible;
+        let body_tree_visible = tree_visible;
         let footer_tree_visible = tree_visible;
-        let body_performance_visible = performance_visible.clone();
+        let body_performance_visible = performance_visible;
         let footer_performance_visible = performance_visible;
-        let body_simulation_visible = simulation_visible.clone();
+        let body_simulation_visible = simulation_visible;
         let footer_simulation_visible = simulation_visible;
         view! {
             <List direction=Direction::Horizontal spacing=0.0>
@@ -337,7 +315,7 @@ pub fn build(state: &Rc<State>) -> Panel {
                                             keys
                                             item={move |key: Key| item(&item_entries, key)}
                                             selected={selected}
-                                            ancestors={move |key: Key| ancestors(&lineage, key)}
+                                            ancestors={move |key: Key| ancestors(lineage, key)}
                                             padding=BODY_PADDING
                                             focus_color={Some(THEME.accent)}
                                             row_test_id={move |key: Key| key.test_id()}
@@ -347,7 +325,7 @@ pub fn build(state: &Rc<State>) -> Panel {
                                                 expand_state.set_expanded(key, expanded);
                                             }}
                                             on_reveal={move |key: Key| {
-                                                reveal_state.expand_ancestors(&ancestors(&selection, key));
+                                                reveal_state.expand_ancestors(&ancestors(selection, key));
                                             }}
                                             on_hover_change={move |(key, hovered): (Key, bool)| {
                                                 hover_state.hover(key.node(), hovered);
@@ -356,7 +334,7 @@ pub fn build(state: &Rc<State>) -> Panel {
                                             {move |row: TreeRowFace<Key>| view! {
                                                 <TreeCells
                                                     row_key={row.key}
-                                                    entries={row_entries.clone()}
+                                                    entries={row_entries}
                                                 />
                                             }}
                                         </Tree>
@@ -373,9 +351,9 @@ pub fn build(state: &Rc<State>) -> Panel {
                                     <PerformancePanel
                                         @sizing=ItemSize::Percent(100.0)
                                         @test_id={"inspector.performance"}
-                                        performance={performance.clone()}
-                                        renderer={renderer.clone()}
-                                        renderers={renderers.clone()}
+                                        performance={performance}
+                                        renderer={renderer}
+                                        renderers={renderers}
                                         state={performance_state.clone()}
                                     />
                                 </ShowKeepAlive>
@@ -383,8 +361,8 @@ pub fn build(state: &Rc<State>) -> Panel {
                                     <SimulationPanel
                                         @sizing=ItemSize::Percent(100.0)
                                         state={simulation_state.clone()}
-                                        responsive={responsive.clone()}
-                                        handles_back={handles_back.clone()}
+                                        responsive={responsive}
+                                        handles_back={handles_back}
                                     />
                                 </ShowKeepAlive>
                             </List>
@@ -421,6 +399,7 @@ pub fn build(state: &Rc<State>) -> Panel {
 
     Panel {
         document,
+        scope: owner.into_scope(),
         set_keys,
         set_entries,
         set_summary,
@@ -435,10 +414,12 @@ pub fn build(state: &Rc<State>) -> Panel {
 
 pub struct Bar {
     pub document: Document,
+    _scope: Scope,
     pub set_selected: WriteSignal<usize>,
 }
 
 pub fn build_bar(state: &Rc<State>) -> Bar {
+    let owner = RootScope::new();
     let (selected, set_selected) = create_signal(1);
     let state = state.clone();
     let close_state = state.clone();
@@ -476,6 +457,7 @@ pub fn build_bar(state: &Rc<State>) -> Bar {
     });
     Bar {
         document,
+        _scope: owner.into_scope(),
         set_selected,
     }
 }
@@ -596,7 +578,7 @@ fn BackSection(state: Rc<State>, handles_back: Memo<bool>) -> NodeId {
         true => "Drag to the end to go back, or let go early to cancel.".to_owned(),
         false => "Nothing in the app takes back: the system would leave it.".to_owned(),
     });
-    let moved = clone!(state swipe dragging set_progress from_right -> move |value: f32| {
+    let moved = clone!(state swipe dragging -> move |value: f32| {
         set_progress.set(value);
         match swipe.get() {
             Swipe::Done => return,
@@ -815,16 +797,16 @@ fn PerformancePanel(
 ) -> NodeId {
     let (change_state, damage_state, renderer_state) =
         (state.clone(), state.clone(), state.clone());
-    let latest_work = performance_text(&performance, |summary| &summary.latest_work);
-    let scene = performance_text(&performance, |summary| &summary.scene);
-    let cache = performance_text(&performance, |summary| &summary.cache);
-    let reuse = performance_text(&performance, |summary| &summary.reuse);
-    let total = timing_values(&performance, |timings| timings.total);
-    let layout = timing_values(&performance, |timings| timings.layout);
-    let interaction = timing_values(&performance, |timings| timings.interaction);
-    let paint = timing_values(&performance, |timings| timings.paint);
-    let accessibility = timing_values(&performance, |timings| timings.accessibility);
-    let other = timing_values(&performance, |timings| timings.other);
+    let latest_work = performance_text(performance, |summary| &summary.latest_work);
+    let scene = performance_text(performance, |summary| &summary.scene);
+    let cache = performance_text(performance, |summary| &summary.cache);
+    let reuse = performance_text(performance, |summary| &summary.reuse);
+    let total = timing_values(performance, |timings| timings.total);
+    let layout = timing_values(performance, |timings| timings.layout);
+    let interaction = timing_values(performance, |timings| timings.interaction);
+    let paint = timing_values(performance, |timings| timings.paint);
+    let accessibility = timing_values(performance, |timings| timings.accessibility);
+    let other = timing_values(performance, |timings| timings.other);
     view! {
         <Scroll focus_color={Some(THEME.accent)}>
             <Frame padding_horizontal=BODY_PADDING padding_vertical=BODY_PADDING>
@@ -888,11 +870,9 @@ fn RendererSection(
     renderers: ReadSignal<RendererChoices>,
     state: Rc<State>,
 ) -> NodeId {
-    let missing = create_memo(clone!(rows -> move || rows.with(Vec::is_empty)));
-    let names = create_memo(
-        clone!(renderers -> move || renderers.with(|renderers| renderers.names.clone())),
-    );
-    let choosable = create_memo(clone!(names -> move || names.with(|names| names.len() > 1)));
+    let missing = create_memo(move || rows.with(Vec::is_empty));
+    let names = create_memo(move || renderers.with(|renderers| renderers.names.clone()));
+    let choosable = create_memo(move || names.with(|names| names.len() > 1));
     let active = create_memo(move || Some(renderers.with(|renderers| renderers.active)));
     view! {
         <List spacing=TIMING_SPACING>
@@ -901,13 +881,13 @@ fn RendererSection(
                 <RadioGroup
                     @test_id={"inspector.performance.renderer.choice"}
                     options={view! {
-                        <ForEach keys={names.clone()}>
+                        <ForEach keys={names}>
                             {|label: &'static str| view! {
                                 <ChoiceOption label />
                             }}
                         </ForEach>
                     }}
-                    selected={active.clone()}
+                    selected={active}
                     on_change={clone!(state -> move |index: Option<usize>| {
                         if let Some(index) = index {
                             state.choose_renderer(index);
@@ -989,19 +969,17 @@ fn TimingRow(label: String, values: [Memo<String>; 3]) -> NodeId {
 }
 
 fn performance_text(
-    performance: &ReadSignal<PerformanceSummary>,
+    performance: ReadSignal<PerformanceSummary>,
     read: impl Fn(&PerformanceSummary) -> &String + 'static,
 ) -> Memo<String> {
-    let performance = performance.clone();
     create_memo(move || performance.with(|summary| read(summary).clone()))
 }
 
 fn timing_values(
-    performance: &ReadSignal<PerformanceSummary>,
+    performance: ReadSignal<PerformanceSummary>,
     read: impl Fn(PerformanceTimings) -> Duration + Clone + 'static,
 ) -> [Memo<String>; 3] {
     let timing = |select: fn(&PerformanceSummary) -> PerformanceTimings| {
-        let performance = performance.clone();
         let read = read.clone();
         create_memo(move || format_duration(read(performance.with(select))))
     };
@@ -1034,7 +1012,7 @@ pub fn toggle_text(picking: bool) -> Color32 {
 
 #[component]
 fn PickToggle(state: Rc<State>, picking: Memo<bool>) -> NodeId {
-    let label_color = create_memo(clone!(picking -> move || toggle_text(picking.get())));
+    let label_color = create_memo(move || toggle_text(picking.get()));
     let fill_color = create_memo(move || toggle_fill(picking.get()));
     let picker = state;
     view! {
@@ -1102,7 +1080,7 @@ fn entry_field<T: Clone + Default + PartialEq + 'static>(
     key: Key,
     read: impl Fn(&Entry) -> T + 'static,
 ) -> Memo<T> {
-    let entries = entries.clone();
+    let entries = *entries;
     create_memo(move || entries.with(|entries| entries.get(&key).map(&read).unwrap_or_default()))
 }
 
@@ -1127,7 +1105,7 @@ fn TreeCells(row_key: Key, entries: Entries) -> NodeId {
     }
 }
 
-fn ancestors(selection: &ReadSignal<Vec<Key>>, key: Key) -> Vec<Key> {
+fn ancestors(selection: ReadSignal<Vec<Key>>, key: Key) -> Vec<Key> {
     selection.with(|path| match path.split_last() {
         Some((last, ancestors)) if *last == key => ancestors.to_vec(),
         _ => Vec::new(),

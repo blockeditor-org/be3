@@ -67,8 +67,8 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     let stage = Rc::clone(&state);
     let dock = Rc::clone(&state);
     let anchor = content.clone();
-    let docked = chrome.clone();
-    let side = chrome.clone();
+    let docked = chrome;
+    let side = chrome;
     let zoom = Rc::clone(&state);
     let zoom_anchor = content.clone();
     let errors = Rc::clone(&state);

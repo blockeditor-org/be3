@@ -50,7 +50,7 @@ pub fn Picture(
         }),
         (None, None) => None,
     });
-    let size = create_memo(clone!(shown source -> move || {
+    let size = create_memo(clone!(source -> move || {
         let source = source.get();
         shown.with(|shown| shown.as_ref().map(|shown| cropped(shown.size, source)))
     }));

@@ -22,12 +22,14 @@ pub(crate) fn MonthGrid(
     on_pick_day: Callback<i64>,
     on_pick_event: Callback<Shown>,
 ) -> NodeId {
-    let weeks = create_memo(clone!(anchor -> move || {
+    let weeks = create_memo(move || {
         let (year, month, _) = civil_from_days(anchor.get());
         let first = days_from_civil(year, month, 1);
         let start = first - i64::from(weekday_from_days(first));
-        (0..WEEKS).map(|week| start + week * 7).collect::<Vec<i64>>()
-    }));
+        (0..WEEKS)
+            .map(|week| start + week * 7)
+            .collect::<Vec<i64>>()
+    });
     view! {
         <List spacing=CELL_SPACING>
             <List direction=Direction::Horizontal spacing=CELL_SPACING>
@@ -49,8 +51,8 @@ pub(crate) fn MonthGrid(
                         <MonthWeek
                             @sizing=ItemSize::Fixed(CELL_HEIGHT)
                             start={start}
-                            anchor={anchor.clone()}
-                            events={events.clone()}
+                            anchor={anchor}
+                            events={events}
                             on_pick_day={forward(on_pick_day.clone())}
                             on_pick_event={forward(on_pick_event.clone())}
                         />
@@ -78,8 +80,8 @@ fn MonthWeek(
                         <MonthCell
                             @sizing=ItemSize::Percent(100.0)
                             day={day}
-                            anchor={anchor.clone()}
-                            events={events.clone()}
+                            anchor={anchor}
+                            events={events}
                             on_pick_day={forward(on_pick_day.clone())}
                             on_pick_event={forward(on_pick_event.clone())}
                         />
@@ -99,43 +101,44 @@ fn MonthCell(
     on_pick_event: Callback<Shown>,
 ) -> NodeId {
     let (_, _, day_number) = civil_from_days(day);
-    let in_month = create_memo(clone!(anchor -> move || {
+    let in_month = create_memo(move || {
         let (year, month, _) = civil_from_days(anchor.get());
         let (day_year, day_month, _) = civil_from_days(day);
         day_year == year && day_month == month
-    }));
+    });
     let today = day == today_days_since_epoch();
-    let day_events =
-        create_memo(clone!(events -> move || events.with(|events| events_on(events, day))));
-    let shown = create_memo(clone!(day_events -> move || {
+    let day_events = create_memo(move || events.with(|events| events_on(events, day)));
+    let shown = create_memo(move || {
         day_events.with(|events| {
-            events.iter().take(MAX_VISIBLE).map(|event| event.id).collect::<Vec<_>>()
+            events
+                .iter()
+                .take(MAX_VISIBLE)
+                .map(|event| event.id)
+                .collect::<Vec<_>>()
         })
-    }));
-    let overflow = create_memo(clone!(day_events -> move || {
+    });
+    let overflow = create_memo(move || {
         let count = day_events.with(Vec::len);
         match count > MAX_VISIBLE {
             true => format!("+{} more", count - MAX_VISIBLE),
             false => String::new(),
         }
-    }));
+    });
     let theme = use_theme();
-    let fill = create_memo(
-        clone!(theme in_month -> move || match (today, in_month.get()) {
-            (true, _) => theme.accent_soft.get(),
-            (false, true) => theme.surface.get(),
-            (false, false) => theme.background.get(),
-        }),
-    );
-    let number_color = create_memo(clone!(theme in_month -> move || match in_month.get() {
+    let fill = create_memo(move || match (today, in_month.get()) {
+        (true, _) => theme.accent_soft.get(),
+        (false, true) => theme.surface.get(),
+        (false, false) => theme.background.get(),
+    });
+    let number_color = create_memo(move || match in_month.get() {
         true => theme.text.get(),
         false => theme.text_muted.get(),
-    }));
+    });
     let pick = clone!(on_pick_day -> move || on_pick_day.call(day));
     view! {
         <Frame
             color={fill}
-            outline={theme.border.clone()}
+            outline={theme.border}
             outline_width=1.0
             outline_visible=true
             radius=4
@@ -152,11 +155,11 @@ fn MonthCell(
                 </ListRow>
                 <ForEach keys={shown}>
                     {move |id: ObjectId| {
-                        let event = event_of(day_events.clone(), id);
-                        let title = create_memo(clone!(event -> move || {
+                        let event = event_of(day_events, id);
+                        let title = create_memo(move || {
                             event.get().map(|event| event.value.title).unwrap_or_default()
-                        }));
-                        let open = clone!(on_pick_event event -> move || {
+                        });
+                        let open = clone!(on_pick_event -> move || {
                             if let Some(event) = event.get_untracked() {
                                 on_pick_event.call(event);
                             }
@@ -185,9 +188,9 @@ fn EventChip(
     let theme = use_theme();
     let click = on_click.clone();
     view! {
-        <Frame color={theme.accent.clone()} radius=3>
+        <Frame color={theme.accent} radius=3>
             <ListRow on_click={move || click.call()} on_activate={move || on_click.call()}>
-                <Caption content={title} color={theme.on_accent.clone()} />
+                <Caption content={title} color={theme.on_accent} />
             </ListRow>
         </Frame>
     }

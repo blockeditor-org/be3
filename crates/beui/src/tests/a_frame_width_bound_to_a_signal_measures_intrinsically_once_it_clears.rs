@@ -7,6 +7,7 @@ const CHILD_HEIGHT: f32 = 10.0;
 
 #[test]
 fn a_frame_width_bound_to_a_signal_measures_intrinsically_once_it_clears() {
+    let _root = crate::reactive::RootScope::new();
     let outer = NodeRef::new();
     let (width, set_width) = create_signal(Some(GIVEN_WIDTH));
     let document = build({

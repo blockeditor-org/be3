@@ -106,7 +106,7 @@ impl Windows {
     }
 
     pub fn list(&self) -> ReadSignal<Vec<WindowInfo>> {
-        self.0.list.clone()
+        self.0.list
     }
 
     pub fn revision(&self) -> u64 {
@@ -118,11 +118,11 @@ impl Windows {
     }
 
     pub fn cursor(&self) -> ReadSignal<CursorIcon> {
-        self.0.cursor.clone()
+        self.0.cursor
     }
 
     pub fn idle(&self) -> ReadSignal<bool> {
-        self.0.idle.clone()
+        self.0.idle
     }
 
     pub(crate) fn set_idle(&self, idle: bool) {

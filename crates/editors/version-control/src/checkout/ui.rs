@@ -53,7 +53,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
     let state = content.project(|content| content.root());
     let status = editor.version_status();
     let editable = editor.editable();
-    let summary = create_memo(clone!(state -> move || {
+    let summary = create_memo(move || {
         state.with(|state| match state.base {
             Some(base) => format!(
                 "On {}, at {}",
@@ -62,28 +62,26 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
             ),
             None => format!("On {}, with nothing committed yet", state.branch),
         })
-    }));
-    let repository = create_memo(clone!(state -> move || {
+    });
+    let repository = create_memo(move || {
         state.with(|state| {
             state
                 .repository
                 .map(|repository| ChildTarget::new(repository, Repository::CONTENT_TYPE))
         })
-    }));
-    let idle = create_memo(clone!(status editable -> move || {
-        editable.get() && !status.with(|status| status.busy)
-    }));
-    let blocked = create_memo(clone!(idle -> move || !idle.get()));
-    let note = create_memo(clone!(status -> move || {
+    });
+    let idle = create_memo(move || editable.get() && !status.with(|status| status.busy));
+    let blocked = create_memo(move || !idle.get());
+    let note = create_memo(move || {
         status.with(|status| match (status.busy, &status.error) {
             (true, _) => "Working…".to_owned(),
             (false, Some(error)) => error.clone(),
             (false, None) => String::new(),
         })
-    }));
-    let has_note = create_memo(clone!(note -> move || !note.with(String::is_empty)));
-    let behind = create_memo(clone!(status -> move || status.with(|status| status.behind)));
-    let changes = create_memo(clone!(status -> move || {
+    });
+    let has_note = create_memo(move || !note.with(String::is_empty));
+    let behind = create_memo(move || status.with(|status| status.behind));
+    let changes = create_memo(move || {
         status.with(|status| {
             status
                 .changes
@@ -98,9 +96,9 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                 })
                 .collect::<Vec<_>>()
         })
-    }));
-    let unchanged = create_memo(clone!(changes -> move || changes.with(Vec::is_empty)));
-    let conflicts = create_memo(clone!(state -> move || {
+    });
+    let unchanged = create_memo(move || changes.with(Vec::is_empty));
+    let conflicts = create_memo(move || {
         state.with(|state| {
             state
                 .conflicts
@@ -117,9 +115,9 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                 })
                 .collect::<Vec<_>>()
         })
-    }));
-    let conflicted = create_memo(clone!(conflicts -> move || !conflicts.with(Vec::is_empty)));
-    let branches = create_memo(clone!(status state -> move || {
+    });
+    let conflicted = create_memo(move || !conflicts.with(Vec::is_empty));
+    let branches = create_memo(move || {
         let current = state.with(|state| state.branch.clone());
         status.with(|status| {
             status
@@ -128,28 +126,27 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                 .map(|branch| (branch.name.clone(), branch.name == current))
                 .collect::<Vec<_>>()
         })
-    }));
-    let log = create_memo(clone!(status -> move || status.with(|status| status.log.clone())));
+    });
+    let log = create_memo(move || status.with(|status| status.log.clone()));
 
     let (message, set_message) = create_signal(String::new());
-    let commit_blocked = create_memo(clone!(blocked unchanged message conflicted -> move || {
+    let commit_blocked = create_memo(move || {
         blocked.get()
             || unchanged.get()
             || conflicted.get()
             || message.with(|message| message.trim().is_empty())
-    }));
+    });
     let (branch_name, set_branch_name) = create_signal(String::new());
-    let branch_blocked = create_memo(clone!(blocked branch_name -> move || {
-        blocked.get() || branch_name.with(|name| name.trim().is_empty())
-    }));
+    let branch_blocked =
+        create_memo(move || blocked.get() || branch_name.with(|name| name.trim().is_empty()));
 
     let updating = editor.clone();
     let committing = editor.clone();
-    let commit_message = message.clone();
-    let clear_message = set_message.clone();
+    let commit_message = message;
+    let clear_message = set_message;
     let branching = editor.clone();
-    let new_branch = branch_name.clone();
-    let clear_branch = set_branch_name.clone();
+    let new_branch = branch_name;
+    let clear_branch = set_branch_name;
     let changing = editor.clone();
     let change_rows = move |row: ChangeRow| {
         let editor = changing.clone();
@@ -158,19 +155,19 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
         }
     };
     let resolving = editor.clone();
-    let resolve_blocked = blocked.clone();
+    let resolve_blocked = blocked;
     let conflict_rows = move |row: ConflictRow| {
         let editor = resolving.clone();
-        let blocked = resolve_blocked.clone();
+        let blocked = resolve_blocked;
         view! {
             <ConflictLine editor blocked row />
         }
     };
     let switching = editor.clone();
-    let switch_blocked = blocked.clone();
+    let switch_blocked = blocked;
     let branch_rows = move |(name, current): (String, bool)| {
         let editor = switching.clone();
-        let blocked = switch_blocked.clone();
+        let blocked = switch_blocked;
         view! {
             <BranchLine editor blocked name current />
         }
@@ -178,7 +175,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
 
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()} padding_horizontal=PADDING padding_vertical=PADDING>
+        <Frame color={theme.background} padding_horizontal=PADDING padding_vertical=PADDING>
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <List spacing=SECTION_SPACING>
@@ -191,15 +188,11 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                 @test_id={"checkout.repository"}
                             />
                             <Show condition={has_note}>
-                                <Caption
-                                    content={note.clone()}
-                                    wrap=true
-                                    @test_id={"checkout.note"}
-                                />
+                                <Caption content={note} wrap=true @test_id={"checkout.note"} />
                             </Show>
                         </List>
                         <Show condition={behind}>
-                            {move || clone!(blocked updating -> view! {
+                            {move || clone!(updating -> view! {
                                 <Card>
                                     <List
                                         direction=Direction::Horizontal
@@ -213,7 +206,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                         <Button
                                             label="Bring changes in"
                                             variant=ButtonVariant::Primary
-                                            disabled={blocked.clone()}
+                                            disabled={blocked}
                                             @test_id={"checkout.update"}
                                             on_click={move || updating.version(VersionCommand::Update)}
                                         />
@@ -222,7 +215,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                             })}
                         </Show>
                         <Show condition={conflicted}>
-                            {move || clone!(conflict_rows conflicts -> view! {
+                            {move || clone!(conflict_rows -> view! {
                                 <Card>
                                     <List spacing=12.0>
                                         <Heading content="Conflicts" />
@@ -354,8 +347,7 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
         choose(ConflictSide::Ours),
         choose(ConflictSide::Theirs),
     );
-    let (base_blocked, ours_blocked, theirs_blocked) =
-        (blocked.clone(), blocked.clone(), blocked.clone());
+    let (base_blocked, ours_blocked, theirs_blocked) = (blocked, blocked, blocked);
     let (base, ours, theirs) = (side(base), side(ours), side(theirs));
     let keep = choose(ConflictSide::Merged);
     let working = Some(ChildTarget::new(block, block_type));
@@ -380,7 +372,7 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
                     })}
                 </Show>
                 <Show condition={compared}>
-                    {move || clone!(base_blocked ours_blocked take_base take_ours take_theirs theirs_blocked -> view! {
+                    {move || clone!(take_base take_ours take_theirs -> view! {
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Button
                                 label="Take base"

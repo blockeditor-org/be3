@@ -53,24 +53,26 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     });
 
     let sized = editor.clone();
-    let measured = shown.clone();
+    let measured = shown;
     create_effect(move || {
         let size = measured.get().size();
         sized.set_intrinsic_size(Some(size));
     });
 
-    let page_label = create_memo(clone!(shown -> move || {
+    let page_label = create_memo(move || {
         let shown = shown.get();
         match shown.page_count {
             Some(count) => format!("Page {} of {count}", shown.page + 1),
             None => "Loading…".to_owned(),
         }
-    }));
-    let first = create_memo(clone!(shown -> move || shown.get().page == 0));
-    let last = create_memo(clone!(shown -> move || {
+    });
+    let first = create_memo(move || shown.get().page == 0);
+    let last = create_memo(move || {
         let shown = shown.get();
-        shown.page_count.is_some_and(|count| shown.page + 1 >= count)
-    }));
+        shown
+            .page_count
+            .is_some_and(|count| shown.page + 1 >= count)
+    });
     let back = clone!(pages -> move || pages.go(pages.page().saturating_sub(1)));
     let forward = clone!(pages -> move || pages.go(pages.page() + 1));
     let fitting = editor.clone();
@@ -78,23 +80,23 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
 
     let read_only = editor.read_only();
     let busy = chooser.busy();
-    let blocked = create_memo(clone!(read_only busy -> move || read_only.get() || busy.get()));
+    let blocked = create_memo(move || read_only.get() || busy.get());
     let failure = chooser.error();
-    let refused = create_memo(clone!(failure -> move || failure.get().is_some()));
-    let refusal = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
+    let refused = create_memo(move || failure.get().is_some());
+    let refusal = create_memo(move || failure.get().unwrap_or_default());
     let choose = clone!(chooser -> move || chooser.open());
     let source = block.project(|pdf| pdf.header().source_name.clone());
-    let name = create_memo(clone!(source -> move || source.get()));
+    let name = create_memo(move || source.get());
 
     let panning = editor.clone();
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
     let theme = use_theme();
-    let danger = theme.danger.clone();
+    let danger = theme.danger;
     view! {
         <List spacing=0.0>
-            <Toolbar shown={chrome.clone()}>
+            <Toolbar shown={chrome}>
                 <Body content="PDF" />
                 <block_editor_beui::beui::styled::IconButton
                     glyph={ICON_ARROW_BACK.to_owned()}
@@ -122,7 +124,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
             <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                     <Interactive on_pan_drag={move |delta: Vec2| panning.pan(delta)}>
-                        <PageCanvas shown={shown.clone()} view={editor.canvas()} />
+                        <PageCanvas shown={shown} view={editor.canvas()} />
                     </Interactive>
                 </Frame>
                 <Sidebar shown={chrome}>
@@ -136,7 +138,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
                         on_click={choose}
                     />
                     <Show condition={refused}>
-                        <Caption content={refusal.clone()} color={danger.clone()} />
+                        <Caption content={refusal} color={danger} />
                     </Show>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                 </Sidebar>
@@ -150,14 +152,13 @@ fn PageCanvas(
     shown: Memo<Shown>,
     #[prop(default = None)] view: block_editor_beui::beui::reactive::Prop<Option<CanvasView>>,
 ) -> NodeId {
-    let size = create_memo(clone!(shown -> move || shown.get().size()));
-    let width = create_memo(clone!(size -> move || size.get().x));
-    let height = create_memo(clone!(size -> move || size.get().y));
-    let keys = create_memo(clone!(shown -> move || {
-        (0..shown.with(|shown| shown.tiles.len())).collect::<Vec<usize>>()
-    }));
-    let failed = create_memo(clone!(shown -> move || shown.get().error.is_some()));
-    let reason = create_memo(clone!(shown -> move || shown.get().error.unwrap_or_default()));
+    let size = create_memo(move || shown.get().size());
+    let width = create_memo(move || size.get().x);
+    let height = create_memo(move || size.get().y);
+    let keys =
+        create_memo(move || (0..shown.with(|shown| shown.tiles.len())).collect::<Vec<usize>>());
+    let failed = create_memo(move || shown.get().error.is_some());
+    let reason = create_memo(move || shown.get().error.unwrap_or_default());
     let theme = use_theme();
     view! {
         <List spacing=0.0>
@@ -167,24 +168,24 @@ fn PageCanvas(
                 </CanvasItem>
                 <ForEach keys={keys}>
                     {move |index: usize| {
-                        let tile = create_memo(clone!(shown -> move || {
+                        let tile = create_memo(move || {
                             shown.with(|shown| shown.tiles.get(index).cloned())
-                        }));
-                        let x = create_memo(clone!(tile -> move || {
+                        });
+                        let x = create_memo(move || {
                             tile.get().map_or(0.0, |(rect, _)| rect.min.x)
-                        }));
-                        let y = create_memo(clone!(tile -> move || {
+                        });
+                        let y = create_memo(move || {
                             tile.get().map_or(0.0, |(rect, _)| rect.min.y)
-                        }));
-                        let width = create_memo(clone!(tile -> move || {
+                        });
+                        let width = create_memo(move || {
                             tile.get().map_or(0.0, |(rect, _)| rect.width())
-                        }));
-                        let height = create_memo(clone!(tile -> move || {
+                        });
+                        let height = create_memo(move || {
                             tile.get().map_or(0.0, |(rect, _)| rect.height())
-                        }));
-                        let image = create_memo(clone!(tile -> move || {
+                        });
+                        let image = create_memo(move || {
                             tile.get().map(|(_, image)| image)
-                        }));
+                        });
                         let test_id = format!("pdf.tile.{index}");
                         view! {
                             <CanvasItem x={x} y={y} width={width} height={height}>
@@ -195,11 +196,7 @@ fn PageCanvas(
                 </ForEach>
             </Canvas>
             <Show condition={failed}>
-                <Caption
-                    content={reason.clone()}
-                    color={theme.danger.clone()}
-                    @test_id={"pdf.error"}
-                />
+                <Caption content={reason} color={theme.danger} @test_id={"pdf.error"} />
             </Show>
         </List>
     }

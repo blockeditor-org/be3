@@ -36,13 +36,13 @@ pub fn StaleNotice(
                 <Icon
                     glyph={ICON_HISTORY.to_owned()}
                     text_size=GLYPH_SIZE
-                    color={theme.text_muted.clone()}
+                    color={theme.text_muted}
                 />
                 <Heading content={title} align=TextAlign::Center />
                 <Text
                     string={create_memo(move || detail.get())}
                     font_size=FONT_SMALL
-                    color={theme.text_muted.clone()}
+                    color={theme.text_muted}
                     align=TextAlign::Center
                     wrap=true
                 />

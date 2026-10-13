@@ -74,14 +74,11 @@ pub struct Document {
     pub back_handlers: Vec<NodeOf<crate::base::back::BackNode>>,
     pub(crate) back_gesture: Option<crate::layer::DismissTarget>,
     timers: RefCell<crate::timer::Timers>,
-    scale: (::reactive::ReadSignal<f32>, ::reactive::WriteSignal<f32>),
-    attached: (::reactive::ReadSignal<u64>, ::reactive::WriteSignal<u64>),
-    focus_visible: (::reactive::ReadSignal<bool>, ::reactive::WriteSignal<bool>),
-    fullscreen: (::reactive::ReadSignal<bool>, ::reactive::WriteSignal<bool>),
-    screens: (
-        ::reactive::ReadSignal<Vec<Screen>>,
-        ::reactive::WriteSignal<Vec<Screen>>,
-    ),
+    scale: ::reactive::OwnedSignal<f32>,
+    attached: ::reactive::OwnedSignal<u64>,
+    focus_visible: ::reactive::OwnedSignal<bool>,
+    fullscreen: ::reactive::OwnedSignal<bool>,
+    screens: ::reactive::OwnedSignal<Vec<Screen>>,
     offered_screens: Option<Vec<Screen>>,
     rescreened: RefCell<Option<Vec<Screen>>>,
     reattached: Cell<bool>,
@@ -91,14 +88,8 @@ pub struct Document {
     pub(crate) tapping: Option<Key>,
     pub(crate) keyboard: bool,
     input_frames: u64,
-    modifiers: (
-        ::reactive::ReadSignal<Modifiers>,
-        ::reactive::WriteSignal<Modifiers>,
-    ),
-    intercepted_keys: (
-        ::reactive::ReadSignal<Vec<KeyChord>>,
-        ::reactive::WriteSignal<Vec<KeyChord>>,
-    ),
+    modifiers: ::reactive::OwnedSignal<Modifiers>,
+    intercepted_keys: ::reactive::OwnedSignal<Vec<KeyChord>>,
     pub autoscroll: Option<crate::interact::autoscroll::Autoscroll>,
     pub(crate) press_claimants: HashSet<NodeId>,
     pub(crate) outside_watchers: HashSet<NodeId>,
@@ -141,8 +132,8 @@ pub struct Document {
     zone: u64,
     extensions: HashMap<std::any::TypeId, Box<dyn Any>>,
     node_refs: HashMap<NodeId, Vec<Weak<Cell<Option<NodeId>>>>>,
-    placements: NodeMap<Vec<PlacementWatcher>>,
-    placed: NodeMap<(::reactive::ReadSignal<bool>, ::reactive::WriteSignal<bool>)>,
+    placements: NodeMap<::reactive::OwnedSignal<Rect>>,
+    placed: NodeMap<::reactive::OwnedSignal<bool>>,
     component_states: HashMap<NodeId, Vec<Box<dyn Any>>>,
     component_names: HashMap<NodeId, Vec<&'static str>>,
     pub accessibility_id: u32,
@@ -236,11 +227,6 @@ impl LayoutFrame {
     }
 }
 
-struct PlacementWatcher {
-    read: ::reactive::ReadSignal<Rect>,
-    write: ::reactive::WriteSignal<Rect>,
-}
-
 static NEXT_ZONE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
 impl Document {
@@ -271,11 +257,11 @@ impl Document {
             back_handlers: Vec::new(),
             back_gesture: None,
             timers: RefCell::new(Vec::new()),
-            scale: ::reactive::create_signal(1.0),
-            attached: ::reactive::create_signal(0),
-            focus_visible: ::reactive::create_signal(false),
-            fullscreen: ::reactive::create_signal(false),
-            screens: ::reactive::create_signal(Vec::new()),
+            scale: ::reactive::OwnedSignal::new(1.0),
+            attached: ::reactive::OwnedSignal::new(0),
+            focus_visible: ::reactive::OwnedSignal::new(false),
+            fullscreen: ::reactive::OwnedSignal::new(false),
+            screens: ::reactive::OwnedSignal::new(Vec::new()),
             offered_screens: None,
             rescreened: RefCell::new(None),
             reattached: Cell::new(false),
@@ -285,8 +271,8 @@ impl Document {
             tapping: None,
             keyboard: true,
             input_frames: 0,
-            modifiers: ::reactive::create_signal(Modifiers::NONE),
-            intercepted_keys: ::reactive::create_signal(Vec::new()),
+            modifiers: ::reactive::OwnedSignal::new(Modifiers::NONE),
+            intercepted_keys: ::reactive::OwnedSignal::new(Vec::new()),
             autoscroll: None,
             press_claimants: HashSet::new(),
             outside_watchers: HashSet::new(),
@@ -413,49 +399,49 @@ impl Document {
     }
 
     pub fn watch_context(&self) -> ::reactive::ReadSignal<u64> {
-        self.attached.0.clone()
+        self.attached.read()
     }
 
     pub fn watch_pixels_per_point(&self) -> ::reactive::ReadSignal<f32> {
-        self.scale.0.clone()
+        self.scale.read()
     }
 
     pub fn watch_fullscreen(&self) -> ::reactive::ReadSignal<bool> {
-        self.fullscreen.0.clone()
+        self.fullscreen.read()
     }
 
     pub fn watch_screens(&self) -> ::reactive::ReadSignal<Vec<Screen>> {
-        self.screens.0.clone()
+        self.screens.read()
     }
 
     pub fn screens(&self) -> Vec<Screen> {
-        self.screens.0.get_untracked()
+        self.screens.read().get_untracked()
     }
 
     pub fn screen_at(&self, pos: Pos2) -> Option<Screen> {
         self.screens
-            .0
+            .read()
             .with_untracked(|screens| crate::screens::at(screens, pos).cloned())
     }
 
     pub fn screen_under(&self, rect: Rect) -> Option<Screen> {
         self.screens
-            .0
+            .read()
             .with_untracked(|screens| crate::screens::under(screens, rect).cloned())
     }
 
     pub fn screen_named(&self, id: &str) -> Option<Screen> {
         self.screens
-            .0
+            .read()
             .with_untracked(|screens| screens.iter().find(|screen| screen.id == id).cloned())
     }
 
     pub fn watch_focus_visible(&self) -> ::reactive::ReadSignal<bool> {
-        self.focus_visible.0.clone()
+        self.focus_visible.read()
     }
 
     pub fn set_focus_visible(&self, visible: bool) {
-        self.focus_visible.1.set(visible);
+        self.focus_visible.write().set(visible);
     }
 
     pub fn register_finger_tap(&self, tap: Weak<FingerTap>) {
@@ -514,41 +500,41 @@ impl Document {
     }
 
     pub fn watch_modifiers(&self) -> ::reactive::ReadSignal<Modifiers> {
-        self.modifiers.0.clone()
+        self.modifiers.read()
     }
 
     pub fn intercepted_keys_writer(&self) -> ::reactive::WriteSignal<Vec<KeyChord>> {
-        self.intercepted_keys.1.clone()
+        self.intercepted_keys.write()
     }
 
     pub fn intercepted_keys(&self) -> Vec<KeyChord> {
-        self.intercepted_keys.0.get_untracked()
+        self.intercepted_keys.read().get_untracked()
     }
 
     pub fn set_modifiers(&self, modifiers: Modifiers) {
-        if self.modifiers.0.get_untracked() != modifiers {
-            self.modifiers.1.set(modifiers);
+        if self.modifiers.read().get_untracked() != modifiers {
+            self.modifiers.write().set(modifiers);
         }
     }
 
     fn run_timers(&self) {
         let scale = self.pixels_per_point();
-        if self.scale.0.get_untracked() != scale {
-            self.scale.1.set(scale);
+        if self.scale.read().get_untracked() != scale {
+            self.scale.write().set(scale);
         }
         let fullscreen = self
             .viewport
             .as_ref()
             .is_some_and(|(ctx, _, _)| ctx.fullscreen());
-        if self.fullscreen.0.get_untracked() != fullscreen {
-            self.fullscreen.1.set(fullscreen);
+        if self.fullscreen.read().get_untracked() != fullscreen {
+            self.fullscreen.write().set(fullscreen);
         }
         let rescreened = self.rescreened.borrow_mut().take();
         if let Some(screens) = rescreened {
-            self.screens.1.set(screens);
+            self.screens.write().set(screens);
         }
         if self.reattached.replace(false) {
-            self.attached.1.update(|attached| *attached += 1);
+            self.attached.write().update(|attached| *attached += 1);
         }
         let now = self.now;
         let mut timers = self.timers.borrow_mut();
@@ -1019,7 +1005,10 @@ impl Document {
             .offered_screens
             .take()
             .unwrap_or_else(|| vec![Screen::window(rect)]);
-        let rescreened = self.screens.0.with_untracked(|shown| *shown != screens);
+        let rescreened = self
+            .screens
+            .read()
+            .with_untracked(|shown| *shown != screens);
         if rescreened {
             self.arena.invalidate();
             *self.rescreened.borrow_mut() = Some(screens);
@@ -1076,7 +1065,7 @@ impl Document {
             ctx.want_keyboard();
         }
         self.intercepted_keys
-            .0
+            .read()
             .with_untracked(|chords| ctx.intercept_keys(chords));
 
         if let Some(text) = self.copied_text.take() {
@@ -1399,31 +1388,21 @@ impl Document {
     }
 
     pub fn watch_placement(&mut self, id: NodeId) -> ::reactive::ReadSignal<Rect> {
-        if let Some(watcher) = self
-            .placements
-            .get(&id)
-            .and_then(|watchers| watchers.first())
-        {
-            return watcher.read.clone();
+        if let Some(watched) = self.placements.get(&id) {
+            return watched.read();
         }
-        let rect = self.rects.get(&id).unwrap_or(Rect::ZERO);
-        let (read, write) = ::reactive::create_signal(rect);
-        self.placements.get_or_default(id).push(PlacementWatcher {
-            read: read.clone(),
-            write,
-        });
+        let watched = ::reactive::OwnedSignal::new(self.rects.get(&id).unwrap_or(Rect::ZERO));
+        let read = watched.read();
+        self.placements.insert(id, watched);
         read
     }
 
-    pub(crate) fn follow_placement(
+    pub(crate) fn watch_placement_with(
         &mut self,
         id: NodeId,
-        read: ::reactive::ReadSignal<Rect>,
-        write: ::reactive::WriteSignal<Rect>,
+        watched: ::reactive::OwnedSignal<Rect>,
     ) {
-        self.placements
-            .get_or_default(id)
-            .push(PlacementWatcher { read, write });
+        self.placements.insert(id, watched);
     }
 
     pub fn name_component(&mut self, id: NodeId, name: &'static str) {
@@ -1677,11 +1656,12 @@ impl Document {
     }
 
     pub fn watch_placed(&mut self, id: NodeId) -> ::reactive::ReadSignal<bool> {
-        if let Some((read, _)) = self.placed.get(&id) {
-            return read.clone();
+        if let Some(watched) = self.placed.get(&id) {
+            return watched.read();
         }
-        let (read, write) = ::reactive::create_signal(self.rects.contains_key(&id));
-        self.placed.insert(id, (read.clone(), write));
+        let watched = ::reactive::OwnedSignal::new(self.rects.contains_key(&id));
+        let read = watched.read();
+        self.placed.insert(id, watched);
         read
     }
 
@@ -1858,20 +1838,16 @@ impl Document {
         let moved: Vec<(::reactive::WriteSignal<Rect>, Rect)> = self
             .placements
             .iter()
-            .filter_map(|(id, watchers)| Some((rects.get(&id)?, watchers)))
-            .flat_map(|(rect, watchers)| {
-                watchers
-                    .iter()
-                    .filter(move |watcher| watcher.read.get_untracked() != rect)
-                    .map(move |watcher| (watcher.write.clone(), rect))
-            })
+            .filter_map(|(id, watched)| Some((rects.get(&id)?, watched)))
+            .filter(|(rect, watched)| watched.read().get_untracked() != *rect)
+            .map(|(rect, watched)| (watched.write(), rect))
             .collect();
         let placed: Vec<(::reactive::WriteSignal<bool>, bool)> = self
             .placed
             .iter()
-            .map(|(id, (read, write))| (rects.contains_key(&id), read, write))
-            .filter(|(placed, read, _)| read.get_untracked() != *placed)
-            .map(|(placed, _, write)| (write.clone(), placed))
+            .map(|(id, watched)| (rects.contains_key(&id), watched))
+            .filter(|(placed, watched)| watched.read().get_untracked() != *placed)
+            .map(|(placed, watched)| (watched.write(), placed))
             .collect();
         if reports.is_empty() && moved.is_empty() && placed.is_empty() {
             return;

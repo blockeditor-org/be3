@@ -21,7 +21,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
     let upstream = content.project(|content| content.root().upstream);
     let status = editor.version_status();
     let editable = editor.editable();
-    let branches = create_memo(clone!(status -> move || {
+    let branches = create_memo(move || {
         status.with(|status| {
             status
                 .branches
@@ -29,31 +29,28 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                 .map(|branch| (branch.name.clone(), short_id(&branch.head)))
                 .collect::<Vec<_>>()
         })
-    }));
-    let log = create_memo(clone!(status -> move || status.with(|status| status.log.clone())));
-    let unversioned = create_memo(clone!(branches -> move || branches.with(Vec::is_empty)));
-    let versioned = create_memo(clone!(unversioned -> move || !unversioned.get()));
-    let idle = create_memo(clone!(status editable -> move || {
-        editable.get() && !status.with(|status| status.busy)
-    }));
-    let blocked = create_memo(clone!(idle -> move || !idle.get()));
-    let note = create_memo(clone!(status -> move || {
+    });
+    let log = create_memo(move || status.with(|status| status.log.clone()));
+    let unversioned = create_memo(move || branches.with(Vec::is_empty));
+    let versioned = create_memo(move || !unversioned.get());
+    let idle = create_memo(move || editable.get() && !status.with(|status| status.busy));
+    let blocked = create_memo(move || !idle.get());
+    let note = create_memo(move || {
         status.with(|status| match (status.busy, &status.error) {
             (true, _) => "Working…".to_owned(),
             (false, Some(error)) => error.clone(),
             (false, None) => String::new(),
         })
-    }));
-    let has_note = create_memo(clone!(note -> move || !note.with(String::is_empty)));
-    let upstream_target = create_memo(clone!(upstream -> move || {
+    });
+    let has_note = create_memo(move || !note.with(String::is_empty));
+    let upstream_target = create_memo(move || {
         upstream
             .get()
             .map(|upstream| ChildTarget::new(upstream, Repository::CONTENT_TYPE))
-    }));
-    let has_upstream = create_memo(clone!(upstream -> move || upstream.get().is_some()));
-    let no_upstream = create_memo(clone!(has_upstream -> move || !has_upstream.get()));
-    let pull_blocked =
-        create_memo(clone!(blocked no_upstream -> move || blocked.get() || no_upstream.get()));
+    });
+    let has_upstream = create_memo(move || upstream.get().is_some());
+    let no_upstream = create_memo(move || !has_upstream.get());
+    let pull_blocked = create_memo(move || blocked.get() || no_upstream.get());
 
     let choosing = editor.clone();
     let choose = move || {
@@ -72,40 +69,36 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
             },
         );
     };
-    let adopt_blocked = blocked.clone();
-    let fork_blocked = blocked.clone();
-    let push_blocked = pull_blocked.clone();
+    let adopt_blocked = blocked;
+    let fork_blocked = blocked;
+    let push_blocked = pull_blocked;
     let upstream_editor = editor.clone();
     let forking = editor.clone();
     let pulling = editor.clone();
     let pushing = editor.clone();
     let checking_out = editor.clone();
-    let rows = clone!(blocked -> move |(name, head): (String, String)| {
+    let rows = move |(name, head): (String, String)| {
         let editor = checking_out.clone();
-        let blocked = blocked.clone();
+        let blocked = blocked;
         view! {
             <BranchRow editor blocked name head />
         }
-    });
+    };
 
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()} padding_horizontal=PADDING padding_vertical=PADDING>
+        <Frame color={theme.background} padding_horizontal=PADDING padding_vertical=PADDING>
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <List spacing=SECTION_SPACING>
                         <List spacing=6.0>
                             <Heading content="Repository" />
                             <Show condition={has_note}>
-                                <Caption
-                                    content={note.clone()}
-                                    wrap=true
-                                    @test_id={"repository.note"}
-                                />
+                                <Caption content={note} wrap=true @test_id={"repository.note"} />
                             </Show>
                         </List>
                         <Show condition={unversioned}>
-                            {move || clone!(adopt_blocked choose -> view! {
+                            {move || clone!(choose -> view! {
                                 <Card>
                                     <List spacing=10.0>
                                         <Body content="Nothing is versioned here yet." />
@@ -125,7 +118,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                             })}
                         </Show>
                         <Show condition={versioned}>
-                            {move || clone!(branches rows -> view! {
+                            {move || clone!(rows -> view! {
                                 <Card>
                                     <List spacing=10.0>
                                         <Heading content="Branches" />
@@ -140,7 +133,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                                 <Show condition={has_upstream}>
                                     <BlockLink
                                         editor={upstream_editor.clone()}
-                                        block={upstream_target.clone()}
+                                        block={upstream_target}
                                         @test_id={"repository.upstream"}
                                     />
                                 </Show>

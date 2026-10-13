@@ -11,7 +11,7 @@ fn a_keyed_view_rebuilds_only_when_its_key_changes() {
         let (holder, retitle, reshape) = (holder.clone(), retitle.clone(), reshape.clone());
         move || {
             let (state, set_state) = create_signal((0u32, "first".to_owned()));
-            let edit = set_state.clone();
+            let edit = set_state;
             view! {
                 <List spacing=0.0>
                     <List direction=Direction::Horizontal spacing=0.0>

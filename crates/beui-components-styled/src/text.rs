@@ -12,11 +12,11 @@ use beui_core::node::NodeId;
 use beui_view::reactive::{IntoProp, Prop, Text, clone, create_memo};
 
 fn text_color() -> Prop<Color32> {
-    use_theme().text.clone().into_prop()
+    use_theme().text.into_prop()
 }
 
 fn muted_color() -> Prop<Color32> {
-    use_theme().text_muted.clone().into_prop()
+    use_theme().text_muted.into_prop()
 }
 
 #[component]

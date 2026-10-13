@@ -109,7 +109,7 @@ impl Screen {
 
 fn stack(harness: &mut Harness, order: Vec<WindowId>) {
     let set = ORDER
-        .with(|held| held.borrow().clone())
+        .with(|held| *held.borrow())
         .expect("the stack is shown");
     with_reactive_scope(&mut harness.document, move || set.set(order));
 }

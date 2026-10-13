@@ -135,22 +135,20 @@ impl Phone {
 
     pub(crate) fn build(&self, slot: Slot, commit: &str) -> ReadSignal<Loaded<Found>> {
         if let Some((read, _)) = self.builds.borrow().get(&slot) {
-            return read.clone();
+            return *read;
         }
         let (read, write) = create_signal(Loaded::Loading);
-        self.builds.borrow_mut().insert(slot, (read.clone(), write));
+        self.builds.borrow_mut().insert(slot, (read, write));
         self.fetch(slot, Some(commit.to_owned()));
         read
     }
 
     pub(crate) fn main_build(&self) -> ReadSignal<Loaded<Found>> {
         if let Some((read, _)) = self.builds.borrow().get(&Slot::Main) {
-            return read.clone();
+            return *read;
         }
         let (read, write) = create_signal(Loaded::Loading);
-        self.builds
-            .borrow_mut()
-            .insert(Slot::Main, (read.clone(), write));
+        self.builds.borrow_mut().insert(Slot::Main, (read, write));
         self.fetch(Slot::Main, None);
         read
     }
@@ -164,11 +162,7 @@ impl Phone {
     }
 
     fn refetch(&self, slot: Slot, commit: Option<String>) {
-        let write = self
-            .builds
-            .borrow()
-            .get(&slot)
-            .map(|(_, write)| write.clone());
+        let write = self.builds.borrow().get(&slot).map(|(_, write)| *write);
         if let Some(write) = write {
             write.set(Loaded::Loading);
             self.fetch(slot, commit);
@@ -314,11 +308,7 @@ impl Phone {
                 self.set_own.set(Some(own));
             }
             Event::Fetched(slot, build) => {
-                let write = self
-                    .builds
-                    .borrow()
-                    .get(&slot)
-                    .map(|(_, write)| write.clone());
+                let write = self.builds.borrow().get(&slot).map(|(_, write)| *write);
                 if let Some(write) = write {
                     write.set(match build {
                         Ok(build) => Loaded::Ready(build),
@@ -421,7 +411,7 @@ pub(crate) fn Actions(
     let slot = Slot::PullRequest(initial.number);
     let build = phone.build(slot, &initial.head_sha);
     let busy = create_memo(clone!(phone -> move || phone.work.with(Option::is_some)));
-    let disabled = create_memo(clone!(build busy -> move || busy.get() || !published(&build)));
+    let disabled = create_memo(clone!(build busy -> move || busy.get() || !published(build)));
     let run = clone!(phone -> move || phone.run(slot, false));
     let pick = clone!(phone -> move |path: Vec<usize>| match path.as_slice() {
         [0] => phone.run(slot, true),
@@ -477,7 +467,7 @@ pub(crate) fn MainActions(model: Model) -> NodeId {
     let phone = model.phone.clone();
     let build = phone.main_build();
     let busy = create_memo(clone!(phone -> move || phone.work.with(Option::is_some)));
-    let disabled = create_memo(clone!(build busy -> move || busy.get() || !published(&build)));
+    let disabled = create_memo(clone!(build busy -> move || busy.get() || !published(build)));
     let run = clone!(phone -> move || phone.run(Slot::Main, false));
     let pick = clone!(phone -> move |path: Vec<usize>| match path.as_slice() {
         [0] => phone.run(Slot::Main, true),
@@ -536,7 +526,7 @@ pub(crate) fn MainActions(model: Model) -> NodeId {
     }
 }
 
-fn published(build: &ReadSignal<Loaded<Found>>) -> bool {
+fn published(build: ReadSignal<Loaded<Found>>) -> bool {
     matches!(build.get(), Loaded::Ready(Found { build: Some(_), .. }))
 }
 
@@ -608,12 +598,7 @@ fn SlotNotes(model: Model, slot: Slot) -> NodeId {
                 })}
             </Show>
             <Show condition={failed}>
-                <Text
-                    string={problem.clone()}
-                    font_size=FONT_BODY
-                    color={theme.danger.clone()}
-                    wrap=true
-                />
+                <Text string={problem} font_size=FONT_BODY color={theme.danger} wrap=true />
             </Show>
         </List>
     }

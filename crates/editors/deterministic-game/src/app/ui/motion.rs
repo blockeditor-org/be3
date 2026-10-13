@@ -1,8 +1,7 @@
 use std::time::{Duration, Instant};
 
 use block_editor_beui::beui::reactive::{
-    CanvasView, Memo, ReadSignal, Timer, WriteSignal, clone, create_memo, create_signal,
-    create_timer, now,
+    CanvasView, Memo, ReadSignal, Timer, WriteSignal, create_memo, create_signal, create_timer, now,
 };
 use block_editor_beui::beui::{Pos2, Rect};
 use game_api::board::{HandCard, ItemId, Sprite};
@@ -121,7 +120,7 @@ impl Motion {
     pub(crate) fn new() -> Self {
         let (flights, set_flights) = create_signal(Vec::<Flight>::new());
         let (clock, set_clock) = create_signal(now());
-        let timer = create_timer(clone!(set_flights set_clock -> move || {
+        let timer = create_timer(move || {
             let now = now();
             set_clock.set(now);
             let mut flying = false;
@@ -130,10 +129,10 @@ impl Motion {
                 flying = !flights.is_empty();
             });
             flying.then_some(Duration::ZERO)
-        }));
-        let flying = create_memo(clone!(flights -> move || {
+        });
+        let flying = create_memo(move || {
             flights.with(|flights| flights.iter().map(|flight| flight.id).collect::<Vec<_>>())
-        }));
+        });
         Self {
             flights,
             set_flights,

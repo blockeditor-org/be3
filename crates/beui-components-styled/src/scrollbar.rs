@@ -7,7 +7,7 @@ use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ScrollbarHandle, ScrollbarThumb};
 use beui_core::base::{Direction, ScrollPosition};
 use beui_core::node::NodeId;
-use beui_view::reactive::{Callback, Frame, Memo, Prop, clone, create_memo};
+use beui_view::reactive::{Callback, Frame, Memo, Prop, create_memo};
 
 const RADIUS: u8 = 3;
 
@@ -59,10 +59,9 @@ fn ScrollbarTrack(handle: ScrollbarHandle) -> NodeId {
     } = handle;
     let theme = use_theme();
 
-    let color = create_memo(clone!(theme position -> move || {
-        thumb_color(&theme, position.get(), hovered.get(), dragging.get())
-    }));
-    let track = create_memo(clone!(theme position -> move || track_color(&theme, position.get())));
+    let color =
+        create_memo(move || thumb_color(&theme, position.get(), hovered.get(), dragging.get()));
+    let track = create_memo(move || track_color(&theme, position.get()));
     let right = outer_side_inset(&direction, Direction::Vertical);
     let bottom = outer_side_inset(&direction, Direction::Horizontal);
 

@@ -8,6 +8,7 @@ use crate::styled::{TextInput, text_input_value};
 
 #[test]
 fn an_intercepting_action_names_its_chords_and_answers_keys_intercepted_for_it() {
+    let _root = crate::reactive::RootScope::new();
     let runs = Rc::new(Cell::new(0));
     let counted = runs.clone();
     let (open, set_open) = create_signal(false);

@@ -26,9 +26,9 @@ const FORMAT_PADDING: f32 = 6.0;
 #[component]
 pub(crate) fn EditorMenu(state: Shared) -> NodeId {
     let (settings, set_settings) = create_signal(false);
-    menu_actions(&state, set_settings.clone());
-    let hex = state.hex_view.clone();
-    let text_view = create_memo(clone!(hex -> move || !hex.get()));
+    menu_actions(&state, set_settings);
+    let hex = state.hex_view;
+    let text_view = create_memo(move || !hex.get());
     let hex_view = create_memo(move || hex.get());
     let text_state = state.clone();
     view! {
@@ -50,8 +50,8 @@ pub(crate) fn EditorMenu(state: Shared) -> NodeId {
 }
 
 fn menu_actions(state: &Shared, set_settings: WriteSignal<bool>) {
-    let hex = state.hex_view.clone();
-    let in_text = create_memo(clone!(hex -> move || !hex.get()));
+    let hex = state.hex_view;
+    let in_text = create_memo(move || !hex.get());
     Action::new(
         "text.hex",
         "Toggle hex view",
@@ -153,7 +153,7 @@ const FORMATS: [(&str, &str, &str, MarkdownCommand, Option<Chord>); 10] = [
 
 pub(crate) fn format_actions(state: &Shared) -> Vec<Action> {
     let content = state.text.content();
-    let hex = state.hex_view.clone();
+    let hex = state.hex_view;
     let markdown = create_memo(clone!(state -> move || {
         content.get();
         !hex.get() && state.text.language() == TextLanguage::Markdown
@@ -168,7 +168,7 @@ pub(crate) fn format_actions(state: &Shared) -> Vec<Action> {
                 clone!(state -> move || state.text.execute(EditorCommand::Markdown(command))),
             )
             .glyph(glyph)
-            .enabled(markdown.clone());
+            .enabled(markdown);
             if let Some(chord) = chord {
                 action = action.shortcut(*chord);
             }
@@ -180,8 +180,8 @@ pub(crate) fn format_actions(state: &Shared) -> Vec<Action> {
 #[component]
 pub(crate) fn FormatBar(state: Shared, formats: Vec<Action>) -> NodeId {
     let theme = use_theme();
-    let typing = state.typing.clone();
-    let hex = state.hex_view.clone();
+    let typing = state.typing;
+    let hex = state.hex_view;
     let shown = create_memo(move || typing.get() && !hex.get());
     let touch = state.text.touch_mode();
     let keyboard = create_memo(move || touch.get());
@@ -198,10 +198,10 @@ pub(crate) fn FormatBar(state: Shared, formats: Vec<Action>) -> NodeId {
     };
     let bar = move || {
         let controls = controls.clone();
-        let keyboard = keyboard.clone();
-        let markdown = markdown.clone();
+        let keyboard = keyboard;
+        let markdown = markdown;
         view! {
-            <Frame color={theme.surface.clone()}>
+            <Frame color={theme.surface}>
                 <List spacing=0.0>
                     <Separator />
                     <Frame padding_vertical=FORMAT_PADDING>
@@ -212,7 +212,7 @@ pub(crate) fn FormatBar(state: Shared, formats: Vec<Action>) -> NodeId {
                             >
                                 <Frame padding_horizontal=FORMAT_PADDING>
                                     <List spacing=0.0>
-                                        <Show condition={markdown.clone()} then={controls} />
+                                        <Show condition={markdown} then={controls} />
                                     </List>
                                 </Frame>
                             </Scroll>
@@ -260,7 +260,7 @@ fn MarkdownControls(formats: Vec<Action>) -> NodeId {
 
 #[component]
 fn HexSettings(state: Shared) -> NodeId {
-    let insert = state.hex_insert_mode.clone();
+    let insert = state.hex_insert_mode;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
             <Body @sizing=ItemSize::Percent(100.0) content="Insert instead of overwriting" />
@@ -280,32 +280,30 @@ fn HexSettings(state: Shared) -> NodeId {
 #[component]
 fn TextSettings(state: Shared) -> NodeId {
     let content = state.text.content();
-    let language = create_memo(clone!(state content -> move || {
+    let language = create_memo(clone!(state -> move || {
         content.get();
         state.text.language()
     }));
-    let indentation = create_memo(clone!(state content -> move || {
+    let indentation = create_memo(clone!(state -> move || {
         content.get();
         state.text.indentation()
     }));
-    let language_index = create_memo(clone!(language -> move || {
+    let language_index = create_memo(move || {
         TextLanguage::ALL
             .iter()
             .position(|choice| *choice == language.get())
-    }));
-    let indentation_index = create_memo(clone!(indentation -> move || {
+    });
+    let indentation_index = create_memo(move || {
         Some(usize::from(matches!(
             indentation.get(),
             TextIndentation::Spaces { .. }
         )))
-    }));
-    let spaces = create_memo(clone!(indentation -> move || {
-        matches!(indentation.get(), TextIndentation::Spaces { .. })
-    }));
-    let width = create_memo(clone!(indentation -> move || match indentation.get() {
+    });
+    let spaces = create_memo(move || matches!(indentation.get(), TextIndentation::Spaces { .. }));
+    let width = create_memo(move || match indentation.get() {
         TextIndentation::Spaces { width } => f64::from(width),
         TextIndentation::Tabs => 2.0,
-    }));
+    });
     let language_state = state.clone();
     let indentation_state = state.clone();
     let width_state = state;
@@ -358,7 +356,7 @@ fn TextSettings(state: Shared) -> NodeId {
                 </Frame>
             </List>
             <Show condition={spaces}>
-                {move || clone!(width width_state -> view! {
+                {move || clone!(width_state -> view! {
                     <List
                         direction=Direction::Horizontal
                         align=Align::Center
@@ -368,7 +366,7 @@ fn TextSettings(state: Shared) -> NodeId {
                         <Frame width=NUMBER_WIDTH>
                             <NumberInput
                                 label="Indentation width"
-                                value={width.clone()}
+                                value={width}
                                 min=1.0
                                 max=8.0
                                 @test_id={"text.indentation-width"}

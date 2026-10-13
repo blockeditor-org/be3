@@ -7,7 +7,7 @@ use crate::menu_popup::{MenuPopup, MenuStyle};
 use beui_core::input::{PointerPress, ScrollGesture};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Children, ClickCallback, Interactive, List, NodeRef, Prop, ReadSignal, Render, clone,
+    Callback, Children, ClickCallback, Interactive, List, NodeRef, Prop, ReadSignal, Render,
     create_effect, create_memo, create_signal, untrack,
 };
 
@@ -37,25 +37,25 @@ pub fn MenuButton(
 ) -> NodeId {
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::Button)));
     let (open, set_open) = create_signal(false);
-    let accessibility = create_memo(clone!(open -> move || {
+    let accessibility = create_memo(move || {
         let mut node = accessibility.get();
         node.set_has_popup(HasPopup::Menu);
         node.set_expanded(open.get());
         node
-    }));
+    });
     let (touched, set_touched) = create_signal(false);
     let button = NodeRef::new();
-    let shown = create_memo(clone!(open -> move || open.get()));
+    let shown = create_memo(move || open.get());
     let touched = create_memo(move || touched.get());
     if !on_open_change.is_empty() {
         let mut was_open = false;
-        create_effect(clone!(shown -> move || {
+        create_effect(move || {
             let open = shown.get();
             if open != was_open {
                 was_open = open;
                 untrack(|| on_open_change.call(open));
             }
-        }));
+        });
     }
     let disabled = create_memo(move || disabled.get());
     let mut trigger_node = view! {
@@ -63,25 +63,25 @@ pub fn MenuButton(
             @node_ref=&button
             label
             glyph
-            disabled={disabled.clone()}
+            disabled={disabled}
             accessibility={accessibility}
-            on_press={clone!(set_touched -> move |press: PointerPress| set_touched.set(press.touch))}
-            on_click={clone!(set_open -> move || {
+            on_press={move |press: PointerPress| set_touched.set(press.touch)}
+            on_click={move || {
                 match untrack(|| click_opens.get()) {
                     true => set_open.update(|open| *open = !*open),
                     false => on_click.call(),
                 }
-            })}
-            content={Render::new(clone!(open -> move |handle: unstyled::ButtonHandle| {
+            }}
+            content={Render::new(move |handle: unstyled::ButtonHandle| {
                 trigger.call(MenuButtonHandle {
-                    open: open.clone(),
+                    open,
                     button: handle,
                 })
-            }))}
+            })}
         />
     };
     if on_secondary_click.is_some() || !matches!(secondary_opens, Prop::Static(false)) {
-        let (disabled, set_open) = (disabled.clone(), set_open.clone());
+        let (disabled, set_open) = (disabled, set_open);
         let on_secondary_click = on_secondary_click.unwrap_or_default();
         trigger_node = view! {
             <Interactive
@@ -103,7 +103,6 @@ pub fn MenuButton(
         };
     }
     if let Some(on_middle_click) = on_middle_click {
-        let disabled = disabled.clone();
         trigger_node = view! {
             <Interactive
                 on_middle_click={move || {

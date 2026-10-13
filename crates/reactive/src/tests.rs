@@ -3,17 +3,17 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
 
 use crate::{
-    KeyedItems, KeyedStore, Scope, Store, batch, create_effect, create_memo, create_selector,
-    create_signal, on_cleanup, owner_scope, untrack,
+    KeyedItems, KeyedStore, RootScope, Scope, Store, batch, create_effect, create_memo,
+    create_selector, create_signal, on_cleanup, owner_scope, untrack,
 };
 
 mod a_context_reaches_the_effects_a_nested_scope_creates;
 mod a_detached_scope_reads_context_without_its_parent_disposing_it;
-mod a_disposed_memo_keeps_its_last_value;
 mod a_keyed_mapping_builds_a_row_for_each_repeat_of_a_key;
 mod a_keyed_mapping_builds_reuses_and_disposes_its_items;
 mod a_keyed_row_kept_across_a_rerun_still_reads_context;
 mod a_keyed_store_forgets_items_whose_keys_are_gone;
+mod a_keyed_store_frees_the_signals_of_keys_that_are_gone;
 mod a_keyed_store_only_wakes_the_item_that_changed;
 mod a_nested_pausable_scope_waits_while_any_scope_around_it_is_paused;
 mod a_panicking_effect_can_run_again;
@@ -35,6 +35,7 @@ mod conditional_dependencies_are_replaced;
 mod conditional_memos_replace_dependencies;
 mod diamond_and_direct_dependencies_never_glitch;
 mod disposal_releases_captured_resources;
+mod disposing_a_scope_frees_what_it_owns;
 mod downstream_effect_recovers_after_memo_panics;
 mod dropping_scope_cancels_queued_effects;
 mod effects_can_write_signals_and_settle_without_recursion;

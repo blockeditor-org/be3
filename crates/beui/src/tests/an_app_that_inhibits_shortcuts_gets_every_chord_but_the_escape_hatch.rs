@@ -66,7 +66,7 @@ fn an_app_that_inhibits_shortcuts_gets_every_chord_but_the_escape_hatch() {
             }
         }
     });
-    let set_inhibits = setter.borrow().clone().expect("the document was built");
+    let set_inhibits = (*setter.borrow()).expect("the document was built");
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.click(pos2(50.0, 50.0));

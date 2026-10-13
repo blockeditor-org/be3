@@ -30,7 +30,7 @@ fn toasts_on_the_top_edge_stack_in_the_top_corner() {
             },
         ];
         view! {
-            <Frame @node_ref=&area color={theme.background.clone()}>
+            <Frame @node_ref=&area color={theme.background}>
                 <Toasts
                     anchor={area.clone()}
                     edge=Edge::TopEnd

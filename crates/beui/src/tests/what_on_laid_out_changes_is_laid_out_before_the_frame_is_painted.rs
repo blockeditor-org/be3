@@ -3,6 +3,7 @@ use crate::reactive::{Dynamic, Embed, EmbedSlot, Frame, create_signal, view};
 
 #[test]
 fn what_on_laid_out_changes_is_laid_out_before_the_frame_is_painted() {
+    let _root = crate::reactive::RootScope::new();
     let measured = EmbedSlot::new();
     let answered = EmbedSlot::new();
     let (height, set_height) = create_signal(10.0_f32);

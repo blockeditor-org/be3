@@ -45,8 +45,8 @@ pub(crate) fn SelectionTools(state: Rc<CanvasState>) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame
-            color={theme.surface.clone()}
-            outline={theme.border.clone()}
+            color={theme.surface}
+            outline={theme.border}
             outline_width=BORDER_WIDTH
             outline_visible=true
             radius=RADIUS
@@ -56,13 +56,13 @@ pub(crate) fn SelectionTools(state: Rc<CanvasState>) -> NodeId {
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                 <Show condition={colored}>
-                    {move || clone!(picking value -> view! {
+                    {move || clone!(picking -> view! {
                         <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
                             <ForEach keys={(0..PRESETS.len()).collect::<Vec<usize>>()}>
                                 {move |index: usize| {
                                     let (name, color) = PRESETS[index];
                                     let state = Rc::clone(&picking);
-                                    let value = value.clone();
+                                    let value = value;
                                     view! {
                                         <Swatch
                                             kind="color"
@@ -89,7 +89,7 @@ pub(crate) fn SelectionTools(state: Rc<CanvasState>) -> NodeId {
                         glyph={ICON_TUNE.to_owned()}
                         label="Inspector"
                         @test_id={"infinite-canvas.inspect"}
-                        on_click={tune.clone()}
+                        on_click={tune}
                     />
                 </Show>
             </List>
@@ -106,7 +106,7 @@ pub(crate) fn Swatch(
     on_pick: Callback<CanvasColor>,
 ) -> NodeId {
     let theme = use_theme();
-    let fill = create_memo(clone!(theme -> move || resolve_color(color, theme.text.get())));
+    let fill = create_memo(move || resolve_color(color, theme.text.get()));
     let chosen = create_memo(move || value.get() == CommonValue::Uniform(color));
     let mut described = AccessNode::new(Role::Button);
     described.set_label(format!("{name} {kind}"));
@@ -116,13 +116,13 @@ pub(crate) fn Swatch(
             accessibility={described}
             on_click={move || on_pick.call(color)}
             content={move |handle: ButtonHandle| {
-                let ringed = create_memo(clone!(chosen -> move || {
+                let ringed = create_memo(move || {
                     chosen.get() || handle.focused.get() || handle.hovered.get()
-                }));
-                let ring = create_memo(clone!(theme chosen -> move || match chosen.get() {
+                });
+                let ring = create_memo(move || match chosen.get() {
                     true => theme.accent.get(),
                     false => theme.border.get(),
-                }));
+                });
                 view! {
                     <Frame
                         padding_horizontal=SWATCH_RING
@@ -136,8 +136,8 @@ pub(crate) fn Swatch(
                             width=SWATCH
                             height=SWATCH
                             radius=11
-                            color={fill.clone()}
-                            outline={theme.border.clone()}
+                            color={fill}
+                            outline={theme.border}
                             outline_width=BORDER_WIDTH
                             outline_visible=true
                         />

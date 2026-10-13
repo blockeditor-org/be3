@@ -83,7 +83,7 @@ impl LauncherApp {
             let model = model(tasks.clone());
             exported = Some(model.clone());
             view! {
-                <Frame color={theme.background.clone()} radius=0>
+                <Frame color={theme.background} radius=0>
                     <Launcher model />
                 </Frame>
             }

@@ -7,7 +7,7 @@ use beui_core::geometry::{Pos2, Rect, Vec2, pos2};
 use beui_core::input::{CursorIcon, Key, KeyPress, ScrollGesture, ZoomGesture};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Interactive, Memo, PlacementBuilder, Prop, ReadSignal, Render, WriteSignal, clone,
+    Callback, Interactive, Memo, PlacementBuilder, Prop, ReadSignal, Render, WriteSignal,
     component_accessibility, create_effect, create_memo, create_signal, set_component_state,
     untrack,
 };
@@ -157,13 +157,13 @@ pub fn PanZoom(
         <PlacementBuilder>
             {move |rect: ReadSignal<Rect>| {
                 let (current, set_current) = create_signal(view.peek());
-                create_effect(clone!(set_current -> move || set_current.set(view.get())));
+                create_effect(move || set_current.set(view.get()));
                 let (panning, set_panning) = create_signal(false);
 
                 let camera = Camera {
-                    view: current.clone(),
+                    view: current,
                     set_view: set_current,
-                    rect: rect.clone(),
+                    rect,
                     min_scale: create_memo(move || min_scale.get()),
                     max_scale: create_memo(move || max_scale.get()),
                     on_change,
@@ -176,16 +176,16 @@ pub fn PanZoom(
 
                 let (focused, set_focused) = create_signal(false);
                 let key_camera = camera.clone();
-                let cursor = create_memo(clone!(panning -> move || if panning.get() {
+                let cursor = create_memo(move || if panning.get() {
                     CursorIcon::Grabbing
                 } else {
                     CursorIcon::Default
-                }));
+                });
                 let content_node = content.call(PanZoomHandle {
-                    view: create_memo(clone!(current rect -> move || Some(current.get().canvas(rect.get())))),
-                    scale: create_memo(clone!(current -> move || current.get().scale)),
-                    panning: panning.clone(),
-                    focused: focused.clone(),
+                    view: create_memo(move || Some(current.get().canvas(rect.get()))),
+                    scale: create_memo(move || current.get().scale),
+                    panning,
+                    focused,
                 });
 
                 set_component_state(current);
@@ -216,7 +216,5 @@ pub fn PanZoom(
 }
 
 pub fn pan_zoom_view(document: &Document, pan_zoom: NodeId) -> ReadSignal<PanZoomView> {
-    document
-        .component_state::<ReadSignal<PanZoomView>>(pan_zoom)
-        .clone()
+    *document.component_state::<ReadSignal<PanZoomView>>(pan_zoom)
 }

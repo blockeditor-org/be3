@@ -45,7 +45,7 @@ fn MapEditor(editor: Editor) -> NodeId {
 
     let sized = Rc::clone(&state);
     let sizing = editor.clone();
-    let region = state.displayed_region.clone();
+    let region = state.displayed_region;
     block_editor_beui::beui::reactive::create_effect(move || {
         let aspect = crate::geo::region_aspect_ratio(region.get()).max(0.01);
         let _ = sized.block_id();
@@ -60,7 +60,7 @@ fn MapEditor(editor: Editor) -> NodeId {
     let canvas = Rc::clone(&state);
     view! {
         <List spacing=0.0>
-            <MapToolbar state={bar} shown={chrome.clone()} />
+            <MapToolbar state={bar} shown={chrome} />
             <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
                 <MapCanvas @sizing=ItemSize::Percent(100.0) state={canvas} />
                 <Sidebar shown={chrome}>

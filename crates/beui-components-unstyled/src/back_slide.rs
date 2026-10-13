@@ -289,9 +289,9 @@ pub fn BackSlide(
             <Show condition={revealing}>
                 {move || {
                     let page = behind.call(());
-                    let shade = shade.clone();
+                    let shade = shade;
                     view! {
-                        <Shift by={behind_shift.clone()}>
+                        <Shift by={behind_shift}>
                             <Layers>
                                 {page}
                                 <Frame color={shade} />

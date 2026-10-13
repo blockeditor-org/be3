@@ -91,14 +91,10 @@ pub(crate) fn MenuPopup(
     let (row, panel) = menu.parts();
     let sheet = menu.sheet();
     let sheeted = sheet.is_some();
-    let dropped = create_memo(clone!(open touched -> move || {
-        open.get() && !(sheeted && touched.get())
-    }));
-    let raised = create_memo(clone!(open touched -> move || {
-        sheeted && open.get() && touched.get()
-    }));
+    let dropped = create_memo(move || open.get() && !(sheeted && touched.get()));
+    let raised = create_memo(move || sheeted && open.get() && touched.get());
     let traps_focus = focusing.clone();
-    let active = create_memo(clone!(dropped -> move || dropped.get() && focusing.get()));
+    let active = create_memo(move || dropped.get() && focusing.get());
     let choose = Callback::new(clone!(on_dismiss -> move |path: Vec<usize>| {
         on_select.call(path);
         on_dismiss.call();
@@ -134,14 +130,14 @@ pub(crate) fn MenuPopup(
                     let (row, sheet) = sheet.clone().unwrap_or_else(|| unreachable!());
                     let (choose, dismiss) = (sheet_choose.clone(), sheet_dismiss.clone());
                     sheet.call(MenuSheetHandle {
-                        open: raised.clone(),
+                        open: raised,
                         on_close: ClickCallback::new(move || dismiss.call()),
                         menu: view! {
                             <MenuList
                                 items={sheet_items.clone()}
                                 row
                                 panel={sheet_panel.clone()}
-                                active={raised.clone()}
+                                active={raised}
                                 on_select={move |path: Vec<usize>| choose.call(path)}
                             />
                         },

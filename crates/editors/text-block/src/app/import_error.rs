@@ -1,5 +1,5 @@
 use beui::NodeId;
-use beui::reactive::{Align, Direction, Frame, List, Show, clone, component, create_memo, view};
+use beui::reactive::{Align, Direction, Frame, List, Show, component, create_memo, view};
 use beui::styled::{Body, Button, ButtonVariant, use_theme};
 
 use super::state::Shared;
@@ -10,8 +10,8 @@ const BAR_SPACING: f32 = 6.0;
 
 #[component]
 pub(crate) fn ImportError(state: Shared) -> NodeId {
-    let error = state.import_error.clone();
-    let shown = create_memo(clone!(error -> move || error.get().is_some()));
+    let error = state.import_error;
+    let shown = create_memo(move || error.get().is_some());
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
@@ -26,16 +26,16 @@ pub(crate) fn ImportError(state: Shared) -> NodeId {
 #[component]
 fn ImportErrorRow(state: Shared) -> NodeId {
     let theme = use_theme();
-    let error = state.import_error.clone();
-    let message = create_memo(clone!(error -> move || error.get().unwrap_or_default()));
+    let error = state.import_error;
+    let message = create_memo(move || error.get().unwrap_or_default());
     view! {
         <Frame
-            color={theme.surface.clone()}
+            color={theme.surface}
             padding_horizontal=BAR_PADDING_HORIZONTAL
             padding_vertical=BAR_PADDING_VERTICAL
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
-                <Body content={message} color={theme.danger.clone()} />
+                <Body content={message} color={theme.danger} />
                 <Button
                     label="Dismiss"
                     variant=ButtonVariant::Secondary

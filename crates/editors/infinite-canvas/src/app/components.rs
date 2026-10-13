@@ -65,7 +65,7 @@ fn ComponentRow(state: Rc<CanvasState>, schema_id: Uuid) -> NodeId {
         .editor()
         .related_content::<DatabaseSchemaContent>(create_memo(move || Some(schema_id)));
     let fields = schema.project(|schema| schema.root().fields());
-    let fields = create_memo(clone!(fields -> move || fields.get()));
+    let fields = create_memo(move || fields.get());
     let named = create_memo(clone!(state -> move || {
         state
             .label_of(schema_id)
@@ -85,12 +85,10 @@ fn ComponentRow(state: Rc<CanvasState>, schema_id: Uuid) -> NodeId {
             .count()
     }));
     let selected = create_memo(clone!(state -> move || state.selected_entities().len()));
-    let partial =
-        create_memo(clone!(attached selected -> move || attached.get() != selected.get()));
-    let coverage = create_memo(clone!(attached selected -> move || {
-        format!("Attached to {} of {}", attached.get(), selected.get())
-    }));
-    let whole = create_memo(clone!(partial -> move || !partial.get()));
+    let partial = create_memo(move || attached.get() != selected.get());
+    let coverage =
+        create_memo(move || format!("Attached to {} of {}", attached.get(), selected.get()));
+    let whole = create_memo(move || !partial.get());
     let values = create_memo(clone!(state -> move || {
         let mut shared: Option<RowValues> = None;
         for entity in state.selected_entities() {
@@ -165,8 +163,8 @@ fn ComponentRow(state: Rc<CanvasState>, schema_id: Uuid) -> NodeId {
     view! {
         <List spacing=6.0>
             <Caption content={named} />
-            <Show condition={partial.clone()}>
-                {move || clone!(add_all add_id coverage -> view! {
+            <Show condition={partial}>
+                {move || clone!(add_all add_id -> view! {
                     <List spacing=6.0>
                         <Caption content={coverage} />
                         <List direction=Direction::Horizontal spacing=4.0>
@@ -197,10 +195,10 @@ fn ComponentRow(state: Rc<CanvasState>, schema_id: Uuid) -> NodeId {
             </List>
             <Show condition={whole}>
                 <DatabaseValueEditor
-                    fields={fields.clone()}
-                    values={values.clone()}
-                    labels={labels.clone()}
-                    disabled={read_only.clone()}
+                    fields={fields}
+                    values={values}
+                    labels={labels}
+                    disabled={read_only}
                     prefix={prefix.clone()}
                     on_change={changed.clone()}
                     on_pick={picked.clone()}

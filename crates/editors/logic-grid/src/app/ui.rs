@@ -23,12 +23,12 @@ const ZOOM_STEP: f32 = 1.25;
 pub(super) fn LogicGridView(editor: Editor) -> NodeId {
     let session = Session::new(&editor);
     let loaded = create_memo(clone!(session -> move || session.read(LogicGridEditor::loaded)));
-    let waiting = create_memo(clone!(loaded -> move || !loaded.get()));
+    let waiting = create_memo(move || !loaded.get());
     let shortcuts = Rc::clone(&session);
     on_shortcut(move |press: KeyPress| shortcut(&shortcuts, press));
     let chrome = editor.chrome_shown();
-    let left_chrome = chrome.clone();
-    let right_chrome = chrome.clone();
+    let left_chrome = chrome;
+    let right_chrome = chrome;
     let hotbar_session = Rc::clone(&session);
     let settings_session = Rc::clone(&session);
     let canvas_session = Rc::clone(&session);
@@ -41,7 +41,7 @@ pub(super) fn LogicGridView(editor: Editor) -> NodeId {
                 </Frame>
             </Show>
             <Show condition={loaded}>
-                {move || clone!(canvas_session chrome hotbar_session left_chrome panels_session right_chrome session settings_session -> view! {
+                {move || clone!(canvas_session hotbar_session panels_session session settings_session -> view! {
                     <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
                         <GridToolbar session={Rc::clone(&session)} shown={chrome} />
                         <List
@@ -103,26 +103,24 @@ fn GridToolbar(session: Rc<Session>, shown: ReadSignal<bool>) -> NodeId {
                 .unwrap_or_default()
         })
     }));
-    let challenged = create_memo(clone!(challenge -> move || !challenge.get().is_empty()));
+    let challenged = create_memo(move || !challenge.get().is_empty());
     let problems = create_memo(clone!(session -> move || {
         session.read(|model| model.grid.validate().len())
     }));
-    let misplaced = create_memo(clone!(problems -> move || problems.get() > 0));
-    let problem_text = create_memo(clone!(problems -> move || {
-        format!("{} placement problems", problems.get())
-    }));
+    let misplaced = create_memo(move || problems.get() > 0);
+    let problem_text = create_memo(move || format!("{} placement problems", problems.get()));
     let compile_error = create_memo(clone!(session -> move || {
         session.read(|model| model.compile_error.clone().unwrap_or_default())
     }));
-    let failed = create_memo(clone!(compile_error -> move || !compile_error.get().is_empty()));
+    let failed = create_memo(move || !compile_error.get().is_empty());
     let scale = editor.scale();
-    let percent = create_memo(clone!(scale -> move || format!("{:.0}%", scale.get() * 100.0)));
+    let percent = create_memo(move || format!("{:.0}%", scale.get() * 100.0));
     let zoom_out = clone!(editor -> move || editor.zoom(1.0 / ZOOM_STEP));
     let zoom_in = clone!(editor -> move || editor.zoom(ZOOM_STEP));
     let recenter = clone!(editor -> move || editor.fit());
     let theme = use_theme();
-    let problem_color = theme.danger.clone();
-    let error_color = theme.danger.clone();
+    let problem_color = theme.danger;
+    let error_color = theme.danger;
     view! {
         <Toolbar shown={shown}>
             <Button
@@ -134,15 +132,15 @@ fn GridToolbar(session: Rc<Session>, shown: ReadSignal<bool>) -> NodeId {
                 on_click={compile}
             />
             <Show condition={challenged}>
-                <Body content={challenge.clone()} />
+                <Body content={challenge} />
             </Show>
             <Show condition={misplaced}>
-                <Caption content={problem_text.clone()} color={problem_color.clone()} />
+                <Caption content={problem_text} color={problem_color} />
             </Show>
             <Show condition={failed}>
                 <Caption
-                    content={compile_error.clone()}
-                    color={error_color.clone()}
+                    content={compile_error}
+                    color={error_color}
                     @test_id={"logic-grid.compile-error"}
                 />
             </Show>
@@ -167,24 +165,24 @@ fn GridCanvas(session: Rc<Session>) -> NodeId {
             {move |placed: ReadSignal<Rect>| {
                 let view = editor.canvas();
                 let world = editor.world();
-                let camera = create_memo(clone!(placed -> move || {
+                let camera = create_memo(move || {
                     Camera::from_view(view.get(), world.get(), placed.get())
-                }));
-                create_effect(clone!(session camera -> move || {
+                });
+                create_effect(clone!(session -> move || {
                     let camera = camera.get();
                     session.set_camera(camera);
                 }));
-                let grid_view = create_memo(clone!(camera placed -> move || {
+                let grid_view = create_memo(move || {
                     Some(camera.get().view(placed.get()))
-                }));
-                let width = create_memo(clone!(placed -> move || placed.get().width()));
-                let height = create_memo(clone!(placed -> move || placed.get().height()));
+                });
+                let width = create_memo(move || placed.get().width());
+                let height = create_memo(move || placed.get().height());
 
                 let scene = GridScene::default();
-                let pointer = session.pointer.clone();
-                let debug_hover = session.debug_hover.clone();
-                let graph_hover = session.graph_hover.clone();
-                let drawing = create_memo(clone!(session camera placed -> move || {
+                let pointer = session.pointer;
+                let debug_hover = session.debug_hover;
+                let graph_hover = session.graph_hover;
+                let drawing = create_memo(clone!(session -> move || {
                     let camera = camera.get();
                     let size = placed.get().size();
                     let pointer = pointer.get();
@@ -196,23 +194,23 @@ fn GridCanvas(session: Rc<Session>) -> NodeId {
 
                 let labels =
                     create_memo(clone!(session -> move || session.read(LogicGridEditor::component_labels)));
-                let label_keys = create_memo(clone!(labels -> move || {
+                let label_keys = create_memo(move || {
                     labels.with(|labels| labels.iter().map(|label| label.key).collect::<Vec<_>>())
-                }));
-                let zoom = create_memo(clone!(camera -> move || camera.get().zoom));
+                });
+                let zoom = create_memo(move || camera.get().zoom);
 
                 let last = Rc::new(Cell::new(None::<[f32; 2]>));
-                let at = clone!(camera placed -> move |press: PointerPress| {
+                let at = move |press: PointerPress| {
                     camera.get_untracked().screen_to_world(press.pos, placed.get_untracked())
-                });
-                let on_press = clone!(session at last -> move |press: PointerPress| {
+                };
+                let on_press = clone!(session last -> move |press: PointerPress| {
                     let world = at(press);
                     last.set(Some(world));
                     session.set_pointer.set(Some(world));
                     let additive = press.modifiers.shift;
                     session.edit(|model| model.press(world, additive));
                 });
-                let on_drag = clone!(session at last -> move |press: PointerPress| {
+                let on_drag = clone!(session last -> move |press: PointerPress| {
                     let world = at(press);
                     last.set(Some(world));
                     session.set_pointer.set(Some(world));
@@ -228,11 +226,11 @@ fn GridCanvas(session: Rc<Session>) -> NodeId {
                         session.update(|model| model.release(world));
                     }
                 });
-                let on_secondary = clone!(session at -> move |press: PointerPress| {
+                let on_secondary = clone!(session -> move |press: PointerPress| {
                     let world = at(press);
                     session.edit(|model| model.delete_wire_at(world));
                 });
-                let on_hover_move = clone!(session at -> move |press: PointerPress| {
+                let on_hover_move = clone!(session -> move |press: PointerPress| {
                     session.set_pointer.set(Some(at(press)));
                 });
                 let on_hover_change = clone!(session last -> move |hovered: bool| {
@@ -256,12 +254,7 @@ fn GridCanvas(session: Rc<Session>) -> NodeId {
                             on_hover_change={on_hover_change}
                         >
                             <Canvas>
-                                <CanvasItem
-                                    x=0.0
-                                    y=0.0
-                                    width={width.clone()}
-                                    height={height.clone()}
-                                >
+                                <CanvasItem x=0.0 y=0.0 width={width} height={height}>
                                     <Drawing
                                         draw={Prop::Dynamic(Rc::new(move || draw_gpu(drawing.get())))}
                                     />
@@ -270,13 +263,13 @@ fn GridCanvas(session: Rc<Session>) -> NodeId {
                                     <Canvas view={grid_view}>
                                         <ForEach keys={label_keys}>
                                             {move |key: LabelKey| {
-                                                let label = create_memo(clone!(labels -> move || {
+                                                let label = create_memo(move || {
                                                     labels.with(|labels| {
                                                         labels.iter().find(|label| label.key == key).cloned()
                                                     })
-                                                }));
+                                                });
                                                 view! {
-                                                    <GridLabel label={label} zoom={zoom.clone()} />
+                                                    <GridLabel label={label} zoom={zoom} />
                                                 }
                                             }}
                                         </ForEach>
@@ -293,30 +286,26 @@ fn GridCanvas(session: Rc<Session>) -> NodeId {
 
 #[component]
 fn GridLabel(label: Memo<Option<ComponentLabel>>, zoom: Memo<f32>) -> CanvasItem {
-    let rect = create_memo(clone!(label -> move || {
-        label.get().map_or([0.0; 4], |label| label.rect)
-    }));
-    let x = create_memo(clone!(rect -> move || rect.get()[0]));
-    let y = create_memo(clone!(rect -> move || rect.get()[1]));
-    let width = create_memo(clone!(rect -> move || rect.get()[2] - rect.get()[0]));
-    let height = create_memo(clone!(rect -> move || rect.get()[3] - rect.get()[1]));
-    let text = create_memo(
-        clone!(label -> move || label.get().map(|label| label.text).unwrap_or_default()),
-    );
-    let size = create_memo(clone!(label zoom -> move || {
+    let rect = create_memo(move || label.get().map_or([0.0; 4], |label| label.rect));
+    let x = create_memo(move || rect.get()[0]);
+    let y = create_memo(move || rect.get()[1]);
+    let width = create_memo(move || rect.get()[2] - rect.get()[0]);
+    let height = create_memo(move || rect.get()[3] - rect.get()[1]);
+    let text = create_memo(move || label.get().map(|label| label.text).unwrap_or_default());
+    let size = create_memo(move || {
         label
             .get()
-            .map_or(LabelKind::Port.font_size(zoom.get()), |label| label.kind.font_size(zoom.get()))
-    }));
-    let color = create_memo(clone!(label -> move || {
-        label.get().map_or(LABEL_COLOR, |label| label.kind.color())
-    }));
-    let align = create_memo(clone!(label -> move || {
-        label.get().map_or(TextAlign::Center, |label| label.align)
-    }));
-    let vertical_align = create_memo(clone!(label -> move || {
-        label.get().map_or(TextAlign::Center, |label| label.vertical_align)
-    }));
+            .map_or(LabelKind::Port.font_size(zoom.get()), |label| {
+                label.kind.font_size(zoom.get())
+            })
+    });
+    let color = create_memo(move || label.get().map_or(LABEL_COLOR, |label| label.kind.color()));
+    let align = create_memo(move || label.get().map_or(TextAlign::Center, |label| label.align));
+    let vertical_align = create_memo(move || {
+        label
+            .get()
+            .map_or(TextAlign::Center, |label| label.vertical_align)
+    });
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
             <Text

@@ -82,7 +82,7 @@ pub(crate) fn ToolDock(state: Rc<CanvasState>, anchor: NodeRef, shown: Prop<bool
                 @test_id={"infinite-canvas.dock.block"}
                 action={actions.add_block}
             />
-            <Frame width=BORDER_WIDTH height=DIVIDER_HEIGHT color={theme.border.clone()} />
+            <Frame width=BORDER_WIDTH height=DIVIDER_HEIGHT color={theme.border} />
             <IconButton
                 glyph={ICON_UNDO.to_owned()}
                 label="Undo"
@@ -101,15 +101,15 @@ pub(crate) fn ZoomPill(state: Rc<CanvasState>, anchor: NodeRef, shown: Prop<bool
     let previewing = state.previewing();
     let open = create_memo(move || shown.get() && !sheet.get() && !previewing);
     let scale = state.editor().scale();
-    let readout = create_memo(clone!(scale -> move || format!("{:.0}%", scale.get() * 100.0)));
+    let readout = create_memo(move || format!("{:.0}%", scale.get() * 100.0));
     let reset = actions.zoom_reset.clone();
     let theme = use_theme();
     view! {
         <Floating anchor={anchor} edge=Edge::TopEnd open={open}>
             <Frame padding_vertical=PILL_MARGIN padding_horizontal=PILL_MARGIN>
                 <Frame
-                    color={theme.surface_raised.clone()}
-                    outline={theme.border.clone()}
+                    color={theme.surface_raised}
+                    outline={theme.border}
                     outline_width=BORDER_WIDTH
                     outline_visible=true
                     radius=PILL_RADIUS
@@ -169,9 +169,9 @@ pub(crate) fn ImportError(state: Rc<CanvasState>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={failed}>
-                {move || clone!(dismiss message theme -> view! {
+                {move || clone!(dismiss -> view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                        <Body content={message} color={theme.danger.clone()} />
+                        <Body content={message} color={theme.danger} />
                         <Button
                             label="Dismiss"
                             variant=ButtonVariant::Secondary

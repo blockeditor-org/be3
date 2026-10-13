@@ -43,10 +43,10 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
     let no_matches = create_memo(clone!(state -> move || !state.find_has_matches()));
     let no_current = create_memo(clone!(state -> move || !state.find_has_current()));
 
-    let query = state.find().query.clone();
-    let case_sensitive = state.find().case_sensitive.clone();
-    let focus_query = state.find().focus_query.clone();
-    let show_replace = state.find().show_replace.clone();
+    let query = state.find().query;
+    let case_sensitive = state.find().case_sensitive;
+    let focus_query = state.find().focus_query;
+    let show_replace = state.find().show_replace;
     let change_state = state.clone();
     let submit_state = state.clone();
     let case_state = state.clone();
@@ -54,17 +54,17 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
     let next_state = state.clone();
     let close_state = state.clone();
     let replace_state = state.clone();
-    let previous_disabled = no_matches.clone();
-    let replace_no_matches = no_matches.clone();
+    let previous_disabled = no_matches;
+    let replace_no_matches = no_matches;
     view! {
-        <Frame color={theme.surface.clone()}>
+        <Frame color={theme.surface}>
             <List spacing=0.0>
                 <Frame
                     padding_horizontal=BAR_PADDING_HORIZONTAL
                     padding_vertical=BAR_PADDING_VERTICAL
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
-                        <Icon glyph=ICON_SEARCH color={theme.text_muted.clone()} />
+                        <Icon glyph=ICON_SEARCH color={theme.text_muted} />
                         <Frame width=QUERY_WIDTH>
                             <TextInput
                                 value={query}
@@ -111,8 +111,8 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
                     {move || view! {
                         <ReplaceRow
                             state={replace_state.clone()}
-                            no_current={no_current.clone()}
-                            no_matches={replace_no_matches.clone()}
+                            no_current={no_current}
+                            no_matches={replace_no_matches}
                         />
                     }}
                 </Show>
@@ -123,7 +123,7 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
 
 #[component]
 fn ReplaceRow(state: TextAreaState, no_current: Memo<bool>, no_matches: Memo<bool>) -> NodeId {
-    let replacement = state.find().replacement.clone();
+    let replacement = state.find().replacement;
     let change_state = state.clone();
     let replace_state = state.clone();
     let all_state = state.clone();

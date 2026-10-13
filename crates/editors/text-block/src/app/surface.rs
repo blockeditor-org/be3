@@ -16,19 +16,23 @@ const EMBED_BUTTON_SIZE: Vec2 = Vec2::new(72.0, 30.0);
 
 #[component]
 pub(crate) fn TextSurface(state: Shared) -> NodeId {
-    let embeds = state.embeds.clone();
-    let widgets = create_memo(clone!(embeds -> move || {
-        embeds.get().iter().map(ResolvedEmbed::widget).collect::<Vec<TextWidget>>()
-    }));
-    let remote = state.presence_revision.clone();
+    let embeds = state.embeds;
+    let widgets = create_memo(move || {
+        embeds
+            .get()
+            .iter()
+            .map(ResolvedEmbed::widget)
+            .collect::<Vec<TextWidget>>()
+    });
+    let remote = state.presence_revision;
     let cursors = state.text.cursors();
-    let remote_cursors = create_memo(clone!(state remote cursors -> move || {
+    let remote_cursors = create_memo(clone!(state -> move || {
         remote.get();
         cursors.get();
         remote_cursors(&state)
     }));
     let drag = state.editor.drag();
-    let drop_caret = create_memo(clone!(state drag -> move || drop_target(&state, drag.get())));
+    let drop_caret = create_memo(clone!(state -> move || drop_target(&state, drag.get())));
     let embed_row = clone!(state -> move |widget: usize| {
         let state = state.clone();
         let embed = state.embeds.get_untracked().get(widget).cloned();
@@ -79,7 +83,7 @@ pub(crate) fn TextSurface(state: Shared) -> NodeId {
 
     let press_state = state.clone();
     let paste_state = state.clone();
-    let typing = state.set_typing.clone();
+    let typing = state.set_typing;
     view! {
         <TextArea
             state={state.text.clone()}

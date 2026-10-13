@@ -23,20 +23,20 @@ const CHROME_HEIGHT: f32 = 90.0;
 pub fn DatabaseEditor(editor: Editor) -> NodeId {
     let database = editor.block_content::<DatabaseContent>();
     let views = watch_views(&editor);
-    let loaded = views.loaded.clone();
-    let rows = views.rows.clone();
+    let loaded = views.loaded;
+    let rows = views.rows;
     let reference = database.project(|database| database.root().schema);
     let schema = create_memo(move || reference.get());
 
     let sized = editor.clone();
-    create_effect(clone!(rows -> move || {
+    create_effect(move || {
         let height = CHROME_HEIGHT + ROW_HEIGHT * rows.with(Vec::len) as f32;
         sized.set_intrinsic_size(Some(Vec2::new(INTRINSIC_WIDTH, height)));
-    }));
+    });
 
-    let empty = create_memo(clone!(rows -> move || rows.with(Vec::is_empty)));
-    let waiting = create_memo(clone!(empty loaded -> move || empty.get() && !loaded.get()));
-    let none_yet = create_memo(clone!(empty loaded -> move || empty.get() && loaded.get()));
+    let empty = create_memo(move || rows.with(Vec::is_empty));
+    let waiting = create_memo(move || empty.get() && !loaded.get());
+    let none_yet = create_memo(move || empty.get() && loaded.get());
     let read_only = editor.read_only();
     let block_id = editor.block_id();
     let creating = editor.clone();
@@ -52,7 +52,7 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
     let links = editor.clone();
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <List direction=Direction::Horizontal spacing=0.0>
                 <Frame
                     @sizing=ItemSize::Percent(100.0)
@@ -93,9 +93,8 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
 
 #[component]
 fn ViewLinks(editor: Editor, rows: Memo<Vec<BlockInfo>>) -> NodeId {
-    let keys = create_memo(clone!(rows -> move || {
-        rows.with(|rows| rows.iter().map(|row| row.id).collect::<Vec<Uuid>>())
-    }));
+    let keys =
+        create_memo(move || rows.with(|rows| rows.iter().map(|row| row.id).collect::<Vec<Uuid>>()));
     view! {
         <List spacing=4.0>
             <ForEach keys={keys}>
@@ -116,10 +115,12 @@ fn ViewLinks(editor: Editor, rows: Memo<Vec<BlockInfo>>) -> NodeId {
 
 #[component]
 fn SchemaPanel(editor: Editor, schema: Memo<Option<Uuid>>) -> NodeId {
-    let target = create_memo(clone!(schema -> move || {
-        schema.get().map(|id| ChildTarget::new(id, DatabaseSchemaContent::CONTENT_TYPE))
-    }));
-    let missing = create_memo(clone!(schema -> move || schema.get().is_none()));
+    let target = create_memo(move || {
+        schema
+            .get()
+            .map(|id| ChildTarget::new(id, DatabaseSchemaContent::CONTENT_TYPE))
+    });
+    let missing = create_memo(move || schema.get().is_none());
     view! {
         <List spacing=0.0>
             <Show condition={missing}>

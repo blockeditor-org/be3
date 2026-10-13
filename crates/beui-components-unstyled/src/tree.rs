@@ -95,9 +95,9 @@ where
     let row = row.expect("tree requires a `row` builder");
     let keys = create_memo(move || keys.get());
     let selected = create_memo(move || selected.get());
-    let selection = create_selector(clone!(selected -> move || selected.get()));
+    let selection = create_selector(move || selected.get());
     let ancestors = ancestors.unwrap_or_else(|| Func::new(|_| Vec::new()));
-    let shown = create_memo(clone!(keys selected -> move || {
+    let shown = create_memo(move || {
         let selected = selected.get()?;
         let lineage = ancestors.call(selected.clone());
         keys.with(|keys| {
@@ -105,33 +105,35 @@ where
                 .chain(lineage.into_iter().rev())
                 .find(|key| keys.contains(key))
         })
-    }));
-    let buried = create_memo(clone!(shown selected -> move || {
-        shown.get().filter(|key| selected.get().as_ref() != Some(key))
-    }));
-    let burial = create_selector(clone!(buried -> move || buried.get()));
+    });
+    let buried = create_memo(move || {
+        shown
+            .get()
+            .filter(|key| selected.get().as_ref() != Some(key))
+    });
+    let burial = create_selector(move || buried.get());
     let (focus, set_focus) = create_signal(None);
-    let focused = create_selector(clone!(focus -> move || focus.get()));
-    let tab_stop = create_memo(clone!(keys selected focus -> move || {
+    let focused = create_selector(move || focus.get());
+    let tab_stop = create_memo(move || {
         let keys = keys.get();
         let present = |key: Option<K>| key.filter(|key| keys.contains(key));
         present(focus.get())
             .or_else(|| present(selected.get()))
             .or_else(|| keys.first().cloned())
-    }));
-    let tab_stops = create_selector(clone!(tab_stop -> move || tab_stop.get()));
+    });
+    let tab_stops = create_selector(move || tab_stop.get());
 
     component_accessibility(Node::new(Role::Tree));
 
     let nodes: Nodes<K> = Rc::default();
     let state: Handle<K> = Rc::new(State {
         nodes: nodes.clone(),
-        keys: keys.clone(),
+        keys,
         item: item.clone(),
-        selected: selected.clone(),
+        selected,
         shown,
         buried,
-        focus: focus.clone(),
+        focus,
         set_focus,
         on_select,
         on_expand,
@@ -160,8 +162,8 @@ where
                             item
                             selected
                             marked
-                            tab_stop={tab_stops.clone()}
-                            focused={focused.clone()}
+                            tab_stop={tab_stops}
+                            focused={focused}
                             state={state.clone()}
                             nodes={nodes.clone()}
                             row={row.clone()}
@@ -193,7 +195,7 @@ where
     K: Clone + Eq + Hash + 'static,
 {
     let key = row_key;
-    let accessibility = create_memo(clone!(item selected -> move || {
+    let accessibility = create_memo(move || {
         let item = item.get();
         let mut node = Node::new(Role::TreeItem);
         node.set_label(item.label);
@@ -203,7 +205,7 @@ where
         }
         node.set_selected(selected.get());
         node
-    }));
+    });
     component_accessibility(accessibility);
     let (blur, press, typed) = (state.clone(), state.clone(), state.clone());
     let (blur_key, press_key, typed_key, content_key) =
@@ -277,20 +279,20 @@ pub fn TreeToggle(
     #[prop(default = String::new())] button_test_id: String,
     #[prop(children)] content: RenderFn<TreeToggleHandle>,
 ) -> DynamicSegment<ListChild> {
-    let expandable = create_memo(clone!(item -> move || item.get().expandable));
+    let expandable = create_memo(move || item.get().expandable);
     let expanded = create_memo(move || item.get().expanded);
     view! {
         <Show condition={expandable}>
-            {move || clone!(expanded toggle content button_test_id -> {
-                let label = create_memo(clone!(expanded -> move || match expanded.get() {
+            {move || clone!(toggle content button_test_id -> {
+                let label = create_memo(move || match expanded.get() {
                     true => "Collapse".to_owned(),
                     false => "Expand".to_owned(),
-                }));
-                let accessibility = create_memo(clone!(expanded -> move || {
+                });
+                let accessibility = create_memo(move || {
                     let mut node = Node::new(Role::Button);
                     node.set_expanded(expanded.get());
                     node
-                }));
+                });
                 view! {
                     <Button
                         @test_id={button_test_id}
@@ -301,7 +303,7 @@ pub fn TreeToggle(
                         on_click={move || toggle()}
                         content={move |button: ButtonHandle| content.call(TreeToggleHandle {
                             button,
-                            expanded: expanded.clone(),
+                            expanded,
                         })}
                     />
                 }
@@ -373,13 +375,8 @@ where
 {
     let (list, scroll) = (tree.get(), viewport.get());
     let state = with_document(|document| document.component_state::<Handle<K>>(list).clone());
-    let (keys, shown, buried, selected) = (
-        state.keys.clone(),
-        state.shown.clone(),
-        state.buried.clone(),
-        state.selected.clone(),
-    );
-    let astray = create_memo(clone!(state shown buried keys -> move || {
+    let (keys, shown, buried, selected) = (state.keys, state.shown, state.buried, state.selected);
+    let astray = create_memo(clone!(state -> move || {
         let key = shown.get()?;
         keys.with(|_| ());
         node_rect(list).get();
@@ -390,7 +387,7 @@ where
         stray_edge(node_rect(row).get(), node_rect(scroll).get(), buried.get().is_some())
     }));
     let (pending, set_pending) = create_signal(None::<K>);
-    create_effect(clone!(state keys set_pending -> move || {
+    create_effect(clone!(state -> move || {
         let Some(key) = pending.get() else {
             return;
         };
@@ -405,16 +402,19 @@ where
         with_document(|document| document.reveal_node(row));
         set_pending.set(None);
     }));
-    let open = create_memo(clone!(astray -> move || astray.get().is_some()));
-    let edge = create_memo(clone!(astray -> move || astray.get().unwrap_or(Edge::Bottom)));
+    let open = create_memo(move || astray.get().is_some());
+    let edge = create_memo(move || astray.get().unwrap_or(Edge::Bottom));
     let item = state.item.clone();
-    let label = create_memo(clone!(selected -> move || {
-        let label = selected.get().map(|key| item.call(key).label).unwrap_or_default();
+    let label = create_memo(move || {
+        let label = selected
+            .get()
+            .map(|key| item.call(key).label)
+            .unwrap_or_default();
         match label.is_empty() {
             true => "Show the selection".to_owned(),
             false => label,
         }
-    }));
+    });
     let reveal = ClickCallback::new(move || {
         let Some(key) = selected.get_untracked() else {
             return;
@@ -423,7 +423,7 @@ where
         set_pending.set(Some(key));
     });
     let content = button.call(TreeRevealHandle {
-        edge: edge.clone(),
+        edge,
         label,
         reveal,
     });

@@ -13,7 +13,7 @@ use beui_core::icons::ICON_ARROW_DROP_DOWN;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Align, Callback, Children, ClickCallback, Direction, Frame, List, Memo, Prop, ReadSignal, Show,
-    Text, clone, create_memo, focus_ring,
+    Text, create_memo, focus_ring,
 };
 
 const INSET: f32 = 2.0;
@@ -38,13 +38,11 @@ pub fn SplitButton(
 ) -> NodeId {
     let disabled = create_memo(move || disabled.get());
     let theme = use_theme();
-    let fill = create_memo(clone!(theme disabled -> move || {
-        variant.fill(&theme, disabled.get(), false, false)
-    }));
+    let fill = create_memo(move || variant.fill(&theme, disabled.get(), false, false));
     view! {
         <Frame
             color={fill}
-            outline={theme.border.clone()}
+            outline={theme.border}
             outline_width=BORDER_WIDTH
             outline_visible={variant == ButtonVariant::Secondary}
             radius=RADIUS
@@ -83,17 +81,17 @@ fn MainFace(handle: ButtonHandle, variant: ButtonVariant) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(clone!(theme disabled -> move || {
+    let fill = create_memo(move || {
         half_fill(&theme, variant, disabled.get(), hovered.get(), active.get())
-    }));
-    let ink = create_memo(clone!(theme -> move || variant.label(&theme, disabled.get())));
-    let has_glyph = create_memo(clone!(glyph -> move || !glyph.get().is_empty()));
-    let icon_ink = ink.clone();
+    });
+    let ink = create_memo(move || variant.label(&theme, disabled.get()));
+    let has_glyph = create_memo(move || !glyph.get().is_empty());
+    let icon_ink = ink;
     view! {
         <HalfFace fill focused side=Side::Leading padding=LABEL_PADDING_HORIZONTAL>
             <List direction=Direction::Horizontal align=Align::Center spacing=GLYPH_SPACING>
                 <Show condition={has_glyph}>
-                    <Icon glyph={glyph.clone()} color={icon_ink.clone()} />
+                    <Icon glyph={glyph} color={icon_ink} />
                 </Show>
                 <Text string={label} font_size=FONT_BODY color={ink} align=TextAlign::Center />
             </List>
@@ -116,13 +114,17 @@ fn ArrowFace(handle: MenuButtonHandle, variant: ButtonVariant) -> NodeId {
             },
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(clone!(theme disabled open -> move || {
-        half_fill(&theme, variant, disabled.get(), hovered.get(), active.get() || open.get())
-    }));
-    let ink = create_memo(clone!(theme disabled -> move || variant.label(&theme, disabled.get())));
-    let divider = create_memo(clone!(theme -> move || {
-        divider_color(&theme, variant, disabled.get())
-    }));
+    let fill = create_memo(move || {
+        half_fill(
+            &theme,
+            variant,
+            disabled.get(),
+            hovered.get(),
+            active.get() || open.get(),
+        )
+    });
+    let ink = create_memo(move || variant.label(&theme, disabled.get()));
+    let divider = create_memo(move || divider_color(&theme, variant, disabled.get()));
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame padding_vertical=DIVIDER_INSET>
@@ -167,7 +169,7 @@ fn HalfFace(
     let (fill_left, fill_right) = side.corners(RADIUS - INSET as u8);
     view! {
         <Frame
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=FOCUS_RING_WIDTH
             radius_top_left=ring_left
             radius_bottom_left=ring_left

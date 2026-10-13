@@ -44,7 +44,7 @@ fn a_stacked_dock_bar_goes_home_switches_tabs_and_holds_the_tabs_actions() {
                         <Frame @test_id="content.1" />
                     </DockTab>
                     <ForEach keys={open}>
-                        {move |id: u64| clone!(closing set_open -> view! {
+                        {move |id: u64| clone!(closing -> view! {
                             <DockTab
                                 id
                                 title={format!("Tab {id}")}

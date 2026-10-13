@@ -4,6 +4,7 @@ use crate::styled::ContextMenu;
 
 #[test]
 fn a_context_menu_item_follows_the_signals_its_tag_was_written_with() {
+    let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
     let (label, set_label) = create_signal("Paste".to_owned());
     let (blocked, set_blocked) = create_signal(true);

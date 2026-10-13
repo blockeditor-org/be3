@@ -7,6 +7,7 @@ use crate::{Dismiss, LayerPolicy};
 
 #[test]
 fn a_nested_overlay_closes_with_its_parent_whatever_the_parents_policy() {
+    let _root = crate::reactive::RootScope::new();
     let (open, set_open) = create_signal(true);
     let (policy, set_policy) = create_signal(LayerPolicy::BlocksAll);
     let (nested_open, set_nested_open) = create_signal(true);
@@ -14,10 +15,10 @@ fn a_nested_overlay_closes_with_its_parent_whatever_the_parents_policy() {
     let nested_dismissed = Rc::new(Cell::new(0));
     let (outer, inner) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (open, policy, nested_open) = (open.clone(), policy.clone(), nested_open.clone());
+        let (open, policy, nested_open) = (open, policy, nested_open);
         let (reports, nested_reports) = (dismissed.clone(), nested_dismissed.clone());
         let (outer, inner) = (outer.clone(), inner.clone());
-        let closing = set_nested_open.clone();
+        let closing = set_nested_open;
         move || {
             view! {
                 <Frame>
@@ -55,16 +56,15 @@ fn a_nested_overlay_closes_with_its_parent_whatever_the_parents_policy() {
     let inner = kind_of::<OverlayNode>(harness.document(), inner.get());
     fn set<T: Clone + PartialEq + 'static>(
         harness: &mut Harness,
-        signal: &WriteSignal<T>,
+        signal: WriteSignal<T>,
         value: T,
     ) {
-        let signal = signal.clone();
         with_reactive_scope(harness.document_mut(), move || signal.set(value));
         harness.frame(Vec::new());
     }
     assert!(harness.document().is_overlay_open(inner.id()));
 
-    set(&mut harness, &set_policy, LayerPolicy::Pass);
+    set(&mut harness, set_policy, LayerPolicy::Pass);
     assert!(harness.document().is_overlay_open(outer.id()));
     assert!(
         harness.document().is_overlay_open(inner.id()),
@@ -80,7 +80,7 @@ fn a_nested_overlay_closes_with_its_parent_whatever_the_parents_policy() {
         "and its layer stays a child of the parent's"
     );
 
-    set(&mut harness, &set_open, false);
+    set(&mut harness, set_open, false);
     assert!(
         !harness.document().is_overlay_open(inner.id()),
         "closing a passing parent takes the nested overlay with it"

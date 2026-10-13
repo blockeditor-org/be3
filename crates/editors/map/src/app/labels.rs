@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use block_editor_beui::beui::reactive::{
-    CanvasItem, Frame, Memo, Text, clone, component, create_memo, layout_text, view,
+    CanvasItem, Frame, Memo, Text, component, create_memo, layout_text, view,
 };
 use block_editor_beui::beui::{Color32, FontId, Pos2, Rect, TextAlign, TextLayout, Vec2};
 
@@ -185,25 +185,24 @@ pub(crate) fn MapLabel(
     scale: Memo<f32>,
 ) -> CanvasItem {
     let test_id = format!("map.label.{}.{}", key.text, key.occurrence);
-    let label = create_memo(clone!(shown -> move || shown.with(|shown| shown.get(&key).cloned())));
-    let rect = create_memo(clone!(label scale -> move || {
+    let label = create_memo(move || shown.with(|shown| shown.get(&key).cloned()));
+    let rect = create_memo(move || {
         let scale = scale.get().max(f32::EPSILON);
         label.get().map_or(Rect::ZERO, |label| {
             Rect::from_center_size(label.at, label.size / scale)
         })
-    }));
-    let text = create_memo(clone!(label -> move || {
-        label.get().map(|label| label.key.text).unwrap_or_default()
-    }));
-    let font_size =
-        create_memo(clone!(label -> move || label.get().map_or(10.0, |label| label.font_size)));
-    let color = create_memo(
-        clone!(label -> move || label.get().map_or(Color32::TRANSPARENT, |label| label.color)),
-    );
-    let x = create_memo(clone!(rect -> move || rect.get().left()));
-    let y = create_memo(clone!(rect -> move || rect.get().top()));
-    let width = create_memo(clone!(rect -> move || rect.get().width()));
-    let height = create_memo(clone!(rect -> move || rect.get().height()));
+    });
+    let text = create_memo(move || label.get().map(|label| label.key.text).unwrap_or_default());
+    let font_size = create_memo(move || label.get().map_or(10.0, |label| label.font_size));
+    let color = create_memo(move || {
+        label
+            .get()
+            .map_or(Color32::TRANSPARENT, |label| label.color)
+    });
+    let x = create_memo(move || rect.get().left());
+    let y = create_memo(move || rect.get().top());
+    let width = create_memo(move || rect.get().width());
+    let height = create_memo(move || rect.get().height());
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
             <Frame color=HALO radius=2 padding_horizontal=HALO_PADDING @test_id={test_id}>

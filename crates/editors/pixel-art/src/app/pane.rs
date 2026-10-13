@@ -50,7 +50,7 @@ impl Pane {
     }
 
     pub(crate) fn shown(&self) -> Memo<Shown> {
-        self.shown.clone()
+        self.shown
     }
 
     pub(crate) fn refresh(

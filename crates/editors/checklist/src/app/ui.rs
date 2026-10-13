@@ -49,12 +49,12 @@ pub fn Checklist(editor: Editor) -> NodeId {
     });
     let done_count = checklist.project(|checklist| checklist.root().done_count());
     let ids = checklist.ids(ObjectId::ROOT, ChecklistModel::ITEMS);
-    let total = create_memo(clone!(ids -> move || ids.with(Vec::len)));
+    let total = create_memo(move || ids.with(Vec::len));
 
     let (draft, set_draft) = create_signal(String::new());
     let (filter, set_filter) = create_signal(Filter::All);
-    let selected_filter = create_selector(clone!(filter -> move || filter.get()));
-    let visible = create_memo(clone!(flags filter -> move || {
+    let selected_filter = create_selector(move || filter.get());
+    let visible = create_memo(move || {
         let filter = filter.get();
         flags.with(|flags| {
             flags
@@ -63,30 +63,26 @@ pub fn Checklist(editor: Editor) -> NodeId {
                 .map(|(id, _)| *id)
                 .collect::<Vec<ObjectId>>()
         })
-    }));
-    let progress = create_memo(clone!(done_count total -> move || {
-        match total.get() {
-            0 => 0.0,
-            total => done_count.get() as f32 / total as f32,
-        }
-    }));
-    let summary = create_memo(clone!(done_count total -> move || {
-        match total.get() {
-            0 => "Add your first task below".to_owned(),
-            total => format!("{} of {total} complete", done_count.get()),
-        }
-    }));
-    let empty = create_memo(clone!(visible -> move || visible.get().is_empty()));
-    let clear_disabled = create_memo(clone!(done_count -> move || done_count.get() == 0));
+    });
+    let progress = create_memo(move || match total.get() {
+        0 => 0.0,
+        total => done_count.get() as f32 / total as f32,
+    });
+    let summary = create_memo(move || match total.get() {
+        0 => "Add your first task below".to_owned(),
+        total => format!("{} of {total} complete", done_count.get()),
+    });
+    let empty = create_memo(move || visible.get().is_empty());
+    let clear_disabled = create_memo(move || done_count.get() == 0);
 
     let submit_checklist = checklist.clone();
-    let submit_draft = set_draft.clone();
+    let submit_draft = set_draft;
     let add_checklist = checklist.clone();
-    let add_draft = draft.clone();
-    let add_set_draft = set_draft.clone();
+    let add_draft = draft;
+    let add_set_draft = set_draft;
     let clear_checklist = checklist.clone();
-    let set_open_filter = set_filter.clone();
-    let set_done_filter = set_filter.clone();
+    let set_open_filter = set_filter;
+    let set_done_filter = set_filter;
     let rows = clone!(checklist -> move |id: ObjectId| {
         view! {
             <ChecklistRow checklist={checklist.clone()} id />
@@ -96,7 +92,7 @@ pub fn Checklist(editor: Editor) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame
-            color={theme.background.clone()}
+            color={theme.background}
             padding_horizontal=PAGE_PADDING
             padding_vertical=PAGE_PADDING
         >
@@ -117,7 +113,7 @@ pub fn Checklist(editor: Editor) -> NodeId {
                                 @test_id={"checklist.draft"}
                                 on_change={move |value| set_draft.set(value)}
                                 on_submit={move |value| {
-                                    add_item(&submit_checklist, &submit_draft, value);
+                                    add_item(&submit_checklist, submit_draft, value);
                                 }}
                             />
                             <Button
@@ -125,7 +121,7 @@ pub fn Checklist(editor: Editor) -> NodeId {
                                 variant=ButtonVariant::Primary
                                 @test_id={"checklist.add"}
                                 on_click={move || {
-                                    add_item(&add_checklist, &add_set_draft, add_draft.get());
+                                    add_item(&add_checklist, add_set_draft, add_draft.get());
                                 }}
                             />
                         </List>
@@ -186,7 +182,7 @@ pub fn Checklist(editor: Editor) -> NodeId {
     }
 }
 
-fn add_item(checklist: &List, set_draft: &WriteSignal<String>, value: String) {
+fn add_item(checklist: &List, set_draft: WriteSignal<String>, value: String) {
     let text = value.trim().to_owned();
     if text.is_empty() {
         return;
@@ -198,21 +194,18 @@ fn add_item(checklist: &List, set_draft: &WriteSignal<String>, value: String) {
 #[component]
 fn ChecklistRow(checklist: List, id: ObjectId) -> NodeId {
     let item = checklist.object::<ChecklistItem>(id);
-    let label = create_memo(clone!(item -> move || {
-        item.with(|item| item.as_ref().map(|item| item.text.clone()).unwrap_or_default())
-    }));
-    let done = create_memo(clone!(item -> move || {
-        item.with(|item| item.as_ref().is_some_and(|item| item.done))
-    }));
+    let label = create_memo(move || {
+        item.with(|item| {
+            item.as_ref()
+                .map(|item| item.text.clone())
+                .unwrap_or_default()
+        })
+    });
+    let done = create_memo(move || item.with(|item| item.as_ref().is_some_and(|item| item.done)));
     let toggle = checklist.clone();
     let theme = use_theme();
     view! {
-        <Frame
-            color={theme.surface_raised.clone()}
-            radius=6
-            padding_horizontal=12.0
-            padding_vertical=10.0
-        >
+        <Frame color={theme.surface_raised} radius=6 padding_horizontal=12.0 padding_vertical=10.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                 <Checkbox
                     @sizing=ItemSize::Percent(100.0)

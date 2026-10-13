@@ -5,6 +5,7 @@ use crate::styled::{Button, ButtonVariant, Dialog};
 
 #[test]
 fn a_shortcut_outside_an_open_dialog_does_not_hear_keys_typed_in_it() {
+    let _root = crate::reactive::RootScope::new();
     let heard = Rc::new(Cell::new(0));
     let (open, set_open) = create_signal(false);
     let inside = NodeRef::new();

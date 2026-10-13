@@ -70,7 +70,7 @@ pub(crate) fn canvas_actions(state: &Rc<CanvasState>) -> CanvasActions {
     let live = !state.previewing();
     let free = create_memo(clone!(state -> move || live && state.focused_editor.get().is_none()));
     let when = |test: fn(&CanvasState) -> bool| {
-        create_memo(clone!(state free -> move || free.get() && test(&state)))
+        create_memo(clone!(state -> move || free.get() && test(&state)))
     };
     let selected = when(|state| !state.selection.get().is_empty());
     let unlocked = when(|state| {
@@ -91,7 +91,7 @@ pub(crate) fn canvas_actions(state: &Rc<CanvasState>) -> CanvasActions {
     let block = when(|state| embedded_block(state).is_some());
     let artboard = when(|state| state.first_artboard().is_some());
     let reorder = |movement: CanvasLayerMove| {
-        create_memo(clone!(state free -> move || free.get() && state.can_reorder(movement)))
+        create_memo(clone!(state -> move || free.get() && state.can_reorder(movement)))
     };
     let tool = |id: &str, label: &'static str, glyph: &str, tool: Tool, key: Key| {
         Action::new(id, label, clone!(state -> move || state.set_tool(tool)))
@@ -100,7 +100,7 @@ pub(crate) fn canvas_actions(state: &Rc<CanvasState>) -> CanvasActions {
             .checked(create_memo(
                 clone!(state -> move || state.tool.get() == tool),
             ))
-            .enabled(free.clone())
+            .enabled(free)
     };
     let command = |id: &str, label: &'static str, glyph: &str, command: CanvasCommand| {
         Action::new(id, label, clone!(state -> move || state.run(command))).glyph(glyph)
@@ -117,7 +117,7 @@ pub(crate) fn canvas_actions(state: &Rc<CanvasState>) -> CanvasActions {
             }),
         )
         .glyph(glyph)
-        .enabled(free.clone())
+        .enabled(free)
     };
     let layer =
         |id: &str, label: &'static str, glyph: &str, movement: CanvasLayerMove, chord: Chord| {
@@ -129,7 +129,7 @@ pub(crate) fn canvas_actions(state: &Rc<CanvasState>) -> CanvasActions {
     let scale = state.editor().scale();
     let cut = command("canvas.cut", "Cut", ICON_CONTENT_CUT, CanvasCommand::Cut)
         .shortcut(Chord::ctrl(Key::X))
-        .enabled(selected.clone())
+        .enabled(selected)
         .in_menu()
         .register();
     let copy = command(
@@ -139,7 +139,7 @@ pub(crate) fn canvas_actions(state: &Rc<CanvasState>) -> CanvasActions {
         CanvasCommand::Copy,
     )
     .shortcut(Chord::ctrl(Key::C))
-    .enabled(selected.clone())
+    .enabled(selected)
     .in_menu()
     .register();
     let paste = command(
@@ -149,7 +149,7 @@ pub(crate) fn canvas_actions(state: &Rc<CanvasState>) -> CanvasActions {
         CanvasCommand::Paste,
     )
     .shortcut(Chord::ctrl(Key::V))
-    .enabled(free.clone())
+    .enabled(free)
     .in_menu()
     .register();
     let duplicate = command(
@@ -159,7 +159,7 @@ pub(crate) fn canvas_actions(state: &Rc<CanvasState>) -> CanvasActions {
         CanvasCommand::Duplicate,
     )
     .shortcut(Chord::ctrl(Key::D))
-    .enabled(selected.clone())
+    .enabled(selected)
     .in_menu()
     .register();
     let delete = command(
@@ -168,7 +168,7 @@ pub(crate) fn canvas_actions(state: &Rc<CanvasState>) -> CanvasActions {
         ICON_DELETE,
         CanvasCommand::Delete,
     )
-    .enabled(unlocked.clone())
+    .enabled(unlocked)
     .in_menu()
     .register();
     let group = command(
@@ -211,7 +211,7 @@ pub(crate) fn canvas_actions(state: &Rc<CanvasState>) -> CanvasActions {
         CanvasCommand::SelectAll,
     )
     .shortcut(Chord::ctrl(Key::A))
-    .enabled(free.clone())
+    .enabled(free)
     .in_menu()
     .register();
     let invert = command(
@@ -221,7 +221,7 @@ pub(crate) fn canvas_actions(state: &Rc<CanvasState>) -> CanvasActions {
         CanvasCommand::InvertSelection,
     )
     .shortcut(Chord::ctrl(Key::A).shift())
-    .enabled(free.clone())
+    .enabled(free)
     .in_menu()
     .register();
     let fit_selection = Action::new(
@@ -230,7 +230,7 @@ pub(crate) fn canvas_actions(state: &Rc<CanvasState>) -> CanvasActions {
         clone!(state -> move || state.request_fit_selection()),
     )
     .glyph(ICON_FILTER_CENTER_FOCUS)
-    .enabled(selected.clone())
+    .enabled(selected)
     .in_menu()
     .register();
     Action::new(
@@ -315,7 +315,7 @@ pub(crate) fn canvas_actions(state: &Rc<CanvasState>) -> CanvasActions {
         ))),
     )
     .glyph(ICON_IMAGE)
-    .enabled(free.clone())
+    .enabled(free)
     .register();
     let add_block = Action::new(
         "canvas.add.block",
@@ -323,7 +323,7 @@ pub(crate) fn canvas_actions(state: &Rc<CanvasState>) -> CanvasActions {
         clone!(state -> move || state.open_block_picker(state.take_context_position())),
     )
     .glyph(ICON_DATA_OBJECT)
-    .enabled(free.clone())
+    .enabled(free)
     .register();
     let edit = Action::new(
         "canvas.edit",
@@ -343,7 +343,7 @@ pub(crate) fn canvas_actions(state: &Rc<CanvasState>) -> CanvasActions {
         }),
     )
     .glyph(ICON_OPEN_IN_NEW)
-    .enabled(block.clone())
+    .enabled(block)
     .register();
     let toggle_mode = Action::new(
         "canvas.toggle-mode",
@@ -404,7 +404,7 @@ pub(crate) fn canvas_actions(state: &Rc<CanvasState>) -> CanvasActions {
     let zoom_reset = Action::new(
         "canvas.zoom-reset",
         "Zoom to 100%",
-        clone!(state scale -> move || {
+        clone!(state -> move || {
             state.editor().zoom(1.0 / scale.get_untracked().max(f32::EPSILON));
         }),
     )

@@ -64,9 +64,9 @@ where
     let (carried, set_carried) = create_signal(None::<P>);
     let (pointer, set_pointer) = create_signal(Pos2::ZERO);
     let (touched, set_touched) = create_signal(false);
-    let dragging = create_memo(clone!(carried -> move || carried.with(Option::is_some)));
+    let dragging = create_memo(move || carried.with(Option::is_some));
 
-    let moved = clone!(board pressed_at carried set_carried set_pointer on_drag_change payload touched -> move |point: DragPoint| {
+    let moved = clone!(board pressed_at on_drag_change payload -> move |point: DragPoint| {
         let Some(origin) = pressed_at.get() else {
             return;
         };
@@ -83,7 +83,7 @@ where
         let Some(payload) = payload.peek() else {
             return;
         };
-        let follow = set_pointer.clone();
+        let follow = set_pointer;
         set_carried.set(Some(payload.clone()));
         on_drag_change.call(true);
         board.begin(
@@ -101,12 +101,12 @@ where
         }
     });
     let dragged = move |press: PointerPress| moved(DragPoint::of(press));
-    let clicked = clone!(carried -> move |_: PointerPress| {
+    let clicked = move |_: PointerPress| {
         if carried.with_untracked(Option::is_none) {
             on_click.call();
         }
-    });
-    let released = clone!(board pressed_at carried set_carried on_drag_change -> move |active: bool| {
+    };
+    let released = clone!(board pressed_at on_drag_change -> move |active: bool| {
         if active {
             return;
         }
@@ -119,24 +119,22 @@ where
         set_carried.set(None);
         on_drag_change.call(false);
     });
-    on_cleanup(clone!(board carried -> move || {
+    on_cleanup(clone!(board -> move || {
         if carried.with_untracked(Option::is_some) {
             board.end(None);
         }
     }));
 
-    let anchor = create_memo(clone!(pointer -> move || {
+    let anchor = create_memo(move || {
         let offset = match touched.get() {
             true => TOUCH_PREVIEW_OFFSET,
             false => DRAG_PREVIEW_OFFSET,
         };
         pointer.get() + offset
-    }))
+    })
     .into_prop()
     .map(OverlayAnchor::Point);
-    let face = content.call(DragHandle {
-        dragging: dragging.clone(),
-    });
+    let face = content.call(DragHandle { dragging });
     let preview = preview.unwrap_or_else(|| {
         RenderFn::new(|_: P| {
             view! {
@@ -225,7 +223,7 @@ where
     });
     on_cleanup(clone!(board -> move || board.unregister(id)));
     let carrying = create_memo(move || carrying.get());
-    let over = create_memo(clone!(pointer -> move || pointer.with(Option::is_some)));
+    let over = create_memo(move || pointer.with(Option::is_some));
     let face = content.call(DropHandle {
         carrying,
         over,

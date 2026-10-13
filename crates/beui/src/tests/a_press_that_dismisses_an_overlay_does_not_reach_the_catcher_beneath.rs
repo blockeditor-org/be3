@@ -18,9 +18,10 @@ fn presses(heard: &RefCell<Vec<Event>>) -> usize {
 
 #[test]
 fn a_press_that_dismisses_an_overlay_does_not_reach_the_catcher_beneath() {
+    let _root = crate::reactive::RootScope::new();
     let (open, set_open) = create_signal(true);
-    let reopen = set_open.clone();
-    let shown = open.clone();
+    let reopen = set_open;
+    let shown = open;
     let heard = Rc::new(RefCell::new(Vec::<Event>::new()));
     let document = build({
         let heard = Rc::clone(&heard);

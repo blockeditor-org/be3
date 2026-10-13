@@ -8,8 +8,8 @@ use beui_core::input::{Key, KeyChord, KeyPress, Modifiers};
 use beui_core::keys::{KeyAt, KeyEvent, KeyHandler, KeyInput, KeyPhase};
 use beui_core::node::NodeId;
 use reactive::{
-    Memo, ReadSignal, WriteSignal, create_effect, create_memo, create_signal, on_cleanup,
-    provide_context, untrack, use_context,
+    Memo, OwnedSignal, create_effect, create_memo, on_cleanup, provide_context, untrack,
+    use_context,
 };
 
 use crate::reactive::{IntoProp, Prop, with_document};
@@ -444,8 +444,7 @@ struct RegistryData {
     global: Rc<ScopeData>,
     scopes: RefCell<Vec<Weak<ScopeData>>>,
     next: Cell<u64>,
-    version: ReadSignal<u64>,
-    set_version: WriteSignal<u64>,
+    version: OwnedSignal<u64>,
     listeners: RefCell<Vec<Rc<KeyHandler>>>,
     described: RefCell<Option<Rc<ActionsHook>>>,
 }
@@ -455,7 +454,6 @@ struct Registry(Rc<RegistryData>);
 
 impl Registry {
     fn new() -> Self {
-        let (version, set_version) = create_signal(0);
         Self(Rc::new(RegistryData {
             global: Rc::new(ScopeData {
                 node: None,
@@ -463,8 +461,7 @@ impl Registry {
             }),
             scopes: RefCell::new(Vec::new()),
             next: Cell::new(1),
-            version,
-            set_version,
+            version: OwnedSignal::new(0),
             listeners: RefCell::new(Vec::new()),
             described: RefCell::new(None),
         }))
@@ -472,7 +469,8 @@ impl Registry {
 
     fn touch(&self) {
         self.0
-            .set_version
+            .version
+            .write()
             .update(|version| *version = version.wrapping_add(1));
     }
 
@@ -655,7 +653,7 @@ fn registry() -> Registry {
                     return;
                 };
                 let registry = Registry(registry);
-                registry.0.version.get();
+                registry.0.version.read().get();
                 let chords = registry.intercepted();
                 if *reported.borrow() != chords {
                     reported.replace(chords.clone());
@@ -680,7 +678,7 @@ pub fn active_actions_from(focus_path: &[NodeId]) -> Vec<Action> {
 pub fn menu_actions() -> Memo<Vec<Action>> {
     let registry = registry();
     create_memo(move || {
-        registry.0.version.get();
+        registry.0.version.read().get();
         registry.all().into_iter().filter(Action::in_menu).collect()
     })
 }

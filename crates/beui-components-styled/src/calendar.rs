@@ -86,7 +86,7 @@ fn CalendarHeader(handle: CalendarHeaderHandle) -> NodeId {
     } = handle;
     let no_previous = create_memo(move || !can_previous.get());
     let no_next = create_memo(move || !can_next.get());
-    let month_shown = create_memo(clone!(years_open -> move || !years_open.get()));
+    let month_shown = create_memo(move || !years_open.get());
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
             <IconButton
@@ -104,7 +104,7 @@ fn CalendarHeader(handle: CalendarHeaderHandle) -> NodeId {
                 spacing=0.0
             >
                 <Show condition={month_shown}>
-                    {move || clone!(month_label months_open month_toggle show_months -> view! {
+                    {move || clone!(show_months -> view! {
                         <HeaderToggle
                             label={month_label}
                             accessibility={month_toggle}
@@ -149,11 +149,7 @@ fn HeaderToggle(
             accessibility
             on_click={move || on_click.call()}
             content={move |button: unstyled::ButtonHandle| view! {
-                <ButtonFace
-                    handle={button}
-                    variant=ButtonVariant::Ghost
-                    trailing_glyph={glyph.clone()}
-                />
+                <ButtonFace handle={button} variant=ButtonVariant::Ghost trailing_glyph={glyph} />
             }}
         />
     }
@@ -167,7 +163,7 @@ fn WeekdayLabel(weekday: Weekday) -> NodeId {
             <Text
                 string={weekday.narrow_name().to_owned()}
                 font_size=FONT_SMALL
-                color={theme.text_muted.clone()}
+                color={theme.text_muted}
                 align=TextAlign::Center
                 vertical_align=TextAlign::Center
             />
@@ -194,19 +190,23 @@ fn CellFace(handle: CalendarCellHandle) -> NodeId {
         CalendarMode::Years => YEAR_HEIGHT,
     };
     let theme = use_theme();
-    let fill = create_memo(clone!(theme selected disabled -> move || {
-        cell_fill(&theme, selected.get(), disabled.get(), hovered.get(), active.get())
-    }));
-    let ink = create_memo(clone!(theme selected disabled -> move || {
-        cell_ink(&theme, selected.get(), disabled.get(), outside.get())
-    }));
-    let ring = create_memo(clone!(selected -> move || marked.get() && !selected.get()));
+    let fill = create_memo(move || {
+        cell_fill(
+            &theme,
+            selected.get(),
+            disabled.get(),
+            hovered.get(),
+            active.get(),
+        )
+    });
+    let ink = create_memo(move || cell_ink(&theme, selected.get(), disabled.get(), outside.get()));
+    let ring = create_memo(move || marked.get() && !selected.get());
     view! {
         <FocusRing focused radius={RADIUS + 2} offset=FOCUS_RING_OFFSET>
             <Frame
                 height
                 color={fill}
-                outline={theme.accent.clone()}
+                outline={theme.accent}
                 outline_width=TODAY_RING_WIDTH
                 outline_visible={ring}
                 radius=RADIUS

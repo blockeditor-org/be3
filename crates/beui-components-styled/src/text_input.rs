@@ -56,12 +56,7 @@ pub fn TextInput(
             on_focus_change={move |focused| on_focus_change.call(focused)}
         >
             {move |handle| view! {
-                <TextInputFrame
-                    handle
-                    plain={plain.clone()}
-                    glyph={glyph.clone()}
-                    clearable={clearable.clone()}
-                />
+                <TextInputFrame handle plain={plain} glyph={glyph} clearable={clearable} />
             }}
         </unstyled::TextInput>
     }
@@ -84,23 +79,18 @@ fn TextInputFrame(
     } = handle;
     let clearable = create_memo(move || clearable.get() && !empty.get());
     let theme = use_theme();
-    let marked = create_memo(clone!(glyph -> move || !glyph.get().is_empty()));
-    let raised = create_memo(clone!(focused hovered -> move || {
-        !plain.get() || focused.get() || hovered.get()
-    }));
-    let border = create_memo(clone!(focused theme disabled -> move || {
-        field_border(&theme, disabled.get(), focused.get(), hovered.get())
-    }));
-    let fill = create_memo(clone!(theme disabled raised -> move || {
-        match (raised.get(), disabled.get()) {
-            (false, _) => Color32::TRANSPARENT,
-            (true, true) => theme.surface.get(),
-            (true, false) => theme.surface_raised.get(),
-        }
-    }));
+    let marked = create_memo(move || !glyph.get().is_empty());
+    let raised = create_memo(move || !plain.get() || focused.get() || hovered.get());
+    let border =
+        create_memo(move || field_border(&theme, disabled.get(), focused.get(), hovered.get()));
+    let fill = create_memo(move || match (raised.get(), disabled.get()) {
+        (false, _) => Color32::TRANSPARENT,
+        (true, true) => theme.surface.get(),
+        (true, false) => theme.surface_raised.get(),
+    });
     view! {
         <Frame
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
             outline_offset=FOCUS_RING_OFFSET
@@ -116,11 +106,11 @@ fn TextInputFrame(
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                     <Show condition={marked}>
-                        {move || clone!(glyph theme -> view! {
+                        {move || view! {
                             <Frame padding_left=PADDING_HORIZONTAL>
-                                <Icon glyph={glyph.clone()} color={theme.text_muted.clone()} />
+                                <Icon glyph={glyph} color={theme.text_muted} />
                             </Frame>
-                        })}
+                        }}
                     </Show>
                     {field} @sizing=ItemSize::Percent(100.0)
                     <Show condition={clearable}>
@@ -146,10 +136,10 @@ pub fn text_input_style() -> TextInputStyle {
     let theme = use_theme();
     TextInputStyle {
         font_size: Prop::Static(FONT_BODY),
-        color: theme.text.clone().into_prop(),
-        placeholder_color: theme.text_muted.clone().into_prop(),
-        selection_color: theme.accent_soft.clone().into_prop(),
-        caret_color: theme.accent.clone().into_prop(),
+        color: theme.text.into_prop(),
+        placeholder_color: theme.text_muted.into_prop(),
+        selection_color: theme.accent_soft.into_prop(),
+        caret_color: theme.accent.into_prop(),
         padding_horizontal: Prop::Static(PADDING_HORIZONTAL),
         padding_vertical: Prop::Static(0.0),
         menu: menu_style(),

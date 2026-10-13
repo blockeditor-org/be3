@@ -160,7 +160,7 @@ where
             if held.as_ref().is_some_and(|(key, _, _)| *key == next) {
                 return;
             }
-            let current = current.clone();
+            let current = current;
             let view = view.clone();
             let (stored, scope) = build_in_slot(&slot, move || view.call(current));
             drop(held.replace((next, stored, scope)));
