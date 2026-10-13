@@ -71,7 +71,7 @@ fn main() {
 
     let total = added + removed + changed;
     let mut comment = format!(
-        "## Lines of code\n\n**+{added_lines} -{removed_lines}** in {}, not counting tests.\n\n## Paintings\n\n",
+        "## Lines of code\n\n**+{added_lines} -{removed_lines}** of Rust in {}, not counting tests.\n\n## Paintings\n\n",
         match files {
             1 => "1 file".to_owned(),
             count => format!("{count} files"),
