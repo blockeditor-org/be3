@@ -23,7 +23,7 @@ pub(super) fn WorkspaceScreen(view: AppViewStore) -> NodeId {
     view! {
         <Container>
             {move |_| {
-                let view = view.clone();
+                let view = view;
                 view! {
                     <WorkspaceBody view />
                 }
@@ -34,12 +34,12 @@ pub(super) fn WorkspaceScreen(view: AppViewStore) -> NodeId {
 
 #[component]
 fn WorkspaceBody(view: AppViewStore) -> NodeId {
-    let debug = view.debug.clone();
+    let debug = view.debug;
     provide_context(DebugPanels(create_memo(move || debug.get())));
-    let presenting = view.presenting.clone();
+    let presenting = view.presenting;
     let normal = create_memo(clone!(presenting -> move || !presenting.get()));
     let status = create_memo(clone!(view -> move || view.status.get()));
-    let menu = view.app_menu.clone();
+    let menu = view.app_menu;
     view! {
         <List spacing=0.0>
             <Show condition={normal}>
@@ -51,8 +51,8 @@ fn WorkspaceBody(view: AppViewStore) -> NodeId {
                     <PresentingSurface />
                 </Frame>
             </Show>
-            <Dialogs view={view.clone()} />
-            <PairingDialog view={view.clone()} />
+            <Dialogs view={view} />
+            <PairingDialog view={view} />
         </List>
     }
 }

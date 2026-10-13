@@ -70,7 +70,7 @@ pub fn CompiledLogicView(editor: Editor) -> NodeId {
     let source_editor = editor.clone();
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()} padding_horizontal=PADDING padding_vertical=PADDING>
+        <Frame color={theme.background} padding_horizontal=PADDING padding_vertical=PADDING>
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <List spacing=SECTION_SPACING>
@@ -145,7 +145,7 @@ fn Lines(lines: Memo<Vec<String>>, #[prop(default = false)] monospace: bool) -> 
                         <Text
                             string={line}
                             font_size=FONT_SMALL
-                            color={theme.text.clone()}
+                            color={theme.text}
                             monospace={monospace}
                         />
                     }

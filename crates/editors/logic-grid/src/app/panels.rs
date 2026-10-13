@@ -42,7 +42,7 @@ pub(super) fn Panels(session: Rc<Session>) -> NodeId {
                 {move || clone!(challenge_session set_challenge_open -> view! {
                     <Accordion
                         title="Challenge"
-                        open={challenge_open.clone()}
+                        open={challenge_open}
                         on_toggle={move |open| set_challenge_open.set(open)}
                     >
                         <ChallengePanel session={challenge_session} />
@@ -96,7 +96,7 @@ fn Field(label: Prop<String>, value: Prop<String>) -> NodeId {
 fn Problem(content: Prop<String>) -> NodeId {
     let theme = use_theme();
     view! {
-        <Caption content={content} color={theme.danger.clone()} wrap=true />
+        <Caption content={content} color={theme.danger} wrap=true />
     }
 }
 
@@ -168,7 +168,7 @@ fn MetricsPanel(session: Rc<Session>) -> NodeId {
     view! {
         <List spacing=SPACING>
             <Show condition={failed}>
-                <Problem content={problem.clone()} />
+                <Problem content={problem} />
             </Show>
             <Rows rows={rows} />
         </List>
@@ -411,10 +411,10 @@ fn SimulationPanel(session: Rc<Session>) -> NodeId {
     let step =
         clone!(session -> move || session.update(LogicGridEditor::run_simulation_instruction));
     let frame_session = Rc::clone(&session);
-    let frame_shown = shown.clone();
+    let frame_shown = shown;
     let instruction_session = Rc::clone(&session);
-    let instruction_shown = shown.clone();
-    let input_shown = shown.clone();
+    let instruction_shown = shown;
+    let input_shown = shown;
     view! {
         <List spacing=SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
@@ -433,7 +433,7 @@ fn SimulationPanel(session: Rc<Session>) -> NodeId {
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
             <Show condition={failed}>
-                <Problem content={problem.clone()} />
+                <Problem content={problem} />
             </Show>
             <Show condition={idle}>
                 <Caption content="Run a step to compile and execute the circuit." wrap=true />
@@ -548,7 +548,7 @@ fn InstructionRow(
                     <Button
                         label="Target"
                         variant=ButtonVariant::Secondary
-                        disabled={unresolved.clone()}
+                        disabled={unresolved}
                         on_click={target.clone()}
                     />
                 </Show>
@@ -685,7 +685,7 @@ fn ChallengePanel(session: Rc<Session>) -> NodeId {
     let step = clone!(session -> move || session.update(LogicGridEditor::challenge_test_step));
     let run = clone!(session -> move || session.update(LogicGridEditor::challenge_test_run_all));
     let reset = clone!(session -> move || session.update(LogicGridEditor::challenge_test_reset));
-    let rows_shown = shown.clone();
+    let rows_shown = shown;
     view! {
         <List spacing=SPACING>
             <Body content={goal} />
@@ -705,7 +705,7 @@ fn ChallengePanel(session: Rc<Session>) -> NodeId {
                 <Button label="Reset" variant=ButtonVariant::Secondary on_click={reset} />
             </List>
             <Show condition={failed}>
-                <Problem content={problem.clone()} />
+                <Problem content={problem} />
             </Show>
             <Show condition={working}>
                 {move || clone!(header rows_shown session status ticks -> view! {
@@ -713,7 +713,7 @@ fn ChallengePanel(session: Rc<Session>) -> NodeId {
                         <Caption content={status} @test_id={"logic-grid.challenge-status"} />
                         <Scroll direction=Direction::Horizontal>
                             <List spacing=2.0>
-                                <TableRow cells={header.clone()} />
+                                <TableRow cells={header} />
                                 <ForEach keys={ticks}>
                                     {move |tick: usize| {
                                         let session = Rc::clone(&session);
@@ -864,7 +864,7 @@ impl LogicGridEditor {
 
 #[component]
 fn DebuggerPanel(session: Rc<Session>) -> NodeId {
-    let pointer = session.pointer.clone();
+    let pointer = session.pointer;
     let summary = create_memo(clone!(session pointer -> move || {
         let hovered = pointer.get();
         session.read(|model| {
@@ -1051,7 +1051,7 @@ fn GraphPanel(session: Rc<Session>) -> NodeId {
     let drawn = create_memo(clone!(empty -> move || !empty.get()));
     let width = create_memo(clone!(shape -> move || Some(shape.get().size.x)));
     let height = create_memo(clone!(shape -> move || Some(shape.get().size.y)));
-    let painted = shape.clone();
+    let painted = shape;
     let draw: Prop<Draw> = Prop::Dynamic(Rc::new(move || {
         let shape = painted.get();
         Rc::new(move |painter: &Painter, rect: Rect| paint_graph(painter, rect, &shape)) as Draw

@@ -119,17 +119,17 @@ fn PixelArtEditor(editor: Editor) -> NodeId {
     }));
 
     let chrome = editor.chrome_shown();
-    let canvas_size = size.clone();
+    let canvas_size = size;
     let bar_tools = Rc::clone(&tools);
     let left_tools = Rc::clone(&tools);
     let canvas_tools = Rc::clone(&tools);
     let label_tools = Rc::clone(&tools);
     let colors_tools = Rc::clone(&tools);
-    let top_chrome = chrome.clone();
-    let left_chrome = chrome.clone();
+    let top_chrome = chrome;
+    let left_chrome = chrome;
     view! {
         <List spacing=0.0>
-            <TopBar tools={bar_tools} size={size.clone()} shown={top_chrome} />
+            <TopBar tools={bar_tools} size={size} shown={top_chrome} />
             <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
                 <Sidebar side=Side::Left shown={left_chrome} width=TOOLS_WIDTH>
                     <ToolsPanel tools={left_tools} />
@@ -141,7 +141,7 @@ fn PixelArtEditor(editor: Editor) -> NodeId {
                         pane={pane}
                         shown={shown}
                         size={canvas_size}
-                        hovered={hovered.clone()}
+                        hovered={hovered}
                         set_hovered={set_hovered}
                     />
                     <HoverLabel tools={label_tools} hovered={hovered} />

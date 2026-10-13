@@ -32,7 +32,7 @@ fn a_for_each_row_picks_and_changes_its_own_size() {
                             let (header, body) = (header.clone(), body.clone());
                             match index {
                                 0 => view! {
-                                    <Frame @sizing={sizing.clone()} @node_ref=&header />
+                                    <Frame @sizing={sizing} @node_ref=&header />
                                 },
                                 _ => {
                                     view! {

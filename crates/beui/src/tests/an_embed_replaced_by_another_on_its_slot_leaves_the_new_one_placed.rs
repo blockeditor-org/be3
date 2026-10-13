@@ -3,6 +3,7 @@ use crate::reactive::{Dynamic, Embed, EmbedSlot, Frame, create_signal, view, wit
 
 #[test]
 fn an_embed_replaced_by_another_on_its_slot_leaves_the_new_one_placed() {
+    let _root = crate::reactive::RootScope::new();
     let slot = EmbedSlot::new();
     let held = slot.clone();
     let (tall, set_tall) = create_signal(false);

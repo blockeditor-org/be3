@@ -135,22 +135,20 @@ impl Phone {
 
     pub(crate) fn build(&self, slot: Slot, commit: &str) -> ReadSignal<Loaded<Found>> {
         if let Some((read, _)) = self.builds.borrow().get(&slot) {
-            return read.clone();
+            return *read;
         }
         let (read, write) = create_signal(Loaded::Loading);
-        self.builds.borrow_mut().insert(slot, (read.clone(), write));
+        self.builds.borrow_mut().insert(slot, (read, write));
         self.fetch(slot, Some(commit.to_owned()));
         read
     }
 
     pub(crate) fn main_build(&self) -> ReadSignal<Loaded<Found>> {
         if let Some((read, _)) = self.builds.borrow().get(&Slot::Main) {
-            return read.clone();
+            return *read;
         }
         let (read, write) = create_signal(Loaded::Loading);
-        self.builds
-            .borrow_mut()
-            .insert(Slot::Main, (read.clone(), write));
+        self.builds.borrow_mut().insert(Slot::Main, (read, write));
         self.fetch(Slot::Main, None);
         read
     }
@@ -164,11 +162,7 @@ impl Phone {
     }
 
     fn refetch(&self, slot: Slot, commit: Option<String>) {
-        let write = self
-            .builds
-            .borrow()
-            .get(&slot)
-            .map(|(_, write)| write.clone());
+        let write = self.builds.borrow().get(&slot).map(|(_, write)| *write);
         if let Some(write) = write {
             write.set(Loaded::Loading);
             self.fetch(slot, commit);
@@ -314,11 +308,7 @@ impl Phone {
                 self.set_own.set(Some(own));
             }
             Event::Fetched(slot, build) => {
-                let write = self
-                    .builds
-                    .borrow()
-                    .get(&slot)
-                    .map(|(_, write)| write.clone());
+                let write = self.builds.borrow().get(&slot).map(|(_, write)| *write);
                 if let Some(write) = write {
                     write.set(match build {
                         Ok(build) => Loaded::Ready(build),
@@ -608,12 +598,7 @@ fn SlotNotes(model: Model, slot: Slot) -> NodeId {
                 })}
             </Show>
             <Show condition={failed}>
-                <Text
-                    string={problem.clone()}
-                    font_size=FONT_BODY
-                    color={theme.danger.clone()}
-                    wrap=true
-                />
+                <Text string={problem} font_size=FONT_BODY color={theme.danger} wrap=true />
             </Show>
         </List>
     }

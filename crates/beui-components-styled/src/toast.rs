@@ -145,32 +145,32 @@ fn ToastCard(
         expiry.start(duration);
     }
     let (glyph, tint) = match danger {
-        true => (ICON_ERROR, theme.danger.clone()),
-        false => (ICON_INFO, theme.accent.clone()),
+        true => (ICON_ERROR, theme.danger),
+        false => (ICON_INFO, theme.accent),
     };
     let pictured = image.is_some();
     let titled = !title.is_empty();
     let said = !message.is_empty();
     let acted = !actions.is_empty();
     let (message_size, message_color) = match titled {
-        true => (FONT_SMALL, theme.text_muted.clone()),
-        false => (FONT_BODY, theme.text.clone()),
+        true => (FONT_SMALL, theme.text_muted),
+        false => (FONT_BODY, theme.text),
     };
-    let title_color = theme.text.clone();
+    let title_color = theme.text;
     let content = view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <Show condition={pictured}>
                 <ToastPicture image={image.clone()} />
             </Show>
             <Show condition={!pictured}>
-                <Icon glyph={glyph.to_owned()} color={tint.clone()} />
+                <Icon glyph={glyph.to_owned()} color={tint} />
             </Show>
             <List @sizing=ItemSize::Percent(100.0) spacing=TEXT_SPACING>
                 <Show condition={titled}>
                     <Text
                         string={title.clone()}
                         font_size=FONT_BODY
-                        color={title_color.clone()}
+                        color={title_color}
                         bold=true
                         wrap=true
                     />
@@ -179,7 +179,7 @@ fn ToastCard(
                     <Text
                         string={message.clone()}
                         font_size={message_size}
-                        color={message_color.clone()}
+                        color={message_color}
                         wrap=true
                     />
                 </Show>
@@ -200,8 +200,8 @@ fn ToastCard(
     view! {
         <Frame
             @test_id={format!("toast.{id}")}
-            color={theme.surface_raised.clone()}
-            outline={theme.border.clone()}
+            color={theme.surface_raised}
+            outline={theme.border}
             outline_width=BORDER_WIDTH
             outline_visible=true
             radius=RADIUS

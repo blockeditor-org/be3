@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn a_mock_dom_show_keep_alive_hides_the_element_it_built_and_brings_it_back() {
+    let _root = ::reactive::RootScope::new();
     fresh_ids();
     let scope = Scope::new();
     let (open, set_open) = create_signal(true);
@@ -9,7 +10,7 @@ fn a_mock_dom_show_keep_alive_hides_the_element_it_built_and_brings_it_back() {
     let page = scope.run(|| {
         view! {
             <Element tag="div">
-                <Show condition={open.clone()}>
+                <Show condition={open}>
                     <Element tag="p" text="rebuilt" />
                 </Show>
                 <ShowKeepAlive condition={open}>

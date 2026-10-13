@@ -34,7 +34,7 @@ pub fn Scatter(data: Data) -> NodeId {
     let ready = create_memo(clone!(axes -> move || axes.get().is_some()));
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <List spacing=0.0>
                 <Show condition={missing}>
                     <Frame padding_horizontal=12.0 padding_vertical=12.0>
@@ -42,11 +42,7 @@ pub fn Scatter(data: Data) -> NodeId {
                     </Frame>
                 </Show>
                 <Show condition={ready}>
-                    <Plot
-                        @sizing=ItemSize::Percent(100.0)
-                        data={data.clone()}
-                        axes={axes.clone()}
-                    />
+                    <Plot @sizing=ItemSize::Percent(100.0) data={data.clone()} axes={axes} />
                 </Show>
             </List>
         </Frame>
@@ -108,8 +104,8 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
                     }
                 });
                 let theme = use_theme();
-                let axis_color = theme.border.clone();
-                let rule_color = theme.border.clone();
+                let axis_color = theme.border;
+                let rule_color = theme.border;
                 view! {
                     <Interactive
                         @test_id={"database-view.scatter"}
@@ -122,12 +118,7 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
                             <CanvasItem x=AXIS_LEFT y={rule_top} width={plot_width} height=RULE>
                                 <Frame color={rule_color} />
                             </CanvasItem>
-                            <CanvasItem
-                                x=AXIS_LEFT
-                                y={value_y.clone()}
-                                width=60.0
-                                height=LABEL_HEIGHT
-                            >
+                            <CanvasItem x=AXIS_LEFT y={value_y} width=60.0 height=LABEL_HEIGHT>
                                 <Caption content={x_low} />
                             </CanvasItem>
                             <CanvasItem x={x_high_x} y={value_y} width=60.0 height=LABEL_HEIGHT>
@@ -157,7 +148,7 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
                             </CanvasItem>
                             <ForEach keys={keys}>
                                 {move |row: usize| {
-                                    let placed = placed.clone();
+                                    let placed = placed;
                                     let data = data.clone();
                                     view! {
                                         <Dot placed={placed} data={data} row={row} />
@@ -195,7 +186,7 @@ fn Dot(placed: Memo<Vec<Point>>, data: Data, row: usize) -> CanvasItem {
     let y = create_memo(clone!(point side -> move || {
         point.get().map_or(0.0, |point| point.y - side.get() * 0.5)
     }));
-    let width = side.clone();
+    let width = side;
     let theme = use_theme();
     let color = create_memo(clone!(theme selected -> move || match selected.get() {
         true => theme.accent.get(),
@@ -210,9 +201,9 @@ fn Dot(placed: Memo<Vec<Point>>, data: Data, row: usize) -> CanvasItem {
 }
 
 pub fn axis_fields(data: &Data) -> Memo<Option<(DatabaseField, DatabaseField)>> {
-    let fields = data.fields.clone();
-    let x = data.scatter_x.clone();
-    let y = data.scatter_y.clone();
+    let fields = data.fields;
+    let x = data.scatter_x;
+    let y = data.scatter_y;
     create_memo(move || {
         let (x, y) = (x.get()?, y.get()?);
         fields.with(|fields| {

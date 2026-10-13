@@ -60,7 +60,7 @@ pub fn WindowView(
                 let cursor = windows.cursor();
                 let focus = windows.clone();
                 let forward = windows.clone();
-                let placed = rect.clone();
+                let placed = rect;
                 let takes = move |local: Pos2| {
                     let position = local + placed.get_untracked().min.to_vec2();
                     !occluders
@@ -68,7 +68,7 @@ pub fn WindowView(
                         .iter()
                         .any(|occluder| occluder.contains(position))
                 };
-                let popups = signals.popups.clone();
+                let popups = signals.popups;
                 let shown = create_memo(clone!(popups -> move || popups.with(|popups| {
                     popups.as_ref().map(|popups| popups.rect)
                 })));
@@ -86,7 +86,7 @@ pub fn WindowView(
                     reach.forward(id, input);
                 };
                 let popup_cursor = windows.cursor();
-                let areas = signals.popups.clone();
+                let areas = signals.popups;
                 let on_popup = move |local: Pos2| {
                     areas.with_untracked(|popups| {
                         popups

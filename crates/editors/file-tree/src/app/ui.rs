@@ -41,7 +41,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let exported = exporter.error();
     let held: Held = Rc::new(std::cell::Cell::new(None));
     let (inspecting, set_inspecting) = create_signal(None::<Inspection>);
-    let inspect = set_inspecting.clone();
+    let inspect = set_inspecting;
     let keys = tree.keys();
     let rows = tree.rows();
     let focused_block = editor.focused_block();
@@ -52,7 +52,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let dropping = (
         editor.clone(),
         Rc::clone(&held),
-        rows.clone(),
+        rows,
         tree_ref.clone(),
         editor.drag(),
     );
@@ -141,7 +141,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let phone_tree = Rc::clone(&tree);
     let phone_picker = Rc::clone(&picker);
     let phone_exporter = Rc::clone(&exporter);
-    let phone_inspect = inspect.clone();
+    let phone_inspect = inspect;
     let covered = create_memo(clone!(inspecting -> move || inspecting.get().is_some()));
     create_effect(move || {
         let landed = arrival(
@@ -154,7 +154,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         set_landing.set(landed);
     });
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <List spacing=0.0>
                 <Toolbar shown={toolbar}>
                     <IconButton
@@ -180,14 +180,14 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                 tree={phone_tree.clone()}
                                 picker={phone_picker.clone()}
                                 exporter={phone_exporter.clone()}
-                                inspect={phone_inspect.clone()}
-                                covered={covered.clone()}
+                                inspect={phone_inspect}
+                                covered={covered}
                             />
                         </Show>
                         <Show condition={failed}>
                             {move || clone!(reason theme -> view! {
                                 <Frame padding_horizontal=PADDING padding_vertical=PADDING>
-                                    <Caption content={reason} color={theme.danger.clone()} />
+                                    <Caption content={reason} color={theme.danger} />
                                 </Frame>
                             })}
                         </Show>
@@ -196,15 +196,15 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                 <Tree
                                     @sizing=ItemSize::Percent(100.0)
                                     @node_ref={&tree_ref}
-                                    keys={keys.clone()}
-                                    item={item.clone()}
-                                    selected={focused.clone()}
+                                    keys={keys}
+                                    item={item}
+                                    selected={focused}
                                     ancestors={move |key: RowKey| ancestors(&key)}
                                     spacing=2.0
                                     padding=PADDING
                                     row_test_id={move |key: RowKey| row_test_id(&key)}
                                     reveal_test_id={"file-tree.reveal".to_owned()}
-                                    outline={outline.clone()}
+                                    outline={outline}
                                     on_select={open.clone()}
                                     on_expand={expand.clone()}
                                     on_reveal={reveal.clone()}
@@ -218,7 +218,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                                 tree={Rc::clone(&tree)}
                                                 picker={picker.clone()}
                                                 exporter={Rc::clone(&exporter)}
-                                                inspect={inspect.clone()}
+                                                inspect={inspect}
                                                 row={row}
                                                 face={face}
                                             />
@@ -242,7 +242,6 @@ fn Inspector(
 ) -> NodeId {
     let open = create_memo(clone!(inspecting -> move || inspecting.get().is_some()));
     let field = |read: fn(&Inspection) -> &String| {
-        let inspecting = inspecting.clone();
         create_memo(move || {
             inspecting.with(|shown| shown.as_ref().map(read).cloned().unwrap_or_default())
         })
@@ -297,7 +296,7 @@ fn Field(label: Prop<String>, value: Memo<String>, named: String) -> NodeId {
             <Caption content={label} />
             <Paragraph
                 content={value}
-                color={theme.text.clone()}
+                color={theme.text}
                 @test_id={format!("file-tree.inspect.{named}")}
             />
         </List>
@@ -380,7 +379,7 @@ fn TreeRow(
         picker,
         exporter,
         inspect,
-        row.clone(),
+        row,
     );
     let add = create_memo(clone!(row -> move || !row.get().is_some_and(|row| row.can_add)));
     let edit = create_memo(clone!(row -> move || !row.get().is_some_and(|row| row.can_edit)));
@@ -408,9 +407,9 @@ fn TreeRow(
         !row.get().is_some_and(|row| row.inspection.is_some())
     }));
     let theme = use_theme();
-    let glyph_color = theme.text_muted.clone();
-    let generated_color = theme.text_muted.clone();
-    let access_color = theme.text_muted.clone();
+    let glyph_color = theme.text_muted;
+    let generated_color = theme.text_muted;
+    let access_color = theme.text_muted;
     let color = create_memo(clone!(theme muted -> move || match muted.get() {
         true => theme.text_muted.get(),
         false => theme.text.get(),
@@ -420,18 +419,14 @@ fn TreeRow(
             child_size=ItemSize::Percent(100.0)
             items={view! {
                 <MenuItem label="Add" glyph={ICON_NOTE_ADD.to_owned()} disabled={add} />
-                <MenuItem
-                    label="Set parent"
-                    glyph={ICON_MOVE_UP.to_owned()}
-                    disabled={edit.clone()}
-                >
+                <MenuItem label="Set parent" glyph={ICON_MOVE_UP.to_owned()} disabled={edit}>
                     <MenuItem label="Root" disabled={rooted} />
                     <MenuItem label="Orphaned" disabled={orphaned} />
                 </MenuItem>
                 <MenuItem
                     label="Rename"
                     glyph={ICON_DRIVE_FILE_RENAME_OUTLINE.to_owned()}
-                    disabled={edit.clone()}
+                    disabled={edit}
                 />
                 <MenuItem label="Share" glyph={ICON_SHARE.to_owned()} disabled={edit} />
                 <MenuItem label="Unlink" glyph={ICON_LINK_OFF.to_owned()} disabled={unlinkable} />
@@ -452,11 +447,7 @@ fn TreeRow(
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Show condition={has_glyph}>
-                    <IconSized
-                        glyph={glyph.clone()}
-                        font_size=FONT_SMALL
-                        color={glyph_color.clone()}
-                    />
+                    <IconSized glyph={glyph} font_size=FONT_SMALL color={glyph_color} />
                 </Show>
                 <Body @sizing=ItemSize::Percent(100.0) content={label} color={color} />
                 <Show condition={generated}>
@@ -472,17 +463,13 @@ fn TreeRow(
                 </Show>
                 <Show condition={restricted}>
                     {move || clone!(access access_color -> view! {
-                        <Tooltip label={access_label.clone()}>
+                        <Tooltip label={access_label}>
                             <IconSized glyph={access} font_size=FONT_SMALL color={access_color} />
                         </Tooltip>
                     })}
                 </Show>
                 <Show condition={can_add}>
-                    <AddChild
-                        shown={hovered.clone()}
-                        named={named.clone()}
-                        on_click={add_child.clone()}
-                    />
+                    <AddChild shown={hovered} named={named.clone()} on_click={add_child.clone()} />
                 </Show>
             </List>
         </ContextMenu>
@@ -548,7 +535,7 @@ fn AddChildFace(handle: ButtonHandle) -> NodeId {
                 width=ADD_WIDTH
                 height=ADD_WIDTH
                 color={fill}
-                outline={theme.accent.clone()}
+                outline={theme.accent}
                 outline_width=1.0
                 outline_visible={focus_ring(focused)}
                 radius=3
@@ -670,7 +657,7 @@ pub(crate) struct Picker {
 
 impl Picker {
     pub(crate) fn error(&self) -> Memo<Option<String>> {
-        let error = self.error.clone();
+        let error = self.error;
         create_memo(move || error.get())
     }
 

@@ -6,7 +6,7 @@ use beui_macros::component;
 #[component]
 pub fn LayoutBuilder(#[prop(children)] content: Render<ReadSignal<Vec2>>) -> NodeId {
     let (size, set_size) = create_signal(Vec2::ZERO);
-    let builder = with_document(|document| document.create_layout_builder(size.clone(), set_size));
+    let builder = with_document(|document| document.create_layout_builder(size, set_size));
     let scope = Scope::new();
     let child = scope.run(|| content.call(size));
     let context = scope.context();
@@ -20,9 +20,7 @@ pub fn LayoutBuilder(#[prop(children)] content: Render<ReadSignal<Vec2>>) -> Nod
 
 #[component]
 pub fn PlacementBuilder(#[prop(children)] content: Render<ReadSignal<Rect>>) -> NodeId {
-    let (placed, set_placed) = create_signal(Rect::ZERO);
-    let builder =
-        with_document(|document| document.create_placement_builder(placed.clone(), set_placed));
+    let (builder, placed) = with_document(beui_core::document::Document::create_placement_builder);
     let child = content.call(placed);
     with_document(|document| document.set_layout_builder_child(builder, child));
     builder.id()

@@ -128,16 +128,16 @@ pub fn Scrollbar(
     let grab = Rc::new(Cell::new(None::<f32>));
 
     let content_node = content.call(ScrollbarHandle {
-        position: position.clone(),
+        position,
         direction: direction.clone(),
-        hovered: hovered.clone(),
-        dragging: dragging.clone(),
+        hovered,
+        dragging,
     });
 
     let paged = on_scroll_to.clone();
     let (pressed_axis, dragged_axis, hovered_axis) =
         (direction.clone(), direction.clone(), direction.clone());
-    let (pressed_at, dragged_at, hovered_at) = (position.clone(), position.clone(), position);
+    let (pressed_at, dragged_at, hovered_at) = (position, position, position);
     let (pressed_grab, dragged_grab, active_grab) = (grab.clone(), grab.clone(), grab);
     view! {
         <Interactive

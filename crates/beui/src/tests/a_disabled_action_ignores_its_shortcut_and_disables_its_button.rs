@@ -6,6 +6,7 @@ use crate::styled::{Button, ButtonVariant};
 
 #[test]
 fn a_disabled_action_ignores_its_shortcut_and_disables_its_button() {
+    let _root = crate::reactive::RootScope::new();
     let runs = Rc::new(Cell::new(0));
     let counted = runs.clone();
     let (enabled, set_enabled) = create_signal(false);

@@ -105,16 +105,16 @@ pub(crate) fn ReferenceMenu(
         false => "Loading…".to_owned(),
     }));
     let items_workspace = Rc::clone(&workspace);
-    let items_refs = refs.clone();
-    let items_containing = containing.clone();
-    let chosen_refs = refs.clone();
+    let items_refs = refs;
+    let items_containing = containing;
+    let chosen_refs = refs;
     view! {
         <MenuButton
             @test_id={named}
             label={label}
             items={view! {
                 <Show condition={nothing}>
-                    <MenuItem label={nothing_label.clone()} disabled=true />
+                    <MenuItem label={nothing_label} disabled=true />
                 </Show>
                 <ForEach keys={indices}>
                     {move |index: usize| {
@@ -125,7 +125,7 @@ pub(crate) fn ReferenceMenu(
                             <ReferenceMenuItem
                                 workspace={Rc::clone(&items_workspace)}
                                 reference={reference}
-                                containing={items_containing.clone()}
+                                containing={items_containing}
                             />
                         }
                     }}

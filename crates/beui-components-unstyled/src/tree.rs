@@ -126,12 +126,12 @@ where
     let nodes: Nodes<K> = Rc::default();
     let state: Handle<K> = Rc::new(State {
         nodes: nodes.clone(),
-        keys: keys.clone(),
+        keys,
         item: item.clone(),
-        selected: selected.clone(),
+        selected,
         shown,
         buried,
-        focus: focus.clone(),
+        focus,
         set_focus,
         on_select,
         on_expand,
@@ -160,8 +160,8 @@ where
                             item
                             selected
                             marked
-                            tab_stop={tab_stops.clone()}
-                            focused={focused.clone()}
+                            tab_stop={tab_stops}
+                            focused={focused}
                             state={state.clone()}
                             nodes={nodes.clone()}
                             row={row.clone()}
@@ -301,7 +301,7 @@ pub fn TreeToggle(
                         on_click={move || toggle()}
                         content={move |button: ButtonHandle| content.call(TreeToggleHandle {
                             button,
-                            expanded: expanded.clone(),
+                            expanded,
                         })}
                     />
                 }
@@ -373,12 +373,7 @@ where
 {
     let (list, scroll) = (tree.get(), viewport.get());
     let state = with_document(|document| document.component_state::<Handle<K>>(list).clone());
-    let (keys, shown, buried, selected) = (
-        state.keys.clone(),
-        state.shown.clone(),
-        state.buried.clone(),
-        state.selected.clone(),
-    );
+    let (keys, shown, buried, selected) = (state.keys, state.shown, state.buried, state.selected);
     let astray = create_memo(clone!(state shown buried keys -> move || {
         let key = shown.get()?;
         keys.with(|_| ());
@@ -423,7 +418,7 @@ where
         set_pending.set(Some(key));
     });
     let content = button.call(TreeRevealHandle {
-        edge: edge.clone(),
+        edge,
         label,
         reveal,
     });

@@ -41,7 +41,7 @@ pub fn ColorInput(
             on_change.call(color);
         }
     });
-    let hex = HexText::new(shown.clone(), alpha, Callback::new(report.clone()));
+    let hex = HexText::new(shown, alpha, Callback::new(report.clone()));
     let (edit, submit) = (hex.clone(), hex.clone());
     let label = create_memo(move || label.get());
     let picker_label = create_memo(clone!(label -> move || match label.get() {
@@ -52,10 +52,10 @@ pub fn ColorInput(
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <unstyled::Popover
-                label={picker_label.clone()}
-                disabled={disabled.clone()}
+                label={picker_label}
+                disabled={disabled}
                 trigger={move |handle: PopoverTriggerHandle| view! {
-                    <SwatchTrigger handle color={shown.clone()} label={picker_label} />
+                    <SwatchTrigger handle color={shown} label={picker_label} />
                 }}
             >
                 {move |popover: PopoverHandle| view! {

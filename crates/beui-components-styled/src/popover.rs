@@ -34,14 +34,14 @@ pub fn Popover(
                 let PopoverTriggerHandle { open, button } = handle;
                 let quiet = create_memo(clone!(icon_only -> move || !icon_only.get() || open.get()));
                 view! {
-                    <Tooltip label={button.label.clone()} disabled={quiet}>
-                        <ButtonFace handle={button} variant icon_only={icon_only.clone()} />
+                    <Tooltip label={button.label} disabled={quiet}>
+                        <ButtonFace handle={button} variant icon_only={icon_only} />
                     </Tooltip>
                 }
             }}
         >
             {move |handle: PopoverHandle| view! {
-                <PopoverPanel max_width={max_width.clone()}>{content.call(handle)}</PopoverPanel>
+                <PopoverPanel max_width={max_width}>{content.call(handle)}</PopoverPanel>
             }}
         </unstyled::Popover>
     }
@@ -55,8 +55,8 @@ pub fn PopoverPanel(
     let theme = use_theme();
     view! {
         <Frame
-            color={theme.surface_raised.clone()}
-            outline={theme.border.clone()}
+            color={theme.surface_raised}
+            outline={theme.border}
             outline_width=BORDER_WIDTH
             outline_visible=true
             radius=CARD_RADIUS

@@ -38,7 +38,7 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
             format!("Checked out {summary}")
         }
     }));
-    let running = model.running.clone();
+    let running = model.running;
     let idle = create_memo(clone!(running -> move || !running.get()));
     let show = clone!(model -> move |index: usize| {
         if let Some(tab) = Tab::ALL.get(index) {
@@ -72,10 +72,10 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
                         align=TextAlign::End
                         ellipsis=true
                     />
-                    <Show condition={running.clone()}>
+                    <Show condition={running}>
                         <Spinner width=18.0 label="A command is running" />
                     </Show>
-                    <Show condition={running.clone()}>
+                    <Show condition={running}>
                         <Button
                             label="Stop"
                             glyph=ICON_STOP
@@ -150,15 +150,15 @@ fn TargetList(model: Model) -> NodeId {
             listed.get().len()
         )
     }));
-    let query = model.target_query.clone();
-    let set_query = model.set_target_query.clone();
+    let query = model.target_query;
+    let set_query = model.set_target_query;
     let refresh = clone!(model -> move || model.refresh_targets());
     view! {
         <List spacing=0.0>
             <Frame padding_horizontal=PADDING padding_vertical=4.0>
                 <List spacing=SPACING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <Icon glyph=ICON_SEARCH color={theme.text_muted.clone()} />
+                        <Icon glyph=ICON_SEARCH color={theme.text_muted} />
                         <TextInput
                             @sizing=ItemSize::Percent(100.0)
                             value={query}
@@ -180,19 +180,14 @@ fn TargetList(model: Model) -> NodeId {
                         </List>
                     </Show>
                     <Show condition={failed}>
-                        <Text
-                            string={error.clone()}
-                            font_size=FONT_BODY
-                            color={theme.danger.clone()}
-                            wrap=true
-                        />
+                        <Text string={error} font_size=FONT_BODY color={theme.danger} wrap=true />
                     </Show>
                 </List>
             </Frame>
             <Scroll @sizing=ItemSize::Percent(100.0)>
                 <VirtualList keys item_size=TARGET_ROW>
                     {move |label: String| {
-                        let shown = shown.clone();
+                        let shown = shown;
                         let target = create_memo(move || {
                             shown.get().into_iter().find(|target| target.label == label)
                         });
@@ -244,8 +239,8 @@ fn TargetRow(model: Model, target: Memo<Option<Target>>) -> NodeId {
             model.run_target(&target, Action::Build);
         }
     });
-    let busy = model.running.clone();
-    let busy_build = busy.clone();
+    let busy = model.running;
+    let busy_build = busy;
     view! {
         <Frame padding_horizontal=PADDING padding_vertical=4.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
@@ -256,7 +251,7 @@ fn TargetRow(model: Model, target: Memo<Option<Target>>) -> NodeId {
                         label="Build"
                         glyph=ICON_BUILD
                         variant=ButtonVariant::Ghost
-                        disabled={busy_build.clone()}
+                        disabled={busy_build}
                         on_click={build.clone()}
                     />
                 </Show>
@@ -297,7 +292,7 @@ pub(crate) fn Actions(
         }
         _ => model.show_tab(Tab::Targets),
     });
-    let busy_run = busy.clone();
+    let busy_run = busy;
     let run_label = create_memo(clone!(model -> move || {
         let common = COMMON.get(model.common.get()).unwrap_or(&COMMON[0]);
         format!("Check out and run {}", common.title)
@@ -349,13 +344,13 @@ pub(crate) fn Notes(
         <Show condition={shown}>
             {move || clone!(deleted fork -> view! {
                 <List spacing=8.0>
-                    <Show condition={fork.clone()}>
+                    <Show condition={fork}>
                         <Caption
                             content="This pull request comes from a fork, so scripts/switch cannot check it out."
                             wrap=true
                         />
                     </Show>
-                    <Show condition={deleted.clone()}>
+                    <Show condition={deleted}>
                         <Caption
                             content="Its branch was deleted, so there is nothing to check out."
                             wrap=true
@@ -369,7 +364,7 @@ pub(crate) fn Notes(
 
 #[component]
 pub(crate) fn MainActions(model: Model) -> NodeId {
-    let busy = model.running.clone();
+    let busy = model.running;
     let run = clone!(model -> move || model.switch(MAIN, Some(model.common.get_untracked())));
     let pick = clone!(model -> move |path: Vec<usize>| match path.as_slice() {
         [index] if *index < COMMON.len() => model.switch(MAIN, Some(*index)),

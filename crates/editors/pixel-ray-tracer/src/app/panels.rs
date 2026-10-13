@@ -37,7 +37,7 @@ pub(crate) fn ToolsPanel(state: Rc<RayState>) -> NodeId {
             <Caption
                 content="Scroll: pan · Ctrl scroll: zoom · Middle drag: pan · Delete: remove entity"
                 wrap=true
-                color={theme.text_muted.clone()}
+                color={theme.text_muted}
             />
         </List>
     }
@@ -45,7 +45,7 @@ pub(crate) fn ToolsPanel(state: Rc<RayState>) -> NodeId {
 
 #[component]
 fn ToolButton(state: Rc<RayState>, tool: Tool) -> NodeId {
-    let chosen = state.tool.clone();
+    let chosen = state.tool;
     let pressed = create_memo(clone!(chosen -> move || chosen.get() == tool));
     view! {
         <ToggleButton
@@ -71,7 +71,7 @@ pub(crate) fn PropertiesPanel(state: Rc<RayState>) -> NodeId {
             <Heading content="Palette" />
             <Palette state={palette} />
             <Show condition={chosen}>
-                <SelectedEntity state={Rc::clone(&state)} selected={selected.clone()} />
+                <SelectedEntity state={Rc::clone(&state)} selected={selected} />
             </Show>
             <Show condition={unchosen}>
                 <NewEntity state={tools.clone()} />
@@ -101,7 +101,7 @@ fn Palette(state: Rc<RayState>) -> NodeId {
 #[component]
 fn Swatch(state: Rc<RayState>, index: usize) -> NodeId {
     let color = palette_color(index as u8);
-    let chosen = state.color_index.clone();
+    let chosen = state.color_index;
     let picked = create_memo(clone!(chosen -> move || usize::from(chosen.get()) == index));
     let theme = use_theme();
     let outline = create_memo(clone!(theme picked -> move || match picked.get() {
@@ -156,7 +156,6 @@ fn SelectedEntity(
         matches!(selected.get(), Some(RayEntity::Light { .. }))
     }));
     let field = |read: fn(&RayEntity) -> f32| {
-        let selected = selected.clone();
         create_memo(move || selected.get().as_ref().map_or(0.0, read))
     };
     let roughness = field(|entity| match entity {
@@ -185,7 +184,7 @@ fn SelectedEntity(
                 selected: &block_editor_beui::beui::reactive::Memo<Option<RayEntity>>,
                 write: fn(&mut RayEntity, f32)| {
         let state = Rc::clone(state);
-        let selected = selected.clone();
+        let selected = *selected;
         move |value: f32| {
             let Some(mut entity) = selected.get_untracked() else {
                 return;
@@ -227,7 +226,7 @@ fn SelectedEntity(
         <List spacing=8.0>
             <Heading content="Selected entity" />
             <Body content={kind} />
-            <Show condition={surface.clone()}>
+            <Show condition={surface}>
                 {move || clone!(ior metalness roughness set_ior set_metalness set_roughness set_transmission transmission -> view! {
                     <List spacing=6.0>
                         <Slider value={roughness} label="Roughness" on_change={set_roughness} />
@@ -243,7 +242,7 @@ fn SelectedEntity(
             </Show>
             <Show condition={light}>
                 <Slider
-                    value={intensity.clone()}
+                    value={intensity}
                     min=0.1
                     max=8.0
                     label="Intensity"
@@ -262,11 +261,11 @@ fn SelectedEntity(
 
 #[component]
 fn NewEntity(state: Rc<RayState>) -> NodeId {
-    let tool = state.tool.clone();
+    let tool = state.tool;
     let light = create_memo(clone!(tool -> move || tool.get() == Tool::Light));
     let surface = create_memo(clone!(tool -> move || tool.get() == Tool::Surface));
-    let intensity = state.new_light_intensity.clone();
-    let held = state.new_surface.clone();
+    let intensity = state.new_light_intensity;
+    let held = state.new_surface;
     let roughness = create_memo(clone!(held -> move || held.get().roughness));
     let metalness = create_memo(clone!(held -> move || held.get().metalness));
     let transmission = create_memo(clone!(held -> move || held.get().transmission));
@@ -276,7 +275,7 @@ fn NewEntity(state: Rc<RayState>) -> NodeId {
                 held: &block_editor_beui::beui::reactive::ReadSignal<Surface>,
                 write: fn(&mut Surface, f32)| {
         let state = Rc::clone(state);
-        let held = held.clone();
+        let held = *held;
         move |value: f32| {
             let mut surface = held.get_untracked();
             write(&mut surface, value);
@@ -326,7 +325,7 @@ fn NewEntity(state: Rc<RayState>) -> NodeId {
 
 #[component]
 fn RaySettingsPanels(state: Rc<RayState>) -> NodeId {
-    let tool = state.tool.clone();
+    let tool = state.tool;
     let tracing = create_memo(clone!(tool -> move || tool.get() == Tool::RayTrace));
     let view_rays = Rc::clone(&state);
     let lighting = Rc::clone(&state);
@@ -350,7 +349,7 @@ fn RaySettingsPanels(state: Rc<RayState>) -> NodeId {
 
 #[component]
 fn RayControls(state: Rc<RayState>, view: bool) -> NodeId {
-    let entities = state.entities.clone();
+    let entities = state.entities;
     let read = Rc::clone(&state);
     let settings = create_memo(clone!(read entities -> move || {
         let _ = entities.get();
@@ -363,7 +362,7 @@ fn RayControls(state: Rc<RayState>, view: bool) -> NodeId {
                  settings: &block_editor_beui::beui::reactive::Memo<RaySettings>,
                  edit: fn(&mut RaySettings, f32)| {
         let state = Rc::clone(state);
-        let settings = settings.clone();
+        let settings = *settings;
         move |value: f32| {
             let mut next = settings.get_untracked();
             edit(&mut next, value);

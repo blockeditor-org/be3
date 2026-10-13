@@ -84,7 +84,7 @@ pub fn ListView(data: Data) -> NodeId {
     let rows = data.clone();
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <Scroll>
                 <Frame padding_bottom={Some(GUTTER * 2.0)}>
                     <List spacing=0.0>
@@ -98,7 +98,7 @@ pub fn ListView(data: Data) -> NodeId {
                         <VirtualList keys={lines} item_size=LINE_HEIGHT>
                             {move |line: Line| {
                                 let data = rows.clone();
-                                let groups = groups.clone();
+                                let groups = groups;
                                 match line {
                                     Line::Header(key) => view! {
                                         <GroupHeader data={data} groups={groups} key={key} />
@@ -134,7 +134,7 @@ pub fn RowBeside(
     let beside = create_memo(clone!(narrow open -> move || !narrow.get() && open.get()));
     let instead = create_memo(clone!(narrow open -> move || narrow.get() && open.get()));
     let (side, full) = (data.clone(), data);
-    let (side_row, full_row) = (selected.clone(), selected);
+    let (side_row, full_row) = (selected, selected);
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Layers @sizing=ItemSize::Percent(100.0)>
@@ -181,7 +181,7 @@ fn OpenRow(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
 }
 
 pub fn visible_groups(data: &Data) -> Memo<Vec<Group>> {
-    data.groups.clone()
+    data.groups
 }
 
 #[component]
@@ -224,12 +224,12 @@ fn GroupHeader(data: Data, groups: Memo<Vec<Group>>, key: GroupKey) -> NodeId {
         }
         data.new_row(values);
     });
-    let read_only = data.read_only.clone();
+    let read_only = data.read_only;
     let test_key = group_test_key(key);
     let theme = use_theme();
     view! {
         <Frame
-            color={theme.surface.clone()}
+            color={theme.surface}
             padding_left={Some(GUTTER * 0.5)}
             padding_right={Some(GUTTER * 0.5)}
             padding_vertical=2.0
@@ -320,9 +320,9 @@ fn RowLine(data: Data, row: ObjectId) -> NodeId {
     let pick = clone!(data -> move || data.select_row(row));
     let narrow = narrow_chrome();
     let wide = create_memo(clone!(narrow -> move || !narrow.get()));
-    let (wide_marks, wide_parts, wide_keys) = (marks.clone(), parts.clone(), part_keys.clone());
-    let (wide_entry, narrow_entry) = (entry.clone(), entry);
-    let (wide_code, wide_title) = (code.clone(), title.clone());
+    let (wide_marks, wide_parts, wide_keys) = (marks, parts, part_keys);
+    let (wide_entry, narrow_entry) = (entry, entry);
+    let (wide_code, wide_title) = (code, title);
     let (wide_data, narrow_data) = (data.clone(), data);
     view! {
         <ListRow
@@ -448,15 +448,15 @@ fn RowPart(part: Memo<Option<Part>>) -> NodeId {
     }));
     let dotted = create_memo(clone!(part -> move || matches!(part.get(), Some(Part::Choice(_)))));
     let linked = create_memo(clone!(part -> move || matches!(part.get(), Some(Part::Links(..)))));
-    let plain_text = text.clone();
-    let (page_color, link_color) = (theme.text_muted.clone(), theme.text_muted.clone());
+    let plain_text = text;
+    let (page_color, link_color) = (theme.text_muted, theme.text_muted);
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame visible={page}>
                 <IconSized
                     glyph={ICON_DESCRIPTION.to_owned()}
                     font_size=MARK_SIZE
-                    color={page_color.clone()}
+                    color={page_color}
                 />
             </Frame>
             <Frame visible={plain}>
@@ -464,7 +464,7 @@ fn RowPart(part: Memo<Option<Part>>) -> NodeId {
             </Frame>
             <Frame
                 visible={chip}
-                outline={theme.border.clone()}
+                outline={theme.border}
                 outline_width=BORDER_WIDTH
                 outline_visible=true
                 radius=10
@@ -479,7 +479,7 @@ fn RowPart(part: Memo<Option<Part>>) -> NodeId {
                         <IconSized
                             glyph={ICON_LINK.to_owned()}
                             font_size=FONT_SMALL
-                            color={link_color.clone()}
+                            color={link_color}
                         />
                     </Frame>
                     <Caption content={text} align=TextAlign::Start />

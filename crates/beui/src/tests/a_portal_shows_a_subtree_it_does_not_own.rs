@@ -3,6 +3,7 @@ use crate::reactive::{NodeRef, Portal, Show, clone, create_signal, with_reactive
 
 #[test]
 fn a_portal_shows_a_subtree_it_does_not_own() {
+    let _root = crate::reactive::RootScope::new();
     let held = NodeRef::new();
     let (first, set_first) = create_signal(None);
     let (second, set_second) = create_signal(None);

@@ -10,6 +10,7 @@ use crate::styled::Dialog;
 
 #[test]
 fn a_catcher_under_a_dialog_that_is_under_another_hears_no_pointer() {
+    let _root = crate::reactive::RootScope::new();
     let (open, _set_open) = create_signal(true);
     let (above, set_above) = create_signal(false);
     let heard = Rc::new(RefCell::new(Vec::<Event>::new()));

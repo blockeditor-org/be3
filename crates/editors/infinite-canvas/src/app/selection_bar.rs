@@ -45,8 +45,8 @@ pub(crate) fn SelectionTools(state: Rc<CanvasState>) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame
-            color={theme.surface.clone()}
-            outline={theme.border.clone()}
+            color={theme.surface}
+            outline={theme.border}
             outline_width=BORDER_WIDTH
             outline_visible=true
             radius=RADIUS
@@ -62,7 +62,7 @@ pub(crate) fn SelectionTools(state: Rc<CanvasState>) -> NodeId {
                                 {move |index: usize| {
                                     let (name, color) = PRESETS[index];
                                     let state = Rc::clone(&picking);
-                                    let value = value.clone();
+                                    let value = value;
                                     view! {
                                         <Swatch
                                             kind="color"
@@ -89,7 +89,7 @@ pub(crate) fn SelectionTools(state: Rc<CanvasState>) -> NodeId {
                         glyph={ICON_TUNE.to_owned()}
                         label="Inspector"
                         @test_id={"infinite-canvas.inspect"}
-                        on_click={tune.clone()}
+                        on_click={tune}
                     />
                 </Show>
             </List>
@@ -136,8 +136,8 @@ pub(crate) fn Swatch(
                             width=SWATCH
                             height=SWATCH
                             radius=11
-                            color={fill.clone()}
-                            outline={theme.border.clone()}
+                            color={fill}
+                            outline={theme.border}
                             outline_width=BORDER_WIDTH
                             outline_visible=true
                         />

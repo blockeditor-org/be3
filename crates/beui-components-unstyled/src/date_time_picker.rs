@@ -126,12 +126,12 @@ pub fn DateTimePicker(
             {move |placed: ReadSignal<Rect>| {
                 let width = create_memo(move || placed.get().width());
                 let field = Field {
-                    current: current.clone(),
+                    current,
                     report,
                     parts,
                     hour_cycle,
-                    label: label.clone(),
-                    disabled: disabled.clone(),
+                    label,
+                    disabled,
                     segment,
                     literal,
                     segments,
@@ -187,7 +187,7 @@ pub fn DateTimePicker(
                 let anchor = NodeRef::new();
                 let popover_anchor = anchor.clone();
                 let inner_field = field.clone();
-                let trigger_label = picker_label.clone();
+                let trigger_label = picker_label;
                 view! {
                     <Frame @node_ref=&anchor>
                         <FieldBox
@@ -196,7 +196,7 @@ pub fn DateTimePicker(
                             trigger={view! {
                                 <Popover
                                     label={picker_label}
-                                    disabled={disabled.clone()}
+                                    disabled={disabled}
                                     open={open}
                                     anchor=popover_anchor
                                     placement
@@ -265,7 +265,7 @@ fn FieldBox(
     } = field;
     let (within, set_within) = create_signal(false);
     let (hovered, set_hovered) = create_signal(false);
-    let field_disabled = disabled.clone();
+    let field_disabled = disabled;
     view! {
         <Interactive on_hover_change={move |inside: bool| set_hovered.set(inside)}>
             {frame.call(DateTimeBoxHandle {

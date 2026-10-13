@@ -42,7 +42,7 @@ fn changing_one_span_of_a_long_text_shapes_only_that_span() {
             }
         }
     });
-    let set_words = writer.borrow().clone().expect("the words were made");
+    let set_words = (*writer.borrow()).expect("the words were made");
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let text = kind_of::<TextNode>(harness.document(), text.get());

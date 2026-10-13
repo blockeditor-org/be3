@@ -18,13 +18,13 @@ impl SurveyApp {
             let theme = use_theme();
             view! {
                 <Frame
-                    color={theme.background.clone()}
+                    color={theme.background}
                     radius=0
                     padding_horizontal=16.0
                     padding_vertical=16.0
                 >
                     <List spacing=8.0>
-                        <Body content={state.clone()} />
+                        <Body content={state} />
                         <TextInput
                             value={state}
                             label="Text"

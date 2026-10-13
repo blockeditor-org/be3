@@ -199,7 +199,7 @@ pub fn ColorWheel(
     let (hovered, set_hovered) = create_signal(false);
     let (has_focus, set_has_focus) = create_signal(false);
     let disabled = create_memo(move || disabled.get());
-    set_component_state(point.clone());
+    set_component_state(point);
 
     match accessibility {
         Some(accessibility) => component_accessibility(accessibility),
@@ -226,8 +226,6 @@ pub fn ColorWheel(
     }
 
     let set = {
-        let point = point.clone();
-        let disabled = disabled.clone();
         move |next: WheelPoint| {
             if disabled.get_untracked() {
                 return;
@@ -242,7 +240,6 @@ pub fn ColorWheel(
     let geometry =
         move |size: Vec2| WheelGeometry::new(Rect::from_min_size(Pos2::ZERO, size), ring_width);
     let over_thumb = {
-        let point = point.clone();
         move |press: PointerPress| {
             let (wheel, pos) = (geometry(press.size), press.local);
             let point = point.get_untracked();
@@ -270,7 +267,7 @@ pub fn ColorWheel(
         part.set(pressed);
         grab.set(offset);
     });
-    let drag_point = point.clone();
+    let drag_point = point;
     let dragged_to = move |press: PointerPress| {
         let wheel = geometry(press.size);
         let target = press.local + grab.get();
@@ -306,13 +303,13 @@ pub fn ColorWheel(
             false => CursorIcon::Crosshair,
         }
     }));
-    let (key_point, step_point) = (point.clone(), point.clone());
+    let (key_point, step_point) = (point, point);
     let content_node = content.call(ColorWheelHandle {
         point,
-        dragging: dragging.clone(),
+        dragging,
         hovered,
         focused: has_focus,
-        disabled: disabled.clone(),
+        disabled,
     });
     let tab_stop = create_memo(clone!(disabled -> move || !disabled.get()));
     view! {

@@ -117,7 +117,7 @@ fn Inspector(state: Rc<CanvasState>) -> NodeId {
             <Show condition={empty}>
                 <Caption content="Select an object to edit its appearance." wrap=true />
             </Show>
-            <Show condition={chosen.clone()}>
+            <Show condition={chosen}>
                 {move || clone!(appearance arrange artboard block components styled transform -> view! {
                     <List spacing=SPACING>
                         <Show condition={styled}>
@@ -179,7 +179,7 @@ fn ArtboardSection(state: Rc<CanvasState>) -> NodeId {
                 {move || clone!(first locked name renamed set_open -> view! {
                     <Accordion
                         title="Artboard"
-                        open={open.clone()}
+                        open={open}
                         on_toggle={move |open| set_open.set(open)}
                     >
                         <List spacing=6.0>
@@ -302,7 +302,7 @@ fn TransformFields(state: Rc<CanvasState>) -> NodeId {
     let (rotation, rotation_preview) =
         field(|entity, value| entity.transform.rotation = (value as f32).to_radians());
     let at = |entity: &Memo<Option<CanvasEntity>>, read: fn(&CanvasEntity) -> f32| {
-        let entity = entity.clone();
+        let entity = *entity;
         create_memo(move || entity.get().map_or(0.0, |entity| read(&entity)) as f64)
     };
     let center_x = at(&entity, |entity| entity.transform.center.x);
@@ -323,7 +323,7 @@ fn TransformFields(state: Rc<CanvasState>) -> NodeId {
                 <NumberInput
                     label="X"
                     value={center_x}
-                    disabled={locked.clone()}
+                    disabled={locked}
                     @test_id={"infinite-canvas.transform.x"}
                     on_change={x}
                     on_preview={x_preview}
@@ -334,7 +334,7 @@ fn TransformFields(state: Rc<CanvasState>) -> NodeId {
                 <NumberInput
                     label="Y"
                     value={center_y}
-                    disabled={locked.clone()}
+                    disabled={locked}
                     @test_id={"infinite-canvas.transform.y"}
                     on_change={y}
                     on_preview={y_preview}
@@ -416,11 +416,7 @@ fn BlockSection(state: Rc<CanvasState>) -> NodeId {
         <List spacing=0.0>
             <Show condition={shown}>
                 {move || clone!(direct label scaled set_open toggled unavailable -> view! {
-                    <Accordion
-                        title="Block"
-                        open={open.clone()}
-                        on_toggle={move |open| set_open.set(open)}
-                    >
+                    <Accordion title="Block" open={open} on_toggle={move |open| set_open.set(open)}>
                         <List spacing=6.0>
                             <Button
                                 label={label}
@@ -526,7 +522,7 @@ fn ArrangeSection(state: Rc<CanvasState>) -> NodeId {
                                 <Button
                                     label={label}
                                     variant=ButtonVariant::Secondary
-                                    disabled={cannot_align.clone()}
+                                    disabled={cannot_align}
                                     @test_id={format!("infinite-canvas.align.{label}")}
                                     on_click={move || state.align_selection(alignment)}
                                 />
@@ -538,7 +534,7 @@ fn ArrangeSection(state: Rc<CanvasState>) -> NodeId {
                     <Button
                         label="Distribute horizontally"
                         variant=ButtonVariant::Secondary
-                        disabled={cannot_distribute.clone()}
+                        disabled={cannot_distribute}
                         @test_id={"infinite-canvas.distribute-horizontally"}
                         on_click={horizontal}
                     />
@@ -780,7 +776,7 @@ fn LineOptions(state: Rc<CanvasState>) -> NodeId {
     }));
     let shown = create_memo(clone!(lines -> move || !lines.with(Vec::is_empty)));
     let flag = |lines: &Memo<Vec<CanvasEntity>>, read: fn(&CanvasEntity) -> bool| {
-        let lines = lines.clone();
+        let lines = *lines;
         create_memo(move || {
             common_value(lines.with(|lines| lines.iter().map(read).collect::<Vec<bool>>()))
                 .or(false)

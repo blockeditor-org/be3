@@ -7,9 +7,9 @@ use beui::icons::{
     ICON_UNDO,
 };
 use beui::reactive::{
-    Action, Chord, ClickCallback, ItemSize, List, Memo, ReadSignal, WriteSignal, clone, component,
-    create_effect, create_memo, create_signal, menu_actions, on_finger_tap, on_key,
-    provide_context, untrack, use_context, view,
+    Action, Chord, ClickCallback, ItemSize, List, Memo, OwnedSignal, ReadSignal, WriteSignal,
+    clone, component, create_effect, create_memo, create_signal, menu_actions, on_finger_tap,
+    on_key, provide_context, untrack, use_context, view,
 };
 use beui::styled::CommandPalette;
 use beui::{Document, Key, KeyAt, KeyPhase};
@@ -43,11 +43,13 @@ pub struct BeuiFrame {
     set_bar: WriteSignal<FrameBar>,
     exit: Rc<Cell<bool>>,
     menu: Rc<RefCell<Vec<Action>>>,
+    _bar: OwnedSignal<FrameBar>,
 }
 
 impl BeuiFrame {
     pub fn build(editor: &Editor, view: impl FnOnce() -> NodeId + 'static) -> Self {
-        let (bar, set_bar) = create_signal(FrameBar::default());
+        let owned_bar = OwnedSignal::new(FrameBar::default());
+        let (bar, set_bar) = (owned_bar.read(), owned_bar.write());
         let exit = Rc::new(Cell::new(false));
         let exit_writer = exit.clone();
         let menu: Rc<RefCell<Vec<Action>>> = Rc::default();
@@ -61,7 +63,7 @@ impl BeuiFrame {
             )));
             let phone = create_memo(clone!(bar -> move || bar.get().on_phone));
             let (palette, set_palette) = create_signal(false);
-            let opening = set_palette.clone();
+            let opening = set_palette;
             let opener = Action::new("editor.palette", "Command palette", move || {
                 opening.set(true)
             })
@@ -106,6 +108,7 @@ impl BeuiFrame {
             set_bar,
             exit,
             menu,
+            _bar: owned_bar,
         }
     }
 
@@ -122,7 +125,7 @@ impl BeuiFrame {
     }
 
     pub fn set_bar(&self) -> WriteSignal<FrameBar> {
-        self.set_bar.clone()
+        self.set_bar
     }
 
     pub fn exit(&self) -> Rc<Cell<bool>> {
@@ -320,7 +323,7 @@ fn frame_actions(
             clone!(on_exit -> move || on_exit.call()),
         )
         .glyph(ICON_CLOSE)
-        .enabled(closable.clone())
+        .enabled(*closable)
         .register(),
     }
 }
@@ -345,9 +348,9 @@ pub(crate) fn FrameMenu(
     });
     let actions = frame_actions(&editor, &watched, &state, &live, &closable, &on_exit);
     let reading = Rc::clone(&watched);
-    let visible = live.clone();
+    let visible = live;
     let taps = Rc::clone(&watched);
-    let tapping = live.clone();
+    let tapping = live;
     on_finger_tap(move |fingers: usize| tapping.get_untracked() && taps.finger_tap(fingers));
     create_effect(move || {
         if visible.get() {

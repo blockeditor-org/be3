@@ -94,12 +94,12 @@ pub fn TimeList(
         (index / columns).saturating_sub(LEAD_ROWS) as f32 * (row_height + spacing)
     }));
     let state: Handle = Rc::new(State {
-        times: times.clone(),
+        times,
         selected,
         set_selected,
         focus,
         set_focus,
-        anchor: anchor.clone(),
+        anchor,
         columns,
         on_change,
     });
@@ -142,7 +142,7 @@ fn TimeRow(
     face: RenderFn<TimeOptionHandle>,
 ) -> NodeId {
     let columns = state.columns;
-    let times = state.times.clone();
+    let times = state.times;
     let cells = create_memo(move || {
         times.with(|times| {
             times

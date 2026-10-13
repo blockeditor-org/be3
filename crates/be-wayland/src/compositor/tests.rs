@@ -168,7 +168,7 @@ fn Shown(windows: Windows) -> NodeId {
                     <Overlay
                         anchor=OverlayAnchor::Point(Pos2::ZERO)
                         placement=Placement::Center
-                        open={asking.clone()}
+                        open={asking}
                     >
                         <TextInput @test_id={"test.dialog"} value="" focused={asking} />
                     </Overlay>
@@ -252,7 +252,7 @@ impl Harness {
 
     fn lock(&mut self, locked: bool) {
         let set = LOCK
-            .with(|lock| lock.borrow().clone())
+            .with(|lock| *lock.borrow())
             .expect("the harness has a lock");
         with_reactive_scope(&mut self.document, move || set.set(locked));
         self.app.set_locked(locked);
@@ -261,7 +261,7 @@ impl Harness {
 
     fn ask(&mut self, open: bool) {
         let set = DIALOG
-            .with(|dialog| dialog.borrow().clone())
+            .with(|dialog| *dialog.borrow())
             .expect("the harness has a dialog");
         with_reactive_scope(&mut self.document, move || set.set(open));
         self.settle();

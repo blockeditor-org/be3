@@ -29,7 +29,7 @@ struct Row {
 pub(crate) fn BlockData(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>) -> NodeId {
     let (data, set_data) = create_signal(None::<String>);
     let reading = Rc::downgrade(&workspace);
-    let read_info = info.clone();
+    let read_info = info;
     create_effect(move || {
         let Some(workspace) = reading.upgrade() else {
             return;
@@ -63,7 +63,7 @@ pub(crate) fn BlockData(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>
         }
     }));
     let unparsed = create_memo(clone!(raw -> move || !raw.with(String::is_empty)));
-    let item_rows = rows.clone();
+    let item_rows = rows;
     let item = Func::new(move |path: String| {
         item_rows.with(|rows| {
             rows.iter()
@@ -76,7 +76,7 @@ pub(crate) fn BlockData(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>
                 })
         })
     });
-    let content_rows = rows.clone();
+    let content_rows = rows;
     view! {
         <Frame padding_horizontal=PADDING padding_vertical=PADDING>
             <List spacing=ROW_SPACING>

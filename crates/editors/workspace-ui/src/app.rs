@@ -88,7 +88,7 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
     let shell_dialogs = Rc::clone(&workspace);
     let theme = use_theme();
     view! {
-        <Frame @node_ref={&surface} color={theme.background.clone()}>
+        <Frame @node_ref={&surface} color={theme.background}>
             <List spacing=0.0>
                 <Failure failed={failed} reason={reason} />
                 <Docking @sizing=ItemSize::Percent(100.0) layout mode home=FILES>

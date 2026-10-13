@@ -44,7 +44,7 @@ pub fn SplitButton(
     view! {
         <Frame
             color={fill}
-            outline={theme.border.clone()}
+            outline={theme.border}
             outline_width=BORDER_WIDTH
             outline_visible={variant == ButtonVariant::Secondary}
             radius=RADIUS
@@ -88,12 +88,12 @@ fn MainFace(handle: ButtonHandle, variant: ButtonVariant) -> NodeId {
     }));
     let ink = create_memo(clone!(theme -> move || variant.label(&theme, disabled.get())));
     let has_glyph = create_memo(clone!(glyph -> move || !glyph.get().is_empty()));
-    let icon_ink = ink.clone();
+    let icon_ink = ink;
     view! {
         <HalfFace fill focused side=Side::Leading padding=LABEL_PADDING_HORIZONTAL>
             <List direction=Direction::Horizontal align=Align::Center spacing=GLYPH_SPACING>
                 <Show condition={has_glyph}>
-                    <Icon glyph={glyph.clone()} color={icon_ink.clone()} />
+                    <Icon glyph={glyph} color={icon_ink} />
                 </Show>
                 <Text string={label} font_size=FONT_BODY color={ink} align=TextAlign::Center />
             </List>
@@ -167,7 +167,7 @@ fn HalfFace(
     let (fill_left, fill_right) = side.corners(RADIUS - INSET as u8);
     view! {
         <Frame
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=FOCUS_RING_WIDTH
             radius_top_left=ring_left
             radius_bottom_left=ring_left

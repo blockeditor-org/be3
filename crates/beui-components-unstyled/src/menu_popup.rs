@@ -135,14 +135,14 @@ pub(crate) fn MenuPopup(
                     let (row, sheet) = sheet.clone().unwrap_or_else(|| unreachable!());
                     let (choose, dismiss) = (sheet_choose.clone(), sheet_dismiss.clone());
                     sheet.call(MenuSheetHandle {
-                        open: raised.clone(),
+                        open: raised,
                         on_close: ClickCallback::new(move || dismiss.call()),
                         menu: view! {
                             <MenuList
                                 items={sheet_items.clone()}
                                 row
                                 panel={sheet_panel.clone()}
-                                active={raised.clone()}
+                                active={raised}
                                 on_select={move |path: Vec<usize>| choose.call(path)}
                             />
                         },

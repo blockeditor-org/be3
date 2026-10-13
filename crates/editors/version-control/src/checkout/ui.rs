@@ -145,11 +145,11 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
 
     let updating = editor.clone();
     let committing = editor.clone();
-    let commit_message = message.clone();
-    let clear_message = set_message.clone();
+    let commit_message = message;
+    let clear_message = set_message;
     let branching = editor.clone();
-    let new_branch = branch_name.clone();
-    let clear_branch = set_branch_name.clone();
+    let new_branch = branch_name;
+    let clear_branch = set_branch_name;
     let changing = editor.clone();
     let change_rows = move |row: ChangeRow| {
         let editor = changing.clone();
@@ -158,19 +158,19 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
         }
     };
     let resolving = editor.clone();
-    let resolve_blocked = blocked.clone();
+    let resolve_blocked = blocked;
     let conflict_rows = move |row: ConflictRow| {
         let editor = resolving.clone();
-        let blocked = resolve_blocked.clone();
+        let blocked = resolve_blocked;
         view! {
             <ConflictLine editor blocked row />
         }
     };
     let switching = editor.clone();
-    let switch_blocked = blocked.clone();
+    let switch_blocked = blocked;
     let branch_rows = move |(name, current): (String, bool)| {
         let editor = switching.clone();
-        let blocked = switch_blocked.clone();
+        let blocked = switch_blocked;
         view! {
             <BranchLine editor blocked name current />
         }
@@ -178,7 +178,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
 
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()} padding_horizontal=PADDING padding_vertical=PADDING>
+        <Frame color={theme.background} padding_horizontal=PADDING padding_vertical=PADDING>
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <List spacing=SECTION_SPACING>
@@ -191,11 +191,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                 @test_id={"checkout.repository"}
                             />
                             <Show condition={has_note}>
-                                <Caption
-                                    content={note.clone()}
-                                    wrap=true
-                                    @test_id={"checkout.note"}
-                                />
+                                <Caption content={note} wrap=true @test_id={"checkout.note"} />
                             </Show>
                         </List>
                         <Show condition={behind}>
@@ -213,7 +209,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                         <Button
                                             label="Bring changes in"
                                             variant=ButtonVariant::Primary
-                                            disabled={blocked.clone()}
+                                            disabled={blocked}
                                             @test_id={"checkout.update"}
                                             on_click={move || updating.version(VersionCommand::Update)}
                                         />
@@ -354,8 +350,7 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
         choose(ConflictSide::Ours),
         choose(ConflictSide::Theirs),
     );
-    let (base_blocked, ours_blocked, theirs_blocked) =
-        (blocked.clone(), blocked.clone(), blocked.clone());
+    let (base_blocked, ours_blocked, theirs_blocked) = (blocked, blocked, blocked);
     let (base, ours, theirs) = (side(base), side(ours), side(theirs));
     let keep = choose(ConflictSide::Merged);
     let working = Some(ChildTarget::new(block, block_type));

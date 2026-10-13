@@ -83,7 +83,7 @@ where
         let Some(payload) = payload.peek() else {
             return;
         };
-        let follow = set_pointer.clone();
+        let follow = set_pointer;
         set_carried.set(Some(payload.clone()));
         on_drag_change.call(true);
         board.begin(
@@ -134,9 +134,7 @@ where
     }))
     .into_prop()
     .map(OverlayAnchor::Point);
-    let face = content.call(DragHandle {
-        dragging: dragging.clone(),
-    });
+    let face = content.call(DragHandle { dragging });
     let preview = preview.unwrap_or_else(|| {
         RenderFn::new(|_: P| {
             view! {

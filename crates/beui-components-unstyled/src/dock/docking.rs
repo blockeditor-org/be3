@@ -14,8 +14,8 @@ use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::reactive::{
     Callback, ChildScope, ChildSegment, ChildValue, Children, ClickCallback, Frame, Func,
-    IntoChild, IntoProp, IntoSegment, Memo, Prop, ReadSignal, RenderFn, Run, Scope, SlotChild,
-    WriteSignal, clone, create_effect, create_memo, create_signal, untrack,
+    IntoChild, IntoProp, IntoSegment, Memo, Prop, ReadSignal, RenderFn, RootScope, Run, Scope,
+    SlotChild, WriteSignal, clone, create_effect, create_memo, create_signal, untrack,
 };
 use serde::{Deserialize, Serialize};
 
@@ -305,6 +305,7 @@ impl<K> Default for KeyMap<K> {
 }
 
 struct LayoutInner<K> {
+    _scope: Scope,
     state: ReadSignal<DockState>,
     set_state: WriteSignal<DockState>,
     restores: ReadSignal<u64>,
@@ -332,10 +333,12 @@ impl<K: DockKey> Default for DockingLayout<K> {
 
 impl<K: DockKey> DockingLayout<K> {
     pub fn new() -> Self {
+        let owner = RootScope::new();
         let (state, set_state) = create_signal(DockState::default());
         let (restores, set_restores) = create_signal(0);
         Self {
             inner: Rc::new(LayoutInner {
+                _scope: owner.into_scope(),
                 state,
                 set_state,
                 restores,
@@ -378,7 +381,7 @@ impl<K: DockKey> DockingLayout<K> {
     }
 
     pub fn state(&self) -> ReadSignal<DockState> {
-        self.inner.state.clone()
+        self.inner.state
     }
 
     pub fn tab_of(&self, key: &K) -> Option<TabId> {
@@ -663,7 +666,7 @@ impl<K: 'static> Found<K> {
 
     fn group_title(&self, key: &str) -> Option<Memo<String>> {
         match &self.groups.get(key)?.kind {
-            EntryKind::Group { title, .. } => title.clone(),
+            EntryKind::Group { title, .. } => *title,
             EntryKind::Tab { .. } => None,
         }
     }
@@ -712,33 +715,33 @@ where
             layout.reconcile(&spec, &dialogs);
         });
     }));
-    let listed = found.clone();
+    let listed = found;
     let dialogs = create_memo(move || listed.with(|found| found.dialogs.clone()));
-    let described = found.clone();
+    let described = found;
     let dialog = Func::new(move |tab: TabId| {
         described.with_untracked(|found| found.parts.get(&tab).cloned())
     });
-    let titles = found.clone();
+    let titles = found;
     let title = Func::new(move |tab: TabId| {
         titles
             .with(|found| found.tab(tab, |title, _, _, _| title.get()))
             .unwrap_or_default()
     });
-    let icons = found.clone();
+    let icons = found;
     let icon = Func::new(move |tab: TabId| {
         icons
             .with(|found| found.tab(tab, |_, icon, _, _| icon.get()))
             .unwrap_or_default()
     });
-    let pictures = found.clone();
+    let pictures = found;
     let picture = Func::new(move |tab: TabId| pictures.with(|found| found.picture(tab)));
-    let closers = found.clone();
+    let closers = found;
     let closable = Func::new(move |tab: TabId| {
         closers
             .with(|found| found.tab(tab, |_, _, on_close, _| on_close.is_some()))
             .unwrap_or(false)
     });
-    let closing = found.clone();
+    let closing = found;
     let on_close = move |tab: TabId| {
         let close = closing
             .with_untracked(|found| found.tab(tab, |_, _, on_close, _| on_close.clone()))
@@ -747,7 +750,7 @@ where
             close.call();
         }
     };
-    let bodies = found.clone();
+    let bodies = found;
     let content = RenderFn::new(move |tab: TabId| {
         let content =
             bodies.with_untracked(|found| found.tab(tab, |_, _, _, content| content.clone()));
@@ -762,7 +765,7 @@ where
             None => body,
         }
     });
-    let empties = found.clone();
+    let empties = found;
     let emptied = layout.clone();
     let empty = RenderFn::new(move |leaf: LeafId| {
         let key = emptied
@@ -777,7 +780,7 @@ where
             },
         }
     });
-    let grouped = found.clone();
+    let grouped = found;
     let named = layout.clone();
     let group_title = Func::new(move |group: GroupId| {
         let key = named

@@ -151,7 +151,7 @@ fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
                     {move || clone!(set_opacity -> view! {
                         <NumberInput
                             @sizing=ItemSize::Fixed(ALPHA_WIDTH)
-                            value={opacity.clone()}
+                            value={opacity}
                             min=0.0
                             max=100.0
                             label="Opacity percent"

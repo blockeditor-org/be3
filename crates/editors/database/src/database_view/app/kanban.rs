@@ -36,7 +36,7 @@ pub fn Kanban(data: Data) -> NodeId {
     }));
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <List spacing=0.0>
                 <Show condition={missing}>
                     <Frame padding_horizontal=PADDING padding_vertical=PADDING>
@@ -80,7 +80,7 @@ fn Column(data: Data, key: GroupKey) -> NodeId {
     }));
     let open = create_memo(clone!(folded -> move || !folded.get()));
     let (open_data, folded_data) = (data.clone(), data);
-    let (open_group, folded_group) = (group.clone(), group);
+    let (open_group, folded_group) = (group, group);
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Show condition={open}>
@@ -116,7 +116,7 @@ fn FoldedColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId
     let unfold = clone!(data -> move || data.toggle_group(key));
     let theme = use_theme();
     view! {
-        <Frame width=FOLDED_WIDTH color={theme.surface.clone()} radius=10 padding_vertical=10.0>
+        <Frame width=FOLDED_WIDTH color={theme.surface} radius=10 padding_vertical=10.0>
             <List align=Align::Center spacing=8.0>
                 <ChoiceMark option={option} size=MARK_SIZE />
                 <Caption content={count} />
@@ -163,7 +163,7 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
         }
         data.new_row(values);
     });
-    let read_only = data.read_only.clone();
+    let read_only = data.read_only;
     let cards = data.clone();
     let test_key = match key {
         GroupKey::Option(option) => option.to_string(),
@@ -184,8 +184,8 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                 view! {
                     <Frame
                         width=COLUMN_WIDTH
-                        color={theme.surface.clone()}
-                        outline={theme.accent.clone()}
+                        color={theme.surface}
+                        outline={theme.accent}
                         outline_width=2.0
                         radius=10
                         outline_visible={over}
@@ -199,22 +199,22 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                                     align=Align::Center
                                     spacing=8.0
                                 >
-                                    <ChoiceMark option={option.clone()} size=MARK_SIZE />
-                                    <Body content={label.clone()} />
-                                    <Caption content={count.clone()} />
+                                    <ChoiceMark option={option} size=MARK_SIZE />
+                                    <Body content={label} />
+                                    <Caption content={count} />
                                     <Frame @sizing=ItemSize::Percent(100.0) />
                                     <IconButton
                                         glyph={ICON_ADD.to_owned()}
                                         label="Add card"
                                         variant=ButtonVariant::Ghost
                                         size=IconButtonSize::Compact
-                                        disabled={read_only.clone()}
+                                        disabled={read_only}
                                         @test_id={format!("database-view.kanban.add.{test_key}")}
                                         on_click={add.clone()}
                                     />
                                 </List>
                             </Frame>
-                            <ForEach keys={keys.clone()}>
+                            <ForEach keys={keys}>
                                 {move |row: usize| {
                                     let data = cards.clone();
                                     view! {
@@ -236,7 +236,7 @@ fn KanbanCard(data: Data, row: usize) -> NodeId {
         data.selected.get().is_some_and(|selection| selection.row == row)
     }));
     let pick = clone!(data -> move || data.select(row, None));
-    let read_only = data.read_only.clone();
+    let read_only = data.read_only;
     let payload = create_memo(move || (!read_only.get()).then_some(row));
     let ghost = clone!(data -> move |row: usize| {
         let data = data.clone();
@@ -250,7 +250,7 @@ fn KanbanCard(data: Data, row: usize) -> NodeId {
         <Draggable payload={payload} threshold=DRAG_THRESHOLD preview={ghost}>
             {move |_: DragHandle| view! {
                 <ListRow
-                    selected={selected.clone()}
+                    selected={selected}
                     @test_id={format!("database-view.card.{row}")}
                     on_click={pick.clone()}
                     on_activate={pick.clone()}
@@ -267,8 +267,8 @@ fn CardFace(data: Data, row: usize) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame
-            color={theme.surface_raised.clone()}
-            outline={theme.border.clone()}
+            color={theme.surface_raised}
+            outline={theme.border}
             outline_width=1.0
             outline_visible=true
             radius=8
@@ -323,8 +323,8 @@ fn CardLines(data: Data, row: usize) -> NodeId {
 }
 
 pub fn status_field(data: &Data) -> Memo<Option<DatabaseField>> {
-    let fields = data.fields.clone();
-    let chosen = data.group_by.clone();
+    let fields = data.fields;
+    let chosen = data.group_by;
     create_memo(move || {
         let chosen = chosen.get()?;
         fields.with(|fields| {

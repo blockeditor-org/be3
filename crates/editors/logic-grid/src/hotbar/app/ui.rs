@@ -53,7 +53,7 @@ pub fn HotbarView(editor: Editor) -> NodeId {
 
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()} padding_horizontal=PADDING padding_vertical=PADDING>
+        <Frame color={theme.background} padding_horizontal=PADDING padding_vertical=PADDING>
             <List spacing=ROW_SPACING>
                 <Show condition={empty}>
                     <Caption
@@ -73,7 +73,7 @@ pub fn HotbarView(editor: Editor) -> NodeId {
                                         editor={editor.clone()}
                                         hotbar={hotbar.clone()}
                                         row={row}
-                                        read_only={read_only.clone()}
+                                        read_only={read_only}
                                     />
                                 }
                             }}
@@ -131,17 +131,17 @@ fn SlotRow(
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
             <Spacer @sizing={indent} />
-            <Show condition={is_folder.clone()}>
-                <Icon glyph={ICON_FOLDER.to_owned()} color={theme.text_muted.clone()} />
+            <Show condition={is_folder}>
+                <Icon glyph={ICON_FOLDER.to_owned()} color={theme.text_muted} />
             </Show>
             <Show condition={is_folder}>
-                <Body content={folder.clone()} />
+                <Body content={folder} />
             </Show>
-            <Show condition={is_component.clone()}>
+            <Show condition={is_component}>
                 <BlockLink
                     editor={editor.clone()}
-                    block={component.clone()}
-                    fallback={name.clone()}
+                    block={component}
+                    fallback={name}
                     @test_id={format!("hotbar.slot.{index}")}
                 />
             </Show>
@@ -151,7 +151,7 @@ fn SlotRow(
                 <IconButton
                     glyph={ICON_DELETE.to_owned()}
                     label="Unpin"
-                    disabled={read_only.clone()}
+                    disabled={read_only}
                     @test_id={format!("hotbar.slot.{index}.unpin")}
                     on_click={unpin.clone()}
                 />

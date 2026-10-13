@@ -46,7 +46,7 @@ pub fn ColorArea(
     let disabled = create_memo(move || disabled.get());
     let x = create_memo(clone!(color -> move || color.get().saturation));
     let y = create_memo(clone!(color -> move || 1.0 - color.get().value));
-    set_component_state(color.clone());
+    set_component_state(color);
 
     component_accessibility(create_memo(clone!(color disabled -> move || {
         let color = color.get();
@@ -69,8 +69,6 @@ pub fn ColorArea(
     })));
 
     let set = {
-        let color = color.clone();
-        let disabled = disabled.clone();
         move |saturation: f32, value: f32| {
             if disabled.get_untracked() {
                 return;
@@ -85,7 +83,7 @@ pub fn ColorArea(
     };
     let (drag_set, key_set, step_set) = (set.clone(), set.clone(), set);
     let grab = Rc::new(Cell::new(Vec2::ZERO));
-    let (press_grab, press_color) = (grab.clone(), color.clone());
+    let (press_grab, press_color) = (grab.clone(), color);
     let grabbed = move |press: PointerPress| {
         let color = press_color.get_untracked();
         let offset = thumb_centre(press.size, color) - press.local;
@@ -118,15 +116,15 @@ pub fn ColorArea(
             false => CursorIcon::Crosshair,
         }
     }));
-    let (key_color, step_color) = (color.clone(), color.clone());
+    let (key_color, step_color) = (color, color);
     let content_node = content.call(ColorAreaHandle {
         color,
         x,
         y,
-        dragging: dragging.clone(),
+        dragging,
         hovered,
         focused: has_focus,
-        disabled: disabled.clone(),
+        disabled,
     });
     let tab_stop = create_memo(clone!(disabled -> move || !disabled.get()));
     view! {

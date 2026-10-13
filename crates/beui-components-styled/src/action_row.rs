@@ -88,35 +88,35 @@ pub(crate) fn ActionRowFace(
     let glyph = create_memo(move || glyph.get());
     let has_glyph = create_memo(clone!(glyph -> move || !glyph.get().is_empty()));
     let detail = create_memo(move || detail.get());
-    let chevron_color = theme.text_muted.clone();
+    let chevron_color = theme.text_muted;
     let has_detail = create_memo(clone!(detail -> move || !detail.get().is_empty()));
     view! {
         <Frame
             height=ROW_HEIGHT
             color={fill}
             radius=RADIUS
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=FOCUS_RING_WIDTH
             outline_visible={focus_ring(focused)}
             padding_horizontal=PADDING_HORIZONTAL
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Show condition={has_glyph}>
-                    <Icon glyph={glyph.clone()} color={icon_color.clone()} />
+                    <Icon glyph={glyph} color={icon_color} />
                 </Show>
                 <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
                     <Text string={label} font_size=FONT_BODY color={text_color} ellipsis=true />
                     <Show condition={has_detail}>
                         <Text
-                            string={detail.clone()}
+                            string={detail}
                             font_size=FONT_SMALL
-                            color={theme.text_muted.clone()}
+                            color={theme.text_muted}
                             ellipsis=true
                         />
                     </Show>
                 </List>
                 <Show condition={submenu}>
-                    <Icon glyph={ICON_CHEVRON_RIGHT.to_owned()} color={chevron_color.clone()} />
+                    <Icon glyph={ICON_CHEVRON_RIGHT.to_owned()} color={chevron_color} />
                 </Show>
             </List>
         </Frame>

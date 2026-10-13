@@ -176,7 +176,7 @@ pub fn DateTimeField(
         set_focus,
         value: value_read,
         set_value,
-        disabled: disabled.clone(),
+        disabled,
         left,
         on_change,
         on_open,
@@ -223,7 +223,7 @@ pub fn DateTimeField(
             day: read(DateSegment::Day).map(|day| day.clamp(1, 31) as u8),
         });
     }));
-    let focus = state.focus.clone();
+    let focus = state.focus;
     let within = create_memo(move || focus.get().is_some());
     create_effect(move || on_focus_change.call(within.get()));
     let first = order[0];
@@ -311,14 +311,14 @@ fn SegmentView(
         }
         node
     })));
-    let ime = focused_read.clone();
+    let ime = focused_read;
     let content = face.call(DateSegmentHandle {
         segment,
         text,
         placeholder,
         hovered,
         focused: focused_read,
-        disabled: state.disabled.clone(),
+        disabled: state.disabled,
     });
     let (focus_state, step_state, key_state, text_state) =
         (state.clone(), state.clone(), state.clone(), state.clone());

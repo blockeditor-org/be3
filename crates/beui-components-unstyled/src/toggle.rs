@@ -78,12 +78,12 @@ pub fn Toggle(
 
     let content_node = content.map(|build| {
         build.call(ToggleHandle {
-            checked: checked_read.clone(),
-            mixed: mixed.clone(),
-            hovered: hovered.clone(),
-            active: active.clone(),
-            focused: focused.clone(),
-            disabled: disabled.clone(),
+            checked: checked_read,
+            mixed,
+            hovered,
+            active,
+            focused,
+            disabled,
             label,
             glyph,
             tooltip,
@@ -91,8 +91,7 @@ pub fn Toggle(
     });
 
     let toggle_checked = {
-        let checked = checked_read.clone();
-        let disabled = disabled.clone();
+        let checked = checked_read;
         move || {
             if untrack(|| disabled.get()) {
                 return;
@@ -106,14 +105,14 @@ pub fn Toggle(
         }
     };
     let key_toggle = toggle_checked.clone();
-    let tab_disabled = disabled.clone();
+    let tab_disabled = disabled;
     let tab_stop = tab_stop.map(move |tab_stop| tab_stop && !tab_disabled.get());
     let cursor = create_memo(clone!(disabled -> move || match disabled.get() {
         true => CursorIcon::Default,
         false => CursorIcon::PointingHand,
     }));
 
-    set_component_state(checked_read.clone());
+    set_component_state(checked_read);
 
     view! {
         <Interactive
@@ -135,5 +134,5 @@ pub fn Toggle(
 }
 
 pub fn toggle_checked(document: &Document, toggle: NodeId) -> ReadSignal<bool> {
-    document.component_state::<ReadSignal<bool>>(toggle).clone()
+    *document.component_state::<ReadSignal<bool>>(toggle)
 }

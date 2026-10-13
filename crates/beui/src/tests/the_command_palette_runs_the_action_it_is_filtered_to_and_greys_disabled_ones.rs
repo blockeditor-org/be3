@@ -25,7 +25,7 @@ fn the_command_palette_runs_the_action_it_is_filtered_to_and_greys_disabled_ones
         })
         .register();
         let (open, set_open) = create_signal(false);
-        let opening = set_open.clone();
+        let opening = set_open;
         on_shortcut(move |press: KeyPress| {
             let wanted = press.pressed
                 && press.key == Key::P

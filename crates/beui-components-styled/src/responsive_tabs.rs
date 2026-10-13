@@ -21,16 +21,16 @@ pub fn ResponsiveTabs(
     let options = options.into_run();
     let (selected_read, set_selected) = create_signal(selected.peek());
     create_effect(clone!(set_selected -> move || set_selected.set(selected.get())));
-    set_component_state(selected_read.clone());
+    set_component_state(selected_read);
 
     let narrow = narrower_than(breakpoint);
     let wide = create_memo(clone!(narrow -> move || !narrow.get()));
     let highlighted = create_memo(clone!(selected_read -> move || Some(selected_read.get())));
 
     let tab_options = options.clone();
-    let tab_selected = selected_read.clone();
+    let tab_selected = selected_read;
     let tab_change = on_change.clone();
-    let tab_set = set_selected.clone();
+    let tab_set = set_selected;
 
     view! {
         <List spacing=0.0>

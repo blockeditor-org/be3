@@ -53,12 +53,12 @@ pub fn Spinner(
     let width = create_memo(move || Some(width.get()));
     let theme = use_theme();
     view! {
-        <Frame width height=HEIGHT color={theme.track.clone()} radius=RADIUS>
+        <Frame width height=HEIGHT color={theme.track} radius=RADIUS>
             <List direction=Direction::Horizontal spacing=0.0>
                 <Spacer @sizing={before} />
                 <Frame
                     @sizing=ItemSize::Percent(SEGMENT * 100.0)
-                    color={theme.accent.clone()}
+                    color={theme.accent}
                     radius=RADIUS
                 />
                 <Spacer @sizing={after} />

@@ -56,8 +56,8 @@ fn PalettePanel(children: Child) -> NodeId {
         <Frame padding_horizontal=MARGIN padding_vertical=MARGIN>
             <Frame
                 max_width=WIDTH
-                color={theme.surface_raised.clone()}
-                outline={theme.border.clone()}
+                color={theme.surface_raised}
+                outline={theme.border}
                 outline_width=BORDER_WIDTH
                 outline_visible=true
                 radius=CARD_RADIUS
@@ -77,8 +77,8 @@ fn PaletteSearch(handle: TextInputHandle) -> NodeId {
     view! {
         <Frame
             height=SEARCH_HEIGHT
-            color={theme.surface.clone()}
-            outline={theme.accent.clone()}
+            color={theme.surface}
+            outline={theme.accent}
             outline_width=BORDER_WIDTH
             radius=RADIUS
             outline_visible=true
@@ -110,7 +110,7 @@ fn PaletteRow(handle: CommandRowHandle) -> NodeId {
         true => theme.text_muted.get(),
         false => theme.text.get(),
     }));
-    let icon_color = text_color.clone();
+    let icon_color = text_color;
     let shortcut = shortcut.unwrap_or_default();
     view! {
         <Frame
@@ -133,7 +133,7 @@ fn PaletteRow(handle: CommandRowHandle) -> NodeId {
                 <Text
                     string={shortcut}
                     font_size=FONT_SMALL
-                    color={theme.text_muted.clone()}
+                    color={theme.text_muted}
                     align=TextAlign::End
                 />
             </List>

@@ -55,7 +55,7 @@ pub(crate) fn NotificationsButton(notifications: DesktopNotifications) -> NodeId
             {move |handle: PopoverHandle| view! {
                 <NotificationList
                     notifications={notifications.clone()}
-                    listed={listed.clone()}
+                    listed={listed}
                     popover={handle}
                 />
             }}
@@ -70,10 +70,10 @@ fn NotificationList(
     popover: PopoverHandle,
 ) -> NodeId {
     let empty = create_memo(clone!(listed -> move || listed.with(Vec::is_empty)));
-    let unclearable = empty.clone();
+    let unclearable = empty;
     let some = create_memo(clone!(empty -> move || !empty.get()));
     let clearing = notifications.clone();
-    let cleared = listed.clone();
+    let cleared = listed;
     let clear = move || {
         let ids: Vec<u32> =
             cleared.with_untracked(|listed| listed.iter().map(|shown| shown.id).collect());
@@ -100,7 +100,7 @@ fn NotificationList(
             <Show condition={some}>
                 <NotificationRows
                     notifications={notifications.clone()}
-                    listed={listed.clone()}
+                    listed={listed}
                     popover={popover.clone()}
                 />
             </Show>
@@ -153,10 +153,10 @@ fn NotificationRow(
     let said = !shown.body.is_empty();
     let body = shown.body.clone();
     let summary = shown.summary.clone();
-    let body_color = theme.text_muted.clone();
+    let body_color = theme.text_muted;
     let summary_color = match shown.critical {
-        true => theme.danger.clone(),
-        false => theme.text.clone(),
+        true => theme.danger,
+        false => theme.text,
     };
     view! {
         <List direction=Direction::Horizontal align=Align::Start spacing=ROW_SPACING>
@@ -178,7 +178,7 @@ fn NotificationRow(
                         <Text
                             string={body.clone()}
                             font_size=FONT_SMALL
-                            color={body_color.clone()}
+                            color={body_color}
                             wrap=true
                         />
                     </Show>

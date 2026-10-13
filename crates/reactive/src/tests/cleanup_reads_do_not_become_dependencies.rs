@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn cleanup_reads_do_not_become_dependencies() {
+    let _root = RootScope::new();
     let scope = Scope::new();
     let (value, set_value) = create_signal(0);
     let (incidental, set_incidental) = create_signal(0);
@@ -11,7 +12,7 @@ fn cleanup_reads_do_not_become_dependencies() {
         create_effect(move || {
             value.get();
             calls.set(calls.get() + 1);
-            let incidental = incidental.clone();
+            let incidental = incidental;
             on_cleanup(move || {
                 incidental.get();
             });

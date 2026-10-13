@@ -56,7 +56,7 @@ pub fn ModuleView(editor: Editor) -> NodeId {
     let panel = editor.clone();
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <List direction=Direction::Horizontal spacing=0.0>
                 <Frame
                     @sizing=ItemSize::Percent(100.0)
@@ -67,16 +67,16 @@ pub fn ModuleView(editor: Editor) -> NodeId {
                     <List spacing=SPACING>
                         <Show condition={named}>
                             <Heading
-                                content={name.clone()}
+                                content={name}
                                 align=TextAlign::Center
                                 @test_id={"game-module.name"}
                             />
                         </Show>
                         <Show condition={failed}>
                             <Paragraph
-                                content={reason.clone()}
+                                content={reason}
                                 align=TextAlign::Center
-                                color={theme.danger.clone()}
+                                color={theme.danger}
                                 @test_id={"game-module.error"}
                             />
                         </Show>
@@ -124,7 +124,7 @@ fn ModulePanel(editor: Editor) -> NodeId {
                 on_click={replace}
             />
             <Show condition={failed}>
-                <Caption content={reason.clone()} color={theme.danger.clone()} />
+                <Caption content={reason} color={theme.danger} />
             </Show>
         </List>
     }

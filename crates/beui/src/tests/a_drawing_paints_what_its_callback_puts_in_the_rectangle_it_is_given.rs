@@ -5,6 +5,7 @@ use crate::reactive::{Draw, Drawing, create_signal, view};
 
 #[test]
 fn a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given() {
+    let _root = crate::reactive::RootScope::new();
     let painted = Rc::new(Cell::new(0));
     let drawn = {
         let painted = painted.clone();

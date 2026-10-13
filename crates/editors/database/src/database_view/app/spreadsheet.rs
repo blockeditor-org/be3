@@ -28,18 +28,18 @@ const SWATCH_HEIGHT: f32 = 14.0;
 #[component]
 pub fn Spreadsheet(data: Data) -> NodeId {
     let display = display(&data);
-    let fields = data.fields.clone();
+    let fields = data.fields;
     let keys = create_memo(clone!(display -> move || {
         display.with(|display| display.iter().map(|row| row.index).collect::<Vec<usize>>())
     }));
     let empty = create_memo(clone!(fields -> move || fields.with(Vec::is_empty)));
     let filled = create_memo(clone!(empty -> move || !empty.get()));
-    let keyboard = Rc::new(keyboard(&data, display.clone()));
+    let keyboard = Rc::new(keyboard(&data, display));
     let rows_data = data.clone();
     let header_data = data.clone();
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <List spacing=0.0>
                 <Show condition={empty}>
                     <Frame padding_horizontal=12.0 padding_vertical=12.0>
@@ -51,8 +51,8 @@ pub fn Spreadsheet(data: Data) -> NodeId {
                         @sizing=ItemSize::Percent(100.0)
                         data={rows_data.clone()}
                         header={header_data.clone()}
-                        display={display.clone()}
-                        keys={keys.clone()}
+                        display={display}
+                        keys={keys}
                         on_key={clone!(keyboard -> move |press: KeyPress| keyboard(press))}
                     />
                 </Show>
@@ -79,7 +79,7 @@ fn Grid(
                             <ForEach keys={keys}>
                                 {move |index: usize| {
                                     let data = data.clone();
-                                    let display = display.clone();
+                                    let display = display;
                                     view! {
                                         <Row data={data} display={display} index={index} />
                                     }
@@ -95,7 +95,7 @@ fn Grid(
 
 #[component]
 fn HeaderRow(data: Data) -> NodeId {
-    let fields = data.fields.clone();
+    let fields = data.fields;
     let keys = create_memo(clone!(fields -> move || {
         fields.with(|fields| fields.iter().map(|field| field.id).collect::<Vec<Uuid>>())
     }));
@@ -105,15 +105,15 @@ fn HeaderRow(data: Data) -> NodeId {
             <Frame
                 width=ROW_HEADER_WIDTH
                 height=ROW_HEIGHT
-                color={theme.surface.clone()}
-                outline={theme.border.clone()}
+                color={theme.surface}
+                outline={theme.border}
                 outline_width=BORDER
                 outline_visible=true
             />
             <ForEach keys={keys}>
                 {move |id: Uuid| {
                     let data = data.clone();
-                    let fields = fields.clone();
+                    let fields = fields;
                     let field = create_memo(clone!(fields -> move || {
                         fields.with(|fields| fields.iter().find(|field| field.id == id).cloned())
                     }));
@@ -134,7 +134,7 @@ fn HeaderRow(data: Data) -> NodeId {
                             field.as_ref().map_or(0.0, |field| column_width(field.field_type))
                         })
                     }));
-                    let sorted = sorted_direction(data.sort.clone(), id);
+                    let sorted = sorted_direction(data.sort, id);
                     let resort = clone!(data -> move || {
                         let sort = next_sort(data.sort.get_untracked(), id);
                         data.operate_view(DatabaseView::set_sort(sort));
@@ -173,18 +173,18 @@ fn HeaderCell(
         <Frame
             width={width}
             height=ROW_HEIGHT
-            color={theme.surface.clone()}
-            outline={theme.border.clone()}
+            color={theme.surface}
+            outline={theme.border}
             outline_width=BORDER
             outline_visible=true
         >
             <Interactive on_click={move || on_click.call()}>
                 <Frame padding_horizontal=CELL_PADDING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                        <Body content={label} color={theme.text.clone()} />
+                        <Body content={label} color={theme.text} />
                         <Spacer @sizing=ItemSize::Percent(100.0) />
                         <Show condition={marked}>
-                            <Icon glyph={glyph.clone()} color={theme.text_muted.clone()} />
+                            <Icon glyph={glyph} color={theme.text_muted} />
                         </Show>
                     </List>
                 </Frame>
@@ -207,7 +207,7 @@ fn Row(data: Data, display: Memo<Vec<DisplayRow>>, index: usize) -> NodeId {
     let selected = create_memo(clone!(data -> move || {
         data.selected.get().is_some_and(|selection| selection.row == index)
     }));
-    let fields = data.fields.clone();
+    let fields = data.fields;
     let keys = create_memo(clone!(fields -> move || {
         fields.with(|fields| fields.iter().map(|field| field.id).collect::<Vec<Uuid>>())
     }));
@@ -222,7 +222,7 @@ fn Row(data: Data, display: Memo<Vec<DisplayRow>>, index: usize) -> NodeId {
                 @sizing=ItemSize::Fixed(ROW_HEADER_WIDTH)
                 height=ROW_HEIGHT
                 color={header_fill}
-                outline={theme.border.clone()}
+                outline={theme.border}
                 outline_width=BORDER
                 outline_visible=true
             >
@@ -231,8 +231,8 @@ fn Row(data: Data, display: Memo<Vec<DisplayRow>>, index: usize) -> NodeId {
             <ForEach keys={keys}>
                 {move |id: Uuid| {
                     let data = data.clone();
-                    let entry = entry.clone();
-                    let fields = fields.clone();
+                    let entry = entry;
+                    let fields = fields;
                     let field = create_memo(clone!(fields -> move || {
                         fields.with(|fields| fields.iter().find(|field| field.id == id).cloned())
                     }));
@@ -324,7 +324,7 @@ fn Cell(
         }
     }));
     let theme = use_theme();
-    let glyph_color = theme.text.clone();
+    let glyph_color = theme.text;
     let fill = create_memo(clone!(theme selected -> move || match selected.get() {
         true => theme.accent_soft.get(),
         false => theme.background.get(),
@@ -347,14 +347,14 @@ fn Cell(
                 <Frame padding_horizontal=CELL_PADDING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=CELL_PADDING>
                         <Show condition={boolean}>
-                            <Icon glyph={check_glyph.clone()} color={glyph_color.clone()} />
+                            <Icon glyph={check_glyph} color={glyph_color} />
                         </Show>
                         <Show condition={colored}>
                             <Frame
                                 @sizing=ItemSize::Fixed(SWATCH_WIDTH)
                                 height=SWATCH_HEIGHT
-                                color={swatch.clone()}
-                                outline={theme.border.clone()}
+                                color={swatch}
+                                outline={theme.border}
                                 outline_width=BORDER
                                 outline_visible=true
                                 radius=2
@@ -364,7 +364,7 @@ fn Cell(
                             @sizing=ItemSize::Percent(100.0)
                             content={text}
                             align={align}
-                            color={theme.text.clone()}
+                            color={theme.text}
                             ellipsis=true
                         />
                     </List>
@@ -390,12 +390,12 @@ fn sorted_direction(
 }
 
 pub fn display(data: &Data) -> Memo<Vec<DisplayRow>> {
-    let rows = data.rows.clone();
-    let fields = data.fields.clone();
-    let labels = data.labels.clone();
-    let sort = data.sort.clone();
-    let filters = data.filters.clone();
-    let selected = data.selected.clone();
+    let rows = data.rows;
+    let fields = data.fields;
+    let labels = data.labels;
+    let sort = data.sort;
+    let filters = data.filters;
+    let selected = data.selected;
     create_memo(move || {
         rows.with(|rows| {
             fields.with(|fields| {

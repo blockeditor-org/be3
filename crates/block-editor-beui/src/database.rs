@@ -59,16 +59,16 @@ pub fn DatabaseValueEditor(
         <List spacing=FIELD_SPACING>
             <ForEach keys={keys}>
                 {move |id: Uuid| {
-                    let field = field_of(fields.clone(), id);
-                    let value = value_of(values.clone(), id);
+                    let field = field_of(fields, id);
+                    let value = value_of(values, id);
                     let test_id = format!("{}.field.{id}", prefix.get_untracked());
                     view! {
                         <DatabaseValueRow
                             field={field}
                             value={value}
-                            labels={labels.clone()}
-                            headings={headings.clone()}
-                            disabled={disabled.clone()}
+                            labels={labels}
+                            headings={headings}
+                            disabled={disabled}
                             id={test_id}
                             on_change={forward(on_change.clone())}
                             on_pick={forward(on_pick.clone())}
@@ -117,7 +117,7 @@ fn DatabaseValueRow(
         <List spacing=SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Show condition={headings}>
-                    <Caption content={heading.clone()} />
+                    <Caption content={heading} />
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <Show condition={set}>
@@ -166,10 +166,10 @@ fn DatabaseValueControl(
         <List spacing=0.0>
             <Dynamic value={kind}>
                 {move |kind: Option<Option<DatabaseFieldType>>| {
-                    let field = field.clone();
-                    let value = value.clone();
-                    let labels = labels.clone();
-                    let disabled = disabled.clone();
+                    let field = field;
+                    let value = value;
+                    let labels = labels;
+                    let disabled = disabled;
                     let test_id = id.clone();
                     let on_change = forward(on_change.clone());
                     let on_pick = forward(on_pick.clone());
@@ -366,7 +366,7 @@ fn EnumValue(
         };
         options.with(|options| options.iter().position(|option| option.id == chosen))
     }));
-    let names = options.clone();
+    let names = options;
     let picked = clone!(options field on_change -> move |index: Option<usize>| {
         let (Some(index), Some(field_id)) = (
             index,
@@ -566,7 +566,7 @@ fn RelationValue(
         choices.with(|choices| choices.iter().position(|(link, _)| *link == chosen))
     }));
     let unlinked = create_memo(clone!(target -> move || target.get().is_none()));
-    let names = choices.clone();
+    let names = choices;
     let picked = clone!(choices field on_change -> move |index: Option<usize>| {
         let Some(field_id) = field.with_untracked(|field| field.as_ref().map(|field| field.id))
         else {
@@ -668,15 +668,15 @@ fn LinksValue(
         links.push(link);
         emit(links);
     });
-    let names = addable.clone();
-    let chip_labels = labels.clone();
+    let names = addable;
+    let chip_labels = labels;
     let add_id = format!("{id}.add");
-    let add_off = disabled.clone();
+    let add_off = disabled;
     view! {
         <List spacing=SPACING>
-            <ForEach keys={linked.clone()}>
+            <ForEach keys={linked}>
                 {move |link: RowRef| {
-                    let disabled = disabled.clone();
+                    let disabled = disabled;
                     let remove_id = format!("{id}.remove.{}", link.row);
                     let label = create_memo(clone!(chip_labels -> move || {
                         chip_labels.with(|labels| labels.row(&link))
@@ -767,7 +767,7 @@ pub fn watch_inverses(editor: &crate::Editor, database: Memo<Option<Uuid>>) -> M
             .into_iter()
             .map(|source| source_inverses(&editor, target, source))
             .collect();
-        let set_found = set_found.clone();
+        let set_found = set_found;
         create_effect(move || {
             set_found.set(
                 watched_sources
@@ -794,7 +794,7 @@ fn source_inverses(editor: &crate::Editor, target: Uuid, source: Uuid) -> ReadSi
             .content_of::<DatabaseSchemaContent>(schema)
             .project(|schema| schema.root());
         let database = content.project(|content| content.root());
-        let set_found = set_found.clone();
+        let set_found = set_found;
         create_effect(move || {
             set_found.set(inverses(target, source, &database.get(), &schema.get()));
         });
@@ -825,7 +825,7 @@ pub fn watch_row_labels(
             .into_iter()
             .map(|database| row_titles(&editor, database))
             .collect();
-        let set_labels = set_labels.clone();
+        let set_labels = set_labels;
         create_effect(move || {
             set_labels.set(
                 watched
@@ -850,7 +850,7 @@ fn row_titles(editor: &crate::Editor, database: Uuid) -> ReadSignal<Vec<(RowRef,
                 .project(|schema| schema.root().title_field())
         });
         let content = content.clone();
-        let set_titles = set_titles.clone();
+        let set_titles = set_titles;
         create_effect(move || {
             let title = title_field.as_ref().and_then(ReadSignal::get);
             let projected = content.project(move |content| {
@@ -866,7 +866,7 @@ fn row_titles(editor: &crate::Editor, database: Uuid) -> ReadSignal<Vec<(RowRef,
                     })
                     .collect::<Vec<_>>()
             });
-            let set_titles = set_titles.clone();
+            let set_titles = set_titles;
             create_effect(move || set_titles.set(projected.get()));
         });
     });

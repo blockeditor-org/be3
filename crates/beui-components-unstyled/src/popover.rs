@@ -63,7 +63,7 @@ pub fn Popover(
     let label = create_memo(move || label.get());
     let trigger_ref = NodeRef::new();
     set_component_state(State {
-        open: open.clone(),
+        open,
         trigger: trigger_ref.clone(),
     });
 
@@ -108,12 +108,9 @@ pub fn Popover(
         PopoverPlacement::Below => Placement::BelowStart,
         PopoverPlacement::Over(inset) => Placement::Over(inset),
     };
-    let handle = PopoverHandle {
-        open: open.clone(),
-        close,
-    };
-    let trigger_label = label.clone();
-    let trigger_open = open.clone();
+    let handle = PopoverHandle { open, close };
+    let trigger_label = label;
+    let trigger_open = open;
     let toggle = clone!(set_open disabled -> move || {
         if !disabled.get_untracked() {
             set_open.update(|open| *open = !*open);
@@ -146,7 +143,7 @@ pub fn Popover(
                 placement
                 policy=LayerPolicy::Pass
                 trigger={trigger_ref.clone()}
-                open={open.clone()}
+                open={open}
                 on_dismiss={clone!(set_open -> move |_: Dismiss| {
                     set_open.set(false);
                     if refocus_trigger.get_untracked() {

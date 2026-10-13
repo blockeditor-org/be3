@@ -402,7 +402,7 @@ pub(crate) fn HexView(state: Shared) -> NodeId {
 
                 let cx = Rc::new(HexSurface {
                     state: state.clone(),
-                    geometry: geometry.clone(),
+                    geometry,
                     rows,
                     canvas: canvas.clone(),
                 });

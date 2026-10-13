@@ -76,7 +76,7 @@ fn SliderTrack(handle: SliderHandle) -> NodeId {
     view! {
         <Frame
             height=HEIGHT
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
             outline_offset=FOCUS_RING_OFFSET
@@ -101,7 +101,7 @@ fn SliderTrack(handle: SliderHandle) -> NodeId {
                 <Frame
                     @sizing={rest_percent}
                     height=TRACK_HEIGHT
-                    color={theme.track.clone()}
+                    color={theme.track}
                     radius=TRACK_RADIUS
                 />
             </List>

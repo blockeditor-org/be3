@@ -11,14 +11,15 @@ use crate::styled::{Dialog, TextInput};
 
 #[test]
 fn a_dialog_gives_the_focus_back_to_the_forwarding_catcher_that_had_it() {
+    let _root = crate::reactive::RootScope::new();
     let (open, set_open) = create_signal(false);
     let catcher = NodeRef::new();
     let field = NodeRef::new();
     let heard = Rc::new(RefCell::new(Vec::<(bool, Vec<Event>)>::new()));
     let document = build({
-        let (open, catcher, field) = (open.clone(), catcher.clone(), field.clone());
+        let (open, catcher, field) = (open, catcher.clone(), field.clone());
         let heard = Rc::clone(&heard);
-        let closing = set_open.clone();
+        let closing = set_open;
         move || {
             view! {
                 <List spacing=0.0>
@@ -35,11 +36,7 @@ fn a_dialog_gives_the_focus_back_to_the_forwarding_catcher_that_had_it() {
                             </Interactive>
                         </CanvasItem>
                     </Canvas>
-                    <Dialog
-                        open={open.clone()}
-                        title="Find"
-                        on_dismiss={move || closing.set(false)}
-                    >
+                    <Dialog open={open} title="Find" on_dismiss={move || closing.set(false)}>
                         <TextInput @node_ref=&field value="" focused={open} />
                     </Dialog>
                 </List>

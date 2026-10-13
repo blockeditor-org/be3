@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::rc::Rc;
 
 use accesskit::{Node, Role};
@@ -115,9 +116,9 @@ pub fn Calendar(
     let (year_focus, set_year_focus) = create_signal(None);
     let (mode, set_mode) = create_signal(CalendarMode::Days);
     let state: Handle = Rc::new(State {
-        selected: selected_read.clone(),
+        selected: selected_read,
         set_selected,
-        active: active.clone(),
+        active,
         set_active,
         day_focus,
         set_day_focus,
@@ -125,7 +126,7 @@ pub fn Calendar(
         set_month_focus,
         year_focus,
         set_year_focus,
-        mode: mode.clone(),
+        mode,
         set_mode,
         min,
         max,
@@ -199,15 +200,14 @@ pub fn Calendar(
     let next_label = create_memo(move || format!("Next {}", unit.get()));
     let months_open = create_memo(clone!(mode -> move || mode.get() == CalendarMode::Months));
     let years_open = create_memo(clone!(mode -> move || mode.get() == CalendarMode::Years));
-    let month_toggle =
-        toggle_accessibility(month_label.clone(), "choose a month", months_open.clone());
-    let year_toggle = toggle_accessibility(year_label.clone(), "choose a year", years_open.clone());
+    let month_toggle = toggle_accessibility(month_label, "choose a month", months_open);
+    let year_toggle = toggle_accessibility(year_label, "choose a year", years_open);
     let header_node = header.call(CalendarHeaderHandle {
-        month: shown_month.clone(),
-        label: label.clone(),
+        month: shown_month,
+        label,
         month_label,
         year_label,
-        mode: mode.clone(),
+        mode,
         previous: Callback::new(clone!(state -> move |()| page(&state, -1))),
         next: Callback::new(clone!(state -> move |()| page(&state, 1))),
         show_months: Callback::new(
@@ -235,15 +235,15 @@ pub fn Calendar(
     let week_state = state.clone();
     let month_state = state.clone();
     let year_state = state.clone();
-    let days_label = label.clone();
-    let months_label = label.clone();
+    let days_label = label;
+    let months_label = label;
     view! {
         <List spacing>
             {header_node}
             <Show condition={days_shown}>
                 {move || {
-                    let (days_label, spacing, weekday) = (days_label.clone(), spacing, weekday.clone());
-                    let (week_state, grid_start, day) = (week_state.clone(), grid_start.clone(), day.clone());
+                    let (days_label, spacing, weekday) = (days_label, spacing, weekday.clone());
+                    let (week_state, grid_start, day) = (week_state.clone(), grid_start, day.clone());
                     view! {
                         <CalendarGrid label=days_label spacing>
                             <List direction=Direction::Horizontal spacing>
@@ -262,7 +262,7 @@ pub fn Calendar(
                                     <CalendarWeek
                                         state={week_state.clone()}
                                         week
-                                        grid_start={grid_start.clone()}
+                                        grid_start={grid_start}
                                         spacing
                                         day={day.clone()}
                                     />
@@ -274,7 +274,7 @@ pub fn Calendar(
             </Show>
             <Show condition={months_shown}>
                 {move || {
-                    let (months_label, spacing) = (months_label.clone(), spacing);
+                    let (months_label, spacing) = (months_label, spacing);
                     let (month_state, month) = (month_state.clone(), month.clone());
                     view! {
                         <CalendarGrid label=months_label spacing>
@@ -294,8 +294,8 @@ pub fn Calendar(
             </Show>
             <Show condition={years_shown}>
                 {move || {
-                    let (label, spacing, year_state) = (label.clone(), spacing, year_state.clone());
-                    let (first_year, year) = (first_year.clone(), year.clone());
+                    let (label, spacing, year_state) = (label, spacing, year_state.clone());
+                    let (first_year, year) = (first_year, year.clone());
                     view! {
                         <CalendarGrid label spacing>
                             <ForEach keys={(0..YEAR_ROWS).collect::<Vec<_>>()}>
@@ -303,7 +303,7 @@ pub fn Calendar(
                                     <CalendarYearRow
                                         state={year_state.clone()}
                                         row
-                                        first_year={first_year.clone()}
+                                        first_year={first_year}
                                         spacing
                                         year={year.clone()}
                                     />
@@ -334,7 +334,7 @@ fn CalendarYearRow(
                         @sizing=ItemSize::Percent(100.0)
                         state={state.clone()}
                         offset={(row * YEAR_COLUMNS + column) as i32}
-                        first_year={first_year.clone()}
+                        first_year={first_year}
                         face={year.clone()}
                     />
                 }}
@@ -371,8 +371,9 @@ fn CalendarYear(
         node
     }));
     let (focus_state, click_state, key_state) = (state.clone(), state.clone(), state.clone());
-    let (focus_year, click_year, key_year) = (year.clone(), year.clone(), year.clone());
-    let handle_disabled = disabled.clone();
+    let (focus_year, click_year, key_year) = (year, year, year);
+    let focused_as = Cell::new(None);
+    let handle_disabled = disabled;
     view! {
         <unstyled::Button
             tab_stop
@@ -380,10 +381,13 @@ fn CalendarYear(
             disabled
             accessibility
             on_focus_change={move |has_focus: bool| {
-                let year = focus_year.get_untracked();
                 if has_focus {
+                    let year = focus_year.get_untracked();
+                    focused_as.set(Some(year));
                     focus_state.set_year_focus.set(Some(year));
-                } else if focus_state.year_focus.get_untracked() == Some(year) {
+                } else if let Some(year) = focused_as.take()
+                    && focus_state.year_focus.get_untracked() == Some(year)
+                {
                     focus_state.set_year_focus.set(None);
                 }
             }}
@@ -449,7 +453,7 @@ fn CalendarWeek(
                         @sizing=ItemSize::Percent(100.0)
                         state={state.clone()}
                         offset={(week * DAYS_PER_WEEK + column) as i64}
-                        grid_start={grid_start.clone()}
+                        grid_start={grid_start}
                         face={day.clone()}
                     />
                 }}
@@ -488,8 +492,9 @@ fn CalendarDay(
         node
     }));
     let (focus_state, click_state, key_state) = (state.clone(), state.clone(), state.clone());
-    let (focus_date, click_date, key_date) = (date.clone(), date.clone(), date.clone());
-    let handle_disabled = disabled.clone();
+    let (focus_date, click_date, key_date) = (date, date, date);
+    let focused_as = Cell::new(None);
+    let handle_disabled = disabled;
     view! {
         <unstyled::Button
             tab_stop
@@ -497,11 +502,14 @@ fn CalendarDay(
             disabled
             accessibility
             on_focus_change={move |has_focus: bool| {
-                let date = focus_date.get_untracked();
                 if has_focus {
+                    let date = focus_date.get_untracked();
+                    focused_as.set(Some(date));
                     focus_state.set_day_focus.set(Some(date));
                     focus_state.set_active.set(date);
-                } else if focus_state.day_focus.get_untracked() == Some(date) {
+                } else if let Some(date) = focused_as.take()
+                    && focus_state.day_focus.get_untracked() == Some(date)
+                {
                     focus_state.set_day_focus.set(None);
                 }
             }}
@@ -571,8 +579,9 @@ fn CalendarMonth(state: Handle, number: u8, face: RenderFn<CalendarCellHandle>) 
         node
     }));
     let (focus_state, click_state, key_state) = (state.clone(), state.clone(), state.clone());
-    let (focus_month, click_month) = (month.clone(), month.clone());
-    let handle_disabled = disabled.clone();
+    let (focus_month, click_month) = (month, month);
+    let focused_as = Cell::new(None);
+    let handle_disabled = disabled;
     view! {
         <unstyled::Button
             tab_stop
@@ -580,10 +589,13 @@ fn CalendarMonth(state: Handle, number: u8, face: RenderFn<CalendarCellHandle>) 
             disabled
             accessibility
             on_focus_change={move |has_focus: bool| {
-                let month = focus_month.get_untracked();
                 if has_focus {
+                    let month = focus_month.get_untracked();
+                    focused_as.set(Some(month));
                     focus_state.set_month_focus.set(Some(month));
-                } else if focus_state.month_focus.get_untracked() == Some(month) {
+                } else if let Some(month) = focused_as.take()
+                    && focus_state.month_focus.get_untracked() == Some(month)
+                {
                     focus_state.set_month_focus.set(None);
                 }
             }}

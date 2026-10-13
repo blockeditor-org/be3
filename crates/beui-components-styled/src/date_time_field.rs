@@ -121,7 +121,7 @@ fn FieldBox(handle: DateTimeBoxHandle) -> NodeId {
     let ring = create_memo(move || outer && keyboard.get());
     view! {
         <Frame
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=FOCUS_RING_WIDTH
             radius={RADIUS + 3}
             outline_offset=FOCUS_RING_OFFSET
@@ -181,7 +181,7 @@ fn LiteralFace(text: String) -> NodeId {
         <Text
             string={text}
             font_size=FONT_BODY
-            color={theme.text_muted.clone()}
+            color={theme.text_muted}
             vertical_align=TextAlign::Center
         />
     }
@@ -264,7 +264,7 @@ fn PickerPanel(
         };
         least.max(field_width.get())
     }));
-    let width = panel_width.clone();
+    let width = panel_width;
     view! {
         <Frame width={panel_width}>
             <List spacing=PANEL_SPACING>
@@ -274,7 +274,7 @@ fn PickerPanel(
                 <Dynamic value={layout}>
                     {move |shape: DateTimePanelLayout| {
                         let (calendar, times) = (calendar.clone(), times.clone());
-                        let (page, show_page) = (page.clone(), show_page.clone());
+                        let (page, show_page) = (page, show_page.clone());
                         view! {
                             <PanelBody
                                 shape
@@ -282,7 +282,7 @@ fn PickerPanel(
                                 times
                                 page
                                 show_page={move |chosen: usize| show_page.call(chosen)}
-                                width={width.clone()}
+                                width={width}
                                 first_weekday
                                 step_minutes
                             />
@@ -334,7 +334,7 @@ fn PanelBody(
     let times_shown = create_memo(clone!(page -> move || page.get() == 1));
     let (beside_calendar, beside_times) = (calendar.clone(), times.clone());
     let (date_calendar, time_times) = (calendar.clone(), times.clone());
-    let alone_date = alone.clone();
+    let alone_date = alone;
     view! {
         <List spacing=PANEL_SPACING>
             <Show condition={shape == DateTimePanelLayout::Beside}>
@@ -503,7 +503,7 @@ fn TimeOptionFace(handle: TimeOptionHandle, centred: bool) -> NodeId {
             height=TIME_ROW_HEIGHT
             color={fill}
             radius=RADIUS
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=FOCUS_RING_WIDTH
             outline_offset=-1.0
             outline_visible={focus_ring(focused)}

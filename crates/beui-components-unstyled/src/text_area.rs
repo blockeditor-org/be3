@@ -1163,32 +1163,32 @@ pub fn TextArea(
                             rows: RefCell::new(BTreeMap::new()),
                             registered: Cell::new(0),
                             rects: with_document(|document| Rc::clone(&document.rects)),
-                            starts: starts.clone(),
-                            visible: visible.clone(),
+                            starts,
+                            visible,
                             tables,
-                            widgets: widgets.clone(),
+                            widgets,
                             client_colors,
-                            colors: colors.clone(),
+                            colors,
                             composition,
-                            placeholder: placeholder.clone(),
-                            font_size: font_size.clone(),
+                            placeholder,
+                            font_size,
                             metrics: create_memo(clone!(scale attached -> move || (scale.get(), attached.get()))),
-                            gutter: gutter.clone(),
-                            padding: padding.clone(),
-                            scroll: scroll.clone(),
+                            gutter,
+                            padding,
+                            scroll,
                             set_offset,
-                            shift: shift.clone(),
-                            set_shift: set_shift.clone(),
-                            view_width: view_width.clone(),
+                            shift,
+                            set_shift,
+                            view_width,
                             view_height: create_memo(clone!(placed -> move || placed.get().height())),
-                            focused: focused.clone(),
-                            set_focused: set_focused.clone(),
+                            focused,
+                            set_focused,
                             set_autoscroll,
                             viewport: viewport.clone(),
                             list: NodeRef::new(),
                             anchor,
-                            masked: masked.clone(),
-                            disabled: disabled.clone(),
+                            masked,
+                            disabled,
                             remote_cursors,
                             drop_caret,
                             reveal_attempts: Cell::new(0),
@@ -1196,10 +1196,10 @@ pub fn TextArea(
                             selected_widget,
                             checkbox,
                             completion,
-                            completions: completions.clone(),
-                            completing: completing.clone(),
-                            highlighted: highlighted.clone(),
-                            set_highlighted: set_highlighted.clone(),
+                            completions,
+                            completing,
+                            highlighted,
+                            set_highlighted,
                             set_dismissed,
                             on_widget_press,
                             on_menu,
@@ -1246,7 +1246,7 @@ pub fn TextArea(
                         }));
 
                         let focus_requests = state.focus_requests();
-                        let focus_writer = set_focused.clone();
+                        let focus_writer = set_focused;
                         create_effect(move || {
                             if focus_requests.get() > 0 {
                                 focus_writer.set(true);
@@ -1316,10 +1316,10 @@ pub fn TextArea(
                         let border_color = create_memo(clone!(colors -> move || colors.get().gutter_border));
                         let border_x = create_memo(clone!(gutter -> move || gutter.get() - 1.0));
                         let (strip_height, border_height, area_width, area_height) = (
-                            height.clone(),
-                            height.clone(),
-                            width.clone(),
-                            height.clone(),
+                            height,
+                            height,
+                            width,
+                            height,
                         );
                         let has_menu = completion_menu.is_some();
                         let menu = create_memo(clone!(completing -> move || has_menu && completing.get()));
@@ -1344,11 +1344,11 @@ pub fn TextArea(
                                     <Show condition={multi_line}>
                                         {move || {
                                         let (width, height, strip_width, strip_height) =
-                                            (width.clone(), height.clone(), strip_width.clone(), strip_height.clone());
+                                            (width, height, strip_width, strip_height);
                                         let (gutter_color, border_x, border_height, border_color) =
-                                            (gutter_color.clone(), border_x.clone(), border_height.clone(), border_color.clone());
+                                            (gutter_color, border_x, border_height, border_color);
                                         let (area_width, area_height, offset, set_scroll, scrolled) =
-                                            (area_width.clone(), area_height.clone(), offset.clone(), set_scroll.clone(), scrolled.clone());
+                                            (area_width, area_height, offset, set_scroll, scrolled.clone());
                                         view! {
                                             <Canvas
                                                 @sizing=ItemSize::Percent(100.0)
@@ -1437,13 +1437,13 @@ fn Editing(field: Field) -> NodeId {
         false => vec![PasteKind::Text],
     };
     let ime_cx = cx.clone();
-    let focused = cx.focused.clone();
-    let set_focused = cx.set_focused.clone();
+    let focused = cx.focused;
+    let set_focused = cx.set_focused;
     let (blur_cx, text_cx, key_cx, capture_cx) = (cx.clone(), cx.clone(), cx.clone(), cx.clone());
     let (press_cx, tap_cx, drag_cx, release_cx) = (cx.clone(), cx.clone(), cx.clone(), cx.clone());
     component_accessibility(described);
     let single_line = cx.single_line;
-    let disabled = cx.disabled.clone();
+    let disabled = cx.disabled;
     let hover_cx = cx.clone();
     let body_cx = cx;
     view! {

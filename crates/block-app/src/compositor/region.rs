@@ -331,12 +331,7 @@ pub(crate) fn PluginRegion(
         <DropTarget on_over={over} on_drop={dropped}>
             {move |_: DropHandle| view! {
                 <Layers>
-                    <RegionChildren
-                        state={state.clone()}
-                        rect={rect.clone()}
-                        child_view={below}
-                        below=true
-                    />
+                    <RegionChildren state={state} rect={rect} child_view={below} below=true />
                     <BackHandler enabled={handles_back} on_gesture={back}>
                         <Interactive
                             @node_ref={&catcher}
@@ -440,15 +435,15 @@ fn Notices(loading: Memo<bool>, failure: Memo<Option<Failure>>, id: String) -> N
             <List spacing=0.0>
                 <Show condition={failed}>
                     <CrashNotice
-                        title={title.clone()}
-                        detail={detail.clone()}
-                        reloadable={reloadable.clone()}
-                        on_reload={reload.clone()}
+                        title={title}
+                        detail={detail}
+                        reloadable={reloadable}
+                        on_reload={reload}
                         id={id.clone()}
                     />
                 </Show>
                 <Show condition={still_loading}>
-                    <HostItemFace content={loading_item.clone()} />
+                    <HostItemFace content={loading_item} />
                 </Show>
             </List>
         </Frame>
@@ -490,7 +485,7 @@ fn RegionChildren(
                     let y = create_memo(clone!(clip -> move || clip.get().min.y));
                     let width = create_memo(clone!(clip -> move || clip.get().width()));
                     let height = create_memo(clone!(clip -> move || clip.get().height()));
-                    let built = child_view(key, child, rect.clone());
+                    let built = child_view(key, child, rect);
                     view! {
                         <CanvasItem x={x} y={y} width={width} height={height}>{built}</CanvasItem>
                     }

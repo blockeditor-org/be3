@@ -29,13 +29,10 @@ pub(crate) fn EffectsPanel(state: Rc<VideoState>) -> NodeId {
             <Heading content="Effects" />
             <Separator />
             <Show condition={none}>
-                <Caption
-                    content="Select a clip to see its effects."
-                    color={theme.text_muted.clone()}
-                />
+                <Caption content="Select a clip to see its effects." color={theme.text_muted} />
             </Show>
             <Show condition={chosen}>
-                <ClipInspector state={state.clone()} clip={clip.clone()} />
+                <ClipInspector state={state.clone()} clip={clip} />
             </Show>
         </List>
     }
@@ -49,7 +46,7 @@ fn ClipInspector(state: Rc<VideoState>, clip: Memo<Option<VideoClip>>) -> NodeId
     }));
     let length =
         create_memo(clone!(clip -> move || clip.get().map_or(1.0, |clip| clip.length as f64)));
-    let rate = state.frame_rate.clone();
+    let rate = state.frame_rate;
     let seconds = create_memo(clone!(clip rate -> move || {
         let frames = clip.get().map_or(0, |clip| clip.length);
         format!("{:.2}s", rate.get().seconds(frames))
@@ -82,11 +79,11 @@ fn ClipInspector(state: Rc<VideoState>, clip: Memo<Option<VideoClip>>) -> NodeId
     }));
 
     let trimmed = Rc::clone(&state);
-    let trimmed_clip = clip.clone();
+    let trimmed_clip = clip;
     let detached = Rc::clone(&state);
-    let detached_clip = clip.clone();
+    let detached_clip = clip;
     let moved = Rc::clone(&state);
-    let moved_clip = clip.clone();
+    let moved_clip = clip;
     let effects = create_memo(clone!(clip -> move || {
         clip.get().map(|clip| clip.effects).unwrap_or_default()
     }));
@@ -95,11 +92,11 @@ fn ClipInspector(state: Rc<VideoState>, clip: Memo<Option<VideoClip>>) -> NodeId
         effects.get().iter().map(|effect| effect.id).collect::<Vec<Uuid>>()
     }));
     let theme = use_theme();
-    let seconds_color = theme.text_muted.clone();
-    let start_color = theme.text_muted.clone();
-    let parent_color = theme.text_muted.clone();
-    let bare_color = theme.text_muted.clone();
-    let hanging_row = hanging.clone();
+    let seconds_color = theme.text_muted;
+    let start_color = theme.text_muted;
+    let parent_color = theme.text_muted;
+    let bare_color = theme.text_muted;
+    let hanging_row = hanging;
 
     view! {
         <List spacing=8.0>
@@ -146,7 +143,7 @@ fn ClipInspector(state: Rc<VideoState>, clip: Memo<Option<VideoClip>>) -> NodeId
             <Show condition={hanging}>
                 {move || clone!(moved moved_clip -> view! {
                     <NumberInput
-                        value={offset.clone()}
+                        value={offset}
                         label="Offset"
                         on_change={move |value: f64| {
                             let Some(mut clip) = moved_clip.get_untracked() else {
@@ -164,11 +161,11 @@ fn ClipInspector(state: Rc<VideoState>, clip: Memo<Option<VideoClip>>) -> NodeId
             </Show>
             <Body content="Effect stack" />
             <Show condition={bare}>
-                <Caption content="No effects yet." color={bare_color.clone()} />
+                <Caption content="No effects yet." color={bare_color} />
             </Show>
             <ForEach keys={effect_ids}>
                 {move |id: Uuid| {
-                    let effects = effects.clone();
+                    let effects = effects;
                     view! {
                         <EffectRow effects id />
                     }
@@ -195,7 +192,7 @@ fn EffectRow(effects: Memo<Vec<VideoEffect>>, id: Uuid) -> NodeId {
     let theme = use_theme();
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-            <Caption content={state} color={theme.text_muted.clone()} />
+            <Caption content={state} color={theme.text_muted} />
             <Body content={name} />
         </List>
     }

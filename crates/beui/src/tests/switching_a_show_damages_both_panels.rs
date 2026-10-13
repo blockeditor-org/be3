@@ -13,7 +13,7 @@ fn switching_a_show_damages_both_panels() {
     let document = build(move || {
         let (second, set_second) = create_signal(false);
         sink.set(Some(set_second));
-        let showing = second.clone();
+        let showing = second;
         let first = create_memo(move || !showing.get());
         let second = create_memo(move || second.get());
         view! {

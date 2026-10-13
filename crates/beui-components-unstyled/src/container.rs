@@ -14,7 +14,7 @@ pub fn Container(#[prop(children)] content: Render<ReadSignal<Vec2>>) -> NodeId 
     view! {
         <LayoutBuilder>
             {move |size: ReadSignal<Vec2>| {
-                provide_context(ContainerSize(size.clone()));
+                provide_context(ContainerSize(size));
                 content.call(size)
             }}
         </LayoutBuilder>

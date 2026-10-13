@@ -31,8 +31,8 @@ pub fn BottomDock(
                 <List align=Align::Center spacing=0.0>
                     <Frame children={above} />
                     <Frame
-                        color={theme.surface_raised.clone()}
-                        outline={theme.border.clone()}
+                        color={theme.surface_raised}
+                        outline={theme.border}
                         outline_width=BORDER_WIDTH
                         outline_visible=true
                         radius=DOCK_RADIUS

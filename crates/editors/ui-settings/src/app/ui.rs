@@ -22,7 +22,7 @@ pub fn UiSettingsView(editor: Editor) -> NodeId {
     let read_only = editor.read_only();
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()} padding_horizontal=PADDING padding_vertical=PADDING>
+        <Frame color={theme.background} padding_horizontal=PADDING padding_vertical=PADDING>
             <List spacing=8.0>
                 <Caption content="Theme" />
                 <Select

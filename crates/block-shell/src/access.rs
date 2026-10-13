@@ -40,7 +40,7 @@ pub(crate) fn AccessMode(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>
     let knowing_off =
         create_memo(clone!(ceiling -> move || AccessLevel::KnowExists > ceiling.get()));
     let debug_off = create_memo(clone!(ceiling -> move || !ceiling.get().can_view()));
-    let chosen = info.clone();
+    let chosen = info;
     view! {
         <MenuButton
             @test_id={"workspace.access"}

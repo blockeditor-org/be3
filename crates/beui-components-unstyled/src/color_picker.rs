@@ -89,16 +89,16 @@ impl<Model: ColorModel> ColorPickerState<Model> {
     }
 
     pub fn color(&self) -> ReadSignal<Model> {
-        self.color.clone()
+        self.color
     }
 
     pub fn shown(&self) -> Memo<Color32> {
-        let color = self.color.clone();
+        let color = self.color;
         create_memo(move || color.get().to_color())
     }
 
     pub fn disabled(&self) -> Memo<bool> {
-        self.disabled.clone()
+        self.disabled
     }
 
     pub fn apply(&self, next: Model) {
@@ -169,27 +169,27 @@ impl ColorPickerState<Hsva> {
     }
 
     pub fn channel(&self, index: usize) -> Memo<f64> {
-        let color = self.color.clone();
+        let color = self.color;
         create_memo(move || f64::from(color.get().to_color().to_array()[index]))
     }
 
     pub fn opacity_percent(&self) -> Memo<f64> {
-        let color = self.color.clone();
+        let color = self.color;
         create_memo(move || (f64::from(color.get().to_color().alpha()) * 100.0 / 255.0).round())
     }
 
     pub fn hue_degrees(&self) -> Memo<f64> {
-        let color = self.color.clone();
+        let color = self.color;
         create_memo(move || f64::from(color.get().hue.round()))
     }
 
     pub fn saturation_percent(&self) -> Memo<f64> {
-        let color = self.color.clone();
+        let color = self.color;
         create_memo(move || f64::from((color.get().saturation * 100.0).round()))
     }
 
     pub fn value_percent(&self) -> Memo<f64> {
-        let color = self.color.clone();
+        let color = self.color;
         create_memo(move || f64::from((color.get().value * 100.0).round()))
     }
 
@@ -206,7 +206,7 @@ impl ColorPickerState<Hsva> {
     }
 
     pub fn hue_accessibility(&self) -> Memo<Node> {
-        let color = self.color.clone();
+        let color = self.color;
         create_memo(move || {
             let mut node = Node::new(Role::Slider);
             node.set_label("Hue");
@@ -216,7 +216,7 @@ impl ColorPickerState<Hsva> {
     }
 
     pub fn alpha_accessibility(&self) -> Memo<Node> {
-        let color = self.color.clone();
+        let color = self.color;
         create_memo(move || {
             let mut node = Node::new(Role::Slider);
             node.set_label("Opacity");
@@ -254,7 +254,7 @@ impl HexText {
     }
 
     pub fn text(&self) -> ReadSignal<String> {
-        self.text.clone()
+        self.text
     }
 
     pub fn placeholder(&self) -> &'static str {

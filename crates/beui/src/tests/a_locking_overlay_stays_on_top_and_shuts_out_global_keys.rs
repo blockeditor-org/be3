@@ -9,6 +9,7 @@ use crate::{Dismiss, KeyEvent, LayerLevel};
 
 #[test]
 fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
+    let _root = crate::reactive::RootScope::new();
     let (locked, set_locked) = create_signal(false);
     let (menu, set_menu) = create_signal(false);
     let globals = Rc::new(Cell::new(0));
@@ -62,7 +63,7 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
     let popup = kind_of::<OverlayNode>(harness.document(), popup.get());
     let outside = harness.find("outside");
     let set = |harness: &mut Harness, signal: &WriteSignal<bool>, value: bool| {
-        let signal = signal.clone();
+        let signal = *signal;
         with_reactive_scope(harness.document_mut(), move || signal.set(value));
         harness.frame(Vec::new());
     };

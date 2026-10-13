@@ -395,6 +395,7 @@ pub struct Inspector {
     parked: bool,
     seen: u64,
     overlay_bounds: Cell<Rect>,
+    _panel_scope: ::reactive::Scope,
 }
 
 impl Inspector {
@@ -411,6 +412,7 @@ impl Inspector {
             handle_bounds: Cell::new(Rect::NOTHING),
             toolbar_area: Rect::NOTHING,
             document: panel.document,
+            _panel_scope: panel.scope,
             entries: Vec::new(),
             tree: panel.tree,
             state,
@@ -627,7 +629,7 @@ impl Inspector {
         let scale = scale(ctx);
         let compact = self.state.compact.get();
         if std::mem::replace(&mut self.shown_compact, compact) != compact {
-            let set_compact = self.panel_compact.clone();
+            let set_compact = self.panel_compact;
             with_reactive_scope(&mut self.document, || set_compact.set(compact));
         }
         let document = &mut self.document;
@@ -813,6 +815,7 @@ impl Inspector {
         let panel::Bar {
             document,
             set_selected,
+            ..
         } = &mut self.bar;
         with_reactive_scope(document, || set_selected.set(selected));
         ctx.scaled(scale, || {

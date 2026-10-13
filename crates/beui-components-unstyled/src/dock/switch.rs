@@ -33,7 +33,7 @@ impl State {
 
 #[component]
 pub(super) fn DockSwitchView(dock: Handle) -> NodeId {
-    let state = dock.state.clone();
+    let state = dock.state;
     let switch = create_memo(move || state.with(DockState::switch));
     let open = create_memo(clone!(switch -> move || switch.with(Option::is_some)));
     let tabs = create_memo(clone!(switch -> move || {

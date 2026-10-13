@@ -236,9 +236,9 @@ pub fn Launcher(
         rows.get().iter().position(|row| *row == highlighted)
     }));
     let state = State {
-        query: query.clone(),
+        query,
         set_query,
-        rows: rows.clone(),
+        rows,
         highlighted,
         set_highlighted,
         on_launch,
@@ -269,8 +269,8 @@ pub fn Launcher(
             <Frame padding_horizontal=MARGIN padding_vertical=MARGIN>
                 <Frame
                     max_width=WIDTH
-                    color={theme.surface_raised.clone()}
-                    outline={theme.border.clone()}
+                    color={theme.surface_raised}
+                    outline={theme.border}
                     outline_width=BORDER_WIDTH
                     outline_visible=true
                     radius=CARD_RADIUS
@@ -322,15 +322,15 @@ fn LauncherSearch(handle: TextInputHandle) -> NodeId {
     view! {
         <Frame
             height=SEARCH_HEIGHT
-            color={theme.surface.clone()}
-            outline={theme.accent.clone()}
+            color={theme.surface}
+            outline={theme.accent}
             outline_width=BORDER_WIDTH
             radius=RADIUS
             outline_visible=true
             padding_horizontal=ROW_PADDING_HORIZONTAL
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                <Icon glyph={ICON_SEARCH.to_owned()} color={theme.text_muted.clone()} />
+                <Icon glyph={ICON_SEARCH.to_owned()} color={theme.text_muted} />
                 <Frame @sizing=ItemSize::Percent(100.0)>{field}</Frame>
             </List>
         </Frame>
@@ -343,7 +343,7 @@ fn LauncherRow(state: State, items: Prop<Rc<Vec<LauncherItem>>>, row: Row) -> No
         Row::Item(key) => items.get().iter().find(|item| item.key == *key).cloned(),
         Row::Run => None,
     }));
-    let query = state.query.clone();
+    let query = state.query;
     let title = create_memo(clone!(item row query -> move || match &row {
         Row::Item(_) => item.get().map(|item| item.title).unwrap_or_default(),
         Row::Run => format!("Run \u{201c}{}\u{201d}", query.get().trim()),
@@ -361,7 +361,7 @@ fn LauncherRow(state: State, items: Prop<Rc<Vec<LauncherItem>>>, row: Row) -> No
         Row::Item(_) => ICON_APPS,
         Row::Run => ICON_TERMINAL,
     };
-    let highlighted = state.highlighted.clone();
+    let highlighted = state.highlighted;
     let lit = create_memo(clone!(row -> move || highlighted.get().as_ref() == Some(&row)));
     let accessibility = create_memo(clone!(title -> move || {
         let mut node = Node::new(Role::ListBoxOption);
@@ -377,7 +377,7 @@ fn LauncherRow(state: State, items: Prop<Rc<Vec<LauncherItem>>>, row: Row) -> No
             tab_stop=false
             press_focus=false
             content={move |handle: ButtonHandle| {
-                let hovered = handle.hovered.clone();
+                let hovered = handle.hovered;
                 create_effect(clone!(hovering hover_row -> move || {
                     if hovered.get() {
                         hovering.set_highlighted.set(Some(hover_row.clone()));
@@ -385,11 +385,11 @@ fn LauncherRow(state: State, items: Prop<Rc<Vec<LauncherItem>>>, row: Row) -> No
                 }));
                 view! {
                     <LauncherRowFace
-                        title={title.clone()}
-                        detail={detail.clone()}
-                        image={image.clone()}
+                        title={title}
+                        detail={detail}
+                        image={image}
                         glyph={glyph.to_owned()}
-                        lit={lit.clone()}
+                        lit={lit}
                     />
                 }
             }}
@@ -425,10 +425,10 @@ fn LauncherRowFace(
                 <Frame width=PICTURE_SIZE height=PICTURE_SIZE>
                     <List spacing=0.0 align=Align::Center>
                         <Show condition={pictured}>
-                            <LauncherPicture image={image.clone()} />
+                            <LauncherPicture image={image} />
                         </Show>
                         <Show condition={plain}>
-                            <Icon glyph={glyph.clone()} color={theme.text_muted.clone()} />
+                            <Icon glyph={glyph.clone()} color={theme.text_muted} />
                         </Show>
                     </List>
                 </Frame>
@@ -436,12 +436,12 @@ fn LauncherRowFace(
                     <Text
                         string={title}
                         font_size=FONT_BODY
-                        color={theme.text.clone()}
+                        color={theme.text}
                         align=TextAlign::Start
                         ellipsis=true
                     />
                     <Show condition={described}>
-                        <Caption content={detail.clone()} ellipsis=true />
+                        <Caption content={detail} ellipsis=true />
                     </Show>
                 </List>
             </List>

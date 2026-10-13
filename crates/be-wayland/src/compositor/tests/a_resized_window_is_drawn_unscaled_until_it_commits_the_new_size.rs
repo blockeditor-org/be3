@@ -20,7 +20,7 @@ fn Pane(windows: Windows) -> NodeId {
             <ForEach keys={ids}>
                 {move |id: WindowId| {
                     let windows = windows.clone();
-                    let (width, height) = (width.clone(), height.clone());
+                    let (width, height) = (width, height);
                     view! {
                         <Frame width height>
                             <WindowView windows id />
@@ -93,9 +93,7 @@ impl Screen {
 }
 
 fn resize(harness: &mut Harness, size: Vec2) {
-    let set = PANE
-        .with(|pane| pane.borrow().clone())
-        .expect("the pane is shown");
+    let set = PANE.with(|pane| *pane.borrow()).expect("the pane is shown");
     with_reactive_scope(&mut harness.document, move || set.set(size));
     harness.frame(Vec::new());
     assert_eq!(

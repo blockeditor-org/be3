@@ -91,7 +91,7 @@ fn DesktopBody(workspace: Rc<Workspace>) -> NodeId {
     let bar_node = NodeRef::new();
     let theme = use_theme();
     view! {
-        <Frame @node_ref={&surface} color={theme.background.clone()}>
+        <Frame @node_ref={&surface} color={theme.background}>
             <List spacing=0.0>
                 <Failure failed={failed} reason={reason} />
                 <Docking

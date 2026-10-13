@@ -105,7 +105,7 @@ pub fn KeepChanges(
     view! {
         <Overlay
             anchor={anchor}
-            open={open.clone()}
+            open={open}
             placement=Placement::At
             scrim=SCRIM
             on_dismiss={move |_: Dismiss| dismiss()}
@@ -126,8 +126,8 @@ pub fn KeepChanges(
                             let card = view! {
                                 <KeepChangesCard
                                     place={place}
-                                    title={title.clone()}
-                                    message={message.clone()}
+                                    title={title}
+                                    message={message}
                                     focused={create_memo(clone!(open -> move || index == 0 && open.get()))}
                                     id={format!("{}.{index}", id)}
                                     on_keep={move || keep()}
@@ -166,7 +166,7 @@ fn KeepChangesCard(
     let top = create_memo(clone!(place -> move || Some(place.get().top())));
     let width = create_memo(clone!(place -> move || Some(place.get().width())));
     let height = create_memo(clone!(place -> move || Some(place.get().height())));
-    let label = title.clone();
+    let label = title;
     component_accessibility(create_memo(move || {
         let mut node = Node::new(Role::AlertDialog);
         node.set_label(label.get());
@@ -188,8 +188,8 @@ fn KeepChangesCard(
                 <Frame padding_horizontal=MARGIN padding_vertical=MARGIN>
                     <Frame
                         max_width=Some(WIDTH)
-                        color={theme.surface_raised.clone()}
-                        outline={theme.border.clone()}
+                        color={theme.surface_raised}
+                        outline={theme.border}
                         outline_width=BORDER_WIDTH
                         outline_visible=true
                         radius=CARD_RADIUS

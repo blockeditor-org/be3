@@ -67,7 +67,7 @@ pub(crate) fn TrayItems(editor: Editor) -> NodeId {
         >
             <ForEach keys>
                 {move |id: String| view! {
-                    <TrayButton editor={editor.clone()} listed={listed.clone()} id />
+                    <TrayButton editor={editor.clone()} listed={listed} id />
                 }}
             </ForEach>
         </List>
@@ -161,12 +161,7 @@ fn TrayEntries(
     view! {
         <ForEach keys>
             {move |id: i32| view! {
-                <TrayEntry
-                    entries={entries.clone()}
-                    id
-                    chosen={chosen.clone()}
-                    prefix={prefix.clone()}
-                />
+                <TrayEntry entries={entries} id chosen={chosen.clone()} prefix={prefix.clone()} />
             }}
         </ForEach>
     }

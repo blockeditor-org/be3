@@ -158,8 +158,8 @@ pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
     }));
     let editor = workspace.editor().clone();
     let branch = Rc::clone(&workspace);
-    let branch_info = info.clone();
-    let phone = workspace.phone.clone();
+    let branch_info = info;
+    let phone = workspace.phone;
     let top_bar = create_memo(clone!(phone -> move || match phone.get() {
         true => TopBar::Phone,
         false => TopBar::Shown,
@@ -169,23 +169,23 @@ pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
         .is_some_and(|item| VIEW_EDITORS.contains(&item.block_type));
     let desktop = create_memo(move || !phone.get() && !session);
     let details = Rc::clone(&workspace);
-    let (artifact, artifact_info) = (Rc::clone(&workspace), info.clone());
-    let (linked, linked_info) = (Rc::clone(&workspace), info.clone());
+    let (artifact, artifact_info) = (Rc::clone(&workspace), info);
+    let (linked, linked_info) = (Rc::clone(&workspace), info);
     view! {
         <Frame>
             <List spacing=0.0>
                 <Show condition={!session}>
-                    <ArtifactBar workspace={Rc::clone(&artifact)} info={artifact_info.clone()} />
+                    <ArtifactBar workspace={Rc::clone(&artifact)} info={artifact_info} />
                 </Show>
                 <Show condition={!session}>
-                    <LinkedBar workspace={Rc::clone(&linked)} info={linked_info.clone()} />
+                    <LinkedBar workspace={Rc::clone(&linked)} info={linked_info} />
                 </Show>
                 <Dynamic value={content}>
                     {move |content: Content| {
                         let workspace = Rc::clone(&branch);
-                        let info = branch_info.clone();
+                        let info = branch_info;
                         let editor = editor.clone();
-                        let top_bar = top_bar.clone();
+                        let top_bar = top_bar;
                         match content {
                             Content::Debug => view! {
                                 <BlockData
@@ -214,7 +214,7 @@ pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
                     }}
                 </Dynamic>
                 <Show condition={desktop}>
-                    <StatusBar workspace={workspace.clone()} info={info.clone()} />
+                    <StatusBar workspace={workspace.clone()} info={info} />
                 </Show>
                 <DetailsSheet workspace={details} tab={tab} />
             </List>

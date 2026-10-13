@@ -37,13 +37,13 @@ pub(super) fn OptionFace(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
             theme.text_muted
         }
     }));
-    let checked = selected.clone();
+    let checked = selected;
     let fill_color =
         create_memo(clone!(theme -> move || background(&theme, selected.get(), hovered.get())));
     view! {
         <Frame
             color={fill_color}
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
             outline_offset=1.0
@@ -71,7 +71,7 @@ fn ChoiceLabel(
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=MARK_SPACING>
             <Show condition={kind == Kind::Radio}>
-                <RadioMark checked={checked.clone()} />
+                <RadioMark checked={checked} />
             </Show>
             <Text @sizing=ItemSize::Percent(100.0) string={label} font_size=FONT_BODY color align />
         </List>
@@ -97,7 +97,7 @@ fn RadioMark(checked: Memo<bool>) -> NodeId {
                 visible={checked}
                 width=MARK_DOT
                 height=MARK_DOT
-                color={theme.accent.clone()}
+                color={theme.accent}
                 radius=MARK_RADIUS
             />
         </Frame>

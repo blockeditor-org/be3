@@ -58,14 +58,14 @@ struct Cells {
 
 impl Cells {
     fn keys(&self) -> Memo<Vec<Uuid>> {
-        let entries = self.entries.clone();
+        let entries = self.entries;
         create_memo(move || {
             entries.with(|entries| entries.iter().map(|entry| entry.reference).collect())
         })
     }
 
     fn entry(&self, key: Uuid) -> Memo<Option<Entry>> {
-        let entries = self.entries.clone();
+        let entries = self.entries;
         create_memo(move || {
             entries.with(|entries| entries.iter().find(|entry| entry.reference == key).cloned())
         })
@@ -92,12 +92,7 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
     let (descending, set_descending) = create_signal(false);
     let (selected, set_selected) = create_signal(None::<Uuid>);
 
-    let folder = Rc::new(Folder::watch(
-        &editor,
-        &index,
-        sort.clone(),
-        descending.clone(),
-    ));
+    let folder = Rc::new(Folder::watch(&editor, &index, sort, descending));
     let entries = folder.entries();
     let drop = super::drop::watch(&editor, &folder);
 
@@ -148,7 +143,7 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
         _ => theme.danger.get(),
     }));
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <List spacing=0.0>
                 <Toolbar shown={chrome}>
                     <Select
@@ -244,15 +239,15 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
 #[component]
 fn EntryRows(cells: Cells) -> NodeId {
     let keys = cells.keys();
-    let selected = cells.selected.clone();
+    let selected = cells.selected;
     let chosen = create_selector(move || selected.get());
     view! {
         <List spacing=2.0>
             <ForEach keys={keys}>
                 {move |key: Uuid| {
                     let entry = cells.entry(key);
-                    let open = cells.open(entry.clone());
-                    let set_selected = cells.set_selected.clone();
+                    let open = cells.open(entry);
+                    let set_selected = cells.set_selected;
                     let here = chosen.memo(Some(key));
                     view! {
                         <ListRow
@@ -262,11 +257,11 @@ fn EntryRows(cells: Cells) -> NodeId {
                             on_activate={open}
                         >
                             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                                <EntryGlyph entry={entry.clone()} size=ROW_ICON />
+                                <EntryGlyph entry={entry} size=ROW_ICON />
                                 <Body
                                     @sizing=ItemSize::Percent(100.0)
-                                    content={name_of(entry.clone())}
-                                    color={name_color(entry.clone())}
+                                    content={name_of(entry)}
+                                    color={name_color(entry)}
                                 />
                                 <Caption content={type_of(entry)} />
                             </List>
@@ -281,15 +276,15 @@ fn EntryRows(cells: Cells) -> NodeId {
 #[component]
 fn EntryTiles(cells: Cells, tile: Vec2, icon_size: f32) -> NodeId {
     let keys = cells.keys();
-    let selected = cells.selected.clone();
+    let selected = cells.selected;
     let chosen = create_selector(move || selected.get());
     view! {
         <List direction=Direction::Horizontal wrap=true align=Align::Start spacing=TILE_SPACING>
             <ForEach keys={keys}>
                 {move |key: Uuid| {
                     let entry = cells.entry(key);
-                    let open = cells.open(entry.clone());
-                    let set_selected = cells.set_selected.clone();
+                    let open = cells.open(entry);
+                    let set_selected = cells.set_selected;
                     let here = chosen.memo(Some(key));
                     view! {
                         <ListRow
@@ -301,10 +296,10 @@ fn EntryTiles(cells: Cells, tile: Vec2, icon_size: f32) -> NodeId {
                         >
                             <Frame height={tile.y}>
                                 <List align=Align::Center justify=Justify::Center spacing=4.0>
-                                    <EntryGlyph entry={entry.clone()} size={icon_size} />
+                                    <EntryGlyph entry={entry} size={icon_size} />
                                     <Body
-                                        content={name_of(entry.clone())}
-                                        color={name_color(entry.clone())}
+                                        content={name_of(entry)}
+                                        color={name_color(entry)}
                                         align=TextAlign::Center
                                     />
                                     <Caption content={type_of(entry)} align=TextAlign::Center />
@@ -329,7 +324,7 @@ fn EntryGlyph(entry: Memo<Option<Entry>>, size: f32) -> NodeId {
         }
     });
     view! {
-        <IconSized glyph={glyph} font_size={size} color={theme.text.clone()} />
+        <IconSized glyph={glyph} font_size={size} color={theme.text} />
     }
 }
 

@@ -55,7 +55,7 @@ impl Session {
     }
 
     pub(crate) fn address(&self) -> ReadSignal<String> {
-        self.address.clone()
+        self.address
     }
 
     pub(crate) fn set_address(&self, address: String) {
@@ -63,7 +63,7 @@ impl Session {
     }
 
     pub(crate) fn error(&self) -> ReadSignal<Option<String>> {
-        self.error.clone()
+        self.error
     }
 
     pub(crate) fn back(&self) -> Memo<Option<usize>> {

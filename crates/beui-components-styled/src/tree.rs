@@ -191,13 +191,13 @@ where
     let outline_color = create_memo(clone!(theme highlight -> move || {
         highlight.get().unwrap_or_else(|| theme.accent.get())
     }));
-    let ring = focus_ring(focused.clone());
+    let ring = focus_ring(focused);
     let outlined = create_memo(clone!(highlight -> move || {
         highlight.get().is_some() || ring.get()
     }));
     let face = TreeRowFace {
         key,
-        item: item.clone(),
+        item,
         selected,
         focused,
         hovered,
@@ -237,7 +237,7 @@ fn Chevron(
             <List spacing=0.0>
                 <unstyled::TreeToggle item toggle button_test_id=named>
                     {move |handle: TreeToggleHandle| view! {
-                        <ChevronFace handle marked={marked.clone()} />
+                        <ChevronFace handle marked={marked} />
                     }}
                 </unstyled::TreeToggle>
             </List>
@@ -285,7 +285,7 @@ fn ChevronFace(handle: TreeToggleHandle, marked: Memo<bool>) -> NodeId {
                 width=CHEVRON_WIDTH
                 height=ROW_HEIGHT
                 color={fill}
-                outline={theme.accent.clone()}
+                outline={theme.accent}
                 outline_width=OUTLINE_WIDTH
                 outline_visible={outlined}
                 radius=CHEVRON_RADIUS

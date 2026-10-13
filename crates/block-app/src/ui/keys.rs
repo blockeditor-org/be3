@@ -12,7 +12,7 @@ use super::{AppViewStore, UiCommand, send};
 
 #[component]
 pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {
-    let recovery = view.recovery.clone();
+    let recovery = view.recovery;
     let phrase = create_memo(clone!(recovery -> move || {
         recovery
             .get()
@@ -67,11 +67,11 @@ pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {
             ]));
         }
     });
-    let submit = confirm.clone();
+    let submit = confirm;
     view! {
         <Column>
             <Title content={title} />
-            <Show condition={replacing.clone()}>
+            <Show condition={replacing}>
                 <Paragraph
                     content="Once you save this phrase, your old one stops working. Every workspace key sealed to the old phrase is sealed to this one instead."
                 />
@@ -83,19 +83,19 @@ pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {
                 <Paragraph content={phrase} />
             </Card>
             <Heading content="Check that you saved them" />
-            <Caption content={first_label.clone()} />
+            <Caption content={first_label} />
             <TextInput
                 value={first}
                 label={first_label}
                 on_change={move |value: String| set_first.set(value)}
             />
-            <Caption content={second_label.clone()} />
+            <Caption content={second_label} />
             <TextInput
                 value={second}
                 label={second_label}
                 on_change={move |value: String| set_second.set(value)}
             />
-            <Caption content={third_label.clone()} />
+            <Caption content={third_label} />
             <TextInput
                 value={third}
                 label={third_label}
@@ -135,7 +135,7 @@ pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {
 
 #[component]
 pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
-    let unlock = view.unlock.clone();
+    let unlock = view.unlock;
     let title = create_memo(clone!(unlock -> move || format!("Unlock {}", unlock.get().workspace)));
     let sealed = create_memo(clone!(unlock -> move || unlock.get().sealed));
     let unsealed = create_memo(clone!(sealed -> move || !sealed.get()));
@@ -150,7 +150,7 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
             send(UiCommand::UnlockWithPhrase(phrase.get_untracked()));
         }
     });
-    let submit = open.clone();
+    let submit = open;
     view! {
         <Column>
             <Title content={title} />
@@ -229,7 +229,7 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
 
 #[component]
 pub(super) fn PairingDialog(view: AppViewStore) -> NodeId {
-    let pairing = view.pairing.clone();
+    let pairing = view.pairing;
     let open = create_memo(clone!(pairing -> move || !pairing.get().is_empty()));
     let request = create_memo(clone!(pairing -> move || pairing.get().first().cloned()));
     let message = create_memo(clone!(request -> move || {
@@ -254,13 +254,13 @@ pub(super) fn PairingDialog(view: AppViewStore) -> NodeId {
             send(UiCommand::ApprovePairing(request.from, code.get_untracked()));
         }
     });
-    let submit = approve.clone();
+    let submit = approve;
     let dismiss = clone!(request -> move || {
         if let Some(request) = request.get_untracked() {
             send(UiCommand::DismissPairing(request.from));
         }
     });
-    let ignore = dismiss.clone();
+    let ignore = dismiss;
     view! {
         <Dialog open={open} title="Add a device" width=340.0 on_dismiss={dismiss}>
             <List spacing=10.0>

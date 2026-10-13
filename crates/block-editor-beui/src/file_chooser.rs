@@ -62,11 +62,11 @@ impl<T: 'static> FileChooser<T> {
     }
 
     pub fn name(&self) -> ReadSignal<Option<String>> {
-        self.name.clone()
+        self.name
     }
 
     pub fn error(&self) -> ReadSignal<Option<String>> {
-        self.error.clone()
+        self.error
     }
 
     pub fn open(&self) {
@@ -154,8 +154,8 @@ where
                 </List>
                 <Show condition={failed}>
                     <Caption
-                        content={reason.clone()}
-                        color={theme.danger.clone()}
+                        content={reason}
+                        color={theme.danger}
                         wrap=true
                         @test_id={error_id.clone()}
                     />

@@ -57,7 +57,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
     view! {
         <List spacing=0.0>
             <Frame
-                color={theme.surface.clone()}
+                color={theme.surface}
                 padding_horizontal=BAR_PADDING
                 padding_vertical=BAR_PADDING
             >
@@ -80,14 +80,14 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                             spacing=TITLE_SPACING
                         >
                             <Show condition={pictured}>
-                                <Icon glyph={icon.clone()} color={theme.accent.clone()} />
+                                <Icon glyph={icon} color={theme.accent} />
                             </Show>
                             <Text
                                 @sizing=ItemSize::Percent(100.0)
                                 @test_id={"dock.title"}
                                 string={title}
                                 font_size=FONT_BODY
-                                color={theme.text.clone()}
+                                color={theme.text}
                                 ellipsis=true
                             />
                         </List>
@@ -97,8 +97,8 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                     <Show condition={counted}>
                         {move || clone!(open_switcher -> view! {
                             <DockTabCount
-                                count={others.clone()}
-                                label={switch_label.clone()}
+                                count={others}
+                                label={switch_label}
                                 on_click={move || open_switcher.call()}
                             />
                         })}
@@ -121,19 +121,19 @@ fn DockTabCount(count: Memo<usize>, label: Memo<String>, on_click: ClickCallback
             on_click={move || on_click.call()}
             content={move |handle: unstyled::ButtonHandle| {
                 let unstyled::ButtonHandle { hovered, focused, .. } = handle;
-                let theme = theme.clone();
+                let theme = theme;
                 let fill = create_memo(clone!(theme -> move || match hovered.get() {
                     true => theme.hover.get(),
                     false => Color32::TRANSPARENT,
                 }));
-                let shown = shown.clone();
+                let shown = shown;
                 view! {
                     <Frame
                         width=COUNT_TARGET
                         height=COUNT_TARGET
                         color={fill}
                         radius=COUNT_TARGET_RADIUS
-                        outline={theme.accent.clone()}
+                        outline={theme.accent}
                         outline_width=FOCUS_RING_WIDTH
                         outline_visible={focus_ring(focused)}
                         align_horizontal=Align::Center
@@ -143,14 +143,14 @@ fn DockTabCount(count: Memo<usize>, label: Memo<String>, on_click: ClickCallback
                             width=COUNT_SIDE
                             height=COUNT_SIDE
                             radius=COUNT_RADIUS
-                            outline={theme.text.clone()}
+                            outline={theme.text}
                             outline_width=COUNT_OUTLINE
                             outline_visible=true
                         >
                             <Text
                                 string={shown}
                                 font_size=FONT_SMALL
-                                color={theme.text.clone()}
+                                color={theme.text}
                                 align=TextAlign::Center
                             />
                         </Frame>
@@ -240,7 +240,7 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
         <Frame
             height=CARD_HEIGHT
             radius=CARD_RADIUS
-            color={theme.surface_raised.clone()}
+            color={theme.surface_raised}
             outline={outline}
             outline_width=CARD_OUTLINE
             outline_visible=true
@@ -256,12 +256,12 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
                     <Frame padding_vertical=CARD_PADDING>
                         <List spacing=CARD_LINES>
                             <List direction=Direction::Horizontal spacing=0.0>
-                                <Icon glyph={icon} color={theme.accent.clone()} />
+                                <Icon glyph={icon} color={theme.accent} />
                             </List>
                             <Text
                                 string={title}
                                 font_size=FONT_BODY
-                                color={theme.text.clone()}
+                                color={theme.text}
                                 ellipsis=true
                             />
                         </List>

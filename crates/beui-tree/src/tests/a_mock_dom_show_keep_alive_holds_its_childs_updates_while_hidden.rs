@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn a_mock_dom_show_keep_alive_holds_its_childs_updates_while_hidden() {
+    let _root = ::reactive::RootScope::new();
     fresh_ids();
     let scope = Scope::new();
     let (open, set_open) = create_signal(true);

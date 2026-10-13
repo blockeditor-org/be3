@@ -165,7 +165,7 @@ fn ComponentRow(state: Rc<CanvasState>, schema_id: Uuid) -> NodeId {
     view! {
         <List spacing=6.0>
             <Caption content={named} />
-            <Show condition={partial.clone()}>
+            <Show condition={partial}>
                 {move || clone!(add_all add_id coverage -> view! {
                     <List spacing=6.0>
                         <Caption content={coverage} />
@@ -197,10 +197,10 @@ fn ComponentRow(state: Rc<CanvasState>, schema_id: Uuid) -> NodeId {
             </List>
             <Show condition={whole}>
                 <DatabaseValueEditor
-                    fields={fields.clone()}
-                    values={values.clone()}
-                    labels={labels.clone()}
-                    disabled={read_only.clone()}
+                    fields={fields}
+                    values={values}
+                    labels={labels}
+                    disabled={read_only}
                     prefix={prefix.clone()}
                     on_change={changed.clone()}
                     on_pick={picked.clone()}

@@ -32,11 +32,11 @@ pub fn Progress(value: Prop<f32>, #[prop(default = String::new())] label: Prop<S
         <Frame
             height=HEIGHT
             width_fraction=1.0
-            color={theme.track.clone()}
+            color={theme.track}
             radius=RADIUS
             align_horizontal=Align::Start
         >
-            <Frame width_fraction={filled} color={theme.accent.clone()} radius=RADIUS />
+            <Frame width_fraction={filled} color={theme.accent} radius=RADIUS />
         </Frame>
     }
 }

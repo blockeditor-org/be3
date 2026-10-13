@@ -17,8 +17,8 @@ const STAGE: Color32 = Color32::from_gray(18);
 #[component]
 pub(crate) fn Player(state: Rc<VideoState>) -> NodeId {
     let shown = Rc::clone(&state);
-    let playhead = state.playhead.clone();
-    let clips = state.clips.clone();
+    let playhead = state.playhead;
+    let clips = state.clips;
     let visible = create_memo(clone!(shown playhead clips -> move || {
         let _ = clips.get();
         let _ = playhead.get();
@@ -48,11 +48,11 @@ pub(crate) fn Player(state: Rc<VideoState>) -> NodeId {
         <Frame color=STAGE padding_horizontal=8.0 padding_vertical=8.0>
             <List spacing=0.0>
                 <Show condition={empty}>
-                    <Caption content="No clip at the playhead" color={theme.text_muted.clone()} />
+                    <Caption content="No clip at the playhead" color={theme.text_muted} />
                 </Show>
                 <Show condition={any}>
                     {move || clone!(state visible -> view! {
-                        <Frame aspect_ratio={ratio.clone()} color=Color32::BLACK>
+                        <Frame aspect_ratio={ratio} color=Color32::BLACK>
                             <List spacing=0.0>
                                 <ForEach keys={visible}>
                                     {move |id: Uuid| {
@@ -74,13 +74,13 @@ pub(crate) fn Player(state: Rc<VideoState>) -> NodeId {
 #[component]
 fn Layer(state: Rc<VideoState>, id: Uuid) -> NodeId {
     let held = Rc::clone(&state);
-    let clips = state.clips.clone();
+    let clips = state.clips;
     let block = create_memo(clone!(held clips -> move || {
         let clip = clips.get().into_iter().find(|clip| clip.id == id)?;
         held.target(clip.block_id)
     }));
     let reported = Rc::clone(&state);
-    let watched = block.clone();
+    let watched = block;
     view! {
         <ChildBlock
             editor={state.editor().clone()}

@@ -81,7 +81,7 @@ pub(crate) fn Stage(
     let (bar, set_bar) = create_signal(Rect::ZERO);
 
     let view_now = {
-        let (canvas, editor) = (canvas.clone(), editor.clone());
+        let (canvas, editor) = (canvas, editor.clone());
         Rc::new(move || {
             canvas
                 .get_untracked()
@@ -93,18 +93,17 @@ pub(crate) fn Stage(
         Rc::new(move |pos: Pos2| view_now().to_canvas(pos))
     };
     let in_bar = {
-        let (hand, bar) = (hand.clone(), bar.clone());
+        let (hand, bar) = (hand, bar);
         Rc::new(move |pos: Pos2| {
             !hand.with_untracked(Vec::is_empty) && bar.get_untracked().contains(pos)
         })
     };
     let table_hit = {
-        let (layout, world) = (layout.clone(), world.clone());
+        let (layout, world) = (layout, world.clone());
         Rc::new(move |pos: Pos2| layout.with_untracked(|layout| layout.hit(world(pos))))
     };
     let hit = {
-        let (hand, bar, in_bar, table_hit) =
-            (hand.clone(), bar.clone(), in_bar.clone(), table_hit.clone());
+        let (hand, bar, in_bar, table_hit) = (hand, bar, in_bar.clone(), table_hit.clone());
         Rc::new(move |pos: Pos2| match in_bar(pos) {
             true => hand.with_untracked(|hand| hand_hit(bar.get_untracked(), hand, pos)),
             false => table_hit(pos),
@@ -174,8 +173,7 @@ pub(crate) fn Stage(
 
     let press = Rc::new(RefCell::new(None::<Press>));
     let finish = {
-        let (play, hit, lifted, dropped) =
-            (play.clone(), hit.clone(), lifted.clone(), dropped.clone());
+        let (play, hit, lifted, dropped) = (play.clone(), hit.clone(), lifted, dropped.clone());
         Rc::new(move |pos: Pos2| {
             let from = play.dragging.get_untracked().map(|dragging| dragging.from);
             let carried = lifted.get_untracked();
@@ -325,8 +323,8 @@ pub(crate) fn Stage(
     })));
     let flight_keys = create_memo(clone!(motion -> move || motion.flying.get()));
 
-    let (items_layout, items_play, items_hidden) = (layout.clone(), play.clone(), hidden.clone());
-    let (spots_layout, spots_play) = (layout.clone(), play.clone());
+    let (items_layout, items_play, items_hidden) = (layout, play.clone(), hidden);
+    let (spots_layout, spots_play) = (layout, play.clone());
     let bar_play = play.clone();
     view! {
         <Interactive
@@ -346,19 +344,15 @@ pub(crate) fn Stage(
                             {move |id: ItemId| view! {
                                 <TableItem
                                     id
-                                    layout={items_layout.clone()}
+                                    layout={items_layout}
                                     play={items_play.clone()}
-                                    hidden={items_hidden.clone()}
+                                    hidden={items_hidden}
                                 />
                             }}
                         </ForEach>
                         <ForEach keys={spot_keys}>
                             {move |spot: Spot| view! {
-                                <SpotItem
-                                    spot
-                                    layout={spots_layout.clone()}
-                                    play={spots_play.clone()}
-                                />
+                                <SpotItem spot layout={spots_layout} play={spots_play.clone()} />
                             }}
                         </ForEach>
                         <CanvasItem

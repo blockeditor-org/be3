@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn clone_brings_cloned_handles_into_the_closure() {
+    let _root = RootScope::new();
     let scope = Scope::new();
     let (value, set_value) = create_signal(1);
     let seen = Rc::new(RefCell::new(Vec::new()));

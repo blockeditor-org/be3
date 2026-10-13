@@ -5,6 +5,7 @@ use crate::{Dismiss, KeyAt, KeyPhase};
 
 #[test]
 fn escape_closes_an_overlay_before_a_window_listener_hears_it() {
+    let _root = crate::reactive::RootScope::new();
     let (open, set_open) = create_signal(true);
     let heard = Rc::new(Cell::new(0));
     let overlay = NodeRef::new();

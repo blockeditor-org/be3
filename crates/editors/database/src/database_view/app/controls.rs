@@ -34,7 +34,7 @@ pub fn ControlFace(handle: ButtonHandle, children: Child) -> NodeId {
     view! {
         <Frame
             color={fill}
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=2.0
             outline_visible={focused}
             radius=RADIUS
@@ -81,11 +81,11 @@ pub fn ChoicePicker(
                 .unwrap_or_default()
         })
     }));
-    let options = field.clone();
+    let options = field;
     let clear = on_pick.clone();
     let clear_id = format!("{picker_id}.clear");
     let option_id = picker_id.clone();
-    let trigger_label = label.clone();
+    let trigger_label = label;
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <unstyled::MenuButton
@@ -124,9 +124,9 @@ pub fn ChoicePicker(
                     />
                 }}
                 trigger={move |handle: MenuButtonHandle| {
-                    let option = option.clone();
-                    let label = label.clone();
-                    let color = color.clone();
+                    let option = option;
+                    let label = label;
+                    let color = color;
                     view! {
                         <ControlFace handle={handle.button}>
                             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>

@@ -49,7 +49,7 @@ fn ListRowFace(handle: ButtonHandle, selected: Prop<bool>, children: Child) -> N
     view! {
         <Frame
             color={fill_color}
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
             outline_visible={focus_ring(focused)}

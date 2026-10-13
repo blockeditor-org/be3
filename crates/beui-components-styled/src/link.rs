@@ -55,19 +55,15 @@ fn LinkFace(handle: unstyled::ButtonHandle, font_size: Prop<f32>) -> NodeId {
     }));
     let underlined = create_memo(clone!(hovered focused -> move || hovered.get() || focused.get()));
     let has_glyph = create_memo(clone!(glyph -> move || !glyph.get().is_empty()));
-    let icon_color = color.clone();
+    let icon_color = color;
     let label_color = color;
     let size = create_memo(move || font_size.get());
-    let icon_size = size.clone();
+    let icon_size = size;
     view! {
         <FocusRing focused radius=FOCUS_RING_RADIUS offset=FOCUS_RING_OFFSET>
             <List direction=Direction::Horizontal align=Align::Center spacing=ICON_SPACING>
                 <Show condition={has_glyph}>
-                    <Icon
-                        glyph={glyph.clone()}
-                        text_size={icon_size.clone()}
-                        color={icon_color.clone()}
-                    />
+                    <Icon glyph={glyph} text_size={icon_size} color={icon_color} />
                 </Show>
                 <Text
                     string={label}

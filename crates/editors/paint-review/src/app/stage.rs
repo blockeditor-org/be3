@@ -23,8 +23,8 @@ struct StageState {
 #[component]
 pub(crate) fn Stage(review: Rc<Review>, count: Memo<usize>) -> NodeId {
     let shown = Rc::clone(&review);
-    let frame = review.frame.clone();
-    let revision = review.revision.clone();
+    let frame = review.frame;
+    let revision = review.revision;
     let painting = create_memo(clone!(shown frame revision -> move || {
         let _ = revision.get();
         let Some(path) = shown.selected.get() else {
@@ -42,7 +42,7 @@ pub(crate) fn Stage(review: Rc<Review>, count: Memo<usize>) -> NodeId {
     }));
 
     let clamped = Rc::clone(&review);
-    let clamping = count.clone();
+    let clamping = count;
     create_effect(move || {
         let count = clamping.get();
         clamped.frame.with(|_| ());
@@ -50,15 +50,15 @@ pub(crate) fn Stage(review: Rc<Review>, count: Memo<usize>) -> NodeId {
     });
 
     let advanced = Rc::clone(&review);
-    let advancing = painting.clone();
-    let advancing_count = count.clone();
+    let advancing = painting;
+    let advancing_count = count;
     let stepper = create_timer(move || {
         let ready = !matches!(advancing.get_untracked(), Shown::Waiting(_));
         advanced.advance(advancing_count.get_untracked(), ready)
     });
     let scheduled = Rc::clone(&review);
-    let scheduling = painting.clone();
-    let scheduling_count = count.clone();
+    let scheduling = painting;
+    let scheduling_count = count;
     create_effect(move || {
         scheduled.playing.with(|_| ());
         scheduled.frame.with(|_| ());
@@ -95,8 +95,8 @@ pub(crate) fn Stage(review: Rc<Review>, count: Memo<usize>) -> NodeId {
     }));
 
     let counted = Rc::clone(&review);
-    let at = review.frame.clone();
-    let zoom = review.scale.clone();
+    let at = review.frame;
+    let zoom = review.scale;
     let working = Rc::clone(&review);
     set_component_state(StageState {
         rastered: create_memo(clone!(revision -> move || {
@@ -116,7 +116,7 @@ pub(crate) fn Stage(review: Rc<Review>, count: Memo<usize>) -> NodeId {
 
     let view = review.editor().canvas();
     let placed = review.editor().clone();
-    let laid_out = panels.clone();
+    let laid_out = panels;
     let world = review.editor().world();
     let laid = create_memo(clone!(laid_out world -> move || {
         let panels = laid_out.get();
@@ -163,13 +163,13 @@ pub(crate) fn Stage(review: Rc<Review>, count: Memo<usize>) -> NodeId {
     }));
 
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <List spacing=0.0>
                 <Canvas view={view} @sizing=ItemSize::Percent(100.0)>
                     <ForEach keys={places}>
                         {move |index: usize| {
-                            let panels = panels.clone();
-                            let layout = layout.clone();
+                            let panels = panels;
+                            let layout = layout;
                             let image = create_memo(move || {
                                 panels.get().get(index).map(|panel: &Rendered| {
                                     panel.image.clone()
@@ -212,14 +212,10 @@ fn Notice(
     view! {
         <List spacing=4.0>
             <Show condition={shown}>
-                <Body
-                    content={note.clone()}
-                    color={color.clone()}
-                    @test_id={"paint_review.notice"}
-                />
+                <Body content={note} color={color} @test_id={"paint_review.notice"} />
             </Show>
             <Show condition={telling}>
-                <Caption content={progress.clone()} color={theme.text_muted.clone()} />
+                <Caption content={progress} color={theme.text_muted} />
             </Show>
         </List>
     }

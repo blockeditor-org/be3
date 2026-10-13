@@ -72,7 +72,7 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
     let column_keys =
         create_memo(clone!(columns -> move || (0..columns.with(Vec::len)).collect::<Vec<_>>()));
     let empty = create_memo(clone!(rows -> move || rows.with(Vec::is_empty)));
-    let count = steps.count.clone();
+    let count = steps.count;
     let at_start = create_memo(clone!(shown -> move || shown.get() == 0));
     let at_end = create_memo(clone!(shown count -> move || shown.get() >= count.get()));
     let ended = create_memo(clone!(table -> move || table.with(|table| table.ending.is_some())));
@@ -80,7 +80,7 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
         (steps.clone(), steps.clone(), steps.clone(), steps.clone());
     let theme = use_theme();
     let muted = create_memo(clone!(theme -> move || theme.get().text_muted));
-    let header_keys = column_keys.clone();
+    let header_keys = column_keys;
     view! {
         <List spacing=6.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
@@ -89,7 +89,7 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                     glyph={ICON_FIRST_PAGE.to_owned()}
                     label="First move"
                     size=IconButtonSize::Compact
-                    disabled={at_start.clone()}
+                    disabled={at_start}
                     @test_id={"game.history.first"}
                     on_click={move || first.first()}
                 />
@@ -105,7 +105,7 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                     glyph={ICON_CHEVRON_RIGHT.to_owned()}
                     label="Next move"
                     size=IconButtonSize::Compact
-                    disabled={at_end.clone()}
+                    disabled={at_end}
                     @test_id={"game.history.next"}
                     on_click={move || next.next()}
                 />
@@ -122,7 +122,7 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                 <Text
                     string="#"
                     font_size=TURN_SIZE
-                    color={muted.clone()}
+                    color={muted}
                     @sizing=ItemSize::Fixed(NUMBER_WIDTH)
                 />
                 <ForEach keys={header_keys}>
@@ -134,7 +134,7 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                             <Text
                                 string={name}
                                 font_size=TURN_SIZE
-                                color={muted.clone()}
+                                color={muted}
                                 @sizing=ItemSize::Percent(100.0)
                             />
                         }
@@ -149,16 +149,16 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                     {move |row: usize| view! {
                         <MoveRow
                             row
-                            rows={rows.clone()}
-                            columns={column_keys.clone()}
-                            shown={shown.clone()}
+                            rows={rows}
+                            columns={column_keys}
+                            shown={shown}
                             steps={steps.clone()}
                         />
                     }}
                 </ForEach>
             </List>
             <Show condition={ended}>
-                <Result table={table.clone()} />
+                <Result table={table} />
             </Show>
         </List>
     }
@@ -187,8 +187,8 @@ fn MoveRow(
                     <MoveCell
                         row
                         column
-                        rows={rows.clone()}
-                        shown={shown.clone()}
+                        rows={rows}
+                        shown={shown}
                         steps={steps.clone()}
                         @sizing=ItemSize::Percent(100.0)
                     />
@@ -239,8 +239,8 @@ fn MoveCell(
             @test_id={format!("game.history.{row}.{column}")}
             on_click={open}
             content={move |_: unstyled::ButtonHandle| view! {
-                <Frame color={fill.clone()} radius=4 padding_horizontal=6.0 padding_vertical=3.0>
-                    <Text string={text.clone()} font_size=TURN_SIZE color={color.clone()} />
+                <Frame color={fill} radius=4 padding_horizontal=6.0 padding_vertical=3.0>
+                    <Text string={text} font_size=TURN_SIZE color={color} />
                 </Frame>
             }}
         />
@@ -275,10 +275,10 @@ fn Result(table: Memo<Table>) -> NodeId {
         <List spacing=2.0 align=Align::Center @test_id={"game.result"}>
             <Show condition={scored}>
                 <Text
-                    string={score.clone()}
+                    string={score}
                     font_size=SCORE_SIZE
                     bold=true
-                    color={text.clone()}
+                    color={text}
                     align=TextAlign::Center
                 />
             </Show>

@@ -20,7 +20,7 @@ pub fn SelectableText(
     let color = create_memo(clone!(theme -> move || theme.accent_soft.get()));
     let handle_color = create_memo(clone!(theme -> move || theme.accent.get()));
     let (menu_at, set_menu_at) = create_signal(None::<Pos2>);
-    let close_menu = set_menu_at.clone();
+    let close_menu = set_menu_at;
     let chosen = state.clone();
     view! {
         <ContextMenu

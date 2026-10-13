@@ -105,17 +105,17 @@ pub fn Slider(
 
     let content_node = content.map(|build| {
         build.call(SliderHandle {
-            value: value_read.clone(),
-            fraction: fraction.clone(),
-            dragging: dragging.clone(),
-            focused: focused.clone(),
-            disabled: disabled.clone(),
+            value: value_read,
+            fraction,
+            dragging,
+            focused,
+            disabled,
         })
     });
 
     let set_value = {
-        let value = value_read.clone();
-        let off = disabled.clone();
+        let value = value_read;
+        let off = disabled;
         move |next: f32| {
             if untrack(|| off.get()) {
                 return;
@@ -130,7 +130,7 @@ pub fn Slider(
     };
     let grab = Rc::new(Cell::new(0.0f32));
     let press_grab = grab.clone();
-    let press_fraction = fraction.clone();
+    let press_fraction = fraction;
     let dragged_to = move |press: PointerPress| {
         let travel = press.size.x - thumb;
         match travel > 0.0 {
@@ -155,9 +155,9 @@ pub fn Slider(
     };
     let step_value = set_value.clone();
     let key_value = set_value.clone();
-    let value_for_keys = value_read.clone();
+    let value_for_keys = value_read;
 
-    set_component_state(value_read.clone());
+    set_component_state(value_read);
 
     let tab_stop = create_memo(clone!(disabled -> move || !disabled.get()));
     view! {
@@ -204,7 +204,7 @@ pub fn Slider(
 }
 
 pub fn slider_value(document: &Document, slider: NodeId) -> ReadSignal<f32> {
-    document.component_state::<ReadSignal<f32>>(slider).clone()
+    *document.component_state::<ReadSignal<f32>>(slider)
 }
 
 fn curved(fraction: f32, base: f32) -> f32 {

@@ -65,7 +65,7 @@ pub fn IconButton(
             press_focus
             on_click={move || on_click.call()}
             content={move |handle: unstyled::ButtonHandle| view! {
-                <Tooltip label={handle.tooltip.clone()}>
+                <Tooltip label={handle.tooltip}>
                     <IconButtonFace handle variant size />
                 </Tooltip>
             }}
@@ -96,7 +96,7 @@ pub(crate) fn IconButtonFace(
         <FocusRing focused radius={RADIUS + 4} offset={size.focus_ring_offset()}>
             <Frame
                 color={fill_color}
-                outline={theme.border.clone()}
+                outline={theme.border}
                 outline_width=BORDER_WIDTH
                 radius=RADIUS
                 outline_visible={variant == ButtonVariant::Secondary}

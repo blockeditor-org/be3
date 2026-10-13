@@ -51,31 +51,23 @@ pub fn PresentationView(editor: Editor) -> NodeId {
     });
 
     view! {
-        <Interactive focusable=true focused={presenting.clone()} on_key={keys}>
+        <Interactive focusable=true focused={presenting} on_key={keys}>
             <Frame color={background}>
                 <List direction=Direction::Horizontal spacing=0.0>
                     <Filmstrip
                         @sizing=ItemSize::Fixed(FILMSTRIP_WIDTH)
                         editor={editor.clone()}
                         slides={Rc::clone(&slides)}
-                        shown={editing.clone()}
+                        shown={editing}
                     />
-                    <Frame
-                        visible={editing.clone()}
-                        width=theme::BORDER_WIDTH
-                        color={theme.border.clone()}
-                    />
+                    <Frame visible={editing} width=theme::BORDER_WIDTH color={theme.border} />
                     <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
                         <Toolbar
                             editor={editor.clone()}
                             slides={Rc::clone(&slides)}
-                            shown={editing.clone()}
+                            shown={editing}
                         />
-                        <Frame
-                            visible={editing.clone()}
-                            height=theme::BORDER_WIDTH
-                            color={theme.border.clone()}
-                        />
+                        <Frame visible={editing} height=theme::BORDER_WIDTH color={theme.border} />
                         <Stage
                             @sizing=ItemSize::Percent(100.0)
                             @node_ref={&stage}
@@ -84,7 +76,7 @@ pub fn PresentationView(editor: Editor) -> NodeId {
                             selected={slides.selected()}
                             mode={mode}
                             own_frame={editing}
-                            fit={presenting.clone()}
+                            fit={presenting}
                             report_size=true
                         />
                         <Playback editor={editor} slides={slides} shown={presenting} />
@@ -185,12 +177,7 @@ fn SlideStatus(state: ReadSignal<ChildState>) -> NodeId {
     );
     view! {
         <Frame visible={hidden}>
-            <Text
-                string={message}
-                font_size=theme::FONT_SMALL
-                color={theme.text_muted.clone()}
-                wrap=true
-            />
+            <Text string={message} font_size=theme::FONT_SMALL color={theme.text_muted} wrap=true />
         </Frame>
     }
 }
@@ -215,7 +202,7 @@ fn Toolbar(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
     view! {
         <Frame
             visible={shown}
-            color={theme.surface.clone()}
+            color={theme.surface}
             padding_horizontal=PANEL_PADDING
             padding_vertical=PANEL_PADDING
         >
@@ -328,7 +315,7 @@ fn Filmstrip(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
     view! {
         <Frame
             visible={shown}
-            color={theme.surface.clone()}
+            color={theme.surface}
             padding_horizontal=FILMSTRIP_PADDING
             padding_vertical=FILMSTRIP_PADDING
         >
@@ -396,8 +383,8 @@ fn SlideTile(editor: Editor, slides: Rc<Slides>, selected: Prop<bool>, id: Uuid)
         view! {
             <Frame
                 width=THUMBNAIL_WIDTH
-                color={theme.surface_raised.clone()}
-                outline={theme.accent.clone()}
+                color={theme.surface_raised}
+                outline={theme.accent}
                 outline_width=2.0
                 outline_visible=true
                 radius=theme::RADIUS
@@ -414,7 +401,7 @@ fn SlideTile(editor: Editor, slides: Rc<Slides>, selected: Prop<bool>, id: Uuid)
     view! {
         <Frame padding_horizontal=TILE_INSET padding_vertical=TILE_INSET>
             <Frame
-                color={theme.surface_raised.clone()}
+                color={theme.surface_raised}
                 outline={outline}
                 outline_width={width}
                 outline_visible=true

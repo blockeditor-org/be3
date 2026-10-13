@@ -97,7 +97,7 @@ pub fn LevelOsd(
                             screen.top() + screen.height() * SCREEN_HEIGHT_FRACTION,
                         ))
                     }));
-                    let (open, level, opacity) = (open.clone(), level.clone(), opacity.clone());
+                    let (open, level, opacity) = (open, level, opacity);
                     let id = format!("{id}.{index}");
                     view! {
                         <Overlay
@@ -121,20 +121,16 @@ pub fn LevelOsd(
 fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) -> NodeId {
     let theme = use_theme();
     let faded = move |color: Memo<Color32>| {
-        let opacity = opacity.clone();
+        let opacity = opacity;
         create_memo(move || color.get().scale_alpha(opacity.get()))
     };
-    let shown = level.clone();
+    let shown = level;
     let muted =
         create_memo(move || shown.with(|level| level.as_ref().is_some_and(|level| level.muted)));
-    let raised = theme.surface_raised.clone();
-    let border = theme.border.clone();
-    let track = theme.track.clone();
-    let (text, text_muted, accent) = (
-        theme.text.clone(),
-        theme.text_muted.clone(),
-        theme.accent.clone(),
-    );
+    let raised = theme.surface_raised;
+    let border = theme.border;
+    let track = theme.track;
+    let (text, text_muted, accent) = (theme.text, theme.text_muted, theme.accent);
     let card = faded(create_memo(move || raised.get()));
     let outline = faded(create_memo(move || border.get()));
     let rail = faded(create_memo(move || track.get()));

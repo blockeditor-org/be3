@@ -79,7 +79,7 @@ const QUERY_LIMIT: usize = 32;
 pub(super) fn Completions(cx: Context, menu: CompletionMenu) -> NodeId {
     let anchor = NodeRef::new();
     anchor.fill(cx.anchor);
-    let items = cx.completions.clone();
+    let items = cx.completions;
     let keys = create_memo(clone!(items -> move || (0..items.get().len()).collect::<Vec<usize>>()));
     let CompletionMenu { row, panel } = menu;
     view! {
@@ -108,9 +108,9 @@ pub(super) fn Completions(cx: Context, menu: CompletionMenu) -> NodeId {
 
 #[component]
 fn CompletionRow(cx: Context, index: usize, row: RenderFn<CompletionRowHandle>) -> NodeId {
-    let items = cx.completions.clone();
+    let items = cx.completions;
     let completion = create_memo(move || items.get().get(index).cloned());
-    let highlighted = cx.highlighted.clone();
+    let highlighted = cx.highlighted;
     let highlighted = create_memo(move || highlighted.get() == index);
     let (hovered, set_hovered) = create_signal(false);
     let content = row.call(CompletionRowHandle {

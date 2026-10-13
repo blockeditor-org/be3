@@ -33,7 +33,7 @@ fn a_drawing_repaints_on_its_deadline_without_repeating_layout() {
     harness.advance(BLINK);
     harness.frame(vec![]);
     assert_eq!((layouts.get(), paints.get()), (1, 2));
-    let set_on = asking.borrow().clone().expect("the drawing was built");
+    let set_on = (*asking.borrow()).expect("the drawing was built");
     crate::reactive::with_reactive_scope(harness.document_mut(), move || set_on.set(false));
     assert_eq!(harness.frame(vec![]).repaint_after, Duration::MAX);
 }

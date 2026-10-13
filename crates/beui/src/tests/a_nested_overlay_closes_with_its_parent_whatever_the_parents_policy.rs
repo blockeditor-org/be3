@@ -7,6 +7,7 @@ use crate::{Dismiss, LayerPolicy};
 
 #[test]
 fn a_nested_overlay_closes_with_its_parent_whatever_the_parents_policy() {
+    let _root = crate::reactive::RootScope::new();
     let (open, set_open) = create_signal(true);
     let (policy, set_policy) = create_signal(LayerPolicy::BlocksAll);
     let (nested_open, set_nested_open) = create_signal(true);
@@ -14,10 +15,10 @@ fn a_nested_overlay_closes_with_its_parent_whatever_the_parents_policy() {
     let nested_dismissed = Rc::new(Cell::new(0));
     let (outer, inner) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (open, policy, nested_open) = (open.clone(), policy.clone(), nested_open.clone());
+        let (open, policy, nested_open) = (open, policy, nested_open);
         let (reports, nested_reports) = (dismissed.clone(), nested_dismissed.clone());
         let (outer, inner) = (outer.clone(), inner.clone());
-        let closing = set_nested_open.clone();
+        let closing = set_nested_open;
         move || {
             view! {
                 <Frame>
@@ -58,7 +59,7 @@ fn a_nested_overlay_closes_with_its_parent_whatever_the_parents_policy() {
         signal: &WriteSignal<T>,
         value: T,
     ) {
-        let signal = signal.clone();
+        let signal = *signal;
         with_reactive_scope(harness.document_mut(), move || signal.set(value));
         harness.frame(Vec::new());
     }

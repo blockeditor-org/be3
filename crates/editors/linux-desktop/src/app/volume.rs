@@ -29,7 +29,7 @@ pub(crate) fn VolumeButton(editor: Editor, levels: Memo<MediaLevels>) -> NodeId 
     view! {
         <BarPopup label glyph width=VOLUME_WIDTH @test_id={"desktop.volume"}>
             {move |_: PopoverHandle| view! {
-                <VolumePanel editor={editor.clone()} levels={levels.clone()} />
+                <VolumePanel editor={editor.clone()} levels={levels} />
             }}
         </BarPopup>
     }
@@ -68,7 +68,7 @@ fn VolumePanel(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
                 />
             </List>
             <Show condition={listed}>
-                <OutputPicker editor={editor.clone()} levels={levels.clone()} />
+                <OutputPicker editor={editor.clone()} levels={levels} />
             </Show>
         </List>
     }
@@ -85,7 +85,7 @@ fn OutputPicker(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
         let chosen = levels.with(|levels| levels.default_output.clone())?;
         outputs.with(|outputs| outputs.iter().position(|output| output.id == chosen))
     }));
-    let named = outputs.clone();
+    let named = outputs;
     let choose = move |index: Option<usize>| {
         let chosen = index.and_then(|index| {
             outputs.with_untracked(|outputs| outputs.get(index).map(|output| output.id.clone()))

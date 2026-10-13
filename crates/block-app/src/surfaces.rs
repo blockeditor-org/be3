@@ -141,7 +141,7 @@ pub(crate) fn HostedSurface(id: SurfaceId) -> NodeId {
 pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
     let kind = content.get_untracked();
     let text = create_memo({
-        let content = content.clone();
+        let content = content;
         move || match content.get() {
             HostItem::Notice { text, .. } => text,
             HostItem::Fallback { name, .. } => name,
@@ -149,14 +149,14 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
         }
     });
     let detail = create_memo({
-        let content = content.clone();
+        let content = content;
         move || match content.get() {
             HostItem::Unsupported { block_type, .. } => format!("Type: {block_type}"),
             _ => String::new(),
         }
     });
     let italic = create_memo({
-        let content = content.clone();
+        let content = content;
         move || {
             matches!(
                 content.get(),
@@ -168,20 +168,17 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
         }
     });
     let spinning = create_memo({
-        let content = content.clone();
+        let content = content;
         move || matches!(content.get(), HostItem::Notice { spinner: true, .. })
     });
     let glyph = create_memo({
-        let content = content.clone();
+        let content = content;
         move || match content.get() {
             HostItem::Fallback { icon, .. } => icon.unwrap_or_default(),
             _ => String::new(),
         }
     });
-    let has_glyph = create_memo({
-        let glyph = glyph.clone();
-        move || !glyph.get().is_empty()
-    });
+    let has_glyph = create_memo(move || !glyph.get().is_empty());
     let theme = use_theme();
     let (surface, outline, color) = match kind {
         HostItem::Fallback { .. } => (
@@ -211,11 +208,11 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
                     <Heading content="Unsupported block type" align=TextAlign::Center />
                 </Show>
                 <Show condition={has_glyph}>
-                    <Icon glyph={glyph.clone()} text_size=28.0 color=color />
+                    <Icon glyph={glyph} text_size=28.0 color=color />
                 </Show>
                 <Text string={text} font_size=14.0 align=TextAlign::Center color=color italic />
                 <Show condition={unsupported}>
-                    <Caption content={detail.clone()} align=TextAlign::Center />
+                    <Caption content={detail} align=TextAlign::Center />
                 </Show>
                 <Show condition={spinning}>
                     <Spinner />

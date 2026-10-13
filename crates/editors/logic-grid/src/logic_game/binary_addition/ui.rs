@@ -58,7 +58,7 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
     }));
 
     let read_only = editor.read_only();
-    let grid_read_only = read_only.clone();
+    let grid_read_only = read_only;
     let title = create_memo(clone!(page -> move || {
         format!("Problem {} of {count}", page.get() + 1)
     }));
@@ -89,7 +89,7 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
     });
 
     let theme = use_theme();
-    let success = theme.success.clone();
+    let success = theme.success;
     view! {
         <List spacing=ROW_SPACING>
             <Body content={title} />
@@ -98,9 +98,9 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
                     <ProblemGrid
                         quiz={Rc::clone(&quiz)}
                         block={block}
-                        page={page.clone()}
+                        page={page}
                         answers={answers}
-                        checked={checked.clone()}
+                        checked={checked}
                         read_only={grid_read_only}
                     />
                 </Frame>
@@ -120,10 +120,10 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
                     on_click={reset}
                 />
                 <Show condition={passed}>
-                    <Caption content="This page is correct." color={theme.success.clone()} />
+                    <Caption content="This page is correct." color={theme.success} />
                 </Show>
                 <Show condition={failed}>
-                    <Caption content="Some blanks still need work." color={theme.danger.clone()} />
+                    <Caption content="Some blanks still need work." color={theme.danger} />
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
@@ -139,15 +139,15 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
                     <Button
                         label="Next"
                         variant=ButtonVariant::Primary
-                        disabled={blocked.clone()}
+                        disabled={blocked}
                         @test_id={"quiz.next"}
-                        on_click={forward.clone()}
+                        on_click={forward}
                     />
                 </Show>
                 <Show condition={done}>
                     {move || clone!(success -> view! {
                         <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                            <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} color={success.clone()} />
+                            <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} color={success} />
                             <Caption content="Every problem is correct." color={success} />
                         </List>
                     })}
@@ -190,8 +190,8 @@ fn ProblemGrid(
                 label="carry"
                 answers={carries}
                 expected={carry_expected}
-                checked={checked.clone()}
-                read_only={read_only.clone()}
+                checked={checked}
+                read_only={read_only}
                 prefix="quiz.carry"
                 on_change={move |values| carry_write(QuizRow::Carries, values)}
             />
@@ -201,7 +201,7 @@ fn ProblemGrid(
                 <Frame
                     @sizing=ItemSize::Percent(100.0)
                     height=RULE_HEIGHT
-                    color={theme.border.clone()}
+                    color={theme.border}
                     radius=0
                 />
             </List>
@@ -302,7 +302,7 @@ fn BitRow(
                                 != expected.with(|expected| expected.get(column).copied())
                     }));
                     let on_change = on_change.clone();
-                    let answers = answers.clone();
+                    let answers = answers;
                     let cycle = move || {
                         let mut values = answers.get_untracked();
                         if let Some(value) = values.get_mut(column) {
@@ -314,7 +314,7 @@ fn BitRow(
                         <BitCell
                             answer={answer}
                             wrong={wrong}
-                            read_only={read_only.clone()}
+                            read_only={read_only}
                             @test_id={format!("{prefix}.{column}")}
                             on_click={cycle}
                         />

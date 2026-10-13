@@ -68,9 +68,9 @@ pub fn PointerLock(
 
     let content_node = content.map(|build| {
         build.call(PointerLockHandle {
-            locked: locked_read.clone(),
-            hovered: hovered.clone(),
-            focused: focused.clone(),
+            locked: locked_read,
+            hovered,
+            focused,
         })
     });
 

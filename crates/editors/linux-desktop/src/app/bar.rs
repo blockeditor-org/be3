@@ -70,12 +70,12 @@ pub(crate) fn DesktopBar(
     let launcher = move || launcher.show(true);
     let menu = move || editor.host().show_app_menu(editor.block_id());
     let sessions = Sessions::new(&workspace);
-    let listed = sessions.listed.clone();
+    let listed = sessions.listed;
     let keys = create_memo(clone!(listed -> move || {
         listed.with(|sessions| sessions.iter().map(|session| session.block).collect::<Vec<_>>())
     }));
-    let named = listed.clone();
-    let settings = sessions.settings.clone();
+    let named = listed;
+    let settings = sessions.settings;
     let unready = create_memo(move || settings.get().is_none());
     let listing = create_memo(clone!(listed -> move || !listed.with(Vec::is_empty)));
     let creating = sessions.clone();
@@ -91,7 +91,7 @@ pub(crate) fn DesktopBar(
         <List spacing=0.0>
             <Separator />
             <Frame
-                color={theme.surface.clone()}
+                color={theme.surface}
                 padding_horizontal=BAR_PADDING
                 padding_vertical=BAR_PADDING
                 @test_id={"desktop.bar"}
@@ -117,7 +117,7 @@ pub(crate) fn DesktopBar(
                         items={view! {
                             <ForEach keys={keys}>
                                 {move |block: uuid::Uuid| {
-                                    let named = named.clone();
+                                    let named = named;
                                     let label = create_memo(move || {
                                         named.with(|sessions| {
                                             sessions
@@ -145,7 +145,7 @@ pub(crate) fn DesktopBar(
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                     <TrayItems editor={tray} />
                     <Show condition={audible}>
-                        <VolumeButton editor={sounding.clone()} levels={levels.clone()} />
+                        <VolumeButton editor={sounding.clone()} levels={levels} />
                     </Show>
                     <NotificationsButton notifications />
                     <BarPopup label={clock} width=CALENDAR_WIDTH @test_id={"desktop.clock"}>

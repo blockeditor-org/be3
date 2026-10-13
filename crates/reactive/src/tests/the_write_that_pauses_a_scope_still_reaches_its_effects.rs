@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn the_write_that_pauses_a_scope_still_reaches_its_effects() {
+    let _root = RootScope::new();
     let (open, set_open) = create_signal(true);
     let seen = Rc::new(RefCell::new(Vec::new()));
     let outer = Scope::new();

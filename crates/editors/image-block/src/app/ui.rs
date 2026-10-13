@@ -45,7 +45,7 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
     let content = NodeRef::new();
     editor.content(&content);
     let theme = use_theme();
-    let danger = theme.danger.clone();
+    let danger = theme.danger;
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
@@ -57,7 +57,7 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
                         thumbhash={placeholder}
                     />
                     <Show condition={failed}>
-                        <Caption content={reason.clone()} color={danger.clone()} />
+                        <Caption content={reason} color={danger} />
                     </Show>
                 </List>
             </Frame>
@@ -71,7 +71,7 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
                     on_click={choose}
                 />
                 <Show condition={refused}>
-                    <Caption content={refusal.clone()} color={theme.danger.clone()} />
+                    <Caption content={refusal} color={theme.danger} />
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </Sidebar>

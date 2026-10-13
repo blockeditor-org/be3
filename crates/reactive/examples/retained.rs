@@ -11,7 +11,7 @@ struct Label {
 fn main() {
     let scope = Scope::new();
     let label = Rc::new(RefCell::new(Label::default()));
-    let (count, set_count) = create_signal(0);
+    let (count, set_count) = scope.run(|| create_signal(0));
 
     scope.run(|| {
         let text = create_memo(move || format!("Count: {}", count.get()));

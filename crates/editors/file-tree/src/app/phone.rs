@@ -142,34 +142,34 @@ pub(crate) fn PhoneFiles(
     let shelf = Shelf {
         editor: editor.clone(),
         tree: Rc::clone(&tree),
-        set_level: set_level.clone(),
+        set_level,
         tools: RowTools {
             editor: editor.clone(),
             tree: Rc::clone(&tree),
             picker: Rc::clone(&picker),
             exporter,
             inspect,
-            set_level: set_level.clone(),
+            set_level,
         },
     };
-    let header_level = level.clone();
-    let header_set = set_level.clone();
+    let header_level = level;
+    let header_set = set_level;
     let page_color = use_theme().background;
     let parent = clone!(level shelf menu page_color -> move || {
         let (above, _) = create_signal(level.get_untracked().up());
         let (unsearched, unsearch) = create_signal(String::new());
         let at_top = create_memo(clone!(above -> move || above.get() == Level::Root));
         let (color, folder, set_level, on_menu) = (
-            page_color.clone(),
+            page_color,
             shelf.clone(),
-            shelf.set_level.clone(),
+            shelf.set_level,
             menu.clone(),
         );
         view! {
             <Frame color radius=0>
                 <List spacing=0.0>
                     <Header
-                        level={above.clone()}
+                        level={above}
                         set_level
                         query={unsearched}
                         set_query={unsearch}
@@ -247,7 +247,7 @@ fn Folder(shelf: Shelf, level: ReadSignal<Level>, at_root: Memo<bool>) -> NodeId
                         {move |level: Level| {
                             let editor = shelf.editor.clone();
                             let tree = Rc::clone(&shelf.tree);
-                            let set_level = shelf.set_level.clone();
+                            let set_level = shelf.set_level;
                             let tools = shelf.tools.clone();
                             view! {
                                 <LevelRows
@@ -279,8 +279,8 @@ fn Header(
     let theme = use_theme();
     let top = create_memo(clone!(level -> move || level.get() == Level::Root));
     let inside = create_memo(clone!(top -> move || !top.get()));
-    let titled = top.clone();
-    let named = inside.clone();
+    let titled = top;
+    let named = inside;
     let name = create_memo(clone!(level -> move || match level.get() {
         Level::Root => "Files".to_owned(),
         Level::Folder(crumbs) => crumbs.last().map(|crumb| crumb.name.clone()).unwrap_or_default(),
@@ -294,9 +294,9 @@ fn Header(
         Level::Root | Level::Deleted => "Files".to_owned(),
     }));
     let up = clone!(level -> move || set_level.set(level.get_untracked().up()));
-    let typed = query.clone();
+    let typed = query;
     view! {
-        <Frame color={theme.background.clone()} padding_horizontal=PADDING padding_vertical=PADDING>
+        <Frame color={theme.background} padding_horizontal=PADDING padding_vertical=PADDING>
             <List spacing=PADDING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                     <Show condition={inside}>
@@ -304,7 +304,7 @@ fn Header(
                             @test_id={"file-tree.back"}
                             glyph={ICON_ARROW_BACK.to_owned()}
                             label="Up one folder"
-                            on_click={up.clone()}
+                            on_click={up}
                         />
                     </Show>
                     <Show condition={titled}>
@@ -358,7 +358,7 @@ fn SearchSoon() -> NodeId {
                 <IconSized
                     glyph={ICON_SEARCH_OFF.to_owned()}
                     font_size=40.0
-                    color={theme.text_muted.clone()}
+                    color={theme.text_muted}
                 />
                 <Heading content="Search is coming soon" />
                 <Caption
@@ -449,8 +449,8 @@ fn RecentCard(editor: Editor, id: Uuid, block_type: Uuid) -> NodeId {
                 width=RECENT_WIDTH
                 height=RECENT_HEIGHT
                 radius=CARD_RADIUS
-                color={theme.surface_raised.clone()}
-                outline={theme.border.clone()}
+                color={theme.surface_raised}
+                outline={theme.border}
                 outline_width=1.0
                 outline_visible=true
             >
@@ -461,13 +461,13 @@ fn RecentCard(editor: Editor, id: Uuid, block_type: Uuid) -> NodeId {
                     <Frame height={RECENT_HEIGHT - 8.0} padding_vertical=6.0>
                         <List spacing=6.0>
                             <List direction=Direction::Horizontal spacing=0.0>
-                                <Icon glyph color={theme.accent.clone()} />
+                                <Icon glyph color={theme.accent} />
                             </List>
                             <Spacer @sizing=ItemSize::Percent(100.0) />
                             <Text
                                 string={name}
                                 font_size=FONT_BODY
-                                color={theme.text.clone()}
+                                color={theme.text}
                                 ellipsis=true
                             />
                             <Caption content={kind} ellipsis=true />
@@ -545,7 +545,7 @@ fn LevelRows(
         Level::Deleted => "Nothing has been deleted.",
     };
     let at_root = level == Level::Root;
-    let deleting = set_level.clone();
+    let deleting = set_level;
     view! {
         <List spacing=ROW_SPACING>
             <Show condition={loading}>
@@ -571,7 +571,7 @@ fn LevelRows(
                     }));
                     let editor = editor.clone();
                     let level = level.clone();
-                    let set_level = set_level.clone();
+                    let set_level = set_level;
                     let tools = tools.clone();
                     view! {
                         <PhoneRow editor row level set_level tools />
@@ -666,7 +666,7 @@ fn PhoneRow(
             None => host.open_block(id, shown.block_type),
         }
     });
-    let muted_icon = theme.text_muted.clone();
+    let muted_icon = theme.text_muted;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
             <ListRow @sizing=ItemSize::Percent(100.0) @test_id={open_id} on_click={tapped}>
@@ -680,21 +680,18 @@ fn PhoneRow(
                             width=TILE_SIDE
                             height=TILE_SIDE
                             radius=RADIUS
-                            color={theme.surface_raised.clone()}
+                            color={theme.surface_raised}
                             align_horizontal=Align::Center
                             align_vertical=Align::Center
                         >
-                            <IconSized glyph font_size=TILE_GLYPH color={theme.accent.clone()} />
+                            <IconSized glyph font_size=TILE_GLYPH color={theme.accent} />
                         </Frame>
                         <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
                             <Text string={name} font_size=FONT_BODY color={color} ellipsis=true />
                             <Caption content={detail} ellipsis=true />
                         </List>
                         <Show condition={folder}>
-                            <Icon
-                                glyph={ICON_CHEVRON_RIGHT.to_owned()}
-                                color={muted_icon.clone()}
-                            />
+                            <Icon glyph={ICON_CHEVRON_RIGHT.to_owned()} color={muted_icon} />
                         </Show>
                     </List>
                 </Frame>
@@ -707,7 +704,7 @@ fn PhoneRow(
                     on_click={entering.clone()}
                 />
             </Show>
-            <RowMenu @test_id={more_id} tools row={row.clone()} />
+            <RowMenu @test_id={more_id} tools row={row} />
         </List>
     }
 }
@@ -733,7 +730,7 @@ fn RowMenu(tools: RowTools, row: Memo<Option<Row>>) -> NodeId {
         set_level,
     } = tools;
     let adding = Rc::clone(&picker);
-    let chosen = menu_action(editor.clone(), tree, picker, exporter, inspect, row.clone());
+    let chosen = menu_action(editor.clone(), tree, picker, exporter, inspect, row);
     let add_editor = editor.clone();
     let add_inside = clone!(row -> move || {
         let Some(id) = row.get_untracked().and_then(|row| row.id) else {
@@ -741,10 +738,8 @@ fn RowMenu(tools: RowTools, row: Memo<Option<Row>>) -> NodeId {
         };
         adding.open_placed(&add_editor, Some(id), [id].into_iter().collect());
     });
-    let off = |test: fn(&Row) -> bool| {
-        let row = row.clone();
-        create_memo(move || !row.get().is_some_and(|row| test(&row)))
-    };
+    let off =
+        |test: fn(&Row) -> bool| create_memo(move || !row.get().is_some_and(|row| test(&row)));
     let unviewable = off(|row| row.access.can_view());
     let unaddable = off(|row| row.can_add);
     let uneditable = off(|row| row.can_edit);

@@ -59,7 +59,7 @@ pub fn PaintReviewEditor(editor: Editor, source: Source) -> NodeId {
     });
 
     let chrome = editor.chrome_shown();
-    let bar_chrome = chrome.clone();
+    let bar_chrome = chrome;
     let bar = Rc::clone(&review);
     let listed = Rc::clone(&review);
     let captioned = Rc::clone(&review);
@@ -73,7 +73,7 @@ pub fn PaintReviewEditor(editor: Editor, source: Source) -> NodeId {
                 </Sidebar>
                 <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
                     <ReviewCaption review={captioned} />
-                    <FrameControls review={framed} count={count.clone()} />
+                    <FrameControls review={framed} count={count} />
                     <Stage
                         @sizing=ItemSize::Percent(100.0)
                         @test_id={"paint_review.stage"}

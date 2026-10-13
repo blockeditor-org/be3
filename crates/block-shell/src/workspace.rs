@@ -248,23 +248,23 @@ impl Workspace {
     }
 
     pub fn phone(&self) -> ReadSignal<bool> {
-        self.phone.clone()
+        self.phone
     }
 
     pub fn error(&self) -> ReadSignal<Option<String>> {
-        self.error.clone()
+        self.error
     }
 
     pub fn files(&self) -> ReadSignal<Option<Uuid>> {
-        self.files.clone()
+        self.files
     }
 
     pub fn panels(&self) -> ReadSignal<Vec<HostPanel>> {
-        self.panels.clone()
+        self.panels
     }
 
     pub fn block_tabs(&self) -> Memo<Vec<TabId>> {
-        let listed = self.tabs.clone();
+        let listed = self.tabs;
         create_memo(move || {
             let mut tabs: Vec<TabId> = listed.with(|tabs| tabs.keys().copied().collect());
             tabs.sort();
@@ -273,7 +273,7 @@ impl Workspace {
     }
 
     pub fn windows(&self) -> Memo<Vec<HostWindowId>> {
-        let windows = self.windows.clone();
+        let windows = self.windows;
         create_memo(move || {
             windows.with(|windows| {
                 windows
@@ -286,7 +286,7 @@ impl Workspace {
     }
 
     pub fn dialogs(&self) -> Memo<Vec<(HostWindowId, HostWindowId)>> {
-        let windows = self.windows.clone();
+        let windows = self.windows;
         create_memo(move || {
             windows.with(|windows| {
                 windows
@@ -996,7 +996,7 @@ impl Workspace {
 
 #[component]
 pub fn BlockTab(workspace: Rc<Workspace>, tab: TabId) -> DockEntry<TabId> {
-    let titles = workspace.titles.clone();
+    let titles = workspace.titles;
     let title = create_memo(move || {
         titles.with(|titles| {
             titles
@@ -1023,7 +1023,7 @@ pub fn BlockTab(workspace: Rc<Workspace>, tab: TabId) -> DockEntry<TabId> {
 
 #[component]
 pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<TabId> {
-    let windows = workspace.windows.clone();
+    let windows = workspace.windows;
     let name = create_memo(move || {
         windows.with(|windows| {
             windows
@@ -1032,7 +1032,7 @@ pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<Ta
                 .map_or_else(|| "Window".to_owned(), window_title)
         })
     });
-    let listed = workspace.windows.clone();
+    let listed = workspace.windows;
     let responding = create_memo(move || {
         listed.with(|windows| {
             windows
@@ -1045,7 +1045,7 @@ pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<Ta
         true => name.get(),
         false => format!("{} (not responding)", name.get()),
     }));
-    let listed = workspace.windows.clone();
+    let listed = workspace.windows;
     let fullscreen = create_memo(move || {
         listed.with(|windows| {
             let area = windows
@@ -1058,7 +1058,7 @@ pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<Ta
             ))
         })
     });
-    let listed = workspace.windows.clone();
+    let listed = workspace.windows;
     let focused = create_memo(move || {
         listed.with(|windows| {
             windows
@@ -1066,7 +1066,7 @@ pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<Ta
                 .any(|listed| listed.id == window && listed.focused)
         })
     });
-    let listed = workspace.windows.clone();
+    let listed = workspace.windows;
     let size = create_memo(move || {
         listed.with(|windows| {
             windows
@@ -1075,7 +1075,7 @@ pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<Ta
                 .map(|listed| vec2(listed.size.width, listed.size.height))
         })
     });
-    let listed = workspace.windows.clone();
+    let listed = workspace.windows;
     let icon = create_memo(move || {
         listed.with(|windows| {
             windows
@@ -1099,11 +1099,11 @@ pub fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<Ta
             <WindowPanel
                 editor={editor.clone()}
                 window
-                fullscreen={fullscreen.clone()}
-                name={name.clone()}
-                responding={responding.clone()}
-                focused={focused.clone()}
-                size={size.clone()}
+                fullscreen={fullscreen}
+                name={name}
+                responding={responding}
+                focused={focused}
+                size={size}
             />
         </DockTab>
     }
@@ -1134,7 +1134,7 @@ pub fn AttachedWindow(
     window: HostWindowId,
     parent: HostWindowId,
 ) -> DockNode<TabId> {
-    let listed = workspace.windows.clone();
+    let listed = workspace.windows;
     let info = create_memo(move || {
         listed.with(|windows| windows.iter().find(|listed| listed.id == window).cloned())
     });
@@ -1159,7 +1159,7 @@ pub fn AttachedWindow(
         <DockDialog
             id={window_tab(window)}
             parent={window_tab(parent)}
-            title={title.clone()}
+            title={title}
             icon=ICON_WEB_ASSET
             size
             modal
@@ -1168,11 +1168,11 @@ pub fn AttachedWindow(
             <WindowPanel
                 editor={editor.clone()}
                 window
-                fullscreen={fullscreen.clone()}
-                name={title.clone()}
-                responding={responding.clone()}
-                focused={focused.clone()}
-                size={followed.clone()}
+                fullscreen={fullscreen}
+                name={title}
+                responding={responding}
+                focused={focused}
+                size={followed}
             />
         </DockDialog>
     }
@@ -1204,7 +1204,7 @@ pub fn Failure(failed: Memo<bool>, reason: Memo<String>) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame visible={failed}>
-            <Caption content={reason} color={theme.danger.clone()} />
+            <Caption content={reason} color={theme.danger} />
         </Frame>
     }
 }
@@ -1224,7 +1224,7 @@ pub fn PanelStatus(state: ReadSignal<ChildState>, loading: String) -> NodeId {
     view! {
         <Frame visible={shown} padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
             <List spacing=PANEL_SPACING>
-                <Caption content={message} color={theme.text_muted.clone()} />
+                <Caption content={message} color={theme.text_muted} />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
         </Frame>

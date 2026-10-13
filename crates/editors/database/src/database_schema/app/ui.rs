@@ -96,10 +96,10 @@ pub fn SchemaView(editor: Editor) -> NodeId {
         schema.operate(DatabaseSchema::add_field("Field", DatabaseFieldType::String).1);
     });
 
-    let add_disabled = read_only.clone();
+    let add_disabled = read_only;
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()} padding_horizontal=PADDING padding_vertical=PADDING>
+        <Frame color={theme.background} padding_horizontal=PADDING padding_vertical=PADDING>
             <List spacing=SECTION_SPACING>
                 <Heading content="Fields" />
                 <Scroll @sizing=ItemSize::Percent(100.0)>
@@ -117,7 +117,7 @@ pub fn SchemaView(editor: Editor) -> NodeId {
                                         schema={schema.clone()}
                                         id={id}
                                         field={field}
-                                        read_only={read_only.clone()}
+                                        read_only={read_only}
                                     />
                                 }
                             }}
@@ -204,21 +204,15 @@ fn FieldRow(
         schema.operate(DatabaseSchema::move_field(id, after));
     });
     let (up, down) = (mover.clone(), mover);
-    let (up_off, down_off) = (read_only.clone(), read_only.clone());
+    let (up_off, down_off) = (read_only, read_only);
     let theme = use_theme();
     let type_keys = create_memo(|| (0..FIELD_TYPES.len()).collect::<Vec<usize>>());
-    let (name_off, type_off, delete_off) =
-        (read_only.clone(), read_only.clone(), read_only.clone());
-    let (number_off, enum_off, block_off, relation_off) = (
-        read_only.clone(),
-        read_only.clone(),
-        read_only.clone(),
-        read_only,
-    );
+    let (name_off, type_off, delete_off) = (read_only, read_only, read_only);
+    let (number_off, enum_off, block_off, relation_off) =
+        (read_only, read_only, read_only, read_only);
     let (number_schema, enum_schema, block_schema, relation_schema) =
         (schema.clone(), schema.clone(), schema.clone(), schema);
-    let (number_field, enum_field, block_field, relation_field) =
-        (field.clone(), field.clone(), field.clone(), field);
+    let (number_field, enum_field, block_field, relation_field) = (field, field, field, field);
     let relation_editor = editor.clone();
     let (number_kind, enum_kind, block_kind, relation_kind) = (
         is(DatabaseFieldType::Number),
@@ -229,7 +223,7 @@ fn FieldRow(
     view! {
         <List spacing=ROW_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                <IconSized glyph={glyph} font_size=20.0 color={theme.text_muted.clone()} />
+                <IconSized glyph={glyph} font_size=20.0 color={theme.text_muted} />
                 <Frame width=NAME_WIDTH>
                     <TextInput
                         value={name}
@@ -282,16 +276,16 @@ fn FieldRow(
                 <NumberOptions
                     schema={number_schema.clone()}
                     id={id}
-                    field={number_field.clone()}
-                    read_only={number_off.clone()}
+                    field={number_field}
+                    read_only={number_off}
                 />
             </Show>
             <Show condition={enum_kind}>
                 <EnumOptions
                     schema={enum_schema.clone()}
                     id={id}
-                    field={enum_field.clone()}
-                    read_only={enum_off.clone()}
+                    field={enum_field}
+                    read_only={enum_off}
                 />
             </Show>
             <Show condition={block_kind}>
@@ -299,8 +293,8 @@ fn FieldRow(
                     editor={editor.clone()}
                     schema={block_schema.clone()}
                     id={id}
-                    field={block_field.clone()}
-                    read_only={block_off.clone()}
+                    field={block_field}
+                    read_only={block_off}
                 />
             </Show>
             <Show condition={relation_kind}>
@@ -308,8 +302,8 @@ fn FieldRow(
                     editor={relation_editor.clone()}
                     schema={relation_schema.clone()}
                     id={id}
-                    field={relation_field.clone()}
-                    read_only={relation_off.clone()}
+                    field={relation_field}
+                    read_only={relation_off}
                 />
             </Show>
             <Separator />
@@ -341,15 +335,10 @@ fn NumberOptions(
         schema.operate(DatabaseSchema::set_number_options(id, next));
     });
     let scale_keys = create_memo(|| (0..NUMBER_SCALES.len()).collect::<Vec<usize>>());
-    let (minimum_off, maximum_off, step_off, scale_off) = (
-        read_only.clone(),
-        read_only.clone(),
-        read_only.clone(),
-        read_only,
-    );
+    let (minimum_off, maximum_off, step_off, scale_off) =
+        (read_only, read_only, read_only, read_only);
     let (minimum_schema, maximum_schema, step_schema) = (schema.clone(), schema.clone(), schema);
-    let (minimum_options, maximum_options, step_options) =
-        (options.clone(), options.clone(), options);
+    let (minimum_options, maximum_options, step_options) = (options, options, options);
     view! {
         <List spacing=ROW_SPACING>
             <Frame padding_left={INDENT + ROW_SPACING}>
@@ -463,7 +452,7 @@ fn OptionalNumber(
     let unset = create_memo(clone!(set read_only -> move || !set.get() || read_only.get()));
     let write = {
         let schema = schema.clone();
-        let options = options.clone();
+        let options = options;
         move |value: Option<f64>| {
             let mut next = options.get_untracked();
             bound.write(&mut next, value);
@@ -472,7 +461,7 @@ fn OptionalNumber(
     };
     let toggled = {
         let write = write.clone();
-        let options = options.clone();
+        let options = options;
         move |enabled: bool| {
             let fallback = bound.fallback(options.get_untracked());
             write(enabled.then_some(fallback));
@@ -518,7 +507,7 @@ fn EnumOptions(
                 .unwrap_or_default()
         })
     }));
-    let add_off = read_only.clone();
+    let add_off = read_only;
     let add = clone!(schema field -> move || {
         let count = field.with_untracked(|field| field.as_ref().map_or(0, |field| field.enum_options.len()));
         schema.operate(DatabaseSchema::add_enum_option(id, format!("Option {}", count + 1)).1);
@@ -533,8 +522,8 @@ fn EnumOptions(
                                 schema={schema.clone()}
                                 id={id}
                                 option_id={option_id}
-                                field={field.clone()}
-                                read_only={read_only.clone()}
+                                field={field}
+                                read_only={read_only}
                             />
                         }
                     }}
@@ -611,16 +600,9 @@ fn EnumOptionRow(
     let color_keys = create_memo(|| (0..ChoiceColor::ALL.len()).collect::<Vec<usize>>());
     let (icon_schema, color_schema) = (schema.clone(), schema);
     let (name_off, delete_off, icon_off, color_off, closed_off, default_off, up_off, down_off) = (
-        read_only.clone(),
-        read_only.clone(),
-        read_only.clone(),
-        read_only.clone(),
-        read_only.clone(),
-        read_only.clone(),
-        read_only.clone(),
-        read_only,
+        read_only, read_only, read_only, read_only, read_only, read_only, read_only, read_only,
     );
-    let color_option = option.clone();
+    let color_option = option;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING wrap=true>
             <unstyled::MenuButton
@@ -645,7 +627,7 @@ fn EnumOptionRow(
                     </ForEach>
                 }}
                 trigger={move |handle: MenuButtonHandle| {
-                    let option = option.clone();
+                    let option = option;
                     view! {
                         <ControlFace handle={handle.button}>
                             <ChoiceMark option={option} size=18.0 />
@@ -779,7 +761,7 @@ fn BlockOptions(
         let wanted = wanted.get();
         entries.with(|entries| entries.iter().position(|(value, _)| *value == wanted))
     }));
-    let labels = entries.clone();
+    let labels = entries;
     let picked = clone!(schema entries -> move |selected: Option<usize>| {
         let Some(index) = selected else {
             return;
@@ -841,7 +823,7 @@ fn RelationOptions(
             .with(|field| field.as_ref().and_then(|field| field.relation_options.database))
             .map(|database| ChildTarget::new(database, DatabaseContent::CONTENT_TYPE))
     }));
-    let shown = watch_block_label(&editor, target.clone());
+    let shown = watch_block_label(&editor, target);
     let label = create_memo(clone!(shown target -> move || {
         match target.get() {
             None => "Choose a database".to_owned(),
@@ -903,7 +885,7 @@ fn RelationOptions(
             },
         ));
     });
-    let (multiple_off, inverse_off) = (read_only.clone(), read_only.clone());
+    let (multiple_off, inverse_off) = (read_only, read_only);
     view! {
         <Frame padding_left={INDENT + ROW_SPACING}>
             <List spacing=ROW_SPACING>

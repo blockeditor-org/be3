@@ -103,7 +103,7 @@ pub fn ButtonFace(
         variant.fill(&theme, disabled.get(), hovered.get(), active.get())
     }));
     let label_color = create_memo(clone!(theme -> move || variant.label(&theme, disabled.get())));
-    let icon_color = label_color.clone();
+    let icon_color = label_color;
     let has_glyph = create_memo(clone!(glyph -> move || !glyph.get().is_empty()));
     let shown_label = create_memo(move || match icon_only.get() {
         true => String::new(),
@@ -111,12 +111,12 @@ pub fn ButtonFace(
     });
     let trailing = create_memo(move || trailing_glyph.get());
     let has_trailing = create_memo(clone!(trailing -> move || !trailing.get().is_empty()));
-    let trailing_color = label_color.clone();
+    let trailing_color = label_color;
     view! {
         <FocusRing focused radius={RADIUS + 4} offset=FOCUS_RING_OFFSET>
             <Frame
                 color={fill_color}
-                outline={theme.border.clone()}
+                outline={theme.border}
                 outline_width=BORDER_WIDTH
                 radius=RADIUS
                 outline_visible={variant == ButtonVariant::Secondary}
@@ -125,7 +125,7 @@ pub fn ButtonFace(
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=GLYPH_SPACING>
                     <Show condition={has_glyph}>
-                        <Icon glyph={glyph.clone()} color={icon_color.clone()} />
+                        <Icon glyph={glyph} color={icon_color} />
                     </Show>
                     <Text
                         @sizing={ItemSize::Intrinsic.shrink(1.0)}
@@ -136,7 +136,7 @@ pub fn ButtonFace(
                         ellipsis=true
                     />
                     <Show condition={has_trailing}>
-                        <Icon glyph={trailing.clone()} color={trailing_color.clone()} />
+                        <Icon glyph={trailing} color={trailing_color} />
                     </Show>
                 </List>
             </Frame>

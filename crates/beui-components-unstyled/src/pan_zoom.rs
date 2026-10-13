@@ -161,9 +161,9 @@ pub fn PanZoom(
                 let (panning, set_panning) = create_signal(false);
 
                 let camera = Camera {
-                    view: current.clone(),
+                    view: current,
                     set_view: set_current,
-                    rect: rect.clone(),
+                    rect,
                     min_scale: create_memo(move || min_scale.get()),
                     max_scale: create_memo(move || max_scale.get()),
                     on_change,
@@ -184,8 +184,8 @@ pub fn PanZoom(
                 let content_node = content.call(PanZoomHandle {
                     view: create_memo(clone!(current rect -> move || Some(current.get().canvas(rect.get())))),
                     scale: create_memo(clone!(current -> move || current.get().scale)),
-                    panning: panning.clone(),
-                    focused: focused.clone(),
+                    panning,
+                    focused,
                 });
 
                 set_component_state(current);
@@ -216,7 +216,5 @@ pub fn PanZoom(
 }
 
 pub fn pan_zoom_view(document: &Document, pan_zoom: NodeId) -> ReadSignal<PanZoomView> {
-    document
-        .component_state::<ReadSignal<PanZoomView>>(pan_zoom)
-        .clone()
+    *document.component_state::<ReadSignal<PanZoomView>>(pan_zoom)
 }

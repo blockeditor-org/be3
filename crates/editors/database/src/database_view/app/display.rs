@@ -38,8 +38,8 @@ pub fn DisplayOptions(data: Data) -> NodeId {
     }));
     let ordered = create_memo(clone!(data -> move || data.kind.get() != DatabaseViewKind::Scatter));
     let scatter = create_memo(clone!(data -> move || data.kind.get() == DatabaseViewKind::Scatter));
-    let prefix = data.prefix.clone();
-    let prefix_off = data.read_only.clone();
+    let prefix = data.prefix;
+    let prefix_off = data.read_only;
     let reprefix = clone!(data -> move |text: String| data.set_prefix(text));
     let fields_open = clone!(data -> move || data.open_schema());
     let (switch, groups, order, axes, empty, shown) = (
@@ -69,7 +69,7 @@ pub fn DisplayOptions(data: Data) -> NodeId {
                     <AxisPickers data={axes} />
                 })}
             </Show>
-            <Show condition={listed.clone()}>
+            <Show condition={listed}>
                 {move || clone!(empty -> view! {
                     <EmptyGroups data={empty} />
                 })}
@@ -162,7 +162,7 @@ fn GroupPicker(data: Data) -> NodeId {
                 .collect::<Vec<DatabaseField>>()
         })
     }));
-    let chosen = data.group_by.clone();
+    let chosen = data.group_by;
     let picked = clone!(data options -> move |field: Option<Uuid>| {
         let _ = &options;
         data.operate_view(DatabaseView::set_group_by(field));
@@ -245,8 +245,8 @@ fn OrderPicker(data: Data) -> NodeId {
                 />
                 <Show condition={sorted}>
                     <IconButton
-                        glyph={glyph.clone()}
-                        label={direction_label.clone()}
+                        glyph={glyph}
+                        label={direction_label}
                         @test_id={"database-view.order-direction"}
                         on_click={flip.clone()}
                     />
@@ -273,14 +273,14 @@ fn AxisPickers(data: Data) -> NodeId {
     let pick_y = clone!(data -> move |field: Option<Uuid>| {
         data.operate_view(DatabaseView::set_scatter_y(field));
     });
-    let (x_options, y_options) = (options.clone(), options);
-    let (x_chosen, y_chosen) = (data.scatter_x.clone(), data.scatter_y.clone());
+    let (x_options, y_options) = (options, options);
+    let (x_chosen, y_chosen) = (data.scatter_x, data.scatter_y);
     view! {
         <List spacing=SPACING>
             <Labelled label="X axis">
                 <FieldPicker
                     options={x_options}
-                    chosen={x_chosen.clone()}
+                    chosen={x_chosen}
                     none="None"
                     label="X axis"
                     picker_id={"database-view.scatter-x".to_owned()}
@@ -290,7 +290,7 @@ fn AxisPickers(data: Data) -> NodeId {
             <Labelled label="Y axis">
                 <FieldPicker
                     options={y_options}
-                    chosen={y_chosen.clone()}
+                    chosen={y_chosen}
                     none="None"
                     label="Y axis"
                     picker_id={"database-view.scatter-y".to_owned()}
@@ -303,7 +303,7 @@ fn AxisPickers(data: Data) -> NodeId {
 
 #[component]
 fn EmptyGroups(data: Data) -> NodeId {
-    let on = data.show_empty_groups.clone();
+    let on = data.show_empty_groups;
     let toggle =
         clone!(data -> move |on: bool| data.operate_view(DatabaseView::set_show_empty_groups(on)));
     view! {
@@ -404,7 +404,7 @@ pub fn FieldPicker(
                 .map(|index| index + 1),
         }
     }));
-    let names = options.clone();
+    let names = options;
     let picked = clone!(options -> move |index: Option<usize>| {
         let field = match index {
             None | Some(0) => None,

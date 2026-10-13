@@ -75,7 +75,6 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
     let editable = editor.editable();
     let operate = {
         let calendar = Rc::clone(&calendar);
-        let editable = editable.clone();
         move |action: FormAction| {
             if !editable.get_untracked() {
                 return;
@@ -105,13 +104,13 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
     let pick_event =
         clone!(set_form -> move |event: Shown| set_form.set(Some(EventForm::edit(&event))));
 
-    let form_read_only = read_only.clone();
+    let form_read_only = read_only;
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <List spacing=0.0>
                 <Toolbar shown={chrome}>
                     <IconButton
@@ -152,7 +151,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                         glyph={ICON_ADD.to_owned()}
                         label="Event"
                         variant=ButtonVariant::Primary
-                        disabled={read_only.clone()}
+                        disabled={read_only}
                         @test_id={"calendar.add-event"}
                         on_click={add}
                     />
@@ -166,11 +165,11 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                     <List spacing=0.0>
                         <Dynamic value={mode}>
                             {move |shown: CalendarView| {
-                                let anchor = anchor.clone();
-                                let events = events.clone();
-                                let pick_day = pick_day.clone();
-                                let pick_slot = pick_slot.clone();
-                                let pick_event = pick_event.clone();
+                                let anchor = anchor;
+                                let events = events;
+                                let pick_day = pick_day;
+                                let pick_slot = pick_slot;
+                                let pick_event = pick_event;
                                 match shown {
                                     CalendarView::Month => view! {
                                         <MonthGrid
@@ -296,7 +295,7 @@ fn EventDialog(
                     value={name}
                     label="Title"
                     placeholder="Title"
-                    disabled={read_only.clone()}
+                    disabled={read_only}
                     @test_id={"calendar.form.title"}
                     on_change={edit_title}
                 />
@@ -304,7 +303,7 @@ fn EventDialog(
                 <DateTimeField
                     value={start}
                     label="Starts"
-                    disabled={read_only.clone()}
+                    disabled={read_only}
                     @test_id={"calendar.form.start"}
                     on_change={edit_start}
                 />

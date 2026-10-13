@@ -297,12 +297,12 @@ impl Model {
 
     pub(crate) fn timeline(&self, pull_request: &PullRequest) -> ReadSignal<Loaded<Vec<Entry>>> {
         if let Some((read, _)) = self.timelines.borrow().get(&pull_request.number) {
-            return read.clone();
+            return *read;
         }
         let (read, write) = create_signal(Loaded::Loading);
         self.timelines
             .borrow_mut()
-            .insert(pull_request.number, (read.clone(), write));
+            .insert(pull_request.number, (read, write));
         self.tasks.timeline(pull_request.clone());
         read
     }
@@ -312,7 +312,7 @@ impl Model {
             .timelines
             .borrow()
             .get(&pull_request.number)
-            .map(|(_, write)| write.clone());
+            .map(|(_, write)| *write);
         if let Some(write) = write {
             write.set(Loaded::Loading);
         }
@@ -329,7 +329,7 @@ impl Model {
             .selected
             .get_untracked()
             .and_then(|pull_request| {
-                let timeline = self.timelines.borrow().get(&pull_request.number)?.0.clone();
+                let timeline = self.timelines.borrow().get(&pull_request.number)?.0;
                 match timeline.get_untracked() {
                     Loaded::Ready(entries) => Some(timeline_images(&entries)),
                     _ => None,
@@ -358,12 +358,12 @@ impl Model {
 
     pub(crate) fn image(&self, url: &str) -> ReadSignal<Loaded<Image>> {
         if let Some((read, _)) = self.images.borrow().get(url) {
-            return read.clone();
+            return *read;
         }
         let (read, write) = create_signal(Loaded::Loading);
         self.images
             .borrow_mut()
-            .insert(url.to_owned(), (read.clone(), write));
+            .insert(url.to_owned(), (read, write));
         self.tasks.image(url.to_owned());
         read
     }
@@ -501,7 +501,7 @@ impl Model {
                     .timelines
                     .borrow()
                     .get(&number)
-                    .map(|(_, write)| write.clone());
+                    .map(|(_, write)| *write);
                 if let Some(write) = write {
                     write.set(match timeline {
                         Ok(entries) => Loaded::Ready(entries),
@@ -510,11 +510,7 @@ impl Model {
                 }
             }
             Event::Image(url, pixels) => {
-                let write = self
-                    .images
-                    .borrow()
-                    .get(&url)
-                    .map(|(_, write)| write.clone());
+                let write = self.images.borrow().get(&url).map(|(_, write)| *write);
                 if let Some(write) = write {
                     write.set(match pixels {
                         Ok(pixels) => Loaded::Ready(Image::from_rgba(

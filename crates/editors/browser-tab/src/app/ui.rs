@@ -52,7 +52,7 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
     editor.content(&content);
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <List spacing=0.0>
                 <Toolbar shown={chrome}>
                     <IconButton
@@ -98,8 +98,8 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
                         <List align=Align::Center justify=Justify::Center spacing=0.0>
                             <Show condition={failed}>
                                 <Caption
-                                    content={reason.clone()}
-                                    color={theme.danger.clone()}
+                                    content={reason}
+                                    color={theme.danger}
                                     @test_id={"browser.error"}
                                 />
                             </Show>

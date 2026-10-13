@@ -79,10 +79,10 @@ impl ViewData {
         let view = editor.block_content::<DatabaseViewContent>();
         let database_ref = view.project(|view| view.root().database);
         let database_id = create_memo(move || database_ref.get());
-        let database = editor.related_content::<DatabaseContent>(database_id.clone());
+        let database = editor.related_content::<DatabaseContent>(database_id);
         let schema_ref = database.project(|database| database.root().schema);
         let schema_id = create_memo(move || schema_ref.get());
-        let schema = editor.related_content::<DatabaseSchemaContent>(schema_id.clone());
+        let schema = editor.related_content::<DatabaseSchemaContent>(schema_id);
 
         let rows = database.project(|database| {
             database
@@ -101,7 +101,7 @@ impl ViewData {
                 .collect::<Vec<ObjectId>>()
         });
         let row_ids = create_memo(clone!(row_ids -> move || row_ids.get()));
-        let inverses = watch_inverses(editor, database_id.clone());
+        let inverses = watch_inverses(editor, database_id);
         let rows = create_memo(clone!(rows row_ids inverses -> move || {
             let ids = row_ids.get();
             let inverses = inverses.get();
@@ -158,14 +158,14 @@ impl ViewData {
         let targets =
             create_memo(clone!(fields -> move || fields.with(|fields| relation_targets(fields))));
         let row_labels = watch_row_labels(editor, targets);
-        let labels = watch_labels(editor, database_id.clone(), rows.clone(), row_labels);
+        let labels = watch_labels(editor, database_id, rows, row_labels);
 
         let (selected, set_selected) = create_signal(None::<Selection>);
         let (error, set_error) = create_signal(None::<String>);
         let (search, set_search) = create_signal(String::new());
         let (toggled, set_toggled) = create_signal(HashSet::<GroupKey>::new());
-        let views = watch_views(editor, database_id.clone());
-        let name = watch_name(editor, database_id.clone());
+        let views = watch_views(editor, database_id);
+        let name = watch_name(editor, database_id);
         let search = create_memo(move || search.get());
         let groups = create_memo(
             clone!(search prefix row_ids title_field group_by show_empty_groups rows fields labels filters sort kind -> move || {
@@ -528,7 +528,7 @@ impl ViewData {
             return;
         };
         let database = Rc::clone(&self.database);
-        let set_error = self.set_error.clone();
+        let set_error = self.set_error;
         self.editor.pick_block(
             value_block_filter(&name, request),
             move |picked| match picked {

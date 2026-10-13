@@ -248,7 +248,7 @@ impl Shell {
             wayland::create();
             surfaces::create_handles();
             let store = AppViewStore::new(AppView::default());
-            view = Some(store.clone());
+            view = Some(store);
             let view = store;
             beui::reactive::view! {
                 <ui::Root view />
@@ -317,7 +317,7 @@ impl beui::App for Shell {
             self.document.open_inspector();
         }
         let view = self.app.view();
-        let store = self.view.clone();
+        let store = self.view;
         beui::reactive::with_reactive_scope(&mut self.document, move || {
             compositor::notify();
             store.set(view);

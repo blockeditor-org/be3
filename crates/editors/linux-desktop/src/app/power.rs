@@ -72,7 +72,7 @@ fn PowerItem(action: PowerAction, available: Memo<PowerAvailability>) -> MenuIte
 #[component]
 pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
     let available = editor.host_value::<Power>();
-    let allowed = available.clone();
+    let allowed = available;
     let (confirming, set_confirming) = create_signal(PowerAction::LogOut);
     let (open, set_open) = create_signal(false);
     let requesting = editor.clone();
@@ -113,11 +113,11 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
                 arrow=false
                 @test_id={"desktop.power"}
                 items={view! {
-                    <PowerItem action=PowerAction::Lock available={available.clone()} />
-                    <PowerItem action=PowerAction::Suspend available={available.clone()} />
-                    <PowerItem action=PowerAction::Restart available={available.clone()} />
-                    <PowerItem action=PowerAction::PowerOff available={available.clone()} />
-                    <PowerItem action=PowerAction::LogOut available={available.clone()} />
+                    <PowerItem action=PowerAction::Lock available={available} />
+                    <PowerItem action=PowerAction::Suspend available={available} />
+                    <PowerItem action=PowerAction::Restart available={available} />
+                    <PowerItem action=PowerAction::PowerOff available={available} />
+                    <PowerItem action=PowerAction::LogOut available={available} />
                 }}
                 on_select={chose}
             />

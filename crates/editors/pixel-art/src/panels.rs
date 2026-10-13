@@ -59,7 +59,7 @@ const ANCHORS: [(PixelArtAnchor, &str, &str); 9] = [
 #[component]
 pub(crate) fn TopBar(tools: Rc<Tools>, size: Memo<(u16, u16)>, shown: ReadSignal<bool>) -> NodeId {
     let editor = tools.editor().clone();
-    let tool = tools.tool.clone();
+    let tool = tools.tool;
     let label = create_memo(clone!(tool -> move || tool.get().label().to_owned()));
     let dimensions = create_memo(clone!(size -> move || {
         let (width, height) = size.get();
@@ -75,8 +75,8 @@ pub(crate) fn TopBar(tools: Rc<Tools>, size: Memo<(u16, u16)>, shown: ReadSignal
         editor.zoom(1.0 / scale.get_untracked().max(f32::EPSILON));
     });
     let fit = clone!(editor -> move || editor.fit());
-    let grid = tools.show_grid.clone();
-    let set_grid = tools.set_show_grid.clone();
+    let grid = tools.show_grid;
+    let set_grid = tools.set_show_grid;
     let toggle_grid = move |on: bool| set_grid.set(on);
 
     let export = clone!(tools -> move || super::app::export(&tools));
@@ -89,7 +89,7 @@ pub(crate) fn TopBar(tools: Rc<Tools>, size: Memo<(u16, u16)>, shown: ReadSignal
         tools.open_dialog(Dialog::Resize);
     });
 
-    let failure = tools.export_error.clone();
+    let failure = tools.export_error;
     let failed = create_memo(clone!(failure -> move || failure.get().is_some()));
     let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
     let theme = use_theme();
@@ -123,20 +123,20 @@ pub(crate) fn TopBar(tools: Rc<Tools>, size: Memo<(u16, u16)>, shown: ReadSignal
             />
             <Checkbox label="Grid" checked={grid} on_change={toggle_grid} />
             <Show condition={failed}>
-                <Caption content={reason.clone()} color={theme.danger.clone()} />
+                <Caption content={reason} color={theme.danger} />
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <IconButton
                 glyph={ICON_RESIZE.to_owned()}
                 label="Resize"
-                disabled={read_only.clone()}
+                disabled={read_only}
                 @test_id={"pixel-art.resize"}
                 on_click={resize}
             />
             <IconButton
                 glyph={ICON_DELETE.to_owned()}
                 label="Clear"
-                disabled={read_only.clone()}
+                disabled={read_only}
                 @test_id={"pixel-art.clear"}
                 on_click={clear}
             />
@@ -153,25 +153,25 @@ pub(crate) fn TopBar(tools: Rc<Tools>, size: Memo<(u16, u16)>, shown: ReadSignal
 
 #[component]
 pub(crate) fn ToolsPanel(tools: Rc<Tools>) -> NodeId {
-    let chosen = tools.tool.clone();
+    let chosen = tools.tool;
     let rows = create_memo(|| (0..TOOLS.len() / 2).collect::<Vec<usize>>());
-    let brush_size = tools.brush_size.clone();
-    let set_brush_size = tools.set_brush_size.clone();
+    let brush_size = tools.brush_size;
+    let set_brush_size = tools.set_brush_size;
     let size_value = create_memo(clone!(brush_size -> move || f64::from(brush_size.get())));
-    let shape = tools.brush_shape.clone();
-    let set_shape = tools.set_brush_shape.clone();
+    let shape = tools.brush_shape;
+    let set_shape = tools.set_brush_shape;
     let square = create_memo(clone!(shape -> move || shape.get() == BrushShape::Square));
     let circle = create_memo(clone!(shape -> move || shape.get() == BrushShape::Circle));
-    let filled = tools.shapes_filled.clone();
-    let set_filled = tools.set_shapes_filled.clone();
+    let filled = tools.shapes_filled;
+    let set_filled = tools.set_shapes_filled;
     let shapes = create_memo(clone!(chosen -> move || {
         !matches!(chosen.get(), PixelTool::Rectangle | PixelTool::Ellipse)
     }));
-    let horizontal = tools.mirror_horizontal.clone();
-    let set_horizontal = tools.set_mirror_horizontal.clone();
-    let vertical = tools.mirror_vertical.clone();
-    let set_vertical = tools.set_mirror_vertical.clone();
-    let square_shape = set_shape.clone();
+    let horizontal = tools.mirror_horizontal;
+    let set_horizontal = tools.set_mirror_horizontal;
+    let vertical = tools.mirror_vertical;
+    let set_vertical = tools.set_mirror_vertical;
+    let square_shape = set_shape;
     let tool_rows = Rc::clone(&tools);
     view! {
         <List spacing=SPACING>
@@ -248,7 +248,7 @@ pub(crate) fn ToolsPanel(tools: Rc<Tools>) -> NodeId {
 #[component]
 fn ToolButton(tools: Rc<Tools>, entry: (PixelTool, &'static str, &'static str)) -> NodeId {
     let (tool, glyph, shortcut) = entry;
-    let chosen = tools.tool.clone();
+    let chosen = tools.tool;
     let pressed = create_memo(move || chosen.get() == tool);
     let select = clone!(tools -> move |_| tools.select_tool(tool));
     view! {
@@ -265,8 +265,8 @@ fn ToolButton(tools: Rc<Tools>, entry: (PixelTool, &'static str, &'static str)) 
 
 #[component]
 pub(crate) fn ColorsPanel(tools: Rc<Tools>, palette: Memo<Vec<PixelColor>>) -> NodeId {
-    let color = tools.color.clone();
-    let hex = tools.color_hex.clone();
+    let color = tools.color;
+    let hex = tools.color_hex;
     let read_only = tools.editor().read_only();
     let typing = clone!(tools -> move |typed: String| {
         if let Some(color) = parse_hex_color(&typed) {
@@ -276,7 +276,7 @@ pub(crate) fn ColorsPanel(tools: Rc<Tools>, palette: Memo<Vec<PixelColor>>) -> N
         }
     });
     let channels = create_memo(|| ["Red", "Green", "Blue", "Alpha"].to_vec());
-    let recent = tools.recent.clone();
+    let recent = tools.recent;
     let recent_colors = create_memo(clone!(recent -> move || recent.get()));
 
     let can_add = create_memo(clone!(palette color read_only -> move || {
@@ -302,8 +302,8 @@ pub(crate) fn ColorsPanel(tools: Rc<Tools>, palette: Memo<Vec<PixelColor>>) -> N
             .collect();
         tools.operate(PixelArtOperation::SetPalette { colors });
     });
-    let active = color.clone();
-    let palette_color = color.clone();
+    let active = color;
+    let palette_color = color;
     let palette_tools = Rc::clone(&tools);
     let channel_tools = Rc::clone(&tools);
     view! {
@@ -332,7 +332,7 @@ pub(crate) fn ColorsPanel(tools: Rc<Tools>, palette: Memo<Vec<PixelColor>>) -> N
             <List direction=Direction::Horizontal wrap=true spacing=4.0>
                 <ForEach keys={palette}>
                     {move |swatch: PixelColor| {
-                        let active = palette_color.clone();
+                        let active = palette_color;
                         let chosen = create_memo(move || active.get() == swatch);
                         let picker = Rc::clone(&palette_tools);
                         let pick = move || picker.set_active_color(swatch, true);
@@ -381,7 +381,7 @@ fn Channel(tools: Rc<Tools>, channel: &'static str) -> NodeId {
         "Blue" => 2,
         _ => 3,
     };
-    let color = tools.color.clone();
+    let color = tools.color;
     let value = create_memo(clone!(color -> move || f64::from(color.get().rgba()[index])));
     let edit = clone!(tools color -> move |typed: f64| {
         let mut rgba = color.get_untracked().rgba();
@@ -422,10 +422,10 @@ pub(crate) fn Dialogs(tools: Rc<Tools>, size: Memo<(u16, u16)>) -> NodeId {
     let dialog = tools.dialog();
     let resizing = create_memo(clone!(dialog -> move || dialog.get() == Dialog::Resize));
     let clearing = create_memo(clone!(dialog -> move || dialog.get() == Dialog::Clear));
-    let width = tools.resize_width.clone();
-    let height = tools.resize_height.clone();
-    let set_width = tools.set_resize_width.clone();
-    let set_height = tools.set_resize_height.clone();
+    let width = tools.resize_width;
+    let height = tools.resize_height;
+    let set_width = tools.set_resize_width;
+    let set_height = tools.set_resize_height;
     let width_value = create_memo(clone!(width -> move || f64::from(width.get())));
     let height_value = create_memo(clone!(height -> move || f64::from(height.get())));
     let cropping = create_memo(clone!(width height size -> move || {
@@ -492,7 +492,7 @@ pub(crate) fn Dialogs(tools: Rc<Tools>, size: Memo<(u16, u16)>) -> NodeId {
                     <Show condition={cropping}>
                         <Caption
                             content="Shrinking crops pixels outside the anchored region."
-                            color={theme.warning.clone()}
+                            color={theme.warning}
                             wrap=true
                         />
                     </Show>
@@ -550,9 +550,9 @@ fn AnchorRow(tools: Rc<Tools>, row: usize) -> NodeId {
             <ForEach keys={entries}>
                 {move |index: usize| {
                     let (anchor, glyph, label) = ANCHORS[index];
-                    let chosen = tools.resize_anchor.clone();
+                    let chosen = tools.resize_anchor;
                     let pressed = create_memo(move || chosen.get() == anchor);
-                    let set = tools.set_resize_anchor.clone();
+                    let set = tools.set_resize_anchor;
                     view! {
                         <ToggleButton
                             glyph={glyph.to_owned()}

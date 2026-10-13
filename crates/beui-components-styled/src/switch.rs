@@ -80,7 +80,7 @@ fn SwitchTrack(handle: ToggleHandle) -> NodeId {
                 <Frame
                     width=KNOB_SIZE
                     height=KNOB_SIZE
-                    color={theme.knob.clone()}
+                    color={theme.knob}
                     outline={control_outline(&theme)}
                     outline_width=BORDER_WIDTH
                     outline_visible={control_outline_visible(&theme)}

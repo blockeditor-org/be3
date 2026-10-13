@@ -4,6 +4,7 @@ use crate::styled::Caption;
 
 #[test]
 fn an_effect_bound_to_a_node_stops_with_the_scope_that_owns_the_node() {
+    let _root = crate::reactive::RootScope::new();
     let (label, set_label) = create_signal("one".to_owned());
     let runs = Rc::new(Cell::new(0));
     let counted = runs.clone();

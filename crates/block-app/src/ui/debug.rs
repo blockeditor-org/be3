@@ -112,11 +112,11 @@ pub(crate) fn HostPanelSurface(panel: HostPanel) -> NodeId {
     let shown = create_memo(move || panel);
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <List spacing=0.0>
                 <Dynamic value={shown}>
                     {move |panel: HostPanel| {
-                        let debug = debug.clone();
+                        let debug = debug;
                         match panel {
                             HostPanel::BlockStack => {
                                 let client = create_memo(move || debug.get().client);
@@ -168,7 +168,7 @@ fn LinesView(lines: Memo<Vec<Line>>) -> NodeId {
         <Scroll>
             <VirtualList keys={keys} item_size=LINE_HEIGHT>
                 {move |index: usize| {
-                    let lines = lines.clone();
+                    let lines = lines;
                     let line = create_memo(move || lines.get().get(index).cloned());
                     view! {
                         <LineView line />
@@ -235,7 +235,7 @@ fn PerformancePanel(performance: Memo<Option<Vec<PerformanceRow>>>) -> NodeId {
                 />
                 <ForEach keys={keys}>
                     {move |index: usize| {
-                        let rows = rows.clone();
+                        let rows = rows;
                         let row = create_memo(move || rows.get().get(index).cloned());
                         view! {
                             <PerformanceLine row />
@@ -251,7 +251,6 @@ fn PerformancePanel(performance: Memo<Option<Vec<PerformanceRow>>>) -> NodeId {
 fn PerformanceLine(row: Memo<Option<PerformanceRow>>) -> NodeId {
     let theme = use_theme();
     let cell = |read: fn(&PerformanceRow) -> String| {
-        let row = row.clone();
         create_memo(move || row.get().map(|row| read(&row)).unwrap_or_default())
     };
     let name = cell(|row| row.name.clone());
@@ -265,30 +264,30 @@ fn PerformanceLine(row: Memo<Option<PerformanceRow>>) -> NodeId {
                 @sizing=ItemSize::Percent(100.0)
                 string={name}
                 font_size=12.0
-                color={theme.text.clone()}
-                bold={bold.clone()}
+                color={theme.text}
+                bold={bold}
             />
             <Text
                 @sizing=ItemSize::Fixed(90.0)
                 string={current}
                 font_size=12.0
-                color={theme.text.clone()}
+                color={theme.text}
                 monospace=true
-                bold={bold.clone()}
+                bold={bold}
             />
             <Text
                 @sizing=ItemSize::Fixed(90.0)
                 string={average}
                 font_size=12.0
-                color={theme.text.clone()}
+                color={theme.text}
                 monospace=true
-                bold={bold.clone()}
+                bold={bold}
             />
             <Text
                 @sizing=ItemSize::Fixed(90.0)
                 string={peak}
                 font_size=12.0
-                color={theme.text.clone()}
+                color={theme.text}
                 monospace=true
                 bold
             />
@@ -321,7 +320,7 @@ fn PluginsPanel(plugins: Memo<Option<PluginsView>>) -> NodeId {
             <Scroll>
                 <ForEach keys={line_keys}>
                     {move |index: usize| {
-                        let lines = lines.clone();
+                        let lines = lines;
                         let line = create_memo(move || lines.get().get(index).cloned());
                         view! {
                             <LineView line />
@@ -334,7 +333,7 @@ fn PluginsPanel(plugins: Memo<Option<PluginsView>>) -> NodeId {
                 </Show>
                 <ForEach keys={runtime_keys}>
                     {move |id: String| {
-                        let runtimes = runtimes.clone();
+                        let runtimes = runtimes;
                         let key = id.clone();
                         let runtime = create_memo(move || {
                             runtimes.get().into_iter().find(|runtime| runtime.id == key)
@@ -376,7 +375,7 @@ fn RuntimeBlock(id: String, runtime: Memo<Option<RuntimeView>>) -> NodeId {
                 </List>
                 <ForEach keys={keys}>
                     {move |index: usize| {
-                        let lines = lines.clone();
+                        let lines = lines;
                         let line = create_memo(move || lines.get().get(index).cloned());
                         view! {
                             <LineView line />
@@ -435,10 +434,10 @@ fn VersionPanel(version: Memo<Option<VersionView>>) -> NodeId {
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <ForEach keys={keys}>
                         {move |id: u64| {
-                            let loaded = loaded.clone();
+                            let loaded = loaded;
                             let run = create_memo(move || loaded.get().into_iter().find(|run| run.id == id));
                             view! {
-                                <RunCard run can_install={can_install.clone()} />
+                                <RunCard run can_install={can_install} />
                             }
                         }}
                     </ForEach>
@@ -452,7 +451,6 @@ fn VersionPanel(version: Memo<Option<VersionView>>) -> NodeId {
 fn RunCard(run: Memo<Option<RunView>>, can_install: Memo<bool>) -> NodeId {
     let theme = use_theme();
     let field = |read: fn(&RunView) -> String| {
-        let run = run.clone();
         create_memo(move || run.get().map(|run| read(&run)).unwrap_or_default())
     };
     let title = field(|run| format!("#{} {} ({})", run.number, run.branch, run.event));
@@ -467,12 +465,12 @@ fn RunCard(run: Memo<Option<RunView>>, can_install: Memo<bool>) -> NodeId {
         !can_install.get() || !run.get().is_some_and(|run| run.succeeded && !run.installing)
     }));
     let error = create_memo(clone!(run -> move || run.get().and_then(|run| run.error)));
-    let install = run.clone();
+    let install = run;
     view! {
         <Frame padding_vertical=4.0>
             <Frame
-                color={theme.surface.clone()}
-                outline={theme.border.clone()}
+                color={theme.surface}
+                outline={theme.border}
                 outline_width=1.0
                 outline_visible=true
                 radius=6
@@ -483,7 +481,7 @@ fn RunCard(run: Memo<Option<RunView>>, can_install: Memo<bool>) -> NodeId {
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                         <Heading content={title} />
                         <Show condition={current}>
-                            <Caption content="running" color={theme.accent.clone()} />
+                            <Caption content="running" color={theme.accent} />
                         </Show>
                     </List>
                     <Caption content={details} />

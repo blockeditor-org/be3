@@ -9,15 +9,16 @@ use crate::reactive::{
 
 #[test]
 fn an_overlay_reports_a_dismiss_only_when_the_user_closes_it() {
+    let _root = crate::reactive::RootScope::new();
     let (open, set_open) = create_signal(false);
     let (nested_open, set_nested_open) = create_signal(false);
     let dismissed = Rc::new(RefCell::new(Vec::new()));
     let nested_dismissed = Rc::new(RefCell::new(Vec::new()));
     let (outer, inner) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (open, nested_open) = (open.clone(), nested_open.clone());
+        let (open, nested_open) = (open, nested_open);
         let (reports, nested_reports) = (dismissed.clone(), nested_dismissed.clone());
-        let (closing, nested_closing) = (set_open.clone(), set_nested_open.clone());
+        let (closing, nested_closing) = (set_open, set_nested_open);
         let (outer, inner) = (outer.clone(), inner.clone());
         move || {
             view! {
@@ -58,7 +59,7 @@ fn an_overlay_reports_a_dismiss_only_when_the_user_closes_it() {
     let inner = kind_of::<OverlayNode>(harness.document(), inner.get());
 
     let set = |harness: &mut Harness, signal: &WriteSignal<bool>, value: bool| {
-        let signal = signal.clone();
+        let signal = *signal;
         with_reactive_scope(harness.document_mut(), move || signal.set(value));
         harness.frame(Vec::new());
     };

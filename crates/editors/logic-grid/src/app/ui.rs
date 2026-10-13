@@ -27,8 +27,8 @@ pub(super) fn LogicGridView(editor: Editor) -> NodeId {
     let shortcuts = Rc::clone(&session);
     on_shortcut(move |press: KeyPress| shortcut(&shortcuts, press));
     let chrome = editor.chrome_shown();
-    let left_chrome = chrome.clone();
-    let right_chrome = chrome.clone();
+    let left_chrome = chrome;
+    let right_chrome = chrome;
     let hotbar_session = Rc::clone(&session);
     let settings_session = Rc::clone(&session);
     let canvas_session = Rc::clone(&session);
@@ -121,8 +121,8 @@ fn GridToolbar(session: Rc<Session>, shown: ReadSignal<bool>) -> NodeId {
     let zoom_in = clone!(editor -> move || editor.zoom(ZOOM_STEP));
     let recenter = clone!(editor -> move || editor.fit());
     let theme = use_theme();
-    let problem_color = theme.danger.clone();
-    let error_color = theme.danger.clone();
+    let problem_color = theme.danger;
+    let error_color = theme.danger;
     view! {
         <Toolbar shown={shown}>
             <Button
@@ -134,15 +134,15 @@ fn GridToolbar(session: Rc<Session>, shown: ReadSignal<bool>) -> NodeId {
                 on_click={compile}
             />
             <Show condition={challenged}>
-                <Body content={challenge.clone()} />
+                <Body content={challenge} />
             </Show>
             <Show condition={misplaced}>
-                <Caption content={problem_text.clone()} color={problem_color.clone()} />
+                <Caption content={problem_text} color={problem_color} />
             </Show>
             <Show condition={failed}>
                 <Caption
-                    content={compile_error.clone()}
-                    color={error_color.clone()}
+                    content={compile_error}
+                    color={error_color}
                     @test_id={"logic-grid.compile-error"}
                 />
             </Show>
@@ -181,9 +181,9 @@ fn GridCanvas(session: Rc<Session>) -> NodeId {
                 let height = create_memo(clone!(placed -> move || placed.get().height()));
 
                 let scene = GridScene::default();
-                let pointer = session.pointer.clone();
-                let debug_hover = session.debug_hover.clone();
-                let graph_hover = session.graph_hover.clone();
+                let pointer = session.pointer;
+                let debug_hover = session.debug_hover;
+                let graph_hover = session.graph_hover;
                 let drawing = create_memo(clone!(session camera placed -> move || {
                     let camera = camera.get();
                     let size = placed.get().size();
@@ -256,12 +256,7 @@ fn GridCanvas(session: Rc<Session>) -> NodeId {
                             on_hover_change={on_hover_change}
                         >
                             <Canvas>
-                                <CanvasItem
-                                    x=0.0
-                                    y=0.0
-                                    width={width.clone()}
-                                    height={height.clone()}
-                                >
+                                <CanvasItem x=0.0 y=0.0 width={width} height={height}>
                                     <Drawing
                                         draw={Prop::Dynamic(Rc::new(move || draw_gpu(drawing.get())))}
                                     />
@@ -276,7 +271,7 @@ fn GridCanvas(session: Rc<Session>) -> NodeId {
                                                     })
                                                 }));
                                                 view! {
-                                                    <GridLabel label={label} zoom={zoom.clone()} />
+                                                    <GridLabel label={label} zoom={zoom} />
                                                 }
                                             }}
                                         </ForEach>

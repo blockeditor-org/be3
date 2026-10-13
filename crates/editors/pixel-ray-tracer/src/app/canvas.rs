@@ -32,7 +32,7 @@ pub(crate) fn Artwork(state: Rc<RayState>) -> NodeId {
                 let side = create_memo(clone!(artwork -> move || artwork.get().width()));
 
                 let pressing = Rc::clone(&state);
-                let press_artwork = artwork.clone();
+                let press_artwork = artwork;
                 let press_view = state.editor().canvas();
                 let press_editor = state.editor().clone();
                 let on_press = move |press: PointerPress| {
@@ -48,7 +48,7 @@ pub(crate) fn Artwork(state: Rc<RayState>) -> NodeId {
                 };
 
                 let dragging = Rc::clone(&state);
-                let drag_artwork = artwork.clone();
+                let drag_artwork = artwork;
                 let drag_view = state.editor().canvas();
                 let drag_editor = state.editor().clone();
                 let on_drag = move |press: PointerPress| {
@@ -64,7 +64,7 @@ pub(crate) fn Artwork(state: Rc<RayState>) -> NodeId {
                 };
 
                 let hovering = Rc::clone(&state);
-                let hover_artwork = artwork.clone();
+                let hover_artwork = artwork;
                 let hover_view = state.editor().canvas();
                 let hover_editor = state.editor().clone();
                 let on_hover_move = move |press: PointerPress| {
@@ -78,10 +78,10 @@ pub(crate) fn Artwork(state: Rc<RayState>) -> NodeId {
 
                 let releasing = Rc::clone(&state);
                 let removing = Rc::clone(&state);
-                let lighting = state.lighting.clone();
-                let rays = state.rays.clone();
-                let overlay = state.overlay.clone();
-                let tool = state.tool.clone();
+                let lighting = state.lighting;
+                let rays = state.rays;
+                let overlay = state.overlay;
+                let tool = state.tool;
                 let tracing = create_memo(clone!(tool rays -> move || {
                     tool.get() == Tool::RayTrace && rays.get().is_some()
                 }));
@@ -108,29 +108,24 @@ pub(crate) fn Artwork(state: Rc<RayState>) -> NodeId {
                             }
                         }}
                     >
-                        <Frame color={theme.background.clone()}>
+                        <Frame color={theme.background}>
                             <List spacing=0.0>
                                 <Canvas view={camera} @sizing=ItemSize::Percent(100.0)>
                                     <CanvasItem
-                                        x={left.clone()}
-                                        y={top.clone()}
-                                        width={side.clone()}
-                                        height={side.clone()}
+                                        x={left}
+                                        y={top}
+                                        width={side}
+                                        height={side}
                                         @test_id={"pixel_ray_tracer.artwork"}
                                     >
                                         <Picture image={lighting} fit=ImageFit::Fill smooth=false />
                                     </CanvasItem>
-                                    <CanvasItem
-                                        x={left.clone()}
-                                        y={top.clone()}
-                                        width={side.clone()}
-                                        height={side.clone()}
-                                    >
+                                    <CanvasItem x={left} y={top} width={side} height={side}>
                                         <Frame visible={tracing}>
                                             <Picture image={rays} fit=ImageFit::Fill smooth=false />
                                         </Frame>
                                     </CanvasItem>
-                                    <CanvasItem x={left} y={top} width={side.clone()} height={side}>
+                                    <CanvasItem x={left} y={top} width={side} height={side}>
                                         <Drawing draw={overlay} />
                                     </CanvasItem>
                                 </Canvas>

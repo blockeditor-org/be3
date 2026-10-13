@@ -107,7 +107,7 @@ impl DesktopNotifications {
     }
 
     pub(crate) fn listed(&self) -> Memo<Vec<Listed>> {
-        let revision = self.revision.clone();
+        let revision = self.revision;
         let shared = Rc::clone(&self.shared);
         create_memo(move || {
             revision.get();
@@ -116,9 +116,9 @@ impl DesktopNotifications {
     }
 
     pub(crate) fn toasts(&self) -> Memo<Vec<Toast>> {
-        let revision = self.revision.clone();
-        let locked = self.locked.clone();
-        let browsing = self.browsing.clone();
+        let revision = self.revision;
+        let locked = self.locked;
+        let browsing = self.browsing;
         let shared = Rc::clone(&self.shared);
         create_memo(move || {
             revision.get();

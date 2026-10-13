@@ -73,7 +73,7 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
                             <Portal node={Some(sidebar)} />
                         }}
                     >
-                        <Frame color={page.clone()} radius=0>
+                        <Frame color={page} radius=0>
                             <List spacing=0.0>
                                 <Frame padding_horizontal=8.0 padding_vertical=4.0>
                                     <IconButton
@@ -101,7 +101,7 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
     let viewer = model.clone();
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <Frame @sizing=ItemSize::Fixed(SIDEBAR_WIDTH) color={theme.surface.clone()}>
+            <Frame @sizing=ItemSize::Fixed(SIDEBAR_WIDTH) color={theme.surface}>
                 <Sidebar model={sidebar} />
             </Frame>
             <Separator direction=Direction::Vertical />
@@ -160,8 +160,8 @@ fn Sidebar(model: Model) -> NodeId {
     let show = clone!(model -> move |index: usize| {
         model.show(if index == 0 { Filter::Open } else { Filter::Closed });
     });
-    let set_query = model.set_query.clone();
-    let query = model.query.clone();
+    let set_query = model.set_query;
+    let query = model.query;
     let main = model.clone();
     view! {
         <List spacing=0.0>
@@ -189,7 +189,7 @@ fn Sidebar(model: Model) -> NodeId {
                         on_change={show}
                     />
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                        <Icon glyph=ICON_SEARCH color={theme.text_muted.clone()} />
+                        <Icon glyph=ICON_SEARCH color={theme.text_muted} />
                         <TextInput
                             @sizing=ItemSize::Percent(100.0)
                             value={query}
@@ -205,15 +205,10 @@ fn Sidebar(model: Model) -> NodeId {
                         </List>
                     </Show>
                     <Show condition={failed}>
-                        <Text
-                            string={error.clone()}
-                            font_size=FONT_BODY
-                            color={theme.danger.clone()}
-                            wrap=true
-                        />
+                        <Text string={error} font_size=FONT_BODY color={theme.danger} wrap=true />
                     </Show>
                     <Show condition={empty}>
-                        <Caption content={empty_text.clone()} />
+                        <Caption content={empty_text} />
                     </Show>
                 </List>
             </Frame>
@@ -276,10 +271,10 @@ fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
             <List direction=Direction::Horizontal spacing=8.0>
                 <StateIcon state />
                 <List @sizing=ItemSize::Percent(100.0) spacing=ROW_SPACING>
-                    <Text string={title} font_size=FONT_BODY color={theme.text.clone()} wrap=true />
+                    <Text string={title} font_size=FONT_BODY color={theme.text} wrap=true />
                     <Caption content={details} />
                     <Show condition={has_tags}>
-                        <Labels labels={labels.clone()} checked_out={checked_out.clone()} />
+                        <Labels labels={labels} checked_out={checked_out} />
                     </Show>
                 </List>
             </List>
@@ -318,7 +313,7 @@ pub(crate) fn Labels(labels: Memo<Vec<Label>>, checked_out: Memo<bool>) -> NodeI
     view! {
         <List direction=Direction::Horizontal spacing=6.0>
             <Show condition={checked_out}>
-                <Chip text=CURRENT color={theme.accent.clone()} />
+                <Chip text=CURRENT color={theme.accent} />
             </Show>
             <ForEach keys>
                 {move |index: usize| {

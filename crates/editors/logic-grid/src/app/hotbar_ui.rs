@@ -208,7 +208,7 @@ fn SlotDrop(
                 let DropHandle { over, .. } = handle;
                 view! {
                     <Frame
-                        outline={theme.accent.clone()}
+                        outline={theme.accent}
                         outline_width=2.0
                         outline_offset=2.0
                         outline_visible={over}
@@ -425,7 +425,7 @@ fn SlotFace(shown: Memo<Option<SlotView>>, hovered: ReadSignal<bool>) -> NodeId 
         shown.get().and_then(|slot| slot.hotkey).unwrap_or_default().to_owned()
     }));
     let badged = create_memo(clone!(hotkey -> move || !hotkey.get().is_empty()));
-    let badge_text = text.clone();
+    let badge_text = text;
     view! {
         <Frame
             width=SLOT_SIZE
@@ -456,7 +456,7 @@ fn SlotFace(shown: Memo<Option<SlotView>>, hovered: ReadSignal<bool>) -> NodeId 
                     />
                 </CanvasItem>
                 <CanvasItem x=SLOT_INSET y=SLOT_INSET width=BADGE_SIZE height=BADGE_SIZE>
-                    <Frame visible={badged} color={theme.background.clone()} radius=3>
+                    <Frame visible={badged} color={theme.background} radius=3>
                         <Text
                             string={hotkey}
                             font_size=SLOT_FONT
@@ -547,7 +547,7 @@ pub(super) fn ToolSettings(session: Rc<Session>) -> NodeId {
             </Show>
             <Show condition={labelled}>
                 <TextInput
-                    value={label.clone()}
+                    value={label}
                     label="Label"
                     placeholder="Label"
                     @test_id={"logic-grid.io-label"}

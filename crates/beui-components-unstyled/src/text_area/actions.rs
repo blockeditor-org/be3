@@ -25,7 +25,7 @@ pub(super) fn register(state: &TextAreaState, disabled: &Memo<bool>) {
     )
     .glyph(ICON_FIND_REPLACE)
     .shortcut(Chord::ctrl(Key::H))
-    .enabled(editable.clone())
+    .enabled(editable)
     .in_menu()
     .register();
     Action::new(

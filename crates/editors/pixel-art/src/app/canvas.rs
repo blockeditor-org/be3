@@ -64,9 +64,9 @@ pub(crate) fn ArtworkCanvas(
                 });
 
                 let pressing = Rc::clone(&tools);
-                let press_size = size.clone();
-                let press_view = view.clone();
-                let press_artwork = artwork.clone();
+                let press_size = size;
+                let press_view = view;
+                let press_artwork = artwork;
                 let press_editor = editor.clone();
                 let on_press = move |press: PointerPress| {
                     let (width, height) = press_size.get_untracked();
@@ -88,9 +88,9 @@ pub(crate) fn ArtworkCanvas(
                 };
 
                 let dragging = Rc::clone(&tools);
-                let drag_size = size.clone();
-                let drag_view = view.clone();
-                let drag_artwork = artwork.clone();
+                let drag_size = size;
+                let drag_view = view;
+                let drag_artwork = artwork;
                 let drag_editor = editor.clone();
                 let on_drag = move |press: PointerPress| {
                     let (width, height) = drag_size.get_untracked();
@@ -116,9 +116,9 @@ pub(crate) fn ArtworkCanvas(
                 };
 
                 let releasing = Rc::clone(&tools);
-                let release_size = size.clone();
-                let release_view = view.clone();
-                let release_artwork = artwork.clone();
+                let release_size = size;
+                let release_view = view;
+                let release_artwork = artwork;
                 let release_editor = editor.clone();
                 let on_click_at = move |press: PointerPress| {
                     let (width, height) = release_size.get_untracked();
@@ -139,9 +139,9 @@ pub(crate) fn ArtworkCanvas(
                 };
 
                 let sampling = Rc::clone(&tools);
-                let sample_size = size.clone();
-                let sample_view = view.clone();
-                let sample_artwork = artwork.clone();
+                let sample_size = size;
+                let sample_view = view;
+                let sample_artwork = artwork;
                 let sample_editor = editor.clone();
                 let on_secondary = move |press: PointerPress| {
                     let (width, height) = sample_size.get_untracked();
@@ -161,11 +161,11 @@ pub(crate) fn ArtworkCanvas(
                 };
 
                 let moving = Rc::clone(&tools);
-                let hover_size = size.clone();
-                let hover_view = view.clone();
-                let hover_artwork = artwork.clone();
+                let hover_size = size;
+                let hover_view = view;
+                let hover_artwork = artwork;
                 let hover_editor = editor.clone();
-                let set_hover = set_hovered.clone();
+                let set_hover = set_hovered;
                 let on_hover_move = move |press: PointerPress| {
                     let (width, height) = hover_size.get_untracked();
                     if width == 0 {
@@ -181,7 +181,7 @@ pub(crate) fn ArtworkCanvas(
                         height,
                     ));
                 };
-                let left = set_hovered.clone();
+                let left = set_hovered;
                 let on_hover_change = move |hovered: bool| {
                     if !hovered {
                         left.set(None);
@@ -190,10 +190,10 @@ pub(crate) fn ArtworkCanvas(
 
                 let refreshing = Rc::clone(&tools);
                 let refreshed = Rc::clone(&pane);
-                let hover = hovered.clone();
-                let frame_size = size.clone();
+                let hover = hovered;
+                let frame_size = size;
                 let theme = use_theme();
-                let background = theme.background.clone();
+                let background = theme.background;
                 create_effect(move || {
                     let (width, height) = frame_size.get();
                     if width == 0 {
@@ -230,7 +230,7 @@ pub(crate) fn ArtworkCanvas(
                                     view={view}
                                     scale={scale}
                                     artwork={artwork}
-                                    show_grid={tools.show_grid.clone()}
+                                    show_grid={tools.show_grid}
                                     hovered={hovered}
                                 />
                             </List>
@@ -360,7 +360,7 @@ fn Artwork(
         preview.get().map_or(0.0, |(_, edge, _, far, _)| f32::from(far - edge + 1)) * cell.get()
     }));
     let thin = create_memo(clone!(scale -> move || 1.0 / scale.get().max(f32::EPSILON)));
-    let border = thin.clone();
+    let border = thin;
     let lines = create_memo(clone!(shown scale cell show_grid -> move || {
         let shown = shown.get();
         if !show_grid.get() || cell.get() * scale.get() < GRID_MIN_CELL {
@@ -385,20 +385,15 @@ fn Artwork(
     view! {
         <Canvas view={view}>
             <CanvasItem
-                x={left.clone()}
-                y={top.clone()}
-                width={width.clone()}
-                height={height.clone()}
+                x={left}
+                y={top}
+                width={width}
+                height={height}
                 @test_id={"pixel-art.artwork"}
             >
                 <Picture image={image} fit=ImageFit::Fill smooth=false />
             </CanvasItem>
-            <CanvasItem
-                x={left.clone()}
-                y={top.clone()}
-                width={width.clone()}
-                height={height.clone()}
-            >
+            <CanvasItem x={left} y={top} width={width} height={height}>
                 <Frame
                     outline={Color32::from_rgba_unmultiplied(0, 0, 0, BORDER_ALPHA)}
                     outline_width={border}
@@ -412,10 +407,10 @@ fn Artwork(
             </CanvasItem>
             <ForEach keys={lines}>
                 {move |line: Line| {
-                    let thin = thin.clone();
-                    let cell = cell.clone();
-                    let (left, top) = (left.clone(), top.clone());
-                    let (width, height) = (width.clone(), height.clone());
+                    let thin = thin;
+                    let cell = cell;
+                    let (left, top) = (left, top);
+                    let (width, height) = (width, height);
                     let (x, y, line_width, line_height) = match line {
                         Line::Vertical(at) => (
                             create_memo(clone!(left cell -> move || {
@@ -441,7 +436,7 @@ fn Artwork(
                     }
                 }}
             </ForEach>
-            <CanvasItem x={hover_x} y={hover_y} width={hover_size.clone()} height={hover_size}>
+            <CanvasItem x={hover_x} y={hover_y} width={hover_size} height={hover_size}>
                 <Frame
                     visible={over}
                     outline=Color32::WHITE
@@ -461,8 +456,8 @@ enum Line {
 
 #[component]
 pub(crate) fn HoverLabel(tools: Rc<Tools>, hovered: ReadSignal<Option<(u16, u16)>>) -> NodeId {
-    let color = tools.color.clone();
-    let tool = tools.tool.clone();
+    let color = tools.color;
+    let tool = tools.tool;
     let sampled = Rc::clone(&tools);
     let source = create_memo(clone!(hovered tool -> move || {
         if tool.get() != PixelTool::ReplaceColor {

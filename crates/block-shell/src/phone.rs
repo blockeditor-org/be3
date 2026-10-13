@@ -26,14 +26,14 @@ const SECTION_PADDING: f32 = 8.0;
 
 #[component]
 pub(crate) fn DetailsSheet(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
-    let sheet = workspace.sheet.clone();
+    let sheet = workspace.sheet;
     let shown = create_memo(clone!(sheet -> move || match sheet.get() {
         PhoneSheet::Details(shown) if shown == tab => Some(shown),
         PhoneSheet::Details(_) | PhoneSheet::Closed => None,
     }));
     let open = create_memo(clone!(shown -> move || shown.get().is_some()));
     let closing = Rc::clone(&workspace);
-    let dismissed = shown.clone();
+    let dismissed = shown;
     view! {
         <ModalSheet
             open={open}
@@ -111,7 +111,7 @@ fn DetailsBody(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
         })
     }));
     let rename_off = create_memo(clone!(rights -> move || !rights.get().is_some_and(|r| r.0)));
-    let share_off = rename_off.clone();
+    let share_off = rename_off;
     let delete_off = create_memo(clone!(rights -> move || !rights.get().is_some_and(|r| r.1)));
     let unlinkable = create_memo(clone!(rights -> move || rights.get().is_some_and(|r| r.2)));
     let delete_label = create_memo(clone!(rights -> move || {
@@ -156,7 +156,7 @@ fn DetailsBody(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
             <List spacing=0.0>
                 <Frame padding_horizontal=SHEET_PADDING padding_vertical=SECTION_PADDING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
-                        <Icon glyph color={theme.accent.clone()} />
+                        <Icon glyph color={theme.accent} />
                         <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
                             <Heading content={name} />
                             <Caption content={kind} />

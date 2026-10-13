@@ -49,8 +49,8 @@ pub(crate) fn MonthGrid(
                         <MonthWeek
                             @sizing=ItemSize::Fixed(CELL_HEIGHT)
                             start={start}
-                            anchor={anchor.clone()}
-                            events={events.clone()}
+                            anchor={anchor}
+                            events={events}
                             on_pick_day={forward(on_pick_day.clone())}
                             on_pick_event={forward(on_pick_event.clone())}
                         />
@@ -78,8 +78,8 @@ fn MonthWeek(
                         <MonthCell
                             @sizing=ItemSize::Percent(100.0)
                             day={day}
-                            anchor={anchor.clone()}
-                            events={events.clone()}
+                            anchor={anchor}
+                            events={events}
                             on_pick_day={forward(on_pick_day.clone())}
                             on_pick_event={forward(on_pick_event.clone())}
                         />
@@ -135,7 +135,7 @@ fn MonthCell(
     view! {
         <Frame
             color={fill}
-            outline={theme.border.clone()}
+            outline={theme.border}
             outline_width=1.0
             outline_visible=true
             radius=4
@@ -152,7 +152,7 @@ fn MonthCell(
                 </ListRow>
                 <ForEach keys={shown}>
                     {move |id: ObjectId| {
-                        let event = event_of(day_events.clone(), id);
+                        let event = event_of(day_events, id);
                         let title = create_memo(clone!(event -> move || {
                             event.get().map(|event| event.value.title).unwrap_or_default()
                         }));
@@ -185,9 +185,9 @@ fn EventChip(
     let theme = use_theme();
     let click = on_click.clone();
     view! {
-        <Frame color={theme.accent.clone()} radius=3>
+        <Frame color={theme.accent} radius=3>
             <ListRow on_click={move || click.call()} on_activate={move || on_click.call()}>
-                <Caption content={title} color={theme.on_accent.clone()} />
+                <Caption content={title} color={theme.on_accent} />
             </ListRow>
         </Frame>
     }

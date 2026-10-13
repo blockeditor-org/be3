@@ -4,11 +4,12 @@ use crate::styled::ModalSheet;
 
 #[test]
 fn a_modal_sheet_fits_its_content_and_a_tap_above_it_closes_it() {
+    let _root = crate::reactive::RootScope::new();
     let content = NodeRef::new();
     let closed = Rc::new(Cell::new(0));
     let (open, set_open) = create_signal(false);
     let document = build({
-        let (content, closed, open) = (content.clone(), closed.clone(), open.clone());
+        let (content, closed, open) = (content.clone(), closed.clone(), open);
         move || {
             view! {
                 <List spacing=0.0>

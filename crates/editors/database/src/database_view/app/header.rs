@@ -49,7 +49,7 @@ pub fn ViewHeader(data: Data) -> NodeId {
                             <Body
                                 @sizing=ItemSize::Percent(100.0)
                                 content={message}
-                                color={theme.danger.clone()}
+                                color={theme.danger}
                                 wrap=true
                             />
                             <Button
@@ -81,7 +81,7 @@ fn WideHeader(data: Data) -> NodeId {
         <Frame padding_horizontal=GUTTER padding_top={Some(8.0)} padding_bottom={Some(6.0)}>
             <List spacing=6.0>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <Heading content={data.name.clone()} />
+                    <Heading content={data.name} />
                     <ViewTabs @sizing={ItemSize::Percent(100.0).shrink(1.0)} data={tabs} />
                     <SearchField @sizing=ItemSize::Fixed(SEARCH_WIDTH) data={search} />
                     <NewRow data={add} compact=false />
@@ -121,12 +121,12 @@ fn NarrowHeader(data: Data) -> NodeId {
     let (tabs, search, add, sheet_data) = (data.clone(), data.clone(), data.clone(), data.clone());
     let open = clone!(set_sheet -> move || set_sheet.set(true));
     let close = clone!(set_sheet -> move || set_sheet.set(false));
-    let done = close.clone();
+    let done = close;
     view! {
         <Frame padding_horizontal=GUTTER padding_top={Some(8.0)} padding_bottom={Some(8.0)}>
             <List spacing=SPACING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <Heading @sizing=ItemSize::Percent(100.0) content={data.name.clone()} />
+                    <Heading @sizing=ItemSize::Percent(100.0) content={data.name} />
                     <Caption content={count} />
                     <NewRow data={add} compact=true />
                 </List>
@@ -175,7 +175,7 @@ fn NarrowHeader(data: Data) -> NodeId {
 }
 
 fn row_count(data: &Data) -> block_editor_beui::beui::reactive::Memo<String> {
-    let groups = data.groups.clone();
+    let groups = data.groups;
     create_memo(move || {
         let count: usize = groups.with(|groups| groups.iter().map(|group| group.rows.len()).sum());
         match count {
@@ -192,7 +192,7 @@ fn ViewTabs(data: Data) -> NodeId {
     }));
     let own = data.editor().block_id();
     let create = clone!(data -> move || data.new_view());
-    let read_only = data.read_only.clone();
+    let read_only = data.read_only;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
             <ForEach keys={keys}>
@@ -228,7 +228,7 @@ fn ViewTabs(data: Data) -> NodeId {
 
 #[component]
 fn SearchField(data: Data) -> NodeId {
-    let query = data.search.clone();
+    let query = data.search;
     let typed = clone!(data -> move |text: String| data.set_search(text));
     view! {
         <TextInput

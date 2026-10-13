@@ -59,7 +59,7 @@ pub fn SettingsView(editor: Editor) -> NodeId {
     let adding = settings.clone();
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <Scroll>
                 <Frame padding_horizontal=PADDING padding_vertical=PADDING>
                     <List spacing=SPACING>
@@ -70,11 +70,7 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                         <Caption
                             content="Settings for every device. A settings profile can change any of them for the devices that use it."
                         />
-                        <Kinds
-                            editor={editor.clone()}
-                            layer={settings.clone()}
-                            blocked={blocked.clone()}
-                        />
+                        <Kinds editor={editor.clone()} layer={settings.clone()} blocked={blocked} />
                         <Heading content="Settings profiles" />
                         <Caption content="Each device uses one, and starts with one of its own." />
                         <ForEach keys={profiles}>
@@ -165,7 +161,7 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
     let using = editor.clone();
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <Scroll>
                 <Frame padding_horizontal=PADDING padding_vertical=PADDING>
                     <List spacing=SPACING>
@@ -216,7 +212,7 @@ fn Kinds<C: Layer>(editor: Editor, layer: Rc<ContentProjection<C>>, blocked: Mem
     let open_ui = opener::<C, UiSettingsContent>(&editor, &layer);
     let open_input = opener::<C, InputSettingsContent>(&editor, &layer);
     let open_display = opener::<C, DisplaySettingsContent>(&editor, &layer);
-    let (ui_blocked, input_blocked) = (blocked.clone(), blocked.clone());
+    let (ui_blocked, input_blocked) = (blocked, blocked);
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <Button

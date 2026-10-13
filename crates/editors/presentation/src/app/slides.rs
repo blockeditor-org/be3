@@ -47,7 +47,7 @@ impl Slides {
     }
 
     pub fn selected(&self) -> ReadSignal<Option<Uuid>> {
-        self.selected.clone()
+        self.selected
     }
 
     pub fn select(&self, id: Option<Uuid>) {

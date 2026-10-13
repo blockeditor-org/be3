@@ -63,8 +63,8 @@ fn CheckboxFace(handle: ToggleHandle) -> NodeId {
         box_fill(&theme, disabled.get(), checked.get(), hovered.get())
     }));
     let border_visible = create_memo(clone!(checked -> move || !checked.get()));
-    let box_border = theme.border.clone();
-    let mark_color = theme.on_accent.clone();
+    let box_border = theme.border;
+    let mark_color = theme.on_accent;
     let labeled = create_memo(clone!(label -> move || !label.get().is_empty()));
     let label_color = create_memo(clone!(theme disabled -> move || match disabled.get() {
         true => theme.text_muted.get(),

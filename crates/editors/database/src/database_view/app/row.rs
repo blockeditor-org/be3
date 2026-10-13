@@ -122,21 +122,17 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
     }));
     let narrow = narrow_chrome();
     let wide = create_memo(clone!(narrow -> move || !narrow.get()));
-    let (title_off, page_off, delete_off) = (
-        data.read_only.clone(),
-        data.read_only.clone(),
-        data.read_only.clone(),
-    );
+    let (title_off, page_off, delete_off) = (data.read_only, data.read_only, data.read_only);
     let (property_data, link_data) = (data.clone(), data.clone());
     let editor = data.editor().clone();
     let theme = use_theme();
     view! {
         <BackHandler on_back={back}>
-            <Frame color={theme.background.clone()}>
+            <Frame color={theme.background}>
                 <List spacing=0.0>
                     <Frame padding_horizontal=SPACING padding_vertical=6.0>
                         <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
-                            <Show condition={narrow.clone()}>
+                            <Show condition={narrow}>
                                 <IconButton
                                     glyph={ICON_ARROW_BACK.to_owned()}
                                     label="Back to the list"
@@ -248,7 +244,7 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                         <ChildBlock
                             @sizing=ItemSize::Percent(100.0)
                             editor={editor.clone()}
-                            block={target.clone()}
+                            block={target}
                             mode=ChildMode::Live
                             own_frame=true
                         />
@@ -302,8 +298,8 @@ fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
             data.pick_value(index, request);
         }
     });
-    let labels = data.labels.clone();
-    let (choice_off, value_off) = (data.read_only.clone(), data.read_only.clone());
+    let labels = data.labels;
+    let (choice_off, value_off) = (data.read_only, data.read_only);
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <Frame @sizing=ItemSize::Fixed(LABEL_WIDTH)>
@@ -394,9 +390,9 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
         wanted.push(link);
         data.set_value(row, field, Some(DatabaseValue::Links(wanted)));
     });
-    let names = addable.clone();
+    let names = addable;
     let items = data.clone();
-    let add_off = data.read_only.clone();
+    let add_off = data.read_only;
     view! {
         <List spacing=4.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
@@ -430,10 +426,10 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
                     />
                 </Frame>
             </List>
-            <ForEach keys={links.clone()}>
+            <ForEach keys={links}>
                 {move |link: RowRef| {
                     let data = items.clone();
-                    let links = links.clone();
+                    let links = links;
                     view! {
                         <LinkedRow data={data} row={row} field={field} link={link} links={links} />
                     }
@@ -499,7 +495,7 @@ fn LinkedRow(
             (!wanted.is_empty()).then_some(DatabaseValue::Links(wanted)),
         );
     });
-    let read_only = data.read_only.clone();
+    let read_only = data.read_only;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
             <ListRow

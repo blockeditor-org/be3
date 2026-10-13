@@ -90,7 +90,7 @@ fn LayerRow(state: Rc<CanvasState>, id: Uuid) -> NodeId {
         state.move_layer(moved, id, in_front);
     });
     let ghost = clone!(label -> move |_: Layer| view! {
-        <LayerGhost label={label.clone()} />
+        <LayerGhost label={label} />
     });
     view! {
         <DropTarget on_drop={dropped}>
@@ -103,14 +103,14 @@ fn LayerRow(state: Rc<CanvasState>, id: Uuid) -> NodeId {
                     <Frame
                         color={fill}
                         radius=ROW_RADIUS
-                        outline={theme.accent.clone()}
+                        outline={theme.accent}
                         outline_width=1.0
                         outline_visible={handle.over}
                     >
                         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                             <IconButton
-                                glyph={glyph.clone()}
-                                label={toggle_label.clone()}
+                                glyph={glyph}
+                                label={toggle_label}
                                 size=IconButtonSize::Compact
                                 variant=ButtonVariant::Ghost
                                 capture_presses=true
@@ -121,13 +121,13 @@ fn LayerRow(state: Rc<CanvasState>, id: Uuid) -> NodeId {
                                 @sizing=ItemSize::Percent(100.0)
                                 payload={Some(Layer(id))}
                                 cursor=CursorIcon::PointingHand
-                                preview={ghost.clone()}
+                                preview={ghost}
                                 on_click={select.clone()}
                                 @test_id={format!("infinite-canvas.layer.{id}")}
                             >
                                 {move |_: DragHandle| view! {
                                     <Frame padding_vertical=ROW_PADDING>
-                                        <Body content={label.clone()} color={text.clone()} />
+                                        <Body content={label} color={text} />
                                     </Frame>
                                 }}
                             </Draggable>
@@ -144,7 +144,7 @@ fn LayerGhost(label: block_editor_beui::beui::reactive::Memo<String>) -> NodeId 
     let theme = use_theme();
     view! {
         <Frame
-            color={theme.surface_raised.clone()}
+            color={theme.surface_raised}
             radius=ROW_RADIUS
             padding_horizontal=8.0
             padding_vertical=ROW_PADDING

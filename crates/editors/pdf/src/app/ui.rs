@@ -53,7 +53,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     });
 
     let sized = editor.clone();
-    let measured = shown.clone();
+    let measured = shown;
     create_effect(move || {
         let size = measured.get().size();
         sized.set_intrinsic_size(Some(size));
@@ -91,10 +91,10 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     let content = NodeRef::new();
     editor.content(&content);
     let theme = use_theme();
-    let danger = theme.danger.clone();
+    let danger = theme.danger;
     view! {
         <List spacing=0.0>
-            <Toolbar shown={chrome.clone()}>
+            <Toolbar shown={chrome}>
                 <Body content="PDF" />
                 <block_editor_beui::beui::styled::IconButton
                     glyph={ICON_ARROW_BACK.to_owned()}
@@ -122,7 +122,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
             <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                     <Interactive on_pan_drag={move |delta: Vec2| panning.pan(delta)}>
-                        <PageCanvas shown={shown.clone()} view={editor.canvas()} />
+                        <PageCanvas shown={shown} view={editor.canvas()} />
                     </Interactive>
                 </Frame>
                 <Sidebar shown={chrome}>
@@ -136,7 +136,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
                         on_click={choose}
                     />
                     <Show condition={refused}>
-                        <Caption content={refusal.clone()} color={danger.clone()} />
+                        <Caption content={refusal} color={danger} />
                     </Show>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                 </Sidebar>
@@ -195,11 +195,7 @@ fn PageCanvas(
                 </ForEach>
             </Canvas>
             <Show condition={failed}>
-                <Caption
-                    content={reason.clone()}
-                    color={theme.danger.clone()}
-                    @test_id={"pdf.error"}
-                />
+                <Caption content={reason} color={theme.danger} @test_id={"pdf.error"} />
             </Show>
         </List>
     }

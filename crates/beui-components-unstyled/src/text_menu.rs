@@ -56,7 +56,7 @@ pub fn TextContextMenu(
             false => vec![MenuAction::Paste, MenuAction::SelectAll],
         }
     }));
-    let chosen = actions.clone();
+    let chosen = actions;
     let no_menu = !menu.is_some();
     let off = create_memo(move || no_menu || disabled.get());
     let open = Callback::new(clone!(off set_open_at -> move |at: Pos2| {

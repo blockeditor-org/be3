@@ -228,13 +228,13 @@ fn FilterChip(data: Data, id: ObjectId) -> NodeId {
     }));
     let remove = clone!(data -> move || data.operate_view(DatabaseView::remove_filter(id)));
     let editor = data.clone();
-    let read_only = data.read_only.clone();
+    let read_only = data.read_only;
     let theme = use_theme();
-    let label = text.clone();
+    let label = text;
     view! {
         <Frame
-            color={theme.surface.clone()}
-            outline={theme.border.clone()}
+            color={theme.surface}
+            outline={theme.border}
             outline_width=BORDER_WIDTH
             outline_visible=true
             radius=14
@@ -244,7 +244,7 @@ fn FilterChip(data: Data, id: ObjectId) -> NodeId {
                     label={label}
                     @test_id={format!("database-view.filter.{}", id.as_uuid())}
                     trigger={move |handle: PopoverTriggerHandle| {
-                        let text = text.clone();
+                        let text = text;
                         view! {
                             <ControlFace handle={handle.button}>
                                 <Caption content={text} />
@@ -288,7 +288,7 @@ fn AddFilter(data: Data) -> NodeId {
     });
     let picks = data.clone();
     let edits = data.clone();
-    let read_only = data.read_only.clone();
+    let read_only = data.read_only;
     view! {
         <unstyled::Popover
             label="Filter"
@@ -301,7 +301,7 @@ fn AddFilter(data: Data) -> NodeId {
                         <IconSized
                             glyph={ICON_FILTER_LIST.to_owned()}
                             font_size={FONT_SMALL + 2.0}
-                            color={use_theme().text_muted.clone()}
+                            color={use_theme().text_muted}
                         />
                         <Caption content="Filter" />
                     </List>
@@ -311,12 +311,12 @@ fn AddFilter(data: Data) -> NodeId {
             {move |_: PopoverHandle| {
                 let picks = picks.clone();
                 let edits = edits.clone();
-                let set_adding = set_adding.clone();
-                let editing = editing.clone();
+                let set_adding = set_adding;
+                let editing = editing;
                 view! {
                     <PopoverPanel max_width={Some(EDITOR_WIDTH + 24.0)}>
                         <List spacing=0.0>
-                            <Show condition={choosing.clone()}>
+                            <Show condition={choosing}>
                                 {move || clone!(picks set_adding -> view! {
                                     <FieldChoices
                                         data={picks}
@@ -324,7 +324,7 @@ fn AddFilter(data: Data) -> NodeId {
                                     />
                                 })}
                             </Show>
-                            <Show condition={has_editing.clone()}>
+                            <Show condition={has_editing}>
                                 {move || {
                                     let id = editing.get_untracked();
                                     let data = edits.clone();
@@ -388,11 +388,11 @@ fn FieldChoices(
                     };
                     view! {
                         <unstyled::Button
-                            label={name.clone()}
+                            label={name}
                             @test_id={format!("database-view.filters.field.{field}")}
                             on_click={pick}
                             content={move |handle| {
-                                let name = name.clone();
+                                let name = name;
                                 view! {
                                     <ControlFace handle={handle}>
                                         <Body content={name} />
@@ -482,16 +482,12 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
         data.operate_view(DatabaseView::set_filter_condition(id, &next));
     });
     let picked = |_: DatabaseBlockPickRequest| {};
-    let (condition_off, value_off, text_off) = (
-        data.read_only.clone(),
-        data.read_only.clone(),
-        data.read_only.clone(),
-    );
-    let labels = data.labels.clone();
+    let (condition_off, value_off, text_off) = (data.read_only, data.read_only, data.read_only);
+    let labels = data.labels;
     let choices = data.clone();
-    let choice_filter = filter.clone();
-    let choice_field = field.clone();
-    let condition_names = kinds.clone();
+    let choice_filter = filter;
+    let choice_field = field;
+    let condition_names = kinds;
     view! {
         <Frame width=EDITOR_WIDTH>
             <List spacing={SPACING * 1.5}>
@@ -533,10 +529,10 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
                 </Show>
                 <Show condition={comparing}>
                     <DatabaseValueEditor
-                        fields={value_fields.clone()}
-                        values={values.clone()}
-                        labels={labels.clone()}
-                        disabled={value_off.clone()}
+                        fields={value_fields}
+                        values={values}
+                        labels={labels}
+                        disabled={value_off}
                         prefix={format!("database-view.filter.{}", id.as_uuid())}
                         headings=false
                         on_change={revalue.clone()}
@@ -545,9 +541,9 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
                 </Show>
                 <Show condition={searching}>
                     <TextInput
-                        value={needle.clone()}
+                        value={needle}
                         placeholder="Text"
-                        disabled={text_off.clone()}
+                        disabled={text_off}
                         focused=true
                         @test_id={format!("database-view.filter.{}.text", id.as_uuid())}
                         on_change={searched_for.clone()}
@@ -643,16 +639,16 @@ fn ValueChoices(
     let keys = create_memo(clone!(choices -> move || {
         choices.with(|choices| (0..choices.len()).collect::<Vec<usize>>())
     }));
-    let read_only = data.read_only.clone();
+    let read_only = data.read_only;
     let typed = move |text: String| set_query.set(text);
     view! {
         <List spacing=SPACING>
             <Show condition={many}>
                 <TextInput
-                    value={query.clone()}
+                    value={query}
                     placeholder="Search"
                     @test_id={format!("database-view.filter.{}.search", id.as_uuid())}
-                    on_change={typed.clone()}
+                    on_change={typed}
                 />
             </Show>
             <Scroll max_length=CHOICES_HEIGHT>
@@ -688,7 +684,7 @@ fn ValueChoices(
                                 data.operate_view(DatabaseView::set_filter_condition(id, &next));
                             });
                             let test_id = format!("database-view.filter.{}.choice.{index}", id.as_uuid());
-                            let read_only = read_only.clone();
+                            let read_only = read_only;
                             view! {
                                 <List
                                     direction=Direction::Horizontal
@@ -724,7 +720,7 @@ pub fn FilterList(data: Data) -> NodeId {
             .with(|items| items.iter().map(|(id, _)| *id).collect::<Vec<ObjectId>>())
     }));
     let none = create_memo(clone!(keys -> move || keys.with(Vec::is_empty)));
-    let names = data.fields.clone();
+    let names = data.fields;
     let field_keys = create_memo(clone!(names -> move || {
         names.with(|fields| (0..fields.len()).collect::<Vec<usize>>())
     }));
@@ -735,7 +731,7 @@ pub fn FilterList(data: Data) -> NodeId {
         data.operate_view(DatabaseView::add_filter(Some(field.id), starting_condition(&field)).1);
     });
     let editors = data.clone();
-    let read_only = data.read_only.clone();
+    let read_only = data.read_only;
     view! {
         <List spacing={SPACING * 2.0}>
             <Show condition={none}>
@@ -745,7 +741,7 @@ pub fn FilterList(data: Data) -> NodeId {
                 {move |id: ObjectId| {
                     let data = editors.clone();
                     let remove = clone!(data -> move || data.operate_view(DatabaseView::remove_filter(id)));
-                    let read_only = data.read_only.clone();
+                    let read_only = data.read_only;
                     view! {
                         <List direction=Direction::Horizontal align=Align::Start spacing=SPACING>
                             <FilterEditor @sizing=ItemSize::Percent(100.0) data={data} id={id} />
@@ -765,7 +761,7 @@ pub fn FilterList(data: Data) -> NodeId {
                 <IconSized
                     glyph={ICON_ADD.to_owned()}
                     font_size=18.0
-                    color={use_theme().text_muted.clone()}
+                    color={use_theme().text_muted}
                 />
                 <Frame @sizing=ItemSize::Percent(100.0)>
                     <Select

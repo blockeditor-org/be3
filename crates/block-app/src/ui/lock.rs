@@ -58,7 +58,7 @@ fn wall_clock() -> ReadSignal<DateTime> {
 
 #[component]
 pub(crate) fn SessionLock(view: AppViewStore) -> NodeId {
-    let lock = view.lock.clone();
+    let lock = view.lock;
     let available = create_memo(clone!(lock -> move || lock.get().available && !lock.get().locked));
     Action::new("session.lock", "Lock the screen", || {
         send(UiCommand::LockScreen);

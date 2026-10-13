@@ -28,11 +28,11 @@ pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
         <PlacementBuilder>
             {move |placed: ReadSignal<Rect>| {
                 let fitting = Rc::clone(&state);
-                let fitted = placed.clone();
+                let fitted = placed;
                 create_effect(move || fitting.fit_timeline(fitted.get().width().max(1.0)));
 
                 let rowed = Rc::clone(&state);
-                let clips = state.clips.clone();
+                let clips = state.clips;
                 let rows = create_memo(clone!(rowed clips -> move || {
                     let _ = clips.get();
                     rowed
@@ -60,8 +60,8 @@ pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
                     Some(CanvasView::new(placed.get().min - offset.get(), 1.0))
                 }));
 
-                let pixels_per_frame = state.pixels_per_frame.clone();
-                let duration = state.duration.clone();
+                let pixels_per_frame = state.pixels_per_frame;
+                let duration = state.duration;
                 let content = create_memo(clone!(duration pixels_per_frame lanes placed -> move || {
                     let viewport = placed.get().size().max(Vec2::new(1.0, 1.0));
                     Rect::from_min_size(
@@ -73,9 +73,9 @@ pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
                     )
                 }));
 
-                let scrolled = content.clone();
-                let scroll_placed = placed.clone();
-                let scroll_offset = offset.clone();
+                let scrolled = content;
+                let scroll_placed = placed;
+                let scroll_offset = offset;
                 let on_scroll = move |gesture: ScrollGesture| {
                     let content = scrolled.get_untracked().size();
                     let viewport = scroll_placed.get_untracked().size();
@@ -88,21 +88,21 @@ pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
                 };
 
                 let (pointer, set_pointer) = create_signal(None::<Pos2>);
-                let hover_offset = offset.clone();
-                let hover_pointer = set_pointer.clone();
+                let hover_offset = offset;
+                let hover_pointer = set_pointer;
                 let on_hover = move |press: PointerPress| {
                     hover_pointer.set(Some(press.local + hover_offset.get_untracked()));
                 };
 
                 let targeted = Rc::clone(&state);
-                let target_rows = rows.clone();
-                let target_scale = pixels_per_frame.clone();
-                let target_pointer = pointer.clone();
-                let target_drag = state.drag.clone();
-                let target_offset = offset.clone();
-                let target_placed = placed.clone();
+                let target_rows = rows;
+                let target_scale = pixels_per_frame;
+                let target_pointer = pointer;
+                let target_drag = state.drag;
+                let target_offset = offset;
+                let target_placed = placed;
                 let host_drag = state.editor().drag();
-                let content_rect = content.clone();
+                let content_rect = content;
                 let target = create_memo(clone!(
                     targeted target_rows target_scale target_pointer target_drag host_drag content_rect
                     target_placed target_offset
@@ -124,7 +124,7 @@ pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
                 ));
 
                 let landing = Rc::clone(&state);
-                let landing_target = target.clone();
+                let landing_target = target;
                 let landing_drag = state.editor().drag();
                 create_effect(move || {
                     let dragged = landing_drag.get();
@@ -132,7 +132,7 @@ pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
                 });
 
                 let dropped = Rc::clone(&state);
-                let dropped_target = target.clone();
+                let dropped_target = target;
                 let on_drop = move |_: (Uuid, DragPoint)| {
                     let Some(drag) = dropped.drag.get_untracked() else {
                         return;
@@ -147,8 +147,8 @@ pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
                     }
                 };
 
-                let drag_offset = offset.clone();
-                let drag_pointer = set_pointer.clone();
+                let drag_offset = offset;
+                let drag_pointer = set_pointer;
                 let on_over = move |over: Option<(Uuid, DragPoint)>| {
                     if let Some((_, point)) = over {
                         drag_pointer.set(Some(point.local + drag_offset.get_untracked()));
@@ -156,8 +156,8 @@ pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
                 };
 
                 let seeking = Rc::clone(&state);
-                let seek_offset = offset.clone();
-                let seek_scale = pixels_per_frame.clone();
+                let seek_offset = offset;
+                let seek_scale = pixels_per_frame;
                 let on_press = move |press: PointerPress| {
                     let x = press.local.x + seek_offset.get_untracked().x;
                     seeking.seek((x / seek_scale.get_untracked()).max(0.0) as u64);
@@ -182,8 +182,8 @@ pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
                 let lane_keys = create_memo(clone!(lanes -> move || (0..lanes.get()).collect::<Vec<usize>>()));
                 let selection = create_selector(clone!(state -> move || state.selected.get()));
                 let rowed_state = Rc::clone(&state);
-                let row_scale = pixels_per_frame.clone();
-                let playhead = state.playhead.clone();
+                let row_scale = pixels_per_frame;
+                let playhead = state.playhead;
                 let playhead_x = create_memo(clone!(playhead pixels_per_frame -> move || {
                     playhead.get() as f32 * pixels_per_frame.get()
                 }));
@@ -203,7 +203,7 @@ pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
                                 <Canvas view={camera}>
                                     <ForEach keys={lane_keys}>
                                         {move |lane: usize| {
-                                            let content = content.clone();
+                                            let content = content;
                                             view! {
                                                 <LaneStrip lane content />
                                             }
@@ -218,20 +218,20 @@ pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
                                         {move |row: Lane| {
                                             let state = Rc::clone(&rowed_state);
                                             let selected = selection.memo(Some(row.id));
-                                            let scale = row_scale.clone();
+                                            let scale = row_scale;
                                             view! {
                                                 <Clip state row selected scale />
                                             }
                                         }}
                                     </ForEach>
-                                    <DropMarker target={target} scale={pixels_per_frame.clone()} />
+                                    <DropMarker target={target} scale={pixels_per_frame} />
                                     <CanvasItem
                                         x={playhead_x}
                                         y=0.0
                                         width=1.5
                                         height={playhead_height}
                                     >
-                                        <Frame color={theme.accent.clone()} />
+                                        <Frame color={theme.accent} />
                                     </CanvasItem>
                                 </Canvas>
                             </Interactive>
@@ -271,8 +271,8 @@ impl std::hash::Hash for Tick {
 fn LaneStrip(lane: usize, content: Memo<Rect>) -> CanvasItem {
     let theme = use_theme();
     let color = match lane {
-        0 => theme.surface_raised.clone(),
-        _ => theme.surface.clone(),
+        0 => theme.surface_raised,
+        _ => theme.surface,
     };
     let y = RULER_HEIGHT + lane as f32 * (LANE_HEIGHT + LANE_GAP);
     let width = create_memo(clone!(content -> move || content.get().width()));
@@ -289,7 +289,7 @@ fn RulerTick(tick: Tick) -> CanvasItem {
     let label = format!("{}:{:02}", tick.seconds / 60, tick.seconds % 60);
     view! {
         <CanvasItem x={tick.x + 3.0} y=2.0 width=60.0 height={RULER_HEIGHT - 4.0}>
-            <Caption content={label} color={theme.text_muted.clone()} />
+            <Caption content={label} color={theme.text_muted} />
         </CanvasItem>
     }
 }
@@ -307,7 +307,7 @@ fn Clip(
     }));
     let y = RULER_HEIGHT + row.lane as f32 * (LANE_HEIGHT + LANE_GAP);
     let held = Rc::clone(&state);
-    let clips = state.clips.clone();
+    let clips = state.clips;
     let block = create_memo(clone!(held clips -> move || {
         let clip = clips.get().into_iter().find(|clip| clip.id == row.id)?;
         held.target(clip.block_id)
@@ -334,9 +334,9 @@ fn Clip(
     }));
     let chosen = Rc::clone(&state);
     let trimming = Rc::clone(&state);
-    let trim_scale = scale.clone();
+    let trim_scale = scale;
     let trimming_edge = Rc::clone(&state);
-    let trim_edge_scale = scale.clone();
+    let trim_edge_scale = scale;
     let editor = state.editor().clone();
     let test_id = format!("video.clip.{}", row.id);
     let grabbed_at = Rc::new(Cell::new(None::<Pos2>));
@@ -370,7 +370,7 @@ fn Clip(
                         <Frame
                             color={fill}
                             radius=CLIP_RADIUS
-                            outline={theme.accent.clone()}
+                            outline={theme.accent}
                             outline_width=2.0
                             outline_visible={selected}
                             padding_horizontal=THUMBNAIL_MARGIN
@@ -442,10 +442,10 @@ fn DropMarker(target: Memo<Option<TimelineDropTarget>>, scale: ReadSignal<f32>) 
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
             <Frame
-                visible={shown.clone()}
-                color={theme.accent_soft.clone()}
+                visible={shown}
+                color={theme.accent_soft}
                 radius=CLIP_RADIUS
-                outline={theme.accent.clone()}
+                outline={theme.accent}
                 outline_width=2.0
                 outline_visible={shown}
             />
@@ -455,7 +455,7 @@ fn DropMarker(target: Memo<Option<TimelineDropTarget>>, scale: ReadSignal<f32>) 
 
 #[component]
 fn TrimHandle(state: Rc<VideoState>, row: Lane, scale: ReadSignal<f32>) -> NodeId {
-    let clips = state.clips.clone();
+    let clips = state.clips;
     let length_of = clone!(clips -> move || {
         clips
             .get_untracked()

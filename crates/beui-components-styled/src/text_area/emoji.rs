@@ -34,8 +34,8 @@ fn EmojiPanel(children: Child) -> NodeId {
     view! {
         <Frame
             width=MENU_WIDTH
-            color={theme.surface_raised.clone()}
-            outline={theme.border.clone()}
+            color={theme.surface_raised}
+            outline={theme.border}
             outline_width=1.0
             outline_visible=true
             radius=RADIUS
@@ -70,11 +70,11 @@ fn EmojiRow(handle: CompletionRowHandle) -> NodeId {
                     <Text
                         string={emoji}
                         font_size=EMOJI_SIZE
-                        color={theme.text.clone()}
+                        color={theme.text}
                         align=TextAlign::Center
                     />
                 </Frame>
-                <Text string={label} font_size=LABEL_SIZE color={theme.text_muted.clone()} />
+                <Text string={label} font_size=LABEL_SIZE color={theme.text_muted} />
             </List>
         </Frame>
     }

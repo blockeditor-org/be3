@@ -153,8 +153,8 @@ fn NotResponding(
     let message = create_memo(move || format!("{} is not responding", name.get()));
     view! {
         <Frame
-            color={theme.surface.clone()}
-            outline={theme.border.clone()}
+            color={theme.surface}
+            outline={theme.border}
             outline_width=1.0
             outline_visible=true
             radius=BANNER_RADIUS

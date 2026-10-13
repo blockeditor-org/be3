@@ -23,7 +23,7 @@ fn the_launcher_filters_as_it_is_typed_and_launches_with_enter() {
     ]);
     let document = build(move || {
         let (open, set_open) = create_signal(true);
-        let (closing, launching, running) = (set_open.clone(), set_open.clone(), set_open);
+        let (closing, launching, running) = (set_open, set_open, set_open);
         view! {
             <Launcher
                 open

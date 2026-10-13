@@ -149,11 +149,7 @@ fn HeaderToggle(
             accessibility
             on_click={move || on_click.call()}
             content={move |button: unstyled::ButtonHandle| view! {
-                <ButtonFace
-                    handle={button}
-                    variant=ButtonVariant::Ghost
-                    trailing_glyph={glyph.clone()}
-                />
+                <ButtonFace handle={button} variant=ButtonVariant::Ghost trailing_glyph={glyph} />
             }}
         />
     }
@@ -167,7 +163,7 @@ fn WeekdayLabel(weekday: Weekday) -> NodeId {
             <Text
                 string={weekday.narrow_name().to_owned()}
                 font_size=FONT_SMALL
-                color={theme.text_muted.clone()}
+                color={theme.text_muted}
                 align=TextAlign::Center
                 vertical_align=TextAlign::Center
             />
@@ -206,7 +202,7 @@ fn CellFace(handle: CalendarCellHandle) -> NodeId {
             <Frame
                 height
                 color={fill}
-                outline={theme.accent.clone()}
+                outline={theme.accent}
                 outline_width=TODAY_RING_WIDTH
                 outline_visible={ring}
                 radius=RADIUS

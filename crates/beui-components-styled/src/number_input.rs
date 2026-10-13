@@ -106,7 +106,7 @@ fn NumberFace(handle: NumberFaceHandle, shown: NodeRef, placeholder: Prop<String
             <Frame
                 height=HEIGHT
                 color={fill}
-                outline={theme.border.clone()}
+                outline={theme.border}
                 outline_width=BORDER_WIDTH
                 radius=RADIUS
                 outline_visible=true

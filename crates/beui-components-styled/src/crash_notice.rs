@@ -30,17 +30,13 @@ pub fn CrashNotice(
     view! {
         <Frame @test_id={id} padding_horizontal=PADDING padding_vertical=PADDING>
             <List spacing=SPACING align=Align::Center>
-                <Icon
-                    glyph={ICON_ERROR.to_owned()}
-                    text_size=GLYPH_SIZE
-                    color={theme.danger.clone()}
-                />
+                <Icon glyph={ICON_ERROR.to_owned()} text_size=GLYPH_SIZE color={theme.danger} />
                 <Heading content={title} align=TextAlign::Center />
                 <Show condition={has_detail}>
                     <Text
                         string={create_memo(clone!(detail -> move || detail.get()))}
                         font_size=FONT_SMALL
-                        color={theme.text_muted.clone()}
+                        color={theme.text_muted}
                         align=TextAlign::Center
                         wrap=true
                     />

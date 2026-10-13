@@ -418,7 +418,7 @@ fn Scrolling(
     }));
     let motion = Motion {
         node: with_document(|document| document.first_offset_within(node)),
-        reported: reported.clone(),
+        reported,
         direction: direction.clone(),
         momentum: Rc::new(RefCell::new(Momentum::new())),
         animation: Rc::default(),
@@ -448,7 +448,7 @@ fn Scrolling(
         OverlayAnchor::Point(origin.get().unwrap_or(Pos2::ZERO))
     }));
     let marker_axis = create_memo(clone!(direction -> move || direction.get()));
-    let content_axis = marker_axis.clone();
+    let content_axis = marker_axis;
     let scroll_to = Callback::new(move |offset: f32| motion.scroll_to(offset));
     on_scroll_key(
         KeyAt::Node(catcher.clone()),
@@ -491,7 +491,7 @@ fn Scrolling(
                 >
                     <List direction={content_axis} spacing=0.0>
                         {node} @sizing={content_sizing(fit)}
-                        <ShowKeepAlive condition={marked.clone()}>
+                        <ShowKeepAlive condition={marked}>
                             <Overlay
                                 anchor
                                 placement=Placement::Around

@@ -132,7 +132,7 @@ pub fn Settings(artifacts: Artifacts) -> NodeId {
         None => "These settings cannot be read.".to_owned(),
     }));
     let edited = artifacts.clone();
-    let scaled = decoded.clone();
+    let scaled = decoded;
     let set_scale = move |value: f64| {
         let Some(mut artifact) = scaled.get_untracked() else {
             return;
@@ -145,14 +145,14 @@ pub fn Settings(artifacts: Artifacts) -> NodeId {
 
     view! {
         <Frame
-            color={theme.background.clone()}
+            color={theme.background}
             padding_horizontal=SETTINGS_PADDING
             padding_vertical=SETTINGS_PADDING
         >
             <List spacing=SETTINGS_SPACING>
                 <Show condition={readable}>
                     <NumberInput
-                        value={scale.clone()}
+                        value={scale}
                         min=1.0
                         max={f64::from(MAX_EXPORT_SCALE)}
                         label="Scale"

@@ -4,6 +4,7 @@ use crate::styled::TextInput;
 
 #[test]
 fn setting_the_value_of_a_text_input_reports_the_change() {
+    let _root = crate::reactive::RootScope::new();
     let reported = Rc::new(RefCell::new(String::new()));
     let sink = reported.clone();
     let (value, set_value) = create_signal(String::new());

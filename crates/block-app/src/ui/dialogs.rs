@@ -20,17 +20,17 @@ use super::{AppViewStore, UiCommand, send};
 pub(super) fn Dialogs(view: AppViewStore) -> NodeId {
     view! {
         <List spacing=0.0>
-            <DiscardDialog view={view.clone()} />
-            <InviteDialog view={view.clone()} />
-            <AgentsDialog view={view.clone()} />
-            <AboutDialog view={view.clone()} />
+            <DiscardDialog view={view} />
+            <InviteDialog view={view} />
+            <AgentsDialog view={view} />
+            <AboutDialog view={view} />
         </List>
     }
 }
 
 #[component]
 fn InviteDialog(view: AppViewStore) -> NodeId {
-    let invite = view.invite.clone();
+    let invite = view.invite;
     let open = create_memo(move || invite.get().is_some());
     view! {
         <Dialog
@@ -46,7 +46,7 @@ fn InviteDialog(view: AppViewStore) -> NodeId {
 
 #[component]
 fn AgentsDialog(view: AppViewStore) -> NodeId {
-    let agents = view.agents.clone();
+    let agents = view.agents;
     let open = create_memo(move || agents.get().is_some());
     view! {
         <Dialog open={open} title="Agents" width=460.0 on_dismiss={|| send(UiCommand::CloseAgents)}>
@@ -57,7 +57,7 @@ fn AgentsDialog(view: AppViewStore) -> NodeId {
 
 #[component]
 fn AgentsPanel(view: AppViewStore) -> NodeId {
-    let agents = view.agents.clone();
+    let agents = view.agents;
     let shown = create_memo(clone!(agents -> move || agents.get().unwrap_or_default()));
     let workspace =
         create_memo(clone!(shown -> move || format!("Workspace: {}", shown.get().workspace)));
@@ -69,7 +69,7 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
         shown.get().agents.iter().map(|agent| agent.account).collect::<Vec<Uuid>>()
     }));
     let none = create_memo(clone!(keys -> move || keys.with(Vec::is_empty)));
-    let names = shown.clone();
+    let names = shown;
     let (name, set_name) = create_signal(String::new());
     create_effect(clone!(set_name made -> move || {
         if made.get() {
@@ -115,7 +115,7 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
                 </ForEach>
                 <Caption content="Name" />
                 <TextInput
-                    value={name.clone()}
+                    value={name}
                     label="Agent name"
                     @test_id={"app.agents.name"}
                     on_change={move |value: String| set_name.set(value)}
@@ -176,7 +176,7 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
 
 #[component]
 fn AboutDialog(view: AppViewStore) -> NodeId {
-    let open = view.about.clone();
+    let open = view.about;
     view! {
         <Dialog open={open} title="About" width=420.0 on_dismiss={|| send(UiCommand::About(false))}>
             <AboutPanel />
@@ -186,7 +186,7 @@ fn AboutDialog(view: AppViewStore) -> NodeId {
 
 #[component]
 fn InvitePanel(view: AppViewStore) -> NodeId {
-    let invite = view.invite.clone();
+    let invite = view.invite;
     let workspace = create_memo(clone!(invite -> move || {
         format!(
             "Workspace: {}",
@@ -220,7 +220,7 @@ fn InvitePanel(view: AppViewStore) -> NodeId {
                 <Caption content={workspace} />
                 <Caption content="Email address" />
                 <TextInput
-                    value={email.clone()}
+                    value={email}
                     label="Email address"
                     on_change={move |value: String| set_email.set(value)}
                 />
@@ -270,7 +270,7 @@ fn AboutPanel() -> NodeId {
 
 #[component]
 fn DiscardDialog(view: AppViewStore) -> NodeId {
-    let discard = view.discard.clone();
+    let discard = view.discard;
     let open = create_memo(clone!(discard -> move || discard.get().is_some()));
     let title = create_memo(
         clone!(discard -> move || discard.get().map(|discard| discard.title).unwrap_or_default()),

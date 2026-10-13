@@ -56,12 +56,7 @@ pub fn TextInput(
             on_focus_change={move |focused| on_focus_change.call(focused)}
         >
             {move |handle| view! {
-                <TextInputFrame
-                    handle
-                    plain={plain.clone()}
-                    glyph={glyph.clone()}
-                    clearable={clearable.clone()}
-                />
+                <TextInputFrame handle plain={plain} glyph={glyph} clearable={clearable} />
             }}
         </unstyled::TextInput>
     }
@@ -100,7 +95,7 @@ fn TextInputFrame(
     }));
     view! {
         <Frame
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
             outline_offset=FOCUS_RING_OFFSET
@@ -118,7 +113,7 @@ fn TextInputFrame(
                     <Show condition={marked}>
                         {move || clone!(glyph theme -> view! {
                             <Frame padding_left=PADDING_HORIZONTAL>
-                                <Icon glyph={glyph.clone()} color={theme.text_muted.clone()} />
+                                <Icon glyph={glyph} color={theme.text_muted} />
                             </Frame>
                         })}
                     </Show>
@@ -146,10 +141,10 @@ pub fn text_input_style() -> TextInputStyle {
     let theme = use_theme();
     TextInputStyle {
         font_size: Prop::Static(FONT_BODY),
-        color: theme.text.clone().into_prop(),
-        placeholder_color: theme.text_muted.clone().into_prop(),
-        selection_color: theme.accent_soft.clone().into_prop(),
-        caret_color: theme.accent.clone().into_prop(),
+        color: theme.text.into_prop(),
+        placeholder_color: theme.text_muted.into_prop(),
+        selection_color: theme.accent_soft.into_prop(),
+        caret_color: theme.accent.into_prop(),
         padding_horizontal: Prop::Static(PADDING_HORIZONTAL),
         padding_vertical: Prop::Static(0.0),
         menu: menu_style(),

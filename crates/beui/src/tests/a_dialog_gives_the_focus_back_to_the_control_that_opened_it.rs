@@ -16,7 +16,7 @@ fn a_dialog_gives_the_focus_back_to_the_control_that_opened_it() {
         move || {
             let (open, set_open) = create_signal(false);
             let (aimed, set_aimed) = create_signal(false);
-            let (opening, closing, aiming) = (set_open.clone(), set_open.clone(), set_open);
+            let (opening, closing, aiming) = (set_open, set_open, set_open);
             view! {
                 <List spacing=8.0>
                     <Button
@@ -31,11 +31,7 @@ fn a_dialog_gives_the_focus_back_to_the_control_that_opened_it() {
                         label="Elsewhere"
                         focused={aimed}
                     />
-                    <Dialog
-                        open={open.clone()}
-                        title="Rename"
-                        on_dismiss={move || closing.set(false)}
-                    >
+                    <Dialog open={open} title="Rename" on_dismiss={move || closing.set(false)}>
                         <List spacing=8.0>
                             <TextInput @node_ref=&field value="" focused={open} />
                             <Button

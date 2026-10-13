@@ -99,7 +99,7 @@ pub(super) fn Settings(artifacts: Artifacts) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame
-            color={theme.background.clone()}
+            color={theme.background}
             padding_horizontal=SETTINGS_PADDING
             padding_vertical=SETTINGS_PADDING
         >
@@ -107,7 +107,7 @@ pub(super) fn Settings(artifacts: Artifacts) -> NodeId {
                 <Show condition={readable}>
                     <Checkbox
                         label="Rename with the grid"
-                        checked={renamed.clone()}
+                        checked={renamed}
                         @test_id={"logic-grid.rename-with-source"}
                         on_change={rename.clone()}
                     />

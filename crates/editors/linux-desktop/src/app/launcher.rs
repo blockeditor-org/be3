@@ -91,7 +91,7 @@ pub(super) fn ProgramLauncherOverlay(launcher: ProgramLauncher) -> NodeId {
     let items = create_memo(move || {
         programs.with(|programs| Rc::new(programs.iter().map(item).collect::<Vec<_>>()))
     });
-    let open = launcher.open.clone();
+    let open = launcher.open;
     let (launching, running, closing) = (launcher.clone(), launcher.clone(), launcher);
     view! {
         <Launcher

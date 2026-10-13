@@ -37,7 +37,7 @@ impl LayoutBuilderNode {
                 false => held.y,
             },
         );
-        (given != held).then(|| (set_size.clone(), given))
+        (given != held).then_some((*set_size, given))
     }
 }
 
@@ -153,19 +153,17 @@ impl Document {
         })
     }
 
-    pub fn create_placement_builder(
-        &mut self,
-        placed: ReadSignal<Rect>,
-        set_placed: WriteSignal<Rect>,
-    ) -> NodeOf<LayoutBuilderNode> {
+    pub fn create_placement_builder(&mut self) -> (NodeOf<LayoutBuilderNode>, ReadSignal<Rect>) {
+        let watched = ::reactive::OwnedSignal::new(Rect::ZERO);
+        let placed = watched.read();
         let builder = self.arena.insert(LayoutBuilderNode {
             child: None,
             content: None,
-            builds: Builds::Placement(placed.clone()),
+            builds: Builds::Placement(placed),
             offered: Cell::new(Vec2::ZERO),
         });
-        self.follow_placement(builder.id(), placed, set_placed);
-        builder
+        self.watch_placement_with(builder.id(), watched);
+        (builder, placed)
     }
 
     pub fn set_layout_builder_child(&mut self, builder: NodeOf<LayoutBuilderNode>, child: NodeId) {

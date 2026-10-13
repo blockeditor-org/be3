@@ -38,7 +38,7 @@ pub fn SplitButton(
             <unstyled::Button
                 label
                 glyph
-                disabled={disabled.clone()}
+                disabled={disabled}
                 on_click={move || on_click.call()}
                 content={main}
             />

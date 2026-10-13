@@ -28,7 +28,7 @@ const ATTRIBUTION_HEIGHT: f32 = 16.0;
 #[component]
 pub(crate) fn MapCanvas(state: Rc<MapState>) -> NodeId {
     let placed = Rc::clone(&state);
-    let revision = state.revision.clone();
+    let revision = state.revision;
     let sized = state.editor().world();
     let laid_out = state.editor().placed();
     let world = create_memo(clone!(placed sized laid_out -> move || {
@@ -93,7 +93,7 @@ pub(crate) fn MapCanvas(state: Rc<MapState>) -> NodeId {
     let has_region = create_memo(clone!(outline -> move || outline.get().is_some()));
     let region_rect = create_memo(clone!(outline -> move || outline.get().unwrap_or(Rect::ZERO)));
 
-    let points = state.points.clone();
+    let points = state.points;
     let ids = create_memo(clone!(points -> move || {
         points.get().iter().map(|point| point.id).collect::<Vec<Uuid>>()
     }));
@@ -102,17 +102,17 @@ pub(crate) fn MapCanvas(state: Rc<MapState>) -> NodeId {
     let theme = use_theme();
     let markers = Rc::clone(&state);
     let interaction = Rc::clone(&state);
-    let tile_scale = scale.clone();
-    let marker_scale = scale.clone();
-    let marker_world = world.clone();
-    let underlay_scale = scale.clone();
-    let underlay_world = world.clone();
+    let tile_scale = scale;
+    let marker_scale = scale;
+    let marker_world = world;
+    let underlay_scale = scale;
+    let underlay_world = world;
     let underlaid = Rc::clone(&state);
     let content = NodeRef::new();
     state.editor().content(&content);
 
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <List spacing=0.0>
                 <MapSurface
                     state={interaction}
@@ -120,11 +120,11 @@ pub(crate) fn MapCanvas(state: Rc<MapState>) -> NodeId {
                     @node_ref={&content}
                 >
                     <Canvas view={camera} @test_id={"map.canvas"}>
-                        <ForEach keys={covering.clone()}>
+                        <ForEach keys={covering}>
                             {move |tile: TileId| {
                                 let state = Rc::clone(&underlaid);
-                                let world = underlay_world.clone();
-                                let scale = underlay_scale.clone();
+                                let world = underlay_world;
+                                let scale = underlay_scale;
                                 view! {
                                     <Tile state tile world scale underlay=true />
                                 }
@@ -133,8 +133,8 @@ pub(crate) fn MapCanvas(state: Rc<MapState>) -> NodeId {
                         <ForEach keys={covering}>
                             {move |tile: TileId| {
                                 let state = Rc::clone(&placed);
-                                let world = world.clone();
-                                let scale = tile_scale.clone();
+                                let world = world;
+                                let scale = tile_scale;
                                 view! {
                                     <Tile state tile world scale />
                                 }
@@ -142,8 +142,8 @@ pub(crate) fn MapCanvas(state: Rc<MapState>) -> NodeId {
                         </ForEach>
                         <ForEach keys={label_keys}>
                             {move |key: labels::LabelKey| {
-                                let shown = by_key.clone();
-                                let scale = scale.clone();
+                                let shown = by_key;
+                                let scale = scale;
                                 view! {
                                     <MapLabel key shown scale />
                                 }
@@ -154,8 +154,8 @@ pub(crate) fn MapCanvas(state: Rc<MapState>) -> NodeId {
                             {move |id: Uuid| {
                                 let state = Rc::clone(&markers);
                                 let selected = selection.memo(Some(id));
-                                let world = marker_world.clone();
-                                let scale = marker_scale.clone();
+                                let world = marker_world;
+                                let scale = marker_scale;
                                 view! {
                                     <PointMarker state id selected world scale />
                                 }
@@ -224,7 +224,7 @@ fn Attribution() -> NodeId {
     let theme = use_theme();
     view! {
         <Frame height=ATTRIBUTION_HEIGHT color=HALO padding_horizontal=6.0>
-            <Caption content=ATTRIBUTION color={theme.text_muted.clone()} align=TextAlign::End />
+            <Caption content=ATTRIBUTION color={theme.text_muted} align=TextAlign::End />
         </Frame>
     }
 }

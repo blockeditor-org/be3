@@ -37,7 +37,7 @@ const EVENT_INDENT: f32 = 14.0;
 #[component]
 pub(crate) fn Detail(model: Model) -> NodeId {
     let none = create_memo(clone!(model -> move || model.selected.with(Option::is_none)));
-    let selected = model.selected.clone();
+    let selected = model.selected;
     view! {
         <List spacing=0.0>
             <Show condition={none}>
@@ -46,7 +46,7 @@ pub(crate) fn Detail(model: Model) -> NodeId {
                         <Text
                             string="Pick a pull request"
                             font_size=FONT_TITLE
-                            color={use_theme().text.clone()}
+                            color={use_theme().text}
                         />
                         <Caption
                             content="Its conversation shows here, and you can check it out and run it."
@@ -149,8 +149,8 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
     let keys = create_memo(clone!(entries -> move || (0..entries.get().len()).collect::<Vec<_>>()));
     let actions = model.clone();
     let notes = model.clone();
-    let noted = pull_request.clone();
-    let notes_timeline = timeline.clone();
+    let noted = pull_request;
+    let notes_timeline = timeline;
     let open = clone!(model pull_request -> move || model.open(&pull_request.get_untracked().url));
     let refresh =
         clone!(model pull_request -> move || model.refresh_timeline(&pull_request.get_untracked()));
@@ -159,24 +159,19 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
             <List spacing=0.0>
                 <Frame padding_horizontal=PADDING padding_vertical=4.0>
                     <List spacing=SPACING>
-                        <Text
-                            string={title}
-                            font_size=FONT_TITLE
-                            color={theme.text.clone()}
-                            wrap=true
-                        />
+                        <Text string={title} font_size=FONT_TITLE color={theme.text} wrap=true />
                         <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                             <StateBadge state />
                             <Caption @sizing=ItemSize::Percent(100.0) content={summary} wrap=true />
                         </List>
                         <Show condition={tagged}>
-                            <Labels labels={labels.clone()} checked_out={checked_out.clone()} />
+                            <Labels labels={labels} checked_out={checked_out} />
                         </Show>
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Actions
                                 model={actions.clone()}
-                                pull_request={pull_request.clone()}
-                                timeline={timeline.clone()}
+                                pull_request={pull_request}
+                                timeline={timeline}
                             />
                             <Button
                                 label="Open on GitHub"
@@ -193,8 +188,8 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                         </List>
                         <Notes
                             model={notes.clone()}
-                            pull_request={noted.clone()}
-                            timeline={notes_timeline.clone()}
+                            pull_request={noted}
+                            timeline={notes_timeline}
                         />
                         <Separator />
                         <Show condition={loading}>
@@ -205,9 +200,9 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                         </Show>
                         <Show condition={failed}>
                             <Text
-                                string={error.clone()}
+                                string={error}
                                 font_size=FONT_BODY
-                                color={theme.danger.clone()}
+                                color={theme.danger}
                                 wrap=true
                             />
                         </Show>
@@ -260,7 +255,7 @@ fn StateBadge(state: Memo<State>) -> NodeId {
             padding_vertical=BADGE_PADDING_VERTICAL
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                <Icon glyph color={ink.clone()} />
+                <Icon glyph color={ink} />
                 <Text string={label} font_size=FONT_BODY color={ink} />
             </List>
         </Frame>
@@ -317,7 +312,7 @@ fn CommentCard(
     view! {
         <Frame padding_vertical=6.0>
             <Frame
-                color={theme.surface.clone()}
+                color={theme.surface}
                 outline
                 outline_width=1.0
                 outline_visible=true
@@ -325,7 +320,7 @@ fn CommentCard(
             >
                 <List spacing=0.0>
                     <Frame
-                        color={theme.surface_raised.clone()}
+                        color={theme.surface_raised}
                         radius_top_left=CARD_RADIUS
                         radius_top_right=CARD_RADIUS
                         padding_horizontal=CARD_PADDING
@@ -366,8 +361,8 @@ fn InlineCommentView(model: Model, comment: InlineComment) -> NodeId {
     } = comment;
     view! {
         <Frame
-            color={theme.background.clone()}
-            outline={theme.border.clone()}
+            color={theme.background}
+            outline={theme.border}
             outline_width=1.0
             outline_visible=true
             radius=6
@@ -391,8 +386,8 @@ fn CommitRow(sha: String, message: String) -> NodeId {
     view! {
         <Frame padding_horizontal=EVENT_INDENT padding_vertical=3.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Icon glyph=ICON_COMMIT color={theme.text_muted.clone()} />
-                <Code content={sha} color={theme.text_muted.clone()} />
+                <Icon glyph=ICON_COMMIT color={theme.text_muted} />
+                <Code content={sha} color={theme.text_muted} />
                 <Caption @sizing=ItemSize::Percent(100.0) content={message} />
             </List>
         </Frame>
@@ -418,7 +413,7 @@ fn Avatar(model: Model, url: String) -> NodeId {
         _ => None,
     });
     view! {
-        <Frame width=AVATAR height=AVATAR radius=12 color={use_theme().border.clone()}>
+        <Frame width=AVATAR height=AVATAR radius=12 color={use_theme().border}>
             <Picture image={picture} radius={AVATAR / 2.0} />
         </Frame>
     }
@@ -451,7 +446,7 @@ fn BlockView(model: Model, block: Block) -> NodeId {
                         <Text
                             string={text}
                             font_size=FONT_HEADING
-                            color={use_theme().text.clone()}
+                            color={use_theme().text}
                             bold=true
                             wrap=true
                         />
@@ -492,7 +487,7 @@ fn Table(model: Model, rows: Vec<Vec<Vec<Block>>>) -> NodeId {
         .collect();
     view! {
         <Frame
-            outline={theme.border.clone()}
+            outline={theme.border}
             outline_width=1.0
             outline_visible=true
             radius=6
@@ -516,7 +511,7 @@ fn Table(model: Model, rows: Vec<Vec<Vec<Block>>>) -> NodeId {
 #[component]
 fn Prose(text: String) -> NodeId {
     view! {
-        <Text string={text} font_size=FONT_BODY color={use_theme().text.clone()} wrap=true />
+        <Text string={text} font_size=FONT_BODY color={use_theme().text} wrap=true />
     }
 }
 
@@ -524,19 +519,8 @@ fn Prose(text: String) -> NodeId {
 fn CodeBlock(text: String) -> NodeId {
     let theme = use_theme();
     view! {
-        <Frame
-            color={theme.background.clone()}
-            radius=6
-            padding_horizontal=10.0
-            padding_vertical=8.0
-        >
-            <Text
-                string={text}
-                font_size=FONT_SMALL
-                color={theme.text.clone()}
-                monospace=true
-                wrap=true
-            />
+        <Frame color={theme.background} radius=6 padding_horizontal=10.0 padding_vertical=8.0>
+            <Text string={text} font_size=FONT_SMALL color={theme.text} monospace=true wrap=true />
         </Frame>
     }
 }
@@ -546,12 +530,12 @@ fn Quote(text: String) -> NodeId {
     let theme = use_theme();
     view! {
         <List direction=Direction::Horizontal spacing=10.0>
-            <Frame @sizing=ItemSize::Fixed(QUOTE_BAR) color={theme.border.clone()} />
+            <Frame @sizing=ItemSize::Fixed(QUOTE_BAR) color={theme.border} />
             <Text
                 @sizing=ItemSize::Percent(100.0)
                 string={text}
                 font_size=FONT_BODY
-                color={theme.text_muted.clone()}
+                color={theme.text_muted}
                 wrap=true
             />
         </List>
@@ -564,13 +548,13 @@ fn Item(text: String) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=BULLET_INDENT>
             <Frame padding_horizontal=BULLET_INDENT padding_vertical=7.0>
-                <Frame width=BULLET height=BULLET radius=3 color={theme.text_muted.clone()} />
+                <Frame width=BULLET height=BULLET radius=3 color={theme.text_muted} />
             </Frame>
             <Text
                 @sizing=ItemSize::Percent(100.0)
                 string={text}
                 font_size=FONT_BODY
-                color={theme.text.clone()}
+                color={theme.text}
                 wrap=true
             />
         </List>

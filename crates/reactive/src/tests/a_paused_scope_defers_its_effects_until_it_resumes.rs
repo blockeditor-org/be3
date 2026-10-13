@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn a_paused_scope_defers_its_effects_until_it_resumes() {
+    let _root = RootScope::new();
     let (count, set_count) = create_signal(0);
     let computed = Rc::new(Cell::new(0));
     let seen = Rc::new(RefCell::new(Vec::new()));

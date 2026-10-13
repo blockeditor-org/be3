@@ -51,7 +51,7 @@ pub(crate) fn HandBar(
     view! {
         <PlacementBuilder>
             {move |rect: ReadSignal<Rect>| {
-                let bar = rect.clone();
+                let bar = rect;
                 create_effect(move || set_bar.set(bar.get()));
                 let theme = use_theme();
                 let shown = create_memo(clone!(hand -> move || !hand.with(Vec::is_empty)));
@@ -64,8 +64,8 @@ pub(crate) fn HandBar(
                 view! {
                     <Frame
                         height={height}
-                        color={theme.surface.clone()}
-                        outline={theme.border.clone()}
+                        color={theme.surface}
+                        outline={theme.border}
                         outline_width=1.0
                         outline_visible=true
                         visible={shown}
@@ -77,10 +77,10 @@ pub(crate) fn HandBar(
                                     <HandItem
                                         id
                                         spot
-                                        hand={hand.clone()}
-                                        bar={rect.clone()}
+                                        hand={hand}
+                                        bar={rect}
                                         play={play.clone()}
-                                        hidden={hidden.clone()}
+                                        hidden={hidden}
                                     />
                                 }}
                             </ForEach>

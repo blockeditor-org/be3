@@ -1,5 +1,8 @@
 use std::cell::{Cell, RefCell};
+use std::marker::PhantomData;
 use std::rc::{Rc, Weak};
+
+use crate::arena::{self, Key};
 
 use crate::computation::{Computation, State};
 use crate::runtime::{RUNTIME, batch};
@@ -45,46 +48,92 @@ pub(crate) struct Value<T> {
 }
 
 pub struct ReadSignal<T> {
-    pub(crate) inner: Rc<Value<T>>,
+    key: Key,
+    ty: PhantomData<*const T>,
 }
 
 pub struct WriteSignal<T> {
-    inner: Rc<Value<T>>,
+    key: Key,
+    ty: PhantomData<*const T>,
 }
 
-pub fn create_signal<T>(value: T) -> (ReadSignal<T>, WriteSignal<T>) {
-    let inner = Rc::new(Value {
-        value: RefCell::new(value),
-        source: Rc::new(Source::default()),
-    });
+pub fn create_signal<T: 'static>(value: T) -> (ReadSignal<T>, WriteSignal<T>) {
+    handles(arena::insert_owned(Rc::new(Value::new(value))))
+}
+
+pub struct OwnedSignal<T: 'static> {
+    read: ReadSignal<T>,
+    write: WriteSignal<T>,
+}
+
+impl<T: 'static> OwnedSignal<T> {
+    pub fn new(value: T) -> Self {
+        let (read, write) = handles(arena::insert(Rc::new(Value::new(value))));
+        Self { read, write }
+    }
+
+    pub fn read(&self) -> ReadSignal<T> {
+        self.read
+    }
+
+    pub fn write(&self) -> WriteSignal<T> {
+        self.write
+    }
+}
+
+impl<T: 'static> Drop for OwnedSignal<T> {
+    fn drop(&mut self) {
+        arena::remove(self.read.key);
+    }
+}
+
+fn handles<T>(key: Key) -> (ReadSignal<T>, WriteSignal<T>) {
     (
         ReadSignal {
-            inner: inner.clone(),
+            key,
+            ty: PhantomData,
         },
-        WriteSignal { inner },
+        WriteSignal {
+            key,
+            ty: PhantomData,
+        },
     )
+}
+
+impl<T> Value<T> {
+    pub(crate) fn new(value: T) -> Self {
+        Self {
+            value: RefCell::new(value),
+            source: Rc::new(Source::default()),
+        }
+    }
+}
+
+fn stored<T: 'static>(key: Key) -> Rc<Value<T>> {
+    arena::get(key).expect("signal used after the scope that owns it was disposed")
 }
 
 impl<T> Clone for ReadSignal<T> {
     fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-        }
+        *self
     }
 }
+
+impl<T> Copy for ReadSignal<T> {}
 
 impl<T> Clone for WriteSignal<T> {
     fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-        }
+        *self
     }
 }
 
-impl<T> ReadSignal<T> {
+impl<T> Copy for WriteSignal<T> {}
+
+impl<T: 'static> ReadSignal<T> {
     pub fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R {
-        self.inner.source.track();
-        f(&self.inner.value.borrow())
+        let inner = stored::<T>(self.key);
+        inner.source.track();
+        f(&inner.value.borrow())
     }
 
     pub fn get(&self) -> T
@@ -98,41 +147,54 @@ impl<T> ReadSignal<T> {
     where
         T: Clone,
     {
-        self.inner.value.borrow().clone()
+        self.with_untracked(Clone::clone)
     }
 
     pub fn with_untracked<R>(&self, f: impl FnOnce(&T) -> R) -> R {
-        f(&self.inner.value.borrow())
+        f(&stored::<T>(self.key).value.borrow())
+    }
+
+    pub fn is_alive(&self) -> bool {
+        arena::get::<Value<T>>(self.key).is_some()
     }
 
     pub fn ptr_eq(&self, other: &Self) -> bool {
-        Rc::ptr_eq(&self.inner, &other.inner)
+        self.key == other.key
+    }
+
+    #[cfg(test)]
+    pub(crate) fn source(&self) -> Rc<Source> {
+        stored::<T>(self.key).source.clone()
     }
 }
 
-impl<T> WriteSignal<T> {
+impl<T: 'static> WriteSignal<T> {
     pub fn set(&self, value: T)
     where
         T: PartialEq,
     {
         assert_writable();
+        let Some(inner) = arena::get::<Value<T>>(self.key) else {
+            return;
+        };
         batch(|| {
-            let mut current = self.inner.value.borrow_mut();
+            let mut current = inner.value.borrow_mut();
             if *current != value {
                 *current = value;
                 drop(current);
-                self.inner.source.changed();
+                inner.source.changed();
             }
         });
     }
 
     pub fn update<R>(&self, f: impl FnOnce(&mut T) -> R) -> R {
         assert_writable();
+        let inner = stored::<T>(self.key);
         batch(|| {
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                f(&mut self.inner.value.borrow_mut())
+                f(&mut inner.value.borrow_mut())
             }));
-            self.inner.source.changed();
+            inner.source.changed();
             match result {
                 Ok(value) => value,
                 Err(error) => std::panic::resume_unwind(error),
@@ -141,7 +203,13 @@ impl<T> WriteSignal<T> {
     }
 
     pub fn set_unconditionally(&self, value: T) {
-        self.update(|current| *current = value);
+        if self.is_alive() {
+            self.update(|current| *current = value);
+        }
+    }
+
+    pub fn is_alive(&self) -> bool {
+        arena::get::<Value<T>>(self.key).is_some()
     }
 }
 

@@ -88,16 +88,16 @@ pub(crate) fn ArtifactBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info
         info.with(|info| info.as_ref().map(|info| info.item.id))
     }));
     let opened = Rc::clone(&workspace);
-    let open_source = source.clone();
-    let settings = block_command(&workspace, block.clone(), Command::Settings);
-    let regenerate = block_command(&workspace, block.clone(), Command::Regenerate);
+    let open_source = source;
+    let settings = block_command(&workspace, block, Command::Settings);
+    let regenerate = block_command(&workspace, block, Command::Regenerate);
     let unlink = block_command(&workspace, block, Command::Unlink);
     let theme = use_theme();
-    let heading_color = theme.text.clone();
+    let heading_color = theme.text;
     view! {
         <Frame
             visible={shown}
-            color={theme.surface.clone()}
+            color={theme.surface}
             padding_horizontal=PADDING_HORIZONTAL
             padding_vertical=PADDING_VERTICAL
         >
@@ -161,7 +161,7 @@ pub(crate) fn ArtifactBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info
                     />
                 </List>
                 <Show condition={failed}>
-                    <Caption content={failure.clone()} color={theme.danger.clone()} />
+                    <Caption content={failure} color={theme.danger} />
                 </Show>
             </List>
         </Frame>

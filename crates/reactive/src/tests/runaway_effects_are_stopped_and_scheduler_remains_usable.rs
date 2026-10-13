@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn runaway_effects_are_stopped_and_scheduler_remains_usable() {
+    let _root = RootScope::new();
     let scope = Scope::new();
     let (value, set_value) = create_signal(0);
     let effect = RefCell::new(None);

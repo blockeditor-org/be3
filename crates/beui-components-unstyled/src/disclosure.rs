@@ -32,12 +32,10 @@ pub fn Disclosure(
     let (open_read, set_open) = create_signal(open.peek());
     create_effect(clone!(set_open -> move || set_open.set(open.get())));
 
-    set_component_state(State {
-        open: open_read.clone(),
-    });
+    set_component_state(State { open: open_read });
 
-    let open_for_header = open_read.clone();
-    let open_for_click = open_read.clone();
+    let open_for_header = open_read;
+    let open_for_click = open_read;
     let accessibility = create_memo(clone!(open_read -> move || {
         let mut node = Node::new(Role::DisclosureTriangle);
         node.set_expanded(open_read.get());

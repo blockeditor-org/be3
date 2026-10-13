@@ -3,6 +3,7 @@ use crate::reactive::{List, Show, build, create_signal, view};
 
 #[test]
 fn showing_a_child_at_the_end_of_a_list_damages_only_that_child() {
+    let _root = crate::reactive::RootScope::new();
     let (shown, set_shown) = create_signal(false);
     let document = build(move || {
         view! {

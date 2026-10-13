@@ -54,7 +54,7 @@ pub fn Select(
             search_style={text_input_style()}
             scrollbar={scrollbar_style()}
             trigger={move |handle| view! {
-                <SelectTrigger handle placeholder={placeholder.clone()} />
+                <SelectTrigger handle placeholder={placeholder} />
             }}
             option={|handle| view! {
                 <SelectOption handle />
@@ -104,7 +104,7 @@ fn SelectTrigger(handle: SelectTriggerHandle, placeholder: Memo<String>) -> Node
     view! {
         <Frame
             max_width=TRIGGER_MAX_WIDTH
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
             outline_offset=FOCUS_RING_OFFSET
@@ -150,7 +150,7 @@ fn SearchField(handle: TextInputHandle) -> NodeId {
     view! {
         <Frame
             height=HEIGHT
-            color={theme.surface.clone()}
+            color={theme.surface}
             outline={border}
             outline_width=BORDER_WIDTH
             radius=RADIUS
@@ -180,12 +180,7 @@ fn SelectOption(handle: SelectOptionHandle) -> NodeId {
             padding_horizontal=PADDING_HORIZONTAL
             padding_vertical=OPTION_PADDING_VERTICAL
         >
-            <Text
-                string={label}
-                font_size=FONT_BODY
-                color={theme.text.clone()}
-                align=TextAlign::Start
-            />
+            <Text string={label} font_size=FONT_BODY color={theme.text} align=TextAlign::Start />
         </Frame>
     }
 }
@@ -196,8 +191,8 @@ fn SelectPopup(children: Child) -> NodeId {
     view! {
         <Frame
             width=POPUP_WIDTH
-            color={theme.surface_raised.clone()}
-            outline={theme.border.clone()}
+            color={theme.surface_raised}
+            outline={theme.border}
             outline_width=BORDER_WIDTH
             radius=RADIUS
             outline_visible=true

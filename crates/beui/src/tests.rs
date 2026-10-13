@@ -1469,10 +1469,12 @@ pub(crate) struct KeyedVirtualScroll {
     pub(crate) scroll: NodeId,
     pub(crate) list: NodeId,
     pub(crate) set_keys: crate::reactive::WriteSignal<Vec<usize>>,
+    _keys: crate::reactive::OwnedSignal<Vec<usize>>,
 }
 
 pub(crate) fn keyed_virtual_list(built: &Rc<RefCell<Vec<usize>>>) -> KeyedVirtualScroll {
-    let (keys, set_keys) = create_signal(indices(VIRTUAL_ITEM_COUNT));
+    let owned_keys = crate::reactive::OwnedSignal::new(indices(VIRTUAL_ITEM_COUNT));
+    let (keys, set_keys) = (owned_keys.read(), owned_keys.write());
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
     let sink = built.clone();
     let document = build({
@@ -1501,6 +1503,7 @@ pub(crate) fn keyed_virtual_list(built: &Rc<RefCell<Vec<usize>>>) -> KeyedVirtua
         scroll: scroll.get(),
         list: list.get(),
         set_keys,
+        _keys: owned_keys,
     }
 }
 
@@ -1981,13 +1984,13 @@ fn Rows(count: usize) -> DynamicSegment<ListChild> {
 use crate::styled::{Button, ButtonVariant, Launcher, LauncherItem};
 
 fn reopens_after(close: impl Fn(&mut Harness)) {
+    let _root = crate::reactive::RootScope::new();
     let (open, set_open) = create_signal(true);
     let heard = Rc::new(RefCell::new(Vec::<String>::new()));
     let (ran, closed) = (heard.clone(), heard.clone());
-    let closing = set_open.clone();
-    let reopening = set_open.clone();
+    let closing = set_open;
+    let reopening = set_open;
     let document = build({
-        let open = open.clone();
         move || {
             view! {
                 <List spacing=0.0>
@@ -2182,6 +2185,7 @@ pub(crate) struct DialogDock {
     pub(crate) keyed: Rc<RefCell<Vec<u64>>>,
     pub(crate) attended: Rc<RefCell<Vec<u64>>>,
     pub(crate) set_dialogs: crate::reactive::WriteSignal<Dialogs>,
+    _dialogs: crate::reactive::OwnedSignal<Dialogs>,
 }
 
 pub(crate) fn dialog_size(id: u64) -> Vec2 {
@@ -2198,11 +2202,12 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
     let keyed = Rc::new(RefCell::new(Vec::new()));
     let attended = Rc::new(RefCell::new(Vec::new()));
     let layout = unstyled::DockingLayout::new();
-    let (listed, set_dialogs) = create_signal(dialogs);
+    let owned_dialogs = crate::reactive::OwnedSignal::new(dialogs);
+    let (listed, set_dialogs) = (owned_dialogs.read(), owned_dialogs.write());
     let attending = Rc::clone(&attended);
     let (pressing, keying, laid) = (Rc::clone(&pressed), Rc::clone(&keyed), layout.clone());
     let document = build(move || {
-        let flags = listed.clone();
+        let flags = listed;
         let keys = crate::reactive::create_memo(move || {
             listed.with(|listed| {
                 listed
@@ -2241,7 +2246,7 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
                         let (pressed, keyed) =
                             (Rc::clone(&dialog_presses), Rc::clone(&dialog_keys));
                         let attended = Rc::clone(&dialog_attention);
-                        let flags = flags.clone();
+                        let flags = flags;
                         let modal = crate::reactive::create_memo(move || {
                             flags.with(|listed| listed.iter().any(|(held, _, modal)| *held == id && *modal))
                         });
@@ -2276,6 +2281,7 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
         keyed,
         attended,
         set_dialogs,
+        _dialogs: owned_dialogs,
     }
 }
 

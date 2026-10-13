@@ -202,7 +202,7 @@ fn WheelFace(handle: ColorWheelHandle, model: Model) -> NodeId {
     let ring_radius = (WHEEL_SIZE / 2.0) as u8 + 2;
     view! {
         <Frame
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=FOCUS_RING_WIDTH
             radius=ring_radius
             outline_offset=FOCUS_RING_OFFSET

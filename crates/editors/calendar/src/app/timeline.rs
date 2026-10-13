@@ -55,7 +55,7 @@ pub(crate) fn Timeline(
                     }}
                 </ForEach>
             </List>
-            <Frame height=RULE color={theme.border.clone()} radius=0 />
+            <Frame height=RULE color={theme.border} radius=0 />
             <Scroll @sizing=ItemSize::Percent(100.0)>
                 <Grid
                     first_day={first_day}
@@ -75,8 +75,8 @@ fn DayHeader(day: i64) -> NodeId {
     let label = format!("{} {number}", WEEKDAY_ABBR[weekday_from_days(day) as usize]);
     let theme = use_theme();
     let color = match day == today_days_since_epoch() {
-        true => theme.accent.clone(),
-        false => theme.text.clone(),
+        true => theme.accent,
+        false => theme.text,
     };
     view! {
         <Frame height=HEADER_HEIGHT>
@@ -101,7 +101,7 @@ fn Grid(
                 }));
                 let hours = create_memo(|| (0..=24u8).collect::<Vec<u8>>());
                 let rules = create_memo(move || (0..=days).collect::<Vec<usize>>());
-                let placed = placements(first_day.clone(), days, events, column_width.clone());
+                let placed = placements(first_day, days, events, column_width);
                 let keys = create_memo(clone!(placed -> move || {
                     placed.with(|placed| placed.iter().map(|item| item.key).collect::<Vec<_>>())
                 }));
@@ -116,17 +116,17 @@ fn Grid(
                     on_pick_slot.call((day, hour));
                 });
                 let theme = use_theme();
-                let hour_border = theme.border.clone();
-                let rule_border = theme.border.clone();
-                let rule_width = column_width.clone();
+                let hour_border = theme.border;
+                let rule_border = theme.border;
+                let rule_width = column_width;
                 view! {
                     <Frame height=CONTENT_HEIGHT>
                         <Interactive on_click_at={move |press| slot(press.local)}>
                             <Canvas>
-                                <ForEach keys={hours.clone()}>
+                                <ForEach keys={hours}>
                                     {move |hour: u8| {
                                         let top = f32::from(hour) * HOUR_HEIGHT;
-                                        let color = hour_border.clone();
+                                        let color = hour_border;
                                         view! {
                                             <CanvasItem x=0.0 y={top} width=10000.0 height=RULE>
                                                 <Frame color={color} radius=0 />
@@ -150,9 +150,9 @@ fn Grid(
                                 </ForEach>
                                 <ForEach keys={rules}>
                                     {move |index: usize| {
-                                        let width = rule_width.clone();
+                                        let width = rule_width;
                                         let x = create_memo(move || GUTTER + index as f32 * width.get());
-                                        let color = rule_border.clone();
+                                        let color = rule_border;
                                         view! {
                                             <CanvasItem
                                                 x={x}
@@ -167,7 +167,7 @@ fn Grid(
                                 </ForEach>
                                 <ForEach keys={keys}>
                                     {move |key: (ObjectId, i64)| {
-                                        let item = item_of(placed.clone(), key);
+                                        let item = item_of(placed, key);
                                         view! {
                                             <EventBlock
                                                 item={item}
@@ -205,9 +205,9 @@ fn EventBlock(item: Memo<Option<Placed>>, on_pick: Callback<Shown>) -> CanvasIte
     let theme = use_theme();
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
-            <Frame color={theme.accent.clone()} radius=3>
+            <Frame color={theme.accent} radius=3>
                 <ListRow @test_id={test_id} on_click={open.clone()} on_activate={open}>
-                    <Caption content={title} color={theme.on_accent.clone()} />
+                    <Caption content={title} color={theme.on_accent} />
                 </ListRow>
             </Frame>
         </CanvasItem>

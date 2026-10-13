@@ -37,8 +37,8 @@ struct ChromeLayout {
 
 impl ChromeLayout {
     fn offers_sheet(&self) -> Memo<bool> {
-        let narrow = self.narrow.clone();
-        let panels = self.panels.clone();
+        let narrow = self.narrow;
+        let panels = self.panels;
         create_memo(move || narrow.get() && !panels.get().is_empty())
     }
 }
@@ -83,9 +83,9 @@ pub(crate) fn ChromeRoot(
                 let (toolbars, set_toolbars) = create_signal(0usize);
                 let layout = ChromeLayout {
                     narrow,
-                    panels: panels.clone(),
+                    panels,
                     set_panels,
-                    open: open.clone(),
+                    open,
                     set_open,
                     set_toolbars,
                 };
@@ -97,15 +97,15 @@ pub(crate) fn ChromeRoot(
                     offers.get() && toolbars.get() == 0 && !phone.get()
                 }));
                 let listed = create_memo(clone!(offers phone -> move || offers.get() && phone.get()));
-                let opener = layout.set_open.clone();
+                let opener = layout.set_open;
                 let theme = use_theme();
-                let bar_color = theme.surface.clone();
+                let bar_color = theme.surface;
                 let extent = create_memo(clone!(size -> move || size.get().y));
-                let close = layout.set_open.clone();
+                let close = layout.set_open;
                 view! {
                     <List spacing=0.0>
                         <Show condition={bare}>
-                            <Frame color={bar_color.clone()}>
+                            <Frame color={bar_color}>
                                 <List spacing=0.0>
                                     <Frame
                                         padding_horizontal=BAND_PADDING_HORIZONTAL
@@ -121,15 +121,15 @@ pub(crate) fn ChromeRoot(
                         </Show>
                         <Show condition={listed}>
                             {move || view! {
-                                <PanelItem set_open={opener.clone()} />
+                                <PanelItem set_open={opener} />
                             }}
                         </Show>
                         {content} @sizing=ItemSize::Percent(100.0)
-                        <Show condition={sheet.clone()}>
+                        <Show condition={sheet}>
                             {move || clone!(panels close -> view! {
                                 <Sheet
-                                    extent={extent.clone()}
-                                    open={sheet.clone()}
+                                    extent={extent}
+                                    open={sheet}
                                     rest={SHEET_STOPS[0]}
                                     on_close={move || close.set(false)}
                                 >
@@ -219,20 +219,20 @@ fn SidebarFrame(side: Side, shown: Prop<bool>, width: Prop<f32>, children: Child
     let held = create_memo(clone!(docked -> move || docked.get().then_some(body)));
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <Frame visible={leading} width=BORDER_WIDTH color={theme.border.clone()} />
-            <Frame visible={docked} width={width} color={theme.surface.clone()}>
+            <Frame visible={leading} width=BORDER_WIDTH color={theme.border} />
+            <Frame visible={docked} width={width} color={theme.surface}>
                 <Scroll>
                     <Portal node={held} />
                 </Scroll>
             </Frame>
-            <Frame visible={trailing} width=BORDER_WIDTH color={theme.border.clone()} />
+            <Frame visible={trailing} width=BORDER_WIDTH color={theme.border} />
         </List>
     }
 }
 
 fn fold_into_sheet(layout: ChromeLayout, body: NodeId, folded: Memo<bool>) {
-    let panels = layout.panels.clone();
-    let set_panels = layout.set_panels.clone();
+    let panels = layout.panels;
+    let set_panels = layout.set_panels;
     create_effect(move || {
         let wanted = folded.get();
         let listed = untrack(|| panels.get().contains(&body));
@@ -278,7 +278,7 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
     let roomy = create_memo(clone!(narrow -> move || !narrow.get()));
     let offers = match use_context::<ChromeLayout>() {
         Some(layout) => {
-            count_toolbar(&layout, shown.clone());
+            count_toolbar(&layout, shown);
             let offers = layout.offers_sheet();
             create_memo(clone!(shown -> move || offers.get() && shown.get()))
         }
@@ -290,7 +290,7 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
     let spread = create_memo(clone!(roomy -> move || roomy.get().then_some(row)));
     let scrolled = create_memo(clone!(narrow -> move || narrow.get().then_some(row)));
     view! {
-        <Frame visible={shown} color={theme.surface.clone()}>
+        <Frame visible={shown} color={theme.surface}>
             <List spacing=0.0>
                 <Show condition={roomy}>
                     {move || clone!(fitted_toggle spread -> view! {
@@ -337,7 +337,7 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
 }
 
 fn count_toolbar(layout: &ChromeLayout, shown: Memo<bool>) {
-    let set_toolbars = layout.set_toolbars.clone();
+    let set_toolbars = layout.set_toolbars;
     let counted = std::rc::Rc::new(std::cell::Cell::new(false));
     create_effect(clone!(counted set_toolbars -> move || {
         let now = shown.get();

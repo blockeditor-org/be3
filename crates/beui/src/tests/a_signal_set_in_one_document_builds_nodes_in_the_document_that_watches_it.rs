@@ -3,6 +3,7 @@ use crate::reactive::{Button, List, NodeRef, Show, Text, build, create_signal, v
 
 #[test]
 fn a_signal_set_in_one_document_builds_nodes_in_the_document_that_watches_it() {
+    let _root = crate::reactive::RootScope::new();
     let (shown, set_shown) = create_signal(false);
     let press = NodeRef::new();
     let pressing = build({

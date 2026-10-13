@@ -80,13 +80,13 @@ pub fn Checklist(editor: Editor) -> NodeId {
     let clear_disabled = create_memo(clone!(done_count -> move || done_count.get() == 0));
 
     let submit_checklist = checklist.clone();
-    let submit_draft = set_draft.clone();
+    let submit_draft = set_draft;
     let add_checklist = checklist.clone();
-    let add_draft = draft.clone();
-    let add_set_draft = set_draft.clone();
+    let add_draft = draft;
+    let add_set_draft = set_draft;
     let clear_checklist = checklist.clone();
-    let set_open_filter = set_filter.clone();
-    let set_done_filter = set_filter.clone();
+    let set_open_filter = set_filter;
+    let set_done_filter = set_filter;
     let rows = clone!(checklist -> move |id: ObjectId| {
         view! {
             <ChecklistRow checklist={checklist.clone()} id />
@@ -96,7 +96,7 @@ pub fn Checklist(editor: Editor) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame
-            color={theme.background.clone()}
+            color={theme.background}
             padding_horizontal=PAGE_PADDING
             padding_vertical=PAGE_PADDING
         >
@@ -207,12 +207,7 @@ fn ChecklistRow(checklist: List, id: ObjectId) -> NodeId {
     let toggle = checklist.clone();
     let theme = use_theme();
     view! {
-        <Frame
-            color={theme.surface_raised.clone()}
-            radius=6
-            padding_horizontal=12.0
-            padding_vertical=10.0
-        >
+        <Frame color={theme.surface_raised} radius=6 padding_horizontal=12.0 padding_vertical=10.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                 <Checkbox
                     @sizing=ItemSize::Percent(100.0)

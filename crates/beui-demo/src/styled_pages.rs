@@ -259,7 +259,7 @@ fn EditCounter() -> NodeId {
     let (count, set_count) = create_signal(0u32);
     let counted = create_memo(clone!(count -> move || format!("{} edits", count.get())));
     let moved = create_memo(clone!(count -> move || count.get() > 0));
-    let editing = set_count.clone();
+    let editing = set_count;
     dock_actions(move || {
         view! {
             <IconButton
@@ -301,7 +301,7 @@ fn FullscreenTab() -> NodeId {
         false => "Show this tab fullscreen".to_owned(),
     }));
     let leaving = control.clone();
-    let escaping = shown.clone();
+    let escaping = shown;
     on_shortcut(move |press: beui::KeyPress| {
         let leave = press.pressed && press.key == beui::Key::Escape && escaping.get_untracked();
         if let Some(control) = leaving.as_ref().filter(|_| leave) {
@@ -385,7 +385,7 @@ fn IconsAndChips() -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
             <Icon glyph=ICON_STAR />
-            <IconSized glyph=ICON_PALETTE font_size=LARGE_ICON color={theme.accent.clone()} />
+            <IconSized glyph=ICON_PALETTE font_size=LARGE_ICON color={theme.accent} />
             <Chip label="Chip" />
             <Chip label="Another chip" />
         </List>
@@ -411,7 +411,7 @@ fn Shortcuts() -> NodeId {
 #[component]
 fn Links() -> NodeId {
     let (followed, set_followed) = create_signal("Nothing followed yet".to_owned());
-    let set_guide = set_followed.clone();
+    let set_guide = set_followed;
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=16.0 wrap=true>
@@ -495,9 +495,9 @@ fn FocusedTile() -> NodeId {
 #[component]
 fn ButtonVariants() -> NodeId {
     let (clicked, set_clicked) = create_signal("Nothing clicked yet".to_owned());
-    let primary = set_clicked.clone();
-    let secondary = set_clicked.clone();
-    let ghost = set_clicked.clone();
+    let primary = set_clicked;
+    let secondary = set_clicked;
+    let ghost = set_clicked;
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0 wrap=true>
@@ -533,8 +533,8 @@ fn ButtonVariants() -> NodeId {
 #[component]
 fn IconButtons() -> NodeId {
     let (clicked, set_clicked) = create_signal("Nothing clicked yet".to_owned());
-    let copy = set_clicked.clone();
-    let share = set_clicked.clone();
+    let copy = set_clicked;
+    let share = set_clicked;
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0 wrap=true>
@@ -718,12 +718,8 @@ fn LockedControls() -> NodeId {
     let (locked, set_locked) = create_signal(true);
     view! {
         <List spacing=SECTION_SPACING>
-            <LabelledSwitch
-                label="Locked"
-                on={locked.clone()}
-                on_change={move |on| set_locked.set(on)}
-            />
-            <TextInput value="Read only while locked" disabled={locked.clone()} />
+            <LabelledSwitch label="Locked" on={locked} on_change={move |on| set_locked.set(on)} />
+            <TextInput value="Read only while locked" disabled={locked} />
             <Select
                 options={view! {
                     <ChoiceOption label="String" />
@@ -731,9 +727,9 @@ fn LockedControls() -> NodeId {
                 }}
                 selected=Some(0)
                 label="Field type"
-                disabled={locked.clone()}
+                disabled={locked}
             />
-            <Checkbox label="Minimum" checked=false disabled={locked.clone()} />
+            <Checkbox label="Minimum" checked=false disabled={locked} />
             <Button label="Save" variant=ButtonVariant::Primary disabled={locked} />
         </List>
     }
@@ -746,7 +742,7 @@ fn LightSwitches() -> NodeId {
     let (hall, set_hall) = create_signal(false);
     let every = create_memo(clone!(kitchen hall -> move || kitchen.get() && hall.get()));
     let mixed = create_memo(clone!(kitchen hall -> move || kitchen.get() != hall.get()));
-    let (set_every_kitchen, set_every_hall) = (set_kitchen.clone(), set_hall.clone());
+    let (set_every_kitchen, set_every_hall) = (set_kitchen, set_hall);
     view! {
         <List spacing=8.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -1215,7 +1211,7 @@ fn GlobalActions() -> NodeId {
     .at(KeyAt::Window)
     .capture()
     .register();
-    let opening = set_open.clone();
+    let opening = set_open;
     let palette = Action::new("demo.palette", "Command palette", move || opening.set(true))
         .shortcut(Chord::logo(Key::P))
         .at(KeyAt::Window)
@@ -1333,10 +1329,10 @@ fn badge(color: Color32) -> Image {
 fn TrayIcons() -> NodeId {
     let (outcome, set_outcome) = create_signal("Nothing done yet".to_owned());
     let (opened, clicked, middled, scrolled, chose) = (
-        set_outcome.clone(),
-        set_outcome.clone(),
-        set_outcome.clone(),
-        set_outcome.clone(),
+        set_outcome,
+        set_outcome,
+        set_outcome,
+        set_outcome,
         set_outcome,
     );
     view! {
@@ -1389,7 +1385,7 @@ fn TrayIcons() -> NodeId {
 #[component]
 fn SortMenus() -> NodeId {
     let (sort_text, set_sort_text) = create_signal("Sorted by name".to_owned());
-    let more = set_sort_text.clone();
+    let more = set_sort_text;
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0 wrap=true>
@@ -1538,8 +1534,8 @@ fn CrashedEditor() -> NodeId {
 #[component]
 fn StaleBlock() -> NodeId {
     let (outcome, set_outcome) = create_signal("Saved by another build".to_owned());
-    let reset = set_outcome.clone();
-    let delete = set_outcome.clone();
+    let reset = set_outcome;
+    let delete = set_outcome;
     view! {
         <StaleNotice
             title={outcome}
@@ -1590,9 +1586,9 @@ fn FilterPopover(handle: PopoverHandle) -> NodeId {
 fn DiscardDialog() -> NodeId {
     let (dialog, set_dialog) = create_signal(false);
     let (outcome, set_outcome) = create_signal("Nothing discarded".to_owned());
-    let open_dialog = set_dialog.clone();
-    let dismiss_dialog = set_dialog.clone();
-    let keep = set_dialog.clone();
+    let open_dialog = set_dialog;
+    let dismiss_dialog = set_dialog;
+    let keep = set_dialog;
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -1644,8 +1640,8 @@ fn DiscardDialog() -> NodeId {
 fn KeepModeChange() -> NodeId {
     let (asking, set_asking) = create_signal(false);
     let (outcome, set_outcome) = create_signal("Showing 1920 × 1080 at 60 Hz".to_owned());
-    let (kept, reverted) = (set_asking.clone(), set_asking.clone());
-    let (keeping, reverting) = (set_outcome.clone(), set_outcome);
+    let (kept, reverted) = (set_asking, set_asking);
+    let (keeping, reverting) = (set_outcome, set_outcome);
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -1678,7 +1674,7 @@ fn KeepModeChange() -> NodeId {
 fn ScreenLock() -> NodeId {
     let (locked, set_locked) = create_signal(false);
     let (error, set_error) = create_signal(None::<String>);
-    let (unlocking, failing) = (set_locked.clone(), set_error.clone());
+    let (unlocking, failing) = (set_locked, set_error);
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -1787,9 +1783,9 @@ fn ProgramLauncher() -> NodeId {
             Some(Color32::from_rgb(90, 180, 110)),
         ),
     ]);
-    let (showing, closing, launching) = (set_launcher.clone(), set_launcher.clone(), set_launcher);
-    let ran = set_outcome.clone();
-    let shut = closing.clone();
+    let (showing, closing, launching) = (set_launcher, set_launcher, set_launcher);
+    let ran = set_outcome;
+    let shut = closing;
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -1824,8 +1820,8 @@ fn ProgramLauncher() -> NodeId {
 fn LongSheet() -> NodeId {
     let (sheet, set_sheet) = create_signal(false);
     let (picked, set_picked) = create_signal("Nothing picked".to_owned());
-    let open_sheet = set_sheet.clone();
-    let dismiss_sheet = set_sheet.clone();
+    let open_sheet = set_sheet;
+    let dismiss_sheet = set_sheet;
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -1844,7 +1840,7 @@ fn LongSheet() -> NodeId {
                 <List spacing=0.0>
                     <ForEach keys={(1..=60).collect::<Vec<usize>>()}>
                         {move |row: usize| {
-                            let (picked, closing) = (set_picked.clone(), set_sheet.clone());
+                            let (picked, closing) = (set_picked, set_sheet);
                             view! {
                                 <ActionRow
                                     label={format!("Row {row}")}
@@ -1926,18 +1922,18 @@ fn ToastArea() -> NodeId {
     ]);
     let (next, set_next) = create_signal(4);
     let (chosen, set_chosen) = create_signal(String::new());
-    let add = set_toasts.clone();
-    let notify = set_toasts.clone();
-    let dismiss = set_toasts.clone();
-    let act = set_toasts.clone();
-    let open = set_toasts.clone();
-    let (counted, set_counted) = (next.clone(), set_next.clone());
-    let opened = set_chosen.clone();
+    let add = set_toasts;
+    let notify = set_toasts;
+    let dismiss = set_toasts;
+    let act = set_toasts;
+    let open = set_toasts;
+    let (counted, set_counted) = (next, set_next);
+    let opened = set_chosen;
     view! {
         <Frame
             @node_ref=&area
             height=TOAST_AREA_HEIGHT
-            color={theme.surface.clone()}
+            color={theme.surface}
             radius=CARD_RADIUS
             padding_horizontal=12.0
             padding_vertical=12.0
@@ -1967,7 +1963,7 @@ fn ToastArea() -> NodeId {
                             notify.update(|toasts| toasts.push(message_toast(id)));
                         }}
                     />
-                    <Text string={chosen} font_size=14.0 color={theme.text_muted.clone()} />
+                    <Text string={chosen} font_size=14.0 color={theme.text_muted} />
                 </List>
                 <Toasts
                     anchor={area}
@@ -2028,12 +2024,12 @@ fn VolumeDisplay() -> NodeId {
             muted,
         })
     });
-    let show = set_shown.clone();
+    let show = set_shown;
     let step = move |by: f32| {
         set_volume.update(|volume| *volume = (*volume + by).clamp(0.0, 1.0));
         set_shown.update(|shown| *shown += 1);
     };
-    let (down, up) = (step.clone(), step);
+    let (down, up) = (step, step);
     view! {
         <List spacing=0.0>
             <List direction=Direction::Horizontal align=Align::Start spacing=8.0>
@@ -2068,8 +2064,8 @@ fn VolumeDisplay() -> NodeId {
 #[component]
 fn FullscreenButton() -> NodeId {
     let (fullscreen, set_fullscreen) = create_signal(false);
-    let open_fullscreen = set_fullscreen.clone();
-    let dismiss_fullscreen = set_fullscreen.clone();
+    let open_fullscreen = set_fullscreen;
+    let dismiss_fullscreen = set_fullscreen;
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -2092,7 +2088,7 @@ fn FullscreenBody(on_close: ClickCallback) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame
-            color={theme.background.clone()}
+            color={theme.background}
             padding_horizontal=PAGE_PADDING
             padding_vertical=PAGE_PADDING
         >
@@ -2162,7 +2158,7 @@ fn FittedScroll() -> NodeId {
     let theme = use_theme();
     let (count, set_count) = create_signal(FITTED_SCROLL_ROWS);
     let rows = create_memo(move || (0..count.get()).collect::<Vec<usize>>());
-    let adding = set_count.clone();
+    let adding = set_count;
     view! {
         <List spacing=SECTION_SPACING>
             <Caption
@@ -2182,12 +2178,7 @@ fn FittedScroll() -> NodeId {
                     on_click={move || set_count.update(|count| *count = count.saturating_sub(1))}
                 />
             </List>
-            <Frame
-                outline={theme.border.clone()}
-                outline_width=1.0
-                outline_visible=true
-                radius=RADIUS
-            >
+            <Frame outline={theme.border} outline_width=1.0 outline_visible=true radius=RADIUS>
                 <Scroll max_length=FITTED_SCROLL_HEIGHT>
                     <ForEach keys={rows}>
                         {move |index: usize| view! {
@@ -2212,8 +2203,8 @@ fn StripCard(index: usize) -> NodeId {
     view! {
         <Frame padding_horizontal=4.0 padding_vertical=0.0>
             <Frame
-                color={theme.surface_raised.clone()}
-                outline={theme.border.clone()}
+                color={theme.surface_raised}
+                outline={theme.border}
                 outline_width=1.0
                 outline_visible=true
                 radius=RADIUS
@@ -2257,14 +2248,14 @@ fn ThousandsOfRows() -> NodeId {
             <Scroll @sizing=ItemSize::Fixed(ROWS_HEIGHT)>
                 <VirtualList keys={(0..ROW_COUNT).collect::<Vec<usize>>()} item_size={row_height}>
                     {move |index: usize| {
-                        let set_selected = set_selected.clone();
-                        let set_status = set_status.clone();
+                        let set_selected = set_selected;
+                        let set_status = set_status;
                         view! {
                             <ScrollRow
                                 index
-                                selection={selection.clone()}
-                                timings={timings.clone()}
-                                compact={compact.clone()}
+                                selection={selection}
+                                timings={timings}
+                                compact={compact}
                                 on_click={move || {
                                     set_selected.set(Some(index));
                                     set_status.set(format!("Row {index} selected"));
@@ -2333,7 +2324,7 @@ fn ScrollRowFace(
     view! {
         <Frame
             color={fill_color}
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=2.0
             radius=RADIUS
             outline_visible={focus_ring(focused)}
@@ -2384,8 +2375,8 @@ fn ProjectTree() -> NodeId {
         Some(row) => format!("{} selected", TREE_NODES[row].0),
         None => "Nothing selected".to_owned(),
     }));
-    let expansion = collapsed.clone();
-    let reveal = set_collapsed.clone();
+    let expansion = collapsed;
+    let reveal = set_collapsed;
     view! {
         <List spacing=SECTION_SPACING>
             <Caption
@@ -2653,9 +2644,9 @@ pub(crate) fn CanvasPage() -> NodeId {
 #[component]
 fn ZoomableStage() -> NodeId {
     let (stage_view, set_stage_view) = create_signal(STAGE_VIEW);
-    let zoom_out = set_stage_view.clone();
-    let zoom_in = set_stage_view.clone();
-    let stage = set_stage_view.clone();
+    let zoom_out = set_stage_view;
+    let zoom_in = set_stage_view;
+    let stage = set_stage_view;
     let zoom_label = create_memo(clone!(stage_view -> move || {
         format!("{:.0}%", stage_view.get().scale * 100.0)
     }));
@@ -2731,15 +2722,15 @@ fn CanvasBoard(
     let theme = use_theme();
     view! {
         <Frame
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=2.0
             outline_visible={focus_ring(focused)}
             radius=RADIUS
         >
             <Canvas view>
-                <StageCard card=first scale={scale.clone()} />
-                <StageCard card=second scale={scale.clone()} />
-                <StageCard card=third scale={scale.clone()} />
+                <StageCard card=first scale={scale} />
+                <StageCard card=second scale={scale} />
+                <StageCard card=third scale={scale} />
                 <StageCard card=fourth scale />
             </Canvas>
         </Frame>
@@ -2756,15 +2747,15 @@ fn StageCard(card: (f32, f32, f32, f32, &'static str), scale: Memo<f32>) -> Canv
     view! {
         <CanvasItem x y width height>
             <Frame
-                color={theme.surface_raised.clone()}
-                outline={theme.border.clone()}
+                color={theme.surface_raised}
+                outline={theme.border}
                 outline_width=1.0
                 outline_visible=true
                 radius=CARD_RADIUS
-                padding_horizontal={padding.clone()}
+                padding_horizontal={padding}
                 padding_vertical={padding}
             >
-                <Text string={label.to_string()} font_size={font_size} color={theme.text.clone()} />
+                <Text string={label.to_string()} font_size={font_size} color={theme.text} />
             </Frame>
         </CanvasItem>
     }
@@ -2819,7 +2810,7 @@ fn ThemeSample(name: &'static str) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame
-            color={theme.background.clone()}
+            color={theme.background}
             radius=CARD_RADIUS
             padding_horizontal=ROW_SPACING
             padding_vertical=ROW_SPACING

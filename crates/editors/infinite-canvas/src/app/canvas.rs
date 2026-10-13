@@ -43,18 +43,18 @@ pub(crate) fn CanvasStage(state: Rc<CanvasState>) -> NodeId {
                         .map(|entity| entity.id)
                         .collect::<Vec<Uuid>>()
                 }));
-                let embeds = ids.clone();
+                let embeds = ids;
                 let surface = Rc::clone(&state);
                 let shapes = Rc::clone(&state);
                 let children = Rc::clone(&state);
                 let over = Rc::clone(&state);
-                let shape_camera = camera.clone();
-                let overlay_camera = camera.clone();
-                let overlay_stage = placed.clone();
+                let shape_camera = camera;
+                let overlay_camera = camera;
+                let overlay_stage = placed;
                 let backdrop = Rc::clone(&state);
-                let backdrop_camera = camera.clone();
-                let backdrop_stage = placed.clone();
-                let placement = camera.clone();
+                let backdrop_camera = camera;
+                let backdrop_stage = placed;
+                let placement = camera;
                 let previewing = state.previewing();
                 view! {
                     <CanvasMenu disabled={previewing}>
@@ -66,14 +66,14 @@ pub(crate) fn CanvasStage(state: Rc<CanvasState>) -> NodeId {
                                 <Show condition={!previewing}>
                                     <CanvasBackdrop
                                         state={backdrop.clone()}
-                                        camera={backdrop_camera.clone()}
-                                        stage={backdrop_stage.clone()}
+                                        camera={backdrop_camera}
+                                        stage={backdrop_stage}
                                     />
                                 </Show>
                                 <ForEach keys={ids}>
                                     {move |id: Uuid| {
                                         let state = Rc::clone(&shapes);
-                                        let camera = shape_camera.clone();
+                                        let camera = shape_camera;
                                         view! {
                                             <EntityShape state id camera />
                                         }
@@ -90,8 +90,8 @@ pub(crate) fn CanvasStage(state: Rc<CanvasState>) -> NodeId {
                                 <Show condition={!previewing}>
                                     <CanvasOverlay
                                         state={over.clone()}
-                                        camera={overlay_camera.clone()}
-                                        stage={overlay_stage.clone()}
+                                        camera={overlay_camera}
+                                        stage={overlay_stage}
                                     />
                                 </Show>
                             </Canvas>

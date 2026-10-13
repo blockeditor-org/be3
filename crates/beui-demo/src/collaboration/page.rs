@@ -183,8 +183,8 @@ fn ConcurrentEditing() -> NodeId {
         false => ICON_PAUSE.to_owned(),
     }));
     let send: Send = pump.clone();
-    let switched = paused.clone();
-    let runs_pressed = runs.clone();
+    let switched = paused;
+    let runs_pressed = runs;
     let narrow = narrower_than(COLUMNS_BREAKPOINT);
 
     view! {
@@ -203,7 +203,7 @@ fn ConcurrentEditing() -> NodeId {
                     @test_id="demo.collaboration.pause"
                     label="Network"
                     glyph={network}
-                    pressed={switched.clone()}
+                    pressed={switched}
                     on_change={move |on: bool| set_paused.set(on)}
                 />
                 <ToggleButton
@@ -220,16 +220,16 @@ fn ConcurrentEditing() -> NodeId {
                 label="Latency"
                 on_change={move |value| set_latency.set(value)}
             />
-            <unstyled::Stack spacing=ROW_SPACING narrow={narrow.clone()}>
+            <unstyled::Stack spacing=ROW_SPACING narrow={narrow}>
                 <EditorPane
                     @sizing=ItemSize::Percent(50.0)
                     id="demo.collaboration.left"
                     title="Left, the owner"
                     state={left}
                     remote={left_remote}
-                    runs={runs.clone()}
+                    runs={runs}
                 />
-                <SendButtons send={send.clone()} flight={flight.clone()} paused narrow />
+                <SendButtons send={send.clone()} flight={flight} paused narrow />
                 <EditorPane
                     @sizing=ItemSize::Percent(50.0)
                     id="demo.collaboration.right"
@@ -265,7 +265,6 @@ fn SendButtons(
         false => Direction::Vertical,
     }));
     let arrows = |wide: [&'static str; 4], stacked: [&'static str; 4]| {
-        let narrow = narrow.clone();
         (0..4)
             .map(|index| {
                 create_memo(clone!(narrow -> move || match narrow.get() {
@@ -308,30 +307,30 @@ fn SendButtons(
         <List direction align=Align::Center spacing=ROW_SPACING>
             <IconButton
                 @test_id="demo.collaboration.all_right"
-                glyph={glyphs[0].clone()}
+                glyph={glyphs[0]}
                 label="Send every edit from the left"
-                disabled={from_left.clone()}
+                disabled={from_left}
                 on_click={press(Side::Left, Amount::All)}
             />
             <IconButton
                 @test_id="demo.collaboration.one_right"
-                glyph={glyphs[1].clone()}
+                glyph={glyphs[1]}
                 label="Send one edit from the left"
-                disabled={from_left.clone()}
+                disabled={from_left}
                 on_click={press(Side::Left, Amount::One)}
             />
             <IconButton
                 @test_id="demo.collaboration.one_left"
-                glyph={glyphs[2].clone()}
+                glyph={glyphs[2]}
                 label="Send one edit from the right"
-                disabled={from_right.clone()}
+                disabled={from_right}
                 on_click={press(Side::Right, Amount::One)}
             />
             <IconButton
                 @test_id="demo.collaboration.all_left"
-                glyph={glyphs[3].clone()}
+                glyph={glyphs[3]}
                 label="Send every edit from the right"
-                disabled={from_right.clone()}
+                disabled={from_right}
                 on_click={press(Side::Right, Amount::All)}
             />
         </List>

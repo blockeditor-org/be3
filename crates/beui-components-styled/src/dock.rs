@@ -67,7 +67,7 @@ where
         DockMode::Stacked => 0.0,
     }));
     let theme = use_theme();
-    let backdrop = theme.background.clone();
+    let backdrop = theme.background;
     let fill = create_memo(clone!(mode -> move || match mode.get() {
         DockMode::Tiled => Color32::TRANSPARENT,
         DockMode::Stacked => theme.background.get(),
@@ -84,10 +84,10 @@ where
             menu={menu_style()}
             children
             frame={move |body: NodeId| view! {
-                <Frame color={fill.clone()}>{body}</Frame>
+                <Frame color={fill}>{body}</Frame>
             }}
             fullscreen={move |body: NodeId| view! {
-                <Frame color={backdrop.clone()}>{body}</Frame>
+                <Frame color={backdrop}>{body}</Frame>
             }}
             stack={move |handle: DockStackHandle| view! {
                 <DockStackBar handle />
@@ -195,13 +195,13 @@ fn DockTabChrome(
         true => theme.text.get(),
         false => theme.text_muted.get(),
     }));
-    let glyph = label.clone();
+    let glyph = label;
     let shows_picture =
         create_memo(clone!(picture -> move || !grouped && picture.with(Option::is_some)));
     let pictured = create_memo(clone!(icon shows_picture -> move || {
         !grouped && !shows_picture.get() && !icon.get().is_empty()
     }));
-    let icon_color = label.clone();
+    let icon_color = label;
     let title_size = match vertical {
         true => ItemSize::Percent(100.0),
         false => ItemSize::Intrinsic,
@@ -212,24 +212,20 @@ fn DockTabChrome(
             radius=RADIUS
             height=TAB_HEIGHT
             padding_horizontal=TAB_PADDING_HORIZONTAL
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=FOCUS_RING_WIDTH
             outline_offset=1.0
             outline_visible={focus_ring(focused)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                 <Show condition={grouped}>
-                    <IconSized glyph=ICON_TAB_GROUP font_size=GROUP_GLYPH color={glyph.clone()} />
+                    <IconSized glyph=ICON_TAB_GROUP font_size=GROUP_GLYPH color={glyph} />
                 </Show>
                 <Show condition={pictured}>
-                    <IconSized
-                        glyph={icon.clone()}
-                        font_size=GROUP_GLYPH
-                        color={icon_color.clone()}
-                    />
+                    <IconSized glyph={icon} font_size=GROUP_GLYPH color={icon_color} />
                 </Show>
                 <Show condition={shows_picture}>
-                    <TabPicture picture={picture.clone()} />
+                    <TabPicture picture={picture} />
                 </Show>
                 <Text
                     string={title}
@@ -284,7 +280,7 @@ fn DockChromeFace(handle: DockChromeHandle) -> NodeId {
     };
     view! {
         <Frame
-            color={theme.background.clone()}
+            color={theme.background}
             outline={outline}
             outline_width=CHROME_BORDER
             outline_visible=barred
@@ -324,7 +320,7 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
     view! {
         <Frame
             width
-            color={theme.background.clone()}
+            color={theme.background}
             outline={outline}
             outline_width=CHROME_BORDER
             outline_visible=true
@@ -334,22 +330,22 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
         >
             <List spacing=0.0>
                 <Frame
-                    color={theme.surface.clone()}
+                    color={theme.surface}
                     height=TAB_HEIGHT
                     padding_horizontal=TAB_PADDING_HORIZONTAL
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                         <Show condition={pictured}>
                             <IconSized
-                                glyph={icon.clone()}
+                                glyph={icon}
                                 font_size=GROUP_GLYPH
-                                color={theme.text_muted.clone()}
+                                color={theme.text_muted}
                             />
                         </Show>
                         <Text
                             string={title}
                             font_size=FONT_BODY
-                            color={theme.text.clone()}
+                            color={theme.text}
                             clip=true
                             @sizing=ItemSize::Percent(100.0)
                         />
@@ -409,7 +405,7 @@ fn DockTitleBar(
     close: ClickCallback,
 ) -> NodeId {
     let titled = tabs.is_none();
-    let fill = bar_fill(vacant.clone());
+    let fill = bar_fill(vacant);
     let rule = bar_rule(vacant);
     view! {
         <List spacing=0.0>
@@ -442,7 +438,7 @@ fn DockSideBar(
     close: ClickCallback,
 ) -> NodeId {
     let titled = tabs.is_none();
-    let fill = bar_fill(vacant.clone());
+    let fill = bar_fill(vacant);
     let rule = bar_rule(vacant);
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
@@ -494,7 +490,7 @@ pub(crate) fn DockMenu(
                     glyph=ICON_MORE_VERT
                     size
                     items={view! {
-                        <ForEach keys={keys.clone()}>
+                        <ForEach keys={keys}>
                             {move |key: u64| {
                                 let item = menu.with_untracked(|items| {
                                     items.iter().find(|action| action.key() == key).cloned()
@@ -566,7 +562,7 @@ fn DockSplitterFace(handle: DockSplitterHandle) -> NodeId {
     view! {
         <Frame
             color={fill}
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=FOCUS_RING_WIDTH
             outline_visible={focus_ring(focused)}
         />
@@ -581,7 +577,7 @@ fn DockDropHighlight() -> NodeId {
         <Frame
             @test_id={"dock.drop"}
             color={fill}
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=FOCUS_RING_WIDTH
             outline_visible=true
             radius=RADIUS
@@ -596,11 +592,11 @@ fn DockDragPreview(title: Prop<String>, icon: Memo<String>, grouped: bool) -> No
         clone!(theme -> move || translucent(theme.surface_raised.get(), PREVIEW_ALPHA)),
     );
     let pictured = create_memo(clone!(icon -> move || !grouped && !icon.get().is_empty()));
-    let pictured_color = theme.text.clone();
+    let pictured_color = theme.text;
     view! {
         <Frame
             color={fill}
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=FOCUS_RING_WIDTH
             outline_visible=true
             radius=RADIUS
@@ -609,18 +605,10 @@ fn DockDragPreview(title: Prop<String>, icon: Memo<String>, grouped: bool) -> No
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                 <Show condition={grouped}>
-                    <IconSized
-                        glyph=ICON_TAB_GROUP
-                        font_size=GROUP_GLYPH
-                        color={theme.text.clone()}
-                    />
+                    <IconSized glyph=ICON_TAB_GROUP font_size=GROUP_GLYPH color={theme.text} />
                 </Show>
                 <Show condition={pictured}>
-                    <IconSized
-                        glyph={icon.clone()}
-                        font_size=GROUP_GLYPH
-                        color={pictured_color.clone()}
-                    />
+                    <IconSized glyph={icon} font_size=GROUP_GLYPH color={pictured_color} />
                 </Show>
                 <Body content={title} />
             </List>

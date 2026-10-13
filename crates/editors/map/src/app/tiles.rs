@@ -73,7 +73,7 @@ fn magnified(id: TileId, ancestor: TileId) -> Rect {
 }
 
 fn drawn(state: Rc<MapState>, tile: TileId) -> Memo<Option<(Image, Option<Rect>)>> {
-    let revision = state.revision.clone();
+    let revision = state.revision;
     create_memo(move || {
         let _ = revision.get();
         let tiles = state.tiles();

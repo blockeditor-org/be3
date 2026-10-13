@@ -28,7 +28,7 @@ pub(crate) fn LargeEmbed(state: Shared, embed: ResolvedEmbed) -> NodeId {
     };
     let target = ChildTarget::new(embed.id, embed.block_type);
     let (child, set_child) = create_signal(ChildState::default());
-    let focused_embed = state.focused_embed.clone();
+    let focused_embed = state.focused_embed;
     let focused = create_memo(clone!(focused_embed -> move || focused_embed.get() == Some(key)));
     let mode = create_memo(clone!(child focused -> move || {
         match (focused.get(), child.get().interaction) {
@@ -49,17 +49,17 @@ pub(crate) fn LargeEmbed(state: Shared, embed: ResolvedEmbed) -> NodeId {
 
     let report = state.clone();
     let edit_state = state.clone();
-    let icon_theme = theme.clone();
+    let icon_theme = theme;
     let icon_row = move || {
-        let color = icon_theme.text.clone();
+        let color = icon_theme.text;
         let glyph = icon.clone();
         view! {
             <Icon glyph={glyph} color={color} />
         }
     };
-    let unavailable_theme = theme.clone();
+    let unavailable_theme = theme;
     let unavailable_row = move || {
-        let color = unavailable_theme.text_muted.clone();
+        let color = unavailable_theme.text_muted;
         view! {
             <Text
                 string="Block unavailable"
@@ -71,8 +71,8 @@ pub(crate) fn LargeEmbed(state: Shared, embed: ResolvedEmbed) -> NodeId {
     };
     view! {
         <Frame
-            color={theme.surface.clone()}
-            outline={theme.border.clone()}
+            color={theme.surface}
+            outline={theme.border}
             outline_width=1.0
             outline_visible=true
             radius=FRAME_RADIUS
@@ -82,7 +82,7 @@ pub(crate) fn LargeEmbed(state: Shared, embed: ResolvedEmbed) -> NodeId {
             <List spacing=EMBEDDED_EDITOR_TITLE_GAP>
                 <Frame
                     height=EMBEDDED_EDITOR_TITLE_HEIGHT
-                    color={theme.surface_raised.clone()}
+                    color={theme.surface_raised}
                     radius=TITLE_RADIUS
                     padding_horizontal=TITLE_PADDING
                 >
@@ -93,7 +93,7 @@ pub(crate) fn LargeEmbed(state: Shared, embed: ResolvedEmbed) -> NodeId {
                             string={label}
                             font_size=TITLE_FONT_SIZE
                             italic={automatic}
-                            color={theme.text.clone()}
+                            color={theme.text}
                             clip=true
                         />
                         <Show condition={editable}>
@@ -118,7 +118,7 @@ pub(crate) fn LargeEmbed(state: Shared, embed: ResolvedEmbed) -> NodeId {
                             @sizing=ItemSize::Percent(100.0)
                             editor={report.editor.clone()}
                             block={Some(target)}
-                            mode={mode.clone()}
+                            mode={mode}
                             on_state={clone!(report -> move |next: ChildState| {
                                 set_child.set(next.clone());
                                 report.embed_children.borrow_mut().insert(key, next.clone());

@@ -69,9 +69,9 @@ pub fn LockScreen(
     view! {
         <Overlay
             anchor={anchor}
-            open={open.clone()}
+            open={open}
             placement=Placement::At
-            scrim={theme.background.clone()}
+            scrim={theme.background}
             level=LayerLevel::Lock
         >
             <Frame width={width} height={height}>
@@ -91,17 +91,17 @@ pub fn LockScreen(
                             }));
                             let submit = submit.clone();
                             let action = on_action.clone();
-                            let changed = set_password.clone();
+                            let changed = set_password;
                             let card = view! {
                                 <LockCard
                                     place={place}
-                                    time={time.clone()}
-                                    date={date.clone()}
-                                    user={user.clone()}
-                                    error={error.clone()}
-                                    busy={busy.clone()}
-                                    actions={actions.clone()}
-                                    password={password.clone()}
+                                    time={time}
+                                    date={date}
+                                    user={user}
+                                    error={error}
+                                    busy={busy}
+                                    actions={actions}
+                                    password={password}
                                     focused={focused}
                                     id={format!("{}.{index}", id)}
                                     on_change={move |typed: String| changed.set(typed)}
@@ -169,7 +169,7 @@ fn LockCard(
                 <List spacing=GROUP_SPACING align=Align::Center>
                     <List spacing=SPACING align=Align::Center>
                         <Display content={time} />
-                        <Body content={date} color={theme.text_muted.clone()} />
+                        <Body content={date} color={theme.text_muted} />
                     </List>
                     <List spacing=SPACING align=Align::Center>
                         <Title content={user} />
@@ -179,7 +179,7 @@ fn LockCard(
                                 placeholder="Password"
                                 label="Password"
                                 password=true
-                                disabled={busy.clone()}
+                                disabled={busy}
                                 focused={focused}
                                 @test_id={format!("{id}.password")}
                                 on_change={move |typed: String| on_change.call(typed)}
@@ -191,8 +191,8 @@ fn LockCard(
                         </Show>
                         <Show condition={failed}>
                             <Caption
-                                content={reason.clone()}
-                                color={theme.danger.clone()}
+                                content={reason}
+                                color={theme.danger}
                                 @test_id={error_id.clone()}
                             />
                         </Show>

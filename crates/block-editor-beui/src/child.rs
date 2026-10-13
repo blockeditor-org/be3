@@ -133,7 +133,7 @@ fn SubregionView(
         layer.into_prop(),
         own_frame,
         top_bar,
-        turn.clone().into_prop(),
+        turn.into_prop(),
         opacity,
         intrinsic,
         on_state,

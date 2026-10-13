@@ -75,15 +75,15 @@ pub(crate) fn LinkedBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>
     }));
     let nowhere = create_memo(|| None);
     let original_block = Rc::clone(&workspace);
-    let original_info = info.clone();
+    let original_info = info;
     let unlinking = Rc::clone(&workspace);
-    let unlinking_info = info.clone();
+    let unlinking_info = info;
     let theme = use_theme();
-    let heading_color = theme.text.clone();
+    let heading_color = theme.text;
     view! {
         <Frame
             visible={shown}
-            color={theme.surface.clone()}
+            color={theme.surface}
             padding_horizontal=PADDING_HORIZONTAL
             padding_vertical=PADDING_VERTICAL
         >

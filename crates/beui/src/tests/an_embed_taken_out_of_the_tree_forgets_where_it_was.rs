@@ -3,6 +3,7 @@ use crate::reactive::{Dynamic, Embed, EmbedSlot, Frame, create_signal, view, wit
 
 #[test]
 fn an_embed_taken_out_of_the_tree_forgets_where_it_was() {
+    let _root = crate::reactive::RootScope::new();
     let slot = EmbedSlot::new();
     let held = slot.clone();
     let (shown, set_shown) = create_signal(true);

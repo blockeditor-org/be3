@@ -201,10 +201,10 @@ pub fn NumberInput(
             set_refocus.set(false);
         }
     };
-    let tab_stop = off.clone().into_prop().map(|off: bool| !off);
+    let tab_stop = off.into_prop().map(|off: bool| !off);
 
     let face = face.call(NumberFaceHandle {
-        text: text.clone(),
+        text,
         hovered,
         active,
         focused,
@@ -212,7 +212,7 @@ pub fn NumberInput(
     });
     let field = field.call(NumberFieldHandle {
         text,
-        editing: editing.clone(),
+        editing,
         on_change: Callback::new(edited),
         on_submit: Callback::new(submitted),
         on_focus_change: Callback::new(focus_changed),
@@ -220,7 +220,7 @@ pub fn NumberInput(
     set_component_state(Parts {
         face,
         field,
-        editing: editing.clone(),
+        editing,
     });
     view! {
         <List spacing=0.0>
@@ -230,7 +230,7 @@ pub fn NumberInput(
                     tab_stop
                     focused={refocus}
                     on_focus_change={button_focus}
-                    on_activate={open.clone()}
+                    on_activate={open}
                     cursor={cursor}
                     capture_presses=true
                     on_press={pressed}

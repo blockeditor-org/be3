@@ -88,7 +88,7 @@ pub fn AudioView(editor: Editor) -> NodeId {
     let panel = editor.clone();
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <List direction=Direction::Horizontal spacing=0.0>
                 <Frame
                     @sizing=ItemSize::Percent(100.0)
@@ -100,7 +100,7 @@ pub fn AudioView(editor: Editor) -> NodeId {
                         <IconSized
                             glyph={ICON_AUDIO_FILE.to_owned()}
                             font_size=ICON_SIZE
-                            color={theme.text.clone()}
+                            color={theme.text}
                         />
                         <Body content={source} align=TextAlign::Center />
                         <IconButton
@@ -117,9 +117,9 @@ pub fn AudioView(editor: Editor) -> NodeId {
                         />
                         <Show condition={failed}>
                             <Caption
-                                content={reason.clone()}
+                                content={reason}
                                 align=TextAlign::Center
-                                color={theme.danger.clone()}
+                                color={theme.danger}
                             />
                         </Show>
                     </List>
@@ -164,7 +164,7 @@ fn AudioPanel(editor: Editor) -> NodeId {
                 on_click={replace}
             />
             <Show condition={failed}>
-                <Caption content={reason.clone()} color={theme.danger.clone()} />
+                <Caption content={reason} color={theme.danger} />
             </Show>
         </List>
     }

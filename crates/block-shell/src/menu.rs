@@ -178,8 +178,8 @@ pub(crate) fn ReferenceMenuItem(
             false => "Delete".to_owned(),
         }
     }));
-    let parent_disabled = edit.clone();
-    let share_disabled = edit.clone();
+    let parent_disabled = edit;
+    let share_disabled = edit;
     view! {
         <MenuItem label={label}>
             <MenuItem label="Open" />

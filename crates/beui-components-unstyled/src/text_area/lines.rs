@@ -46,7 +46,7 @@ pub(super) fn Lines(cx: Context) -> NodeId {
     let canvas = cx.state.canvas();
     let fill = create_memo(clone!(cx -> move || Some(cx.view_height.get())));
     let list = cx.list.clone();
-    let keys = cx.visible.clone();
+    let keys = cx.visible;
     let top = create_memo(clone!(cx -> move || Some(cx.padding.get().y)));
     let bottom =
         create_memo(clone!(cx -> move || Some((DOCUMENT_PADDING.y - cx.padding.get().y).max(0.0))));
@@ -96,15 +96,10 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
     }));
     let text_width = create_memo(clone!(text -> move || text.get().x + CARET_WIDTH));
     let text_height = create_memo(clone!(text -> move || text.get().y));
-    let (text_cx, text_model) = (cx.clone(), model.clone());
+    let (text_cx, text_model) = (cx.clone(), model);
     view! {
         <Canvas @node_ref=&canvas width={canvas_width} height={canvas_height}>
-            <CanvasItem
-                x={x.clone()}
-                y={y.clone()}
-                width={text_width.clone()}
-                height={text_height.clone()}
-            >
+            <CanvasItem x={x} y={y} width={text_width} height={text_height}>
                 <AreaText cx={text_cx} model={text_model} />
             </CanvasItem>
             <CanvasItem x y width={text_width} height={text_height} clip=false>
@@ -133,7 +128,7 @@ fn AreaRow(cx: Context, line: usize) -> NodeId {
     let row = NodeRef::new();
     let text = GeometryCell::default();
     register_row(&cx, line, &row, &text, &block_ref, &model);
-    let (gutter_cx, gutter_model) = (cx.clone(), model.clone());
+    let (gutter_cx, gutter_model) = (cx.clone(), model);
     view! {
         <Frame @node_ref=&row>
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
@@ -193,7 +188,7 @@ fn register_row(
             id,
             row: row.clone(),
             geometry: geometry.clone(),
-            model: model.clone(),
+            model: *model,
             block: block.clone(),
         },
     );
@@ -380,7 +375,7 @@ fn RowText(
     let color = create_memo(clone!(cx -> move || cx.colors.get().syntax.markdown_plain_text));
     let font_size = create_memo(clone!(cx -> move || cx.font_size.get()));
     let item_cx = cx.clone();
-    let item_model = model.clone();
+    let item_model = model;
     let anchor = cx.anchor;
     let anchor_position = create_memo(clone!(anchor_at -> move || anchor_at.get()));
     let anchor_node = create_memo(clone!(anchored -> move || anchored.get().then_some(anchor)));
@@ -396,7 +391,7 @@ fn RowText(
         >
             <ForEach keys={keys}>
                 {move |(key, _): (PieceKey, usize)| {
-                    row_piece(item_cx.clone(), item_model.clone(), layer, key)
+                    row_piece(item_cx.clone(), item_model, layer, key)
                 }}
             </ForEach>
             <Show condition={anchored}>
@@ -521,22 +516,22 @@ fn InlineView(cx: Context, model: Memo<Rc<Row>>, index: usize) -> NodeId {
     );
     let widget = create_memo(clone!(checkbox run -> move || !checkbox.get() && !run.get()));
     let (checkbox_cx, widget_cx, run_cx) = (cx.clone(), cx.clone(), cx);
-    let (checkbox_item, widget_item, run_item) = (item.clone(), item.clone(), item);
+    let (checkbox_item, widget_item, run_item) = (item, item, item);
     view! {
         <List spacing=0.0>
             <Show condition={checkbox}>
                 {move || view! {
-                    <InlineCheckbox cx={checkbox_cx.clone()} item={checkbox_item.clone()} />
+                    <InlineCheckbox cx={checkbox_cx.clone()} item={checkbox_item} />
                 }}
             </Show>
             <Show condition={widget}>
                 {move || view! {
-                    <WidgetPill cx={widget_cx.clone()} item={widget_item.clone()} />
+                    <WidgetPill cx={widget_cx.clone()} item={widget_item} />
                 }}
             </Show>
             <Show condition={run}>
                 {move || view! {
-                    <RunChip cx={run_cx.clone()} item={run_item.clone()} />
+                    <RunChip cx={run_cx.clone()} item={run_item} />
                 }}
             </Show>
         </List>
@@ -586,7 +581,7 @@ fn InlineCheckbox(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
                 position,
             )));
     });
-    let disabled = cx.disabled.clone();
+    let disabled = cx.disabled;
     if let Some(render) = &cx.checkbox {
         return render.call(TextCheckbox {
             checked,
@@ -701,7 +696,7 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     let pill = NodeRef::new();
     let overlay_anchor = pill.clone();
     let popup_cx = cx.clone();
-    let popup_index = index.clone();
+    let popup_index = index;
     view! {
         <Frame
             @node_ref=&pill
@@ -713,7 +708,7 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
                 <Show condition={has_icon}>
                     {move || {
-                        let icon = icon.clone();
+                        let icon = icon;
                         view! {
                             <Frame width={INLINE_WIDGET_ICON_INSET * 2.0}>
                                 <Text
@@ -801,7 +796,7 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
     view! {
         <Frame padding_left=GUTTER_PADDING_LEFT padding_right=GUTTER_PADDING_RIGHT>
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
-                <Frame width=GUTTER_ARROW_SIZE height={height.clone()}>
+                <Frame width=GUTTER_ARROW_SIZE height={height}>
                     <Text
                         string={arrow}
                         icon=true

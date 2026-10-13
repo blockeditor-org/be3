@@ -906,7 +906,7 @@ pub fn ModalSheet(
     let (gone, set_gone) = create_signal(true);
     let (presence, set_presence) = create_signal(0.0_f32);
     let opened = open.clone();
-    let appearing = set_gone.clone();
+    let appearing = set_gone;
     create_effect(move || {
         if opened.get() {
             appearing.set(false);

@@ -569,7 +569,7 @@ fn TabFrame(block: Uuid, top_bar: Prop<TopBar>) -> NodeId {
         crate::host::request_repaint();
     }));
     provide_context(TabContext {
-        stack: stack.clone(),
+        stack,
         top_bar: top_bar.clone(),
         portals: set_portals,
         exit,
@@ -1315,7 +1315,7 @@ fn HostedChild(
                     <ForEach keys={keys}>
                         {move |(id, kind): (Uuid, Kind)| {
                             let reporter = reporter_for(parent, region, key);
-                            let child = child.clone();
+                            let child = child;
                             match kind {
                                 Kind::Missing | Kind::Unavailable => view! {
                                     <Frame />
@@ -1561,7 +1561,7 @@ fn BlockPreview(block: Uuid, rotation: Prop<f32>, opacity: Prop<f32>) -> NodeId 
     view! {
         <Layers>
             <Show condition={fallback}>
-                <HostItemFace content={label.clone()} />
+                <HostItemFace content={label} />
             </Show>
             <ForEach keys={keys}>
                 {move |_key: RegionKey| {

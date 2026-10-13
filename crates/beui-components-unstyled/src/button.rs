@@ -79,9 +79,9 @@ pub fn Button(
     let content_node = match content {
         Some(build) => Some(build.call(ButtonHandle {
             hovered,
-            active: active.clone(),
-            focused: focused.clone(),
-            disabled: disabled.clone(),
+            active,
+            focused,
+            disabled,
             label,
             glyph,
             tooltip,
@@ -90,7 +90,6 @@ pub fn Button(
     };
 
     let click = {
-        let disabled = disabled.clone();
         move || {
             if untrack(|| disabled.get()) {
                 return;
@@ -103,7 +102,6 @@ pub fn Button(
     };
     let key_click = click.clone();
     let click_at = {
-        let disabled = disabled.clone();
         move |press: PointerPress| {
             if untrack(|| disabled.get()) {
                 return;
@@ -113,10 +111,7 @@ pub fn Button(
     };
     let tab_stop = tab_stop.map(move |tab_stop| tab_stop && !disabled.get());
 
-    set_component_state(State {
-        active: active.clone(),
-        focused: focused.clone(),
-    });
+    set_component_state(State { active, focused });
 
     view! {
         <Interactive
@@ -147,9 +142,9 @@ pub fn Button(
 }
 
 pub fn button_active(document: &Document, button: NodeId) -> ReadSignal<bool> {
-    document.component_state::<State>(button).active.clone()
+    document.component_state::<State>(button).active
 }
 
 pub fn button_focused(document: &Document, button: NodeId) -> ReadSignal<bool> {
-    document.component_state::<State>(button).focused.clone()
+    document.component_state::<State>(button).focused
 }

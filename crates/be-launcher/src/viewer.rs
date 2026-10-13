@@ -70,12 +70,8 @@ pub(crate) fn ImageViewer(model: Model) -> NodeId {
         true
     });
     view! {
-        <Fullscreen open={open.clone()} on_dismiss={dismiss}>
-            <Frame
-                color={theme.background.clone()}
-                padding_horizontal=PADDING
-                padding_vertical=PADDING
-            >
+        <Fullscreen open={open} on_dismiss={dismiss}>
+            <Frame color={theme.background} padding_horizontal=PADDING padding_vertical=PADDING>
                 <List spacing=PADDING>
                     <ViewerBar
                         position
@@ -176,20 +172,20 @@ fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
                     }
                 });
                 let zoom_out = move || set_actual.set(false);
-                let whole = picture.clone();
+                let whole = picture;
                 view! {
                     <List spacing=8.0>
                         <Show condition={fitted}>
                             {move || clone!(shrunk whole -> view! {
                                 <Interactive
                                     @sizing=ItemSize::Percent(100.0)
-                                    cursor={cursor.clone()}
-                                    on_click={zoom_in.clone()}
+                                    cursor={cursor}
+                                    on_click={zoom_in}
                                 >
                                     <Picture
                                         image={whole}
                                         fit=ImageFit::ScaleDown
-                                        smooth={shrunk.clone()}
+                                        smooth={shrunk}
                                     />
                                 </Interactive>
                             })}

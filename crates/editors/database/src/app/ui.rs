@@ -23,8 +23,8 @@ const CHROME_HEIGHT: f32 = 90.0;
 pub fn DatabaseEditor(editor: Editor) -> NodeId {
     let database = editor.block_content::<DatabaseContent>();
     let views = watch_views(&editor);
-    let loaded = views.loaded.clone();
-    let rows = views.rows.clone();
+    let loaded = views.loaded;
+    let rows = views.rows;
     let reference = database.project(|database| database.root().schema);
     let schema = create_memo(move || reference.get());
 
@@ -52,7 +52,7 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
     let links = editor.clone();
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <List direction=Direction::Horizontal spacing=0.0>
                 <Frame
                     @sizing=ItemSize::Percent(100.0)

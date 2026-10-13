@@ -72,9 +72,9 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
             },
         );
     };
-    let adopt_blocked = blocked.clone();
-    let fork_blocked = blocked.clone();
-    let push_blocked = pull_blocked.clone();
+    let adopt_blocked = blocked;
+    let fork_blocked = blocked;
+    let push_blocked = pull_blocked;
     let upstream_editor = editor.clone();
     let forking = editor.clone();
     let pulling = editor.clone();
@@ -82,7 +82,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
     let checking_out = editor.clone();
     let rows = clone!(blocked -> move |(name, head): (String, String)| {
         let editor = checking_out.clone();
-        let blocked = blocked.clone();
+        let blocked = blocked;
         view! {
             <BranchRow editor blocked name head />
         }
@@ -90,18 +90,14 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
 
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()} padding_horizontal=PADDING padding_vertical=PADDING>
+        <Frame color={theme.background} padding_horizontal=PADDING padding_vertical=PADDING>
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <List spacing=SECTION_SPACING>
                         <List spacing=6.0>
                             <Heading content="Repository" />
                             <Show condition={has_note}>
-                                <Caption
-                                    content={note.clone()}
-                                    wrap=true
-                                    @test_id={"repository.note"}
-                                />
+                                <Caption content={note} wrap=true @test_id={"repository.note"} />
                             </Show>
                         </List>
                         <Show condition={unversioned}>
@@ -140,7 +136,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                                 <Show condition={has_upstream}>
                                     <BlockLink
                                         editor={upstream_editor.clone()}
-                                        block={upstream_target.clone()}
+                                        block={upstream_target}
                                         @test_id={"repository.upstream"}
                                     />
                                 </Show>

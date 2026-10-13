@@ -41,7 +41,7 @@ pub fn DisplaySettingsView(editor: Editor) -> NodeId {
     let none = create_memo(clone!(displays -> move || displays.with(Vec::is_empty)));
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <Scroll>
                 <Frame padding_horizontal=PADDING padding_vertical=PADDING>
                     <List spacing=SECTION_SPACING>
@@ -56,13 +56,13 @@ pub fn DisplaySettingsView(editor: Editor) -> NodeId {
                         </List>
                         <ScreenOffSection
                             settings={settings.clone()}
-                            merged={merged.clone()}
-                            read_only={read_only.clone()}
+                            merged={merged}
+                            read_only={read_only}
                         />
                         <ForEach keys={ids}>
                             {move |id: String| {
-                                let (settings, root, merged) = (settings.clone(), root.clone(), merged.clone());
-                                let (displays, read_only) = (displays.clone(), read_only.clone());
+                                let (settings, root, merged) = (settings.clone(), root, merged);
+                                let (displays, read_only) = (displays, read_only);
                                 view! {
                                     <DisplaySection
                                         id={id}
@@ -138,9 +138,9 @@ fn DisplaySection(
         settings.operate(DisplaySettings::set_mode(&id, mode.map(saved)));
     }));
     let (sized, rated, reset) = (set.clone(), set.clone(), set);
-    let (size_off, rate_off) = (read_only.clone(), read_only.clone());
-    let picked_size = size_list.clone();
-    let picked_rate = rate_list.clone();
+    let (size_off, rate_off) = (read_only, read_only);
+    let picked_size = size_list;
+    let picked_rate = rate_list;
     view! {
         <List spacing=ROW_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=COLUMN_SPACING>
@@ -217,7 +217,7 @@ fn ScreenOffSection(
         LOCK_AFTER.iter().position(|offered| *offered == chosen)
     });
     let locking = settings.clone();
-    let lock_off = read_only.clone();
+    let lock_off = read_only;
     view! {
         <List spacing=ROW_SPACING>
             <Caption content="Turn off screens after" />

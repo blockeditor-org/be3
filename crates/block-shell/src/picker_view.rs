@@ -33,7 +33,7 @@ type Act = Rc<dyn Fn(PickAction)>;
 
 #[component]
 pub fn PickerDialogs(workspace: Rc<Workspace>) -> NodeId {
-    let picks = workspace.picks.clone();
+    let picks = workspace.picks;
     let ids = create_memo(move || {
         picks.with(|picks| picks.iter().map(|held| held.pick).collect::<Vec<_>>())
     });
@@ -56,16 +56,16 @@ fn PickerDialog(workspace: Rc<Workspace>, pick: u64) -> NodeId {
     let held = create_memo(clone!(workspace -> move || workspace.pick(pick)));
     let acting = Rc::clone(&workspace);
     let act: Act = Rc::new(move |action: PickAction| acting.pick_action(pick, action));
-    let phone = workspace.phone.clone();
+    let phone = workspace.phone;
     let phone = create_memo(move || phone.get());
     let error = create_memo(clone!(held -> move || held.get().and_then(|held| held.error)));
     view! {
         <List spacing=0.0>
             <ChooseDialog
                 workspace={Rc::clone(&workspace)}
-                held={held.clone()}
+                held={held}
                 act={Rc::clone(&act)}
-                phone={phone.clone()}
+                phone={phone}
             />
             <CreateDialog workspace pick held act={Rc::clone(&act)} phone />
             <PickerError error act />
@@ -94,7 +94,7 @@ fn ChooseDialog(
     });
     let (dismiss, close, sheet_close) = (Rc::clone(&act), Rc::clone(&act), Rc::clone(&act));
     let sheet_workspace = Rc::clone(&workspace);
-    let sheet_held = held.clone();
+    let sheet_held = held;
     let sheet_act = Rc::clone(&act);
     view! {
         <List spacing=0.0>
@@ -220,11 +220,11 @@ fn ChooseBody(workspace: Rc<Workspace>, held: Memo<Option<Pick>>, act: Act, phon
                             <PickerArea @sizing=ItemSize::Percent(100.0) scrolls={!phone}>
                                 <List spacing=16.0>
                                     <Show condition={no_sections}>
-                                        <Caption content={tab_empty.clone()} />
+                                        <Caption content={tab_empty} />
                                     </Show>
                                     <ForEach keys={section_keys}>
                                         {move |key: String| {
-                                            let sections = sections.clone();
+                                            let sections = sections;
                                             let section = create_memo(move || {
                                                 sections.get().into_iter().find(|section| section.key == key)
                                             });
@@ -240,10 +240,10 @@ fn ChooseBody(workspace: Rc<Workspace>, held: Memo<Option<Pick>>, act: Act, phon
                             </PickerArea>
                         })}
                     </Show>
-                    <Show condition={linking.clone()}>
+                    <Show condition={linking}>
                         {move || clone!(search_act -> view! {
                             <TextInput
-                                value={search.clone()}
+                                value={search}
                                 placeholder="Search by name or UUID"
                                 label="Search"
                                 @test_id={"picker.search"}
@@ -256,11 +256,11 @@ fn ChooseBody(workspace: Rc<Workspace>, held: Memo<Option<Pick>>, act: Act, phon
                             <PickerArea @sizing=ItemSize::Percent(100.0) scrolls={!phone}>
                                 <List spacing=0.0>
                                     <Show condition={no_links}>
-                                        <Caption content={empty.clone()} />
+                                        <Caption content={empty} />
                                     </Show>
                                     <ForEach keys={link_keys}>
                                         {move |block: Uuid| {
-                                            let links = links.clone();
+                                            let links = links;
                                             let link = create_memo(move || {
                                                 links.get().into_iter().find(|link| link.id == block)
                                             });
@@ -339,7 +339,7 @@ fn PlacingFields(workspace: Rc<Workspace>, held: Memo<Option<Pick>>, act: Act) -
                                     view! {
                                         <PlaceButton
                                             act={Rc::clone(&act)}
-                                            chosen={chosen.clone()}
+                                            chosen={chosen}
                                             parent
                                             place
                                         />
@@ -406,14 +406,14 @@ fn TileSectionView(act: Act, section: Memo<Option<TileSection>>) -> NodeId {
         <List spacing=8.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                 <Show condition={has_glyph}>
-                    <Icon glyph={glyph.clone()} text_size=18.0 />
+                    <Icon glyph={glyph} text_size=18.0 />
                 </Show>
                 <Heading content={title} />
             </List>
             <List direction=Direction::Horizontal spacing=8.0 wrap=true>
                 <ForEach keys={keys}>
                     {move |key: String| {
-                        let tiles = tiles.clone();
+                        let tiles = tiles;
                         let tile = create_memo(clone!(key -> move || {
                             tiles.get().into_iter().find(|tile| tile_key(tile) == key)
                         }));
@@ -465,7 +465,7 @@ fn TileFace(handle: ButtonHandle, label: Memo<String>, glyph: Memo<String>) -> N
             width=TILE_WIDTH
             height=TILE_HEIGHT
             color={fill}
-            outline={theme.border.clone()}
+            outline={theme.border}
             outline_width=1.0
             outline_visible=true
             radius=5
@@ -479,7 +479,7 @@ fn TileFace(handle: ButtonHandle, label: Memo<String>, glyph: Memo<String>) -> N
                 <Text
                     string={label}
                     font_size=13.0
-                    color={theme.text.clone()}
+                    color={theme.text}
                     align=TextAlign::Center
                     wrap=true
                     underline={focused}
@@ -538,7 +538,7 @@ fn CreateDialog(
     let body = Rc::clone(&workspace);
     view! {
         <List spacing=0.0>
-            <CreationChild workspace pick creating={creating.clone()} />
+            <CreationChild workspace pick creating={creating} />
             <CreateFrames cancel open phone title>
                 <CreateBody workspace={body} pick act creating />
             </CreateFrames>
@@ -590,7 +590,7 @@ fn CreateFrames(
     let in_dialog = create_memo(clone!(wide -> move || wide.get().then_some(children)));
     let in_sheet = create_memo(clone!(narrow -> move || narrow.get().then_some(children)));
     let dismiss = Rc::clone(&cancel);
-    let sheet_title = title.clone();
+    let sheet_title = title;
     view! {
         <List spacing=0.0>
             <Dialog
@@ -717,7 +717,7 @@ fn PickerError(error: Memo<Option<String>>, act: Act) -> NodeId {
             on_dismiss={move || dismiss(PickAction::DismissError)}
         >
             <List spacing=10.0>
-                <Caption content={text} color={theme.danger.clone()} />
+                <Caption content={text} color={theme.danger} />
                 <Button
                     label="Dismiss"
                     variant=ButtonVariant::Secondary

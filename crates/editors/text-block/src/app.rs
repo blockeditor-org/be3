@@ -51,7 +51,7 @@ pub fn TextEditor(editor: Editor) -> NodeId {
     intrinsic_size(&state);
     let formats = format_actions(&state);
 
-    let hex = state.hex_view.clone();
+    let hex = state.hex_view;
     let text_shown = create_memo(clone!(hex -> move || !hex.get()));
     let hex_shown = create_memo(clone!(hex -> move || hex.get()));
     let surface_state = state.clone();
@@ -88,8 +88,8 @@ fn intrinsic_size(state: &Shared) {
         }
     });
     let content = state.text.content();
-    let hex = state.hex_view.clone();
-    let embeds = state.embeds.clone();
+    let hex = state.hex_view;
+    let embeds = state.embeds;
     let measured = create_memo(clone!(state content hex width embeds -> move || {
         content.get();
         let width = width.get();

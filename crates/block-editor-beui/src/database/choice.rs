@@ -103,7 +103,7 @@ pub fn ChoiceMark(
     let dotted = create_memo(clone!(glyph -> move || glyph.with(String::is_empty)));
     let iconic = create_memo(clone!(dotted -> move || !dotted.get()));
     let dot = size * 0.5;
-    let dot_color = color.clone();
+    let dot_color = color;
     view! {
         <Frame width=size height=size>
             <Layers>

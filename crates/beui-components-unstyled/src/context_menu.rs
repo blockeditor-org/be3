@@ -42,12 +42,8 @@ pub fn ContextMenu(
         content: content.clone(),
     });
 
-    let (requested, requested_touch, requested_position, requested_focusing) = (
-        set_open.clone(),
-        set_touched.clone(),
-        set_position.clone(),
-        set_focusing.clone(),
-    );
+    let (requested, requested_touch, requested_position, requested_focusing) =
+        (set_open, set_touched, set_position, set_focusing);
     create_effect(move || {
         let Some(at) = open_at.get() else {
             return;
@@ -57,12 +53,8 @@ pub fn ContextMenu(
         requested_focusing.set(open_at_focuses);
         requested.set(true);
     });
-    let (pointed, pointed_touch, pointed_position, pointed_focusing) = (
-        set_open.clone(),
-        set_touched.clone(),
-        set_position.clone(),
-        set_focusing.clone(),
-    );
+    let (pointed, pointed_touch, pointed_position, pointed_focusing) =
+        (set_open, set_touched, set_position, set_focusing);
     let mut pointer_opened = false;
     create_effect(move || {
         if !open_at_pointer.get() {

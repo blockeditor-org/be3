@@ -102,7 +102,7 @@ impl Folder {
     }
 
     pub(crate) fn entries(&self) -> Memo<Vec<Entry>> {
-        self.entries.clone()
+        self.entries
     }
 
     pub(crate) fn accepts(&self, block_id: Uuid, folder: Uuid) -> bool {

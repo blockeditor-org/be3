@@ -28,7 +28,7 @@ pub(super) fn ErrorText(text: Memo<Option<String>>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                <Paragraph content={content.clone()} color={theme.danger.clone()} />
+                <Paragraph content={content} color={theme.danger} />
             </Show>
         </List>
     }
@@ -50,7 +50,7 @@ pub(super) fn Column(children: beui::reactive::Children<beui::reactive::ListChil
 #[component]
 pub(super) fn ErrorScreen(view: AppViewStore) -> NodeId {
     let message = create_memo(clone!(view -> move || view.error.get().message));
-    let copied = message.clone();
+    let copied = message;
     let pending = create_memo(clone!(view -> move || view.error.get().pending));
     let asking = create_memo(clone!(pending -> move || pending.get().is_some()));
     let title = create_memo(clone!(pending -> move || match pending.get() {
@@ -156,14 +156,14 @@ pub(super) fn AccountsScreen(view: AppViewStore) -> NodeId {
             false => view.account_error.get(),
         }
     }));
-    let accounts = view.accounts.clone();
+    let accounts = view.accounts;
     view! {
         <Column>
             <Title content="Block Editor" />
             <Caption content="Choose an account to continue." />
             <ForEach keys={keys}>
                 {move |key: String| {
-                    let accounts = accounts.clone();
+                    let accounts = accounts;
                     let account = create_memo(move || {
                         accounts
                             .get()
@@ -203,8 +203,8 @@ fn AccountCard(account: Memo<AccountRow>) -> NodeId {
             false => "Choose a workspace".to_owned(),
         }
     }));
-    let log_out = key.clone();
-    let open = key.clone();
+    let log_out = key;
+    let open = key;
     let choose = key;
     view! {
         <Card>
@@ -324,7 +324,7 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
             password: password.get_untracked(),
         }));
     });
-    let submit_on_enter = submit.clone();
+    let submit_on_enter = submit;
     view! {
         <Dialog
             open={open}
@@ -345,7 +345,7 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
                 <Show condition={platform::HAS_EMBEDDED_SERVER}>
                     {move || clone!(set_remote -> view! {
                         <Tabs
-                            selected={remote_index.clone()}
+                            selected={remote_index}
                             on_change={move |index: usize| set_remote.set(index == 1)}
                             options={view! {
                                 <ChoiceOption label="Local" />
@@ -358,7 +358,7 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
                     {move || clone!(remote_url set_remote_url authorization set_authorization -> view! {
                         <List spacing=10.0>
                             <TextInput
-                                value={remote_url.clone()}
+                                value={remote_url}
                                 placeholder="https://example.com"
                                 label="Server address"
                                 on_change={move |value: String| set_remote_url.set(value)}
@@ -406,7 +406,7 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
                 />
                 <ErrorText text={error} />
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Show condition={pending.clone()}>
+                    <Show condition={pending}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Spinner />
                             <Caption content="Contacting server…" />
@@ -458,9 +458,9 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
     let created = create_memo(clone!(workspaces -> move || workspaces.get().created));
     let account = create_memo(clone!(view -> move || view.account.get()));
     let name = create_memo(clone!(account -> move || account.get().name));
-    let rows = workspaces.clone();
+    let rows = workspaces;
     let invitations = workspaces;
-    let (reload_busy, row_busy) = (busy.clone(), busy.clone());
+    let (reload_busy, row_busy) = (busy, busy);
     view! {
         <Column>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -499,7 +499,7 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
             <Heading content="Open a workspace" />
             <ForEach keys={keys}>
                 {move |id: Uuid| {
-                    let rows = rows.clone();
+                    let rows = rows;
                     let label = create_memo(move || {
                         rows.get()
                             .workspaces
@@ -541,7 +541,7 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
             </Show>
             <ForEach keys={invitation_keys}>
                 {move |id: Uuid| {
-                    let invitations = invitations.clone();
+                    let invitations = invitations;
                     let row = create_memo(move || {
                         invitations
                             .get()
@@ -557,7 +557,7 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
                             .map(|row| format!("Invited as {}", row.role))
                             .unwrap_or_default()
                     });
-                    let busy = row_busy.clone();
+                    let busy = row_busy;
                     view! {
                         <Card>
                             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -568,7 +568,7 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
                                 <Button
                                     label="Accept"
                                     variant=ButtonVariant::Primary
-                                    disabled={busy.clone()}
+                                    disabled={busy}
                                     on_click={move || send(UiCommand::RespondInvitation(id, true))}
                                 />
                                 <Button
@@ -592,7 +592,7 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
 
 #[component]
 pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
-    let status = view.status.clone();
+    let status = view.status;
     let session_keys = create_memo(clone!(status -> move || {
         status
             .get()
@@ -618,11 +618,11 @@ pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
         format!("New {} session", session_type_name(session_type.get()))
     }));
     let new_type = session_type;
-    let (sessions, profiles) = (status.clone(), status);
+    let (sessions, profiles) = (status, status);
     view! {
         <Column>
             <Title content={title} />
-            <Show condition={loading.clone()}>
+            <Show condition={loading}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Spinner />
                     <Caption content="Loading sessions and profiles…" />
@@ -661,7 +661,7 @@ pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
                 label="New settings profile"
                 glyph={ICON_ADD.to_owned()}
                 variant=ButtonVariant::Ghost
-                disabled={loading.clone()}
+                disabled={loading}
                 @test_id={"sessions.new-profile"}
                 on_click={|| send(UiCommand::NewProfile)}
             />
@@ -679,7 +679,7 @@ pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
             />
             <ForEach keys={session_keys}>
                 {move |id: Uuid| {
-                    let sessions = sessions.clone();
+                    let sessions = sessions;
                     let label = create_memo(move || {
                         sessions.get()
                             .sessions
@@ -784,7 +784,7 @@ fn CreateWorkspace(busy: Memo<bool>, created: Memo<u64>) -> NodeId {
             send(UiCommand::CreateWorkspace(name.get_untracked()));
         }
     });
-    let submit = create.clone();
+    let submit = create;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
             <TextInput
@@ -807,7 +807,7 @@ fn CreateWorkspace(busy: Memo<bool>, created: Memo<u64>) -> NodeId {
 
 #[component]
 fn ReauthDialog(view: AppViewStore) -> NodeId {
-    let reauth = view.reauth.clone();
+    let reauth = view.reauth;
     let open = create_memo(clone!(reauth -> move || reauth.get().is_some()));
     let busy =
         create_memo(clone!(reauth -> move || reauth.get().is_some_and(|reauth| reauth.busy)));
@@ -832,7 +832,7 @@ fn ReauthDialog(view: AppViewStore) -> NodeId {
             send(UiCommand::ReauthSubmit(password.get_untracked()));
         }
     });
-    let submit_on_enter = submit.clone();
+    let submit_on_enter = submit;
     view! {
         <Dialog
             open={open}
@@ -852,7 +852,7 @@ fn ReauthDialog(view: AppViewStore) -> NodeId {
                 />
                 <ErrorText text={error} />
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Show condition={busy.clone()}>
+                    <Show condition={busy}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Spinner />
                             <Caption content="Signing in…" />

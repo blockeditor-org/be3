@@ -52,12 +52,12 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
     let theme = use_theme();
     let header_color = create_memo(clone!(theme -> move || header_fill(&theme, hovered.get())));
     let marker_glyph = create_memo(move || glyph(open.get()).to_owned());
-    let marker_color = theme.text_muted.clone();
-    let title_color = theme.text.clone();
+    let marker_color = theme.text_muted;
+    let title_color = theme.text;
     view! {
         <Frame
             color={header_color}
-            outline={theme.accent.clone()}
+            outline={theme.accent}
             outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
             outline_offset=2.0

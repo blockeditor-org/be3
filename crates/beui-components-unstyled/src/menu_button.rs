@@ -63,7 +63,7 @@ pub fn MenuButton(
             @node_ref=&button
             label
             glyph
-            disabled={disabled.clone()}
+            disabled={disabled}
             accessibility={accessibility}
             on_press={clone!(set_touched -> move |press: PointerPress| set_touched.set(press.touch))}
             on_click={clone!(set_open -> move || {
@@ -74,14 +74,14 @@ pub fn MenuButton(
             })}
             content={Render::new(clone!(open -> move |handle: unstyled::ButtonHandle| {
                 trigger.call(MenuButtonHandle {
-                    open: open.clone(),
+                    open,
                     button: handle,
                 })
             }))}
         />
     };
     if on_secondary_click.is_some() || !matches!(secondary_opens, Prop::Static(false)) {
-        let (disabled, set_open) = (disabled.clone(), set_open.clone());
+        let (disabled, set_open) = (disabled, set_open);
         let on_secondary_click = on_secondary_click.unwrap_or_default();
         trigger_node = view! {
             <Interactive
@@ -103,7 +103,6 @@ pub fn MenuButton(
         };
     }
     if let Some(on_middle_click) = on_middle_click {
-        let disabled = disabled.clone();
         trigger_node = view! {
             <Interactive
                 on_middle_click={move || {

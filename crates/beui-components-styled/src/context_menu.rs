@@ -124,7 +124,7 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
     let has_glyph = create_memo(clone!(glyph -> move || !glyph.get().is_empty()));
     let detail = create_memo(move || detail.get());
     let has_detail = create_memo(clone!(detail -> move || !detail.get().is_empty()));
-    let chevron_color = theme.text_muted.clone();
+    let chevron_color = theme.text_muted;
     let fill_color =
         create_memo(clone!(theme -> move || row_background(&theme, focused.get(), hovered.get())));
     view! {
@@ -140,11 +140,7 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=SUBMENU_SPACING>
                     <Show condition={has_glyph}>
-                        <IconSized
-                            glyph={glyph.clone()}
-                            font_size=ROW_ICON_SIZE
-                            color={icon_color.clone()}
-                        />
+                        <IconSized glyph={glyph} font_size=ROW_ICON_SIZE color={icon_color} />
                     </Show>
                     <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
                         <Text
@@ -156,9 +152,9 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
                         />
                         <Show condition={has_detail}>
                             <Text
-                                string={detail.clone()}
+                                string={detail}
                                 font_size=FONT_SMALL
-                                color={theme.text_muted.clone()}
+                                color={theme.text_muted}
                                 align=TextAlign::Start
                                 ellipsis=true
                             />
@@ -236,8 +232,8 @@ fn MenuPanel(children: Child) -> NodeId {
     view! {
         <Frame
             width=MENU_WIDTH
-            color={theme.surface_raised.clone()}
-            outline={theme.border.clone()}
+            color={theme.surface_raised}
+            outline={theme.border}
             outline_width=BORDER_WIDTH
             radius=RADIUS
             outline_visible=true

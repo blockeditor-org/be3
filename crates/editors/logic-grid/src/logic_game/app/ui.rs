@@ -67,7 +67,7 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
     editor.content(&content);
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <Frame @node_ref={&content} padding_horizontal=PADDING padding_vertical=PADDING>
                 <List spacing=ROW_SPACING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
@@ -86,7 +86,7 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
                         <List spacing=4.0>
                             <ForEach keys={keys}>
                                 {move |challenge: ChallengeId| {
-                                    let level = level_of(levels.clone(), challenge);
+                                    let level = level_of(levels, challenge);
                                     let here = open.memo(Some(challenge));
                                     let toggle = clone!(expanded set_expanded -> move || {
                                         let shown = expanded.get_untracked() == Some(challenge);
@@ -139,7 +139,7 @@ fn LevelRow(
     view! {
         <List spacing=4.0>
             <ListRow
-                selected={expanded.clone()}
+                selected={expanded}
                 @test_id={format!("logic-game.level.{}", challenge as usize)}
                 on_click={move || on_toggle.call()}
                 on_activate={move || {}}
@@ -147,7 +147,7 @@ fn LevelRow(
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                     <Body content={challenge.name()} />
                     <Show condition={completed}>
-                        <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} color={theme.success.clone()} />
+                        <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} color={theme.success} />
                     </Show>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                     <Caption content={attempts} />
@@ -166,7 +166,7 @@ fn LevelRow(
                                     editor={solving.clone()}
                                     game={game.clone()}
                                     challenge={challenge}
-                                    level={level.clone()}
+                                    level={level}
                                 />
                             </Show>
                         </List>
@@ -198,7 +198,7 @@ fn Solutions(
         <List spacing=4.0>
             <ForEach keys={keys}>
                 {move |reference: Uuid| {
-                    let solution = solution_of(level.clone(), reference);
+                    let solution = solution_of(level, reference);
                     view! {
                         <SolutionRow
                             game={Rc::clone(&game)}
@@ -251,7 +251,7 @@ fn SolutionRow(
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
             <Link label={name} disabled={missing} on_click={open} />
             <Show condition={passed}>
-                <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} color={theme.success.clone()} />
+                <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} color={theme.success} />
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <IconButton
