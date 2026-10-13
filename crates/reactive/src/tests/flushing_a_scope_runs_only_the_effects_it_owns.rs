@@ -2,16 +2,17 @@ use super::*;
 
 #[test]
 fn flushing_a_scope_runs_only_the_effects_it_owns() {
+    let _root = RootScope::new();
     let root = Scope::new();
     let (value, set_value) = create_signal(0);
     let (inside, outside) = (Rc::new(Cell::new(0)), Rc::new(Cell::new(0)));
     let child = root.run(|| {
         let seen = Rc::clone(&outside);
-        let watched = value.clone();
+        let watched = value;
         create_effect(move || seen.set(watched.get()));
         let child = Scope::new();
         let seen = Rc::clone(&inside);
-        let watched = value.clone();
+        let watched = value;
         child.run(|| {
             let nested = Scope::new();
             nested.run(|| create_effect(move || seen.set(watched.get())));

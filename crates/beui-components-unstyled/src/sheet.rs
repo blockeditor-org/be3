@@ -782,12 +782,12 @@ pub fn Sheet(
     let (dragging, set_dragging) = create_signal(false);
     let (shift, set_shift) = create_signal(HIDDEN_SHIFT);
     let (gone, set_gone) = create_signal(true);
-    let sizing = create_memo(clone!(extent rest_at -> move || match rest_at.get() {
+    let sizing = create_memo(move || match rest_at.get() {
         _ if gone.get() => ItemSize::Fixed(0.0).into(),
         Rest::Share(share) => ItemSize::Intrinsic.max(share * extent.get()).shrink(1.0),
         Rest::Fitted => ItemSize::Intrinsic.shrink(1.0),
         Rest::Free(height) => ItemSize::Fixed(height).shrink(1.0),
-    }));
+    });
     let content = NodeRef::new();
     let slot = NodeRef::new();
     let motion = Motion {
@@ -906,7 +906,7 @@ pub fn ModalSheet(
     let (gone, set_gone) = create_signal(true);
     let (presence, set_presence) = create_signal(0.0_f32);
     let opened = open.clone();
-    let appearing = set_gone.clone();
+    let appearing = set_gone;
     create_effect(move || {
         if opened.get() {
             appearing.set(false);
@@ -957,9 +957,9 @@ fn ModalSheetBody(
             {move |size: ReadSignal<Vec2>| {
                 let extent = create_memo(move || size.get().y);
                 let highest = stops.iter().copied().fold(SHEET_STOPS[0], f32::max);
-                let room = create_memo(clone!(extent -> move || {
+                let room = create_memo(move || {
                     ItemSize::Percent(100.0).min(extent.get() * (1.0 - highest))
-                }));
+                });
                 let outside = on_close.clone();
                 let closing = on_close;
                 view! {

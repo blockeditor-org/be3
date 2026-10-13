@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn a_scope_opened_inside_an_effect_belongs_to_the_effects_owner() {
+    let _root = RootScope::new();
     let outer = Scope::new();
     let (tick, set_tick) = create_signal(0);
     let cleanups = Rc::new(Cell::new(0));

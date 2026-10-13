@@ -24,7 +24,7 @@ pub(super) fn bind_window_switcher(layout: &DockingLayout<TabId>) {
         ),
     ] {
         let switching = layout.clone();
-        let held = modifiers.clone();
+        let held = modifiers;
         Action::new(id, label, move || {
             match switching.switching() {
                 true => switching.step_switch(backwards),

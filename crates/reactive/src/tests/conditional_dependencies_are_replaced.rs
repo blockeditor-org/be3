@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn conditional_dependencies_are_replaced() {
+    let _root = RootScope::new();
     let scope = Scope::new();
     let (choose_left, choose) = create_signal(true);
     let (left, set_left) = create_signal(1);

@@ -173,11 +173,11 @@ impl super::State {
 
 #[component]
 pub(super) fn DockDialogs(dock: Handle) -> NodeId {
-    let keys = dock.dialogs.clone();
+    let keys = dock.dialogs;
     let settling = dock.clone();
-    let state = dock.state.clone();
+    let state = dock.state;
     let described = dock.dialog.clone();
-    create_effect(clone!(keys -> move || {
+    create_effect(move || {
         let _ = state.with(DockState::focused_tab);
         for (dialog, _) in keys.get() {
             if let Some(parts) = described.call(dialog) {
@@ -185,7 +185,7 @@ pub(super) fn DockDialogs(dock: Handle) -> NodeId {
             }
         }
         untrack(|| settling.settle_dialog_focus());
-    }));
+    });
     view! {
         <beui_view::reactive::List spacing=0.0>
             <beui_view::reactive::ForEach keys>
@@ -232,7 +232,7 @@ fn DockDialogView(dock: Handle, tab: TabId, parent: TabId) -> NodeId {
     }));
     let shown = create_memo(clone!(dock -> move || dock.dialog_shown(tab)));
     let anchor = NodeRef::new();
-    create_effect(clone!(dock shown anchor -> move || {
+    create_effect(clone!(dock anchor -> move || {
         if !shown.get() {
             return;
         }
@@ -240,20 +240,20 @@ fn DockDialogView(dock: Handle, tab: TabId, parent: TabId) -> NodeId {
             anchor.fill(node);
         }
     }));
-    let blocking = create_memo(clone!(shown modal -> move || shown.get() && modal.get()));
-    let policy = create_memo(clone!(blocking -> move || match blocking.get() {
+    let blocking = create_memo(move || shown.get() && modal.get());
+    let policy = create_memo(move || match blocking.get() {
         true => LayerPolicy::BlocksParent,
         false => LayerPolicy::Pass,
-    }));
-    let focus = dock.dialog_focus.clone();
+    });
+    let focus = dock.dialog_focus;
     let focused = create_memo(move || focus.get() == Some(tab));
     let (attention, set_attention) = create_signal(false);
-    let calm = set_attention.clone();
+    let calm = set_attention;
     let settle = create_timer(move || {
         calm.set(false);
         None
     });
-    let requests = dock.attention.clone();
+    let requests = dock.attention;
     create_effect(move || {
         let (_, target) = requests.get();
         if target == Some(tab) {
@@ -266,7 +266,7 @@ fn DockDialogView(dock: Handle, tab: TabId, parent: TabId) -> NodeId {
     let scope = with_document(|document| node_scope(document, dock.owner.clone()));
     let control = DockTabControl {
         tab,
-        state: dock.state.clone(),
+        state: dock.state,
         dock: std::rc::Rc::downgrade(&dock),
     };
     let body = scope.context().run(|| {
@@ -274,8 +274,8 @@ fn DockDialogView(dock: Handle, tab: TabId, parent: TabId) -> NodeId {
         content.call(())
     });
     on_cleanup(move || drop(scope));
-    let width = create_memo(clone!(size -> move || size.get().x));
-    let height = create_memo(clone!(size -> move || size.get().y));
+    let width = create_memo(move || size.get().x);
+    let height = create_memo(move || size.get().y);
     let body = view! {
         <Frame @node_ref=&inside @test_id={format!("dock.dialog.{}", tab.value())} width height>
             {body}
@@ -286,9 +286,9 @@ fn DockDialogView(dock: Handle, tab: TabId, parent: TabId) -> NodeId {
         tab,
         title,
         icon,
-        size: size.clone(),
-        modal: modal.clone(),
-        focused: focused.clone(),
+        size,
+        modal,
+        focused,
         attention,
         closable: on_close.is_some(),
         close: ClickCallback::new(move || {
@@ -301,10 +301,10 @@ fn DockDialogView(dock: Handle, tab: TabId, parent: TabId) -> NodeId {
     let pressed = dock.clone();
     let attending = dock.clone();
     let dismissing = on_close.clone();
-    let modal_now = blocking.clone();
+    let modal_now = blocking;
     let overlay = NodeRef::new();
     let raised = overlay.clone();
-    let (opening, attended) = (shown.clone(), focused.clone());
+    let (opening, attended) = (shown, focused);
     let view = view! {
         <Overlay
             @node_ref=&overlay
@@ -312,7 +312,7 @@ fn DockDialogView(dock: Handle, tab: TabId, parent: TabId) -> NodeId {
             placement=Placement::CenterOn
             policy
             traps_focus=false
-            open={shown.clone()}
+            open={shown}
             on_dismiss={move |reason: Dismiss| match reason {
                 Dismiss::OutsidePress if modal_now.get_untracked() => {
                     attending.focus_dialog(tab);
@@ -335,14 +335,14 @@ fn DockDialogView(dock: Handle, tab: TabId, parent: TabId) -> NodeId {
             </Interactive>
         </Overlay>
     };
-    create_effect(clone!(attended -> move || {
+    create_effect(move || {
         if !(blocking.get() || attended.get()) {
             return;
         }
         if let Some(overlay) = raised.try_get() {
             with_document(|document| document.raise_overlay(overlay));
         }
-    }));
+    });
     let focusing = dock.clone();
     create_effect(move || {
         if attended.get() {

@@ -4,10 +4,11 @@ use crate::styled::ModalSheet;
 
 #[test]
 fn a_modal_sheet_slides_in_and_out() {
+    let _root = crate::reactive::RootScope::new();
     let content = NodeRef::new();
     let (open, set_open) = create_signal(false);
     let document = build({
-        let (content, set_open) = (content.clone(), set_open.clone());
+        let (content, set_open) = (content.clone(), set_open);
         move || {
             view! {
                 <List spacing=0.0>
@@ -27,7 +28,7 @@ fn a_modal_sheet_slides_in_and_out() {
             .node_rect(content.get())
             .map(|rect| rect.top())
     };
-    let opening = set_open.clone();
+    let opening = set_open;
     with_reactive_scope(harness.document_mut(), move || opening.set(true));
     harness.frame(Vec::new());
     harness.frame(Vec::new());

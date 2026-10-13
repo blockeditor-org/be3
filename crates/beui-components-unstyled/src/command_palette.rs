@@ -79,13 +79,13 @@ pub fn CommandPalette(
         overlay: NodeRef::new(),
         search: NodeRef::new(),
         actions: RefCell::new(Vec::new()),
-        query: query.clone(),
+        query,
         set_query,
-        shown: shown.clone(),
+        shown,
         set_shown,
-        highlighted: highlighted.clone(),
+        highlighted,
         set_highlighted,
-        searching: searching.clone(),
+        searching,
         set_searching,
         rows: RefCell::new(Vec::new()),
         on_close,
@@ -99,8 +99,8 @@ pub fn CommandPalette(
         }
     }));
 
-    let highlight = create_selector(clone!(highlighted -> move || highlighted.get()));
-    let keys = create_memo(clone!(shown -> move || shown.get()));
+    let highlight = create_selector(move || highlighted.get());
+    let keys = create_memo(move || shown.get());
     let reveal = reveal_reader(&state);
     let (dismiss_state, filter_state, submit_state, key_state, rows_state) = (
         state.clone(),
@@ -162,7 +162,7 @@ pub fn CommandPalette(
                                         state={rows_state.clone()}
                                         key
                                         row={row.clone()}
-                                        highlight={highlight.clone()}
+                                        highlight={highlight}
                                     />
                                 }
                             }}
@@ -187,7 +187,7 @@ fn CommandRow(
     let enabled = action.enabled();
     let disabled = create_memo(move || !enabled.get());
     let label = action.label();
-    let accessibility = create_memo(clone!(label disabled -> move || {
+    let accessibility = create_memo(clone!(label -> move || {
         let mut node = Node::new(Role::ListBoxOption);
         node.set_label(label.get());
         if disabled.get() {
@@ -198,7 +198,7 @@ fn CommandRow(
     let (hover_state, click_state) = (state.clone(), state);
     let glyph = action.glyph().to_owned();
     let shortcut = action.shortcut_label();
-    let face_disabled = disabled.clone();
+    let face_disabled = disabled;
     view! {
         <unstyled::Button
             @node_ref={&button}
@@ -206,7 +206,7 @@ fn CommandRow(
             tab_stop=false
             press_focus=false
             content={move |handle: ButtonHandle| {
-                let hovered = handle.hovered.clone();
+                let hovered = handle.hovered;
                 let hovering = clone!(hover_state -> move || {
                     if hovered.get() && find(&hover_state, key).is_some_and(|action| action.is_enabled()) {
                         hover_state.set_highlighted.set(Some(key));
@@ -217,7 +217,7 @@ fn CommandRow(
                     label: label.clone(),
                     glyph: glyph.clone(),
                     shortcut: shortcut.clone(),
-                    disabled: face_disabled.clone(),
+                    disabled: face_disabled,
                     highlighted: highlight.memo(Some(key)),
                     hovered: handle.hovered,
                 })

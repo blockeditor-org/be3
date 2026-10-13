@@ -4,13 +4,13 @@ use crate::styled::Dialog;
 
 #[test]
 fn a_dialog_opens_in_the_middle_and_escape_dismisses_it() {
+    let _root = crate::reactive::RootScope::new();
     let (open, set_open) = create_signal(false);
     let dismissed = Rc::new(Cell::new(0));
     let reports = dismissed.clone();
     let surface = NodeRef::new();
     let body_ref = surface.clone();
     let document = build({
-        let open = open.clone();
         move || {
             view! {
                 <List spacing=0.0>

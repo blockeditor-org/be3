@@ -121,8 +121,8 @@ impl Tree {
         let build = Rc::clone(&watched);
         let host = editor.host().clone();
         let building = client.clone();
-        let open = expanded.clone();
-        let orphans = orphans_open.clone();
+        let open = expanded;
+        let orphans = orphans_open;
         create_effect(move || {
             remembered.get();
             let mut watched = build.borrow_mut();
@@ -167,7 +167,7 @@ impl Tree {
         let restored = Rc::new(Cell::new(false));
         let restoring = editor.clone();
         let adopted = Rc::clone(&restored);
-        let (adopt_expanded, adopt_orphans) = (set_expanded.clone(), set_orphans_open.clone());
+        let (adopt_expanded, adopt_orphans) = (set_expanded, set_orphans_open);
         create_effect(move || {
             if adopted.get() {
                 return;
@@ -191,7 +191,7 @@ impl Tree {
             }
         });
         let saving = editor.clone();
-        let (open, orphans) = (expanded, orphans_open.clone());
+        let (open, orphans) = (expanded, orphans_open);
         create_effect(move || {
             let mut expanded: Vec<Uuid> = open.get().into_iter().collect();
             let orphans = orphans.get();
@@ -215,16 +215,16 @@ impl Tree {
     }
 
     pub(crate) fn rows(&self) -> Memo<Vec<Row>> {
-        self.rows.clone()
+        self.rows
     }
 
     pub(crate) fn keys(&self) -> Memo<Vec<RowKey>> {
-        let rows = self.rows.clone();
+        let rows = self.rows;
         create_memo(move || rows.with(|rows| rows.iter().map(|row| row.key.clone()).collect()))
     }
 
     pub(crate) fn row(&self, key: RowKey) -> Memo<Option<Row>> {
-        let rows = self.rows.clone();
+        let rows = self.rows;
         create_memo(move || rows.with(|rows| rows.iter().find(|row| row.key == key).cloned()))
     }
 

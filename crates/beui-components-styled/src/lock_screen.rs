@@ -15,7 +15,7 @@ use beui_core::screens::bounds;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Align, Callback, Direction, ForEach, Frame, IntoChild, Layer, Layers, List, Memo, Prop, Show,
-    clone, component_accessibility, create_memo, create_signal, use_screens,
+    component_accessibility, create_memo, create_signal, use_screens,
 };
 
 const FIELD_WIDTH: f32 = 280.0;
@@ -51,57 +51,55 @@ pub fn LockScreen(
     let busy = create_memo(move || busy.get());
     let actions = create_memo(move || actions.get());
     let screens = use_screens();
-    let bounds = create_memo(clone!(screens -> move || screens.with(|screens| bounds(screens))));
-    let places = create_memo(clone!(screens -> move || {
-        (0..screens.with(Vec::len)).collect::<Vec<usize>>()
-    }));
-    let anchor = create_memo(clone!(bounds -> move || OverlayAnchor::Point(bounds.get().min)));
-    let width = create_memo(clone!(bounds -> move || Some(bounds.get().width())));
-    let height = create_memo(clone!(bounds -> move || Some(bounds.get().height())));
+    let bounds = create_memo(move || screens.with(|screens| bounds(screens)));
+    let places = create_memo(move || (0..screens.with(Vec::len)).collect::<Vec<usize>>());
+    let anchor = create_memo(move || OverlayAnchor::Point(bounds.get().min));
+    let width = create_memo(move || Some(bounds.get().width()));
+    let height = create_memo(move || Some(bounds.get().height()));
     let (password, set_password) = create_signal(String::new());
-    let submit = Rc::new(clone!(busy set_password -> move |typed: String| {
+    let submit = Rc::new(move |typed: String| {
         if busy.get_untracked() || typed.is_empty() {
             return;
         }
         set_password.set(String::new());
         on_submit.call(typed);
-    }));
+    });
     view! {
         <Overlay
             anchor={anchor}
-            open={open.clone()}
+            open={open}
             placement=Placement::At
-            scrim={theme.background.clone()}
+            scrim={theme.background}
             level=LayerLevel::Lock
         >
             <Frame width={width} height={height}>
                 <Layers>
                     <ForEach keys={places}>
                         {move |index: usize| {
-                            let place = create_memo(clone!(screens bounds -> move || {
+                            let place = create_memo(move || {
                                 let origin = bounds.get().min.to_vec2();
                                 screens.with(|screens| {
                                     screens
                                         .get(index)
                                         .map_or(Rect::ZERO, |screen| screen.rect.translate(-origin))
                                 })
-                            }));
-                            let focused = create_memo(clone!(open busy -> move || {
+                            });
+                            let focused = create_memo(move || {
                                 index == 0 && open.get() && !busy.get()
-                            }));
+                            });
                             let submit = submit.clone();
                             let action = on_action.clone();
-                            let changed = set_password.clone();
+                            let changed = set_password;
                             let card = view! {
                                 <LockCard
                                     place={place}
-                                    time={time.clone()}
-                                    date={date.clone()}
-                                    user={user.clone()}
-                                    error={error.clone()}
-                                    busy={busy.clone()}
-                                    actions={actions.clone()}
-                                    password={password.clone()}
+                                    time={time}
+                                    date={date}
+                                    user={user}
+                                    error={error}
+                                    busy={busy}
+                                    actions={actions}
+                                    password={password}
                                     focused={focused}
                                     id={format!("{}.{index}", id)}
                                     on_change={move |typed: String| changed.set(typed)}
@@ -136,20 +134,19 @@ fn LockCard(
     on_action: Callback<usize>,
 ) -> NodeId {
     let theme = use_theme();
-    let left = create_memo(clone!(place -> move || Some(place.get().left())));
-    let top = create_memo(clone!(place -> move || Some(place.get().top())));
-    let width = create_memo(clone!(place -> move || Some(place.get().width())));
-    let height = create_memo(clone!(place -> move || Some(place.get().height())));
+    let left = create_memo(move || Some(place.get().left()));
+    let top = create_memo(move || Some(place.get().top()));
+    let width = create_memo(move || Some(place.get().width()));
+    let height = create_memo(move || Some(place.get().height()));
     component_accessibility(create_memo(|| {
         let mut node = Node::new(Role::Dialog);
         node.set_label("Locked");
         node
     }));
-    let failed = create_memo(clone!(error -> move || error.get().is_some()));
-    let checking = create_memo(clone!(error busy -> move || busy.get() && error.get().is_none()));
+    let failed = create_memo(move || error.get().is_some());
+    let checking = create_memo(move || busy.get() && error.get().is_none());
     let reason = create_memo(move || error.get().unwrap_or_default());
-    let slots =
-        create_memo(clone!(actions -> move || (0..actions.with(Vec::len)).collect::<Vec<usize>>()));
+    let slots = create_memo(move || (0..actions.with(Vec::len)).collect::<Vec<usize>>());
     let error_id = format!("{id}.error");
     let action_id = id.clone();
     view! {
@@ -169,7 +166,7 @@ fn LockCard(
                 <List spacing=GROUP_SPACING align=Align::Center>
                     <List spacing=SPACING align=Align::Center>
                         <Display content={time} />
-                        <Body content={date} color={theme.text_muted.clone()} />
+                        <Body content={date} color={theme.text_muted} />
                     </List>
                     <List spacing=SPACING align=Align::Center>
                         <Title content={user} />
@@ -179,7 +176,7 @@ fn LockCard(
                                 placeholder="Password"
                                 label="Password"
                                 password=true
-                                disabled={busy.clone()}
+                                disabled={busy}
                                 focused={focused}
                                 @test_id={format!("{id}.password")}
                                 on_change={move |typed: String| on_change.call(typed)}
@@ -191,8 +188,8 @@ fn LockCard(
                         </Show>
                         <Show condition={failed}>
                             <Caption
-                                content={reason.clone()}
-                                color={theme.danger.clone()}
+                                content={reason}
+                                color={theme.danger}
                                 @test_id={error_id.clone()}
                             />
                         </Show>
@@ -201,12 +198,12 @@ fn LockCard(
                         <ForEach keys={slots}>
                             {move |index: usize| {
                                 let chose = on_action.clone();
-                                let glyph = create_memo(clone!(actions -> move || {
+                                let glyph = create_memo(move || {
                                     actions.with(|actions| actions.get(index).map(|action| action.glyph.clone()).unwrap_or_default())
-                                }));
-                                let label = create_memo(clone!(actions -> move || {
+                                });
+                                let label = create_memo(move || {
                                     actions.with(|actions| actions.get(index).map(|action| action.label.clone()).unwrap_or_default())
-                                }));
+                                });
                                 view! {
                                     <IconButton
                                         glyph

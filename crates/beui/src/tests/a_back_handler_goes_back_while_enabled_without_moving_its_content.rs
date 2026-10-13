@@ -6,13 +6,13 @@ use crate::reactive::{
 
 #[test]
 fn a_back_handler_goes_back_while_enabled_without_moving_its_content() {
+    let _root = crate::reactive::RootScope::new();
     let (enabled, set_enabled) = create_signal(false);
     let backs = Rc::new(Cell::new(0));
     let reports = backs.clone();
     let page = NodeRef::new();
     let page_ref = page.clone();
     let document = build({
-        let enabled = enabled.clone();
         move || {
             view! {
                 <BackHandler enabled={enabled} on_back={move || reports.set(reports.get() + 1)}>

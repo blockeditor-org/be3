@@ -181,23 +181,15 @@ where
         ..
     } = handle;
     let theme = use_theme();
-    let indent = create_memo(clone!(item -> move || {
-        ItemSize::Fixed(item.get().depth as f32 * INDENT)
-    }));
-    let fill = create_memo(clone!(theme selected hovered active -> move || {
-        background(&theme, selected.get(), hovered.get(), active.get())
-    }));
+    let indent = create_memo(move || ItemSize::Fixed(item.get().depth as f32 * INDENT));
+    let fill = create_memo(move || background(&theme, selected.get(), hovered.get(), active.get()));
     let highlight = create_memo(clone!(outline key -> move || outline.call(key.clone())));
-    let outline_color = create_memo(clone!(theme highlight -> move || {
-        highlight.get().unwrap_or_else(|| theme.accent.get())
-    }));
-    let ring = focus_ring(focused.clone());
-    let outlined = create_memo(clone!(highlight -> move || {
-        highlight.get().is_some() || ring.get()
-    }));
+    let outline_color = create_memo(move || highlight.get().unwrap_or_else(|| theme.accent.get()));
+    let ring = focus_ring(focused);
+    let outlined = create_memo(move || highlight.get().is_some() || ring.get());
     let face = TreeRowFace {
         key,
-        item: item.clone(),
+        item,
         selected,
         focused,
         hovered,
@@ -237,7 +229,7 @@ fn Chevron(
             <List spacing=0.0>
                 <unstyled::TreeToggle item toggle button_test_id=named>
                     {move |handle: TreeToggleHandle| view! {
-                        <ChevronFace handle marked={marked.clone()} />
+                        <ChevronFace handle marked={marked} />
                     }}
                 </unstyled::TreeToggle>
             </List>
@@ -259,22 +251,18 @@ fn ChevronFace(handle: TreeToggleHandle, marked: Memo<bool>) -> NodeId {
         expanded,
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(clone!(theme marked hovered active -> move || {
-        match (active.get(), marked.get(), hovered.get()) {
-            (true, _, _) => theme.pressed.get(),
-            (false, true, _) => theme.accent_soft.get(),
-            (false, false, true) => theme.hover.get(),
-            (false, false, false) => Color32::TRANSPARENT,
-        }
-    }));
+    let fill = create_memo(move || match (active.get(), marked.get(), hovered.get()) {
+        (true, _, _) => theme.pressed.get(),
+        (false, true, _) => theme.accent_soft.get(),
+        (false, false, true) => theme.hover.get(),
+        (false, false, false) => Color32::TRANSPARENT,
+    });
     let ring = focus_ring(focused);
-    let outlined = create_memo(clone!(marked -> move || marked.get() || ring.get()));
-    let color = create_memo(clone!(theme marked hovered -> move || {
-        match marked.get() || hovered.get() {
-            true => theme.text.get(),
-            false => theme.text_muted.get(),
-        }
-    }));
+    let outlined = create_memo(move || marked.get() || ring.get());
+    let color = create_memo(move || match marked.get() || hovered.get() {
+        true => theme.text.get(),
+        false => theme.text_muted.get(),
+    });
     let glyph = create_memo(move || match expanded.get() {
         true => ICON_KEYBOARD_ARROW_DOWN.to_owned(),
         false => ICON_KEYBOARD_ARROW_RIGHT.to_owned(),
@@ -285,7 +273,7 @@ fn ChevronFace(handle: TreeToggleHandle, marked: Memo<bool>) -> NodeId {
                 width=CHEVRON_WIDTH
                 height=ROW_HEIGHT
                 color={fill}
-                outline={theme.accent.clone()}
+                outline={theme.accent}
                 outline_width=OUTLINE_WIDTH
                 outline_visible={outlined}
                 radius=CHEVRON_RADIUS

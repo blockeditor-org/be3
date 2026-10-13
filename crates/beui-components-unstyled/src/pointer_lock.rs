@@ -26,27 +26,27 @@ pub fn PointerLock(
     #[prop(children)] content: Option<Render<PointerLockHandle>>,
 ) -> NodeId {
     let (locked_read, set_locked) = create_signal(locked.peek());
-    create_effect(clone!(set_locked -> move || set_locked.set(locked.get())));
+    create_effect(move || set_locked.set(locked.get()));
     let (hovered, set_hovered) = create_signal(false);
     let (focused, set_focused) = create_signal(false);
 
     let attached = with_document(|document| document.watch_context());
-    create_effect(clone!(locked_read -> move || {
+    create_effect(move || {
         attached.get();
         publish(locked_read.get());
-    }));
+    });
     on_cleanup(|| publish(false));
 
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::Button)));
     component_accessibility(accessibility);
 
-    let change = clone!(locked_read set_locked -> move |next: bool| {
+    let change = move |next: bool| {
         if untrack(|| locked_read.get()) == next {
             return;
         }
         set_locked.set(next);
         on_change.call(next);
-    });
+    };
 
     let engage = clone!(change -> move || change(true));
     let release = clone!(change -> move || change(false));
@@ -56,7 +56,7 @@ pub fn PointerLock(
             release();
         }
     });
-    let key = clone!(locked_read release -> move |press: KeyPress| {
+    let key = clone!(release -> move |press: KeyPress| {
         if untrack(|| locked_read.get()) && press.key == Key::Escape {
             if press.pressed {
                 release();
@@ -68,9 +68,9 @@ pub fn PointerLock(
 
     let content_node = content.map(|build| {
         build.call(PointerLockHandle {
-            locked: locked_read.clone(),
-            hovered: hovered.clone(),
-            focused: focused.clone(),
+            locked: locked_read,
+            hovered,
+            focused,
         })
     });
 

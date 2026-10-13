@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use block_editor_beui::beui::reactive::{Memo, clone, component, create_memo, view};
+use block_editor_beui::beui::reactive::{Memo, component, create_memo, view};
 use block_editor_beui::beui::unstyled::MenuItem;
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{BlockInfo, BlockParent};
@@ -136,7 +136,7 @@ pub(crate) fn ReferenceMenuItem(
     containing: Memo<Option<Uuid>>,
 ) -> MenuItem {
     let naming = Rc::clone(&workspace);
-    let label = create_memo(clone!(reference -> move || {
+    let label = create_memo(move || {
         let types = naming.types();
         reference.with(|reference| {
             reference.as_ref().map_or_else(
@@ -144,9 +144,9 @@ pub(crate) fn ReferenceMenuItem(
                 |reference| reference.label(types.as_ref()).name,
             )
         })
-    }));
+    });
     let allowed = Rc::clone(&workspace);
-    let rights = create_memo(clone!(reference containing -> move || {
+    let rights = create_memo(move || {
         let containing = containing.get();
         reference.with(|reference| {
             reference.as_ref().map(|reference| {
@@ -161,25 +161,29 @@ pub(crate) fn ReferenceMenuItem(
                 )
             })
         })
-    }));
-    let add = create_memo(clone!(rights -> move || rights.get().is_none_or(|rights| rights.0)));
-    let edit = create_memo(clone!(rights -> move || rights.get().is_none_or(|rights| rights.1)));
-    let delete = create_memo(clone!(rights -> move || rights.get().is_none_or(|rights| rights.2)));
-    let unlink = create_memo(clone!(rights -> move || rights.get().is_none_or(|rights| rights.3)));
-    let rooted = create_memo(clone!(rights edit -> move || {
-        edit.get() || rights.get().is_none_or(|rights| rights.4 == BlockParent::Root)
-    }));
-    let orphaned = create_memo(clone!(rights edit -> move || {
-        edit.get() || rights.get().is_none_or(|rights| rights.4 == BlockParent::Detached)
-    }));
-    let delete_label = create_memo(clone!(rights -> move || {
-        match rights.get().is_some_and(|rights| rights.5) {
-            true => "Remove link".to_owned(),
-            false => "Delete".to_owned(),
-        }
-    }));
-    let parent_disabled = edit.clone();
-    let share_disabled = edit.clone();
+    });
+    let add = create_memo(move || rights.get().is_none_or(|rights| rights.0));
+    let edit = create_memo(move || rights.get().is_none_or(|rights| rights.1));
+    let delete = create_memo(move || rights.get().is_none_or(|rights| rights.2));
+    let unlink = create_memo(move || rights.get().is_none_or(|rights| rights.3));
+    let rooted = create_memo(move || {
+        edit.get()
+            || rights
+                .get()
+                .is_none_or(|rights| rights.4 == BlockParent::Root)
+    });
+    let orphaned = create_memo(move || {
+        edit.get()
+            || rights
+                .get()
+                .is_none_or(|rights| rights.4 == BlockParent::Detached)
+    });
+    let delete_label = create_memo(move || match rights.get().is_some_and(|rights| rights.5) {
+        true => "Remove link".to_owned(),
+        false => "Delete".to_owned(),
+    });
+    let parent_disabled = edit;
+    let share_disabled = edit;
     view! {
         <MenuItem label={label}>
             <MenuItem label="Open" />

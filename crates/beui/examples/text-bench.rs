@@ -230,9 +230,9 @@ fn edit_one_span(frames: usize) -> Report {
             <Text wrap=true>
                 <ForEach keys={keys}>
                     {move |index: usize| {
-                        let word = create_memo(clone!(read -> move || {
+                        let word = create_memo(move || {
                             read.get().get(index).cloned().unwrap_or_default()
-                        }));
+                        });
                         view! {
                             <Span text={word} />
                         }

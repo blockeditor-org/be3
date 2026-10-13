@@ -10,8 +10,8 @@ use beui_core::icons::{ICON_CLOSE, ICON_SCREEN_ROTATION};
 use beui_core::node::NodeId;
 use beui_core::screen_simulation::{MAXIMUM_SIZE, MINIMUM_SIZE, ScreenSimulation};
 use beui_view::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, NodeRef, ReadSignal, Spacer, WriteSignal,
-    clone, component, create_memo, create_signal, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, NodeRef, ReadSignal, RootScope, Scope,
+    Spacer, WriteSignal, clone, component, create_memo, create_signal, view,
 };
 
 use super::State;
@@ -54,6 +54,7 @@ pub struct Toolbar {
     pub set_screen: WriteSignal<ScreenSimulation>,
     device: NodeRef,
     zoom: NodeRef,
+    _scope: Scope,
 }
 
 impl Toolbar {
@@ -67,6 +68,7 @@ impl Toolbar {
 }
 
 pub fn build(state: &Rc<State>) -> Toolbar {
+    let owner = RootScope::new();
     let (screen, set_screen) = create_signal(state.screen_simulation.get().unwrap_or(DEFAULT));
     let (device, zoom) = (NodeRef::new(), NodeRef::new());
     let document = beui_view::reactive::build(clone!(state device zoom -> move || {
@@ -79,6 +81,7 @@ pub fn build(state: &Rc<State>) -> Toolbar {
         set_screen,
         device,
         zoom,
+        _scope: owner.into_scope(),
     }
 }
 
@@ -101,15 +104,13 @@ fn ResponsiveToolbar(
     device: NodeRef,
     zoom: NodeRef,
 ) -> NodeId {
-    let selected_device = create_memo(clone!(screen -> move || {
-        Some(device_index(screen.get().size))
-    }));
-    let width = create_memo(clone!(screen -> move || f64::from(screen.get().size.x)));
-    let height = create_memo(clone!(screen -> move || f64::from(screen.get().size.y)));
-    let selected_zoom = create_memo(clone!(screen -> move || {
+    let selected_device = create_memo(move || Some(device_index(screen.get().size)));
+    let width = create_memo(move || f64::from(screen.get().size.x));
+    let height = create_memo(move || f64::from(screen.get().size.y));
+    let selected_zoom = create_memo(move || {
         let zoom = screen.get().zoom;
         ZOOMS.iter().position(|(_, candidate)| *candidate == zoom)
-    }));
+    });
     let (device_state, width_state, height_state) = (state.clone(), state.clone(), state.clone());
     let (rotate_state, zoom_state, close_state) = (state.clone(), state.clone(), state);
     view! {

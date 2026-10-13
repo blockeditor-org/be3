@@ -37,45 +37,37 @@ pub fn PresentationView(editor: Editor) -> NodeId {
     editor.content(&stage);
 
     let theme = use_theme();
-    let editing = create_memo(clone!(presenting -> move || !presenting.get()));
-    let mode = create_memo(clone!(presenting -> move || match presenting.get() {
+    let editing = create_memo(move || !presenting.get());
+    let mode = create_memo(move || match presenting.get() {
         true => ChildMode::Preview,
         false => ChildMode::Live,
-    }));
-    let background = create_memo(clone!(theme presenting -> move || match presenting.get() {
+    });
+    let background = create_memo(move || match presenting.get() {
         true => Color32::BLACK,
         false => theme.background.get(),
-    }));
-    let keys = clone!(slides presenting -> move |press: KeyPress| {
+    });
+    let keys = clone!(slides -> move |press: KeyPress| {
         presenting.get_untracked() && navigate(&slides, press)
     });
 
     view! {
-        <Interactive focusable=true focused={presenting.clone()} on_key={keys}>
+        <Interactive focusable=true focused={presenting} on_key={keys}>
             <Frame color={background}>
                 <List direction=Direction::Horizontal spacing=0.0>
                     <Filmstrip
                         @sizing=ItemSize::Fixed(FILMSTRIP_WIDTH)
                         editor={editor.clone()}
                         slides={Rc::clone(&slides)}
-                        shown={editing.clone()}
+                        shown={editing}
                     />
-                    <Frame
-                        visible={editing.clone()}
-                        width=theme::BORDER_WIDTH
-                        color={theme.border.clone()}
-                    />
+                    <Frame visible={editing} width=theme::BORDER_WIDTH color={theme.border} />
                     <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
                         <Toolbar
                             editor={editor.clone()}
                             slides={Rc::clone(&slides)}
-                            shown={editing.clone()}
+                            shown={editing}
                         />
-                        <Frame
-                            visible={editing.clone()}
-                            height=theme::BORDER_WIDTH
-                            color={theme.border.clone()}
-                        />
+                        <Frame visible={editing} height=theme::BORDER_WIDTH color={theme.border} />
                         <Stage
                             @sizing=ItemSize::Percent(100.0)
                             @node_ref={&stage}
@@ -84,7 +76,7 @@ pub fn PresentationView(editor: Editor) -> NodeId {
                             selected={slides.selected()}
                             mode={mode}
                             own_frame={editing}
-                            fit={presenting.clone()}
+                            fit={presenting}
                             report_size=true
                         />
                         <Playback editor={editor} slides={slides} shown={presenting} />
@@ -147,10 +139,10 @@ fn Stage(
             sized.set_intrinsic_size(Some(Vec2::new(SLIDE_HEIGHT * ratio, SLIDE_HEIGHT)));
         }
     };
-    let fitted = create_memo(clone!(ratio -> move || match fit.get() {
+    let fitted = create_memo(move || match fit.get() {
         true => ratio.get(),
         false => FILL,
-    }));
+    });
 
     view! {
         <Frame aspect_ratio={fitted}>
@@ -173,24 +165,17 @@ fn Stage(
 #[component]
 fn SlideStatus(state: ReadSignal<ChildState>) -> NodeId {
     let theme = use_theme();
-    let hidden = create_memo(clone!(state -> move || {
-        state.with(|state| !state.available || state.error.is_some())
-    }));
-    let message = create_memo(
-        clone!(state -> move || state.with(|state| match &state.error {
+    let hidden = create_memo(move || state.with(|state| !state.available || state.error.is_some()));
+    let message = create_memo(move || {
+        state.with(|state| match &state.error {
             Some(error) => error.clone(),
             None if state.placed => "Loading this slide…".to_owned(),
             None => "This slide's block could not be found.".to_owned(),
-        })),
-    );
+        })
+    });
     view! {
         <Frame visible={hidden}>
-            <Text
-                string={message}
-                font_size=theme::FONT_SMALL
-                color={theme.text_muted.clone()}
-                wrap=true
-            />
+            <Text string={message} font_size=theme::FONT_SMALL color={theme.text_muted} wrap=true />
         </Frame>
     }
 }
@@ -215,7 +200,7 @@ fn Toolbar(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
     view! {
         <Frame
             visible={shown}
-            color={theme.surface.clone()}
+            color={theme.surface}
             padding_horizontal=PANEL_PADDING
             padding_vertical=PANEL_PADDING
         >
@@ -328,7 +313,7 @@ fn Filmstrip(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
     view! {
         <Frame
             visible={shown}
-            color={theme.surface.clone()}
+            color={theme.surface}
             padding_horizontal=FILMSTRIP_PADDING
             padding_vertical=FILMSTRIP_PADDING
         >
@@ -362,17 +347,17 @@ fn SlideTile(editor: Editor, slides: Rc<Slides>, selected: Prop<bool>, id: Uuid)
             .map_or_else(String::new, |index| (index + 1).to_string())
     }));
     let selected = create_memo(move || selected.get());
-    let outline = create_memo(clone!(theme selected -> move || match selected.get() {
+    let outline = create_memo(move || match selected.get() {
         true => theme.accent.get(),
         false => theme.border.get(),
-    }));
-    let width = create_memo(clone!(selected -> move || match selected.get() {
+    });
+    let width = create_memo(move || match selected.get() {
         true => 2.0_f32,
         false => 1.0_f32,
-    }));
+    });
 
     let select = clone!(slides -> move || slides.select(Some(id)));
-    let payload = create_memo(clone!(editable -> move || editable.get().then_some(id)));
+    let payload = create_memo(move || editable.get().then_some(id));
     let entered = Rc::new(Cell::new(false));
     let over = clone!(slides -> move |over: Option<(Uuid, DragPoint)>| {
         let Some((held, _)) = over else {
@@ -396,8 +381,8 @@ fn SlideTile(editor: Editor, slides: Rc<Slides>, selected: Prop<bool>, id: Uuid)
         view! {
             <Frame
                 width=THUMBNAIL_WIDTH
-                color={theme.surface_raised.clone()}
-                outline={theme.accent.clone()}
+                color={theme.surface_raised}
+                outline={theme.accent}
                 outline_width=2.0
                 outline_visible=true
                 radius=theme::RADIUS
@@ -414,7 +399,7 @@ fn SlideTile(editor: Editor, slides: Rc<Slides>, selected: Prop<bool>, id: Uuid)
     view! {
         <Frame padding_horizontal=TILE_INSET padding_vertical=TILE_INSET>
             <Frame
-                color={theme.surface_raised.clone()}
+                color={theme.surface_raised}
                 outline={outline}
                 outline_width={width}
                 outline_visible=true

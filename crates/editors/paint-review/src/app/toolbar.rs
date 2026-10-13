@@ -30,30 +30,30 @@ pub(crate) fn ReviewToolbar(review: Rc<Review>, shown: Prop<bool>) -> NodeId {
         let path = bar.selected.get()?;
         bar.status(&path)
     }));
-    let downloading = review.downloading.clone();
-    let busy = create_memo(clone!(downloading -> move || downloading.get()));
+    let downloading = review.downloading;
+    let busy = create_memo(move || downloading.get());
     let editable = Rc::clone(&review);
-    let approvable = create_memo(clone!(status editable -> move || {
+    let approvable = create_memo(clone!(editable -> move || {
         editable.editable()
             && editable.pending.get().is_none()
             && matches!(status.get(), Some(Status::New | Status::Modified))
     }));
-    let unapprovable = create_memo(clone!(status editable -> move || {
+    let unapprovable = create_memo(clone!(editable -> move || {
         editable.editable()
             && matches!(
                 status.get(),
                 Some(Status::Modified | Status::Removed | Status::Unchanged)
             )
     }));
-    let approve_off = create_memo(clone!(approvable -> move || !approvable.get()));
-    let unapprove_off = create_memo(clone!(unapprovable -> move || !unapprovable.get()));
-    let comparable = create_memo(clone!(status -> move || status.get() == Some(Status::Modified)));
+    let approve_off = create_memo(move || !approvable.get());
+    let unapprove_off = create_memo(move || !unapprovable.get());
+    let comparable = create_memo(move || status.get() == Some(Status::Modified));
 
     let choices = Rc::clone(&review);
     let zooms = Rc::clone(&review);
-    let error = review.error.clone();
-    let failed = create_memo(clone!(error -> move || error.get().is_some()));
-    let reason = create_memo(clone!(error -> move || error.get().unwrap_or_default()));
+    let error = review.error;
+    let failed = create_memo(move || error.get().is_some());
+    let reason = create_memo(move || error.get().unwrap_or_default());
 
     view! {
         <Toolbar shown={shown}>
@@ -93,7 +93,7 @@ pub(crate) fn ReviewToolbar(review: Rc<Review>, shown: Prop<bool>) -> NodeId {
             </Show>
             <ZoomControls review={zooms} />
             <Show condition={failed}>
-                <Caption content={reason.clone()} color={theme.danger.clone()} />
+                <Caption content={reason} color={theme.danger} />
             </Show>
         </Toolbar>
     }
@@ -101,8 +101,8 @@ pub(crate) fn ReviewToolbar(review: Rc<Review>, shown: Prop<bool>) -> NodeId {
 
 #[component]
 fn ViewChoice(review: Rc<Review>) -> NodeId {
-    let showing = review.showing.clone();
-    let pressed = |wanted: Showing| create_memo(clone!(showing -> move || showing.get() == wanted));
+    let showing = review.showing;
+    let pressed = |wanted: Showing| create_memo(move || showing.get() == wanted);
     let choose = |review: &Rc<Review>, wanted: Showing| {
         let review = Rc::clone(review);
         move |_: bool| review.show(wanted)
@@ -141,16 +141,14 @@ fn ViewChoice(review: Rc<Review>) -> NodeId {
 
 #[component]
 fn ZoomControls(review: Rc<Review>) -> NodeId {
-    let scale = review.scale.clone();
-    let zoomed = create_memo(clone!(scale -> move || scale.get().is_some()));
-    let percent = create_memo(clone!(scale -> move || {
-        format!("{:.0}%", scale.get().unwrap_or(1.0) * 100.0)
-    }));
+    let scale = review.scale;
+    let zoomed = create_memo(move || scale.get().is_some());
+    let percent = create_memo(move || format!("{:.0}%", scale.get().unwrap_or(1.0) * 100.0));
     let out = review.editor().clone();
     let inward = review.editor().clone();
     let fit = review.editor().clone();
     let actual = review.editor().clone();
-    let actual_scale = scale.clone();
+    let actual_scale = scale;
     view! {
         <Frame visible={zoomed}>
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
@@ -218,7 +216,7 @@ pub(crate) fn ReviewCaption(review: Rc<Review>) -> NodeId {
                 <Body content={path} @test_id={"paint_review.path"} />
                 <Caption
                     content={summary}
-                    color={theme.text_muted.clone()}
+                    color={theme.text_muted}
                     @test_id={"paint_review.summary"}
                 />
             </List>
@@ -228,29 +226,27 @@ pub(crate) fn ReviewCaption(review: Rc<Review>) -> NodeId {
 
 #[component]
 pub(crate) fn FrameControls(review: Rc<Review>, count: Memo<usize>) -> NodeId {
-    let many = create_memo(clone!(count -> move || count.get() > 1));
-    let frame = review.frame.clone();
-    let playing = review.playing.clone();
-    let first = create_memo(clone!(frame -> move || frame.get() == 0));
-    let last = create_memo(clone!(frame count -> move || frame.get() + 1 >= count.get()));
-    let glyph = create_memo(clone!(playing -> move || match playing.get() {
+    let many = create_memo(move || count.get() > 1);
+    let frame = review.frame;
+    let playing = review.playing;
+    let first = create_memo(move || frame.get() == 0);
+    let last = create_memo(move || frame.get() + 1 >= count.get());
+    let glyph = create_memo(move || match playing.get() {
         true => ICON_PAUSE.to_owned(),
         false => ICON_PLAY_ARROW.to_owned(),
-    }));
-    let position = create_memo(clone!(frame count -> move || {
-        format!("Frame {} of {}", frame.get() + 1, count.get())
-    }));
-    let at = create_memo(clone!(frame -> move || frame.get() as f32));
+    });
+    let position = create_memo(move || format!("Frame {} of {}", frame.get() + 1, count.get()));
+    let at = create_memo(move || frame.get() as f32);
 
     let back = Rc::clone(&review);
-    let back_frame = frame.clone();
+    let back_frame = frame;
     let forward = Rc::clone(&review);
-    let forward_frame = frame.clone();
+    let forward_frame = frame;
     let play = Rc::clone(&review);
     let slid = Rc::clone(&review);
 
     let changed = Rc::clone(&review);
-    let changed_frame = create_memo(clone!(changed count frame -> move || {
+    let changed_frame = create_memo(clone!(changed -> move || {
         let path = changed.selected.get()?;
         let status = changed.status(&path)?;
         changed
@@ -258,9 +254,9 @@ pub(crate) fn FrameControls(review: Rc<Review>, count: Memo<usize>) -> NodeId {
             .1
             .filter(|at| *at < count.get() && *at != frame.get())
     }));
-    let differs = create_memo(clone!(changed_frame -> move || changed_frame.get().is_some()));
+    let differs = create_memo(move || changed_frame.get().is_some());
     let jump = Rc::clone(&review);
-    let jump_frame = changed_frame.clone();
+    let jump_frame = changed_frame;
     let theme = use_theme();
 
     view! {
@@ -286,10 +282,10 @@ pub(crate) fn FrameControls(review: Rc<Review>, count: Memo<usize>) -> NodeId {
                     @test_id={"paint_review.frame.next"}
                     on_click={move || forward.seek(forward_frame.get_untracked() + 1)}
                 />
-                <Dynamic value={count.clone()}>
+                <Dynamic value={count}>
                     {move |count: usize| {
                         let slid = Rc::clone(&slid);
-                        let at = at.clone();
+                        let at = at;
                         view! {
                             <Slider
                                 value={at}
@@ -303,9 +299,9 @@ pub(crate) fn FrameControls(review: Rc<Review>, count: Memo<usize>) -> NodeId {
                         }
                     }}
                 </Dynamic>
-                <Caption content={position} color={theme.text_muted.clone()} />
+                <Caption content={position} color={theme.text_muted} />
                 <Show condition={differs}>
-                    {move || clone!(jump jump_frame -> view! {
+                    {move || clone!(jump -> view! {
                         <Button
                             label="Changed frame"
                             glyph={ICON_DIFFERENCE.to_owned()}

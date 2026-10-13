@@ -4,6 +4,7 @@ use crate::unstyled::{DockMode, DockPane, DockSplit, DockTab, DockingLayout};
 
 #[test]
 fn a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels() {
+    let _root = crate::reactive::RootScope::new();
     let (mode, set_mode) = create_signal(DockMode::Stacked);
     let document = build(move || {
         let layout = DockingLayout::new();
@@ -56,7 +57,7 @@ fn a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels() {
         "a stacked dock draws no tab bars"
     );
 
-    let tiling = set_mode.clone();
+    let tiling = set_mode;
     with_reactive_scope(harness.document_mut(), move || tiling.set(DockMode::Tiled));
     harness.frame(Vec::new());
     assert_eq!(

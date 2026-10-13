@@ -1,17 +1,17 @@
 use super::*;
 use crate::input::{BackEdge, BackGesture};
-use crate::reactive::{NodeRef, Text, build, clone, create_memo, create_signal, view};
+use crate::reactive::{NodeRef, Text, build, create_memo, create_signal, view};
 use crate::unstyled::BackSlide;
 
 #[test]
 fn a_back_slide_carries_its_page_away_and_brings_the_next_one_in() {
+    let _root = crate::reactive::RootScope::new();
     let (depth, set_depth) = create_signal(2_u32);
     let page = NodeRef::new();
     let page_ref = page.clone();
     let document = build({
-        let depth = depth.clone();
         move || {
-            let nested = create_memo(clone!(depth -> move || depth.get() > 0));
+            let nested = create_memo(move || depth.get() > 0);
             view! {
                 <BackSlide
                     enabled={nested}

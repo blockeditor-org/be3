@@ -39,9 +39,9 @@ pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
         data.kind.get() == DatabaseViewKind::Spreadsheet
     }));
     let chrome = editor.chrome_shown();
-    let toolbar_chrome = chrome.clone();
+    let toolbar_chrome = chrome;
     let narrow = narrow_chrome();
-    let header_shown = create_memo(clone!(chrome data narrow -> move || {
+    let header_shown = create_memo(clone!(data -> move || {
         let covered = narrow.get()
             && data.kind.get() != DatabaseViewKind::Spreadsheet
             && data.selected_row().is_some();
@@ -52,11 +52,11 @@ pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
     let (bar, body, header) = (data.clone(), data.clone(), data);
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <List spacing=0.0>
                 <Show condition={spreadsheet}>
                     {move || clone!(bar -> view! {
-                        <Toolbar shown={toolbar_chrome.clone()}>
+                        <Toolbar shown={toolbar_chrome}>
                             <CellEditor @sizing=ItemSize::Percent(100.0) data={bar} />
                         </Toolbar>
                     })}
@@ -79,7 +79,7 @@ pub fn DatabaseViewPreview(editor: Editor) -> NodeId {
     let data = ViewData::new(&editor);
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <Content data={data} panels=false />
         </Frame>
     }
@@ -87,7 +87,7 @@ pub fn DatabaseViewPreview(editor: Editor) -> NodeId {
 
 #[component]
 fn Content(data: Data, panels: bool) -> NodeId {
-    let kind = data.kind.clone();
+    let kind = data.kind;
     let beside = data.clone();
     view! {
         <RowBeside data={beside} enabled={panels}>
@@ -119,8 +119,8 @@ fn Content(data: Data, panels: bool) -> NodeId {
 #[component]
 fn CellEditor(data: Data) -> NodeId {
     let field = selected_field(&data);
-    let chosen = create_memo(clone!(field -> move || field.get().is_some()));
-    let label = create_memo(clone!(data field -> move || {
+    let chosen = create_memo(move || field.get().is_some());
+    let label = create_memo(clone!(data -> move || {
         let (Some(selection), Some(field)) = (data.selected.get(), field.get()) else {
             return "Select a cell".to_owned();
         };
@@ -132,7 +132,7 @@ fn CellEditor(data: Data) -> NodeId {
             None => String::new(),
         }
     }));
-    let fields = create_memo(clone!(field -> move || field.get().into_iter().collect::<Vec<_>>()));
+    let fields = create_memo(move || field.get().into_iter().collect::<Vec<_>>());
     let values = create_memo(clone!(data -> move || {
         let Some(selection) = data.selected.get() else {
             return Default::default();
@@ -154,8 +154,8 @@ fn CellEditor(data: Data) -> NodeId {
         }
     });
     let submitted = clone!(data -> move |_: Uuid| data.step_selection(1));
-    let labels = data.labels.clone();
-    let read_only = data.read_only.clone();
+    let labels = data.labels;
+    let read_only = data.read_only;
     view! {
         <Frame height=CELL_EDITOR_HEIGHT>
             <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
@@ -165,10 +165,10 @@ fn CellEditor(data: Data) -> NodeId {
                 <Show condition={chosen}>
                     <DatabaseValueEditor
                         @sizing=ItemSize::Percent(100.0)
-                        fields={fields.clone()}
-                        values={values.clone()}
-                        labels={labels.clone()}
-                        disabled={read_only.clone()}
+                        fields={fields}
+                        values={values}
+                        labels={labels}
+                        disabled={read_only}
                         prefix="database-view.cell-editor"
                         headings=false
                         on_change={changed.clone()}

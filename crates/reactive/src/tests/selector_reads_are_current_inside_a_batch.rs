@@ -2,12 +2,12 @@ use super::*;
 
 #[test]
 fn selector_reads_are_current_inside_a_batch() {
+    let _root = RootScope::new();
     let scope = Scope::new();
     let (selected, set_selected) = create_signal(0usize);
     let seen = Rc::new(RefCell::new(Vec::new()));
     let selector = scope.run(|| create_selector(move || selected.get()));
     scope.run({
-        let selector = selector.clone();
         let seen = seen.clone();
         move || create_effect(move || seen.borrow_mut().push(selector.is_selected(&2)))
     });

@@ -4,7 +4,7 @@ use beui_core::layer::{Dismiss, LayerPolicy};
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
-use beui_view::reactive::{ClickCallback, Frame, Func, Memo, clone, create_memo};
+use beui_view::reactive::{ClickCallback, Frame, Func, Memo, create_memo};
 
 use super::{DockState, Handle, State, TabId};
 
@@ -33,25 +33,30 @@ impl State {
 
 #[component]
 pub(super) fn DockSwitchView(dock: Handle) -> NodeId {
-    let state = dock.state.clone();
+    let state = dock.state;
     let switch = create_memo(move || state.with(DockState::switch));
-    let open = create_memo(clone!(switch -> move || switch.with(Option::is_some)));
-    let tabs = create_memo(clone!(switch -> move || {
-        switch.with(|switch| switch.as_ref().map(|switch| switch.tabs.clone()).unwrap_or_default())
-    }));
+    let open = create_memo(move || switch.with(Option::is_some));
+    let tabs = create_memo(move || {
+        switch.with(|switch| {
+            switch
+                .as_ref()
+                .map(|switch| switch.tabs.clone())
+                .unwrap_or_default()
+        })
+    });
     let chosen =
         create_memo(move || switch.with(|switch| switch.as_ref().map(|switch| switch.chosen)));
     let rows = dock.clone();
-    let row = Func::new(clone!(chosen -> move |tab: TabId| {
+    let row = Func::new(move |tab: TabId| {
         let (titled, pictured, picked) = (rows.clone(), rows.clone(), rows.clone());
         DockSwitchRowHandle {
             tab,
             title: create_memo(move || titled.title(tab)),
             icon: create_memo(move || pictured.icon(tab)),
-            chosen: create_memo(clone!(chosen -> move || chosen.get() == Some(tab))),
+            chosen: create_memo(move || chosen.get() == Some(tab)),
             pick: ClickCallback::new(move || picked.pick_switch(tab)),
         }
-    }));
+    });
     let body = match &dock.switch {
         Some(render) => render.call(DockSwitchHandle { tabs, chosen, row }),
         None => view! {

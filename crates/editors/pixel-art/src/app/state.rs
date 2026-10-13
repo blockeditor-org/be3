@@ -208,7 +208,7 @@ impl Tools {
     }
 
     pub(crate) fn dialog(&self) -> Memo<Dialog> {
-        let dialog = self.dialog.clone();
+        let dialog = self.dialog;
         create_memo(move || dialog.get())
     }
 

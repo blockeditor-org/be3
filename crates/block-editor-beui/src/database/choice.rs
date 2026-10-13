@@ -4,7 +4,7 @@ use beui::icons::{
     ICON_RADIO_BUTTON_PARTIAL, ICON_RADIO_BUTTON_UNCHECKED, ICON_SIGNAL_CELLULAR_ALT,
     ICON_SIGNAL_CELLULAR_ALT_1_BAR, ICON_SIGNAL_CELLULAR_ALT_2_BAR, ICON_STAR,
 };
-use beui::reactive::{Align, Frame, Layers, Prop, clone, component, create_memo, view};
+use beui::reactive::{Align, Frame, Layers, Prop, component, create_memo, view};
 use beui::styled::theme::{ICON_SIZE, ThemeKind};
 use beui::styled::{IconSized, use_theme};
 use beui::{Color32, NodeId};
@@ -86,24 +86,25 @@ pub fn ChoiceMark(
 ) -> NodeId {
     let theme = use_theme();
     let option = create_memo(move || option.get());
-    let color = create_memo(clone!(option theme -> move || {
+    let color = create_memo(move || {
         let kind = theme.kind.get();
         option.with(|option| match option {
             Some(option) => choice_color(option.color, kind),
             None => theme.text_muted.get(),
         })
-    }));
-    let glyph = create_memo(clone!(option -> move || {
-        option.with(|option| match option {
-            Some(option) => choice_glyph(option.icon),
-            None => ICON_RADIO_BUTTON_UNCHECKED,
-        })
-        .to_owned()
-    }));
-    let dotted = create_memo(clone!(glyph -> move || glyph.with(String::is_empty)));
-    let iconic = create_memo(clone!(dotted -> move || !dotted.get()));
+    });
+    let glyph = create_memo(move || {
+        option
+            .with(|option| match option {
+                Some(option) => choice_glyph(option.icon),
+                None => ICON_RADIO_BUTTON_UNCHECKED,
+            })
+            .to_owned()
+    });
+    let dotted = create_memo(move || glyph.with(String::is_empty));
+    let iconic = create_memo(move || !dotted.get());
     let dot = size * 0.5;
-    let dot_color = color.clone();
+    let dot_color = color;
     view! {
         <Frame width=size height=size>
             <Layers>

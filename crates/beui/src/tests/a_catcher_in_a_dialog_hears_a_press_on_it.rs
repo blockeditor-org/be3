@@ -8,6 +8,7 @@ use crate::styled::Dialog;
 
 #[test]
 fn a_catcher_in_a_dialog_hears_a_press_on_it() {
+    let _root = crate::reactive::RootScope::new();
     let (open, _set_open) = create_signal(true);
     let heard = Rc::new(RefCell::new(Vec::<Event>::new()));
     let catcher = NodeRef::new();

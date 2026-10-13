@@ -139,11 +139,11 @@ impl Game {
     }
 
     pub(crate) fn levels(&self) -> Memo<Vec<Level>> {
-        self.levels.clone()
+        self.levels
     }
 
     pub(crate) fn hotbar(&self) -> Memo<Option<Uuid>> {
-        self.hotbar.clone()
+        self.hotbar
     }
 
     pub(crate) fn open_hotbar(&self) {

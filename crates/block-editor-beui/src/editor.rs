@@ -5,8 +5,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use be_block::presence::PresenceKind;
 use beui::reactive::{
-    Callback, CanvasView, EmbedSlot, Memo, NodeRef, Prop, ReadSignal, WriteSignal, create_effect,
-    create_memo, create_signal, on_cleanup, untrack,
+    Callback, CanvasView, EmbedSlot, Memo, NodeRef, OwnedSignal, Prop, ReadSignal, RootScope,
+    Scope, WriteSignal, create_effect, create_memo, create_signal, on_cleanup, untrack,
 };
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
@@ -35,8 +35,7 @@ struct ArtifactState {
     artifact: crate::Artifact,
     regenerate: RefCell<Option<Regenerate>>,
     poll: RefCell<Option<PollArtifact>>,
-    settings: ReadSignal<Vec<u8>>,
-    set_settings: WriteSignal<Vec<u8>>,
+    settings: OwnedSignal<Vec<u8>>,
     edit: RefCell<Option<Vec<u8>>>,
 }
 
@@ -49,30 +48,28 @@ impl Clone for Artifacts {
 impl Artifacts {
     pub fn new(host: EditorHost, artifact: crate::Artifact) -> Self {
         defer_graph_changes(&host);
-        let (settings, set_settings) = create_signal(Vec::new());
         Self(Rc::new(ArtifactState {
             host,
             artifact,
             regenerate: RefCell::new(None),
             poll: RefCell::new(None),
-            settings,
-            set_settings,
+            settings: OwnedSignal::new(Vec::new()),
             edit: RefCell::new(None),
         }))
     }
 
     pub fn settings(&self) -> ReadSignal<Vec<u8>> {
-        self.0.settings.clone()
+        self.0.settings.read()
     }
 
     pub fn edit_settings(&self, data: Vec<u8>) {
-        self.0.set_settings.set(data.clone());
+        self.0.settings.write().set(data.clone());
         *self.0.edit.borrow_mut() = Some(data);
     }
 
     pub fn receive_settings(&self, data: &[u8]) {
-        if self.0.settings.get_untracked() != data {
-            self.0.set_settings.set(data.to_vec());
+        if self.0.settings.read().get_untracked() != data {
+            self.0.settings.write().set(data.to_vec());
         }
     }
 
@@ -255,7 +252,7 @@ struct PendingPick {
     picked: Rc<dyn Fn(Result<PickedBlock, String>)>,
 }
 
-type Revision = (ReadSignal<u64>, WriteSignal<u64>);
+type Revision = OwnedSignal<u64>;
 
 type Wake = (Arc<AtomicU64>, WriteSignal<u64>);
 
@@ -270,20 +267,20 @@ struct Mirror([Revision; Pushed::ALL.len()]);
 
 impl Mirror {
     fn new(host: &EditorHost) -> Self {
-        Self(Pushed::ALL.map(|pushed| create_signal(host.revision(pushed))))
+        Self(Pushed::ALL.map(|pushed| OwnedSignal::new(host.revision(pushed))))
     }
 
     fn watch(&self, pushed: Pushed) -> ReadSignal<u64> {
-        self.0[pushed as usize].0.clone()
+        self.0[pushed as usize].read()
     }
 
     fn track(&self, pushed: Pushed) {
-        self.0[pushed as usize].0.get();
+        self.0[pushed as usize].read().get();
     }
 
     fn sync(&self, host: &EditorHost) {
         for pushed in Pushed::ALL {
-            self.0[pushed as usize].1.set(host.revision(pushed));
+            self.0[pushed as usize].write().set(host.revision(pushed));
         }
     }
 }
@@ -330,6 +327,7 @@ type Pump = Rc<dyn Fn()>;
 pub struct Editor(Rc<EditorState>);
 
 struct EditorState {
+    _scope: Scope,
     host: EditorHost,
     beui: Rc<Cell<BeuiScale>>,
     block: Uuid,
@@ -388,6 +386,7 @@ impl Editor {
 
     pub(crate) fn scaled(host: EditorHost, block: Uuid, beui: Rc<Cell<BeuiScale>>) -> Self {
         defer_graph_changes(&host);
+        let owner = RootScope::new();
         let (canvas, set_canvas) = create_signal(None::<CanvasView>);
         let (world, set_world) = create_signal(None::<Vec2>);
         let (scale, set_scale) = create_signal(1.0_f32);
@@ -403,6 +402,7 @@ impl Editor {
         let (placed, set_placed) = create_signal(Rect::ZERO);
         let pushed = Mirror::new(&host);
         Self(Rc::new(EditorState {
+            _scope: owner.into_scope(),
             host,
             beui,
             block,
@@ -473,11 +473,11 @@ impl Editor {
     }
 
     pub fn editable(&self) -> ReadSignal<bool> {
-        self.0.editable.clone()
+        self.0.editable
     }
 
     pub fn read_only(&self) -> Memo<bool> {
-        let editable = self.0.editable.clone();
+        let editable = self.0.editable;
         create_memo(move || !editable.get())
     }
 
@@ -675,9 +675,8 @@ impl Editor {
             .host_values
             .borrow_mut()
             .entry(T::KEY)
-            .or_insert_with(|| create_signal(host.host_value_revision(T::KEY)))
-            .0
-            .clone();
+            .or_insert_with(|| OwnedSignal::new(host.host_value_revision(T::KEY)))
+            .read();
         create_memo(move || {
             revision.get();
             host.host_value::<T>()
@@ -693,27 +692,27 @@ impl Editor {
     }
 
     pub fn files(&self) -> ReadSignal<Option<FileDrop>> {
-        self.0.files.clone()
+        self.0.files
     }
 
     pub fn canvas(&self) -> ReadSignal<Option<CanvasView>> {
-        self.0.canvas.clone()
+        self.0.canvas
     }
 
     pub fn world(&self) -> ReadSignal<Option<Vec2>> {
-        self.0.world.clone()
+        self.0.world
     }
 
     pub fn scale(&self) -> ReadSignal<f32> {
-        self.0.scale.clone()
+        self.0.scale
     }
 
     pub fn chrome_shown(&self) -> ReadSignal<bool> {
-        self.0.chrome.clone()
+        self.0.chrome
     }
 
     pub fn presenting(&self) -> ReadSignal<bool> {
-        self.0.presenting.clone()
+        self.0.presenting
     }
 
     pub fn present(&self, presenting: bool) {
@@ -777,7 +776,7 @@ impl Editor {
                 opacity,
                 intrinsic,
                 state: set_state,
-                read: state.clone(),
+                read: state,
                 report,
                 view_change,
                 bar,
@@ -829,15 +828,15 @@ impl Editor {
     }
 
     pub fn placed(&self) -> ReadSignal<Rect> {
-        self.0.placed.clone()
+        self.0.placed
     }
 
     pub fn pixels_per_point(&self) -> ReadSignal<f32> {
-        self.0.pixels_per_point.clone()
+        self.0.pixels_per_point
     }
 
     pub fn resized(&self) -> ReadSignal<Option<Vec2>> {
-        self.0.resized.clone()
+        self.0.resized
     }
 
     pub fn report_resize(&self, size: Vec2) {
@@ -878,7 +877,7 @@ impl Editor {
     }
 
     pub fn presence_visible(&self) -> ReadSignal<bool> {
-        self.0.presence_visible.clone()
+        self.0.presence_visible
     }
 
     pub fn report_presence_visible(&self, visible: bool) {
@@ -886,7 +885,7 @@ impl Editor {
     }
 
     pub fn revealed(&self) -> ReadSignal<Option<u64>> {
-        self.0.revealed.clone()
+        self.0.revealed
     }
 
     pub fn report_reveal(&self, client_id: u64) {
@@ -903,7 +902,7 @@ impl Editor {
     }
 
     pub fn drag(&self) -> ReadSignal<Option<Drag>> {
-        self.0.drag.clone()
+        self.0.drag
     }
 
     pub fn accept_drag(&self, accepted: bool) {
@@ -983,7 +982,7 @@ impl Editor {
                 .host_values
                 .borrow()
                 .iter()
-                .map(|(key, (_, revision))| (*key, revision.clone()))
+                .map(|(key, revision)| (*key, revision.write()))
                 .collect();
             for (key, revision) in keys {
                 revision.set(self.0.host.host_value_revision(key));

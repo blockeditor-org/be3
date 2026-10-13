@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, Drawing, Frame, Interactive, ItemSize, List, PlacementBuilder, ReadSignal,
-    clone, component, create_memo, view,
+    component, create_memo, view,
 };
 use block_editor_beui::beui::styled::use_theme;
 use block_editor_beui::beui::unstyled::Picture;
@@ -20,19 +20,19 @@ pub(crate) fn Artwork(state: Rc<RayState>) -> NodeId {
         <PlacementBuilder>
             {move |placed: ReadSignal<Rect>| {
                 let world = state.editor().world();
-                let artwork = create_memo(clone!(world placed -> move || {
+                let artwork = create_memo(move || {
                     let available = world
                         .get()
                         .unwrap_or_else(|| placed.get().size())
                         .max(Vec2::new(1.0, 1.0));
                     artwork_rect(Rect::from_min_size(Pos2::ZERO, available))
-                }));
-                let left = create_memo(clone!(artwork -> move || artwork.get().left()));
-                let top = create_memo(clone!(artwork -> move || artwork.get().top()));
-                let side = create_memo(clone!(artwork -> move || artwork.get().width()));
+                });
+                let left = create_memo(move || artwork.get().left());
+                let top = create_memo(move || artwork.get().top());
+                let side = create_memo(move || artwork.get().width());
 
                 let pressing = Rc::clone(&state);
-                let press_artwork = artwork.clone();
+                let press_artwork = artwork;
                 let press_view = state.editor().canvas();
                 let press_editor = state.editor().clone();
                 let on_press = move |press: PointerPress| {
@@ -48,7 +48,7 @@ pub(crate) fn Artwork(state: Rc<RayState>) -> NodeId {
                 };
 
                 let dragging = Rc::clone(&state);
-                let drag_artwork = artwork.clone();
+                let drag_artwork = artwork;
                 let drag_view = state.editor().canvas();
                 let drag_editor = state.editor().clone();
                 let on_drag = move |press: PointerPress| {
@@ -64,7 +64,7 @@ pub(crate) fn Artwork(state: Rc<RayState>) -> NodeId {
                 };
 
                 let hovering = Rc::clone(&state);
-                let hover_artwork = artwork.clone();
+                let hover_artwork = artwork;
                 let hover_view = state.editor().canvas();
                 let hover_editor = state.editor().clone();
                 let on_hover_move = move |press: PointerPress| {
@@ -78,13 +78,13 @@ pub(crate) fn Artwork(state: Rc<RayState>) -> NodeId {
 
                 let releasing = Rc::clone(&state);
                 let removing = Rc::clone(&state);
-                let lighting = state.lighting.clone();
-                let rays = state.rays.clone();
-                let overlay = state.overlay.clone();
-                let tool = state.tool.clone();
-                let tracing = create_memo(clone!(tool rays -> move || {
+                let lighting = state.lighting;
+                let rays = state.rays;
+                let overlay = state.overlay;
+                let tool = state.tool;
+                let tracing = create_memo(move || {
                     tool.get() == Tool::RayTrace && rays.get().is_some()
-                }));
+                });
                 let camera = state.editor().canvas();
                 let theme = use_theme();
 
@@ -108,29 +108,24 @@ pub(crate) fn Artwork(state: Rc<RayState>) -> NodeId {
                             }
                         }}
                     >
-                        <Frame color={theme.background.clone()}>
+                        <Frame color={theme.background}>
                             <List spacing=0.0>
                                 <Canvas view={camera} @sizing=ItemSize::Percent(100.0)>
                                     <CanvasItem
-                                        x={left.clone()}
-                                        y={top.clone()}
-                                        width={side.clone()}
-                                        height={side.clone()}
+                                        x={left}
+                                        y={top}
+                                        width={side}
+                                        height={side}
                                         @test_id={"pixel_ray_tracer.artwork"}
                                     >
                                         <Picture image={lighting} fit=ImageFit::Fill smooth=false />
                                     </CanvasItem>
-                                    <CanvasItem
-                                        x={left.clone()}
-                                        y={top.clone()}
-                                        width={side.clone()}
-                                        height={side.clone()}
-                                    >
+                                    <CanvasItem x={left} y={top} width={side} height={side}>
                                         <Frame visible={tracing}>
                                             <Picture image={rays} fit=ImageFit::Fill smooth=false />
                                         </Frame>
                                     </CanvasItem>
-                                    <CanvasItem x={left} y={top} width={side.clone()} height={side}>
+                                    <CanvasItem x={left} y={top} width={side} height={side}>
                                         <Drawing draw={overlay} />
                                     </CanvasItem>
                                 </Canvas>

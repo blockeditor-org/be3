@@ -55,7 +55,7 @@ impl Pages {
     }
 
     pub(crate) fn shown(&self) -> Memo<Shown> {
-        let shown = self.shown.clone();
+        let shown = self.shown;
         create_memo(move || shown.get())
     }
 

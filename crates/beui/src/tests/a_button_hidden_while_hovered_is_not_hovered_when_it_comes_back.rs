@@ -29,7 +29,7 @@ fn a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back() {
                         on_click={|| {}}
                         content={move |handle: ButtonHandle| {
                             if let Some(held) = hovering.borrow_mut().as_mut() {
-                                held.hovered = Some(handle.hovered.clone());
+                                held.hovered = Some(handle.hovered);
                             }
                             view! {
                                 <Text string="Themes" />
@@ -50,7 +50,7 @@ fn a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back() {
     let hovered = held
         .borrow()
         .as_ref()
-        .and_then(|held| held.hovered.clone())
+        .and_then(|held| held.hovered)
         .expect("the button reported its hover");
 
     harness.frame(vec![Event::PointerMoved(at)]);

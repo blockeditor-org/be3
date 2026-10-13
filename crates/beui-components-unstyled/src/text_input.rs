@@ -117,7 +117,7 @@ pub fn TextInput(
         state: state.clone(),
         area: area.clone(),
         menu: menu_node.clone(),
-        focused: is_focused.clone(),
+        focused: is_focused,
     });
 
     create_effect(clone!(state -> move || {
@@ -165,10 +165,10 @@ pub fn TextInput(
     let submit_state = state.clone();
     let focus_state = state.clone();
     let menu_state = state.clone();
-    let masked_menu = masked.clone();
-    let menu_disabled = disabled.clone();
-    let field_disabled = disabled.clone();
-    let handle_focused = is_focused.clone();
+    let masked_menu = masked;
+    let menu_disabled = disabled;
+    let field_disabled = disabled;
+    let handle_focused = is_focused;
     view! {
         <TextArea
             @node_ref=&area
@@ -270,7 +270,7 @@ pub fn text_input_value(document: &Document, input_node: NodeId) -> String {
 }
 
 pub fn text_input_focused(document: &Document, input_node: NodeId) -> ReadSignal<bool> {
-    input(document, input_node).focused.clone()
+    input(document, input_node).focused
 }
 
 pub fn text_input_caret(document: &Document, input_node: NodeId) -> usize {

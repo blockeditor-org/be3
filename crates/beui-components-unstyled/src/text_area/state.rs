@@ -264,15 +264,15 @@ impl TextAreaState {
     }
 
     pub fn content(&self) -> ReadSignal<u64> {
-        self.0.content.clone()
+        self.0.content
     }
 
     pub fn cursors(&self) -> ReadSignal<u64> {
-        self.0.cursors.clone()
+        self.0.cursors
     }
 
     pub fn layout(&self) -> ReadSignal<TextAreaLayout> {
-        self.0.layout.clone()
+        self.0.layout
     }
 
     pub fn loaded(&self) -> bool {
@@ -349,11 +349,11 @@ impl TextAreaState {
     }
 
     pub fn focus_requests(&self) -> ReadSignal<u64> {
-        self.0.focus_requests.clone()
+        self.0.focus_requests
     }
 
     pub fn reveals(&self) -> ReadSignal<u64> {
-        self.0.reveals.clone()
+        self.0.reveals
     }
 
     pub fn canvas(&self) -> NodeRef {
@@ -393,7 +393,7 @@ impl TextAreaState {
     }
 
     pub fn touch_mode(&self) -> ReadSignal<bool> {
-        self.0.touch_mode.clone()
+        self.0.touch_mode
     }
 
     pub fn set_touch_mode(&self, touch: bool) {
@@ -401,7 +401,7 @@ impl TextAreaState {
     }
 
     pub fn caret_handle(&self) -> ReadSignal<bool> {
-        self.0.caret_handle.clone()
+        self.0.caret_handle
     }
 
     pub fn release_tab(&self, released: bool) -> bool {
@@ -495,7 +495,7 @@ impl TextAreaState {
     }
 
     pub fn find_open(&self) -> ReadSignal<bool> {
-        self.0.find.open.clone()
+        self.0.find.open
     }
 
     pub fn find_status(&self) -> FindStatus {

@@ -73,7 +73,7 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
                             <Portal node={Some(sidebar)} />
                         }}
                     >
-                        <Frame color={page.clone()} radius=0>
+                        <Frame color={page} radius=0>
                             <List spacing=0.0>
                                 <Frame padding_horizontal=8.0 padding_vertical=4.0>
                                     <IconButton
@@ -101,7 +101,7 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
     let viewer = model.clone();
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <Frame @sizing=ItemSize::Fixed(SIDEBAR_WIDTH) color={theme.surface.clone()}>
+            <Frame @sizing=ItemSize::Fixed(SIDEBAR_WIDTH) color={theme.surface}>
                 <Sidebar model={sidebar} />
             </Frame>
             <Separator direction=Direction::Vertical />
@@ -130,7 +130,7 @@ fn Sidebar(model: Model) -> NodeId {
         Loaded::Failed(error) => error,
         _ => String::new(),
     }));
-    let failed = create_memo(clone!(error -> move || !error.get().is_empty()));
+    let failed = create_memo(move || !error.get().is_empty());
     let pull_requests = model.pull_requests.clone();
     let visible = create_memo(clone!(model pull_requests -> move || {
         let query = model.query.get().to_lowercase();
@@ -146,9 +146,7 @@ fn Sidebar(model: Model) -> NodeId {
             })
             .collect::<Vec<u64>>()
     }));
-    let empty = create_memo(clone!(visible loading failed -> move || {
-        visible.get().is_empty() && !loading.get() && !failed.get()
-    }));
+    let empty = create_memo(move || visible.get().is_empty() && !loading.get() && !failed.get());
     let empty_text = create_memo(
         clone!(model -> move || match (model.filter.get(), model.query.get().is_empty()) {
             (_, false) => "Nothing matches the filter".to_owned(),
@@ -160,8 +158,8 @@ fn Sidebar(model: Model) -> NodeId {
     let show = clone!(model -> move |index: usize| {
         model.show(if index == 0 { Filter::Open } else { Filter::Closed });
     });
-    let set_query = model.set_query.clone();
-    let query = model.query.clone();
+    let set_query = model.set_query;
+    let query = model.query;
     let main = model.clone();
     view! {
         <List spacing=0.0>
@@ -189,7 +187,7 @@ fn Sidebar(model: Model) -> NodeId {
                         on_change={show}
                     />
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                        <Icon glyph=ICON_SEARCH color={theme.text_muted.clone()} />
+                        <Icon glyph=ICON_SEARCH color={theme.text_muted} />
                         <TextInput
                             @sizing=ItemSize::Percent(100.0)
                             value={query}
@@ -205,15 +203,10 @@ fn Sidebar(model: Model) -> NodeId {
                         </List>
                     </Show>
                     <Show condition={failed}>
-                        <Text
-                            string={error.clone()}
-                            font_size=FONT_BODY
-                            color={theme.danger.clone()}
-                            wrap=true
-                        />
+                        <Text string={error} font_size=FONT_BODY color={theme.danger} wrap=true />
                     </Show>
                     <Show condition={empty}>
-                        <Caption content={empty_text.clone()} />
+                        <Caption content={empty_text} />
                     </Show>
                 </List>
             </Frame>
@@ -253,8 +246,8 @@ fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
     let theme = use_theme();
     let number = pull_request.get_untracked().number;
     let selected = model.selection.memo(Some(number));
-    let title = create_memo(clone!(pull_request -> move || pull_request.get().title));
-    let details = create_memo(clone!(pull_request -> move || {
+    let title = create_memo(move || pull_request.get().title);
+    let details = create_memo(move || {
         let pull_request = pull_request.get();
         format!(
             "#{} by {} · updated {}",
@@ -262,24 +255,22 @@ fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
             pull_request.author.login,
             relative(now(), pull_request.updated)
         )
-    }));
-    let state = create_memo(clone!(pull_request -> move || pull_request.get().state));
-    let labels = create_memo(clone!(pull_request -> move || pull_request.get().labels));
-    let checked_out = create_memo(clone!(model pull_request -> move || {
+    });
+    let state = create_memo(move || pull_request.get().state);
+    let labels = create_memo(move || pull_request.get().labels);
+    let checked_out = create_memo(clone!(model -> move || {
         model.current(&pull_request.get())
     }));
-    let has_tags = create_memo(clone!(labels checked_out -> move || {
-        !labels.get().is_empty() || checked_out.get()
-    }));
+    let has_tags = create_memo(move || !labels.get().is_empty() || checked_out.get());
     view! {
         <ListRow selected on_click={move || model.select(number)}>
             <List direction=Direction::Horizontal spacing=8.0>
                 <StateIcon state />
                 <List @sizing=ItemSize::Percent(100.0) spacing=ROW_SPACING>
-                    <Text string={title} font_size=FONT_BODY color={theme.text.clone()} wrap=true />
+                    <Text string={title} font_size=FONT_BODY color={theme.text} wrap=true />
                     <Caption content={details} />
                     <Show condition={has_tags}>
-                        <Labels labels={labels.clone()} checked_out={checked_out.clone()} />
+                        <Labels labels={labels} checked_out={checked_out} />
                     </Show>
                 </List>
             </List>
@@ -290,7 +281,7 @@ fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
 #[component]
 pub(crate) fn StateIcon(state: Memo<State>) -> NodeId {
     let theme = use_theme();
-    let glyph = create_memo(clone!(state -> move || state_glyph(state.get()).to_owned()));
+    let glyph = create_memo(move || state_glyph(state.get()).to_owned());
     let color = create_memo(move || match state.get() {
         State::Open => theme.success.get(),
         State::Draft => theme.text_muted.get(),
@@ -314,16 +305,16 @@ pub(crate) fn state_glyph(state: State) -> &'static str {
 #[component]
 pub(crate) fn Labels(labels: Memo<Vec<Label>>, checked_out: Memo<bool>) -> NodeId {
     let theme = use_theme();
-    let keys = create_memo(clone!(labels -> move || (0..labels.get().len()).collect::<Vec<_>>()));
+    let keys = create_memo(move || (0..labels.get().len()).collect::<Vec<_>>());
     view! {
         <List direction=Direction::Horizontal spacing=6.0>
             <Show condition={checked_out}>
-                <Chip text=CURRENT color={theme.accent.clone()} />
+                <Chip text=CURRENT color={theme.accent} />
             </Show>
             <ForEach keys>
                 {move |index: usize| {
-                    let label = create_memo(clone!(labels -> move || labels.get().get(index).cloned()));
-                    let text = create_memo(clone!(label -> move || label.get().map(|label| label.name).unwrap_or_default()));
+                    let label = create_memo(move || labels.get().get(index).cloned());
+                    let text = create_memo(move || label.get().map(|label| label.name).unwrap_or_default());
                     let color = create_memo(move || label.get().map_or(Color32::from_gray(128), |label| label.color));
                     view! {
                         <Chip text color />

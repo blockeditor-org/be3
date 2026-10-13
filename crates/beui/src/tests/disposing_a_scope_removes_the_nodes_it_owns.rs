@@ -3,6 +3,7 @@ use crate::reactive::{NodeRef, Show, Text, component, create_signal, on_cleanup,
 
 #[test]
 fn disposing_a_scope_removes_the_nodes_it_owns() {
+    let _root = crate::reactive::RootScope::new();
     let cleaned: Rc<RefCell<Vec<&'static str>>> = Rc::new(RefCell::new(Vec::new()));
     let (label, set_label) = create_signal("one".to_owned());
     let (shown, set_shown) = create_signal(true);
@@ -17,7 +18,7 @@ fn disposing_a_scope_removes_the_nodes_it_owns() {
                         {move || {
                             let outer_sink = cleaned.clone();
                             let inner_sink = cleaned.clone();
-                            let label = label.clone();
+                            let label = label;
                             let text = text.clone();
                             component("Outer", move || {
                                 on_cleanup(move || outer_sink.borrow_mut().push("outer"));

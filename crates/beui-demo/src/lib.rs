@@ -349,7 +349,7 @@ impl DemoApp {
 fn LonePage(page: Page) -> NodeId {
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <PageView page />
         </Frame>
     }
@@ -504,7 +504,7 @@ fn switch_tabs_with_alt_q(layout: &DockingLayout<TabId>) {
         ),
     ] {
         let switching = layout.clone();
-        let held = modifiers.clone();
+        let held = modifiers;
         Action::new(id, label, move || {
             match switching.switching() {
                 true => switching.step_switch(backwards),
@@ -544,28 +544,26 @@ fn DemoShell() -> NodeId {
     let pages = Pages::new();
     let (mobile, set_mobile) = create_signal(false);
     let narrow = narrower_than(NARROW_WIDTH);
-    let mode = create_memo(clone!(mobile narrow -> move || {
-        match mobile.get() || narrow.get() {
-            true => DockMode::Stacked,
-            false => DockMode::Tiled,
-        }
-    }));
+    let mode = create_memo(move || match mobile.get() || narrow.get() {
+        true => DockMode::Stacked,
+        false => DockMode::Tiled,
+    });
     let active = create_selector(clone!(pages -> move || pages.active()));
     let layout = pages.layout.clone();
     switch_tabs_with_alt_q(&layout);
-    let open = pages.open.clone();
+    let open = pages.open;
     let catalog = pages.clone();
     let toolbar = pages.clone();
     let (drag_modifier, set_drag_modifier) = create_signal(None);
     provide_context(DragModifier {
-        held: drag_modifier.clone(),
+        held: drag_modifier,
         set: set_drag_modifier,
     });
     let dialogs = DemoDialogs::new();
     provide_context(dialogs.clone());
-    let attached = dialogs.open.clone();
+    let attached = dialogs.open;
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <List spacing=0.0>
                 <Frame padding_horizontal=SHELL_PADDING padding_vertical=SHELL_PADDING>
                     <DemoToolbar pages=toolbar mobile set_mobile />
@@ -575,7 +573,7 @@ fn DemoShell() -> NodeId {
                     <DockSplit id="shell" fraction={1.0 - PAGE_SHARE}>
                         <DockPane id="catalog">
                             <DockTab id=CATALOG title="Components" icon=ICON_WIDGETS>
-                                <CatalogPanel pages={catalog.clone()} active={active.clone()} />
+                                <CatalogPanel pages={catalog.clone()} active={active} />
                             </DockTab>
                         </DockPane>
                         <DockPane
@@ -720,22 +718,22 @@ fn PageView(page: Page) -> NodeId {
 fn DemoToolbar(pages: Pages, mobile: ReadSignal<bool>, set_mobile: WriteSignal<bool>) -> NodeId {
     let (selected_theme, set_selected_theme) = create_signal(Some(0));
     let narrow = narrower_than(NARROW_WIDTH);
-    let wide = create_memo(clone!(narrow -> move || !narrow.get()));
+    let wide = create_memo(move || !narrow.get());
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=TOOLBAR_SPACING>
             <Title content="beui" />
-            <Show condition={wide.clone()}>
+            <Show condition={wide}>
                 <Caption content="retained mode ui" />
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <Show condition={wide}>
-                {move || clone!(set_mobile -> view! {
+                {move || view! {
                     <Checkbox
                         label="Mobile"
-                        checked={mobile.clone()}
+                        checked={mobile}
                         on_change={move |on: bool| set_mobile.set(on)}
                     />
-                })}
+                }}
             </Show>
             <Select
                 label="Theme"
@@ -784,14 +782,14 @@ fn CatalogPanel(pages: Pages, active: Selector<Option<Page>>) -> NodeId {
                         summary="Components painted with the theme"
                         listed={STYLED_PAGES.to_vec()}
                         pages
-                        active={active.clone()}
+                        active={active}
                     />
                     <CatalogGroup
                         title="Unstyled"
                         summary="Behaviour only: you paint them"
                         listed={UNSTYLED_PAGES.to_vec()}
                         pages=unstyled_pages
-                        active={active.clone()}
+                        active={active}
                     />
                     <CatalogGroup
                         title="Base"

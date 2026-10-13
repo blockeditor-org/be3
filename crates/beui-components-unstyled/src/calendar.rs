@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::rc::Rc;
 
 use accesskit::{Node, Role};
@@ -115,9 +116,9 @@ pub fn Calendar(
     let (year_focus, set_year_focus) = create_signal(None);
     let (mode, set_mode) = create_signal(CalendarMode::Days);
     let state: Handle = Rc::new(State {
-        selected: selected_read.clone(),
+        selected: selected_read,
         set_selected,
-        active: active.clone(),
+        active,
         set_active,
         day_focus,
         set_day_focus,
@@ -125,7 +126,7 @@ pub fn Calendar(
         set_month_focus,
         year_focus,
         set_year_focus,
-        mode: mode.clone(),
+        mode,
         set_mode,
         min,
         max,
@@ -156,25 +157,19 @@ pub fn Calendar(
         }
     }));
 
-    let shown_month = create_memo(clone!(active -> move || active.get().first_of_month()));
-    let first_year = create_memo(clone!(active -> move || page_start(active.get().year)));
-    let label = create_memo(
-        clone!(shown_month mode first_year -> move || match mode.get() {
-            CalendarMode::Days => shown_month.get().month_label(),
-            CalendarMode::Months => shown_month.get().year.to_string(),
-            CalendarMode::Years => years_label(first_year.get()),
-        }),
-    );
-    let month_label = create_memo(clone!(shown_month -> move || {
-        shown_month.get().month_name().to_owned()
-    }));
-    let year_label = create_memo(
-        clone!(shown_month mode first_year -> move || match mode.get() {
-            CalendarMode::Years => years_label(first_year.get()),
-            CalendarMode::Days | CalendarMode::Months => shown_month.get().year.to_string(),
-        }),
-    );
-    let can_previous = create_memo(clone!(state shown_month first_year -> move || {
+    let shown_month = create_memo(move || active.get().first_of_month());
+    let first_year = create_memo(move || page_start(active.get().year));
+    let label = create_memo(move || match mode.get() {
+        CalendarMode::Days => shown_month.get().month_label(),
+        CalendarMode::Months => shown_month.get().year.to_string(),
+        CalendarMode::Years => years_label(first_year.get()),
+    });
+    let month_label = create_memo(move || shown_month.get().month_name().to_owned());
+    let year_label = create_memo(move || match mode.get() {
+        CalendarMode::Years => years_label(first_year.get()),
+        CalendarMode::Days | CalendarMode::Months => shown_month.get().year.to_string(),
+    });
+    let can_previous = create_memo(clone!(state -> move || {
         let edge = match state.mode.get() {
             CalendarMode::Days => shown_month.get().add_days(-1),
             CalendarMode::Months => Date::new(shown_month.get().year - 1, 12, 31),
@@ -182,7 +177,7 @@ pub fn Calendar(
         };
         edge.year >= Date::MIN_YEAR && state.min.get().is_none_or(|min| edge >= min)
     }));
-    let can_next = create_memo(clone!(state shown_month first_year -> move || {
+    let can_next = create_memo(clone!(state -> move || {
         let edge = match state.mode.get() {
             CalendarMode::Days => shown_month.get().last_of_month().add_days(1),
             CalendarMode::Months => Date::new(shown_month.get().year + 1, 1, 1),
@@ -190,24 +185,23 @@ pub fn Calendar(
         };
         edge.year <= Date::MAX_YEAR && state.max.get().is_none_or(|max| edge <= max)
     }));
-    let unit = create_memo(clone!(mode -> move || match mode.get() {
+    let unit = create_memo(move || match mode.get() {
         CalendarMode::Days => "month",
         CalendarMode::Months => "year",
         CalendarMode::Years => "years",
-    }));
-    let previous_label = create_memo(clone!(unit -> move || format!("Previous {}", unit.get())));
+    });
+    let previous_label = create_memo(move || format!("Previous {}", unit.get()));
     let next_label = create_memo(move || format!("Next {}", unit.get()));
-    let months_open = create_memo(clone!(mode -> move || mode.get() == CalendarMode::Months));
-    let years_open = create_memo(clone!(mode -> move || mode.get() == CalendarMode::Years));
-    let month_toggle =
-        toggle_accessibility(month_label.clone(), "choose a month", months_open.clone());
-    let year_toggle = toggle_accessibility(year_label.clone(), "choose a year", years_open.clone());
+    let months_open = create_memo(move || mode.get() == CalendarMode::Months);
+    let years_open = create_memo(move || mode.get() == CalendarMode::Years);
+    let month_toggle = toggle_accessibility(month_label, "choose a month", months_open);
+    let year_toggle = toggle_accessibility(year_label, "choose a year", years_open);
     let header_node = header.call(CalendarHeaderHandle {
-        month: shown_month.clone(),
-        label: label.clone(),
+        month: shown_month,
+        label,
         month_label,
         year_label,
-        mode: mode.clone(),
+        mode,
         previous: Callback::new(clone!(state -> move |()| page(&state, -1))),
         next: Callback::new(clone!(state -> move |()| page(&state, 1))),
         show_months: Callback::new(
@@ -226,24 +220,23 @@ pub fn Calendar(
         year_toggle,
     });
 
-    let grid_start = create_memo(clone!(active -> move || {
-        active.get().first_of_month().start_of_week(first_weekday)
-    }));
-    let days_shown = create_memo(clone!(mode -> move || mode.get() == CalendarMode::Days));
-    let months_shown = create_memo(clone!(mode -> move || mode.get() == CalendarMode::Months));
+    let grid_start =
+        create_memo(move || active.get().first_of_month().start_of_week(first_weekday));
+    let days_shown = create_memo(move || mode.get() == CalendarMode::Days);
+    let months_shown = create_memo(move || mode.get() == CalendarMode::Months);
     let years_shown = create_memo(move || mode.get() == CalendarMode::Years);
     let week_state = state.clone();
     let month_state = state.clone();
     let year_state = state.clone();
-    let days_label = label.clone();
-    let months_label = label.clone();
+    let days_label = label;
+    let months_label = label;
     view! {
         <List spacing>
             {header_node}
             <Show condition={days_shown}>
                 {move || {
-                    let (days_label, spacing, weekday) = (days_label.clone(), spacing, weekday.clone());
-                    let (week_state, grid_start, day) = (week_state.clone(), grid_start.clone(), day.clone());
+                    let (days_label, spacing, weekday) = (days_label, spacing, weekday.clone());
+                    let (week_state, grid_start, day) = (week_state.clone(), grid_start, day.clone());
                     view! {
                         <CalendarGrid label=days_label spacing>
                             <List direction=Direction::Horizontal spacing>
@@ -262,7 +255,7 @@ pub fn Calendar(
                                     <CalendarWeek
                                         state={week_state.clone()}
                                         week
-                                        grid_start={grid_start.clone()}
+                                        grid_start={grid_start}
                                         spacing
                                         day={day.clone()}
                                     />
@@ -274,7 +267,7 @@ pub fn Calendar(
             </Show>
             <Show condition={months_shown}>
                 {move || {
-                    let (months_label, spacing) = (months_label.clone(), spacing);
+                    let (months_label, spacing) = (months_label, spacing);
                     let (month_state, month) = (month_state.clone(), month.clone());
                     view! {
                         <CalendarGrid label=months_label spacing>
@@ -294,8 +287,8 @@ pub fn Calendar(
             </Show>
             <Show condition={years_shown}>
                 {move || {
-                    let (label, spacing, year_state) = (label.clone(), spacing, year_state.clone());
-                    let (first_year, year) = (first_year.clone(), year.clone());
+                    let (label, spacing, year_state) = (label, spacing, year_state.clone());
+                    let (first_year, year) = (first_year, year.clone());
                     view! {
                         <CalendarGrid label spacing>
                             <ForEach keys={(0..YEAR_ROWS).collect::<Vec<_>>()}>
@@ -303,7 +296,7 @@ pub fn Calendar(
                                     <CalendarYearRow
                                         state={year_state.clone()}
                                         row
-                                        first_year={first_year.clone()}
+                                        first_year={first_year}
                                         spacing
                                         year={year.clone()}
                                     />
@@ -334,7 +327,7 @@ fn CalendarYearRow(
                         @sizing=ItemSize::Percent(100.0)
                         state={state.clone()}
                         offset={(row * YEAR_COLUMNS + column) as i32}
-                        first_year={first_year.clone()}
+                        first_year={first_year}
                         face={year.clone()}
                     />
                 }}
@@ -351,28 +344,28 @@ fn CalendarYear(
     face: RenderFn<CalendarCellHandle>,
 ) -> NodeId {
     let year = create_memo(move || first_year.get() + offset);
-    let selected = create_memo(clone!(state year -> move || {
+    let selected = create_memo(clone!(state -> move || {
         state.selected.get().is_some_and(|selected| selected.year == year.get())
     }));
-    let current = create_memo(clone!(state year -> move || state.today.year == year.get()));
-    let disabled = create_memo(clone!(state year -> move || {
+    let current = create_memo(clone!(state -> move || state.today.year == year.get()));
+    let disabled = create_memo(clone!(state -> move || {
         let year = year.get();
         !(Date::MIN_YEAR..=Date::MAX_YEAR).contains(&year)
             || state.min.get().is_some_and(|min| year < min.year)
             || state.max.get().is_some_and(|max| year > max.year)
     }));
-    let tab_stop = create_memo(clone!(state year -> move || state.active.get().year == year.get()));
-    let focused =
-        create_memo(clone!(state year -> move || state.year_focus.get() == Some(year.get())));
-    let accessibility = create_memo(clone!(year selected -> move || {
+    let tab_stop = create_memo(clone!(state -> move || state.active.get().year == year.get()));
+    let focused = create_memo(clone!(state -> move || state.year_focus.get() == Some(year.get())));
+    let accessibility = create_memo(move || {
         let mut node = Node::new(Role::GridCell);
         node.set_label(year.get().to_string());
         node.set_selected(selected.get());
         node
-    }));
+    });
     let (focus_state, click_state, key_state) = (state.clone(), state.clone(), state.clone());
-    let (focus_year, click_year, key_year) = (year.clone(), year.clone(), year.clone());
-    let handle_disabled = disabled.clone();
+    let (focus_year, click_year, key_year) = (year, year, year);
+    let focused_as = Cell::new(None);
+    let handle_disabled = disabled;
     view! {
         <unstyled::Button
             tab_stop
@@ -380,10 +373,13 @@ fn CalendarYear(
             disabled
             accessibility
             on_focus_change={move |has_focus: bool| {
-                let year = focus_year.get_untracked();
                 if has_focus {
+                    let year = focus_year.get_untracked();
+                    focused_as.set(Some(year));
                     focus_state.set_year_focus.set(Some(year));
-                } else if focus_state.year_focus.get_untracked() == Some(year) {
+                } else if let Some(year) = focused_as.take()
+                    && focus_state.year_focus.get_untracked() == Some(year)
+                {
                     focus_state.set_year_focus.set(None);
                 }
             }}
@@ -449,7 +445,7 @@ fn CalendarWeek(
                         @sizing=ItemSize::Percent(100.0)
                         state={state.clone()}
                         offset={(week * DAYS_PER_WEEK + column) as i64}
-                        grid_start={grid_start.clone()}
+                        grid_start={grid_start}
                         face={day.clone()}
                     />
                 }}
@@ -466,17 +462,15 @@ fn CalendarDay(
     face: RenderFn<CalendarCellHandle>,
 ) -> NodeId {
     let date = create_memo(move || grid_start.get().add_days(offset));
-    let selected =
-        create_memo(clone!(state date -> move || state.selected.get() == Some(date.get())));
-    let today = create_memo(clone!(state date -> move || date.get() == state.today));
-    let outside = create_memo(clone!(state date -> move || {
+    let selected = create_memo(clone!(state -> move || state.selected.get() == Some(date.get())));
+    let today = create_memo(clone!(state -> move || date.get() == state.today));
+    let outside = create_memo(clone!(state -> move || {
         !date.get().same_month(state.active.get())
     }));
-    let disabled = create_memo(clone!(state date -> move || !in_range(&state, date.get())));
-    let tab_stop = create_memo(clone!(state date -> move || state.active.get() == date.get()));
-    let focused =
-        create_memo(clone!(state date -> move || state.day_focus.get() == Some(date.get())));
-    let accessibility = create_memo(clone!(date selected today -> move || {
+    let disabled = create_memo(clone!(state -> move || !in_range(&state, date.get())));
+    let tab_stop = create_memo(clone!(state -> move || state.active.get() == date.get()));
+    let focused = create_memo(clone!(state -> move || state.day_focus.get() == Some(date.get())));
+    let accessibility = create_memo(move || {
         let date = date.get();
         let mut node = Node::new(Role::GridCell);
         let mut label = date.label();
@@ -486,10 +480,11 @@ fn CalendarDay(
         node.set_label(label);
         node.set_selected(selected.get());
         node
-    }));
+    });
     let (focus_state, click_state, key_state) = (state.clone(), state.clone(), state.clone());
-    let (focus_date, click_date, key_date) = (date.clone(), date.clone(), date.clone());
-    let handle_disabled = disabled.clone();
+    let (focus_date, click_date, key_date) = (date, date, date);
+    let focused_as = Cell::new(None);
+    let handle_disabled = disabled;
     view! {
         <unstyled::Button
             tab_stop
@@ -497,11 +492,14 @@ fn CalendarDay(
             disabled
             accessibility
             on_focus_change={move |has_focus: bool| {
-                let date = focus_date.get_untracked();
                 if has_focus {
+                    let date = focus_date.get_untracked();
+                    focused_as.set(Some(date));
                     focus_state.set_day_focus.set(Some(date));
                     focus_state.set_active.set(date);
-                } else if focus_state.day_focus.get_untracked() == Some(date) {
+                } else if let Some(date) = focused_as.take()
+                    && focus_state.day_focus.get_untracked() == Some(date)
+                {
                     focus_state.set_day_focus.set(None);
                 }
             }}
@@ -551,28 +549,29 @@ fn CalendarMonthRow(
 #[component]
 fn CalendarMonth(state: Handle, number: u8, face: RenderFn<CalendarCellHandle>) -> NodeId {
     let month = create_memo(clone!(state -> move || Date::new(state.active.get().year, number, 1)));
-    let selected = create_memo(clone!(state month -> move || {
+    let selected = create_memo(clone!(state -> move || {
         state.selected.get().is_some_and(|selected| selected.same_month(month.get()))
     }));
-    let current = create_memo(clone!(state month -> move || state.today.same_month(month.get())));
-    let disabled = create_memo(clone!(state month -> move || {
+    let current = create_memo(clone!(state -> move || state.today.same_month(month.get())));
+    let disabled = create_memo(clone!(state -> move || {
         let month = month.get();
         state.min.get().is_some_and(|min| month.last_of_month() < min)
             || state.max.get().is_some_and(|max| month > max)
     }));
     let tab_stop = create_memo(clone!(state -> move || state.active.get().month == number));
-    let focused = create_memo(clone!(state month -> move || {
+    let focused = create_memo(clone!(state -> move || {
         state.month_focus.get() == Some(month.get())
     }));
-    let accessibility = create_memo(clone!(month selected -> move || {
+    let accessibility = create_memo(move || {
         let mut node = Node::new(Role::GridCell);
         node.set_label(month.get().month_label());
         node.set_selected(selected.get());
         node
-    }));
+    });
     let (focus_state, click_state, key_state) = (state.clone(), state.clone(), state.clone());
-    let (focus_month, click_month) = (month.clone(), month.clone());
-    let handle_disabled = disabled.clone();
+    let (focus_month, click_month) = (month, month);
+    let focused_as = Cell::new(None);
+    let handle_disabled = disabled;
     view! {
         <unstyled::Button
             tab_stop
@@ -580,10 +579,13 @@ fn CalendarMonth(state: Handle, number: u8, face: RenderFn<CalendarCellHandle>) 
             disabled
             accessibility
             on_focus_change={move |has_focus: bool| {
-                let month = focus_month.get_untracked();
                 if has_focus {
+                    let month = focus_month.get_untracked();
+                    focused_as.set(Some(month));
                     focus_state.set_month_focus.set(Some(month));
-                } else if focus_state.month_focus.get_untracked() == Some(month) {
+                } else if let Some(month) = focused_as.take()
+                    && focus_state.month_focus.get_untracked() == Some(month)
+                {
                     focus_state.set_month_focus.set(None);
                 }
             }}

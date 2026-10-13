@@ -19,31 +19,29 @@ const SPACING: f32 = 10.0;
 
 #[component]
 pub(crate) fn StatusBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>) -> NodeId {
-    let type_label = create_memo(clone!(info -> move || {
+    let type_label = create_memo(move || {
         info.with(|info| {
             info.as_ref()
                 .map_or_else(String::new, |info| format!("Type: {}", info.type_name))
         })
-    }));
-    let loaded = create_memo(clone!(info -> move || {
+    });
+    let loaded = create_memo(move || {
         info.with(|info| info.as_ref().is_some_and(|info| info.parents.loaded))
-    }));
-    let loading = create_memo(clone!(loaded -> move || !loaded.get()));
-    let backrefs = create_memo(clone!(info -> move || {
+    });
+    let loading = create_memo(move || !loaded.get());
+    let backrefs = create_memo(move || {
         info.with(|info| {
             info.as_ref()
                 .map_or_else(Refs::default, |info| info.backrefs.clone())
         })
-    }));
-    let references = create_memo(clone!(info -> move || {
+    });
+    let references = create_memo(move || {
         info.with(|info| {
             info.as_ref()
                 .map_or_else(Refs::default, |info| info.references.clone())
         })
-    }));
-    let containing = create_memo(clone!(info -> move || {
-        info.with(|info| info.as_ref().map(|info| info.item.id))
-    }));
+    });
+    let containing = create_memo(move || info.with(|info| info.as_ref().map(|info| info.item.id)));
     let listed = Rc::clone(&workspace);
     let access = Rc::clone(&workspace);
     let nothing_contains = create_memo(|| None);
@@ -54,7 +52,7 @@ pub(crate) fn StatusBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>
                 <Caption content="Relationships loading…" />
             </Show>
             <Show condition={loaded}>
-                {move || clone!(backrefs containing listed nothing_contains references workspace -> view! {
+                {move || clone!(listed workspace -> view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <ReferenceMenu
                             workspace={Rc::clone(&workspace)}
@@ -90,42 +88,40 @@ pub(crate) fn ReferenceMenu(
     containing: Memo<Option<Uuid>>,
     named: String,
 ) -> NodeId {
-    let label = create_memo(clone!(refs -> move || {
+    let label = create_memo(move || {
         refs.with(|refs| match refs.loaded {
             true => format!("{name}: {}", refs.list.len()),
             false => format!("{name}: …"),
         })
-    }));
-    let indices = create_memo(clone!(refs -> move || {
-        refs.with(|refs| (0..refs.list.len()).collect::<Vec<_>>())
-    }));
-    let nothing = create_memo(clone!(refs -> move || refs.with(|refs| refs.list.is_empty())));
-    let nothing_label = create_memo(clone!(refs -> move || match refs.with(|refs| refs.loaded) {
+    });
+    let indices = create_memo(move || refs.with(|refs| (0..refs.list.len()).collect::<Vec<_>>()));
+    let nothing = create_memo(move || refs.with(|refs| refs.list.is_empty()));
+    let nothing_label = create_memo(move || match refs.with(|refs| refs.loaded) {
         true => empty.clone(),
         false => "Loading…".to_owned(),
-    }));
+    });
     let items_workspace = Rc::clone(&workspace);
-    let items_refs = refs.clone();
-    let items_containing = containing.clone();
-    let chosen_refs = refs.clone();
+    let items_refs = refs;
+    let items_containing = containing;
+    let chosen_refs = refs;
     view! {
         <MenuButton
             @test_id={named}
             label={label}
             items={view! {
                 <Show condition={nothing}>
-                    <MenuItem label={nothing_label.clone()} disabled=true />
+                    <MenuItem label={nothing_label} disabled=true />
                 </Show>
                 <ForEach keys={indices}>
                     {move |index: usize| {
-                        let reference = create_memo(clone!(items_refs -> move || {
+                        let reference = create_memo(move || {
                             items_refs.with(|refs| refs.list.get(index).cloned())
-                        }));
+                        });
                         view! {
                             <ReferenceMenuItem
                                 workspace={Rc::clone(&items_workspace)}
                                 reference={reference}
-                                containing={items_containing.clone()}
+                                containing={items_containing}
                             />
                         }
                     }}

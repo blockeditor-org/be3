@@ -176,7 +176,7 @@ pub fn DateTimeField(
         set_focus,
         value: value_read,
         set_value,
-        disabled: disabled.clone(),
+        disabled,
         left,
         on_change,
         on_open,
@@ -193,7 +193,7 @@ pub fn DateTimeField(
             state.set_typing.set(None);
         }
     }));
-    create_effect(clone!(state disabled -> move || {
+    create_effect(clone!(state -> move || {
         if disabled.get() {
             state.set_focus.set(None);
         }
@@ -223,7 +223,7 @@ pub fn DateTimeField(
             day: read(DateSegment::Day).map(|day| day.clamp(1, 31) as u8),
         });
     }));
-    let focus = state.focus.clone();
+    let focus = state.focus;
     let within = create_memo(move || focus.get().is_some());
     create_effect(move || on_focus_change.call(within.get()));
     let first = order[0];
@@ -281,17 +281,16 @@ fn SegmentView(
         Some((typing, buffer)) if typing == segment => Some(buffer),
         _ => None,
     }));
-    let text = create_memo(clone!(value typed -> move || match typed.get() {
+    let text = create_memo(move || match typed.get() {
         Some(buffer) => buffer,
-        None => value.get().map_or_else(|| segment.placeholder().to_owned(), |value| {
-            format_segment(segment, value)
-        }),
-    }));
-    let placeholder = create_memo(clone!(value typed -> move || {
-        typed.get().is_none() && value.get().is_none()
-    }));
+        None => value.get().map_or_else(
+            || segment.placeholder().to_owned(),
+            |value| format_segment(segment, value),
+        ),
+    });
+    let placeholder = create_memo(move || typed.get().is_none() && value.get().is_none());
     let accessibility_state = state.clone();
-    component_accessibility(create_memo(clone!(value -> move || {
+    component_accessibility(create_memo(move || {
         let state = &accessibility_state;
         let mut node = Node::new(Role::SpinButton);
         node.set_label(segment.label());
@@ -310,15 +309,15 @@ fn SegmentView(
             node.set_disabled();
         }
         node
-    })));
-    let ime = focused_read.clone();
+    }));
+    let ime = focused_read;
     let content = face.call(DateSegmentHandle {
         segment,
         text,
         placeholder,
         hovered,
         focused: focused_read,
-        disabled: state.disabled.clone(),
+        disabled: state.disabled,
     });
     let (focus_state, step_state, key_state, text_state) =
         (state.clone(), state.clone(), state.clone(), state.clone());

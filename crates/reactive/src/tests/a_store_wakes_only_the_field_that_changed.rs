@@ -8,6 +8,7 @@ struct Settings {
 
 #[test]
 fn a_store_wakes_only_the_field_that_changed() {
+    let _root = RootScope::new();
     let scope = Scope::new();
     let settings = SettingsStore::new(Settings {
         width: 4,
@@ -15,10 +16,10 @@ fn a_store_wakes_only_the_field_that_changed() {
     });
     let runs = Rc::new(RefCell::new(Vec::new()));
     scope.run(|| {
-        let width = settings.width.clone();
+        let width = settings.width;
         let recorded = runs.clone();
         create_effect(move || recorded.borrow_mut().push(format!("width {}", width.get())));
-        let label = settings.label.clone();
+        let label = settings.label;
         let recorded = runs.clone();
         create_effect(move || recorded.borrow_mut().push(format!("label {}", label.get())));
     });

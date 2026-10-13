@@ -4,6 +4,7 @@ use crate::unstyled::{Edge, Floating};
 
 #[test]
 fn a_floating_overlay_follows_an_anchor_that_only_moves() {
+    let _root = crate::reactive::RootScope::new();
     let (banner, set_banner) = create_signal(0.0_f32);
     let stage = NodeRef::new();
     let pill = NodeRef::new();

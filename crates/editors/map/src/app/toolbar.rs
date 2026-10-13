@@ -19,9 +19,9 @@ pub(crate) fn MapToolbar(state: Rc<MapState>, shown: Prop<bool>) -> NodeId {
     let fit = Rc::clone(&state);
     let reload = Rc::clone(&state);
     let regionless = create_memo(clone!(state -> move || state.preview_region.get().is_none()));
-    let error = state.last_error.clone();
-    let failed = create_memo(clone!(error -> move || error.get().is_some()));
-    let reason = create_memo(clone!(error -> move || error.get().unwrap_or_default()));
+    let error = state.last_error;
+    let failed = create_memo(move || error.get().is_some());
+    let reason = create_memo(move || error.get().unwrap_or_default());
     let theme = use_theme();
 
     view! {
@@ -64,7 +64,7 @@ pub(crate) fn MapToolbar(state: Rc<MapState>, shown: Prop<bool>) -> NodeId {
                 on_click={move || reload.reload_tiles()}
             />
             <Show condition={failed}>
-                <Caption content={reason.clone()} color={theme.danger.clone()} />
+                <Caption content={reason} color={theme.danger} />
             </Show>
         </Toolbar>
     }

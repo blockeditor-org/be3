@@ -26,10 +26,7 @@ fn check_compact_rows(inset: f32) {
                     VIRTUAL_ITEM_HEIGHT
                 }
             });
-            let padding = create_memo({
-                let item_height = item_height.clone();
-                move || item_height.get() / 2.0
-            });
+            let padding = create_memo(move || item_height.get() / 2.0);
             view! {
                 <List spacing=0.0>
                     <Switch
@@ -45,7 +42,7 @@ fn check_compact_rows(inset: f32) {
                         >
                             {move |index: usize| {
                                 sink.borrow_mut().push(index);
-                                let padding = padding.clone();
+                                let padding = padding;
                                 view! {
                                     <Frame padding_horizontal=0.0 padding_vertical={padding}>
                                         <Spacer />

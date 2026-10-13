@@ -170,29 +170,29 @@ impl Default for Theme {
 #[component]
 pub fn ThemeProvider(theme: Prop<Theme>, #[prop(children)] content: Render) -> NodeId {
     let store = ThemeStore::new(theme.peek());
-    let provided = store.clone();
+    let provided = store;
     create_effect(move || store.set(theme.get()));
     provide_context(provided);
     content.call(())
 }
 
 pub fn control_outline(theme: &ThemeStore) -> Memo<Color32> {
-    let outline = theme.control_outline.clone();
+    let outline = theme.control_outline;
     create_memo(move || outline.get().unwrap_or(Color32::TRANSPARENT))
 }
 
 pub fn control_outline_visible(theme: &ThemeStore) -> Memo<bool> {
-    let outline = theme.control_outline.clone();
+    let outline = theme.control_outline;
     create_memo(move || outline.get().is_some())
 }
 
 pub fn knob_outline(theme: &ThemeStore) -> Memo<Color32> {
-    let outline = theme.knob_outline.clone();
+    let outline = theme.knob_outline;
     create_memo(move || outline.get().unwrap_or(Color32::TRANSPARENT))
 }
 
 pub fn knob_outline_visible(theme: &ThemeStore) -> Memo<bool> {
-    let outline = theme.knob_outline.clone();
+    let outline = theme.knob_outline;
     create_memo(move || outline.get().is_some())
 }
 

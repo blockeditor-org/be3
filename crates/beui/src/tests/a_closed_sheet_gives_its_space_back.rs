@@ -3,6 +3,7 @@ use crate::reactive::{NodeRef, with_reactive_scope};
 
 #[test]
 fn a_closed_sheet_gives_its_space_back() {
+    let _root = crate::reactive::RootScope::new();
     let filler = NodeRef::new();
     let (open, set_open) = create_signal(true);
     let document = build({

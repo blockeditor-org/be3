@@ -12,7 +12,7 @@ use beui_core::base::{Align, Direction};
 use beui_core::color::Color32;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, ItemSize, List, Memo, Prop, clone, create_effect, create_memo, create_signal,
+    Callback, ItemSize, List, Memo, Prop, create_effect, create_memo, create_signal,
 };
 
 const SWATCH_WIDTH: f32 = 32.0;
@@ -30,32 +30,30 @@ pub fn ColorInput(
     on_preview: Callback<Option<Color32>>,
 ) -> NodeId {
     let (current, set_current) = create_signal(value.peek());
-    create_effect(clone!(set_current -> move || set_current.set(value.get())));
+    create_effect(move || set_current.set(value.get()));
     let (previewed, set_previewed) = create_signal(None::<Color32>);
-    let shown = create_memo(clone!(current previewed -> move || {
-        previewed.get().unwrap_or_else(|| current.get())
-    }));
-    let report = clone!(current set_current -> move |color: Color32| {
+    let shown = create_memo(move || previewed.get().unwrap_or_else(|| current.get()));
+    let report = move |color: Color32| {
         if color != current.get_untracked() {
             set_current.set(color);
             on_change.call(color);
         }
-    });
-    let hex = HexText::new(shown.clone(), alpha, Callback::new(report.clone()));
+    };
+    let hex = HexText::new(shown, alpha, Callback::new(report.clone()));
     let (edit, submit) = (hex.clone(), hex.clone());
     let label = create_memo(move || label.get());
-    let picker_label = create_memo(clone!(label -> move || match label.get() {
+    let picker_label = create_memo(move || match label.get() {
         label if label.is_empty() => "Choose a color".to_owned(),
         label => format!("Choose {label}"),
-    }));
+    });
     let disabled = create_memo(move || disabled.get());
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <unstyled::Popover
-                label={picker_label.clone()}
-                disabled={disabled.clone()}
+                label={picker_label}
+                disabled={disabled}
                 trigger={move |handle: PopoverTriggerHandle| view! {
-                    <SwatchTrigger handle color={shown.clone()} label={picker_label} />
+                    <SwatchTrigger handle color={shown} label={picker_label} />
                 }}
             >
                 {move |popover: PopoverHandle| view! {

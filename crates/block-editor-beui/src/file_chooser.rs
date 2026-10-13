@@ -4,8 +4,7 @@ use std::rc::{Rc, Weak};
 use beui::NodeId;
 use beui::reactive::{
     Align, Direction, FileFilter, FilePicker, Frame, Func, ItemSize, List, PickedFile, ReadSignal,
-    Show, Spacer, WriteSignal, clone, component, create_file_picker, create_memo, create_signal,
-    view,
+    Show, Spacer, WriteSignal, component, create_file_picker, create_memo, create_signal, view,
 };
 use beui::styled::{Button, ButtonVariant, Caption, use_theme};
 
@@ -62,11 +61,11 @@ impl<T: 'static> FileChooser<T> {
     }
 
     pub fn name(&self) -> ReadSignal<Option<String>> {
-        self.name.clone()
+        self.name
     }
 
     pub fn error(&self) -> ReadSignal<Option<String>> {
-        self.error.clone()
+        self.error
     }
 
     pub fn open(&self) {
@@ -127,12 +126,10 @@ where
     });
 
     let chosen = chooser.name();
-    let name = create_memo(clone!(chosen -> move || {
-        chosen.get().unwrap_or_else(|| "No file chosen".to_owned())
-    }));
+    let name = create_memo(move || chosen.get().unwrap_or_else(|| "No file chosen".to_owned()));
     let failure = chooser.error();
-    let failed = create_memo(clone!(failure -> move || failure.get().is_some()));
-    let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
+    let failed = create_memo(move || failure.get().is_some());
+    let reason = create_memo(move || failure.get().unwrap_or_default());
     let busy = chooser.busy();
     let choose = move || chooser.open();
     let choose_id = format!("{id_prefix}.choose");
@@ -154,8 +151,8 @@ where
                 </List>
                 <Show condition={failed}>
                     <Caption
-                        content={reason.clone()}
-                        color={theme.danger.clone()}
+                        content={reason}
+                        color={theme.danger}
                         wrap=true
                         @test_id={error_id.clone()}
                     />

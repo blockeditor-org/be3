@@ -48,7 +48,7 @@ where
         let project = Rc::new(project);
         let (read, write) = create_signal(T::default());
         let editor = self.editor.clone();
-        let id = self.id.clone();
+        let id = self.id;
         create_effect(move || {
             let Some(block) = id.get() else {
                 write.set(T::default());
@@ -58,7 +58,7 @@ where
             let inner = editor
                 .content_of::<C>(block)
                 .project(move |content| project(content));
-            let write = write.clone();
+            let write = write;
             create_effect(move || write.set(inner.get()));
         });
         read

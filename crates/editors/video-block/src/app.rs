@@ -120,10 +120,12 @@ fn EffectsColumn(state: Rc<VideoState>) -> NodeId {
 
 #[component]
 fn FrameRateBar(state: Rc<VideoState>, shown: Prop<bool>) -> NodeId {
-    let rate = state.frame_rate.clone();
-    let chosen = create_memo(clone!(rate -> move || {
-        FRAME_RATES.into_iter().position(|option| option == rate.get())
-    }));
+    let rate = state.frame_rate;
+    let chosen = create_memo(move || {
+        FRAME_RATES
+            .into_iter()
+            .position(|option| option == rate.get())
+    });
     let options = (0..FRAME_RATES.len()).collect::<Vec<usize>>();
     view! {
         <Toolbar shown={shown}>
@@ -155,22 +157,22 @@ fn PlaybackBar(state: Rc<VideoState>) -> NodeId {
     let start = Rc::clone(&state);
     let play = Rc::clone(&state);
     let end = Rc::clone(&state);
-    let playing = state.playing.clone();
+    let playing = state.playing;
     let empty = create_memo(clone!(state -> move || state.duration.get() == 0));
-    let glyph = create_memo(clone!(playing -> move || match playing.get() {
+    let glyph = create_memo(move || match playing.get() {
         true => ICON_PAUSE.to_owned(),
         false => ICON_PLAY_ARROW.to_owned(),
-    }));
-    let playhead = state.playhead.clone();
-    let duration = state.duration.clone();
-    let rate = state.frame_rate.clone();
-    let position = create_memo(clone!(playhead duration rate -> move || {
+    });
+    let playhead = state.playhead;
+    let duration = state.duration;
+    let rate = state.frame_rate;
+    let position = create_memo(move || {
         format!(
             "{} / {}",
             crate::timeline::timecode(rate.get(), playhead.get()),
             crate::timeline::timecode(rate.get(), duration.get())
         )
-    }));
+    });
     let theme = use_theme();
     view! {
         <Frame padding_horizontal=10.0 padding_vertical=4.0>
@@ -192,7 +194,7 @@ fn PlaybackBar(state: Rc<VideoState>) -> NodeId {
                     label="Go to the end"
                     on_click={move || end.seek(end.duration.get_untracked())}
                 />
-                <Caption content={position} color={theme.text_muted.clone()} />
+                <Caption content={position} color={theme.text_muted} />
             </List>
         </Frame>
     }
@@ -220,7 +222,7 @@ fn TimelineTools(state: Rc<VideoState>) -> NodeId {
                 <IconButton
                     glyph={ICON_SUBDIRECTORY_ARROW_RIGHT.to_owned()}
                     label="Attach a clip to the selected clip at the playhead"
-                    disabled={none.clone()}
+                    disabled={none}
                     on_click={move || {
                         let selected = attach.selected.get_untracked();
                         attach.open_picker(selected);
@@ -229,7 +231,7 @@ fn TimelineTools(state: Rc<VideoState>) -> NodeId {
                 <IconButton
                     glyph={ICON_CONTENT_CUT.to_owned()}
                     label="Split the selected clip in two at the playhead"
-                    disabled={none.clone()}
+                    disabled={none}
                     @test_id={"video.split"}
                     on_click={move || split.split_selected()}
                 />

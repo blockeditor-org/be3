@@ -14,12 +14,12 @@ pub(crate) fn watch(editor: &Editor, folder: &Rc<Folder>) -> Memo<Option<bool>> 
     let here = editor.clone();
     create_effect(move || {
         let drag = drag.get();
-        untrack(|| land(&here, &folder, &set_state, drag));
+        untrack(|| land(&here, &folder, set_state, drag));
     });
     create_memo(move || state.get())
 }
 
-fn land(here: &Editor, folder: &Folder, set_state: &WriteSignal<Option<bool>>, drag: Option<Drag>) {
+fn land(here: &Editor, folder: &Folder, set_state: WriteSignal<Option<bool>>, drag: Option<Drag>) {
     let Some(drag) = drag else {
         set_state.set(None);
         return;

@@ -5,6 +5,7 @@ use crate::reactive::{
 
 #[test]
 fn hover_only_repaints_when_its_handler_changes_a_node() {
+    let _root = crate::reactive::RootScope::new();
     let (hover_paints, set_hover_paints) = create_signal(false);
     let fill = NodeRef::new();
     let mut document = build({

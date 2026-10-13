@@ -13,7 +13,7 @@ fn a_layout_builder_built_inside_another_settles_in_one_layout() {
                 <Frame width=300.0 height=200.0>
                     <LayoutBuilder>
                         {move |size: ReadSignal<Vec2>| {
-                            let wide = create_memo(clone!(size -> move || size.get().x > 100.0));
+                            let wide = create_memo(move || size.get().x > 100.0);
                             let seen = Rc::clone(&seen);
                             view! {
                                 <Frame height=40.0>

@@ -61,9 +61,11 @@ pub fn TimeList(
     let step_minutes = step_minutes.clamp(1, MINUTES_PER_DAY);
     let columns = grid_columns(step_minutes, max_columns);
     let (selected, set_selected) = create_signal(value.peek());
-    create_effect(clone!(set_selected -> move || set_selected.set(value.get())));
-    let times = create_memo(clone!(selected -> move || {
-        let mut times: Vec<u32> = (0..MINUTES_PER_DAY).step_by(step_minutes as usize).collect();
+    create_effect(move || set_selected.set(value.get()));
+    let times = create_memo(move || {
+        let mut times: Vec<u32> = (0..MINUTES_PER_DAY)
+            .step_by(step_minutes as usize)
+            .collect();
         if columns == 1
             && let Some(time) = selected.get()
             && let Err(index) = times.binary_search(&time.minutes())
@@ -71,9 +73,9 @@ pub fn TimeList(
             times.insert(index, time.minutes());
         }
         times
-    }));
+    });
     let (focus, set_focus) = create_signal(None);
-    let anchor = create_memo(clone!(selected times focus -> move || {
+    let anchor = create_memo(move || {
         if let Some(focused) = focus.get() {
             return focused;
         }
@@ -87,19 +89,19 @@ pub fn TimeList(
                 .copied()
                 .unwrap_or(0)
         })
-    }));
-    let shown = create_memo(clone!(times selected -> move || {
+    });
+    let shown = create_memo(move || {
         let wanted = selected.get().map_or(MORNING, Time::minutes);
         let index = times.with(|times| times.iter().filter(|minutes| **minutes < wanted).count());
         (index / columns).saturating_sub(LEAD_ROWS) as f32 * (row_height + spacing)
-    }));
+    });
     let state: Handle = Rc::new(State {
-        times: times.clone(),
+        times,
         selected,
         set_selected,
         focus,
         set_focus,
-        anchor: anchor.clone(),
+        anchor,
         columns,
         on_change,
     });
@@ -109,9 +111,8 @@ pub fn TimeList(
             state.set_focus.set(Some(state.anchor.get_untracked()));
         }
     }));
-    let rows = create_memo(clone!(times -> move || {
-        (0..times.with(Vec::len).div_ceil(columns)).collect::<Vec<usize>>()
-    }));
+    let rows =
+        create_memo(move || (0..times.with(Vec::len).div_ceil(columns)).collect::<Vec<usize>>());
     view! {
         <TimeListBox label>
             <unstyled::Scroll @sizing=ItemSize::Percent(100.0) offset={shown} scrollbar>
@@ -142,7 +143,7 @@ fn TimeRow(
     face: RenderFn<TimeOptionHandle>,
 ) -> NodeId {
     let columns = state.columns;
-    let times = state.times.clone();
+    let times = state.times;
     let cells = create_memo(move || {
         times.with(|times| {
             times
@@ -197,7 +198,7 @@ fn TimeOption(
     let selected = create_memo(clone!(state -> move || state.selected.get() == Some(time)));
     let tab_stop = create_memo(clone!(state -> move || state.anchor.get() == minutes));
     let focused = create_memo(clone!(state -> move || state.focus.get() == Some(minutes)));
-    let accessibility = create_memo(clone!(selected label -> move || {
+    let accessibility = create_memo(clone!(label -> move || {
         let mut node = Node::new(Role::ListBoxOption);
         node.set_label(label.clone());
         node.set_selected(selected.get());

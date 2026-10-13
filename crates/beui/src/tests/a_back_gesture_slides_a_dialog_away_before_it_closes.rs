@@ -5,14 +5,14 @@ use crate::styled::Dialog;
 
 #[test]
 fn a_back_gesture_slides_a_dialog_away_before_it_closes() {
+    let _root = crate::reactive::RootScope::new();
     let (open, set_open) = create_signal(false);
     let dismissed = Rc::new(Cell::new(0));
     let reports = dismissed.clone();
     let body = NodeRef::new();
     let body_ref = body.clone();
     let document = build({
-        let open = open.clone();
-        let closing = set_open.clone();
+        let closing = set_open;
         move || {
             view! {
                 <List spacing=0.0>
@@ -39,7 +39,7 @@ fn a_back_gesture_slides_a_dialog_away_before_it_closes() {
     let mut harness = Harness::new(document);
     assert!(!harness.frame(Vec::new()).window.handles_back);
 
-    let opening = set_open.clone();
+    let opening = set_open;
     with_reactive_scope(harness.document_mut(), move || opening.set(true));
     assert!(harness.frame(Vec::new()).window.handles_back);
     harness.frame(Vec::new());

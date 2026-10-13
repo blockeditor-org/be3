@@ -372,28 +372,28 @@ pub(crate) fn HexView(state: Shared) -> NodeId {
             {move |size: ReadSignal<Vec2>| {
                 let canvas = NodeRef::new();
                 let scale = pixels_per_point();
-                let geometry = create_memo(clone!(scale -> move || {
+                let geometry = create_memo(move || {
                     scale.get();
                     let char_width = layout_text("0", FontId::monospace(TEXT_SIZE), TextLayout::DEFAULT)
                         .map_or(TEXT_SIZE * 0.6, |galley| galley.size().x)
                         .max(1.0);
                     HexGeometry::new(char_width)
-                }));
+                });
                 let content = state.text.content();
-                let rows = create_memo(clone!(state content -> move || {
+                let rows = create_memo(clone!(state -> move || {
                     content.get();
                     state.text.bytes().len().div_ceil(BYTES_PER_ROW).max(1)
                 }));
-                let content_size = create_memo(clone!(geometry rows size -> move || {
+                let content_size = create_memo(move || {
                     let available = size.get();
                     Vec2::new(
                         (geometry.get().total_width + PADDING.x * 2.0).max(available.x),
                         (rows.get() as f32 * ROW_HEIGHT + PADDING.y * 2.0).max(available.y),
                     )
-                }));
-                let width = create_memo(clone!(content_size -> move || content_size.get().x));
-                let height = create_memo(clone!(content_size -> move || content_size.get().y));
-                let drawn = create_memo(clone!(state content geometry content_size -> move || {
+                });
+                let width = create_memo(move || content_size.get().x);
+                let height = create_memo(move || content_size.get().y);
+                let drawn = create_memo(clone!(state -> move || {
                     content.get();
                     state.text.cursors().get();
                     page(&state, &geometry.get(), content_size.get())
@@ -402,7 +402,7 @@ pub(crate) fn HexView(state: Shared) -> NodeId {
 
                 let cx = Rc::new(HexSurface {
                     state: state.clone(),
-                    geometry: geometry.clone(),
+                    geometry,
                     rows,
                     canvas: canvas.clone(),
                 });

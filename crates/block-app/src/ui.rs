@@ -9,7 +9,7 @@ use std::cell::RefCell;
 
 use be_protocol::WorkspaceRole;
 use beui::reactive::{
-    Dynamic, Frame, List, NodeRef, Store, clone, component, copy_text, create_memo, view,
+    Dynamic, Frame, List, NodeRef, Store, component, copy_text, create_memo, view,
 };
 use beui::styled::{KeepChanges, Toast, Toasts, use_theme};
 use beui::unstyled::Edge;
@@ -333,21 +333,21 @@ pub(crate) enum UiCommand {
 #[component]
 pub(crate) fn Root(view: AppViewStore) -> NodeId {
     let theme = use_theme();
-    let screen = view.screen.clone();
-    let toasts = view.toasts.clone();
-    let keep_display = view.keep_display.clone();
-    let asking = create_memo(clone!(keep_display -> move || keep_display.get().is_some()));
+    let screen = view.screen;
+    let toasts = view.toasts;
+    let keep_display = view.keep_display;
+    let asking = create_memo(move || keep_display.get().is_some());
     let round = create_memo(move || keep_display.get().unwrap_or_default());
-    let keeping = round.clone();
-    let reverting = round.clone();
-    let locking = view.clone();
+    let keeping = round;
+    let reverting = round;
+    let locking = view;
     let area = NodeRef::new();
     view! {
-        <Frame @node_ref=&area color={theme.background.clone()}>
+        <Frame @node_ref=&area color={theme.background}>
             <List spacing=0.0>
                 <Dynamic value={screen}>
                     {move |screen: Screen| {
-                        let view = view.clone();
+                        let view = view;
                         match screen {
                             Screen::Error => view! {
                                 <onboarding::ErrorScreen @sizing=ItemSize::Percent(100.0) view />

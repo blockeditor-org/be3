@@ -5,12 +5,7 @@ use std::rc::Rc;
 
 use crate::runtime::batch;
 use crate::scope::Scope;
-use crate::signal::{ReadSignal, WriteSignal, create_signal};
-
-struct Entry<V> {
-    read: ReadSignal<V>,
-    write: WriteSignal<V>,
-}
+use crate::signal::{OwnedSignal, ReadSignal, WriteSignal};
 
 enum Target<V> {
     Unchanged,
@@ -18,17 +13,16 @@ enum Target<V> {
     Missing,
 }
 
-struct Inner<K, V> {
-    keys: ReadSignal<Vec<K>>,
-    write_keys: WriteSignal<Vec<K>>,
-    entries: RefCell<HashMap<K, Entry<V>>>,
+struct Inner<K: 'static, V: 'static> {
+    keys: OwnedSignal<Vec<K>>,
+    entries: RefCell<HashMap<K, OwnedSignal<V>>>,
 }
 
-pub struct KeyedStore<K, V> {
+pub struct KeyedStore<K: 'static, V: 'static> {
     inner: Rc<Inner<K, V>>,
 }
 
-impl<K, V> Clone for KeyedStore<K, V> {
+impl<K: 'static, V: 'static> Clone for KeyedStore<K, V> {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
@@ -36,7 +30,7 @@ impl<K, V> Clone for KeyedStore<K, V> {
     }
 }
 
-impl<K, V> PartialEq for KeyedStore<K, V> {
+impl<K: 'static, V: 'static> PartialEq for KeyedStore<K, V> {
     fn eq(&self, other: &Self) -> bool {
         Rc::ptr_eq(&self.inner, &other.inner)
     }
@@ -50,26 +44,20 @@ impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> Default for
 
 impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> KeyedStore<K, V> {
     pub fn new() -> Self {
-        let (keys, write_keys) = create_signal(Vec::new());
         Self {
             inner: Rc::new(Inner {
-                keys,
-                write_keys,
+                keys: OwnedSignal::new(Vec::new()),
                 entries: RefCell::new(HashMap::new()),
             }),
         }
     }
 
     pub fn keys(&self) -> ReadSignal<Vec<K>> {
-        self.inner.keys.clone()
+        self.inner.keys.read()
     }
 
     pub fn try_get(&self, key: &K) -> Option<ReadSignal<V>> {
-        self.inner
-            .entries
-            .borrow()
-            .get(key)
-            .map(|entry| entry.read.clone())
+        self.inner.entries.borrow().get(key).map(OwnedSignal::read)
     }
 
     pub fn get(&self, key: &K) -> ReadSignal<V> {
@@ -115,27 +103,31 @@ impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> KeyedStore<
             let entries = self.inner.entries.borrow();
             match entries.get(key) {
                 None => Target::Missing,
-                Some(entry) if entry.read.with_untracked(|current| current == value) => {
+                Some(entry) if entry.read().with_untracked(|current| current == value) => {
                     Target::Unchanged
                 }
-                Some(entry) => Target::Changed(entry.write.clone()),
+                Some(entry) => Target::Changed(entry.write()),
             }
         };
         match target {
             Target::Unchanged => {}
             Target::Changed(write) => write.set_unconditionally(value.clone()),
             Target::Missing => {
-                let (read, write) = create_signal(value.clone());
                 self.inner
                     .entries
                     .borrow_mut()
-                    .insert(key.clone(), Entry { read, write });
+                    .insert(key.clone(), OwnedSignal::new(value.clone()));
             }
         }
     }
 
     fn set_keys(&self, keys: Vec<K>) {
-        if self.inner.keys.with_untracked(|current| *current == keys) {
+        if self
+            .inner
+            .keys
+            .read()
+            .with_untracked(|current| *current == keys)
+        {
             return;
         }
         let retained: HashSet<&K> = keys.iter().collect();
@@ -144,7 +136,7 @@ impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> KeyedStore<
             .borrow_mut()
             .retain(|key, _| retained.contains(key));
         drop(retained);
-        self.inner.write_keys.set_unconditionally(keys);
+        self.inner.keys.write().set_unconditionally(keys);
     }
 }
 

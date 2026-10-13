@@ -4,6 +4,7 @@ use crate::styled::{Button, ButtonVariant, Theme, ThemeProvider};
 
 #[test]
 fn a_theme_provider_restyles_its_subtree_when_its_theme_changes() {
+    let _root = crate::reactive::RootScope::new();
     let (theme, set_theme) = create_signal(Theme::DARK);
     let (document, [_button]) = toolbar_of(move || {
         [view! {

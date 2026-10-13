@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn a_mock_dom_row_that_leaves_disposes_the_effects_it_built() {
+    let _root = ::reactive::RootScope::new();
     fresh_ids();
     let scope = Scope::new();
     let texts = Rc::new(Cell::new(0));
@@ -16,7 +17,7 @@ fn a_mock_dom_row_that_leaves_disposes_the_effects_it_built() {
                 <ForEach keys={items}>
                     {move |item: u32| {
                         let cleanups = cleanups.clone();
-                        let suffix = suffix.clone();
+                        let suffix = suffix;
                         on_cleanup(move || cleanups.set(cleanups.get() + 1));
                         let text = create_memo(move || format!("{item}{}", suffix.get()));
                         view! {

@@ -9,7 +9,7 @@ use beui_core::input::CursorIcon;
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    Child, ForEach, Interactive, List, Memo, NodeRef, ReadSignal, RenderFn, clone, create_memo,
+    Child, ForEach, Interactive, List, Memo, NodeRef, ReadSignal, RenderFn, create_memo,
     create_signal,
 };
 
@@ -79,8 +79,8 @@ const QUERY_LIMIT: usize = 32;
 pub(super) fn Completions(cx: Context, menu: CompletionMenu) -> NodeId {
     let anchor = NodeRef::new();
     anchor.fill(cx.anchor);
-    let items = cx.completions.clone();
-    let keys = create_memo(clone!(items -> move || (0..items.get().len()).collect::<Vec<usize>>()));
+    let items = cx.completions;
+    let keys = create_memo(move || (0..items.get().len()).collect::<Vec<usize>>());
     let CompletionMenu { row, panel } = menu;
     view! {
         <Overlay
@@ -108,9 +108,9 @@ pub(super) fn Completions(cx: Context, menu: CompletionMenu) -> NodeId {
 
 #[component]
 fn CompletionRow(cx: Context, index: usize, row: RenderFn<CompletionRowHandle>) -> NodeId {
-    let items = cx.completions.clone();
+    let items = cx.completions;
     let completion = create_memo(move || items.get().get(index).cloned());
-    let highlighted = cx.highlighted.clone();
+    let highlighted = cx.highlighted;
     let highlighted = create_memo(move || highlighted.get() == index);
     let (hovered, set_hovered) = create_signal(false);
     let content = row.call(CompletionRowHandle {

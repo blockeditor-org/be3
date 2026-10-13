@@ -8,6 +8,7 @@ const LABELS: usize = 6;
 
 #[test]
 fn a_row_pushed_down_by_the_row_above_it_is_neither_laid_out_nor_painted_again() {
+    let _root = crate::reactive::RootScope::new();
     let (height, set_height) = create_signal(40.0);
     let document = build(move || {
         view! {

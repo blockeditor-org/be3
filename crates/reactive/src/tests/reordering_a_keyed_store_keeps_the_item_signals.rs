@@ -11,7 +11,6 @@ fn reordering_a_keyed_store_keeps_the_item_signals() {
     let keys = store.keys();
     scope.run(|| {
         let runs = item_runs.clone();
-        let first = first.clone();
         create_effect(move || {
             first.with(|_| ());
             runs.set(runs.get() + 1);

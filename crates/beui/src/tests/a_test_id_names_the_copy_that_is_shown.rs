@@ -3,10 +3,11 @@ use crate::reactive::{Frame, List, Show, build, create_signal, view, with_reacti
 
 #[test]
 fn a_test_id_names_the_copy_that_is_shown() {
+    let _root = crate::reactive::RootScope::new();
     let (wide, set_wide) = create_signal(true);
-    let widen = set_wide.clone();
+    let widen = set_wide;
     let document = build(move || {
-        let shown = wide.clone();
+        let shown = wide;
         let narrow = crate::reactive::create_memo(move || !shown.get());
         view! {
             <List spacing=0.0>

@@ -30,11 +30,11 @@ struct Point {
 #[component]
 pub fn Scatter(data: Data) -> NodeId {
     let axes = axis_fields(&data);
-    let missing = create_memo(clone!(axes -> move || axes.get().is_none()));
-    let ready = create_memo(clone!(axes -> move || axes.get().is_some()));
+    let missing = create_memo(move || axes.get().is_none());
+    let ready = create_memo(move || axes.get().is_some());
     let theme = use_theme();
     view! {
-        <Frame color={theme.background.clone()}>
+        <Frame color={theme.background}>
             <List spacing=0.0>
                 <Show condition={missing}>
                     <Frame padding_horizontal=12.0 padding_vertical=12.0>
@@ -42,11 +42,7 @@ pub fn Scatter(data: Data) -> NodeId {
                     </Frame>
                 </Show>
                 <Show condition={ready}>
-                    <Plot
-                        @sizing=ItemSize::Percent(100.0)
-                        data={data.clone()}
-                        axes={axes.clone()}
-                    />
+                    <Plot @sizing=ItemSize::Percent(100.0) data={data.clone()} axes={axes} />
                 </Show>
             </List>
         </Frame>
@@ -58,49 +54,49 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
     view! {
         <LayoutBuilder>
             {move |size: ReadSignal<Vec2>| {
-                let bounds = create_memo(clone!(data axes -> move || {
+                let bounds = create_memo(clone!(data -> move || {
                     let (x_field, y_field) = axes.get()?;
                     plot_bounds(&shown_rows(&data), x_field.id, y_field.id)
                 }));
-                let placed = create_memo(clone!(data axes bounds size -> move || {
+                let placed = create_memo(clone!(data -> move || {
                     let (Some((x_field, y_field)), Some(bounds)) = (axes.get(), bounds.get()) else {
                         return Vec::new();
                     };
                     let area = size.get();
                     place_points(&shown_rows(&data), x_field.id, y_field.id, bounds, plot_area(area))
                 }));
-                let keys = create_memo(clone!(placed -> move || {
+                let keys = create_memo(move || {
                     placed.with(|placed| placed.iter().map(|point| point.row).collect::<Vec<usize>>())
-                }));
-                let empty = create_memo(clone!(placed -> move || placed.with(Vec::is_empty)));
-                let plot_height = create_memo(clone!(size -> move || plot_area(size.get()).1));
-                let plot_width = create_memo(clone!(size -> move || plot_area(size.get()).0));
-                let rule_top = create_memo(clone!(plot_height -> move || AXIS_TOP + plot_height.get()));
-                let x_low = create_memo(clone!(bounds -> move || {
+                });
+                let empty = create_memo(move || placed.with(Vec::is_empty));
+                let plot_height = create_memo(move || plot_area(size.get()).1);
+                let plot_width = create_memo(move || plot_area(size.get()).0);
+                let rule_top = create_memo(move || AXIS_TOP + plot_height.get());
+                let x_low = create_memo(move || {
                     bounds.get().map_or_else(String::new, |bounds| format_axis_value(bounds.0))
-                }));
-                let x_high = create_memo(clone!(bounds -> move || {
+                });
+                let x_high = create_memo(move || {
                     bounds.get().map_or_else(String::new, |bounds| format_axis_value(bounds.1))
-                }));
-                let y_low = create_memo(clone!(bounds -> move || {
+                });
+                let y_low = create_memo(move || {
                     bounds.get().map_or_else(String::new, |bounds| format_axis_value(bounds.2))
-                }));
-                let y_high = create_memo(clone!(bounds -> move || {
+                });
+                let y_high = create_memo(move || {
                     bounds.get().map_or_else(String::new, |bounds| format_axis_value(bounds.3))
-                }));
-                let x_name = create_memo(clone!(axes -> move || {
+                });
+                let x_name = create_memo(move || {
                     axes.get().map_or_else(String::new, |(x_field, _)| x_field.name)
-                }));
-                let y_name = create_memo(clone!(axes -> move || {
+                });
+                let y_name = create_memo(move || {
                     axes.get().map_or_else(String::new, |(_, y_field)| y_field.name)
-                }));
+                });
                 let x_label_x =
-                    create_memo(clone!(plot_width -> move || AXIS_LEFT + plot_width.get() * 0.5 - 60.0));
-                let x_high_x = create_memo(clone!(plot_width -> move || AXIS_LEFT + plot_width.get() - 60.0));
-                let x_label_y = create_memo(clone!(rule_top -> move || rule_top.get() + LABEL_HEIGHT));
-                let value_y = create_memo(clone!(rule_top -> move || rule_top.get() + 2.0));
-                let y_low_y = create_memo(clone!(rule_top -> move || rule_top.get() - LABEL_HEIGHT));
-                let pick = clone!(data placed -> move |at: Pos2| {
+                    create_memo(move || AXIS_LEFT + plot_width.get() * 0.5 - 60.0);
+                let x_high_x = create_memo(move || AXIS_LEFT + plot_width.get() - 60.0);
+                let x_label_y = create_memo(move || rule_top.get() + LABEL_HEIGHT);
+                let value_y = create_memo(move || rule_top.get() + 2.0);
+                let y_low_y = create_memo(move || rule_top.get() - LABEL_HEIGHT);
+                let pick = clone!(data -> move |at: Pos2| {
                     let chosen = placed.with_untracked(|placed| nearest(placed, at));
                     match chosen {
                         Some(row) => data.select(row, None),
@@ -108,8 +104,8 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
                     }
                 });
                 let theme = use_theme();
-                let axis_color = theme.border.clone();
-                let rule_color = theme.border.clone();
+                let axis_color = theme.border;
+                let rule_color = theme.border;
                 view! {
                     <Interactive
                         @test_id={"database-view.scatter"}
@@ -122,12 +118,7 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
                             <CanvasItem x=AXIS_LEFT y={rule_top} width={plot_width} height=RULE>
                                 <Frame color={rule_color} />
                             </CanvasItem>
-                            <CanvasItem
-                                x=AXIS_LEFT
-                                y={value_y.clone()}
-                                width=60.0
-                                height=LABEL_HEIGHT
-                            >
+                            <CanvasItem x=AXIS_LEFT y={value_y} width=60.0 height=LABEL_HEIGHT>
                                 <Caption content={x_low} />
                             </CanvasItem>
                             <CanvasItem x={x_high_x} y={value_y} width=60.0 height=LABEL_HEIGHT>
@@ -157,7 +148,7 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
                             </CanvasItem>
                             <ForEach keys={keys}>
                                 {move |row: usize| {
-                                    let placed = placed.clone();
+                                    let placed = placed;
                                     let data = data.clone();
                                     view! {
                                         <Dot placed={placed} data={data} row={row} />
@@ -179,29 +170,25 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
 
 #[component]
 fn Dot(placed: Memo<Vec<Point>>, data: Data, row: usize) -> CanvasItem {
-    let point = create_memo(clone!(placed -> move || {
+    let point = create_memo(move || {
         placed.with(|placed| placed.iter().find(|point| point.row == row).copied())
-    }));
+    });
     let selected = create_memo(clone!(data -> move || {
         data.selected.get().is_some_and(|selection| selection.row == row)
     }));
-    let side = create_memo(clone!(selected -> move || match selected.get() {
+    let side = create_memo(move || match selected.get() {
         true => SELECTED_POINT,
         false => POINT,
-    }));
-    let x = create_memo(clone!(point side -> move || {
-        point.get().map_or(0.0, |point| point.x - side.get() * 0.5)
-    }));
-    let y = create_memo(clone!(point side -> move || {
-        point.get().map_or(0.0, |point| point.y - side.get() * 0.5)
-    }));
-    let width = side.clone();
+    });
+    let x = create_memo(move || point.get().map_or(0.0, |point| point.x - side.get() * 0.5));
+    let y = create_memo(move || point.get().map_or(0.0, |point| point.y - side.get() * 0.5));
+    let width = side;
     let theme = use_theme();
-    let color = create_memo(clone!(theme selected -> move || match selected.get() {
+    let color = create_memo(move || match selected.get() {
         true => theme.accent.get(),
         false => theme.text.get(),
-    }));
-    let radius = create_memo(clone!(side -> move || (side.get() * 0.5) as u8));
+    });
+    let radius = create_memo(move || (side.get() * 0.5) as u8);
     view! {
         <CanvasItem x={x} y={y} width={width} height={side}>
             <Frame @test_id={format!("database-view.point.{row}")} color={color} radius={radius} />
@@ -210,9 +197,9 @@ fn Dot(placed: Memo<Vec<Point>>, data: Data, row: usize) -> CanvasItem {
 }
 
 pub fn axis_fields(data: &Data) -> Memo<Option<(DatabaseField, DatabaseField)>> {
-    let fields = data.fields.clone();
-    let x = data.scatter_x.clone();
-    let y = data.scatter_y.clone();
+    let fields = data.fields;
+    let x = data.scatter_x;
+    let y = data.scatter_y;
     create_memo(move || {
         let (x, y) = (x.get()?, y.get()?);
         fields.with(|fields| {

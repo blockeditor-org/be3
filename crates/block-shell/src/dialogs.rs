@@ -46,7 +46,7 @@ pub fn WorkspaceDialogs(workspace: Rc<Workspace>) -> NodeId {
 }
 
 fn opened(workspace: &Workspace, of: fn(OpenDialog) -> Option<Uuid>) -> Memo<Option<Uuid>> {
-    let dialog = workspace.dialog.clone();
+    let dialog = workspace.dialog;
     create_memo(move || dialog.get().and_then(of))
 }
 
@@ -56,32 +56,35 @@ fn RenameDialog(workspace: Rc<Workspace>) -> NodeId {
         OpenDialog::Rename(block) => Some(block),
         _ => None,
     });
-    let open = create_memo(clone!(block -> move || block.get().is_some()));
+    let open = create_memo(move || block.get().is_some());
     let (name, set_name) = create_signal(String::new());
-    let initial = create_memo(clone!(workspace block -> move || {
+    let initial = create_memo(clone!(workspace -> move || {
         block
             .get()
             .and_then(|block| workspace.info(block))
             .map(|info| workspace.label(info.id, info.block_type).name)
             .unwrap_or_default()
     }));
-    create_effect(clone!(set_name -> move || {
+    create_effect(move || {
         let initial = initial.get();
         untrack(|| set_name.set(initial));
-    }));
-    let invalid = create_memo(clone!(name -> move || name.get().len() > MAX_NAME_BYTES));
-    let error = create_memo(clone!(invalid -> move || {
-        if invalid
-            .get() { format!("Name must be at most {MAX_NAME_BYTES} UTF-8 bytes.") } else { Default::default() }
-    }));
+    });
+    let invalid = create_memo(move || name.get().len() > MAX_NAME_BYTES);
+    let error = create_memo(move || {
+        if invalid.get() {
+            format!("Name must be at most {MAX_NAME_BYTES} UTF-8 bytes.")
+        } else {
+            Default::default()
+        }
+    });
     let submitting = Rc::clone(&workspace);
-    let submit: Rc<dyn Fn()> = Rc::new(clone!(name invalid -> move || {
+    let submit: Rc<dyn Fn()> = Rc::new(move || {
         if let Some(block) = block.get_untracked()
             && !invalid.get_untracked()
         {
             submitting.rename(block, &name.get_untracked());
         }
-    }));
+    });
     let submit_on_enter = Rc::clone(&submit);
     let (dismiss, cancel) = (Rc::clone(&workspace), workspace);
     view! {
@@ -95,8 +98,8 @@ fn RenameDialog(workspace: Rc<Workspace>) -> NodeId {
                     on_change={move |value: String| set_name.set(value)}
                     on_submit={move |_value: String| submit_on_enter()}
                 />
-                <Show condition={invalid.clone()}>
-                    <Caption content={error.clone()} />
+                <Show condition={invalid}>
+                    <Caption content={error} />
                 </Show>
                 <List direction=Direction::Horizontal spacing=8.0>
                     <Button
@@ -123,7 +126,7 @@ fn UnlinkDialog(workspace: Rc<Workspace>) -> NodeId {
         OpenDialog::Unlink(block) => Some(block),
         _ => None,
     });
-    let open = create_memo(clone!(block -> move || block.get().is_some()));
+    let open = create_memo(move || block.get().is_some());
     let (dismiss, cancel, unlink) = (Rc::clone(&workspace), Rc::clone(&workspace), workspace);
     view! {
         <Dialog
@@ -167,22 +170,38 @@ fn ArtifactSettingsDialog(workspace: Rc<Workspace>) -> NodeId {
         OpenDialog::ArtifactSettings(block) => Some(block),
         _ => None,
     });
-    let open = create_memo(clone!(block -> move || block.get().is_some()));
-    let placed = create_memo(clone!(block -> move || {
-        block.get().map(|block| SubregionContent::ArtifactSettings { block })
-    }));
+    let open = create_memo(move || block.get().is_some());
+    let placed = create_memo(move || {
+        block
+            .get()
+            .map(|block| SubregionContent::ArtifactSettings { block })
+    });
     let (state, set_state) = create_signal(ChildState::default());
-    let unchanged = create_memo(clone!(state -> move || {
-        !state.with(|state| state.settings.as_ref().is_some_and(|settings| settings.changed))
-    }));
-    let summary = create_memo(clone!(state -> move || {
-        state.with(|state| state.settings.as_ref().and_then(|settings| settings.summary.clone()))
-    }));
-    let has_summary = create_memo(clone!(summary -> move || summary.get().is_some()));
+    let unchanged = create_memo(move || {
+        !state.with(|state| {
+            state
+                .settings
+                .as_ref()
+                .is_some_and(|settings| settings.changed)
+        })
+    });
+    let summary = create_memo(move || {
+        state.with(|state| {
+            state
+                .settings
+                .as_ref()
+                .and_then(|settings| settings.summary.clone())
+        })
+    });
+    let has_summary = create_memo(move || summary.get().is_some());
     let summary_text = create_memo(move || summary.get().unwrap_or_default());
-    let height = create_memo(clone!(state -> move || {
-        state.with(|state| state.intrinsic_size.map_or(SETTINGS_HEIGHT, |size| size.y.max(1.0)))
-    }));
+    let height = create_memo(move || {
+        state.with(|state| {
+            state
+                .intrinsic_size
+                .map_or(SETTINGS_HEIGHT, |size| size.y.max(1.0))
+        })
+    });
     let editor = workspace.editor().clone();
     let (dismiss, cancel, apply) = (Rc::clone(&workspace), Rc::clone(&workspace), workspace);
     view! {
@@ -203,7 +222,7 @@ fn ArtifactSettingsDialog(workspace: Rc<Workspace>) -> NodeId {
                     />
                 </Frame>
                 <Show condition={has_summary}>
-                    <Caption content={summary_text.clone()} />
+                    <Caption content={summary_text} />
                 </Show>
                 <List direction=Direction::Horizontal spacing=8.0>
                     <Button
@@ -231,10 +250,10 @@ fn ArtifactSettingsDialog(workspace: Rc<Workspace>) -> NodeId {
 
 #[component]
 fn ShareDialog(workspace: Rc<Workspace>) -> NodeId {
-    let state = workspace.share.clone();
+    let state = workspace.share;
     let me = workspace.host().account_id();
-    let open = create_memo(clone!(state -> move || state.with(Option::is_some)));
-    let title = create_memo(clone!(workspace state -> move || {
+    let open = create_memo(move || state.with(Option::is_some));
+    let title = create_memo(clone!(workspace -> move || {
         state
             .get()
             .map(|share| {
@@ -246,58 +265,86 @@ fn ShareDialog(workspace: Rc<Workspace>) -> NodeId {
             })
             .unwrap_or_default()
     }));
-    let loading = create_memo(clone!(state -> move || {
+    let loading = create_memo(move || {
         state.with(|share| share.as_ref().is_some_and(|share| share.loading()))
-    }));
-    let refreshing = create_memo(clone!(state -> move || {
+    });
+    let refreshing = create_memo(move || {
         state.with(|share| share.as_ref().is_some_and(|share| share.request.is_some()))
-    }));
-    let error = create_memo(clone!(state -> move || {
+    });
+    let error = create_memo(move || {
         state.with(|share| share.as_ref().and_then(|share| share.error.clone()))
-    }));
-    let has_error = create_memo(clone!(error -> move || error.get().is_some()));
+    });
+    let has_error = create_memo(move || error.get().is_some());
     let error_text = create_memo(move || error.get().unwrap_or_default());
-    let query = create_memo(clone!(state -> move || {
-        state.with(|share| share.as_ref().map(|share| share.query.clone()).unwrap_or_default())
-    }));
-    let suggestions = create_memo(clone!(state -> move || {
+    let query = create_memo(move || {
+        state.with(|share| {
+            share
+                .as_ref()
+                .map(|share| share.query.clone())
+                .unwrap_or_default()
+        })
+    });
+    let suggestions = create_memo(move || {
         state.with(|share| share.as_ref().and_then(|share| share.suggestions(me)))
-    }));
-    let searching = create_memo(clone!(suggestions -> move || suggestions.get().is_some()));
-    let unmatched = create_memo(clone!(suggestions -> move || {
-        suggestions.get().is_some_and(|suggestions| suggestions.is_empty())
-    }));
-    let suggestion_keys = create_memo(clone!(suggestions -> move || {
+    });
+    let searching = create_memo(move || suggestions.get().is_some());
+    let unmatched = create_memo(move || {
+        suggestions
+            .get()
+            .is_some_and(|suggestions| suggestions.is_empty())
+    });
+    let suggestion_keys = create_memo(move || {
         suggestions
             .get()
             .unwrap_or_default()
             .into_iter()
             .map(|person| person.id)
             .collect::<Vec<_>>()
-    }));
-    let pending = create_memo(clone!(state -> move || {
-        state.with(|share| share.as_ref().map(|share| share.pending.clone()).unwrap_or_default())
-    }));
-    let pending_keys = create_memo(clone!(pending -> move || {
-        pending.get().into_iter().map(|person| person.id).collect::<Vec<_>>()
-    }));
-    let has_pending = create_memo(clone!(pending_keys -> move || !pending_keys.get().is_empty()));
-    let pending_access = create_memo(clone!(state -> move || {
+    });
+    let pending = create_memo(move || {
+        state.with(|share| {
+            share
+                .as_ref()
+                .map(|share| share.pending.clone())
+                .unwrap_or_default()
+        })
+    });
+    let pending_keys = create_memo(move || {
+        pending
+            .get()
+            .into_iter()
+            .map(|person| person.id)
+            .collect::<Vec<_>>()
+    });
+    let has_pending = create_memo(move || !pending_keys.get().is_empty());
+    let pending_access = create_memo(move || {
         state.with(|share| {
             share.as_ref().map_or(Some(0), |share| {
-                GRANTABLE.iter().position(|access| *access == share.pending_access)
+                GRANTABLE
+                    .iter()
+                    .position(|access| *access == share.pending_access)
             })
         })
-    }));
-    let members = create_memo(clone!(state -> move || {
-        state.with(|share| share.as_ref().map(|share| share.members(me)).unwrap_or_default())
-    }));
-    let member_keys = create_memo(clone!(members -> move || {
-        members.get().into_iter().map(|member| member.id).collect::<Vec<_>>()
-    }));
-    let nobody = create_memo(clone!(state members -> move || {
-        state.with(|share| share.as_ref().is_some_and(|share| share.loaded)) && members.get().is_empty()
-    }));
+    });
+    let members = create_memo(move || {
+        state.with(|share| {
+            share
+                .as_ref()
+                .map(|share| share.members(me))
+                .unwrap_or_default()
+        })
+    });
+    let member_keys = create_memo(move || {
+        members
+            .get()
+            .into_iter()
+            .map(|member| member.id)
+            .collect::<Vec<_>>()
+    });
+    let nobody = create_memo(move || {
+        state.with(|share| share.as_ref().is_some_and(|share| share.loaded))
+            && members.get().is_empty()
+    });
     let act = {
         let workspace = Rc::clone(&workspace);
         Rc::new(move |action: ShareAction| workspace.share_action(action))
@@ -316,7 +363,7 @@ fn ShareDialog(workspace: Rc<Workspace>) -> NodeId {
         <Dialog open={open} title={title} width=460.0 on_dismiss={move || dismiss.close_dialog()}>
             <List spacing=10.0>
                 <Show condition={has_error}>
-                    <Caption content={error_text.clone()} />
+                    <Caption content={error_text} />
                 </Show>
                 <Show condition={loading}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -333,7 +380,7 @@ fn ShareDialog(workspace: Rc<Workspace>) -> NodeId {
                     on_submit={move |_value: String| on_submit(ShareAction::Submit)}
                 />
                 <Show condition={searching}>
-                    {move || clone!(suggestion_keys suggestions unmatched suggest_act -> view! {
+                    {move || clone!(suggest_act -> view! {
                         <Card>
                             <List spacing=4.0>
                                 <Show condition={unmatched}>
@@ -341,7 +388,7 @@ fn ShareDialog(workspace: Rc<Workspace>) -> NodeId {
                                 </Show>
                                 <ForEach keys={suggestion_keys}>
                                     {move |id: Uuid| {
-                                        let suggestions = suggestions.clone();
+                                        let suggestions = suggestions;
                                         let person = create_memo(move || {
                                             suggestions
                                                 .get()
@@ -360,12 +407,12 @@ fn ShareDialog(workspace: Rc<Workspace>) -> NodeId {
                     })}
                 </Show>
                 <Show condition={has_pending}>
-                    {move || clone!(pending pending_access pending_keys pending_act on_access on_add -> view! {
+                    {move || clone!(pending_act on_access on_add -> view! {
                         <List spacing=8.0>
                             <List direction=Direction::Horizontal spacing=6.0 wrap=true>
                                 <ForEach keys={pending_keys}>
                                     {move |id: Uuid| {
-                                        let pending = pending.clone();
+                                        let pending = pending;
                                         let name = create_memo(move || {
                                             pending
                                                 .get()
@@ -428,7 +475,7 @@ fn ShareDialog(workspace: Rc<Workspace>) -> NodeId {
                         </Show>
                         <ForEach keys={member_keys}>
                             {move |id: Uuid| {
-                                let members = members.clone();
+                                let members = members;
                                 let member = create_memo(move || {
                                     members.get().into_iter().find(|member| member.id == id)
                                 });
@@ -466,12 +513,12 @@ fn ShareDialog(workspace: Rc<Workspace>) -> NodeId {
 
 #[component]
 fn SuggestionButton(person: Memo<Option<Person>>, act: Rc<dyn Fn(ShareAction)>) -> NodeId {
-    let label = create_memo(clone!(person -> move || {
+    let label = create_memo(move || {
         person
             .get()
             .map(|person| format!("{} ({})", person.name, person.email))
             .unwrap_or_default()
-    }));
+    });
     view! {
         <Button
             label={label}
@@ -488,32 +535,29 @@ fn SuggestionButton(person: Memo<Option<Person>>, act: Rc<dyn Fn(ShareAction)>) 
 
 #[component]
 fn MemberRow(member: Memo<Option<Member>>, act: Rc<dyn Fn(ShareAction)>) -> NodeId {
-    let name = create_memo(
-        clone!(member -> move || member.get().map(|member| member.name).unwrap_or_default()),
-    );
-    let email = create_memo(
-        clone!(member -> move || member.get().map(|member| member.email).unwrap_or_default()),
-    );
-    let fixed = create_memo(clone!(member -> move || member.get().and_then(|member| member.fixed)));
-    let is_fixed = create_memo(clone!(fixed -> move || fixed.get().is_some()));
-    let editable = create_memo(clone!(is_fixed -> move || !is_fixed.get()));
-    let locked = is_fixed.clone();
+    let name = create_memo(move || member.get().map(|member| member.name).unwrap_or_default());
+    let email = create_memo(move || member.get().map(|member| member.email).unwrap_or_default());
+    let fixed = create_memo(move || member.get().and_then(|member| member.fixed));
+    let is_fixed = create_memo(move || fixed.get().is_some());
+    let editable = create_memo(move || !is_fixed.get());
+    let locked = is_fixed;
     let fixed_text = create_memo(move || fixed.get().unwrap_or_default());
-    let note = create_memo(clone!(member -> move || member.get().and_then(|member| member.note)));
-    let has_note = create_memo(clone!(note -> move || note.get().is_some()));
+    let note = create_memo(move || member.get().and_then(|member| member.note));
+    let has_note = create_memo(move || note.get().is_some());
     let note_text = create_memo(move || note.get().unwrap_or_default());
-    let access_label = create_memo(clone!(member -> move || {
+    let access_label = create_memo(move || {
         member
             .get()
             .map(|member| member.access.label().to_owned())
             .unwrap_or_default()
-    }));
-    let selected = create_memo(clone!(member -> move || {
-        member.get().and_then(|member| GRANTABLE.iter().position(|access| *access == member.access))
-    }));
-    let removable =
-        create_memo(clone!(member -> move || member.get().is_some_and(|member| member.removable)));
-    let chosen = member.clone();
+    });
+    let selected = create_memo(move || {
+        member
+            .get()
+            .and_then(|member| GRANTABLE.iter().position(|access| *access == member.access))
+    });
+    let removable = create_memo(move || member.get().is_some_and(|member| member.removable));
+    let chosen = member;
     let remove_act = Rc::clone(&act);
     view! {
         <Frame padding_vertical=4.0>
@@ -526,7 +570,7 @@ fn MemberRow(member: Memo<Option<Member>>, act: Rc<dyn Fn(ShareAction)>) -> Node
                         </List>
                         <Caption content={email} />
                         <Show condition={locked}>
-                            {move || clone!(fixed_text -> view! {
+                            {move || view! {
                                 <List
                                     direction=Direction::Horizontal
                                     align=Align::Center
@@ -535,22 +579,22 @@ fn MemberRow(member: Memo<Option<Member>>, act: Rc<dyn Fn(ShareAction)>) -> Node
                                     <Icon glyph={ICON_LOCK.to_owned()} text_size=12.0 />
                                     <Caption content={fixed_text} />
                                 </List>
-                            })}
+                            }}
                         </Show>
                         <Show condition={has_note}>
-                            <Caption content={note_text.clone()} />
+                            <Caption content={note_text} />
                         </Show>
                     </List>
                     <Show condition={is_fixed}>
                         <Button
-                            label={access_label.clone()}
+                            label={access_label}
                             variant=ButtonVariant::Secondary
                             disabled=true
                             on_click={|| {}}
                         />
                     </Show>
                     <Show condition={editable}>
-                        {move || clone!(chosen act selected -> view! {
+                        {move || clone!(act -> view! {
                             <Select
                                 selected={selected}
                                 label="Access"
@@ -574,7 +618,7 @@ fn MemberRow(member: Memo<Option<Member>>, act: Rc<dyn Fn(ShareAction)>) -> Node
                         })}
                     </Show>
                     <Show condition={removable}>
-                        {move || clone!(member remove_act -> view! {
+                        {move || clone!(remove_act -> view! {
                             <IconButton
                                 glyph={ICON_CLOSE.to_owned()}
                                 label="Remove access"

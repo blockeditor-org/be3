@@ -66,7 +66,7 @@ mod with_middle_click_paste_on_a_selection_is_offered_until_it_is_switched_off;
 
 use beui::reactive::{
     ForEach, Frame, Interactive, List, Overlay, OverlayAnchor, Placement, WriteSignal, build,
-    clone, component, create_memo, create_signal, view, with_reactive_scope,
+    component, create_memo, create_signal, view, with_reactive_scope,
 };
 use beui::styled::TextInput;
 use beui::{FrameOutput, Key, NodeId, RawInput, pos2};
@@ -148,7 +148,7 @@ fn Shown(windows: Windows) -> NodeId {
                                         .map_or(SHOWN, |area| area.size())
                                 })
                             });
-                            let width = create_memo(clone!(size -> move || Some(size.get().x)));
+                            let width = create_memo(move || Some(size.get().x));
                             let height = create_memo(move || Some(size.get().y));
                             view! {
                                 <Frame width height>
@@ -168,7 +168,7 @@ fn Shown(windows: Windows) -> NodeId {
                     <Overlay
                         anchor=OverlayAnchor::Point(Pos2::ZERO)
                         placement=Placement::Center
-                        open={asking.clone()}
+                        open={asking}
                     >
                         <TextInput @test_id={"test.dialog"} value="" focused={asking} />
                     </Overlay>
@@ -252,7 +252,7 @@ impl Harness {
 
     fn lock(&mut self, locked: bool) {
         let set = LOCK
-            .with(|lock| lock.borrow().clone())
+            .with(|lock| *lock.borrow())
             .expect("the harness has a lock");
         with_reactive_scope(&mut self.document, move || set.set(locked));
         self.app.set_locked(locked);
@@ -261,7 +261,7 @@ impl Harness {
 
     fn ask(&mut self, open: bool) {
         let set = DIALOG
-            .with(|dialog| dialog.borrow().clone())
+            .with(|dialog| *dialog.borrow())
             .expect("the harness has a dialog");
         with_reactive_scope(&mut self.document, move || set.set(open));
         self.settle();
