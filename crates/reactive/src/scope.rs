@@ -37,7 +37,7 @@ impl Gate {
 pub(crate) struct Owner {
     pub(crate) computation: Weak<Computation>,
     pub(crate) disposed: Cell<bool>,
-    parent: Weak<Owner>,
+    parent: Option<Rc<Owner>>,
     pub(crate) gate: RefCell<Option<Rc<Gate>>>,
     contexts: RefCell<HashMap<TypeId, Rc<dyn Any>>>,
     cleanups: RefCell<Vec<Box<dyn FnOnce()>>>,
@@ -51,7 +51,7 @@ impl Owner {
     ) -> Self {
         Self {
             computation,
-            parent,
+            parent: parent.upgrade(),
             gate: RefCell::new(gate),
             ..Self::default()
         }
@@ -63,7 +63,7 @@ impl Owner {
             if std::ptr::eq(Rc::as_ptr(&owner), root) {
                 return true;
             }
-            current = owner.parent.upgrade();
+            current = owner.parent.clone();
         }
         false
     }
@@ -122,7 +122,7 @@ impl Scope {
                 .as_ref()
                 .map(|parent| parent.computation.clone())
                 .unwrap_or_default(),
-            parent: parent.as_ref().map(Rc::downgrade).unwrap_or_default(),
+            parent: parent.clone(),
             gate: RefCell::new(
                 parent
                     .as_ref()
@@ -324,7 +324,7 @@ pub fn use_context<T: Clone + 'static>() -> Option<T> {
         if found.is_some() {
             return found;
         }
-        owner = current.parent.upgrade();
+        owner = current.parent.clone();
     }
     None
 }

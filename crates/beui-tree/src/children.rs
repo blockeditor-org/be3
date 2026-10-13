@@ -2,9 +2,7 @@ use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
-use reactive::{
-    ReadSignal, Scope, WriteSignal, create_effect, create_signal, current_scope, on_cleanup,
-};
+use reactive::{ReadSignal, Scope, WriteSignal, create_effect, create_signal, on_cleanup};
 
 use crate::child_list::{ChildList, SlotId};
 use crate::component::ChildValue;
@@ -223,7 +221,6 @@ impl<T: 'static, C: SlotChild<Stored = Rc<T>>> Run<C> {
     ) -> DynamicSegment<R> {
         let run = self.clone();
         DynamicSegment::new(move |slot: ChildSlot<R>| {
-            let host = current_scope();
             let held: HeldEach<T, R> = Rc::new(RefCell::new(Vec::new()));
             let owned = held.clone();
             on_cleanup(move || drop(std::mem::take(&mut *owned.borrow_mut())));
@@ -239,10 +236,7 @@ impl<T: 'static, C: SlotChild<Stored = Rc<T>>> Run<C> {
                         Some(row) if Rc::ptr_eq(&row.0, &item) => next.push(row),
                         replaced => {
                             gone.extend(replaced);
-                            let scope = match &host {
-                                Some(host) => host.run(Scope::detached),
-                                None => Scope::detached(),
-                            };
+                            let scope = Scope::detached();
                             let stored = scope.context().run(|| {
                                 let made = state(index, item.clone());
                                 let mut states = states.borrow_mut();
