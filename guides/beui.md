@@ -1776,13 +1776,17 @@ a plugin's) and the action registry's actions, takes
 the next command at the start of a frame, turns input commands into `Event`s
 already in points, which skip the adapters' intake (`automation/keys.rs` names
 the keys), and answers once a frame
-asks for no other and the app is not `busy`. The headless adapter's window
-is `automation::Simulation`, a `Platform` like any other, which the runner
-hands the driver through `Platform::simulation` (`None` for real windows): it
-keeps the window's size, scale, focus and clipboard, grows to the screen for
-fullscreen and reports both through its `WindowReports`, and holds file
-dialogs with their `FilePickAnswer`s for a driver to answer. beui's own
-tests drive one the same way, with a renderer that draws nothing. `Renderer::capture` reads the presented
+asks for no other and the app is not `busy`. The driver acts on the window
+only through the `Platform` it is given, as the app does: `clipboard` copies
+and pastes through it, `resize` asks `Platform::resize` (which only a
+headless window answers), and `state` reads the size, scale and fullscreen
+the window last reported. While a driver is attached the runner hands it the
+app's file dialogs instead of the platform, so `upload` and `dismiss` answer
+them in any window, and it keeps the focus `focus` and `blur` gave. The
+headless adapter's window is `automation::Simulation`, a `Platform` like any
+other: it keeps a clipboard, grows to its screen for fullscreen, and reports
+its size, scale and fullscreen through its `WindowReports`. beui's own tests
+drive one the same way, with a renderer that draws nothing. `Renderer::capture` reads the presented
 frame back for a screenshot.
 
 The web runner draws into the canvas it is given with WebGPU, or WebGL where

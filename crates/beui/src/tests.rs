@@ -22,6 +22,7 @@ mod a_capturing_button_takes_the_press_from_the_row_it_sits_in;
 mod a_capturing_catcher_over_a_forwarding_one_keeps_the_press_from_it;
 mod a_catcher_beneath_an_overlapping_one_hears_no_press;
 mod a_catcher_in_a_dialog_hears_a_press_on_it;
+mod a_catcher_that_declines_a_press_declines_the_embed_inside_it;
 mod a_catcher_that_lost_its_release_lets_go_of_the_pointer;
 mod a_catcher_under_a_dialog_that_is_under_another_hears_no_pointer;
 mod a_catcher_under_an_open_dialog_hears_no_press;
@@ -78,6 +79,7 @@ mod a_drag_whose_moves_share_a_frame_with_its_press_and_release_keeps_both_ends;
 mod a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given;
 mod a_drawing_repaints_on_its_deadline_without_repeating_layout;
 mod a_driver_acts_on_a_slider_the_way_a_screen_reader_does;
+mod a_driver_answers_a_file_dialog_in_a_window_that_is_not_simulated;
 mod a_driver_answers_a_file_dialog_with_a_file;
 mod a_driver_carries_grabbed_files_and_drops_them;
 mod a_driver_clicks_a_button_by_its_label_and_hears_what_changed;
@@ -86,8 +88,10 @@ mod a_driver_composes_with_an_input_method_and_holds_a_key;
 mod a_driver_holds_a_back_gesture_part_way_and_cancels_it;
 mod a_driver_holds_a_press_across_a_pause_and_taps_with_a_finger;
 mod a_driver_lists_and_runs_an_action;
+mod a_driver_pastes_the_headless_clipboard_with_ctrl_v;
 mod a_driver_pinches_with_two_fingers_and_zooms_with_a_touchpad;
 mod a_driver_resizes_a_headless_window_and_reads_its_state;
+mod a_driver_stops_waiting_for_a_clipboard_the_window_never_answers_with;
 mod a_driver_turns_the_wheel_and_answers_without_settling_when_asked;
 mod a_driver_types_into_a_field_found_by_its_test_id;
 mod a_drop_the_dock_would_refuse_draws_no_drop_marker;
@@ -2032,6 +2036,7 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
 pub(crate) struct Driven {
     runner: beui_core::runner::Runner,
     window: Option<beui_core::app::automation::Simulation>,
+    platform: DrivenPlatform,
     inbox: beui_core::app::automation::Inbox,
     pub(crate) closed: bool,
 }
@@ -2064,9 +2069,16 @@ impl beui_core::renderer::Renderer for DrivenScreen {
     }
 }
 
-struct DrivenPlatform;
+#[derive(Default)]
+struct DrivenPlatform {
+    unanswered: Vec<crate::PasteAnswer>,
+}
 
-impl beui_core::runner::Platform for DrivenPlatform {}
+impl beui_core::runner::Platform for DrivenPlatform {
+    fn paste(&mut self, _kinds: &[crate::PasteKind], answer: crate::PasteAnswer) {
+        self.unanswered.push(answer);
+    }
+}
 
 struct DrivenDocument(Document);
 
@@ -2117,6 +2129,7 @@ impl Driven {
         let mut driven = Self {
             runner,
             window,
+            platform: DrivenPlatform::default(),
             inbox,
             closed: false,
         };
@@ -2131,7 +2144,7 @@ impl Driven {
         let area = beui_core::app::SafeArea::default();
         match &mut self.window {
             Some(window) => self.runner.frame(window, area),
-            None => self.runner.frame(&mut DrivenPlatform, area),
+            None => self.runner.frame(&mut self.platform, area),
         };
         self.closed |= self.runner.exited();
         if let Some(failure) = self.runner.failure() {

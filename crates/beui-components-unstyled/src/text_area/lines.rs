@@ -30,7 +30,7 @@ use super::rows::{
 };
 use super::{
     CARET_WIDTH, CHECKBOX_OUTLINE, CHECKBOX_RADIUS, CODE_OUTSET, CODE_RADIUS, Context,
-    GUTTER_ARROW_SIZE, GUTTER_PADDING_LEFT, GUTTER_PADDING_RIGHT, GUTTER_TEXT_SIZE, GeometryCell,
+    GUTTER_ARROW_SIZE, GUTTER_PADDING_LEFT, GUTTER_PADDING_RIGHT, GeometryCell,
     INLINE_WIDGET_RADIUS, REMOTE_SELECTION_ALPHA, RUN_CHIP_RADIUS, RowEntry, TextCheckbox,
 };
 
@@ -814,7 +814,7 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
                     <Text
                         string={number}
                         monospace=true
-                        font_size=GUTTER_TEXT_SIZE
+                        font_size=BODY_SIZE
                         color={number_color}
                         align=TextAlign::End
                     />

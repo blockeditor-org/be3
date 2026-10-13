@@ -1,5 +1,4 @@
 use crate::clipboard::{PasteAnswer, PasteKind, Pasted};
-use crate::file_picker::{FilePickAnswer, FilePickRequest};
 use crate::geometry::Vec2;
 use crate::runner::Platform;
 use crate::window::WindowReports;
@@ -38,13 +37,16 @@ impl WindowSize {
     }
 }
 
+pub enum Resize {
+    Window(WindowSize),
+    Screen(Vec2),
+}
+
 pub struct Simulation {
     pub window: WindowSize,
     pub screen: Vec2,
     pub fullscreen: bool,
-    pub focused: bool,
     pub clipboard: Option<String>,
-    pub picks: Vec<(FilePickRequest, FilePickAnswer)>,
     reports: WindowReports,
 }
 
@@ -54,9 +56,7 @@ impl Simulation {
             window,
             screen: screen.unwrap_or(window.size),
             fullscreen: false,
-            focused: true,
             clipboard: None,
-            picks: Vec::new(),
             reports,
         };
         simulation.report_size();
@@ -76,12 +76,6 @@ impl Simulation {
             shown.x.round().max(1.0) as u32,
             shown.y.round().max(1.0) as u32,
         )
-    }
-
-    pub fn resize(&mut self, window: WindowSize, screen: Vec2) {
-        self.window = window;
-        self.screen = screen;
-        self.report_size();
     }
 
     fn report_size(&self) {
@@ -104,10 +98,6 @@ impl Platform for Simulation {
         answer.send(text.map(Pasted::Text));
     }
 
-    fn pick_file(&mut self, request: FilePickRequest, answer: FilePickAnswer) {
-        self.picks.push((request, answer));
-    }
-
     fn set_fullscreen(&mut self, fullscreen: bool) {
         if self.fullscreen != fullscreen {
             self.fullscreen = fullscreen;
@@ -116,7 +106,24 @@ impl Platform for Simulation {
         }
     }
 
-    fn simulation(&mut self) -> Option<&mut Simulation> {
-        Some(self)
+    fn resize(&mut self, resize: Resize) -> Result<(), String> {
+        let (window, screen) = match resize {
+            Resize::Window(window) => (window, self.screen),
+            Resize::Screen(screen) => (self.window, screen),
+        };
+        let shown = WindowSize {
+            size: screen,
+            scale: window.scale,
+        };
+        if !shown.fits() {
+            return Err(format!(
+                "a {}x{} screen at scale {} is more than {} pixels across",
+                screen.x, screen.y, window.scale, MAX_PIXELS
+            ));
+        }
+        self.window = window;
+        self.screen = screen;
+        self.report_size();
+        Ok(())
     }
 }

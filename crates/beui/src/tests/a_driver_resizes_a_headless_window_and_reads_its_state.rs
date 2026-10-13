@@ -31,7 +31,7 @@ fn a_driver_resizes_a_headless_window_and_reads_its_state() {
     driven.ask(&["blur"]).expect("the window loses focus");
     let state = driven.ask(&["state"]).expect("the state is read");
     assert!(
-        state.starts_with("window 200x100 at scale 2 (headless; windowed 200x100, screen 1000x600), fullscreen no, focused no"),
+        state.starts_with("window 200x100 at scale 2, fullscreen no, focused no"),
         "{state}"
     );
     driven
