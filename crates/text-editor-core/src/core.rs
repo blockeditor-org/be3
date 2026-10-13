@@ -2263,8 +2263,8 @@ fn next_line_start(bytes: &[u8], index: usize) -> usize {
 }
 
 fn line_end(bytes: &[u8], index: usize) -> usize {
-    let next = next_line_start(bytes, line_start(bytes, index));
-    if next == bytes.len() { next } else { next - 1 }
+    let start = line_start(bytes, index);
+    memchr::memchr(b'\n', &bytes[start..]).map_or(bytes.len(), |newline| start + newline)
 }
 
 fn heading_level(bytes: &[u8], start: usize) -> Option<u8> {
@@ -2295,11 +2295,10 @@ fn markdown_section_end(bytes: &[u8], start: usize) -> Option<usize> {
         if heading_level(bytes, cursor).is_some_and(|next| next <= level) {
             break;
         }
-        let next = next_line_start(bytes, cursor);
         if indent_columns(bytes, cursor).is_some() {
-            end = Some(if next == bytes.len() { next } else { next - 1 });
+            end = Some(line_end(bytes, cursor));
         }
-        cursor = next;
+        cursor = next_line_start(bytes, cursor);
     }
     end
 }
