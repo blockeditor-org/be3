@@ -17,7 +17,7 @@ use crate::file_picker::{FilePick, FilePickAnswer, FilePickId, FilePickRequest};
 use crate::geometry::Vec2;
 use crate::input::{Event, RawInput};
 use crate::renderer::{Loaded, Renderers};
-use crate::window::WindowState;
+use crate::window::{WindowReports, WindowState};
 
 mod intake;
 
@@ -79,6 +79,10 @@ pub trait Platform {
 
     fn show_window(&mut self, _window: &WindowState, _shown: &WindowState) {}
 
+    fn simulation(&mut self) -> Option<&mut Simulation> {
+        None
+    }
+
     fn set_fullscreen(&mut self, _fullscreen: bool) {}
 
     fn publish_accessibility(&mut self, _tree: &mut dyn FnMut() -> TreeUpdate) {}
@@ -130,15 +134,13 @@ pub struct Runner {
     accessibility: Option<AccessibilityDump>,
     publishing_accessibility: bool,
     automation: Option<Automation>,
-    simulation: Option<Simulation>,
-    simulated_size: Option<(u32, u32)>,
     actions: Vec<ActionGroup>,
     test_ids: std::collections::HashMap<String, crate::geometry::Rect>,
     unpresented: bool,
     closing: bool,
     asked: WindowState,
     shown: WindowState,
-    fullscreen: Option<bool>,
+    reports: WindowReports,
     output: Option<FrameOutput>,
     reports_screens: bool,
     exited: bool,
@@ -172,15 +174,13 @@ impl Runner {
             accessibility,
             publishing_accessibility: false,
             automation,
-            simulation: None,
-            simulated_size: None,
             actions: Vec::new(),
             test_ids: std::collections::HashMap::new(),
             unpresented: false,
             closing: false,
             asked: WindowState::default(),
             shown: WindowState::default(),
-            fullscreen: None,
+            reports: WindowReports::default(),
             output: None,
             reports_screens: false,
             exited: false,
@@ -239,11 +239,15 @@ impl Runner {
     }
 
     pub fn has_events(&self) -> bool {
-        !self.events.is_empty() || !self.intake.incoming.is_empty() || self.fullscreen.is_some()
+        !self.events.is_empty() || !self.intake.incoming.is_empty() || self.reports.pending()
+    }
+
+    pub fn reports(&self) -> WindowReports {
+        self.reports.clone()
     }
 
     pub fn fullscreen_changed(&mut self, fullscreen: bool) {
-        self.fullscreen = Some(fullscreen);
+        self.reports.fullscreen(fullscreen);
     }
 
     pub fn window(&self) -> &WindowState {
@@ -252,10 +256,6 @@ impl Runner {
 
     pub fn take_output(&mut self) -> Option<FrameOutput> {
         self.output.take()
-    }
-
-    pub fn simulate(&mut self, simulation: Simulation) {
-        self.simulation = Some(simulation);
     }
 
     pub fn keep_accessibility(&mut self) {
@@ -370,9 +370,6 @@ impl Runner {
             }
             Err(error) => panic!("beui: the GPU was lost and could not be reopened: {error}"),
         }
-        while let Ok((id, pick)) = self.picks.1.try_recv() {
-            self.context.file_picked(id, pick);
-        }
         while let Ok(pasted) = self.pastes.1.try_recv() {
             self.events.push(Event::Paste(pasted));
         }
@@ -394,7 +391,7 @@ impl Runner {
             };
             let mut world = World {
                 events: &mut self.events,
-                simulation: self.simulation.as_mut(),
+                simulation: platform.simulation(),
                 context: &self.context,
             };
             automation.begin(&view, &mut world);
@@ -404,17 +401,16 @@ impl Runner {
                 self.closing |= accepted;
             }
         }
-        if let Some(fullscreen) = self.fullscreen.take() {
+        while let Ok((id, pick)) = self.picks.1.try_recv() {
+            self.context.file_picked(id, pick);
+        }
+        if let Some(fullscreen) = self.reports.take_fullscreen() {
             self.context.fullscreen_changed(fullscreen);
         }
-        let pixels_per_point = match &self.simulation {
-            Some(simulation) => {
-                let size = simulation.physical();
-                if self.simulated_size != Some(size) {
-                    self.simulated_size = Some(size);
-                    renderers.resize(size.0, size.1);
-                }
-                simulation.window.scale
+        let pixels_per_point = match self.reports.take_size() {
+            Some(size) => {
+                renderers.resize(size.width, size.height);
+                size.pixels_per_point
             }
             None => pixels_per_point,
         };
@@ -467,39 +463,20 @@ impl Runner {
             dump.update(output.accessibility_tree(title, screen));
         }
 
-        match &mut self.simulation {
-            Some(simulation) => {
-                if let Some(text) = &output.copied_text {
-                    simulation.clipboard = Some(text.clone());
-                }
-                simulation
-                    .picks
-                    .extend(std::mem::take(&mut output.file_picks));
-                if output.paste.is_some()
-                    && output.window.paste_kinds.contains(&PasteKind::Text)
-                    && let Some(text) = simulation.clipboard.clone()
-                {
-                    self.events.push(Event::Paste(Pasted::Text(text)));
-                }
-            }
-            None => {
-                if let Some(text) = &output.copied_text {
-                    platform.copy(text.clone());
-                }
-                for request in std::mem::take(&mut output.file_picks) {
-                    let answer =
-                        FilePickAnswer::new(request.id, self.picks.0.clone(), self.waker.clone());
-                    platform.pick_file(request, answer);
-                }
-                let delivered = output.paste == Some(PasteRequest::Shortcut)
-                    && platform.delivers_paste_shortcut();
-                if output.paste.is_some() && !delivered && !output.window.paste_kinds.is_empty() {
-                    let answer = PasteAnswer::new(self.pastes.0.clone(), self.waker.clone());
-                    platform.paste(&output.window.paste_kinds, answer);
-                    while let Ok(pasted) = self.pastes.1.try_recv() {
-                        self.events.push(Event::Paste(pasted));
-                    }
-                }
+        if let Some(text) = &output.copied_text {
+            platform.copy(text.clone());
+        }
+        for request in std::mem::take(&mut output.file_picks) {
+            let answer = FilePickAnswer::new(request.id, self.picks.0.clone(), self.waker.clone());
+            platform.pick_file(request, answer);
+        }
+        let delivered =
+            output.paste == Some(PasteRequest::Shortcut) && platform.delivers_paste_shortcut();
+        if output.paste.is_some() && !delivered && !output.window.paste_kinds.is_empty() {
+            let answer = PasteAnswer::new(self.pastes.0.clone(), self.waker.clone());
+            platform.paste(&output.window.paste_kinds, answer);
+            while let Ok(pasted) = self.pastes.1.try_recv() {
+                self.events.push(Event::Paste(pasted));
             }
         }
         let window_units = scale / self.context.native_pixels_per_point();
@@ -509,25 +486,16 @@ impl Runner {
             self.shown = window;
         }
         self.asked.clone_from(&output.window);
-        if let Some(fullscreen) = output.fullscreen {
-            match &mut self.simulation {
-                Some(simulation) => {
-                    if simulation.fullscreen != fullscreen {
-                        simulation.fullscreen = fullscreen;
-                        self.fullscreen = Some(fullscreen);
-                    }
-                }
-                None if fullscreen != self.context.fullscreen() => {
-                    platform.set_fullscreen(fullscreen);
-                }
-                None => {}
-            }
+        if let Some(fullscreen) = output.fullscreen
+            && fullscreen != self.context.fullscreen()
+        {
+            platform.set_fullscreen(fullscreen);
         }
 
         let pending = renderers.prepare(&output, scale, self.app.clear_color());
         let mut frame = Frame {
             pending,
-            deferred: !self.events.is_empty() || self.fullscreen.is_some(),
+            deferred: !self.events.is_empty() || self.reports.pending(),
             repaint: output.repaint,
             repaint_after: output.repaint_after,
         };
@@ -557,7 +525,7 @@ impl Runner {
             };
             let mut world = World {
                 events: &mut self.events,
-                simulation: self.simulation.as_mut(),
+                simulation: platform.simulation(),
                 context: &self.context,
             };
             automation.end(&view, settled, &mut world, &output.unran_actions);

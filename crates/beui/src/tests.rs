@@ -2028,6 +2028,7 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
 
 pub(crate) struct Driven {
     runner: beui_core::runner::Runner,
+    window: Option<beui_core::app::automation::Simulation>,
     inbox: beui_core::app::automation::Inbox,
     pub(crate) closed: bool,
 }
@@ -2090,15 +2091,16 @@ impl Driven {
             context: context(),
             app: Box::new(app),
         });
-        if headless {
-            runner.simulate(beui_core::app::automation::Simulation::new(
+        let window = headless.then(|| {
+            beui_core::app::automation::Simulation::new(
                 beui_core::app::automation::WindowSize {
                     size: VIEWPORT,
                     scale: 1.0,
                 },
                 Some(WIDE_VIEWPORT),
-            ));
-        }
+                runner.reports(),
+            )
+        });
         runner
             .start(
                 vec![beui_core::renderer::Loaded {
@@ -2111,6 +2113,7 @@ impl Driven {
         runner.context().stop_clock();
         let mut driven = Self {
             runner,
+            window,
             inbox,
             closed: false,
         };
@@ -2122,11 +2125,14 @@ impl Driven {
         self.runner
             .context()
             .advance_clock(Duration::from_micros(16_667));
-        self.runner.frame(
-            &mut DrivenPlatform,
-            1.0,
-            beui_core::app::SafeArea::default(),
-        );
+        let area = beui_core::app::SafeArea::default();
+        match &mut self.window {
+            Some(window) => {
+                let scale = window.window.scale;
+                self.runner.frame(window, scale, area)
+            }
+            None => self.runner.frame(&mut DrivenPlatform, 1.0, area),
+        };
         self.closed |= self.runner.exited();
         if let Some(failure) = self.runner.failure() {
             panic!("the driven app panicked: {failure}");

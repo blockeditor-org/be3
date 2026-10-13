@@ -285,8 +285,11 @@ hooks the higher crates fill in:
   said, and the adapter reports what the window actually did, whether the
   app asked or not, with `Runner::fullscreen_changed`, which the app reads as
   `Context::fullscreen` and a component as `use_fullscreen()`. The DRM
-  adapter is always fullscreen; Android, plugins and headless windows say
-  nothing (a headless window answers itself when it is simulated).
+  adapter is always fullscreen; Android and plugins say nothing. A window
+  can also report through `Runner::reports()`, a `WindowReports` handle it
+  keeps, from inside a frame: its fullscreen, and its physical size and
+  scale (`resized`), which the runner applies to the renderers before the
+  app lays out. Either makes the frame ask for the next one.
   The clipboard is the platform's: `Context::copy_text` writes it,
   `Context::watch_copies` hears every copy (which is how be-wayland hands the
   app's copies to Wayland programs), and a paste is the only way to read it.
@@ -1758,10 +1761,13 @@ a plugin's) and the action registry's actions, takes
 the next command at the start of a frame, turns input commands into `Event`s
 already in points, which skip the adapters' intake (`automation/keys.rs` names
 the keys), and answers once a frame
-asks for no other and the app is not `busy`. Under `Runner::simulate`, which
-the headless adapter calls, the runner is the window as well: it owns its size,
-scale, focus and clipboard, grows it to the screen for fullscreen, and holds
-file dialogs for a driver to answer. `Renderer::capture` reads the presented
+asks for no other and the app is not `busy`. The headless adapter's window
+is `automation::Simulation`, a `Platform` like any other, which the runner
+hands the driver through `Platform::simulation` (`None` for real windows): it
+keeps the window's size, scale, focus and clipboard, grows to the screen for
+fullscreen and reports both through its `WindowReports`, and holds file
+dialogs with their `FilePickAnswer`s for a driver to answer. beui's own
+tests drive one the same way, with a renderer that draws nothing. `Renderer::capture` reads the presented
 frame back for a screenshot.
 
 The web runner draws into the canvas it is given with WebGPU, or WebGL where

@@ -30,3 +30,41 @@ impl WindowState {
         self
     }
 }
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PhysicalSize {
+    pub width: u32,
+    pub height: u32,
+    pub pixels_per_point: f32,
+}
+
+#[derive(Default)]
+struct Reported {
+    fullscreen: std::cell::Cell<Option<bool>>,
+    size: std::cell::Cell<Option<PhysicalSize>>,
+}
+
+#[derive(Clone, Default)]
+pub struct WindowReports(std::rc::Rc<Reported>);
+
+impl WindowReports {
+    pub fn fullscreen(&self, fullscreen: bool) {
+        self.0.fullscreen.set(Some(fullscreen));
+    }
+
+    pub fn resized(&self, size: PhysicalSize) {
+        self.0.size.set(Some(size));
+    }
+
+    pub(crate) fn pending(&self) -> bool {
+        self.0.fullscreen.get().is_some() || self.0.size.get().is_some()
+    }
+
+    pub(crate) fn take_fullscreen(&self) -> Option<bool> {
+        self.0.fullscreen.take()
+    }
+
+    pub(crate) fn take_size(&self) -> Option<PhysicalSize> {
+        self.0.size.take()
+    }
+}
