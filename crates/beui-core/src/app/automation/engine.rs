@@ -21,6 +21,7 @@ use crate::window::WindowState;
 use crate::runner::SCROLL_LINE as WHEEL_LINE;
 const CHANGES: usize = 60;
 const FRAME: Duration = Duration::from_micros(16_667);
+const CLIPBOARD_WAIT: Duration = Duration::from_secs(5);
 const GESTURE_STEPS: usize = 4;
 const PINCH_SPAN: f32 = 100.0;
 
@@ -135,6 +136,7 @@ enum Phase {
     },
     Reading {
         pasted: std::sync::mpsc::Receiver<Pasted>,
+        until: Instant,
     },
 }
 
@@ -375,7 +377,13 @@ impl Automation {
                     Some(Reply::Text(String::new()))
                 }
                 Phase::Pausing { until } if view.now >= *until => Some(Reply::Text(String::new())),
-                Phase::Reading { pasted } => clipboard_text(pasted).map(Reply::Text),
+                Phase::Reading { pasted, until } => match clipboard_text(pasted) {
+                    Some(text) => Some(Reply::Text(text)),
+                    None if view.now >= *until => Some(Reply::Error(
+                        "the window did not answer with its clipboard in time".to_owned(),
+                    )),
+                    None => None,
+                },
                 _ => None,
             },
         };
@@ -863,7 +871,10 @@ impl Automation {
                     .paste(&[PasteKind::Text], PasteAnswer::new(sender, None));
                 match clipboard_text(&pasted) {
                     Some(text) => Ok(Started::Done(Reply::Text(text))),
-                    None => Ok(Started::Phase(Phase::Reading { pasted })),
+                    None => Ok(Started::Phase(Phase::Reading {
+                        pasted,
+                        until: view.now + CLIPBOARD_WAIT,
+                    })),
                 }
             }
             "upload" => {

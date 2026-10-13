@@ -90,6 +90,7 @@ mod a_driver_lists_and_runs_an_action;
 mod a_driver_pastes_the_headless_clipboard_with_ctrl_v;
 mod a_driver_pinches_with_two_fingers_and_zooms_with_a_touchpad;
 mod a_driver_resizes_a_headless_window_and_reads_its_state;
+mod a_driver_stops_waiting_for_a_clipboard_the_window_never_answers_with;
 mod a_driver_turns_the_wheel_and_answers_without_settling_when_asked;
 mod a_driver_types_into_a_field_found_by_its_test_id;
 mod a_drop_the_dock_would_refuse_draws_no_drop_marker;
@@ -2031,6 +2032,7 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
 pub(crate) struct Driven {
     runner: beui_core::runner::Runner,
     window: Option<beui_core::app::automation::Simulation>,
+    platform: DrivenPlatform,
     inbox: beui_core::app::automation::Inbox,
     pub(crate) closed: bool,
 }
@@ -2063,9 +2065,16 @@ impl beui_core::renderer::Renderer for DrivenScreen {
     }
 }
 
-struct DrivenPlatform;
+#[derive(Default)]
+struct DrivenPlatform {
+    unanswered: Vec<crate::PasteAnswer>,
+}
 
-impl beui_core::runner::Platform for DrivenPlatform {}
+impl beui_core::runner::Platform for DrivenPlatform {
+    fn paste(&mut self, _kinds: &[crate::PasteKind], answer: crate::PasteAnswer) {
+        self.unanswered.push(answer);
+    }
+}
 
 struct DrivenDocument(Document);
 
@@ -2116,6 +2125,7 @@ impl Driven {
         let mut driven = Self {
             runner,
             window,
+            platform: DrivenPlatform::default(),
             inbox,
             closed: false,
         };
@@ -2130,7 +2140,7 @@ impl Driven {
         let area = beui_core::app::SafeArea::default();
         match &mut self.window {
             Some(window) => self.runner.frame(window, area),
-            None => self.runner.frame(&mut DrivenPlatform, area),
+            None => self.runner.frame(&mut self.platform, area),
         };
         self.closed |= self.runner.exited();
         if let Some(failure) = self.runner.failure() {
