@@ -46,7 +46,7 @@ impl ChildValue for ChoiceOption {
 
 impl ChoiceOption {
     pub fn label(&self) -> Memo<String> {
-        self.label.clone()
+        self.label
     }
 }
 
@@ -105,9 +105,9 @@ pub fn Choice(
 
     let state: Handle = Rc::new(State {
         options: options.clone(),
-        focus: focus.clone(),
+        focus: focus,
         set_focus,
-        selected: selected.clone(),
+        selected: selected,
         set_selected,
         kind,
         direction,
@@ -124,10 +124,10 @@ pub fn Choice(
         move |index| {
             let state = buttons_state.clone();
             let option = option.clone();
-            let label = row_options.borrow()[index].label.clone();
-            let accessibility_label = label.clone();
+            let label = row_options.borrow()[index].label;
+            let accessibility_label = label;
             let is_selected = selection.memo(Some(index));
-            let selected_accessibility = is_selected.clone();
+            let selected_accessibility = is_selected;
             let accessibility = create_memo(move || {
                 let mut node = Node::new(match kind {
                     ChoiceKind::Tabs => Role::Tab,

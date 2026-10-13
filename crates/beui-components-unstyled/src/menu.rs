@@ -172,14 +172,14 @@ pub fn MenuList(
     let state: Handle = Rc::new(State {
         rows: Rc::default(),
         root: NodeRef::new(),
-        focus: focus.clone(),
-        set_focus: set_focus.clone(),
+        focus: focus,
+        set_focus: set_focus,
         on_select,
     });
     set_component_state(state.clone());
 
     let (rows_state, key_state, blur_focus) = (state.clone(), state.clone(), focus);
-    let rows_focused = focused.clone();
+    let rows_focused = focused;
     let lines = items.build_each(
         state.rows.clone(),
         |_, item| Row {
@@ -192,7 +192,7 @@ pub fn MenuList(
                 <MenuRow
                     state={rows_state.clone()}
                     index
-                    focused={rows_focused.clone()}
+                    focused={rows_focused}
                     row={row.clone()}
                     panel={panel.clone()}
                     parent={parent.clone()}
@@ -234,24 +234,24 @@ fn MenuRow(
         (
             held.item.clone(),
             held.button.clone(),
-            held.submenu.open.clone(),
-            held.submenu.set_open.clone(),
+            held.submenu.open,
+            held.submenu.set_open,
             held.submenu.content.clone(),
         )
     };
-    let disabled = item.disabled.clone();
-    let (spoken, unavailable) = (item.label.clone(), item.disabled.clone());
+    let disabled = item.disabled;
+    let (spoken, unavailable) = (item.label, item.disabled);
     let test_id = item.test_id.clone();
     let tagged = button.clone();
     let action = item.action.clone();
     let clicked = item.on_click.clone();
     let children = item.children.clone();
     let has_children = create_memo(clone!(children -> move || !children.is_empty()));
-    let row_has_children = has_children.clone();
+    let row_has_children = has_children;
     let content = {
         let (row, state, item) = (row.clone(), state.clone(), item);
         move |handle: ButtonHandle| {
-            let hovered = handle.hovered.clone();
+            let hovered = handle.hovered;
             let mut was_hovered = false;
             create_effect(move || {
                 let hovering = hovered.get();
@@ -263,12 +263,12 @@ fn MenuRow(
                 was_hovered = hovering;
             });
             row.call(MenuRowHandle {
-                label: item.label.clone().into_prop(),
-                glyph: item.glyph.clone().into_prop(),
-                detail: item.detail.clone().into_prop(),
-                disabled: item.disabled.clone().into_prop(),
-                danger: item.danger.clone().into_prop(),
-                separated: item.separated.clone().into_prop(),
+                label: item.label.into_prop(),
+                glyph: item.glyph.into_prop(),
+                detail: item.detail.into_prop(),
+                disabled: item.disabled.into_prop(),
+                danger: item.danger.into_prop(),
+                separated: item.separated.into_prop(),
                 has_submenu: row_has_children.into_prop(),
                 hovered: handle.hovered,
                 active: handle.active,
@@ -283,7 +283,7 @@ fn MenuRow(
         state.clone(),
         state,
     );
-    let (dismiss, submenu_open, leave_open) = (set_open.clone(), open.clone(), set_open);
+    let (dismiss, submenu_open, leave_open) = (set_open, open, set_open);
 
     let built = view! {
         <List spacing=0.0>
@@ -317,9 +317,9 @@ fn MenuRow(
             <Show condition={has_children}>
                 {move || {
                 let (leave_open, leave_state, select_state) =
-                    (leave_open.clone(), leave_state.clone(), select_state.clone());
+                    (leave_open, leave_state.clone(), select_state.clone());
                 let (dismiss, submenu_open, children) =
-                    (dismiss.clone(), submenu_open.clone(), children.clone());
+                    (dismiss, submenu_open, children.clone());
                 let (row, panel, content_ref) = (row.clone(), panel.clone(), content_ref.clone());
                 let leave = MenuParent(Some(Rc::new(move || {
                     leave_open.set(false);
@@ -329,7 +329,7 @@ fn MenuRow(
                     <Overlay
                         anchor=&button
                         placement=Placement::RightStart
-                        open={submenu_open.clone()}
+                        open={submenu_open}
                         on_dismiss={move |_: Dismiss| dismiss.set(false)}
                         content={move || panel.call(view! {
                             <MenuList
@@ -395,7 +395,7 @@ fn open_submenu(state: &State, index: usize) -> bool {
     if !row.has_children() {
         return false;
     }
-    let opening = (!row.item.disabled.get_untracked()).then(|| row.submenu.set_open.clone());
+    let opening = (!row.item.disabled.get_untracked()).then(|| row.submenu.set_open);
     drop(rows);
     if let Some(set_open) = opening {
         set_open.set(true);
@@ -409,7 +409,7 @@ fn close_sibling_submenus(state: &State, index: usize) {
         .iter()
         .enumerate()
         .filter(|(other, _)| *other != index)
-        .map(|(_, row)| row.submenu.set_open.clone())
+        .map(|(_, row)| row.submenu.set_open)
         .collect();
     drop(rows);
     for set_open in closing {
