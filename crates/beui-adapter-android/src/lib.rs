@@ -553,6 +553,7 @@ impl Runner {
 
     fn surface(&mut self, window: NativeWindow, width: u32, height: u32, density: f32) {
         self.runner.reports().scaled(density);
+        self.runner.reports().resized(width, height);
         self.redraw = true;
         if !self.runner.started()
             && let Err(error) = self.start(&window)
@@ -563,7 +564,6 @@ impl Runner {
             return;
         };
         if renderers.attached() && self.window.as_ref() == Some(&window) {
-            self.runner.reports().resized(width, height);
             return;
         }
         renderers.detach();
