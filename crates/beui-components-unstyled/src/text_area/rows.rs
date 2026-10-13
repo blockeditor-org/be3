@@ -31,7 +31,6 @@ const OBJECT: &str = "\u{fffc}";
 const SPACER: &str = "\u{200b}";
 const NEWLINE_MARKER: &str = "\u{23ce}";
 const ELLIPSIS: &str = "...";
-const ELLIPSIS_SIZE: f32 = 12.0;
 const ELLIPSIS_GAP: f32 = 6.0;
 const DELETED_PREVIEW: usize = 48;
 
@@ -651,7 +650,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         .any(|section| section.collapsed && section.line_start == start)
     {
         builder.push(SPACER, end..end, false, body, SpanKind::Space(ELLIPSIS_GAP));
-        let style = SpanStyle::new(FontId::monospace(ELLIPSIS_SIZE), inputs.colors.gutter_arrow);
+        let style = SpanStyle::new(FontId::monospace(BODY_SIZE), inputs.colors.gutter_arrow);
         builder.push(ELLIPSIS, end..end, false, style, SpanKind::Text);
     }
     finish(builder, body)
