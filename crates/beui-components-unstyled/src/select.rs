@@ -57,7 +57,7 @@ struct State {
     trigger: NodeRef,
     search: NodeRef,
     options: Run<ChoiceOption>,
-    rows: RefCell<Vec<Row>>,
+    rows: Rc<RefCell<Vec<Row>>>,
     open: ReadSignal<bool>,
     set_open: WriteSignal<bool>,
     focus: ReadSignal<Focus>,
@@ -115,13 +115,13 @@ pub fn Select(
         trigger: NodeRef::new(),
         search: NodeRef::new(),
         options: options.clone(),
-        rows: RefCell::new(Vec::new()),
-        open: is_open,
-        set_open,
-        focus,
-        set_focus,
+        rows: Rc::default(),
+        open: is_open.clone(),
+        set_open: set_open.clone(),
+        focus: focus.clone(),
+        set_focus: set_focus.clone(),
         set_search_text,
-        selected,
+        selected: selected.clone(),
         set_selected,
         highlighted,
         set_highlighted,
@@ -142,16 +142,16 @@ pub fn Select(
         if let Some(label) = state
             .selected
             .get()
-            .and_then(|index| state.rows.borrow().get(index).map(|row| row.label))
+            .and_then(|index| state.rows.borrow().get(index).map(|row| row.label.clone()))
         {
             node.set_value(label.get());
         }
         node.set_expanded(state.open.get());
         node
     }));
-    let trigger_disabled = disabled;
+    let trigger_disabled = disabled.clone();
     let labelled = options.clone();
-    let chosen = selected;
+    let chosen = selected.clone();
     let label = create_memo(move || {
         let index = chosen.get()?;
         labelled
@@ -166,39 +166,33 @@ pub fn Select(
             hovered: handle.hovered,
             active: handle.active,
             focused: handle.focused,
-            disabled: trigger_disabled,
+            disabled: trigger_disabled.clone(),
         })
     };
 
     let rows_state = state.clone();
-    let items = options.build(move |built: Vec<Rc<ChoiceOption>>| {
-        let state = rows_state.clone();
-        *state.rows.borrow_mut() = built
-            .into_iter()
-            .map(|option| {
-                let (visible, set_visible) = create_signal(true);
-                Row {
-                    button: NodeRef::new(),
-                    label: option.label(),
-                    visible,
-                    set_visible,
-                }
-            })
-            .collect();
-        let count = state.rows.borrow().len();
-        (0..count)
-            .map(|index| {
-                view! {
-                    <SelectRow
-                        state={state.clone()}
-                        index
-                        option={option.clone()}
-                        highlight={highlight}
-                    />
-                }
-            })
-            .collect()
-    });
+    let items = options.build_each(
+        state.rows.clone(),
+        |_, option| {
+            let (visible, set_visible) = create_signal(true);
+            Row {
+                button: NodeRef::new(),
+                label: option.label(),
+                visible,
+                set_visible,
+            }
+        },
+        move |index| {
+            view! {
+                <SelectRow
+                    state={rows_state.clone()}
+                    index
+                    option={option.clone()}
+                    highlight={highlight.clone()}
+                />
+            }
+        },
+    );
 
     create_effect(clone!(state -> move || {
         state.options.len();
@@ -238,7 +232,7 @@ pub fn Select(
             <Overlay
                 anchor={&state.trigger}
                 placement=Placement::BelowStart
-                open={is_open}
+                open={is_open.clone()}
                 on_dismiss={move |_: Dismiss| dismiss(&dismiss_state)}
             >
                 {popup.call(view! {
@@ -283,10 +277,10 @@ fn SelectRow(
     let (visible, button, label) = {
         let rows = state.rows.borrow();
         let row = &rows[index];
-        (row.visible, row.button.clone(), row.label)
+        (row.visible.clone(), row.button.clone(), row.label.clone())
     };
     let accessibility_state = state.clone();
-    let accessibility_label = label;
+    let accessibility_label = label.clone();
     let accessibility = create_memo(move || {
         let mut node = Node::new(Role::ListBoxOption);
         node.set_label(accessibility_label.get());
@@ -300,7 +294,7 @@ fn SelectRow(
                 accessibility
                 tab_stop=false
                 content={move |button: ButtonHandle| {
-                    let hovered = button.hovered;
+                    let hovered = button.hovered.clone();
                     create_effect(move || {
                         if hovered.get() {
                             hover_state.set_highlighted.set(Some(index));
@@ -323,7 +317,12 @@ fn SelectRow(
 fn reveal_reader(state: &Handle) -> Prop<Option<usize>> {
     let state = state.clone();
     Prop::Dynamic(std::rc::Rc::new(move || {
-        let visible: Vec<_> = state.rows.borrow().iter().map(|row| row.visible).collect();
+        let visible: Vec<_> = state
+            .rows
+            .borrow()
+            .iter()
+            .map(|row| row.visible.clone())
+            .collect();
         for row in visible {
             row.get();
         }
@@ -423,7 +422,7 @@ fn filter(state: &State, text: &str) {
         .rows
         .borrow()
         .iter()
-        .map(|row| (row.label.get_untracked(), row.set_visible))
+        .map(|row| (row.label.get_untracked(), row.set_visible.clone()))
         .collect();
     for (index, (label, set_visible)) in rows.into_iter().enumerate() {
         let visible = query.is_empty() || label.to_lowercase().contains(&query);

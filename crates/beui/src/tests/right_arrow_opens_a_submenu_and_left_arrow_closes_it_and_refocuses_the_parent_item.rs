@@ -38,8 +38,7 @@ fn right_arrow_opens_a_submenu_and_left_arrow_closes_it_and_refocuses_the_parent
     let inner = menu;
     let content = unstyled::context_menu_menu(harness.document(), inner);
     let share_button = unstyled::menu_list_row_button(harness.document(), content, 0);
-    let submenu = unstyled::menu_list_row_submenu_content(harness.document(), content, 0)
-        .expect("share has a submenu");
+    assert!(unstyled::menu_list_row_submenu_content(harness.document(), content, 0).is_none());
 
     assert!(!unstyled::button_focused(harness.document(), share_button).get());
 
@@ -51,6 +50,8 @@ fn right_arrow_opens_a_submenu_and_left_arrow_closes_it_and_refocuses_the_parent
     harness.key(Key::ArrowRight, Modifiers::NONE);
     harness.frame(Vec::new());
 
+    let submenu = unstyled::menu_list_row_submenu_content(harness.document(), content, 0)
+        .expect("share's submenu is built once it opens");
     let email_button = unstyled::menu_list_row_button(harness.document(), submenu, 0);
     assert!(unstyled::button_focused(harness.document(), email_button).get());
     assert!(harness.document().node_rect(email_button).is_some());

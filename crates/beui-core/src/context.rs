@@ -14,7 +14,7 @@ use crate::file_picker::{FileFilter, FilePick, FilePickId, FilePickRequest};
 use crate::filter::Filter;
 use crate::font::{FontBackend, FontId, Fonts, Galley, TextLayout};
 use crate::geometry::Vec2;
-use crate::geometry::{Rect, pos2};
+use crate::geometry::{Pos2, Rect, pos2};
 use crate::input::{CursorIcon, ImeArea, InputState, KeyChord, RawInput};
 use crate::node::NodeId;
 use crate::paint::{Item, Recorded, Recording};
@@ -72,6 +72,8 @@ struct Inner {
     automated: Cell<bool>,
     actions: RefCell<Vec<ActionGroup>>,
     action_requests: RefCell<Vec<String>>,
+    hit_query: Cell<Option<Pos2>>,
+    hit_answers: RefCell<Vec<String>>,
     accessibility_known: RefCell<HashSet<u32>>,
     accessibility_published: RefCell<HashSet<u32>>,
     test_ids_published: Cell<bool>,
@@ -159,6 +161,7 @@ pub struct FrameOutput {
     accessibility: Vec<Fragment>,
     pub actions: Vec<ActionGroup>,
     pub unran_actions: Vec<String>,
+    pub hits: Option<Vec<String>>,
     pixels_per_point: f32,
 }
 
@@ -266,6 +269,8 @@ impl Context {
                 automated: Cell::new(false),
                 actions: RefCell::new(Vec::new()),
                 action_requests: RefCell::new(Vec::new()),
+                hit_query: Cell::new(None),
+                hit_answers: RefCell::new(Vec::new()),
                 accessibility_known: RefCell::new(HashSet::new()),
                 accessibility_published: RefCell::new(HashSet::new()),
                 test_ids_published: Cell::new(true),
@@ -348,6 +353,20 @@ impl Context {
 
     pub fn action_requests(&self) -> Vec<String> {
         self.inner.action_requests.borrow().clone()
+    }
+
+    pub fn request_hit(&self, pos: Pos2) {
+        self.inner.hit_query.set(Some(pos));
+        self.inner.hit_answers.borrow_mut().clear();
+        self.request_repaint();
+    }
+
+    pub fn hit_query(&self) -> Option<Pos2> {
+        self.inner.hit_query.get()
+    }
+
+    pub fn answer_hit(&self, answer: String) {
+        self.inner.hit_answers.borrow_mut().push(answer);
     }
 
     pub fn action_ran(&self, id: &str) {
@@ -496,6 +515,11 @@ impl Context {
             accessibility: std::mem::take(&mut *self.inner.accessibility.borrow_mut()),
             actions: std::mem::take(&mut *self.inner.actions.borrow_mut()),
             unran_actions: std::mem::take(&mut *self.inner.action_requests.borrow_mut()),
+            hits: self
+                .inner
+                .hit_query
+                .take()
+                .map(|_| std::mem::take(&mut *self.inner.hit_answers.borrow_mut())),
             pixels_per_point: scale,
         }
     }

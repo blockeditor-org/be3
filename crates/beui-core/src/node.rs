@@ -462,6 +462,14 @@ impl Rects {
 
 pub const ANCESTOR_LIMIT: usize = 4096;
 
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+enum Adoption {
+    #[default]
+    Settled,
+    Queued,
+    Taken,
+}
+
 #[derive(Default)]
 pub struct Arena {
     nodes: Vec<Option<Box<dyn Element>>>,
@@ -473,6 +481,7 @@ pub struct Arena {
     removals: std::rc::Rc<RefCell<Vec<NodeId>>>,
     fence: Option<NodeId>,
     adopting: RefCell<Vec<NodeId>>,
+    adoption: RefCell<Vec<Adoption>>,
     stale: Vec<bool>,
     unplaced: Vec<bool>,
     free: Vec<u32>,
@@ -509,6 +518,7 @@ impl Arena {
                 self.removed[slot] = false;
                 self.stale[slot] = true;
                 self.unplaced[slot] = true;
+                self.adoption.get_mut()[slot] = Adoption::Settled;
                 NodeId {
                     index,
                     generation: self.generations[slot],
@@ -524,6 +534,7 @@ impl Arena {
                 self.removed.push(false);
                 self.stale.push(true);
                 self.unplaced.push(true);
+                self.adoption.get_mut().push(Adoption::Settled);
                 NodeId {
                     index,
                     generation: 0,
@@ -684,6 +695,9 @@ impl Arena {
         let id = id.into();
         let slot = self.slot(id).expect("node was removed");
         self.nodes[slot] = Some(element);
+        if self.adoption.get_mut()[slot] == Adoption::Taken {
+            self.queue_adoption(id);
+        }
     }
 
     pub fn invalidate(&mut self) {
@@ -702,7 +716,18 @@ impl Arena {
         self.relaid.push(id);
         self.repaint_node(id);
         self.mark_stale(id);
-        self.adopting.get_mut().push(id);
+        self.queue_adoption(id);
+    }
+
+    fn queue_adoption(&mut self, id: NodeId) {
+        let Some(slot) = self.slot(id) else {
+            return;
+        };
+        let adoption = &mut self.adoption.get_mut()[slot];
+        if *adoption != Adoption::Queued {
+            *adoption = Adoption::Queued;
+            self.adopting.get_mut().push(id);
+        }
     }
 
     pub fn repaint_node(&mut self, id: NodeId) {
@@ -790,14 +815,21 @@ impl Arena {
             return false;
         }
         let mut moved = false;
-        let mut waiting = Vec::new();
         let mut parents = self.parents.borrow_mut();
+        let mut adoption = self.adoption.borrow_mut();
         for parent in pending {
             let Some(slot) = self.slot(parent) else {
                 continue;
             };
+            if adoption[slot] != Adoption::Queued {
+                continue;
+            }
+            adoption[slot] = Adoption::Settled;
+            if self.removed[slot] {
+                continue;
+            }
             let Some(element) = self.nodes[slot].as_deref() else {
-                waiting.push(parent);
+                adoption[slot] = Adoption::Taken;
                 continue;
             };
             for child in element.children() {
@@ -811,7 +843,6 @@ impl Arena {
             }
         }
         drop(parents);
-        self.adopting.borrow_mut().extend(waiting);
         if moved {
             self.reparented.set(true);
         }
@@ -819,7 +850,7 @@ impl Arena {
     }
 
     pub fn adopt_children(&mut self, id: NodeId) {
-        self.adopting.get_mut().push(id);
+        self.queue_adoption(id);
     }
 
     pub fn take_reparented(&mut self) -> bool {

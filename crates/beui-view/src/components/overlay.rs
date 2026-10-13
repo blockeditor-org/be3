@@ -1,6 +1,10 @@
 use beui_core::color::Color32;
 
-use crate::reactive::{Callback, Child, NodeRef, Prop, create_effect, with_document};
+use std::cell::RefCell;
+
+use crate::reactive::{
+    Callback, Child, NodeRef, Prop, Render, Scope, create_effect, with_document,
+};
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::layer::{Dismiss, LayerLevel, LayerPolicy};
 use beui_core::node::NodeId;
@@ -18,7 +22,9 @@ pub fn Overlay(
     open: Prop<bool>,
     on_dismiss: Callback<Dismiss>,
     children: Option<Child>,
+    content: Option<Render<()>>,
 ) -> NodeId {
+    let lazy = RefCell::new(content.map(|content| (content, Scope::new())));
     let content = children;
     let overlay = with_document(|document| {
         let overlay = document.create_overlay(anchor.peek(), Placement::BelowStart);
@@ -49,6 +55,11 @@ pub fn Overlay(
     });
     create_effect(move || {
         let open = open.get();
+        if open && let Some((content, scope)) = lazy.borrow_mut().take() {
+            let built = scope.run(|| content.call(()));
+            scope.into_parent();
+            with_document(|document| document.set_overlay_content(overlay, built));
+        }
         with_document(|document| match open {
             true => document.open_overlay(overlay),
             false => document.close_overlay(overlay),

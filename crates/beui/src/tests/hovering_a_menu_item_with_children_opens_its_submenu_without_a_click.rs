@@ -38,14 +38,14 @@ fn hovering_a_menu_item_with_children_opens_its_submenu_without_a_click() {
     let inner = menu;
     let content = unstyled::context_menu_menu(harness.document(), inner);
     let share_button = unstyled::menu_list_row_button(harness.document(), content, 0);
-    let submenu = unstyled::menu_list_row_submenu_content(harness.document(), content, 0)
-        .expect("share has a submenu");
-    let email_button = unstyled::menu_list_row_button(harness.document(), submenu, 0);
-
-    assert!(harness.document().node_rect(email_button).is_none());
+    assert!(unstyled::menu_list_row_submenu_content(harness.document(), content, 0).is_none());
 
     let share_pos = harness.center(share_button);
     harness.frame(vec![Event::PointerMoved(share_pos)]);
+
+    let submenu = unstyled::menu_list_row_submenu_content(harness.document(), content, 0)
+        .expect("share's submenu is built once it opens");
+    let email_button = unstyled::menu_list_row_button(harness.document(), submenu, 0);
 
     assert!(harness.document().node_rect(email_button).is_some());
     assert!(unstyled::button_focused(harness.document(), email_button).get());
