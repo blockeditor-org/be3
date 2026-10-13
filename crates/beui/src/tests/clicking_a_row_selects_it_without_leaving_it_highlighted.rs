@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn clicking_a_row_selects_it_without_leaving_it_highlighted() {
+    let _root = crate::reactive::RootScope::new();
     let HelloColumn { document, text, .. } = hello_column();
     let mut harness = Harness::new(document);
 

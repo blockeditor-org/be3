@@ -29,7 +29,7 @@ pub fn Scroll(
     children: Children<ListChild>,
 ) -> NodeId {
     let focus = focus_ring(focus_color);
-    let along = direction.clone();
+    let along = direction;
     let scroll = view! {
         <unstyled::Scroll
             offset

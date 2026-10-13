@@ -4,8 +4,9 @@ use crate::unstyled::Scroll;
 
 #[test]
 fn a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly() {
+    let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let scroll_ref = scroll.clone();
+    let scroll_ref = scroll;
     let document = build(move || {
         view! {
             <List spacing=0.0>

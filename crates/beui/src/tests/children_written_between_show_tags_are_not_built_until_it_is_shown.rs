@@ -14,11 +14,12 @@ fn CountedPanel(builds: Builds) -> NodeId {
 
 #[test]
 fn children_written_between_show_tags_are_not_built_until_it_is_shown() {
+    let _root = crate::reactive::RootScope::new();
     let builds: Builds = Rc::new(Cell::new(0));
     let (toggle, panel) = (NodeRef::new(), NodeRef::new());
 
     let document = build({
-        let (builds, toggle, panel) = (builds.clone(), toggle.clone(), panel.clone());
+        let (builds, toggle, panel) = (builds.clone(), toggle, panel);
         move || {
             let (visible, set_visible) = create_signal(false);
             view! {

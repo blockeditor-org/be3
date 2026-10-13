@@ -820,7 +820,7 @@ impl Editor {
     }
 
     pub fn content(&self, node: &NodeRef) {
-        *self.0.content.borrow_mut() = Some((node.clone(), document_zone()));
+        *self.0.content.borrow_mut() = Some((*node, document_zone()));
     }
 
     pub fn content_rect(&self) -> Rect {

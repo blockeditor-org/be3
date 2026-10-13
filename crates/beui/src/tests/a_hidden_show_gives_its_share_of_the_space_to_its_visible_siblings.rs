@@ -3,9 +3,10 @@ use crate::reactive::{Frame, List, NodeRef, Show, build, view};
 
 #[test]
 fn a_hidden_show_gives_its_share_of_the_space_to_its_visible_siblings() {
+    let _root = crate::reactive::RootScope::new();
     let shown = NodeRef::new();
     let document = build({
-        let shown = shown.clone();
+        let shown = shown;
         move || {
             view! {
                 <List spacing=0.0>

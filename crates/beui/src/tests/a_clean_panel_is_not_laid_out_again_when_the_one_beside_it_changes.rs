@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn a_clean_panel_is_not_laid_out_again_when_the_one_beside_it_changes() {
+    let _root = crate::reactive::RootScope::new();
     let panels = three_panels();
     let (top, middle) = (panels.top, panels.middle);
     let mut document = panels.document;

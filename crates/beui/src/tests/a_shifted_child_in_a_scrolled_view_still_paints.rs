@@ -5,10 +5,11 @@ use beui_core::painter::Shape;
 
 #[test]
 fn a_shifted_child_in_a_scrolled_view_still_paints() {
+    let _root = crate::reactive::RootScope::new();
     const MARK: Color32 = Color32::from_rgb(200, 30, 90);
     let scroll = NodeRef::new();
     let document = build({
-        let scroll = scroll.clone();
+        let scroll = scroll;
         move || {
             view! {
                 <List spacing=0.0>

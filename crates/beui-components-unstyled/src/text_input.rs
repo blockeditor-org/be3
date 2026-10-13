@@ -115,8 +115,8 @@ pub fn TextInput(
     let (area, menu_node) = (NodeRef::new(), NodeRef::new());
     set_component_state(Input {
         state: state.clone(),
-        area: area.clone(),
-        menu: menu_node.clone(),
+        area: area,
+        menu: menu_node,
         focused: is_focused,
     });
 
@@ -158,7 +158,7 @@ pub fn TextInput(
 
     let opener: Rc<RefCell<Option<Callback<Pos2>>>> = Rc::default();
     let open_menu = clone!(opener -> move |at: Pos2| {
-        if let Some(open) = opener.borrow().clone() {
+        if let Some(open) = *opener.borrow() {
             open.call(at);
         }
     });

@@ -6,11 +6,12 @@ use crate::reactive::{Frame, Interactive, List, NodeRef, build, view};
 
 #[test]
 fn pointer_motion_only_reaches_what_lies_under_the_pointer() {
+    let _root = crate::reactive::RootScope::new();
     let hovers: Rc<RefCell<Vec<bool>>> = Rc::default();
     let (top, bottom) = (NodeRef::new(), NodeRef::new());
     let mut document = build({
         let hovers = hovers.clone();
-        let (top, bottom) = (top.clone(), bottom.clone());
+        let (top, bottom) = (top, bottom);
         move || {
             view! {
                 <List spacing=0.0>

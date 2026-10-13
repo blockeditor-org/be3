@@ -291,7 +291,7 @@ fn BitRow(
                             && answers.with(|answers| answers.get(column).copied().flatten())
                                 != expected.with(|expected| expected.get(column).copied())
                     });
-                    let on_change = on_change.clone();
+                    let on_change = on_change;
                     let answers = answers;
                     let cycle = move || {
                         let mut values = answers.get_untracked();

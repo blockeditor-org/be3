@@ -3,6 +3,7 @@ use crate::reactive::NodeRef;
 
 #[test]
 fn a_released_sheet_springs_to_its_stop_or_closed() {
+    let _root = crate::reactive::RootScope::new();
     let sheet = NodeRef::new();
     let closed = Rc::new(Cell::new(0));
     let document = sheet_of_rows(0.5, &sheet, &closed);

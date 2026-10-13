@@ -4,8 +4,9 @@ use crate::unstyled::{Scroll, scroll_animating};
 
 #[test]
 fn releasing_a_middle_drag_ends_autoscroll() {
+    let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let scroll_ref = scroll.clone();
+    let scroll_ref = scroll;
     let document = build(move || {
         view! {
             <List spacing=0.0>

@@ -446,13 +446,11 @@ pub(crate) fn Notes(
     let initial = pull_request.get_untracked();
     let slot = Slot::PullRequest(initial.number);
     let build = phone.build(slot, &initial.head_sha);
-    let status = create_memo(move || {
-        match build.get() {
-            Loaded::Ready(Found { build: None, .. }) if !pull_request.get().same_repository => {
-                "It comes from a fork, so CI does not publish an Android build of it.".to_owned()
-            }
-            found => describe(found, "Looking for its Android build", "it"),
+    let status = create_memo(move || match build.get() {
+        Loaded::Ready(Found { build: None, .. }) if !pull_request.get().same_repository => {
+            "It comes from a fork, so CI does not publish an Android build of it.".to_owned()
         }
+        found => describe(found, "Looking for its Android build", "it"),
     });
     view! {
         <List spacing=8.0>

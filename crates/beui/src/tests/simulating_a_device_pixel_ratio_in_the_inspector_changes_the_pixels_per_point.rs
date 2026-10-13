@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn simulating_a_device_pixel_ratio_in_the_inspector_changes_the_pixels_per_point() {
+    let _root = crate::reactive::RootScope::new();
     let mut harness = Harness::sized(hello_column().document, WIDE_VIEWPORT);
     harness.context.set_pixels_per_point(1.5);
 

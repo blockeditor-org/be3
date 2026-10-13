@@ -6,10 +6,11 @@ use crate::unstyled::command_palette_shown;
 
 #[test]
 fn a_global_action_runs_from_a_text_field_inside_an_open_palette() {
+    let _root = crate::reactive::RootScope::new();
     let ran = Rc::new(RefCell::new(Vec::new()));
     let (lock, louder, typed) = (ran.clone(), ran.clone(), ran.clone());
     let palette = NodeRef::new();
-    let held = palette.clone();
+    let held = palette;
     let document = build(move || {
         Action::new("test.lock", "Lock screen", move || {
             lock.borrow_mut().push("lock")

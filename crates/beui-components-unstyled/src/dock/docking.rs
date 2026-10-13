@@ -659,7 +659,7 @@ impl<K: 'static> Found<K> {
 
     fn empty(&self, key: &str) -> Option<RenderFn<()>> {
         match &self.panes.get(key)?.kind {
-            NodeKind::Pane { empty, .. } => empty.clone(),
+            NodeKind::Pane { empty, .. } => *empty,
             _ => None,
         }
     }
@@ -744,7 +744,7 @@ where
     let closing = found;
     let on_close = move |tab: TabId| {
         let close = closing
-            .with_untracked(|found| found.tab(tab, |_, _, on_close, _| on_close.clone()))
+            .with_untracked(|found| found.tab(tab, |_, _, on_close, _| *on_close))
             .flatten();
         if let Some(close) = close {
             close.call();
@@ -752,8 +752,7 @@ where
     };
     let bodies = found;
     let content = RenderFn::new(move |tab: TabId| {
-        let content =
-            bodies.with_untracked(|found| found.tab(tab, |_, _, _, content| content.clone()));
+        let content = bodies.with_untracked(|found| found.tab(tab, |_, _, _, content| *content));
         let Some(content) = content else {
             return view! {
                 <Frame />

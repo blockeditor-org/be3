@@ -3,8 +3,9 @@ use crate::unstyled::{DockPane, DockTab, DockingLayout};
 
 #[test]
 fn dock_tabs_are_the_same_height_whether_or_not_they_close() {
+    let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
-    let built = dock.clone();
+    let built = dock;
     let document = build(move || {
         let layout = DockingLayout::new();
         view! {

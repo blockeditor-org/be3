@@ -404,7 +404,7 @@ pub(crate) fn HexView(state: Shared) -> NodeId {
                     state: state.clone(),
                     geometry,
                     rows,
-                    canvas: canvas.clone(),
+                    canvas: canvas,
                 });
                 let press_cx = cx.clone();
                 let drag_cx = cx.clone();

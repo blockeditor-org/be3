@@ -173,7 +173,7 @@ fn Grid(
                                         view! {
                                             <EventBlock
                                                 item={item}
-                                                on_pick={forward(on_pick_event.clone())}
+                                                on_pick={forward(on_pick_event)}
                                             />
                                         }
                                     }}
@@ -210,7 +210,7 @@ fn EventBlock(item: Memo<Option<Placed>>, on_pick: Callback<Shown>) -> CanvasIte
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
             <Frame color={theme.accent} radius=3>
-                <ListRow @test_id={test_id} on_click={open.clone()} on_activate={open}>
+                <ListRow @test_id={test_id} on_click={open} on_activate={open}>
                     <Caption content={title} color={theme.on_accent} />
                 </ListRow>
             </Frame>

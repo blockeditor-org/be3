@@ -5,10 +5,11 @@ use crate::reactive::{
 
 #[test]
 fn a_layout_builder_in_a_wrapping_row_builds_only_for_the_width_it_is_laid_out_at() {
+    let _root = crate::reactive::RootScope::new();
     let seen = Rc::new(RefCell::new(Vec::new()));
     let builder = NodeRef::new();
     let document = build({
-        let (seen, builder) = (Rc::clone(&seen), builder.clone());
+        let (seen, builder) = (Rc::clone(&seen), builder);
         move || {
             view! {
                 <List direction=Direction::Horizontal wrap=true spacing=10.0>

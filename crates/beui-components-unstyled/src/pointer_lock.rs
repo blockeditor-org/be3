@@ -78,7 +78,7 @@ pub fn PointerLock(
         <Interactive
             focusable=true
             on_focus_change={blurred}
-            on_activate={engage.clone()}
+            on_activate={engage}
             on_key={key}
             on_motion={move |motion: Vec2| on_motion.call(motion)}
             cursor={cursor}

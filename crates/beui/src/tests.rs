@@ -1431,7 +1431,7 @@ pub(crate) fn virtual_list(built: &Rc<RefCell<Vec<usize>>>) -> VirtualScroll {
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
     let sink = built.clone();
     let document = build({
-        let (scroll, list) = (scroll.clone(), list.clone());
+        let (scroll, list) = (scroll, list);
         move || {
             view! {
                 <List spacing=0.0>
@@ -1479,7 +1479,7 @@ pub(crate) fn keyed_virtual_list(built: &Rc<RefCell<Vec<usize>>>) -> KeyedVirtua
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
     let sink = built.clone();
     let document = build({
-        let (scroll, list) = (scroll.clone(), list.clone());
+        let (scroll, list) = (scroll, list);
         move || {
             view! {
                 <List spacing=0.0>
@@ -1517,7 +1517,7 @@ pub(crate) struct HelloColumn {
 pub(crate) fn hello_column() -> HelloColumn {
     let (padding, text) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (padding, text) = (padding.clone(), text.clone());
+        let (padding, text) = (padding, text);
         move || {
             view! {
                 <List spacing=0.0>
@@ -1553,8 +1553,8 @@ pub(crate) fn three_panels() -> ThreePanels {
     let list = NodeRef::new();
     let (top, middle, bottom) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let document = build({
-        let list = list.clone();
-        let (top, middle, bottom) = (top.clone(), middle.clone(), bottom.clone());
+        let list = list;
+        let (top, middle, bottom) = (top, middle, bottom);
         move || {
             view! {
                 <List @node_ref=&list spacing=0.0>
@@ -1577,7 +1577,7 @@ pub(crate) fn three_panels() -> ThreePanels {
 pub(crate) fn stacked_panels() -> StackedPanels {
     let (upper, lower) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (upper, lower) = (upper.clone(), lower.clone());
+        let (upper, lower) = (upper, lower);
         move || {
             view! {
                 <List spacing=0.0>
@@ -1630,7 +1630,7 @@ pub(crate) const SHEET_ROWS: usize = 20;
 pub(crate) const SHEET_ROW_HEIGHT: f32 = 60.0;
 
 pub(crate) fn sheet_of_rows(rest: f32, sheet: &NodeRef, closed: &Rc<Cell<usize>>) -> Document {
-    let (sheet, closed) = (sheet.clone(), closed.clone());
+    let (sheet, closed) = (*sheet, closed.clone());
     build(move || {
         view! {
             <List spacing=0.0>
@@ -1671,7 +1671,7 @@ pub(crate) fn text_of(document: &Document, id: NodeId) -> &str {
 
 pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
     let dock = NodeRef::new();
-    let built = dock.clone();
+    let built = dock;
     let document = build(move || {
         let layout = unstyled::DockingLayout::new();
         let (open, set_open) = create_signal((1..=tabs as u64).collect::<Vec<_>>());
@@ -1704,7 +1704,7 @@ pub(crate) struct SplitDock {
 
 pub(crate) fn split_dock(drag_modifier: Option<Modifiers>) -> SplitDock {
     let dock = NodeRef::new();
-    let built = dock.clone();
+    let built = dock;
     let presses = Rc::new(Cell::new(0));
     let pressed = Rc::clone(&presses);
     let document = build(move || {
@@ -2198,7 +2198,7 @@ pub(crate) fn dialog_size(id: u64) -> Vec2 {
 
 pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
     let dock = NodeRef::new();
-    let built = dock.clone();
+    let built = dock;
     let pressed = Rc::new(RefCell::new(Vec::new()));
     let keyed = Rc::new(RefCell::new(Vec::new()));
     let attended = Rc::new(RefCell::new(Vec::new()));

@@ -4,15 +4,15 @@ use crate::reactive::{Action, Chord, NodeRef, build, view};
 
 #[test]
 fn an_action_placed_at_a_node_answers_only_while_the_focus_is_inside_it() {
+    let _root = crate::reactive::RootScope::new();
     let runs = Rc::new(Cell::new(0));
     let (inside, outside, area) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let document = build({
-        let (runs, inside, outside, area) =
-            (runs.clone(), inside.clone(), outside.clone(), area.clone());
+        let (runs, inside, outside, area) = (runs.clone(), inside, outside, area);
         move || {
             Action::new("test.placed", "Placed", move || runs.set(runs.get() + 1))
                 .shortcut(Chord::ctrl(Key::J))
-                .at(KeyAt::Node(area.clone()))
+                .at(KeyAt::Node(area))
                 .register();
             view! {
                 <List spacing=8.0>

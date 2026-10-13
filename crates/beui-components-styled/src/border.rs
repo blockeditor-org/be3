@@ -37,7 +37,7 @@ pub fn Separator(
     #[prop(default = None)] length: Prop<Option<f32>>,
 ) -> NodeId {
     let theme = use_theme();
-    let width = measurement_along(Direction::Horizontal, direction.clone(), length.clone());
+    let width = measurement_along(Direction::Horizontal, direction, length);
     let height = measurement_along(Direction::Vertical, direction, length);
     view! {
         <Frame color={theme.border} width={width} height={height} radius=0 />

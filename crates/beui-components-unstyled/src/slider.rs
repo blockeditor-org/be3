@@ -138,7 +138,7 @@ pub fn Slider(
         }
     };
     let jump_to = dragged_to.clone();
-    let jump_value = set_value.clone();
+    let jump_value = set_value;
     let grabbed = move |press: PointerPress| {
         let travel = (press.size.x - thumb).max(0.0);
         let centre = thumb / 2.0 + press_fraction.get_untracked() * travel;
@@ -152,8 +152,8 @@ pub fn Slider(
             jump_value(scale.value_at(jump_to(press), min, max));
         }
     };
-    let step_value = set_value.clone();
-    let key_value = set_value.clone();
+    let step_value = set_value;
+    let key_value = set_value;
     let value_for_keys = value_read;
 
     set_component_state(value_read);

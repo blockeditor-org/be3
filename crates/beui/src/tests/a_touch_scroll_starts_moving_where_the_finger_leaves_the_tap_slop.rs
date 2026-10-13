@@ -5,8 +5,9 @@ use crate::unstyled::Scroll;
 
 #[test]
 fn a_touch_scroll_starts_moving_where_the_finger_leaves_the_tap_slop() {
+    let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let scroll_ref = scroll.clone();
+    let scroll_ref = scroll;
     let document = build(move || {
         view! {
             <List spacing=0.0>

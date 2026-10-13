@@ -7,8 +7,9 @@ use text_editor_core::TextBuffer;
 
 #[test]
 fn the_emoji_menu_opens_below_the_caret_on_a_line_it_opened_on_before() {
+    let _root = crate::reactive::RootScope::new();
     let area = NodeRef::new();
-    let placed = area.clone();
+    let placed = area;
     let document = build(move || {
         let document = Arc::new(TextBuffer::new(b"first line\nsecond line\n"))
             as Arc<dyn text_editor_core::Document>;

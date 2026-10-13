@@ -119,7 +119,7 @@ fn report(doc: &Document, autoscroll: &Autoscroll, ended: bool) {
     let Some(catcher) = catcher(doc, autoscroll.target) else {
         return;
     };
-    let on_autoscroll = catcher.on_autoscroll.clone();
+    let on_autoscroll = catcher.on_autoscroll;
     on_autoscroll.call(AutoscrollGesture {
         origin: autoscroll.origin,
         pos: autoscroll.pos,

@@ -3,6 +3,7 @@ use crate::unstyled::dock_state;
 
 #[test]
 fn without_a_drag_modifier_a_modified_drag_reaches_the_dock_content() {
+    let _root = crate::reactive::RootScope::new();
     let SplitDock {
         document,
         dock,

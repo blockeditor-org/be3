@@ -8,7 +8,7 @@ fn compacting_virtual_rows_clamps_the_scroll_anchor_at_the_end() {
     let (item_size, set_item_size) = create_signal(VIRTUAL_ITEM_HEIGHT);
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (scroll, list) = (scroll.clone(), list.clone());
+        let (scroll, list) = (scroll, list);
         let row_size = item_size;
         move || {
             let padding = create_memo(move || row_size.get() / 2.0);

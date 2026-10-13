@@ -4,10 +4,11 @@ use crate::styled::TextInput;
 
 #[test]
 fn typing_past_the_end_of_a_narrow_text_input_scrolls_the_caret_into_view() {
+    let _root = crate::reactive::RootScope::new();
     let value = "a value that is much wider than the field";
     let input = NodeRef::new();
     let (document, [_sized]) = toolbar_of({
-        let input = input.clone();
+        let input = input;
         move || {
             [view! {
                 <Frame width=80.0>

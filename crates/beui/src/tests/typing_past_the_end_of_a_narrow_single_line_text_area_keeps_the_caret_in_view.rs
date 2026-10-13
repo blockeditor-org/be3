@@ -6,9 +6,10 @@ use text_editor_core::TextBuffer;
 
 #[test]
 fn typing_past_the_end_of_a_narrow_single_line_text_area_keeps_the_caret_in_view() {
+    let _root = crate::reactive::RootScope::new();
     let held: Rc<RefCell<Option<TextAreaState>>> = Rc::new(RefCell::new(None));
     let area = NodeRef::new();
-    let (sink, slot) = (held.clone(), area.clone());
+    let (sink, slot) = (held.clone(), area);
     let document = build(move || {
         let document = Arc::new(TextBuffer::new(b"")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);

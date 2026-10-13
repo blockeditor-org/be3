@@ -9,7 +9,7 @@ fn a_fullscreen_overlay_fills_the_window_and_escape_dismisses_it() {
     let dismissed = Rc::new(Cell::new(0));
     let reports = dismissed.clone();
     let content = NodeRef::new();
-    let content_ref = content.clone();
+    let content_ref = content;
     let document = build({
         move || {
             view! {

@@ -9,7 +9,7 @@ fn a_dialog_opens_in_the_middle_and_escape_dismisses_it() {
     let dismissed = Rc::new(Cell::new(0));
     let reports = dismissed.clone();
     let surface = NodeRef::new();
-    let body_ref = surface.clone();
+    let body_ref = surface;
     let document = build({
         move || {
             view! {

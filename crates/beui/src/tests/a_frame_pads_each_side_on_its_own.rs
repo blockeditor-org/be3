@@ -3,9 +3,10 @@ use crate::reactive::{Align, Direction, Frame, List, NodeRef, view};
 
 #[test]
 fn a_frame_pads_each_side_on_its_own() {
+    let _root = crate::reactive::RootScope::new();
     let (outer, inner) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (outer, inner) = (outer.clone(), inner.clone());
+        let (outer, inner) = (outer, inner);
         move || {
             view! {
                 <List direction=Direction::Horizontal align=Align::Start spacing=0.0>

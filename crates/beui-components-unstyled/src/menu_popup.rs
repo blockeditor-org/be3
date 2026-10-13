@@ -57,7 +57,7 @@ impl MenuStyle {
 
     pub(crate) fn parts(&self) -> (RenderFn<MenuRowHandle>, RenderFn<Child>) {
         match &self.0 {
-            Some(parts) => (parts.row.clone(), parts.panel.clone()),
+            Some(parts) => (parts.row, parts.panel),
             None => (
                 RenderFn::new(|_| {
                     view! {
@@ -70,7 +70,7 @@ impl MenuStyle {
     }
 
     fn sheet(&self) -> Option<(RenderFn<MenuRowHandle>, RenderFn<MenuSheetHandle>)> {
-        self.0.as_ref().and_then(|parts| parts.sheet.clone())
+        self.0.as_ref().and_then(|parts| parts.sheet)
     }
 }
 
@@ -92,18 +92,14 @@ pub(crate) fn MenuPopup(
     let sheeted = sheet.is_some();
     let dropped = create_memo(move || open.get() && !(sheeted && touched.get()));
     let raised = create_memo(move || sheeted && open.get() && touched.get());
-    let traps_focus = focusing.clone();
+    let traps_focus = focusing;
     let active = create_memo(move || dropped.get() && focusing.get());
     let choose = Callback::new(move |path: Vec<usize>| {
         on_select.call(path);
         on_dismiss.call();
     });
-    let (sheet_items, sheet_panel, sheet_choose, sheet_dismiss) = (
-        items.clone(),
-        panel.clone(),
-        choose.clone(),
-        on_dismiss.clone(),
-    );
+    let (sheet_items, sheet_panel, sheet_choose, sheet_dismiss) =
+        (items.clone(), panel, choose, on_dismiss);
     view! {
         <List spacing=0.0>
             <Overlay
@@ -118,7 +114,7 @@ pub(crate) fn MenuPopup(
                         @node_ref=&content
                         items
                         row
-                        panel={panel.clone()}
+                        panel={panel}
                         active
                         on_select={move |path: Vec<usize>| choose.call(path)}
                     />
@@ -126,8 +122,8 @@ pub(crate) fn MenuPopup(
             />
             <Show condition={sheeted}>
                 {move || {
-                    let (row, sheet) = sheet.clone().unwrap_or_else(|| unreachable!());
-                    let (choose, dismiss) = (sheet_choose.clone(), sheet_dismiss.clone());
+                    let (row, sheet) = sheet.unwrap_or_else(|| unreachable!());
+                    let (choose, dismiss) = (sheet_choose, sheet_dismiss);
                     sheet.call(MenuSheetHandle {
                         open: raised,
                         on_close: ClickCallback::new(move || dismiss.call()),
@@ -135,7 +131,7 @@ pub(crate) fn MenuPopup(
                             <MenuList
                                 items={sheet_items.clone()}
                                 row
-                                panel={sheet_panel.clone()}
+                                panel={sheet_panel}
                                 active={raised}
                                 on_select={move |path: Vec<usize>| choose.call(path)}
                             />

@@ -4,10 +4,11 @@ use crate::unstyled::Scroll;
 
 #[test]
 fn a_tap_during_a_fling_stops_it_without_clicking_a_row() {
+    let _root = crate::reactive::RootScope::new();
     let clicks = Rc::new(Cell::new(0));
     let click_sink = clicks.clone();
     let scroll = NodeRef::new();
-    let scroll_ref = scroll.clone();
+    let scroll_ref = scroll;
     let document = build(move || {
         view! {
             <List spacing=0.0>

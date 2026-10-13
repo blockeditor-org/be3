@@ -4,11 +4,12 @@ use crate::styled::ContextMenu;
 
 #[test]
 fn selecting_a_leaf_item_in_a_nested_context_menu_closes_the_whole_menu_stack() {
+    let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
     let selected = Rc::new(RefCell::new(Vec::new()));
     let sink = selected.clone();
     let (document, [menu]) = toolbar_of({
-        let region = region.clone();
+        let region = region;
         move || {
             let items = view! {
                 <unstyled::MenuItem label="Share">

@@ -27,7 +27,7 @@ pub fn Pressable(
             on_click.call();
         }
     };
-    let key_click = click.clone();
+    let key_click = click;
 
     view! {
         <Interactive

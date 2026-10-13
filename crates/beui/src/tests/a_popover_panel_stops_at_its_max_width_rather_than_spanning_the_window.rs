@@ -6,8 +6,9 @@ use crate::unstyled::PopoverHandle;
 
 #[test]
 fn a_popover_panel_stops_at_its_max_width_rather_than_spanning_the_window() {
+    let _root = crate::reactive::RootScope::new();
     let content = NodeRef::new();
-    let content_ref = content.clone();
+    let content_ref = content;
     let document = build(move || {
         view! {
             <List spacing=0.0>

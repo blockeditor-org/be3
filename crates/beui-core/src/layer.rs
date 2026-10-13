@@ -478,7 +478,7 @@ impl Document {
         if !self.contains(id) {
             return;
         }
-        let handler = self.arena.get_as::<OverlayNode>(id).on_dismiss.clone();
+        let handler = self.arena.get_as::<OverlayNode>(id).on_dismiss;
         if !handler.is_empty() {
             handler.call(reason);
         }
@@ -605,7 +605,7 @@ impl Document {
             DismissTarget::Overlay(overlay) => self.call_overlay_dismiss(overlay, reason),
             DismissTarget::Handler(handler) => {
                 let node = self.arena.get_as(handler);
-                let (on_gesture, on_back) = (node.on_gesture.clone(), node.on_back.clone());
+                let (on_gesture, on_back) = (node.on_gesture, node.on_back);
                 match on_gesture.is_empty() {
                     false => on_gesture.call(BackGesture::Invoked),
                     true => on_back.call(),
@@ -630,7 +630,7 @@ impl Document {
         match target {
             DismissTarget::Handler(handler) => {
                 let node = self.arena.get_as(handler);
-                let (on_gesture, on_back) = (node.on_gesture.clone(), node.on_back.clone());
+                let (on_gesture, on_back) = (node.on_gesture, node.on_back);
                 if !on_gesture.is_empty() {
                     on_gesture.call(match gesture {
                         BackGesture::Progressed(progress) => {

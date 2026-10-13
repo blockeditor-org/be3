@@ -419,7 +419,7 @@ fn Scrolling(
     let motion = Motion {
         node: with_document(|document| document.first_offset_within(node)),
         reported,
-        direction: direction.clone(),
+        direction: direction,
         momentum: Rc::new(RefCell::new(Momentum::new())),
         animation: Rc::default(),
     };
@@ -439,22 +439,18 @@ fn Scrolling(
     let autoscrolled = motion.clone();
     let (tapped, stopped) = (motion.clone(), motion.clone());
     let catcher = NodeRef::new();
-    let catcher_rect = catcher.clone();
+    let catcher_rect = catcher;
     let (origin, set_origin) = create_signal(None::<Pos2>);
     let marked = create_memo(move || origin.get().is_some());
     let anchor = create_memo(move || OverlayAnchor::Point(origin.get().unwrap_or(Pos2::ZERO)));
     let marker_axis = create_memo(move || direction.get());
     let content_axis = marker_axis;
     let scroll_to = Callback::new(move |offset: f32| motion.scroll_to(offset));
-    on_scroll_key(
-        KeyAt::Node(catcher.clone()),
-        KeyPhase::Bubble,
-        move |event| {
-            event
-                .press()
-                .is_some_and(|press| navigates(press.key) && ancestor_keyed.key(press))
-        },
-    );
+    on_scroll_key(KeyAt::Node(catcher), KeyPhase::Bubble, move |event| {
+        event
+            .press()
+            .is_some_and(|press| navigates(press.key) && ancestor_keyed.key(press))
+    });
     view! {
         <List direction={across} spacing={scrollbar.spacing()}>
             <Interactive
@@ -519,15 +515,13 @@ pub fn Scroll(
     on_change: Callback<ScrollPosition>,
     children: Children<ListChild>,
 ) -> NodeId {
-    let content_direction = direction.clone();
-    let rows_direction = direction.clone();
+    let content_direction = direction;
+    let rows_direction = direction;
     let fade = scrollbar.fade();
     let (faded, set_faded) = create_signal(None::<ScrollPosition>);
-    let edges = create_memo(move || {
-        fade_edges(direction.get(), faded.get(), fade)
-    });
+    let edges = create_memo(move || fade_edges(direction.get(), faded.get(), fade));
     let rows = NodeRef::new();
-    let revealed = rows.clone();
+    let revealed = rows;
     let marker = marker.unwrap_or_else(|| {
         Render::new(|_| {
             view! {
@@ -634,7 +628,7 @@ fn scroll_view(position: Option<ScrollPosition>) -> Node {
 }
 
 fn across(direction: &Prop<Direction>) -> Memo<Direction> {
-    let direction = direction.clone();
+    let direction = *direction;
     create_memo(move || match direction.get() {
         Direction::Horizontal => Direction::Vertical,
         Direction::Vertical => Direction::Horizontal,

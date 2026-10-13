@@ -88,7 +88,7 @@ pub fn LockScreen(
                                 index == 0 && open.get() && !busy.get()
                             });
                             let submit = submit.clone();
-                            let action = on_action.clone();
+                            let action = on_action;
                             let changed = set_password;
                             let card = view! {
                                 <LockCard
@@ -197,7 +197,7 @@ fn LockCard(
                     <List direction=Direction::Horizontal spacing=ACTION_SPACING>
                         <ForEach keys={slots}>
                             {move |index: usize| {
-                                let chose = on_action.clone();
+                                let chose = on_action;
                                 let glyph = create_memo(move || {
                                     actions.with(|actions| actions.get(index).map(|action| action.glyph.clone()).unwrap_or_default())
                                 });

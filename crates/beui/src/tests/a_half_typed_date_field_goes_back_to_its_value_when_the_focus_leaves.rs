@@ -5,10 +5,11 @@ use crate::unstyled::{DateSegmentHandle, DateTimeField, date_time_field_text};
 
 #[test]
 fn a_half_typed_date_field_goes_back_to_its_value_when_the_focus_leaves() {
+    let _root = crate::reactive::RootScope::new();
     let reported = Rc::new(RefCell::new(Vec::new()));
     let sink = reported.clone();
     let field = NodeRef::new();
-    let named = field.clone();
+    let named = field;
     let document = build(move || {
         view! {
             <DateTimeField

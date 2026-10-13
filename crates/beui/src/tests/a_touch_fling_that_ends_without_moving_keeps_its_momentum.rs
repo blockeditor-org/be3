@@ -4,8 +4,9 @@ use crate::unstyled::Scroll;
 
 #[test]
 fn a_touch_fling_that_ends_without_moving_keeps_its_momentum() {
+    let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let scroll_ref = scroll.clone();
+    let scroll_ref = scroll;
     let document = build(move || {
         view! {
             <List spacing=0.0>

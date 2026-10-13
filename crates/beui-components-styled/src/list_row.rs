@@ -18,7 +18,7 @@ pub fn ListRow(
     on_click: ClickCallback,
     on_activate: ClickCallback,
 ) -> NodeId {
-    let face = selected.clone();
+    let face = selected;
     let activates = !on_activate.is_empty();
     view! {
         <unstyled::ListRow

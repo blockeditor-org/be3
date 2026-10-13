@@ -29,7 +29,7 @@ pub fn ResponsiveTabs(
 
     let tab_options = options.clone();
     let tab_selected = selected_read;
-    let tab_change = on_change.clone();
+    let tab_change = on_change;
     let tab_set = set_selected;
 
     view! {

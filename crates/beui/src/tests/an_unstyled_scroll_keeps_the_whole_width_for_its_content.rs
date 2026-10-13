@@ -5,8 +5,9 @@ const CONTENT_HEIGHT: f32 = 2000.0;
 
 #[test]
 fn an_unstyled_scroll_keeps_the_whole_width_for_its_content() {
+    let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let held = scroll.clone();
+    let held = scroll;
     let document = build(move || {
         view! {
             <List spacing=0.0>

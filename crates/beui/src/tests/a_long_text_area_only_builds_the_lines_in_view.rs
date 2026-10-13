@@ -19,11 +19,12 @@ fn built_lines(document: &Document, node: NodeId) -> Option<usize> {
 
 #[test]
 fn a_long_text_area_only_builds_the_lines_in_view() {
+    let _root = crate::reactive::RootScope::new();
     let held: Rc<RefCell<Option<TextAreaState>>> = Rc::new(RefCell::new(None));
     let sink = held.clone();
     let area = NodeRef::new();
     let document = build({
-        let area = area.clone();
+        let area = area;
         move || {
             let text = (0..LINES)
                 .map(|line| format!("line {line}"))

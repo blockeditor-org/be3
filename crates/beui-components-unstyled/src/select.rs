@@ -184,12 +184,7 @@ pub fn Select(
         },
         move |index| {
             view! {
-                <SelectRow
-                    state={rows_state.clone()}
-                    index
-                    option={option.clone()}
-                    highlight={highlight}
-                />
+                <SelectRow state={rows_state.clone()} index option={option} highlight={highlight} />
             }
         },
     );
@@ -208,15 +203,11 @@ pub fn Select(
         state.clone(),
         state.clone(),
     );
-    on_key(
-        KeyAt::Node(state.search.clone()),
-        KeyPhase::Capture,
-        move |event| {
-            event
-                .press()
-                .is_some_and(|press| navigate(&navigate_state, press))
-        },
-    );
+    on_key(KeyAt::Node(state.search), KeyPhase::Capture, move |event| {
+        event
+            .press()
+            .is_some_and(|press| navigate(&navigate_state, press))
+    });
     let search_blur = state.clone();
 
     view! {
@@ -277,7 +268,7 @@ fn SelectRow(
     let (visible, button, label) = {
         let rows = state.rows.borrow();
         let row = &rows[index];
-        (row.visible, row.button.clone(), row.label)
+        (row.visible, row.button, row.label)
     };
     let accessibility_state = state.clone();
     let accessibility_label = label;

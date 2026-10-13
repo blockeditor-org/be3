@@ -4,9 +4,10 @@ use crate::styled::ContextMenu;
 
 #[test]
 fn arrow_keys_move_a_visible_highlight_through_an_open_context_menu() {
+    let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
     let (document, [_menu]) = toolbar_of({
-        let region = region.clone();
+        let region = region;
         move || {
             let items = view! {
                 <unstyled::MenuItem label="Copy" />

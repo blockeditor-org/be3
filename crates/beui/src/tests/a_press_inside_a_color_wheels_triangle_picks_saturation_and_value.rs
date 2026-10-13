@@ -5,10 +5,11 @@ use crate::styled::{ColorWheel, WHEEL_SIZE};
 
 #[test]
 fn a_press_inside_a_color_wheels_triangle_picks_saturation_and_value() {
+    let _root = crate::reactive::RootScope::new();
     let changes = Rc::new(RefCell::new(Vec::new()));
     let changed = changes.clone();
     let wheel = NodeRef::new();
-    let named = wheel.clone();
+    let named = wheel;
     let document = build(move || {
         view! {
             <List spacing=0.0>

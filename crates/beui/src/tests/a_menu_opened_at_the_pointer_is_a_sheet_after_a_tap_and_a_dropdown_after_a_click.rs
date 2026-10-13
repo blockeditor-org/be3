@@ -13,10 +13,11 @@ fn sheet_shown(harness: &Harness) -> bool {
 
 #[test]
 fn a_menu_opened_at_the_pointer_is_a_sheet_after_a_tap_and_a_dropdown_after_a_click() {
+    let _root = crate::reactive::RootScope::new();
     let (menu, target) = (NodeRef::new(), NodeRef::new());
     let setter = Rc::new(RefCell::new(None));
     let document = crate::reactive::build({
-        let (menu, target, setter) = (menu.clone(), target.clone(), setter.clone());
+        let (menu, target, setter) = (menu, target, setter.clone());
         move || {
             let (open, set_open) = create_signal(false);
             *setter.borrow_mut() = Some(set_open);

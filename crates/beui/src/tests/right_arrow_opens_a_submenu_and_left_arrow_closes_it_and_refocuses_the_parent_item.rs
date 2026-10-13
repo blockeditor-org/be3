@@ -4,9 +4,10 @@ use crate::styled::ContextMenu;
 
 #[test]
 fn right_arrow_opens_a_submenu_and_left_arrow_closes_it_and_refocuses_the_parent_item() {
+    let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
     let (document, [menu]) = toolbar_of({
-        let region = region.clone();
+        let region = region;
         move || {
             let items = view! {
                 <unstyled::MenuItem label="Share">

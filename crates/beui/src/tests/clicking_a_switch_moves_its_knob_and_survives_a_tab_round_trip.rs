@@ -9,7 +9,7 @@ fn clicking_a_switch_moves_its_knob_and_survives_a_tab_round_trip() {
     let switch_ref = NodeRef::new();
 
     let (document, [_panel]) = toolbar_of({
-        let switch_ref = switch_ref.clone();
+        let switch_ref = switch_ref;
         move || {
             let condition = create_memo(move || tab.get() == 0);
             [view! {

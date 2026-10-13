@@ -8,11 +8,12 @@ const BOX_WIDTH: f32 = 120.0;
 
 #[test]
 fn view_attributes_can_be_written_without_braces() {
+    let _root = crate::reactive::RootScope::new();
     let box_ref = NodeRef::new();
     let label = NodeRef::new();
     let document = build({
-        let box_ref = box_ref.clone();
-        let label = label.clone();
+        let box_ref = box_ref;
+        let label = label;
         move || {
             view! {
                 <List spacing=0.0>

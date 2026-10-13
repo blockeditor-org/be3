@@ -45,7 +45,7 @@ pub(super) enum Layer {
 pub(super) fn Lines(cx: Context) -> NodeId {
     let canvas = cx.state.canvas();
     let fill = create_memo(clone!(cx -> move || Some(cx.view_height.get())));
-    let list = cx.list.clone();
+    let list = cx.list;
     let keys = cx.visible;
     let top = create_memo(clone!(cx -> move || Some(cx.padding.get().y)));
     let bottom =
@@ -123,7 +123,7 @@ fn AreaRow(cx: Context, line: usize) -> NodeId {
     let has_block = create_memo(move || renders && block.get().is_some());
     let block_ref = NodeRef::new();
     let block_cx = cx.clone();
-    let block_node = block_ref.clone();
+    let block_node = block_ref;
     let row = NodeRef::new();
     let text = GeometryCell::default();
     register_row(&cx, line, &row, &text, &block_ref, model);
@@ -143,9 +143,8 @@ fn AreaRow(cx: Context, line: usize) -> NodeId {
                                     let (index, size) = block.get_untracked().unwrap_or_default();
                                     let render = block_cx
                                         .block
-                                        .clone()
                                         .expect("a block is only shown when the area was given one");
-                                    let node = block_node.clone();
+                                    let node = block_node;
                                     view! {
                                         <BlockSlot @node_ref=&node render index size />
                                     }
@@ -185,10 +184,10 @@ fn register_row(
         line,
         RowEntry {
             id,
-            row: row.clone(),
+            row: *row,
             geometry: geometry.clone(),
             model,
-            block: block.clone(),
+            block: *block,
         },
     );
     let registry = cx.clone();
@@ -690,7 +689,7 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
         cx.selected_widget.is_some() && ranges.len() == 1 && ranges[0] == widget.range && !widget.block()
     }));
     let pill = NodeRef::new();
-    let overlay_anchor = pill.clone();
+    let overlay_anchor = pill;
     let popup_cx = cx.clone();
     let popup_index = index;
     view! {
@@ -729,10 +728,9 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
                 />
                 <Show condition={selected}>
                     {move || {
-                        let anchor = overlay_anchor.clone();
+                        let anchor = overlay_anchor;
                         let render = popup_cx
                             .selected_widget
-                            .clone()
                             .expect("a widget only offers a popup when the area was given one");
                         let index = popup_index.get_untracked().unwrap_or_default();
                         view! {

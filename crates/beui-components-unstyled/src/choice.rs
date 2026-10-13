@@ -123,7 +123,7 @@ pub fn Choice(
         |_, option| option,
         move |index| {
             let state = buttons_state.clone();
-            let option = option.clone();
+            let option = option;
             let label = row_options.borrow()[index].label;
             let accessibility_label = label;
             let is_selected = selection.memo(Some(index));

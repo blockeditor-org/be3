@@ -5,11 +5,12 @@ const BELOW: f32 = 1000.0;
 
 #[test]
 fn a_virtual_list_scrolled_out_of_view_releases_its_rows() {
+    let _root = crate::reactive::RootScope::new();
     let built = Rc::new(RefCell::new(Vec::new()));
     let sink = built.clone();
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (scroll, list) = (scroll.clone(), list.clone());
+        let (scroll, list) = (scroll, list);
         move || {
             view! {
                 <List spacing=0.0>

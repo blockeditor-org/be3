@@ -122,12 +122,7 @@ pub(crate) fn Scene3DView() -> NodeId {
                         draw={Prop::dynamic(move || draw_gpu(drawing.get()))}
                         @sizing=ItemSize::Percent(100.0)
                     />
-                    <Floating
-                        anchor={anchor.clone()}
-                        edge=Edge::Bottom
-                        open={idle}
-                        interactive=false
-                    >
+                    <Floating anchor={anchor} edge=Edge::Bottom open={idle} interactive=false>
                         <Hint />
                     </Floating>
                 </List>

@@ -58,7 +58,7 @@ pub fn Tooltip(
             <List @node_ref=&anchor spacing=0.0>
                 {children}
                 <Overlay
-                    anchor=&anchor
+                    anchor=anchor
                     placement=Placement::BelowStart
                     policy=LayerPolicy::Inert
                     traps_focus=false

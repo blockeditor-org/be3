@@ -194,7 +194,7 @@ where
     let accepts = accepts.unwrap_or_else(|| Func::new(|_| true));
     let (carrying, set_carrying) = create_signal(false);
     let (pointer, set_pointer) = create_signal(None::<DragPoint>);
-    let reported = on_over.clone();
+    let reported = on_over;
     let board = board();
     let id = board.register(Target {
         id: 0,

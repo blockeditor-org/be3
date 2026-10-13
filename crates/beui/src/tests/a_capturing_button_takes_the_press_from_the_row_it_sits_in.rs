@@ -6,17 +6,14 @@ use crate::reactive::{Align, Direction, List, NodeRef, Spacer, Text, build, view
 
 #[test]
 fn a_capturing_button_takes_the_press_from_the_row_it_sits_in() {
+    let _root = crate::reactive::RootScope::new();
     let row_clicks = Rc::new(Cell::new(0u32));
     let inner_clicks = Rc::new(Cell::new(0u32));
     let inner = NodeRef::new();
     let row = NodeRef::new();
     let document = build({
-        let (row_clicks, inner_clicks, inner, row) = (
-            Rc::clone(&row_clicks),
-            Rc::clone(&inner_clicks),
-            inner.clone(),
-            row.clone(),
-        );
+        let (row_clicks, inner_clicks, inner, row) =
+            (Rc::clone(&row_clicks), Rc::clone(&inner_clicks), inner, row);
         move || {
             view! {
                 <List spacing=0.0>

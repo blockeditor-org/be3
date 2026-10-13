@@ -4,8 +4,9 @@ use crate::unstyled::Scroll;
 
 #[test]
 fn a_touch_fling_glides_to_a_stop_and_stops_asking_for_frames() {
+    let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let scroll_ref = scroll.clone();
+    let scroll_ref = scroll;
     let document = build(move || {
         view! {
             <List spacing=0.0>

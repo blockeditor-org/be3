@@ -4,8 +4,9 @@ use crate::unstyled::Scroll;
 
 #[test]
 fn turning_off_rubber_banding_in_the_inspector_stops_a_scroll_at_its_end() {
+    let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let scroll_ref = scroll.clone();
+    let scroll_ref = scroll;
     let document = build(move || {
         view! {
             <List spacing=0.0>

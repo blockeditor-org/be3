@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn arrow_keys_walk_the_rows_of_the_inspector_tree() {
+    let _root = crate::reactive::RootScope::new();
     let HelloColumn {
         document,
         padding,

@@ -8,10 +8,11 @@ use crate::unstyled::DateTimeParts;
 
 #[test]
 fn clicking_a_date_field_shows_its_calendar_and_keeps_taking_typing() {
+    let _root = crate::reactive::RootScope::new();
     let reported = Rc::new(RefCell::new(Vec::new()));
     let sink = reported.clone();
     let field = NodeRef::new();
-    let named = field.clone();
+    let named = field;
     let document = build(move || {
         view! {
             <List spacing=0.0>

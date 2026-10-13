@@ -176,7 +176,7 @@ pub(super) fn DockDialogs(dock: Handle) -> NodeId {
     let keys = dock.dialogs;
     let settling = dock.clone();
     let state = dock.state;
-    let described = dock.dialog.clone();
+    let described = dock.dialog;
     create_effect(move || {
         let _ = state.with(DockState::focused_tab);
         for (dialog, _) in keys.get() {
@@ -216,9 +216,9 @@ fn DockDialogView(dock: Handle, tab: TabId, parent: TabId) -> NodeId {
         content,
     } = parts;
     let frame = NodeRef::new();
-    dock.dialog_frames.borrow_mut().insert(tab, frame.clone());
+    dock.dialog_frames.borrow_mut().insert(tab, frame);
     let inside = NodeRef::new();
-    dock.dialog_bodies.borrow_mut().insert(tab, inside.clone());
+    dock.dialog_bodies.borrow_mut().insert(tab, inside);
     on_cleanup(clone!(dock -> move || {
         let mut frames = dock.dialog_frames.borrow_mut();
         if frames.get(&tab).is_some_and(|held| *held == frame) {
@@ -281,7 +281,7 @@ fn DockDialogView(dock: Handle, tab: TabId, parent: TabId) -> NodeId {
             {body}
         </Frame>
     };
-    let closing = on_close.clone();
+    let closing = on_close;
     let face = dock.dialog_chrome.call(DockDialogHandle {
         tab,
         title,
@@ -300,10 +300,10 @@ fn DockDialogView(dock: Handle, tab: TabId, parent: TabId) -> NodeId {
     });
     let pressed = dock.clone();
     let attending = dock.clone();
-    let dismissing = on_close.clone();
+    let dismissing = on_close;
     let modal_now = blocking;
     let overlay = NodeRef::new();
-    let raised = overlay.clone();
+    let raised = overlay;
     let (opening, attended) = (shown, focused);
     let view = view! {
         <Overlay

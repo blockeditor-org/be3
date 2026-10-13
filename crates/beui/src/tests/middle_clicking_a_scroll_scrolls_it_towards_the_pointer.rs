@@ -4,8 +4,9 @@ use crate::styled::Scroll;
 
 #[test]
 fn middle_clicking_a_scroll_scrolls_it_towards_the_pointer() {
+    let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let scroll_ref = scroll.clone();
+    let scroll_ref = scroll;
     let document = build(move || {
         view! {
             <List spacing=0.0>

@@ -7,8 +7,9 @@ use text_editor_core::TextBuffer;
 
 #[test]
 fn escape_then_tab_moves_the_focus_out_of_a_text_area_that_takes_tab() {
+    let _root = crate::reactive::RootScope::new();
     let area = NodeRef::new();
-    let slot = area.clone();
+    let slot = area;
     let document = build(move || {
         let document = Arc::new(TextBuffer::new(b"line")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);

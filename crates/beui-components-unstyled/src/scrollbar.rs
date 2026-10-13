@@ -129,14 +129,13 @@ pub fn Scrollbar(
 
     let content_node = content.call(ScrollbarHandle {
         position,
-        direction: direction.clone(),
+        direction: direction,
         hovered,
         dragging,
     });
 
-    let paged = on_scroll_to.clone();
-    let (pressed_axis, dragged_axis, hovered_axis) =
-        (direction.clone(), direction.clone(), direction.clone());
+    let paged = on_scroll_to;
+    let (pressed_axis, dragged_axis, hovered_axis) = (direction, direction, direction);
     let (pressed_at, dragged_at, hovered_at) = (position, position, position);
     let (pressed_grab, dragged_grab, active_grab) = (grab.clone(), grab.clone(), grab);
     view! {

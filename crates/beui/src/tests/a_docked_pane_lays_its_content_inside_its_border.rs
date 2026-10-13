@@ -2,8 +2,9 @@ use super::*;
 
 #[test]
 fn a_docked_pane_lays_its_content_inside_its_border() {
+    let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
-    let built = dock.clone();
+    let built = dock;
     let document = build(move || {
         let layout = unstyled::DockingLayout::new();
         view! {

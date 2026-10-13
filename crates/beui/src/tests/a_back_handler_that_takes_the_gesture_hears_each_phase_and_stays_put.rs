@@ -6,10 +6,11 @@ use crate::reactive::{BackHandler, NodeRef, Text, build, view};
 
 #[test]
 fn a_back_handler_that_takes_the_gesture_hears_each_phase_and_stays_put() {
+    let _root = crate::reactive::RootScope::new();
     let heard = Rc::new(RefCell::new(Vec::<BackGesture>::new()));
     let reports = Rc::clone(&heard);
     let page = NodeRef::new();
-    let page_ref = page.clone();
+    let page_ref = page;
     let document = build(move || {
         view! {
             <BackHandler

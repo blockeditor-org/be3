@@ -3,9 +3,10 @@ use crate::reactive::view;
 
 #[test]
 fn a_clean_sibling_keeps_its_measurement_when_the_one_beside_it_changes() {
+    let _root = crate::reactive::RootScope::new();
     let (steady, edited) = (NodeRef::new(), NodeRef::new());
     let mut document = build({
-        let (steady, edited) = (steady.clone(), edited.clone());
+        let (steady, edited) = (steady, edited);
         move || {
             view! {
                 <List spacing=0.0>

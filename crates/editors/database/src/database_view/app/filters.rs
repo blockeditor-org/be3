@@ -366,7 +366,7 @@ fn FieldChoices(
             <ForEach keys={keys}>
                 {move |field: Uuid| {
                     let data = data.clone();
-                    let on_pick = on_pick.clone();
+                    let on_pick = on_pick;
                     let name = create_memo(clone!(data -> move || {
                         data.fields.with(|fields| {
                             fields

@@ -10,7 +10,7 @@ fn a_shortcut_outside_an_open_dialog_does_not_hear_keys_typed_in_it() {
     let (open, set_open) = create_signal(false);
     let inside = NodeRef::new();
     let document = build({
-        let (heard, inside) = (heard.clone(), inside.clone());
+        let (heard, inside) = (heard.clone(), inside);
         move || {
             on_shortcut(move |press: KeyPress| {
                 if press.pressed && press.key == Key::K && press.modifiers.ctrl {

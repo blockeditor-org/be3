@@ -4,6 +4,7 @@ const INSERTED_AT: usize = 10;
 
 #[test]
 fn inserting_above_a_virtual_list_view_keeps_the_rows_in_place() {
+    let _root = crate::reactive::RootScope::new();
     let built = Rc::new(RefCell::new(Vec::new()));
     let scroll = keyed_virtual_list(&built);
     let mut harness = Harness::new(scroll.document);

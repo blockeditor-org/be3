@@ -3,6 +3,7 @@ use crate::reactive::NodeRef;
 
 #[test]
 fn overscrolling_a_sheet_bounces_its_content_back() {
+    let _root = crate::reactive::RootScope::new();
     let sheet = NodeRef::new();
     let closed = Rc::new(Cell::new(0));
     let document = sheet_of_rows(0.9, &sheet, &closed);

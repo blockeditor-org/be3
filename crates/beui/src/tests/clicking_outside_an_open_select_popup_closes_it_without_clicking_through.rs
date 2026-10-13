@@ -4,11 +4,12 @@ use crate::styled::Select;
 
 #[test]
 fn clicking_outside_an_open_select_popup_closes_it_without_clicking_through() {
+    let _root = crate::reactive::RootScope::new();
     let other_clicks = Rc::new(Cell::new(0));
     let counter = other_clicks.clone();
     let (select, other) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (select, other) = (select.clone(), other.clone());
+        let (select, other) = (select, other);
         move || {
             let options = view! {
                 <unstyled::ChoiceOption label="Apple" />

@@ -32,7 +32,7 @@ fn toasts_on_the_top_edge_stack_in_the_top_corner() {
         view! {
             <Frame @node_ref=&area color={theme.background}>
                 <Toasts
-                    anchor={area.clone()}
+                    anchor={area}
                     edge=Edge::TopEnd
                     toasts={toasts}
                     on_dismiss={|_: u64| {}}

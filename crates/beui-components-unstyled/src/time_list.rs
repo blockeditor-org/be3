@@ -119,13 +119,7 @@ pub fn TimeList(
                 <List spacing>
                     <ForEach keys={rows}>
                         {move |row: usize| view! {
-                            <TimeRow
-                                state={state.clone()}
-                                row
-                                spacing
-                                hour_cycle
-                                face={option.clone()}
-                            />
+                            <TimeRow state={state.clone()} row spacing hour_cycle face={option} />
                         }}
                     </ForEach>
                 </List>
@@ -163,7 +157,7 @@ fn TimeRow(
                         state={state.clone()}
                         minutes
                         hour_cycle
-                        face={face.clone()}
+                        face={face}
                     />
                 }}
             </ForEach>

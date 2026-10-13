@@ -5,8 +5,9 @@ use crate::unstyled::{DockPane, DockTab, DockingLayout, TabId, dock_state};
 
 #[test]
 fn ctrl_tab_walks_the_tabs_of_the_pane_the_focus_is_in() {
+    let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
-    let built = dock.clone();
+    let built = dock;
     let document = build(move || {
         let layout = DockingLayout::new();
         view! {

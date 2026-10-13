@@ -8,7 +8,7 @@ fn a_modal_sheet_slides_in_and_out() {
     let content = NodeRef::new();
     let (open, set_open) = create_signal(false);
     let document = build({
-        let (content, set_open) = (content.clone(), set_open);
+        let (content, set_open) = (content, set_open);
         move || {
             view! {
                 <List spacing=0.0>

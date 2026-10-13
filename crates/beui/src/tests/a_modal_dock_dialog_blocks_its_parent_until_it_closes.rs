@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn a_modal_dock_dialog_blocks_its_parent_until_it_closes() {
+    let _root = crate::reactive::RootScope::new();
     let dock = dialog_dock(vec![1, 2], Vec::new());
     let (pressed, keyed, set_dialogs) = (dock.pressed, dock.keyed, dock.set_dialogs);
     let attended = dock.attended;

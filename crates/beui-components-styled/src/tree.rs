@@ -71,8 +71,8 @@ where
     let outline = outline.unwrap_or_else(|| Func::new(|_| None));
     let rows = NodeRef::new();
     let viewport = NodeRef::new();
-    set_component_state(Parts { rows: rows.clone() });
-    let tracked = rows.clone();
+    set_component_state(Parts { rows: rows });
+    let tracked = rows;
     let ancestors = ancestors.unwrap_or_else(|| Func::new(|_| Vec::new()));
     view! {
         <List spacing=0.0>
@@ -93,12 +93,7 @@ where
                         {move |handle: TreeRowHandle<K>| {
                             let named = row_test_id.call(handle.key.clone());
                             view! {
-                                <TreeRowChrome
-                                    handle
-                                    named
-                                    outline={outline.clone()}
-                                    content={content.clone()}
-                                />
+                                <TreeRowChrome handle named outline={outline} content={content} />
                             }
                         }}
                     </unstyled::Tree>

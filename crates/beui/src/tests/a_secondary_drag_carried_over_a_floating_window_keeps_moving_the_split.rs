@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn a_secondary_drag_carried_over_a_floating_window_keeps_moving_the_split() {
+    let _root = crate::reactive::RootScope::new();
     let SplitDock {
         document,
         dock,

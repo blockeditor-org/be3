@@ -424,7 +424,7 @@ impl State {
     }
 
     fn all_closable(&self, contents: Memo<Vec<TabId>>) -> Memo<bool> {
-        let closable = self.closable.clone();
+        let closable = self.closable;
         create_memo(move || {
             contents.with(|tabs| !tabs.is_empty() && tabs.iter().all(|tab| closable.call(*tab)))
         })
@@ -1222,7 +1222,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                     <List spacing=0.0>
                         <Frame
                             @sizing=ItemSize::Percent(100.0)
-                            padding_horizontal={inset.clone()}
+                            padding_horizontal={inset}
                             padding_vertical={inset}
                         >
                             <List spacing=0.0>
@@ -1312,9 +1312,8 @@ fn DockStack(dock: Handle) -> NodeId {
     });
     let bar = dock
         .stack
-        .clone()
         .map(|stack| stack.call(stack_handle(&dock, shown, away, tabs, set_switching)));
-    let switcher = dock.switcher.clone().map(|switcher| {
+    let switcher = dock.switcher.map(|switcher| {
         switcher.call(switcher_handle(
             &dock,
             shown,
@@ -1324,7 +1323,7 @@ fn DockStack(dock: Handle) -> NodeId {
         ))
     });
     let barred = create_memo(move || bar.is_some() && occupied.get());
-    let empty = dock.empty.clone();
+    let empty = dock.empty;
     let homeward = dock.clone();
     view! {
         <BackSlide
@@ -1369,7 +1368,6 @@ fn HomePreview(dock: Handle, tabs: Memo<Vec<TabId>>, set_switching: WriteSignal<
     let away = create_memo(|| false);
     let bar = dock
         .stack
-        .clone()
         .map(|stack| stack.call(stack_handle(&dock, shown, away, tabs, set_switching)));
     let panel = dock.panel(home);
     view! {
@@ -1595,7 +1593,7 @@ fn DockTreeView(
     #[prop(default = None)] hoisted: Prop<Option<LeafId>>,
 ) -> NodeId {
     let canvas = NodeRef::new();
-    dock.panes.borrow_mut().insert(tree, canvas.clone());
+    dock.panes.borrow_mut().insert(tree, canvas);
     on_cleanup(clone!(dock -> move || {
         let mut panes = dock.panes.borrow_mut();
         if panes.get(&tree).is_some_and(|current| current.try_get() == canvas.try_get()) {
@@ -1785,7 +1783,7 @@ fn DockPanelView(dock: Handle, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeI
                             vacant,
                             closable: dock.all_closable(contents),
                             menu,
-                            close: close.clone(),
+                            close: close,
                         });
                         let parts = ChromeParts {
                             floating,
@@ -1823,7 +1821,7 @@ fn DockPaneGrip(dock: Handle, leaf: LeafId, vertical: bool, focused: Memo<bool>)
     let title = create_memo(move || named.dragged_title(DockDragged::Pane(leaf)));
     let pictured = dock.clone();
     let icon = create_memo(move || pictured.dragged_icon(DockDragged::Pane(leaf)));
-    let preview = dock.preview.clone();
+    let preview = dock.preview;
     let carried = dock.clone();
     view! {
         <Draggable
@@ -1894,7 +1892,7 @@ fn DockTabBody(dock: Handle, leaf: LeafId) -> NodeId {
     }));
     let vacant = create_memo(move || shown.get().is_none());
     let occupied = create_memo(move || shown.get().is_some());
-    let empty = dock.empty.clone();
+    let empty = dock.empty;
     view! {
         <List spacing=0.0>
             <Show condition={vacant}>
@@ -1910,7 +1908,7 @@ fn DockTabBody(dock: Handle, leaf: LeafId) -> NodeId {
 #[component]
 fn DockTabBar(dock: Handle, leaf: LeafId, vertical: bool) -> NodeId {
     let bar = TabBar::default();
-    let (strip, tab_list) = (bar.strip.clone(), bar.tabs.clone());
+    let (strip, tab_list) = (bar.strip, bar.tabs);
     dock.bars.borrow_mut().insert(leaf, bar);
     on_cleanup(clone!(dock -> move || {
         let mut bars = dock.bars.borrow_mut();
@@ -2079,12 +2077,12 @@ fn DockTabView(
         focused,
         dragged,
         closable,
-        close: close.clone(),
+        close: close,
     });
     let menu = dock.menu.clone();
     let grouped = matches!(entry, Entry::Group(_));
     let carried = dock.clone();
-    let preview = dock.preview.clone();
+    let preview = dock.preview;
     let across = match vertical {
         true => Direction::Horizontal,
         false => Direction::Vertical,
@@ -2159,7 +2157,7 @@ fn TabMenu(
             "Close group",
         ),
     };
-    let closing = close.clone();
+    let closing = close;
     view! {
         <ContextMenu
             menu
@@ -2383,7 +2381,7 @@ fn DockSidebarSplitter(dock: Handle, leaf: LeafId) -> NodeId {
 #[component]
 fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
     let frame = NodeRef::new();
-    dock.windows.borrow_mut().insert(surface, frame.clone());
+    dock.windows.borrow_mut().insert(surface, frame);
     on_cleanup(clone!(dock -> move || {
         dock.windows.borrow_mut().remove(&surface);
     }));
@@ -2396,9 +2394,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
     let area = dock.rect;
     let (overshoot, set_overshoot) = create_signal(Vec2::ZERO);
     let grip_ref = NodeRef::new();
-    let reach: Rc<dyn Fn() -> f32> = Rc::new(move || {
-        grip_reach(&frame, &grip_ref)
-    });
+    let reach: Rc<dyn Fn() -> f32> = Rc::new(move || grip_reach(&frame, &grip_ref));
     let placed = create_memo(clone!(reach -> move || {
         let bounds = area.get().size();
         let rect = Rect::from_min_size(rect.get().min, fitted(rect.get().size(), bounds));
@@ -2641,7 +2637,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                                             vacant,
                                                             closable: dock.all_closable(contents),
                                                             menu,
-                                                            close: close.clone(),
+                                                            close: close,
                                                         }),
                                                         body: pane,
                                                     };

@@ -9,11 +9,12 @@ use crate::unstyled::{Tooltip, TooltipHandle};
 
 #[test]
 fn a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable() {
+    let _root = crate::reactive::RootScope::new();
     let clicked = Rc::new(Cell::new(0u32));
     let button = NodeRef::new();
     let document = build({
         let clicked = Rc::clone(&clicked);
-        let button = button.clone();
+        let button = button;
         move || {
             view! {
                 <List spacing=0.0>

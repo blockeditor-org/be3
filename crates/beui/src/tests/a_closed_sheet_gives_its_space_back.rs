@@ -7,7 +7,7 @@ fn a_closed_sheet_gives_its_space_back() {
     let filler = NodeRef::new();
     let (open, set_open) = create_signal(true);
     let document = build({
-        let filler = filler.clone();
+        let filler = filler;
         move || {
             view! {
                 <List spacing=0.0>

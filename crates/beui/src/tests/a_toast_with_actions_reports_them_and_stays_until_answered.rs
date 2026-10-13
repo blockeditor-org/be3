@@ -26,7 +26,7 @@ fn a_toast_with_actions_reports_them_and_stays_until_answered() {
         view! {
             <Frame @node_ref=&area width={VIEWPORT.x} height={VIEWPORT.y}>
                 <Toasts
-                    anchor={area.clone()}
+                    anchor={area}
                     toasts={toasts}
                     on_dismiss={|_: u64| {}}
                     on_action={move |(id, key): (u64, String)| {

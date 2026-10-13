@@ -10,7 +10,7 @@ fn disposing_a_scope_removes_the_nodes_it_owns() {
     let text = NodeRef::new();
     let document = build({
         let cleaned = cleaned.clone();
-        let text = text.clone();
+        let text = text;
         move || {
             view! {
                 <List spacing=0.0>
@@ -19,7 +19,7 @@ fn disposing_a_scope_removes_the_nodes_it_owns() {
                             let outer_sink = cleaned.clone();
                             let inner_sink = cleaned.clone();
                             let label = label;
-                            let text = text.clone();
+                            let text = text;
                             component("Outer", move || {
                                 on_cleanup(move || outer_sink.borrow_mut().push("outer"));
                                 let inner = component("Inner", move || {

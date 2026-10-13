@@ -30,8 +30,8 @@ pub fn NumberInput(
     on_preview: Callback<Option<f64>>,
 ) -> NodeId {
     let shown = NodeRef::new();
-    set_component_state(FaceText(shown.clone()));
-    let (field_label, field_disabled) = (label.clone(), disabled.clone());
+    set_component_state(FaceText(shown));
+    let (field_label, field_disabled) = (label.clone(), disabled);
     let face_placeholder = placeholder.clone();
     view! {
         <unstyled::NumberInput

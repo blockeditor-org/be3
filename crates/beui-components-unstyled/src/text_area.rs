@@ -1007,8 +1007,8 @@ pub fn TextArea(
                         let (autoscroll, set_autoscroll) = create_signal(false);
                         let viewport = NodeRef::new();
                         let (outer, inner) = match single_line {
-                            true => (NodeRef::new(), viewport.clone()),
-                            false => (viewport.clone(), NodeRef::new()),
+                            true => (NodeRef::new(), viewport),
+                            false => (viewport, NodeRef::new()),
                         };
                         let masked = create_memo(move || password.get());
                         let placeholder = create_memo(move || placeholder.get());
@@ -1184,7 +1184,7 @@ pub fn TextArea(
                             focused,
                             set_focused,
                             set_autoscroll,
-                            viewport: viewport.clone(),
+                            viewport: viewport,
                             list: NodeRef::new(),
                             anchor,
                             masked,

@@ -4,10 +4,11 @@ use crate::unstyled::Scroll;
 
 #[test]
 fn touch_overscroll_bands_without_hovering_a_row() {
+    let _root = crate::reactive::RootScope::new();
     let hovered = Rc::new(Cell::new(false));
     let hover_sink = hovered.clone();
     let scroll = NodeRef::new();
-    let scroll_ref = scroll.clone();
+    let scroll_ref = scroll;
     let document = build(move || {
         view! {
             <List spacing=0.0>

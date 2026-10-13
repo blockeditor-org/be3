@@ -8,10 +8,11 @@ use crate::unstyled::Container;
 
 #[test]
 fn on_a_narrow_screen_picking_a_date_moves_on_to_the_time() {
+    let _root = crate::reactive::RootScope::new();
     let reported = Rc::new(RefCell::new(Vec::new()));
     let sink = reported.clone();
     let field = NodeRef::new();
-    let named = field.clone();
+    let named = field;
     let document = build(move || {
         view! {
             <Container>

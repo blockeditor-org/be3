@@ -5,13 +5,14 @@ use super::*;
 
 #[test]
 fn escape_stops_a_presentation_rather_than_reaching_the_editor() {
+    let _root = beui::reactive::RootScope::new();
     let stopped = Rc::new(Cell::new(0));
     let heard = Rc::new(RefCell::new(Vec::<Event>::new()));
     let catcher = NodeRef::new();
     let mut document = build({
         let stopped = Rc::clone(&stopped);
         let heard = Rc::clone(&heard);
-        let catcher = catcher.clone();
+        let catcher = catcher;
         move || {
             stop_on_escape(move || stopped.set(stopped.get() + 1));
             view! {

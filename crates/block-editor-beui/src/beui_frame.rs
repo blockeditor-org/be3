@@ -313,14 +313,10 @@ fn frame_actions(
         )
         .glyph(ICON_INFO)
         .register(),
-        close: Action::new(
-            "editor.close",
-            "Close",
-            move || on_exit.call(),
-        )
-        .glyph(ICON_CLOSE)
-        .enabled(closable)
-        .register(),
+        close: Action::new("editor.close", "Close", move || on_exit.call())
+            .glyph(ICON_CLOSE)
+            .enabled(closable)
+            .register(),
     }
 }
 

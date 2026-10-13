@@ -7,9 +7,10 @@ use text_editor_core::TextBuffer;
 
 #[test]
 fn holding_the_caret_handle_below_a_short_text_area_keeps_scrolling() {
+    let _root = crate::reactive::RootScope::new();
     let held: Rc<RefCell<Option<TextAreaState>>> = Rc::new(RefCell::new(None));
     let area = NodeRef::new();
-    let (sink, slot) = (held.clone(), area.clone());
+    let (sink, slot) = (held.clone(), area);
     let document = build(move || {
         let lines = (1..=40)
             .map(|line| format!("line {line}"))

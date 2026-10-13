@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn a_secondary_drag_with_the_dock_drag_modifier_moves_the_nearest_split() {
+    let _root = crate::reactive::RootScope::new();
     let SplitDock {
         document,
         dock,

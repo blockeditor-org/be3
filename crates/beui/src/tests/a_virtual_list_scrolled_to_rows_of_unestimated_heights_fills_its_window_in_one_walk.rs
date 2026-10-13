@@ -12,11 +12,12 @@ fn height(index: usize) -> f32 {
 
 #[test]
 fn a_virtual_list_scrolled_to_rows_of_unestimated_heights_fills_its_window_in_one_walk() {
+    let _root = crate::reactive::RootScope::new();
     let built = Rc::new(RefCell::new(Vec::new()));
     let sink = built.clone();
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (scroll, list) = (scroll.clone(), list.clone());
+        let (scroll, list) = (scroll, list);
         move || {
             view! {
                 <List spacing=0.0>

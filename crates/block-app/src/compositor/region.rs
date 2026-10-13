@@ -166,7 +166,13 @@ pub(crate) fn PluginRegion(
                     true => view.floating.clone(),
                     false => view.base.clone(),
                 };
-                (pieces, view.loading, view.drawn, view.held, view.rect.size())
+                (
+                    pieces,
+                    view.loading,
+                    view.drawn,
+                    view.held,
+                    view.rect.size(),
+                )
             });
             (
                 frames.get(),
@@ -297,7 +303,9 @@ pub(crate) fn PluginRegion(
                 let position = local + view.rect.min.to_vec2();
                 view.takes(local)
                     && !occluded.as_ref().is_some_and(|occluded| {
-                        occluded.with_untracked(|rects| rects.iter().any(|rect| rect.contains(position)))
+                        occluded.with_untracked(|rects| {
+                            rects.iter().any(|rect| rect.contains(position))
+                        })
                     })
             })
     });
@@ -375,7 +383,7 @@ fn carry(drag: BlockDrag) {
 fn take_keyboard(state: Memo<RegionView>, catcher: &NodeRef) {
     let wants = create_memo(move || state.with(|view| view.wants_keyboard));
     let before = Cell::new(None::<NodeId>);
-    let catcher = catcher.clone();
+    let catcher = *catcher;
     create_effect(move || {
         let wanted = wants.get();
         untrack(|| {

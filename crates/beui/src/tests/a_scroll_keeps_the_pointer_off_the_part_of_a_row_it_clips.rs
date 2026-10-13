@@ -8,13 +8,14 @@ use crate::unstyled::Scroll;
 
 #[test]
 fn a_scroll_keeps_the_pointer_off_the_part_of_a_row_it_clips() {
+    let _root = crate::reactive::RootScope::new();
     let hovers: Rc<RefCell<Vec<bool>>> = Rc::default();
     let clicks = Rc::new(Cell::new(0));
     let scroll = NodeRef::new();
     let document = build({
         let hovers = hovers.clone();
         let clicks = clicks.clone();
-        let scroll = scroll.clone();
+        let scroll = scroll;
         move || {
             view! {
                 <List spacing=0.0>

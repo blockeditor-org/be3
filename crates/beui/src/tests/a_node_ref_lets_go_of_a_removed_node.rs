@@ -4,8 +4,9 @@ use crate::styled::Caption;
 
 #[test]
 fn a_node_ref_lets_go_of_a_removed_node() {
+    let _root = crate::reactive::RootScope::new();
     let caption = NodeRef::new();
-    let filled = caption.clone();
+    let filled = caption;
     let (document, [built]) = toolbar_of(move || {
         [view! {
             <Caption @node_ref=&filled content="Caption" />

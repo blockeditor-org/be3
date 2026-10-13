@@ -5,10 +5,11 @@ use crate::unstyled::Scroll;
 
 #[test]
 fn touch_dragging_a_scroll_moves_it_without_activating_a_row() {
+    let _root = crate::reactive::RootScope::new();
     let clicks = Rc::new(Cell::new(0));
     let click_sink = clicks.clone();
     let scroll = NodeRef::new();
-    let scroll_ref = scroll.clone();
+    let scroll_ref = scroll;
     let document = build(move || {
         view! {
             <List spacing=0.0>

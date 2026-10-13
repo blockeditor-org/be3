@@ -797,11 +797,11 @@ pub fn Sheet(
         fit,
         rest_at,
         shifted: Rc::new(Cell::new(HIDDEN_SHIFT)),
-        slot: slot.clone(),
+        slot: slot,
         chrome: Rc::default(),
         set_rest,
         set_dragging,
-        content: content.clone(),
+        content: content,
         held: Rc::new(RefCell::new(Held {
             travel: None,
             handle: None,
@@ -812,7 +812,7 @@ pub fn Sheet(
             stepped: beui_core::timer::now(),
         })),
         animation: Rc::default(),
-        open: open.clone(),
+        open: open,
         set_shift,
         set_gone,
         on_presence,
@@ -822,7 +822,7 @@ pub fn Sheet(
     let animation = create_timer(clone!(motion -> move || motion.step()));
     motion.animation.replace(Some(animation));
     on_cleanup(clone!(motion -> move || drop(motion.animation.take())));
-    let shown = open.clone();
+    let shown = open;
     let was_open = Cell::new(false);
     create_effect(clone!(motion -> move || {
         let open = shown.get();
@@ -838,7 +838,7 @@ pub fn Sheet(
     let axis = create_memo(|| Some(Direction::Vertical));
     let (tapped, stopped) = (motion.clone(), motion.clone());
     let catcher = NodeRef::new();
-    let catcher_rect = catcher.clone();
+    let catcher_rect = catcher;
     let (wheeled, dragged) = (motion.clone(), motion.clone());
     let (pressed, handled) = (motion.clone(), motion.clone());
     let (cancelled, released) = (motion.clone(), motion.clone());
@@ -902,10 +902,10 @@ pub fn ModalSheet(
     on_close: ClickCallback,
     children: Child,
 ) -> NodeId {
-    let dismiss = on_close.clone();
+    let dismiss = on_close;
     let (gone, set_gone) = create_signal(true);
     let (presence, set_presence) = create_signal(0.0_f32);
-    let opened = open.clone();
+    let opened = open;
     let appearing = set_gone;
     create_effect(move || {
         if opened.get() {
@@ -960,7 +960,7 @@ fn ModalSheetBody(
                 let room = create_memo(move || {
                     ItemSize::Percent(100.0).min(extent.get() * (1.0 - highest))
                 });
-                let outside = on_close.clone();
+                let outside = on_close;
                 let closing = on_close;
                 view! {
                     <List spacing=0.0>

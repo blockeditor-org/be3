@@ -6,8 +6,9 @@ use crate::styled::{ColorPicker, PICKER_WIDTH};
 
 #[test]
 fn the_color_areas_thumb_shows_a_grab_cursor() {
+    let _root = crate::reactive::RootScope::new();
     let picker = NodeRef::new();
-    let named = picker.clone();
+    let named = picker;
     let document = build(move || {
         view! {
             <List spacing=0.0>

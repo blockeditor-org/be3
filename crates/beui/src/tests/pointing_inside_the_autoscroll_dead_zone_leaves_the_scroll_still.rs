@@ -4,8 +4,9 @@ use crate::unstyled::{Scroll, scroll_animating};
 
 #[test]
 fn pointing_inside_the_autoscroll_dead_zone_leaves_the_scroll_still() {
+    let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let scroll_ref = scroll.clone();
+    let scroll_ref = scroll;
     let document = build(move || {
         view! {
             <List spacing=0.0>

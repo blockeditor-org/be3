@@ -3,6 +3,7 @@ use crate::unstyled::{TabId, dock_state};
 
 #[test]
 fn a_dock_tab_in_a_window_opens_its_menu_over_the_window() {
+    let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(2);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());

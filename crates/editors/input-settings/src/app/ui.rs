@@ -419,7 +419,7 @@ fn TextSetting(
 ) -> NodeId {
     let shown = create_memo(move || value.get().unwrap_or_default());
     let unset = create_memo(move || value.get().is_none());
-    let typed = on_change.clone();
+    let typed = on_change;
     let echoed = shown;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=COLUMN_SPACING>
@@ -460,7 +460,7 @@ fn SliderSetting(
     id: String,
     on_change: Callback<Option<f32>>,
 ) -> NodeId {
-    let moved = on_change.clone();
+    let moved = on_change;
     view! {
         <List spacing=LABEL_SPACING>
             <Caption content={label} />
@@ -497,7 +497,7 @@ fn SwitchSetting(
     id: String,
     on_change: Callback<Option<bool>>,
 ) -> NodeId {
-    let switched = on_change.clone();
+    let switched = on_change;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=COLUMN_SPACING>
             <Body @sizing=ItemSize::Percent(100.0) content={label} />

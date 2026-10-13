@@ -4,9 +4,10 @@ use crate::styled::ContextMenu;
 
 #[test]
 fn tab_is_trapped_inside_an_open_context_menu() {
+    let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
     let (document, [before, menu, after]) = toolbar_of({
-        let region = region.clone();
+        let region = region;
         move || {
             let items = view! {
                 <unstyled::MenuItem label="Copy" />

@@ -7,7 +7,7 @@ fn appending_to_a_virtual_list_keeps_the_rows_it_built() {
     let (keys, set_keys) = create_signal(indices(VIRTUAL_ITEM_COUNT));
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (scroll, list, sink) = (scroll.clone(), list.clone(), built.clone());
+        let (scroll, list, sink) = (scroll, list, built.clone());
         move || {
             view! {
                 <List spacing=0.0>

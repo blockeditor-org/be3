@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn escaping_a_pick_clears_its_highlight() {
+    let _root = crate::reactive::RootScope::new();
     let HelloColumn { document, .. } = hello_column();
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
 

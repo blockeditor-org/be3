@@ -4,6 +4,7 @@ use crate::unstyled::SPLITTER_THICKNESS;
 
 #[test]
 fn a_press_just_beside_a_split_divider_moves_it() {
+    let _root = crate::reactive::RootScope::new();
     let SplitDock {
         document, presses, ..
     } = split_dock(None);

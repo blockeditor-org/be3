@@ -4,9 +4,10 @@ use crate::styled::Scroll;
 
 #[test]
 fn a_wheel_turned_before_the_pointer_moves_on_scrolls_what_it_was_over() {
+    let _root = crate::reactive::RootScope::new();
     let (left, right) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (left, right) = (left.clone(), right.clone());
+        let (left, right) = (left, right);
         move || {
             view! {
                 <List direction=Direction::Horizontal spacing=0.0>

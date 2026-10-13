@@ -3,10 +3,11 @@ use crate::reactive::{Interactive, NodeRef};
 
 #[test]
 fn a_mouse_away_from_a_held_finger_still_moves_the_pointer() {
+    let _root = crate::reactive::RootScope::new();
     let hovered = Rc::new(Cell::new(false));
     let target = NodeRef::new();
     let document = build({
-        let (hovered, target) = (Rc::clone(&hovered), target.clone());
+        let (hovered, target) = (Rc::clone(&hovered), target);
         move || {
             view! {
                 <List direction=Direction::Horizontal spacing=0.0>

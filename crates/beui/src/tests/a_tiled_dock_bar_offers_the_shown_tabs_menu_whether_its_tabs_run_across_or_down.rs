@@ -23,10 +23,11 @@ fn choose(harness: &mut Harness, label: &str) {
 
 #[test]
 fn a_tiled_dock_bar_offers_the_shown_tabs_menu_whether_its_tabs_run_across_or_down() {
+    let _root = crate::reactive::RootScope::new();
     let ran = Rc::new(Cell::new(0));
     let running = ran.clone();
     let dock = NodeRef::new();
-    let built = dock.clone();
+    let built = dock;
     let document = build(move || {
         let layout = DockingLayout::new();
         view! {

@@ -5,11 +5,12 @@ use crate::unstyled::Scroll;
 
 #[test]
 fn a_finger_drag_from_a_capturing_button_scrolls_the_list_around_it() {
+    let _root = crate::reactive::RootScope::new();
     let clicks = Rc::new(Cell::new(0));
     let cancels = Rc::new(Cell::new(0));
     let scroll = NodeRef::new();
     let document = build({
-        let (clicks, cancels, scroll) = (clicks.clone(), cancels.clone(), scroll.clone());
+        let (clicks, cancels, scroll) = (clicks.clone(), cancels.clone(), scroll);
         move || {
             view! {
                 <List spacing=0.0>

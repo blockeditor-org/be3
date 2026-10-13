@@ -14,7 +14,7 @@ pub fn ListRow(
     on_click: ClickCallback,
     on_activate: ClickCallback,
 ) -> NodeId {
-    let double_click = on_activate.clone();
+    let double_click = on_activate;
     let selected = create_memo(move || selected.get());
     let accessibility = create_memo(move || {
         let mut node = Node::new(Role::Button);

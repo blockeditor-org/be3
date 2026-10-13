@@ -5,9 +5,10 @@ use crate::styled::ContextMenu;
 
 #[test]
 fn right_click_opens_a_context_menu_at_the_cursor_position() {
+    let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
     let (document, [menu]) = toolbar_of({
-        let region = region.clone();
+        let region = region;
         move || {
             let items = view! {
                 <unstyled::MenuItem label="Copy" />

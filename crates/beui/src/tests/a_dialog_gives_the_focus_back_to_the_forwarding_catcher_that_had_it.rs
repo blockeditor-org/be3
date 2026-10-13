@@ -17,7 +17,7 @@ fn a_dialog_gives_the_focus_back_to_the_forwarding_catcher_that_had_it() {
     let field = NodeRef::new();
     let heard = Rc::new(RefCell::new(Vec::<(bool, Vec<Event>)>::new()));
     let document = build({
-        let (open, catcher, field) = (open, catcher.clone(), field.clone());
+        let (open, catcher, field) = (open, catcher, field);
         let heard = Rc::clone(&heard);
         let closing = set_open;
         move || {

@@ -9,7 +9,7 @@ fn the_inspector_swipes_back_as_far_as_its_slider_is_dragged() {
     let _root = crate::reactive::RootScope::new();
     let (depth, set_depth) = create_signal(1_u32);
     let page = NodeRef::new();
-    let page_ref = page.clone();
+    let page_ref = page;
     let document = build({
         move || {
             let nested = create_memo(move || depth.get() > 0);

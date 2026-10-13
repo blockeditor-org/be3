@@ -6,7 +6,8 @@ use block_editor_beui::beui::icons::{
     ICON_ADD, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_CLOSE, ICON_DELETE, ICON_SAVE,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, Dynamic, Frame, ItemSize, List, NodeRef, Show, Spacer, WriteSignal, component, create_effect, create_memo, create_signal, view,
+    Align, Direction, Dynamic, Frame, ItemSize, List, NodeRef, Show, Spacer, WriteSignal,
+    component, create_effect, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, DateTimeField, Dialog, IconButton, Tabs, TextInput,
@@ -333,7 +334,7 @@ fn EventDialog(
                             label="Delete"
                             variant=ButtonVariant::Secondary
                             @test_id={"calendar.form.delete"}
-                            on_click={delete.clone()}
+                            on_click={delete}
                         />
                     </Show>
                     <Button

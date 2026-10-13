@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn painting_skips_the_elements_outside_the_damaged_region() {
+    let _root = crate::reactive::RootScope::new();
     let panels = stacked_panels();
     let (upper, lower) = (panels.upper, panels.lower);
     let mut document = panels.document;

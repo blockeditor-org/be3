@@ -7,11 +7,12 @@ const BOTTOM: f32 = 40.0;
 
 #[test]
 fn resizing_an_element_damages_where_it_was_and_where_it_moved_to() {
+    let _root = crate::reactive::RootScope::new();
     let bottom = NodeRef::new();
     let taken: Rc<Cell<Option<WriteSignal<bool>>>> = Rc::new(Cell::new(None));
     let sink = taken.clone();
     let document = build({
-        let bottom = bottom.clone();
+        let bottom = bottom;
         move || {
             let (tall, set_tall) = create_signal(false);
             sink.set(Some(set_tall));

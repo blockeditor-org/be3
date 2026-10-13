@@ -8,10 +8,11 @@ use crate::styled::Sheet;
 
 #[test]
 fn dragging_a_sheet_handle_resizes_it_to_a_stop_or_closes_it() {
+    let _root = crate::reactive::RootScope::new();
     let sheet = NodeRef::new();
     let closed = Rc::new(Cell::new(0));
     let document = build({
-        let (sheet, closed) = (sheet.clone(), closed.clone());
+        let (sheet, closed) = (sheet, closed.clone());
         move || {
             view! {
                 <List spacing=0.0>

@@ -121,7 +121,7 @@ pub(crate) fn WindowPanel(
         }
     });
     let banner = create_memo(move || !responding.get() && !waited.get());
-    let anchor = panel.clone();
+    let anchor = panel;
     let host = editor.host().clone();
     view! {
         <Layers>

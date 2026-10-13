@@ -5,12 +5,13 @@ use crate::unstyled::Scroll;
 
 #[test]
 fn resizing_rows_preserves_the_scroll_anchor() {
+    let _root = crate::reactive::RootScope::new();
     let reported = Rc::new(Cell::new(None));
     let sink = reported.clone();
     let scroll = NodeRef::new();
     let rows: Vec<NodeRef> = (0..100).map(|_| NodeRef::new()).collect();
     let document = build({
-        let (scroll, rows) = (scroll.clone(), rows.clone());
+        let (scroll, rows) = (scroll, rows.clone());
         move || {
             view! {
                 <Scroll @node_ref=&scroll on_change={move |position| sink.set(Some(position))}>

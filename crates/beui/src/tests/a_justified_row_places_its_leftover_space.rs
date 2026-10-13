@@ -3,6 +3,7 @@ use crate::reactive::{Direction, Frame, Justify, List, NodeRef, view};
 
 #[test]
 fn a_justified_row_places_its_leftover_space() {
+    let _root = crate::reactive::RootScope::new();
     assert_eq!(lefts(Justify::Start), [0.0, 20.0, 40.0]);
     assert_eq!(lefts(Justify::Center), [60.0, 80.0, 100.0]);
     assert_eq!(lefts(Justify::End), [120.0, 140.0, 160.0]);
@@ -14,7 +15,7 @@ fn a_justified_row_places_its_leftover_space() {
 fn lefts(justify: Justify) -> [f32; 3] {
     let tiles = [NodeRef::new(), NodeRef::new(), NodeRef::new()];
     let document = build({
-        let [first, second, third] = tiles.clone();
+        let [first, second, third] = tiles;
         move || {
             view! {
                 <List direction=Direction::Horizontal justify spacing=0.0>

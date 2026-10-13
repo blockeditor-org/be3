@@ -8,11 +8,12 @@ const SETTLING_FRAMES: usize = 8;
 
 #[test]
 fn a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate() {
+    let _root = crate::reactive::RootScope::new();
     let built = Rc::new(RefCell::new(Vec::new()));
     let sink = built.clone();
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (scroll, list) = (scroll.clone(), list.clone());
+        let (scroll, list) = (scroll, list);
         move || {
             view! {
                 <List spacing=0.0>

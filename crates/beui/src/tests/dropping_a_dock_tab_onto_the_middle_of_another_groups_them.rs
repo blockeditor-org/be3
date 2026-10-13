@@ -3,6 +3,7 @@ use crate::unstyled::{Entry, TabId, dock_state};
 
 #[test]
 fn dropping_a_dock_tab_onto_the_middle_of_another_groups_them() {
+    let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(3);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());

@@ -6,8 +6,9 @@ use std::rc::Rc;
 
 #[test]
 fn a_file_picker_hands_the_chosen_file_to_its_callback_without_waiting_for_it() {
+    let _root = crate::reactive::RootScope::new();
     let button = NodeRef::new();
-    let slot = button.clone();
+    let slot = button;
     let chosen = Rc::new(RefCell::new(Vec::new()));
     let sink = chosen.clone();
     let document = build(move || {

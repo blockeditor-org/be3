@@ -53,7 +53,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         editor.clone(),
         Rc::clone(&held),
         rows,
-        tree_ref.clone(),
+        tree_ref,
         editor.drag(),
     );
     let arriving = create_memo(move || landing.get());

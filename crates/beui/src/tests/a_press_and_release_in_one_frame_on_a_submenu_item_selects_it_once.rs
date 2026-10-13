@@ -4,11 +4,12 @@ use crate::styled::MenuButton;
 
 #[test]
 fn a_press_and_release_in_one_frame_on_a_submenu_item_selects_it_once() {
+    let _root = crate::reactive::RootScope::new();
     let button = NodeRef::new();
     let selected = Rc::new(RefCell::new(Vec::new()));
     let sink = selected.clone();
     let (document, _) = toolbar_of({
-        let button = button.clone();
+        let button = button;
         move || {
             let items = view! {
                 <unstyled::MenuItem label="Profiles">

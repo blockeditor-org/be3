@@ -7,9 +7,10 @@ use text_editor_core::TextBuffer;
 
 #[test]
 fn tapping_the_caret_handle_of_a_text_area_opens_a_menu_that_pastes() {
+    let _root = crate::reactive::RootScope::new();
     let held: Rc<RefCell<Option<TextAreaState>>> = Rc::new(RefCell::new(None));
     let area = NodeRef::new();
-    let (sink, slot) = (held.clone(), area.clone());
+    let (sink, slot) = (held.clone(), area);
     let document = build(move || {
         let document = Arc::new(TextBuffer::new(b"Hello")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);

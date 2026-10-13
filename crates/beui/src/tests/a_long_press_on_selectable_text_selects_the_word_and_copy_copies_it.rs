@@ -4,9 +4,10 @@ use crate::styled::SelectableText;
 
 #[test]
 fn a_long_press_on_selectable_text_selects_the_word_and_copy_copies_it() {
+    let _root = crate::reactive::RootScope::new();
     let (text, region) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (text, region) = (text.clone(), region.clone());
+        let (text, region) = (text, region);
         move || {
             view! {
                 <SelectableText @node_ref=&region>

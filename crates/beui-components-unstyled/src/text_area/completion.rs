@@ -94,7 +94,7 @@ pub(super) fn Completions(cx: Context, menu: CompletionMenu) -> NodeId {
                 <List spacing=0.0>
                     <ForEach keys>
                         {move |index: usize| {
-                            let (cx, row) = (cx.clone(), row.clone());
+                            let (cx, row) = (cx.clone(), row);
                             view! {
                                 <CompletionRow cx index row />
                             }

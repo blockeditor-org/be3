@@ -8,16 +8,17 @@ const STACKED_LIST_HEIGHT: f32 = 100.0;
 
 #[test]
 fn a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view() {
+    let _root = crate::reactive::RootScope::new();
     let built = Rc::new(RefCell::new(Vec::new()));
     let sink = built.clone();
     let scroll = NodeRef::new();
     let document = build({
-        let scroll = scroll.clone();
+        let scroll = scroll;
         move || {
             view! {
                 <Container>
                     {move |_| {
-                    let (sink, scroll) = (sink.clone(), scroll.clone());
+                    let (sink, scroll) = (sink.clone(), scroll);
                     let narrow = narrower_than(BREAKPOINT);
                     let size = create_memo(move || if narrow.get() {
                         ItemSize::Fixed(STACKED_LIST_HEIGHT)

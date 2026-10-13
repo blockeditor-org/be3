@@ -2,8 +2,7 @@ use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::TextAlign;
 use block_editor_beui::beui::reactive::{
-    Callback, Direction, ForEach, Frame, ItemSize, List, Memo, Spacer, component,
-    create_memo, view,
+    Callback, Direction, ForEach, Frame, ItemSize, List, Memo, Spacer, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::{Body, Caption, ListRow, use_theme};
 use block_ui::datetime::{civil_from_days, days_from_civil};
@@ -53,8 +52,8 @@ pub(crate) fn MonthGrid(
                             start={start}
                             anchor={anchor}
                             events={events}
-                            on_pick_day={forward(on_pick_day.clone())}
-                            on_pick_event={forward(on_pick_event.clone())}
+                            on_pick_day={forward(on_pick_day)}
+                            on_pick_event={forward(on_pick_event)}
                         />
                     }
                 }}
@@ -82,8 +81,8 @@ fn MonthWeek(
                             day={day}
                             anchor={anchor}
                             events={events}
-                            on_pick_day={forward(on_pick_day.clone())}
-                            on_pick_event={forward(on_pick_event.clone())}
+                            on_pick_day={forward(on_pick_day)}
+                            on_pick_event={forward(on_pick_event)}
                         />
                     }
                 }}
@@ -148,7 +147,7 @@ fn MonthCell(
             <List spacing=2.0>
                 <ListRow
                     @test_id={format!("calendar.day.{day}")}
-                    on_click={pick.clone()}
+                    on_click={pick}
                     on_activate={pick}
                 >
                     <Caption content={day_number.to_string()} color={number_color} />
@@ -186,7 +185,7 @@ fn EventChip(
     on_click: block_editor_beui::beui::reactive::ClickCallback,
 ) -> NodeId {
     let theme = use_theme();
-    let click = on_click.clone();
+    let click = on_click;
     view! {
         <Frame color={theme.accent} radius=3>
             <ListRow on_click={move || click.call()} on_activate={move || on_click.call()}>

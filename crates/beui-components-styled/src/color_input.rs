@@ -39,7 +39,7 @@ pub fn ColorInput(
             on_change.call(color);
         }
     };
-    let hex = HexText::new(shown, alpha, Callback::new(report.clone()));
+    let hex = HexText::new(shown, alpha, Callback::new(report));
     let (edit, submit) = (hex.clone(), hex.clone());
     let label = create_memo(move || label.get());
     let picker_label = create_memo(move || match label.get() {

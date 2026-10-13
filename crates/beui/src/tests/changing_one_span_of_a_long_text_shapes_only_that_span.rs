@@ -14,10 +14,11 @@ fn words() -> Vec<String> {
 
 #[test]
 fn changing_one_span_of_a_long_text_shapes_only_that_span() {
+    let _root = crate::reactive::RootScope::new();
     let text = NodeRef::new();
     let writer: Rc<RefCell<Option<WriteSignal<Vec<String>>>>> = Rc::default();
     let document = build({
-        let (text, writer) = (text.clone(), writer.clone());
+        let (text, writer) = (text, writer.clone());
         move || {
             let (words, set_words) = create_signal(words());
             *writer.borrow_mut() = Some(set_words);

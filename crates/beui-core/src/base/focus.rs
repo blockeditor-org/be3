@@ -296,7 +296,7 @@ impl Document {
         let Some(focused) = self.focused else {
             return false;
         };
-        let Some(on_key) = focus_of(self.arena.get(focused)).map(|node| node.on_key.clone()) else {
+        let Some(on_key) = focus_of(self.arena.get(focused)).map(|node| node.on_key) else {
             return false;
         };
         on_key.call(press)
@@ -605,7 +605,7 @@ impl Document {
         if !activate || !self.contains(id) {
             return;
         }
-        let on_activate = focus_of(self.arena.get(id)).map(|node| node.on_activate.clone());
+        let on_activate = focus_of(self.arena.get(id)).map(|node| node.on_activate);
         if let Some(on_activate) = on_activate {
             on_activate.call();
         }
@@ -628,7 +628,7 @@ impl Document {
         if !self.contains(id) {
             return;
         }
-        let handler = focus_of(self.arena.get(id)).map(|node| select(node).clone());
+        let handler = focus_of(self.arena.get(id)).map(|node| *select(node));
         if let Some(handler) = handler {
             handler.call(value);
         }

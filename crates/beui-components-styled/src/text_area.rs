@@ -47,10 +47,10 @@ pub fn TextArea(
         caret: theme.accent.get(),
         ..TextAreaColors::DEFAULT
     });
-    let masked = password.clone();
+    let masked = password;
     let menu_state = state.clone();
     let surface = NodeRef::new();
-    set_component_state(surface.clone());
+    set_component_state(surface);
     let block = block.unwrap_or_else(blank_widget);
     let selected_widget = selected_widget.unwrap_or_else(blank_widget);
     view! {

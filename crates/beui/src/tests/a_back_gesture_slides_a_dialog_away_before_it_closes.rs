@@ -10,7 +10,7 @@ fn a_back_gesture_slides_a_dialog_away_before_it_closes() {
     let dismissed = Rc::new(Cell::new(0));
     let reports = dismissed.clone();
     let body = NodeRef::new();
-    let body_ref = body.clone();
+    let body_ref = body;
     let document = build({
         let closing = set_open;
         move || {

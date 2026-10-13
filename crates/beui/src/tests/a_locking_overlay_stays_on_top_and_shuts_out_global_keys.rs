@@ -18,7 +18,7 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
     let (lock, popup) = (NodeRef::new(), NodeRef::new());
     let document = build({
         let (globals, dismissed, typed) = (globals.clone(), dismissed.clone(), typed.clone());
-        let (lock, popup) = (lock.clone(), popup.clone());
+        let (lock, popup) = (lock, popup);
         move || {
             on_global_key(move |event: KeyEvent| {
                 globals.set(globals.get() + 1);

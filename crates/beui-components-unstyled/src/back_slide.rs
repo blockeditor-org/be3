@@ -259,7 +259,7 @@ pub fn BackSlide(
     let animation = create_timer(clone!(slide -> move || slide.step()));
     slide.animation.replace(Some(animation));
     on_cleanup(clone!(slide -> move || drop(slide.animation.take())));
-    let watched = enabled.clone();
+    let watched = enabled;
     create_effect(clone!(slide -> move || {
         if !watched.get() {
             untrack(|| {

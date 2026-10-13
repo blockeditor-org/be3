@@ -5,10 +5,11 @@ use crate::styled::{ColorPicker, PICKER_WIDTH};
 
 #[test]
 fn grabbing_a_color_areas_thumb_off_centre_drags_it_from_where_it_was() {
+    let _root = crate::reactive::RootScope::new();
     let changes = Rc::new(RefCell::new(Vec::new()));
     let changed = changes.clone();
     let picker = NodeRef::new();
-    let named = picker.clone();
+    let named = picker;
     let document = build(move || {
         view! {
             <List spacing=0.0>

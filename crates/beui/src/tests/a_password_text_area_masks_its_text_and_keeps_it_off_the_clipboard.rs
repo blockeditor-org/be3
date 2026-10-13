@@ -7,8 +7,9 @@ use text_editor_core::TextBuffer;
 
 #[test]
 fn a_password_text_area_masks_its_text_and_keeps_it_off_the_clipboard() {
+    let _root = crate::reactive::RootScope::new();
     let area = NodeRef::new();
-    let slot = area.clone();
+    let slot = area;
     let document = build(move || {
         let document =
             Arc::new(TextBuffer::new("sécret".as_bytes())) as Arc<dyn text_editor_core::Document>;

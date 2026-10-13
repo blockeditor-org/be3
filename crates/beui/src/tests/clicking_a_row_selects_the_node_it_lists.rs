@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn clicking_a_row_selects_the_node_it_lists() {
+    let _root = crate::reactive::RootScope::new();
     let HelloColumn {
         document, padding, ..
     } = hello_column();

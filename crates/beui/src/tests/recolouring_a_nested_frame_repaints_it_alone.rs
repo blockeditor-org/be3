@@ -3,9 +3,10 @@ use crate::reactive::{Frame, NodeRef, build, view};
 
 #[test]
 fn recolouring_a_nested_frame_repaints_it_alone() {
+    let _root = crate::reactive::RootScope::new();
     let (outer, inner) = (NodeRef::new(), NodeRef::new());
     let mut document = build({
-        let (outer, inner) = (outer.clone(), inner.clone());
+        let (outer, inner) = (outer, inner);
         move || {
             view! {
                 <Frame

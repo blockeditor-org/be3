@@ -4,6 +4,7 @@ const INSERTED_AT: usize = 3;
 
 #[test]
 fn inserting_into_a_virtual_list_view_builds_only_the_new_row() {
+    let _root = crate::reactive::RootScope::new();
     let built = Rc::new(RefCell::new(Vec::new()));
     let scroll = keyed_virtual_list(&built);
     let mut harness = Harness::new(scroll.document);

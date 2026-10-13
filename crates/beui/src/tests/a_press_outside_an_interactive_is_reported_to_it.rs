@@ -6,13 +6,14 @@ use crate::reactive::{Frame, Interactive, NodeRef, build, view};
 
 #[test]
 fn a_press_outside_an_interactive_is_reported_to_it() {
+    let _root = crate::reactive::RootScope::new();
     let heard = Rc::new(RefCell::new(Vec::<Pos2>::new()));
     let watcher = NodeRef::new();
     let elsewhere = NodeRef::new();
     let document = build({
         let heard = Rc::clone(&heard);
-        let watcher = watcher.clone();
-        let elsewhere = elsewhere.clone();
+        let watcher = watcher;
+        let elsewhere = elsewhere;
         move || {
             view! {
                 <List spacing=0.0>

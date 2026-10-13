@@ -422,12 +422,10 @@ pub fn Selectable(
     let (pressed, dragged, keyed) = (state.clone(), state.clone(), state.clone());
     let (tapped, held, captured, released) =
         (state.clone(), state.clone(), state.clone(), state.clone());
-    let focused = focusable.clone();
-    on_key(
-        KeyAt::Node(focusable.clone()),
-        KeyPhase::Bubble,
-        move |event| event.press().is_some_and(|press| key(&keyed, press)),
-    );
+    let focused = focusable;
+    on_key(KeyAt::Node(focusable), KeyPhase::Bubble, move |event| {
+        event.press().is_some_and(|press| key(&keyed, press))
+    });
     view! {
         <Interactive
             focusable=true

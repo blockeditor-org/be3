@@ -6,10 +6,11 @@ use crate::unstyled::{command_palette_highlighted, command_palette_row, command_
 
 #[test]
 fn the_command_palette_runs_the_action_it_is_filtered_to_and_greys_disabled_ones() {
+    let _root = crate::reactive::RootScope::new();
     let ran = Rc::new(RefCell::new(Vec::new()));
     let (zoom, reset, locked) = (ran.clone(), ran.clone(), ran.clone());
     let palette = NodeRef::new();
-    let held = palette.clone();
+    let held = palette;
     let document = build(move || {
         Action::new("test.lock", "Lock selection", move || {
             locked.borrow_mut().push("lock")

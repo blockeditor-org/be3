@@ -9,6 +9,7 @@ use crate::unstyled::{Edge, Floating, Scroll};
 
 #[test]
 fn a_floating_child_pins_itself_over_the_scroll_it_names() {
+    let _root = crate::reactive::RootScope::new();
     let pressed = Rc::new(Cell::new(0u32));
     let scroll = NodeRef::new();
     let button = NodeRef::new();
@@ -17,8 +18,8 @@ fn a_floating_child_pins_itself_over_the_scroll_it_names() {
     let document = build({
         let (pressed, scroll, button, rows, hovered) = (
             Rc::clone(&pressed),
-            scroll.clone(),
-            button.clone(),
+            scroll,
+            button,
             Rc::clone(&rows),
             Rc::clone(&hovered),
         );
@@ -49,7 +50,7 @@ fn a_floating_child_pins_itself_over_the_scroll_it_names() {
                             }}
                         </ForEach>
                     </Scroll>
-                    <Floating anchor={scroll.clone()} edge=Edge::Bottom>
+                    <Floating anchor={scroll} edge=Edge::Bottom>
                         <Button @node_ref=&button on_click={move || pressed.set(pressed.get() + 1)}>
                             <Text string="reveal" />
                         </Button>

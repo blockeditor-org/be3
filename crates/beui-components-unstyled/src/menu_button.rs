@@ -134,7 +134,7 @@ pub fn MenuButton(
             <MenuPopup
                 items={items.into_run()}
                 menu
-                anchor={&button}
+                anchor={button}
                 open={shown}
                 touched
                 on_dismiss={move || set_open.set(false)}

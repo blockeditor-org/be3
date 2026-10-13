@@ -36,7 +36,7 @@ pub fn with_node_ref<B: ComponentBuilder>(builder: B, value: &NodeRef) -> B
 where
     B::Output: BuildsNode,
 {
-    let node_ref = value.clone();
+    let node_ref = *value;
     builder.with_built(move |built| node_ref.fill(built.built_node()))
 }
 

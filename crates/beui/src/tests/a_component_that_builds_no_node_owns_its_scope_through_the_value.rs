@@ -44,10 +44,11 @@ fn Legend(children: Children<Note>) -> NodeId {
 
 #[test]
 fn a_component_that_builds_no_node_owns_its_scope_through_the_value() {
+    let _root = crate::reactive::RootScope::new();
     let legend = NodeRef::new();
     let disposals: Disposals = Rc::new(Cell::new(0));
     let document = build({
-        let legend = legend.clone();
+        let legend = legend;
         let disposals = disposals.clone();
         move || {
             let loose = view! {

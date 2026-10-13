@@ -3,6 +3,7 @@ use crate::reactive::{Direction, Frame, List, build, view};
 
 #[test]
 fn a_fragment_sits_beside_the_children_written_around_it() {
+    let _root = crate::reactive::RootScope::new();
     let (first, second, third, fourth) = (
         NodeRef::new(),
         NodeRef::new(),
@@ -10,8 +11,7 @@ fn a_fragment_sits_beside_the_children_written_around_it() {
         NodeRef::new(),
     );
     let document = build({
-        let (first, second, third, fourth) =
-            (first.clone(), second.clone(), third.clone(), fourth.clone());
+        let (first, second, third, fourth) = (first, second, third, fourth);
         move || {
             let middle = view! {
                 <Frame @node_ref=&second width=20.0 />

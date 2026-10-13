@@ -3,10 +3,11 @@ use crate::reactive::{Draw, Drawing, NodeRef, Prop, build, create_signal, view};
 
 #[test]
 fn a_drawing_repaints_on_its_deadline_without_repeating_layout() {
+    let _root = crate::reactive::RootScope::new();
     let drawing = NodeRef::new();
     let asking = Rc::new(RefCell::new(None));
     let mut document = build({
-        let (drawing, asking) = (drawing.clone(), asking.clone());
+        let (drawing, asking) = (drawing, asking.clone());
         move || {
             let (on, set_on) = create_signal(true);
             asking.replace(Some(set_on));

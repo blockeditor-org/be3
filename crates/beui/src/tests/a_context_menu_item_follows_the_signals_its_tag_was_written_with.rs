@@ -11,7 +11,7 @@ fn a_context_menu_item_follows_the_signals_its_tag_was_written_with() {
     let selected = Rc::new(RefCell::new(Vec::new()));
     let sink = selected.clone();
     let (document, [menu]) = toolbar_of({
-        let region = region.clone();
+        let region = region;
         move || {
             let items = view! {
                 <unstyled::MenuItem label disabled={blocked} />

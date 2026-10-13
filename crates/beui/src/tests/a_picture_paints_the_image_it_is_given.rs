@@ -5,8 +5,9 @@ use crate::unstyled::Picture;
 
 #[test]
 fn a_picture_paints_the_image_it_is_given() {
+    let _root = crate::reactive::RootScope::new();
     let picture = NodeRef::new();
-    let node = picture.clone();
+    let node = picture;
     let image = Image::from_rgba(2, 1, vec![255, 0, 0, 255, 0, 0, 255, 255]);
     let painted = image.clone();
     let document = build(move || {

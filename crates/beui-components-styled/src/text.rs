@@ -46,9 +46,7 @@ pub fn Icon(
 
 #[component]
 pub fn IconSized(glyph: Prop<String>, font_size: Prop<f32>, color: Prop<Color32>) -> NodeId {
-    let line = create_memo(move || {
-        line_height(icon_text_size(font_size.get()))
-    });
+    let line = create_memo(move || line_height(icon_text_size(font_size.get())));
     view! {
         <IconGlyph glyph font_size line_height={line} color />
     }

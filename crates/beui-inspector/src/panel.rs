@@ -198,7 +198,7 @@ pub fn build(state: &Rc<State>) -> Panel {
     let (selection, set_selection) = create_signal(Vec::<Key>::new());
     let (compact, set_compact) = create_signal(false);
     let tree = NodeRef::new();
-    let tree_ref = tree.clone();
+    let tree_ref = tree;
     let simulation_state = state.clone();
     let performance_state = state.clone();
     let tab_state = state.clone();

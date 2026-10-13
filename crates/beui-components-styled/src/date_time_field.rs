@@ -274,7 +274,7 @@ fn PickerPanel(
                 <Dynamic value={layout}>
                     {move |shape: DateTimePanelLayout| {
                         let (calendar, times) = (calendar.clone(), times.clone());
-                        let (page, show_page) = (page, show_page.clone());
+                        let (page, show_page) = (page, show_page);
                         view! {
                             <PanelBody
                                 shape

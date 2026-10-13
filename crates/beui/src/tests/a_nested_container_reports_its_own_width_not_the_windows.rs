@@ -9,12 +9,13 @@ const ITEM_HEIGHT: f32 = 20.0;
 
 #[test]
 fn a_nested_container_reports_its_own_width_not_the_windows() {
+    let _root = crate::reactive::RootScope::new();
     let sizes: Rc<RefCell<Vec<ReadSignal<Vec2>>>> = Rc::default();
     let collapsed: Rc<RefCell<Vec<Memo<bool>>>> = Rc::default();
     let (outer_item, inner_item) = (NodeRef::new(), NodeRef::new());
     let document = build({
         let (sizes, collapsed) = (sizes.clone(), collapsed.clone());
-        let (outer_item, inner_item) = (outer_item.clone(), inner_item.clone());
+        let (outer_item, inner_item) = (outer_item, inner_item);
         move || {
             let inner_sizes = sizes.clone();
             let inner_collapsed = collapsed.clone();

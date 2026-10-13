@@ -35,13 +35,13 @@ fn bindings() -> Rc<NodeBindings> {
 pub fn component_node() -> crate::callback::NodeRef {
     let bindings = bindings();
     if let Some(node) = bindings.node.borrow().as_ref() {
-        return node.clone();
+        return *node;
     }
     let node = crate::callback::NodeRef::new();
     if let Some(target) = bindings.target.get() {
         node.fill(target);
     }
-    bindings.node.replace(Some(node.clone()));
+    bindings.node.replace(Some(node));
     node
 }
 

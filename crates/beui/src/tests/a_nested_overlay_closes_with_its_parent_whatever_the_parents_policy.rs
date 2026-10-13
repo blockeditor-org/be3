@@ -17,7 +17,7 @@ fn a_nested_overlay_closes_with_its_parent_whatever_the_parents_policy() {
     let document = build({
         let (open, policy, nested_open) = (open, policy, nested_open);
         let (reports, nested_reports) = (dismissed.clone(), nested_dismissed.clone());
-        let (outer, inner) = (outer.clone(), inner.clone());
+        let (outer, inner) = (outer, inner);
         let closing = set_nested_open;
         move || {
             view! {

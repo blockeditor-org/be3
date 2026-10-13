@@ -4,8 +4,9 @@ use crate::unstyled::Scroll;
 
 #[test]
 fn a_second_swipe_during_a_fling_keeps_scrolling() {
+    let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let scroll_ref = scroll.clone();
+    let scroll_ref = scroll;
     let document = build(move || {
         view! {
             <List spacing=0.0>

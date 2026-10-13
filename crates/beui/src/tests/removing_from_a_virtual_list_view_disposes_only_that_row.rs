@@ -4,6 +4,7 @@ const REMOVED_AT: usize = 3;
 
 #[test]
 fn removing_from_a_virtual_list_view_disposes_only_that_row() {
+    let _root = crate::reactive::RootScope::new();
     let built = Rc::new(RefCell::new(Vec::new()));
     let scroll = keyed_virtual_list(&built);
     let mut harness = Harness::new(scroll.document);

@@ -252,9 +252,9 @@ pub fn DateTimeField(
                         0 => String::new(),
                         _ => separator(order[index - 1], segment_kind),
                     };
-                    let literal = literal.clone();
+                    let literal = literal;
                     let state = state.clone();
-                    let face = segment.clone();
+                    let face = segment;
                     view! {
                         <SegmentView state segment=segment_kind prefix literal face />
                     }

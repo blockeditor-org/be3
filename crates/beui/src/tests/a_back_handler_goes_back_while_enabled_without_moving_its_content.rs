@@ -11,7 +11,7 @@ fn a_back_handler_goes_back_while_enabled_without_moving_its_content() {
     let backs = Rc::new(Cell::new(0));
     let reports = backs.clone();
     let page = NodeRef::new();
-    let page_ref = page.clone();
+    let page_ref = page;
     let document = build({
         move || {
             view! {

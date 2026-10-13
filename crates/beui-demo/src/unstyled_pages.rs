@@ -1285,7 +1285,7 @@ fn FolderTree() -> NodeId {
     });
     let tree = NodeRef::new();
     let viewport = NodeRef::new();
-    let rows = tree.clone();
+    let rows = tree;
     view! {
         <Frame width=PANEL_WIDTH height=TREE_HEIGHT>
             <List spacing=0.0>
@@ -1686,7 +1686,7 @@ fn DatePresets(handle: DateTimePanelHandle) -> NodeId {
     } = handle;
     let start = today.get_untracked().unwrap_or_else(Date::today);
     let preset = move |label: &'static str, date: Date| {
-        let pick = pick.clone();
+        let pick = pick;
         view! {
             <unstyled::Button
                 on_click={move || pick.call(date)}

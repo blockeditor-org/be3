@@ -4,9 +4,10 @@ use crate::styled::SelectableText;
 
 #[test]
 fn the_menu_of_a_selectable_text_copies_what_is_selected() {
+    let _root = crate::reactive::RootScope::new();
     let (first, second, region) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let document = build({
-        let (first, second, region) = (first.clone(), second.clone(), region.clone());
+        let (first, second, region) = (first, second, region);
         move || {
             view! {
                 <SelectableText @node_ref=&region>

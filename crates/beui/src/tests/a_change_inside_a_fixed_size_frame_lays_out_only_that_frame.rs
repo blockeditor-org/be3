@@ -2,11 +2,12 @@ use super::*;
 
 #[test]
 fn a_change_inside_a_fixed_size_frame_lays_out_only_that_frame() {
+    let _root = crate::reactive::RootScope::new();
     let list = NodeRef::new();
     let (beside, fixed, inner) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let mut document = build({
-        let list = list.clone();
-        let (beside, fixed, inner) = (beside.clone(), fixed.clone(), inner.clone());
+        let list = list;
+        let (beside, fixed, inner) = (beside, fixed, inner);
         move || {
             view! {
                 <List @node_ref=&list spacing=0.0>

@@ -161,7 +161,7 @@ where
                 return;
             }
             let current = current;
-            let view = view.clone();
+            let view = view;
             let (stored, scope) = build_in_slot(&slot, move || view.call(current));
             drop(held.replace((next, stored, scope)));
         });

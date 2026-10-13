@@ -64,7 +64,7 @@ pub fn Popover(
     let trigger_ref = NodeRef::new();
     set_component_state(State {
         open,
-        trigger: trigger_ref.clone(),
+        trigger: trigger_ref,
     });
 
     create_effect(move || on_open_change.call(open.get()));
@@ -101,7 +101,7 @@ pub fn Popover(
             set_open.set(false);
         }
     });
-    let anchor = anchor.unwrap_or_else(|| trigger_ref.clone());
+    let anchor = anchor.unwrap_or_else(|| trigger_ref);
     let placement = match placement {
         PopoverPlacement::Below => Placement::BelowStart,
         PopoverPlacement::Over(inset) => Placement::Over(inset),
@@ -137,10 +137,10 @@ pub fn Popover(
                 }}
             />
             <Overlay
-                anchor=&anchor
+                anchor=anchor
                 placement
                 policy=LayerPolicy::Pass
-                trigger={trigger_ref.clone()}
+                trigger={trigger_ref}
                 open={open}
                 on_dismiss={move |_: Dismiss| {
                     set_open.set(false);

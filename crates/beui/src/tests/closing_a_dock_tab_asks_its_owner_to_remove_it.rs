@@ -4,8 +4,9 @@ use crate::unstyled::{DockPane, DockTab, DockingLayout, TabId, dock_state};
 
 #[test]
 fn closing_a_dock_tab_asks_its_owner_to_remove_it() {
+    let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
-    let built = dock.clone();
+    let built = dock;
     let closed = Rc::new(RefCell::new(Vec::new()));
     let asked = closed.clone();
     let document = build(move || {

@@ -19,11 +19,12 @@ fn sheet_shown(harness: &Harness) -> bool {
 
 #[test]
 fn holding_a_finger_down_opens_a_context_menu() {
+    let _root = crate::reactive::RootScope::new();
     let menu = NodeRef::new();
     let clicked = Rc::new(Cell::new(0));
     let cancelled = Rc::new(Cell::new(0));
     let document = crate::reactive::build({
-        let (menu, clicked, cancelled) = (menu.clone(), clicked.clone(), cancelled.clone());
+        let (menu, clicked, cancelled) = (menu, clicked.clone(), cancelled.clone());
         move || {
             view! {
                 <ContextMenu

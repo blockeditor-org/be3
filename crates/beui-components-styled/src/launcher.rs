@@ -246,11 +246,9 @@ pub fn Launcher(
     };
     let (typing, submitting, keys, building) = (state.clone(), state.clone(), state.clone(), state);
     let search = NodeRef::new();
-    on_key(
-        KeyAt::Node(search.clone()),
-        KeyPhase::Capture,
-        move |event| event.press().is_some_and(|press| keys.navigate(press)),
-    );
+    on_key(KeyAt::Node(search), KeyPhase::Capture, move |event| {
+        event.press().is_some_and(|press| keys.navigate(press))
+    });
 
     let accessibility = create_memo(|| {
         let mut node = Node::new(Role::SearchInput);

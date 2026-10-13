@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn a_dialog_of_a_dock_dialog_stacks_over_it() {
+    let _root = crate::reactive::RootScope::new();
     let dock = dialog_dock(vec![1, 2], vec![(11, 10, true), (10, 1, false)]);
     let (layout, pressed) = (dock.layout.clone(), dock.pressed);
     let mut harness = Harness::sized(dock.document, WIDE_VIEWPORT);

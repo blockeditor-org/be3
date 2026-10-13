@@ -9,9 +9,9 @@ fn a_back_slide_shows_the_page_it_goes_back_to_while_it_is_swiped() {
     let (depth, set_depth) = create_signal(2_u32);
     let page = NodeRef::new();
     let previous = NodeRef::new();
-    let page_ref = page.clone();
-    let previous_ref = previous.clone();
-    let watched = previous.clone();
+    let page_ref = page;
+    let previous_ref = previous;
+    let watched = previous;
     let document = build({
         move || {
             let nested = create_memo(move || depth.get() > 0);

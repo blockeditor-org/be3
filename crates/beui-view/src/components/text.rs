@@ -300,9 +300,7 @@ pub fn Span(
 ) -> Span {
     let text = text.unwrap_or_else(|| {
         let run = children.into_run();
-        Prop::dynamic(move || {
-            run.items().iter().map(|piece| piece.0.get()).collect()
-        })
+        Prop::dynamic(move || run.items().iter().map(|piece| piece.0.get()).collect())
     });
     Span {
         text,

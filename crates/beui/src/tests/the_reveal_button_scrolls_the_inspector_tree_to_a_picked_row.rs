@@ -6,6 +6,7 @@ const PICKED: usize = 28;
 
 #[test]
 fn the_reveal_button_scrolls_the_inspector_tree_to_a_picked_row() {
+    let _root = crate::reactive::RootScope::new();
     let frames: Vec<NodeRef> = (0..ROWS).map(|_| NodeRef::new()).collect();
     let document = build({
         let frames = frames.clone();

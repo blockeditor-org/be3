@@ -5,9 +5,10 @@ const PANEL_HEIGHT: f32 = 200.0;
 
 #[test]
 fn a_skipped_element_keeps_the_repaint_deadline_it_asked_for() {
+    let _root = crate::reactive::RootScope::new();
     let (panel, text) = (NodeRef::new(), NodeRef::new());
     let mut document = build({
-        let (panel, text) = (panel.clone(), text.clone());
+        let (panel, text) = (panel, text);
         move || {
             view! {
                 <List spacing=0.0>

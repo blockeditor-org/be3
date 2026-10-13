@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn a_panel_between_two_damaged_ones_is_left_alone() {
+    let _root = crate::reactive::RootScope::new();
     let panels = three_panels();
     let (top, middle, bottom) = (panels.top, panels.middle, panels.bottom);
     let mut document = panels.document;

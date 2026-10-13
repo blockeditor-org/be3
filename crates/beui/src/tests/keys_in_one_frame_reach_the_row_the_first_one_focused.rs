@@ -4,11 +4,12 @@ use crate::styled::MenuButton;
 
 #[test]
 fn keys_in_one_frame_reach_the_row_the_first_one_focused() {
+    let _root = crate::reactive::RootScope::new();
     let button = NodeRef::new();
     let selected = Rc::new(RefCell::new(Vec::new()));
     let sink = selected.clone();
     let (document, _) = toolbar_of({
-        let button = button.clone();
+        let button = button;
         move || {
             let items = view! {
                 <unstyled::MenuItem label="First" />

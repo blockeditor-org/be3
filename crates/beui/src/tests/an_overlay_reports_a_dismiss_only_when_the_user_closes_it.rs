@@ -19,7 +19,7 @@ fn an_overlay_reports_a_dismiss_only_when_the_user_closes_it() {
         let (open, nested_open) = (open, nested_open);
         let (reports, nested_reports) = (dismissed.clone(), nested_dismissed.clone());
         let (closing, nested_closing) = (set_open, set_nested_open);
-        let (outer, inner) = (outer.clone(), inner.clone());
+        let (outer, inner) = (outer, inner);
         move || {
             view! {
                 <Frame>

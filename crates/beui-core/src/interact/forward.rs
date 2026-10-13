@@ -219,9 +219,7 @@ pub(super) fn route(
         if !doc.arena.contains(sink) {
             continue;
         }
-        let Some(on_forward) =
-            hit::interactive(doc, sink).map(|catcher| catcher.on_forward.clone())
-        else {
+        let Some(on_forward) = hit::interactive(doc, sink).map(|catcher| catcher.on_forward) else {
             continue;
         };
         on_forward.call(ForwardedInput {

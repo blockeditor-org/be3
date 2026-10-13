@@ -38,8 +38,8 @@ pub fn ContextMenu(
     let anchor = create_memo(move || OverlayAnchor::Point(position.get()));
     let (overlay, content) = (NodeRef::new(), NodeRef::new());
     set_component_state(State {
-        overlay: overlay.clone(),
-        content: content.clone(),
+        overlay: overlay,
+        content: content,
     });
 
     let (requested, requested_touch, requested_position, requested_focusing) =

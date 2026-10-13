@@ -6,8 +6,9 @@ use text_editor_core::TextBuffer;
 
 #[test]
 fn a_text_area_shows_its_placeholder_until_something_is_typed() {
+    let _root = crate::reactive::RootScope::new();
     let area = NodeRef::new();
-    let slot = area.clone();
+    let slot = area;
     let document = build(move || {
         let document = Arc::new(TextBuffer::new(b"")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);

@@ -4,8 +4,9 @@ use crate::reactive::{ItemSize, List, NodeRef, Offset, build, view};
 
 #[test]
 fn a_scroll_inside_a_scroll_lays_out_the_rows_it_holds() {
+    let _root = crate::reactive::RootScope::new();
     let row = NodeRef::new();
-    let held = row.clone();
+    let held = row;
     let document = build(move || {
         view! {
             <List spacing=0.0>

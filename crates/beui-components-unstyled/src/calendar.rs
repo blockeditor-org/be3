@@ -101,7 +101,7 @@ pub fn Calendar(
     cell: RenderFn<CalendarCellHandle>,
     on_change: Callback<Date>,
 ) -> NodeId {
-    let (day, month, year) = (cell.clone(), cell.clone(), cell);
+    let (day, month, year) = (cell, cell, cell);
     let today = today.peek().unwrap_or_else(Date::today);
     let min = create_memo(move || min.get());
     let max = create_memo(move || max.get());
@@ -235,8 +235,8 @@ pub fn Calendar(
             {header_node}
             <Show condition={days_shown}>
                 {move || {
-                    let (days_label, spacing, weekday) = (days_label, spacing, weekday.clone());
-                    let (week_state, grid_start, day) = (week_state.clone(), grid_start, day.clone());
+                    let (days_label, spacing, weekday) = (days_label, spacing, weekday);
+                    let (week_state, grid_start, day) = (week_state.clone(), grid_start, day);
                     view! {
                         <CalendarGrid label=days_label spacing>
                             <List direction=Direction::Horizontal spacing>
@@ -245,7 +245,7 @@ pub fn Calendar(
                                         <CalendarWeekday
                                             @sizing=ItemSize::Percent(100.0)
                                             weekday={first_weekday.offset(column as u32)}
-                                            face={weekday.clone()}
+                                            face={weekday}
                                         />
                                     }}
                                 </ForEach>
@@ -257,7 +257,7 @@ pub fn Calendar(
                                         week
                                         grid_start={grid_start}
                                         spacing
-                                        day={day.clone()}
+                                        day={day}
                                     />
                                 }}
                             </ForEach>
@@ -268,7 +268,7 @@ pub fn Calendar(
             <Show condition={months_shown}>
                 {move || {
                     let (months_label, spacing) = (months_label, spacing);
-                    let (month_state, month) = (month_state.clone(), month.clone());
+                    let (month_state, month) = (month_state.clone(), month);
                     view! {
                         <CalendarGrid label=months_label spacing>
                             <ForEach keys={(0..MONTH_ROWS).collect::<Vec<_>>()}>
@@ -277,7 +277,7 @@ pub fn Calendar(
                                         state={month_state.clone()}
                                         row
                                         spacing
-                                        month={month.clone()}
+                                        month={month}
                                     />
                                 }}
                             </ForEach>
@@ -288,7 +288,7 @@ pub fn Calendar(
             <Show condition={years_shown}>
                 {move || {
                     let (label, spacing, year_state) = (label, spacing, year_state.clone());
-                    let (first_year, year) = (first_year, year.clone());
+                    let (first_year, year) = (first_year, year);
                     view! {
                         <CalendarGrid label spacing>
                             <ForEach keys={(0..YEAR_ROWS).collect::<Vec<_>>()}>
@@ -298,7 +298,7 @@ pub fn Calendar(
                                         row
                                         first_year={first_year}
                                         spacing
-                                        year={year.clone()}
+                                        year={year}
                                     />
                                 }}
                             </ForEach>
@@ -328,7 +328,7 @@ fn CalendarYearRow(
                         state={state.clone()}
                         offset={(row * YEAR_COLUMNS + column) as i32}
                         first_year={first_year}
-                        face={year.clone()}
+                        face={year}
                     />
                 }}
             </ForEach>
@@ -446,7 +446,7 @@ fn CalendarWeek(
                         state={state.clone()}
                         offset={(week * DAYS_PER_WEEK + column) as i64}
                         grid_start={grid_start}
-                        face={day.clone()}
+                        face={day}
                     />
                 }}
             </ForEach>
@@ -538,7 +538,7 @@ fn CalendarMonthRow(
                         @sizing=ItemSize::Percent(100.0)
                         state={state.clone()}
                         number={(row * MONTH_COLUMNS + column + 1) as u8}
-                        face={month.clone()}
+                        face={month}
                     />
                 }}
             </ForEach>

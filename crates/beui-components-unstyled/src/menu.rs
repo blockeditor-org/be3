@@ -193,8 +193,8 @@ pub fn MenuList(
                     state={rows_state.clone()}
                     index
                     focused={rows_focused}
-                    row={row.clone()}
-                    panel={panel.clone()}
+                    row={row}
+                    panel={panel}
                     parent={parent.clone()}
                 />
             }
@@ -233,23 +233,23 @@ fn MenuRow(
         let held = &rows[index];
         (
             held.item.clone(),
-            held.button.clone(),
+            held.button,
             held.submenu.open,
             held.submenu.set_open,
-            held.submenu.content.clone(),
+            held.submenu.content,
         )
     };
     let disabled = item.disabled;
     let (spoken, unavailable) = (item.label, item.disabled);
     let test_id = item.test_id.clone();
-    let tagged = button.clone();
+    let tagged = button;
     let action = item.action.clone();
-    let clicked = item.on_click.clone();
+    let clicked = item.on_click;
     let children = item.children.clone();
     let has_children = create_memo(clone!(children -> move || !children.is_empty()));
     let row_has_children = has_children;
     let content = {
-        let (row, state, item) = (row.clone(), state.clone(), item);
+        let (row, state, item) = (row, state.clone(), item);
         move |handle: ButtonHandle| {
             let hovered = handle.hovered;
             let mut was_hovered = false;
@@ -320,14 +320,14 @@ fn MenuRow(
                     (leave_open, leave_state.clone(), select_state.clone());
                 let (dismiss, submenu_open, children) =
                     (dismiss, submenu_open, children.clone());
-                let (row, panel, content_ref) = (row.clone(), panel.clone(), content_ref.clone());
+                let (row, panel, content_ref) = (row, panel, content_ref);
                 let leave = MenuParent(Some(Rc::new(move || {
                     leave_open.set(false);
                     leave_state.set_focus.set(Focus::Row(index));
                 })));
                 view! {
                     <Overlay
-                        anchor=&button
+                        anchor=button
                         placement=Placement::RightStart
                         open={submenu_open}
                         on_dismiss={move |_: Dismiss| dismiss.set(false)}
@@ -336,7 +336,7 @@ fn MenuRow(
                                 @node_ref={&content_ref}
                                 items={children}
                                 row
-                                panel={panel.clone()}
+                                panel={panel}
                                 parent={leave}
                                 active={submenu_open}
                                 focus_first=true

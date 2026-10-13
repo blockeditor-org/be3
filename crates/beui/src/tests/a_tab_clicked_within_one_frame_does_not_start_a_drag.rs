@@ -3,6 +3,7 @@ use crate::unstyled::{TabId, dock_state};
 
 #[test]
 fn a_tab_clicked_within_one_frame_does_not_start_a_drag() {
+    let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(2);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());

@@ -3,9 +3,10 @@ use crate::reactive::{List, NodeRef, build, view};
 
 #[test]
 fn an_empty_view_builds_a_children_prop_with_nothing_in_it() {
+    let _root = crate::reactive::RootScope::new();
     let column = NodeRef::new();
     let document = build({
-        let column = column.clone();
+        let column = column;
         move || {
             view! {
                 <List

@@ -4,11 +4,12 @@ use crate::unstyled::Button;
 
 #[test]
 fn show_keep_alive_builds_its_child_once_and_keeps_it_while_hidden() {
+    let _root = crate::reactive::RootScope::new();
     let (column, toggle) = (NodeRef::new(), NodeRef::new());
     let builds = Rc::new(Cell::new(0));
     let sink = builds.clone();
     let document = build({
-        let (column, toggle) = (column.clone(), toggle.clone());
+        let (column, toggle) = (column, toggle);
         move || {
             let (visible, set_visible) = create_signal(false);
             view! {

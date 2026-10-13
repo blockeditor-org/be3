@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn scrolling_a_virtual_scroll_reuses_overlapping_items() {
+    let _root = crate::reactive::RootScope::new();
     let built = Rc::new(RefCell::new(Vec::new()));
     let scroll = virtual_list(&built);
     let mut harness = Harness::new(scroll.document);

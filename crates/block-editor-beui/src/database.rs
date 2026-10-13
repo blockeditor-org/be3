@@ -70,9 +70,9 @@ pub fn DatabaseValueEditor(
                             headings={headings}
                             disabled={disabled}
                             id={test_id}
-                            on_change={forward(on_change.clone())}
-                            on_pick={forward(on_pick.clone())}
-                            on_submit={forward(on_submit.clone())}
+                            on_change={forward(on_change)}
+                            on_pick={forward(on_pick)}
+                            on_submit={forward(on_submit)}
                         />
                     }
                 }}
@@ -123,7 +123,7 @@ fn DatabaseValueRow(
                         glyph={ICON_CLEAR.to_owned()}
                         label="Clear"
                         @test_id={format!("{id}.clear")}
-                        on_click={clear.clone()}
+                        on_click={clear}
                     />
                 </Show>
             </List>
@@ -169,9 +169,9 @@ fn DatabaseValueControl(
                     let labels = labels;
                     let disabled = disabled;
                     let test_id = id.clone();
-                    let on_change = forward(on_change.clone());
-                    let on_pick = forward(on_pick.clone());
-                    let on_submit = forward(on_submit.clone());
+                    let on_change = forward(on_change);
+                    let on_pick = forward(on_pick);
+                    let on_submit = forward(on_submit);
                     match kind {
                         None => view! {
                             <Spacer />

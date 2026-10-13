@@ -29,7 +29,7 @@ pub fn Dialog(
     on_dismiss: ClickCallback,
     children: Child,
 ) -> NodeId {
-    let closing = on_dismiss.clone();
+    let closing = on_dismiss;
     let (presence, set_presence) = create_signal(1.0_f32);
     let scrim = create_memo(move || SCRIM.scale_alpha(presence.get()));
     view! {

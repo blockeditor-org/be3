@@ -3,8 +3,9 @@ use crate::unstyled::{DockPane, DockSplit, DockTab, DockingLayout, Entry, TabId,
 
 #[test]
 fn dragging_a_panes_grip_moves_every_tab_of_the_pane() {
+    let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
-    let built = dock.clone();
+    let built = dock;
     let document = build(move || {
         let layout = DockingLayout::new();
         view! {

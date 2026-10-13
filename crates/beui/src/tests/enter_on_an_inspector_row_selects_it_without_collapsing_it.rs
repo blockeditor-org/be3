@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn enter_on_an_inspector_row_selects_it_without_collapsing_it() {
+    let _root = crate::reactive::RootScope::new();
     let HelloColumn {
         document, padding, ..
     } = hello_column();

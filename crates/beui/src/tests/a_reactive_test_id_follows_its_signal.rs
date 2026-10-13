@@ -4,9 +4,10 @@ use crate::unstyled::Button;
 
 #[test]
 fn a_reactive_test_id_follows_its_signal() {
+    let _root = crate::reactive::RootScope::new();
     let rename = NodeRef::new();
     let document = build({
-        let rename = rename.clone();
+        let rename = rename;
         move || {
             let (row, set_row) = create_signal(0usize);
             let test_id = create_memo(move || format!("cell.{}", row.get()));

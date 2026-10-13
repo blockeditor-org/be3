@@ -66,11 +66,11 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let stage = Rc::clone(&state);
     let dock = Rc::clone(&state);
-    let anchor = content.clone();
+    let anchor = content;
     let docked = chrome;
     let side = chrome;
     let zoom = Rc::clone(&state);
-    let zoom_anchor = content.clone();
+    let zoom_anchor = content;
     let errors = Rc::clone(&state);
     let scope = NodeRef::new();
     action_scope(&scope);

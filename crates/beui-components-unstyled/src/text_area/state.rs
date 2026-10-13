@@ -357,7 +357,7 @@ impl TextAreaState {
     }
 
     pub fn canvas(&self) -> NodeRef {
-        self.0.canvas.clone()
+        self.0.canvas
     }
 
     pub fn take_reveal_cursor(&self) -> bool {

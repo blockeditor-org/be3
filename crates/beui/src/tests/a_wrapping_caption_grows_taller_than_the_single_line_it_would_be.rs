@@ -7,12 +7,13 @@ const LONG_CAPTION: &str = "Scroll to pan, Shift+scroll sideways, Ctrl+scroll or
 
 #[test]
 fn a_wrapping_caption_grows_taller_than_the_single_line_it_would_be() {
+    let _root = crate::reactive::RootScope::new();
     assert!(caption_height(true) > caption_height(false));
 }
 
 fn caption_height(wrap: bool) -> f32 {
     let frame = NodeRef::new();
-    let placed = frame.clone();
+    let placed = frame;
     let document = build(move || {
         view! {
             <List spacing=0.0>

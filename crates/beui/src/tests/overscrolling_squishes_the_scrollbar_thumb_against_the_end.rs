@@ -4,8 +4,9 @@ use crate::styled::Scroll;
 
 #[test]
 fn overscrolling_squishes_the_scrollbar_thumb_against_the_end() {
+    let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let held = scroll.clone();
+    let held = scroll;
     let document = build(move || {
         view! {
             <List spacing=0.0>

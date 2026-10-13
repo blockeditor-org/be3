@@ -14,11 +14,12 @@ fn Joined(prefix: Prop<String>, suffix: Prop<String>, children: Child) -> NodeId
 
 #[test]
 fn required_props_can_be_written_in_any_order_and_as_children() {
+    let _root = crate::reactive::RootScope::new();
     let declared = NodeRef::new();
     let reversed = NodeRef::new();
     let document = build({
-        let declared = declared.clone();
-        let reversed = reversed.clone();
+        let declared = declared;
+        let reversed = reversed;
         move || {
             view! {
                 <List spacing=0.0>

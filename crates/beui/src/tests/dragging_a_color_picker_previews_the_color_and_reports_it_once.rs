@@ -5,11 +5,12 @@ use crate::styled::{ColorPicker, PICKER_WIDTH};
 
 #[test]
 fn dragging_a_color_picker_previews_the_color_and_reports_it_once() {
+    let _root = crate::reactive::RootScope::new();
     let changes = Rc::new(RefCell::new(Vec::new()));
     let previews = Rc::new(RefCell::new(Vec::new()));
     let (changed, previewed) = (changes.clone(), previews.clone());
     let picker = NodeRef::new();
-    let named = picker.clone();
+    let named = picker;
     let document = build(move || {
         view! {
             <List spacing=0.0>

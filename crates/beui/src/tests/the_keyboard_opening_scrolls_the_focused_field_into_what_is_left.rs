@@ -4,8 +4,9 @@ use crate::styled::{Scroll, TextInput};
 
 #[test]
 fn the_keyboard_opening_scrolls_the_focused_field_into_what_is_left() {
+    let _root = crate::reactive::RootScope::new();
     let input = NodeRef::new();
-    let input_ref = input.clone();
+    let input_ref = input;
     let document = build(move || {
         view! {
             <List spacing=0.0>

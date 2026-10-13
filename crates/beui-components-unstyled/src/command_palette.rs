@@ -92,7 +92,7 @@ pub fn CommandPalette(
     });
     set_component_state(state.clone());
 
-    let opened = open.clone();
+    let opened = open;
     create_effect(clone!(state -> move || {
         if opened.get() {
             untrack(|| start(&state));
@@ -109,15 +109,11 @@ pub fn CommandPalette(
         state.clone(),
         state.clone(),
     );
-    on_key(
-        KeyAt::Node(state.search.clone()),
-        KeyPhase::Capture,
-        move |event| {
-            event
-                .press()
-                .is_some_and(|press| navigate(&key_state, press))
-        },
-    );
+    on_key(KeyAt::Node(state.search), KeyPhase::Capture, move |event| {
+        event
+            .press()
+            .is_some_and(|press| navigate(&key_state, press))
+    });
     let accessibility = create_memo(|| {
         let mut node = Node::new(Role::Dialog);
         node.set_label("Command palette");
@@ -161,7 +157,7 @@ pub fn CommandPalette(
                                     <CommandRow
                                         state={rows_state.clone()}
                                         key
-                                        row={row.clone()}
+                                        row={row}
                                         highlight={highlight}
                                     />
                                 }
@@ -183,7 +179,7 @@ fn CommandRow(
 ) -> NodeId {
     let action = find(&state, key).expect("a shown row has an action");
     let button = NodeRef::new();
-    state.rows.borrow_mut().push((key, button.clone()));
+    state.rows.borrow_mut().push((key, button));
     let enabled = action.enabled();
     let disabled = create_memo(move || !enabled.get());
     let label = action.label();

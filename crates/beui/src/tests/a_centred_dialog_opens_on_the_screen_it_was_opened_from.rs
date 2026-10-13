@@ -12,7 +12,7 @@ fn a_centred_dialog_opens_on_the_screen_it_was_opened_from() {
     let (open, set_open) = create_signal(false);
     let body = NodeRef::new();
     let document = build({
-        let body = body.clone();
+        let body = body;
         let (opening, reopening) = (set_open, set_open);
         move || {
             view! {

@@ -6,9 +6,10 @@ use crate::styled::ContextMenu;
 
 #[test]
 fn a_context_menu_reads_its_rows_as_named_menu_items() {
+    let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
     let (document, [_menu]) = toolbar_of({
-        let region = region.clone();
+        let region = region;
         move || {
             let items = view! {
                 <unstyled::MenuItem label="Copy" />

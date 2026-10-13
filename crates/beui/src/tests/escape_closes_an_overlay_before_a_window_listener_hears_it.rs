@@ -10,7 +10,7 @@ fn escape_closes_an_overlay_before_a_window_listener_hears_it() {
     let heard = Rc::new(Cell::new(0));
     let overlay = NodeRef::new();
     let document = build({
-        let (heard, overlay) = (Rc::clone(&heard), overlay.clone());
+        let (heard, overlay) = (Rc::clone(&heard), overlay);
         move || {
             on_key(KeyAt::Window, KeyPhase::Bubble, move |event| {
                 let escaped = event

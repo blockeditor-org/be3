@@ -129,7 +129,7 @@ where
     let state: Handle<K> = Rc::new(State {
         nodes: nodes.clone(),
         keys,
-        item: item.clone(),
+        item: item,
         selected,
         shown,
         buried,
@@ -154,8 +154,8 @@ where
                     let item = create_memo(clone!(key -> move || item.call(key.clone())));
                     let selected = selection.memo(Some(key.clone()));
                     let marked = burial.memo(Some(key.clone()));
-                    let hover = on_hover_change.clone();
-                    let dragging = on_drag_start.clone();
+                    let hover = on_hover_change;
+                    let dragging = on_drag_start;
                     view! {
                         <TreeRow
                             row_key={key}
@@ -166,7 +166,7 @@ where
                             focused={focused}
                             state={state.clone()}
                             nodes={nodes.clone()}
-                            row={row.clone()}
+                            row={row}
                             on_hover_change={move |change| hover.call(change)}
                             on_drag_start={move |key| dragging.call(key)}
                         />
@@ -233,7 +233,7 @@ where
     let activating = chosen.clone();
     let (has_focus, set_has_focus) = create_signal(false);
     let built = NodeRef::new();
-    nodes.borrow_mut().insert(nodes_key, built.clone());
+    nodes.borrow_mut().insert(nodes_key, built);
     on_cleanup(move || {
         nodes.borrow_mut().remove(&cleanup_key);
     });
@@ -404,7 +404,7 @@ where
     }));
     let open = create_memo(move || astray.get().is_some());
     let edge = create_memo(move || astray.get().unwrap_or(Edge::Bottom));
-    let item = state.item.clone();
+    let item = state.item;
     let label = create_memo(move || {
         let label = selected
             .get()

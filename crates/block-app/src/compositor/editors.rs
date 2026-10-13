@@ -570,7 +570,7 @@ fn TabFrame(block: Uuid, top_bar: Prop<TopBar>) -> NodeId {
     }));
     provide_context(TabContext {
         stack,
-        top_bar: top_bar.clone(),
+        top_bar: top_bar,
         portals: set_portals,
         exit,
     });
@@ -779,11 +779,11 @@ fn BlockFrame(
                     view! {
                         <BlockFrameBody
                             block
-                            chrome={chrome.clone()}
-                            content={content.clone()}
-                            top_bar={top_bar.clone()}
+                            chrome={chrome}
+                            content={content}
+                            top_bar={top_bar}
                             embedded
-                            passive={passive.clone()}
+                            passive={passive}
                             reporter={reporter.clone()}
                         />
                     }
@@ -903,11 +903,11 @@ fn BlockFrameBody(
                                     access
                                     handle
                                     region_editor
-                                    chrome={chrome.clone()}
-                                    content={content.clone()}
-                                    top_bar={top_bar.clone()}
+                                    chrome={chrome}
+                                    content={content}
+                                    top_bar={top_bar}
                                     embedded
-                                    passive={passive.clone()}
+                                    passive={passive}
                                     reporter={reporter.clone()}
                                 />
                             }
@@ -1381,7 +1381,7 @@ fn HostedChild(
                                             false => Chrome::None,
                                         }
                                     }));
-                                    let top_bar = tab.top_bar.clone();
+                                    let top_bar = tab.top_bar;
                                     let node = view! {
                                         <BlockFrame
                                             block=id
@@ -1581,8 +1581,8 @@ fn BlockPreview(block: Uuid, rotation: Prop<f32>, opacity: Prop<f32>) -> NodeId 
                             editor={region_editor}
                             region=EditorRegion::Preview
                             passive=true
-                            rotation={rotation.clone()}
-                            opacity={opacity.clone()}
+                            rotation={rotation}
+                            opacity={opacity}
                             child_view={Rc::clone(&child_view)}
                         />
                     }

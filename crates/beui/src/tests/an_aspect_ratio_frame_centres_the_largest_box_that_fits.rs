@@ -3,10 +3,11 @@ use crate::reactive::{ItemSize, List, build, view};
 
 #[test]
 fn an_aspect_ratio_frame_centres_the_largest_box_that_fits() {
+    let _root = crate::reactive::RootScope::new();
     let stage = NodeRef::new();
     let slide = NodeRef::new();
-    let stage_ref = stage.clone();
-    let slide_ref = slide.clone();
+    let stage_ref = stage;
+    let slide_ref = slide;
     let document = build(move || {
         view! {
             <List spacing=0.0>

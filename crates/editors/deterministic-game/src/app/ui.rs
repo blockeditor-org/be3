@@ -338,12 +338,12 @@ fn GamePlay(editor: Editor, game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSn
     let stage = NodeRef::new();
     editor.content(&stage);
     let chrome = editor.chrome_shown();
-    let banner_anchor = stage.clone();
+    let banner_anchor = stage;
     view! {
         <List spacing=0.0>
             <Keyed value={chrome} key={|shown: bool| shown}>
                 {move |chrome: ReadSignal<bool>| {
-                    let stage = stage.clone();
+                    let stage = stage;
                     let (editor, play, drawn, layout, hand, steps, panel) = (
                         editor.clone(),
                         play.clone(),
@@ -362,7 +362,7 @@ fn GamePlay(editor: Editor, game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSn
                             >
                                 <Stage
                                     @sizing=ItemSize::Percent(100.0)
-                                    content={stage.clone()}
+                                    content={stage}
                                     editor
                                     play
                                     drawn
@@ -376,7 +376,7 @@ fn GamePlay(editor: Editor, game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSn
                         false => view! {
                             <Stage
                                 @sizing=ItemSize::Percent(100.0)
-                                content={stage.clone()}
+                                content={stage}
                                 editor
                                 play
                                 drawn

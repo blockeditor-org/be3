@@ -6,6 +6,7 @@ use crate::styled::Switch;
 
 #[test]
 fn flipping_a_switch_can_replace_the_items_of_a_scroll() {
+    let _root = crate::reactive::RootScope::new();
     for inset in [7.0, 17.0] {
         check_compact_rows(inset);
     }
@@ -15,7 +16,7 @@ fn check_compact_rows(inset: f32) {
     let built = Rc::new(RefCell::new(Vec::new()));
     let (switch, scroll, list) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let document = build({
-        let (switch, scroll, list) = (switch.clone(), scroll.clone(), list.clone());
+        let (switch, scroll, list) = (switch, scroll, list);
         let sink = built.clone();
         move || {
             let (compact, set_compact) = create_signal(false);

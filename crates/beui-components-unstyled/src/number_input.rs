@@ -115,7 +115,7 @@ pub fn NumberInput(
         }
         held.set(Some((press.pos, value.peek(), false)));
     });
-    let changed = on_change.clone();
+    let changed = on_change;
     let dragged = clone!(held -> move |at: PointerPress| {
         let Some((origin, start, moved)) = held.get() else {
             return;
@@ -145,7 +145,7 @@ pub fn NumberInput(
         }
     });
 
-    let previewed = on_preview.clone();
+    let previewed = on_preview;
     let edited = move |typed: String| {
         if !editing.get_untracked() {
             return;

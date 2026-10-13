@@ -9,12 +9,13 @@ const BLOCK: Vec2 = Vec2::new(120.0, 60.0);
 
 #[test]
 fn text_widgets_sit_in_the_text_and_blocks_below_their_line() {
+    let _root = crate::reactive::RootScope::new();
     let held: Rc<RefCell<Option<TextAreaState>>> = Rc::new(RefCell::new(None));
     let sink = held.clone();
     let block = NodeRef::new();
     let popup = NodeRef::new();
     let document = build({
-        let (block, popup) = (block.clone(), popup.clone());
+        let (block, popup) = (block, popup);
         move || {
             let document =
                 Arc::new(TextBuffer::new(TEXT.as_bytes())) as Arc<dyn text_editor_core::Document>;

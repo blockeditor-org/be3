@@ -185,7 +185,7 @@ pub fn DateTimePicker(
                     }
                 });
                 let anchor = NodeRef::new();
-                let popover_anchor = anchor.clone();
+                let popover_anchor = anchor;
                 let inner_field = field.clone();
                 let trigger_label = picker_label;
                 view! {
@@ -361,7 +361,9 @@ fn PickerPanel(
         open.get() && !from_field.get() && (!parts.has_date() || tab.get() == 1)
     });
     let pick_date = Callback::new(move |date: Date| {
-        let time = current.get_untracked().map_or(Time::MIDNIGHT, |value| value.time);
+        let time = current
+            .get_untracked()
+            .map_or(Time::MIDNIGHT, |value| value.time);
         report.call(Some(DateTime::new(date, time)));
         match parts {
             DateTimeParts::Date => close.call(()),
@@ -382,7 +384,9 @@ fn PickerPanel(
         let now = DateTime::now();
         let kept = current.get_untracked();
         let next = match parts {
-            DateTimeParts::Date => DateTime::new(now.date, kept.map_or(Time::MIDNIGHT, |kept| kept.time)),
+            DateTimeParts::Date => {
+                DateTime::new(now.date, kept.map_or(Time::MIDNIGHT, |kept| kept.time))
+            }
             DateTimeParts::Time => DateTime::new(kept.map_or(now.date, |kept| kept.date), now.time),
             DateTimeParts::DateTime => now,
         };

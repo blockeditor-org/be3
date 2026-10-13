@@ -8,9 +8,9 @@ fn key_handlers_can_move_focus_and_change_their_tab_stop() {
     let (skipped, set_skipped) = create_signal(false);
     let second = NodeRef::new();
     let (document, [_first, _second]) = toolbar_of({
-        let second = second.clone();
+        let second = second;
         move || {
-            let target = second.clone();
+            let target = second;
             [
                 view! {
                     <unstyled::Button

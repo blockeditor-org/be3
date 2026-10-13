@@ -3,9 +3,10 @@ use crate::reactive::{Direction, Frame, List, build, view};
 
 #[test]
 fn a_list_sizes_plain_nodes_handed_to_it_intrinsically() {
+    let _root = crate::reactive::RootScope::new();
     let (first, second) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (first, second) = (first.clone(), second.clone());
+        let (first, second) = (first, second);
         move || {
             view! {
                 <List direction=Direction::Horizontal spacing=0.0>

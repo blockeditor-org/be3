@@ -11,10 +11,11 @@ const MARGIN: f32 = 40.0;
 
 #[test]
 fn a_tree_row_decides_which_part_of_it_is_clickable() {
+    let _root = crate::reactive::RootScope::new();
     let chosen: Rc<RefCell<Vec<usize>>> = Rc::default();
     let tree = NodeRef::new();
     let document = build({
-        let (chosen, tree) = (Rc::clone(&chosen), tree.clone());
+        let (chosen, tree) = (Rc::clone(&chosen), tree);
         move || {
             let item = |key: usize| TreeItem {
                 label: format!("row {key}"),

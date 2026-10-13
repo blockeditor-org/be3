@@ -9,7 +9,7 @@ fn evicting_a_virtual_scroll_row_disposes_its_effects() {
     let (shown, set_shown) = create_signal(true);
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
     let document = build({
-        let (scroll, list) = (scroll.clone(), list.clone());
+        let (scroll, list) = (scroll, list);
         move || {
             view! {
                 <List spacing=0.0>

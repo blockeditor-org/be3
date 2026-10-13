@@ -3,11 +3,12 @@ use crate::reactive::{Frame, NodeRef, view};
 
 #[test]
 fn focus_loss_and_hidden_content_cancel_keyboard_activation() {
+    let _root = crate::reactive::RootScope::new();
     let clicks = Rc::new(Cell::new(0));
     let counter = clicks.clone();
     let button = NodeRef::new();
     let (document, [hidden, _after]) = toolbar_of({
-        let button = button.clone();
+        let button = button;
         move || {
             [
                 view! {

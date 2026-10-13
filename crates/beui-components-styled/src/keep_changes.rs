@@ -44,7 +44,7 @@ pub fn KeepChanges(
 ) -> NodeId {
     let deadline: Rc<Cell<Option<Instant>>> = Rc::new(Cell::new(None));
     let (left, set_left) = create_signal(timeout.peek());
-    let expire = on_revert.clone();
+    let expire = on_revert;
     let ticking = create_timer(clone!(deadline -> move || {
         let due = deadline.get()?;
         let remaining = due.saturating_duration_since(now());

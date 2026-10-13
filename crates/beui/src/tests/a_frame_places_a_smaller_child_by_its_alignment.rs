@@ -3,6 +3,7 @@ use crate::reactive::{Align, Frame, NodeRef, view};
 
 #[test]
 fn a_frame_places_a_smaller_child_by_its_alignment() {
+    let _root = crate::reactive::RootScope::new();
     assert_eq!(
         child_rect(Align::Center, Align::Center),
         Rect::from_min_size(pos2(40.0, 25.0), vec2(20.0, 10.0))
@@ -20,7 +21,7 @@ fn a_frame_places_a_smaller_child_by_its_alignment() {
 fn child_rect(horizontal: Align, vertical: Align) -> Rect {
     let child = NodeRef::new();
     let document = build({
-        let child = child.clone();
+        let child = child;
         move || {
             view! {
                 <Frame width=100.0 height=60.0 align_horizontal=horizontal align_vertical=vertical>

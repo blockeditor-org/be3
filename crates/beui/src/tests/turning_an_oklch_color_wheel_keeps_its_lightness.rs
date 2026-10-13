@@ -5,10 +5,11 @@ use crate::styled::{OklchColorWheel, WHEEL_SIZE};
 
 #[test]
 fn turning_an_oklch_color_wheel_keeps_its_lightness() {
+    let _root = crate::reactive::RootScope::new();
     let changes = Rc::new(RefCell::new(Vec::new()));
     let changed = changes.clone();
     let wheel = NodeRef::new();
-    let named = wheel.clone();
+    let named = wheel;
     let start = Oklch::new(0.6, 0.06, 0.0, 1.0);
     let document = build(move || {
         view! {

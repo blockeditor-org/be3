@@ -3,6 +3,7 @@ use crate::flash;
 
 #[test]
 fn flashing_changed_elements_outlines_the_node_that_changed() {
+    let _root = crate::reactive::RootScope::new();
     let panels = stacked_panels();
     let lower = panels.lower;
     let mut harness = Harness::sized(panels.document, WIDE_VIEWPORT);

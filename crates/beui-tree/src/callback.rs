@@ -4,8 +4,9 @@ use reactive::{Stored, store};
 
 type Handler<V, R> = Box<dyn FnMut(V) -> R>;
 type ClickHandler = Box<dyn FnMut()>;
+type Slot<H> = Option<Stored<RefCell<Option<H>>>>;
 
-pub struct Callback<V, R = ()>(Option<Stored<RefCell<Option<Handler<V, R>>>>>);
+pub struct Callback<V, R = ()>(Slot<Handler<V, R>>);
 
 impl<V: 'static, R: 'static> Callback<V, R> {
     pub fn new(handler: impl FnMut(V) -> R + 'static) -> Self {
@@ -56,7 +57,7 @@ impl<V, R> Default for Callback<V, R> {
 }
 
 #[derive(Clone, Copy, Default)]
-pub struct ClickCallback(Option<Stored<RefCell<Option<ClickHandler>>>>);
+pub struct ClickCallback(Slot<ClickHandler>);
 
 impl ClickCallback {
     pub fn new(handler: impl FnMut() + 'static) -> Self {

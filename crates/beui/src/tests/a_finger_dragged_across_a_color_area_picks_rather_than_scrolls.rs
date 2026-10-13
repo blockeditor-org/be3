@@ -5,10 +5,11 @@ use crate::styled::{ColorPicker, PICKER_WIDTH, Scroll};
 
 #[test]
 fn a_finger_dragged_across_a_color_area_picks_rather_than_scrolls() {
+    let _root = crate::reactive::RootScope::new();
     let changes = Rc::new(RefCell::new(Vec::new()));
     let changed = changes.clone();
     let picker = NodeRef::new();
-    let named = picker.clone();
+    let named = picker;
     let document = build(move || {
         view! {
             <List spacing=0.0>

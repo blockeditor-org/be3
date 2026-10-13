@@ -11,8 +11,9 @@ fn shown(harness: &Harness, test_id: &str) -> bool {
 
 #[test]
 fn a_drop_the_dock_would_refuse_draws_no_drop_marker() {
+    let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
-    let built = dock.clone();
+    let built = dock;
     let document = build(move || {
         let layout = DockingLayout::new();
         view! {

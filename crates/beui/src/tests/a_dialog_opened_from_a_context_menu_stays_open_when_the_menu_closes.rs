@@ -4,12 +4,13 @@ use crate::styled::{ContextMenu, Dialog};
 
 #[test]
 fn a_dialog_opened_from_a_context_menu_stays_open_when_the_menu_closes() {
+    let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
     let surface = NodeRef::new();
     let dismissed = Rc::new(Cell::new(0));
     let (document, [_]) = toolbar_of({
-        let region = region.clone();
-        let surface = surface.clone();
+        let region = region;
+        let surface = surface;
         let reports = dismissed.clone();
         move || {
             let (open, set_open) = create_signal(false);

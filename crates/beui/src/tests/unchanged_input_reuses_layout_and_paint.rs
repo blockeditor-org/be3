@@ -3,9 +3,10 @@ use crate::reactive::{Frame, NodeRef, build, view};
 
 #[test]
 fn unchanged_input_reuses_layout_and_paint() {
+    let _root = crate::reactive::RootScope::new();
     let fill = NodeRef::new();
     let mut document = build({
-        let fill = fill.clone();
+        let fill = fill;
         move || {
             view! {
                 <Frame @node_ref=&fill color=Color32::WHITE radius=0 />
