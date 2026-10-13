@@ -218,15 +218,11 @@ impl Runner {
         let Some(surface) = &mut self.surface else {
             return false;
         };
-        let pixels_per_point = surface.window.scale_factor() as f32;
         let mut platform = WinitPlatform {
             surface,
             clipboard: &mut self.clipboard,
         };
-        let Some(frame) = self
-            .runner
-            .frame(&mut platform, pixels_per_point, SafeArea::default())
-        else {
+        let Some(frame) = self.runner.frame(&mut platform, SafeArea::default()) else {
             self.next_update = None;
             if self.runner.exited() {
                 event_loop.exit();
@@ -314,6 +310,7 @@ impl ApplicationHandler<UserEvent> for Runner {
             Ok(loaded) => loaded,
             Err(error) => return self.fail(event_loop, error),
         };
+        self.runner.reports().scaled(window.scale_factor() as f32);
         let mut setup = Setup::new(Waker::new(move || {
             let _ = proxy.send_event(UserEvent::Wake);
         }));
@@ -392,17 +389,19 @@ impl ApplicationHandler<UserEvent> for Runner {
             WindowEvent::Destroyed => self.exit(event_loop),
             WindowEvent::Resized(size) => {
                 if let Some(surface) = &mut self.surface {
+                    let reports = self.runner.reports();
                     let fullscreen = surface.window.fullscreen().is_some();
                     if std::mem::replace(&mut surface.fullscreen, fullscreen) != fullscreen {
-                        self.runner.fullscreen_changed(fullscreen);
+                        reports.fullscreen(fullscreen);
                     }
-                }
-                if let (Some(surface), Some(renderers)) = (&self.surface, self.runner.renderers()) {
-                    renderers.resize(size.width, size.height);
+                    reports.resized(size.width, size.height);
                     surface.window.request_redraw();
                 }
             }
-            WindowEvent::ScaleFactorChanged { .. } => self.request_redraw(),
+            WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
+                self.runner.reports().scaled(scale_factor as f32);
+                self.request_redraw();
+            }
             WindowEvent::Focused(focused) => self.push(Event::Focus(focused)),
             WindowEvent::ModifiersChanged(modifiers) => {
                 let state = modifiers.state();

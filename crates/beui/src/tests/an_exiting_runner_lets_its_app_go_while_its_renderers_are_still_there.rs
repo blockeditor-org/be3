@@ -79,7 +79,7 @@ fn an_exiting_runner_lets_its_app_go_while_its_renderers_are_still_there() {
         .start(loaded, Setup::new(Waker::new(|| {})))
         .expect("the renderer loads");
     runner
-        .frame(&mut Nowhere, 1.0, SafeArea::default())
+        .frame(&mut Nowhere, SafeArea::default())
         .expect("a loaded runner draws");
     runner.present();
 
@@ -94,9 +94,7 @@ fn an_exiting_runner_lets_its_app_go_while_its_renderers_are_still_there() {
         "an exited runner presents nothing more"
     );
     assert!(
-        runner
-            .frame(&mut Nowhere, 1.0, SafeArea::default())
-            .is_none(),
+        runner.frame(&mut Nowhere, SafeArea::default()).is_none(),
         "an exited runner draws nothing more"
     );
     runner.exit();

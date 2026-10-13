@@ -181,7 +181,6 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
         },
         load: Some(load),
         window: None,
-        density: 1.0,
         safe_area: SafeArea::default(),
         next_update: None,
         redraw: false,
@@ -199,7 +198,6 @@ struct Runner {
     platform: AndroidPlatform,
     load: Option<Load>,
     window: Option<NativeWindow>,
-    density: f32,
     safe_area: SafeArea,
     next_update: Option<Instant>,
     redraw: bool,
@@ -554,7 +552,8 @@ impl Runner {
     }
 
     fn surface(&mut self, window: NativeWindow, width: u32, height: u32, density: f32) {
-        self.density = density;
+        self.runner.reports().scaled(density);
+        self.runner.reports().resized(width, height);
         self.redraw = true;
         if !self.runner.started()
             && let Err(error) = self.start(&window)
@@ -565,7 +564,6 @@ impl Runner {
             return;
         };
         if renderers.attached() && self.window.as_ref() == Some(&window) {
-            renderers.resize(width, height);
             return;
         }
         renderers.detach();
@@ -599,10 +597,7 @@ impl Runner {
     }
 
     fn update(&mut self) -> bool {
-        let Some(frame) = self
-            .runner
-            .frame(&mut self.platform, self.density, self.safe_area)
-        else {
+        let Some(frame) = self.runner.frame(&mut self.platform, self.safe_area) else {
             self.next_update = None;
             if self.runner.exited() {
                 self.platform.finish_activity();

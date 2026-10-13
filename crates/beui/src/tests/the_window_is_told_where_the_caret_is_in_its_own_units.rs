@@ -73,10 +73,11 @@ fn the_window_is_told_where_the_caret_is_in_its_own_units() {
             Setup::new(Waker::new(|| {})),
         )
         .expect("the renderer loads");
+    runner.reports().scaled(1.5);
     runner.context().set_zoom_factor(2.0);
     let mut window = Window(shown.clone());
 
-    runner.frame(&mut window, 1.5, SafeArea::default());
+    runner.frame(&mut window, SafeArea::default());
     assert_eq!(runner.context().pixels_per_point(), 3.0);
     assert_eq!(
         shown.take(),
@@ -84,14 +85,14 @@ fn the_window_is_told_where_the_caret_is_in_its_own_units() {
         "the caret is in the window's units, twice its points at a zoom of 2"
     );
 
-    runner.frame(&mut window, 1.5, SafeArea::default());
+    runner.frame(&mut window, SafeArea::default());
     assert!(
         shown.take().is_empty(),
         "an unchanged window is not told again"
     );
 
     runner.context().set_zoom_factor(1.0);
-    runner.frame(&mut window, 1.5, SafeArea::default());
+    runner.frame(&mut window, SafeArea::default());
     assert_eq!(
         shown.take(),
         [Some(Rect::from_min_max(pos2(12.0, 10.0), pos2(13.0, 20.0)))],

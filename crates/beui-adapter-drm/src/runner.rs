@@ -177,7 +177,8 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         }],
         setup,
     )?;
-    runner.fullscreen_changed(true);
+    runner.reports().fullscreen(true);
+    runner.reports().scaled(displays.borrow().scale);
     let input = InputConfig::default();
     let platform = Seat {
         clipboard: None,
@@ -526,17 +527,10 @@ impl Session {
 
     fn update(&mut self) {
         let now = self.now();
-        let scale = {
-            let mut displays = self.displays.borrow_mut();
-            for output in &mut displays.outputs {
-                output.framed();
-            }
-            displays.scale
-        };
-        let Some(frame) = self
-            .runner
-            .frame(&mut self.platform, scale, SafeArea::default())
-        else {
+        for output in &mut self.displays.borrow_mut().outputs {
+            output.framed();
+        }
+        let Some(frame) = self.runner.frame(&mut self.platform, SafeArea::default()) else {
             self.pacer.ran(now, false, None);
             if self.runner.exited() {
                 self.signal.stop();

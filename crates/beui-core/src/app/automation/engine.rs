@@ -333,20 +333,18 @@ impl Automation {
                 (!simulation.picks.is_empty()).then(|| simulation.picks.remove(0))
             });
             match picked {
-                Some(pick) => match std::fs::read(&*file) {
+                Some((_, answer)) => match std::fs::read(&*file) {
                     Ok(data) => {
                         let name = file
                             .file_name()
                             .map(|name| name.to_string_lossy().into_owned())
                             .unwrap_or_default();
-                        world
-                            .context
-                            .file_picked(pick.id, Ok(Some(PickedFile { name, data })));
+                        answer.send(Ok(Some(PickedFile { name, data })));
                         active.phase = settling(before);
                         return;
                     }
                     Err(error) => {
-                        world.context.file_picked(pick.id, Ok(None));
+                        answer.send(Ok(None));
                         failed = Some(format!("could not read {}: {error}", file.display()));
                     }
                 },
@@ -873,8 +871,7 @@ impl Automation {
                         screen.x, screen.y, window.scale, MAX_PIXELS
                     ));
                 }
-                simulation.window = window;
-                simulation.screen = screen;
+                simulation.resize(window, screen);
                 input(vec![Vec::new()])
             }
             "clipboard" => {
@@ -930,8 +927,8 @@ impl Automation {
                 if simulation.picks.is_empty() {
                     return Err("no file dialog is open".to_owned());
                 }
-                let pick = simulation.picks.remove(0);
-                world.context.file_picked(pick.id, Ok(None));
+                let (_, answer) = simulation.picks.remove(0);
+                answer.send(Ok(None));
                 input(vec![Vec::new()])
             }
             "grab" => {
@@ -1181,7 +1178,7 @@ impl Automation {
                 Some(clipboard) => text.push_str(&format!("clipboard {clipboard:?}\n")),
                 None => text.push_str("clipboard empty\n"),
             }
-            for pick in &simulation.picks {
+            for (pick, _) in &simulation.picks {
                 let filter = &pick.filter;
                 text.push_str(&format!(
                     "file dialog open for {} ({})\n",

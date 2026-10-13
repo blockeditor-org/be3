@@ -100,9 +100,7 @@ fn the_runner_tells_the_platform_only_what_changed() {
     });
     let mut platform = Recording(log.clone());
     assert!(
-        runner
-            .frame(&mut platform, 1.0, SafeArea::default())
-            .is_none(),
+        runner.frame(&mut platform, SafeArea::default()).is_none(),
         "nothing is drawn before the renderers are loaded"
     );
     let loaded = vec![Loaded {
@@ -114,7 +112,7 @@ fn the_runner_tells_the_platform_only_what_changed() {
         .expect("the renderer loads");
 
     let frame = runner
-        .frame(&mut platform, 1.0, SafeArea::default())
+        .frame(&mut platform, SafeArea::default())
         .expect("a loaded runner draws");
     assert_eq!(
         log.take(),
@@ -123,7 +121,7 @@ fn the_runner_tells_the_platform_only_what_changed() {
     assert!(frame.deferred, "the pasted text waits for the next frame");
 
     runner
-        .frame(&mut platform, 1.0, SafeArea::default())
+        .frame(&mut platform, SafeArea::default())
         .expect("a loaded runner draws");
     assert!(
         log.take().is_empty(),
