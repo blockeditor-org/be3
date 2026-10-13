@@ -32,7 +32,7 @@ impl Adapter for Headless {
 
 fn run(headless: Headless, launch: Launch) -> Result<(), Box<dyn Error>> {
     let mut runner = Runner::new(launch);
-    let mut window = Simulation::new(headless.window, headless.screen, runner.reports());
+    let mut window = Simulation::new(headless.window, headless.screen, runner.reports().clone());
     let (width, height) = window.physical();
     let renderer = pollster::block_on(OffscreenSurface::new(width, height, headless.open_device))?;
     let (sender, receiver) = mpsc::channel();
@@ -48,8 +48,7 @@ fn run(headless: Headless, launch: Launch) -> Result<(), Box<dyn Error>> {
     )?;
     loop {
         let started = Instant::now();
-        let scale = window.window.scale;
-        let next = match runner.frame(&mut window, scale, SafeArea::default()) {
+        let next = match runner.frame(&mut window, SafeArea::default()) {
             Some(frame) => {
                 let presenting = runner.present();
                 match frame.next(presenting) {

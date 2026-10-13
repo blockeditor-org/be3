@@ -155,14 +155,14 @@ impl PluginSurface {
             surface.size = Some((width, height));
             resized
         };
-        if resized && let Some(renderers) = self.runner.renderers() {
-            renderers.resize(width, height);
+        if resized {
+            self.runner.reports().resized(width, height);
         }
+        self.runner.reports().scaled(region.scale_factor);
         if let Some(now) = block_editor_plugin::frame_time() {
             self.runner.context().set_clock(now);
         }
         self.platform.deliver_picks();
-        self.ratio(region);
         let scale = region.scale_factor;
         let rect = region.rect;
         let area = SafeArea {
@@ -175,7 +175,7 @@ impl PluginSurface {
             self.runner.keep_accessibility();
             self.runner.context().set_automated(true);
         }
-        let Some(frame) = self.runner.frame(&mut self.platform, scale, area) else {
+        let Some(frame) = self.runner.frame(&mut self.platform, area) else {
             return Frame::default();
         };
         let description = region.describe.then(|| self.describe(region));

@@ -2098,7 +2098,7 @@ impl Driven {
                     scale: 1.0,
                 },
                 Some(WIDE_VIEWPORT),
-                runner.reports(),
+                runner.reports().clone(),
             )
         });
         runner
@@ -2127,11 +2127,8 @@ impl Driven {
             .advance_clock(Duration::from_micros(16_667));
         let area = beui_core::app::SafeArea::default();
         match &mut self.window {
-            Some(window) => {
-                let scale = window.window.scale;
-                self.runner.frame(window, scale, area)
-            }
-            None => self.runner.frame(&mut DrivenPlatform, 1.0, area),
+            Some(window) => self.runner.frame(window, area),
+            None => self.runner.frame(&mut DrivenPlatform, area),
         };
         self.closed |= self.runner.exited();
         if let Some(failure) = self.runner.failure() {
@@ -2380,15 +2377,13 @@ impl Intaken {
         pixels_per_point: f32,
         inputs: impl IntoIterator<Item = beui_core::runner::Input>,
     ) -> Vec<Event> {
+        self.runner.reports().scaled(pixels_per_point);
         for input in inputs {
             self.runner.push(input);
         }
         loop {
-            self.runner.frame(
-                &mut self.platform,
-                pixels_per_point,
-                beui_core::app::SafeArea::default(),
-            );
+            self.runner
+                .frame(&mut self.platform, beui_core::app::SafeArea::default());
             if !self.runner.has_events() {
                 break;
             }

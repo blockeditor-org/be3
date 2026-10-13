@@ -72,22 +72,22 @@ fn the_window_is_shown_the_ime_again_after_typing_into_it() {
         .expect("the renderer loads");
     let mut window = Window(shown.clone());
 
-    runner.frame(&mut window, 1.0, SafeArea::default());
+    runner.frame(&mut window, SafeArea::default());
     assert_eq!(shown.take(), 1);
-    runner.frame(&mut window, 1.0, SafeArea::default());
+    runner.frame(&mut window, SafeArea::default());
     assert_eq!(shown.take(), 0, "an unchanged window is not shown again");
 
     runner.push(Event::Text("x".to_owned()));
-    runner.frame(&mut window, 1.0, SafeArea::default());
+    runner.frame(&mut window, SafeArea::default());
     assert_eq!(
         shown.take(),
         1,
         "text the app turned away leaves the window as it was, but the platform's copy of the field moved, so it is shown again"
     );
-    runner.frame(&mut window, 1.0, SafeArea::default());
+    runner.frame(&mut window, SafeArea::default());
     assert_eq!(shown.take(), 0);
 
     runner.push(Event::Ime(ImeEvent::FinishComposing));
-    runner.frame(&mut window, 1.0, SafeArea::default());
+    runner.frame(&mut window, SafeArea::default());
     assert_eq!(shown.take(), 1, "so is the end of a composition");
 }

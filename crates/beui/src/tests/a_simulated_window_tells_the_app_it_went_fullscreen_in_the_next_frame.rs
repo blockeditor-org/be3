@@ -61,7 +61,7 @@ fn a_simulated_window_tells_the_app_it_went_fullscreen_in_the_next_frame() {
             scale: 1.0,
         },
         Some(vec2(400.0, 300.0)),
-        runner.reports(),
+        runner.reports().clone(),
     );
     runner
         .start(
@@ -74,7 +74,7 @@ fn a_simulated_window_tells_the_app_it_went_fullscreen_in_the_next_frame() {
         .expect("the renderer loads");
 
     let frame = runner
-        .frame(&mut window, 1.0, SafeArea::default())
+        .frame(&mut window, SafeArea::default())
         .expect("a loaded runner draws");
     assert!(!seen.get(), "the app has only asked");
     assert!(
@@ -82,6 +82,6 @@ fn a_simulated_window_tells_the_app_it_went_fullscreen_in_the_next_frame() {
         "the simulated window's answer asks for the frame that delivers it"
     );
 
-    runner.frame(&mut window, 1.0, SafeArea::default());
+    runner.frame(&mut window, SafeArea::default());
     assert!(seen.get(), "the app hears that the window went fullscreen");
 }

@@ -27,7 +27,7 @@ use beui_core::renderer::Loaded;
 use beui_core::runner::{
     Adapter, Input, Keystroke, Launch, Platform, Running, SCROLL_LINE, SCROLL_PAGE, ScrollDelta,
 };
-use beui_core::window::WindowState;
+use beui_core::window::{WindowReports, WindowState};
 
 const PINCH_SPEED: f32 = 0.01;
 
@@ -85,7 +85,6 @@ thread_local! {
     static HELD_FIELD: Cell<Option<Rect>> = const { Cell::new(None) };
     static REFOCUSING: Cell<bool> = const { Cell::new(false) };
     static PASTE_KINDS: RefCell<Vec<PasteKind>> = const { RefCell::new(Vec::new()) };
-    static FULLSCREEN: Cell<Option<bool>> = const { Cell::new(None) };
 }
 
 const PASTED_NAME: &str = "Pasted Image.png";
@@ -185,6 +184,7 @@ struct Runner {
     runner: beui_core::runner::Runner,
     platform: WebPlatform,
     size: (u32, u32),
+    ratio: f32,
 }
 
 struct WebPlatform {
@@ -310,22 +310,19 @@ impl Runner {
         let bounds = self.platform.surface.get_bounding_client_rect();
         let width = ((bounds.width() as f32) * ratio).round().max(1.0) as u32;
         let height = ((bounds.height() as f32) * ratio).round().max(1.0) as u32;
-        if self.size != (width, height)
-            && let Some(renderers) = self.runner.renderers()
-        {
+        let reports = self.runner.reports();
+        if self.size != (width, height) {
             self.size = (width, height);
-            renderers.resize(width, height);
+            reports.resized(width, height);
+        }
+        if self.ratio != ratio {
+            self.ratio = ratio;
+            reports.scaled(ratio);
         }
         for input in INPUT.with(|pending| pending.inputs.take()) {
             self.runner.push(input);
         }
-        if let Some(fullscreen) = FULLSCREEN.take() {
-            self.runner.fullscreen_changed(fullscreen);
-        }
-        let Some(frame) = self
-            .runner
-            .frame(&mut self.platform, ratio, SafeArea::default())
-        else {
+        let Some(frame) = self.runner.frame(&mut self.platform, SafeArea::default()) else {
             return;
         };
         let presenting = frame.pending && self.runner.present();
@@ -409,6 +406,7 @@ async fn run(element_id: &str, launch: Launch, load: Load) -> Result<(), Box<dyn
 
     let mut runner = beui_core::runner::Runner::new(launch);
     runner.start(loaded, Setup::new(waker()))?;
+    let reports = runner.reports().clone();
     let runner = Runner {
         runner,
         platform: WebPlatform {
@@ -416,6 +414,7 @@ async fn run(element_id: &str, launch: Launch, load: Load) -> Result<(), Box<dyn
             agent: agent.clone(),
         },
         size: (0, 0),
+        ratio: 0.0,
     };
     RUNNER.with(|slot| *slot.borrow_mut() = Some(Rc::new(RefCell::new(runner))));
     FRAME.with(|frame| *frame.borrow_mut() = Some(Closure::new(run_frame)));
@@ -425,7 +424,7 @@ async fn run(element_id: &str, launch: Launch, load: Load) -> Result<(), Box<dyn
             schedule();
         }))
     });
-    listen(&window, &document, &surface, &agent)?;
+    listen(&window, &document, &surface, &agent, &reports)?;
     schedule();
     Ok(())
 }
@@ -534,6 +533,7 @@ fn listen(
     document: &web_sys::Document,
     surface: &web_sys::HtmlElement,
     agent: &web_sys::HtmlTextAreaElement,
+    reports: &WindowReports,
 ) -> Result<(), Box<dyn Error>> {
     let surface_target: &web_sys::EventTarget = surface.as_ref();
     let agent_target: &web_sys::EventTarget = agent.as_ref();
@@ -804,8 +804,9 @@ fn listen(
     })?;
     on(document_target, "fullscreenchange", {
         let document = document.clone();
+        let reports = reports.clone();
         move |_event: web_sys::Event| {
-            FULLSCREEN.set(Some(document.fullscreen_element().is_some()));
+            reports.fullscreen(document.fullscreen_element().is_some());
             schedule();
         }
     })?;

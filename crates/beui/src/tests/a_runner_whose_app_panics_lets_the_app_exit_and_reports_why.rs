@@ -75,17 +75,11 @@ fn a_runner_whose_app_panics_lets_the_app_exit_and_reports_why() {
     runner
         .start(loaded, Setup::new(Waker::new(|| {})))
         .expect("the renderer loads");
-    assert!(
-        runner
-            .frame(&mut Nowhere, 1.0, SafeArea::default())
-            .is_some()
-    );
+    assert!(runner.frame(&mut Nowhere, SafeArea::default()).is_some());
     assert!(runner.failure().is_none());
 
     assert!(
-        runner
-            .frame(&mut Nowhere, 1.0, SafeArea::default())
-            .is_none(),
+        runner.frame(&mut Nowhere, SafeArea::default()).is_none(),
         "a frame whose app panicked draws nothing"
     );
     assert!(runner.exited(), "the runner stops once its app panicked");

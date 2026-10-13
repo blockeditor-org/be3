@@ -2,7 +2,7 @@ use crate::clipboard::{PasteAnswer, PasteKind, Pasted};
 use crate::file_picker::{FilePickAnswer, FilePickRequest};
 use crate::geometry::Vec2;
 use crate::runner::Platform;
-use crate::window::{PhysicalSize, WindowReports};
+use crate::window::WindowReports;
 
 pub const MAX_PIXELS: f32 = 8192.0;
 
@@ -86,11 +86,8 @@ impl Simulation {
 
     fn report_size(&self) {
         let (width, height) = self.physical();
-        self.reports.resized(PhysicalSize {
-            width,
-            height,
-            pixels_per_point: self.window.scale,
-        });
+        self.reports.resized(width, height);
+        self.reports.scaled(self.window.scale);
     }
 }
 

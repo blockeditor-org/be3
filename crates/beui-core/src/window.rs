@@ -31,17 +31,11 @@ impl WindowState {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PhysicalSize {
-    pub width: u32,
-    pub height: u32,
-    pub pixels_per_point: f32,
-}
-
 #[derive(Default)]
 struct Reported {
     fullscreen: std::cell::Cell<Option<bool>>,
-    size: std::cell::Cell<Option<PhysicalSize>>,
+    size: std::cell::Cell<Option<(u32, u32)>>,
+    scale: std::cell::Cell<Option<f32>>,
 }
 
 #[derive(Clone, Default)]
@@ -52,19 +46,29 @@ impl WindowReports {
         self.0.fullscreen.set(Some(fullscreen));
     }
 
-    pub fn resized(&self, size: PhysicalSize) {
-        self.0.size.set(Some(size));
+    pub fn resized(&self, width: u32, height: u32) {
+        self.0.size.set(Some((width, height)));
+    }
+
+    pub fn scaled(&self, pixels_per_point: f32) {
+        self.0.scale.set(Some(pixels_per_point));
     }
 
     pub(crate) fn pending(&self) -> bool {
-        self.0.fullscreen.get().is_some() || self.0.size.get().is_some()
+        self.0.fullscreen.get().is_some()
+            || self.0.size.get().is_some()
+            || self.0.scale.get().is_some()
     }
 
     pub(crate) fn take_fullscreen(&self) -> Option<bool> {
         self.0.fullscreen.take()
     }
 
-    pub(crate) fn take_size(&self) -> Option<PhysicalSize> {
+    pub(crate) fn take_size(&self) -> Option<(u32, u32)> {
         self.0.size.take()
+    }
+
+    pub(crate) fn take_scale(&self) -> Option<f32> {
+        self.0.scale.take()
     }
 }

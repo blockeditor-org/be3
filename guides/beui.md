@@ -279,17 +279,23 @@ hooks the higher crates fill in:
   CSS pixels, a plugin region's points: physical pixels over the platform's
   scale, so points times the zoom), and `Runner::window` is the state last
   shown. What happens once rather than holds (a copy, a paste, a file pick,
-  `set_fullscreen`, closing) has a call or field of its own. Fullscreen goes
-  both ways: `Context::set_fullscreen` asks the window to enter or leave it,
-  the runner passing on each request that differs from what the window last
-  said, and the adapter reports what the window actually did, whether the
-  app asked or not, with `Runner::fullscreen_changed`, which the app reads as
+  `set_fullscreen`, closing) has a call or field of its own.
+- What the window did goes the other way, through `Runner::reports()`, a
+  `WindowReports` handle an adapter may clone and keep (the web adapter
+  hands one to its `fullscreenchange` listener): `resized` with its size in
+  physical pixels, `scaled` with its pixels per point (winit's scale factor,
+  the browser's device pixel ratio, Android's density, a plugin region's
+  scale factor, the DRM displays' scale), and `fullscreen`. The runner
+  applies them at the start of the next frame, resizing the renderers and
+  setting `Context::set_pixels_per_point` before the app lays out, so no
+  adapter resizes a renderer or passes a scale itself. A report made during
+  a frame (a simulated window answering) makes that frame ask for the next.
+  Fullscreen goes both ways: `Context::set_fullscreen` asks the window to
+  enter or leave it, the runner passing on each request that differs from
+  what the window last reported, and the window reports what it actually
+  did, whether the app asked or not, which the app reads as
   `Context::fullscreen` and a component as `use_fullscreen()`. The DRM
-  adapter is always fullscreen; Android and plugins say nothing. A window
-  can also report through `Runner::reports()`, a `WindowReports` handle it
-  keeps, from inside a frame: its fullscreen, and its physical size and
-  scale (`resized`), which the runner applies to the renderers before the
-  app lays out. Either makes the frame ask for the next one.
+  adapter is always fullscreen; Android and plugins say nothing.
   The clipboard is the platform's: `Context::copy_text` writes it,
   `Context::watch_copies` hears every copy (which is how be-wayland hands the
   app's copies to Wayland programs), and a paste is the only way to read it.

@@ -80,7 +80,7 @@ fn the_window_is_asked_for_fullscreen_and_says_when_it_is() {
         .expect("the renderer loads");
     let mut window = Window(log.clone());
     let mut frame = |runner: &mut Runner| {
-        runner.frame(&mut window, 1.0, SafeArea::default());
+        runner.frame(&mut window, SafeArea::default());
     };
 
     asks.set(Some(true));
@@ -88,7 +88,7 @@ fn the_window_is_asked_for_fullscreen_and_says_when_it_is() {
     assert_eq!(log.take(), ["fullscreen true"]);
     assert!(!seen.get(), "asking is not being fullscreen");
 
-    runner.fullscreen_changed(true);
+    runner.reports().fullscreen(true);
     assert!(runner.has_events(), "the window's answer wakes the runner");
     frame(&mut runner);
     assert!(seen.get(), "the app hears that the window went fullscreen");
@@ -100,7 +100,7 @@ fn the_window_is_asked_for_fullscreen_and_says_when_it_is() {
         "a window already fullscreen is not asked again"
     );
 
-    runner.fullscreen_changed(false);
+    runner.reports().fullscreen(false);
     frame(&mut runner);
     assert!(
         !seen.get(),

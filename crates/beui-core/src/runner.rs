@@ -141,6 +141,7 @@ pub struct Runner {
     asked: WindowState,
     shown: WindowState,
     reports: WindowReports,
+    native: f32,
     output: Option<FrameOutput>,
     reports_screens: bool,
     exited: bool,
@@ -181,6 +182,7 @@ impl Runner {
             asked: WindowState::default(),
             shown: WindowState::default(),
             reports: WindowReports::default(),
+            native: 1.0,
             output: None,
             reports_screens: false,
             exited: false,
@@ -242,12 +244,8 @@ impl Runner {
         !self.events.is_empty() || !self.intake.incoming.is_empty() || self.reports.pending()
     }
 
-    pub fn reports(&self) -> WindowReports {
-        self.reports.clone()
-    }
-
-    pub fn fullscreen_changed(&mut self, fullscreen: bool) {
-        self.reports.fullscreen(fullscreen);
+    pub fn reports(&self) -> &WindowReports {
+        &self.reports
     }
 
     pub fn window(&self) -> &WindowState {
@@ -328,16 +326,11 @@ impl Runner {
         }
     }
 
-    pub fn frame(
-        &mut self,
-        platform: &mut dyn Platform,
-        pixels_per_point: f32,
-        safe_area: SafeArea,
-    ) -> Option<Frame> {
+    pub fn frame(&mut self, platform: &mut dyn Platform, safe_area: SafeArea) -> Option<Frame> {
         if self.exited {
             return None;
         }
-        self.contain(|runner| runner.run_frame(platform, pixels_per_point, safe_area))
+        self.contain(|runner| runner.run_frame(platform, safe_area))
             .flatten()
     }
 
@@ -352,12 +345,7 @@ impl Runner {
         }
     }
 
-    fn run_frame(
-        &mut self,
-        platform: &mut dyn Platform,
-        pixels_per_point: f32,
-        safe_area: SafeArea,
-    ) -> Option<Frame> {
+    fn run_frame(&mut self, platform: &mut dyn Platform, safe_area: SafeArea) -> Option<Frame> {
         let renderers = self.renderers.as_mut()?;
         match renderers.recover() {
             Ok(false) => {}
@@ -407,13 +395,13 @@ impl Runner {
         if let Some(fullscreen) = self.reports.take_fullscreen() {
             self.context.fullscreen_changed(fullscreen);
         }
-        let pixels_per_point = match self.reports.take_size() {
-            Some(size) => {
-                renderers.resize(size.width, size.height);
-                size.pixels_per_point
-            }
-            None => pixels_per_point,
-        };
+        if let Some((width, height)) = self.reports.take_size() {
+            renderers.resize(width, height);
+        }
+        if let Some(scale) = self.reports.take_scale() {
+            self.native = scale;
+        }
+        let pixels_per_point = self.native;
         let Some(physical) = renderers.physical() else {
             self.events.clear();
             self.intake.incoming.clear();
