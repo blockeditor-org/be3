@@ -8,10 +8,10 @@ mod bundle;
 #[cfg(target_arch = "wasm32")]
 mod web;
 
-#[cfg(target_os = "android")]
-pub(crate) use bundle::use_assets;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) use bundle::read;
+#[cfg(target_os = "android")]
+pub(crate) use bundle::use_assets;
 #[cfg(not(target_arch = "wasm32"))]
 use bundle::{fetch, scan};
 #[cfg(target_arch = "wasm32")]

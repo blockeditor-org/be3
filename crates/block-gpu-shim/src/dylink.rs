@@ -53,13 +53,7 @@ pub fn link_plan(
         .iter()
         .map(String::as_str)
         .zip(import_names.iter().map(String::as_str));
-    let layout = wasm_dylink::plan(
-        declared,
-        allocated,
-        u64::from(table_size),
-        imports,
-        &sdk,
-    )
-    .map_err(refused)?;
+    let layout = wasm_dylink::plan(declared, allocated, u64::from(table_size), imports, &sdk)
+        .map_err(refused)?;
     serde_json::to_string(&layout).map_err(|error| refused(error.to_string()))
 }

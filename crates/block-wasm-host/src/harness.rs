@@ -1,8 +1,4 @@
-use std::{
-    path::Path,
-    sync::Arc,
-    time::Duration,
-};
+use std::{path::Path, sync::Arc, time::Duration};
 
 use wasmtime::{Linker, Module, Store, Trap, TypedFunc, WasmBacktrace};
 use wasmtime_wasi::p2::pipe::MemoryOutputPipe;

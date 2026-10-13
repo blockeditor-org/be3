@@ -242,5 +242,7 @@ impl Layout {
 pub fn spawned_thread_locals(start_argument: i32) -> Result<u32, String> {
     (start_argument as u32)
         .checked_add(START_ARGUMENT_TLS)
-        .ok_or_else(|| "a spawned thread's start argument lies past a 32-bit address space".to_owned())
+        .ok_or_else(|| {
+            "a spawned thread's start argument lies past a 32-bit address space".to_owned()
+        })
 }

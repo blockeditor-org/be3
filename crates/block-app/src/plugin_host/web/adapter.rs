@@ -121,7 +121,10 @@ impl WebProtocolAdapter {
         })
     }
 
-    pub(in crate::plugin_host) fn place(&mut self, placements: Vec<Placement>) -> Result<(), String> {
+    pub(in crate::plugin_host) fn place(
+        &mut self,
+        placements: Vec<Placement>,
+    ) -> Result<(), String> {
         let mut canvases = std::mem::take(&mut self.canvases);
         let placed = canvases.place(self, placements);
         self.canvases = canvases;
@@ -275,4 +278,3 @@ fn set(object: &js_sys::Object, key: &str, value: &JsValue) {
 fn get(object: &JsValue, key: &str) -> JsValue {
     js_sys::Reflect::get(object, &key.into()).unwrap_or(JsValue::UNDEFINED)
 }
-

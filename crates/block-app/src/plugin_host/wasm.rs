@@ -84,9 +84,7 @@ impl Drop for Channel {
     }
 }
 
-fn received(
-    received: Result<Event<PresentedTexture>, TryRecvError>,
-) -> Received<PresentedTexture> {
+fn received(received: Result<Event<PresentedTexture>, TryRecvError>) -> Received<PresentedTexture> {
     match received {
         Ok(event) => Received::Event(event),
         Err(TryRecvError::Empty) => Received::Empty,

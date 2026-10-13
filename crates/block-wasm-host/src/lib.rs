@@ -30,9 +30,9 @@ use state::Device;
 use threads::Spawner;
 use wake::Wake;
 
-pub use wasm_dylink::sdk_file_name;
 pub use precompile::{precompile, precompile_to};
 pub use state::{Connect, State};
+pub use wasm_dylink::sdk_file_name;
 
 pub const PRECOMPILED_EXTENSION: &str = "cwasm";
 
