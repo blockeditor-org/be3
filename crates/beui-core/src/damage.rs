@@ -3,6 +3,8 @@ use crate::painter::Shape;
 
 const REGIONS: usize = 4;
 
+const MERGE_WASTE: f32 = 1.25;
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Region {
     rects: [Rect; REGIONS],
@@ -40,27 +42,46 @@ impl Region {
         if !rect.is_positive() {
             return;
         }
-        for region in &mut self.rects[..self.count] {
-            if region.intersects(rect) {
-                *region = region.union(rect);
-                return;
-            }
-        }
-        if self.count < REGIONS {
+        if let Some(region) = self.rects[..self.count]
+            .iter_mut()
+            .find(|region| region.intersects(rect))
+        {
+            *region = region.union(rect);
+        } else if self.count < REGIONS {
             self.rects[self.count] = rect;
             self.count += 1;
+        } else {
+            let mut chosen = 0;
+            let mut cheapest = f32::INFINITY;
+            for (index, region) in self.rects.iter().enumerate() {
+                let growth = area(region.union(rect)) - area(*region);
+                if growth < cheapest {
+                    cheapest = growth;
+                    chosen = index;
+                }
+            }
+            self.rects[chosen] = self.rects[chosen].union(rect);
+        }
+        self.merge_close();
+    }
+
+    fn merge_close(&mut self) {
+        'merged: loop {
+            for first in 0..self.count {
+                for second in first + 1..self.count {
+                    let (a, b) = (self.rects[first], self.rects[second]);
+                    let union = a.union(b);
+                    if area(union) <= MERGE_WASTE * (area(a) + area(b)) {
+                        self.rects[first] = union;
+                        self.rects.copy_within(second + 1..self.count, second);
+                        self.count -= 1;
+                        self.rects[self.count] = Rect::NOTHING;
+                        continue 'merged;
+                    }
+                }
+            }
             return;
         }
-        let mut chosen = 0;
-        let mut cheapest = f32::INFINITY;
-        for (index, region) in self.rects.iter().enumerate() {
-            let growth = area(region.union(rect)) - area(*region);
-            if growth < cheapest {
-                cheapest = growth;
-                chosen = index;
-            }
-        }
-        self.rects[chosen] = self.rects[chosen].union(rect);
     }
 
     pub fn clipped(&self, viewport: Rect) -> Self {
