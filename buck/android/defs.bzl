@@ -5,7 +5,10 @@ load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "keep_profile")
 # is only ever Android's, so both rules move themselves there: asked for under
 # any target platform, they are the one configured target, and building
 # //crates/... for every platform makes one APK rather than one for each.
-# The NDK's libc++_shared.so goes beside the native library.
+# The NDK's libc++_shared.so goes beside the native library. Only the files
+# it reads from the platform and the NDK are its inputs, android.jar and
+# libc++_shared.so, rather than their 15,000 others, each of which buck2 would
+# otherwise ask the build server about before it ran the action.
 
 def _android_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
     return keep_profile(platform, refs.android[PlatformInfo], refs)
@@ -26,8 +29,8 @@ def _android_apk_impl(ctx: AnalysisContext) -> list[Provider]:
         ctx.attrs._jdk,
         "--build-tools",
         ctx.attrs._build_tools,
-        "--platform",
-        ctx.attrs._platform,
+        "--android-jar",
+        ctx.attrs._platform.project("android.jar"),
         "--manifest",
         ctx.attrs.manifest,
         "--package",
@@ -45,7 +48,7 @@ def _android_apk_impl(ctx: AnalysisContext) -> list[Provider]:
         "--version-name",
         ctx.attrs.version_name,
         cmd_args(library, format = "--library={}"),
-        cmd_args(ctx.attrs._ndk, format = "--library={}/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so"),
+        cmd_args(ctx.attrs._ndk.project("sysroot/usr/lib/aarch64-linux-android/libc++_shared.so"), format = "--library={}"),
     )
     for source in ctx.attrs.java:
         command.add(cmd_args(source, format = "--java={}"))

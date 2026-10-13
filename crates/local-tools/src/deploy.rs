@@ -113,7 +113,7 @@ fn run(options: &Options) -> Result<(), String> {
         build = Some(id);
     }
     let build = build.ok_or("no be bundle was built")?;
-    if build.contains('+') && !options.allow_dirty {
+    if !options.allow_dirty && build != head_tree(&options.repository)? {
         return Err(format!(
             "this is build {build}: the working tree differs from its commit, so nobody could \
              build it again. Commit first, or pass --allow-dirty"
@@ -295,6 +295,22 @@ fn send_tree(options: &Options, tree: &Path, host: &str, unpack: &str) -> Result
         (true, true) => Ok(()),
         _ => Err(format!("sending {} to {host} failed", tree.display())),
     }
+}
+
+fn head_tree(repository: &Path) -> Result<String, String> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(repository)
+        .args(["rev-parse", "HEAD^{tree}"])
+        .output()
+        .map_err(|error| format!("cannot run git: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "git cannot name the tree of HEAD: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
 }
 
 fn read_build(path: &Path) -> Result<String, String> {

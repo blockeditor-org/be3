@@ -24,10 +24,6 @@ pub fn install_from(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-pub fn commit(id: &str) -> &str {
-    id.split_once('+').map_or(id, |(commit, _)| commit)
-}
-
 pub fn compatible(ours: &str, theirs: &str) -> bool {
     ours == theirs
 }

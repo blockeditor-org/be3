@@ -82,7 +82,7 @@ pub(crate) enum VersionRuns {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct VersionView {
-    pub(crate) commit: String,
+    pub(crate) build: String,
     pub(crate) can_install: bool,
     pub(crate) runs: VersionRuns,
 }
@@ -390,8 +390,8 @@ fn RuntimeBlock(id: String, runtime: Memo<Option<RuntimeView>>) -> NodeId {
 
 #[component]
 fn VersionPanel(version: Memo<Option<VersionView>>) -> NodeId {
-    let commit = create_memo(
-        clone!(version -> move || version.get().map(|version| version.commit).unwrap_or_default()),
+    let build = create_memo(
+        clone!(version -> move || version.get().map(|version| version.build).unwrap_or_default()),
     );
     let can_install = create_memo(
         clone!(version -> move || version.get().is_some_and(|version| version.can_install)),
@@ -417,8 +417,8 @@ fn VersionPanel(version: Memo<Option<VersionView>>) -> NodeId {
         <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
             <List spacing=8.0>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Caption content="Running commit:" />
-                    <Code @sizing=ItemSize::Percent(100.0) content={commit} />
+                    <Caption content="Running build:" />
+                    <Code @sizing=ItemSize::Percent(100.0) content={build} />
                     <Button
                         label="Refresh"
                         variant=ButtonVariant::Secondary
