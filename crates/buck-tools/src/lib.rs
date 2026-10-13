@@ -41,3 +41,6 @@ pub(crate) fn output(command: &mut Command) -> Result<String, String> {
     }
     String::from_utf8(output.stdout).map_err(|error| error.to_string())
 }
+
+#[cfg(test)]
+mod tests;

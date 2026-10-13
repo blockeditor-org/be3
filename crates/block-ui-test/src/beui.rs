@@ -20,7 +20,7 @@ use uuid::Uuid;
 
 use crate::document::FRAME_INTERVAL;
 use crate::input::Input;
-use crate::{ContentStore, snapshot};
+use crate::{ContentStore, overflow, snapshot};
 
 pub(crate) mod capture;
 
@@ -50,6 +50,7 @@ pub struct BeuiTest<A: BeuiApp> {
     menu: Vec<MenuEntry>,
     output: Option<beui::FrameOutput>,
     recording: Option<snapshot::Snapshot>,
+    overflows: Vec<String>,
     viewport: Option<Viewport>,
     children: Vec<ChildPlacement>,
     occluders: Vec<Occluder>,
@@ -212,6 +213,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             menu: Vec::new(),
             output: None,
             recording: None,
+            overflows: Vec::new(),
             viewport: None,
             children: Vec::new(),
             occluders: Vec::new(),
@@ -1304,6 +1306,8 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn record(&mut self) {
         let frame = self.painted();
+        let found = overflow::overflows(self.document());
+        self.overflows.extend(found);
         match &mut self.recording {
             Some(recording) => recording.append(frame),
             None => self.recording = Some(frame),
@@ -1313,9 +1317,14 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn snapshot(&mut self, name: &str) {
         let painting = match self.recording.take() {
             Some(recording) => recording,
-            None => self.painted(),
+            None => {
+                let found = overflow::overflows(self.document());
+                self.overflows.extend(found);
+                self.painted()
+            }
         };
         snapshot::assert_snapshot(name, &painting);
+        overflow::assert_fits(name, std::mem::take(&mut self.overflows));
     }
 
     fn painted(&mut self) -> snapshot::Snapshot {
