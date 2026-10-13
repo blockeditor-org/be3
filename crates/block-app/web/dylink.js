@@ -79,7 +79,7 @@ export function instantiate(sdk, plugin, layout, host) {
     }
     const imports = { __proto__: null };
     const own = [];
-    WebAssembly.Module.imports(plugin).forEach(({ module, name }, index) => {
+    WebAssembly.Module.imports(plugin).forEach(({ module, name, kind: type }, index) => {
         const group = (imports[module] ??= { __proto__: null });
         const { kind, value } = layout.imports[index];
         if (kind === "table") {
@@ -93,11 +93,11 @@ export function instantiate(sdk, plugin, layout, host) {
         } else if (kind === "own") {
             group[name] = constant(0, true);
             own.push([module, name]);
-        } else if (host[module]?.[name] !== undefined) {
-            group[name] = host[module][name];
-        } else if (module === "env" && typeof sdk.exports[name] === "function") {
+        } else if (module !== "env" || type === "memory") {
+            group[name] = host[module]?.[name];
+        } else if (typeof sdk.exports[name] === "function") {
             group[name] = sdk.exports[name];
-        } else if (module === "env") {
+        } else {
             throw new Error(`the plugin imports ${name}, which the plugin SDK does not export`);
         }
     });
