@@ -48,17 +48,16 @@ pub fn TextArea(
         ..TextAreaColors::DEFAULT
     });
     let masked = password;
-    let menu_state = state.clone();
     let surface = NodeRef::new();
     set_component_state(surface);
     let block = block.unwrap_or_else(blank_widget);
     let selected_widget = selected_widget.unwrap_or_else(blank_widget);
     view! {
         <List spacing=0.0>
-            <FindBar state={state.clone()} />
+            <FindBar state={state} />
             <unstyled::TextContextMenu
                 @sizing=ItemSize::Percent(100.0)
-                state={menu_state}
+                state={state}
                 menu={menu_style()}
                 masked
                 child_size=ItemSize::Percent(100.0)

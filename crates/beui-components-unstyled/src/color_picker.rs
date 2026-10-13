@@ -45,7 +45,7 @@ impl ColorModel for Oklch {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct ColorPickerState<Model: ColorModel = Hsva> {
     color: ReadSignal<Model>,
     set_color: WriteSignal<Model>,
@@ -226,7 +226,7 @@ impl ColorPickerState<Hsva> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct HexText {
     text: ReadSignal<String>,
     set_text: WriteSignal<String>,
@@ -314,15 +314,14 @@ pub fn ColorPickerArea(
     #[prop(default = 0.0)] thumb: f32,
     #[prop(children)] content: Render<ColorAreaHandle>,
 ) -> NodeId {
-    let (changed, dragged) = (picker.clone(), picker.clone());
     view! {
         <ColorArea
             value={picker.color()}
             thumb
             focused
             disabled={picker.disabled()}
-            on_change={move |next: Hsva| changed.apply(next)}
-            on_drag_change={move |dragging: bool| dragged.drag(dragging)}
+            on_change={move |next: Hsva| picker.apply(next)}
+            on_drag_change={move |dragging: bool| picker.drag(dragging)}
             content
         />
     }
@@ -336,7 +335,6 @@ pub fn HueSlider(
 ) -> NodeId {
     let color = picker.color();
     let hue = create_memo(move || color.get().hue);
-    let (changed, dragged) = (picker.clone(), picker.clone());
     view! {
         <Slider
             value={hue}
@@ -345,8 +343,8 @@ pub fn HueSlider(
             thumb
             disabled={picker.disabled()}
             accessibility={picker.hue_accessibility()}
-            on_change={move |hue: f32| changed.set_hue(hue)}
-            on_drag_change={move |dragging: bool| dragged.drag(dragging)}
+            on_change={move |hue: f32| picker.set_hue(hue)}
+            on_drag_change={move |dragging: bool| picker.drag(dragging)}
             content
         />
     }
@@ -360,15 +358,14 @@ pub fn AlphaSlider(
 ) -> NodeId {
     let color = picker.color();
     let alpha = create_memo(move || color.get().alpha);
-    let (changed, dragged) = (picker.clone(), picker.clone());
     view! {
         <Slider
             value={alpha}
             thumb
             disabled={picker.disabled()}
             accessibility={picker.alpha_accessibility()}
-            on_change={move |alpha: f32| changed.set_alpha(alpha)}
-            on_drag_change={move |dragging: bool| dragged.drag(dragging)}
+            on_change={move |alpha: f32| picker.set_alpha(alpha)}
+            on_drag_change={move |dragging: bool| picker.drag(dragging)}
             content
         />
     }

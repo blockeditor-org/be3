@@ -64,15 +64,13 @@ pub fn ColorPicker(
     let picker: ColorPickerState = ColorPickerState::new(value, disabled, on_change, on_preview);
     let color = picker.color();
     let has_swatches = !swatches.is_empty();
-    let (hue_picker, alpha_picker, swatch_picker) =
-        (picker.clone(), picker.clone(), picker.clone());
     let shown = picker.shown();
     view! {
         <Frame width=PICKER_WIDTH>
             <List spacing=SPACING>
                 <ColorPickerArea
                     @sizing=ItemSize::Fixed(AREA_HEIGHT)
-                    picker={picker.clone()}
+                    picker={picker}
                     thumb={THUMB_RADIUS * 2.0 + GRAB_SLOP}
                     focused
                 >
@@ -82,14 +80,14 @@ pub fn ColorPicker(
                 </ColorPickerArea>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <List @sizing=ItemSize::Percent(100.0) spacing=8.0>
-                        <HueSlider picker={hue_picker} thumb=SLIDER_HEIGHT>
+                        <HueSlider picker={picker} thumb=SLIDER_HEIGHT>
                             {move |handle: SliderHandle| view! {
                                 <StripFace handle strip=Strip::Hue />
                             }}
                         </HueSlider>
                         <Show condition=alpha>
                             {move || view! {
-                                <AlphaSlider picker={alpha_picker.clone()} thumb=SLIDER_HEIGHT>
+                                <AlphaSlider picker={picker} thumb=SLIDER_HEIGHT>
                                     {move |handle: SliderHandle| view! {
                                         <StripFace handle strip={Strip::Alpha(color)} />
                                     }}
@@ -99,10 +97,10 @@ pub fn ColorPicker(
                     </List>
                     <ColorSwatch color={shown} width=PREVIEW_SIZE height=PREVIEW_SIZE />
                 </List>
-                <ColorFields picker={picker.clone()} alpha />
+                <ColorFields picker={picker} alpha />
                 <Show condition=has_swatches>
                     {move || clone!(swatches -> view! {
-                        <Swatches picker={swatch_picker.clone()} swatches>
+                        <Swatches picker={picker} swatches>
                             {|handle: SwatchHandle| view! {
                                 <SwatchFace handle />
                             }}
@@ -116,15 +114,12 @@ pub fn ColorPicker(
 
 #[component]
 fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
-    let typed = picker.clone();
     let hex = HexText::new(
         picker.shown(),
         alpha,
-        Callback::new(move |color: Color32| typed.pick(color)),
+        Callback::new(move |color: Color32| picker.pick(color)),
     );
-    let (edit, submit) = (hex.clone(), hex.clone());
     let setter = |set: fn(&ColorPickerState, f64)| {
-        let picker = picker.clone();
         move |typed: f64| set(&picker, typed)
     };
     let set_hue = setter(|picker, typed| picker.set_hue(typed as f32));
@@ -144,8 +139,8 @@ fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
                     label="Hex"
                     placeholder={hex.placeholder()}
                     select_on_focus=true
-                    on_change={move |typed: String| edit.edit(typed)}
-                    on_submit={move |typed: String| submit.submit(typed)}
+                    on_change={move |typed: String| hex.edit(typed)}
+                    on_submit={move |typed: String| hex.submit(typed)}
                 />
                 <Show condition=alpha>
                     {move || clone!(; set_opacity -> view! {

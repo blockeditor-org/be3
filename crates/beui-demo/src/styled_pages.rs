@@ -2593,21 +2593,19 @@ fn MarkdownEditor() -> NodeId {
     let document = Arc::new(TextBuffer::new(EDITOR_TEXT)) as Arc<dyn text_editor_core::Document>;
     let state = TextAreaState::new(document);
     state.execute(EditorCommand::SetLanguage(TextLanguage::Markdown));
-    let bold = state.clone();
-    let italic = state.clone();
     view! {
         <List spacing=ROW_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Button
                     label="Bold"
                     variant=ButtonVariant::Secondary
-                    on_click={move || bold.execute(EditorCommand::Markdown(MarkdownCommand::Bold))}
+                    on_click={move || state.execute(EditorCommand::Markdown(MarkdownCommand::Bold))}
                 />
                 <Button
                     label="Italic"
                     variant=ButtonVariant::Secondary
                     on_click={move || {
-                        italic.execute(EditorCommand::Markdown(MarkdownCommand::Italic));
+                        state.execute(EditorCommand::Markdown(MarkdownCommand::Italic));
                     }}
                 />
             </List>

@@ -1160,14 +1160,11 @@ fn HueAndHex() -> NodeId {
         Callback::default(),
     );
     let shown = picker.shown();
-    let picked = picker.clone();
-    let (hue_picker, swatch_picker) = (picker.clone(), picker.clone());
     let hex = HexText::new(
         shown,
         false,
-        Callback::new(move |color: Color32| picked.pick(color)),
+        Callback::new(move |color: Color32| picker.pick(color)),
     );
-    let (edit, submit) = (hex.clone(), hex.clone());
     view! {
         <List spacing=SECTION_SPACING>
             <ColorPickerArea picker>
@@ -1175,12 +1172,12 @@ fn HueAndHex() -> NodeId {
                     <PadFace handle />
                 }}
             </ColorPickerArea>
-            <HueSlider picker={hue_picker}>
+            <HueSlider picker={picker}>
                 {move |handle: SliderHandle| view! {
                     <MeterFace handle />
                 }}
             </HueSlider>
-            <Swatches picker={swatch_picker} swatches={SWATCHES.to_vec()}>
+            <Swatches picker={picker} swatches={SWATCHES.to_vec()}>
                 {|handle: SwatchHandle| view! {
                     <SwatchDot handle />
                 }}
@@ -1192,8 +1189,8 @@ fn HueAndHex() -> NodeId {
                     value={hex.text()}
                     placeholder={hex.placeholder()}
                     style={underlined_style()}
-                    on_change={move |typed: String| edit.edit(typed)}
-                    on_submit={move |typed: String| submit.submit(typed)}
+                    on_change={move |typed: String| hex.edit(typed)}
+                    on_submit={move |typed: String| hex.submit(typed)}
                 >
                     {move |handle: TextInputHandle| view! {
                         <UnderlinedField handle />
@@ -1398,7 +1395,6 @@ fn PlainNote() -> NodeId {
         b"Right-click for Copy and Paste, or type :tada",
     )) as Arc<dyn text_editor_core::Document>;
     let state = TextAreaState::new(document);
-    let menu_state = state.clone();
     let theme = use_theme();
     view! {
         <Frame
@@ -1409,7 +1405,7 @@ fn PlainNote() -> NodeId {
             radius=RADIUS
         >
             <unstyled::TextContextMenu
-                state={menu_state}
+                state
                 menu={MenuStyle::new(
                     |handle: MenuRowHandle| view! {
                         <MenuRow handle />
