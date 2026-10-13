@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use block_editor_beui::be_block::display_settings::{LockAfter, ScreenOff};
-use block_editor_beui::be_block::{DisplaySettings, DisplaySettingsContent};
+use block_editor_beui::be_block::{DisplaySettings, DisplaySettingsContent, Layered};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_RESET_SETTINGS;
 use block_editor_beui::beui::reactive::{
@@ -33,6 +33,8 @@ pub fn DisplaySettingsView(editor: Editor) -> NodeId {
     let read_only = editor.read_only();
     let displays = editor.host_value::<Displays>();
     let root = settings.project(|content| content.root());
+    let inherited = editor.inherited_settings::<DisplaySettings>();
+    let merged = create_memo(clone!(root -> move || root.get().over(&inherited.get())));
     let ids = create_memo(clone!(displays -> move || {
         displays.with(|displays| displays.iter().map(|display| display.id.clone()).collect::<Vec<String>>())
     }));
@@ -54,18 +56,19 @@ pub fn DisplaySettingsView(editor: Editor) -> NodeId {
                         </List>
                         <ScreenOffSection
                             settings={settings.clone()}
-                            root={root.clone()}
+                            merged={merged.clone()}
                             read_only={read_only.clone()}
                         />
                         <ForEach keys={ids}>
                             {move |id: String| {
-                                let (settings, root) = (settings.clone(), root.clone());
+                                let (settings, root, merged) = (settings.clone(), root.clone(), merged.clone());
                                 let (displays, read_only) = (displays.clone(), read_only.clone());
                                 view! {
                                     <DisplaySection
                                         id={id}
                                         settings={settings}
                                         root={root}
+                                        merged={merged}
                                         displays={displays}
                                         read_only={read_only}
                                     />
@@ -84,13 +87,14 @@ fn DisplaySection(
     id: String,
     settings: Settings,
     root: ReadSignal<DisplaySettings>,
+    merged: Memo<DisplaySettings>,
     displays: Memo<Vec<HostDisplay>>,
     read_only: Memo<bool>,
 ) -> NodeId {
     let display = create_memo(clone!(id -> move || {
         displays.with(|displays| displays.iter().find(|display| display.id == id).cloned())
     }));
-    let wanted = create_memo(clone!(id -> move || root.get().mode(&id)));
+    let wanted = create_memo(clone!(id -> move || merged.get().mode(&id)));
     let chosen = create_memo(clone!(display wanted -> move || {
         display.with(|display| display.as_ref().map(|display| effective(display, wanted.get())))
     }));
@@ -121,7 +125,7 @@ fn DisplaySection(
             None => String::new(),
         })
     }));
-    let unset = create_memo(clone!(wanted -> move || wanted.get().is_none()));
+    let unset = create_memo(clone!(id -> move || root.get().mode(&id).is_none()));
     let connector = display.with_untracked(|display| {
         display
             .as_ref()
@@ -201,15 +205,15 @@ fn DisplaySection(
 #[component]
 fn ScreenOffSection(
     settings: Settings,
-    root: ReadSignal<DisplaySettings>,
+    merged: Memo<DisplaySettings>,
     read_only: Memo<bool>,
 ) -> NodeId {
-    let selected = create_memo(clone!(root -> move || {
-        let chosen = root.get().screen_off();
+    let selected = create_memo(clone!(merged -> move || {
+        let chosen = merged.get().screen_off();
         SCREEN_OFF.iter().position(|offered| *offered == chosen)
     }));
     let locks = create_memo(move || {
-        let chosen = root.get().lock_after();
+        let chosen = merged.get().lock_after();
         LOCK_AFTER.iter().position(|offered| *offered == chosen)
     });
     let locking = settings.clone();

@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::Root;
+use crate::settings::Layered;
 
 pub const MIN_REPEAT_DELAY: u32 = 150;
 pub const MAX_REPEAT_DELAY: u32 = 2000;
@@ -206,6 +207,44 @@ fn keyboard_name(name: Option<&str>) -> Option<String> {
     name.map(str::trim)
         .filter(|name| !name.is_empty())
         .map(str::to_owned)
+}
+
+impl Layered for InputSettings {
+    fn over(&self, lower: &Self) -> Self {
+        let pointers = lower
+            .pointers
+            .iter()
+            .map(|(device, pointer)| {
+                let upper = self.device_pointer(device).or(self.every_pointer);
+                (device.clone(), upper.or(*pointer))
+            })
+            .chain(
+                self.pointers
+                    .iter()
+                    .filter(|(device, _)| !lower.pointers.contains_key(*device))
+                    .map(|(device, pointer)| (device.clone(), *pointer)),
+            )
+            .collect();
+        Self {
+            keyboard_layout: self
+                .keyboard_layout
+                .clone()
+                .or(lower.keyboard_layout.clone()),
+            keyboard_variant: self
+                .keyboard_variant
+                .clone()
+                .or(lower.keyboard_variant.clone()),
+            keyboard_options: self
+                .keyboard_options
+                .clone()
+                .or(lower.keyboard_options.clone()),
+            repeat_delay: self.repeat_delay.or(lower.repeat_delay),
+            repeat_rate: self.repeat_rate.or(lower.repeat_rate),
+            every_pointer: self.every_pointer.or(lower.every_pointer),
+            pointers,
+            middle_click_paste: self.middle_click_paste.or(lower.middle_click_paste),
+        }
+    }
 }
 
 impl Root for InputSettings {

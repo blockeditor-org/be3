@@ -639,7 +639,7 @@ with no stamp is not stale. A stale block's frame shows `StaleNotice`
 (`surfaces::StaleBlock`) instead of its editor: Reset publishes the type's
 default content (`be::reset`), Delete deletes it as the shell would, and Try
 anyway shows the editor for the rest of the session (`be::try_anyway`). A block
-the app holds itself (`be::hold`: settings, the shell's profile) is reset by
+the app holds itself (`be::hold`: settings, the shell's session) is reset by
 the worker without asking, with a notice, since the app needs it to work. The
 app also deletes its local caches (`be-objects/`, `plugin-cache/`) whenever its
 build id changes; when the app becomes offline-first, those will have to stay.
@@ -826,12 +826,12 @@ source's type, references and metadata (without its artifact source), and the
 worker copies what the source's session shows, or its head when it is not open,
 into the copy's id before anything opens the copy.
 
-The app can read a block itself, not only through an editor: the zoom in
-`sync_ui_settings` comes from the UI settings block's content, and
-`sync_local_settings` hands the input settings block (keymap, key repeat, and
+The app can read a block itself, not only through an editor: the theme in
+`sync_ui_settings` comes from the UI settings, and
+`sync_local_settings` hands the input settings (keymap, key repeat, and
 pointer settings for every pointer with per-device overrides) to the `--session`
 seat through `beui_adapter_drm::InputControl` and to the nested Wayland clients'
-keyboard, and the display settings block (a mode per monitor, keyed by the
+keyboard, and the display settings (a mode per monitor, keyed by the
 monitor's EDID make, model and serial, or by its connector when it has no EDID)
 to the seat's outputs through `beui_adapter_drm::DisplayControl`, which switches
 mode live. Every setting is an `Option`, and an unset one means the default:
@@ -871,7 +871,56 @@ Plugins reach it with `BlockCommand::Undo` and `BlockCommand::Redo`, and watch
 whether either is possible with `EditorMessage::WatchHistory`, which the host
 answers with `HistoryStates` whenever they change.
 
-### Profiles and view state
+### Settings, settings profiles and sessions
+
+Each account keeps what is its own in a workspace under one top-level
+`Settings` block it authored. Every reader finds it by its author: a workspace
+administrator can see every block, including other accounts' `Settings`, and
+nothing may pick those up. `root_settings::own_settings_blocks` (plugins) and
+`RootSettings::owned` (block-app) list the account's own, and when two devices
+each made one before seeing the other's, both are read as one
+(`Settings::merged`, the lowest id winning a clash) and written through the
+lowest. The settings editor shows someone else's `Settings` or settings profile
+with a notice, and makes and changes nothing in it.
+
+Each kind of setting (`UiSettings`, `InputSettings`, `DisplaySettings`, the
+logic hotbar) is a block of its own, and is read through layers:
+
+- The `Settings` block's `kinds` map a kind's content type to the block that
+  holds it for every device.
+- A settings profile is a `SettingsProfile` block, a child of the `Settings`
+  block listed in its `profiles`, with `kinds` of its own. Each device
+  (`device_profiles`, keyed by the client id) uses one, and block-app makes one
+  named after the device the first time a device opens the workspace.
+
+`Settings::layers(kind, profile)` lists a kind's blocks from the bottom, and
+`be_block::layered` folds their contents with the kind's `Layered::over`: what
+the profile sets wins field by field, and what it leaves unset falls through to
+the settings for every device, then to the built-in default. Every field of a
+layered kind is an `Option` for this. `Editor::inherited_settings` gives a
+kind's editor what the layers below its block resolve to, which the UI, input
+and display settings editors show for what is unset. The hotbar is not merged:
+the logic editors use the topmost layer that has one, and make one for every
+device when there is none yet (`RootSetting::ensure`).
+
+A session is what a person has open, and is separate from the settings, so
+starting a new one keeps them. It is an `EditorView` of a shell editor:
+workspace-ui (`WORKSPACE_EDITOR`), or linux-desktop (`LINUX_DESKTOP_EDITOR`) for
+a client run as the desktop with `block-app --session`. `Settings::sessions`
+lists every session, and `Settings::session(shell, client)` is the one this
+client uses for that shell, so the desktop and the app each keep their own while
+sharing the device's settings profile. The host opens the shell on that session,
+creating one named after the device when the client has none, and reopens the
+shell when it changes. block-app's sessions screen (the workspace list's
+dropdown, or Sessions and profiles in the app menu) picks the device's settings
+profile and its session, or starts a new one of either. A shell keeps its dock
+layout and recents in the session's state; every tab, and the file tree, is an
+`EditorView` child of the session that the layout references, and closing a tab
+detaches its view. A block whose type is one of `profile::VIEW_EDITORS` is its
+own view, so a workspace session opened on the desktop keeps its tabs in its own
+session and closing it leaves that session alone.
+
+### View state
 
 What a person has open is blocks too, one generic type for all of it:
 `EditorView { editor, content, state }` names the editor that draws it, the
@@ -880,20 +929,6 @@ block it shows (none for the file tree or the workspace itself), and a
 blocks an entry points at; `references()` is `content` plus every entry's refs,
 and a deleted or replaced child is blanked or repointed in place, so the bytes
 can index into `refs`.
-
-A profile, or session, is an `EditorView` of a shell editor: workspace-ui
-(`WORKSPACE_EDITOR`), or linux-desktop (`LINUX_DESKTOP_EDITOR`) for a client run
-as the desktop with `block-app --session`. Each account has its own settings
-block (the top-level `Settings` block it authored); its `profiles` lists every
-profile, and `Settings::profile(shell, client)` is the one this client uses for
-that shell, so the desktop and the app each keep their own. The host opens the
-shell on that profile, creating one named after the device when the client has
-none, and reopens the shell when it changes. A shell keeps its dock layout and
-recents in the profile's state; every tab, and the file tree, is an
-`EditorView` child of the profile that the layout references, and closing a tab
-detaches its view. A block whose type is one of `profile::VIEW_EDITORS` is its
-own view, so a workspace session opened on the desktop keeps its tabs in its own
-profile and closing it leaves that profile alone.
 
 Both shells are built from `crates/block-shell`, which holds the tabs, their
 views, the saved layout, picks, dialogs, host panels and program windows;

@@ -141,7 +141,9 @@ impl Screens {
         match message {
             Message::HelloAccepted(accepted) => {
                 self.surface = accepted.surface;
+                crate::theme::receive(accepted.theme);
             }
+            Message::Theme(theme) => crate::theme::receive(*theme),
             Message::Fonts(fonts) => crate::fonts::receive(fonts),
             Message::UtcOffset(seconds) => crate::clock::receive(*seconds),
             Message::Describe(on) => DESCRIBE.store(*on, std::sync::atomic::Ordering::Relaxed),

@@ -99,22 +99,22 @@ impl Fixture {
             BlockParent::Root,
         ));
         let mut settings = SettingsContent::default();
-        let mut profiles = Vec::new();
+        let mut blocks = Vec::new();
         for (name, editor) in sessions {
-            let profile = Uuid::new_v4();
+            let session = Uuid::new_v4();
             let mut info = BlockInfo::new(
-                profile,
+                session,
                 EditorView::CONTENT_TYPE,
                 BlockParent::Block(self.settings),
             );
             info.set_name(*name);
             store.add_block(info);
-            store.hold(Some(profile), EditorView::document(*editor, None));
-            settings.apply(&Settings::add_profile(*editor, self.client, profile));
-            profiles.push(profile);
+            store.hold(Some(session), EditorView::document(*editor, None));
+            settings.apply(&Settings::add_session(*editor, self.client, session));
+            blocks.push(session);
         }
         self.test.hold(Some(self.settings), settings);
-        (self, profiles)
+        (self, blocks)
     }
 
     fn with_windows(ids: &[u64]) -> Self {

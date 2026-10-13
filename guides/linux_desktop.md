@@ -6,10 +6,10 @@ plugin instead of workspace-ui. Two flags start it that way:
 - `--session` (Linux): run on the displays and input devices themselves through
   `beui-adapter-drm` instead of in a window, from a virtual terminal with no other display
   server on it, as the desktop: the shell is linux-desktop instead of workspace-ui, on a
-  profile of its own. The bar's power menu logs out (see below), Ctrl+Alt+Backspace quits at
+  session of its own. The bar's power menu logs out (see below), Ctrl+Alt+Backspace quits at
   once and Ctrl+Alt+F<n> switches terminals.
   `BEUI_SCALE` sets its scale.
-- `--desktop` (Linux): the desktop shell, linux-desktop on its own profile as under
+- `--desktop` (Linux): the desktop shell, linux-desktop on its own session as under
   `--session`, in a normal window, with programs opening as windows inside it as they do in
   any windowed run. What needs the displays and input devices themselves, such as display
   modes, pointer settings and the power menu, is absent, since `beui-adapter-drm` is not

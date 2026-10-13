@@ -1,6 +1,6 @@
 use beui::icons::{
-    ICON_ADD, ICON_CLOUD, ICON_COMPUTER, ICON_GROUP_ADD, ICON_KEYBOARD_ARROW_DOWN, ICON_MORE_HORIZ,
-    ICON_REFRESH, ICON_SWITCH_ACCOUNT, ICON_WORKSPACES,
+    ICON_ADD, ICON_CHECK, ICON_CLOUD, ICON_COMPUTER, ICON_GROUP_ADD, ICON_KEYBOARD_ARROW_DOWN,
+    ICON_MORE_HORIZ, ICON_REFRESH, ICON_SWITCH_ACCOUNT, ICON_WORKSPACES,
 };
 use beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, Justify, List, Memo, Show, Spacer, clone,
@@ -519,8 +519,8 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
                             />
                             <IconButton
                                 glyph={ICON_KEYBOARD_ARROW_DOWN.to_owned()}
-                                label="Choose a profile"
-                                on_click={move || send(UiCommand::ChooseProfile(id))}
+                                label="Choose a session or profile"
+                                on_click={move || send(UiCommand::ChooseSession(id))}
                             />
                         </List>
                     }
@@ -591,9 +591,17 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-pub(super) fn ProfilesScreen(view: AppViewStore) -> NodeId {
+pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
     let status = view.status.clone();
-    let keys = create_memo(clone!(status -> move || {
+    let session_keys = create_memo(clone!(status -> move || {
+        status
+            .get()
+            .sessions
+            .into_iter()
+            .map(|session| session.id)
+            .collect::<Vec<_>>()
+    }));
+    let profile_keys = create_memo(clone!(status -> move || {
         status
             .get()
             .profiles
@@ -601,47 +609,87 @@ pub(super) fn ProfilesScreen(view: AppViewStore) -> NodeId {
             .map(|profile| profile.id)
             .collect::<Vec<_>>()
     }));
-    let loaded = create_memo(clone!(status -> move || status.get().profiles_loaded));
+    let loaded = create_memo(clone!(status -> move || status.get().settings_loaded));
     let loading = create_memo(clone!(loaded -> move || !loaded.get()));
     let title = create_memo(clone!(status -> move || status.get().workspace));
-    let every_type = create_memo(clone!(status -> move || status.get().every_profile_type));
+    let every_type = create_memo(clone!(status -> move || status.get().every_session_type));
     let session_type = create_memo(clone!(status -> move || status.get().session_type));
     let new_label = create_memo(clone!(session_type -> move || {
-        format!("New {} profile", session_type_name(session_type.get()))
+        format!("New {} session", session_type_name(session_type.get()))
     }));
     let new_type = session_type;
-    let rows = status;
+    let (sessions, profiles) = (status.clone(), status);
     view! {
         <Column>
             <Title content={title} />
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Caption @sizing=ItemSize::Percent(100.0) content="Choose a profile to open." />
-                <Caption content="Show every type" />
-                <Switch
-                    on={every_type}
-                    label="Show profiles of every type"
-                    on_change={|every: bool| send(UiCommand::EveryProfileType(every))}
-                />
-            </List>
             <Show condition={loading.clone()}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Spinner />
-                    <Caption content="Loading profiles…" />
+                    <Caption content="Loading sessions and profiles…" />
                 </List>
             </Show>
-            <ForEach keys={keys}>
+            <Heading content="Settings profile" />
+            <Caption
+                content="The settings this device uses. Each device starts with a profile of its own."
+            />
+            <ForEach keys={profile_keys}>
                 {move |id: Uuid| {
-                    let rows = rows.clone();
+                    let row = create_memo(clone!(profiles -> move || {
+                        profiles.get().profiles.into_iter().find(|profile| profile.id == id)
+                    }));
+                    let label = create_memo(clone!(row -> move || match row.get() {
+                        Some(profile) if profile.current => format!("{} (this device)", profile.name),
+                        Some(profile) => profile.name,
+                        None => String::new(),
+                    }));
+                    let glyph = create_memo(move || match row.get().is_some_and(|profile| profile.current) {
+                        true => ICON_CHECK.to_owned(),
+                        false => String::new(),
+                    });
+                    view! {
+                        <Button
+                            label={label}
+                            glyph={glyph}
+                            variant=ButtonVariant::Secondary
+                            @test_id={format!("sessions.profile.{id}")}
+                            on_click={move || send(UiCommand::UseProfile(id))}
+                        />
+                    }
+                }}
+            </ForEach>
+            <Button
+                label="New settings profile"
+                glyph={ICON_ADD.to_owned()}
+                variant=ButtonVariant::Ghost
+                disabled={loading.clone()}
+                @test_id={"sessions.new-profile"}
+                on_click={|| send(UiCommand::NewProfile)}
+            />
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <Heading @sizing=ItemSize::Percent(100.0) content="Session" />
+                <Caption content="Show every type" />
+                <Switch
+                    on={every_type}
+                    label="Show sessions of every type"
+                    on_change={|every: bool| send(UiCommand::EverySessionType(every))}
+                />
+            </List>
+            <Caption
+                content="The blocks you had open. Start a new session to begin again with the same settings."
+            />
+            <ForEach keys={session_keys}>
+                {move |id: Uuid| {
+                    let sessions = sessions.clone();
                     let label = create_memo(move || {
-                        rows.get()
-                            .profiles
+                        sessions.get()
+                            .sessions
                             .into_iter()
-                            .find(|profile| profile.id == id)
-                            .map(|profile| match (profile.kind, profile.current) {
-                                (Some(kind), true) => format!("{} ({kind}, last used)", profile.name),
-                                (Some(kind), false) => format!("{} ({kind})", profile.name),
-                                (None, true) => format!("{} (last used)", profile.name),
-                                (None, false) => profile.name,
+                            .find(|session| session.id == id)
+                            .map(|session| match (session.kind, session.current) {
+                                (Some(kind), true) => format!("{} ({kind}, last used)", session.name),
+                                (Some(kind), false) => format!("{} ({kind})", session.name),
+                                (None, true) => format!("{} (last used)", session.name),
+                                (None, false) => session.name,
                             })
                             .unwrap_or_default()
                     });
@@ -649,7 +697,8 @@ pub(super) fn ProfilesScreen(view: AppViewStore) -> NodeId {
                         <Button
                             label={label}
                             variant=ButtonVariant::Secondary
-                            on_click={move || send(UiCommand::OpenProfile(id))}
+                            @test_id={format!("sessions.session.{id}")}
+                            on_click={move || send(UiCommand::OpenSession(id))}
                         />
                     }
                 }}
@@ -658,27 +707,35 @@ pub(super) fn ProfilesScreen(view: AppViewStore) -> NodeId {
                 label={new_label}
                 glyph={ICON_ADD.to_owned()}
                 variant=ButtonVariant::Secondary
-                menu_label="New profile of another type"
+                menu_label="New session of another type"
                 disabled={loading}
                 items={view! {
                     <ForEach keys={(0..SESSION_TYPES.len()).collect::<Vec<_>>()}>
                         {|index: usize| view! {
-                            <MenuItem label={format!("New {} profile", SESSION_TYPES[index].1)} />
+                            <MenuItem label={format!("New {} session", SESSION_TYPES[index].1)} />
                         }}
                     </ForEach>
                 }}
-                on_click={move || send(UiCommand::OpenNewProfile(new_type.get_untracked()))}
+                on_click={move || send(UiCommand::OpenNewSession(new_type.get_untracked()))}
                 on_select={|path: Vec<usize>| {
                     if let Some((editor, _)) = path.first().and_then(|index| SESSION_TYPES.get(*index)) {
-                        send(UiCommand::OpenNewProfile(*editor));
+                        send(UiCommand::OpenNewSession(*editor));
                     }
                 }}
             />
-            <Button
-                label="Back to workspaces"
-                variant=ButtonVariant::Ghost
-                on_click={|| send(UiCommand::SwitchWorkspace)}
-            />
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <Button
+                    label="Keep the current session"
+                    variant=ButtonVariant::Ghost
+                    @test_id={"sessions.keep"}
+                    on_click={|| send(UiCommand::CloseSessions)}
+                />
+                <Button
+                    label="Back to workspaces"
+                    variant=ButtonVariant::Ghost
+                    on_click={|| send(UiCommand::SwitchWorkspace)}
+                />
+            </List>
         </Column>
     }
 }
