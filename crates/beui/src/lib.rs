@@ -58,6 +58,7 @@ pub use beui_font_freetype::{
     FontBytes, FontData, FontLibrary, FontSources, FreetypeFonts, ICONS_FONT,
 };
 pub use beui_inspector::install as install_inspector;
+pub use beui_inspector::profiler::FrameProfiler;
 #[cfg(feature = "render")]
 pub use beui_renderer_wgpu::present::{GpuSetup, OpenDevice};
 #[cfg(feature = "render")]

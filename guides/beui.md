@@ -1808,6 +1808,15 @@ mouse. Its tree rows select and expand together: clicking a row, or pressing
 Enter or Space on it, selects the node it lists and opens or closes its
 children, and the arrow keys walk the tree.
 
+The Perf tab's frame profiler charts the last `performance::SAMPLE_CAPACITY`
+frames the document showed, each a bar of its layout, interaction, paint,
+accessibility and other time against a line at one 60 Hz frame. A frame is
+known by the `FramePerformance::number` the tracker gives it, so a frame picked
+by clicking or with the arrow keys stays picked while newer ones arrive, and
+Pause stops the panel taking new frames without stopping the document
+measuring them. The times are wall-clock measurements, so a test that paints
+the profiler hands `FrameProfiler` frames of its own.
+
 The inspector's Sim tab converts one input device into the other, so a pointer
 device can drive touch behavior and a touchscreen can drive pointer behavior.
 Both run inside `Document::show`, so they work the same in a standalone window

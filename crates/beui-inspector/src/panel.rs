@@ -29,8 +29,9 @@ use beui_view::reactive::{
 
 use super::tree::{Entry, Key};
 use super::{InspectorTab, State, entry_label};
-use beui_core::performance::PerformanceSnapshot;
+use crate::profiler::FrameProfiler;
 use beui_core::performance::PerformanceTimings;
+use beui_core::performance::{FramePerformance, PerformanceSnapshot};
 
 const HEADER_PADDING: f32 = 12.0;
 const HEADER_SPACING: f32 = 8.0;
@@ -115,6 +116,7 @@ pub struct PerformanceSummary {
     scene: String,
     cache: String,
     reuse: String,
+    frames: Vec<FramePerformance>,
 }
 
 impl From<PerformanceSnapshot> for PerformanceSummary {
@@ -164,6 +166,7 @@ impl From<PerformanceSnapshot> for PerformanceSummary {
             scene,
             cache,
             reuse,
+            frames: snapshot.frames,
         }
     }
 }
@@ -194,6 +197,7 @@ pub fn build(state: &Rc<State>) -> Panel {
     let (tab, set_tab) = create_signal(InspectorTab::default());
     let (selection, set_selection) = create_signal(Vec::<Key>::new());
     let (compact, set_compact) = create_signal(false);
+    let (paused, set_paused) = create_signal(false);
     let tree = NodeRef::new();
     let tree_ref = tree.clone();
     let simulation_state = state.clone();
@@ -279,6 +283,7 @@ pub fn build(state: &Rc<State>) -> Panel {
         let footer_performance_visible = performance_visible;
         let body_simulation_visible = simulation_visible.clone();
         let footer_simulation_visible = simulation_visible;
+        let reset_paused = set_paused.clone();
         view! {
             <List direction=Direction::Horizontal spacing=0.0>
                 <Separator direction=Direction::Vertical />
@@ -376,6 +381,8 @@ pub fn build(state: &Rc<State>) -> Panel {
                                         performance={performance.clone()}
                                         renderer={renderer.clone()}
                                         renderers={renderers.clone()}
+                                        paused={paused.clone()}
+                                        set_paused={set_paused.clone()}
                                         state={performance_state.clone()}
                                     />
                                 </ShowKeepAlive>
@@ -402,7 +409,10 @@ pub fn build(state: &Rc<State>) -> Panel {
                                     <Button
                                         label="Reset samples"
                                         variant=ButtonVariant::Secondary
-                                        on_click={move || reset_state.reset_performance()}
+                                        on_click={move || {
+                                            reset_paused.set(false);
+                                            reset_state.reset_performance();
+                                        }}
                                     />
                                 </ShowKeepAlive>
                                 <ShowKeepAlive condition={footer_simulation_visible}>
@@ -811,10 +821,15 @@ fn PerformancePanel(
     performance: ReadSignal<PerformanceSummary>,
     renderer: ReadSignal<RendererRows>,
     renderers: ReadSignal<RendererChoices>,
+    paused: ReadSignal<bool>,
+    set_paused: WriteSignal<bool>,
     state: Rc<State>,
 ) -> NodeId {
-    let (change_state, damage_state, renderer_state) =
-        (state.clone(), state.clone(), state.clone());
+    let (change_state, damage_state, renderer_state, pause_state) =
+        (state.clone(), state.clone(), state.clone(), state.clone());
+    let frames = create_memo(clone!(performance -> move || {
+        performance.with(|summary| summary.frames.clone())
+    }));
     let latest_work = performance_text(&performance, |summary| &summary.latest_work);
     let scene = performance_text(&performance, |summary| &summary.scene);
     let cache = performance_text(&performance, |summary| &summary.cache);
@@ -829,6 +844,31 @@ fn PerformancePanel(
         <Scroll focus_color={Some(THEME.accent)}>
             <Frame padding_horizontal=BODY_PADDING padding_vertical=BODY_PADDING>
                 <List spacing=PERFORMANCE_SPACING>
+                    <List spacing=TIMING_SPACING>
+                        <Heading content="Visualize" />
+                        <Checkbox
+                            @test_id={"inspector.performance.flash_changes"}
+                            label="Flash changed elements"
+                            checked={state.flash_changes.get()}
+                            on_change={move |enabled| change_state.flash_changes.set(enabled)}
+                        />
+                        <Checkbox
+                            @test_id={"inspector.performance.flash_damage"}
+                            label="Flash repainted regions"
+                            checked={state.flash_damage.get()}
+                            on_change={move |enabled| damage_state.flash_damage.set(enabled)}
+                        />
+                    </List>
+                    <Separator />
+                    <FrameProfiler
+                        frames
+                        paused
+                        on_pause={move |pause: bool| {
+                            set_paused.set(pause);
+                            pause_state.pause_performance(pause);
+                        }}
+                    />
+                    <Separator />
                     <List spacing=FOOTER_SPACING>
                         <Code content={latest_work} />
                         <Code content={scene} color={THEME.text_muted} />
@@ -852,22 +892,6 @@ fn PerformancePanel(
                         <TimingRow label="Paint" values={paint} />
                         <TimingRow label="Accessibility" values={accessibility} />
                         <TimingRow label="Other" values={other} />
-                    </List>
-                    <Separator />
-                    <List spacing=TIMING_SPACING>
-                        <Heading content="Visualize" />
-                        <Checkbox
-                            @test_id={"inspector.performance.flash_changes"}
-                            label="Flash changed elements"
-                            checked={state.flash_changes.get()}
-                            on_change={move |enabled| change_state.flash_changes.set(enabled)}
-                        />
-                        <Checkbox
-                            @test_id={"inspector.performance.flash_damage"}
-                            label="Flash repainted regions"
-                            checked={state.flash_damage.get()}
-                            on_change={move |enabled| damage_state.flash_damage.set(enabled)}
-                        />
                     </List>
                     <Separator />
                     <RendererSection
