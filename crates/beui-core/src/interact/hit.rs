@@ -372,3 +372,97 @@ fn nearest_press(
         nearest_press(doc, rects, child, pos, rect, nearest);
     }
 }
+
+pub fn describe(doc: &mut Document, rects: &Rects, root: NodeId, pos: Pos2, scale: f32) -> String {
+    let found = hit(doc, rects, root, pos, false);
+    let mut text = String::new();
+    if found.blocked {
+        text.push_str("blocked by a layer that takes every press\n");
+    }
+    match (found.path.is_empty(), found.embed) {
+        (true, true) => text.push_str("an embed, with no Interactive over it\n"),
+        (true, false) => text.push_str("no Interactive\n"),
+        (false, true) => {
+            text.push_str("over an embed, along these Interactives, innermost first:\n")
+        }
+        (false, false) => text.push_str("along these Interactives, innermost first:\n"),
+    }
+    for id in &found.path {
+        text.push_str(&format!("  {}\n", described(doc, rects, *id, scale)));
+    }
+    if let Some(sink) = sink(doc, rects, &found.path, pos) {
+        text.push_str(&format!(
+            "forwards to {}\n",
+            described(doc, rects, sink, scale)
+        ));
+    }
+    for overlay in &found.outside {
+        let id = NodeId::from(*overlay);
+        text.push_str(&format!("dismisses {}\n", described(doc, rects, id, scale)));
+    }
+    text
+}
+
+fn described(doc: &Document, rects: &Rects, id: NodeId, scale: f32) -> String {
+    let mut text = doc.node_kind(id).to_owned();
+    if let Some(rect) = rects.get(&id) {
+        text.push_str(&format!(
+            " at {},{} size {}x{}",
+            (rect.min.x * scale).round(),
+            (rect.min.y * scale).round(),
+            (rect.width() * scale).round(),
+            (rect.height() * scale).round(),
+        ));
+    }
+    for test_id in doc.node_test_ids(id) {
+        text.push_str(&format!(" #{test_id}"));
+    }
+    let made: Vec<&str> = std::iter::successors(Some(id), |id| doc.node_parent(*id))
+        .flat_map(|id| doc.component_names(id).iter().copied())
+        .take(8)
+        .collect();
+    if !made.is_empty() {
+        text.push_str(&format!(" in {}", made.join(" in ")));
+    }
+    if let Some(node) = interactive(doc, id) {
+        let handles = handlers(node);
+        text.push_str(&match handles.is_empty() {
+            true => ", handling nothing".to_owned(),
+            false => format!(", handling {}", handles.join(", ")),
+        });
+    }
+    text
+}
+
+fn handlers(node: &InteractiveNode) -> Vec<&'static str> {
+    [
+        (
+            "click",
+            !node.on_click.is_empty() || !node.on_click_at.is_empty(),
+        ),
+        ("press", !node.on_press.is_empty()),
+        ("secondary press", !node.on_secondary_press.is_empty()),
+        ("middle click", !node.on_middle_click.is_empty()),
+        ("drag", !node.on_drag.is_empty()),
+        ("pan", !node.on_pan_drag.is_empty()),
+        (
+            "scroll",
+            !node.on_scroll.is_empty() || node.scroll_axis.is_some(),
+        ),
+        ("zoom", !node.on_zoom.is_empty()),
+        (
+            "hover",
+            !node.on_hover_change.is_empty() || !node.on_hover_move.is_empty(),
+        ),
+        ("forwarded input", node.forwards()),
+        ("focus", node.focus.is_some()),
+        (
+            "capturing presses",
+            node.capture_presses || !node.capture_at.is_empty(),
+        ),
+        ("its own hit test", !node.hit_at.is_empty()),
+    ]
+    .into_iter()
+    .filter_map(|(name, handles)| handles.then_some(name))
+    .collect()
+}
