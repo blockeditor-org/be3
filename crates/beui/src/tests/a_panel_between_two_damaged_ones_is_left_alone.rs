@@ -5,6 +5,8 @@ fn a_panel_between_two_damaged_ones_is_left_alone() {
     let panels = three_panels();
     let (top, middle, bottom) = (panels.top, panels.middle, panels.bottom);
     let mut document = panels.document;
+    document.set_frame_height(top, Some(40.0));
+    document.set_frame_height(bottom, Some(40.0));
     let (_, paints) = counted(&mut document, middle);
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
@@ -21,7 +23,7 @@ fn a_panel_between_two_damaged_ones_is_left_alone() {
     assert_eq!(
         paints.get(),
         settled,
-        "damage above and below an element must not be joined into one region across it"
+        "damage above and below an element taller than both must not be joined into one region across it"
     );
     assert_eq!(
         output.damage.rects(),
