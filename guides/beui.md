@@ -2493,8 +2493,8 @@ stayed; a mask whose fade changed damages its bands; and a scroll group, matched
 by the space it scrolls, whose offset changed is a copy of what it showed rather
 than damage. A repaint that paints the same thing therefore costs no pixels.
 Damage is held as at most four rectangles (`damage::Region`), each drawn as its
-own pass, and two of them become one whenever their bounds are at most a
-quarter larger than the area they cover, so a large change spread over nearby spots is drawn once. A
+own pass, and two of them become one whenever their bounds are at most twice
+the area they cover, so a large change spread over nearby spots is drawn once. A
 `Drawing` whose content changed in part hands its `Drawing` node
 `draw_gpu(Some(drawing.redrawn(region)))` rather than a new `Drawing`: only that region, in the
 drawing's own coordinates, is damaged (the plugin host does this with the

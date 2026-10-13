@@ -3,7 +3,7 @@ use crate::painter::Shape;
 
 const REGIONS: usize = 4;
 
-const MERGE_WASTE: f32 = 1.25;
+const MERGE_WASTE: f32 = 2.0;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Region {
