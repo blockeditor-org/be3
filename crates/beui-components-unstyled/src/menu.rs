@@ -136,7 +136,7 @@ impl Row {
 }
 
 struct State {
-    rows: RefCell<Vec<Row>>,
+    rows: Rc<RefCell<Vec<Row>>>,
     root: NodeRef,
     focus: ReadSignal<Focus>,
     set_focus: WriteSignal<Focus>,
@@ -170,7 +170,7 @@ pub fn MenuList(
     let root_tab_stop = create_memo(clone!(focus -> move || !matches!(focus.get(), Focus::Row(_))));
 
     let state: Handle = Rc::new(State {
-        rows: RefCell::new(Vec::new()),
+        rows: Rc::default(),
         root: NodeRef::new(),
         focus: focus.clone(),
         set_focus: set_focus.clone(),
@@ -180,32 +180,26 @@ pub fn MenuList(
 
     let (rows_state, key_state, blur_focus) = (state.clone(), state.clone(), focus);
     let rows_focused = focused.clone();
-    let lines = items.build(move |items: Vec<Rc<MenuItem>>| {
-        let state = rows_state.clone();
-        *state.rows.borrow_mut() = items
-            .into_iter()
-            .map(|item| Row {
-                button: NodeRef::new(),
-                item,
-                submenu: Submenu::new(),
-            })
-            .collect();
-        let count = state.rows.borrow().len();
-        (0..count)
-            .map(|index| {
-                view! {
-                    <MenuRow
-                        state={state.clone()}
-                        index
-                        focused={rows_focused.clone()}
-                        row={row.clone()}
-                        panel={panel.clone()}
-                        parent={parent.clone()}
-                    />
-                }
-            })
-            .collect()
-    });
+    let lines = items.build_each(
+        state.rows.clone(),
+        |_, item| Row {
+            button: NodeRef::new(),
+            item,
+            submenu: Submenu::new(),
+        },
+        move |index| {
+            view! {
+                <MenuRow
+                    state={rows_state.clone()}
+                    index
+                    focused={rows_focused.clone()}
+                    row={row.clone()}
+                    panel={panel.clone()}
+                    parent={parent.clone()}
+                />
+            }
+        },
+    );
     view! {
         <List spacing=0.0>
             <Interactive
@@ -337,8 +331,7 @@ fn MenuRow(
                         placement=Placement::RightStart
                         open={submenu_open.clone()}
                         on_dismiss={move |_: Dismiss| dismiss.set(false)}
-                    >
-                        {panel.call(view! {
+                        content={move || panel.call(view! {
                             <MenuList
                                 @node_ref={&content_ref}
                                 items={children}
@@ -353,7 +346,7 @@ fn MenuRow(
                                 }}
                             />
                         })}
-                    </Overlay>
+                    />
                 }
                 }}
             </Show>

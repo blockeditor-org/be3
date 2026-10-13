@@ -2,7 +2,9 @@ use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
-use reactive::{ReadSignal, Scope, WriteSignal, create_effect, create_signal, on_cleanup};
+use reactive::{
+    ReadSignal, Scope, WriteSignal, create_effect, create_signal, current_scope, on_cleanup,
+};
 
 use crate::child_list::{ChildList, SlotId};
 use crate::component::ChildValue;
@@ -190,8 +192,6 @@ impl<C: SlotChild> Default for Run<C> {
     }
 }
 
-type HeldRows<R> = Rc<RefCell<Option<(Vec<<R as SlotChild>::Stored>, Scope)>>>;
-
 impl<C: SlotChild> Run<C> {
     pub fn items(&self) -> Vec<C::Stored> {
         self.state.filled.get();
@@ -210,28 +210,56 @@ impl<C: SlotChild> Run<C> {
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
+}
 
-    pub fn build<R: SlotChild, U: IntoChild<R>>(
+type HeldEach<T, R> = Rc<RefCell<Vec<(Rc<T>, <R as SlotChild>::Stored, Scope)>>>;
+
+impl<T: 'static, C: SlotChild<Stored = Rc<T>>> Run<C> {
+    pub fn build_each<R: SlotChild, U: IntoChild<R>, S: 'static>(
         &self,
-        rows: impl Fn(Vec<C::Stored>) -> Vec<U> + 'static,
+        states: Rc<RefCell<Vec<S>>>,
+        state: impl Fn(usize, Rc<T>) -> S + 'static,
+        row: impl Fn(usize) -> U + 'static,
     ) -> DynamicSegment<R> {
         let run = self.clone();
         DynamicSegment::new(move |slot: ChildSlot<R>| {
-            let held: HeldRows<R> = Rc::new(RefCell::new(None));
+            let host = current_scope();
+            let held: HeldEach<T, R> = Rc::new(RefCell::new(Vec::new()));
             let owned = held.clone();
-            on_cleanup(move || drop(owned));
+            on_cleanup(move || drop(std::mem::take(&mut *owned.borrow_mut())));
             create_effect(move || {
                 let items = run.items();
-                let scope = Scope::detached();
-                let built: Vec<R::Stored> = scope.context().run(|| {
-                    rows(items)
-                        .into_iter()
-                        .map(|row| slot.store(row.into_child()))
-                        .collect()
-                });
-                slot.fill(built.clone());
-                let previous = held.borrow_mut().replace((built, scope));
-                drop(previous);
+                let mut previous = std::mem::take(&mut *held.borrow_mut());
+                let mut gone = previous.split_off(previous.len().min(items.len()));
+                states.borrow_mut().truncate(items.len());
+                let mut kept = previous.into_iter();
+                let mut next = Vec::with_capacity(items.len());
+                for (index, item) in items.into_iter().enumerate() {
+                    match kept.next() {
+                        Some(row) if Rc::ptr_eq(&row.0, &item) => next.push(row),
+                        replaced => {
+                            gone.extend(replaced);
+                            let scope = match &host {
+                                Some(host) => host.run(Scope::detached),
+                                None => Scope::detached(),
+                            };
+                            let stored = scope.context().run(|| {
+                                let made = state(index, item.clone());
+                                let mut states = states.borrow_mut();
+                                match states.get_mut(index) {
+                                    Some(held) => *held = made,
+                                    None => states.push(made),
+                                }
+                                drop(states);
+                                slot.store(row(index).into_child())
+                            });
+                            next.push((item, stored, scope));
+                        }
+                    }
+                }
+                slot.fill(next.iter().map(|(_, stored, _)| stored.clone()).collect());
+                *held.borrow_mut() = next;
+                drop(gone);
             });
         })
     }
