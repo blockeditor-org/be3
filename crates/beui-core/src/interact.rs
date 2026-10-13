@@ -71,6 +71,11 @@ pub fn interact(document: &mut Document, ctx: &Context, rects: &Rects, root: Nod
     }
     run_in(document, |doc| {
         pointer::end_frame(doc, &frame);
+        if let Some(pos) = ctx.hit_query()
+            && rects.visible(&root).is_some_and(|rect| rect.contains(pos))
+        {
+            ctx.answer_hit(hit::describe(doc, rects, root, pos, ctx.pixels_per_point()));
+        }
         doc.validate_focus();
         forward::route(doc, ctx, rects, root, &events, &keep);
         if ctx.pointer_locked() && !forward::takes_keys(doc) {

@@ -518,7 +518,12 @@ impl Runner {
                     false => frame.again(),
                 },
             };
-            automation.end(&view, settled, &output.unran_actions);
+            automation.end(
+                &view,
+                settled,
+                &output.unran_actions,
+                output.hits.as_deref(),
+            );
             if let Some(after) = automation.wants_frame(self.context.now()) {
                 frame.repaint |= after.is_zero();
                 frame.repaint_after = frame.repaint_after.min(after);

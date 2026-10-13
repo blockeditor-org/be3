@@ -64,6 +64,11 @@ so dialogs, the file tree and every editor read like the host's own controls.
 - `drive ids` lists every test id on screen with where it is, the plugins' included. Test ids
   (guides/testing_a_gui.md) are the steadiest way to name a control.
 - `drive find TARGET` says where a target is.
+- `drive hit TARGET` says what a press there would reach without pressing: the `Interactive`s
+  along the hit path, innermost first, each with its kind, rect, test ids, the components it was
+  made in and what it handles, then what forwarded input goes to and which overlays the press
+  would dismiss. Use it when a press goes to the wrong place or nowhere. It sees the host's own
+  document only; in block-app a press over a plugin ends at that plugin region's catcher.
 - `drive state` is what the tree does not say: the window's size, scale and focus, whether it is
   fullscreen, the cursor's shape, the pointer and the fingers down, held keys, an input
   method's composition, a back gesture under way, files being dragged in, and any open file

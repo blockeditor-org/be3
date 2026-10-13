@@ -29,6 +29,8 @@ pub const USAGE: &str = "Reading:
   tree                      the accessibility tree, one node per line
   ids                       every test id on screen, with where it is
   find TARGET               where TARGET is
+  hit TARGET                what a press at TARGET would reach: the Interactives along its path,
+                            the components that made them and what each handles
   state                     window, cursor, pointer, fingers, held keys, input method, clipboard, dialogs
   actions [all]             the actions the command palette would list (all: every one)
   shot [TARGET]             a screenshot, of TARGET only when given
@@ -127,6 +129,7 @@ enum Phase {
         id: String,
         before: String,
     },
+    Hitting,
     Uploading {
         file: PathBuf,
         before: String,
@@ -306,7 +309,13 @@ impl Automation {
         }
     }
 
-    pub fn end(&mut self, view: &View<'_>, settled: Settled, unran: &[String]) {
+    pub fn end(
+        &mut self,
+        view: &View<'_>,
+        settled: Settled,
+        unran: &[String],
+        hits: Option<&[String]>,
+    ) {
         let quiet = !settled.again && !settled.busy;
         let Some(active) = &mut self.active else {
             return;
@@ -377,6 +386,12 @@ impl Automation {
                     Some(Reply::Text(String::new()))
                 }
                 Phase::Pausing { until } if view.now >= *until => Some(Reply::Text(String::new())),
+                Phase::Hitting => hits.map(|hits| {
+                    Reply::Text(match hits.is_empty() {
+                        true => "nothing in the window is there\n".to_owned(),
+                        false => hits.join("\n"),
+                    })
+                }),
                 Phase::Reading { pasted, until } => match clipboard_text(pasted) {
                     Some(text) => Some(Reply::Text(text)),
                     None if view.now >= *until => Some(Reply::Error(
@@ -468,6 +483,10 @@ impl Automation {
                     view.pixels_per_point,
                 )?;
                 Ok(Started::Done(Reply::Text(format!("{}\n", describe(rect)))))
+            }
+            "hit" => {
+                world.context.request_hit(at(argument(0)?)?);
+                Ok(Started::Phase(Phase::Hitting))
             }
             "state" => Ok(Started::Done(Reply::Text(self.state(view)))),
             "actions" => Ok(Started::Done(Reply::Text(actions(
