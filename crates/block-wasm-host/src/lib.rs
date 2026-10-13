@@ -6,7 +6,6 @@ mod precompile;
 mod state;
 mod stderr;
 mod threads;
-mod transport;
 mod wake;
 
 #[cfg(test)]
@@ -17,24 +16,23 @@ use std::{
     num::NonZeroUsize,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
-    time::{Duration, Instant},
+    time::Duration,
 };
 
-use block_gpu_host::Gpu;
+use block_gpu_host::{Gpu, calls::Guest};
 use wasmtime::{
     Cache, CacheConfig, Config, Engine, Instance, Linker, Module, SharedMemory, Store, TypedFunc,
 };
 use wasmtime_wasi::{WasiCtxBuilder, p1};
 
 use dylink::Program;
-use sha2::{Digest, Sha256};
 use state::Device;
 use threads::Spawner;
 use wake::Wake;
 
-pub use dylink::sdk_file_name;
 pub use precompile::{precompile, precompile_to};
 pub use state::{Connect, State};
+pub use wasm_dylink::sdk_file_name;
 
 pub const PRECOMPILED_EXTENSION: &str = "cwasm";
 
@@ -218,9 +216,7 @@ impl Plugin {
             memory: memory.clone(),
             device: host.devices.open(),
             error: None,
-            inbox: Default::default(),
-            outbox: Vec::new(),
-            started: Instant::now(),
+            transport: Default::default(),
             gpu_time: Duration::ZERO,
             submit_time: Duration::ZERO,
             threads: Arc::clone(&threads),
@@ -234,7 +230,6 @@ impl Plugin {
             .define(&store, "env", "memory", memory.clone())
             .map_err(|error| format!("the plugin memory could not be linked: {error}"))?;
         gpu::link(&mut linker)?;
-        transport::link(&mut linker)?;
         panic::link(&mut linker)?;
         threads::link(&mut linker)?;
         wake::link(&mut linker)?;
@@ -312,11 +307,11 @@ impl Plugin {
     }
 
     pub fn send(&mut self, frame: Vec<u8>) {
-        self.store.data_mut().inbox.push_back(frame);
+        self.store.data_mut().transport.inbox.push_back(frame);
     }
 
     pub fn take_outbound(&mut self) -> Vec<Vec<u8>> {
-        std::mem::take(&mut self.store.data_mut().outbox)
+        std::mem::take(&mut self.store.data_mut().transport.outbox)
     }
 
     pub fn take_gpu_time(&mut self) -> (Duration, Duration) {
@@ -348,7 +343,7 @@ impl Plugin {
     pub fn attach_surface(&mut self, surface: u32, texture: wgpu::Texture) {
         self.store
             .data_mut()
-            .with_gpu(|gpu| gpu.attach_surface(surface, texture));
+            .gpu(|gpu| gpu.attach_surface(surface, texture));
     }
 
     pub fn detach_surface(&mut self, surface: u32) {
@@ -408,15 +403,7 @@ fn module(engine: &Engine, bytes: &[u8]) -> Result<Module, String> {
 
 fn sdk_module(engine: &Engine, identity: &str, bytes: &[u8]) -> Result<Module, String> {
     if Engine::detect_precompiled(bytes).is_none() {
-        let digest: String = Sha256::digest(bytes)
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect();
-        if digest != identity {
-            return Err(format!(
-                "its SHA-256 is {digest}, not the {identity} it is named by"
-            ));
-        }
+        wasm_dylink::check_sdk(bytes, identity)?;
     }
     module(engine, bytes)
 }

@@ -25,6 +25,7 @@ mod wasm;
 #[cfg(target_arch = "wasm32")]
 mod web;
 mod web_view;
+mod worker;
 
 pub(crate) use description::describe;
 pub(crate) use input::BlockDrag;

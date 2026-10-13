@@ -7668,7 +7668,9 @@ crates = {
                 "deps": [
                     "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/block-gpu-host:block-gpu-host",
+                    "//crates/wasm-dylink:wasm-dylink",
                     "//third-party/rust:js-sys-0.3.99",
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:wasm-bindgen-0.2.122",
                     "//third-party/rust:wasm-bindgen-futures-0.4.72",
                     "//third-party/rust:web-sys-0.3.99",
@@ -8335,9 +8337,9 @@ crates = {
                     "precompile": [
                         "//crates/block-gpu-abi:block-gpu-abi",
                         "//crates/block-gpu-host:block-gpu-host",
+                        "//crates/wasm-dylink:wasm-dylink",
                         "//third-party/rust:bytes-1.11.1",
                         "//third-party/rust:rustc-demangle-0.1.28",
-                        "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:tokio-1.52.3",
                         "//third-party/rust:wasmtime-48.0.1",
                         "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -8347,9 +8349,9 @@ crates = {
                 "deps": [
                     "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/block-gpu-host:block-gpu-host",
+                    "//crates/wasm-dylink:wasm-dylink",
                     "//third-party/rust:bytes-1.11.1",
                     "//third-party/rust:rustc-demangle-0.1.28",
-                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:wasmtime-48.0.1",
                     "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -8361,6 +8363,7 @@ crates = {
                             "//crates/block-gpu-abi:block-gpu-abi",
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-plugin-api:block-plugin-api",
+                            "//crates/wasm-dylink:wasm-dylink",
                             "//third-party/rust:bytes-1.11.1",
                             "//third-party/rust:rustc-demangle-0.1.28",
                             "//third-party/rust:sha2-0.10.9",
@@ -8375,6 +8378,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-plugin-api:block-plugin-api",
+                    "//third-party/rust:sha2-0.10.9",
                 ],
                 "test_features": [],
             },
@@ -8383,9 +8387,9 @@ crates = {
                     "precompile": [
                         "//crates/block-gpu-abi:block-gpu-abi",
                         "//crates/block-gpu-host:block-gpu-host",
+                        "//crates/wasm-dylink:wasm-dylink",
                         "//third-party/rust:bytes-1.11.1",
                         "//third-party/rust:rustc-demangle-0.1.28",
-                        "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:tokio-1.52.3",
                         "//third-party/rust:wasmtime-48.0.1",
                         "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -8395,9 +8399,9 @@ crates = {
                 "deps": [
                     "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/block-gpu-host:block-gpu-host",
+                    "//crates/wasm-dylink:wasm-dylink",
                     "//third-party/rust:bytes-1.11.1",
                     "//third-party/rust:rustc-demangle-0.1.28",
-                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:wasmtime-48.0.1",
                     "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -8409,6 +8413,7 @@ crates = {
                             "//crates/block-gpu-abi:block-gpu-abi",
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-plugin-api:block-plugin-api",
+                            "//crates/wasm-dylink:wasm-dylink",
                             "//third-party/rust:bytes-1.11.1",
                             "//third-party/rust:rustc-demangle-0.1.28",
                             "//third-party/rust:sha2-0.10.9",
@@ -8423,6 +8428,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-plugin-api:block-plugin-api",
+                    "//third-party/rust:sha2-0.10.9",
                 ],
                 "test_features": [],
             },
@@ -8431,9 +8437,9 @@ crates = {
                     "precompile": [
                         "//crates/block-gpu-abi:block-gpu-abi",
                         "//crates/block-gpu-host:block-gpu-host",
+                        "//crates/wasm-dylink:wasm-dylink",
                         "//third-party/rust:bytes-1.11.1",
                         "//third-party/rust:rustc-demangle-0.1.28",
-                        "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:tokio-1.52.3",
                         "//third-party/rust:wasmtime-48.0.1",
                         "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -8443,9 +8449,9 @@ crates = {
                 "deps": [
                     "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/block-gpu-host:block-gpu-host",
+                    "//crates/wasm-dylink:wasm-dylink",
                     "//third-party/rust:bytes-1.11.1",
                     "//third-party/rust:rustc-demangle-0.1.28",
-                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:wasmtime-48.0.1",
                     "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -8457,6 +8463,7 @@ crates = {
                             "//crates/block-gpu-abi:block-gpu-abi",
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-plugin-api:block-plugin-api",
+                            "//crates/wasm-dylink:wasm-dylink",
                             "//third-party/rust:bytes-1.11.1",
                             "//third-party/rust:rustc-demangle-0.1.28",
                             "//third-party/rust:sha2-0.10.9",
@@ -8471,6 +8478,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-plugin-api:block-plugin-api",
+                    "//third-party/rust:sha2-0.10.9",
                 ],
                 "test_features": [],
             },
@@ -8479,9 +8487,9 @@ crates = {
                     "precompile": [
                         "//crates/block-gpu-abi:block-gpu-abi",
                         "//crates/block-gpu-host:block-gpu-host",
+                        "//crates/wasm-dylink:wasm-dylink",
                         "//third-party/rust:bytes-1.11.1",
                         "//third-party/rust:rustc-demangle-0.1.28",
-                        "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:tokio-1.52.3",
                         "//third-party/rust:wasmtime-48.0.1",
                         "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -8491,9 +8499,9 @@ crates = {
                 "deps": [
                     "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/block-gpu-host:block-gpu-host",
+                    "//crates/wasm-dylink:wasm-dylink",
                     "//third-party/rust:bytes-1.11.1",
                     "//third-party/rust:rustc-demangle-0.1.28",
-                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:wasmtime-48.0.1",
                     "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -8505,6 +8513,7 @@ crates = {
                             "//crates/block-gpu-abi:block-gpu-abi",
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-plugin-api:block-plugin-api",
+                            "//crates/wasm-dylink:wasm-dylink",
                             "//third-party/rust:bytes-1.11.1",
                             "//third-party/rust:rustc-demangle-0.1.28",
                             "//third-party/rust:sha2-0.10.9",
@@ -8519,6 +8528,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-plugin-api:block-plugin-api",
+                    "//third-party/rust:sha2-0.10.9",
                 ],
                 "test_features": [],
             },
@@ -8527,9 +8537,9 @@ crates = {
                     "precompile": [
                         "//crates/block-gpu-abi:block-gpu-abi",
                         "//crates/block-gpu-host:block-gpu-host",
+                        "//crates/wasm-dylink:wasm-dylink",
                         "//third-party/rust:bytes-1.11.1",
                         "//third-party/rust:rustc-demangle-0.1.28",
-                        "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:tokio-1.52.3",
                         "//third-party/rust:wasmtime-48.0.1",
                         "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -8539,9 +8549,9 @@ crates = {
                 "deps": [
                     "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/block-gpu-host:block-gpu-host",
+                    "//crates/wasm-dylink:wasm-dylink",
                     "//third-party/rust:bytes-1.11.1",
                     "//third-party/rust:rustc-demangle-0.1.28",
-                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:wasmtime-48.0.1",
                     "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -8553,6 +8563,7 @@ crates = {
                             "//crates/block-gpu-abi:block-gpu-abi",
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-plugin-api:block-plugin-api",
+                            "//crates/wasm-dylink:wasm-dylink",
                             "//third-party/rust:bytes-1.11.1",
                             "//third-party/rust:rustc-demangle-0.1.28",
                             "//third-party/rust:sha2-0.10.9",
@@ -8567,6 +8578,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-plugin-api:block-plugin-api",
+                    "//third-party/rust:sha2-0.10.9",
                 ],
                 "test_features": [],
             },
@@ -8575,9 +8587,9 @@ crates = {
                     "precompile": [
                         "//crates/block-gpu-abi:block-gpu-abi",
                         "//crates/block-gpu-host:block-gpu-host",
+                        "//crates/wasm-dylink:wasm-dylink",
                         "//third-party/rust:bytes-1.11.1",
                         "//third-party/rust:rustc-demangle-0.1.28",
-                        "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:tokio-1.52.3",
                         "//third-party/rust:wasmtime-48.0.1",
                         "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -8587,9 +8599,9 @@ crates = {
                 "deps": [
                     "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/block-gpu-host:block-gpu-host",
+                    "//crates/wasm-dylink:wasm-dylink",
                     "//third-party/rust:bytes-1.11.1",
                     "//third-party/rust:rustc-demangle-0.1.28",
-                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:wasmtime-48.0.1",
                     "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -8601,6 +8613,7 @@ crates = {
                             "//crates/block-gpu-abi:block-gpu-abi",
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-plugin-api:block-plugin-api",
+                            "//crates/wasm-dylink:wasm-dylink",
                             "//third-party/rust:bytes-1.11.1",
                             "//third-party/rust:rustc-demangle-0.1.28",
                             "//third-party/rust:sha2-0.10.9",
@@ -8615,6 +8628,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-plugin-api:block-plugin-api",
+                    "//third-party/rust:sha2-0.10.9",
                 ],
                 "test_features": [],
             },
@@ -8623,9 +8637,9 @@ crates = {
                     "precompile": [
                         "//crates/block-gpu-abi:block-gpu-abi",
                         "//crates/block-gpu-host:block-gpu-host",
+                        "//crates/wasm-dylink:wasm-dylink",
                         "//third-party/rust:bytes-1.11.1",
                         "//third-party/rust:rustc-demangle-0.1.28",
-                        "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:tokio-1.52.3",
                         "//third-party/rust:wasmtime-48.0.1",
                         "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -8635,9 +8649,9 @@ crates = {
                 "deps": [
                     "//crates/block-gpu-abi:block-gpu-abi",
                     "//crates/block-gpu-host:block-gpu-host",
+                    "//crates/wasm-dylink:wasm-dylink",
                     "//third-party/rust:bytes-1.11.1",
                     "//third-party/rust:rustc-demangle-0.1.28",
-                    "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:tokio-1.52.3",
                     "//third-party/rust:wasmtime-48.0.1",
                     "//third-party/rust:wasmtime-wasi-48.0.1",
@@ -8649,6 +8663,7 @@ crates = {
                             "//crates/block-gpu-abi:block-gpu-abi",
                             "//crates/block-gpu-host:block-gpu-host",
                             "//crates/block-plugin-api:block-plugin-api",
+                            "//crates/wasm-dylink:wasm-dylink",
                             "//third-party/rust:bytes-1.11.1",
                             "//third-party/rust:rustc-demangle-0.1.28",
                             "//third-party/rust:sha2-0.10.9",
@@ -8663,6 +8678,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-plugin-api:block-plugin-api",
+                    "//third-party/rust:sha2-0.10.9",
                 ],
                 "test_features": [],
             },
@@ -12775,6 +12791,109 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/wasm-dylink": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "wasm_dylink",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "wasm-dylink",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasm32": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:sha2-0.10.9",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/wasm-link": {
         "binaries": [
             {
@@ -12794,10 +12913,12 @@ crates = {
             "android-arm64": {
                 "binaries": {
                     "wasm-link": [
+                        "//crates/wasm-dylink:wasm-dylink",
                         "//third-party/rust:sha2-0.10.9",
                     ],
                 },
                 "deps": [
+                    "//crates/wasm-dylink:wasm-dylink",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},
@@ -12808,10 +12929,12 @@ crates = {
             "linux-arm64": {
                 "binaries": {
                     "wasm-link": [
+                        "//crates/wasm-dylink:wasm-dylink",
                         "//third-party/rust:sha2-0.10.9",
                     ],
                 },
                 "deps": [
+                    "//crates/wasm-dylink:wasm-dylink",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},
@@ -12822,10 +12945,12 @@ crates = {
             "linux-x86_64": {
                 "binaries": {
                     "wasm-link": [
+                        "//crates/wasm-dylink:wasm-dylink",
                         "//third-party/rust:sha2-0.10.9",
                     ],
                 },
                 "deps": [
+                    "//crates/wasm-dylink:wasm-dylink",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},
@@ -12836,10 +12961,12 @@ crates = {
             "macos-arm64": {
                 "binaries": {
                     "wasm-link": [
+                        "//crates/wasm-dylink:wasm-dylink",
                         "//third-party/rust:sha2-0.10.9",
                     ],
                 },
                 "deps": [
+                    "//crates/wasm-dylink:wasm-dylink",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},
@@ -12850,10 +12977,12 @@ crates = {
             "macos-x86_64": {
                 "binaries": {
                     "wasm-link": [
+                        "//crates/wasm-dylink:wasm-dylink",
                         "//third-party/rust:sha2-0.10.9",
                     ],
                 },
                 "deps": [
+                    "//crates/wasm-dylink:wasm-dylink",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},
@@ -12864,10 +12993,12 @@ crates = {
             "windows-arm64": {
                 "binaries": {
                     "wasm-link": [
+                        "//crates/wasm-dylink:wasm-dylink",
                         "//third-party/rust:sha2-0.10.9",
                     ],
                 },
                 "deps": [
+                    "//crates/wasm-dylink:wasm-dylink",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},
@@ -12878,10 +13009,12 @@ crates = {
             "windows-x86_64": {
                 "binaries": {
                     "wasm-link": [
+                        "//crates/wasm-dylink:wasm-dylink",
                         "//third-party/rust:sha2-0.10.9",
                     ],
                 },
                 "deps": [
+                    "//crates/wasm-dylink:wasm-dylink",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},
@@ -16527,6 +16660,11 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":generic-array-0.14.7",
+                ],
+            },
+            "wasm32": {
                 "deps": [
                     ":generic-array-0.14.7",
                 ],
@@ -21869,6 +22007,15 @@ third_party = {
                     "std",
                 ],
             },
+            "wasm32": {
+                "deps": [
+                    ":generic-array-0.14.7",
+                    ":typenum-1.20.1",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":generic-array-0.14.7",
@@ -22547,6 +22694,19 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":block-buffer-0.10.4",
+                    ":crypto-common-0.1.7",
+                ],
+                "features": [
+                    "alloc",
+                    "block-buffer",
+                    "core-api",
+                    "default",
+                    "std",
+                ],
+            },
+            "wasm32": {
                 "deps": [
                     ":block-buffer-0.10.4",
                     ":crypto-common-0.1.7",
@@ -27052,6 +27212,14 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":typenum-1.20.1",
+                ],
+                "features": [
+                    "more_lengths",
+                ],
+            },
+            "wasm32": {
                 "deps": [
                     ":typenum-1.20.1",
                 ],
@@ -32814,6 +32982,7 @@ third_party = {
             "macos-x86_64": {},
             "wasi": {},
             "wasi-guest": {},
+            "wasm32": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -34914,6 +35083,12 @@ third_party = {
                 "features": [
                     "alloc",
                     "default",
+                    "std",
+                ],
+            },
+            "wasm32": {
+                "features": [
+                    "alloc",
                     "std",
                 ],
             },
@@ -46444,6 +46619,18 @@ third_party = {
                     "std",
                 ],
             },
+            "wasm32": {
+                "deps": [
+                    ":itoa-1.0.18",
+                    ":memchr-2.8.1",
+                    ":serde_core-1.0.228",
+                    ":zmij-1.0.21",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":itoa-1.0.18",
@@ -46881,6 +47068,16 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":digest-0.10.7",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "wasm32": {
                 "deps": [
                     ":cfg-if-1.0.4",
                     ":digest-0.10.7",
@@ -54395,6 +54592,7 @@ third_party = {
             "macos-x86_64": {},
             "wasi": {},
             "wasi-guest": {},
+            "wasm32": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -60187,6 +60385,7 @@ third_party = {
                     "OffscreenCanvas",
                     "OffscreenCanvasRenderingContext2d",
                     "OvrMultiview2",
+                    "Performance",
                     "VideoFrame",
                     "WebGl2RenderingContext",
                     "WebGlActiveInfo",
@@ -67114,6 +67313,7 @@ third_party = {
             "macos-x86_64": {},
             "wasi": {},
             "wasi-guest": {},
+            "wasm32": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },

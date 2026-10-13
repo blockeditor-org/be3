@@ -9,28 +9,17 @@ use std::{
 };
 
 use sha2::{Digest, Sha256};
+use wasm_dylink::{ENV, GOT_FUNCTION, GOT_MEMORY, MEMORY_BASE, STACK_POINTER, TABLE, TABLE_BASE};
 
 pub const SDK_FLAG: &str = "--be3-sdk";
 pub const PLUGIN_FLAG: &str = "--be3-plugin=";
 pub const SDK_SECTION: &str = "be3.sdk";
-pub const SDK_EXPORT_PREFIX: &str = "__be3_sdk_";
-pub const LAYOUT_EXPORT_PREFIX: &str = "__be3_dylink_";
-pub const PLUGIN_TLS: &str = "__be3_plugin_tls";
-pub const PLUGIN_TLS_SIZE: u32 = 16 * 1024;
+pub use wasm_dylink::{LAYOUT_EXPORT_PREFIX, PLUGIN_TLS, PLUGIN_TLS_SIZE, SDK_EXPORT_PREFIX};
 const PLUGIN_TLS_ALIGN_LOG2: u32 = 4;
 const SDK_TLS_SEGMENT: &str = ".tbss.__be3_sdk_tls";
 const PLUGIN_TLS_SEGMENT: &str = ".tbss.__be3_plugin_tls";
 
-const LINKED_BY_LOADER: [&str; 5] = [
-    "memory",
-    "__indirect_function_table",
-    "__stack_pointer",
-    "__memory_base",
-    "__table_base",
-];
-const GOT_MEMORY: &str = "GOT.mem";
-const GOT_FUNCTION: &str = "GOT.func";
-const ENV: &str = "env";
+const LINKED_BY_LOADER: [&str; 5] = ["memory", TABLE, STACK_POINTER, MEMORY_BASE, TABLE_BASE];
 const DROPPED_FROM_PLUGINS: [&str; 5] = [
     "--import-memory",
     "--export-memory",

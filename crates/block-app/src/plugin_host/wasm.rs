@@ -3,7 +3,7 @@ use std::{
     path::PathBuf,
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::AtomicBool,
         mpsc::{self, Receiver, RecvTimeoutError, Sender, TryRecvError},
     },
     thread,
@@ -12,16 +12,18 @@ use std::{
 
 use crate::editors::plugin::discovery;
 
-use block_plugin_api::{Message, PluginManifest, ScreenLayout, decode_frame, encode_frame};
+use block_plugin_api::PluginManifest;
 use block_wasm_host::{Host, Plugin};
 
 use super::{
-    backend::{Deadline, StepTime},
+    backend::StepTime,
     surface::{PresentedTexture, SurfaceFrame, gpu},
+    worker::{self, Event, Produced, Received},
 };
-const NO_ENTRY_POINT: &str = "This plugin has no wasm entry point.";
+
 const NO_GPU: &str = "The plugin host has no graphics device.";
-const STOPPED: &str = "The plugin worker stopped.";
+
+pub(super) type Frame = SurfaceFrame;
 
 thread_local! {
     static CACHE: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
@@ -57,44 +59,19 @@ fn cache() -> Option<PathBuf> {
     CACHE.with(|cache| cache.borrow().clone())
 }
 
-struct Produced {
-    outbound: Vec<Vec<u8>>,
-    presented: Vec<PresentedTexture>,
-    took: StepTime,
-}
-
-impl Produced {
-    fn is_empty(&self) -> bool {
-        self.outbound.is_empty() && self.presented.is_empty()
+impl worker::Presented for PresentedTexture {
+    fn surface(&self) -> u32 {
+        self.surface
     }
 }
 
-enum Command {
-    Step(Vec<Vec<u8>>),
-}
-
-enum Event {
-    Ready(Produced),
-    Stepped(Produced),
-    Failed(String),
-}
-
-struct Worker {
-    commands: Sender<Command>,
-    events: Receiver<Event>,
-    pending: Vec<Vec<u8>>,
-    waiting: Arc<AtomicBool>,
-    received: Vec<Vec<u8>>,
-    ready: bool,
-    stepping: bool,
-    carrying: bool,
-    presented: Vec<PresentedTexture>,
-    presents: u64,
-    took: Option<StepTime>,
+pub(super) struct Channel {
+    steps: Sender<Vec<Vec<u8>>>,
+    events: Receiver<Event<PresentedTexture>>,
     thread: Option<Thread>,
 }
 
-impl Drop for Worker {
+impl Drop for Channel {
     fn drop(&mut self) {
         let Some(thread) = self.thread.take() else {
             return;
@@ -107,267 +84,78 @@ impl Drop for Worker {
     }
 }
 
-pub(super) struct Wasm {
-    worker: Option<Worker>,
-    module: Option<String>,
-    started: Instant,
-    error: Option<String>,
+fn received(received: Result<Event<PresentedTexture>, TryRecvError>) -> Received<PresentedTexture> {
+    match received {
+        Ok(event) => Received::Event(event),
+        Err(TryRecvError::Empty) => Received::Empty,
+        Err(TryRecvError::Disconnected) => Received::Stopped,
+    }
 }
 
-impl super::backend::Backend for Wasm {
-    type Frame = SurfaceFrame;
+impl worker::Channel for Channel {
+    type Presented = PresentedTexture;
 
-    fn new(plugin: &PluginManifest) -> Self {
-        Self {
-            worker: None,
-            module: discovery::entry_point(&plugin.identity.id, &plugin.entry_point),
-            started: Instant::now(),
-            error: None,
-        }
+    fn step(&mut self, frames: Vec<Vec<u8>>) -> bool {
+        self.steps.send(frames).is_ok()
     }
 
-    fn start(&mut self, plugin: &PluginManifest) {
-        self.shutdown();
-        self.started = Instant::now();
-        self.error = None;
-        let Some(module) = self.module.clone() else {
-            self.error = Some(NO_ENTRY_POINT.to_owned());
-            return;
-        };
-        let Some((device, queue)) = gpu() else {
-            self.error = Some(NO_GPU.to_owned());
-            return;
-        };
-        let host = match Host::new(device, queue, cache().as_deref()) {
-            Ok(host) => host,
-            Err(error) => {
-                self.error = Some(error);
-                return;
-            }
-        };
-        let (commands, orders) = mpsc::channel();
-        let (reports, events) = mpsc::channel();
-        let waiting = Arc::new(AtomicBool::new(false));
-        let watched = Arc::clone(&waiting);
-        let (ending, ended) = mpsc::channel();
-        let spawned = thread::Builder::new()
-            .name(format!("plugin {}", plugin.identity.id))
-            .spawn(move || {
-                let _ending: Sender<()> = ending;
-                let failed = reports.clone();
-                let ran =
-                    crate::panic_guard::contain(|| run(host, module, orders, reports, watched));
-                if let Err(panic) = ran {
-                    let _ = failed.send(Event::Failed(format!(
-                        "The app failed while running it: {panic}"
-                    )));
-                    crate::host::wake();
-                }
-            });
-        match spawned {
-            Ok(handle) => {
-                self.worker = Some(Worker {
-                    commands,
-                    events,
-                    pending: Vec::new(),
-                    waiting,
-                    received: Vec::new(),
-                    ready: false,
-                    stepping: false,
-                    carrying: false,
-                    presented: Vec::new(),
-                    presents: 0,
-                    took: None,
-                    thread: Some(Thread { handle, ended }),
-                })
-            }
-            Err(error) => self.error = Some(format!("the plugin worker could not start: {error}")),
-        }
+    fn receive(&mut self) -> Received<PresentedTexture> {
+        received(self.events.try_recv())
     }
 
-    fn send(&mut self, messages: Vec<Message>) {
-        let Some(worker) = &mut self.worker else {
-            return;
-        };
-        let mut failure = None;
-        for message in messages {
-            match encode_frame(&message) {
-                Ok(frame) => worker.pending.push(frame),
-                Err(error) => failure = Some(error.to_string()),
-            }
-        }
-        if let Some(failure) = failure {
-            self.error.get_or_insert(failure);
-        }
-        if !worker.pending.is_empty() {
-            worker.waiting.store(true, Ordering::SeqCst);
-            self.poll_worker();
-        }
-    }
-
-    fn receive(&mut self) -> Vec<Message> {
-        self.poll_worker();
-        let Some(worker) = &mut self.worker else {
-            return Vec::new();
-        };
-        decode(std::mem::take(&mut worker.received), &mut self.error)
-    }
-
-    fn frame(&mut self, _layout: &ScreenLayout, _pass: u64) -> Option<SurfaceFrame> {
-        None
-    }
-
-    fn received_frame(&mut self) -> Option<SurfaceFrame> {
-        let worker = self.worker.as_mut()?;
-        let textures = std::mem::take(&mut worker.presented);
-        if textures.is_empty() {
-            return None;
-        }
-        Some(SurfaceFrame {
-            textures,
-            presents: worker.presents,
-            damage: None,
+    fn wait(&mut self, timeout: Duration) -> Option<Received<PresentedTexture>> {
+        Some(match self.events.recv_timeout(timeout) {
+            Ok(event) => Received::Event(event),
+            Err(RecvTimeoutError::Timeout) => Received::Empty,
+            Err(RecvTimeoutError::Disconnected) => Received::Stopped,
         })
     }
+}
 
-    fn settled(&mut self) -> bool {
-        self.worker.as_ref().is_none_or(|worker| {
-            !worker.ready || (worker.pending.is_empty() && !(worker.stepping && worker.carrying))
+pub(super) fn frame(textures: Vec<PresentedTexture>, presents: u64) -> SurfaceFrame {
+    SurfaceFrame {
+        textures,
+        presents,
+        damage: None,
+    }
+}
+
+pub(super) fn spawn(
+    plugin: &PluginManifest,
+    module: String,
+    waiting: Arc<AtomicBool>,
+) -> Result<Channel, String> {
+    let (device, queue) = gpu().ok_or(NO_GPU)?;
+    let host = Host::new(device, queue, cache().as_deref())?;
+    let (steps, orders) = mpsc::channel();
+    let (reports, events) = mpsc::channel();
+    let (ending, ended) = mpsc::channel();
+    let handle = thread::Builder::new()
+        .name(format!("plugin {}", plugin.identity.id))
+        .spawn(move || {
+            let _ending: Sender<()> = ending;
+            let failed = reports.clone();
+            let ran = crate::panic_guard::contain(|| run(host, module, orders, reports, waiting));
+            if let Err(panic) = ran {
+                let _ = failed.send(Event::Failed(format!(
+                    "The app failed while running it: {panic}"
+                )));
+                crate::host::wake();
+            }
         })
-    }
-
-    fn wait(&mut self, deadline: Deadline) -> bool {
-        let Some(worker) = &mut self.worker else {
-            return false;
-        };
-        let Some(timeout) = deadline.remaining() else {
-            return false;
-        };
-        let failure = match worker.events.recv_timeout(timeout) {
-            Ok(event) => worker.handle(event).or_else(|| worker.poll()),
-            Err(RecvTimeoutError::Timeout) => return false,
-            Err(RecvTimeoutError::Disconnected) => Some(STOPPED.to_owned()),
-        };
-        if let Some(failure) = failure {
-            self.error.get_or_insert(failure);
-            self.worker = None;
-        }
-        true
-    }
-
-    fn took(&mut self) -> Option<StepTime> {
-        self.worker.as_mut()?.took.take()
-    }
-
-    fn take_error(&mut self) -> Option<String> {
-        self.error.take()
-    }
-
-    fn state(&self) -> &'static str {
-        match &self.worker {
-            Some(worker) if worker.ready => "running",
-            Some(_) => "starting",
-            None => "stopped",
-        }
-    }
-
-    fn uptime(&self) -> Option<std::time::Duration> {
-        self.worker.is_some().then(|| self.started.elapsed())
-    }
-
-    fn shutdown(&mut self) {
-        self.worker = None;
-    }
-}
-
-impl Wasm {
-    fn poll_worker(&mut self) {
-        let Some(worker) = &mut self.worker else {
-            return;
-        };
-        if let Some(failure) = worker.poll() {
-            self.error.get_or_insert(failure);
-            self.worker = None;
-        }
-    }
-}
-
-impl Worker {
-    fn poll(&mut self) -> Option<String> {
-        loop {
-            match self.events.try_recv() {
-                Ok(event) => {
-                    if let Some(failure) = self.handle(event) {
-                        return Some(failure);
-                    }
-                }
-                Err(TryRecvError::Empty) => break,
-                Err(TryRecvError::Disconnected) => return Some(STOPPED.to_owned()),
-            }
-        }
-        if !self.ready || self.stepping {
-            return None;
-        }
-        self.waiting.store(false, Ordering::SeqCst);
-        let carrying = !self.pending.is_empty();
-        let step = Command::Step(std::mem::take(&mut self.pending));
-        match self.commands.send(step) {
-            Ok(()) => {
-                self.stepping = true;
-                self.carrying = carrying;
-                None
-            }
-            Err(_) => Some(STOPPED.to_owned()),
-        }
-    }
-
-    fn handle(&mut self, event: Event) -> Option<String> {
-        match event {
-            Event::Ready(produced) => {
-                self.ready = true;
-                self.absorb(produced);
-            }
-            Event::Stepped(produced) => {
-                self.stepping = false;
-                self.absorb(produced);
-            }
-            Event::Failed(error) => return Some(error),
-        }
-        None
-    }
-
-    fn absorb(&mut self, produced: Produced) {
-        self.received.extend(produced.outbound);
-        if !produced.presented.is_empty() {
-            self.took = Some(produced.took);
-            for presented in produced.presented {
-                self.presented
-                    .retain(|held| held.surface != presented.surface);
-                self.presented.push(presented);
-            }
-            self.presents += 1;
-        }
-    }
-}
-
-fn decode(frames: Vec<Vec<u8>>, error: &mut Option<String>) -> Vec<Message> {
-    let mut messages = Vec::with_capacity(frames.len());
-    for frame in frames {
-        match decode_frame(&frame) {
-            Ok(message) => messages.push(message),
-            Err(failure) => {
-                error.get_or_insert(format!("{failure:?}"));
-            }
-        }
-    }
-    messages
+        .map_err(|error| format!("the plugin worker could not start: {error}"))?;
+    Ok(Channel {
+        steps,
+        events,
+        thread: Some(Thread { handle, ended }),
+    })
 }
 
 fn run(
     host: Host,
     module: String,
-    orders: Receiver<Command>,
-    reports: Sender<Event>,
+    orders: Receiver<Vec<Vec<u8>>>,
+    reports: Sender<Event<PresentedTexture>>,
     waiting: Arc<AtomicBool>,
 ) {
     let mut plugin = match host.load_from(&module, discovery::read) {
@@ -392,8 +180,7 @@ fn run(
     ) {
         return;
     }
-    for order in orders {
-        let Command::Step(frames) = order;
+    for frames in orders {
         for frame in frames {
             plugin.send(frame);
         }
@@ -416,16 +203,21 @@ fn run(
     plugin.stop();
 }
 
-fn report(reports: &Sender<Event>, event: Event, woken: bool, waiting: &AtomicBool) -> bool {
-    let quiet = !woken && matches!(&event, Event::Stepped(produced) if produced.is_empty());
+fn report(
+    reports: &Sender<Event<PresentedTexture>>,
+    event: Event<PresentedTexture>,
+    woken: bool,
+    waiting: &AtomicBool,
+) -> bool {
+    let wakes = event.wakes(woken, waiting);
     let sent = reports.send(event).is_ok();
-    if !quiet || waiting.load(Ordering::SeqCst) {
+    if wakes {
         crate::host::wake();
     }
     sent
 }
 
-fn produced(plugin: &mut Plugin, took: StepTime) -> Produced {
+fn produced(plugin: &mut Plugin, took: StepTime) -> Produced<PresentedTexture> {
     let outbound = plugin.take_outbound();
     let mut presented: Vec<PresentedTexture> = Vec::new();
     for surface in plugin.take_presented() {
@@ -440,6 +232,7 @@ fn produced(plugin: &mut Plugin, took: StepTime) -> Produced {
         });
     }
     Produced {
+        painted: !presented.is_empty(),
         outbound,
         presented,
         took,

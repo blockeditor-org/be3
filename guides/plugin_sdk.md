@@ -68,8 +68,11 @@ thread-local block instead:
 
 ## Loading
 
-`crates/block-wasm-host/src/dylink.rs` (wasmtime) and `crates/block-app/web/dylink.js` (the
-browser) do the same things:
+`crates/wasm-dylink` holds the names the link and the loaders agree on, and plans the link:
+where the plugin's memory and table slots go, and what answers each of its imports. The plan is
+plain data. `crates/block-wasm-host/src/dylink.rs` (wasmtime) and
+`crates/block-app/web/dylink.js` (the browser, which reaches the planner through
+block-gpu-shim) only carry it out:
 1. Instantiate the SDK against the plugin's shared memory, and run its constructors.
 2. Plan: allocate the plugin's memory with the SDK's `malloc`, and pick table slots after the
    SDK's own for the plugin's functions and for every function whose address it takes.

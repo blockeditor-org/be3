@@ -1,13 +1,22 @@
-use std::time::Duration;
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
-use block_plugin_api::{Message, PluginManifest, ScreenDamage, ScreenLayout};
+use block_plugin_api::{Message, PluginManifest, ScreenDamage, decode_frame, encode_frame};
+
+use super::worker::Worker;
+use crate::{editors::plugin::discovery, host};
 
 #[cfg(not(target_arch = "wasm32"))]
-use super::wasm::Wasm;
+use super::wasm as platform;
 #[cfg(target_arch = "wasm32")]
-use super::web::Web;
+use super::web as platform;
 
 pub(super) const NOT_INSTALLED: &str = "The plugin host is not installed.";
+const NO_ENTRY_POINT: &str = "This plugin has no wasm entry point.";
+
+pub(super) type Frame = platform::Frame;
 
 #[derive(Clone, Copy, Default)]
 pub(super) struct StepTime {
@@ -24,75 +33,164 @@ pub(super) trait ShownFrame {
     fn set_damage(&mut self, damage: Option<Vec<ScreenDamage>>);
 }
 
-pub(super) trait Backend: Sized {
-    type Frame: ShownFrame;
-
-    fn new(plugin: &PluginManifest) -> Self;
-
-    fn start(&mut self, plugin: &PluginManifest);
-
-    fn ready(&self) -> bool {
-        true
-    }
-
-    fn send(&mut self, messages: Vec<Message>);
-
-    fn receive(&mut self) -> Vec<Message>;
-
-    fn frame(&mut self, layout: &ScreenLayout, pass: u64) -> Option<Self::Frame>;
-
-    fn received_frame(&mut self) -> Option<Self::Frame>;
-
-    fn settled(&mut self) -> bool {
-        true
-    }
-
-    fn wait(&mut self, _deadline: Deadline) -> bool {
-        false
-    }
-
-    fn took(&mut self) -> Option<StepTime> {
-        None
-    }
-
-    fn take_error(&mut self) -> Option<String>;
-
-    fn state(&self) -> &'static str;
-
-    fn uptime(&self) -> Option<Duration>;
-
-    fn shutdown(&mut self);
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-pub(super) type Platform = Wasm;
-#[cfg(target_arch = "wasm32")]
-pub(super) type Platform = Web;
-
-pub(super) type Frame = <Platform as Backend>::Frame;
-
 #[derive(Clone, Copy)]
 pub(super) struct Deadline {
-    #[cfg(not(target_arch = "wasm32"))]
-    at: std::time::Instant,
+    at: Instant,
 }
 
 impl Deadline {
-    #[cfg(not(target_arch = "wasm32"))]
     pub(super) fn after(budget: Duration) -> Self {
         Self {
-            at: std::time::Instant::now() + budget,
+            at: Instant::now() + budget,
         }
     }
 
-    #[cfg(target_arch = "wasm32")]
-    pub(super) fn after(_budget: Duration) -> Self {
-        Self {}
+    pub(super) fn remaining(self) -> Option<Duration> {
+        self.at.checked_duration_since(Instant::now())
+    }
+}
+
+pub(super) struct Backend {
+    module: Option<String>,
+    worker: Option<Worker<platform::Channel>>,
+    started: Duration,
+    error: Option<String>,
+}
+
+impl Backend {
+    pub(super) fn new(plugin: &PluginManifest) -> Self {
+        Self {
+            module: discovery::entry_point(&plugin.identity.id, &plugin.entry_point),
+            worker: None,
+            started: host::now(),
+            error: None,
+        }
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
-    pub(super) fn remaining(self) -> Option<Duration> {
-        self.at.checked_duration_since(std::time::Instant::now())
+    pub(super) fn start(&mut self, plugin: &PluginManifest) {
+        self.shutdown();
+        self.started = host::now();
+        self.error = None;
+        let Some(module) = self.module.clone() else {
+            self.error = Some(NO_ENTRY_POINT.to_owned());
+            return;
+        };
+        let waiting = Arc::default();
+        match platform::spawn(plugin, module, Arc::clone(&waiting)) {
+            Ok(channel) => self.worker = Some(Worker::new(channel, waiting)),
+            Err(error) => self.error = Some(error),
+        }
+    }
+
+    pub(super) fn ready(&self) -> bool {
+        self.worker.as_ref().is_some_and(Worker::ready)
+    }
+
+    pub(super) fn send(&mut self, messages: Vec<Message>) {
+        let Some(worker) = &mut self.worker else {
+            return;
+        };
+        let mut frames = Vec::with_capacity(messages.len());
+        for message in messages {
+            match encode_frame(&message) {
+                Ok(frame) => frames.push(frame),
+                Err(error) => {
+                    self.error.get_or_insert(error.to_string());
+                }
+            }
+        }
+        if let Some(failure) = worker.queue(frames) {
+            self.fail(failure);
+        }
+    }
+
+    pub(super) fn receive(&mut self) -> Vec<Message> {
+        self.poll();
+        let Some(worker) = &mut self.worker else {
+            return Vec::new();
+        };
+        let mut messages = Vec::new();
+        for frame in worker.take_received() {
+            match decode_frame(&frame) {
+                Ok(message) => messages.push(message),
+                Err(failure) => {
+                    self.error.get_or_insert(format!("{failure:?}"));
+                }
+            }
+        }
+        messages
+    }
+
+    pub(super) fn received_frame(&mut self) -> Option<Frame> {
+        let (presented, presents) = self.worker.as_mut()?.take_presented()?;
+        Some(platform::frame(presented, presents))
+    }
+
+    pub(super) fn settled(&self) -> bool {
+        self.worker.as_ref().is_none_or(Worker::settled)
+    }
+
+    pub(super) fn wait(&mut self, deadline: Deadline) -> bool {
+        let Some(worker) = &mut self.worker else {
+            return false;
+        };
+        match worker.wait(deadline) {
+            Ok(woken) => woken,
+            Err(failure) => {
+                self.fail(failure);
+                true
+            }
+        }
+    }
+
+    pub(super) fn took(&mut self) -> Option<StepTime> {
+        self.worker.as_mut()?.take_took()
+    }
+
+    pub(super) fn take_error(&mut self) -> Option<String> {
+        self.error.take()
+    }
+
+    pub(super) fn state(&self) -> &'static str {
+        match &self.worker {
+            Some(worker) if worker.ready() => "running",
+            Some(_) => "starting",
+            None => "stopped",
+        }
+    }
+
+    pub(super) fn uptime(&self) -> Option<Duration> {
+        self.worker
+            .is_some()
+            .then(|| host::now().saturating_sub(self.started))
+    }
+
+    pub(super) fn shutdown(&mut self) {
+        self.worker = None;
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub(super) fn place(&mut self, placements: Vec<super::web::Placement>) {
+        let Some(worker) = &mut self.worker else {
+            return;
+        };
+        if let Err(error) = worker.channel.place(placements) {
+            self.error.get_or_insert(error);
+        }
+    }
+
+    fn poll(&mut self) {
+        let Some(worker) = &mut self.worker else {
+            return;
+        };
+        if let Some(failure) = worker.poll() {
+            self.fail(failure);
+        }
+    }
+
+    fn fail(&mut self, failure: String) {
+        self.error.get_or_insert(failure);
+        self.worker = None;
     }
 }
 

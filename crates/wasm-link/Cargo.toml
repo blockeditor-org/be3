@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 sha2 = "0.10"
+wasm-dylink = { path = "../wasm-dylink" }
 
 [lints]
 workspace = true

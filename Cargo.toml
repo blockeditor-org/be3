@@ -107,6 +107,7 @@ members = [
     "crates/tabletop-games/rules/tic-tac-toe",
     "crates/text-editor-core",
     "crates/wasi-threads",
+    "crates/wasm-dylink",
     "crates/wasm-link",
 ]
 resolver = "3"

@@ -1,19 +1,23 @@
-use std::{cell::RefCell, sync::Arc};
+use std::{cell::RefCell, future::Future, sync::Arc};
 
 use block_plugin_api::PluginManifest;
 use uuid::Uuid;
 
-#[cfg(target_arch = "wasm32")]
-mod web;
-#[cfg(target_arch = "wasm32")]
-pub(crate) use web::load;
-
 #[cfg(not(target_arch = "wasm32"))]
 mod bundle;
+#[cfg(target_arch = "wasm32")]
+mod web;
+
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) use bundle::read;
 #[cfg(target_os = "android")]
 pub(crate) use bundle::use_assets;
+#[cfg(not(target_arch = "wasm32"))]
+use bundle::{fetch, scan};
+#[cfg(target_arch = "wasm32")]
+pub(crate) use web::load;
+#[cfg(target_arch = "wasm32")]
+use web::{fetch, scan};
 
 const INDEX: &str = "plugins.json";
 
@@ -91,11 +95,6 @@ thread_local! {
     static PLUGINS: RefCell<Option<Arc<Plugins>>> = const { RefCell::new(None) };
 }
 
-#[cfg(target_arch = "wasm32")]
-fn install(plugins: Plugins) {
-    PLUGINS.with(|cell| *cell.borrow_mut() = Some(Arc::new(plugins)));
-}
-
 pub(crate) fn plugins() -> Arc<Plugins> {
     PLUGINS.with(|cell| {
         let mut cell = cell.borrow_mut();
@@ -103,14 +102,32 @@ pub(crate) fn plugins() -> Arc<Plugins> {
     })
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-fn scan() -> Plugins {
-    bundle::scan()
-}
-
-#[cfg(target_arch = "wasm32")]
-fn scan() -> Plugins {
-    Plugins::default()
+async fn discover<F>(read: impl Fn(String) -> F) -> Plugins
+where
+    F: Future<Output = Result<Vec<u8>, String>>,
+{
+    if let Ok(id) = read(build_id::FILE.to_owned()).await {
+        build_id::install(&String::from_utf8_lossy(&id));
+    }
+    let mut plugins = Plugins::default();
+    let manifests = read(INDEX.to_owned()).await.and_then(|document| {
+        serde_json::from_slice::<Vec<String>>(&document).map_err(|error| error.to_string())
+    });
+    match manifests {
+        Ok(manifests) => {
+            for manifest in manifests {
+                match read(manifest.clone())
+                    .await
+                    .and_then(|bytes| String::from_utf8(bytes).map_err(|error| error.to_string()))
+                {
+                    Ok(document) => plugins.add(&manifest, &document),
+                    Err(error) => plugins.error(&manifest, error),
+                }
+            }
+        }
+        Err(error) => plugins.error(INDEX, error),
+    }
+    plugins
 }
 
 pub(crate) fn manifests() -> Vec<Arc<PluginManifest>> {
@@ -162,10 +179,9 @@ fn staged(
         return deliver(Err(format!("{plugin_id} is not a plugin this app found")));
     }
     let relative = format!("{DATA}/{plugin_id}/{path}");
-    #[cfg(target_arch = "wasm32")]
-    crate::platform::http::fetch(relative, Vec::new(), deliver);
-    #[cfg(not(target_arch = "wasm32"))]
-    deliver(read(&relative).map_err(|error| format!("{relative}: {error}")));
+    fetch(relative.clone(), move |read| {
+        deliver(read.map_err(|error| format!("{relative}: {error}")));
+    });
 }
 
 fn plain(path: &str) -> bool {
