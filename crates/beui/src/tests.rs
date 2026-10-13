@@ -365,6 +365,7 @@ mod clicking_a_button_focuses_it_without_a_ring_until_a_key_is_pressed;
 mod clicking_a_checkbox_toggles_it;
 mod clicking_a_choice_keeps_keyboard_focus_on_the_selected_option;
 mod clicking_a_date_field_shows_its_calendar_and_keeps_taking_typing;
+mod clicking_a_frame_in_the_profiler_keeps_showing_that_frame;
 mod clicking_a_link_reports_it_and_reads_as_a_link;
 mod clicking_a_markdown_checkbox_in_a_text_area_toggles_it_without_moving_the_caret;
 mod clicking_a_popover_trigger_again_closes_it;
@@ -508,6 +509,7 @@ mod overscrolling_squishes_the_scrollbar_thumb_against_the_end;
 mod painting_never_has_to_move_a_rect_onto_the_pixel_grid;
 mod painting_skips_the_elements_outside_the_damaged_region;
 mod panning_a_canvas_lays_out_and_paints_none_of_its_items_again;
+mod pausing_the_profiler_stops_its_frames_moving;
 mod percent_children_land_on_whole_device_pixels;
 mod percent_children_of_an_unbounded_list_use_their_intrinsic_length;
 mod percent_sized_children_still_size_an_intrinsic_lists_height;
@@ -1250,6 +1252,17 @@ impl Harness {
 
     pub(crate) fn damage_flash_toggle_center(&self) -> Pos2 {
         self.inspector_center("inspector.performance.flash_damage")
+    }
+
+    pub(crate) fn profiler_point(&self, fraction: f32) -> Pos2 {
+        let chart = self.inspector_rect("inspector.performance.frames");
+        pos2(chart.left() + chart.width() * fraction, chart.center().y)
+    }
+
+    pub(crate) fn profiled_frame(&self) -> String {
+        let inspector = self.inspector();
+        let frame = inspector.find("inspector.performance.frame");
+        text_of(&inspector.document, frame).to_owned()
     }
 
     pub(crate) fn accesskit_tab_center(&self) -> Pos2 {

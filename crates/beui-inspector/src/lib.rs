@@ -3,6 +3,7 @@ extern crate beui_view as beui;
 pub mod mouse_simulation;
 pub mod overlay;
 pub mod panel;
+pub mod profiler;
 pub mod responsive;
 pub mod screen_reader;
 pub mod tree;
@@ -90,6 +91,7 @@ pub struct State {
     requested_renderer: Cell<Option<usize>>,
     revision: Cell<u64>,
     reset_performance: Cell<bool>,
+    performance_paused: Cell<bool>,
     closed: Cell<bool>,
     compact: Cell<bool>,
     app_shown: Cell<bool>,
@@ -123,6 +125,7 @@ impl State {
             requested_renderer: Cell::new(None),
             revision: Cell::new(0),
             reset_performance: Cell::new(false),
+            performance_paused: Cell::new(false),
             closed: Cell::new(false),
             compact: Cell::new(false),
             app_shown: Cell::new(false),
@@ -156,7 +159,13 @@ impl State {
         self.touch();
     }
 
+    fn pause_performance(&self, paused: bool) {
+        self.performance_paused.set(paused);
+        self.touch();
+    }
+
     fn reset_performance(&self) {
+        self.performance_paused.set(false);
         self.reset_performance.set(true);
         self.touch();
     }
@@ -870,7 +879,8 @@ impl Inspector {
         };
         let selection = self.selection_path(target);
         let summary = self.summary(target, ctx, &entries, selection.last().copied());
-        let performance = panel::PerformanceSummary::from(target.performance());
+        let performance = (!self.state.performance_paused.get())
+            .then(|| panel::PerformanceSummary::from(target.performance()));
         let renderer = ctx
             .renderer_info()
             .map(|info| info.rows)
@@ -895,7 +905,9 @@ impl Inspector {
                     .collect(),
             );
             set_summary.set(summary);
-            set_performance.set(performance);
+            if let Some(performance) = performance {
+                set_performance.set(performance);
+            }
             set_renderer.set(renderer);
             set_renderers.set(ctx.renderers());
             set_selection.set(selection);

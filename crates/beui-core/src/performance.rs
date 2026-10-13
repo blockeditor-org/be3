@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
-const SAMPLE_CAPACITY: usize = 120;
+pub const SAMPLE_CAPACITY: usize = 120;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PerformanceTimings {
@@ -26,6 +26,7 @@ pub struct FrameWork {
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct FramePerformance {
+    pub number: u64,
     pub timings: PerformanceTimings,
     pub work: FrameWork,
     pub layout_passes: usize,
@@ -42,18 +43,22 @@ pub struct PerformanceSnapshot {
     pub peak: PerformanceTimings,
     pub layout_cache_hits: usize,
     pub paint_cache_hits: usize,
+    pub frames: Vec<FramePerformance>,
 }
 
 #[derive(Default)]
 pub struct PerformanceTracker {
     frames: VecDeque<FramePerformance>,
+    recorded: u64,
 }
 
 impl PerformanceTracker {
-    pub fn record(&mut self, frame: FramePerformance) {
+    pub fn record(&mut self, mut frame: FramePerformance) {
         if self.frames.len() == SAMPLE_CAPACITY {
             self.frames.pop_front();
         }
+        self.recorded += 1;
+        frame.number = self.recorded;
         self.frames.push_back(frame);
     }
 
@@ -65,6 +70,7 @@ impl PerformanceTracker {
         let mut snapshot = PerformanceSnapshot {
             samples: self.frames.len(),
             latest: self.frames.back().copied().unwrap_or_default(),
+            frames: self.frames.iter().copied().collect(),
             ..PerformanceSnapshot::default()
         };
         if self.frames.is_empty() {
@@ -123,6 +129,7 @@ impl FrameMeasurement {
                 + self.timings.accessibility,
         );
         FramePerformance {
+            number: 0,
             timings: self.timings,
             work: self.work,
             layout_passes: self.layout_passes,
