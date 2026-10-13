@@ -1,16 +1,17 @@
 use std::{
     path::Path,
     sync::Arc,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use wasmtime::{Linker, Module, Store, Trap, TypedFunc, WasmBacktrace};
 use wasmtime_wasi::p2::pipe::MemoryOutputPipe;
 use wasmtime_wasi::{FsPerms, I32Exit, WasiCtxBuilder, p1};
 
+use block_gpu_host::calls::Guest;
+
 use crate::{
-    Host, gpu, precompile::test_module, shared_memory, state::State, stderr::Tee, threads,
-    transport, wake,
+    Host, gpu, precompile::test_module, shared_memory, state::State, stderr::Tee, threads, wake,
 };
 
 const START: &str = "_start";
@@ -151,9 +152,7 @@ impl Host {
             memory: memory.clone(),
             device: self.devices.open(),
             error: None,
-            inbox: Default::default(),
-            outbox: Vec::new(),
-            started: Instant::now(),
+            transport: Default::default(),
             gpu_time: Duration::ZERO,
             submit_time: Duration::ZERO,
             threads: threads::Spawner::new(
@@ -172,7 +171,6 @@ impl Host {
             .define(&store, "env", "memory", memory)
             .map_err(|error| format!("the test memory could not be linked: {error}"))?;
         gpu::link(&mut linker)?;
-        transport::link(&mut linker)?;
         crate::panic::link(&mut linker)?;
         threads::link(&mut linker)?;
         wake::link(&mut linker)?;
