@@ -1,4 +1,3 @@
-use std::rc::Rc;
 
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
@@ -31,6 +30,7 @@ pub struct TimeOptionHandle {
     pub focused: ReadSignal<bool>,
 }
 
+#[derive(Clone, Copy)]
 struct State {
     times: Memo<Vec<u32>>,
     selected: ReadSignal<Option<Time>>,
@@ -41,8 +41,6 @@ struct State {
     columns: usize,
     on_change: Callback<Time>,
 }
-
-type Handle = Rc<State>;
 
 #[component]
 pub fn TimeList(
@@ -95,7 +93,7 @@ pub fn TimeList(
         let index = times.with(|times| times.iter().filter(|minutes| **minutes < wanted).count());
         (index / columns).saturating_sub(LEAD_ROWS) as f32 * (row_height + spacing)
     });
-    let state: Handle = Rc::new(State {
+    let state = State {
         times,
         selected,
         set_selected,
@@ -104,13 +102,13 @@ pub fn TimeList(
         anchor,
         columns,
         on_change,
-    });
-    set_component_state(state.clone());
-    create_effect(clone!(state -> move || {
+    };
+    set_component_state(state);
+    create_effect(move || {
         if focused.get() {
             state.set_focus.set(Some(state.anchor.get_untracked()));
         }
-    }));
+    });
     let rows =
         create_memo(move || (0..times.with(Vec::len).div_ceil(columns)).collect::<Vec<usize>>());
     view! {
@@ -119,7 +117,7 @@ pub fn TimeList(
                 <List spacing>
                     <ForEach keys={rows}>
                         {move |row: usize| view! {
-                            <TimeRow state={state.clone()} row spacing hour_cycle face={option} />
+                            <TimeRow state={state} row spacing hour_cycle face={option} />
                         }}
                     </ForEach>
                 </List>
@@ -130,7 +128,7 @@ pub fn TimeList(
 
 #[component]
 fn TimeRow(
-    state: Handle,
+    state: State,
     row: usize,
     spacing: f32,
     hour_cycle: HourCycle,
@@ -154,7 +152,7 @@ fn TimeRow(
                 {move |minutes: u32| view! {
                     <TimeOption
                         @sizing=ItemSize::Percent(100.0)
-                        state={state.clone()}
+                        state={state}
                         minutes
                         hour_cycle
                         face={face}
@@ -182,23 +180,22 @@ fn TimeListBox(label: Prop<String>, children: Children<ListChild>) -> NodeId {
 
 #[component]
 fn TimeOption(
-    state: Handle,
+    state: State,
     minutes: u32,
     hour_cycle: HourCycle,
     face: RenderFn<TimeOptionHandle>,
 ) -> NodeId {
     let time = Time::from_minutes(minutes);
     let label = time.format(hour_cycle);
-    let selected = create_memo(clone!(state -> move || state.selected.get() == Some(time)));
-    let tab_stop = create_memo(clone!(state -> move || state.anchor.get() == minutes));
-    let focused = create_memo(clone!(state -> move || state.focus.get() == Some(minutes)));
+    let selected = create_memo(move || state.selected.get() == Some(time));
+    let tab_stop = create_memo(move || state.anchor.get() == minutes);
+    let focused = create_memo(move || state.focus.get() == Some(minutes));
     let accessibility = create_memo(clone!(label -> move || {
         let mut node = Node::new(Role::ListBoxOption);
         node.set_label(label.clone());
         node.set_selected(selected.get());
         node
     }));
-    let (focus_state, click_state, key_state) = (state.clone(), state.clone(), state.clone());
     view! {
         <unstyled::Button
             tab_stop
@@ -206,13 +203,13 @@ fn TimeOption(
             accessibility
             on_focus_change={move |has_focus: bool| {
                 if has_focus {
-                    focus_state.set_focus.set(Some(minutes));
-                } else if focus_state.focus.get_untracked() == Some(minutes) {
-                    focus_state.set_focus.set(None);
+                    state.set_focus.set(Some(minutes));
+                } else if state.focus.get_untracked() == Some(minutes) {
+                    state.set_focus.set(None);
                 }
             }}
-            on_click={move || choose(&click_state, time)}
-            on_key={move |press: KeyPress| option_key(&key_state, minutes, press)}
+            on_click={move || choose(state, time)}
+            on_key={move |press: KeyPress| option_key(state, minutes, press)}
             content={move |button: ButtonHandle| {
                 face.call(TimeOptionHandle {
                     time,
@@ -229,17 +226,17 @@ fn TimeOption(
 
 pub fn time_list_selected(document: &Document, list: NodeId) -> Option<Time> {
     document
-        .component_state::<Handle>(list)
+        .component_state::<State>(list)
         .selected
         .get_untracked()
 }
 
-fn choose(state: &State, time: Time) {
+fn choose(state: State, time: Time) {
     state.set_selected.set(Some(time));
     state.on_change.call(time);
 }
 
-fn option_key(state: &State, minutes: u32, press: KeyPress) -> bool {
+fn option_key(state: State, minutes: u32, press: KeyPress) -> bool {
     if press.modifiers.ctrl || press.modifiers.alt {
         return false;
     }

@@ -53,8 +53,8 @@ fn line_starts_and_checkboxes_follow_edits() {
     crate::reactive::with_reactive_scope(harness.document_mut(), || {
         for (at, delete, insert) in edits {
             let length = state.bytes().len();
-            let start = state.core().position(at.min(length));
-            let end = state.core().position((at + delete).min(length));
+            let start = state.with_core(|core| core.position(at.min(length)));
+            let end = state.with_core(|core| core.position((at + delete).min(length)));
             state.execute(EditorCommand::SetSelection {
                 anchor: start,
                 focus: end,

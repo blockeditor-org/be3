@@ -15,7 +15,7 @@ use beui_core::icons::{
     ICON_CLOSE, ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_UP, ICON_MATCH_CASE, ICON_SEARCH,
 };
 use beui_core::node::NodeId;
-use beui_view::reactive::{Align, Direction, Frame, List, Memo, Show, clone, create_memo};
+use beui_view::reactive::{Align, Direction, Frame, List, Memo, Show, create_memo};
 
 const BAR_PADDING_HORIZONTAL: f32 = 12.0;
 const BAR_PADDING_VERTICAL: f32 = 6.0;
@@ -39,9 +39,9 @@ pub fn FindBar(state: TextAreaState) -> NodeId {
 #[component]
 fn FindBarRows(state: TextAreaState) -> NodeId {
     let theme = use_theme();
-    let summary = create_memo(clone!(state -> move || state.find_summary()));
-    let no_matches = create_memo(clone!(state -> move || !state.find_has_matches()));
-    let no_current = create_memo(clone!(state -> move || !state.find_has_current()));
+    let summary = create_memo(move || state.find_summary());
+    let no_matches = create_memo(move || !state.find_has_matches());
+    let no_current = create_memo(move || !state.find_has_current());
 
     let query = state.find().query;
     let case_sensitive = state.find().case_sensitive;

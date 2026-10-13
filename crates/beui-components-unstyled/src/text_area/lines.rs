@@ -44,12 +44,12 @@ pub(super) enum Layer {
 #[component]
 pub(super) fn Lines(cx: Context) -> NodeId {
     let canvas = cx.state.canvas();
-    let fill = create_memo(clone!(cx -> move || Some(cx.view_height.get())));
+    let fill = create_memo(move || Some(cx.view_height.get()));
     let list = cx.list;
     let keys = cx.visible;
-    let top = create_memo(clone!(cx -> move || Some(cx.padding.get().y)));
+    let top = create_memo(move || Some(cx.padding.get().y));
     let bottom =
-        create_memo(clone!(cx -> move || Some((DOCUMENT_PADDING.y - cx.padding.get().y).max(0.0))));
+        create_memo(move || Some((DOCUMENT_PADDING.y - cx.padding.get().y).max(0.0)));
     let estimate = cx.row_estimate();
     view! {
         <Frame @node_ref=&canvas min_height={fill}>
@@ -57,7 +57,7 @@ pub(super) fn Lines(cx: Context) -> NodeId {
                 <Frame height={top} />
                 <VirtualList @node_ref=&list keys item_size=estimate>
                     {move |line: usize| view! {
-                        <AreaRow cx={cx.clone()} line />
+                        <AreaRow cx={cx} line />
                     }}
                 </VirtualList>
                 <Frame height={bottom} />
@@ -69,8 +69,8 @@ pub(super) fn Lines(cx: Context) -> NodeId {
 #[component]
 pub(super) fn SingleLine(cx: Context) -> NodeId {
     let canvas = cx.state.canvas();
-    let model = row_model(&cx, 0);
-    let text = create_memo(clone!(cx -> move || {
+    let model = row_model(cx, 0);
+    let text = create_memo(move || {
         let row = model.get();
         cx.metrics.get();
         let size = cx.font_size.get();
@@ -78,13 +78,13 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
         let laid = rich_layout(&row, size, (0.0, 0.0), f32::INFINITY)
             .map_or(Vec2::ZERO, |layout| layout.size);
         Vec2::new(laid.x, laid.y.max(body))
-    }));
-    let canvas_width = create_memo(clone!(cx -> move || {
+    });
+    let canvas_width = create_memo(move || {
         text.get().x + cx.padding.get().x * 2.0 + CARET_WIDTH
-    }));
-    let canvas_height = create_memo(clone!(cx -> move || text.get().y + cx.padding.get().y * 2.0));
-    let x = create_memo(clone!(cx -> move || cx.padding.get().x - cx.shift.get()));
-    let y = create_memo(clone!(cx -> move || {
+    });
+    let canvas_height = create_memo(move || text.get().y + cx.padding.get().y * 2.0);
+    let x = create_memo(move || cx.padding.get().x - cx.shift.get());
+    let y = create_memo(move || {
         let padding = cx.padding.get();
         let line = text.get().y;
         let height = cx.view_height.get();
@@ -92,14 +92,14 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
             true => (height - line) / 2.0,
             false => padding.y,
         }
-    }));
+    });
     let text_width = create_memo(move || text.get().x + CARET_WIDTH);
     let text_height = create_memo(move || text.get().y);
-    let (text_cx, text_model) = (cx.clone(), model);
+    let text_model = model;
     view! {
         <Canvas @node_ref=&canvas width={canvas_width} height={canvas_height}>
             <CanvasItem x={x} y={y} width={text_width} height={text_height}>
-                <AreaText cx={text_cx} model={text_model} />
+                <AreaText cx={cx} model={text_model} />
             </CanvasItem>
             <CanvasItem x y width={text_width} height={text_height} clip=false>
                 <RowText cx model text={GeometryCell::default()} wrap=false layer=Layer::Handles />
@@ -110,29 +110,28 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
 
 #[component]
 fn AreaRow(cx: Context, line: usize) -> NodeId {
-    let model = row_model(&cx, line);
-    let gutter = create_memo(clone!(cx -> move || Some(cx.gutter.get())));
-    let padding = create_memo(clone!(cx -> move || (cx.padding.get().x - CODE_OUTSET.x).max(0.0)));
-    let inset = create_memo(clone!(cx -> move || cx.padding.get().x.min(CODE_OUTSET.x)));
-    let code = create_memo(clone!(cx -> move || match model.get().code_block {
+    let model = row_model(cx, line);
+    let gutter = create_memo(move || Some(cx.gutter.get()));
+    let padding = create_memo(move || (cx.padding.get().x - CODE_OUTSET.x).max(0.0));
+    let inset = create_memo(move || cx.padding.get().x.min(CODE_OUTSET.x));
+    let code = create_memo(move || match model.get().code_block {
         true => cx.colors.get().code_background,
         false => Color32::TRANSPARENT,
-    }));
+    });
     let block = create_memo(move || model.get().block);
     let renders = cx.block.is_some();
     let has_block = create_memo(move || renders && block.get().is_some());
     let block_ref = NodeRef::new();
-    let block_cx = cx.clone();
     let block_node = block_ref;
     let row = NodeRef::new();
     let text = GeometryCell::default();
     register_row(&cx, line, &row, &text, &block_ref, model);
-    let (gutter_cx, gutter_model) = (cx.clone(), model);
+    let gutter_model = model;
     view! {
         <Frame @node_ref=&row>
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
                 <Frame width={gutter}>
-                    <Gutter cx={gutter_cx} model={gutter_model} />
+                    <Gutter cx={cx} model={gutter_model} />
                 </Frame>
                 <Frame @sizing=ItemSize::Percent(100.0) padding_horizontal={padding}>
                     <Frame color={code} padding_horizontal={inset}>
@@ -141,7 +140,7 @@ fn AreaRow(cx: Context, line: usize) -> NodeId {
                             <Show condition={has_block}>
                                 {move || {
                                     let (index, size) = block.get_untracked().unwrap_or_default();
-                                    let render = block_cx
+                                    let render = cx
                                         .block
                                         .expect("a block is only shown when the area was given one");
                                     let node = block_node;
@@ -178,9 +177,10 @@ fn register_row(
     block: &NodeRef,
     model: Memo<Rc<Row>>,
 ) {
-    let id = cx.registered.get() + 1;
-    cx.registered.set(id);
-    cx.rows.borrow_mut().insert(
+    let held = cx.held.get();
+    let id = held.registered.get() + 1;
+    held.registered.set(id);
+    held.rows.borrow_mut().insert(
         line,
         RowEntry {
             id,
@@ -190,17 +190,18 @@ fn register_row(
             block: *block,
         },
     );
-    let registry = cx.clone();
+    let registry = cx.held;
     on_cleanup(move || {
-        let mut rows = registry.rows.borrow_mut();
-        if rows.get(&line).is_some_and(|entry| entry.id == id) {
-            rows.remove(&line);
-        }
+        registry.try_with(|held| {
+            let mut rows = held.rows.borrow_mut();
+            if rows.get(&line).is_some_and(|entry| entry.id == id) {
+                rows.remove(&line);
+            }
+        });
     });
 }
 
-fn row_model(cx: &Context, line: usize) -> Memo<Rc<Row>> {
-    let cx = cx.clone();
+fn row_model(cx: Context, line: usize) -> Memo<Rc<Row>> {
     let content = cx.state.content();
     let cursors = cx.state.cursors();
     create_memo(move || {
@@ -282,7 +283,7 @@ fn RowText(
         true => (0.0, 0.0),
         false => LINE_PADDING,
     };
-    let marks = create_memo(clone!(cx -> move || {
+    let marks = create_memo(move || {
         if layer == Layer::Handles {
             return Vec::new();
         }
@@ -313,8 +314,8 @@ fn RowText(
             }
         }
         marks
-    }));
-    let carets = create_memo(clone!(cx -> move || {
+    });
+    let carets = create_memo(move || {
         let row = model.get();
         let colors = cx.colors.get();
         let focused = cx.focused.get();
@@ -359,18 +360,17 @@ fn RowText(
             }
         }
         carets
-    }));
-    let anchor_at = create_memo(clone!(cx -> move || {
+    });
+    let anchor_at = create_memo(move || {
         let row = model.get();
         cx.state.cursors().get();
         cx.focused.get();
         let byte = cx.state.caret_indices().first().copied()?;
         (byte >= row.start && byte <= row.end).then(|| row.to_display(byte))
-    }));
+    });
     let anchored = create_memo(move || layer != Layer::Handles && anchor_at.get().is_some());
-    let color = create_memo(clone!(cx -> move || cx.colors.get().syntax.markdown_plain_text));
-    let font_size = create_memo(clone!(cx -> move || cx.font_size.get()));
-    let item_cx = cx.clone();
+    let color = create_memo(move || cx.colors.get().syntax.markdown_plain_text);
+    let font_size = create_memo(move || cx.font_size.get());
     let item_model = model;
     let anchor = cx.anchor;
     let anchor_position = create_memo(move || anchor_at.get());
@@ -387,7 +387,7 @@ fn RowText(
         >
             <ForEach keys={keys}>
                 {move |(key, _): (PieceKey, usize)| {
-                    row_piece(item_cx.clone(), item_model, layer, key)
+                    row_piece(cx, item_model, layer, key)
                 }}
             </ForEach>
             <Show condition={anchored}>
@@ -516,23 +516,22 @@ fn InlineView(cx: Context, model: Memo<Rc<Row>>, index: usize) -> NodeId {
     });
     let run = create_memo(move || matches!(item.get().map(|item| item.inline), Some(Inline::Run)));
     let widget = create_memo(move || !checkbox.get() && !run.get());
-    let (checkbox_cx, widget_cx, run_cx) = (cx.clone(), cx.clone(), cx);
     let (checkbox_item, widget_item, run_item) = (item, item, item);
     view! {
         <List spacing=0.0>
             <Show condition={checkbox}>
                 {move || view! {
-                    <InlineCheckbox cx={checkbox_cx.clone()} item={checkbox_item} />
+                    <InlineCheckbox cx={cx} item={checkbox_item} />
                 }}
             </Show>
             <Show condition={widget}>
                 {move || view! {
-                    <WidgetPill cx={widget_cx.clone()} item={widget_item} />
+                    <WidgetPill cx={cx} item={widget_item} />
                 }}
             </Show>
             <Show condition={run}>
                 {move || view! {
-                    <RunChip cx={run_cx.clone()} item={run_item} />
+                    <RunChip cx={cx} item={run_item} />
                 }}
             </Show>
         </List>
@@ -541,7 +540,7 @@ fn InlineView(cx: Context, model: Memo<Rc<Row>>, index: usize) -> NodeId {
 
 #[component]
 fn RunChip(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
-    let fill = create_memo(clone!(cx -> move || cx.colors.get().widget));
+    let fill = create_memo(move || cx.colors.get().widget);
     let width = create_memo(move || Some(item.get().map_or(0.0, |item| item.size.x)));
     let label = create_memo(move || item.get().map(|item| item.label).unwrap_or_default());
     let color = create_memo(move || item.get().map_or(Color32::WHITE, |item| item.style.color));
@@ -567,15 +566,14 @@ fn InlineCheckbox(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
             Some(Inline::Checkbox { checked: true, .. })
         )
     });
-    let toggle_cx = cx.clone();
     let on_change = Callback::new(move |_: bool| {
         let Some(Inline::Checkbox { line_start, .. }) =
             item.get_untracked().map(|item| item.inline)
         else {
             return;
         };
-        let position = toggle_cx.state.core().position(line_start);
-        toggle_cx
+        let position = cx.state.with_core(|core| core.position(line_start));
+        cx
             .state
             .execute(EditorCommand::Markdown(MarkdownCommand::ToggleCheckbox(
                 position,
@@ -608,11 +606,11 @@ fn InlineCheckbox(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
 #[component]
 fn CheckboxBox(cx: Context, handle: ToggleHandle) -> NodeId {
     let checked = handle.checked;
-    let fill = create_memo(clone!(cx -> move || match checked.get() {
+    let fill = create_memo(move || match checked.get() {
         true => cx.colors.get().widget,
         false => Color32::TRANSPARENT,
-    }));
-    let outline = create_memo(clone!(cx -> move || cx.colors.get().gutter_arrow));
+    });
+    let outline = create_memo(move || cx.colors.get().gutter_arrow);
     let size = CHECKBOX_WIDTH;
     view! {
         <Frame
@@ -648,17 +646,17 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
         Some(Inline::Widget(index)) => Some(index),
         _ => None,
     });
-    let widget = create_memo(clone!(cx -> move || {
+    let widget = create_memo(move || {
         let index = index.get()?;
         cx.widgets.get().get(index).cloned()
-    }));
-    let fill = create_memo(clone!(cx -> move || {
+    });
+    let fill = create_memo(move || {
         let colors = cx.colors.get();
         match widget.get().is_some_and(|widget| widget.broken) {
             true => colors.broken_widget,
             false => colors.widget,
         }
-    }));
+    });
     let width = create_memo(move || Some(item.get().map_or(0.0, |item| item.size.x)));
     let icon = create_memo(move || {
         widget
@@ -677,7 +675,7 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
         item.get()
             .is_some_and(|item| item.style.font.family == beui_core::font::FontFamily::Monospace)
     });
-    let selected = create_memo(clone!(cx -> move || {
+    let selected = create_memo(move || {
         cx.state.cursors().get();
         let Some(index) = index.get() else {
             return false;
@@ -687,10 +685,9 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
         };
         let ranges = cx.state.selection_ranges();
         cx.selected_widget.is_some() && ranges.len() == 1 && ranges[0] == widget.range && !widget.block()
-    }));
+    });
     let pill = NodeRef::new();
     let overlay_anchor = pill;
-    let popup_cx = cx.clone();
     let popup_index = index;
     view! {
         <Frame
@@ -729,7 +726,7 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
                 <Show condition={selected}>
                     {move || {
                         let anchor = overlay_anchor;
-                        let render = popup_cx
+                        let render = cx
                             .selected_widget
                             .expect("a widget only offers a popup when the area was given one");
                         let index = popup_index.get_untracked().unwrap_or_default();
@@ -771,7 +768,7 @@ fn BlockSlot(render: RenderFn<usize>, index: usize, size: Vec2) -> NodeId {
 fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
     let number = create_memo(move || (model.get().line + 1).to_string());
     let height = create_memo(move || Some(model.get().line_height));
-    let arrow = create_memo(clone!(cx -> move || {
+    let arrow = create_memo(move || {
         cx.state.content().get();
         let start = model.get().start;
         cx.state
@@ -784,9 +781,9 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
             })
             .unwrap_or("")
             .to_owned()
-    }));
-    let arrow_color = create_memo(clone!(cx -> move || cx.colors.get().gutter_arrow));
-    let number_color = create_memo(clone!(cx -> move || cx.colors.get().gutter_text));
+    });
+    let arrow_color = create_memo(move || cx.colors.get().gutter_arrow);
+    let number_color = create_memo(move || cx.colors.get().gutter_text);
     view! {
         <Frame padding_left=GUTTER_PADDING_LEFT padding_right=GUTTER_PADDING_RIGHT>
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>

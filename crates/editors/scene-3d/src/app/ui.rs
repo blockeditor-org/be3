@@ -78,7 +78,7 @@ pub(crate) fn Scene3DView() -> NodeId {
     let look = move |motion: Vec2| {
         set_camera.update(|camera| camera.look([motion.x, motion.y]));
     };
-    let walked = clone!(walking stepping -> move |press: KeyPress| {
+    let walked = clone!(walking -> move |press: KeyPress| {
         let mut held = walking.get();
         let handled = held.hold(press.key, press.pressed);
         walking.set(held);

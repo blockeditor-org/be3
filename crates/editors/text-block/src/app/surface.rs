@@ -154,28 +154,28 @@ fn drop_target(state: &Shared, drag: Option<Drag>) -> Option<usize> {
     let byte = state.text.byte_at(drag.position)?;
     let position = state
         .text
-        .core()
-        .cursor_stop(byte, CursorLeftRightStop::UnicodeGraphemeCluster);
-    state.text.core().position_index(position)
+        .with_core(|core| core.cursor_stop(byte, CursorLeftRightStop::UnicodeGraphemeCluster));
+    state.text.with_core(|core| core.position_index(position))
 }
 
 fn remote_cursors(state: &Shared) -> Vec<RemoteTextCursor> {
-    let core = state.text.core();
-    state
-        .remote_cursors()
-        .into_iter()
-        .filter_map(|(_, cursor)| {
-            let color = cursor.color;
-            let selection =
-                core.selection_range(&CursorPosition::range(cursor.anchor, cursor.focus))?;
-            let caret = core.position_index(cursor.focus)?;
-            Some(RemoteTextCursor {
-                selection,
-                caret,
-                color: block_editor_beui::presence_color(color),
+    state.text.with_core(|core| {
+        state
+            .remote_cursors()
+            .into_iter()
+            .filter_map(|(_, cursor)| {
+                let color = cursor.color;
+                let selection =
+                    core.selection_range(&CursorPosition::range(cursor.anchor, cursor.focus))?;
+                let caret = core.position_index(cursor.focus)?;
+                Some(RemoteTextCursor {
+                    selection,
+                    caret,
+                    color: block_editor_beui::presence_color(color),
+                })
             })
-        })
-        .collect()
+            .collect()
+    })
 }
 
 fn take_drag(state: &Shared, drag: Option<Drag>) {
@@ -192,7 +192,7 @@ fn take_drag(state: &Shared, drag: Option<Drag>) {
     let Some(byte) = drop_target(state, Some(drag)) else {
         return;
     };
-    let position = state.text.core().position(byte);
+    let position = state.text.with_core(|core| core.position(byte));
     state.text.execute(EditorCommand::SetSelection {
         anchor: position,
         focus: position,

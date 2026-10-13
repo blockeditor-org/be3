@@ -35,7 +35,7 @@ fn measuring_after_an_edit_matches_measuring_afresh() {
 
     crate::reactive::with_reactive_scope(harness.document_mut(), || {
         let before = state.measure(&[], 300.0).expect("the text was measured");
-        let at = state.core().position(text().find("line 21 ").unwrap());
+        let at = state.with_core(|core| core.position(text().find("line 21 ").unwrap()));
         state.execute(EditorCommand::SetSelection {
             anchor: at,
             focus: at,

@@ -20,8 +20,7 @@ use beui_core::node::{NodeId, NodeOf};
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     BackHandler, Callback, Child, ClickCallback, Frame, Interactive, ItemSize, LayoutBuilder, List,
-    Memo, NodeRef, Offset, Prop, ReadSignal, Render, Shift, Spacer, Timer, WriteSignal, clone,
-    create_effect, create_memo, create_signal, create_timer, on_cleanup, untrack, with_document,
+    Memo, NodeRef, Offset, Prop, ReadSignal, Render, Shift, Spacer, Timer, WriteSignal, create_effect, create_memo, create_signal, create_timer, store, untrack, with_document,
 };
 
 pub const SHEET_STOPS: [f32; 3] = [0.3, 0.5, 0.9];
@@ -99,21 +98,20 @@ struct Held {
     stepped: Instant,
 }
 
-#[derive(Clone)]
 struct Motion {
     extent: Memo<f32>,
     shares: Rc<[f32]>,
     resting: Rest,
     fit: bool,
     rest_at: ReadSignal<Rest>,
-    shifted: Rc<Cell<f32>>,
+    shifted: Cell<f32>,
     slot: NodeRef,
-    chrome: Rc<Cell<f32>>,
+    chrome: Cell<f32>,
     set_rest: WriteSignal<Rest>,
     set_dragging: WriteSignal<bool>,
     content: NodeRef,
-    held: Rc<RefCell<Held>>,
-    animation: Rc<RefCell<Option<Timer>>>,
+    held: RefCell<Held>,
+    animation: Cell<Option<Timer>>,
     open: Prop<bool>,
     set_shift: WriteSignal<f32>,
     set_gone: WriteSignal<bool>,
@@ -440,7 +438,7 @@ impl Motion {
     }
 
     fn kick(&self) {
-        let Some(animation) = self.animation.borrow().clone() else {
+        let Some(animation) = self.animation.get() else {
             return;
         };
         if !animation.running() {
@@ -578,7 +576,7 @@ impl Motion {
         if matches!(held.phase, Phase::Still) {
             return;
         }
-        let Some(animation) = self.animation.borrow().clone() else {
+        let Some(animation) = self.animation.get() else {
             return;
         };
         if !animation.running() {
@@ -790,19 +788,19 @@ pub fn Sheet(
     });
     let content = NodeRef::new();
     let slot = NodeRef::new();
-    let motion = Motion {
+    let motion = store(Motion {
         extent,
         shares,
         resting,
         fit,
         rest_at,
-        shifted: Rc::new(Cell::new(HIDDEN_SHIFT)),
+        shifted: Cell::new(HIDDEN_SHIFT),
         slot,
-        chrome: Rc::default(),
+        chrome: Cell::default(),
         set_rest,
         set_dragging,
         content,
-        held: Rc::new(RefCell::new(Held {
+        held: RefCell::new(Held {
             travel: None,
             handle: None,
             phase: Phase::Still,
@@ -810,45 +808,40 @@ pub fn Sheet(
             flung: 0.0,
             backing: false,
             stepped: beui_core::timer::now(),
-        })),
-        animation: Rc::default(),
+        }),
+        animation: Cell::default(),
         open,
         set_shift,
         set_gone,
         on_presence,
         on_gone,
         on_close,
-    };
-    let animation = create_timer(clone!(motion -> move || motion.step()));
-    motion.animation.replace(Some(animation));
-    on_cleanup(clone!(motion -> move || drop(motion.animation.take())));
+    });
+    let animation = create_timer(move || motion.get().step());
+    motion.with(|motion| motion.animation.set(Some(animation)));
     let shown = open;
     let was_open = Cell::new(false);
-    create_effect(clone!(motion -> move || {
+    create_effect(move || {
         let open = shown.get();
         if open == was_open.replace(open) {
             return;
         }
         untrack(|| match open {
-            true => motion.enter(),
-            false => motion.leave(),
+            true => motion.get().enter(),
+            false => motion.get().leave(),
         });
-    }));
+    });
     let shifted = create_memo(move || vec2(0.0, shift.get()));
     let axis = create_memo(|| Some(Direction::Vertical));
-    let (tapped, stopped) = (motion.clone(), motion.clone());
     let catcher = NodeRef::new();
     let catcher_rect = catcher;
-    let (wheeled, dragged) = (motion.clone(), motion.clone());
-    let (pressed, handled) = (motion.clone(), motion.clone());
-    let (cancelled, released) = (motion.clone(), motion.clone());
     let grip = grip.call(SheetGripHandle { dragging });
     view! {
         <List spacing=0.0>
             <BackHandler
                 @sizing={sizing}
                 enabled={open}
-                on_gesture={move |gesture: BackGesture| motion.back(gesture)}
+                on_gesture={move |gesture: BackGesture| motion.get().back(gesture)}
             >
                 <Shift @node_ref=&slot by={shifted}>
                     {panel.call(view! {
@@ -857,20 +850,20 @@ pub fn Sheet(
                                 scroll_axis={axis}
                                 @node_ref=&catcher
                                 claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
-                                    tapped.flinging() && super::scroll::under(&catcher_rect, pos)
+                                    motion.get().flinging() && super::scroll::under(&catcher_rect, pos)
                                 }}
-                                on_press={move |_: PointerPress| stopped.stop_fling()}
-                                on_scroll={move |gesture: ScrollGesture| wheeled.wheel(gesture)}
-                                on_scroll_drag={move |gesture: DragGesture| dragged.drag(gesture)}
+                                on_press={move |_: PointerPress| motion.get().stop_fling()}
+                                on_scroll={move |gesture: ScrollGesture| motion.get().wheel(gesture)}
+                                on_scroll_drag={move |gesture: DragGesture| motion.get().drag(gesture)}
                             >
                                 <List spacing=0.0>
                                     <Interactive
                                         @test_id={"sheet.handle"}
                                         cursor=CursorIcon::ResizeVertical
-                                        on_press={move |press: PointerPress| pressed.handle_press(press)}
-                                        on_drag={move |press: PointerPress| handled.handle_drag(press)}
-                                        on_cancel={move || cancelled.handle_cancel()}
-                                        on_active_change={move |active: bool| released.handle_active(active)}
+                                        on_press={move |press: PointerPress| motion.get().handle_press(press)}
+                                        on_drag={move |press: PointerPress| motion.get().handle_drag(press)}
+                                        on_cancel={move || motion.get().handle_cancel()}
+                                        on_active_change={move |active: bool| motion.get().handle_active(active)}
                                         children={Some(grip)}
                                     />
                                     <Offset

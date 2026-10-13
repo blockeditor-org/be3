@@ -52,7 +52,7 @@ fn a_long_text_area_only_builds_the_lines_in_view() {
 
     harness.click(pos2(250.0, 20.0));
     crate::reactive::with_reactive_scope(harness.document_mut(), || {
-        let end = state.core().position(state.bytes().len());
+        let end = state.with_core(|core| core.position(state.bytes().len()));
         state.execute(EditorCommand::SetSelection {
             anchor: end,
             focus: end,

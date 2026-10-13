@@ -53,25 +53,28 @@ fn editor(simulation: &Arc<RwLock<Simulation>>, side: Side) -> TextAreaState {
 }
 
 fn caret(state: &TextAreaState) -> Option<Caret> {
-    state.core().cursor_positions().first().map(|cursor| Caret {
-        anchor: cursor.pos.anchor,
-        focus: cursor.pos.focus,
+    state.with_core(|core| {
+        core.cursor_positions().first().map(|cursor| Caret {
+            anchor: cursor.pos.anchor,
+            focus: cursor.pos.focus,
+        })
     })
 }
 
 fn remote(state: &TextAreaState, caret: Option<Caret>, color: Color32) -> Vec<RemoteTextCursor> {
-    let core = state.core();
-    caret
-        .and_then(|caret| {
-            Some(RemoteTextCursor {
-                selection: core
-                    .selection_range(&CursorPosition::range(caret.anchor, caret.focus))?,
-                caret: core.position_index(caret.focus)?,
-                color,
+    state.with_core(|core| {
+        caret
+            .and_then(|caret| {
+                Some(RemoteTextCursor {
+                    selection: core
+                        .selection_range(&CursorPosition::range(caret.anchor, caret.focus))?,
+                    caret: core.position_index(caret.focus)?,
+                    color,
+                })
             })
-        })
-        .into_iter()
-        .collect()
+            .into_iter()
+            .collect()
+    })
 }
 
 #[sample]
@@ -90,7 +93,7 @@ fn ConcurrentEditing() -> NodeId {
     let timer: Rc<RefCell<Option<Timer>>> = Rc::new(RefCell::new(None));
 
     let pump = Rc::new(
-        clone!(simulation left right published timer -> move |force: Option<(Side, Amount)>| {
+        clone!(simulation published timer -> move |force: Option<(Side, Amount)>| {
             let now = now();
             let delay = Duration::from_millis(latency.get_untracked() as u64);
             let held = paused.get_untracked();
@@ -151,7 +154,7 @@ fn ConcurrentEditing() -> NodeId {
         pump(None);
         None
     })));
-    create_effect(clone!(left right pump -> move || {
+    create_effect(clone!(pump -> move || {
         left.content().get();
         right.content().get();
         left.cursors().get();
@@ -161,14 +164,14 @@ fn ConcurrentEditing() -> NodeId {
         untrack(|| pump(None));
     }));
 
-    let left_remote = create_memo(clone!(left -> move || {
+    let left_remote = create_memo(move || {
         left.content().get();
         remote(&left, seen.get()[Side::Left.index()], RIGHT_COLOR)
-    }));
-    let right_remote = create_memo(clone!(right -> move || {
+    });
+    let right_remote = create_memo(move || {
         right.content().get();
         remote(&right, seen.get()[Side::Right.index()], LEFT_COLOR)
-    }));
+    });
     let latency_label = create_memo(move || format!("Latency: {} ms", latency.get().round()));
     let status = create_memo(move || match (flight.get(), same.get()) {
         (_, true) => "Both sides hold the same text.".to_owned(),

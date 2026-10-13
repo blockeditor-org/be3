@@ -75,7 +75,7 @@ impl State {
         content.record();
         let document = Arc::new(BlockDocument::new(editor.host().waker()));
         let text = TextAreaState::new(Arc::clone(&document) as Arc<dyn text_editor_core::Document>);
-        text.core_mut().config.inside_atomic_unit = inside_block_url;
+        text.with_core_mut(|core| core.config.inside_atomic_unit = inside_block_url);
         let dependencies = client.watch(BlockQuery::References(block_id));
         let (embeds, set_embeds) = create_signal(Vec::new());
         let (hex_view, set_hex_view) = create_signal(false);
@@ -182,7 +182,7 @@ impl State {
             self.text.sync();
         }
         if first {
-            let start = self.text.core().position(0);
+            let start = self.text.with_core(|core| core.position(0));
             self.text.execute(EditorCommand::SetSelection {
                 anchor: start,
                 focus: start,
@@ -238,7 +238,7 @@ impl State {
             }
             return;
         }
-        if let Some(cursor) = self.text.core().cursor_positions().first() {
+        if let Some(cursor) = self.text.with_core(|core| core.cursor_positions().first().copied()) {
             let color = self.published_cursor.get().map_or_else(
                 || {
                     pick_free_color(
@@ -280,7 +280,7 @@ impl State {
             .iter()
             .find(|(id, _)| *id == client_id)
             .map(|(_, cursor)| *cursor)?;
-        let focus = self.text.core().position_index(cursor.focus)?;
+        let focus = self.text.with_core(|core| core.position_index(cursor.focus))?;
         self.text.layout().get_untracked().caret_rect(focus)
     }
 

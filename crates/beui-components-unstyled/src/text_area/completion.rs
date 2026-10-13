@@ -94,7 +94,7 @@ pub(super) fn Completions(cx: Context, menu: CompletionMenu) -> NodeId {
                 <List spacing=0.0>
                     <ForEach keys>
                         {move |index: usize| {
-                            let (cx, row) = (cx.clone(), row);
+                            let (cx, row) = (cx, row);
                             view! {
                                 <CompletionRow cx index row />
                             }
@@ -119,12 +119,11 @@ fn CompletionRow(cx: Context, index: usize, row: RenderFn<CompletionRowHandle>) 
         highlighted,
         hovered,
     });
-    let pick_cx = cx.clone();
     view! {
         <Interactive
             @test_id={format!("text.completion.{index}")}
             cursor=CursorIcon::PointingHand
-            on_click={move || pick_cx.complete(index)}
+            on_click={move || cx.complete(index)}
             on_hover_change={move |inside: bool| {
                 set_hovered.set(inside);
                 if inside {
@@ -136,7 +135,7 @@ fn CompletionRow(cx: Context, index: usize, row: RenderFn<CompletionRowHandle>) 
     }
 }
 
-pub(super) fn query(state: &TextAreaState, trigger: u8) -> Option<Query> {
+pub(super) fn query(state: TextAreaState, trigger: u8) -> Option<Query> {
     let ranges = state.selection_ranges();
     let [range] = ranges.as_slice() else {
         return None;

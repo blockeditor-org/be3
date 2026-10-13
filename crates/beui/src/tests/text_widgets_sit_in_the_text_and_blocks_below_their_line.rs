@@ -85,10 +85,7 @@ fn text_widgets_sit_in_the_text_and_blocks_below_their_line() {
     );
 
     crate::reactive::with_reactive_scope(harness.document_mut(), || {
-        let (anchor, focus) = {
-            let core = state.core();
-            (core.position(4), core.position(7))
-        };
+        let (anchor, focus) = state.with_core(|core| (core.position(4), core.position(7)));
         state.execute(EditorCommand::SetSelection { anchor, focus });
     });
     harness.frame(Vec::new());

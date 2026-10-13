@@ -38,7 +38,7 @@ pub fn Tooltip(
         set_shown.set(true);
         None
     });
-    let hover = clone!(dwell -> move |hovered: bool| {
+    let hover = move |hovered: bool| {
         match hovered {
             true => dwell.restart(delay),
             false => {
@@ -46,11 +46,11 @@ pub fn Tooltip(
                 set_shown.set(false);
             }
         }
-    });
-    let press = clone!(dwell -> move |_: PointerPress| {
+    };
+    let press = move |_: PointerPress| {
         dwell.stop();
         set_shown.set(false);
-    });
+    };
     let bubble = content.call(TooltipHandle { label, shown });
 
     view! {

@@ -57,7 +57,7 @@ pub fn KeepChanges(
         Some(until_next_second(remaining))
     }));
     let open = create_memo(move || open.get());
-    create_effect(clone!(deadline ticking -> move || {
+    create_effect(clone!(deadline -> move || {
         let opened = open.get();
         round.get();
         untrack(|| match opened {

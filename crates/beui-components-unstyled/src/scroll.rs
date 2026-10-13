@@ -1,6 +1,5 @@
 use beui_core::layer::LayerPolicy;
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::cell::{Cell, RefCell};
 use std::time::{Duration, Instant};
 
 use accesskit::{Action, Node, Role};
@@ -26,9 +25,9 @@ use beui_core::node::{NodeId, NodeOf};
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Callback, Children, Fade, Frame, Interactive, List, ListChild, Memo, NodeRef, Offset, Prop,
-    ReadSignal, Render, RenderFn, ShowKeepAlive, Timer, clone, component_accessibility,
-    create_effect, create_memo, create_signal, create_timer, focus_ring, on_cleanup, on_scroll_key,
-    set_component_state, untrack, with_document,
+    ReadSignal, Render, RenderFn, ShowKeepAlive, Stored, Timer, component_accessibility,
+    create_effect, create_memo, create_signal, create_timer, focus_ring, on_scroll_key,
+    set_component_state, store, untrack, with_document,
 };
 
 const FOCUS_RING_WIDTH: f32 = 2.0;
@@ -219,13 +218,12 @@ fn rubber_banding() -> bool {
     with_document(|document| document.rubber_banding())
 }
 
-#[derive(Clone)]
 struct Motion {
     node: Option<NodeOf<OffsetNode>>,
     reported: ReadSignal<Option<ScrollPosition>>,
     direction: Prop<Direction>,
-    momentum: Rc<RefCell<Momentum>>,
-    animation: Rc<RefCell<Option<Timer>>>,
+    momentum: RefCell<Momentum>,
+    animation: Cell<Option<Timer>>,
 }
 
 impl Motion {
@@ -318,7 +316,7 @@ impl Motion {
     }
 
     fn animate(&self, momentum: &mut Momentum) {
-        let Some(animation) = self.animation.borrow().clone() else {
+        let Some(animation) = self.animation.get() else {
             return;
         };
         if !animation.running() {
@@ -416,17 +414,16 @@ fn Scrolling(
         set_reported.set(Some(position));
         on_change.call(position);
     }));
-    let motion = Motion {
+    let motion = store(Motion {
         node: with_document(|document| document.first_offset_within(node)),
         reported,
         direction,
-        momentum: Rc::new(RefCell::new(Momentum::new())),
-        animation: Rc::default(),
-    };
-    let animation = create_timer(clone!(motion -> move || motion.step()));
-    motion.animation.replace(Some(animation));
-    on_cleanup(clone!(motion -> move || drop(motion.animation.take())));
-    set_component_state(motion.clone());
+        momentum: RefCell::new(Momentum::new()),
+        animation: Cell::default(),
+    });
+    let animation = create_timer(move || motion.get().step());
+    motion.with(|motion| motion.animation.set(Some(animation)));
+    set_component_state(motion);
 
     let position = create_memo(move || reported.get().unwrap_or_default());
     component_accessibility(create_memo(move || scroll_view(reported.get())));
@@ -434,10 +431,6 @@ fn Scrolling(
     let (focused, set_focused) = create_signal(false);
     let across = across(&direction);
     let axis = create_memo(move || Some(direction.get()));
-    let (keyed, ancestor_keyed) = (motion.clone(), motion.clone());
-    let (wheeled, dragged) = (motion.clone(), motion.clone());
-    let autoscrolled = motion.clone();
-    let (tapped, stopped) = (motion.clone(), motion.clone());
     let catcher = NodeRef::new();
     let catcher_rect = catcher;
     let (origin, set_origin) = create_signal(None::<Pos2>);
@@ -445,11 +438,11 @@ fn Scrolling(
     let anchor = create_memo(move || OverlayAnchor::Point(origin.get().unwrap_or(Pos2::ZERO)));
     let marker_axis = create_memo(move || direction.get());
     let content_axis = marker_axis;
-    let scroll_to = Callback::new(move |offset: f32| motion.scroll_to(offset));
+    let scroll_to = Callback::new(move |offset: f32| motion.get().scroll_to(offset));
     on_scroll_key(KeyAt::Node(catcher), KeyPhase::Bubble, move |event| {
         event
             .press()
-            .is_some_and(|press| navigates(press.key) && ancestor_keyed.key(press))
+            .is_some_and(|press| navigates(press.key) && motion.get().key(press))
     });
     view! {
         <List direction={across} spacing={scrollbar.spacing()}>
@@ -458,21 +451,21 @@ fn Scrolling(
                 tab_stop
                 @sizing=ItemSize::Percent(100.0)
                 on_focus_change={move |focused: bool| set_focused.set(focused)}
-                on_key={move |press: KeyPress| keyed.key(press)}
+                on_key={move |press: KeyPress| motion.get().key(press)}
                 scroll_axis={axis}
                 @node_ref=&catcher
                 claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
-                    tapped.flinging() && under(&catcher_rect, pos)
+                    motion.get().flinging() && under(&catcher_rect, pos)
                 }}
-                on_press={move |_: PointerPress| stopped.stop_fling()}
-                on_scroll={move |gesture: ScrollGesture| wheeled.wheel(gesture)}
-                on_scroll_drag={move |gesture: DragGesture| dragged.drag(gesture)}
+                on_press={move |_: PointerPress| motion.get().stop_fling()}
+                on_scroll={move |gesture: ScrollGesture| motion.get().wheel(gesture)}
+                on_scroll_drag={move |gesture: DragGesture| motion.get().drag(gesture)}
                 on_autoscroll={move |gesture: AutoscrollGesture| {
                         let marking = (!gesture.ended).then_some(gesture.origin);
                         if untrack(|| origin.get()) != marking {
                             set_origin.set(marking);
                         }
-                        autoscrolled.autoscroll(gesture);
+                        motion.get().autoscroll(gesture);
                     }}
             >
                 <Frame
@@ -607,10 +600,8 @@ fn fade_edges(direction: Direction, position: Option<ScrollPosition>, fade: f32)
 
 pub fn scroll_animating(document: &Document, scroll: NodeId) -> bool {
     document
-        .component_state::<Motion>(scroll)
-        .momentum
-        .borrow()
-        .moving()
+        .component_state::<Stored<Motion>>(scroll)
+        .with(|motion| motion.momentum.borrow().moving())
 }
 
 fn scroll_view(position: Option<ScrollPosition>) -> Node {

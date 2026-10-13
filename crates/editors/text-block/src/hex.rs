@@ -95,12 +95,13 @@ fn document_len(state: &Shared) -> usize {
 }
 
 fn cursor_range(state: &Shared) -> Range<usize> {
-    let core = state.text.core();
-    core.cursor_positions()
-        .first()
-        .copied()
-        .and_then(|cursor| core.selection_range(&cursor))
-        .unwrap_or(0..0)
+    state.text.with_core(|core| {
+        core.cursor_positions()
+            .first()
+            .copied()
+            .and_then(|cursor| core.selection_range(&cursor))
+            .unwrap_or(0..0)
+    })
 }
 
 fn select_byte(state: &Shared, index: usize) {
@@ -111,10 +112,9 @@ fn select_byte(state: &Shared, index: usize) {
         true => index + 1,
         false => index,
     };
-    let (anchor, focus) = {
-        let core = state.text.core();
+    let (anchor, focus) = state.text.with_core(|core| {
         (core.position(index), core.position(focus_index))
-    };
+    });
     state
         .text
         .execute(EditorCommand::SetSelection { anchor, focus });
@@ -124,8 +124,7 @@ fn set_range(state: &Shared, anchor_byte: usize, target_byte: usize) {
     let len = document_len(state);
     let anchor_byte = anchor_byte.min(len);
     let target_byte = target_byte.min(len);
-    let (anchor, focus) = {
-        let core = state.text.core();
+    let (anchor, focus) = state.text.with_core(|core| {
         match target_byte >= anchor_byte {
             true => (
                 core.position(anchor_byte),
@@ -136,7 +135,7 @@ fn set_range(state: &Shared, anchor_byte: usize, target_byte: usize) {
                 core.position(target_byte),
             ),
         }
-    };
+    });
     state
         .text
         .execute(EditorCommand::SetSelection { anchor, focus });
@@ -149,13 +148,12 @@ fn commit_byte(state: &Shared, byte_index: usize, byte: u8) {
         true => byte_index + 1,
         false => byte_index.min(len),
     };
-    let (anchor, focus) = {
-        let core = state.text.core();
+    let (anchor, focus) = state.text.with_core(|core| {
         (
             core.position(byte_index.min(len)),
             core.position(overwrite_end),
         )
-    };
+    });
     state
         .text
         .execute(EditorCommand::SetSelection { anchor, focus });
@@ -285,13 +283,12 @@ fn page(state: &Shared, geometry: &HexGeometry, size: Vec2) -> Page {
     let len = bytes.len();
     let rows = len.div_ceil(BYTES_PER_ROW).max(1);
     let selected = cursor_range(state);
-    let focus = {
-        let core = state.text.core();
+    let focus = state.text.with_core(|core| {
         core.cursor_positions()
             .first()
             .copied()
             .and_then(|cursor| core.position_index(cursor.pos.focus))
-    };
+    });
     let font = FontId::monospace(TEXT_SIZE);
     let mut shapes = vec![PageShape::Rect {
         rect: Rect::from_min_size(Pos2::ZERO, size),

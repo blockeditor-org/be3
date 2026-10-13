@@ -10,7 +10,7 @@ use beui_core::base::ItemSize;
 use beui_core::geometry::Pos2;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, ForEach, Prop, Render, clone, copy_text, create_memo, create_signal, request_paste,
+    Callback, ForEach, Prop, Render, copy_text, create_memo, create_signal, request_paste,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -43,7 +43,7 @@ pub fn TextContextMenu(
 ) -> NodeId {
     let (open_at, set_open_at) = create_signal(None::<Pos2>);
     let cursors = state.cursors();
-    let actions = create_memo(clone!(state -> move || {
+    let actions = create_memo(move || {
         cursors.get();
         let selected = state.selection_ranges().iter().any(|range| !range.is_empty());
         match selected && !masked.get() {
@@ -55,7 +55,7 @@ pub fn TextContextMenu(
             ],
             false => vec![MenuAction::Paste, MenuAction::SelectAll],
         }
-    }));
+    });
     let chosen = actions;
     let no_menu = !menu.is_some();
     let off = create_memo(move || no_menu || disabled.get());
