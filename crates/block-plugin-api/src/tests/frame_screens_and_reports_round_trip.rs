@@ -54,24 +54,6 @@ fn frame_screens_and_reports_round_trip() {
                 height: 440.0,
             },
         }],
-        handles_back: true,
-        wants_keyboard: true,
-        pastes: vec![PasteKind::Image, PasteKind::Text],
-        intercepted_keys: vec![
-            KeyChord {
-                key: Key::Tab,
-                modifiers: Modifiers {
-                    alt: true,
-                    ..Modifiers::default()
-                },
-                tap: false,
-            },
-            KeyChord {
-                key: Key::Logo,
-                modifiers: Modifiers::default(),
-                tap: true,
-            },
-        ],
         description: Some(Description {
             nodes: vec![DescribedNode {
                 depth: 0,

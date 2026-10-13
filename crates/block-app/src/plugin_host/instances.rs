@@ -1,6 +1,6 @@
 use be_block::BlockContent as _;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
-use block_plugin_api::ImeArea as PluginImeArea;
+use block_plugin_api::WindowRequests;
 use block_plugin_api::{
     ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId, ChildMode,
     ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, CursorIcon, DataListing,
@@ -451,8 +451,8 @@ struct Screen {
     report: Option<FrameReport>,
     dragging: bool,
     file_dropping: bool,
-    cursor: CursorIcon,
-    ime: Option<PluginImeArea>,
+    window: WindowRequests,
+    keyboard_asks: u64,
     children: ChildTable,
     reported_statuses: HashMap<ChildId, ChildStatus>,
     revoked: HashSet<ChildId>,
@@ -686,8 +686,8 @@ impl Instances {
                 report: None,
                 dragging: false,
                 file_dropping: false,
-                cursor: CursorIcon::Default,
-                ime: None,
+                window: WindowRequests::default(),
+                keyboard_asks: 0,
                 children: ChildTable::default(),
                 reported_statuses: HashMap::new(),
                 revoked: HashSet::new(),
@@ -2041,7 +2041,7 @@ impl Instances {
         rect: Rect,
     ) -> Option<ImeArea> {
         let screen = self.entries.get(&instance)?.screens.get(&region)?;
-        let area = screen.ime.as_ref()?;
+        let area = screen.window.ime.as_ref()?;
         let origin = rect.min.to_vec2();
         let stretch = vec2(
             ratio(rect.width(), screen.request.metrics.logical_width),
@@ -2055,13 +2055,22 @@ impl Instances {
         })
     }
 
+    pub(super) fn window(
+        &self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+    ) -> Option<(&WindowRequests, u64)> {
+        let screen = self.entries.get(&instance)?.screens.get(&region)?;
+        Some((&screen.window, screen.keyboard_asks))
+    }
+
     pub(super) fn cursor(
         &self,
         instance: EditorInstanceId,
         region: EditorRegion,
     ) -> Option<beui::CursorIcon> {
         let screen = self.entries.get(&instance)?.screens.get(&region)?;
-        Some(match screen.cursor {
+        Some(match screen.window.cursor {
             CursorIcon::Default => beui::CursorIcon::Default,
             CursorIcon::None => beui::CursorIcon::None,
             CursorIcon::Pointer => beui::CursorIcon::PointingHand,
@@ -2636,10 +2645,10 @@ impl Instances {
                 });
                 true
             }
-            EditorMessage::Ime {
+            EditorMessage::Window {
                 instance,
                 region,
-                area,
+                window,
             } => {
                 let Some(screen) = self
                     .entries
@@ -2648,9 +2657,20 @@ impl Instances {
                 else {
                     return false;
                 };
-                let changed = screen.ime != area;
-                screen.ime = area;
+                let changed = screen.window != window;
+                screen.window = window;
                 changed
+            }
+            EditorMessage::ShowKeyboard { instance, region } => {
+                let Some(screen) = self
+                    .entries
+                    .get_mut(&instance)
+                    .and_then(|entry| entry.screens.get_mut(&region))
+                else {
+                    return false;
+                };
+                screen.keyboard_asks += 1;
+                true
             }
             EditorMessage::CopyText { instance, text } => {
                 if !self.entries.contains_key(&instance) {
@@ -2688,22 +2708,6 @@ impl Instances {
                     .replacements
                     .insert(key, Replacement::Answered(replaced));
                 true
-            }
-            EditorMessage::Cursor {
-                instance,
-                region,
-                cursor,
-            } => {
-                let Some(screen) = self
-                    .entries
-                    .get_mut(&instance)
-                    .and_then(|entry| entry.screens.get_mut(&region))
-                else {
-                    return false;
-                };
-                let changed = screen.cursor != cursor;
-                screen.cursor = cursor;
-                changed
             }
             EditorMessage::ArtifactDescribed {
                 instance,

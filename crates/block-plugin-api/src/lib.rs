@@ -101,11 +101,17 @@ pub struct FrameReport {
     pub painted: Vec<ChildRect>,
     pub floating: Vec<ChildRect>,
     pub claims: Vec<PressClaim>,
+    pub description: Option<Description>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct WindowRequests {
+    pub cursor: CursorIcon,
+    pub ime: Option<ImeArea>,
     pub handles_back: bool,
     pub wants_keyboard: bool,
     pub intercepted_keys: Vec<KeyChord>,
     pub pastes: Vec<PasteKind>,
-    pub description: Option<Description>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -1083,15 +1089,14 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         states: Vec<HistoryState>,
     },
-    Cursor {
+    Window {
         instance: EditorInstanceId,
         region: EditorRegion,
-        cursor: CursorIcon,
+        window: WindowRequests,
     },
-    Ime {
+    ShowKeyboard {
         instance: EditorInstanceId,
         region: EditorRegion,
-        area: Option<ImeArea>,
     },
     Presence {
         instance: EditorInstanceId,
@@ -1247,8 +1252,8 @@ impl EditorMessage {
             | Self::ArtifactStates { instance, .. }
             | Self::WatchHistory { instance, .. }
             | Self::HistoryStates { instance, .. }
-            | Self::Cursor { instance, .. }
-            | Self::Ime { instance, .. }
+            | Self::Window { instance, .. }
+            | Self::ShowKeyboard { instance, .. }
             | Self::Presence { instance, .. }
             | Self::ReplaceChild { instance, .. }
             | Self::ChildReplaced { instance, .. }
@@ -1843,8 +1848,8 @@ impl EditorMessage {
             | Self::ArtifactRegenerated { .. }
             | Self::WatchArtifacts { .. }
             | Self::WatchHistory { .. }
-            | Self::Cursor { .. }
-            | Self::Ime { .. }
+            | Self::Window { .. }
+            | Self::ShowKeyboard { .. }
             | Self::ChildReplaced { .. }
             | Self::CopyText { .. }
             | Self::Paste { .. }
@@ -2496,7 +2501,6 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
                 collection(report.painted.len())?;
                 collection(report.floating.len())?;
                 collection(report.claims.len())?;
-                collection(report.intercepted_keys.len())?;
             }
             Ok(())
         }
@@ -2629,14 +2633,17 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             RegenerationOutcome::Failed(message) => string(message),
         },
         EditorMessage::OpenCreation { template, .. } => string(template),
-        EditorMessage::Ime {
-            area:
+        EditorMessage::Window { window, .. } => {
+            collection(window.intercepted_keys.len())?;
+            collection(window.pastes.len())?;
+            match &window.ime {
                 Some(ImeArea {
                     text: Some(surrounding),
                     ..
-                }),
-            ..
-        } => text(&surrounding.text),
+                }) => text(&surrounding.text),
+                _ => Ok(()),
+            }
+        }
         EditorMessage::OpenArtifact { data, .. }
         | EditorMessage::ArtifactSettings { data, .. }
         | EditorMessage::ArtifactEdited { data, .. }

@@ -52,6 +52,7 @@ pub use host::{
 };
 pub use plugin::{
     Claim, DescribedNode, Description, Frame, Ime, Instance, Plugin, Region, RegionMonitor,
+    WindowRequests,
 };
 #[cfg(target_arch = "wasm32")]
 pub use plugin::{PaintTarget, SurfaceGpu, surface_gpu};

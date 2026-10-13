@@ -6,6 +6,7 @@ use block_editor_plugin::EditorHost;
 pub(crate) struct HostPlatform {
     host: EditorHost,
     picks: Vec<(u64, FilePickAnswer)>,
+    pub(crate) show_keyboard: bool,
 }
 
 impl HostPlatform {
@@ -13,6 +14,7 @@ impl HostPlatform {
         Self {
             host,
             picks: Vec::new(),
+            show_keyboard: false,
         }
     }
 
@@ -47,5 +49,9 @@ impl Platform for HostPlatform {
             mime_types: request.filter.mime_types,
         });
         self.picks.push((asked, answer));
+    }
+
+    fn show_keyboard(&mut self) {
+        self.show_keyboard = true;
     }
 }

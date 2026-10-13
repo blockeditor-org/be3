@@ -178,12 +178,8 @@ impl PluginSurface {
             return Frame::default();
         };
         let description = region.describe.then(|| self.describe(region));
-        frame_for(
-            self.runner.window(),
-            frame.pending,
-            frame.wait(),
-            description,
-        )
+        let show_keyboard = std::mem::take(&mut self.platform.show_keyboard);
+        frame_for(self.runner.window(), &frame, show_keyboard, description)
     }
 
     fn describe(&self, region: &Region) -> Description {
@@ -278,39 +274,42 @@ impl PluginSurface {
 
 fn frame_for(
     window: &WindowState,
-    changed: bool,
-    repaint_after: Option<std::time::Duration>,
+    frame: &beui_core::runner::Frame,
+    show_keyboard: bool,
     description: Option<Description>,
 ) -> Frame {
     Frame {
-        changed,
-        repaint_after,
-        cursor: match window.touch_emulation {
-            true => block_plugin_api::CursorIcon::Crosshair,
-            false => beui_plugin_input::protocol_cursor(window.cursor),
-        },
+        changed: frame.pending,
+        repaint_after: frame.wait(),
         content: None,
         painted: Vec::new(),
         floating: Vec::new(),
         claims: Vec::new(),
-        ime: window.ime.as_ref().map(|area| block_editor_plugin::Ime {
-            rect: area.rect,
-            cursor: area.cursor,
-            text: area.text.as_ref().map(beui_plugin_input::protocol_ime_text),
-            keyboard: area.keyboard,
-        }),
-        handles_back: window.handles_back,
-        wants_keyboard: window.wants_keyboard,
-        intercepted_keys: window
-            .intercepted_keys
-            .iter()
-            .filter_map(|chord| beui_plugin_input::protocol_chord(*chord))
-            .collect(),
-        pastes: window
-            .paste_kinds
-            .iter()
-            .map(|kind| beui_plugin_input::protocol_paste_kind(*kind))
-            .collect(),
+        window: block_editor_plugin::WindowRequests {
+            cursor: match window.touch_emulation {
+                true => block_plugin_api::CursorIcon::Crosshair,
+                false => beui_plugin_input::protocol_cursor(window.cursor),
+            },
+            ime: window.ime.as_ref().map(|area| block_editor_plugin::Ime {
+                rect: area.rect,
+                cursor: area.cursor,
+                text: area.text.as_ref().map(beui_plugin_input::protocol_ime_text),
+                keyboard: area.keyboard,
+            }),
+            handles_back: window.handles_back,
+            wants_keyboard: window.wants_keyboard,
+            intercepted_keys: window
+                .intercepted_keys
+                .iter()
+                .filter_map(|chord| beui_plugin_input::protocol_chord(*chord))
+                .collect(),
+            pastes: window
+                .paste_kinds
+                .iter()
+                .map(|kind| beui_plugin_input::protocol_paste_kind(*kind))
+                .collect(),
+        },
+        show_keyboard,
         description,
     }
 }

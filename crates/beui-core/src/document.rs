@@ -420,6 +420,11 @@ impl Document {
         self.scale.0.clone()
     }
 
+    pub fn request_keyboard(&mut self) {
+        self.keyboard_asked = true;
+        self.request_repaint_after(std::time::Duration::ZERO);
+    }
+
     pub fn watch_fullscreen(&self) -> ::reactive::ReadSignal<bool> {
         self.fullscreen.0.clone()
     }

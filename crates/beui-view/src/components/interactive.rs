@@ -21,6 +21,7 @@ pub fn Interactive(
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] ime: Prop<bool>,
     #[prop(default = true)] keyboard_on_focus: bool,
+    #[prop(default = true)] keyboard_on_tap: bool,
     #[prop(default = true)] ime_keyboard: Prop<bool>,
     #[prop(default = None)] ime_cursor: Prop<Option<ImeCursor>>,
     #[prop(default = None)] ime_text: Prop<Option<ImeText>>,
@@ -87,6 +88,7 @@ pub fn Interactive(
         let node = document.arena.touch_mut_as::<InteractiveNode>(interactive);
         if let Some(focus) = node.focus.as_mut() {
             focus.keyboard_on_focus = keyboard_on_focus;
+            focus.keyboard_on_tap = keyboard_on_tap;
             focus.on_focus_change = on_focus_change;
             focus.on_activate_change = on_activate_change;
             focus.on_activate = on_activate;

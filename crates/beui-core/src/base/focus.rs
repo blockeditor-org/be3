@@ -23,6 +23,7 @@ pub struct Focus {
     pub press_focus: bool,
     pub ime: bool,
     pub keyboard_on_focus: bool,
+    pub keyboard_on_tap: bool,
     pub ime_keyboard: bool,
     pub ime_cursor: Option<ImeCursor>,
     pub ime_text: Option<ImeText>,
@@ -51,6 +52,7 @@ impl Focus {
             press_focus: true,
             ime: false,
             keyboard_on_focus: true,
+            keyboard_on_tap: true,
             ime_keyboard: true,
             ime_cursor: None,
             ime_text: None,
@@ -548,7 +550,7 @@ impl Document {
             && self.contains(target)
             && let Some(keyboard) = focus_of(self.arena.get(target))
                 .filter(|node| node.press_focus)
-                .map(|node| node.ime && node.ime_keyboard)
+                .map(|node| node.ime && node.ime_keyboard && node.keyboard_on_tap)
         {
             self.keyboard_asked = keyboard;
             self.keyboard_held = false;

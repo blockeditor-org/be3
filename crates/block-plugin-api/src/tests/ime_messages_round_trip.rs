@@ -3,35 +3,33 @@ use super::*;
 #[test]
 fn ime_messages_round_trip() {
     for message in [
-        Message::Editor(EditorMessage::Ime {
+        Message::Editor(EditorMessage::Window {
             instance: EditorInstanceId(6),
             region: EditorRegion::Frame,
-            area: Some(ImeArea {
-                rect: ChildRect {
-                    x: 1.0,
-                    y: 2.0,
-                    width: 3.0,
-                    height: 4.0,
-                },
-                cursor: ChildRect {
-                    x: 5.0,
-                    y: 6.0,
-                    width: 1.0,
-                    height: 12.0,
-                },
-                text: Some(ImeText {
-                    start: 4,
-                    text: "say helo".into(),
-                    selection: (8, 8),
-                    composing: Some((4, 8)),
+            window: WindowRequests {
+                ime: Some(ImeArea {
+                    rect: ChildRect {
+                        x: 1.0,
+                        y: 2.0,
+                        width: 3.0,
+                        height: 4.0,
+                    },
+                    cursor: ChildRect {
+                        x: 5.0,
+                        y: 6.0,
+                        width: 1.0,
+                        height: 12.0,
+                    },
+                    text: Some(ImeText {
+                        start: 4,
+                        text: "say helo".into(),
+                        selection: (8, 8),
+                        composing: Some((4, 8)),
+                    }),
+                    keyboard: false,
                 }),
-                keyboard: false,
-            }),
-        }),
-        Message::Editor(EditorMessage::Ime {
-            instance: EditorInstanceId(6),
-            region: EditorRegion::Frame,
-            area: None,
+                ..WindowRequests::default()
+            },
         }),
         Message::Input(InputBatch {
             screen: ScreenId(2),

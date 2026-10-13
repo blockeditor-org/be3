@@ -1695,6 +1695,7 @@ pub(crate) struct RegionView {
     pub(crate) wants_keyboard: bool,
     pub(crate) intercepted_keys: Vec<beui::KeyChord>,
     pub(crate) pastes: Vec<beui::PasteKind>,
+    pub(crate) keyboard_asks: u64,
     pub(crate) grabbed: bool,
 }
 
@@ -1719,6 +1720,7 @@ impl RegionView {
             wants_keyboard: false,
             intercepted_keys: Vec::new(),
             pastes: Vec::new(),
+            keyboard_asks: 0,
             grabbed: false,
         }
     }
@@ -1833,7 +1835,10 @@ fn placed_view(
                 })
                 .unwrap_or_default(),
         };
-        let handles_back = report.is_some_and(|report| report.handles_back);
+        let window = runtime.instances.window(instance, region);
+        let keyboard_asks = window.map_or(0, |(_, asks)| asks);
+        let window = window.map(|(window, _)| window);
+        let handles_back = window.is_some_and(|window| window.handles_back);
         let claims = report
             .map(|report| {
                 report
@@ -1855,9 +1860,9 @@ fn placed_view(
                     .collect()
             })
             .unwrap_or_default();
-        let intercepted_keys = report
+        let intercepted_keys = window
             .iter()
-            .flat_map(|report| &report.intercepted_keys)
+            .flat_map(|window| &window.intercepted_keys)
             .filter_map(|chord| beui_plugin_input::beui_chord(*chord))
             .collect();
         let base: Vec<Rect> = match floating_rects.is_empty() {
@@ -1899,17 +1904,18 @@ fn placed_view(
             },
             ime: runtime.instances.ime(instance, region, rect),
             handles_back,
-            wants_keyboard: report.is_some_and(|report| report.wants_keyboard),
+            wants_keyboard: window.is_some_and(|window| window.wants_keyboard),
             intercepted_keys,
-            pastes: report
-                .map(|report| {
-                    report
+            pastes: window
+                .map(|window| {
+                    window
                         .pastes
                         .iter()
                         .map(|kind| beui_plugin_input::beui_paste_kind(*kind))
                         .collect()
                 })
                 .unwrap_or_default(),
+            keyboard_asks,
             grabbed: runtime.instances.grabbing(),
         }
     }
