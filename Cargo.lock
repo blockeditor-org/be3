@@ -988,6 +988,7 @@ dependencies = [
  "arboard",
  "ashpd",
  "beui-core",
+ "image",
  "pollster",
  "rfd",
  "winit",
@@ -1255,7 +1256,6 @@ dependencies = [
 name = "block-app"
 version = "0.1.0"
 dependencies = [
- "arboard",
  "ashpd",
  "async-executor",
  "async-io",

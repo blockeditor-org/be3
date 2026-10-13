@@ -3,9 +3,9 @@ use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::ImeArea as PluginImeArea;
 use block_plugin_api::{
     ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId, ChildMode,
-    ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, CursorIcon, DataListing,
-    EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick, FileSave, FrameReport,
-    FrameSpec, HostPanel, HostReply, HostRequest, Message, Monitor, Occluder,
+    ChildPlacement, ChildPlacements, ChildStatus, ClipboardImage, CreationOutcome, CursorIcon,
+    DataListing, EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick, FileSave,
+    FrameReport, FrameSpec, HostPanel, HostReply, HostRequest, Message, Monitor, Occluder,
     PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
     ScreenSet, Size, ViewChange, WatchedContent, WebViewId,
 };
@@ -2263,9 +2263,16 @@ impl Instances {
                     }));
                 });
             }
-            HostRequest::PasteImage => reply(HostReply::ImagePasted(
-                super::clipboard::read_clipboard_image(),
-            )),
+            HostRequest::PasteImage => host::paste_image(move |pasted| {
+                reply(HostReply::ImagePasted(match pasted {
+                    Ok(Some(image)) => ClipboardImage::Pasted {
+                        name: image.name,
+                        data: image.data,
+                    },
+                    Ok(None) => ClipboardImage::Empty,
+                    Err(error) => ClipboardImage::Failed(error),
+                }));
+            }),
             HostRequest::Fetch(url) => {
                 let fetched = move |body: Result<Vec<u8>, String>| {
                     reply(HostReply::Fetched(fetch_result(body)));

@@ -47,9 +47,8 @@ pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphComm
 pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BlockDrag, BlockHistory, BlockPicker,
     ContentUpdate, EditorHost, FileDrop, FileFilter, FileSaver, FocusedBlock, HostContent,
-    ImagePaster, OpenRequest, PastedImage, PeerPresence, PerformanceMeasurementGuard,
-    PerformanceReporter, PickRequest, PickedBlock, PickedFile, Pushed, SavedFile, SeededContent,
-    ShowRequest, ShownPresence, Waker,
+    OpenRequest, PeerPresence, PerformanceMeasurementGuard, PerformanceReporter, PickRequest,
+    PickedBlock, PickedFile, Pushed, SavedFile, SeededContent, ShowRequest, ShownPresence, Waker,
 };
 pub use plugin::{
     Claim, DescribedNode, Description, Frame, Ime, Instance, Plugin, Region, RegionMonitor,

@@ -11,6 +11,7 @@ use accesskit::TreeUpdate;
 use crate::app::accessibility_dump::AccessibilityDump;
 use crate::app::automation::{Automation, Inbox, Settled, Simulation, View, World};
 use crate::app::{App, SafeArea, Setup, Waker, next_batch, safe_rect};
+use crate::clipboard::{ImagePaste, ImagePasteAnswer, ImagePasteId};
 use crate::context::{ActionGroup, Context, FrameOutput};
 use crate::file_picker::{FilePick, FilePickAnswer, FilePickId, FilePickRequest};
 use crate::geometry::Vec2;
@@ -23,6 +24,7 @@ use intake::{Drain, Intake};
 pub use intake::{Input, Keystroke, SCROLL_LINE, SCROLL_PAGE, ScrollDelta};
 
 type Answered = (FilePickId, FilePick);
+type Pasted = (ImagePasteId, ImagePaste);
 
 pub struct RunOptions {
     pub title: String,
@@ -68,6 +70,10 @@ pub trait Platform {
     fn pick_file(&mut self, request: FilePickRequest, answer: FilePickAnswer) {
         let _ = request;
         answer.send(Err("Choosing a file is unavailable here".to_owned()));
+    }
+
+    fn paste_image(&mut self, answer: ImagePasteAnswer) {
+        answer.send(Ok(None));
     }
 
     fn delivers_paste_shortcut(&self) -> bool {
@@ -138,6 +144,7 @@ pub struct Runner {
     events: Vec<Event>,
     intake: Intake,
     picks: (Sender<Answered>, Receiver<Answered>),
+    image_pastes: (Sender<Pasted>, Receiver<Pasted>),
     accessibility: Option<AccessibilityDump>,
     publishing_accessibility: bool,
     automation: Option<Automation>,
@@ -178,6 +185,7 @@ impl Runner {
             events: Vec::new(),
             intake: Intake::default(),
             picks: mpsc::channel(),
+            image_pastes: mpsc::channel(),
             accessibility,
             publishing_accessibility: false,
             automation,
@@ -367,6 +375,9 @@ impl Runner {
         while let Ok((id, pick)) = self.picks.1.try_recv() {
             self.context.file_picked(id, pick);
         }
+        while let Ok((id, paste)) = self.image_pastes.1.try_recv() {
+            self.context.image_pasted(id, paste);
+        }
         if let Err(error) = renderers.follow_choice(&self.context) {
             eprintln!("beui: could not switch renderers: {error}");
         }
@@ -479,6 +490,10 @@ impl Runner {
                         .clipboard_read(id, simulation.clipboard.clone());
                     output.repaint = true;
                 }
+                for id in std::mem::take(&mut output.image_pastes) {
+                    self.context.image_pasted(id, Ok(None));
+                    output.repaint = true;
+                }
             }
             None => {
                 if let Some(text) = &output.copied_text {
@@ -497,6 +512,11 @@ impl Runner {
                 for id in std::mem::take(&mut output.clipboard_reads) {
                     self.context.clipboard_read(id, platform.paste());
                     output.repaint = true;
+                }
+                for id in std::mem::take(&mut output.image_pastes) {
+                    let answer =
+                        ImagePasteAnswer::new(id, self.image_pastes.0.clone(), self.waker.clone());
+                    platform.paste_image(answer);
                 }
             }
         }

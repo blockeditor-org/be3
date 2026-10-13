@@ -1706,43 +1706,6 @@ impl FileSaver {
     }
 }
 
-#[derive(Default)]
-pub struct ImagePaster {
-    request: Option<u64>,
-}
-
-impl ImagePaster {
-    pub fn paste(&mut self, host: &EditorHost, asked: bool) -> Option<PastedImage> {
-        if let Some(request) = self.request {
-            return match host.take_pasted_image(request)? {
-                ClipboardImage::Pasted { name, data } => {
-                    self.request = None;
-                    Some(PastedImage::Image { name, data })
-                }
-                ClipboardImage::Empty => {
-                    self.request = None;
-                    Some(PastedImage::Empty)
-                }
-                ClipboardImage::Failed(error) => {
-                    self.request = None;
-                    Some(PastedImage::Failed(error))
-                }
-            };
-        }
-        if !asked {
-            return None;
-        }
-        self.request = Some(host.paste_image());
-        None
-    }
-}
-
-pub enum PastedImage {
-    Image { name: String, data: Vec<u8> },
-    Empty,
-    Failed(String),
-}
-
 fn child_rect(rect: Rect) -> ChildRect {
     ChildRect {
         x: rect.min.x,

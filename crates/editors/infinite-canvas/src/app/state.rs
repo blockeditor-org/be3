@@ -16,14 +16,13 @@ use block_editor_beui::be_block::canvas::{
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::presence::{PresenceColor, pick_free_color};
 use block_editor_beui::beui::reactive::{
-    CanvasView, FilePick, Memo, ReadSignal, WriteSignal, create_effect, create_signal, pick_file,
-    untrack,
+    CanvasView, FilePick, Memo, ReadSignal, WriteSignal, create_effect, create_signal, paste_image,
+    pick_file, untrack,
 };
 use block_editor_beui::beui::{Pos2, Rect, Thumbhash, Vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
 use block_editor_beui::{
-    BlockFilter, ChildState, Drag, Editor, FileDrop, ImagePaster, InteractionMode, PastedImage,
-    ResizeMode,
+    BlockFilter, ChildState, Drag, Editor, FileDrop, InteractionMode, ResizeMode,
 };
 use block_editor_beui::{BlockParent, BlockQuery, narrow_chrome, sheet_control};
 use serde::{Deserialize, Serialize};
@@ -228,7 +227,6 @@ pub(crate) struct CanvasState {
     preview: bool,
     content: Rc<ContentProjection<CanvasContent>>,
     dependencies: BlockList,
-    paster: RefCell<ImagePaster>,
     pending_image_center: Cell<Option<CanvasPoint>>,
     pending_file_drop: Cell<Option<CanvasPoint>>,
     context_position: Cell<Option<CanvasPoint>>,
@@ -299,7 +297,6 @@ impl CanvasState {
             editor: editor.clone(),
             preview,
             content,
-            paster: RefCell::new(ImagePaster::default()),
             pending_image_center: Cell::new(None),
             pending_file_drop: Cell::new(None),
             context_position: Cell::new(None),
@@ -1045,7 +1042,7 @@ impl CanvasState {
         }
     }
 
-    pub(crate) fn run(&self, command: CanvasCommand) {
+    pub(crate) fn run(self: &Rc<Self>, command: CanvasCommand) {
         match command {
             CanvasCommand::SelectAll => {
                 let all = self
@@ -1120,10 +1117,15 @@ impl CanvasState {
         }
     }
 
-    pub(crate) fn ask_to_paste(&self) {
+    pub(crate) fn ask_to_paste(self: &Rc<Self>) {
         block_editor_beui::beui::reactive::request_paste();
         if self.focused_editor.get_untracked().is_none() {
-            self.take_paste(true);
+            let state = Rc::downgrade(self);
+            paste_image(move |pasted| {
+                if let Some(state) = state.upgrade() {
+                    state.take_paste(pasted);
+                }
+            });
         }
     }
 
@@ -1767,8 +1769,6 @@ impl CanvasState {
             let drop = files.get();
             untrack(|| state.take_files(drop));
         });
-        let state = Rc::clone(self);
-        self.editor.on_reply(move || state.take_paste(false));
         if self.preview {
             return;
         }
@@ -1909,16 +1909,15 @@ impl CanvasState {
         }
     }
 
-    fn take_paste(&self, asked: bool) {
-        let pasted = self.paster.borrow_mut().paste(self.editor.host(), asked);
+    fn take_paste(&self, pasted: FilePick) {
         match pasted {
-            Some(PastedImage::Image { name, data }) => {
+            Ok(Some(file)) => {
                 self.set_import_error.set(None);
                 let center = self.viewport_center();
-                self.add_imported_image(ImageContent::from_file(name, data), center);
+                self.add_imported_image(ImageContent::from_file(file.name, file.data), center);
             }
-            Some(PastedImage::Failed(error)) => self.set_import_error.set(Some(error)),
-            Some(PastedImage::Empty) | None => {}
+            Err(error) => self.set_import_error.set(Some(error)),
+            Ok(None) => {}
         }
     }
 

@@ -502,6 +502,7 @@ mod overscrolling_squishes_the_scrollbar_thumb_against_the_end;
 mod painting_never_has_to_move_a_rect_onto_the_pixel_grid;
 mod painting_skips_the_elements_outside_the_damaged_region;
 mod panning_a_canvas_lays_out_and_paints_none_of_its_items_again;
+mod pasting_an_image_asks_the_platform_and_answers_by_the_next_frame;
 mod percent_children_land_on_whole_device_pixels;
 mod percent_children_of_an_unbounded_list_use_their_intrinsic_length;
 mod percent_sized_children_still_size_an_intrinsic_lists_height;
@@ -2302,12 +2303,17 @@ impl App for Seeing {
 #[derive(Default)]
 pub(crate) struct IntakePlatform {
     pub(crate) clipboard: Option<String>,
+    pub(crate) clipboard_image: Option<crate::PickedFile>,
     pub(crate) delivers_paste: bool,
 }
 
 impl beui_core::runner::Platform for IntakePlatform {
     fn paste(&mut self) -> Option<String> {
         self.clipboard.clone()
+    }
+
+    fn paste_image(&mut self, answer: crate::ImagePasteAnswer) {
+        answer.send(Ok(self.clipboard_image.clone()));
     }
 
     fn delivers_paste_shortcut(&self) -> bool {

@@ -1,6 +1,8 @@
+use std::rc::Rc;
+
 use beui::reactive::{
-    Frame, List, NodeRef, clone, component, create_effect, create_memo, on_key, request_paste,
-    untrack, view,
+    Frame, List, NodeRef, clone, component, create_effect, create_memo, on_key, paste_image,
+    request_paste, untrack, view,
 };
 use beui::styled::{Button, ButtonVariant, TextArea};
 use beui::unstyled::{RemoteTextCursor, TextWidget};
@@ -50,9 +52,6 @@ pub(crate) fn TextSurface(state: Shared) -> NodeId {
         }
     };
 
-    state
-        .editor
-        .on_reply(clone!(state -> move || take_paste(&state, false)));
     let dragged = state.editor.drag();
     create_effect(clone!(state -> move || {
         let drag = dragged.get();
@@ -158,7 +157,7 @@ fn focus_embed(state: &Shared, widget: usize) -> bool {
 
 fn paste_key(state: &Shared, press: KeyPress) -> bool {
     if press.pressed && press.modifiers.ctrl && press.key == Key::V {
-        take_paste(state, true);
+        paste(state);
         return true;
     }
     false
@@ -224,24 +223,23 @@ fn take_drag(state: &Shared, drag: Option<Drag>) {
     state.text.reveal_cursor();
 }
 
-fn take_paste(state: &Shared, asked: bool) {
-    let pasted = state.paster.borrow_mut().paste(state.host(), asked);
-    let Some(pasted) = pasted else {
-        return;
-    };
-    match pasted {
-        block_editor_beui::PastedImage::Image { name, data } => {
-            let image = block_editor_beui::be_block::ImageContent::from_file(name, data);
-            let source_name = image.header().source_name.clone();
-            let id = state.create_image_block(&image);
-            state.insert_image_embed(id, &source_name);
-            state.set_import_error.set(None);
+fn paste(state: &Shared) {
+    let state = Rc::downgrade(state);
+    paste_image(move |pasted| {
+        let Some(state) = state.upgrade() else {
+            return;
+        };
+        match pasted {
+            Ok(Some(file)) => {
+                let image =
+                    block_editor_beui::be_block::ImageContent::from_file(file.name, file.data);
+                let source_name = image.header().source_name.clone();
+                let id = state.create_image_block(&image);
+                state.insert_image_embed(id, &source_name);
+                state.set_import_error.set(None);
+            }
+            Err(error) => state.set_import_error.set(Some(error)),
+            Ok(None) => request_paste(),
         }
-        block_editor_beui::PastedImage::Failed(error) => {
-            state.set_import_error.set(Some(error));
-        }
-        block_editor_beui::PastedImage::Empty => {
-            request_paste();
-        }
-    }
+    });
 }

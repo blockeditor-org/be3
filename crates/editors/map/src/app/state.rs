@@ -7,13 +7,12 @@ use block_editor_beui::be_block::ImageContent;
 use block_editor_beui::be_block::map::{MapColor, MapCoordinate, MapPoint, MapRegion};
 use block_editor_beui::be_block::{Edit, Map, MapContent};
 use block_editor_beui::beui::reactive::{
-    CanvasView, ReadSignal, WriteSignal, create_effect, create_signal, untrack,
+    CanvasView, FilePick, ReadSignal, WriteSignal, create_effect, create_signal, paste_image,
+    untrack,
 };
 use block_editor_beui::beui::{Image, Pos2, Rect, Vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
-use block_editor_beui::{
-    BlockFilter, ContentProjection, Drag, Editor, FileDrop, ImagePaster, PastedImage, Waker,
-};
+use block_editor_beui::{BlockFilter, ContentProjection, Drag, Editor, FileDrop, Waker};
 use block_editor_beui::{BlockInfo, BlockParent, BlockQuery};
 use uuid::Uuid;
 
@@ -56,7 +55,6 @@ pub(crate) struct MapState {
     used: RefCell<HashMap<TileId, u64>>,
     uses: Cell<u64>,
     waker: RefCell<Waker>,
-    paster: RefCell<ImagePaster>,
     dragged: Cell<Option<(Uuid, Vec2)>>,
     pending_file_drop: Cell<Option<MapCoordinate>>,
     fit_requested: ReadSignal<bool>,
@@ -110,7 +108,6 @@ impl MapState {
             used: RefCell::new(HashMap::new()),
             uses: Cell::new(0),
             waker: RefCell::new(Waker::default()),
-            paster: RefCell::new(ImagePaster::default()),
             dragged: Cell::new(None),
             pending_file_drop: Cell::new(None),
             fit_requested,
@@ -333,8 +330,13 @@ impl MapState {
         self.labels.get().get(&block).cloned()
     }
 
-    pub(crate) fn ask_to_paste(&self) {
-        self.take_paste(true);
+    pub(crate) fn ask_to_paste(self: &Rc<Self>) {
+        let state = Rc::downgrade(self);
+        paste_image(move |pasted| {
+            if let Some(state) = state.upgrade() {
+                state.take_paste(pasted);
+            }
+        });
     }
 
     pub(crate) fn press(&self, at: Pos2) {
@@ -391,7 +393,6 @@ impl MapState {
         let state = Rc::clone(self);
         self.editor.on_reply(move || {
             state.collect_tiles();
-            state.take_paste(false);
         });
         let state = Rc::clone(self);
         let drag = self.editor.drag();
@@ -522,19 +523,15 @@ impl MapState {
         }
     }
 
-    fn take_paste(&self, asked: bool) {
-        let pasted = self.paster.borrow_mut().paste(self.editor.host(), asked);
-        let Some(pasted) = pasted else {
-            return;
-        };
+    fn take_paste(&self, pasted: FilePick) {
         match pasted {
-            PastedImage::Image { name, data } => {
+            Ok(Some(file)) => {
                 self.set_import_error.set(None);
                 let position = self.view_center.get();
-                self.import(ImageContent::from_file(name, data), position);
+                self.import(ImageContent::from_file(file.name, file.data), position);
             }
-            PastedImage::Failed(error) => self.set_import_error.set(Some(error)),
-            PastedImage::Empty => {}
+            Err(error) => self.set_import_error.set(Some(error)),
+            Ok(None) => {}
         }
     }
 

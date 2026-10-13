@@ -1,3 +1,4 @@
+use beui_core::clipboard::ImagePasteAnswer;
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::input::{CursorIcon, ImeArea, KeyChord};
 use beui_core::runner::Platform;
@@ -6,6 +7,7 @@ use block_editor_plugin::EditorHost;
 pub(crate) struct HostPlatform {
     host: EditorHost,
     picks: Vec<(u64, FilePickAnswer)>,
+    image_pastes: Vec<(u64, ImagePasteAnswer)>,
     pub(crate) cursor: block_plugin_api::CursorIcon,
     pub(crate) ime: Option<ImeArea>,
     pub(crate) handles_back: bool,
@@ -19,6 +21,7 @@ impl HostPlatform {
         Self {
             host,
             picks: Vec::new(),
+            image_pastes: Vec::new(),
             cursor: block_plugin_api::CursorIcon::Default,
             ime: None,
             handles_back: false,
@@ -35,6 +38,12 @@ impl HostPlatform {
                 None => self.picks.push((request, answer)),
             }
         }
+        for (request, answer) in std::mem::take(&mut self.image_pastes) {
+            match self.host.take_pasted_image(request) {
+                Some(image) => answer.send(beui_plugin_input::beui_image_paste(image)),
+                None => self.image_pastes.push((request, answer)),
+            }
+        }
     }
 }
 
@@ -46,6 +55,11 @@ impl Platform for HostPlatform {
     fn paste(&mut self) -> Option<String> {
         self.host.request_paste();
         None
+    }
+
+    fn paste_image(&mut self, answer: ImagePasteAnswer) {
+        let asked = self.host.paste_image();
+        self.image_pastes.push((asked, answer));
     }
 
     fn delivers_paste_shortcut(&self) -> bool {

@@ -10,9 +10,7 @@ use block_editor_beui::BlockQuery;
 use block_editor_beui::be_block::presence::pick_free_color;
 use block_editor_beui::be_block::{ImageContent, TextContent};
 use block_editor_beui::{BlockList, Blocks};
-use block_editor_beui::{
-    ChildState, ContentProjection, Editor, EditorHost, ImagePaster, LinkBase, Projected,
-};
+use block_editor_beui::{ChildState, ContentProjection, Editor, EditorHost, LinkBase, Projected};
 use text_editor_core::{EditorCommand, TextLanguage};
 use uuid::Uuid;
 
@@ -40,7 +38,6 @@ pub(crate) struct State {
     link_base: Memo<String>,
     pub text: TextAreaState,
     pub dependencies: BlockList,
-    pub paster: RefCell<ImagePaster>,
     pub embed_sizes: ReadSignal<HashMap<Uuid, Vec2>>,
     pub set_embed_sizes: WriteSignal<HashMap<Uuid, Vec2>>,
     pub embed_children: RefCell<HashMap<FocusedEmbed, ChildState>>,
@@ -100,7 +97,6 @@ impl State {
             document,
             text,
             dependencies,
-            paster: RefCell::new(ImagePaster::default()),
             embed_sizes,
             set_embed_sizes,
             embed_children: RefCell::new(HashMap::new()),

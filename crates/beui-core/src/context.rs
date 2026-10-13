@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use accesskit::{ActionRequest, TreeUpdate};
 
 use crate::accessibility::{self, Fragment};
-use crate::clipboard::ClipboardReadId;
+use crate::clipboard::{ClipboardReadId, ImagePaste, ImagePasteId};
 use crate::damage::{self, Region};
 use crate::display::{Display, Group, Layer};
 use crate::file_picker::{FileFilter, FilePick, FilePickId, FilePickRequest};
@@ -46,6 +46,9 @@ struct Inner {
     clipboard_read_requests: RefCell<Vec<ClipboardReadId>>,
     clipboard_reads: RefCell<Vec<(ClipboardReadId, Option<String>)>>,
     next_clipboard_read: Cell<u64>,
+    image_paste_requests: RefCell<Vec<ImagePasteId>>,
+    image_pastes: RefCell<Vec<(ImagePasteId, ImagePaste)>>,
+    next_image_paste: Cell<u64>,
     file_pick_requests: RefCell<Vec<FilePickRequest>>,
     file_picks: RefCell<Vec<(FilePickId, FilePick)>>,
     next_file_pick: Cell<u64>,
@@ -162,6 +165,7 @@ pub struct FrameOutput {
     pub copied_text: Option<String>,
     pub paste_requested: bool,
     pub clipboard_reads: Vec<ClipboardReadId>,
+    pub image_pastes: Vec<ImagePasteId>,
     pub file_picks: Vec<FilePickRequest>,
     pub repaint: bool,
     pub repaint_after: Duration,
@@ -253,6 +257,9 @@ impl Context {
                 clipboard_read_requests: RefCell::new(Vec::new()),
                 clipboard_reads: RefCell::new(Vec::new()),
                 next_clipboard_read: Cell::new(0),
+                image_paste_requests: RefCell::new(Vec::new()),
+                image_pastes: RefCell::new(Vec::new()),
+                next_image_paste: Cell::new(0),
                 file_pick_requests: RefCell::new(Vec::new()),
                 file_picks: RefCell::new(Vec::new()),
                 next_file_pick: Cell::new(0),
@@ -507,6 +514,7 @@ impl Context {
             copied_text,
             paste_requested: self.inner.paste_requested.replace(false),
             clipboard_reads: std::mem::take(&mut *self.inner.clipboard_read_requests.borrow_mut()),
+            image_pastes: std::mem::take(&mut *self.inner.image_paste_requests.borrow_mut()),
             file_picks: std::mem::take(&mut *self.inner.file_pick_requests.borrow_mut()),
             changed,
             repaint_after: self.inner.repaint_after.get(),
@@ -596,6 +604,23 @@ impl Context {
         let mut reads = self.inner.clipboard_reads.borrow_mut();
         let index = reads.iter().position(|(read, _)| *read == id)?;
         Some(reads.remove(index).1)
+    }
+
+    pub fn paste_image(&self) -> ImagePasteId {
+        let id = ImagePasteId(self.inner.next_image_paste.get() + 1);
+        self.inner.next_image_paste.set(id.0);
+        self.inner.image_paste_requests.borrow_mut().push(id);
+        id
+    }
+
+    pub fn image_pasted(&self, id: ImagePasteId, paste: ImagePaste) {
+        self.inner.image_pastes.borrow_mut().push((id, paste));
+    }
+
+    pub fn take_image_paste(&self, id: ImagePasteId) -> Option<ImagePaste> {
+        let mut pastes = self.inner.image_pastes.borrow_mut();
+        let index = pastes.iter().position(|(pasted, _)| *pasted == id)?;
+        Some(pastes.remove(index).1)
     }
 
     pub fn pick_file(&self, filter: FileFilter) -> FilePickId {

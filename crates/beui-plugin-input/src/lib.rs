@@ -1,6 +1,6 @@
 use block_plugin_api::{
-    BackEdge, BackPhase, CursorIcon, FilePick, ImeInput, ImeText, Key, KeyChord, Modifiers,
-    PointerButton, TouchPhase,
+    BackEdge, BackPhase, ClipboardImage, CursorIcon, FilePick, ImeInput, ImeText, Key, KeyChord,
+    Modifiers, PointerButton, TouchPhase,
 };
 
 pub fn protocol_modifiers(modifiers: beui::Modifiers) -> Modifiers {
@@ -443,5 +443,13 @@ pub fn beui_file_pick(pick: FilePick) -> beui::FilePick {
         FilePick::Chosen { name, data } => Ok(Some(beui::PickedFile { name, data })),
         FilePick::Cancelled => Ok(None),
         FilePick::Failed(error) => Err(error),
+    }
+}
+
+pub fn beui_image_paste(image: ClipboardImage) -> beui::ImagePaste {
+    match image {
+        ClipboardImage::Pasted { name, data } => Ok(Some(beui::PickedFile { name, data })),
+        ClipboardImage::Empty => Ok(None),
+        ClipboardImage::Failed(error) => Err(error),
     }
 }

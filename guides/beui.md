@@ -266,7 +266,11 @@ hooks the higher crates fill in:
   lock, IME, fullscreen and back handling, only when one of them changed.
   The clipboard is the platform's: `Context::copy_text` and `request_paste`
   write it and paste it into the focus, `Context::read_clipboard` asks for its
-  text (answered by `take_clipboard_read` from the next frame), and
+  text (answered by `take_clipboard_read` from the next frame),
+  `Context::paste_image` asks `Platform::paste_image` for the image on it as a
+  PNG file, answered like a file pick (`Ok(None)` when it holds none; views
+  call `reactive::paste_image`; the winit adapter reads it, a plugin's asks its
+  host, and the others have none yet), and
   `Context::watch_copies` hears every copy, which is how be-wayland hands the
   app's copies to Wayland programs.
   `Platform`'s methods all have defaults (no clipboard, no file picker), so a
@@ -2134,7 +2138,7 @@ when the content changes. See the [reactive guide](reactive.md#blocks).
 Nothing in an editor polls. What the host sends between frames is recorded
 by the framework and delivered at the top of the next frame as signals on
 the `Editor`: `replies()` ticks when the host answers a request (a file or
-block pick, a pasted image, a fetch), and `on_reply(f)` runs `f` each time;
+block pick, a fetch), and `on_reply(f)` runs `f` each time;
 `drag()` and `files()` carry a drag or a file drop over the editor;
 `audio()`, `history(block)`, `histories()`, `artifacts()`, `focused_block()`,
 `web_view_events()` and `peers::<P>()` follow the host's state;

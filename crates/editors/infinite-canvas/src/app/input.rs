@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use block_editor_beui::InteractionMode;
 use block_editor_beui::be_block::canvas::{
     CanvasEntityKind, CanvasPoint, CanvasTextStyle, CanvasTransform,
@@ -345,7 +347,7 @@ impl CanvasState {
         self.begin_gesture(None);
     }
 
-    pub(crate) fn key(&self, press: KeyPress) -> bool {
+    pub(crate) fn key(self: &Rc<Self>, press: KeyPress) -> bool {
         if self.previewing() || !press.pressed {
             return false;
         }
