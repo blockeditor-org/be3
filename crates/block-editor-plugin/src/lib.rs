@@ -24,13 +24,13 @@ mod wasm;
 pub use block_plugin_api::{
     AccessGrant, AccessLevel, AccessListing, ArtifactAction, AudioOutput, AudioStatus, BarAction,
     BlockCommand, BlockFilter, BlockLocation, BlockPick, Catalog, ChildContent, ChildId,
-    ChildLayer, ChildMode, ChildPlacement, ChildStatus, ClipboardImage, ConflictSide,
-    CreationProgress, CursorIcon, DataListing, DescribedAction, Displays, EditorCapabilities,
-    EditorInstanceId, EditorRegion, FetchResult, FileSave, FrameChrome, FrameSpec, HostAction,
-    HostDisplay, HostDisplayMode, HostImage, HostInputDevice, HostNotificationAction, HostPanel,
-    HostProgram, HostReply, HostRequest, HostTrayItem, HostValue, HostWindow, HostWindowId,
-    HostWindows, IncomingNotification, InputDevices, InputEvent, InteractionMode, Key, KeyChord,
-    LinkBase, Media, MediaLevel, MediaLevels, MediaRequest, MenuEntry, Modifiers, NodeValue,
+    ChildLayer, ChildMode, ChildPlacement, ChildStatus, ConflictSide, CreationProgress, CursorIcon,
+    DataListing, DescribedAction, Displays, EditorCapabilities, EditorInstanceId, EditorRegion,
+    FetchResult, FileSave, FrameChrome, FrameSpec, HostAction, HostDisplay, HostDisplayMode,
+    HostImage, HostInputDevice, HostNotificationAction, HostPanel, HostProgram, HostReply,
+    HostRequest, HostTrayItem, HostValue, HostWindow, HostWindowId, HostWindows,
+    IncomingNotification, InputDevices, InputEvent, InteractionMode, Key, KeyChord, LinkBase,
+    Media, MediaLevel, MediaLevels, MediaRequest, MenuEntry, Modifiers, NodeValue,
     NotificationCloseReason, NotificationInbox, NotificationReport, NotificationRequest,
     NotificationSignal, NotificationUrgency, Notifications, Occluder, PlayerCommand, PointerButton,
     Power, PowerAction, PowerAvailability, ProgramAction, Programs, ResizeMode, ScreenLocked,
@@ -47,9 +47,8 @@ pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphComm
 pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BlockDrag, BlockHistory, BlockPicker,
     ContentUpdate, EditorHost, FileDrop, FileFilter, FileSaver, FocusedBlock, HostContent,
-    ImagePaster, OpenRequest, PastedImage, PeerPresence, PerformanceMeasurementGuard,
-    PerformanceReporter, PickRequest, PickedBlock, PickedFile, Pushed, SavedFile, SeededContent,
-    ShowRequest, ShownPresence, Waker,
+    OpenRequest, PeerPresence, PerformanceMeasurementGuard, PerformanceReporter, PickRequest,
+    PickedBlock, PickedFile, Pushed, SavedFile, SeededContent, ShowRequest, ShownPresence, Waker,
 };
 pub use plugin::{
     Claim, DescribedNode, Description, Frame, Ime, Instance, Plugin, Region, RegionMonitor,

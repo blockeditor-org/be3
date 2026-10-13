@@ -264,11 +264,21 @@ hooks the higher crates fill in:
   app, publishes accessibility, and tells the adapter's `Platform` (another
   trait object) to copy, paste, pick a file, or change the cursor, pointer
   lock, IME, fullscreen and back handling, only when one of them changed.
-  The clipboard is the platform's: `Context::copy_text` and `request_paste`
-  write it and paste it into the focus, `Context::read_clipboard` asks for its
-  text (answered by `take_clipboard_read` from the next frame), and
-  `Context::watch_copies` hears every copy, which is how be-wayland hands the
-  app's copies to Wayland programs.
+  The clipboard is the platform's: `Context::copy_text` writes it,
+  `Context::watch_copies` hears every copy (which is how be-wayland hands the
+  app's copies to Wayland programs), and a paste is the only way to read it.
+  The focus says what it takes: an `Interactive`'s `pastes` lists the
+  `PasteKind`s (text, image) in the order it prefers them, and one with only
+  `on_text` takes text. `request_paste` (a Paste menu) and Ctrl+V, which the
+  document turns into a paste whether the focus handles the key or forwards
+  it, ask `Platform::paste` once a frame for the first of those kinds the
+  clipboard holds, and its answer arrives at the focus as `Event::Paste`
+  (`Pasted::Text`, or `Pasted::Image` as a PNG `PickedFile`), handed to
+  `on_paste`, or a text paste to `on_text` without one. A platform that
+  delivers Ctrl+V's paste itself (`Platform::delivers_paste_shortcut`: the
+  browser, from its paste event's data and the kinds `set_paste_kinds` gave
+  it, and a plugin's host) is not asked again for the shortcut. The winit
+  adapter reads images too; Android and DRM read text only.
   `Platform`'s methods all have defaults (no clipboard, no file picker), so a
   platform implements only what it has.
   A new platform implements those two traits and hands its window or element
@@ -284,9 +294,7 @@ hooks the higher crates fill in:
   repeats and the text of a shortcut. It turns the primary mouse button into
   a finger while `Context::touch_emulation` is on, holds `PointerGone` back
   while a button is held, and lets go of the modifiers, buttons and emulated
-  touch when focus is lost. On Ctrl+V it pastes `Platform::paste` unless
-  `Platform::delivers_paste_shortcut` says the platform sends that paste
-  itself (the browser and a plugin's host do).
+  touch when focus is lost.
 - `Platform::pick_file` gets a `FilePickAnswer`, which can be sent from any
   thread and wakes the runner; the pick reaches the app at the next frame.
   Accessibility trees are published only between
@@ -2134,7 +2142,7 @@ when the content changes. See the [reactive guide](reactive.md#blocks).
 Nothing in an editor polls. What the host sends between frames is recorded
 by the framework and delivered at the top of the next frame as signals on
 the `Editor`: `replies()` ticks when the host answers a request (a file or
-block pick, a pasted image, a fetch), and `on_reply(f)` runs `f` each time;
+block pick, a fetch), and `on_reply(f)` runs `f` each time;
 `drag()` and `files()` carry a drag or a file drop over the editor;
 `audio()`, `history(block)`, `histories()`, `artifacts()`, `focused_block()`,
 `web_view_events()` and `peers::<P>()` follow the host's state;

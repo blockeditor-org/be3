@@ -4,8 +4,8 @@ use block_editor_beui::be_block::canvas::{CanvasEntity, CanvasEntityKind};
 use std::cell::RefCell;
 
 use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, CanvasView, Child, Draw, Drawing, ForEach, Interactive, Memo,
-    PlacementBuilder, ReadSignal, Show, clone, component, create_effect, create_memo,
+    Canvas, CanvasItem, CanvasView, Child, Draw, Drawing, ForEach, Interactive, Memo, PasteKind,
+    Pasted, PlacementBuilder, ReadSignal, Show, clone, component, create_effect, create_memo,
     create_signal, view,
 };
 use block_editor_beui::beui::styled::use_theme;
@@ -121,9 +121,8 @@ fn CanvasSurface(state: Rc<CanvasState>, children: Option<Child>) -> NodeId {
             focusable=true
             tab_stop={interactive}
             on_key={move |press: KeyPress| keying.key(press)}
-            on_text={move |text: String| {
-                texting.paste_text(&text);
-            }}
+            pastes={vec![PasteKind::Image, PasteKind::Text]}
+            on_paste={move |pasted: Pasted| texting.take_paste(pasted)}
             cursor={cursor}
             touch_drags={interactive}
             on_cancel={move || cancelling.cancel()}

@@ -103,6 +103,14 @@ fn key_event(doc: &mut Document, ctx: &Context, event: &Event) -> Result<bool, F
     {
         doc.set_modifiers(modifiers);
     }
+    if let Event::Key { press, .. } = event
+        && press.pressed
+        && press.key == Key::V
+        && press.modifiers.ctrl
+        && !press.modifiers.alt
+    {
+        ctx.paste_shortcut();
+    }
     match event {
         Event::Focus(true) => doc.keyboard = true,
         Event::Focus(false) => {
@@ -130,6 +138,11 @@ fn key_event(doc: &mut Document, ctx: &Context, event: &Event) -> Result<bool, F
         }
         Event::Text(text) if !forward::takes_keys(doc) => {
             doc.text_focused(text);
+            doc.reveal_focus();
+            return Ok(false);
+        }
+        Event::Paste(pasted) if !forward::takes_keys(doc) => {
+            doc.paste_focused(pasted.clone());
             doc.reveal_focus();
             return Ok(false);
         }
@@ -447,6 +460,7 @@ fn is_activity(event: &Event) -> bool {
             | Event::PointerMoved(_)
             | Event::Scroll(_)
             | Event::Text(_)
+            | Event::Paste(_)
             | Event::Touch { .. }
             | Event::Zoom(_)
     )

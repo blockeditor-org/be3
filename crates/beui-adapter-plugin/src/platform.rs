@@ -1,3 +1,4 @@
+use beui_core::clipboard::{PasteAnswer, PasteKind};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::input::{CursorIcon, ImeArea, KeyChord};
 use beui_core::runner::Platform;
@@ -12,6 +13,7 @@ pub(crate) struct HostPlatform {
     pub(crate) wants_keyboard: bool,
     pub(crate) intercepted_keys: Vec<block_plugin_api::KeyChord>,
     pub(crate) locked: bool,
+    pub(crate) pastes: Vec<block_plugin_api::PasteKind>,
 }
 
 impl HostPlatform {
@@ -19,6 +21,7 @@ impl HostPlatform {
         Self {
             host,
             picks: Vec::new(),
+            pastes: Vec::new(),
             cursor: block_plugin_api::CursorIcon::Default,
             ime: None,
             handles_back: false,
@@ -43,9 +46,16 @@ impl Platform for HostPlatform {
         self.host.copy_text(text);
     }
 
-    fn paste(&mut self) -> Option<String> {
+    fn paste(&mut self, _kinds: &[PasteKind], answer: PasteAnswer) {
         self.host.request_paste();
-        None
+        drop(answer);
+    }
+
+    fn set_paste_kinds(&mut self, kinds: &[PasteKind]) {
+        self.pastes = kinds
+            .iter()
+            .map(|kind| beui_plugin_input::protocol_paste_kind(*kind))
+            .collect();
     }
 
     fn delivers_paste_shortcut(&self) -> bool {

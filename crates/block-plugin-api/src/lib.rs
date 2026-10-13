@@ -104,7 +104,24 @@ pub struct FrameReport {
     pub handles_back: bool,
     pub wants_keyboard: bool,
     pub intercepted_keys: Vec<KeyChord>,
+    pub pastes: Vec<PasteKind>,
     pub description: Option<Description>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum PasteKind {
+    Text,
+    Image,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Pasted {
+    Text(String),
+    Image {
+        name: String,
+        #[serde(with = "serde_bytes")]
+        data: Vec<u8>,
+    },
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -1107,7 +1124,7 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         text: String,
     },
-    PasteText {
+    Paste {
         instance: EditorInstanceId,
     },
     AspectRatio {
@@ -1238,7 +1255,7 @@ impl EditorMessage {
             | Self::ChildView { instance, .. }
             | Self::ChildBar { instance, .. }
             | Self::CopyText { instance, .. }
-            | Self::PasteText { instance }
+            | Self::Paste { instance }
             | Self::AspectRatio { instance, .. }
             | Self::IntrinsicSize { instance, .. }
             | Self::Performance { instance, .. }
@@ -1555,7 +1572,6 @@ pub enum HostRequest {
     SaveFile(SavedFile),
     PickBlock(BlockFilter),
     ListAccess([u8; 16]),
-    PasteImage,
     Fetch(String),
     ListData,
     ReadData(String),
@@ -1566,7 +1582,6 @@ pub enum HostReply {
     FilePicked(FilePick),
     FileSaved(FileSave),
     BlockPicked(BlockPick),
-    ImagePasted(ClipboardImage),
     Fetched(FetchResult),
     DataListed(DataListing),
     DataRead(FetchResult),
@@ -1654,13 +1669,6 @@ pub struct DroppedFile {
     pub name: String,
     #[serde(with = "serde_bytes")]
     pub data: Vec<u8>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ClipboardImage {
-    Pasted { name: String, data: Vec<u8> },
-    Empty,
-    Failed(String),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1839,7 +1847,7 @@ impl EditorMessage {
             | Self::Ime { .. }
             | Self::ChildReplaced { .. }
             | Self::CopyText { .. }
-            | Self::PasteText { .. }
+            | Self::Paste { .. }
             | Self::AspectRatio { .. }
             | Self::IntrinsicSize { .. }
             | Self::Operate { .. }
@@ -2021,7 +2029,7 @@ pub enum InputEvent {
         text: Option<String>,
     },
     Text(String),
-    Paste(String),
+    Paste(Pasted),
     Ime(ImeInput),
     Modifiers(Modifiers),
     Focus(bool),
@@ -2465,8 +2473,12 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
             collection(value.events.len())?;
             for event in &value.events {
                 match event {
+                    InputEvent::Paste(Pasted::Image { name, data }) => {
+                        string(name)?;
+                        blob(data)?;
+                    }
                     InputEvent::Text(value)
-                    | InputEvent::Paste(value)
+                    | InputEvent::Paste(Pasted::Text(value))
                     | InputEvent::Ime(
                         ImeInput::SetComposingText(value)
                         | ImeInput::CommitText(value)
@@ -2771,7 +2783,7 @@ fn validate_request(request: &HostRequest) -> Result<(), DecodeError> {
         }
         HostRequest::PickBlock(filter) => block_filter(filter),
         HostRequest::ListAccess(_) => Ok(()),
-        HostRequest::PasteImage | HostRequest::ListData => Ok(()),
+        HostRequest::ListData => Ok(()),
         HostRequest::Fetch(url) => string(url),
         HostRequest::ReadData(path) => string(path),
     }
@@ -2780,9 +2792,6 @@ fn validate_request(request: &HostRequest) -> Result<(), DecodeError> {
 fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
     match reply {
         HostReply::FilePicked(FilePick::Chosen { name, data }) => {
-            string(name).and_then(|()| blob(data))
-        }
-        HostReply::ImagePasted(ClipboardImage::Pasted { name, data }) => {
             string(name).and_then(|()| blob(data))
         }
         HostReply::Fetched(FetchResult::Body(body))
@@ -2794,7 +2803,6 @@ fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
         HostReply::FilePicked(FilePick::Failed(message))
         | HostReply::FileSaved(FileSave::Failed(message))
         | HostReply::BlockPicked(BlockPick::Failed(message))
-        | HostReply::ImagePasted(ClipboardImage::Failed(message))
         | HostReply::Fetched(FetchResult::Failed(message))
         | HostReply::DataRead(FetchResult::Failed(message))
         | HostReply::DataListed(DataListing::Failed(message))
@@ -2809,8 +2817,7 @@ fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
         }
         HostReply::FilePicked(FilePick::Cancelled)
         | HostReply::FileSaved(FileSave::Saved | FileSave::Cancelled)
-        | HostReply::BlockPicked(BlockPick::Chosen { .. } | BlockPick::Cancelled)
-        | HostReply::ImagePasted(ClipboardImage::Empty) => Ok(()),
+        | HostReply::BlockPicked(BlockPick::Chosen { .. } | BlockPick::Cancelled) => Ok(()),
     }
 }
 
@@ -2856,7 +2863,7 @@ fn string(value: &str) -> Result<(), DecodeError> {
 pub fn paste_events(text: &str) -> Vec<InputEvent> {
     text_pieces(text, MAX_TEXT_BYTES)
         .into_iter()
-        .map(InputEvent::Paste)
+        .map(|piece| InputEvent::Paste(Pasted::Text(piece)))
         .collect()
 }
 

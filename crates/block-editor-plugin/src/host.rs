@@ -11,10 +11,10 @@ use block_plugin_api::TopBar;
 use block_plugin_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand,
     BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect,
-    ChildStatus, ClipboardImage, DataListing, EditorRegion, FetchResult, FilePick, FileSave,
-    HostAction, HostPanel, HostReply, HostRequest, HostValue, HostWindowId, MenuEntry, Occluder,
-    PerformanceMeasurement, ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent, WebViewId,
-    decode_host, encode_host,
+    ChildStatus, DataListing, EditorRegion, FetchResult, FilePick, FileSave, HostAction, HostPanel,
+    HostReply, HostRequest, HostValue, HostWindowId, MenuEntry, Occluder, PerformanceMeasurement,
+    ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent, WebViewId, decode_host,
+    encode_host,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;
@@ -1171,17 +1171,6 @@ impl EditorHost {
         }
     }
 
-    pub fn paste_image(&self) -> u64 {
-        self.ask(HostRequest::PasteImage)
-    }
-
-    pub fn take_pasted_image(&self, request: u64) -> Option<ClipboardImage> {
-        match self.take_reply(request)? {
-            HostReply::ImagePasted(image) => Some(image),
-            reply => self.mismatched(request, reply),
-        }
-    }
-
     pub fn play_audio(&self, block_id: Uuid) {
         self.audio_commands
             .borrow_mut()
@@ -1704,43 +1693,6 @@ impl FileSaver {
             FileSave::Failed(error) => Err(error),
         })
     }
-}
-
-#[derive(Default)]
-pub struct ImagePaster {
-    request: Option<u64>,
-}
-
-impl ImagePaster {
-    pub fn paste(&mut self, host: &EditorHost, asked: bool) -> Option<PastedImage> {
-        if let Some(request) = self.request {
-            return match host.take_pasted_image(request)? {
-                ClipboardImage::Pasted { name, data } => {
-                    self.request = None;
-                    Some(PastedImage::Image { name, data })
-                }
-                ClipboardImage::Empty => {
-                    self.request = None;
-                    Some(PastedImage::Empty)
-                }
-                ClipboardImage::Failed(error) => {
-                    self.request = None;
-                    Some(PastedImage::Failed(error))
-                }
-            };
-        }
-        if !asked {
-            return None;
-        }
-        self.request = Some(host.paste_image());
-        None
-    }
-}
-
-pub enum PastedImage {
-    Image { name: String, data: Vec<u8> },
-    Empty,
-    Failed(String),
 }
 
 fn child_rect(rect: Rect) -> ChildRect {

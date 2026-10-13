@@ -228,6 +228,7 @@ pub(crate) fn PluginRegion(
         state.with(|view| view.cursor.unwrap_or(CursorIcon::Default))
     }));
     let handles_back = create_memo(clone!(state -> move || state.with(|view| view.handles_back)));
+    let pastes = create_memo(clone!(state -> move || state.with(|view| view.pastes.clone())));
     let intercepted = create_memo(clone!(state -> move || {
         state.with(|view| view.intercepted_keys.clone())
     }));
@@ -339,6 +340,7 @@ pub(crate) fn PluginRegion(
                             ime_keyboard={ime_keyboard}
                             ime_cursor={ime_cursor}
                             ime_text={ime_text}
+                            pastes={pastes}
                             on_forward={forward}
                             hit_at={takes}
                             claim_at={claims}

@@ -1,6 +1,6 @@
 use block_plugin_api::{
     BackEdge, BackPhase, CursorIcon, FilePick, ImeInput, ImeText, Key, KeyChord, Modifiers,
-    PointerButton, TouchPhase,
+    PasteKind, Pasted, PointerButton, TouchPhase,
 };
 
 pub fn protocol_modifiers(modifiers: beui::Modifiers) -> Modifiers {
@@ -443,5 +443,36 @@ pub fn beui_file_pick(pick: FilePick) -> beui::FilePick {
         FilePick::Chosen { name, data } => Ok(Some(beui::PickedFile { name, data })),
         FilePick::Cancelled => Ok(None),
         FilePick::Failed(error) => Err(error),
+    }
+}
+
+pub fn protocol_paste_kind(kind: beui::PasteKind) -> PasteKind {
+    match kind {
+        beui::PasteKind::Text => PasteKind::Text,
+        beui::PasteKind::Image => PasteKind::Image,
+    }
+}
+
+pub fn beui_paste_kind(kind: PasteKind) -> beui::PasteKind {
+    match kind {
+        PasteKind::Text => beui::PasteKind::Text,
+        PasteKind::Image => beui::PasteKind::Image,
+    }
+}
+
+pub fn protocol_pasted(pasted: beui::Pasted) -> Pasted {
+    match pasted {
+        beui::Pasted::Text(text) => Pasted::Text(text),
+        beui::Pasted::Image(file) => Pasted::Image {
+            name: file.name,
+            data: file.data,
+        },
+    }
+}
+
+pub fn beui_pasted(pasted: Pasted) -> beui::Pasted {
+    match pasted {
+        Pasted::Text(text) => beui::Pasted::Text(text),
+        Pasted::Image { name, data } => beui::Pasted::Image(beui::PickedFile { name, data }),
     }
 }

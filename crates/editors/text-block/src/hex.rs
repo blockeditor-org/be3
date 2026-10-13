@@ -3,8 +3,7 @@ use std::rc::Rc;
 
 use beui::reactive::{
     Draw, Drawing, Frame, Interactive, LayoutBuilder, Memo, NodeRef, Prop, ReadSignal, clone,
-    component, copy_text, create_memo, layout_text, pixels_per_point, request_paste, view,
-    with_document,
+    component, copy_text, create_memo, layout_text, pixels_per_point, view, with_document,
 };
 use beui::unstyled::Scroll;
 use beui::unstyled::TextAreaColors;
@@ -259,7 +258,6 @@ fn key(state: &Shared, press: KeyPress) -> bool {
     match press.key {
         Key::C if modifiers.ctrl => copy(state, false),
         Key::X if modifiers.ctrl => copy(state, true),
-        Key::V if modifiers.ctrl => request_paste(),
         Key::Backspace => delete(state, LRDirection::Left),
         Key::Delete => delete(state, LRDirection::Right),
         Key::A if modifiers.ctrl => {

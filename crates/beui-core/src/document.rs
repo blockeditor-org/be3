@@ -1068,6 +1068,7 @@ impl Document {
         if std::mem::take(&mut self.paste_requested) {
             ctx.request_paste();
         }
+        ctx.accept_pastes(&self.paste_kinds());
         if resized && self.focus_takes_text() {
             self.reveal_focus();
         }

@@ -27,6 +27,7 @@ use ndk::native_window::NativeWindow;
 use raw_window_handle as rwh;
 
 use beui_core::app::{SafeArea, Setup, Waker};
+use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePick, FilePickAnswer, FilePickId, FilePickRequest, PickedFile};
 use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
 use beui_core::input::{
@@ -223,8 +224,12 @@ impl Platform for AndroidPlatform {
         self.clipboard.set(text);
     }
 
-    fn paste(&mut self) -> Option<String> {
-        self.clipboard.get()
+    fn paste(&mut self, kinds: &[PasteKind], answer: PasteAnswer) {
+        let text = kinds
+            .contains(&PasteKind::Text)
+            .then(|| self.clipboard.get())
+            .flatten();
+        answer.send(text.map(Pasted::Text));
     }
 
     fn pick_file(&mut self, request: FilePickRequest, answer: FilePickAnswer) {

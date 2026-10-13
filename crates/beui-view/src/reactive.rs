@@ -68,6 +68,8 @@ pub fn copy_text(text: impl Into<String>) {
     with_document(|document| document.copy_text(text));
 }
 
+pub use beui_core::clipboard::{PasteKind, Pasted};
+
 pub fn request_paste() {
     with_document(Document::request_paste);
 }

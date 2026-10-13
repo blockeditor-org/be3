@@ -67,10 +67,9 @@ impl Default for Intake {
     }
 }
 
-pub(crate) struct Drain<'a> {
+pub(crate) struct Drain {
     pub pixels_per_point: f32,
     pub touch_emulation: bool,
-    pub paste: &'a mut dyn FnMut() -> Option<String>,
 }
 
 impl Intake {
@@ -78,20 +77,20 @@ impl Intake {
         self.modifiers
     }
 
-    pub(crate) fn drain(&mut self, drain: &mut Drain<'_>, events: &mut Vec<Event>) {
+    pub(crate) fn drain(&mut self, drain: &mut Drain, events: &mut Vec<Event>) {
         if !drain.touch_emulation && std::mem::take(&mut self.emulated_touch) {
             events.push(self.touch(TouchPhase::Cancel));
         }
         for incoming in std::mem::take(&mut self.incoming) {
             match incoming {
                 Input::Event(event) => self.event(event, drain, events),
-                Input::Key(stroke) => self.key(stroke, drain, events),
+                Input::Key(stroke) => self.key(stroke, events),
                 Input::Scroll(delta) => self.incoming_scroll(delta, drain, events),
             }
         }
     }
 
-    fn event(&mut self, event: Event, drain: &mut Drain<'_>, events: &mut Vec<Event>) {
+    fn event(&mut self, event: Event, drain: &mut Drain, events: &mut Vec<Event>) {
         let scale = drain.pixels_per_point;
         let points = |pos: Pos2| Pos2::new(pos.x / scale, pos.y / scale);
         match event {
@@ -174,7 +173,7 @@ impl Intake {
         }
     }
 
-    fn incoming_scroll(&self, delta: ScrollDelta, drain: &Drain<'_>, events: &mut Vec<Event>) {
+    fn incoming_scroll(&self, delta: ScrollDelta, drain: &Drain, events: &mut Vec<Event>) {
         let delta = match delta {
             ScrollDelta::Pixels(delta) => delta / drain.pixels_per_point,
             ScrollDelta::Lines(delta) => delta * SCROLL_LINE,
@@ -185,7 +184,7 @@ impl Intake {
         }
     }
 
-    fn key(&mut self, stroke: Keystroke, drain: &mut Drain<'_>, events: &mut Vec<Event>) {
+    fn key(&mut self, stroke: Keystroke, events: &mut Vec<Event>) {
         let Keystroke {
             key,
             pressed,
@@ -206,14 +205,6 @@ impl Intake {
         };
         if repeat && key.is_modifier() {
             return;
-        }
-        if pressed
-            && key == Key::V
-            && modifiers.ctrl
-            && !modifiers.alt
-            && let Some(pasted) = (drain.paste)()
-        {
-            events.push(Event::Text(pasted));
         }
         events.push(Event::Key {
             press: KeyPress {

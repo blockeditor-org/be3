@@ -13,6 +13,7 @@ use beui_components_unstyled::{
 use beui_core::base::ItemSize;
 use beui_core::color::Color32;
 use beui_core::document::Document;
+use beui_core::file_picker::PickedFile;
 use beui_core::geometry::Pos2;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
@@ -35,8 +36,10 @@ pub fn TextArea(
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
     #[prop(default = true)] emoji: bool,
+    #[prop(default = false)] pastes_images: bool,
     on_widget_press: Callback<usize, bool>,
     on_focus_change: Callback<bool>,
+    on_image_paste: Callback<PickedFile>,
 ) -> NodeId {
     let theme = use_theme();
     let colors = create_memo(move || TextAreaColors {
@@ -74,6 +77,8 @@ pub fn TextArea(
                         client_colors
                         on_widget_press={move |widget: usize| on_widget_press.call(widget)}
                         on_focus_change={move |focused: bool| on_focus_change.call(focused)}
+                        pastes_images
+                        on_image_paste={move |image: PickedFile| on_image_paste.call(image)}
                         on_menu={move |at: Pos2| open_menu.call(at)}
                         block={block}
                         selected_widget={selected_widget}

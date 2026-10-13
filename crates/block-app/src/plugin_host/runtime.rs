@@ -1699,6 +1699,7 @@ pub(crate) struct RegionView {
     pub(crate) handles_back: bool,
     pub(crate) wants_keyboard: bool,
     pub(crate) intercepted_keys: Vec<beui::KeyChord>,
+    pub(crate) pastes: Vec<beui::PasteKind>,
     pub(crate) grabbed: bool,
 }
 
@@ -1722,6 +1723,7 @@ impl RegionView {
             handles_back: false,
             wants_keyboard: false,
             intercepted_keys: Vec::new(),
+            pastes: Vec::new(),
             grabbed: false,
         }
     }
@@ -1904,6 +1906,15 @@ fn placed_view(
             handles_back,
             wants_keyboard: report.is_some_and(|report| report.wants_keyboard),
             intercepted_keys,
+            pastes: report
+                .map(|report| {
+                    report
+                        .pastes
+                        .iter()
+                        .map(|kind| beui_plugin_input::beui_paste_kind(*kind))
+                        .collect()
+                })
+                .unwrap_or_default(),
             grabbed: runtime.instances.grabbing(),
         }
     }

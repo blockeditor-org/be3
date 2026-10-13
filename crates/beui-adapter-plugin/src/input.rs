@@ -64,7 +64,10 @@ pub(crate) fn translate(region: &Region, event: &InputEvent) -> Option<Input> {
             text: text.clone(),
         }
         .into(),
-        InputEvent::Text(text) | InputEvent::Paste(text) => Event::Text(text.clone()).into(),
+        InputEvent::Text(text) => Event::Text(text.clone()).into(),
+        InputEvent::Paste(pasted) => {
+            Event::Paste(beui_plugin_input::beui_pasted(pasted.clone())).into()
+        }
         InputEvent::Modifiers(modifiers) => {
             Event::Modifiers(beui_plugin_input::beui_modifiers(*modifiers)).into()
         }
