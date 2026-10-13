@@ -112,7 +112,10 @@ impl SlotChild for TextChild {
 
     fn store(self) -> TextPart {
         match self {
-            TextChild::Span(span) => TextPart::Span(SpanHandle::new(span.peek())),
+            TextChild::Span(_) => panic!(
+                "a `Span` is kept by the `Text` it is written in, which binds its props; \
+                 it cannot be kept in a run of children away from one"
+            ),
             TextChild::Item(item) => item.store(),
         }
     }
@@ -219,8 +222,6 @@ impl ChildValue for Span {
         scope.into_parent();
     }
 }
-
-crate::value_child_type!(Span);
 
 fn bind<T: Clone + 'static>(
     text: NodeOf<TextNode>,
