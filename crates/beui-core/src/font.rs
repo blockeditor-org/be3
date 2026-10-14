@@ -2,8 +2,8 @@ use foldhash::HashMap;
 use std::hash::{BuildHasher, Hash, Hasher};
 
 use foldhash::fast::FixedState;
-use std::ops::Range;
 use std::cell::OnceCell;
+use std::ops::Range;
 use std::rc::{Rc, Weak};
 use unicode_segmentation::UnicodeSegmentation;
 

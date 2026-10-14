@@ -17,8 +17,7 @@ pub use reactive_macros::Store;
 pub use runtime::{ZoneGuard, batch, enter_zone, forget_zone, untrack, zone_pending};
 pub use scope::{
     Release, RootScope, Scope, ScopeContext, child_scope, current_scope, on_cleanup, on_release,
-    owner_scope,
-    provide_context, use_context,
+    owner_scope, provide_context, use_context,
 };
 pub use selector::{Selector, create_selector};
 pub use signal::{OwnedSignal, ReadSignal, WriteSignal, create_signal};

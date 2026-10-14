@@ -196,7 +196,11 @@ mod bench {
                 let mut stack: Vec<_> = document.root().into_iter().collect();
                 let mut found = std::collections::HashMap::<String, (usize, usize)>::new();
                 fn size(document: &beui_core::document::Document, node: beui::NodeId) -> usize {
-                    1 + document.children(node).into_iter().map(|child| size(document, child)).sum::<usize>()
+                    1 + document
+                        .children(node)
+                        .into_iter()
+                        .map(|child| size(document, child))
+                        .sum::<usize>()
                 }
                 while let Some(node) = stack.pop() {
                     if document.node_rect(node).is_none() {
@@ -355,7 +359,10 @@ mod bench {
             );
         }
         let [cold, min, median, max] = logs.map(|log| (log / summary.len().max(1) as f64).exp());
-        println!("{:<16} {cold:>9.2} {min:>9.2} {median:>9.2} {max:>9.2}", "geomean");
+        println!(
+            "{:<16} {cold:>9.2} {min:>9.2} {median:>9.2} {max:>9.2}",
+            "geomean"
+        );
     }
 
     #[derive(Clone)]

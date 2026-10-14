@@ -216,7 +216,8 @@ impl Document {
         keyboard: bool,
     ) {
         if self.contains(focusable)
-            && focus_of(self.arena.get(focusable)).is_some_and(|focus| focus.ime_keyboard != keyboard)
+            && focus_of(self.arena.get(focusable))
+                .is_some_and(|focus| focus.ime_keyboard != keyboard)
         {
             self.focus_mut(focusable).ime_keyboard = keyboard;
         }

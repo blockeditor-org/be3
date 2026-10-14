@@ -169,9 +169,14 @@ pub fn Interactive(
         });
     }
     create_binding(move || {
-        let (capture, repeat, touch) = (capture_presses.get(), repeat_drag.get(), touch_drags.get());
+        let (capture, repeat, touch) =
+            (capture_presses.get(), repeat_drag.get(), touch_drags.get());
         let (axis, claims, scroll) = (touch_drag_axis.get(), claims_touch.get(), scroll_axis.get());
-        let (active, inhibits, claimed) = (key_active.get(), inhibits_shortcuts.get(), claim_modifiers.get());
+        let (active, inhibits, claimed) = (
+            key_active.get(),
+            inhibits_shortcuts.get(),
+            claim_modifiers.get(),
+        );
         with_document(|document| {
             document.set_interactive_capture_presses(interactive, capture);
             document.set_interactive_repeat_drag(interactive, repeat);

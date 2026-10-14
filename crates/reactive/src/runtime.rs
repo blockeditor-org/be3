@@ -284,7 +284,10 @@ fn run_queued(next: Weak<Computation>, flush: u64) {
     if computation.zone != 0 && current != 0 && computation.zone != current {
         RUNTIME.with(|runtime| {
             let mut parked = runtime.parked.borrow_mut();
-            match parked.iter_mut().find(|(zone, _)| *zone == computation.zone) {
+            match parked
+                .iter_mut()
+                .find(|(zone, _)| *zone == computation.zone)
+            {
                 Some((_, waiting)) => waiting.push(next),
                 None => parked.push((computation.zone, vec![next])),
             }
