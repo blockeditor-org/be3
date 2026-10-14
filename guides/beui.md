@@ -272,9 +272,13 @@ hooks the higher crates fill in:
   pointer lock, back handling, wanting the keyboard, intercepted keys, the
   paste kinds the focus takes, the IME area, and `typed`), which the
   `Context` fills during a frame and `FrameOutput::window` carries. While
-  `Context::touch_emulation` is on its cursor is `CursorIcon::Crosshair`
-  whatever the app asked, so every adapter shows the emulated finger the same
-  way. The runner hands it to `Platform::show_window` with the state it
+  `Context::touch_emulation` is on its cursor is `CursorIcon::Touch`
+  whatever the app asked: a finger-sized circle, defined once in
+  `beui_core::touch_cursor` as an image at any scale (winit's custom cursor,
+  the DRM sprite), an SVG (the web's CSS `url(...)` cursor) and a painter
+  call (the mouse simulation's cursor). A plugin region passes it to its host
+  as the protocol's `CursorIcon::Touch`, and a platform with no custom cursors
+  falls back to `CursorIcon::Touch.name()`, a crosshair. The runner hands it to `Platform::show_window` with the state it
   showed before, only when they differ, so an adapter compares just the
   fields it uses; a new field is one more field there and in the adapters
   that act on it. Typing moves the platform's own copy of the field (the

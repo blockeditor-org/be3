@@ -537,6 +537,7 @@ pub enum CursorIcon {
     ResizeNorthWest,
     ResizeSouthEast,
     ResizeSouthWest,
+    Touch,
 }
 
 impl CursorIcon {
@@ -615,6 +616,7 @@ impl CursorIcon {
             CursorIcon::ZoomIn => "zoom-in",
             CursorIcon::ZoomOut => "zoom-out",
             CursorIcon::None => "none",
+            CursorIcon::Touch => "crosshair",
         }
     }
 

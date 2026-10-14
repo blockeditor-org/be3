@@ -647,7 +647,7 @@ impl Context {
     fn shown_window(&self) -> WindowState {
         let mut window = self.inner.window.borrow().clone();
         if self.touch_emulation() {
-            window.cursor = CursorIcon::Crosshair;
+            window.cursor = CursorIcon::Touch;
         }
         window
     }
@@ -721,7 +721,7 @@ impl Context {
             return;
         };
         if simulation.painting() {
-            let icon = self.cursor_icon();
+            let icon = self.shown_window().cursor;
             self.scaled(scale, || {
                 let painter = self
                     .painter()

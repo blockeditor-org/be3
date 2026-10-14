@@ -37,8 +37,8 @@ fn touch_emulation_turns_the_mouse_into_a_finger() {
     );
     assert_eq!(
         intaken.runner.window().cursor,
-        CursorIcon::Crosshair,
-        "every platform shows the finger as a crosshair"
+        CursorIcon::Touch,
+        "every platform is asked to show the finger as the touch cursor"
     );
 
     intaken
