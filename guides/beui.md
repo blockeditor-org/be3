@@ -615,7 +615,8 @@ catcher that only watches presses over a whole region - a dock pane focusing
 itself - sets `claims_touch=false`, so landing on it is not a direct hit and the
 controls inside it keep their reach. A quick
 tap with two or more fingers that did not move is a finger tap, which
-`on_finger_tap` hears the way `on_shortcut` hears keys; the editor frame's top
+`on_finger_tap` hears the way `on_shortcut` hears keys, unless a layer that
+blocks everything is open; the editor frame's top
 bar undoes on two and redoes on three. `Sheet` is the panel that rises from the
 bottom of a narrow screen. It scrolls what it holds itself, so what goes in it
 is not wrapped in a vertical `Scroll` (one inside would measure nothing tall): a
@@ -965,7 +966,10 @@ children sit above their parent and rise with it, and a `level` (`LayerLevel`) p
 every layer of a lower level: `Top` for things that must float over every
 window, such as a drag preview or a volume OSD, and `Lock` for the lock screen.
 Opening a layer raises it and every layer it hangs in, so a menu opened in a
-window that was covered comes up with its window.
+window that was covered comes up with its window; an inert layer rises alone,
+so a tooltip shown over a covered window leaves the window where it was.
+`Document::layers()` is worked out once for each change to the tree or the
+layers and shared until the next, so asking for it again costs nothing.
 
 Each layer has one `policy` (`LayerPolicy`):
 
@@ -1007,7 +1011,9 @@ dismissed. There is one request for each reason, sent to one layer:
   outside a submenu closes the whole menu). A layer that blocks everything
   still lets the pointer reach the blocking layers it is nested in, so the
   rows of a menu stay hovered and pressable under its open submenu, and a
-  press on one closes the submenu. A mouse asks on the press; a finger
+  press on one closes the submenu. Which layers the pointer can reach is one
+  rule (`Layers::reachable`) that the hit test and the forwarding of input to
+  a forwarding catcher share. A mouse asks on the press; a finger
   on the tap, so a scroll that starts outside a layer leaves it open.
 
 Inside the layer it is sent to, a request goes to the most recently made
@@ -1047,7 +1053,7 @@ afterwards; the page that moves needs an opaque background, and a page that
 must keep its state (a scroll position) is built once and handed to a `Portal`
 in both places. The stacked dock shows its home tab behind the tab it leaves
 this way. A back with no gesture before it (a key, Escape, a press outside)
-goes back at once. `styled::Dialog` and
+carries the page off from where it rests in the same slide-away. `styled::Dialog` and
 `Fullscreen` slide away the same way and fade their scrim, and a `Sheet`
 sinks with the gesture and slides on down from where it was. On Android the
 runner passes `handles_back` to the activity's `setBackHandled`, and when
