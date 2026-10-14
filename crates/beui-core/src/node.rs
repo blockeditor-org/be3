@@ -192,6 +192,10 @@ impl<T> NodeMap<T> {
         }
     }
 
+    pub fn clear(&mut self) {
+        self.entries.fill_with(|| None);
+    }
+
     pub fn remove(&mut self, id: &NodeId) -> Option<T> {
         let slot = self.entries.get_mut(id.index as usize)?;
         match slot {
@@ -305,6 +309,8 @@ pub struct Rects {
     clips: RefCell<NodeMap<[Option<ResolvedClip>; SPACE_SLOTS]>>,
     version: Cell<u64>,
     moves: Cell<u64>,
+    chain: RefCell<Vec<(SpaceId, Vec2)>>,
+    clip_chain: RefCell<Vec<(SpaceId, Space)>>,
 }
 
 impl Rects {
@@ -374,7 +380,7 @@ impl Rects {
 
     pub fn offset(&self, space: Option<SpaceId>) -> Vec2 {
         let stamp = self.moves.get();
-        let mut chain = Vec::new();
+        let mut chain = self.chain.borrow_mut();
         let mut current = space;
         let mut offset = Vec2::ZERO;
         while let Some(id) = current {
@@ -399,7 +405,7 @@ impl Rects {
             current = space.parent;
         }
         let mut offsets = self.offsets.borrow_mut();
-        for (id, translation) in chain.into_iter().rev() {
+        for (id, translation) in chain.drain(..).rev() {
             offset += translation;
             offsets.get_or_default(id.node)[id.slot as usize] = Some((stamp, offset));
         }
@@ -408,7 +414,7 @@ impl Rects {
 
     pub fn space_clip(&self, space: Option<SpaceId>) -> Rect {
         let stamp = self.moves.get();
-        let mut chain = Vec::new();
+        let mut chain = self.clip_chain.borrow_mut();
         let mut current = space;
         let mut clip = Rect::EVERYTHING;
         while let Some(id) = current {
@@ -433,7 +439,7 @@ impl Rects {
             current = space.parent;
         }
         let mut clips = self.clips.borrow_mut();
-        for (id, held) in chain.into_iter().rev() {
+        for (id, held) in chain.drain(..).rev() {
             clip = clip.intersect(held.clip).translate(-held.translation);
             clips.get_or_default(id.node)[id.slot as usize] = Some((stamp, clip));
         }
