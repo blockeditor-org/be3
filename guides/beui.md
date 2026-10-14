@@ -555,7 +555,9 @@ under the pointer. The unstyled module contains
 `Disclosure`, `Tree`, `Select`, `ContextMenu`, `MenuButton`, `Popover`, `Container`,
 `PanZoom`, `PointerLock`, `Dock`, `Draggable`, `DropTarget`, `Tooltip`, `Floating`, `Scroll`, `Scrollbar`,
 `Stack`, `Calendar`, `DateTimeField`, `TimeList`, `ColorArea`, `ColorWheel` and `Picture`. `TextArea` is the multiline one: it owns a
-`text_editor_core::Core` through the `TextAreaState` its caller holds, lays the
+`text_editor_core::Core` through the `TextAreaState` its caller holds (a `Copy`
+handle owned by the scope that made it; `with_core` and `with_core_mut` reach
+the `Core`), lays the
 document out with a gutter, wrapping, collapsible sections and markdown
 checkboxes, and lays out the inline and block `TextWidget`s the caller
 names - `block` builds what goes under a block widget's line, and
@@ -929,7 +931,8 @@ costs no frames.
 beui has no per-frame hook. Work runs because a signal it reads changed, and
 anything that genuinely depends on time asks for it with `create_timer(work)`.
 The timer belongs to the reactive scope that created it and is dropped with
-it. `start(delay)` schedules `work` (keeping an earlier deadline if one is
+it; the `Timer` handle is `Copy`, and calling it after that scope is gone does
+nothing. `start(delay)` schedules `work` (keeping an earlier deadline if one is
 already set), `restart(delay)` replaces the deadline, `stop()` cancels it, and
 `running()` says whether one is pending. The document runs due timers inside
 its reactive scope at the top of a frame and asks the context for a repaint
