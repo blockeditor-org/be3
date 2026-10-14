@@ -4,21 +4,22 @@ load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_app_module")
 
 # beui's demo (crates/beui-demo) in a browser, drawn with DOM elements or with
 # wgpu, switched at runtime from the inspector's Perf tab:
-# `./scripts/buck run //crates/beui-web-demo:web-serve`.
+# `./scripts/buck run //crates/beui-web-demo:web`, which serves it with Caddy
+# on http://127.0.0.1:8070, or on the address after `--`.
 cargo_library(
     rustc_flags = wasi_app_flags,
     target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
 )
 
 wasi_app_module(
-    name = "module",
+    name = "web-module",
     library = ":beui-web-demo",
     module = "beui_web_demo",
 )
 
 app(
     name = "web",
-    bindgen = [":module"],
+    bindgen = [":web-module"],
     files = [
         "web/index.html",
         "//crates/beui-font-freetype:icons.ttf",
@@ -30,19 +31,13 @@ app(
     ],
     manifests = [],
     modules = [],
-    wasm_bindgen = "//buck/cargo:wasm-bindgen",
-)
-
-# The bundle on http://127.0.0.1:8070, or on the address after `--`.
-command_alias(
-    name = "web-serve",
-    args = [
+    run_with = [
         "sh",
         "$(location :serve.sh)",
         "$(location //buck/tools:caddy)",
         "$(location :Caddyfile)",
-        "$(location :web)",
     ],
+    wasm_bindgen = "//buck/cargo:wasm-bindgen",
 )
 
 export_file(

@@ -25,7 +25,7 @@ authorization=<an Authorization header a gateway in front of the server wants, i
 ```
 
 `be` itself reads only the variables, never that file. A `be` built from the
-checkout (`./scripts/buck run //crates/be-cli:be -- ARGS`) carries that
+checkout (`./scripts/buck run //crates/be-cli:native -- ARGS`) carries that
 checkout's build id, so it talks to the dev app built from the same tree, and
 the real server refuses it. `BE3_SERVER` is `https://blocks.pfg.pw` unless
 set. `be` speaks to the server over HTTP posts (`/api/be/http`), since a cloud

@@ -66,7 +66,7 @@ newly frozen block type), write it in the `freeze` example and `scene.rs`,
 take a new snapshot and add it to `SNAPSHOTS` in `src/snapshots.rs`:
 
 ```
-./scripts/buck run //crates/be-frozen:freeze-example -- $PWD/crates/be-frozen/src/snapshots 2026_10_12
+./scripts/buck run //crates/be-frozen:example-freeze -- $PWD/crates/be-frozen/src/snapshots 2026_10_12
 ```
 
 with the day's date as the name. The test then checks the new part only in

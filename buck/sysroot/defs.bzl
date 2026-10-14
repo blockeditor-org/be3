@@ -32,7 +32,7 @@ deb_lock = rule(
     attrs = {
         "sets": attrs.dict(attrs.string(), attrs.tuple(attrs.string(), attrs.list(attrs.string()))),
         "snapshot": attrs.string(),
-        "_resolver": attrs.default_only(attrs.exec_dep(default = "root//crates/buck-tools:buck-tools-bin", providers = [RunInfo])),
+        "_resolver": attrs.default_only(attrs.exec_dep(default = "root//crates/buck-tools:bin", providers = [RunInfo])),
         "_script": attrs.default_only(attrs.source(default = "root//buck/sysroot:deb_lock.sh")),
     },
     impl = _deb_lock_impl,

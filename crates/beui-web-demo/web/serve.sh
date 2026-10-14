@@ -3,7 +3,7 @@
 # Serves the demo's web bundle with Caddy on http://127.0.0.1:8070, or on the
 # address given.
 #
-#   ./scripts/buck run //crates/beui-web-demo:web-serve [-- HOST:PORT]
+#   ./scripts/buck run //crates/beui-web-demo:web [-- HOST:PORT]
 set -eu
 caddy="$1" caddyfile="$2" bundle="$3"
 listen="${4:-127.0.0.1:8070}"

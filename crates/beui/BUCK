@@ -6,7 +6,7 @@ cargo_library(srcs = beui_srcs)
 
 cargo_test(srcs = beui_srcs)
 
-# The examples: `./scripts/buck run //crates/beui:<example>-example`.
+# The examples: `./scripts/buck run //crates/beui:example-<example>`.
 
 cargo_example("survey", srcs = beui_srcs)
 
