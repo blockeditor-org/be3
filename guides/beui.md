@@ -1398,8 +1398,10 @@ and takes the pointer where it actually is, and the document underneath it is
 shut out rather than answering a press through it.
 
 How the windows stack is the document's layer order alone (`Document::layers()`),
-not anything in `DockState`: a press on a window and the focus moving into one
-raise its layer (over a fullscreen tab too, unless the focus is in that tab), and a drop
+not anything in `DockState`: a press on a window, the focus moving into one and
+showing a tab of the window that has the focus (`DockState::show`, so a host can bring
+back a window something else covered) raise its layer (over a fullscreen tab too, unless
+the focus is in that tab), and a drop
 target is looked for in the window whose layer is on top at the pointer, never
 in one covered there by a layer that is not the dock's (a menu, a dialog, the
 fullscreen tab).
@@ -1420,11 +1422,12 @@ that pane's tabs into a sidebar beside its body (`DockState::set_vertical`),
 whose edge drags or arrows to a new width (`set_sidebar_width`); a window in
 that mode has no title bar, only the sidebar with the grip and the close button
 at its top. Windows resize from any of
-their eight grips and are raised by whatever takes the focus inside them. The grips, and
-the bar between two panes, reach `HANDLE_REACH` points past what they draw: a window's
-overlay is that much larger than the window on every side, and a splitter's item that much
-wider than its face on both sides, so they can be grabbed without changing how they look,
-and they capture the press over whatever lies beneath. A
+their eight grips and are raised by whatever takes the focus inside them. The grips lie
+wholly outside the window, in a ring `HANDLE_REACH` points wide (a window's overlay is that
+much larger than the window on every side), with each corner's grip running `GRIP_CORNER`
+points along both edges, and the bar between two panes takes presses only in the gap it
+draws: neither ever reaches over a pane's or a window's content, which gets every press
+right up to its edge (a program's window included). A
 split keeps each side at least `MIN_PANE_LENGTH` where the area has room for
 both, and a window is drawn no larger than the dock, so a layout made on a wide
 screen stays usable on a phone. Ctrl+Tab and Ctrl+Shift+Tab walk the tabs of the pane the focus is in,
