@@ -252,6 +252,7 @@ pub(crate) fn PluginRegion(
     });
     let catcher = NodeRef::new();
     take_keyboard(state, &catcher);
+    focus_when_asked(revision, plugin_id, instance, region, &catcher);
     let anchor = NodeRef::new();
     let ime = create_memo(move || state.with(|view| view.ime.is_some()));
     let ime_cursor = create_memo(move || {
@@ -394,6 +395,27 @@ fn carry(drag: BlockDrag) {
     };
     let point = DragPoint::at(pointer.pos, Modifiers::NONE);
     board.begin(Rc::new(drag), point, Rc::new(|_| {}));
+}
+
+fn focus_when_asked(
+    revision: beui::reactive::ReadSignal<u64>,
+    plugin_id: Stored<String>,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+    catcher: &NodeRef,
+) {
+    let catcher = *catcher;
+    create_effect(move || {
+        revision.get();
+        untrack(|| {
+            if !plugin_host::take_focus_request(&plugin_id.get(), instance, region) {
+                return;
+            }
+            if let Some(node) = catcher.try_get() {
+                try_with_document(|document| document.focus_focusable(node));
+            }
+        });
+    });
 }
 
 fn take_keyboard(state: Memo<RegionView>, catcher: &NodeRef) {

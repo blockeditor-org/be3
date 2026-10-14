@@ -353,7 +353,9 @@ hooks the higher crates fill in:
 - `Platform::pick_file` gets a `FilePickAnswer`, which can be sent from any
   thread and wakes the runner; the pick reaches the app at the next frame.
   Accessibility trees are published only between
-  `Runner::accessibility_requested` and `accessibility_deactivated`.
+  `Runner::accessibility_requested` and `accessibility_deactivated`, and
+  `Context::accessibility_requested` says whether they are, so a host asks what it
+  embeds to describe itself only while something is listening.
   `Frame::wait` is how long the adapter may sleep before the next frame
   (`None` until something wakes it), and `Frame::next` the same once it
   knows whether the frame it presented asks to be presented again.
@@ -1899,8 +1901,7 @@ from a driver (guides/running/drive.md); the native run functions fill it
 from `BEUI_AUTOMATION` and switch to `beui::Headless` for `BEUI_HEADLESS`, and
 block-app's web build fills it from its `automate` export. The runner keeps the
 accessibility tree (`Context::keep_accessibility`, which a bare `Context` and a
-headless plugin do by default and other runners only for a driver or a plugin
-description) and the action registry's actions, takes
+headless plugin do by default and other runners only for a driver) and the action registry's actions, takes
 the next command at the start of a frame, turns input commands into `Event`s
 already in points, which skip the adapters' intake (`automation/keys.rs` names
 the keys), and answers once a frame

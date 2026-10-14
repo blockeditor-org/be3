@@ -8077,6 +8077,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
@@ -8091,6 +8092,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
@@ -8105,6 +8107,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
@@ -8119,6 +8122,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
@@ -8133,6 +8137,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
@@ -8147,6 +8152,7 @@ crates = {
             "wasi": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
@@ -8161,6 +8167,7 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
@@ -8175,6 +8182,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
@@ -8189,6 +8197,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
@@ -13558,47 +13567,101 @@ third_party = {
         "platforms": {
             "android-arm64": {
                 "deps": [
+                    ":enumn-0.1.14",
+                    ":serde-1.0.228",
                     ":uuid-1.23.2",
+                ],
+                "features": [
+                    "enumn",
+                    "serde",
                 ],
             },
             "linux-arm64": {
                 "deps": [
+                    ":enumn-0.1.14",
+                    ":serde-1.0.228",
                     ":uuid-1.23.2",
+                ],
+                "features": [
+                    "enumn",
+                    "serde",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
+                    ":enumn-0.1.14",
+                    ":serde-1.0.228",
                     ":uuid-1.23.2",
+                ],
+                "features": [
+                    "enumn",
+                    "serde",
                 ],
             },
             "macos-arm64": {
                 "deps": [
+                    ":enumn-0.1.14",
+                    ":serde-1.0.228",
                     ":uuid-1.23.2",
+                ],
+                "features": [
+                    "enumn",
+                    "serde",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
+                    ":enumn-0.1.14",
+                    ":serde-1.0.228",
                     ":uuid-1.23.2",
+                ],
+                "features": [
+                    "enumn",
+                    "serde",
                 ],
             },
             "wasi": {
                 "deps": [
+                    ":enumn-0.1.14",
+                    ":serde-1.0.228",
                     ":uuid-1.23.2",
+                ],
+                "features": [
+                    "enumn",
+                    "serde",
                 ],
             },
             "wasi-guest": {
                 "deps": [
+                    ":enumn-0.1.14",
+                    ":serde-1.0.228",
                     ":uuid-1.23.2",
+                ],
+                "features": [
+                    "enumn",
+                    "serde",
                 ],
             },
             "windows-arm64": {
                 "deps": [
+                    ":enumn-0.1.14",
+                    ":serde-1.0.228",
                     ":uuid-1.23.2",
+                ],
+                "features": [
+                    "enumn",
+                    "serde",
                 ],
             },
             "windows-x86_64": {
                 "deps": [
+                    ":enumn-0.1.14",
+                    ":serde-1.0.228",
                     ":uuid-1.23.2",
+                ],
+                "features": [
+                    "enumn",
+                    "serde",
                 ],
             },
         },
@@ -24538,6 +24601,39 @@ third_party = {
         "sha256": "67c78a4d8fdf9953a5c9d458f9efe940fd97a0cab0941c075a813ac594733827",
         "size_bytes": 8573,
         "version": "0.7.12",
+    },
+    "enumn-0.1.14": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "David Tolnay <dtolnay@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Convert number to enum",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/dtolnay/enumn",
+            "CARGO_PKG_RUST_VERSION": "1.56",
+        },
+        "library": {
+            "crate": "enumn",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": True,
+        },
+        "name": "enumn",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":syn-2.0.117",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "2f9ed6b3789237c8a0c1c505af1c7eb2c560df6186f01b098c3a1064ea532f38",
+        "size_bytes": 8449,
+        "version": "0.1.14",
     },
     "equivalent-1.0.2": {
         "build_script": None,

@@ -263,11 +263,13 @@ impl Runner {
 
     pub fn accessibility_requested(&mut self) {
         self.publishing_accessibility = true;
+        self.context.set_accessibility_requested(true);
         self.context.reset_accessibility();
     }
 
     pub fn accessibility_deactivated(&mut self) {
         self.publishing_accessibility = false;
+        self.context.set_accessibility_requested(false);
     }
 
     pub fn accessibility_action(&mut self, request: accesskit::ActionRequest) {

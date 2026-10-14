@@ -163,7 +163,6 @@ pub(super) struct Runtime {
 pub(super) struct Placed {
     pub(super) rect: Rect,
     pub(super) clip: Rect,
-    pub(super) document: u32,
 }
 
 #[derive(Default)]
@@ -407,17 +406,10 @@ impl Runtime {
     pub(super) fn node_action(
         &mut self,
         screen: ScreenId,
-        node: u32,
-        action: String,
-        value: Option<block_plugin_api::NodeValue>,
+        request: beui::accesskit::ActionRequest,
     ) {
         self.pacing.needed = true;
-        self.send(vec![Message::NodeAction {
-            screen,
-            node,
-            action,
-            value,
-        }]);
+        self.send(vec![Message::NodeAction { screen, request }]);
         host::request_repaint();
     }
 
@@ -1437,7 +1429,7 @@ thread_local! {
         RefCell::new(std::collections::HashSet::new());
 }
 
-fn mark(plugin_id: &str) {
+pub(super) fn mark(plugin_id: &str) {
     CHANGED.with(|changed| {
         if !changed.borrow().contains(plugin_id) {
             changed.borrow_mut().insert(plugin_id.to_owned());
@@ -1528,16 +1520,7 @@ pub(crate) fn place_region(
         } = placement;
         runtime
             .placements
-            .entry((instance, region))
-            .and_modify(|placed| {
-                placed.rect = rect;
-                placed.clip = clip;
-            })
-            .or_insert_with(|| Placed {
-                rect,
-                clip,
-                document: beui::accessibility::next_document_id(),
-            });
+            .insert((instance, region), Placed { rect, clip });
         let scale_factor = host::pixels_per_point();
         let size = match region {
             EditorRegion::Preview => preview_size(rect.size(), scale_factor),
@@ -1922,6 +1905,17 @@ pub(crate) fn frames(plugin_id: &str) -> u64 {
     with(plugin_id, |runtime| runtime.frames).unwrap_or_default()
 }
 
+pub(crate) fn take_focus_request(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+) -> bool {
+    with(plugin_id, |runtime| {
+        runtime.instances.take_focus_request(instance, region)
+    })
+    .unwrap_or(false)
+}
+
 pub(crate) fn take_region_actions(
     plugin_id: &str,
     instance: EditorInstanceId,
@@ -2033,8 +2027,8 @@ pub(crate) fn region_damage(
     .flatten()
 }
 
-pub(super) fn each(mut act: impl FnMut(&Runtime)) {
-    HOST.with(|host| host.borrow().runtimes.values().for_each(&mut act));
+pub(super) fn each(mut act: impl FnMut(&mut Runtime)) {
+    HOST.with(|host| host.borrow_mut().runtimes.values_mut().for_each(&mut act));
 }
 
 pub(super) fn with<R>(plugin_id: &str, act: impl FnOnce(&mut Runtime) -> R) -> Option<R> {
