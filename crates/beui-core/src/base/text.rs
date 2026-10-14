@@ -962,7 +962,9 @@ impl Document {
             .parts
             .iter()
             .filter_map(|part| match part {
-                TextPart::Span(span) if span.content().icon.is_some() => {
+                TextPart::Span(span)
+                    if span.content().icon.is_some() && !span.content().text.is_empty() =>
+                {
                     Some(span.content().text.clone())
                 }
                 _ => None,
