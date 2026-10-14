@@ -946,7 +946,7 @@ struct Field {
     frame: Stored<RefCell<Option<Render<Child>>>>,
     inner: NodeRef,
     surface_color: Memo<Color32>,
-    set_field_rect: WriteSignal<Rect>,
+    set_field_placed: WriteSignal<Option<ReadSignal<Rect>>>,
     cursor: Memo<CursorIcon>,
     set_cursor: WriteSignal<CursorIcon>,
     autoscroll: ReadSignal<bool>,
@@ -1001,11 +1001,12 @@ pub fn TextArea(
                 view! {
                     <PlacementBuilder>
                         {move |area: ReadSignal<Rect>| {
-                        let (field_rect, set_field_rect) = create_signal(Rect::ZERO);
-                        let placed = match single_line {
-                            true => field_rect,
-                            false => area,
-                        };
+                        let (field_placed, set_field_placed) =
+                            create_signal(None::<ReadSignal<Rect>>);
+                        let placed = create_memo(move || match single_line {
+                            true => field_placed.get().map_or(Rect::ZERO, |placed| placed.get()),
+                            false => area.get(),
+                        });
                         let scale = pixels_per_point();
                         let attached = with_document(|document| document.watch_context());
                         let (scroll, set_scroll) = create_signal(ScrollPosition::ZERO);
@@ -1301,7 +1302,7 @@ pub fn TextArea(
                             frame: store(RefCell::new(frame)),
                             inner,
                             surface_color,
-                            set_field_rect,
+                            set_field_placed,
                             cx,
                             cursor,
                             set_cursor,
@@ -1424,7 +1425,7 @@ fn Editing(field: Field) -> NodeId {
         frame,
         inner,
         surface_color,
-        set_field_rect,
+        set_field_placed,
         cursor,
         set_cursor,
         autoscroll,
@@ -1499,7 +1500,7 @@ fn Editing(field: Field) -> NodeId {
                             <FieldFrame
                                 @node_ref=&inner
                                 color={surface_color}
-                                report={set_field_rect}
+                                report={set_field_placed}
                             >
                                 <SingleLine cx={cx} />
                             </FieldFrame>
@@ -1574,11 +1575,15 @@ pub fn text_area_handles(document: &Document, area: NodeId) -> Vec<Pos2> {
 }
 
 #[component]
-fn FieldFrame(color: Memo<Color32>, report: WriteSignal<Rect>, children: Child) -> NodeId {
+fn FieldFrame(
+    color: Memo<Color32>,
+    report: WriteSignal<Option<ReadSignal<Rect>>>,
+    children: Child,
+) -> NodeId {
     view! {
         <PlacementBuilder>
             {move |placed: ReadSignal<Rect>| {
-                create_effect(move || report.set(placed.get()));
+                report.set_unconditionally(Some(placed));
                 view! {
                     <Frame color>{children}</Frame>
                 }
