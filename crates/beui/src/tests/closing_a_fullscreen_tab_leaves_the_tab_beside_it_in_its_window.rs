@@ -9,11 +9,11 @@ use crate::unstyled::{DockPane, DockTab, DockWindow, DockingLayout, dock_state};
 fn closing_a_fullscreen_tab_leaves_the_tab_beside_it_in_its_window() {
     let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
-    let built = dock.clone();
+    let built = dock;
     let layout = DockingLayout::<u64>::new();
     let setter = Rc::new(RefCell::new(None::<WriteSignal<Vec<u64>>>));
     let document = {
-        let (layout, setter) = (layout.clone(), setter.clone());
+        let (layout, setter) = (layout, setter.clone());
         build(move || {
             let (keys, set_keys) = create_signal(vec![1u64, 2]);
             *setter.borrow_mut() = Some(set_keys);
@@ -47,7 +47,7 @@ fn closing_a_fullscreen_tab_leaves_the_tab_beside_it_in_its_window() {
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.settle();
 
-    let entering = layout.clone();
+    let entering = layout;
     with_reactive_scope(harness.document_mut(), move || {
         entering.enter_fullscreen(&1, Some(Rect::from_min_size(Pos2::ZERO, WIDE_VIEWPORT)));
     });

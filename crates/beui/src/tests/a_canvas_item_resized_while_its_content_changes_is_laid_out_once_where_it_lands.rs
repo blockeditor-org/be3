@@ -8,9 +8,9 @@ fn a_canvas_item_resized_while_its_content_changes_is_laid_out_once_where_it_lan
     let (size, set_size) = create_signal(vec2(200.0, 100.0));
     let (inset, set_inset) = create_signal(0.0f32);
     let mut document = {
-        let item = item.clone();
+        let item = item;
         build(move || {
-            let across = size.clone();
+            let across = size;
             let width = create_memo(move || across.get().x);
             let height = create_memo(move || size.get().y);
             view! {
