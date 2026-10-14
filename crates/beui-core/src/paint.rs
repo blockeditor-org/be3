@@ -799,6 +799,7 @@ pub fn fixed_damage(
         by,
         damage: Region::NOTHING,
         inner: viewport,
+        faded: 0,
     };
     for (display, at) in painting {
         fixed.display(display, *at, Rect::EVERYTHING);
@@ -812,6 +813,7 @@ struct Fixed {
     by: Vec2,
     damage: Region,
     inner: Rect,
+    faded: usize,
 }
 
 impl Fixed {
@@ -856,7 +858,9 @@ impl Fixed {
                         for band in fade.translate(at).bands() {
                             self.both(band.intersect(clip));
                         }
+                        self.faded += 1;
                         self.parts(display, inner, at, clip);
+                        self.faded -= 1;
                     }
                     Group::Transform { .. } | Group::Filter(_) => {
                         self.both(part.bounds().translate(at).intersect(clip));
@@ -878,7 +882,9 @@ impl Fixed {
             return;
         }
         if covers(shape, self.viewport) {
-            if matches!(shape, Shape::Rect { color, .. } if color.alpha() == u8::MAX) {
+            if self.faded == 0
+                && matches!(shape, Shape::Rect { color, .. } if color.alpha() == u8::MAX)
+            {
                 self.damage = Region::NOTHING;
             }
             return;
