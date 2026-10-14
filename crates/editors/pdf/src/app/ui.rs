@@ -26,14 +26,12 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
         .host()
         .performance(format!("PDF ({})", editor.block_id()));
 
-    let reset = Rc::clone(&pages);
     chooser.on_chosen(move |chooser| {
         if let Some(pdf) = chooser.take() {
             editor.replace_content(editor.block_id(), &pdf);
-            reset.go(0);
+            pages.go(0);
         }
     });
-    let pumping = Rc::clone(&pages);
     let placed = editor.placed();
     let canvas = editor.canvas();
     let device = editor.pixels_per_point();
@@ -42,8 +40,8 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     create_effect(move || {
         rendered.get();
         let _measure = performance.measure("Editor pump");
-        let size = pumping.shown().get_untracked().size();
-        pumping.pump(
+        let size = pages.shown().get_untracked().size();
+        pages.pump(
             &block_for_pump,
             &performance,
             waker.clone(),
@@ -71,8 +69,8 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
             .page_count
             .is_some_and(|count| shown.page + 1 >= count)
     });
-    let back = clone!(pages -> move || pages.go(pages.page().saturating_sub(1)));
-    let forward = clone!(pages -> move || pages.go(pages.page() + 1));
+    let back = move || pages.go(pages.page().saturating_sub(1));
+    let forward = move || pages.go(pages.page() + 1);
     let fit = move || editor.fit();
 
     let read_only = editor.read_only();
@@ -206,7 +204,6 @@ pub fn PdfPreview(editor: Editor) -> NodeId {
     let performance = editor
         .host()
         .performance(format!("PDF preview ({})", editor.block_id()));
-    let pumping = Rc::clone(&pages);
     let placed = editor.placed();
     let device = editor.pixels_per_point();
     let watched = Rc::clone(&block);
@@ -214,8 +211,8 @@ pub fn PdfPreview(editor: Editor) -> NodeId {
     create_effect(move || {
         rendered.get();
         let _measure = performance.measure("Preview pump");
-        let size = pumping.shown().get_untracked().size();
-        pumping.pump(
+        let size = pages.shown().get_untracked().size();
+        pages.pump(
             &watched,
             &performance,
             waker.clone(),
