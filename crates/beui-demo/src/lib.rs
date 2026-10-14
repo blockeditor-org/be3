@@ -16,7 +16,7 @@ use beui::icons::{
 use beui::reactive::{
     Action, Align, Callback, Canvas, CanvasItem, CanvasView, Child, Children, Chord, ClickCallback,
     ForEach, Frame, Func, Justify, List, ListChild, Memo, Prop, ReadSignal, Selector, Show, Spacer,
-    Span, Stored, Text, VirtualList, WriteSignal, batch, build, clone, create_effect, create_memo,
+    Span, Stored, Text, VirtualList, WriteSignal, batch, build, create_effect, create_memo,
     create_selector, create_signal, focus_ring, held_modifiers, on_shortcut, provide_context,
     store, untrack, use_context, view, with_document,
 };

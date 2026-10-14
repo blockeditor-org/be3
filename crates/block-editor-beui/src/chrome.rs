@@ -1,7 +1,7 @@
 use beui::icons::ICON_TUNE;
 use beui::reactive::{
     Action, Align, Child, Children, Direction, ForEach, Frame, ItemSize, LayoutBuilder, List,
-    ListChild, Memo, Portal, Prop, ReadSignal, Render, Show, WriteSignal, clone, component,
+    ListChild, Memo, Portal, Prop, ReadSignal, Render, Show, StoredCell, WriteSignal, component,
     create_effect, create_memo, create_signal, on_cleanup, provide_context, untrack, use_context,
     view,
 };
@@ -336,8 +336,8 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
 
 fn count_toolbar(layout: &ChromeLayout, shown: Memo<bool>) {
     let set_toolbars = layout.set_toolbars;
-    let counted = std::rc::Rc::new(std::cell::Cell::new(false));
-    create_effect(clone!(counted -> move || {
+    let counted = StoredCell::new(false);
+    create_effect(move || {
         let now = shown.get();
         if counted.replace(now) != now {
             set_toolbars.update(|count| match now {
@@ -345,7 +345,7 @@ fn count_toolbar(layout: &ChromeLayout, shown: Memo<bool>) {
                 false => *count -= 1,
             });
         }
-    }));
+    });
     on_cleanup(move || {
         if counted.get() {
             set_toolbars.update(|count| *count -= 1);

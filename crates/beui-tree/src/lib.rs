@@ -25,9 +25,9 @@ pub mod reactive {
     pub use beui_macros::{component, view};
     pub use reactive::{
         Effect, KeyedItems, KeyedStore, Memo, OwnedKeyedStore, OwnedSignal, OwnedStored,
-        ReadSignal, RootScope, Scope, ScopeContext, Selector, Store, Stored, WriteSignal, batch,
-        clone, create_effect, create_memo, create_selector, create_signal, on_cleanup, owner_scope,
-        provide_context, store, untrack, use_context, zone_pending,
+        ReadSignal, RootScope, Scope, ScopeContext, Selector, Store, Stored, StoredCell,
+        WriteSignal, batch, create_effect, create_memo, create_selector, create_signal, on_cleanup,
+        owner_scope, provide_context, store, untrack, use_context, zone_pending,
     };
 }
 

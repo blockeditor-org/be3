@@ -238,7 +238,7 @@ fn opener<C: Layer, K: BlockContent + Default>(
     layer: ContentProjection<C>,
 ) -> impl Fn() + Clone + use<C, K> {
     let resolved = layer.project(|layer| layer.kind(K::CONTENT_TYPE));
-    let host = editor.host().clone();
+    let host = editor.host();
     move || {
         let id = resolved.get_untracked().unwrap_or_else(|| {
             let block = editor.create_child(&K::default());

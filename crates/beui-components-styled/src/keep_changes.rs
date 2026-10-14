@@ -1,6 +1,4 @@
 use beui_core::layer::Dismiss;
-use std::cell::Cell;
-use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use accesskit::{Node, Role};
@@ -17,8 +15,8 @@ use beui_core::screens::bounds;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Align, ClickCallback, Direction, ForEach, Frame, IntoChild, Justify, Layer, Layers, List, Memo,
-    Prop, clone, component_accessibility, create_effect, create_memo, create_signal, create_timer,
-    now, untrack, use_screens,
+    Prop, StoredCell, component_accessibility, create_effect, create_memo, create_signal,
+    create_timer, now, untrack, use_screens,
 };
 
 pub const KEEP_CHANGES_TIMEOUT: Duration = Duration::from_secs(15);
@@ -42,10 +40,10 @@ pub fn KeepChanges(
     on_keep: ClickCallback,
     on_revert: ClickCallback,
 ) -> NodeId {
-    let deadline: Rc<Cell<Option<Instant>>> = Rc::new(Cell::new(None));
+    let deadline = StoredCell::new(None::<Instant>);
     let (left, set_left) = create_signal(timeout.peek());
     let expire = on_revert;
-    let ticking = create_timer(clone!(deadline -> move || {
+    let ticking = create_timer(move || {
         let due = deadline.get()?;
         let remaining = due.saturating_duration_since(now());
         set_left.set(remaining);
@@ -55,9 +53,9 @@ pub fn KeepChanges(
             return None;
         }
         Some(until_next_second(remaining))
-    }));
+    });
     let open = create_memo(move || open.get());
-    create_effect(clone!(deadline -> move || {
+    create_effect(move || {
         let opened = open.get();
         round.get();
         untrack(|| match opened {
@@ -72,7 +70,7 @@ pub fn KeepChanges(
                 ticking.stop();
             }
         });
-    }));
+    });
     let message = create_memo(move || {
         let seconds = left.get().as_secs_f64().ceil() as u64;
         match seconds {
@@ -80,19 +78,18 @@ pub fn KeepChanges(
             seconds => format!("Reverting in {seconds} seconds."),
         }
     });
-    let stop = Rc::new(move || {
+    let stop = move || {
         deadline.set(None);
         ticking.stop();
-    });
-    let keep = Rc::new(clone!(stop -> move || {
+    };
+    let keep = move || {
         stop();
         on_keep.call();
-    }));
-    let revert = Rc::new(move || {
+    };
+    let revert = move || {
         stop();
         on_revert.call();
-    });
-    let dismiss = revert.clone();
+    };
     let screens = use_screens();
     let bounds = create_memo(move || screens.with(|screens| bounds(screens)));
     let places = create_memo(move || (0..screens.with(Vec::len)).collect::<Vec<usize>>());
@@ -106,13 +103,12 @@ pub fn KeepChanges(
             open={open}
             placement=Placement::At
             scrim=SCRIM
-            on_dismiss={move |_: Dismiss| dismiss()}
+            on_dismiss={move |_: Dismiss| revert()}
         >
             <Frame width={width} height={height}>
                 <Layers>
                     <ForEach keys={places}>
                         {move |index: usize| {
-                            let (keep, revert) = (keep.clone(), revert.clone());
                             let place = create_memo(move || {
                                 let origin = bounds.get().min.to_vec2();
                                 screens.with(|screens| {
@@ -128,8 +124,8 @@ pub fn KeepChanges(
                                     message={message}
                                     focused={create_memo(move || index == 0 && open.get())}
                                     id={format!("{}.{index}", id)}
-                                    on_keep={move || keep()}
-                                    on_revert={move || revert()}
+                                    on_keep={keep}
+                                    on_revert={revert}
                                 />
                             };
                             let layer: Layer = card.into_child();

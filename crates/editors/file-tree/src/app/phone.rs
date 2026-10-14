@@ -11,8 +11,7 @@ use block_editor_beui::beui::icons::{
 };
 use block_editor_beui::beui::reactive::{
     Align, ClickCallback, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, NodeRef,
-    ReadSignal, Show, Spacer, Text, WriteSignal, clone, component, create_memo, create_signal,
-    view,
+    ReadSignal, Show, Spacer, Text, WriteSignal, component, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::theme::{CARD_RADIUS, FONT_BODY, RADIUS};
 use block_editor_beui::beui::styled::{
@@ -439,7 +438,7 @@ fn RecentCard(editor: Editor, id: Uuid, block_type: Uuid) -> NodeId {
     let name = create_memo(move || shown.with(|shown| shown.name.clone()));
     let glyph = create_memo(move || shown.with(|shown| shown.glyph.clone()));
     let kind = create_memo(move || shown.with(|shown| shown.type_name.clone()));
-    let host = editor.host().clone();
+    let host = editor.host();
     view! {
         <Frame visible={resolved} padding_horizontal=4.0>
             <Frame
@@ -634,28 +633,32 @@ fn PhoneRow(
         row.get()
             .is_some_and(|row| row.expandable && !drills_in(&row))
     });
-    let host = editor.host().clone();
-    let entering = clone!(level -> move || {
+    let entering = move || {
         if let Some(next) = row.get_untracked().and_then(|row| level.inside(&row)) {
             set_level.set(next);
         }
-    });
-    let tapped = clone!(entering -> move || {
-        let Some(shown) = row.get_untracked() else {
-            return;
-        };
-        if drills_in(&shown) {
-            entering();
-            return;
+    };
+    let tapped = {
+        let entering = entering.clone();
+        move || {
+            let Some(shown) = row.get_untracked() else {
+                return;
+            };
+            if drills_in(&shown) {
+                entering();
+                return;
+            }
+            let (Some(id), true) = (shown.id, shown.access.can_view()) else {
+                return;
+            };
+            match shown.container {
+                Some(container) => editor
+                    .host()
+                    .open_block_via(id, shown.block_type, container),
+                None => editor.host().open_block(id, shown.block_type),
+            }
         }
-        let (Some(id), true) = (shown.id, shown.access.can_view()) else {
-            return;
-        };
-        match shown.container {
-            Some(container) => host.open_block_via(id, shown.block_type, container),
-            None => host.open_block(id, shown.block_type),
-        }
-    });
+    };
     let muted_icon = theme.text_muted;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
@@ -743,7 +746,6 @@ fn RowMenu(tools: RowTools, row: Memo<Option<Row>>) -> NodeId {
             false => "Delete".to_owned(),
         },
     );
-    let host = editor.host().clone();
     let opening = move || {
         let Some(shown) = row.get_untracked() else {
             return;
@@ -763,8 +765,10 @@ fn RowMenu(tools: RowTools, row: Memo<Option<Row>>) -> NodeId {
             return;
         };
         match shown.container {
-            Some(container) => host.open_block_via(id, shown.block_type, container),
-            None => host.open_block(id, shown.block_type),
+            Some(container) => editor
+                .host()
+                .open_block_via(id, shown.block_type, container),
+            None => editor.host().open_block(id, shown.block_type),
         }
     };
     view! {

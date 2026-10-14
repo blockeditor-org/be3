@@ -5,7 +5,7 @@ use block_editor_beui::beui::icons::{
     ICON_DELETE, ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_LINK_OFF, ICON_NOTE_ADD, ICON_SHARE,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, Show, clone, component,
+    Align, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, Show, component,
     create_effect, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
@@ -219,11 +219,11 @@ fn RelatedBlocks(workspace: Workspace, title: String, refs: Memo<Refs>, named: S
     view! {
         <List spacing=0.0>
             <Show condition={some}>
-                {move || clone!(title -> view! {
+                {move || { let title = title.clone(); view! {
                     <Frame padding_horizontal=SHEET_PADDING padding_vertical=SECTION_PADDING>
                         <Caption content={title} />
                     </Frame>
-                })}
+                } }}
             </Show>
             <ForEach keys={ids}>
                 {move |id: Uuid| {

@@ -82,7 +82,7 @@ pub(crate) fn WindowPanel(
             }
         });
         let shown = create_memo(move || tab.focused());
-        let host = editor.host().clone();
+        let host = editor.host();
         let settled = Cell::new(false);
         create_effect(move || {
             let shown = shown.get();
@@ -95,14 +95,14 @@ pub(crate) fn WindowPanel(
             None => untrack(|| tab.leave_fullscreen()),
         });
         let called = create_memo(move || tab.attention());
-        let host = editor.host().clone();
+        let host = editor.host();
         create_effect(move || {
             if called.get().is_some() {
                 host.act(WindowAction::Focus(window));
             }
         });
         let shown = create_memo(move || tab.fullscreen());
-        let host = editor.host().clone();
+        let host = editor.host();
         create_effect(move || {
             let shown = shown.get();
             if shown != fullscreen.get_untracked().is_some() {
@@ -121,7 +121,7 @@ pub(crate) fn WindowPanel(
         }
     });
     let banner = create_memo(move || !responding.get() && !waited.get());
-    let host = editor.host().clone();
+    let host = editor.host();
     view! {
         <Layers>
             <Subregion

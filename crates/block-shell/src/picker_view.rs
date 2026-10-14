@@ -1,6 +1,6 @@
 use block_editor_beui::beui::reactive::{
     Align, Callback, Child, Direction, Dynamic, ForEach, Frame, ItemSize, Justify, List, Memo,
-    Portal, Show, Spacer, Text, clone, component, create_memo, create_signal, view,
+    Portal, Show, Spacer, Text, component, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
     Button, ButtonVariant, Caption, Dialog, Heading, Icon, ModalSheet, SHEET_STOPS, Scroll,
@@ -419,9 +419,9 @@ fn TileSectionView(act: Act, section: Memo<Option<TileSection>>) -> NodeId {
             <List direction=Direction::Horizontal spacing=8.0 wrap=true>
                 <ForEach keys={keys}>
                     {move |key: String| {
-                        let tile = create_memo(clone!(key -> move || {
+                        let tile = create_memo({ let key = key.clone(); move || {
                             tiles.get().into_iter().find(|tile| tile_key(tile) == key)
-                        }));
+                        } });
                         view! {
                             <TileButton act={act} key tile />
                         }

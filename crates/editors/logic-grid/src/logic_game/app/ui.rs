@@ -4,8 +4,8 @@ use block_editor_beui::Editor;
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_CHECK_CIRCLE, ICON_DELETE, ICON_WIDGETS};
 use block_editor_beui::beui::reactive::ClickCallback;
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Show, Spacer, clone,
-    component, create_effect, create_memo, create_selector, create_signal, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Show, Spacer, component,
+    create_effect, create_memo, create_selector, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Heading, Icon, IconButton, Link, ListRow, Scroll,
@@ -154,7 +154,7 @@ fn LevelRow(
                 </List>
             </ListRow>
             <Show condition={expanded}>
-                {move || clone!(goal -> view! {
+                {move || { let goal = goal.clone(); view! {
                     <Frame padding_left=INDENT>
                         <List spacing=ROW_SPACING>
                             <Caption content={goal} wrap=true />
@@ -171,7 +171,7 @@ fn LevelRow(
                             </Show>
                         </List>
                     </Frame>
-                })}
+                } }}
             </Show>
         </List>
     }

@@ -4,8 +4,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use beui::reactive::{
-    ForEach, Frame, List, Span, Text, WriteSignal, build, clone, create_memo, create_signal, enter,
-    view,
+    ForEach, Frame, List, Span, Text, WriteSignal, build, create_memo, create_signal, enter, view,
 };
 use beui::styled::TextArea;
 use beui::unstyled::TextAreaState;
@@ -124,22 +123,25 @@ fn measure(
 
 fn resize_paragraphs(frames: usize) -> Report {
     let width = writer::<f32>();
-    let document = build(clone!(width -> move || {
-        let (read, write) = create_signal(VIEWPORT.x);
-        *width.borrow_mut() = Some(write);
-        let text = PARAGRAPH.repeat(4);
-        view! {
-            <Frame width={create_memo(move || Some(read.get()))}>
-                <List spacing=8.0>
-                    <ForEach keys={(0..20).collect::<Vec<usize>>()}>
-                        {move |_: usize| view! {
-                            <Text string={text.clone()} wrap=true />
-                        }}
-                    </ForEach>
-                </List>
-            </Frame>
+    let document = build({
+        let width = width.clone();
+        move || {
+            let (read, write) = create_signal(VIEWPORT.x);
+            *width.borrow_mut() = Some(write);
+            let text = PARAGRAPH.repeat(4);
+            view! {
+                <Frame width={create_memo(move || Some(read.get()))}>
+                    <List spacing=8.0>
+                        <ForEach keys={(0..20).collect::<Vec<usize>>()}>
+                            {move |_: usize| view! {
+                                <Text string={text.clone()} wrap=true />
+                            }}
+                        </ForEach>
+                    </List>
+                </Frame>
+            }
         }
-    }));
+    });
     let width = taken(&width);
     measure(
         "resize-paragraphs",
@@ -156,21 +158,24 @@ fn resize_paragraphs(frames: usize) -> Report {
 
 fn resize_labels(frames: usize) -> Report {
     let width = writer::<f32>();
-    let document = build(clone!(width -> move || {
-        let (read, write) = create_signal(VIEWPORT.x);
-        *width.borrow_mut() = Some(write);
-        view! {
-            <Frame width={create_memo(move || Some(read.get()))}>
-                <List spacing=0.0>
-                    <ForEach keys={(0..2000).collect::<Vec<usize>>()}>
-                        {move |index: usize| view! {
-                            <Text string={format!("label number {index}")} ellipsis=true />
-                        }}
-                    </ForEach>
-                </List>
-            </Frame>
+    let document = build({
+        let width = width.clone();
+        move || {
+            let (read, write) = create_signal(VIEWPORT.x);
+            *width.borrow_mut() = Some(write);
+            view! {
+                <Frame width={create_memo(move || Some(read.get()))}>
+                    <List spacing=0.0>
+                        <ForEach keys={(0..2000).collect::<Vec<usize>>()}>
+                            {move |index: usize| view! {
+                                <Text string={format!("label number {index}")} ellipsis=true />
+                            }}
+                        </ForEach>
+                    </List>
+                </Frame>
+            }
         }
-    }));
+    });
     let width = taken(&width);
     measure(
         "resize-labels",
@@ -187,13 +192,16 @@ fn resize_labels(frames: usize) -> Report {
 
 fn edit_plain_paragraph(frames: usize) -> Report {
     let content = writer::<String>();
-    let document = build(clone!(content -> move || {
-        let (read, write) = create_signal(PARAGRAPH.repeat(40));
-        *content.borrow_mut() = Some(write);
-        view! {
-            <Text string={read} wrap=true />
+    let document = build({
+        let content = content.clone();
+        move || {
+            let (read, write) = create_signal(PARAGRAPH.repeat(40));
+            *content.borrow_mut() = Some(write);
+            view! {
+                <Text string={read} wrap=true />
+            }
         }
-    }));
+    });
     let content = taken(&content);
     measure(
         "edit-plain-paragraph",
@@ -222,25 +230,29 @@ fn edit_one_span(frames: usize) -> Report {
         .take(count)
         .map(str::to_owned)
         .collect();
-    let document = build(clone!(words initial -> move || {
-        let (read, write) = create_signal(initial.clone());
-        *words.borrow_mut() = Some(write);
-        let keys = (0..initial.len()).collect::<Vec<usize>>();
-        view! {
-            <Text wrap=true>
-                <ForEach keys={keys}>
-                    {move |index: usize| {
-                        let word = create_memo(move || {
-                            read.get().get(index).cloned().unwrap_or_default()
-                        });
-                        view! {
-                            <Span text={word} />
-                        }
-                    }}
-                </ForEach>
-            </Text>
+    let document = build({
+        let words = words.clone();
+        let initial = initial.clone();
+        move || {
+            let (read, write) = create_signal(initial.clone());
+            *words.borrow_mut() = Some(write);
+            let keys = (0..initial.len()).collect::<Vec<usize>>();
+            view! {
+                <Text wrap=true>
+                    <ForEach keys={keys}>
+                        {move |index: usize| {
+                            let word = create_memo(move || {
+                                read.get().get(index).cloned().unwrap_or_default()
+                            });
+                            view! {
+                                <Span text={word} />
+                            }
+                        }}
+                    </ForEach>
+                </Text>
+            }
         }
-    }));
+    });
     let words = taken(&words);
     measure(
         "edit-one-span",
@@ -277,15 +289,18 @@ fn markdown(lines: usize) -> String {
 
 fn type_in_text_area(frames: usize) -> Report {
     let held: Rc<RefCell<Option<TextAreaState>>> = Rc::default();
-    let document = build(clone!(held -> move || {
-        let buffer = Arc::new(TextBuffer::new(markdown(3000).as_bytes()))
-            as Arc<dyn text_editor_core::Document>;
-        let state = TextAreaState::new(buffer);
-        *held.borrow_mut() = Some(state);
-        view! {
-            <TextArea state={state} />
+    let document = build({
+        let held = held.clone();
+        move || {
+            let buffer = Arc::new(TextBuffer::new(markdown(3000).as_bytes()))
+                as Arc<dyn text_editor_core::Document>;
+            let state = TextAreaState::new(buffer);
+            *held.borrow_mut() = Some(state);
+            view! {
+                <TextArea state={state} />
+            }
         }
-    }));
+    });
     let state = taken(&held);
     let before = state.bytes().len();
     let report = measure(

@@ -124,7 +124,7 @@ impl Tree {
         let (remembered, set_remembered) = create_signal(0_u64);
 
         let build = Rc::clone(&watched);
-        let host = editor.host().clone();
+        let host = editor.host();
         let building = client.clone();
         let open = expanded;
         let orphans = orphans_open;

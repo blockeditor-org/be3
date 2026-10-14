@@ -12,7 +12,7 @@ use crate::button::ButtonHandle;
 use beui_view::reactive::{
     Action, Callback, Child, ChildScope, ChildValue, Children, ClickCallback, Interactive,
     IntoProp, List, Memo, NodeRef, Prop, ReadSignal, RenderFn, Run, Scope, Selector, Show, Stored,
-    WriteSignal, action_disabled, action_glyph, action_label, clone, create_effect, create_memo,
+    WriteSignal, action_disabled, action_glyph, action_label, create_effect, create_memo,
     create_selector, create_signal, set_component_state, store, with_document,
 };
 use std::cell::RefCell;
@@ -246,7 +246,10 @@ fn MenuRow(
     let action = item.action.clone();
     let clicked = item.on_click;
     let children = item.children.clone();
-    let has_children = create_memo(clone!(children -> move || !children.is_empty()));
+    let has_children = create_memo({
+        let children = children.clone();
+        move || !children.is_empty()
+    });
     let row_has_children = has_children;
     let content = {
         let (row, item) = (row, item);

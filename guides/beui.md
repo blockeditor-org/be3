@@ -160,7 +160,7 @@ writes just that one property when the value changes.
 
 A `Prop<T>` is `Copy` whenever `T` is, like the signal behind it, so a
 component reads one in as many places as it needs. A `Prop<String>` or other
-non-`Copy` prop clones for the price of an `Rc` with `clone!`:
+non-`Copy` prop is cloned into each closure that keeps it:
 
 ```rust
 let color = create_memo(move || paint(value.get()));
@@ -2166,7 +2166,7 @@ every frame.
 pub fn Counter(editor: block_editor_beui::Editor) -> NodeId {
     let counter = editor.block_content::<CounterContent>();
     let count = counter.field(ObjectId::ROOT, CounterModel::COUNT);
-    let increment = clone!(counter -> move || counter.operate(CounterModel::add(1)));
+    let increment = move || counter.operate(CounterModel::add(1));
     view! { ... }
 }
 

@@ -7,7 +7,7 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::accesskit::{Node as AccessNode, Role};
 use block_editor_beui::beui::icons::ICON_TUNE;
 use block_editor_beui::beui::reactive::{
-    Align, Callback, Direction, ForEach, Frame, List, Memo, Show, clone, component, create_memo,
+    Align, Callback, Direction, ForEach, Frame, List, Memo, Show, component, create_memo,
     use_context, view,
 };
 use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
@@ -76,9 +76,9 @@ pub(crate) fn SelectionTools(state: CanvasState) -> NodeId {
                 <IconButton @test_id={"infinite-canvas.front"} action={actions.front} />
                 <IconButton @test_id={"infinite-canvas.delete"} action={actions.delete} />
                 <Show condition={embedded}>
-                    {move || clone!(open -> view! {
+                    {move || { let open = open.clone(); view! {
                         <IconButton label="Open" @test_id={"infinite-canvas.open"} action={open} />
-                    })}
+                    } }}
                 </Show>
                 <Show condition={narrow}>
                     <IconButton

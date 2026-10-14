@@ -2,7 +2,7 @@ use std::cell::Cell;
 
 use beui::reactive::{
     Align, Direction, Draw, Drawing, ForEach, Frame, Interactive, ItemSize, List, Memo, Prop, Show,
-    Spacer, clone, component, create_memo, create_signal, store, view,
+    Spacer, component, create_memo, create_signal, store, view,
 };
 use beui::styled::{
     Accordion, Body, Button, ButtonVariant, Caption, Code, Dialog, ListRow, Scroll, Separator,
@@ -1016,7 +1016,7 @@ fn GraphPanel(session: Session) -> NodeId {
                 <Caption content="The generated graph is empty." />
             </Show>
             <Show condition={drawn}>
-                {move || clone!(draw -> view! {
+                {move || { let draw = draw.clone(); view! {
                     <Scroll direction=Direction::Horizontal>
                         <GraphCanvas
                             session={session}
@@ -1026,7 +1026,7 @@ fn GraphPanel(session: Session) -> NodeId {
                             draw={draw}
                         />
                     </Scroll>
-                })}
+                } }}
             </Show>
         </List>
     }

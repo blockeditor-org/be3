@@ -1,6 +1,4 @@
 use beui_core::layer::{LayerLevel, LayerPolicy};
-use std::cell::Cell;
-use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use accesskit::{Node, Role};
@@ -14,8 +12,9 @@ use beui_core::geometry::{Rect, pos2};
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    Align, Direction, ForEach, Frame, List, Memo, Prop, ReadSignal, clone, component_accessibility,
-    create_effect, create_memo, create_signal, create_timer, now, untrack, use_screens,
+    Align, Direction, ForEach, Frame, List, Memo, Prop, ReadSignal, StoredCell,
+    component_accessibility, create_effect, create_memo, create_signal, create_timer, now, untrack,
+    use_screens,
 };
 
 pub const OSD_DURATION: Duration = Duration::from_millis(1500);
@@ -48,9 +47,9 @@ pub fn LevelOsd(
     #[prop(default = OSD_DURATION)] duration: Duration,
     #[prop(default = "level-osd".to_owned())] id: String,
 ) -> NodeId {
-    let since: Rc<Cell<Option<Instant>>> = Rc::new(Cell::new(None));
+    let since = StoredCell::new(None::<Instant>);
     let (opacity, set_opacity) = create_signal(0.0_f32);
-    let ticking = create_timer(clone!(since -> move || {
+    let ticking = create_timer(move || {
         let started = since.get()?;
         let elapsed = now().saturating_duration_since(started);
         if elapsed < duration {
@@ -64,7 +63,7 @@ pub fn LevelOsd(
         }
         set_opacity.set(1.0 - faded);
         Some(FRAME)
-    }));
+    });
     create_effect(move || {
         let shown = shown.get();
         untrack(|| {

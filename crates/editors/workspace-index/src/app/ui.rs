@@ -70,7 +70,7 @@ impl Cells {
     }
 
     fn open(&self, entry: Memo<Option<Entry>>) -> impl Fn() + use<> {
-        let host = self.editor.host().clone();
+        let host = self.editor.host();
         move || {
             let Some(entry) = entry.get_untracked() else {
                 return;

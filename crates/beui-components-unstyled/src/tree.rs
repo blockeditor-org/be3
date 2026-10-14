@@ -14,7 +14,7 @@ use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Callback, Child, ClickCallback, DynamicSegment, ForEach, Func, Interactive, List, ListChild,
-    Memo, NodeRef, Prop, ReadSignal, Render, RenderFn, Selector, Show, Stored, WriteSignal, clone,
+    Memo, NodeRef, Prop, ReadSignal, Render, RenderFn, Selector, Show, Stored, WriteSignal,
     component_accessibility, create_effect, create_memo, create_selector, create_signal,
     node_placed, node_rect, on_cleanup, set_component_state, store, untrack, with_document,
 };
@@ -156,7 +156,7 @@ where
         <List spacing>
             <ForEach keys>
                 {move |key: K| {
-                    let item = create_memo(clone!(key -> move || item.call(key.clone())));
+                    let item = create_memo({ let key = key.clone(); move || item.call(key.clone()) });
                     let selected = selection.memo(Some(key.clone()));
                     let marked = burial.memo(Some(key.clone()));
                     let hover = on_hover_change;
@@ -285,7 +285,7 @@ pub fn TreeToggle(
     let expanded = create_memo(move || item.get().expanded);
     view! {
         <Show condition={expandable}>
-            {move || clone!(button_test_id -> {
+            {move || { let button_test_id = button_test_id.clone(); {
                 let label = create_memo(move || match expanded.get() {
                     true => "Collapse".to_owned(),
                     false => "Expand".to_owned(),
@@ -309,7 +309,7 @@ pub fn TreeToggle(
                         })}
                     />
                 }
-            })}
+            } }}
         </Show>
     }
 }

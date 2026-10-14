@@ -7,7 +7,7 @@ use beui_core::font::TextAlign;
 use beui_core::icons::{ICON_DELETE, ICON_HISTORY, ICON_RESTART_ALT};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, ClickCallback, Direction, Frame, List, Prop, Show, Text, clone, create_memo,
+    Align, ClickCallback, Direction, Frame, List, Prop, Show, Text, create_memo,
 };
 
 const PADDING: f32 = 16.0;
@@ -62,14 +62,14 @@ pub fn StaleNotice(
                         on_click={on_delete}
                     />
                     <Show condition={create_memo(move || can_try.get())}>
-                        {move || clone!(try_id -> view! {
+                        {move || { let try_id = try_id.clone(); view! {
                             <Button
                                 @test_id={try_id}
                                 label="Try anyway"
                                 variant=ButtonVariant::Ghost
                                 on_click={on_try}
                             />
-                        })}
+                        } }}
                     </Show>
                 </List>
             </List>

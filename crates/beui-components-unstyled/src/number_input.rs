@@ -1,6 +1,3 @@
-use std::cell::Cell;
-use std::rc::Rc;
-
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
@@ -11,8 +8,8 @@ use beui_core::keys::{KeyAt, KeyEvent, KeyPhase};
 use beui_core::node::NodeId;
 use beui_core::tree::component_node;
 use beui_view::reactive::{
-    Callback, Interactive, IntoProp, List, Memo, Prop, ReadSignal, Render, ShowKeepAlive, clone,
-    component_accessibility, create_effect, create_memo, create_signal, on_key,
+    Callback, Interactive, IntoProp, List, Memo, Prop, ReadSignal, Render, ShowKeepAlive,
+    StoredCell, component_accessibility, create_effect, create_memo, create_signal, on_key,
     set_component_state,
 };
 
@@ -108,15 +105,15 @@ pub fn NumberInput(
     });
     component_accessibility(accessibility);
 
-    let held: Rc<Cell<Option<(Pos2, f64, bool)>>> = Rc::default();
-    let pressed = clone!(held -> move |press: PointerPress| {
+    let held = StoredCell::new(None::<(Pos2, f64, bool)>);
+    let pressed = move |press: PointerPress| {
         if off.get_untracked() {
             return;
         }
         held.set(Some((press.pos, value.peek(), false)));
-    });
+    };
     let changed = on_change;
-    let dragged = clone!(held -> move |at: PointerPress| {
+    let dragged = move |at: PointerPress| {
         let Some((origin, start, moved)) = held.get() else {
             return;
         };
@@ -131,19 +128,19 @@ pub fn NumberInput(
         let next = next.clamp(min, max);
         set_text.set(format_number(next));
         changed.call(next);
-    });
+    };
     let open = move || {
         if !off.get_untracked() {
             set_editing.set(true);
         }
     };
-    let clicked = clone!(held -> move || {
+    let clicked = move || {
         if let Some((_, _, moved)) = held.take()
             && !moved
         {
             open();
         }
-    });
+    };
 
     let previewed = on_preview;
     let edited = move |typed: String| {
@@ -171,27 +168,29 @@ pub fn NumberInput(
         }
         on_preview.call(None);
     };
-    let submitted = clone!(finish -> move |_: String| {
+    let submitted = move |_: String| {
         set_refocus.set(true);
         finish(true);
-    });
-    let focus_changed = clone!(finish -> move |focused: bool| {
+    };
+    let focus_changed = move |focused: bool| {
         if !focused {
             finish(true);
         }
-    });
+    };
     on_key(
         KeyAt::Node(component_node()),
         KeyPhase::Bubble,
-        clone!(finish -> move |event: KeyEvent| {
-            let escaped = event.press().is_some_and(|press| press.pressed && press.key == Key::Escape);
+        move |event: KeyEvent| {
+            let escaped = event
+                .press()
+                .is_some_and(|press| press.pressed && press.key == Key::Escape);
             if !escaped || !editing.get_untracked() {
                 return false;
             }
             set_refocus.set(true);
             finish(false);
             true
-        }),
+        },
     );
     let button_focus = move |has_focus: bool| {
         set_focused.set(has_focus);

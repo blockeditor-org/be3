@@ -687,7 +687,7 @@ fn picker(editor: Editor, tree: FileTree) -> Picker {
         error,
         set_error,
     };
-    let host = editor.host().clone();
+    let host = editor.host();
     editor.on_reply(move || {
         let Some(inner) = picker.inner.try_get() else {
             return;

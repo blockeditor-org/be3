@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::map::{MapColor, MapPoint};
 use block_editor_beui::beui::icons::ICON_LOCATION_ON;
 use block_editor_beui::beui::reactive::{
-    Align, CanvasItem, Frame, List, Prop, clone, component, create_memo, view,
+    Align, CanvasItem, Frame, List, Prop, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::{Caption, IconSized};
 use block_editor_beui::beui::{Color32, Pos2, Rect, TextAlign};
@@ -39,7 +39,10 @@ pub(crate) fn Marker(
     let y = create_memo(move || tip.get().y - RING_SIZE * unit.get());
     let width = create_memo(move || LABEL_WIDTH * unit.get());
     let height = create_memo(move || MARKER_HEIGHT * unit.get());
-    let named = create_memo(clone!(label -> move || !label.get().is_empty()));
+    let named = create_memo({
+        let label = label.clone();
+        move || !label.get().is_empty()
+    });
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
             <List spacing=0.0 align=Align::Center>

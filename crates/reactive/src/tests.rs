@@ -31,7 +31,6 @@ mod an_effect_waits_for_its_zone_while_another_zone_is_entered;
 mod an_effect_with_cleanup_is_kept_without_dependencies;
 mod cleanup_precedes_next_execution;
 mod cleanup_reads_do_not_become_dependencies;
-mod clone_brings_cloned_handles_into_the_closure;
 mod conditional_dependencies_are_replaced;
 mod conditional_memos_replace_dependencies;
 mod diamond_and_direct_dependencies_never_glitch;
