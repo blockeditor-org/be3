@@ -39,7 +39,7 @@ pub(crate) struct Common {
 pub(crate) const COMMON: [Common; 5] = [
     Common {
         title: "the app",
-        args: "buck run //crates/block-app:app",
+        args: "buck run //crates/block-app:native",
     },
     Common {
         title: "verify",
@@ -47,7 +47,7 @@ pub(crate) const COMMON: [Common; 5] = [
     },
     Common {
         title: "the web app",
-        args: "buck run //crates/block-app:web-serve",
+        args: "buck run //crates/block-app:web",
     },
     Common {
         title: "on Android",
@@ -55,7 +55,7 @@ pub(crate) const COMMON: [Common; 5] = [
     },
     Common {
         title: "beui's demo",
-        args: "buck run //crates/beui-demo:demo",
+        args: "buck run //crates/beui-demo:native",
     },
 ];
 

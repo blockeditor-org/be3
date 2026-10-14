@@ -7,10 +7,10 @@
 # arguments go to be-server, which refuses sign-ins and new accounts unless
 # given --allow-login and --allow-registration.
 #
-#   ./scripts/buck run //crates/block-app:web-serve [-- --listen HOST:PORT] [--backend HOST:PORT]
-#   ./scripts/buck run //crates/block-app:web-serve -- --domain blocks.pfg.pw [--data-dir DIR]
+#   ./scripts/buck run //crates/block-app:web [-- --listen HOST:PORT] [--backend HOST:PORT]
+#   ./scripts/buck run //crates/block-app:web -- --domain blocks.pfg.pw [--data-dir DIR]
 set -eu
-caddy="$1" caddyfile="$2" bundle="$3" server="$4"
+caddy="$1" caddyfile="$2" server="$3" bundle="$4"
 shift 4
 listen=127.0.0.1:8080
 backend=127.0.0.1:9090

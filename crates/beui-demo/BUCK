@@ -6,8 +6,8 @@ srcs = glob(["src/**/*.rs"])
 
 cargo_library(srcs = srcs)
 
-# The demo in a window: `./scripts/buck run //crates/beui-demo:demo`.
-cargo_binary(srcs = srcs)
+# The demo in a window: `./scripts/buck run //crates/beui-demo:native`.
+cargo_binary(name = "native", srcs = srcs)
 
 # The demo's tests paint its pages the way a plugin's tests do: compiled to
 # wasm with the fonts beui carries, and run here so they can read and write
@@ -18,5 +18,5 @@ plugin_tests(srcs = srcs)
 headless(
     name = "dev",
     app_name = "beui-demo",
-    program = "$(location :demo)",
+    program = "$(location :native)",
 )

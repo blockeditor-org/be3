@@ -1,6 +1,5 @@
 load("@root//buck/wasm:defs.bzl", "editor")
 
 editor(
-    name = "text_block",
     module = "text_block",
 )
