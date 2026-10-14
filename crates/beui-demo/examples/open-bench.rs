@@ -191,6 +191,7 @@ mod bench {
                 modifiers: Modifiers::NONE,
             }])];
             frames.extend(self.settle());
+            let allocations = crate::counting::allocations() - allocations;
             if std::env::var_os("UNPLACED").is_some() {
                 let document = &self.app.document;
                 let mut stack: Vec<_> = document.root().into_iter().collect();
@@ -226,7 +227,7 @@ mod bench {
                     println!("unplaced {nodes:5} nodes in {roots:3} roots: {name}");
                 }
             }
-            (frames, crate::counting::allocations() - allocations)
+            (frames, allocations)
         }
     }
 
