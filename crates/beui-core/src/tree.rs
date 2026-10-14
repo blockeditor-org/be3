@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use beui_tree::reactive::{
     ChildSegment, ChildValue, Children, ComponentContext, IntoChild, IntoProp, IntoSegment,
-    IntoSlotHost, Memo, Prop, ReadSignal, Scope, SlotChild, SlotHost, SlotId, WriteSignal,
+    IntoSlotHost, Memo, Prop, ReadSignal, ScopeContext, SlotChild, SlotHost, SlotId, WriteSignal,
     create_effect, create_signal, current_component,
 };
 
@@ -83,11 +83,7 @@ pub fn component_accessibility(node: impl IntoProp<accesskit::Node>) {
 }
 
 impl ChildValue for NodeId {
-    fn adopt_scope(&mut self, scope: Scope) {
-        scope.into_parent();
-    }
-
-    fn finish_component(&mut self, component: &ComponentContext, scope: &Scope) {
+    fn finish_component(&mut self, component: &ComponentContext, scope: &ScopeContext) {
         let root = *self;
         let bindings = component.extension::<NodeBindings>();
         bindings.target.set(Some(root));
@@ -208,11 +204,7 @@ impl<P: ParentKind> BuildsNode for Placed<P> {
 }
 
 impl<P: ParentKind> ChildValue for Placed<P> {
-    fn adopt_scope(&mut self, scope: Scope) {
-        self.node.adopt_scope(scope);
-    }
-
-    fn finish_component(&mut self, component: &ComponentContext, scope: &Scope) {
+    fn finish_component(&mut self, component: &ComponentContext, scope: &ScopeContext) {
         self.node.finish_component(component, scope);
     }
 }

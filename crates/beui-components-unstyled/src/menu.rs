@@ -10,8 +10,8 @@ use beui_view::components::overlay::Overlay;
 use crate as unstyled;
 use crate::button::ButtonHandle;
 use beui_view::reactive::{
-    Action, Callback, Child, ChildScope, ChildValue, Children, ClickCallback, Interactive,
-    IntoProp, List, Memo, NodeRef, Prop, ReadSignal, RenderFn, Run, Scope, Selector, Show, Stored,
+    Action, Callback, Child, Children, ClickCallback, Interactive,
+    IntoProp, List, Memo, NodeRef, Prop, ReadSignal, RenderFn, Run, Selector, Show, Stored,
     WriteSignal, action_disabled, action_glyph, action_label, create_effect, create_memo,
     create_selector, create_signal, set_component_state, store, with_document,
 };
@@ -42,13 +42,6 @@ pub struct MenuItem {
     action: Option<Action>,
     on_click: ClickCallback,
     children: Run<MenuItem>,
-    scope: ChildScope,
-}
-
-impl ChildValue for MenuItem {
-    fn adopt_scope(&mut self, scope: Scope) {
-        self.scope.adopt(scope);
-    }
 }
 
 beui_view::value_child_type!(MenuItem);
@@ -80,7 +73,6 @@ pub fn MenuItem(
         action,
         on_click,
         children: children.into_run(),
-        scope: ChildScope::default(),
     }
 }
 

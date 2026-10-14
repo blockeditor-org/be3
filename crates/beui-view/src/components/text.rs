@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
 use crate::reactive::{
-    Child, ChildSegment, ChildValue, Children, ComponentContext, FromPlaced, IntoChild, IntoProp,
-    IntoSegment, IntoSlotHost, Memo, Placed, Prop, ReadSignal, Scope, SlotChild, SlotHost, SlotId,
+    Child, ChildSegment, ChildValue, Children, FromPlaced, IntoChild, IntoProp,
+    IntoSegment, IntoSlotHost, Memo, Placed, Prop, ReadSignal, SlotChild, SlotHost, SlotId,
     create_effect, with_document,
 };
 use beui_core::base::text::{SpanContent, SpanHandle, TextNode, TextPart};
@@ -87,22 +87,6 @@ pub fn Text(
 pub enum TextChild {
     Span(Span),
     Item(TextItem),
-}
-
-impl ChildValue for TextChild {
-    fn adopt_scope(&mut self, scope: Scope) {
-        match self {
-            TextChild::Span(span) => span.adopt_scope(scope),
-            TextChild::Item(item) => item.adopt_scope(scope),
-        }
-    }
-
-    fn finish_component(&mut self, component: &ComponentContext, scope: &Scope) {
-        match self {
-            TextChild::Span(span) => span.finish_component(component, scope),
-            TextChild::Item(item) => item.finish_component(component, scope),
-        }
-    }
 }
 
 crate::child_type!(TextChild);
@@ -217,11 +201,7 @@ pub struct Span {
     break_after: Prop<bool>,
 }
 
-impl ChildValue for Span {
-    fn adopt_scope(&mut self, scope: Scope) {
-        scope.into_parent();
-    }
-}
+impl ChildValue for Span {}
 
 fn bind<T: Clone + 'static>(
     text: NodeOf<TextNode>,

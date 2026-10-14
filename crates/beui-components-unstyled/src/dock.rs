@@ -42,7 +42,7 @@ use beui_view::reactive::{
     Action, Callback, Canvas, CanvasItem, Child, ClickCallback, Dynamic, ForEach, Frame, Func,
     Interactive, IntoProp, LayoutBuilder, List, Memo, NodeRef, PlacementBuilder, Portal, Prop,
     ReadSignal, RenderFn, Scope, ScopeContext, Show, Stored, StoredCell, WriteSignal,
-    component_accessibility, create_effect, create_memo, create_signal, create_timer, node_scope,
+    component_accessibility, create_effect, create_memo, create_signal, create_timer,
     on_cleanup, on_shortcut, owner_scope, provide_context, set_component_state, store,
     try_with_document, use_context, with_document,
 };
@@ -492,7 +492,7 @@ impl State {
         if let Some((panel, _)) = self.panels.get().borrow().get(&tab) {
             return *panel;
         }
-        let scope = with_document(|document| node_scope(document, self.owner.with(Clone::clone)));
+        let scope = self.open_scope();
         let set_actions = self.set_actions;
         let set_menu = self.set_menu;
         let control = DockTabControl {
@@ -508,6 +508,12 @@ impl State {
         });
         self.panels.get().borrow_mut().insert(tab, (panel, scope));
         panel
+    }
+
+    fn open_scope(&self) -> Scope {
+        self.owner
+            .with(|owner| owner.as_ref().and_then(ScopeContext::child))
+            .unwrap_or_else(Scope::detached)
     }
 
     fn keep_panels(&self, tabs: &[TabId]) {

@@ -2,7 +2,7 @@ use std::any::{Any, TypeId};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use reactive::{Scope, Stored, store};
+use reactive::{ScopeContext, Stored, child_scope, store};
 
 use crate::children::IntoChild;
 
@@ -66,13 +66,11 @@ pub fn try_current_component() -> Option<Rc<ComponentContext>> {
 }
 
 #[diagnostic::on_unimplemented(
-    message = "a `#[component]` function returns a node, a value built around one, or a value that keeps a `ChildScope`",
+    message = "a `#[component]` function returns a node, a value built around one, or a child value",
     label = "implement `ChildValue` for this component's return type"
 )]
 pub trait ChildValue {
-    fn adopt_scope(&mut self, scope: Scope);
-
-    fn finish_component(&mut self, component: &ComponentContext, _scope: &Scope) {
+    fn finish_component(&mut self, component: &ComponentContext, _scope: &ScopeContext) {
         assert!(
             !component.has_extensions(),
             "component `{}` returns a value that is no node, so the bindings its body made \
@@ -82,25 +80,10 @@ pub trait ChildValue {
     }
 }
 
-#[derive(Clone, Default)]
-pub struct ChildScope(Vec<Rc<Scope>>);
-
-impl ChildScope {
-    pub fn adopt(&mut self, scope: Scope) {
-        self.0.push(Rc::new(scope));
-    }
-
-    pub fn is_alive(&self) -> bool {
-        self.0.last().is_some_and(|scope| !scope.is_disposed())
-    }
-}
-
 pub fn component<T: ChildValue>(name: &'static str, f: impl FnOnce() -> T) -> T {
-    let scope = Scope::new();
     let context = Rc::new(ComponentContext::new(name));
-    let mut value = in_component(Some(context.clone()), || scope.run(f));
+    let (mut value, scope) = child_scope(|| in_component(Some(context.clone()), f));
     value.finish_component(&context, &scope);
-    value.adopt_scope(scope);
     value
 }
 
