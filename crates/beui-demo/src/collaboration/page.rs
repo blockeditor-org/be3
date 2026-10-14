@@ -1,5 +1,4 @@
-use std::cell::{Cell, RefCell};
-use std::rc::Rc;
+use std::cell::Cell;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
@@ -9,8 +8,8 @@ use beui::icons::{
     ICON_KEYBOARD_DOUBLE_ARROW_RIGHT, ICON_KEYBOARD_DOUBLE_ARROW_UP, ICON_PAUSE, ICON_PLAY_ARROW,
 };
 use beui::reactive::{
-    Align, List, Memo, ReadSignal, Timer, clone, create_effect, create_memo, create_signal,
-    create_timer, now, untrack, view,
+    Align, Callback, List, Memo, ReadSignal, Timer, clone, create_effect, create_memo,
+    create_signal, create_timer, now, store, untrack, view,
 };
 use beui::styled::{Caption, IconButton, Slider, TextArea, ToggleButton};
 use beui::unstyled::{self, RemoteTextCursor, TextAreaState, narrower_than};
@@ -89,11 +88,11 @@ fn ConcurrentEditing() -> NodeId {
     let (flight, set_flight) = create_signal((0usize, 0usize));
     let (same, set_same) = create_signal(true);
     let (seen, set_seen) = create_signal([None::<Caret>, None]);
-    let published = Rc::new(Cell::new([None::<Caret>, None]));
-    let timer: Rc<RefCell<Option<Timer>>> = Rc::new(RefCell::new(None));
+    let published = Cell::new([None::<Caret>, None]);
+    let timer = store(Cell::new(None::<Timer>));
 
-    let pump = Rc::new(
-        clone!(simulation published timer -> move |force: Option<(Side, Amount)>| {
+    let pump = Callback::new(
+        clone!(simulation -> move |force: Option<(Side, Amount)>| {
             let now = now();
             let delay = Duration::from_millis(latency.get_untracked() as u64);
             let held = paused.get_untracked();
@@ -145,24 +144,25 @@ fn ConcurrentEditing() -> NodeId {
             if seen.get_untracked() != carets {
                 set_seen.set(carets);
             }
-            if let (Some(due), Some(timer)) = (due, timer.borrow().as_ref()) {
+            if let (Some(due), Some(timer)) = (due, timer.with(Cell::get)) {
                 timer.start(due.saturating_duration_since(now));
             }
         }),
     );
-    *timer.borrow_mut() = Some(create_timer(clone!(pump -> move || {
-        pump(None);
+    let pumping = create_timer(move || {
+        pump.call(None);
         None
-    })));
-    create_effect(clone!(pump -> move || {
+    });
+    timer.with(|timer| timer.set(Some(pumping)));
+    create_effect(move || {
         left.content().get();
         right.content().get();
         left.cursors().get();
         right.cursors().get();
         paused.get();
         latency.get();
-        untrack(|| pump(None));
-    }));
+        untrack(|| pump.call(None));
+    });
 
     let left_remote = create_memo(move || {
         left.content().get();
@@ -182,7 +182,7 @@ fn ConcurrentEditing() -> NodeId {
         true => ICON_PLAY_ARROW.to_owned(),
         false => ICON_PAUSE.to_owned(),
     });
-    let send: Send = pump.clone();
+    let send = pump;
     let switched = paused;
     let runs_pressed = runs;
     let narrow = narrower_than(COLUMNS_BREAKPOINT);
@@ -229,7 +229,7 @@ fn ConcurrentEditing() -> NodeId {
                     remote={left_remote}
                     runs={runs}
                 />
-                <SendButtons send={send.clone()} flight={flight} paused narrow />
+                <SendButtons send={send} flight={flight} paused narrow />
                 <EditorPane
                     @sizing=ItemSize::Percent(50.0)
                     id="demo.collaboration.right"
@@ -250,7 +250,7 @@ enum Amount {
     All,
 }
 
-type Send = Rc<dyn Fn(Option<(Side, Amount)>)>;
+type Send = Callback<Option<(Side, Amount)>>;
 
 #[sample]
 #[component]
@@ -300,8 +300,7 @@ fn SendButtons(
     };
     let (from_left, from_right) = (held(Side::Left), held(Side::Right));
     let press = |from: Side, amount: Amount| {
-        let send = send.clone();
-        move || send(Some((from, amount)))
+        move || send.call(Some((from, amount)))
     };
     view! {
         <List direction align=Align::Center spacing=ROW_SPACING>
