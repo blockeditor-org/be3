@@ -812,6 +812,17 @@ node by walking down from its child through the nodes that lay their children
 out in place (`Element::passes_scroll_anchor`: `List`, `Frame` and `Fade`),
 taking the first child that reaches past the top of the viewport each time.
 
+The offset places its child once per layout. What the content's own layout
+decides about the anchor comes back to the offset as part of that layout's
+result: a `VirtualList` whose rows above the view measured differently from
+their estimate reports the difference with `Document::report_anchor_shift`,
+and the nearest enclosing offset sums what its child reported with how far the
+anchor drifted and any reveal it was asked for. When that sum is not zero the
+offset moves by it and is laid out again in the frame's next layout, where it
+does not re-anchor. Anything that moves the offset from outside its layout
+(`set_offset_value`, a reveal) calls its `on_steer` callback, which a `Scroll`
+uses to stop a fling or a spring the moment it is steered.
+
 ### Slider scales
 
 A slider spreads its range evenly along its track unless it is given a
@@ -2085,7 +2096,11 @@ build during it:
   percent size) on the axis it reads.
 - `VirtualList` builds each row its window reaches that it does not have yet,
   as the walk reaches it, measures it and carries on, so one walk fills the
-  window.
+  window. A list laid out at the length it measured follows that length as
+  its rows measure, rather than stopping at the estimate it was given, and
+  rows that measure shorter at the end of the list pull in rows above the
+  window to take their place. When its length changed it asks with
+  `Document::invalidate_after_layout` for the next layout to measure it again.
 
 `PlacementBuilder` hands its render prop a `ReadSignal<Rect>` of where it was
 placed, in the document's coordinates, written after each layout with the

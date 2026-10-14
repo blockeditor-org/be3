@@ -119,8 +119,7 @@ pub struct Document {
     pub reached_pass: NodeMap<u64>,
     layout_pass: u64,
     focus_line: FocusLine,
-    scroll_hosts: Vec<NodeId>,
-    scroll_shifts: NodeMap<f32>,
+    anchor_shift: f32,
     pub(crate) reveals: NodeMap<NodeId>,
     viewport: Option<(Context, Rect, f32)>,
     fonts_generation: u64,
@@ -318,8 +317,7 @@ impl Document {
             reached_pass: NodeMap::default(),
             layout_pass: 0,
             focus_line: FocusLine::default(),
-            scroll_hosts: Vec::new(),
-            scroll_shifts: NodeMap::default(),
+            anchor_shift: 0.0,
             reveals: NodeMap::default(),
             viewport: None,
             fonts_generation: 0,
@@ -884,7 +882,6 @@ impl Document {
         self.press_claimants.remove(&id);
         self.outside_watchers.remove(&id);
         self.reached_pass.remove(&id);
-        self.scroll_shifts.remove(&id);
         self.reveals.remove(&id);
         self.accessibility.remove(&id);
         self.accessibility_tree.get_mut().forget(id, &self.arena);
@@ -1665,31 +1662,12 @@ impl Document {
         self.layout_parent
     }
 
-    pub fn enter_scroll_host(&mut self, id: NodeId) {
-        self.scroll_hosts.push(id);
+    pub fn report_anchor_shift(&mut self, shift: f32) {
+        self.anchor_shift += shift;
     }
 
-    pub fn leave_scroll_host(&mut self) {
-        self.scroll_hosts.pop();
-    }
-
-    pub fn record_scroll_shift(&mut self, shift: f32) {
-        let Some(&host) = self.scroll_hosts.last() else {
-            return;
-        };
-        *self.scroll_shifts.get_or_default(host) += shift;
-    }
-
-    pub fn take_scroll_shift(&mut self, id: NodeId) -> f32 {
-        self.scroll_shifts.remove(&id).unwrap_or(0.0)
-    }
-
-    pub fn placing_len(&self) -> usize {
-        self.placing.len()
-    }
-
-    pub fn rewind_placing(&mut self, len: usize) {
-        self.placing.truncate(len);
+    pub(crate) fn take_anchor_shift(&mut self) -> f32 {
+        std::mem::take(&mut self.anchor_shift)
     }
 
     pub fn note_placed(&mut self, id: NodeId) {
@@ -2039,6 +2017,7 @@ impl Document {
             });
         }
         self.placing.clear();
+        self.anchor_shift = 0.0;
         self.layout_revision = self.arena.layout_revision;
         self.layout_pass = self.layout_pass.wrapping_add(1);
     }

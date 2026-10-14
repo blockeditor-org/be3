@@ -267,7 +267,6 @@ impl Motion {
         let offset = (position.offset - wheel).clamp(0.0, position.max_offset());
         self.publish(&momentum, offset);
         if fling != 0.0 {
-            self.take_steered();
             momentum.release(-fling);
             self.animate(&mut momentum);
         }
@@ -280,7 +279,6 @@ impl Motion {
         let mut momentum = self.momentum.borrow_mut();
         momentum.dragging = !gesture.ended && !gesture.cancelled;
         if momentum.drag.is_none() {
-            self.take_steered();
             momentum.grab(&position);
         }
         let dragged = self.axis().main(gesture.delta);
@@ -364,10 +362,18 @@ impl Motion {
         true
     }
 
-    fn take_steered(&self) -> bool {
-        self.node.is_some_and(|node| {
-            with_document(|document| document.contains(node) && document.take_offset_steered(node))
-        })
+    fn steer(&self) {
+        let Some(node) = self.node else {
+            return;
+        };
+        if let Ok(mut momentum) = self.momentum.try_borrow_mut() {
+            momentum.rest();
+        }
+        with_document(|document| {
+            if document.contains(node) {
+                document.set_offset_overscroll(node, 0.0);
+            }
+        });
     }
 
     fn step(&self) -> Option<Duration> {
@@ -375,15 +381,10 @@ impl Motion {
         if !with_document(|document| document.contains(node)) {
             return None;
         }
-        let steered = self.take_steered();
         let mut momentum = self.momentum.borrow_mut();
         let now = beui_core::timer::now();
         let elapsed = now.duration_since(momentum.stepped).as_secs_f32();
         momentum.stepped = now;
-        if steered {
-            momentum.rest();
-            with_document(|document| document.set_offset_overscroll(node, 0.0));
-        }
         if std::mem::take(&mut momentum.dragging) {
             return Some(Duration::ZERO);
         }
@@ -423,6 +424,11 @@ fn Scrolling(
     });
     let animation = create_timer(move || motion.get().step());
     motion.with(|motion| motion.animation.set(Some(animation)));
+    if let Some(offset) = motion.with(|motion| motion.node) {
+        with_document(|document| {
+            document.set_offset_on_steer(offset, move |()| motion.get().steer());
+        });
+    }
     set_component_state(motion);
 
     let position = create_memo(move || reported.get().unwrap_or_default());

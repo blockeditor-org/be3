@@ -235,7 +235,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         list: NodeId,
         painter: &Painter,
         window: (f32, f32),
-        main: f32,
+        main: Option<f32>,
         cross: f32,
     ) -> f32 {
         let (first, last) = window;
@@ -245,9 +245,10 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
             return 0.0;
         }
         let (index, position) = self.anchor(window);
+        let before = self.metrics.total();
         let mut below = Vec::new();
         let (mut cursor, mut at, mut scanned) = (position, index, 0);
-        while at < self.metrics.count && cursor < last && scanned < ROW_LIMIT {
+        while at < self.metrics.count && cursor < self.reach(last, main) && scanned < ROW_LIMIT {
             let estimate = self.metrics.height(at);
             let row = match cursor + estimate > first {
                 true => Some(self.measured_row(doc, list, painter, at, cross)),
@@ -269,9 +270,14 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
             at += 1;
             scanned += 1;
         }
+        let shrunk = (before - self.metrics.total()).max(0.0);
+        let deficit = match at >= self.metrics.count {
+            true => (last - cursor).clamp(0.0, shrunk),
+            false => 0.0,
+        };
         let mut above = Vec::new();
         let (mut cursor, mut at, mut scanned) = (position, index, 0);
-        while at > 0 && cursor > first && scanned < ROW_LIMIT {
+        while at > 0 && cursor > first - deficit && scanned < ROW_LIMIT {
             at -= 1;
             scanned += 1;
             let estimate = self.metrics.height(at);
@@ -296,7 +302,9 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         above.reverse();
         above.extend(below);
         let mut rows = above;
-        let shifted = self.edge_shift(&rows, window, main);
+        let end = self.metrics.total();
+        let main = main.map_or(end, |main| main.min(end));
+        let shifted = self.edge_shift(&rows, (first, last.min(main)), main);
         if shifted != 0.0 {
             for row in &mut rows {
                 row.position += shifted;
@@ -316,6 +324,13 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         };
         self.keep(rows);
         shift
+    }
+
+    fn reach(&self, last: f32, main: Option<f32>) -> f32 {
+        match main {
+            Some(_) => last,
+            None => last.min(self.metrics.total()),
+        }
     }
 
     fn edge_shift(&self, rows: &[Row<K>], window: (f32, f32), main: f32) -> f32 {
@@ -361,7 +376,8 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
         let (main, cross) = self.direction.main_and_cross(rect.size());
         let start = self.direction.main(rect.min.to_vec2());
         let total = self.metrics.total();
-        let window = self.window(doc, painter, start, main);
+        let main = (doc.pixel_grid().snap(total) != main).then_some(main);
+        let window = self.window(doc, painter, start, main.unwrap_or(f32::INFINITY));
         let shift = self.realize(doc, node, painter, window, main, cross);
         let grid = doc.pixel_grid();
         for row in &self.placed {
@@ -375,11 +391,9 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
         }
         doc.arena.adopt_children(node);
         if self.metrics.total() != total {
-            doc.arena.invalidate_node(node);
+            doc.invalidate_after_layout(node);
         }
-        if shift != 0.0 {
-            doc.record_scroll_shift(shift);
-        }
+        doc.report_anchor_shift(shift);
     }
 
     fn unplaced(&mut self, _doc: &mut Document) {
