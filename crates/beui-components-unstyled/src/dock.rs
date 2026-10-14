@@ -120,6 +120,7 @@ pub struct DockPreviewHandle {
 
 pub struct DockChromeHandle {
     pub floating: bool,
+    pub side: Memo<Option<Side>>,
     pub barred: bool,
     pub focused: Memo<bool>,
     pub content: Child,
@@ -367,6 +368,7 @@ struct State {
     set_drag: WriteSignal<Option<Drag>>,
     title: Func<TabId, String>,
     group_title: Func<GroupId, Option<String>>,
+    side: Func<LeafId, bool>,
     icon: Func<TabId, String>,
     picture: Func<TabId, Option<Image>>,
     closable: Func<TabId, bool>,
@@ -1109,6 +1111,7 @@ pub(crate) struct DockConfig {
     pub(crate) on_close: Callback<TabId>,
     pub(crate) title: Func<TabId, String>,
     pub(crate) group_title: Func<GroupId, Option<String>>,
+    pub(crate) side: Func<LeafId, bool>,
     pub(crate) icon: Func<TabId, String>,
     pub(crate) picture: Func<TabId, Option<Image>>,
     pub(crate) closable: Func<TabId, bool>,
@@ -1145,6 +1148,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         on_close,
         title,
         group_title,
+        side,
         icon,
         picture,
         closable,
@@ -1196,6 +1200,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                     set_drag,
                     title,
                     group_title,
+                    side,
                     icon,
                     picture,
                     closable,
@@ -1285,19 +1290,28 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                     dock.keep_panels(&tabs);
                 });
                 on_cleanup(move || dock.keep_panels(&[]));
+                let tiled_inset = create_memo(move || match mode.get() {
+                    DockMode::Tiled => inset.get(),
+                    DockMode::Stacked => 0.0,
+                });
+                let stacked_inset = create_memo(move || inset.get() - tiled_inset.get());
                 view! {
                     <List spacing=0.0>
                         <Frame
                             @sizing=ItemSize::Percent(100.0)
-                            padding_horizontal={inset}
-                            padding_vertical={inset}
+                            padding_horizontal={stacked_inset}
+                            padding_vertical={stacked_inset}
                         >
                             <List spacing=0.0>
                                 <Dynamic value={mode}>
                                     {move |mode: DockMode| {
                                         match mode {
                                             DockMode::Tiled => view! {
-                                                <DockTiles dock @sizing=ItemSize::Percent(100.0) />
+                                                <DockTiles
+                                                    dock
+                                                    inset={tiled_inset}
+                                                    @sizing=ItemSize::Percent(100.0)
+                                                />
                                             },
                                             DockMode::Stacked => view! {
                                                 <DockStack dock @sizing=ItemSize::Percent(100.0) />
@@ -1546,7 +1560,7 @@ fn switcher_handle(
 }
 
 #[component]
-fn DockTiles(dock: State) -> NodeId {
+fn DockTiles(dock: State, inset: Memo<f32>) -> NodeId {
     let current = dock.state;
     let main = create_memo(move || current.with(DockState::main));
     let windows = create_memo(move || current.with(DockState::windows));
@@ -1568,6 +1582,7 @@ fn DockTiles(dock: State) -> NodeId {
                                 <DockTreeView
                                     dock
                                     tree={Tree::Surface(surface)}
+                                    inset
                                     @sizing=ItemSize::Percent(100.0)
                                 />
                             }
@@ -1607,6 +1622,7 @@ fn PlainBar(handle: DockBarHandle) -> NodeId {
 
 struct ChromeParts {
     floating: bool,
+    side: Memo<Option<Side>>,
     vertical: bool,
     focused: Memo<bool>,
     sidebar_width: Memo<f32>,
@@ -1619,6 +1635,7 @@ struct ChromeParts {
 fn DockChrome(dock: State, parts: ChromeParts) -> NodeId {
     let ChromeParts {
         floating,
+        side,
         vertical,
         focused,
         sidebar_width,
@@ -1641,6 +1658,7 @@ fn DockChrome(dock: State, parts: ChromeParts) -> NodeId {
     };
     dock.chrome.call(DockChromeHandle {
         floating,
+        side,
         barred,
         focused,
         content,
@@ -1652,6 +1670,7 @@ fn DockTreeView(
     dock: State,
     tree: Tree,
     #[prop(default = None)] hoisted: Prop<Option<LeafId>>,
+    #[prop(default = 0.0)] inset: Prop<f32>,
 ) -> NodeId {
     let canvas = NodeRef::new();
     dock.panes.get().borrow_mut().insert(tree, canvas);
@@ -1703,8 +1722,21 @@ fn DockTreeView(
                                     {move |leaf: LeafId| {
                                         let dock = panels;
                                         let layout = panel_layout;
-                                        let rect = create_memo(move || {
+                                        let sided = dock.side;
+                                        let placed = create_memo(move || {
                                             layout.with(|layout| layout.leaf_rect(leaf)).unwrap_or(Rect::ZERO)
+                                        });
+                                        let area = create_memo(move || Rect::from_min_size(Pos2::ZERO, size.get()));
+                                        let facing = create_memo(move || {
+                                            sided.call(leaf).then(|| facing_edge(placed.get(), area.get())).flatten()
+                                        });
+                                        let rect = create_memo(move || {
+                                            let rect = placed.get();
+                                            let inset = inset.get();
+                                            if inset == 0.0 || facing.get().is_some() {
+                                                return rect;
+                                            }
+                                            inset_at_edges(rect, area.get(), inset)
                                         });
                                         let x = create_memo(move || rect.get().min.x);
                                         let y = create_memo(move || rect.get().min.y);
@@ -1713,7 +1745,7 @@ fn DockTreeView(
                                         let hoisted = hoisted == Some(leaf);
                                         view! {
                                             <CanvasItem x={x} y={y} width={width} height={height}>
-                                                <DockPanelView dock tree leaf hoisted />
+                                                <DockPanelView dock tree leaf hoisted facing />
                                             </CanvasItem>
                                         }
                                     }}
@@ -1755,6 +1787,37 @@ fn DockTreeView(
     }
 }
 
+fn facing_edge(rect: Rect, area: Rect) -> Option<Side> {
+    let left = rect.left() <= area.left();
+    let right = rect.right() >= area.right();
+    let top = rect.top() <= area.top();
+    let bottom = rect.bottom() >= area.bottom();
+    match (left, right, top, bottom) {
+        (true, false, _, _) => Some(Side::Right),
+        (false, true, _, _) => Some(Side::Left),
+        (_, _, true, false) => Some(Side::Below),
+        (_, _, false, true) => Some(Side::Above),
+        _ => None,
+    }
+}
+
+fn inset_at_edges(rect: Rect, area: Rect, inset: f32) -> Rect {
+    let mut inner = rect;
+    if rect.left() <= area.left() {
+        inner.min.x += inset;
+    }
+    if rect.top() <= area.top() {
+        inner.min.y += inset;
+    }
+    if rect.right() >= area.right() {
+        inner.max.x -= inset;
+    }
+    if rect.bottom() >= area.bottom() {
+        inner.max.y -= inset;
+    }
+    inner
+}
+
 #[component]
 fn DockDropMarker(dock: State, surface: SurfaceId, origin: Memo<Pos2>) -> CanvasItem {
     let marker = create_memo(move || {
@@ -1784,7 +1847,13 @@ fn DockDropMarker(dock: State, surface: SurfaceId, origin: Memo<Pos2>) -> Canvas
 }
 
 #[component]
-fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId {
+fn DockPanelView(
+    dock: State,
+    tree: Tree,
+    leaf: LeafId,
+    hoisted: bool,
+    facing: Memo<Option<Side>>,
+) -> NodeId {
     let state = dock.state;
     let focused = create_memo(move || state.with(|state| state.focused_leaf() == Some(leaf)));
     let surface = state
@@ -1792,6 +1861,7 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
         .unwrap_or_else(|| state.with_untracked(DockState::main));
     let nested = matches!(tree, Tree::Group(_));
     let floating = !nested && state.with_untracked(|state| state.window_rect(surface).is_some());
+    let side = create_memo(move || facing.get().filter(|_| !nested && !floating));
     let vertical = create_memo(move || !hoisted && state.with(|state| state.is_vertical(leaf)));
     let contents = create_memo(move || {
         state.with(|state| {
@@ -1853,6 +1923,7 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
                         });
                         let parts = ChromeParts {
                             floating,
+                            side,
                             vertical,
                             focused,
                             sidebar_width,
@@ -2682,6 +2753,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                     };
                                                     let parts = ChromeParts {
                                                         floating: true,
+                                                        side: create_memo(|| None),
                                                         vertical,
                                                         focused,
                                                         sidebar_width,

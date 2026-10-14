@@ -1269,7 +1269,11 @@ view! {
 `DockSplit` takes two children, `fraction` being the first one's share.
 `DockPane` holds `DockTab`s and `DockGroup`s (a tab holding a tree of its own,
 `pinned` to keep its tabs in it), names its starting `active` tab, and can start
-with its tabs in a sidebar (`vertical`, `sidebar_width`). `DockWindow` floats one
+with its tabs in a sidebar (`vertical`, `sidebar_width`). A `side` pane is the
+app's side panel, like a file list: the styled dock draws it flush with the
+dock's edges in the surface colour, with no card around it and a border as wide as a card's on the edge facing the rest, where every other
+docked pane is a card inset from the edges. The inset is applied per pane at the
+dock's outer edges, so a side pane's rectangle is the one `layout_surface` gives. `DockWindow` floats one
 tree at a `rect`. A tab's key is any `Clone + Eq + Hash` type; a key that is a
 `TabId` or a `u64` names the tab's `TabId` too, which is what the test ids of its
 close button and switcher row carry. Every container has an `id`, saved with the
@@ -1309,7 +1313,7 @@ The `DockState` the layout holds is a plain value underneath:
 `state()` reads it, and `find`, `all_tabs`, `focused_tab` and `surface_tabs`
 answer from it.
 
-Tiled, `Docking` keeps its panes inset from its own edges.
+Tiled, `Docking` keeps its panes inset from its own edges, all but a `side` pane.
 `mode=DockMode::Stacked` draws the same state as one screen: the focused tab
 fills the dock, edge to edge, with no tab bars, splitters or windows, and everything else in
 the state is kept, so switching back to `DockMode::Tiled` restores the layout.

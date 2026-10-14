@@ -13,7 +13,7 @@ use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     DockBarHandle, DockChromeHandle, DockDialogHandle, DockDragged, DockGripHandle, DockKey,
     DockMode, DockNode, DockPreviewHandle, DockSplitterHandle, DockStackHandle, DockSwitchHandle,
-    DockSwitcherHandle, DockTabHandle, DockingLayout, Entry, MenuItem, Picture,
+    DockSwitcherHandle, DockTabHandle, DockingLayout, Entry, MenuItem, Picture, Side,
 };
 use beui_core::base::{Align, Direction, ItemSize, Justify};
 use beui_core::color::Color32;
@@ -262,6 +262,7 @@ fn TabPicture(picture: Memo<Option<Image>>) -> NodeId {
 #[component]
 fn DockChromeFace(handle: DockChromeHandle) -> NodeId {
     let DockChromeHandle {
+        side,
         barred,
         focused,
         content,
@@ -272,21 +273,41 @@ fn DockChromeFace(handle: DockChromeHandle) -> NodeId {
         true => theme.accent.get(),
         false => theme.border.get(),
     });
-    let border = match barred {
-        true => CHROME_BORDER,
-        false => 0.0,
-    };
+    let carded = create_memo(move || barred && side.get().is_none());
+    let fill = create_memo(move || match side.get() {
+        Some(_) => theme.surface.get(),
+        None => theme.background.get(),
+    });
+    let radius = create_memo(move || if carded.get() { CARD_RADIUS } else { 0 });
+    let border = create_memo(move || if carded.get() { CHROME_BORDER } else { 0.0 });
+    let ruled = move |edge: Side| create_memo(move || side.get() == Some(edge));
     view! {
         <Frame
-            color={theme.background}
+            color={fill}
             outline={outline}
             outline_width=CHROME_BORDER
-            outline_visible=barred
-            radius={if barred { CARD_RADIUS } else { 0 }}
-            padding_horizontal=border
-            padding_vertical=border
+            outline_visible={carded}
+            radius
+            padding_horizontal={border}
+            padding_vertical={border}
         >
-            {content}
+            <List direction=Direction::Horizontal spacing=0.0>
+                <Show condition={ruled(Side::Left)}>
+                    <Frame color={theme.border} width=CHROME_BORDER radius=0 />
+                </Show>
+                <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                    <Show condition={ruled(Side::Above)}>
+                        <Frame color={theme.border} height=CHROME_BORDER radius=0 />
+                    </Show>
+                    {content} @sizing=ItemSize::Percent(100.0)
+                    <Show condition={ruled(Side::Below)}>
+                        <Frame color={theme.border} height=CHROME_BORDER radius=0 />
+                    </Show>
+                </List>
+                <Show condition={ruled(Side::Right)}>
+                    <Frame color={theme.border} width=CHROME_BORDER radius=0 />
+                </Show>
+            </List>
         </Frame>
     }
 }

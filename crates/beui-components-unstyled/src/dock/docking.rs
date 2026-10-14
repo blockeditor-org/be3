@@ -50,6 +50,7 @@ enum NodeKind<K: 'static> {
         active: Option<K>,
         vertical: bool,
         sidebar: f32,
+        side: bool,
         empty: Option<RenderFn<()>>,
         entries: Run<DockEntry<K>>,
     },
@@ -115,6 +116,7 @@ pub fn DockPane<K>(
     active: Option<K>,
     #[prop(default = false)] vertical: bool,
     #[prop(default = SIDEBAR_WIDTH)] sidebar_width: f32,
+    #[prop(default = false)] side: bool,
     empty: Option<RenderFn<()>>,
     children: Children<DockEntry<K>>,
 ) -> DockNode<K>
@@ -127,6 +129,7 @@ where
             active,
             vertical,
             sidebar: sidebar_width,
+            side,
             empty,
             entries: children.into_run(),
         },
@@ -593,11 +596,15 @@ impl<K: DockKey> DockingLayout<K> {
                 active,
                 vertical,
                 sidebar,
+                side,
                 empty,
                 entries,
             } => {
                 if empty.is_some() {
                     found.panes.insert(key.clone(), Rc::clone(node));
+                }
+                if *side {
+                    found.sides.insert(key.clone());
                 }
                 let entries = entries
                     .items()
@@ -653,6 +660,7 @@ struct Found<K: 'static> {
     groups: HashMap<String, Rc<DockEntry<K>>>,
     dialogs: Vec<(TabId, TabId)>,
     parts: HashMap<TabId, DialogParts>,
+    sides: HashSet<String>,
 }
 
 impl<K: 'static> Default for Found<K> {
@@ -663,6 +671,7 @@ impl<K: 'static> Default for Found<K> {
             groups: HashMap::new(),
             dialogs: Vec::new(),
             parts: HashMap::new(),
+            sides: HashSet::new(),
         }
     }
 }
@@ -818,6 +827,13 @@ where
             },
         }
     });
+    let sided = found;
+    let side = Func::new(move |leaf: LeafId| {
+        let key = layout
+            .state
+            .with(|state| state.pane_key(leaf).map(str::to_owned));
+        key.is_some_and(|key| sided.with(|found| found.sides.contains(&key)))
+    });
     let grouped = found;
     let group_title = Func::new(move |group: GroupId| {
         let key = layout
@@ -841,6 +857,7 @@ where
                 on_close: Callback::new(on_close),
                 title,
                 group_title,
+                side,
                 icon,
                 picture,
                 closable,
