@@ -10,6 +10,7 @@ use wayland_protocols::wp::single_pixel_buffer::v1::client::wp_single_pixel_buff
 use wayland_protocols::wp::tearing_control::v1::client::{
     wp_tearing_control_manager_v1, wp_tearing_control_v1,
 };
+use wayland_protocols::wp::viewporter::client::{wp_viewport, wp_viewporter};
 use wayland_protocols::xdg::foreign::zv2::client::{
     zxdg_exported_v2, zxdg_exporter_v2, zxdg_imported_v2, zxdg_importer_v2,
 };
@@ -66,6 +67,11 @@ impl TestClient {
         let manager: wp_tearing_control_manager_v1::WpTearingControlManagerV1 =
             self.bind("wp_tearing_control_manager_v1", 1);
         manager.get_tearing_control(surface, &self.handle, ())
+    }
+
+    pub(crate) fn viewport(&self, surface: &wl_surface::WlSurface) -> wp_viewport::WpViewport {
+        let viewporter: wp_viewporter::WpViewporter = self.bind("wp_viewporter", 1);
+        viewporter.get_viewport(surface, &self.handle, ())
     }
 
     pub(crate) fn single_pixel(&self, rgba: [u32; 4]) -> wl_buffer::WlBuffer {
@@ -185,3 +191,5 @@ wayland_client::delegate_noop!(Received: ignore zxdg_imported_v2::ZxdgImportedV2
 wayland_client::delegate_noop!(Received: ignore xdg_toplevel_icon_v1::XdgToplevelIconV1);
 wayland_client::delegate_noop!(Received: ignore wl_subcompositor::WlSubcompositor);
 wayland_client::delegate_noop!(Received: ignore wl_subsurface::WlSubsurface);
+wayland_client::delegate_noop!(Received: ignore wp_viewporter::WpViewporter);
+wayland_client::delegate_noop!(Received: ignore wp_viewport::WpViewport);

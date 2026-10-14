@@ -76,6 +76,7 @@ struct Inner {
     accessibility: RefCell<Vec<Fragment>>,
     accessibility_actions: RefCell<Vec<ActionRequest>>,
     accessibility_active: Cell<bool>,
+    accessibility_requested: Cell<bool>,
     automated: Cell<bool>,
     actions: RefCell<Vec<ActionGroup>>,
     action_requests: RefCell<Vec<String>>,
@@ -268,6 +269,7 @@ impl Context {
                 accessibility: RefCell::new(Vec::new()),
                 accessibility_actions: RefCell::new(Vec::new()),
                 accessibility_active: Cell::new(true),
+                accessibility_requested: Cell::new(false),
                 automated: Cell::new(false),
                 actions: RefCell::new(Vec::new()),
                 action_requests: RefCell::new(Vec::new()),
@@ -334,6 +336,16 @@ impl Context {
 
     pub fn accessibility_active(&self) -> bool {
         self.inner.accessibility_active.get()
+    }
+
+    pub fn set_accessibility_requested(&self, requested: bool) {
+        if self.inner.accessibility_requested.replace(requested) != requested {
+            self.request_repaint();
+        }
+    }
+
+    pub fn accessibility_requested(&self) -> bool {
+        self.inner.accessibility_requested.get()
     }
 
     pub fn set_automated(&self, automated: bool) {

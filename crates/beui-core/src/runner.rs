@@ -136,6 +136,7 @@ pub struct Runner {
     automation: Option<Automation>,
     actions: Vec<ActionGroup>,
     unpresented: bool,
+    occluded: bool,
     closing: bool,
     asked: WindowState,
     shown: WindowState,
@@ -173,6 +174,7 @@ impl Runner {
             automation,
             actions: Vec::new(),
             unpresented: false,
+            occluded: false,
             closing: false,
             asked: WindowState::default(),
             shown: WindowState::default(),
@@ -239,6 +241,10 @@ impl Runner {
         !self.events.is_empty() || !self.intake.incoming.is_empty() || self.reports.pending()
     }
 
+    pub fn set_occluded(&mut self, occluded: bool) {
+        self.occluded = occluded;
+    }
+
     pub fn reports(&self) -> &WindowReports {
         &self.reports
     }
@@ -257,11 +263,13 @@ impl Runner {
 
     pub fn accessibility_requested(&mut self) {
         self.publishing_accessibility = true;
+        self.context.set_accessibility_requested(true);
         self.context.reset_accessibility();
     }
 
     pub fn accessibility_deactivated(&mut self) {
         self.publishing_accessibility = false;
+        self.context.set_accessibility_requested(false);
     }
 
     pub fn accessibility_action(&mut self, request: accesskit::ActionRequest) {
@@ -472,7 +480,18 @@ impl Runner {
             platform.set_fullscreen(fullscreen);
         }
 
-        let pending = renderers.prepare(&output, scale, self.app.clear_color());
+        let looked_at = !self.occluded
+            || self
+                .automation
+                .as_ref()
+                .is_some_and(Automation::wants_capture);
+        let pending = match looked_at {
+            true => renderers.prepare(&output, scale, self.app.clear_color()),
+            false => {
+                renderers.note(&output, scale, self.app.clear_color());
+                false
+            }
+        };
         let mut frame = Frame {
             pending,
             deferred: !self.events.is_empty() || self.reports.pending(),
@@ -532,6 +551,9 @@ impl Runner {
     }
 
     fn run_present(&mut self) -> bool {
+        if self.occluded && !self.unpresented {
+            return false;
+        }
         let background = self.app.clear_color();
         let Some(renderers) = self.renderers.as_mut() else {
             return false;

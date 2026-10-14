@@ -509,11 +509,9 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
     fn node_action(
         &mut self,
         region: &Region,
-        node: usize,
-        action: &str,
-        value: Option<block_editor_plugin::NodeValue>,
+        request: block_editor_plugin::accesskit::ActionRequest,
     ) {
-        self.surface(region.region).node_action(node, action, value);
+        self.surface(region.region).node_action(request);
     }
 }
 
