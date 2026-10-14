@@ -79,7 +79,7 @@ pub(crate) fn HandBar(
                                         spot
                                         hand={hand}
                                         bar={rect}
-                                        play={play.clone()}
+                                        play={play}
                                         hidden={hidden}
                                     />
                                 }}

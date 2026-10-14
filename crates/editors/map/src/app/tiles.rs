@@ -1,4 +1,3 @@
-use std::rc::Rc;
 
 use block_editor_beui::beui::reactive::{
     CanvasItem, Frame, Memo, component, create_effect, create_memo, on_cleanup, untrack, view,
@@ -71,11 +70,11 @@ fn magnified(id: TileId, ancestor: TileId) -> Rect {
     )
 }
 
-fn drawn(state: Rc<MapState>, tile: TileId) -> Memo<Option<(Image, Option<Rect>)>> {
+fn drawn(state: MapState, tile: TileId) -> Memo<Option<(Image, Option<Rect>)>> {
     let revision = state.revision;
     create_memo(move || {
         let _ = revision.get();
-        let tiles = state.tiles();
+        state.with_tiles(|tiles| {
         if let Some(image) = tiles.get(&tile).and_then(TileState::image) {
             return Some((image.clone(), None));
         }
@@ -87,6 +86,7 @@ fn drawn(state: Rc<MapState>, tile: TileId) -> Memo<Option<(Image, Option<Rect>)
             }
         }
         None
+        })
     })
 }
 
@@ -98,20 +98,18 @@ fn bled(rect: Rect, scale: f32) -> Rect {
 
 #[component]
 pub(crate) fn Tile(
-    state: Rc<MapState>,
+    state: MapState,
     tile: TileId,
     world: Memo<MapView>,
     scale: Memo<f32>,
     #[prop(default = false)] underlay: bool,
 ) -> CanvasItem {
     if !underlay {
-        let wanted = Rc::clone(&state);
         create_effect(move || {
-            wanted.reloads.with(|_| ());
-            untrack(|| wanted.want_tile(tile));
+            state.reloads.with(|_| ());
+            untrack(|| state.want_tile(tile));
         });
-        let unwanted = Rc::clone(&state);
-        on_cleanup(move || unwanted.unwant_tile(tile));
+        on_cleanup(move || state.unwant_tile(tile));
     }
     let drawn = drawn(state, tile);
     let image = create_memo(move || drawn.get().map(|(image, _)| image));

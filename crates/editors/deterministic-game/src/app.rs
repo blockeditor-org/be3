@@ -5,7 +5,7 @@ use std::rc::Rc;
 use block_editor_beui::ContentProjection;
 use block_editor_beui::be_block::{DeterministicGame, DeterministicGameContent, GameModuleContent};
 use block_editor_beui::beui::reactive::{
-    ReadSignal, WriteSignal, clone, create_effect, create_signal, view,
+    ReadSignal, WriteSignal, create_effect, create_signal, store, view,
 };
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{
@@ -459,21 +459,24 @@ pub struct DeterministicGameApp;
 
 impl block_editor_beui::BeuiApp for DeterministicGameApp {
     fn view(editor: Editor) -> NodeId {
-        let game = Rc::new(BlockGame::new(editor));
+        let game = store(BlockGame::new(editor));
         let (snapshot, set_snapshot) = create_signal(GameSnapshot::Loading);
-        create_effect(clone!(game -> move || set_snapshot.set(game.snapshot())));
-        let model: Rc<dyn GameModel> = game;
+        create_effect(move || set_snapshot.set(game.get().snapshot()));
+        let model: Rc<dyn GameModel> = game.get();
+        let model = store(model);
         view! {
             <GameView editor game={model} snapshot={snapshot} />
         }
     }
 
     fn creation_view(creation: Creation) -> NodeId {
-        let dialog = Rc::new(GameCreation::new(creation.clone()));
+        let dialog = store(GameCreation::new(creation.clone()));
         let (snapshot, set_snapshot) = create_signal(CreationSnapshot::default());
-        create_effect(clone!(dialog -> move || set_snapshot.set(dialog.snapshot())));
-        creation.on_create(clone!(dialog -> move || dialog.create_block()));
-        let model: Rc<dyn GameCreationModel> = dialog;
+        create_effect(move || set_snapshot.set(dialog.get().snapshot()));
+        let maker = dialog.get();
+        creation.on_create(move || maker.create_block());
+        let model: Rc<dyn GameCreationModel> = dialog.get();
+        let model = store(model);
         view! {
             <GameCreationView creation={model} snapshot={snapshot} />
         }

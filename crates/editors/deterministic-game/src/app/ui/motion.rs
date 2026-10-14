@@ -106,7 +106,7 @@ pub(crate) fn flights(
         .collect()
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub(crate) struct Motion {
     pub(crate) flights: ReadSignal<Vec<Flight>>,
     set_flights: WriteSignal<Vec<Flight>>,

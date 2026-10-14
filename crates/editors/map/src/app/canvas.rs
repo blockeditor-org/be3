@@ -3,7 +3,7 @@ use std::rc::Rc;
 use block_editor_beui::be_block::map::MapPoint;
 use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, Child, ForEach, Frame, Interactive, ItemSize, List, Memo, NodeRef,
-    PasteKind, Pasted, clone, component, create_effect, create_memo, create_selector, untrack,
+    PasteKind, Pasted, component, create_effect, create_memo, create_selector, untrack,
     view,
 };
 use block_editor_beui::beui::styled::{Caption, use_theme};
@@ -26,47 +26,44 @@ const HALO: Color32 = Color32::from_rgba_unmultiplied(255, 255, 255, 200);
 const ATTRIBUTION_HEIGHT: f32 = 16.0;
 
 #[component]
-pub(crate) fn MapCanvas(state: Rc<MapState>) -> NodeId {
-    let placed = Rc::clone(&state);
+pub(crate) fn MapCanvas(state: MapState) -> NodeId {
     let revision = state.revision;
     let sized = state.editor().world();
     let laid_out = state.editor().placed();
-    let world = create_memo(clone!(placed -> move || {
-        placed.displayed_region.with(|_| ());
+    let world = create_memo(move || {
+        state.displayed_region.with(|_| ());
         sized.with(|_| ());
         laid_out.with(|_| ());
-        placed.anchor.with(|_| ());
-        placed.view()
-    }));
-    let viewed = Rc::clone(&state);
-    let camera = create_memo(move || viewed.camera());
+        state.anchor.with(|_| ());
+        state.view()
+    });
+    let camera = create_memo(move || state.camera());
     let scale = create_memo(move || camera.get().map_or(1.0, |camera| camera.scale));
-    let seen = Rc::clone(&state);
     let visible = create_memo(move || {
         sized.with(|_| ());
-        seen.visible()
+        state.visible()
     });
-    let covered = Rc::clone(&state);
     let covering = create_memo(move || {
         let (world, visible, scale) = (world.get(), visible.get(), scale.get());
-        match covered.sized() {
+        match state.sized() {
             true => tiles::covering(world, visible, scale),
             false => Vec::new(),
         }
     });
-    let used = Rc::clone(&state);
     create_effect(move || {
         let shown = covering.get();
-        untrack(|| used.use_tiles(&shown));
+        untrack(|| state.use_tiles(&shown));
     });
 
-    let labelled = Rc::clone(&state);
     let measures = Rc::new(labels::Measures::default());
     let candidates = create_memo(move || {
         let _ = revision.get();
-        let held = labelled.tiles();
-        let sources = labels::sources(&held, &covering.get());
-        Rc::new(labels::candidates(&held, &sources, world.get(), &measures))
+        let covering = covering.get();
+        let world = world.get();
+        state.with_tiles(|held| {
+            let sources = labels::sources(held, &covering);
+            Rc::new(labels::candidates(held, &sources, world, &measures))
+        })
     });
     let decluttered =
         create_memo(move || Rc::new(labels::declutter(&candidates.get(), scale.get())));
@@ -77,14 +74,13 @@ pub(crate) fn MapCanvas(state: Rc<MapState>) -> NodeId {
     });
     let by_key = create_memo(move || shown_labels.with(|shown| labels::by_key(shown)));
 
-    let region = Rc::clone(&state);
-    let outline = create_memo(clone!(region -> move || {
+    let outline = create_memo(move || {
         let view = world.get();
-        region
+        state
             .preview_region
             .get()
             .map(|preview| view.region_rect(preview))
-    }));
+    });
     let has_region = create_memo(move || outline.get().is_some());
     let region_rect = create_memo(move || outline.get().unwrap_or(Rect::ZERO));
 
@@ -96,17 +92,14 @@ pub(crate) fn MapCanvas(state: Rc<MapState>) -> NodeId {
             .map(|point| point.id)
             .collect::<Vec<Uuid>>()
     });
-    let selection = create_selector(clone!(state -> move || state.selected.get()));
+    let selection = create_selector(move || state.selected.get());
 
     let theme = use_theme();
-    let markers = Rc::clone(&state);
-    let interaction = Rc::clone(&state);
     let tile_scale = scale;
     let marker_scale = scale;
     let marker_world = world;
     let underlay_scale = scale;
     let underlay_world = world;
-    let underlaid = Rc::clone(&state);
     let content = NodeRef::new();
     state.editor().content(&content);
 
@@ -114,14 +107,13 @@ pub(crate) fn MapCanvas(state: Rc<MapState>) -> NodeId {
         <Frame color={theme.background}>
             <List spacing=0.0>
                 <MapSurface
-                    state={interaction}
+                    state={state}
                     @sizing=ItemSize::Percent(100.0)
                     @node_ref={&content}
                 >
                     <Canvas view={camera} @test_id={"map.canvas"}>
                         <ForEach keys={covering}>
                             {move |tile: TileId| {
-                                let state = Rc::clone(&underlaid);
                                 let world = underlay_world;
                                 let scale = underlay_scale;
                                 view! {
@@ -131,7 +123,6 @@ pub(crate) fn MapCanvas(state: Rc<MapState>) -> NodeId {
                         </ForEach>
                         <ForEach keys={covering}>
                             {move |tile: TileId| {
-                                let state = Rc::clone(&placed);
                                 let world = world;
                                 let scale = tile_scale;
                                 view! {
@@ -151,7 +142,6 @@ pub(crate) fn MapCanvas(state: Rc<MapState>) -> NodeId {
                         <RegionOutline shown={has_region} rect={region_rect} />
                         <ForEach keys={ids}>
                             {move |id: Uuid| {
-                                let state = Rc::clone(&markers);
                                 let selected = selection.memo(Some(id));
                                 let world = marker_world;
                                 let scale = marker_scale;
@@ -183,16 +173,15 @@ fn RegionOutline(shown: Memo<bool>, rect: Memo<Rect>) -> CanvasItem {
 
 #[component]
 fn PointMarker(
-    state: Rc<MapState>,
+    state: MapState,
     id: Uuid,
     selected: Memo<bool>,
     world: Memo<MapView>,
     scale: Memo<f32>,
 ) -> CanvasItem {
-    let held = Rc::clone(&state);
-    let point = create_memo(clone!(held -> move || {
-        held.points.get().into_iter().find(|point| point.id == id)
-    }));
+    let point = create_memo(move || {
+        state.points.get().into_iter().find(|point| point.id == id)
+    });
     let tip = create_memo(move || {
         let view = world.get();
         point
@@ -205,16 +194,15 @@ fn PointMarker(
             points::marker_color(point.color)
         })
     });
-    let named = Rc::clone(&state);
-    let label = create_memo(clone!(named -> move || {
+    let label = create_memo(move || {
         let Some(point) = point.get() else {
             return String::new();
         };
-        match named.label_of(point.block_id) {
+        match state.label_of(point.block_id) {
             Some(label) => label.name,
             None => "Loading…".to_owned(),
         }
-    }));
+    });
     view! {
         <Marker tip={tip} scale={scale} color={color} selected={selected} label={label} />
     }
@@ -231,35 +219,29 @@ fn Attribution() -> NodeId {
 }
 
 #[component]
-fn MapSurface(state: Rc<MapState>, children: Option<Child>) -> NodeId {
-    let pressing = Rc::clone(&state);
-    let dragging = Rc::clone(&state);
-    let releasing = Rc::clone(&state);
-    let pasting = Rc::clone(&state);
-    let pasted_state = Rc::clone(&state);
-    let panning = Rc::clone(&state);
+fn MapSurface(state: MapState, children: Option<Child>) -> NodeId {
     view! {
         <Interactive
             focusable=true
             pastes={vec![PasteKind::Image]}
-            on_paste={move |pasted: Pasted| pasted_state.take_paste(pasted)}
+            on_paste={move |pasted: Pasted| state.take_paste(pasted)}
             on_key={move |press: KeyPress| {
                 if (press.key == Key::Delete || press.key == Key::Backspace)
-                    && let Some(id) = pasting.selected.get_untracked() {
-                        pasting.remove_point(id);
+                    && let Some(id) = state.selected.get_untracked() {
+                        state.remove_point(id);
                         return true;
                     }
                 false
             }}
             cursor=CursorIcon::Default
-            on_press={move |press: PointerPress| pressing.press(press.pos)}
-            on_drag={move |press: PointerPress| dragging.drag(press.pos)}
+            on_press={move |press: PointerPress| state.press(press.pos)}
+            on_drag={move |press: PointerPress| state.drag(press.pos)}
             on_active_change={move |active: bool| {
                 if !active {
-                    releasing.release();
+                    state.release();
                 }
             }}
-            on_pan_drag={move |delta: Vec2| panning.pan(delta)}
+            on_pan_drag={move |delta: Vec2| state.pan(delta)}
             children={children}
         />
     }

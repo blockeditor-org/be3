@@ -1,4 +1,3 @@
-use std::rc::Rc;
 
 use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, Drawing, Frame, Interactive, ItemSize, List, PlacementBuilder, ReadSignal,
@@ -15,7 +14,7 @@ use crate::geometry::{artwork_rect, screen_to_world};
 use super::state::{RayState, Tool};
 
 #[component]
-pub(crate) fn Artwork(state: Rc<RayState>) -> NodeId {
+pub(crate) fn Artwork(state: RayState) -> NodeId {
     view! {
         <PlacementBuilder>
             {move |placed: ReadSignal<Rect>| {
@@ -32,7 +31,6 @@ pub(crate) fn Artwork(state: Rc<RayState>) -> NodeId {
                 let top = create_memo(move || artwork.get().top());
                 let side = create_memo(move || artwork.get().width());
 
-                let pressing = Rc::clone(&state);
                 let press_artwork = artwork;
                 let press_view = state.editor().canvas();
                 let on_press = move |press: PointerPress| {
@@ -44,10 +42,9 @@ pub(crate) fn Artwork(state: Rc<RayState>) -> NodeId {
                     ) else {
                         return;
                     };
-                    pressing.press(at);
+                    state.press(at);
                 };
 
-                let dragging = Rc::clone(&state);
                 let drag_artwork = artwork;
                 let drag_view = state.editor().canvas();
                 let on_drag = move |press: PointerPress| {
@@ -59,14 +56,13 @@ pub(crate) fn Artwork(state: Rc<RayState>) -> NodeId {
                     ) else {
                         return;
                     };
-                    dragging.drag(at);
+                    state.drag(at);
                 };
 
-                let hovering = Rc::clone(&state);
                 let hover_artwork = artwork;
                 let hover_view = state.editor().canvas();
                 let on_hover_move = move |press: PointerPress| {
-                    hovering.hover(world_point(
+                    state.hover(world_point(
                         press.pos,
                         &hover_view,
                         editor,
@@ -74,8 +70,6 @@ pub(crate) fn Artwork(state: Rc<RayState>) -> NodeId {
                     ));
                 };
 
-                let releasing = Rc::clone(&state);
-                let removing = Rc::clone(&state);
                 let lighting = state.lighting;
                 let rays = state.rays;
                 let overlay = state.overlay;
@@ -91,7 +85,7 @@ pub(crate) fn Artwork(state: Rc<RayState>) -> NodeId {
                         focusable=true
                         on_key={move |press: KeyPress| {
                             if press.key == Key::Delete || press.key == Key::Backspace {
-                                removing.delete_selected();
+                                state.delete_selected();
                                 return true;
                             }
                             false
@@ -102,7 +96,7 @@ pub(crate) fn Artwork(state: Rc<RayState>) -> NodeId {
                         on_hover_move={on_hover_move}
                         on_active_change={move |active: bool| {
                             if !active {
-                                releasing.release();
+                                state.release();
                             }
                         }}
                     >

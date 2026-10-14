@@ -1,24 +1,18 @@
-use std::rc::Rc;
 
 use block_editor_beui::Toolbar;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
     ICON_ADD, ICON_CROP_FREE, ICON_REFRESH, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
-use block_editor_beui::beui::reactive::{Prop, Show, clone, component, create_memo, view};
+use block_editor_beui::beui::reactive::{Prop, Show, component, create_memo, view};
 use block_editor_beui::beui::styled::{Button, ButtonVariant, Caption, IconButton, use_theme};
 
 use super::state::{MapState, ZOOM_STEP};
 
 #[component]
-pub(crate) fn MapToolbar(state: Rc<MapState>, shown: Prop<bool>) -> NodeId {
-    let add = Rc::clone(&state);
-    let out = Rc::clone(&state);
-    let inward = Rc::clone(&state);
+pub(crate) fn MapToolbar(state: MapState, shown: Prop<bool>) -> NodeId {
     let whole = state.editor();
-    let fit = Rc::clone(&state);
-    let reload = Rc::clone(&state);
-    let regionless = create_memo(clone!(state -> move || state.preview_region.get().is_none()));
+    let regionless = create_memo(move || state.preview_region.get().is_none());
     let error = state.last_error;
     let failed = create_memo(move || error.get().is_some());
     let reason = create_memo(move || error.get().unwrap_or_default());
@@ -30,19 +24,19 @@ pub(crate) fn MapToolbar(state: Rc<MapState>, shown: Prop<bool>) -> NodeId {
                 glyph={ICON_ADD.to_owned()}
                 label="Add a point of interest at the centre of the view"
                 @test_id={"map.add-point"}
-                on_click={move || add.open_picker(None)}
+                on_click={move || state.open_picker(None)}
             />
             <IconButton
                 glyph={ICON_ZOOM_OUT.to_owned()}
-                label="Zoom out"
-                @test_id={"map.zoom-out"}
-                on_click={move || out.zoom(1.0 / ZOOM_STEP)}
+                label="Zoom state"
+                @test_id={"map.zoom-state"}
+                on_click={move || state.zoom(1.0 / ZOOM_STEP)}
             />
             <IconButton
                 glyph={ICON_ZOOM_IN.to_owned()}
                 label="Zoom in"
                 @test_id={"map.zoom-in"}
-                on_click={move || inward.zoom(ZOOM_STEP)}
+                on_click={move || state.zoom(ZOOM_STEP)}
             />
             <Button
                 label="Whole world"
@@ -55,13 +49,13 @@ pub(crate) fn MapToolbar(state: Rc<MapState>, shown: Prop<bool>) -> NodeId {
                 label="Zoom to the preview region"
                 disabled={regionless}
                 @test_id={"map.zoom-region"}
-                on_click={move || fit.request_fit()}
+                on_click={move || state.request_fit()}
             />
             <IconButton
                 glyph={ICON_REFRESH.to_owned()}
                 label="Reload tiles"
                 @test_id={"map.reload"}
-                on_click={move || reload.reload_tiles()}
+                on_click={move || state.reload_tiles()}
             />
             <Show condition={failed}>
                 <Caption content={reason} color={theme.danger} />
