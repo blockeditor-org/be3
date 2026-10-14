@@ -439,18 +439,19 @@ impl ViewData {
             self.set_inverse(&inverse, row, value);
             return;
         }
-        let edit = self.database.read(|database| {
-            let database = database.root();
-            match value {
-                Some(DatabaseValue::Links(targets)) => database.set_links(row, field, &targets),
-                None => Database::set_value(row, field, None)
+        let edit = match value {
+            Some(DatabaseValue::Links(targets)) => self
+                .database
+                .read(|database| database.root().set_links(row, field, &targets)),
+            None => self.database.read(|database| {
+                Database::set_value(row, field, None)
                     .0
                     .into_iter()
-                    .chain(database.set_links(row, field, &[]).0)
-                    .collect(),
-                Some(value) => Database::set_value(row, field, Some(&value)),
-            }
-        });
+                    .chain(database.root().set_links(row, field, &[]).0)
+                    .collect()
+            }),
+            Some(value) => Some(Database::set_value(row, field, Some(&value))),
+        };
         if let Some(edit) = edit {
             self.database.operate(edit);
         }
