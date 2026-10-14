@@ -30,7 +30,6 @@ fn received_at(received: u64) -> String {
 #[component]
 pub(crate) fn NotificationsButton(notifications: DesktopNotifications) -> NodeId {
     let listed = notifications.listed();
-    let browsing = notifications.clone();
     let glyph = create_memo(move || match listed.with(Vec::is_empty) {
         true => ICON_NOTIFICATIONS.to_owned(),
         false => ICON_NOTIFICATIONS_ACTIVE.to_owned(),
@@ -46,11 +45,11 @@ pub(crate) fn NotificationsButton(notifications: DesktopNotifications) -> NodeId
             icon_only=true
             width=NOTIFICATIONS_WIDTH
             @test_id={"desktop.notifications"}
-            on_open_change={move |open: bool| browsing.browse(open)}
+            on_open_change={move |open: bool| notifications.browse(open)}
         >
             {move |handle: PopoverHandle| view! {
                 <NotificationList
-                    notifications={notifications.clone()}
+                    notifications={notifications}
                     listed={listed}
                     popover={handle}
                 />
@@ -68,13 +67,12 @@ fn NotificationList(
     let empty = create_memo(move || listed.with(Vec::is_empty));
     let unclearable = empty;
     let some = create_memo(move || !empty.get());
-    let clearing = notifications.clone();
     let cleared = listed;
     let clear = move || {
         let ids: Vec<u32> =
             cleared.with_untracked(|listed| listed.iter().map(|shown| shown.id).collect());
         if !ids.is_empty() {
-            clearing.dismiss(&ids);
+            notifications.dismiss(&ids);
         }
     };
     view! {
@@ -95,7 +93,7 @@ fn NotificationList(
             </Show>
             <Show condition={some}>
                 <NotificationRows
-                    notifications={notifications.clone()}
+                    notifications={notifications}
                     listed={listed}
                     popover={popover}
                 />
@@ -115,7 +113,7 @@ fn NotificationRows(
             <ForEach keys={listed}>
                 {move |shown: Listed| view! {
                     <NotificationRow
-                        notifications={notifications.clone()}
+                        notifications={notifications}
                         shown
                         popover={popover}
                     />
@@ -134,7 +132,6 @@ fn NotificationRow(
     let theme = use_theme();
     let id = shown.id;
     let activates = shown.activates;
-    let dismissing = notifications.clone();
     let activate = move || match activates {
         true => {
             notifications.activate(id);
@@ -186,7 +183,7 @@ fn NotificationRow(
                 variant=ButtonVariant::Ghost
                 size=IconButtonSize::Compact
                 @test_id={format!("desktop.notifications.{id}.dismiss")}
-                on_click={move || dismissing.dismiss(&[id])}
+                on_click={move || notifications.dismiss(&[id])}
             />
         </List>
     }

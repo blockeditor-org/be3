@@ -86,7 +86,6 @@ fn DesktopBody(workspace: Rc<Workspace>) -> NodeId {
     let shell_dialogs = Rc::clone(&workspace);
     let editor = workspace.editor();
     let launcher = ProgramLauncher::new(editor);
-    let opener = launcher.clone();
     let notifications = DesktopNotifications::new(editor);
     let bar_node = NodeRef::new();
     let theme = use_theme();
@@ -123,8 +122,8 @@ fn DesktopBody(workspace: Rc<Workspace>) -> NodeId {
                 <DesktopBar
                     @node_ref=&bar_node
                     workspace={bar}
-                    notifications={notifications.clone()}
-                    launcher={opener}
+                    notifications={notifications}
+                    launcher={launcher}
                 />
                 <PickerDialogs workspace={pickers} />
                 <WorkspaceDialogs workspace={shell_dialogs} />
