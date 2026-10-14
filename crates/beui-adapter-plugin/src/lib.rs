@@ -203,9 +203,12 @@ impl PluginSurface {
         let origin = region.rect.min;
         let placed = Affine::translate((-f64::from(origin.x), -f64::from(origin.y)))
             * Affine::scale(scale.into());
-        let root = tree.tree.as_ref().map(|tree| tree.root);
+        let root = tree
+            .tree
+            .as_ref()
+            .map_or(beui_core::accessibility::WINDOW_NODE, |tree| tree.root);
         for (id, node) in &mut tree.nodes {
-            if Some(*id) == root {
+            if *id == root {
                 node.set_transform(placed);
             }
         }
