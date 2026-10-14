@@ -35,6 +35,11 @@ fn touch_emulation_turns_the_mouse_into_a_finger() {
         ],
         "only the primary button is a finger, and positions arrive in points"
     );
+    assert_eq!(
+        intaken.runner.window().cursor,
+        CursorIcon::Crosshair,
+        "every platform shows the finger as a crosshair"
+    );
 
     intaken
         .runner
@@ -51,4 +56,5 @@ fn touch_emulation_turns_the_mouse_into_a_finger() {
         [Event::PointerMoved(pos2(11.0, 20.0))],
         "after which the mouse is a mouse again"
     );
+    assert_eq!(intaken.runner.window().cursor, CursorIcon::Default);
 }
