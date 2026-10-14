@@ -100,6 +100,9 @@ impl<'de> Deserialize<'de> for Templates {
 }
 
 fn block_type(source: &str) -> Result<[u8; 16], ManifestError> {
+    if source == crate::ANY_BLOCK_TYPE_NAME {
+        return Ok(crate::ANY_BLOCK_TYPE);
+    }
     Uuid::parse_str(source)
         .map(Uuid::into_bytes)
         .map_err(|_| ManifestError::InvalidBlockType)

@@ -17,7 +17,6 @@ use block_editor_beui::{
 use uuid::Uuid;
 
 use super::artifact::ArtifactBar;
-use super::block_data::BlockData;
 use super::linked::LinkedBar;
 use super::phone::DetailsSheet;
 use super::status::StatusBar;
@@ -36,11 +35,11 @@ pub(crate) struct Refs {
 #[derive(Clone, PartialEq)]
 pub(crate) struct Info {
     pub(crate) item: TabItem,
+    pub(crate) editor: Option<Uuid>,
     pub(crate) view: Option<Uuid>,
     pub(crate) access: AccessLevel,
     pub(crate) ceiling: AccessLevel,
     pub(crate) can_edit: bool,
-    pub(crate) debugging: bool,
     pub(crate) dynamic_artifact: bool,
     pub(crate) type_name: String,
     pub(crate) parent: Option<BlockParent>,
@@ -54,7 +53,6 @@ pub(crate) struct Info {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Content {
     Block,
-    Debug,
     Denied,
 }
 
@@ -96,10 +94,6 @@ pub(crate) fn read_info(
     watched.follow(&workspace.blocks(), item.id);
     let access = workspace.access(item.id);
     let ceiling = workspace.ceiling(item.id);
-    let debugging = workspace.is_debugged(item.id);
-    if debugging && !ceiling.can_view() {
-        workspace.debug(item.id, false);
-    }
     let parent = workspace.info(item.id).map(|info| info.parent);
     let parents = refs(watched.parents.as_ref());
     let references = refs(watched.references.as_ref());
@@ -117,12 +111,12 @@ pub(crate) fn read_info(
         .display_name(item.block_type)
         .map_or_else(|| item.block_type.to_string(), str::to_owned);
     Some(Info {
+        editor: workspace.editor_of(&item),
         item,
         view: workspace.view_of(tab),
         access,
         ceiling,
         can_edit: workspace.can_edit(item.id),
-        debugging: debugging && ceiling.can_view(),
         dynamic_artifact: workspace
             .info(item.id)
             .is_some_and(|info| info.is_artifact()),
@@ -147,7 +141,6 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
         set_info.set(read_info(&workspace, tab, &watched));
     });
     let content = create_memo(move || match info.get() {
-        Some(info) if info.debugging => Content::Debug,
         Some(info) if !info.access.can_view() => Content::Denied,
         Some(_) | None => Content::Block,
     });
@@ -173,13 +166,6 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
                 <Dynamic value={content}>
                     {move |content: Content| {
                         match content {
-                            Content::Debug => view! {
-                                <BlockData
-                                    @sizing=ItemSize::Percent(100.0)
-                                    workspace={workspace}
-                                    info={info}
-                                />
-                            },
                             Content::Denied => view! {
                                 <AccessDenied @sizing=ItemSize::Percent(100.0) info={info} />
                             },
@@ -218,7 +204,8 @@ fn BlockChild(
     let target = create_memo(move || {
         info.with(|info| {
             info.as_ref().map(|info| {
-                let target = ChildTarget::new(info.item.id, info.item.block_type);
+                let target =
+                    ChildTarget::new(info.item.id, info.item.block_type).edited_with(info.editor);
                 match info.view {
                     Some(view) => target.viewed_by(view),
                     None => target,

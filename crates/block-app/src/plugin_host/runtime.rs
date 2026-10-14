@@ -1183,14 +1183,10 @@ pub(crate) fn show_panel(plugin_id: &str, instance: EditorInstanceId, panel: Hos
 pub(crate) fn show_block(
     plugin_id: &str,
     instance: EditorInstanceId,
-    block_id: Uuid,
-    block_type: Uuid,
-    via: Option<Uuid>,
+    open: crate::editors::BlockOpen,
 ) {
     with(plugin_id, |runtime| {
-        let messages = runtime
-            .instances
-            .show_block(instance, block_id, block_type, via);
+        let messages = runtime.instances.show_block(instance, open);
         runtime.send(messages);
     });
 }
@@ -1933,12 +1929,8 @@ pub(crate) fn take_region_actions(
     use crate::editors::EditorAction;
     with(plugin_id, |runtime| {
         let mut actions = Vec::new();
-        while let Some((id, block_type, via)) = runtime.instances.take_open(instance) {
-            actions.push(EditorAction::OpenBlock {
-                id,
-                block_type,
-                via,
-            });
+        while let Some(open) = runtime.instances.take_open(instance) {
+            actions.push(EditorAction::OpenBlock(open));
         }
         while let Some((id, command)) = runtime.instances.take_block_command(instance) {
             actions.push(EditorAction::Command { id, command });

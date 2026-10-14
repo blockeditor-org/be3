@@ -9422,6 +9422,35 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/editors/block-debug": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "block_debug",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "block_debug",
+        "platforms": {
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/editors/browser-tab": {
         "binaries": [],
         "edition": "2024",

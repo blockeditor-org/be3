@@ -224,7 +224,7 @@ impl ContentLink {
     }
 }
 
-pub(super) type OpenRequest = (Uuid, Uuid, Option<Uuid>);
+pub(super) type OpenRequest = crate::editors::BlockOpen;
 
 #[derive(Clone, Default, PartialEq)]
 pub(crate) struct Focus {
@@ -1514,10 +1514,12 @@ impl Instances {
                     block_id,
                     block_type,
                     view_block,
+                    editor,
                 } => super::HostContent::Block {
                     block_id: Uuid::from_bytes(*block_id),
                     block_type: Uuid::from_bytes(*block_type),
                     view_block: view_block.map(Uuid::from_bytes),
+                    editor: editor.map(Uuid::from_bytes),
                 },
                 ChildContent::Host(panel) => super::HostContent::Panel(*panel),
                 ChildContent::Window(window) => super::HostContent::Window(*window),
@@ -2341,15 +2343,17 @@ impl Instances {
                 block_id,
                 block_type,
                 via,
+                editor,
             } => {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
                 };
-                entry.opens.push((
-                    Uuid::from_bytes(block_id),
-                    Uuid::from_bytes(block_type),
-                    via.map(Uuid::from_bytes),
-                ));
+                entry.opens.push(OpenRequest {
+                    id: Uuid::from_bytes(block_id),
+                    block_type: Uuid::from_bytes(block_type),
+                    via: via.map(Uuid::from_bytes),
+                    editor: editor.map(Uuid::from_bytes),
+                });
                 true
             }
             EditorMessage::Focused {
@@ -2914,18 +2918,17 @@ impl Instances {
     pub(super) fn show_block(
         &mut self,
         instance: EditorInstanceId,
-        block_id: Uuid,
-        block_type: Uuid,
-        via: Option<Uuid>,
+        open: OpenRequest,
     ) -> Vec<Message> {
         if !self.entries.contains_key(&instance) {
             return Vec::new();
         }
         vec![Message::Editor(EditorMessage::ShowBlock {
             instance,
-            block_id: block_id.into_bytes(),
-            block_type: block_type.into_bytes(),
-            via: via.map(Uuid::into_bytes),
+            block_id: open.id.into_bytes(),
+            block_type: open.block_type.into_bytes(),
+            via: open.via.map(Uuid::into_bytes),
+            editor: open.editor.map(Uuid::into_bytes),
         })]
     }
 

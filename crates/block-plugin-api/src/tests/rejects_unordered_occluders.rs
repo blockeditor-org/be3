@@ -15,6 +15,7 @@ fn placements(occluders: Vec<Occluder>) -> Message {
                 block_id: [1; 16],
                 block_type: [2; 16],
                 view_block: None,
+                editor: None,
             },
             rect: ChildRect::default(),
             clip: ChildRect::default(),

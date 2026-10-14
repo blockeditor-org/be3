@@ -102,13 +102,7 @@ pub(crate) fn apply(
 ) {
     let permissions = permissions(workspace, reference, containing);
     match action {
-        Action::Open => workspace.open(
-            TabItem {
-                id: reference.id,
-                block_type: reference.block_type,
-            },
-            None,
-        ),
+        Action::Open => workspace.open(TabItem::new(reference.id, reference.block_type), None),
         Action::Picker => workspace.open_picker(reference.id),
         Action::SetParent(parent) => workspace.blocks().set_parent(reference.id, parent),
         Action::Rename => workspace.open_dialog(OpenDialog::Rename(reference.id)),

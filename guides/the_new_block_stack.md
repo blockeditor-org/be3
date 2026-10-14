@@ -884,8 +884,8 @@ each made one before seeing the other's, both are read as one
 lowest. The settings editor shows someone else's `Settings` or settings profile
 with a notice, and makes and changes nothing in it.
 
-Each kind of setting (`UiSettings`, `InputSettings`, `DisplaySettings`, the
-logic hotbar) is a block of its own, and is read through layers:
+Each kind of setting (`UiSettings`, `InputSettings`, `DisplaySettings`,
+`EditorSettings`, the logic hotbar) is a block of its own, and is read through layers:
 
 - The `Settings` block's `kinds` map a kind's content type to the block that
   holds it for every device.
@@ -900,7 +900,11 @@ the profile sets wins field by field, and what it leaves unset falls through to
 the settings for every device, then to the built-in default. Every field of a
 layered kind is an `Option` for this. `Editor::inherited_settings` gives a
 kind's editor what the layers below its block resolve to, which the UI, input
-and display settings editors show for what is unset. The hotbar is not merged:
+and display settings editors show for what is unset, and
+`Editor::effective_settings` what every layer resolves to, which is how the
+workspace reads `EditorSettings`: the default editor of each block type, keyed
+by the editor ids the host's catalog lists (see guides/adding_a_plugin_editor.md).
+The hotbar is not merged:
 the logic editors use the topmost layer that has one, and make one for every
 device when there is none yet (`RootSetting::ensure`).
 

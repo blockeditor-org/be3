@@ -267,13 +267,7 @@ fn RelatedRow(workspace: Workspace, reference: Memo<Option<BlockInfo>>, named: S
             BlockParent::Block(parent) => Some(parent),
             BlockParent::Root | BlockParent::Detached => None,
         };
-        workspace.open(
-            TabItem {
-                id: reference.id,
-                block_type: reference.block_type,
-            },
-            via,
-        );
+        workspace.open(TabItem::new(reference.id, reference.block_type), via);
     };
     view! {
         <ActionRow @test_id={named} label={name} glyph on_click={opening} />

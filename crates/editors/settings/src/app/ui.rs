@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::settings::{Settings, SettingsProfile};
 use block_editor_beui::be_block::{
-    BlockContent, DisplaySettingsContent, InputSettingsContent, LiveEdit, SettingsContent,
-    SettingsProfileContent, UiSettingsContent,
+    BlockContent, DisplaySettingsContent, EditorSettingsContent, InputSettingsContent, LiveEdit,
+    SettingsContent, SettingsProfileContent, UiSettingsContent,
 };
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_CHECK};
@@ -205,6 +205,7 @@ fn Kinds<C: Layer>(editor: Editor, layer: ContentProjection<C>, blocked: Memo<bo
     let open_ui = opener::<C, UiSettingsContent>(editor, layer);
     let open_input = opener::<C, InputSettingsContent>(editor, layer);
     let open_display = opener::<C, DisplaySettingsContent>(editor, layer);
+    let open_editors = opener::<C, EditorSettingsContent>(editor, layer);
     let (ui_blocked, input_blocked) = (blocked, blocked);
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
@@ -228,6 +229,13 @@ fn Kinds<C: Layer>(editor: Editor, layer: ContentProjection<C>, blocked: Memo<bo
                 disabled={blocked}
                 @test_id={"settings.display-settings"}
                 on_click={open_display}
+            />
+            <Button
+                label="Default editors"
+                variant=ButtonVariant::Secondary
+                disabled={blocked}
+                @test_id={"settings.default-editors"}
+                on_click={open_editors}
             />
         </List>
     }
