@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::database::{Database, DatabaseContent};
-use block_editor_beui::{Creation, Editor, OwnedEditor, EditorHost};
+use block_editor_beui::{Creation, Editor, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 

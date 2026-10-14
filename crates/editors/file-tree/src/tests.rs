@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::EditorViewContent;
 use block_editor_beui::beui::{Document, Event, Modifiers, NodeId, PointerButton, Pos2, Vec2};
-use block_editor_beui::{OwnedEditor, EditorHost};
+use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 

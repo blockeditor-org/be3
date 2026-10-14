@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::AudioContent;
-use block_editor_beui::{AudioStatus, Editor, OwnedEditor, EditorHost};
+use block_editor_beui::{AudioStatus, Editor, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 

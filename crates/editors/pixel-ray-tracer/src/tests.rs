@@ -2,7 +2,7 @@ use block_editor_beui::be_block::PixelRayTracerContent;
 use block_editor_beui::be_block::pixel_ray_tracer::{
     PIXEL_RAY_TRACER_BACKGROUND, PixelRayTracerOperation, PixelUpdate, Scene,
 };
-use block_editor_beui::{OwnedEditor, EditorHost};
+use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 

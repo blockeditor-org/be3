@@ -143,7 +143,9 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
             })
     });
     let own = create_memo(move || {
-        parent.get().is_some_and(|parent| is_own_settings(&editor, parent))
+        parent
+            .get()
+            .is_some_and(|parent| is_own_settings(&editor, parent))
     });
     let others = create_memo(move || !own.get());
     let blocked = blocked(editor, &profile, own);

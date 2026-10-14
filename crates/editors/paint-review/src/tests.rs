@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use block_editor_beui::be_block::paint::PaintReview;
 use block_editor_beui::be_block::{PaintReviewContent, PaintSnapshotContent, PaintSnapshotHeader};
 use block_editor_beui::{BlockInfo, BlockParent};
-use block_editor_beui::{OwnedEditor, EditorHost};
+use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::{BeuiTest, ContentStore};
 use paint_snapshot::{Content, Frame, Primitive, Snapshot, Texture, Triangle, Vertex};
 use uuid::Uuid;

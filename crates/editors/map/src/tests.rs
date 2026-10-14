@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::map::MapRegion;
 use block_editor_beui::be_block::{Map, MapContent};
-use block_editor_beui::{OwnedEditor, EditorHost, FetchResult, HostReply, HostRequest};
+use block_editor_beui::{EditorHost, FetchResult, HostReply, HostRequest, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 

@@ -3,7 +3,7 @@ use block_editor_beui::PeerPresence;
 use block_editor_beui::be_block::block_url::block_url;
 use block_editor_beui::be_block::presence::{PresenceColor, PresenceKind};
 use block_editor_beui::be_block::{TextBlock, TextContent};
-use block_editor_beui::{OwnedEditor, EditorHost};
+use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 

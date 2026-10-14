@@ -1,5 +1,5 @@
 use block_editor_beui::beui::{Rect, Vec2, pos2};
-use block_editor_beui::{Editor, OwnedEditor, EditorHost, ViewChange};
+use block_editor_beui::{Editor, EditorHost, OwnedEditor, ViewChange};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 

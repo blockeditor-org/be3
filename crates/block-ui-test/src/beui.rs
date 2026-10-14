@@ -5,8 +5,8 @@ use beui::{
 use block_editor_beui::be_block::LiveEdit;
 use block_editor_beui::headless::{Adopted, HeadlessPlugin};
 use block_editor_beui::{
-    Artifacts, BeuiApp, ChildPlacement, ChildStatus, Creation, EditorHost, OwnedEditor,
-    EditorInstanceId, EditorRegion, HostReply, HostRequest, Occluder, PeerPresence, SeededContent,
+    Artifacts, BeuiApp, ChildPlacement, ChildStatus, Creation, EditorHost, EditorInstanceId,
+    EditorRegion, HostReply, HostRequest, Occluder, OwnedEditor, PeerPresence, SeededContent,
     ShownPresence, ViewChange, WebViewCommand, WebViewId,
 };
 use block_plugin_api::{

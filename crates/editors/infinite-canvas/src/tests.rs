@@ -8,7 +8,7 @@ use block_editor_beui::be_block::canvas::{
 };
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::beui::Vec2;
-use block_editor_beui::{BlockInfo, BlockParent, OwnedEditor, EditorHost};
+use block_editor_beui::{BlockInfo, BlockParent, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 

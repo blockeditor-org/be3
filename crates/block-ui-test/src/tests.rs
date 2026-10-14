@@ -2,7 +2,7 @@ use beui::NodeId;
 use beui::reactive::{Frame, ReadSignal, Text, component, create_memo, view};
 use block_editor_beui::{
     BeuiApp, ChildBlock, ChildBlockHandle, ChildContent, ChildMode, ChildState, ChildTarget,
-    Editor, OwnedEditor, EditorHost,
+    Editor, EditorHost, OwnedEditor,
 };
 use uuid::Uuid;
 

@@ -7,9 +7,9 @@ use beui::icons::{
     ICON_UNDO,
 };
 use beui::reactive::{
-    Action, Chord, ClickCallback, ItemSize, List, Memo, OwnedSignal, ReadSignal, Stored, WriteSignal,
-    clone, component, create_effect, create_memo, create_signal, menu_actions, on_finger_tap,
-    on_key, provide_context, store, untrack, use_context, view,
+    Action, Chord, ClickCallback, ItemSize, List, Memo, OwnedSignal, ReadSignal, Stored,
+    WriteSignal, clone, component, create_effect, create_memo, create_signal, menu_actions,
+    on_finger_tap, on_key, provide_context, store, untrack, use_context, view,
 };
 use beui::styled::CommandPalette;
 use beui::{Document, Key, KeyAt, KeyPhase};
@@ -266,24 +266,16 @@ fn frame_actions(
     let id = editor.block_id();
     let can = |read: fn(&BarState) -> bool| create_memo(move || live.get() && state.with(read));
     FrameActions {
-        undo: Action::new(
-            "editor.undo",
-            "Undo",
-            move || {
-                watched.with(|watched| watched.try_step(false));
-            },
-        )
+        undo: Action::new("editor.undo", "Undo", move || {
+            watched.with(|watched| watched.try_step(false));
+        })
         .glyph(ICON_UNDO)
         .shortcut(Chord::ctrl(Key::Z))
         .enabled(can(|state| state.can_undo))
         .register(),
-        redo: Action::new(
-            "editor.redo",
-            "Redo",
-            move || {
-                watched.with(|watched| watched.try_step(true));
-            },
-        )
+        redo: Action::new("editor.redo", "Redo", move || {
+            watched.with(|watched| watched.try_step(true));
+        })
         .glyph(ICON_REDO)
         .shortcut(Chord::ctrl(Key::Z).shift())
         .shortcut(Chord::ctrl(Key::Y))
@@ -340,7 +332,9 @@ pub(crate) fn FrameMenu(
     let actions = frame_actions(editor, watched, state, live, closable, on_exit);
     let visible = live;
     let tapping = live;
-    on_finger_tap(move |fingers: usize| tapping.get_untracked() && watched.with(|watched| watched.finger_tap(fingers)));
+    on_finger_tap(move |fingers: usize| {
+        tapping.get_untracked() && watched.with(|watched| watched.finger_tap(fingers))
+    });
     create_effect(move || {
         if visible.get() {
             set_state.set(watched.with(Watched::read));

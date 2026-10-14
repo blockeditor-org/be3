@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::DisplaySettingsContent;
 use block_editor_beui::be_block::display_settings::{DisplayMode, ScreenOff};
 use block_editor_beui::beui::Key;
-use block_editor_beui::{Displays, OwnedEditor, EditorHost, HostDisplay, HostDisplayMode};
+use block_editor_beui::{Displays, EditorHost, HostDisplay, HostDisplayMode, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 

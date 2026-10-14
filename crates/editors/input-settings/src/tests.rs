@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::InputSettingsContent;
 use block_editor_beui::be_block::input_settings::InputDevice;
 use block_editor_beui::beui::Key;
-use block_editor_beui::{OwnedEditor, EditorHost, HostInputDevice, InputDevices};
+use block_editor_beui::{EditorHost, HostInputDevice, InputDevices, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 

@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::GameModuleContent;
-use block_editor_beui::{Editor, OwnedEditor, EditorHost, PickedFile};
+use block_editor_beui::{Editor, EditorHost, OwnedEditor, PickedFile};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 

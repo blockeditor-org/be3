@@ -3,8 +3,8 @@ use block_editor_beui::be_block::{
     Checkout, CheckoutConflict, CheckoutContent, ConflictKind, Repository, RepositoryContent,
 };
 use block_editor_beui::{
-    BeuiApp, ConflictSide, OwnedEditor, EditorHost, VersionBranch, VersionChange, VersionChangeKind,
-    VersionCommand, VersionCommit, VersionStatus,
+    BeuiApp, ConflictSide, EditorHost, OwnedEditor, VersionBranch, VersionChange,
+    VersionChangeKind, VersionCommand, VersionCommit, VersionStatus,
 };
 use block_ui_test::BeuiTest;
 use uuid::Uuid;

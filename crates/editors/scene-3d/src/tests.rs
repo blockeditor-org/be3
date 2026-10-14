@@ -1,4 +1,4 @@
-use block_editor_beui::{OwnedEditor, EditorHost};
+use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 

@@ -381,7 +381,12 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
             .editor
             .as_deref()
             .and_then(Editor::intrinsic_size)
-            .or_else(|| self.views.preview.as_deref().and_then(Editor::intrinsic_size))
+            .or_else(|| {
+                self.views
+                    .preview
+                    .as_deref()
+                    .and_then(Editor::intrinsic_size)
+            })
             .or_else(A::intrinsic_size)
     }
 

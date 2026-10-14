@@ -62,11 +62,7 @@ pub fn PresentationView(editor: Editor) -> NodeId {
                     />
                     <Frame visible={editing} width=theme::BORDER_WIDTH color={theme.border} />
                     <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                        <Toolbar
-                            editor={editor}
-                            slides={Rc::clone(&slides)}
-                            shown={editing}
-                        />
+                        <Toolbar editor={editor} slides={Rc::clone(&slides)} shown={editing} />
                         <Frame visible={editing} height=theme::BORDER_WIDTH color={theme.border} />
                         <Stage
                             @sizing=ItemSize::Percent(100.0)

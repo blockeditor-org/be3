@@ -49,13 +49,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
 
     let tree_ref = NodeRef::new();
     let (landing, set_landing) = create_signal(None::<(RowKey, bool)>);
-    let dropping = (
-        editor,
-        Rc::clone(&held),
-        rows,
-        tree_ref,
-        editor.drag(),
-    );
+    let dropping = (editor, Rc::clone(&held), rows, tree_ref, editor.drag());
     let arriving = create_memo(move || landing.get());
 
     let item = move |key: RowKey| {
@@ -146,13 +140,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let phone_inspect = inspect;
     let covered = create_memo(move || inspecting.get().is_some());
     create_effect(move || {
-        let landed = arrival(
-            dropping.0,
-            &dropping.1,
-            dropping.2,
-            &dropping.3,
-            dropping.4,
-        );
+        let landed = arrival(dropping.0, &dropping.1, dropping.2, &dropping.3, dropping.4);
         set_landing.set(landed);
     });
     view! {
@@ -373,14 +361,7 @@ fn TreeRow(
         };
         picker.open(editor, Some(id), [id].into_iter().collect::<HashSet<Uuid>>());
     });
-    let chose = menu_action(
-        editor,
-        Rc::clone(&tree),
-        picker,
-        exporter,
-        inspect,
-        row,
-    );
+    let chose = menu_action(editor, Rc::clone(&tree), picker, exporter, inspect, row);
     let add = create_memo(move || !row.get().is_some_and(|row| row.can_add));
     let edit = create_memo(move || !row.get().is_some_and(|row| row.can_edit));
     let unlinkable = create_memo(move || {
@@ -674,13 +655,7 @@ impl Picker {
         self.request(editor, parent, excluded, true);
     }
 
-    fn request(
-        &self,
-        editor: Editor,
-        parent: Option<Uuid>,
-        excluded: HashSet<Uuid>,
-        placed: bool,
-    ) {
+    fn request(&self, editor: Editor, parent: Option<Uuid>, excluded: HashSet<Uuid>, placed: bool) {
         self.set_error.set(None);
         self.target.set(parent);
         let place = parent.map_or(BlockParent::Root, BlockParent::Block);

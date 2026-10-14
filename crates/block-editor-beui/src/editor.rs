@@ -5,8 +5,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use be_block::presence::PresenceKind;
 use beui::reactive::{
-    Callback, CanvasView, EmbedSlot, Memo, NodeRef, OwnedSignal, OwnedStored, Stored, Prop, ReadSignal, RootScope,
-    Scope, WriteSignal, create_effect, create_memo, create_signal, on_cleanup, untrack,
+    Callback, CanvasView, EmbedSlot, Memo, NodeRef, OwnedSignal, OwnedStored, Prop, ReadSignal,
+    RootScope, Scope, Stored, WriteSignal, create_effect, create_memo, create_signal, on_cleanup,
+    untrack,
 };
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
@@ -336,11 +337,7 @@ impl OwnedEditor {
         Self::scaled(host, block, Rc::default())
     }
 
-    pub(crate) fn scaled(
-        host: EditorHost,
-        block: Uuid,
-        beui: Rc<Cell<BeuiScale>>,
-    ) -> Self {
+    pub(crate) fn scaled(host: EditorHost, block: Uuid, beui: Rc<Cell<BeuiScale>>) -> Self {
         defer_graph_changes(&host);
         let owner = RootScope::new();
         let (canvas, set_canvas) = create_signal(None::<CanvasView>);
@@ -588,7 +585,6 @@ impl Editor {
     {
         let state = self.state();
         let cached = state
-            
             .projections
             .borrow()
             .get(&block)
@@ -1015,7 +1011,6 @@ impl Editor {
         if pushed {
             state.pushed.sync(&state.host);
             let keys: Vec<_> = state
-                
                 .host_values
                 .borrow()
                 .iter()
@@ -1137,7 +1132,6 @@ impl Editor {
             state.host.occlude(rect.scaled(unscale));
         }
         let node = state
-            
             .content
             .borrow()
             .as_ref()

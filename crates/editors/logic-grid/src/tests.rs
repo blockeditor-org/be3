@@ -2,7 +2,7 @@ use block_editor_beui::be_block::{BlockContent, CompiledLogicContent};
 
 use block_editor_beui::be_block::LogicGridContent;
 use block_editor_beui::beui::{Key, Pos2, Vec2};
-use block_editor_beui::{Artifact, Artifacts, OwnedEditor, EditorHost};
+use block_editor_beui::{Artifact, Artifacts, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use logicgame::grid::LogicGrid as Grid;
 use uuid::Uuid;
