@@ -33,10 +33,7 @@ fn a_tree_row_decides_which_part_of_it_is_clickable() {
                         view! {
                             <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                                 <Spacer @sizing=ItemSize::Fixed(MARGIN) />
-                                <Interactive
-                                    @sizing=ItemSize::Percent(100.0)
-                                    on_click={select}
-                                >
+                                <Interactive @sizing=ItemSize::Percent(100.0) on_click={select}>
                                     <Text
                                         @test_id={format!("name.{key}")}
                                         string={format!("row {key}")}

@@ -958,11 +958,7 @@ fn ModalSheetBody(
                 let closing = on_close;
                 view! {
                     <List spacing=0.0>
-                        <Interactive
-                            @sizing={room}
-                            @test_id={"sheet.outside"}
-                            on_click={outside}
-                        >
+                        <Interactive @sizing={room} @test_id={"sheet.outside"} on_click={outside}>
                             <Spacer />
                         </Interactive>
                         <Sheet

@@ -21,12 +21,7 @@ pub fn ListRow(
     let face = selected;
     let activates = !on_activate.is_empty();
     view! {
-        <unstyled::ListRow
-            selected
-            activates
-            on_click={on_click}
-            on_activate={on_activate}
-        >
+        <unstyled::ListRow selected activates on_click={on_click} on_activate={on_activate}>
             {move |handle: ButtonHandle| view! {
                 <ListRowFace handle selected={face}>{children}</ListRowFace>
             }}

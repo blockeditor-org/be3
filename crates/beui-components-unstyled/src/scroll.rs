@@ -523,15 +523,7 @@ pub fn Scroll(
         })
     });
     let scroll = view! {
-        <Scrolling
-            direction
-            fit
-            tab_stop
-            focus_color
-            scrollbar
-            marker
-            on_change={on_change}
-        >
+        <Scrolling direction fit tab_stop focus_color scrollbar marker on_change={on_change}>
             {move |report: Callback<ScrollPosition>| {
                 view! {
                     <Fade edges>

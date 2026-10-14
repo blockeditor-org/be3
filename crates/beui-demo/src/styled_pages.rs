@@ -2090,11 +2090,7 @@ fn FullscreenBody(on_close: ClickCallback) -> NodeId {
             <List spacing=ROW_SPACING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Title @sizing=ItemSize::Percent(100.0) content="Fullscreen" />
-                    <Button
-                        label="Close"
-                        variant=ButtonVariant::Secondary
-                        on_click={on_close}
-                    />
+                    <Button label="Close" variant=ButtonVariant::Secondary on_click={on_close} />
                 </List>
                 <Paragraph content="This covers the whole window. Escape closes it too." />
             </List>

@@ -122,11 +122,7 @@ pub(crate) fn ViewerBar(
                 disabled={last}
                 on_click={on_next}
             />
-            <IconButton
-                glyph=ICON_OPEN_IN_NEW
-                label="Open in the browser"
-                on_click={on_browse}
-            />
+            <IconButton glyph=ICON_OPEN_IN_NEW label="Open in the browser" on_click={on_browse} />
             <IconButton
                 @test_id={"viewer.close"}
                 glyph=ICON_CLOSE

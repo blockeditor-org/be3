@@ -192,12 +192,7 @@ where
         <Frame height=ROW_HEIGHT>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Spacer @sizing={indent} />
-                <Chevron
-                    item={item}
-                    marked={marked}
-                    toggle={toggle}
-                    named={chevron_id(&named)}
-                />
+                <Chevron item={item} marked={marked} toggle={toggle} named={chevron_id(&named)} />
                 <Frame
                     @sizing=ItemSize::Percent(100.0)
                     @test_id={row_id(&named)}

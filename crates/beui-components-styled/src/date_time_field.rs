@@ -294,18 +294,10 @@ fn PickerPanel(
                     justify=Justify::SpaceBetween
                     spacing=8.0
                 >
-                    <Button
-                        label=now_label
-                        variant=ButtonVariant::Secondary
-                        on_click={now}
-                    />
+                    <Button label=now_label variant=ButtonVariant::Secondary on_click={now} />
                     <Show condition=clearable>
                         {move || view! {
-                            <Button
-                                label="Clear"
-                                variant=ButtonVariant::Ghost
-                                on_click={clear}
-                            />
+                            <Button label="Clear" variant=ButtonVariant::Ghost on_click={clear} />
                         }}
                     </Show>
                 </List>

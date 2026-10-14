@@ -34,13 +34,7 @@ pub fn SplitButton(
     }));
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <unstyled::Button
-                label
-                glyph
-                disabled={disabled}
-                on_click={on_click}
-                content={main}
-            />
+            <unstyled::Button label glyph disabled={disabled} on_click={on_click} content={main} />
             <unstyled::MenuButton
                 items
                 label={menu_label}
