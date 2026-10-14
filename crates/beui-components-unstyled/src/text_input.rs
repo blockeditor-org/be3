@@ -17,7 +17,7 @@ use crate::TextArea;
 use crate::TextAreaColors;
 use crate::TextAreaState;
 use crate::context_menu_menu;
-use crate::context_menu_overlay;
+use crate::context_menu_open;
 use crate::menu_list_len;
 use crate::menu_list_row_button;
 use crate::menu_popup::MenuStyle;
@@ -295,7 +295,7 @@ pub fn text_input_menu_row(
     index: usize,
 ) -> Option<NodeId> {
     let menu = input(document, input_node).menu.try_get()?;
-    if !document.is_overlay_open(context_menu_overlay(document, menu)) {
+    if !context_menu_open(document, menu) {
         return None;
     }
     let list = context_menu_menu(document, menu);

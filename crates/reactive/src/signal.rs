@@ -40,7 +40,21 @@ impl<T> Tracked for Value<T> {
 }
 
 pub(crate) fn track(tracked: Rc<dyn Tracked>) {
-    if let Some(observer) = RUNTIME.with(|runtime| runtime.observer.borrow().upgrade()) {
+    let Some(observer) = RUNTIME.with(|runtime| runtime.observer.borrow().upgrade()) else {
+        RUNTIME.with(|runtime| {
+            if let Some(probe) = runtime.probe.borrow_mut().as_mut()
+                && !probe
+                    .read
+                    .iter()
+                    .any(|(source, _)| std::ptr::addr_eq(Rc::as_ptr(source), Rc::as_ptr(&tracked)))
+            {
+                let version = tracked.source().version.get();
+                probe.read.push((tracked, version));
+            }
+        });
+        return;
+    };
+    {
         if observer.is_disposed() {
             return;
         }

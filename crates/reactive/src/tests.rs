@@ -7,6 +7,10 @@ use crate::{
     create_memo, create_selector, create_signal, on_cleanup, owner_scope, store, untrack,
 };
 
+mod a_binding_inside_an_effect_tracks_for_itself;
+mod a_binding_reads_the_context_of_the_scope_it_runs_in;
+mod a_binding_runs_at_once_and_again_only_for_what_it_read;
+mod a_binding_that_reads_nothing_leaves_nothing_to_run;
 mod a_child_scope_lives_as_long_as_the_scope_it_was_opened_in;
 mod a_context_reaches_the_effects_a_nested_scope_creates;
 mod a_detached_scope_reads_context_without_its_parent_disposing_it;
@@ -16,6 +20,8 @@ mod a_keyed_row_kept_across_a_rerun_still_reads_context;
 mod a_keyed_store_forgets_items_whose_keys_are_gone;
 mod a_keyed_store_frees_the_signals_of_keys_that_are_gone;
 mod a_keyed_store_only_wakes_the_item_that_changed;
+mod a_memo_that_panics_on_its_first_run_cleans_up_what_it_made;
+mod a_memo_that_reads_nothing_keeps_what_it_made_until_its_scope_goes;
 mod a_nested_pausable_scope_waits_while_any_scope_around_it_is_paused;
 mod a_panicking_effect_can_run_again;
 mod a_paused_scope_defers_its_effects_until_it_resumes;

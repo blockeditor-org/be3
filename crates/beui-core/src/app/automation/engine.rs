@@ -1,4 +1,5 @@
-use std::collections::{HashMap, VecDeque};
+use foldhash::HashMap;
+use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};

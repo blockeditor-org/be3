@@ -1,6 +1,6 @@
+use foldhash::{HashMap, HashSet};
 use std::any::Any;
 use std::cell::{Cell, RefCell};
-use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
@@ -238,8 +238,8 @@ impl Context {
                 verifying: Cell::new(false),
                 damage: RefCell::new(Vec::new()),
                 moves: RefCell::new(Vec::new()),
-                test_ids: RefCell::new(HashMap::new()),
-                ambiguous_test_ids: RefCell::new(HashSet::new()),
+                test_ids: RefCell::new(HashMap::default()),
+                ambiguous_test_ids: RefCell::new(HashSet::default()),
                 copied_text: RefCell::new(None),
                 paste: Cell::new(None),
                 copy_watchers: RefCell::new(Vec::new()),
@@ -273,8 +273,8 @@ impl Context {
                 action_requests: RefCell::new(Vec::new()),
                 hit_query: Cell::new(None),
                 hit_answers: RefCell::new(Vec::new()),
-                accessibility_known: RefCell::new(HashSet::new()),
-                accessibility_published: RefCell::new(HashSet::new()),
+                accessibility_known: RefCell::new(HashSet::default()),
+                accessibility_published: RefCell::new(HashSet::default()),
                 test_ids_published: Cell::new(true),
                 renderer_info: RefCell::new(None),
                 renderers: RefCell::new(RendererChoices::default()),

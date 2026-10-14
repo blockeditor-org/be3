@@ -1,6 +1,6 @@
+use foldhash::HashMap;
 use std::any::Any;
 use std::cell::{Cell, Ref, RefCell};
-use std::collections::HashMap;
 use std::ops::Range;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -384,7 +384,7 @@ impl TextNode {
             painter,
             line_height: self.line_height,
             held: &mut galleys.held,
-            fresh: HashMap::new(),
+            fresh: HashMap::default(),
             shapings: &self.shapings,
         }
     }

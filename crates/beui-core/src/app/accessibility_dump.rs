@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use foldhash::{HashMap, HashSet};
 use std::fmt::Write as _;
 
 use accesskit::{Affine, Node, NodeId, Rect, Role, TreeUpdate};
@@ -67,7 +67,7 @@ impl AccessibilityDump {
         let Some(root) = self.root else {
             return;
         };
-        let mut reached = HashSet::new();
+        let mut reached = HashSet::default();
         let mut text = String::new();
         let mut lines = Vec::new();
         let everywhere = Rect::new(f64::MIN, f64::MIN, f64::MAX, f64::MAX);

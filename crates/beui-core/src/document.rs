@@ -1,6 +1,6 @@
+use foldhash::{HashMap, HashSet};
 use std::any::Any;
 use std::cell::{Cell, RefCell};
-use std::collections::{HashMap, HashSet};
 use std::rc::{Rc, Weak};
 use std::time::Instant;
 
@@ -68,7 +68,7 @@ pub struct Document {
     pub last_pointer: Option<crate::input::PointerSample>,
     pub acted: Acted,
     placement: Option<(Rect, Option<Placement>)>,
-    pub portal_holders: std::collections::HashMap<NodeId, NodeOf<crate::base::portal::PortalNode>>,
+    pub portal_holders: foldhash::HashMap<NodeId, NodeOf<crate::base::portal::PortalNode>>,
     pub(crate) layer_state: crate::layer::OpenLayers,
     pub(crate) focus_scopes: crate::base::focus_scope::FocusScopes,
     pub(crate) focus_dirty: bool,
@@ -268,7 +268,7 @@ impl Document {
             last_pointer: None,
             acted: Acted::Nothing,
             placement: None,
-            portal_holders: std::collections::HashMap::new(),
+            portal_holders: foldhash::HashMap::default(),
             layer_state: Default::default(),
             focus_scopes: Default::default(),
             focus_dirty: false,
@@ -293,15 +293,15 @@ impl Document {
             modifiers: ::reactive::OwnedSignal::new(Modifiers::NONE),
             intercepted_keys: ::reactive::OwnedSignal::new(Vec::new()),
             autoscroll: None,
-            press_claimants: HashSet::new(),
-            outside_watchers: HashSet::new(),
+            press_claimants: HashSet::default(),
+            outside_watchers: HashSet::default(),
             forward: Default::default(),
             pointers: Default::default(),
             paste_requested: false,
             unsent_file_picks: Vec::new(),
             waiting_file_picks: Vec::new(),
-            test_ids: HashMap::new(),
-            node_test_ids: HashMap::new(),
+            test_ids: HashMap::default(),
+            node_test_ids: HashMap::default(),
             layout_revision: 0,
             paint_revision: 0,
             reports: Vec::new(),
@@ -331,12 +331,12 @@ impl Document {
             now: Instant::now(),
             reactive_scope: ::reactive::Scope::new(),
             zone,
-            extensions: HashMap::new(),
-            node_refs: HashMap::new(),
+            extensions: HashMap::default(),
+            node_refs: HashMap::default(),
             placements: NodeMap::default(),
             placed: NodeMap::default(),
-            component_states: HashMap::new(),
-            component_names: HashMap::new(),
+            component_states: HashMap::default(),
+            component_names: HashMap::default(),
             accessibility_id: accessibility::next_document_id(),
             accessibility: NodeMap::default(),
             accessibility_tree: RefCell::default(),
@@ -664,7 +664,7 @@ impl Document {
     }
 
     fn live_nodes(&self) -> HashSet<NodeId> {
-        let mut live = HashSet::new();
+        let mut live = HashSet::default();
         let mut pending: Vec<NodeId> = self.root.into_iter().collect();
         while let Some(id) = pending.pop() {
             if self.arena.contains(id) && live.insert(id) {
@@ -822,7 +822,7 @@ impl Document {
 
     fn remove_nodes(&mut self, ids: &[NodeId]) {
         let leaving: HashSet<NodeId> = ids.iter().copied().collect();
-        let mut parents: HashMap<NodeId, Vec<NodeId>> = HashMap::new();
+        let mut parents: HashMap<NodeId, Vec<NodeId>> = HashMap::default();
         for &id in ids {
             if let Some(parent) = self
                 .arena

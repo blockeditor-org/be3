@@ -1,5 +1,5 @@
+use foldhash::HashMap;
 use std::any::Any;
-use std::collections::HashMap;
 use std::hash::Hash;
 use std::rc::Rc;
 
@@ -40,7 +40,7 @@ impl Metrics {
         let mut metrics = Self {
             count,
             estimated: estimated.max(0.0),
-            lengths: HashMap::new(),
+            lengths: HashMap::default(),
             counts: vec![0; count + 1],
             sums: vec![0.0; count + 1],
             measured: 0.0,
@@ -127,8 +127,8 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         Self {
             direction: Direction::Vertical,
             keys: Vec::new(),
-            indices: HashMap::new(),
-            sizes: HashMap::new(),
+            indices: HashMap::default(),
+            sizes: HashMap::default(),
             metrics: Metrics::new(0, 0.0),
             rows: Rc::new(KeyedItems::new(build)),
             owner: owner_scope(),

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use foldhash::HashMap;
 
 use crate::app::accessibility_dump::Line;
 use crate::geometry::{Pos2, Rect, Vec2, pos2};

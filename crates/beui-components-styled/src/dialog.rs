@@ -11,7 +11,7 @@ use beui_core::geometry::Pos2;
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    Child, ClickCallback, Frame, List, Prop, Show, component_accessibility, create_memo,
+    Child, ClickCallback, Frame, List, Prop, Render, Show, component_accessibility, create_memo,
     create_signal,
 };
 
@@ -27,7 +27,7 @@ pub fn Dialog(
     #[prop(default = String::new())] title: Prop<String>,
     #[prop(default = 360.0)] width: Prop<f32>,
     on_dismiss: ClickCallback,
-    children: Child,
+    #[prop(children)] content: Render,
 ) -> NodeId {
     let closing = on_dismiss;
     let (presence, set_presence) = create_signal(1.0_f32);
@@ -39,15 +39,16 @@ pub fn Dialog(
             placement=Placement::Center
             scrim={scrim}
             on_dismiss={move |_: Dismiss| on_dismiss.call()}
-        >
-            <BackSlide
-                enters=false
-                on_back={closing}
-                on_presence={move |presence: f32| set_presence.set(presence)}
-            >
-                <DialogSurface width={width} title={title}>{children}</DialogSurface>
-            </BackSlide>
-        </Overlay>
+            content={move || view! {
+                <BackSlide
+                    enters=false
+                    on_back={closing}
+                    on_presence={move |presence: f32| set_presence.set(presence)}
+                >
+                    <DialogSurface width={width} title={title}>{content.call(())}</DialogSurface>
+                </BackSlide>
+            }}
+        />
     }
 }
 

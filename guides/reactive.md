@@ -50,7 +50,9 @@ Handles and scopes cannot cross threads.
 - `set_unconditionally(value)` replaces and always notifies.
 
 `create_memo(|| ...)` creates a read-only cached computation with `PartialEq`
-output. It computes once immediately, then refreshes on demand. Memos expose the
+output. It computes once immediately, then refreshes on demand. A memo whose
+first computation reads no signal and leaves nothing to clean up is a constant:
+it keeps its value and no computation at all. Memos expose the
 same reading methods as signals, are `Copy` the same way, and are freed with
 their scope. A changed dependency invalidates downstream
 computations, but equal memo outputs suppress downstream execution. Reading a
@@ -312,8 +314,15 @@ created inside effects run after their parent finishes.
 
 An effect that finishes its first execution without reading a signal, opening a
 scope, or registering a cleanup can never run again, so it is disposed right
-there and releases whatever its closure captured. This is what makes it cheap to
-bind a property with an effect that may turn out to hold a plain value.
+there and releases whatever its closure captured.
+
+`create_binding(|| ...)` is an effect whose first execution happens at once,
+before the batch around it ends, the way a memo's does. If that execution read
+nothing and left nothing to clean up, no computation is made at all; otherwise
+it reruns like an effect. Bind a property of a node that already exists with
+it, as the base components do with their props: most props are plain values,
+and a binding of one costs only its closure. Anything that has to wait for the
+tree it is in to be built, such as moving focus, stays an effect.
 
 `create_effect` returns an `Effect` handle for explicit `dispose()` and
 `is_disposed()` checks. Dropping this handle does not stop the effect; its scope
@@ -391,7 +400,7 @@ for it, whether or not it is paused itself. This is what keeps a hidden
 
 ## beui integration
 
-`beui::reactive` (re-exporting `create_signal`, `create_effect`, `create_memo`,
+`beui::reactive` (re-exporting `create_signal`, `create_effect`, `create_binding`, `create_memo`,
 `create_selector`, `store`, `Scope`, `batch`, `untrack`, `on_cleanup`,
 `provide_context`, and `use_context` from this crate) binds signals and
 memos directly to `Document` nodes. Nothing in a view takes a `&mut Document`
@@ -430,8 +439,9 @@ let document = build(|| view! { <App /> });
 `#[component]` turns a function named `Name` into a `<Name>` usable from `view!`.
 That exact function name is also the constructor that returns the builder `view!`
 fills in. A prop typed `Prop<T>` accepts
-either a plain `T` or a signal or memo of `T`; the reactive forms create an
-effect that keeps that property in sync. Components return their base node
+either a plain `T` or a signal or memo of `T`; the base components bind each
+prop with `create_binding`, which keeps a reactive form in sync and costs a
+plain value nothing after it is set. Components return their base node
 directly. Every tag also accepts the framework slots `@test_id`, `@node_ref`,
 and `@sizing`, which live in their own `@` namespace so a component is free to
 name its own props whatever it likes.

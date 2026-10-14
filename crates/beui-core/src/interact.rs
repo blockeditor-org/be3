@@ -3,7 +3,7 @@ pub mod forward;
 pub mod hit;
 pub mod pointer;
 
-use std::collections::HashMap;
+use foldhash::HashMap;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -453,7 +453,7 @@ impl Tree {
             };
         }
         let along = |placed: Vec<AtNode>| {
-            let mut at: HashMap<NodeId, Vec<Placed>> = HashMap::new();
+            let mut at: HashMap<NodeId, Vec<Placed>> = HashMap::default();
             for placed in placed {
                 at.entry(placed.node).or_default().push(placed.placed);
             }

@@ -1,4 +1,6 @@
-use crate::reactive::{Callback, Child, ClickCallback, Prop, create_effect, with_document};
+use crate::reactive::{
+    Callback, Child, ClickCallback, Prop, create_binding, create_effect, with_document,
+};
 use beui_core::base::list::Direction;
 use beui_core::clipboard::{PasteKind, Pasted};
 use beui_core::geometry::{Pos2, Vec2};
@@ -128,34 +130,34 @@ pub fn Interactive(
         interactive
     });
     if focusable {
-        create_effect(move || {
+        create_binding(move || {
             with_document(|document| document.set_focusable_tab_stop(interactive, tab_stop.get()))
         });
-        create_effect(move || {
+        create_binding(move || {
             with_document(|document| {
                 document.set_focusable_press_focus(interactive, press_focus.get())
             })
         });
-        create_effect(move || {
+        create_binding(move || {
             with_document(|document| document.set_focusable_ime(interactive, ime.get()))
         });
-        create_effect(move || {
+        create_binding(move || {
             let pastes = pastes.get();
             with_document(|document| document.set_focusable_pastes(interactive, pastes))
         });
-        create_effect(move || {
+        create_binding(move || {
             let keyboard = ime_keyboard.get();
             with_document(|document| document.set_focusable_ime_keyboard(interactive, keyboard))
         });
-        create_effect(move || {
+        create_binding(move || {
             let asks = keyboard_asks.get();
             with_document(|document| document.set_focusable_keyboard_asks(interactive, asks))
         });
-        create_effect(move || {
+        create_binding(move || {
             let cursor = ime_cursor.get();
             with_document(|document| document.set_focusable_ime_cursor(interactive, cursor))
         });
-        create_effect(move || {
+        create_binding(move || {
             let text = ime_text.get();
             with_document(|document| document.set_focusable_ime_text(interactive, text))
         });
@@ -171,50 +173,50 @@ pub fn Interactive(
         });
     }
     if let Some(cursor) = cursor {
-        create_effect(move || {
+        create_binding(move || {
             with_document(|document| {
                 document.set_interactive_cursor(interactive, Some(cursor.get()))
             })
         });
     }
-    create_effect(move || {
+    create_binding(move || {
         with_document(|document| {
             document.set_interactive_capture_presses(interactive, capture_presses.get())
         })
     });
-    create_effect(move || {
+    create_binding(move || {
         with_document(|document| {
             document.set_interactive_repeat_drag(interactive, repeat_drag.get())
         })
     });
-    create_effect(move || {
+    create_binding(move || {
         with_document(|document| {
             document.set_interactive_touch_drags(interactive, touch_drags.get())
         })
     });
-    create_effect(move || {
+    create_binding(move || {
         with_document(|document| {
             document.set_interactive_touch_drag_axis(interactive, touch_drag_axis.get())
         })
     });
-    create_effect(move || {
+    create_binding(move || {
         with_document(|document| {
             document.set_interactive_claims_touch(interactive, claims_touch.get())
         })
     });
-    create_effect(move || {
+    create_binding(move || {
         with_document(|document| {
             document.set_interactive_scroll_axis(interactive, scroll_axis.get())
         })
     });
-    create_effect(move || {
+    create_binding(move || {
         with_document(|document| document.set_interactive_key_active(interactive, key_active.get()))
     });
-    create_effect(move || {
+    create_binding(move || {
         let inhibits = inhibits_shortcuts.get();
         with_document(|document| document.set_interactive_inhibits_shortcuts(interactive, inhibits))
     });
-    create_effect(move || {
+    create_binding(move || {
         let claimed = claim_modifiers.get();
         with_document(|document| document.set_interactive_claim_modifiers(interactive, claimed))
     });

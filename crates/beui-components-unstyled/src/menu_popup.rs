@@ -92,6 +92,11 @@ pub(crate) fn MenuPopup(
     let sheeted = sheet.is_some();
     let dropped = create_memo(move || open.get() && !(sheeted && touched.get()));
     let raised = create_memo(move || sheeted && open.get() && touched.get());
+    let mut ever_raised = false;
+    let sheet_built = create_memo(move || {
+        ever_raised |= raised.get();
+        ever_raised
+    });
     let traps_focus = focusing;
     let active = create_memo(move || dropped.get() && focusing.get());
     let choose = Callback::new(move |path: Vec<usize>| {
@@ -120,7 +125,7 @@ pub(crate) fn MenuPopup(
                     />
                 })}
             />
-            <Show condition={sheeted}>
+            <Show condition={sheet_built}>
                 {move || {
                     let (row, sheet) = sheet.unwrap_or_else(|| unreachable!());
                     let (choose, dismiss) = (sheet_choose, sheet_dismiss);

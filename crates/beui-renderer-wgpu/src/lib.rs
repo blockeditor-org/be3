@@ -38,7 +38,10 @@ pub struct DrawAt {
     pub screen: Vec2,
     pub pixels_per_point: f32,
     pub format: wgpu::TextureFormat,
+    pub renderer: u64,
 }
+
+static RENDERERS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
 impl DrawAt {
     pub fn width(&self) -> u32 {
@@ -317,6 +320,7 @@ const LISTED: usize = 4096;
 const REACH: f32 = 2.0;
 
 pub struct Renderer {
+    id: u64,
     srgb: bool,
     format: wgpu::TextureFormat,
     pipeline: wgpu::RenderPipeline,
@@ -767,6 +771,7 @@ impl Renderer {
         );
 
         Self {
+            id: RENDERERS.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             srgb: format.is_srgb(),
             format,
             pipeline,
@@ -1389,6 +1394,7 @@ impl Renderer {
             screen: frame.screen,
             pixels_per_point: frame.pixels_per_point,
             format: self.format,
+            renderer: self.id,
         };
         frame.drawings.push((drawing.clone(), at));
         Some(Run {

@@ -42,11 +42,11 @@ fn a_menu_opened_at_the_pointer_is_a_sheet_after_a_tap_and_a_dropdown_after_a_cl
     });
     let mut harness = Harness::sized(document, TALL_VIEWPORT);
     harness.settle();
-    let overlay = unstyled::context_menu_overlay(harness.document(), menu.get());
     let at = harness.center(target.get());
 
     harness.click(at);
     harness.settle();
+    let overlay = unstyled::context_menu_overlay(harness.document(), menu.get());
     assert!(
         harness.document().is_overlay_open(overlay),
         "a click opens the menu as a dropdown"

@@ -1,14 +1,17 @@
+use foldhash::HashMap;
 use std::cell::{Cell, RefCell};
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::rc::{Rc, Weak};
 
 use crate::computation::{Computation, no_computation};
 use crate::scope::Owner;
+use crate::signal::Tracked;
 
 pub(crate) struct Runtime {
     pub(crate) observer: RefCell<Weak<Computation>>,
     pub(crate) owner: RefCell<Weak<Owner>>,
     pub(crate) pending: RefCell<Weak<Computation>>,
+    pub(crate) probe: RefCell<Option<Probe>>,
     pub(crate) queue: RefCell<VecDeque<Weak<Computation>>>,
     pub(crate) depth: Cell<usize>,
     pub(crate) flushing: Cell<bool>,
@@ -16,6 +19,8 @@ pub(crate) struct Runtime {
     pub(crate) zone: Cell<u64>,
     pub(crate) parked: RefCell<HashMap<u64, Vec<Weak<Computation>>>>,
     pub(crate) sequence: Cell<u64>,
+    pub(crate) flushes: Cell<u64>,
+    pub(crate) removals: Cell<u64>,
 }
 
 impl Default for Runtime {
@@ -24,6 +29,7 @@ impl Default for Runtime {
             observer: RefCell::new(no_computation()),
             owner: RefCell::default(),
             pending: RefCell::new(no_computation()),
+            probe: RefCell::default(),
             queue: RefCell::default(),
             depth: Cell::default(),
             flushing: Cell::default(),
@@ -31,6 +37,8 @@ impl Default for Runtime {
             zone: Cell::default(),
             parked: RefCell::default(),
             sequence: Cell::default(),
+            flushes: Cell::default(),
+            removals: Cell::default(),
         }
     }
 }
@@ -62,10 +70,31 @@ impl<T: Copy> Drop for Reset<T> {
     }
 }
 
+pub(crate) type Read = (Rc<dyn Tracked>, u64);
+
+pub(crate) struct Probe {
+    pub(crate) read: Vec<Read>,
+    pub(crate) parent: Weak<Owner>,
+    pub(crate) owner: Option<Rc<Owner>>,
+}
+
+pub(crate) struct Probed<T> {
+    pub(crate) value: T,
+    pub(crate) read: Vec<Read>,
+    pub(crate) owner: Option<Rc<Owner>>,
+}
+
+impl<T> Probed<T> {
+    pub(crate) fn constant(&self) -> bool {
+        self.read.is_empty() && self.owner.as_ref().is_none_or(|owner| owner.is_inert())
+    }
+}
+
 pub(crate) struct Context {
     observer: Weak<Computation>,
     owner: Weak<Owner>,
     pending: Weak<Computation>,
+    probe: Option<Probe>,
 }
 
 impl Context {
@@ -82,6 +111,7 @@ impl Context {
             observer: runtime.observer.replace(observer),
             owner: runtime.owner.replace(owner),
             pending: runtime.pending.replace(pending),
+            probe: runtime.probe.take(),
         })
     }
 }
@@ -92,6 +122,7 @@ impl Drop for Context {
             runtime.observer.replace(self.observer.clone());
             runtime.owner.replace(self.owner.clone());
             runtime.pending.replace(self.pending.clone());
+            runtime.probe.replace(self.probe.take());
         });
     }
 }
@@ -107,13 +138,51 @@ pub fn untrack<T>(f: impl FnOnce() -> T) -> T {
     f()
 }
 
+pub(crate) fn probe<T>(memo: bool, f: impl FnOnce() -> T) -> Probed<T> {
+    let parent = Rc::downgrade(&crate::scope::current_owner());
+    let memo_depth = RUNTIME.with(|runtime| runtime.memo_depth.get());
+    let _memo_depth = Reset::set(
+        |runtime| &runtime.memo_depth,
+        memo_depth + usize::from(memo),
+    );
+    batch(|| {
+        let _context = Context::enter(no_computation(), Weak::new());
+        RUNTIME.with(|runtime| {
+            runtime.probe.replace(Some(Probe {
+                read: Vec::new(),
+                parent,
+                owner: None,
+            }))
+        });
+        let value = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)) {
+            Ok(value) => value,
+            Err(panic) => {
+                let owner = RUNTIME.with(|runtime| runtime.probe.take()?.owner);
+                if let Some(owner) = owner {
+                    owner.dispose();
+                }
+                std::panic::resume_unwind(panic);
+            }
+        };
+        let probe = RUNTIME
+            .with(|runtime| runtime.probe.take())
+            .expect("the probe is still running");
+        Probed {
+            value,
+            read: probe.read,
+            owner: probe.owner,
+        }
+    })
+}
+
 pub(crate) fn tracking() -> bool {
     RUNTIME.with(|runtime| {
-        runtime
-            .observer
-            .borrow()
-            .upgrade()
-            .is_some_and(|observer| !observer.is_disposed())
+        runtime.probe.borrow().is_some()
+            || runtime
+                .observer
+                .borrow()
+                .upgrade()
+                .is_some_and(|observer| !observer.is_disposed())
     })
 }
 
@@ -151,34 +220,54 @@ pub(crate) fn flush() {
         return;
     }
     let _guard = Reset::set(|runtime| &runtime.flushing, true);
-    let mut runs = HashMap::new();
+    let flush = next_flush();
     loop {
-        let next = RUNTIME.with(|runtime| runtime.queue.borrow_mut().pop_front());
+        let next = RUNTIME.with(|runtime| {
+            runtime.removals.set(runtime.removals.get() + 1);
+            runtime.queue.borrow_mut().pop_front()
+        });
         let Some(next) = next else { break };
-        run_queued(next, &mut runs);
+        run_queued(next, flush);
     }
 }
 
 pub(crate) fn flush_within(root: &Owner) {
     let depth = RUNTIME.with(|runtime| runtime.depth.get());
     let _depth = Reset::set(|runtime| &runtime.depth, depth + 1);
-    let mut runs = HashMap::new();
+    let flush = next_flush();
+    let mut checked = 0;
+    let mut seen = RUNTIME.with(|runtime| runtime.removals.get());
     loop {
         let next = RUNTIME.with(|runtime| {
+            if runtime.removals.get() != seen {
+                checked = 0;
+            }
             let mut queue = runtime.queue.borrow_mut();
-            let at = queue.iter().position(|queued| {
-                queued
-                    .upgrade()
-                    .is_some_and(|computation| computation.owned_within(root))
-            })?;
+            let at = checked
+                + queue.iter().skip(checked).position(|queued| {
+                    queued
+                        .upgrade()
+                        .is_some_and(|computation| computation.owned_within(root))
+                })?;
+            checked = at;
+            runtime.removals.set(runtime.removals.get() + 1);
+            seen = runtime.removals.get();
             queue.remove(at)
         });
         let Some(next) = next else { break };
-        run_queued(next, &mut runs);
+        run_queued(next, flush);
     }
 }
 
-fn run_queued(next: Weak<Computation>, runs: &mut HashMap<*const Computation, usize>) {
+fn next_flush() -> u64 {
+    RUNTIME.with(|runtime| {
+        let flush = runtime.flushes.get() + 1;
+        runtime.flushes.set(flush);
+        flush
+    })
+}
+
+fn run_queued(next: Weak<Computation>, flush: u64) {
     let Some(computation) = next.upgrade() else {
         return;
     };
@@ -199,9 +288,7 @@ fn run_queued(next: Weak<Computation>, runs: &mut HashMap<*const Computation, us
         return;
     }
     computation.queued.set(false);
-    let count = runs.entry(Rc::as_ptr(&computation)).or_insert(0);
-    *count += 1;
-    if *count > 10_000 {
+    if computation.count_run(flush) > 10_000 {
         computation.dispose();
         panic!("reactive effects did not settle after 10000 executions");
     }

@@ -1,6 +1,6 @@
 use beui_macros::component;
 
-use crate::reactive::{Child, Prop, create_effect, with_document};
+use crate::reactive::{Child, Prop, create_binding, with_document};
 use beui_core::base::Align;
 use beui_core::base::frame::FrameNode;
 use beui_core::base::frame::{FrameStyle, Sides};
@@ -18,7 +18,7 @@ fn bind_measurement(
         Prop::Static(None) => {}
         Prop::Static(value) => with_document(|document| set(document, frame, value)),
         Prop::Dynamic(read) => {
-            create_effect(move || {
+            create_binding(move || {
                 let value = read.get();
                 with_document(|document| set(document, frame, value));
             });
@@ -74,7 +74,7 @@ pub fn Frame(
     bind_measurement(frame, max_height, Document::set_frame_max_height);
     bind_measurement(frame, height_fraction, Document::set_frame_height_fraction);
     bind_measurement(frame, aspect_ratio, Document::set_frame_aspect_ratio);
-    create_effect(move || {
+    create_binding(move || {
         let horizontal = padding_horizontal.get();
         let vertical = padding_vertical.get();
         let padding = Sides {
@@ -85,12 +85,12 @@ pub fn Frame(
         };
         with_document(|document| document.set_frame_padding(frame, padding));
     });
-    create_effect(move || {
+    create_binding(move || {
         let horizontal = align_horizontal.get();
         let vertical = align_vertical.get();
         with_document(|document| document.set_frame_content_align(frame, horizontal, vertical));
     });
-    create_effect(move || {
+    create_binding(move || {
         let all = radius.get();
         let corner = |radius: Option<u8>| f32::from(radius.unwrap_or(all));
         let radius = Corners {
@@ -113,6 +113,6 @@ pub fn Frame(
             );
         })
     });
-    create_effect(move || with_document(|document| document.set_visible(frame, visible.get())));
+    create_binding(move || with_document(|document| document.set_visible(frame, visible.get())));
     frame.id()
 }

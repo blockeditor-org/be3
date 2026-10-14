@@ -1,5 +1,5 @@
 load("@root//buck/app:drive.bzl", "headless")
-load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library")
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_example", "cargo_library")
 load("@root//buck/wasm:defs.bzl", "plugin_tests")
 
 srcs = glob(["src/**/*.rs"])
@@ -20,3 +20,6 @@ headless(
     app_name = "beui-demo",
     program = "$(location :native)",
 )
+
+# Times opening each page: `./scripts/buck run -m release //crates/beui-demo:example-open-bench`.
+cargo_example("open-bench", srcs = srcs + glob(["examples/**/*.rs"]))
