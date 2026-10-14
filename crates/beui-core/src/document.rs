@@ -2011,7 +2011,7 @@ impl Document {
         self.report_laid_out();
         self.run_laid_out();
         while self.needs_layout() {
-            if passes == LAYOUTS_PER_FRAME {
+            if passes + 1 >= LAYOUTS_PER_FRAME {
                 self.log_unsettled(watermark);
                 self.lay_out_tree(ctx, rect);
                 ctx.request_repaint();

@@ -2108,8 +2108,10 @@ in. A node with something to report queues it with
 laid out with `Document::invalidate_after_layout`. The reports run together in
 one batch; whatever they changed is laid out again, which only walks the
 nodes that changed and their ancestors, until nothing changes, so a frame is
-never painted from a layout the tree no longer has. After four layouts the
-frame is painted anyway, asks for another, and debug builds log what was still
+never painted from a layout the tree no longer has. A frame lays out at most
+four times: when the reports after the third still change something, the
+fourth layout holds its own reports back for the next frame, the frame is
+painted from it and asks for another, and debug builds log what was still
 changing. Each of those extra layouts is a cost the frame pays, so keep what a
 report drives to painting where you can: a scrollbar's thumb is painted where
 the position says rather than laid out, which keeps scrolling to one layout a
