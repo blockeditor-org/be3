@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use block_editor_beui::beui::reactive::{
     Memo, WriteSignal, create_effect, create_memo, create_signal, untrack,
 };
@@ -7,10 +5,9 @@ use block_editor_beui::{Drag, Editor};
 
 use super::entries::Folder;
 
-pub(crate) fn watch(editor: Editor, folder: &Rc<Folder>) -> Memo<Option<bool>> {
+pub(crate) fn watch(editor: Editor, folder: Folder) -> Memo<Option<bool>> {
     let (state, set_state) = create_signal(None::<bool>);
     let drag = editor.drag();
-    let folder = Rc::clone(folder);
     create_effect(move || {
         let drag = drag.get();
         untrack(|| land(editor, &folder, set_state, drag));

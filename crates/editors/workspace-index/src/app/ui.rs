@@ -1,4 +1,3 @@
-use std::rc::Rc;
 use uuid::Uuid;
 
 use block_editor_beui::be_block::FolderContent;
@@ -47,7 +46,7 @@ impl FolderView {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct Cells {
     editor: Editor,
     entries: Memo<Vec<Entry>>,
@@ -91,9 +90,9 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
     let (descending, set_descending) = create_signal(false);
     let (selected, set_selected) = create_signal(None::<Uuid>);
 
-    let folder = Rc::new(Folder::watch(editor, &index, sort, descending));
+    let folder = Folder::watch(editor, &index, sort, descending);
     let entries = folder.entries();
-    let drop = super::drop::watch(editor, &folder);
+    let drop = super::drop::watch(editor, folder);
 
     create_effect(move || {
         let rows = entries.with(Vec::len).max(1);
@@ -208,7 +207,6 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                         <Scroll @sizing=ItemSize::Percent(100.0)>
                             <Dynamic value={mode}>
                                 {move |shown: FolderView| {
-                                    let cells = cells.clone();
                                     match shown {
                                         FolderView::List => view! {
                                             <EntryRows cells={cells} />
