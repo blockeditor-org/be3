@@ -69,9 +69,10 @@ or dump stacks to fold them yourself:
   -m release //crates/block-app:dev`), which makes wasmtime write `/tmp/perf-PID.map` so the
   plugins' compiled wasm has names, and record the running app with `perf record -g -p PID`
   around the `drive` commands being measured. Each plugin runs on a thread named
-  `plugin <id>`, so `--comm` splits the report by plugin. Without a GPU, wgpu draws through
-  llvmpipe on its own threads, which take most of a scroll's or resize's samples; leave
-  them out when judging the app's own work.
+  `plugin <id>` (cut to 15 characters, such as `plugin be3.data`), so `perf report --sort comm`
+  splits the report by plugin and `--comms 'plugin be3.data'` keeps one plugin's samples.
+  Without a GPU, wgpu draws through llvmpipe on its own threads, which take most of a
+  scroll's or resize's samples; leave them out when judging the app's own work.
 - To fill a workspace with data, add an agent from the dev app's menu (Agents) and point a
   `be` built from the checkout at it with the `BE3_*` values the dialog shows
   (guides/tracker.md): `be new-database`, `add-column` and `import` a generated CSV make
