@@ -1,6 +1,6 @@
 use beui::reactive::{
-    Align, Direction, Frame, ItemSize, List, Show, Text, component, create_memo,
-    create_signal, view,
+    Align, Direction, Frame, ItemSize, List, Show, Text, component, create_memo, create_signal,
+    view,
 };
 use beui::styled::{Button, ButtonVariant, Icon, use_theme};
 use beui::{NodeId, TextAlign};

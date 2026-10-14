@@ -224,7 +224,8 @@ impl RayState {
 
     pub(crate) fn settings(&self, view: bool) -> RaySettings {
         let inner = self.inner.get();
-        inner.block
+        inner
+            .block
             .read()
             .map_or_else(RaySettings::default, |scene| match view {
                 true => scene.view_ray_settings(),
@@ -236,7 +237,8 @@ impl RayState {
         let inner = self.inner.get();
         match view {
             true => {
-                inner.block
+                inner
+                    .block
                     .operate(PixelRayTracerOperation::SetViewRaySettings { settings });
                 inner.ray_state.borrow_mut().take();
             }
@@ -270,7 +272,8 @@ impl RayState {
         match &mut entity {
             RayEntity::Surface { color_index, .. } | RayEntity::Light { color_index, .. } => {
                 *color_index = index;
-                inner.block
+                inner
+                    .block
                     .operate(PixelRayTracerOperation::UpdateEntity { entity });
             }
             RayEntity::Water { .. } => {}
@@ -287,7 +290,8 @@ impl RayState {
 
     pub(crate) fn update_entity(&self, entity: RayEntity) {
         let inner = self.inner.get();
-        inner.block
+        inner
+            .block
             .operate(PixelRayTracerOperation::UpdateEntity { entity });
     }
 
@@ -297,7 +301,8 @@ impl RayState {
             return;
         };
         self.set_selected.set(None);
-        inner.block
+        inner
+            .block
             .operate(PixelRayTracerOperation::DeleteEntity { id });
     }
 
@@ -387,7 +392,8 @@ impl RayState {
                 let next = snap(at);
                 if *current != next {
                     *current = next;
-                    inner.interaction_revision
+                    inner
+                        .interaction_revision
                         .set(inner.interaction_revision.get().wrapping_add(1));
                 }
             }
@@ -415,7 +421,8 @@ impl RayState {
                     .into_iter()
                     .map(|(x, y)| PixelUpdate { x, y, color_index })
                     .collect();
-                inner.block
+                inner
+                    .block
                     .operate(PixelRayTracerOperation::Paint { pixels });
             }
             Interaction::Entity { start, current } if start != current => {
@@ -438,7 +445,8 @@ impl RayState {
                         end: current,
                     },
                 };
-                inner.block
+                inner
+                    .block
                     .operate(PixelRayTracerOperation::AddEntity { entity });
                 self.set_selected.set(Some(id));
             }
@@ -638,7 +646,8 @@ impl RayState {
     fn land_lighting(&self) {
         let inner = self.inner.get();
         let landed =
-            inner.lighting_job
+            inner
+                .lighting_job
                 .borrow()
                 .as_ref()
                 .and_then(|receiver| match receiver.try_recv() {
@@ -649,7 +658,9 @@ impl RayState {
         if let Some(landed) = landed {
             inner.lighting_job.borrow_mut().take();
             if let Ok((landed_key, pixels, duration)) = landed {
-                inner.performance.record_duration("Lighting trace", duration);
+                inner
+                    .performance
+                    .record_duration("Lighting trace", duration);
                 self.set_lighting.set(Some(image_of(&pixels)));
                 *inner.rendered.borrow_mut() = pixels;
                 inner.ray_state.borrow_mut().take();
@@ -710,7 +721,8 @@ impl RayState {
     fn land_rays(&self) {
         let inner = self.inner.get();
         let landed =
-            inner.ray_job
+            inner
+                .ray_job
                 .borrow()
                 .as_ref()
                 .and_then(|receiver| match receiver.try_recv() {
@@ -721,7 +733,9 @@ impl RayState {
         if let Some(landed) = landed {
             inner.ray_job.borrow_mut().take();
             if let Ok((origin, pixels, revision, settings, duration)) = landed {
-                inner.performance.record_duration("View-ray trace", duration);
+                inner
+                    .performance
+                    .record_duration("View-ray trace", duration);
                 self.set_rays.set(Some(image_of(&pixels)));
                 *inner.ray_state.borrow_mut() = Some(TracedRays {
                     origin,

@@ -6,10 +6,12 @@ use crate::styled::Dialog;
 const WIDE: Vec2 = Vec2::new(1600.0, 1000.0);
 
 fn presses(heard: ReadSignal<Vec<Event>>) -> usize {
-    heard.with_untracked(|heard| heard
-        .iter()
-        .filter(|event| matches!(event, Event::PointerButton { pressed: true, .. }))
-        .count())
+    heard.with_untracked(|heard| {
+        heard
+            .iter()
+            .filter(|event| matches!(event, Event::PointerButton { pressed: true, .. }))
+            .count()
+    })
 }
 
 #[test]
@@ -61,10 +63,7 @@ fn a_press_that_dismisses_an_overlay_does_not_reach_the_catcher_beneath() {
             .collect(),
     );
     harness.settle();
-    assert!(
-        !open.get_untracked(),
-        "the press outside closes the dialog"
-    );
+    assert!(!open.get_untracked(), "the press outside closes the dialog");
     assert_eq!(
         presses(heard),
         0,

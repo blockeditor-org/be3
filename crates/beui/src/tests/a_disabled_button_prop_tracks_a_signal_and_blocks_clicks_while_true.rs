@@ -35,14 +35,20 @@ fn a_disabled_button_prop_tracks_a_signal_and_blocks_clicks_while_true() {
         }
     });
 
-    let toggle = toggle_id.get_untracked().expect("toggle button was created");
+    let toggle = toggle_id
+        .get_untracked()
+        .expect("toggle button was created");
     let go = go_id.get_untracked().expect("go button was created");
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     harness.click(harness.center(go));
     harness.frame(Vec::new());
-    assert_eq!(clicks.get_untracked(), 0, "a disabled button must not fire on_click");
+    assert_eq!(
+        clicks.get_untracked(),
+        0,
+        "a disabled button must not fire on_click"
+    );
 
     harness.click(harness.center(toggle));
     harness.frame(Vec::new());

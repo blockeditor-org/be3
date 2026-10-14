@@ -1,4 +1,3 @@
-
 use block_editor_beui::beui::reactive::{Memo, component, create_memo, view};
 use block_editor_beui::beui::unstyled::MenuItem;
 use block_editor_beui::block_ui::BlockTypes;

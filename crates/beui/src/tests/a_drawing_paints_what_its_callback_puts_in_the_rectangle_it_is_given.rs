@@ -25,7 +25,11 @@ fn a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given() {
     let mut harness = Harness::new(document);
 
     let output = harness.frame(Vec::new());
-    assert_eq!(painted.get_untracked(), 1, "the callback paints the frame it is in");
+    assert_eq!(
+        painted.get_untracked(),
+        1,
+        "the callback paints the frame it is in"
+    );
     assert_eq!(fills(&output), vec![(VIEWPORT, Color32::WHITE)]);
 
     harness.frame(Vec::new());

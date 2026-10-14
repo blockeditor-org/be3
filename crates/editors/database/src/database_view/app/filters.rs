@@ -216,7 +216,10 @@ pub fn FilterBar(data: Data) -> NodeId {
 fn FilterChip(data: Data, id: ObjectId) -> NodeId {
     let text = create_memo(move || {
         let filter = data.filter_items.with(|items| {
-            items.iter().find(|(held, _)| *held == id).map(|(_, filter)| filter.clone())
+            items
+                .iter()
+                .find(|(held, _)| *held == id)
+                .map(|(_, filter)| filter.clone())
         });
         let Some(filter) = filter else {
             return String::new();
@@ -430,14 +433,18 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
     });
     let kind_keys = create_memo(move || (0..kinds.with(Vec::len)).collect::<Vec<usize>>());
     let recondition = move |index: Option<usize>| {
-        let Some(kind) = index.and_then(|index| kinds.with_untracked(|kinds| kinds.get(index).copied())) else {
+        let Some(kind) =
+            index.and_then(|index| kinds.with_untracked(|kinds| kinds.get(index).copied()))
+        else {
             return;
         };
         let Some(field) = field.get_untracked() else {
             return;
         };
         let current = filter.get_untracked().condition;
-        let next = data.labels.with_untracked(|labels| converted(kind, &current, &field, labels));
+        let next = data
+            .labels
+            .with_untracked(|labels| converted(kind, &current, &field, labels));
         data.operate_view(DatabaseView::set_filter_condition(id, &next));
     };
     let choosing = create_memo(move || matches!(kind.get(), Kind::AnyOf | Kind::NoneOf));
@@ -448,7 +455,10 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
         _ => String::new(),
     });
     let searched_for = move |text: String| {
-        data.operate_view(DatabaseView::set_filter_condition(id, &FilterCondition::Contains(text)));
+        data.operate_view(DatabaseView::set_filter_condition(
+            id,
+            &FilterCondition::Contains(text),
+        ));
     };
     let value_fields = create_memo(move || field.get().into_iter().collect::<Vec<_>>());
     let values = create_memo(move || {
@@ -580,7 +590,10 @@ fn ValueChoices(
                         .collect();
                     let count = |value: &DatabaseValue| {
                         kept.iter()
-                            .filter(|row| FilterCondition::AnyOf(vec![value.clone()]).matches(row.get(field.id).as_ref(), Some(&field)))
+                            .filter(|row| {
+                                FilterCondition::AnyOf(vec![value.clone()])
+                                    .matches(row.get(field.id).as_ref(), Some(&field))
+                            })
                             .count()
                     };
                     let all: Vec<Choice> = match field.field_type {
@@ -615,7 +628,9 @@ fn ValueChoices(
                             .collect(),
                     };
                     all.into_iter()
-                        .filter(|choice| query.is_empty() || choice.label.to_lowercase().contains(&query))
+                        .filter(|choice| {
+                            query.is_empty() || choice.label.to_lowercase().contains(&query)
+                        })
                         .collect()
                 })
             })
@@ -714,7 +729,10 @@ pub fn FilterList(data: Data) -> NodeId {
     let field_keys =
         create_memo(move || names.with(|fields| (0..fields.len()).collect::<Vec<usize>>()));
     let add = move |index: Option<usize>| {
-        let Some(field) = index.and_then(|index| data.fields.with_untracked(|fields| fields.get(index).cloned())) else {
+        let Some(field) = index.and_then(|index| {
+            data.fields
+                .with_untracked(|fields| fields.get(index).cloned())
+        }) else {
             return;
         };
         data.operate_view(DatabaseView::add_filter(Some(field.id), starting_condition(&field)).1);

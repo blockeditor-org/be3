@@ -7,7 +7,10 @@ fn activation_requires_a_matching_release_and_escape_cancels_it() {
     let (clicks, set_clicks) = create_signal(0);
     let (document, [button]) = toolbar_of(|| {
         [view! {
-            <LabelledButton label="Click" on_click={move || set_clicks.update(|clicks| *clicks += 1)} />
+            <LabelledButton
+                label="Click"
+                on_click={move || set_clicks.update(|clicks| *clicks += 1)}
+            />
         }]
     });
     let mut harness = Harness::new(document);

@@ -7,7 +7,10 @@ fn enter_activates_the_focused_button() {
     let (clicks, set_clicks) = create_signal(0);
     let (document, [button]) = toolbar_of(|| {
         [view! {
-            <LabelledButton label="Click me" on_click={move || set_clicks.update(|clicks| *clicks += 1)} />
+            <LabelledButton
+                label="Click me"
+                on_click={move || set_clicks.update(|clicks| *clicks += 1)}
+            />
         }]
     });
     let active = unstyled::button_active(&document, button);

@@ -7,7 +7,8 @@ use block_editor_beui::be_block::ImageContent;
 use block_editor_beui::be_block::map::{MapColor, MapCoordinate, MapPoint, MapRegion};
 use block_editor_beui::be_block::{Edit, Map, MapContent};
 use block_editor_beui::beui::reactive::{
-    CanvasView, Pasted, ReadSignal, Stored, WriteSignal, create_effect, create_signal, store, untrack,
+    CanvasView, Pasted, ReadSignal, Stored, WriteSignal, create_effect, create_signal, store,
+    untrack,
 };
 use block_editor_beui::beui::{Image, Pos2, Rect, Vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};

@@ -73,7 +73,11 @@ fn holding_a_finger_down_opens_a_context_menu() {
     harness.touch(TouchPhase::End, pos2(100.0, 100.0));
     harness.frame(Vec::new());
 
-    assert_eq!(clicked.get_untracked(), 1, "lifting the finger is not a click");
+    assert_eq!(
+        clicked.get_untracked(),
+        1,
+        "lifting the finger is not a click"
+    );
     assert!(
         sheet_shown(&harness),
         "lifting the finger leaves the menu open"

@@ -44,5 +44,9 @@ fn a_press_outside_an_interactive_is_reported_to_it() {
 
     harness.touch(TouchPhase::Start, outside);
     harness.touch(TouchPhase::End, outside);
-    assert_eq!(heard.with_untracked(|heard| heard.len()), 2, "a finger press is a press too");
+    assert_eq!(
+        heard.with_untracked(|heard| heard.len()),
+        2,
+        "a finger press is a press too"
+    );
 }

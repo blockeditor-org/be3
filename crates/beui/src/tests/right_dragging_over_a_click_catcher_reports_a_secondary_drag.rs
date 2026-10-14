@@ -9,7 +9,9 @@ fn right_dragging_over_a_click_catcher_reports_a_secondary_drag() {
     let document = build({
         move || {
             view! {
-                <Interactive on_secondary_drag={move |drag| set_drags.update(|drags| drags.push(drag))}>
+                <Interactive
+                    on_secondary_drag={move |drag| set_drags.update(|drags| drags.push(drag))}
+                >
                     <Frame width=200.0 height=200.0 />
                 </Interactive>
             }

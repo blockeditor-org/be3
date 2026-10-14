@@ -11,7 +11,6 @@ mod switcher;
 mod tray;
 mod volume;
 
-
 use block_editor_beui::Editor;
 use block_editor_beui::beui::reactive::{
     ForEach, Frame, ItemSize, List, NodeRef, component, create_memo, view,

@@ -3,8 +3,8 @@ use std::cell::Cell;
 use beui::icons::{ICON_BUILD, ICON_FIT_SCREEN, ICON_ZOOM_IN, ICON_ZOOM_OUT};
 use beui::reactive::{
     Canvas, CanvasItem, Direction, Drawing, ForEach, Frame, Interactive, ItemSize, List, Memo,
-    NodeRef, PlacementBuilder, Prop, ReadSignal, Show, Spacer, Text, component,
-    create_effect, create_memo, draw_gpu, focus_takes_text, on_shortcut, store, view,
+    NodeRef, PlacementBuilder, Prop, ReadSignal, Show, Spacer, Text, component, create_effect,
+    create_memo, draw_gpu, focus_takes_text, on_shortcut, store, view,
 };
 use beui::styled::{Body, Button, ButtonVariant, Caption, IconButton, Separator, use_theme};
 use beui::{CursorIcon, KeyPress, NodeId, PointerPress, Rect};
@@ -98,14 +98,11 @@ fn GridToolbar(session: Session, shown: ReadSignal<bool>) -> NodeId {
         })
     });
     let challenged = create_memo(move || !challenge.get().is_empty());
-    let problems = create_memo(move || {
-        session.read(|model| model.grid.validate().len())
-    });
+    let problems = create_memo(move || session.read(|model| model.grid.validate().len()));
     let misplaced = create_memo(move || problems.get() > 0);
     let problem_text = create_memo(move || format!("{} placement problems", problems.get()));
-    let compile_error = create_memo(move || {
-        session.read(|model| model.compile_error.clone().unwrap_or_default())
-    });
+    let compile_error =
+        create_memo(move || session.read(|model| model.compile_error.clone().unwrap_or_default()));
     let failed = create_memo(move || !compile_error.get().is_empty());
     let scale = editor.scale();
     let percent = create_memo(move || format!("{:.0}%", scale.get() * 100.0));

@@ -29,16 +29,22 @@ pub(super) fn intercept_keys(
         };
         if !event.held() {
             let asked = chords.with_untracked(|chords| {
-                chords
-                    .iter()
-                    .any(|chord| chord.matches(press) && (chord.modifiers.command() || chord.key.is_media()))
+                chords.iter().any(|chord| {
+                    chord.matches(press) && (chord.modifiers.command() || chord.key.is_media())
+                })
             });
             if !press.pressed || !asked || !allowed() {
                 return false;
             }
             held.with(|held| held.set(press.modifiers));
         }
-        plugin_host::intercept_region(&plugin_id.get(), instance, region, Some(press), press.modifiers);
+        plugin_host::intercept_region(
+            &plugin_id.get(),
+            instance,
+            region,
+            Some(press),
+            press.modifiers,
+        );
         true
     });
     let modifiers = held_modifiers();

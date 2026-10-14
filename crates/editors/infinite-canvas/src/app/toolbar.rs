@@ -1,11 +1,11 @@
-
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
     ICON_CROP_FREE, ICON_DIAGONAL_LINE, ICON_DRAW, ICON_RECTANGLE, ICON_SELECT, ICON_TEXT_FIELDS,
     ICON_UNDO,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, NodeRef, Prop, Show, Spacer, component, create_memo, use_context, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, NodeRef, Prop, Show, Spacer, component,
+    create_memo, use_context, view,
 };
 use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
 use block_editor_beui::beui::styled::{
@@ -159,8 +159,7 @@ fn ToolChoice(actions: CanvasActions, index: usize) -> NodeId {
 #[component]
 pub(crate) fn ImportError(state: CanvasState) -> NodeId {
     let failed = create_memo(move || state.import_error.get().is_some());
-    let message =
-        create_memo(move || state.import_error.get().unwrap_or_default());
+    let message = create_memo(move || state.import_error.get().unwrap_or_default());
     let dismiss = move || state.dismiss_import_error();
     let theme = use_theme();
     view! {

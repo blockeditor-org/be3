@@ -67,7 +67,11 @@ fn a_tiled_dock_bar_offers_the_shown_tabs_menu_whether_its_tabs_run_across_or_do
         "the menu sits at the end of the bar, past the tabs"
     );
     choose(&mut harness, "Tidy up");
-    assert_eq!(ran.get_untracked(), 1, "choosing an item runs the tab's action");
+    assert_eq!(
+        ran.get_untracked(),
+        1,
+        "choosing an item runs the tab's action"
+    );
 
     let label = harness.rect(dock_tab(harness.document(), dock, "Tab 1"));
     let grip = pos2(label.left() - 25.0, label.center().y);

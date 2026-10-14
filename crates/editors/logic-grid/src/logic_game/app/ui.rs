@@ -81,7 +81,7 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
                                 glyph={ICON_WIDGETS.to_owned()}
                                 label="Hotbar"
                                 @test_id={"logic-game.hotbar"}
-                                on_click={open_hotbar.clone()}
+                                on_click={open_hotbar}
                             />
                         </Show>
                         <Spacer @sizing=ItemSize::Percent(100.0) />
@@ -196,7 +196,9 @@ fn Solutions(
         })
     });
     let start = move || {
-        let index = level.get_untracked().map_or(0, |level| level.solutions.len());
+        let index = level
+            .get_untracked()
+            .map_or(0, |level| level.solutions.len());
         game.start(challenge, index);
     };
     view! {

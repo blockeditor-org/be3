@@ -1,11 +1,9 @@
-
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
     ICON_AUTO_AWESOME, ICON_LINK_OFF, ICON_REFRESH, ICON_SETTINGS,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, Frame, ItemSize, List, ReadSignal, Show, Spacer, component,
-    create_memo, view,
+    Align, Direction, Frame, ItemSize, List, ReadSignal, Show, Spacer, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::theme::FONT_SMALL;
 use block_editor_beui::beui::styled::{

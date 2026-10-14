@@ -44,7 +44,12 @@ fn a_color_input_opens_its_picker_from_the_swatch() {
 
     harness.key(Key::ArrowUp, Modifiers::NONE);
     harness.frame(Vec::new());
-    assert_eq!(changes.with_untracked(|changes| changes.len()), 1, "{:?}", changes.get_untracked());
+    assert_eq!(
+        changes.with_untracked(|changes| changes.len()),
+        1,
+        "{:?}",
+        changes.get_untracked()
+    );
 
     harness.key(Key::Escape, Modifiers::NONE);
     harness.frame(Vec::new());

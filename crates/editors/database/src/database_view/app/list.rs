@@ -74,12 +74,12 @@ pub fn ListView(data: Data) -> NodeId {
     });
     let empty =
         create_memo(move || groups.with(|groups| groups.iter().all(|group| group.rows.is_empty())));
-    let blank = create_memo(move || {
-        match data.search.with(|search| search.trim().is_empty()) {
+    let blank = create_memo(
+        move || match data.search.with(|search| search.trim().is_empty()) {
             true => "Nothing here yet.".to_owned(),
             false => "No rows match the search.".to_owned(),
-        }
-    });
+        },
+    );
     let theme = use_theme();
     view! {
         <Frame color={theme.background}>
@@ -119,12 +119,15 @@ pub fn RowBeside(
     enabled: bool,
     children: block_editor_beui::beui::reactive::Child,
 ) -> NodeId {
-    let selected = create_memo(
-        move || match enabled && data.kind.get() != block_editor_beui::be_block::database_view::DatabaseViewKind::Spreadsheet {
+    let selected = create_memo(move || {
+        match enabled
+            && data.kind.get()
+                != block_editor_beui::be_block::database_view::DatabaseViewKind::Spreadsheet
+        {
             true => data.selected_row(),
             false => None,
-        },
-    );
+        }
+    });
     let open = create_memo(move || selected.get().is_some());
     let narrow = narrow_chrome();
     let main_shown = create_memo(move || !(narrow.get() && open.get()));
@@ -281,7 +284,8 @@ pub fn group_test_key(key: GroupKey) -> String {
 #[component]
 fn RowLine(data: Data, row: ObjectId) -> NodeId {
     let index = create_memo(move || {
-        data.row_ids.with(|ids| ids.iter().position(|id| *id == row))
+        data.row_ids
+            .with(|ids| ids.iter().position(|id| *id == row))
     });
     let entry = create_memo(move || {
         let index = index.get()?;
@@ -289,7 +293,9 @@ fn RowLine(data: Data, row: ObjectId) -> NodeId {
     });
     let selected = create_memo(move || {
         let index = index.get();
-        data.selected.get().is_some_and(|selection| Some(selection.row) == index)
+        data.selected
+            .get()
+            .is_some_and(|selection| Some(selection.row) == index)
     });
     let code = create_memo(move || short_id(&data.prefix.get(), row.as_uuid()));
     let title = create_memo(move || {
@@ -315,7 +321,8 @@ fn RowLine(data: Data, row: ObjectId) -> NodeId {
             };
             data.fields.with(|fields| {
                 data.hidden_fields.with(|hidden| {
-                    data.labels.with(|labels| row_parts(entry, fields, hidden, labels, title))
+                    data.labels
+                        .with(|labels| row_parts(entry, fields, hidden, labels, title))
                 })
             })
         })

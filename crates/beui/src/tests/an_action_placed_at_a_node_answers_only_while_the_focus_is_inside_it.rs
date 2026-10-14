@@ -9,10 +9,12 @@ fn an_action_placed_at_a_node_answers_only_while_the_focus_is_inside_it() {
     let (inside, outside, area) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let document = build({
         move || {
-            Action::new("test.placed", "Placed", move || set_runs.update(|runs| *runs += 1))
-                .shortcut(Chord::ctrl(Key::J))
-                .at(KeyAt::Node(area))
-                .register();
+            Action::new("test.placed", "Placed", move || {
+                set_runs.update(|runs| *runs += 1)
+            })
+            .shortcut(Chord::ctrl(Key::J))
+            .at(KeyAt::Node(area))
+            .register();
             view! {
                 <List spacing=8.0>
                     <List @node_ref=&area spacing=0.0>
@@ -40,5 +42,9 @@ fn an_action_placed_at_a_node_answers_only_while_the_focus_is_inside_it() {
 
     harness.click(harness.center(inside.get()));
     harness.key(Key::J, Modifiers::CTRL);
-    assert_eq!(runs.get_untracked(), 1, "with the focus inside, the action answers");
+    assert_eq!(
+        runs.get_untracked(),
+        1,
+        "with the focus inside, the action answers"
+    );
 }

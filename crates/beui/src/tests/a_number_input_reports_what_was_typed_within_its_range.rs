@@ -32,7 +32,10 @@ fn a_number_input_reports_what_was_typed_within_its_range() {
     harness.frame(Vec::new());
 
     assert_eq!(unstyled::text_input_shown(harness.document(), field), "42");
-    assert_eq!(previews.with_untracked(|previews| previews.last().copied()), Some(Some(10.0)));
+    assert_eq!(
+        previews.with_untracked(|previews| previews.last().copied()),
+        Some(Some(10.0))
+    );
     assert!(
         changes.with_untracked(|changes| changes.is_empty()),
         "typing only previews the value"
@@ -42,5 +45,8 @@ fn a_number_input_reports_what_was_typed_within_its_range() {
     harness.frame(Vec::new());
 
     assert_eq!(changes.get_untracked(), [10.0]);
-    assert_eq!(previews.with_untracked(|previews| previews.last().copied()), Some(None));
+    assert_eq!(
+        previews.with_untracked(|previews| previews.last().copied()),
+        Some(None)
+    );
 }

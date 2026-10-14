@@ -48,11 +48,7 @@ pub(crate) fn NotificationsButton(notifications: DesktopNotifications) -> NodeId
             on_open_change={move |open: bool| notifications.browse(open)}
         >
             {move |handle: PopoverHandle| view! {
-                <NotificationList
-                    notifications={notifications}
-                    listed={listed}
-                    popover={handle}
-                />
+                <NotificationList notifications={notifications} listed={listed} popover={handle} />
             }}
         </BarPopup>
     }
@@ -92,11 +88,7 @@ fn NotificationList(
                 <Caption content="Nothing new." />
             </Show>
             <Show condition={some}>
-                <NotificationRows
-                    notifications={notifications}
-                    listed={listed}
-                    popover={popover}
-                />
+                <NotificationRows notifications={notifications} listed={listed} popover={popover} />
             </Show>
         </List>
     }
@@ -112,11 +104,7 @@ fn NotificationRows(
         <Scroll max_length=LIST_HEIGHT>
             <ForEach keys={listed}>
                 {move |shown: Listed| view! {
-                    <NotificationRow
-                        notifications={notifications}
-                        shown
-                        popover={popover}
-                    />
+                    <NotificationRow notifications={notifications} shown popover={popover} />
                 }}
             </ForEach>
         </Scroll>

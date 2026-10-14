@@ -1,4 +1,3 @@
-
 use block_editor_beui::Toolbar;
 use block_editor_beui::be_block::pixel_art::{
     MAX_PIXEL_ART_PALETTE_COLORS, MAX_PIXEL_ART_SIZE, PixelArtAnchor, PixelArtOperation, PixelColor,

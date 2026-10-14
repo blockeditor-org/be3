@@ -3,7 +3,8 @@ use block_editor_beui::beui::icons::{
     ICON_RADIO_BUTTON_UNCHECKED, ICON_WIDGETS,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Callback, Direction, DynamicSegment, ForEach, List, Memo, clone, component, create_memo, view,
+    Align, Callback, Direction, DynamicSegment, ForEach, List, Memo, clone, component, create_memo,
+    view,
 };
 use block_editor_beui::beui::styled::PictureMenuButton;
 use block_editor_beui::beui::unstyled::MenuItem;

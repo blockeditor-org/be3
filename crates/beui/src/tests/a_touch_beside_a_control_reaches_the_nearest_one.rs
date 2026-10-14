@@ -10,10 +10,14 @@ fn a_touch_beside_a_control_reaches_the_nearest_one() {
             view! {
                 <Frame padding_horizontal=40.0 padding_vertical=40.0>
                     <List direction=Direction::Horizontal spacing=10.0>
-                        <Interactive on_click={move || set_clicks.update(|clicks| clicks.push("left"))}>
+                        <Interactive
+                            on_click={move || set_clicks.update(|clicks| clicks.push("left"))}
+                        >
                             <Frame width=30.0 height=30.0 />
                         </Interactive>
-                        <Interactive on_click={move || set_clicks.update(|clicks| clicks.push("right"))}>
+                        <Interactive
+                            on_click={move || set_clicks.update(|clicks| clicks.push("right"))}
+                        >
                             <Frame width=30.0 height=30.0 />
                         </Interactive>
                     </List>

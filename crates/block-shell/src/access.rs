@@ -1,4 +1,3 @@
-
 use block_editor_beui::AccessLevel;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_DATA_OBJECT, ICON_EDIT, ICON_LOCK, ICON_VISIBILITY};

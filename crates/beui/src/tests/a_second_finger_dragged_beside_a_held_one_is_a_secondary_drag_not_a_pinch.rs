@@ -43,7 +43,13 @@ fn a_second_finger_dragged_beside_a_held_one_is_a_secondary_drag_not_a_pinch() {
     harness.move_fingers(pos2(0.0, 0.0), pos2(150.0, 150.0));
     harness.frame(Vec::new());
 
-    assert!(zoomed.get_untracked(), "moving the first finger too makes it a pinch");
-    let cancelled = drags.get_untracked().last().is_some_and(|drag| drag.cancelled);
+    assert!(
+        zoomed.get_untracked(),
+        "moving the first finger too makes it a pinch"
+    );
+    let cancelled = drags
+        .get_untracked()
+        .last()
+        .is_some_and(|drag| drag.cancelled);
     assert!(cancelled, "the drag the second finger began is called off");
 }

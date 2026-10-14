@@ -1,7 +1,6 @@
-
 use block_editor_beui::beui::reactive::{
-    Align, Callback, Child, Direction, Dynamic, ForEach, Frame, ItemSize, Justify, List, Memo, Portal, Show,
-    Spacer, Text, clone, component, create_memo, create_signal, view,
+    Align, Callback, Child, Direction, Dynamic, ForEach, Frame, ItemSize, Justify, List, Memo,
+    Portal, Show, Spacer, Text, clone, component, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
     Button, ButtonVariant, Caption, Dialog, Heading, Icon, ModalSheet, SHEET_STOPS, Scroll,
@@ -58,12 +57,7 @@ fn PickerDialog(workspace: Workspace, pick: u64) -> NodeId {
     let error = create_memo(move || held.get().and_then(|held| held.error));
     view! {
         <List spacing=0.0>
-            <ChooseDialog
-                workspace={workspace}
-                held={held}
-                act={act}
-                phone={phone}
-            />
+            <ChooseDialog workspace={workspace} held={held} act={act} phone={phone} />
             <CreateDialog workspace pick held act={act} phone />
             <PickerError error act />
         </List>
@@ -144,7 +138,11 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
     let tiling = create_memo(move || !linking.get());
     let sections = create_memo(move || {
         let types = workspace.types();
-        held.with(|held| held.as_ref().map(|held| sections(&types, held)).unwrap_or_default())
+        held.with(|held| {
+            held.as_ref()
+                .map(|held| sections(&types, held))
+                .unwrap_or_default()
+        })
     });
     let section_keys = create_memo(move || {
         sections
@@ -164,7 +162,11 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
         }
         let types = workspace.types();
         let blocks = workspace.every_block();
-        held.with(|held| held.as_ref().map(|held| links(&types, held, &blocks)).unwrap_or_default())
+        held.with(|held| {
+            held.as_ref()
+                .map(|held| links(&types, held, &blocks))
+                .unwrap_or_default()
+        })
     });
     let link_keys = create_memo(move || {
         links
@@ -194,12 +196,7 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
         true => None,
         false => Some(PICKER_HEIGHT),
     };
-    let (tab_act, search_act, tile_act, link_act) = (
-        act,
-        act,
-        act,
-        act,
-    );
+    let (tab_act, search_act, tile_act, link_act) = (act, act, act, act);
     view! {
         <List spacing=10.0>
             <PlacingFields workspace held act />
@@ -234,10 +231,7 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
                                                 sections.get().into_iter().find(|section| section.key == key)
                                             });
                                             view! {
-                                                <TileSectionView
-                                                    act={tile_act}
-                                                    section
-                                                />
+                                                <TileSectionView act={tile_act} section />
                                             }
                                         }}
                                     </ForEach>
@@ -352,12 +346,7 @@ fn PlacingFields(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> No
                                         places.get().into_iter().find(|place| place.parent == parent)
                                     });
                                     view! {
-                                        <PlaceButton
-                                            act={act}
-                                            chosen={chosen}
-                                            parent
-                                            place
-                                        />
+                                        <PlaceButton act={act} chosen={chosen} parent place />
                                     }
                                 }}
                             </ForEach>

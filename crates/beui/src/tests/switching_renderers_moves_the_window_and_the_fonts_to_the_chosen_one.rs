@@ -28,7 +28,8 @@ struct Recording {
 
 impl Recording {
     fn record(&self, event: String) {
-        self.log.update(|log| log.push(format!("{} {event}", self.name)));
+        self.log
+            .update(|log| log.push(format!("{} {event}", self.name)));
     }
 }
 
@@ -93,10 +94,7 @@ fn switching_renderers_moves_the_window_and_the_fonts_to_the_chosen_one() {
     let empty = FreetypeFonts::new(FontLibrary::new(FontSources::default()));
     let loaded = vec![
         Loaded {
-            renderer: Box::new(Recording {
-                name: "first",
-                log,
-            }),
+            renderer: Box::new(Recording { name: "first", log }),
             fonts: None,
         },
         Loaded {

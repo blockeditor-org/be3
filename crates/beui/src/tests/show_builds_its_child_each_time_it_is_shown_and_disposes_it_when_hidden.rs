@@ -36,7 +36,11 @@ fn show_builds_its_child_each_time_it_is_shown_and_disposes_it_when_hidden() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    assert_eq!(builds.get_untracked(), 0, "a hidden show() must not build its child");
+    assert_eq!(
+        builds.get_untracked(),
+        0,
+        "a hidden show() must not build its child"
+    );
     assert_eq!(
         harness.document().children(column).len(),
         1,

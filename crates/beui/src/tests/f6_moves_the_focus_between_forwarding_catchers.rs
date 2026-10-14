@@ -75,5 +75,9 @@ fn f6_moves_the_focus_between_forwarding_catchers() {
 
     set_heard.update(|heard| heard.clear());
     harness.frame(vec![f6(true)]);
-    assert_eq!(focused(&heard.get_untracked()), Some(0), "Shift+F6 goes back");
+    assert_eq!(
+        focused(&heard.get_untracked()),
+        Some(0),
+        "Shift+F6 goes back"
+    );
 }

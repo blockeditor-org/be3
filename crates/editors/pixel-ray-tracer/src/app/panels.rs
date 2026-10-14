@@ -1,4 +1,3 @@
-
 use block_editor_beui::be_block::pixel_ray_tracer::{
     PIXEL_RAY_TRACER_PALETTE, RayEntity, RaySettings,
 };
@@ -172,7 +171,7 @@ fn SelectedEntity(
         _ => 1.0,
     });
     let edit = move |selected: &block_editor_beui::beui::reactive::Memo<Option<RayEntity>>,
-                write: fn(&mut RayEntity, f32)| {
+                     write: fn(&mut RayEntity, f32)| {
         let selected = *selected;
         move |value: f32| {
             let Some(mut entity) = selected.get_untracked() else {
@@ -259,7 +258,7 @@ fn NewEntity(state: RayState) -> NodeId {
     let transmission = create_memo(move || held.get().transmission);
     let ior = create_memo(move || held.get().refractive_index);
     let edit = move |held: &block_editor_beui::beui::reactive::ReadSignal<Surface>,
-                write: fn(&mut Surface, f32)| {
+                     write: fn(&mut Surface, f32)| {
         let held = *held;
         move |value: f32| {
             let mut surface = held.get_untracked();
@@ -270,9 +269,7 @@ fn NewEntity(state: RayState) -> NodeId {
     let set_roughness = edit(&held, |surface, value| surface.roughness = value);
     let set_metalness = edit(&held, |surface, value| surface.metalness = value);
     let set_transmission = edit(&held, |surface, value| surface.transmission = value);
-    let set_ior = edit(&held, |surface, value| {
-        surface.refractive_index = value
-    });
+    let set_ior = edit(&held, |surface, value| surface.refractive_index = value);
     view! {
         <List spacing=8.0>
             <Show condition={light}>
@@ -341,7 +338,7 @@ fn RayControls(state: RayState, view: bool) -> NodeId {
     let step = create_memo(move || settings.get().step_distance);
     let steps = create_memo(move || settings.get().maximum_steps as f32);
     let write = move |settings: &block_editor_beui::beui::reactive::Memo<RaySettings>,
-                 edit: fn(&mut RaySettings, f32)| {
+                      edit: fn(&mut RaySettings, f32)| {
         let settings = *settings;
         move |value: f32| {
             let mut next = settings.get_untracked();

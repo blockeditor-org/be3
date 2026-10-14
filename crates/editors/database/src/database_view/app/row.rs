@@ -32,18 +32,21 @@ const LABEL_WIDTH: f32 = 104.0;
 #[component]
 pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
     let index = create_memo(move || {
-        data.row_ids.with(|ids| ids.iter().position(|id| *id == row))
+        data.row_ids
+            .with(|ids| ids.iter().position(|id| *id == row))
     });
     let code = create_memo(move || short_id(&data.prefix.get(), row.as_uuid()));
     let values = create_memo(move || {
         let Some(index) = index.get() else {
             return Default::default();
         };
-        data.rows.with(|rows| rows.get(index).map(|row| row.cells()).unwrap_or_default())
+        data.rows
+            .with(|rows| rows.get(index).map(|row| row.cells()).unwrap_or_default())
     });
     let page = create_memo(move || {
         let index = index.get()?;
-        data.rows.with(|rows| rows.get(index).and_then(|row| row.page()))
+        data.rows
+            .with(|rows| rows.get(index).and_then(|row| row.page()))
     });
     let title = create_memo(move || {
         let field = data.title_field.get();
@@ -260,7 +263,8 @@ pub fn several(field: &DatabaseField) -> bool {
 #[component]
 fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
     let known = create_memo(move || {
-        data.fields.with(|fields| fields.iter().find(|known| known.id == field).cloned())
+        data.fields
+            .with(|fields| fields.iter().find(|known| known.id == field).cloned())
     });
     let name = create_memo(move || {
         known.with(|known| {
@@ -279,7 +283,9 @@ fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
     });
     let other = create_memo(move || !choice.get());
     let values = create_memo(move || {
-        let index = data.row_ids.with(|ids| ids.iter().position(|id| *id == row));
+        let index = data
+            .row_ids
+            .with(|ids| ids.iter().position(|id| *id == row));
         data.rows.with(|rows| {
             index
                 .and_then(|index| rows.get(index))
@@ -348,12 +354,18 @@ fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
 #[component]
 fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
     let known = create_memo(move || {
-        data.fields.with(|fields| fields.iter().find(|known| known.id == field).cloned())
+        data.fields
+            .with(|fields| fields.iter().find(|known| known.id == field).cloned())
     });
     let links = create_memo(move || {
-        let index = data.row_ids.with(|ids| ids.iter().position(|id| *id == row));
+        let index = data
+            .row_ids
+            .with(|ids| ids.iter().position(|id| *id == row));
         data.rows.with(|rows| {
-            match index.and_then(|index| rows.get(index)).and_then(|row| row.get(field)) {
+            match index
+                .and_then(|index| rows.get(index))
+                .and_then(|row| row.get(field))
+            {
                 Some(DatabaseValue::Links(links)) => links,
                 Some(DatabaseValue::Relation(link)) => vec![link],
                 _ => Vec::new(),
@@ -468,12 +480,13 @@ fn LinkedRow(
         let index = local.get()?;
         let entry = data.rows.with(|rows| rows.get(index).cloned())?;
         data.fields.with(|fields| {
-            fields.iter().filter(|field| iconic(field)).find_map(|field| {
-                match entry.get(field.id) {
+            fields
+                .iter()
+                .filter(|field| iconic(field))
+                .find_map(|field| match entry.get(field.id) {
                     Some(DatabaseValue::Enum(option)) => field.option(option).cloned(),
                     _ => None,
-                }
-            })
+                })
         })
     });
     let marked = create_memo(move || option.with(Option::is_some));

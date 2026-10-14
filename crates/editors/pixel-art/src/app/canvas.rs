@@ -1,4 +1,3 @@
-
 use block_editor_beui::be_block::pixel_art::{PixelArtOperation, PixelColor, PixelUpdate};
 use block_editor_beui::beui::icons::ICON_ARROW_FORWARD;
 use block_editor_beui::beui::reactive::{

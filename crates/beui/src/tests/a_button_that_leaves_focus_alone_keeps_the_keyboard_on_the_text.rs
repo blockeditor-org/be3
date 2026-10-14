@@ -13,7 +13,10 @@ fn a_button_that_leaves_focus_alone_keeps_the_keyboard_on_the_text() {
                 <TextInput value="" />
             },
             view! {
-                <Button press_focus=false on_click={move || set_clicks.update(|clicks| *clicks += 1)}>
+                <Button
+                    press_focus=false
+                    on_click={move || set_clicks.update(|clicks| *clicks += 1)}
+                >
                     <Text string="Bold" />
                 </Button>
             },

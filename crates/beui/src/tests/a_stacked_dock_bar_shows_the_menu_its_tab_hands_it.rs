@@ -56,7 +56,11 @@ fn a_stacked_dock_bar_shows_the_menu_its_tab_hands_it() {
     let row = text_within(harness.document(), root, "Rename").expect("the menu lists Rename");
     harness.click(harness.center(row));
     harness.settle();
-    assert_eq!(renamed.get_untracked(), 1, "choosing Rename runs the tab's action");
+    assert_eq!(
+        renamed.get_untracked(),
+        1,
+        "choosing Rename runs the tab's action"
+    );
 
     let back = harness.center(harness.find("dock.back"));
     harness.click(back);

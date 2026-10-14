@@ -23,7 +23,11 @@ fn a_driver_holds_a_press_across_a_pause_and_taps_with_a_finger() {
         .ask(&["down", "\"Press\""])
         .expect("the button is pressed");
     driven.ask(&["pause", "200"]).expect("time passes");
-    assert_eq!(clicks.get_untracked(), 0, "a held press has not clicked yet");
+    assert_eq!(
+        clicks.get_untracked(),
+        0,
+        "a held press has not clicked yet"
+    );
     let state = driven.ask(&["state"]).expect("the state is read");
     assert!(state.contains("holding Primary"), "{state}");
     driven.ask(&["up"]).expect("the button is let go");

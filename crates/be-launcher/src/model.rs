@@ -299,7 +299,8 @@ impl Model {
             return *read;
         }
         let (read, write) = create_signal(Loaded::Loading);
-        self.timelines.get()
+        self.timelines
+            .get()
             .borrow_mut()
             .insert(pull_request.number, (read, write));
         self.tasks.get().timeline(pull_request.clone());
@@ -308,7 +309,8 @@ impl Model {
 
     pub(crate) fn refresh_timeline(&self, pull_request: &PullRequest) {
         let write = self
-            .timelines.get()
+            .timelines
+            .get()
             .borrow()
             .get(&pull_request.number)
             .map(|(_, write)| *write);
@@ -360,7 +362,8 @@ impl Model {
             return *read;
         }
         let (read, write) = create_signal(Loaded::Loading);
-        self.images.get()
+        self.images
+            .get()
             .borrow_mut()
             .insert(url.to_owned(), (read, write));
         self.tasks.get().image(url.to_owned());
@@ -444,7 +447,8 @@ impl Model {
     #[cfg(not(target_os = "android"))]
     fn can_check_out(&self, pull_request: &PullRequest) -> bool {
         let deleted = self
-            .timelines.get()
+            .timelines
+            .get()
             .borrow()
             .get(&pull_request.number)
             .is_some_and(|(timeline, _)| match timeline.get_untracked() {
@@ -497,7 +501,8 @@ impl Model {
             }
             Event::Timeline(number, timeline) => {
                 let write = self
-                    .timelines.get()
+                    .timelines
+                    .get()
                     .borrow()
                     .get(&number)
                     .map(|(_, write)| *write);
@@ -509,7 +514,12 @@ impl Model {
                 }
             }
             Event::Image(url, pixels) => {
-                let write = self.images.get().borrow().get(&url).map(|(_, write)| *write);
+                let write = self
+                    .images
+                    .get()
+                    .borrow()
+                    .get(&url)
+                    .map(|(_, write)| *write);
                 if let Some(write) = write {
                     write.set(match pixels {
                         Ok(pixels) => Loaded::Ready(Image::from_rgba(

@@ -123,7 +123,11 @@ fn an_overlay_reports_a_dismiss_only_when_the_user_closes_it() {
     });
     harness.frame(Vec::new());
     assert!(!harness.document().is_overlay_open(inner.id()));
-    assert_eq!(dismissed.with_untracked(|dismissed| dismissed.len()), 4, "the parent is dismissed once");
+    assert_eq!(
+        dismissed.with_untracked(|dismissed| dismissed.len()),
+        4,
+        "the parent is dismissed once"
+    );
     assert_eq!(
         nested_dismissed.with_untracked(|nested_dismissed| nested_dismissed.len()),
         2,

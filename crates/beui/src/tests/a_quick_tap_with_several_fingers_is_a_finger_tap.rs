@@ -21,7 +21,10 @@ fn a_quick_tap_with_several_fingers_is_a_finger_tap() {
 
     harness.touch(TouchPhase::Start, pos2(50.0, 50.0));
     harness.touch(TouchPhase::End, pos2(50.0, 50.0));
-    assert!(taps.with_untracked(|taps| taps.is_empty()), "one finger is an ordinary tap");
+    assert!(
+        taps.with_untracked(|taps| taps.is_empty()),
+        "one finger is an ordinary tap"
+    );
 
     harness.finger(1, TouchPhase::Start, pos2(50.0, 50.0));
     harness.finger(2, TouchPhase::Start, pos2(120.0, 50.0));

@@ -1,4 +1,3 @@
-
 use block_editor_beui::Editor;
 use block_editor_beui::be_block::logic_game::QuizRow;
 use block_editor_beui::beui::icons::ICON_CHECK_CIRCLE;
@@ -162,21 +161,16 @@ fn ProblemGrid(
     checked: ReadSignal<bool>,
     read_only: Memo<bool>,
 ) -> NodeId {
-    let operands = create_memo(move || {
-        quiz.get().problems()[page.get()].operands().to_vec()
-    });
+    let operands = create_memo(move || quiz.get().problems()[page.get()].operands().to_vec());
     let write = clone!(block -> move |row: QuizRow, values: Vec<Option<bool>>| {
         quiz.get().write_row(&block, page.get_untracked(), row, values);
     });
     let carry_write = write.clone();
     let carries = create_memo(move || answers.with(|(carries, _)| carries.clone()));
     let sums = create_memo(move || answers.with(|(_, sums)| sums.clone()));
-    let carry_expected = create_memo(move || {
-        quiz.get().problems()[page.get()].carry_bits().to_vec()
-    });
-    let sum_expected = create_memo(move || {
-        quiz.get().problems()[page.get()].sum_bits().to_vec()
-    });
+    let carry_expected =
+        create_memo(move || quiz.get().problems()[page.get()].carry_bits().to_vec());
+    let sum_expected = create_memo(move || quiz.get().problems()[page.get()].sum_bits().to_vec());
     let theme = use_theme();
     view! {
         <List spacing=ROW_SPACING>

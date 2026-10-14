@@ -129,9 +129,7 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
         )
     });
     let labels = create_memo(move || pull_request.get().labels);
-    let checked_out = create_memo(move || {
-        model.current(&pull_request.get())
-    });
+    let checked_out = create_memo(move || model.current(&pull_request.get()));
     let tagged = create_memo(move || !labels.get().is_empty() || checked_out.get());
     let timeline = model.timeline(&pull_request.get_untracked());
     let loading = create_memo(move || timeline.get() == Loaded::Loading);
@@ -179,11 +177,7 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                                 on_click={refresh}
                             />
                         </List>
-                        <Notes
-                            model={model}
-                            pull_request={pull_request}
-                            timeline={timeline}
-                        />
+                        <Notes model={model} pull_request={pull_request} timeline={timeline} />
                         <Separator />
                         <Show condition={loading}>
                             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>

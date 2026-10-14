@@ -9,7 +9,10 @@ fn dragging_onto_a_drop_target_hands_it_the_payload() {
     let (document, [source, target]) = toolbar_of(move || {
         [
             view! {
-                <Draggable payload={7_u32} on_click={move || set_clicks.update(|clicks| *clicks += 1)}>
+                <Draggable
+                    payload={7_u32}
+                    on_click={move || set_clicks.update(|clicks| *clicks += 1)}
+                >
                     {|_: DragHandle| view! {
                         <Frame width=40.0 height=40.0 />
                     }}
@@ -30,7 +33,11 @@ fn dragging_onto_a_drop_target_hands_it_the_payload() {
     harness.frame(Vec::new());
 
     harness.click(harness.center(source));
-    assert_eq!(clicks.get_untracked(), 1, "a press that never moved is a click");
+    assert_eq!(
+        clicks.get_untracked(),
+        1,
+        "a press that never moved is a click"
+    );
     assert_eq!(dropped.get_untracked(), None);
 
     harness.drag(harness.center(source), harness.center(target));

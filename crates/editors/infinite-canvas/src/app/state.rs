@@ -299,21 +299,21 @@ impl CanvasState {
             dependencies: editor
                 .blocks()
                 .watch(BlockQuery::References(editor.block_id())),
-                content,
-                pending_image_center: Cell::new(None),
-                pending_file_drop: Cell::new(None),
-                context_position: Cell::new(None),
-                grouped_edit: Cell::new(false),
-                pointer_down: Cell::new(false),
-                touch: Cell::new(false),
-                retapped: Cell::new(None),
-                last_foreground: Cell::new(CanvasEntityStyle::default().foreground),
-                last_fill: Cell::new(CanvasEntityStyle::default().fill),
-                children: RefCell::new(HashMap::new()),
-                confirmed_editor: Cell::new(None),
-                shown: RefCell::new(None),
-                color: Cell::new(None),
-                stage: Cell::new(Rect::ZERO),
+            content,
+            pending_image_center: Cell::new(None),
+            pending_file_drop: Cell::new(None),
+            context_position: Cell::new(None),
+            grouped_edit: Cell::new(false),
+            pointer_down: Cell::new(false),
+            touch: Cell::new(false),
+            retapped: Cell::new(None),
+            last_foreground: Cell::new(CanvasEntityStyle::default().foreground),
+            last_fill: Cell::new(CanvasEntityStyle::default().fill),
+            children: RefCell::new(HashMap::new()),
+            confirmed_editor: Cell::new(None),
+            shown: RefCell::new(None),
+            color: Cell::new(None),
+            stage: Cell::new(Rect::ZERO),
         });
         Self {
             cells,
@@ -457,7 +457,9 @@ impl CanvasState {
     }
 
     fn peek_child(&self, entity: Uuid) -> ChildState {
-        self.cells.get().children
+        self.cells
+            .get()
+            .children
             .borrow()
             .get(&entity)
             .cloned()
@@ -534,7 +536,9 @@ pub(crate) fn displayed_entities(
 impl CanvasState {
     fn operate(&self, operation: &InfiniteCanvasOperation) {
         if let Some(edit) = self
-            .cells.get().content
+            .cells
+            .get()
+            .content
             .read(|canvas| canvas.root().edit_for(operation))
             && !edit.0.is_empty()
         {
@@ -1167,7 +1171,9 @@ impl CanvasState {
         let state = self;
         self.editor
             .pick_block(BlockFilter::default(), move |picked| {
-                if let Ok(picked) = picked && state.is_alive() {
+                if let Ok(picked) = picked
+                    && state.is_alive()
+                {
                     state.place_picked_block(picked.id, center);
                 }
             });
@@ -1208,7 +1214,9 @@ impl CanvasState {
                 place: None,
             },
             move |picked| {
-                if let Ok(picked) = picked && state.is_alive() {
+                if let Ok(picked) = picked
+                    && state.is_alive()
+                {
                     state.attach_picked_component(&selected, picked.id);
                 }
             },
@@ -1241,7 +1249,9 @@ impl CanvasState {
         };
         let state = self;
         self.editor.pick_block(filter, move |picked| {
-            if let Ok(picked) = picked && state.is_alive() {
+            if let Ok(picked) = picked
+                && state.is_alive()
+            {
                 state.set_picked_value(&selected, schema_id, field_id, picked.id);
             }
         });
@@ -1861,7 +1871,9 @@ impl CanvasState {
             Ok(Some(image)) => {
                 self.set_import_error.set(None);
                 let center = self
-                    .cells.get().pending_image_center
+                    .cells
+                    .get()
+                    .pending_image_center
                     .take()
                     .unwrap_or_else(|| self.viewport_center());
                 self.add_imported_image(image, center);

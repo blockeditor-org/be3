@@ -61,10 +61,7 @@ fn a_runner_whose_app_panics_lets_the_app_exit_and_reports_why() {
     let mut runner = Runner::new(Launch {
         options: RunOptions::new("runner"),
         context: context(),
-        app: Box::new(Failing {
-            log,
-            frames: 0,
-        }),
+        app: Box::new(Failing { log, frames: 0 }),
     });
     let loaded = vec![Loaded {
         renderer: Box::new(Screen),
@@ -82,12 +79,18 @@ fn a_runner_whose_app_panics_lets_the_app_exit_and_reports_why() {
     );
     assert!(runner.exited(), "the runner stops once its app panicked");
     assert_eq!(runner.failure(), Some("the second frame went wrong"));
-    assert_eq!(log.update(std::mem::take), ["updated", "updated", "exiting"]);
+    assert_eq!(
+        log.update(std::mem::take),
+        ["updated", "updated", "exiting"]
+    );
 
     let finished = runner.finish().expect_err("the run ends in an error");
     assert!(
         finished.to_string().contains("the second frame went wrong"),
         "{finished}"
     );
-    assert!(log.update(std::mem::take).is_empty(), "the app hears that it exits once");
+    assert!(
+        log.update(std::mem::take).is_empty(),
+        "the app hears that it exits once"
+    );
 }

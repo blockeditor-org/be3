@@ -37,7 +37,11 @@ fn a_drag_on_the_board_drops_nothing_when_its_touch_is_cancelled() {
     harness.touch(TouchPhase::Move, to);
     harness.touch(TouchPhase::Cancel, to);
 
-    assert_eq!(dropped.get_untracked(), None, "a cancelled touch drops nothing");
+    assert_eq!(
+        dropped.get_untracked(),
+        None,
+        "a cancelled touch drops nothing"
+    );
     assert!(
         !harness.document().dragging(),
         "but the board lets go of what it carried"

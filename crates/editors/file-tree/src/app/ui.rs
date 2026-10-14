@@ -9,8 +9,8 @@ use block_editor_beui::beui::icons::{
 };
 use block_editor_beui::beui::reactive::{
     Align, Direction, Frame, ItemSize, Justify, List, Memo, NodeRef, Prop, ReadSignal, Show,
-    Spacer, Stored, WriteSignal, component, create_effect, create_memo, create_signal, focus_ring, store,
-    view, with_document,
+    Spacer, Stored, WriteSignal, component, create_effect, create_memo, create_signal, focus_ring,
+    store, view, with_document,
 };
 use block_editor_beui::beui::styled::theme::FONT_SMALL;
 use block_editor_beui::beui::styled::{
@@ -354,7 +354,11 @@ fn TreeRow(
         let Some(id) = row.get_untracked().and_then(|row| row.id) else {
             return;
         };
-        picker.open(editor, Some(id), [id].into_iter().collect::<HashSet<Uuid>>());
+        picker.open(
+            editor,
+            Some(id),
+            [id].into_iter().collect::<HashSet<Uuid>>(),
+        );
     };
     let chose = menu_action(editor, tree, picker, exporter, inspect, row);
     let add = create_memo(move || !row.get().is_some_and(|row| row.can_add));
@@ -447,7 +451,7 @@ fn TreeRow(
                     }}
                 </Show>
                 <Show condition={can_add}>
-                    <AddChild shown={hovered} named={named.clone()} on_click={add_child.clone()} />
+                    <AddChild shown={hovered} named={named.clone()} on_click={add_child} />
                 </Show>
             </List>
         </ContextMenu>

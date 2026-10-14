@@ -1,4 +1,3 @@
-
 use block_editor_beui::be_block::video::{
     MAX_CLIP_LENGTH, VideoAttachment, VideoClip, VideoEffect,
 };
@@ -39,7 +38,8 @@ pub(crate) fn EffectsPanel(state: VideoState) -> NodeId {
 #[component]
 fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
     let name = create_memo(move || {
-        clip.get().map_or_else(String::new, |clip| state.name_of(clip.block_id))
+        clip.get()
+            .map_or_else(String::new, |clip| state.name_of(clip.block_id))
     });
     let length = create_memo(move || clip.get().map_or(1.0, |clip| clip.length as f64));
     let rate = state.frame_rate;
@@ -66,7 +66,10 @@ fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
         state
             .video()
             .and_then(|video| video.clip(attachment.clip_id).cloned())
-            .map_or_else(|| "Loading…".to_owned(), |clip| state.name_of(clip.block_id))
+            .map_or_else(
+                || "Loading…".to_owned(),
+                |clip| state.name_of(clip.block_id),
+            )
     });
     let offset = create_memo(move || {
         attached

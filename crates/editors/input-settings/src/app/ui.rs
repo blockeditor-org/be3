@@ -8,7 +8,8 @@ use block_editor_beui::be_block::{InputSettings, InputSettingsContent, Layered};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_RESET_SETTINGS;
 use block_editor_beui::beui::reactive::{
-    Align, Callback, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show, component, create_memo, create_signal, view,
+    Align, Callback, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show, component,
+    create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Caption, Heading, IconButton, Scroll, Select, Slider, Switch, TextInput, use_theme,

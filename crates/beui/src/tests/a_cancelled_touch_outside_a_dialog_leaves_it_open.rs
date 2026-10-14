@@ -41,5 +41,9 @@ fn a_cancelled_touch_outside_a_dialog_leaves_it_open() {
     harness.touch(TouchPhase::Start, outside);
     harness.touch(TouchPhase::End, outside);
     harness.frame(Vec::new());
-    assert_eq!(dismissed.get_untracked(), 1, "a tap outside dismisses the dialog");
+    assert_eq!(
+        dismissed.get_untracked(),
+        1,
+        "a tap outside dismisses the dialog"
+    );
 }

@@ -231,8 +231,13 @@ impl Tree {
     }
 
     pub(crate) fn remember(&self, id: Uuid, block_type: Uuid) {
-        self.inner
-            .with(|inner| inner.watched.borrow_mut().block_types.insert(id, block_type));
+        self.inner.with(|inner| {
+            inner
+                .watched
+                .borrow_mut()
+                .block_types
+                .insert(id, block_type)
+        });
         self.set_remembered.update(|count| *count += 1);
     }
 

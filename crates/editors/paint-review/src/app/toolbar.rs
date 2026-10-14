@@ -1,4 +1,3 @@
-
 use block_editor_beui::Toolbar;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
@@ -95,9 +94,7 @@ pub(crate) fn ReviewToolbar(review: Review, shown: Prop<bool>) -> NodeId {
 fn ViewChoice(review: Review) -> NodeId {
     let showing = review.showing;
     let pressed = |wanted: Showing| create_memo(move || showing.get() == wanted);
-    let choose = |review: Review, wanted: Showing| {
-        move |_: bool| review.show(wanted)
-    };
+    let choose = |review: Review, wanted: Showing| move |_: bool| review.show(wanted);
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
             <ToggleButton

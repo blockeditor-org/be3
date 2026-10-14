@@ -12,7 +12,10 @@ fn a_fullscreen_overlay_fills_the_window_and_escape_dismisses_it() {
         move || {
             view! {
                 <List spacing=0.0>
-                    <Fullscreen open={open} on_dismiss={move || set_dismissed.update(|dismissed| *dismissed += 1)}>
+                    <Fullscreen
+                        open={open}
+                        on_dismiss={move || set_dismissed.update(|dismissed| *dismissed += 1)}
+                    >
                         <Frame color=Color32::WHITE @node_ref={&content} />
                     </Fullscreen>
                 </List>

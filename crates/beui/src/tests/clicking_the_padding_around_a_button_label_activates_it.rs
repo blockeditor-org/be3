@@ -7,7 +7,10 @@ fn clicking_the_padding_around_a_button_label_activates_it() {
     let (clicks, set_clicks) = create_signal(0);
     let (document, [_button]) = toolbar_of(|| {
         [view! {
-            <LabelledButton label="Click me" on_click={move || set_clicks.update(|clicks| *clicks += 1)} />
+            <LabelledButton
+                label="Click me"
+                on_click={move || set_clicks.update(|clicks| *clicks += 1)}
+            />
         }]
     });
     let mut harness = Harness::new(document);

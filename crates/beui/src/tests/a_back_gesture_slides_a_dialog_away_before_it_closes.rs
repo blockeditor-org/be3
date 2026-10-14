@@ -21,12 +21,7 @@ fn a_back_gesture_slides_a_dialog_away_before_it_closes() {
                             set_open.set(false);
                         }}
                     >
-                        <Text
-                            string="Body"
-                            font_size=14.0
-                            color=Color32::WHITE
-                            @node_ref={&body}
-                        />
+                        <Text string="Body" font_size=14.0 color=Color32::WHITE @node_ref={&body} />
                     </Dialog>
                 </List>
             }
@@ -81,7 +76,11 @@ fn a_back_gesture_slides_a_dialog_away_before_it_closes() {
         leaving.left() < pulled.left(),
         "released, it carries on the way it was going: {leaving:?} after {pulled:?}"
     );
-    assert_eq!(dismissed.get_untracked(), 0, "and closes only once it is gone");
+    assert_eq!(
+        dismissed.get_untracked(),
+        0,
+        "and closes only once it is gone"
+    );
     harness.settle();
     assert_eq!(dismissed.get_untracked(), 1);
     assert!(!harness.frame(Vec::new()).window.handles_back);

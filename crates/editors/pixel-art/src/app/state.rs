@@ -145,7 +145,8 @@ impl Tools {
     }
 
     pub(crate) fn artwork(&self) -> Option<Rc<Artwork>> {
-        self.cells.with(|cells| artwork_of(&cells.block, &cells.held))
+        self.cells
+            .with(|cells| artwork_of(&cells.block, &cells.held))
     }
 
     pub(crate) fn pixel(&self, x: u16, y: u16) -> Option<PixelColor> {
@@ -160,7 +161,11 @@ impl Tools {
         if !self.editable() {
             return;
         }
-        if let Some(edit) = self.cells.get().block.read(|art| art.root().edit_for(&operation))
+        if let Some(edit) = self
+            .cells
+            .get()
+            .block
+            .read(|art| art.root().edit_for(&operation))
             && !edit.0.is_empty()
         {
             self.cells.get().block.operate(edit);

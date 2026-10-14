@@ -45,7 +45,11 @@ fn a_capturing_button_takes_the_press_from_the_row_it_sits_in() {
     harness.click(harness.center(inner));
     harness.frame(Vec::new());
 
-    assert_eq!(inner_clicks.get_untracked(), 1, "the captured button answers");
+    assert_eq!(
+        inner_clicks.get_untracked(),
+        1,
+        "the captured button answers"
+    );
     assert_eq!(
         row_clicks.get_untracked(),
         0,
@@ -56,6 +60,10 @@ fn a_capturing_button_takes_the_press_from_the_row_it_sits_in() {
     harness.click(Pos2::new(rect.left() + 4.0, rect.center().y));
     harness.frame(Vec::new());
 
-    assert_eq!(row_clicks.get_untracked(), 1, "the rest of the row still answers");
+    assert_eq!(
+        row_clicks.get_untracked(),
+        1,
+        "the rest of the row still answers"
+    );
     assert_eq!(inner_clicks.get_untracked(), 1);
 }

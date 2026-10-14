@@ -65,7 +65,11 @@ fn show_keep_alive_builds_its_child_once_and_keeps_it_while_hidden() {
         1,
         "hiding it again takes its child back out of the list"
     );
-    assert_eq!(builds.get_untracked(), 1, "hiding it again must not rebuild it");
+    assert_eq!(
+        builds.get_untracked(),
+        1,
+        "hiding it again must not rebuild it"
+    );
 
     harness.click(harness.center(toggle));
     harness.frame(Vec::new());

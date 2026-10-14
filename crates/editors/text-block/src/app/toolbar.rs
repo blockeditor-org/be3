@@ -6,7 +6,8 @@ use beui::icons::{
     ICON_KEYBOARD_HIDE, ICON_LINK, ICON_SETTINGS, ICON_TITLE,
 };
 use beui::reactive::{
-    Action, Align, Chord, Direction, ForEach, Frame, ItemSize, List, Show, WriteSignal, component, create_memo, create_signal, view, with_document,
+    Action, Align, Chord, Direction, ForEach, Frame, ItemSize, List, Show, WriteSignal, component,
+    create_memo, create_signal, view, with_document,
 };
 use beui::styled::{Body, Dialog, IconButton, NumberInput, Select, Separator, Switch, use_theme};
 use beui::unstyled::{ChoiceOption, Scroll};
@@ -50,20 +51,16 @@ pub(crate) fn EditorMenu(state: State) -> NodeId {
 fn menu_actions(state: State, set_settings: WriteSignal<bool>) {
     let hex = state.hex_view;
     let in_text = create_memo(move || !hex.get());
-    Action::new(
-        "text.hex",
-        "Toggle hex view",
-        move || state.toggle_hex_view(),
-    )
+    Action::new("text.hex", "Toggle hex view", move || {
+        state.toggle_hex_view()
+    })
     .glyph(ICON_DATA_ARRAY)
     .checked(create_memo(move || hex.get()))
     .in_menu()
     .register();
-    Action::new(
-        "text.insert-block",
-        "Insert a block",
-        move || pick_block(state),
-    )
+    Action::new("text.insert-block", "Insert a block", move || {
+        pick_block(state)
+    })
     .glyph(ICON_ADD_BOX)
     .enabled(in_text)
     .in_menu()
@@ -160,11 +157,9 @@ pub(crate) fn format_actions(state: State) -> Vec<Action> {
         .iter()
         .map(|(id, label, glyph, command, chord)| {
             let command = *command;
-            let mut action = Action::new(
-                *id,
-                *label,
-                move || state.text.execute(EditorCommand::Markdown(command)),
-            )
+            let mut action = Action::new(*id, *label, move || {
+                state.text.execute(EditorCommand::Markdown(command))
+            })
             .glyph(glyph)
             .enabled(markdown);
             if let Some(chord) = chord {

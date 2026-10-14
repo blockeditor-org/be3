@@ -302,15 +302,13 @@ fn EntityEmbed(state: CanvasState, id: Uuid) -> CanvasItem {
     });
     let mode = create_memo(move || match entity.get() {
         Some(entity) => match entity.kind {
-            CanvasEntityKind::DirectEditor { .. } => {
-                match state.focused_editor.get() == Some(id) {
-                    true => ChildMode::Active,
-                    false => match state.shows_preview(id) {
-                        true => ChildMode::Preview,
-                        false => ChildMode::Passive,
-                    },
-                }
-            }
+            CanvasEntityKind::DirectEditor { .. } => match state.focused_editor.get() == Some(id) {
+                true => ChildMode::Active,
+                false => match state.shows_preview(id) {
+                    true => ChildMode::Preview,
+                    false => ChildMode::Passive,
+                },
+            },
             _ => ChildMode::Preview,
         },
         None => ChildMode::Preview,

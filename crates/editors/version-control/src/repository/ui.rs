@@ -2,8 +2,7 @@ use block_editor_beui::be_block::Root as _;
 use block_editor_beui::be_block::{Repository, RepositoryContent};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, component, create_memo,
-    view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Card, Heading, Scroll, use_theme,

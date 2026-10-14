@@ -1,4 +1,3 @@
-
 use block_editor_beui::be_block::canvas::{CanvasEntityKind, CanvasLayerMove};
 use block_editor_beui::beui::Key;
 use block_editor_beui::beui::icons::{
@@ -68,9 +67,7 @@ impl CanvasActions {
 pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     let live = !state.previewing();
     let free = create_memo(move || live && state.focused_editor.get().is_none());
-    let when = |test: fn(&CanvasState) -> bool| {
-        create_memo(move || free.get() && test(&state))
-    };
+    let when = |test: fn(&CanvasState) -> bool| create_memo(move || free.get() && test(&state));
     let selected = when(|state| !state.selection.get().is_empty());
     let unlocked = when(|state| {
         state
@@ -89,32 +86,25 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     let groupable = when(CanvasState::selection_can_group);
     let block = when(|state| embedded_block(state).is_some());
     let artboard = when(|state| state.first_artboard().is_some());
-    let reorder = |movement: CanvasLayerMove| {
-        create_memo(move || free.get() && state.can_reorder(movement))
-    };
+    let reorder =
+        |movement: CanvasLayerMove| create_memo(move || free.get() && state.can_reorder(movement));
     let tool = |id: &str, label: &'static str, glyph: &str, tool: Tool, key: Key| {
         Action::new(id, label, move || state.set_tool(tool))
             .glyph(glyph)
             .shortcut(Chord::key(key))
-            .checked(create_memo(
-                move || state.tool.get() == tool,
-            ))
+            .checked(create_memo(move || state.tool.get() == tool))
             .enabled(free)
     };
     let command = |id: &str, label: &'static str, glyph: &str, command: CanvasCommand| {
         Action::new(id, label, move || state.run(command)).glyph(glyph)
     };
     let add = |id: &str, label: &'static str, glyph: &str, tool: Tool| {
-        Action::new(
-            id,
-            label,
-            move || {
-                let at = state
-                    .take_context_position()
-                    .unwrap_or_else(|| state.viewport_center());
-                state.add_at(tool, at);
-            },
-        )
+        Action::new(id, label, move || {
+            let at = state
+                .take_context_position()
+                .unwrap_or_else(|| state.viewport_center());
+            state.add_at(tool, at);
+        })
         .glyph(glyph)
         .enabled(free)
     };
@@ -223,20 +213,16 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     .enabled(free)
     .in_menu()
     .register();
-    let fit_selection = Action::new(
-        "canvas.fit-selection",
-        "Fit selection",
-        move || state.request_fit_selection(),
-    )
+    let fit_selection = Action::new("canvas.fit-selection", "Fit selection", move || {
+        state.request_fit_selection()
+    })
     .glyph(ICON_FILTER_CENTER_FOCUS)
     .enabled(selected)
     .in_menu()
     .register();
-    Action::new(
-        "canvas.fit-artboard",
-        "Fit the first artboard",
-        move || state.request_fit_artboard(),
-    )
+    Action::new("canvas.fit-artboard", "Fit the first artboard", move || {
+        state.request_fit_artboard()
+    })
     .glyph(ICON_FIT_SCREEN)
     .enabled(artboard)
     .in_menu()
@@ -306,41 +292,31 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     )
     .register();
     let add_text = add("canvas.add.text", "Add text", ICON_TEXT_FIELDS, Tool::Text).register();
-    let add_image = Action::new(
-        "canvas.add.image",
-        "Add an image…",
-        move || state.open_image_picker(Some(
-            state.take_context_position().unwrap_or_else(|| state.viewport_center()),
-        )),
-    )
+    let add_image = Action::new("canvas.add.image", "Add an image…", move || {
+        state.open_image_picker(Some(
+            state
+                .take_context_position()
+                .unwrap_or_else(|| state.viewport_center()),
+        ))
+    })
     .glyph(ICON_IMAGE)
     .enabled(free)
     .register();
-    let add_block = Action::new(
-        "canvas.add.block",
-        "Add a block…",
-        move || state.open_block_picker(state.take_context_position()),
-    )
+    let add_block = Action::new("canvas.add.block", "Add a block…", move || {
+        state.open_block_picker(state.take_context_position())
+    })
     .glyph(ICON_DATA_OBJECT)
     .enabled(free)
     .register();
-    let edit = Action::new(
-        "canvas.edit",
-        "Open / edit",
-        move || state.edit_selected(),
-    )
-    .glyph(ICON_EDIT)
-    .enabled(single)
-    .register();
-    let open = Action::new(
-        "canvas.open",
-        "Open the block",
-        move || {
-            if let Some(block) = embedded_block(&state) {
-                state.open_referenced_block(block);
-            }
-        },
-    )
+    let edit = Action::new("canvas.edit", "Open / edit", move || state.edit_selected())
+        .glyph(ICON_EDIT)
+        .enabled(single)
+        .register();
+    let open = Action::new("canvas.open", "Open the block", move || {
+        if let Some(block) = embedded_block(&state) {
+            state.open_referenced_block(block);
+        }
+    })
     .glyph(ICON_OPEN_IN_NEW)
     .enabled(block)
     .register();
@@ -384,39 +360,29 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         Chord::ctrl(Key::BracketLeft).shift(),
     )
     .register();
-    let zoom_in = Action::new(
-        "canvas.zoom-in",
-        "Zoom in",
-        move || state.editor().zoom(ZOOM_STEP),
-    )
+    let zoom_in = Action::new("canvas.zoom-in", "Zoom in", move || {
+        state.editor().zoom(ZOOM_STEP)
+    })
     .glyph(ICON_ZOOM_IN)
     .enabled(live)
     .register();
-    let zoom_out = Action::new(
-        "canvas.zoom-out",
-        "Zoom out",
-        move || state.editor().zoom(1.0 / ZOOM_STEP),
-    )
+    let zoom_out = Action::new("canvas.zoom-out", "Zoom out", move || {
+        state.editor().zoom(1.0 / ZOOM_STEP)
+    })
     .glyph(ICON_ZOOM_OUT)
     .enabled(live)
     .register();
-    let zoom_reset = Action::new(
-        "canvas.zoom-reset",
-        "Zoom to 100%",
-        move || {
-            state.editor().zoom(1.0 / scale.get_untracked().max(f32::EPSILON));
-        },
-    )
+    let zoom_reset = Action::new("canvas.zoom-reset", "Zoom to 100%", move || {
+        state
+            .editor()
+            .zoom(1.0 / scale.get_untracked().max(f32::EPSILON));
+    })
     .enabled(live)
     .register();
-    let fit_all = Action::new(
-        "canvas.fit-all",
-        "Fit all",
-        move || state.editor().fit(),
-    )
-    .glyph(ICON_FIT_SCREEN)
-    .enabled(live)
-    .register();
+    let fit_all = Action::new("canvas.fit-all", "Fit all", move || state.editor().fit())
+        .glyph(ICON_FIT_SCREEN)
+        .enabled(live)
+        .register();
     CanvasActions {
         select,
         artboard,

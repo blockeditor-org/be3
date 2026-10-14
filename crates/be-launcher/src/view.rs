@@ -143,16 +143,21 @@ fn Sidebar(model: Model) -> NodeId {
             .collect::<Vec<u64>>()
     });
     let empty = create_memo(move || visible.get().is_empty() && !loading.get() && !failed.get());
-    let empty_text = create_memo(
-        move || match (model.filter.get(), model.query.get().is_empty()) {
-            (_, false) => "Nothing matches the filter".to_owned(),
-            (Filter::Open, true) => "No open pull requests".to_owned(),
-            (Filter::Closed, true) => "No closed pull requests".to_owned(),
-        },
-    );
+    let empty_text =
+        create_memo(
+            move || match (model.filter.get(), model.query.get().is_empty()) {
+                (_, false) => "Nothing matches the filter".to_owned(),
+                (Filter::Open, true) => "No open pull requests".to_owned(),
+                (Filter::Closed, true) => "No closed pull requests".to_owned(),
+            },
+        );
     let refresh = move || model.refresh_list();
     let show = move |index: usize| {
-        model.show(if index == 0 { Filter::Open } else { Filter::Closed });
+        model.show(if index == 0 {
+            Filter::Open
+        } else {
+            Filter::Closed
+        });
     };
     let set_query = model.set_query;
     let query = model.query;
@@ -253,9 +258,7 @@ fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
     });
     let state = create_memo(move || pull_request.get().state);
     let labels = create_memo(move || pull_request.get().labels);
-    let checked_out = create_memo(move || {
-        model.current(&pull_request.get())
-    });
+    let checked_out = create_memo(move || model.current(&pull_request.get()));
     let has_tags = create_memo(move || !labels.get().is_empty() || checked_out.get());
     view! {
         <ListRow selected on_click={move || model.select(number)}>

@@ -29,7 +29,9 @@ fn an_effect_bound_to_a_node_stops_with_the_scope_that_owns_the_node() {
     assert_eq!(runs.get_untracked(), 1);
 
     harness.document_mut().remove_child(list, caption);
-    with_installed(harness.document_mut(), |_| drop(set_owner.update(std::mem::take)));
+    with_installed(harness.document_mut(), |_| {
+        drop(set_owner.update(std::mem::take))
+    });
     assert!(!harness.document().contains(caption));
     with_installed(harness.document_mut(), |_| set_label.set("two".to_owned()));
     assert_eq!(

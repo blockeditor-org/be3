@@ -122,11 +122,13 @@ pub(crate) fn PhoneFiles(
     let page = NodeRef::new();
     let creating = move || {
         let parent = level.with_untracked(|level| {
-            level.container().filter(|crumb| {
-                editor.block_types().child_edits(crumb.block_type).add
-                    && tree.blocks().access(crumb.id).can_edit()
-            })
-            .map(|crumb| crumb.id)
+            level
+                .container()
+                .filter(|crumb| {
+                    editor.block_types().child_edits(crumb.block_type).add
+                        && tree.blocks().access(crumb.id).can_edit()
+                })
+                .map(|crumb| crumb.id)
         });
         let excluded = parent.into_iter().collect::<HashSet<Uuid>>();
         picker.open_placed(editor, parent, excluded);
@@ -153,12 +155,7 @@ pub(crate) fn PhoneFiles(
         let (above, _) = create_signal(level.get_untracked().up());
         let (unsearched, unsearch) = create_signal(String::new());
         let at_top = create_memo(move || above.get() == Level::Root);
-        let (color, folder, set_level, on_menu) = (
-            page_color,
-            shelf,
-            shelf.set_level,
-            menu,
-        );
+        let (color, folder, set_level, on_menu) = (page_color, shelf, shelf.set_level, menu);
         view! {
             <Frame color radius=0>
                 <List spacing=0.0>

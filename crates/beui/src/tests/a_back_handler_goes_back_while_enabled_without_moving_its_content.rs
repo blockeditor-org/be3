@@ -13,7 +13,10 @@ fn a_back_handler_goes_back_while_enabled_without_moving_its_content() {
     let document = build({
         move || {
             view! {
-                <BackHandler enabled={enabled} on_back={move || set_backs.update(|backs| *backs += 1)}>
+                <BackHandler
+                    enabled={enabled}
+                    on_back={move || set_backs.update(|backs| *backs += 1)}
+                >
                     <Text string="Page" font_size=14.0 color=Color32::WHITE @node_ref={&page} />
                 </BackHandler>
             }

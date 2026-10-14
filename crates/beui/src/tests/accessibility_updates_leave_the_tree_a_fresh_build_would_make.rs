@@ -26,11 +26,13 @@ fn accessibility_updates_leave_the_tree_a_fresh_build_would_make() {
         let (title, set_title) = create_signal("Inbox".to_owned());
         let (rows, set_rows) = create_signal(vec![1u32, 2, 3]);
         let (panel, set_panel) = create_signal(true);
-        set_taken.update(|taken| *taken = Some(Setters {
-            title: set_title,
-            rows: set_rows,
-            panel: set_panel,
-        }));
+        set_taken.update(|taken| {
+            *taken = Some(Setters {
+                title: set_title,
+                rows: set_rows,
+                panel: set_panel,
+            })
+        });
         view! {
             <List spacing=0.0>
                 <Text string={create_memo(move || title.get())} />
@@ -56,7 +58,9 @@ fn accessibility_updates_leave_the_tree_a_fresh_build_would_make() {
             </List>
         }
     });
-    let setters = taken.get_untracked().expect("the view published its setters");
+    let setters = taken
+        .get_untracked()
+        .expect("the view published its setters");
     let mut harness = Harness::new(document);
     let mut mirror = Mirror::default();
 

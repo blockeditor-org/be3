@@ -201,7 +201,9 @@ fn Row(data: Data, display: Memo<Vec<DisplayRow>>, index: usize) -> NodeId {
             .map_or_else(String::new, |position| (position + 1).to_string())
     });
     let selected = create_memo(move || {
-        data.selected.get().is_some_and(|selection| selection.row == index)
+        data.selected
+            .get()
+            .is_some_and(|selection| selection.row == index)
     });
     let fields = data.fields;
     let keys = create_memo(move || {
@@ -267,7 +269,8 @@ fn Cell(
         if field.field_type == DatabaseFieldType::Boolean {
             return String::new();
         }
-        data.labels.with(|labels| cell_text(&entry.row, &field, labels))
+        data.labels
+            .with(|labels| cell_text(&entry.row, &field, labels))
     });
     let selected = create_memo(move || {
         data.selected

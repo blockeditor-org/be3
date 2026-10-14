@@ -37,7 +37,9 @@ pub(crate) fn ImageViewer(model: Model) -> NodeId {
         None => String::new(),
     });
     let first = create_memo(move || {
-        model.viewer.with(|viewer| viewer.as_ref().is_none_or(|viewer| viewer.index == 0))
+        model
+            .viewer
+            .with(|viewer| viewer.as_ref().is_none_or(|viewer| viewer.index == 0))
     });
     let last = create_memo(move || {
         model.viewer.with(|viewer| {

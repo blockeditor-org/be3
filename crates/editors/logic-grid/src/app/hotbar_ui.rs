@@ -98,9 +98,7 @@ impl LogicGridEditor {
 
 #[component]
 pub(super) fn Hotbar(session: Session) -> NodeId {
-    let nested = create_memo(move || {
-        session.read(|model| !model.active_hotbar_folder.is_empty())
-    });
+    let nested = create_memo(move || session.read(|model| !model.active_hotbar_folder.is_empty()));
     let top = create_memo(move || !nested.get());
     let title = create_memo(move || {
         session.read(|model| match model.active_hotbar_folder.is_empty() {
@@ -177,12 +175,7 @@ pub(super) fn Hotbar(session: Session) -> NodeId {
 }
 
 #[component]
-fn SlotDrop(
-    session: Session,
-    target: Memo<Vec<usize>>,
-    folder: bool,
-    children: Child,
-) -> NodeId {
+fn SlotDrop(session: Session, target: Memo<Vec<usize>>, folder: bool, children: Child) -> NodeId {
     let accepts = Func::new(move |source: Vec<usize>| {
         let target = target.get_untracked();
         source != target && !target.starts_with(&source)
@@ -221,9 +214,7 @@ fn SlotDrop(
 
 #[component]
 fn HotbarHeader(session: Session, children: Child) -> NodeId {
-    let folder = create_memo(move || {
-        session.read(|model| model.active_hotbar_folder.clone())
-    });
+    let folder = create_memo(move || session.read(|model| model.active_hotbar_folder.clone()));
     view! {
         <SlotDrop session={session} target={folder} folder=true>{children}</SlotDrop>
     }
@@ -231,12 +222,8 @@ fn HotbarHeader(session: Session, children: Child) -> NodeId {
 
 #[component]
 fn HotbarColumn(session: Session, column: usize) -> NodeId {
-    let folder = create_memo(move || {
-        session.read(|model| model.column_folder(column))
-    });
-    let shown = create_memo(move || {
-        session.read(|model| model.column_view(column))
-    });
+    let folder = create_memo(move || session.read(|model| model.column_folder(column)));
+    let shown = create_memo(move || session.read(|model| model.column_view(column)));
     let title = create_memo(move || shown.get().title);
     let entries = create_memo(move || shown.get().entries);
     let empty = create_memo(move || entries.get().is_empty());
@@ -245,7 +232,7 @@ fn HotbarColumn(session: Session, column: usize) -> NodeId {
         true => theme.accent_soft.get(),
         false => theme.surface_raised.get(),
     });
-    
+
     view! {
         <SlotDrop session={session} target={folder} folder=true>
             <Frame
@@ -309,11 +296,13 @@ fn HotbarSlotButton(session: Session, path: Vec<usize>) -> NodeId {
     let on_activate = clicked.clone();
     let ghost = move |dragged: Vec<usize>| {
         let shown = create_memo(move || {
-            session.read(|model| model.slot_view(&dragged)).map(|slot| SlotView {
-                dragging: false,
-                droppable: false,
-                ..slot
-            })
+            session
+                .read(|model| model.slot_view(&dragged))
+                .map(|slot| SlotView {
+                    dragging: false,
+                    droppable: false,
+                    ..slot
+                })
         });
         let (hovered, _) = create_signal(false);
         view! {
@@ -462,9 +451,7 @@ fn SlotFace(shown: Memo<Option<SlotView>>, hovered: ReadSignal<bool>) -> NodeId 
 
 #[component]
 fn ResetDialog(session: Session) -> NodeId {
-    let open = create_memo(move || {
-        session.read(|model| model.confirm_hotbar_reset)
-    });
+    let open = create_memo(move || session.read(|model| model.confirm_hotbar_reset));
     let reset = move || {
         session.update(|model| {
             model.confirm_hotbar_reset = false;
@@ -498,9 +485,8 @@ fn ResetDialog(session: Session) -> NodeId {
 
 #[component]
 pub(super) fn ToolSettings(session: Session) -> NodeId {
-    let merger = create_memo(move || {
-        session.read(|model| model.tool.kind == ToolKind::MergerSplitter)
-    });
+    let merger =
+        create_memo(move || session.read(|model| model.tool.kind == ToolKind::MergerSplitter));
     let single = create_memo(move || !merger.get());
     let labelled = create_memo(move || {
         session.read(|model| {
@@ -508,10 +494,8 @@ pub(super) fn ToolSettings(session: Session) -> NodeId {
                 && model.challenge.is_none()
         })
     });
-    let label =
-        create_memo(move || session.read(|model| model.io_label.clone()));
-    let typed =
-        move |text: String| session.update(|model| model.io_label = text);
+    let label = create_memo(move || session.read(|model| model.io_label.clone()));
+    let typed = move |text: String| session.update(|model| model.io_label = text);
     view! {
         <List spacing=SPACING>
             <Show condition={single}>
@@ -538,7 +522,7 @@ pub(super) fn ToolSettings(session: Session) -> NodeId {
                     label="Label"
                     placeholder="Label"
                     @test_id={"logic-grid.io-label"}
-                    on_change={typed.clone()}
+                    on_change={typed}
                 />
             </Show>
             <Caption content="Middle drag or wheel: pan" />

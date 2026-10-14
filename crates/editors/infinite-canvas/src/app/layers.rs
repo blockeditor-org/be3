@@ -1,9 +1,8 @@
-
 use block_editor_beui::be_block::canvas::{CanvasEntity, CanvasEntityKind};
 use block_editor_beui::beui::icons::{ICON_VISIBILITY, ICON_VISIBILITY_OFF};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Show, component, create_memo,
-    create_signal, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Show, component, create_memo, create_signal,
+    view,
 };
 use block_editor_beui::beui::styled::{
     Accordion, Body, ButtonVariant, Caption, IconButton, IconButtonSize, use_theme,
@@ -56,7 +55,11 @@ pub(crate) fn LayersSection(state: CanvasState) -> NodeId {
 #[component]
 fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
     let entity = create_memo(move || {
-        state.entities.get().into_iter().find(|entity| entity.id == id)
+        state
+            .entities
+            .get()
+            .into_iter()
+            .find(|entity| entity.id == id)
     });
     let label = create_memo(move || {
         entity

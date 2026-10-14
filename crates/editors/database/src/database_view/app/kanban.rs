@@ -4,8 +4,7 @@ use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldT
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_UNFOLD_MORE};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, component, create_memo,
-    view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::{
     Body, ButtonVariant, Caption, IconButton, IconButtonSize, ListRow, Scroll, use_theme,
@@ -32,7 +31,12 @@ pub fn Kanban(data: Data) -> NodeId {
     let missing = create_memo(move || status.get().is_none());
     let ready = create_memo(move || status.get().is_some());
     let columns = create_memo(move || {
-        data.groups.with(|groups| groups.iter().map(|group| group.key).collect::<Vec<GroupKey>>())
+        data.groups.with(|groups| {
+            groups
+                .iter()
+                .map(|group| group.key)
+                .collect::<Vec<GroupKey>>()
+        })
     });
     let theme = use_theme();
     view! {
@@ -71,7 +75,8 @@ pub fn Kanban(data: Data) -> NodeId {
 #[component]
 fn Column(data: Data, key: GroupKey) -> NodeId {
     let group = create_memo(move || {
-        data.groups.with(|groups| groups.iter().find(|group| group.key == key).cloned())
+        data.groups
+            .with(|groups| groups.iter().find(|group| group.key == key).cloned())
     });
     let folded = create_memo(move || {
         let closed = group.with(|group| group.as_ref().is_some_and(|group| group.closed));
@@ -240,7 +245,9 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
 #[component]
 fn KanbanCard(data: Data, row: usize) -> NodeId {
     let selected = create_memo(move || {
-        data.selected.get().is_some_and(|selection| selection.row == row)
+        data.selected
+            .get()
+            .is_some_and(|selection| selection.row == row)
     });
     let pick = move || data.select(row, None);
     let read_only = data.read_only;
@@ -292,7 +299,9 @@ fn CardLines(data: Data, row: usize) -> NodeId {
     let code = create_memo(move || {
         data.row_ids
             .with(|ids| ids.get(row).copied())
-            .map_or_else(String::new, |id: ObjectId| short_id(&data.prefix.get(), id.as_uuid()))
+            .map_or_else(String::new, |id: ObjectId| {
+                short_id(&data.prefix.get(), id.as_uuid())
+            })
     });
     let title = create_memo(move || {
         let field = data.title_field.get();
@@ -309,7 +318,8 @@ fn CardLines(data: Data, row: usize) -> NodeId {
                 data.hidden_fields.with(|hidden| {
                     let mut hidden = hidden.clone();
                     hidden.extend(column);
-                    data.labels.with(|labels| row_parts(entry, fields, &hidden, labels, title))
+                    data.labels
+                        .with(|labels| row_parts(entry, fields, &hidden, labels, title))
                 })
             })
         })

@@ -3,8 +3,8 @@ use std::rc::Rc;
 use block_editor_beui::Editor;
 use block_editor_beui::beui::icons::{ICON_CHECK, ICON_CLOSE, ICON_FLAG};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, Keyed, List, Memo, NodeRef, ReadSignal, Show, Text,
-    Stored, clone, component, create_effect, create_memo, create_signal, view,
+    Align, Direction, ForEach, Frame, ItemSize, Keyed, List, Memo, NodeRef, ReadSignal, Show,
+    Stored, Text, clone, component, create_effect, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Card, Heading, IconButton, IconButtonSize, Paragraph,
@@ -272,7 +272,11 @@ struct Panel {
 }
 
 #[component]
-fn GamePlay(editor: Editor, game: Stored<Rc<dyn GameModel>>, snapshot: ReadSignal<GameSnapshot>) -> NodeId {
+fn GamePlay(
+    editor: Editor,
+    game: Stored<Rc<dyn GameModel>>,
+    snapshot: ReadSignal<GameSnapshot>,
+) -> NodeId {
     let screen = create_memo(move || snapshot.get().as_screen());
     let actions = create_memo(move || screen.get().actions);
     let editable = create_memo(move || screen.get().editable);
@@ -318,11 +322,7 @@ fn GamePlay(editor: Editor, game: Stored<Rc<dyn GameModel>>, snapshot: ReadSigna
     });
     let world = editor.world();
     let layout = create_memo(move || drawn.with(|layout| layout.centered_in(world.get())));
-    let steps = Steps {
-        game,
-        count,
-        shown,
-    };
+    let steps = Steps { game, count, shown };
     let panel = Panel {
         game,
         play,
@@ -446,7 +446,11 @@ fn Sidebar(panel: Panel) -> NodeId {
 }
 
 #[component]
-fn Controls(game: Stored<Rc<dyn GameModel>>, controls: Memo<Vec<Action>>, editable: Memo<bool>) -> NodeId {
+fn Controls(
+    game: Stored<Rc<dyn GameModel>>,
+    controls: Memo<Vec<Action>>,
+    editable: Memo<bool>,
+) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
             <ForEach keys={controls}>

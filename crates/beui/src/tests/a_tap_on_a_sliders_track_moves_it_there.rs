@@ -8,7 +8,10 @@ fn a_tap_on_a_sliders_track_moves_it_there() {
     let (changes, set_changes) = create_signal(Vec::new());
     let (document, [slider]) = toolbar_of(|| {
         [view! {
-            <Slider value=0.3 on_change={move |value| set_changes.update(|changes| changes.push(value))} />
+            <Slider
+                value=0.3
+                on_change={move |value| set_changes.update(|changes| changes.push(value))}
+            />
         }]
     });
     let mut harness = Harness::new(document);

@@ -126,9 +126,9 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
         })
     });
     let act = move |action: Action| {
-        let Some((id, container)) = info.with_untracked(|info| {
-            info.as_ref().map(|info| (info.item.id, info.container))
-        }) else {
+        let Some((id, container)) =
+            info.with_untracked(|info| info.as_ref().map(|info| (info.item.id, info.container)))
+        else {
             return;
         };
         workspace.set_sheet(PhoneSheet::Closed);
@@ -211,12 +211,7 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
 }
 
 #[component]
-fn RelatedBlocks(
-    workspace: Workspace,
-    title: String,
-    refs: Memo<Refs>,
-    named: String,
-) -> NodeId {
+fn RelatedBlocks(workspace: Workspace, title: String, refs: Memo<Refs>, named: String) -> NodeId {
     let ids = create_memo(move || {
         refs.with(|refs| refs.list.iter().map(|info| info.id).collect::<Vec<Uuid>>())
     });
@@ -246,11 +241,7 @@ fn RelatedBlocks(
 }
 
 #[component]
-fn RelatedRow(
-    workspace: Workspace,
-    reference: Memo<Option<BlockInfo>>,
-    named: String,
-) -> NodeId {
+fn RelatedRow(workspace: Workspace, reference: Memo<Option<BlockInfo>>, named: String) -> NodeId {
     let label = create_memo(move || {
         let types = workspace.types();
         reference.with(|reference| {

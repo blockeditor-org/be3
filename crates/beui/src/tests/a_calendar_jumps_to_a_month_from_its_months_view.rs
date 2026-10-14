@@ -30,7 +30,10 @@ fn a_calendar_jumps_to_a_month_from_its_months_view() {
     harness.key(Key::ArrowDown, Modifiers::NONE);
     harness.key(Key::ArrowRight, Modifiers::NONE);
     harness.key(Key::Enter, Modifiers::NONE);
-    assert!(picked.with_untracked(|picked| picked.is_empty()), "choosing a month only shows it");
+    assert!(
+        picked.with_untracked(|picked| picked.is_empty()),
+        "choosing a month only shows it"
+    );
     harness.key(Key::Enter, Modifiers::NONE);
 
     assert_eq!(picked.get_untracked(), [Date::new(2026, 5, 15)]);

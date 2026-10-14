@@ -22,7 +22,7 @@ use block_editor_beui::beui::icons::{
     ICON_SHORT_TEXT, ICON_WIDGETS,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, ReadSignal, Spacer, Stored,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show, Spacer, Stored,
     component, create_effect, create_memo, store, view,
 };
 use block_editor_beui::beui::styled::{
@@ -294,12 +294,7 @@ fn FieldRow(
                 />
             </Show>
             <Show condition={enum_kind}>
-                <EnumOptions
-                    schema={schema}
-                    id={id}
-                    field={enum_field}
-                    read_only={enum_off}
-                />
+                <EnumOptions schema={schema} id={id} field={enum_field} read_only={enum_off} />
             </Show>
             <Show condition={block_kind}>
                 <BlockOptions
@@ -520,7 +515,8 @@ fn EnumOptions(
     });
     let add_off = read_only;
     let add = move || {
-        let count = field.with_untracked(|field| field.as_ref().map_or(0, |field| field.enum_options.len()));
+        let count = field
+            .with_untracked(|field| field.as_ref().map_or(0, |field| field.enum_options.len()));
         schema.operate(DatabaseSchema::add_enum_option(id, format!("Option {}", count + 1)).1);
     };
     view! {
@@ -594,11 +590,17 @@ fn EnumOptionRow(
         schema.operate(DatabaseSchema::set_option_closed(option_id, on));
     };
     let defaulted = move |on: bool| {
-        schema.operate(DatabaseSchema::set_default_option(id, on.then_some(option_id)));
+        schema.operate(DatabaseSchema::set_default_option(
+            id,
+            on.then_some(option_id),
+        ));
     };
     let mover = move |by: isize| {
         let order: Vec<Uuid> = field.with_untracked(|field| {
-            field.as_ref().map(|field| field.enum_options.iter().map(|option| option.id).collect()).unwrap_or_default()
+            field
+                .as_ref()
+                .map(|field| field.enum_options.iter().map(|option| option.id).collect())
+                .unwrap_or_default()
         });
         let Some(at) = order.iter().position(|held| *held == option_id) else {
             return;
@@ -788,9 +790,9 @@ fn BlockOptions(
         let Some(index) = selected else {
             return;
         };
-        let Some(block_type) = entries.with_untracked(|entries| {
-            entries.get(index).map(|(block_type, _)| *block_type)
-        }) else {
+        let Some(block_type) =
+            entries.with_untracked(|entries| entries.get(index).map(|(block_type, _)| *block_type))
+        else {
             return;
         };
         schema.operate(DatabaseSchema::set_block_options(

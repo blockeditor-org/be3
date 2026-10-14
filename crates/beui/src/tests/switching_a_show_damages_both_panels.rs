@@ -26,7 +26,9 @@ fn switching_a_show_damages_both_panels() {
             </List>
         }
     });
-    let set_second = taken.get_untracked().expect("the view published its signal");
+    let set_second = taken
+        .get_untracked()
+        .expect("the view published its signal");
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 

@@ -9,7 +9,10 @@ fn scrolling_a_pan_zoom_pans_it() {
     let (reported, set_reported) = create_signal(None);
     let document = build(move || {
         view! {
-            <PanZoomStage view=PanZoomView::IDENTITY on_change={move |view| set_reported.set(Some(view))} />
+            <PanZoomStage
+                view=PanZoomView::IDENTITY
+                on_change={move |view| set_reported.set(Some(view))}
+            />
         }
     });
     let mut harness = Harness::new(document);

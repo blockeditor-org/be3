@@ -28,5 +28,9 @@ fn a_timer_asks_for_frames_until_its_work_settles() {
     assert_eq!(harness.frame(Vec::new()).repaint_after, Duration::MAX);
     assert_eq!(runs.get_untracked(), 3);
     assert_eq!(harness.frame(Vec::new()).repaint_after, Duration::MAX);
-    assert_eq!(runs.get_untracked(), 3, "a timer whose work settled runs no more");
+    assert_eq!(
+        runs.get_untracked(),
+        3,
+        "a timer whose work settled runs no more"
+    );
 }

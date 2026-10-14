@@ -8,7 +8,9 @@ fn a_catcher_that_lost_its_release_lets_go_of_the_pointer() {
     let (heard, set_heard) = create_signal::<Vec<(usize, Event)>>(Vec::new());
     let catcher = |index: usize, heard: WriteSignal<Vec<(usize, Event)>>| {
         move |input: ForwardedInput| {
-            heard.update(|heard| heard.extend(flattened(input).into_iter().map(|event| (index, event))))
+            heard.update(|heard| {
+                heard.extend(flattened(input).into_iter().map(|event| (index, event)))
+            })
         }
     };
     let document = build({

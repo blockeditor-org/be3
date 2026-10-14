@@ -72,7 +72,11 @@ fn the_window_is_shown_the_ime_again_after_typing_into_it() {
     runner.frame(&mut window, SafeArea::default());
     assert_eq!(std::mem::take(&mut window.0), 1);
     runner.frame(&mut window, SafeArea::default());
-    assert_eq!(std::mem::take(&mut window.0), 0, "an unchanged window is not shown again");
+    assert_eq!(
+        std::mem::take(&mut window.0),
+        0,
+        "an unchanged window is not shown again"
+    );
 
     runner.push(Event::Text("x".to_owned()));
     runner.frame(&mut window, SafeArea::default());
@@ -86,5 +90,9 @@ fn the_window_is_shown_the_ime_again_after_typing_into_it() {
 
     runner.push(Event::Ime(ImeEvent::FinishComposing));
     runner.frame(&mut window, SafeArea::default());
-    assert_eq!(std::mem::take(&mut window.0), 1, "so is the end of a composition");
+    assert_eq!(
+        std::mem::take(&mut window.0),
+        1,
+        "so is the end of a composition"
+    );
 }

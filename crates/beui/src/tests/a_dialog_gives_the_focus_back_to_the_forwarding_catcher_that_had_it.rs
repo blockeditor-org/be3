@@ -56,10 +56,13 @@ fn a_dialog_gives_the_focus_back_to_the_forwarding_catcher_that_had_it() {
     set_heard.update(|heard| heard.clear());
     harness.frame(vec![Event::Text("a".to_owned())]);
     assert!(
-        heard.get_untracked().iter().any(|(focused, events)| *focused
-            && events
-                .iter()
-                .any(|event| matches!(event, Event::Text(text) if text == "a"))),
+        heard
+            .get_untracked()
+            .iter()
+            .any(|(focused, events)| *focused
+                && events
+                    .iter()
+                    .any(|event| matches!(event, Event::Text(text) if text == "a"))),
         "and the keys reach it again, {:?}",
         heard.get_untracked()
     );

@@ -4,7 +4,8 @@ use std::collections::HashMap;
 use beui::NodeId;
 use beui::icons::ICON_PLAY_ARROW;
 use beui::reactive::{
-    Align, Direction, ItemSize, List, Memo, ReadSignal, Show, Stored, Text, WriteSignal, component, create_memo, create_signal, store, view,
+    Align, Direction, ItemSize, List, Memo, ReadSignal, Show, Stored, Text, WriteSignal, component,
+    create_memo, create_signal, store, view,
 };
 use beui::styled::theme::FONT_BODY;
 use beui::styled::{ButtonVariant, Caption, Spinner, SplitButton, use_theme};
@@ -146,7 +147,10 @@ impl Phone {
             return *read;
         }
         let (read, write) = create_signal(Loaded::Loading);
-        self.builds.get().borrow_mut().insert(Slot::Main, (read, write));
+        self.builds
+            .get()
+            .borrow_mut()
+            .insert(Slot::Main, (read, write));
         self.fetch(Slot::Main, None);
         read
     }
@@ -160,7 +164,12 @@ impl Phone {
     }
 
     fn refetch(&self, slot: Slot, commit: Option<String>) {
-        let write = self.builds.get().borrow().get(&slot).map(|(_, write)| *write);
+        let write = self
+            .builds
+            .get()
+            .borrow()
+            .get(&slot)
+            .map(|(_, write)| *write);
         if let Some(write) = write {
             write.set(Loaded::Loading);
             self.fetch(slot, commit);
@@ -290,7 +299,8 @@ impl Phone {
 
     fn remove_app(&self) {
         self.stage(Stage::Removing);
-        self.tasks.get()
+        self.tasks
+            .get()
             .background(|_| tasks::Event::Phone(Event::Committed(android::uninstall())));
     }
 
@@ -306,7 +316,12 @@ impl Phone {
                 self.set_own.set(Some(own));
             }
             Event::Fetched(slot, build) => {
-                let write = self.builds.get().borrow().get(&slot).map(|(_, write)| *write);
+                let write = self
+                    .builds
+                    .get()
+                    .borrow()
+                    .get(&slot)
+                    .map(|(_, write)| *write);
                 if let Some(write) = write {
                     write.set(match build {
                         Ok(build) => Loaded::Ready(build),
@@ -481,20 +496,34 @@ pub(crate) fn MainActions(model: Model) -> NodeId {
     });
     let launcher = create_memo(move || {
         let main = match build.get() {
-            Loaded::Ready(Found { build: Some(build), .. }) => Some(build),
+            Loaded::Ready(Found {
+                build: Some(build), ..
+            }) => Some(build),
             _ => None,
         };
         match phone.own.get() {
             None => "Looking at which launcher this is".to_owned(),
-            Some(Own { record: Some(record), .. }) => {
-                format!("This launcher is {} at {}.", slot_name(record.slot), short(&record.commit))
+            Some(Own {
+                record: Some(record),
+                ..
+            }) => {
+                format!(
+                    "This launcher is {} at {}.",
+                    slot_name(record.slot),
+                    short(&record.commit)
+                )
             }
             Some(Own { hash, .. }) => match main {
                 Some(main) if !hash.is_empty() && main.launcher.hash == hash => {
                     format!("This launcher is main at {}.", short(&main.commit))
                 }
-                _ if hash.is_empty() => "Android did not say where this launcher is installed.".to_owned(),
-                _ => format!("This launcher, {}, is not a build be3-ci has published.", short(&hash)),
+                _ if hash.is_empty() => {
+                    "Android did not say where this launcher is installed.".to_owned()
+                }
+                _ => format!(
+                    "This launcher, {}, is not a build be3-ci has published.",
+                    short(&hash)
+                ),
             },
         }
     });
@@ -563,19 +592,36 @@ fn slot_name(slot: Slot) -> String {
 fn SlotNotes(model: Model, slot: Slot) -> NodeId {
     let theme = use_theme();
     let phone = model.phone;
-    let working = create_memo(move || phone.work.with(|work| {
-        work.as_ref().is_some_and(|work| work.slot == slot)
-    }));
+    let working = create_memo(move || {
+        phone
+            .work
+            .with(|work| work.as_ref().is_some_and(|work| work.slot == slot))
+    });
     let progress = create_memo(move || match phone.work.get() {
-        Some(Work { stage: Stage::Downloading { total: 0, .. }, .. }) => "Looking for the build".to_owned(),
-        Some(Work { stage: Stage::Downloading { done, total }, .. }) => {
+        Some(Work {
+            stage: Stage::Downloading { total: 0, .. },
+            ..
+        }) => "Looking for the build".to_owned(),
+        Some(Work {
+            stage: Stage::Downloading { done, total },
+            ..
+        }) => {
             format!("Downloading {} of {}", megabytes(done), megabytes(total))
         }
-        Some(Work { stage: Stage::Removing, .. }) => "Removing the app and its data".to_owned(),
-        Some(Work { stage: Stage::Installing, package: Package::App, .. }) => "Installing the app".to_owned(),
-        Some(Work { stage: Stage::Installing, package: Package::Launcher, .. }) => {
-            "Installing the launcher".to_owned()
-        }
+        Some(Work {
+            stage: Stage::Removing,
+            ..
+        }) => "Removing the app and its data".to_owned(),
+        Some(Work {
+            stage: Stage::Installing,
+            package: Package::App,
+            ..
+        }) => "Installing the app".to_owned(),
+        Some(Work {
+            stage: Stage::Installing,
+            package: Package::Launcher,
+            ..
+        }) => "Installing the launcher".to_owned(),
         None => String::new(),
     });
     let problem = create_memo(move || match phone.problem.get() {

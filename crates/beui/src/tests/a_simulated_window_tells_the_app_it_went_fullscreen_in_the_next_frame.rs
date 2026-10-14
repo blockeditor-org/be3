@@ -84,5 +84,8 @@ fn a_simulated_window_tells_the_app_it_went_fullscreen_in_the_next_frame() {
     );
 
     runner.frame(&mut window, SafeArea::default());
-    assert!(seen.get_untracked(), "the app hears that the window went fullscreen");
+    assert!(
+        seen.get_untracked(),
+        "the app hears that the window went fullscreen"
+    );
 }

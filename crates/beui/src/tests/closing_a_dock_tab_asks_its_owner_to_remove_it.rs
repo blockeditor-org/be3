@@ -37,7 +37,11 @@ fn closing_a_dock_tab_asks_its_owner_to_remove_it() {
     harness.middle_button(tab, false);
     harness.frame(Vec::new());
 
-    assert_eq!(closed.get_untracked(), vec![TabId::new(2)], "its owner is asked");
+    assert_eq!(
+        closed.get_untracked(),
+        vec![TabId::new(2)],
+        "its owner is asked"
+    );
     assert_eq!(
         dock_state(harness.document(), dock).all_tabs(),
         vec![TabId::new(1), TabId::new(2), TabId::new(3)],

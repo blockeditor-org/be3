@@ -1,4 +1,3 @@
-
 use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, Drawing, Frame, Interactive, ItemSize, List, PlacementBuilder, ReadSignal,
     component, create_memo, view,

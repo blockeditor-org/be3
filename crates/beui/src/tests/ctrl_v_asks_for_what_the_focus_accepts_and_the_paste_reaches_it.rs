@@ -82,5 +82,8 @@ fn ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it() {
     );
     set_forwarded.update(|forwarded| forwarded.clear());
     harness.frame(vec![Event::Paste(Pasted::Image(image.clone()))]);
-    assert_eq!(forwarded.get_untracked(), [Event::Paste(Pasted::Image(image))]);
+    assert_eq!(
+        forwarded.get_untracked(),
+        [Event::Paste(Pasted::Image(image))]
+    );
 }

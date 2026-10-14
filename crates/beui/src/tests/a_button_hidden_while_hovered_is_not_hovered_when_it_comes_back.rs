@@ -17,10 +17,12 @@ fn a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back() {
     let (held, set_held) = create_signal::<Option<Held>>(None);
     let document = build(move || {
         let (shown, set_shown) = create_signal(true);
-        set_held.update(|held| *held = Some(Held {
-            shown: set_shown,
-            hovered: None,
-        }));
+        set_held.update(|held| {
+            *held = Some(Held {
+                shown: set_shown,
+                hovered: None,
+            })
+        });
         view! {
             <List spacing=0.0>
                 <ShowKeepAlive condition={shown}>
@@ -58,7 +60,10 @@ fn a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back() {
     assert!(hovered.get(), "the pointer hovers the button");
 
     let hide = |harness: &mut Harness, shown: bool| {
-        let set = held.get_untracked().expect("the view published its setter").shown;
+        let set = held
+            .get_untracked()
+            .expect("the view published its setter")
+            .shown;
         with_reactive_scope(harness.document_mut(), || set.set(shown));
         harness.frame(Vec::new());
     };

@@ -1,4 +1,3 @@
-
 use block_editor_beui::beui::reactive::{
     CanvasItem, Frame, Memo, component, create_effect, create_memo, on_cleanup, untrack, view,
 };
@@ -75,17 +74,17 @@ fn drawn(state: MapState, tile: TileId) -> Memo<Option<(Image, Option<Rect>)>> {
     create_memo(move || {
         let _ = revision.get();
         state.with_tiles(|tiles| {
-        if let Some(image) = tiles.get(&tile).and_then(TileState::image) {
-            return Some((image.clone(), None));
-        }
-        let mut ancestor = tile;
-        while let Some(parent) = ancestor.parent() {
-            ancestor = parent;
-            if let Some(image) = tiles.get(&ancestor).and_then(TileState::image) {
-                return Some((image.clone(), Some(magnified(tile, ancestor))));
+            if let Some(image) = tiles.get(&tile).and_then(TileState::image) {
+                return Some((image.clone(), None));
             }
-        }
-        None
+            let mut ancestor = tile;
+            while let Some(parent) = ancestor.parent() {
+                ancestor = parent;
+                if let Some(image) = tiles.get(&ancestor).and_then(TileState::image) {
+                    return Some((image.clone(), Some(magnified(tile, ancestor))));
+                }
+            }
+            None
         })
     })
 }

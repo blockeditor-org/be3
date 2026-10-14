@@ -1,7 +1,8 @@
 use std::ops::Range;
 
 use beui::reactive::{
-    Draw, Drawing, Frame, Interactive, LayoutBuilder, Memo, NodeRef, Prop, ReadSignal, component, copy_text, create_memo, layout_text, pixels_per_point, view, with_document,
+    Draw, Drawing, Frame, Interactive, LayoutBuilder, Memo, NodeRef, Prop, ReadSignal, component,
+    copy_text, create_memo, layout_text, pixels_per_point, view, with_document,
 };
 use beui::unstyled::Scroll;
 use beui::unstyled::TextAreaColors;

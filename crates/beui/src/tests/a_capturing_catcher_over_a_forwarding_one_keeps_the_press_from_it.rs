@@ -4,11 +4,13 @@ use crate::input::PointerPress;
 use crate::reactive::{Canvas, CanvasItem, Frame, Interactive, build, view};
 
 fn presses(forwarded: ReadSignal<Vec<ForwardedInput>>) -> usize {
-    forwarded.with_untracked(|forwarded| forwarded
-        .iter()
-        .flat_map(|input| flattened(input.clone()))
-        .filter(|event| matches!(event, Event::PointerButton { pressed: true, .. }))
-        .count())
+    forwarded.with_untracked(|forwarded| {
+        forwarded
+            .iter()
+            .flat_map(|input| flattened(input.clone()))
+            .filter(|event| matches!(event, Event::PointerButton { pressed: true, .. }))
+            .count()
+    })
 }
 
 #[test]
@@ -21,7 +23,9 @@ fn a_capturing_catcher_over_a_forwarding_one_keeps_the_press_from_it() {
             view! {
                 <Canvas>
                     <CanvasItem x=0.0 y=0.0 width=200.0 height=200.0>
-                        <Interactive on_forward={move |input| set_forwarded.update(|forwarded| forwarded.push(input))}>
+                        <Interactive
+                            on_forward={move |input| set_forwarded.update(|forwarded| forwarded.push(input))}
+                        >
                             <Frame />
                         </Interactive>
                     </CanvasItem>

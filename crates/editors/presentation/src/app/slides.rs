@@ -61,12 +61,22 @@ impl Slides {
     }
 
     pub fn slide(&self, id: Uuid) -> Option<Slide> {
-        let known = self.inner.get().store.keys().with(|keys| keys.contains(&id));
+        let known = self
+            .inner
+            .get()
+            .store
+            .keys()
+            .with(|keys| keys.contains(&id));
         known.then(|| self.inner.get().store.get(&id).get())
     }
 
     fn known(&self, id: Uuid) -> Option<Slide> {
-        let known = self.inner.get().store.keys().with_untracked(|keys| keys.contains(&id));
+        let known = self
+            .inner
+            .get()
+            .store
+            .keys()
+            .with_untracked(|keys| keys.contains(&id));
         known.then(|| self.inner.get().store.get(&id).get_untracked())
     }
 
@@ -75,7 +85,9 @@ impl Slides {
     }
 
     pub fn index_of(&self, id: Uuid) -> Option<usize> {
-        self.inner.get().store
+        self.inner
+            .get()
+            .store
             .keys()
             .with(|keys| keys.iter().position(|key| *key == id))
     }
@@ -109,7 +121,9 @@ impl Slides {
 
     pub fn remove(&self, id: Uuid) {
         let index = self.index_of(id);
-        self.inner.get().block
+        self.inner
+            .get()
+            .block
             .operate(Presentation::remove(ObjectId::from_uuid(id)));
         if self.selected.get_untracked() == Some(id) {
             let keys = self.inner.get().store.keys().get_untracked();
@@ -123,7 +137,9 @@ impl Slides {
 
     pub fn move_to(&self, id: Uuid, index: usize) {
         if let Some(edit) = self
-            .inner.get().block
+            .inner
+            .get()
+            .block
             .read(|presentation| presentation.root().move_to(ObjectId::from_uuid(id), index))
         {
             self.inner.get().block.operate(edit);

@@ -24,7 +24,10 @@ fn dragging_a_number_input_sideways_changes_its_value() {
     harness.drag(middle, middle + Vec2::new(20.0, 0.0));
     harness.frame(Vec::new());
 
-    assert_eq!(changes.with_untracked(|changes| changes.last().copied()), Some(14.0));
+    assert_eq!(
+        changes.with_untracked(|changes| changes.last().copied()),
+        Some(14.0)
+    );
     let shown = number_input_text(harness.document(), input)
         .expect("a drag must not open the field for editing");
     assert_eq!(text_of(harness.document(), shown), "14");

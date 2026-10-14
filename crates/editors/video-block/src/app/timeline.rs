@@ -3,8 +3,8 @@ use std::rc::Rc;
 
 use block_editor_beui::beui::reactive::{
     Align, Canvas, CanvasItem, CanvasView, Direction, ForEach, Frame, Interactive, ItemSize, List,
-    Memo, PlacementBuilder, ReadSignal, component, create_effect, create_memo,
-    create_selector, create_signal, untrack, view,
+    Memo, PlacementBuilder, ReadSignal, component, create_effect, create_memo, create_selector,
+    create_signal, untrack, view,
 };
 use block_editor_beui::beui::styled::{Body, Caption, use_theme};
 use block_editor_beui::beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
@@ -283,12 +283,7 @@ fn RulerTick(tick: Tick) -> CanvasItem {
 }
 
 #[component]
-fn Clip(
-    state: VideoState,
-    row: Lane,
-    selected: Memo<bool>,
-    scale: ReadSignal<f32>,
-) -> CanvasItem {
+fn Clip(state: VideoState, row: Lane, selected: Memo<bool>, scale: ReadSignal<f32>) -> CanvasItem {
     let x = create_memo(move || row.start as f32 * scale.get());
     let width = create_memo(move || (row.length as f32 * scale.get()).max(3.0));
     let y = RULER_HEIGHT + row.lane as f32 * (LANE_HEIGHT + LANE_GAP);
@@ -370,11 +365,7 @@ fn Clip(
                                     />
                                 </Frame>
                                 <Body @sizing=ItemSize::Percent(100.0) content={name} />
-                                <TrimHandle
-                                    state={state}
-                                    row={row}
-                                    scale={trim_edge_scale}
-                                />
+                                <TrimHandle state={state} row={row} scale={trim_edge_scale} />
                             </List>
                         </Frame>
                     </Interactive>

@@ -8,7 +8,10 @@ fn a_clicked_number_input_selects_its_text_until_enter() {
     let (changes, set_changes) = create_signal(Vec::new());
     let (document, [input]) = toolbar_of(move || {
         [view! {
-            <NumberInput value=1234.0 on_change={move |value| set_changes.update(|changes| changes.push(value))} />
+            <NumberInput
+                value=1234.0
+                on_change={move |value| set_changes.update(|changes| changes.push(value))}
+            />
         }]
     });
     let mut harness = Harness::new(document);

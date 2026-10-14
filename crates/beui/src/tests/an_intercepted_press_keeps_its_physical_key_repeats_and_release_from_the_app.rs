@@ -77,7 +77,11 @@ fn an_intercepted_press_keeps_its_physical_key_repeats_and_release_from_the_app(
         f(true, false, Modifiers::LOGO),
     ]);
     harness.frame(vec![f(true, true, Modifiers::LOGO)]);
-    assert_eq!(ran.get_untracked(), 2, "the press and its repeat run the action");
+    assert_eq!(
+        ran.get_untracked(),
+        2,
+        "the press and its repeat run the action"
+    );
     harness.click(pos2(250.0, 50.0));
     harness.frame(vec![f(false, false, Modifiers::LOGO)]);
     harness.click(pos2(50.0, 50.0));

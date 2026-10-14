@@ -1,4 +1,3 @@
-
 use block_editor_beui::be_block::canvas::{
     CanvasColor, CanvasEntity, CanvasEntityKind, CanvasLayerMove, CanvasTextAlign, CanvasTextWeight,
 };
@@ -6,7 +5,8 @@ use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_FORMAT_COLOR_RESET;
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, Grid, ItemSize, List, Memo, Show, Spacer, Track, component, create_memo, create_signal, view,
+    Align, Direction, ForEach, Frame, Grid, ItemSize, List, Memo, Show, Spacer, Track, component,
+    create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
     Accordion, Button, ButtonVariant, Caption, Checkbox, ColorInput, Heading, NumberDrag,
@@ -99,7 +99,10 @@ fn Inspector(state: CanvasState) -> NodeId {
     let narrow = narrow_chrome();
     let roomy = create_memo(move || !narrow.get());
     let styled = create_memo(move || {
-        state.selected_entities().iter().any(|entity| !entity.is_artboard())
+        state
+            .selected_entities()
+            .iter()
+            .any(|entity| !entity.is_artboard())
     });
     view! {
         <List spacing=SPACING>
@@ -150,11 +153,15 @@ fn ArtboardSection(state: CanvasState) -> NodeId {
     let locked = create_memo(move || artboard.get().is_none_or(|entity| entity.locked));
     let first = create_memo(move || {
         artboard.get().is_some_and(|entity| {
-            state.first_artboard().is_some_and(|first| first.id == entity.id)
+            state
+                .first_artboard()
+                .is_some_and(|first| first.id == entity.id)
         })
     });
     let renamed = move |name: String| {
-        let Some(held) = artboard.get_untracked() else { return };
+        let Some(held) = artboard.get_untracked() else {
+            return;
+        };
         let mut updated = held.clone();
         updated.kind = CanvasEntityKind::Artboard { name };
         state.record_update(vec![held], vec![updated], true);
@@ -253,12 +260,12 @@ fn TransformFields(state: CanvasState) -> NodeId {
     });
     let no_width = create_memo(move || locked.get() || !resize.get().horizontal());
     let no_height = create_memo(move || locked.get() || !resize.get().vertical());
-    let no_rotation = create_memo(move || {
-        locked.get() || !state.selection_allows_rotation()
-    });
+    let no_rotation = create_memo(move || locked.get() || !state.selection_allows_rotation());
     let field = |apply: fn(&mut CanvasEntity, f64)| {
         let change = move |value: f64| {
-            let Some(held) = entity.get_untracked() else { return };
+            let Some(held) = entity.get_untracked() else {
+                return;
+            };
             let mut updated = held.clone();
             apply(&mut updated, value);
             state.record_update(vec![held], vec![updated], true);
@@ -425,7 +432,9 @@ fn EditorScale(state: CanvasState) -> NodeId {
     });
     let locked = create_memo(move || entity.get().is_none_or(|entity| entity.locked));
     let changed = move |value: f64| {
-        let Some(held) = entity.get_untracked() else { return };
+        let Some(held) = entity.get_untracked() else {
+            return;
+        };
         let CanvasEntityKind::DirectEditor { block_id, scale } = held.kind else {
             return;
         };
@@ -472,11 +481,13 @@ fn ArrangeSection(state: CanvasState) -> NodeId {
             .any(|entity| entity.group_id.is_some())
     });
     let cannot_lock = create_memo(move || {
-        !state.selected_entities().iter().any(|entity| !entity.locked)
+        !state
+            .selected_entities()
+            .iter()
+            .any(|entity| !entity.locked)
     });
-    let cannot_unlock = create_memo(move || {
-        !state.selected_entities().iter().any(|entity| entity.locked)
-    });
+    let cannot_unlock =
+        create_memo(move || !state.selected_entities().iter().any(|entity| entity.locked));
     let horizontal = move || state.distribute_selection(true);
     let vertical = move || state.distribute_selection(false);
     let group = move || state.run(CanvasCommand::Group);
@@ -756,15 +767,10 @@ fn LineOptions(state: CanvasState) -> NodeId {
             move |style| apply(style, value),
         );
     };
-    let dash = move |value: bool| {
-        set(state, |style, value| style.dashed = value, value)
-    };
-    let arrow_start = move |value: bool| {
-        set(state, |style, value| style.arrow_start = value, value)
-    };
-    let arrow_end = move |value: bool| {
-        set(state, |style, value| style.arrow_end = value, value)
-    };
+    let dash = move |value: bool| set(state, |style, value| style.dashed = value, value);
+    let arrow_start =
+        move |value: bool| set(state, |style, value| style.arrow_start = value, value);
+    let arrow_end = move |value: bool| set(state, |style, value| style.arrow_end = value, value);
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
@@ -1150,12 +1156,15 @@ fn TextContent(state: CanvasState) -> NodeId {
             .is_some_and(|entity| state.editing_text.get() == Some(entity.id))
     });
     let changed = move |typed: String| {
-        let Some(held) = entity.get_untracked() else { return };
+        let Some(held) = entity.get_untracked() else {
+            return;
+        };
         let CanvasEntityKind::Text {
             text_style,
             placeholder,
             ..
-        } = held.kind.clone() else {
+        } = held.kind.clone()
+        else {
             return;
         };
         let mut updated = held.clone();

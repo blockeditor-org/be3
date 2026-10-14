@@ -46,7 +46,11 @@ fn a_tap_during_a_fling_stops_it_without_clicking_a_row() {
 
     assert!(!unstyled::scroll_animating(harness.document(), scroll));
     assert_eq!(harness.document().scroll_offset(scroll), stopped);
-    assert_eq!(clicks.get_untracked(), 0, "the tap that stops a fling is not a click");
+    assert_eq!(
+        clicks.get_untracked(),
+        0,
+        "the tap that stops a fling is not a click"
+    );
 
     let row = pos2(x, harness.rect(scroll).top() + 10.0);
     harness.advance(Duration::from_secs(1));

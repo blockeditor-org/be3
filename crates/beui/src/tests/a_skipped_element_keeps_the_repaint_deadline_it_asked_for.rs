@@ -30,7 +30,11 @@ fn a_skipped_element_keeps_the_repaint_deadline_it_asked_for() {
         .set_frame_color(panel, Color32::from_gray(90));
     let output = harness.frame(Vec::new());
 
-    assert_eq!(paints.get_untracked(), settled, "the drawing is outside the damage");
+    assert_eq!(
+        paints.get_untracked(),
+        settled,
+        "the drawing is outside the damage"
+    );
     assert!(
         output.repaint_after < Duration::MAX,
         "a skipped element must still ask for the repaint it was waiting on"

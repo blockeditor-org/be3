@@ -223,7 +223,8 @@ impl VideoState {
     pub(crate) fn open_picker(&self, attachment: Option<Uuid>) {
         let inner = self.inner.get();
         inner.picker_attachment.set(attachment);
-        inner.picker
+        inner
+            .picker
             .borrow_mut()
             .open(&self.editor.host(), BlockFilter::default());
     }

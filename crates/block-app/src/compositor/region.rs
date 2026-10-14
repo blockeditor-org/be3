@@ -5,10 +5,10 @@ use std::{
 };
 
 use beui::reactive::{
-    BackHandler, Callback, Canvas, CanvasItem, Drawing, Embed, EmbedPlacement, EmbedSlot, ForEach, Frame,
-    Interactive, Layers, List, Memo, NodeRef, Prop, Show, Stored, clone, component, create_effect,
-    create_memo, draw_gpu, on_cleanup, store, try_with_document, untrack, use_context, use_screens,
-    view,
+    BackHandler, Callback, Canvas, CanvasItem, Drawing, Embed, EmbedPlacement, EmbedSlot, ForEach,
+    Frame, Interactive, Layers, List, Memo, NodeRef, Prop, Show, Stored, clone, component,
+    create_effect, create_memo, draw_gpu, on_cleanup, store, try_with_document, untrack,
+    use_context, use_screens, view,
 };
 use beui::styled::CrashNotice;
 use beui::unstyled::{DragPoint, DropHandle, DropTarget};
@@ -58,7 +58,8 @@ struct DrawingKey {
     placed: Option<[u32; 3]>,
 }
 
-pub(crate) type ChildView = Stored<Box<dyn Fn(ChildId, Memo<Option<HostChild>>, Memo<Rect>) -> NodeId>>;
+pub(crate) type ChildView =
+    Stored<Box<dyn Fn(ChildId, Memo<Option<HostChild>>, Memo<Rect>) -> NodeId>>;
 
 #[derive(Clone)]
 pub(crate) struct Occlusion(pub(crate) Memo<Vec<Rect>>);
@@ -92,31 +93,27 @@ pub(crate) fn PluginRegion(
         instance,
         region,
     });
-    on_cleanup(move || {
-        plugin_host::unmount_region(&plugin_id.get(), instance, region)
-    });
+    on_cleanup(move || plugin_host::unmount_region(&plugin_id.get(), instance, region));
     let revision = super::listen(&plugin_id.get());
     let placed = store(Cell::new(None::<EmbedPlacement>));
     let screens = use_screens();
-    let place = Callback::new(
-        clone!(frame -> move |placement: Option<EmbedPlacement>| {
-            match placement {
-                Some(placement) => plugin_host::place_region(
-                    &plugin_id.get(),
-                    instance,
-                    region,
-                    RegionPlacement {
-                        rect: placement.rect,
-                        clip: placement.clip,
-                        screens: screens.get_untracked(),
-                    },
-                    frame.peek(),
-                    view.peek(),
-                ),
-                None => plugin_host::unplace_region(&plugin_id.get(), instance, region),
-            }
-        }),
-    );
+    let place = Callback::new(clone!(frame -> move |placement: Option<EmbedPlacement>| {
+        match placement {
+            Some(placement) => plugin_host::place_region(
+                &plugin_id.get(),
+                instance,
+                region,
+                RegionPlacement {
+                    rect: placement.rect,
+                    clip: placement.clip,
+                    screens: screens.get_untracked(),
+                },
+                frame.peek(),
+                view.peek(),
+            ),
+            None => plugin_host::unplace_region(&plugin_id.get(), instance, region),
+        }
+    }));
     let slot = EmbedSlot::new();
     slot.on_place(move |placement| {
         placed.with(|placed| placed.set(placement));
@@ -148,7 +145,9 @@ pub(crate) fn PluginRegion(
                 .collect()
         });
         let children: Vec<ChildId> = placed.iter().map(|(child, _)| *child).collect();
-        for (child, pick) in plugin_host::take_child_menu_picks(&plugin_id.get(), instance, &children) {
+        for (child, pick) in
+            plugin_host::take_child_menu_picks(&plugin_id.get(), instance, &children)
+        {
             if let Some((_, block)) = placed.iter().find(|(placed, _)| *placed == child) {
                 super::editors::pick_frame_menu(*block, pick);
             }
@@ -201,7 +200,14 @@ pub(crate) fn PluginRegion(
             let previous = held.borrow().clone();
             if let Some((_, drawing)) = previous.filter(|(was, _)| *was == key)
                 && let Some(damage) = state.with_untracked(|view| {
-                    plugin_host::region_damage(&plugin_id.get(), instance, region, view, &pieces, rotation)
+                    plugin_host::region_damage(
+                        &plugin_id.get(),
+                        instance,
+                        region,
+                        view,
+                        &pieces,
+                        rotation,
+                    )
                 })
             {
                 if damage.is_empty() {
@@ -222,7 +228,13 @@ pub(crate) fn PluginRegion(
             }
             let drawing = state.with_untracked(|view| {
                 plugin_host::region_drawing(
-                    &plugin_id.get(), instance, region, view, &pieces, rotation, opacity,
+                    &plugin_id.get(),
+                    instance,
+                    region,
+                    view,
+                    &pieces,
+                    rotation,
+                    opacity,
                 )
             });
             *held.borrow_mut() = drawing.clone().map(|drawing| (key, drawing));
@@ -237,13 +249,9 @@ pub(crate) fn PluginRegion(
     let pastes = create_memo(move || state.with(|view| view.pastes.clone()));
     let intercepted = create_memo(move || state.with(|view| view.intercepted_keys.clone()));
     let shell = super::shell();
-    super::intercept::intercept_keys(
-        plugin_id,
-        instance,
-        region,
-        intercepted,
-        move || region == EditorRegion::Frame && block.is_some() && shell.get_untracked() == block,
-    );
+    super::intercept::intercept_keys(plugin_id, instance, region, intercepted, move || {
+        region == EditorRegion::Frame && block.is_some() && shell.get_untracked() == block
+    });
     let catcher = NodeRef::new();
     take_keyboard(state, &catcher);
     let anchor = NodeRef::new();
@@ -290,7 +298,12 @@ pub(crate) fn PluginRegion(
     super::editors::provide_reports(reports);
     create_effect(move || {
         tick.get();
-        plugin_host::report_children(&plugin_id.get(), instance, region, super::editors::statuses(&reports));
+        plugin_host::report_children(
+            &plugin_id.get(),
+            instance,
+            region,
+            super::editors::statuses(&reports),
+        );
     });
     let forward = move |input: ForwardedInput| {
         plugin_host::forward_region(&plugin_id.get(), instance, region, &input);
@@ -322,7 +335,13 @@ pub(crate) fn PluginRegion(
     };
     let dropped = move |(drag, point): (BlockDrag, DragPoint)| {
         if taken(point) {
-            plugin_host::drag_over_region(&plugin_id.get(), instance, region, Some((drag, point.pos)), true);
+            plugin_host::drag_over_region(
+                &plugin_id.get(),
+                instance,
+                region,
+                Some((drag, point.pos)),
+                true,
+            );
         }
     };
     let pressed_outside = move |_: Pos2| {

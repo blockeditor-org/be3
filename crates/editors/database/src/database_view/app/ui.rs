@@ -33,9 +33,7 @@ pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
         editor.set_intrinsic_size(size);
     });
 
-    let spreadsheet = create_memo(move || {
-        data.kind.get() == DatabaseViewKind::Spreadsheet
-    });
+    let spreadsheet = create_memo(move || data.kind.get() == DatabaseViewKind::Spreadsheet);
     let chrome = editor.chrome_shown();
     let toolbar_chrome = chrome;
     let narrow = narrow_chrome();

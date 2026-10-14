@@ -30,7 +30,9 @@ fn a_floating_child_pins_itself_over_the_scroll_it_names() {
                                             });
                                         }}
                                     >
-                                        <Button on_click={move || set_rows.update(|rows| *rows += 1)}>
+                                        <Button
+                                            on_click={move || set_rows.update(|rows| *rows += 1)}
+                                        >
                                             <Text string={format!("row {row}")} />
                                         </Button>
                                     </Interactive>
@@ -39,7 +41,10 @@ fn a_floating_child_pins_itself_over_the_scroll_it_names() {
                         </ForEach>
                     </Scroll>
                     <Floating anchor={scroll} edge=Edge::Bottom>
-                        <Button @node_ref=&button on_click={move || set_pressed.update(|pressed| *pressed += 1)}>
+                        <Button
+                            @node_ref=&button
+                            on_click={move || set_pressed.update(|pressed| *pressed += 1)}
+                        >
                             <Text string="reveal" />
                         </Button>
                     </Floating>
@@ -68,7 +73,11 @@ fn a_floating_child_pins_itself_over_the_scroll_it_names() {
     harness.click(floating.center());
     harness.frame(Vec::new());
 
-    assert_eq!(pressed.get_untracked(), 1, "the floating child answers the pointer");
+    assert_eq!(
+        pressed.get_untracked(),
+        1,
+        "the floating child answers the pointer"
+    );
     assert_eq!(
         rows.get_untracked(),
         before,
@@ -88,7 +97,11 @@ fn a_floating_child_pins_itself_over_the_scroll_it_names() {
         viewport.center().x,
         viewport.top() + 4.0,
     ))]);
-    assert_eq!(hovered.get_untracked(), 1, "the row under the pointer is hovered");
+    assert_eq!(
+        hovered.get_untracked(),
+        1,
+        "the row under the pointer is hovered"
+    );
 
     harness.frame(vec![Event::PointerMoved(floating.center())]);
 

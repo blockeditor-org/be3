@@ -31,7 +31,11 @@ fn escape_and_back_reach_a_layers_back_handler_and_a_press_outside_its_on_dismis
     harness.frame(Vec::new());
 
     harness.key(Key::Escape, Modifiers::NONE);
-    assert_eq!(backs.get_untracked(), 1, "Escape goes to the layer's back handler");
+    assert_eq!(
+        backs.get_untracked(),
+        1,
+        "Escape goes to the layer's back handler"
+    );
     harness.frame(vec![Event::Back(BackGesture::Invoked)]);
     assert_eq!(backs.get_untracked(), 2, "and so does back");
     assert!(dismissed.with_untracked(|dismissed| dismissed.is_empty()));

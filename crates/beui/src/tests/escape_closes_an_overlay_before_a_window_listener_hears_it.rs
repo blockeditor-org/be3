@@ -48,5 +48,9 @@ fn escape_closes_an_overlay_before_a_window_listener_hears_it() {
     assert_eq!(heard.get_untracked(), 0, "and goes no further");
 
     harness.key(Key::Escape, Modifiers::NONE);
-    assert_eq!(heard.get_untracked(), 1, "with nothing to close, the window hears it");
+    assert_eq!(
+        heard.get_untracked(),
+        1,
+        "with nothing to close, the window hears it"
+    );
 }

@@ -1,8 +1,7 @@
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_ARROW_BACK, ICON_ARROW_FORWARD, ICON_REFRESH};
 use block_editor_beui::beui::reactive::{
-    Align, Frame, ItemSize, Justify, Layers, List, NodeRef, Show, component, create_memo,
-    view,
+    Align, Frame, ItemSize, Justify, Layers, List, NodeRef, Show, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::{
     Button, ButtonVariant, Caption, IconButton, TextInput, use_theme,

@@ -96,7 +96,10 @@ fn an_exiting_runner_lets_its_app_go_while_its_renderers_are_still_there() {
         "an exited runner draws nothing more"
     );
     runner.exit();
-    assert!(log.update(std::mem::take).is_empty(), "the app hears that it exits once");
+    assert!(
+        log.update(std::mem::take).is_empty(),
+        "the app hears that it exits once"
+    );
 
     drop(runner);
     assert_eq!(log.update(std::mem::take), ["renderer dropped"]);

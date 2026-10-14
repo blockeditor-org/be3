@@ -1,4 +1,3 @@
-
 use block_editor_beui::be_block::Map;
 use block_editor_beui::be_block::map::{MAX_LATITUDE, MapColor, MapPoint};
 use block_editor_beui::beui::Color32;
@@ -6,8 +5,8 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::accesskit::{Node, Role};
 use block_editor_beui::beui::icons::{ICON_ARROW_BACK, ICON_CIRCLE, ICON_DELETE, ICON_MY_LOCATION};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Prop, Show, component,
-    create_memo, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Prop, Show, component, create_memo,
+    view,
 };
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Checkbox, ColorInput, Heading, IconButton, IconSized,
@@ -306,9 +305,7 @@ fn PointList(state: MapState) -> NodeId {
 
 #[component]
 fn PointRow(state: MapState, id: Uuid) -> NodeId {
-    let point = create_memo(move || {
-        state.points.get().into_iter().find(|point| point.id == id)
-    });
+    let point = create_memo(move || state.points.get().into_iter().find(|point| point.id == id));
     let label = create_memo(move || point_name(&state, point.get()));
     let swatch = create_memo(move || {
         point

@@ -140,7 +140,7 @@ impl Pane {
     fn resize(&self, cols: u16, rows: u16, cell_width: u32, cell_height: u32) {
         {
             let session = self.session.get();
-        let mut session = session.borrow_mut();
+            let mut session = session.borrow_mut();
             if session.cols == cols && session.rows == rows {
                 return;
             }

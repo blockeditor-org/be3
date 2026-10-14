@@ -3,8 +3,7 @@ use std::rc::Rc;
 use block_editor_beui::be_block::map::MapPoint;
 use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, Child, ForEach, Frame, Interactive, ItemSize, List, Memo, NodeRef,
-    PasteKind, Pasted, component, create_effect, create_memo, create_selector, untrack,
-    view,
+    PasteKind, Pasted, component, create_effect, create_memo, create_selector, untrack, view,
 };
 use block_editor_beui::beui::styled::{Caption, use_theme};
 use block_editor_beui::beui::{
@@ -106,11 +105,7 @@ pub(crate) fn MapCanvas(state: MapState) -> NodeId {
     view! {
         <Frame color={theme.background}>
             <List spacing=0.0>
-                <MapSurface
-                    state={state}
-                    @sizing=ItemSize::Percent(100.0)
-                    @node_ref={&content}
-                >
+                <MapSurface state={state} @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                     <Canvas view={camera} @test_id={"map.canvas"}>
                         <ForEach keys={covering}>
                             {move |tile: TileId| {
@@ -179,9 +174,7 @@ fn PointMarker(
     world: Memo<MapView>,
     scale: Memo<f32>,
 ) -> CanvasItem {
-    let point = create_memo(move || {
-        state.points.get().into_iter().find(|point| point.id == id)
-    });
+    let point = create_memo(move || state.points.get().into_iter().find(|point| point.id == id));
     let tip = create_memo(move || {
         let view = world.get();
         point

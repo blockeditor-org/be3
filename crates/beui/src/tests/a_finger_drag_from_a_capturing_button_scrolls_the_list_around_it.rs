@@ -47,6 +47,10 @@ fn a_finger_drag_from_a_capturing_button_scrolls_the_list_around_it() {
         (harness.document().scroll_offset(scroll) - (100.0 - TOUCH_DRAG_THRESHOLD)).abs() < 0.01,
         "the scroll around the row takes the drag"
     );
-    assert_eq!(cancels.get_untracked(), 1, "the row that took the press lets it go");
+    assert_eq!(
+        cancels.get_untracked(),
+        1,
+        "the row that took the press lets it go"
+    );
     assert_eq!(clicks.get_untracked(), 0);
 }

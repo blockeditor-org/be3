@@ -2,8 +2,8 @@ use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_SEARCH, ICON_TUNE};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Show, component, create_memo,
-    create_signal, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Show, component, create_memo, create_signal,
+    view,
 };
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Heading, IconButton, ModalSheet, Popover, Scroll,
@@ -100,11 +100,9 @@ fn WideHeader(data: Data) -> NodeId {
 #[component]
 fn NarrowHeader(data: Data) -> NodeId {
     let (sheet, set_sheet) = create_signal(false);
-    let filtered = create_memo(move || {
-        match data.filter_items.with(Vec::len) {
-            0 => "Filter and display".to_owned(),
-            count => format!("Filter and display · {count}"),
-        }
+    let filtered = create_memo(move || match data.filter_items.with(Vec::len) {
+        0 => "Filter and display".to_owned(),
+        count => format!("Filter and display · {count}"),
     });
     let count = row_count(data);
     let open = move || set_sheet.set(true);
@@ -176,7 +174,8 @@ fn row_count(data: Data) -> block_editor_beui::beui::reactive::Memo<String> {
 #[component]
 fn ViewTabs(data: Data) -> NodeId {
     let keys = create_memo(move || {
-        data.views.with(|views| views.iter().map(|(id, _)| *id).collect::<Vec<Uuid>>())
+        data.views
+            .with(|views| views.iter().map(|(id, _)| *id).collect::<Vec<Uuid>>())
     });
     let own = data.editor().block_id();
     let create = move || data.new_view();
@@ -238,9 +237,7 @@ fn NewRow(data: Data, compact: bool) -> NodeId {
         }
         data.new_row(values);
     };
-    let disabled = create_memo(move || {
-        data.read_only.get() || data.title_field.get().is_none()
-    });
+    let disabled = create_memo(move || data.read_only.get() || data.title_field.get().is_none());
     match compact {
         true => view! {
             <IconButton

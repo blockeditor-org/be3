@@ -173,7 +173,9 @@ fn Dot(placed: Memo<Vec<Point>>, data: Data, row: usize) -> CanvasItem {
         placed.with(|placed| placed.iter().find(|point| point.row == row).copied())
     });
     let selected = create_memo(move || {
-        data.selected.get().is_some_and(|selection| selection.row == row)
+        data.selected
+            .get()
+            .is_some_and(|selection| selection.row == row)
     });
     let side = create_memo(move || match selected.get() {
         true => SELECTED_POINT,

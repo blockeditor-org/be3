@@ -696,8 +696,8 @@ use crate::base::text::TextNode;
 use crate::inspector::{Inspector, InspectorTools};
 use crate::mouse_simulation::MouseSimulation;
 use crate::reactive::{
-    Canvas, CanvasItem, ClickCallback, ForEach, Frame, List, NodeRef, Offset, Spacer, Text,
-    ReadSignal, VirtualList, WriteSignal, build, create_signal, with_document,
+    Canvas, CanvasItem, ClickCallback, ForEach, Frame, List, NodeRef, Offset, ReadSignal, Spacer,
+    Text, VirtualList, WriteSignal, build, create_signal, with_document,
 };
 use crate::styled;
 use crate::styled::DocumentTheme;
@@ -1910,7 +1910,10 @@ fn still() -> crate::reactive::Draw {
     })
 }
 
-fn counted(document: &mut Document, node: impl Into<NodeId>) -> (ReadSignal<usize>, ReadSignal<usize>) {
+fn counted(
+    document: &mut Document,
+    node: impl Into<NodeId>,
+) -> (ReadSignal<usize>, ReadSignal<usize>) {
     let counts = counted_with_measures(document, node);
     (counts.layouts, counts.paints)
 }

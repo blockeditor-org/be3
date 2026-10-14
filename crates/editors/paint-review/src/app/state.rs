@@ -386,7 +386,8 @@ impl Review {
             }
             None => self.editor.create_child(&snapshot),
         };
-        inner.block
+        inner
+            .block
             .operate(PaintReview::approve(path, painting.hash.clone(), reference));
         true
     }
@@ -536,7 +537,8 @@ impl Review {
                 });
             *inner.change.borrow_mut() = Some((key, change));
         }
-        inner.change
+        inner
+            .change
             .borrow()
             .as_ref()
             .map(|(_, change)| (change.description.clone(), change.frame))

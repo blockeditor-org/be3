@@ -23,7 +23,10 @@ fn resizing_a_virtual_scroll_reuses_visible_items() {
     harness.viewport = VIEWPORT;
     harness.frame(Vec::new());
     let children = harness.document.children(scroll.list);
-    assert_eq!(built.get_untracked(), (2..original.len()).collect::<Vec<usize>>());
+    assert_eq!(
+        built.get_untracked(),
+        (2..original.len()).collect::<Vec<usize>>()
+    );
     assert_eq!(children.len(), original.len());
     assert_eq!(children[..2], original[..2]);
 }

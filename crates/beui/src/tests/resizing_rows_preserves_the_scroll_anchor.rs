@@ -13,7 +13,10 @@ fn resizing_rows_preserves_the_scroll_anchor() {
         let rows = rows.clone();
         move || {
             view! {
-                <Scroll @node_ref=&scroll on_change={move |position| set_reported.set(Some(position))}>
+                <Scroll
+                    @node_ref=&scroll
+                    on_change={move |position| set_reported.set(Some(position))}
+                >
                     <ForEach keys={indices(rows.len())}>
                         {move |index: usize| view! {
                             <Frame

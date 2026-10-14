@@ -26,7 +26,10 @@ fn arrow_and_page_keys_walk_a_calendar_by_day_week_month_and_year() {
     harness.key(Key::PageDown, Modifiers::NONE);
     harness.key(Key::PageUp, Modifiers::SHIFT);
     harness.key(Key::Home, Modifiers::NONE);
-    assert!(picked.with_untracked(|picked| picked.is_empty()), "moving the focus picks nothing");
+    assert!(
+        picked.with_untracked(|picked| picked.is_empty()),
+        "moving the focus picks nothing"
+    );
     harness.key(Key::Enter, Modifiers::NONE);
 
     assert_eq!(picked.get_untracked(), [Date::new(2025, 3, 3)]);

@@ -51,5 +51,9 @@ fn a_click_outside_an_open_color_input_closes_it_and_lands_on_what_was_clicked()
     harness.frame(Vec::new());
 
     assert!(!open(&harness), "the click closes the popover");
-    assert_eq!(clicks.get_untracked(), 1, "and lands on the button it was aimed at");
+    assert_eq!(
+        clicks.get_untracked(),
+        1,
+        "and lands on the button it was aimed at"
+    );
 }

@@ -10,7 +10,10 @@ fn the_top_layer_takes_a_click_over_the_layer_below() {
         move || {
             view! {
                 <Layers>
-                    <Interactive capture_presses=true on_click={move || set_below.update(|below| *below += 1)}>
+                    <Interactive
+                        capture_presses=true
+                        on_click={move || set_below.update(|below| *below += 1)}
+                    >
                         <Frame width=100.0 height=100.0 />
                     </Interactive>
                     <Frame align_horizontal=Align::End align_vertical=Align::Start>

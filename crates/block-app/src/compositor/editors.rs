@@ -6,9 +6,10 @@ use std::{
 
 use be_graph::Access;
 use beui::reactive::{
-    Canvas, CanvasItem, Dynamic, ForEach, Frame, Interactive, Layers, Memo, PlacementBuilder,
-    Callback, ClickCallback, OwnedStored, Portal, Prop, ReadSignal, Show, Stored, WriteSignal, component, create_effect, create_memo,
-    create_signal, on_cleanup, on_global_key, provide_context, store, use_context, view,
+    Callback, Canvas, CanvasItem, ClickCallback, Dynamic, ForEach, Frame, Interactive, Layers,
+    Memo, OwnedStored, PlacementBuilder, Portal, Prop, ReadSignal, Show, Stored, WriteSignal,
+    component, create_effect, create_memo, create_signal, on_cleanup, on_global_key,
+    provide_context, store, use_context, view,
 };
 use beui::{Key, KeyEvent, NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2};
 use block_plugin_api::{
@@ -171,7 +172,6 @@ impl Editors {
     }
 
     pub(crate) fn block_of(&self, plugin_id: &str, instance: EditorInstanceId) -> Option<Uuid> {
-
         self.with(|open| {
             open.values()
                 .find(|editor| {
@@ -554,7 +554,9 @@ fn BlockRegion(block: Uuid, region: EditorRegion) -> NodeId {
     let any = super::any();
     let keys = create_memo(move || {
         any.get();
-        region_key(&editors, block, false).into_iter().collect::<Vec<_>>()
+        region_key(&editors, block, false)
+            .into_iter()
+            .collect::<Vec<_>>()
     });
     let child_view = child_view(block, region);
     view! {
@@ -1293,8 +1295,7 @@ fn HostedChild(
         if let (Some(size), Some(handle)) = (
             child.intrinsic,
             child.block_id().and_then(|id| editors.handle(id)),
-        )
-            && let Some(plugin_id) = handle.plugin_id()
+        ) && let Some(plugin_id) = handle.plugin_id()
         {
             plugin_host::resized(plugin_id, handle.instance, size);
         }
@@ -1329,7 +1330,9 @@ fn HostedChild(
             reports.tick.update(|tick| *tick += 1);
         });
         on_cleanup(move || {
-            reports.statuses.with(|statuses| statuses.borrow_mut().remove(&key.0));
+            reports
+                .statuses
+                .with(|statuses| statuses.borrow_mut().remove(&key.0));
             reports.tick.update(|tick| *tick += 1);
         });
     }
@@ -1584,12 +1587,15 @@ fn BlockPreview(block: Uuid, rotation: Prop<f32>, opacity: Prop<f32>) -> NodeId 
     let any = super::any();
     let keys = create_memo(move || {
         any.get();
-        region_key(&editors, block, true).into_iter().collect::<Vec<_>>()
+        region_key(&editors, block, true)
+            .into_iter()
+            .collect::<Vec<_>>()
     });
     let fallback = create_memo(move || keys.with(Vec::is_empty));
     let label = create_memo(move || {
         any.get();
-        let label = crate::be::node(block).map(|node| BlockLabel::for_node(&editors.registry(), &node));
+        let label =
+            crate::be::node(block).map(|node| BlockLabel::for_node(&editors.registry(), &node));
         HostItem::Fallback {
             name: label
                 .as_ref()
@@ -1643,7 +1649,9 @@ pub(super) fn provide_reports(reports: ChildReports) {
 }
 
 pub(super) fn statuses(reports: &ChildReports) -> Vec<HostChildStatus> {
-    reports.statuses.with(|statuses| statuses.borrow().values().cloned().collect())
+    reports
+        .statuses
+        .with(|statuses| statuses.borrow().values().cloned().collect())
 }
 
 #[cfg(test)]

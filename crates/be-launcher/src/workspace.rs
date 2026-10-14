@@ -28,7 +28,10 @@ const MAIN: &str = "main";
 pub(crate) fn Workspace(model: Model) -> NodeId {
     let tab = create_memo(move || {
         let tab = model.tab.get();
-        Tab::ALL.iter().position(|candidate| *candidate == tab).unwrap_or(0)
+        Tab::ALL
+            .iter()
+            .position(|candidate| *candidate == tab)
+            .unwrap_or(0)
     });
     let head = create_memo(move || {
         let summary = model.head_summary.get();
@@ -115,8 +118,7 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
 #[component]
 fn TargetList(model: Model) -> NodeId {
     let theme = use_theme();
-    let loading =
-        create_memo(move || model.targets.get() == Some(Loaded::Loading));
+    let loading = create_memo(move || model.targets.get() == Some(Loaded::Loading));
     let error = create_memo(move || match model.targets.get() {
         Some(Loaded::Failed(error)) => error,
         _ => String::new(),
@@ -272,12 +274,13 @@ pub(crate) fn Actions(
         Loaded::Ready(entries) => branch_deleted(&entries),
         _ => false,
     });
-    let busy = create_memo(move || {
-        model.running.get() || fork.get() || deleted.get()
-    });
+    let busy = create_memo(move || model.running.get() || fork.get() || deleted.get());
     let check_out = move || model.check_out(&pull_request.get_untracked(), None);
     let check_out_and_run = move || {
-        model.check_out(&pull_request.get_untracked(), Some(model.common.get_untracked()));
+        model.check_out(
+            &pull_request.get_untracked(),
+            Some(model.common.get_untracked()),
+        );
     };
     let pick = move |path: Vec<usize>| match path.as_slice() {
         [index] if *index < COMMON.len() => {

@@ -76,14 +76,24 @@ fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
     harness.frame(vec![Event::PointerMoved(over_bar)]);
     harness.scroll(over_bar, Vec2::new(0.0, -30.0), Modifiers::NONE);
     harness.settle();
-    assert!(!bar.with_untracked(|bar| bar.hovered), "what the tab covers is not hovered");
+    assert!(
+        !bar.with_untracked(|bar| bar.hovered),
+        "what the tab covers is not hovered"
+    );
     assert_eq!(
         bar.with_untracked(|bar| bar.scrolled),
         Vec2::ZERO,
         "and the wheel does not reach it"
     );
-    assert!(tab.with_untracked(|tab| tab.hovered), "the fullscreen tab hears the pointer");
-    assert_ne!(tab.with_untracked(|tab| tab.scrolled), Vec2::ZERO, "and the wheel");
+    assert!(
+        tab.with_untracked(|tab| tab.hovered),
+        "the fullscreen tab hears the pointer"
+    );
+    assert_ne!(
+        tab.with_untracked(|tab| tab.scrolled),
+        Vec2::ZERO,
+        "and the wheel"
+    );
 
     let leaving = layout.clone();
     with_reactive_scope(harness.document_mut(), move || leaving.leave_fullscreen());

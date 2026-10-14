@@ -51,10 +51,12 @@ impl Platform for Recording {
 
     fn show_window(&mut self, window: &WindowState, shown: &WindowState) {
         if window.cursor != shown.cursor {
-            self.0.update(|log| log.push(format!(
-                "cursor {:?} {}",
-                window.cursor, window.touch_emulation
-            )));
+            self.0.update(|log| {
+                log.push(format!(
+                    "cursor {:?} {}",
+                    window.cursor, window.touch_emulation
+                ))
+            });
         }
     }
 }
@@ -91,10 +93,7 @@ fn the_runner_tells_the_platform_only_what_changed() {
     let mut runner = Runner::new(Launch {
         options: RunOptions::new("runner"),
         context: context(),
-        app: Box::new(Typing {
-            frames: 0,
-            typed,
-        }),
+        app: Box::new(Typing { frames: 0, typed }),
     });
     let mut platform = Recording(log);
     assert!(

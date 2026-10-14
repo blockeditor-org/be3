@@ -8,8 +8,8 @@ use block_editor_beui::beui::icons::{
     ICON_VIEW_KANBAN, ICON_VIEW_LIST,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Callback, Direction, ForEach, Frame, ItemSize, List, Memo, Show, component,
-    create_memo, view,
+    Align, Callback, Direction, ForEach, Frame, ItemSize, List, Memo, Show, component, create_memo,
+    view,
 };
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, IconButton, Select, Separator, Switch, TextInput,
@@ -34,7 +34,10 @@ pub const KINDS: [(DatabaseViewKind, &str, &str); 4] = [
 pub fn DisplayOptions(data: Data) -> NodeId {
     let listed = create_memo(move || data.kind.get() == DatabaseViewKind::List);
     let grouped = create_memo(move || {
-        matches!(data.kind.get(), DatabaseViewKind::List | DatabaseViewKind::Kanban)
+        matches!(
+            data.kind.get(),
+            DatabaseViewKind::List | DatabaseViewKind::Kanban
+        )
     });
     let ordered = create_memo(move || data.kind.get() != DatabaseViewKind::Scatter);
     let scatter = create_memo(move || data.kind.get() == DatabaseViewKind::Scatter);
@@ -182,7 +185,10 @@ fn OrderPicker(data: Data) -> NodeId {
         data.fields.with(|fields| {
             fields
                 .iter()
-                .filter(|field| field.field_type != DatabaseFieldType::Relation || !field.relation_options.multiple)
+                .filter(|field| {
+                    field.field_type != DatabaseFieldType::Relation
+                        || !field.relation_options.multiple
+                })
                 .cloned()
                 .collect::<Vec<DatabaseField>>()
         })
@@ -193,9 +199,11 @@ fn OrderPicker(data: Data) -> NodeId {
             .sort
             .get_untracked()
             .map_or(SortDirection::Ascending, |sort| sort.direction);
-        data.operate_view(DatabaseView::set_sort(field.map(|field_id| DatabaseViewSort {
-            field_id,
-            direction,
+        data.operate_view(DatabaseView::set_sort(field.map(|field_id| {
+            DatabaseViewSort {
+                field_id,
+                direction,
+            }
         })));
     };
     let sorted = create_memo(move || data.sort.get().is_some());
@@ -219,7 +227,10 @@ fn OrderPicker(data: Data) -> NodeId {
                 SortDirection::Ascending => SortDirection::Descending,
                 SortDirection::Descending => SortDirection::Ascending,
             };
-            data.operate_view(DatabaseView::set_sort(Some(DatabaseViewSort { direction, ..sort })));
+            data.operate_view(DatabaseView::set_sort(Some(DatabaseViewSort {
+                direction,
+                ..sort
+            })));
         }
     };
     view! {
@@ -253,7 +264,12 @@ fn AxisPickers(data: Data) -> NodeId {
         data.fields.with(|fields| {
             fields
                 .iter()
-                .filter(|field| matches!(field.field_type, DatabaseFieldType::Number | DatabaseFieldType::Datetime))
+                .filter(|field| {
+                    matches!(
+                        field.field_type,
+                        DatabaseFieldType::Number | DatabaseFieldType::Datetime
+                    )
+                })
                 .cloned()
                 .collect::<Vec<DatabaseField>>()
         })
@@ -295,8 +311,7 @@ fn AxisPickers(data: Data) -> NodeId {
 #[component]
 fn EmptyGroups(data: Data) -> NodeId {
     let on = data.show_empty_groups;
-    let toggle =
-        move |on: bool| data.operate_view(DatabaseView::set_show_empty_groups(on));
+    let toggle = move |on: bool| data.operate_view(DatabaseView::set_show_empty_groups(on));
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <Body @sizing=ItemSize::Percent(100.0) content="Show empty groups" />

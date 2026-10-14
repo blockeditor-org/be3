@@ -3,10 +3,11 @@ use crate::ForwardedInput;
 use crate::reactive::{Canvas, CanvasItem, Frame, Interactive, build, view};
 
 fn presses(log: ReadSignal<Vec<Event>>) -> usize {
-    log.with_untracked(|log| log
-        .iter()
-        .filter(|event| matches!(event, Event::PointerButton { .. }))
-        .count())
+    log.with_untracked(|log| {
+        log.iter()
+            .filter(|event| matches!(event, Event::PointerButton { .. }))
+            .count()
+    })
 }
 
 #[test]

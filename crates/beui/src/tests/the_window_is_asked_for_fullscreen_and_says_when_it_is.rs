@@ -33,7 +33,8 @@ struct Window(WriteSignal<Vec<String>>);
 
 impl Platform for Window {
     fn set_fullscreen(&mut self, fullscreen: bool) {
-        self.0.update(|log| log.push(format!("fullscreen {fullscreen}")));
+        self.0
+            .update(|log| log.push(format!("fullscreen {fullscreen}")));
     }
 }
 
@@ -87,7 +88,10 @@ fn the_window_is_asked_for_fullscreen_and_says_when_it_is() {
     runner.reports().fullscreen(true);
     assert!(runner.has_events(), "the window's answer wakes the runner");
     frame(&mut runner);
-    assert!(seen.get_untracked(), "the app hears that the window went fullscreen");
+    assert!(
+        seen.get_untracked(),
+        "the app hears that the window went fullscreen"
+    );
 
     set_asks.set(Some(true));
     frame(&mut runner);

@@ -40,7 +40,9 @@ fn a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names() {
     };
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.settle();
-    let control = control.get_untracked().expect("the tab's content has its control");
+    let control = control
+        .get_untracked()
+        .expect("the tab's content has its control");
     let left = Rect::from_min_size(
         Pos2::ZERO,
         Vec2::new(WIDE_VIEWPORT.x / 2.0, WIDE_VIEWPORT.y),
@@ -68,7 +70,10 @@ fn a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names() {
         "outside that area the document still hears the pointer"
     );
     harness.frame(vec![Event::PointerMoved(pos2(10.0, bar.center().y))]);
-    assert!(!hovered.get_untracked(), "inside it, nothing under the tab does");
+    assert!(
+        !hovered.get_untracked(),
+        "inside it, nothing under the tab does"
+    );
 
     with_reactive_scope(harness.document_mut(), move || control.leave_fullscreen());
     harness.settle();

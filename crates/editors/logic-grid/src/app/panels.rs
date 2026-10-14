@@ -28,9 +28,7 @@ pub(super) fn Panels(session: Session) -> NodeId {
     let (metrics_open, set_metrics_open) = create_signal(true);
     let (debugger_open, set_debugger_open) = create_signal(false);
     let (graph_open, set_graph_open) = create_signal(false);
-    let challenged = create_memo(move || {
-        session.read(|model| model.challenge.is_some())
-    });
+    let challenged = create_memo(move || session.read(|model| model.challenge.is_some()));
     view! {
         <List spacing=SPACING>
             <Show condition={challenged}>
@@ -127,9 +125,7 @@ fn or_none(value: Option<String>) -> String {
 
 #[component]
 fn MetricsPanel(session: Session) -> NodeId {
-    let error = create_memo(move || {
-        session.read(|model| model.simulation.error.clone())
-    });
+    let error = create_memo(move || session.read(|model| model.simulation.error.clone()));
     let failed = create_memo(move || error.get().is_some());
     let problem =
         create_memo(move || format!("Cannot compile: {}", error.get().unwrap_or_default()));
@@ -376,8 +372,7 @@ impl LogicGridEditor {
 
 #[component]
 fn SimulationPanel(session: Session) -> NodeId {
-    let shown =
-        create_memo(move || session.read(LogicGridEditor::simulation_view));
+    let shown = create_memo(move || session.read(LogicGridEditor::simulation_view));
     let failed = create_memo(move || shown.get().error.is_some());
     let problem =
         create_memo(move || format!("Cannot run: {}", shown.get().error.unwrap_or_default()));
@@ -396,8 +391,7 @@ fn SimulationPanel(session: Session) -> NodeId {
     let wires = create_memo(move || shown.get().wires);
     let storage = create_memo(move || shown.get().storage);
     let tick = move || session.update(LogicGridEditor::run_simulation_tick);
-    let step =
-        move || session.update(LogicGridEditor::run_simulation_instruction);
+    let step = move || session.update(LogicGridEditor::run_simulation_instruction);
     let frame_shown = shown;
     let instruction_shown = shown;
     let input_shown = shown;
@@ -529,7 +523,7 @@ fn InstructionRow(
                         label="Target"
                         variant=ButtonVariant::Secondary
                         disabled={unresolved}
-                        on_click={target.clone()}
+                        on_click={target}
                     />
                 </Show>
             </List>
@@ -641,8 +635,7 @@ impl LogicGridEditor {
 
 #[component]
 fn ChallengePanel(session: Session) -> NodeId {
-    let shown =
-        create_memo(move || session.read(LogicGridEditor::challenge_view));
+    let shown = create_memo(move || session.read(LogicGridEditor::challenge_view));
     let goal = create_memo(move || shown.get().map(|shown| shown.goal).unwrap_or_default());
     let status = create_memo(move || shown.get().map(|shown| shown.status).unwrap_or_default());
     let error = create_memo(move || shown.get().and_then(|shown| shown.error));
@@ -873,8 +866,7 @@ fn DebuggerPanel(session: Session) -> NodeId {
     });
     let valid = create_memo(move || errors.with(Vec::is_empty));
     let error_keys = create_memo(move || (0..errors.with(Vec::len)).collect::<Vec<_>>());
-    let entities =
-        create_memo(move || session.read(LogicGridEditor::entity_rows));
+    let entities = create_memo(move || session.read(LogicGridEditor::entity_rows));
     let entity_keys = create_memo(move || {
         entities.with(|rows| rows.iter().map(|row| row.entity).collect::<Vec<_>>())
     });
@@ -1104,8 +1096,7 @@ fn StorageDialog(session: Session) -> NodeId {
             .map(|(_, scale, _)| storage_bit_indices(scale))
             .unwrap_or_default()
     });
-    let dismiss =
-        move || session.update(|model| model.configured_storage = None);
+    let dismiss = move || session.update(|model| model.configured_storage = None);
     view! {
         <Dialog open={open} title={title} width=DIALOG_WIDTH on_dismiss={dismiss}>
             <List direction=Direction::Horizontal wrap=true spacing=4.0>

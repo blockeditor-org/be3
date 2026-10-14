@@ -1,9 +1,7 @@
-
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_DELETE, ICON_DIFFERENCE, ICON_DONE_ALL, ICON_FIBER_NEW};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, List, Show, component, create_memo, create_selector,
-    view,
+    Align, Direction, ForEach, Frame, List, Show, component, create_memo, create_selector, view,
 };
 use block_editor_beui::beui::styled::{Body, Caption, Icon, ListRow, use_theme};
 

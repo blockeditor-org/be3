@@ -45,5 +45,9 @@ fn a_press_just_beside_a_split_divider_moves_it() {
         moved.width(),
         "a press farther out leaves the divider alone"
     );
-    assert_eq!(presses.get_untracked(), 1, "the pane hears a press farther out");
+    assert_eq!(
+        presses.get_untracked(),
+        1,
+        "the pane hears a press farther out"
+    );
 }

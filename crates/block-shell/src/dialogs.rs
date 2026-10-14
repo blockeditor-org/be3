@@ -1,11 +1,11 @@
-
 use block_editor_beui::be_block::metadata::MAX_NAME_BYTES;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
     ICON_CLOSE, ICON_LOCK, ICON_PERSON, ICON_PERSON_ADD, ICON_REFRESH,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Callback, Direction, ForEach, Frame, ItemSize, Justify, List, Memo, Show, Spacer, component, create_effect, create_memo, create_signal, untrack, view,
+    Align, Callback, Direction, ForEach, Frame, ItemSize, Justify, List, Memo, Show, Spacer,
+    component, create_effect, create_memo, create_signal, untrack, view,
 };
 use block_editor_beui::beui::styled::{
     Button, ButtonVariant, Caption, Card, Chip, Dialog, Heading, Icon, IconButton, IconButtonSize,
@@ -104,7 +104,7 @@ fn RenameDialog(workspace: Workspace) -> NodeId {
                         variant=ButtonVariant::Primary
                         disabled={invalid}
                         @test_id={"rename.submit"}
-                        on_click={move || submit()}
+                        on_click={submit}
                     />
                     <Button
                         label="Cancel"

@@ -101,7 +101,10 @@ fn ComponentRow(state: CanvasState, schema_id: Uuid) -> NodeId {
                 Some(held) => held
                     .into_iter()
                     .filter(|(field, value)| {
-                        component.values.get(field).is_some_and(|held| held == value)
+                        component
+                            .values
+                            .get(field)
+                            .is_some_and(|held| held == value)
                     })
                     .collect(),
             });

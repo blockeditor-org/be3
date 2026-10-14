@@ -48,7 +48,11 @@ fn children_written_between_show_tags_are_not_built_until_it_is_shown() {
 
     harness.click(harness.center(toggle));
     harness.frame(Vec::new());
-    assert_eq!(builds.get_untracked(), 1, "showing it must build the children block");
+    assert_eq!(
+        builds.get_untracked(),
+        1,
+        "showing it must build the children block"
+    );
     let shown = harness.document().children(column);
     assert_eq!(shown.len(), 2);
     assert_eq!(text_of(harness.document(), shown[1]), "panel");

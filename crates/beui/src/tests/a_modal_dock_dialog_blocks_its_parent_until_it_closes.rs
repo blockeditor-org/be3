@@ -65,7 +65,10 @@ fn a_modal_dock_dialog_blocks_its_parent_until_it_closes() {
 
     harness.click(corner);
     harness.frame(Vec::new());
-    assert!(pressed.with_untracked(|pressed| pressed.is_empty()), "the parent hears no press");
+    assert!(
+        pressed.with_untracked(|pressed| pressed.is_empty()),
+        "the parent hears no press"
+    );
     assert_eq!(
         attended.get_untracked(),
         vec![10],
@@ -101,5 +104,9 @@ fn a_modal_dock_dialog_blocks_its_parent_until_it_closes() {
         "the focus goes back to the parent when the dialog closes"
     );
     harness.click(corner);
-    assert_eq!(pressed.get_untracked(), vec![1], "the parent hears presses again");
+    assert_eq!(
+        pressed.get_untracked(),
+        vec![1],
+        "the parent hears presses again"
+    );
 }

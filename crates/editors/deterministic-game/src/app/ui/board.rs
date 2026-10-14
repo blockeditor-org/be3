@@ -100,7 +100,9 @@ pub(crate) fn Stage(
     create_effect(move || {
         let now_drawn = drawn.get();
         let now_hand = hand.get();
-        let earlier = previous.get().replace(Some((now_drawn.clone(), now_hand.clone())));
+        let earlier = previous
+            .get()
+            .replace(Some((now_drawn.clone(), now_hand.clone())));
         let dropped = dropped.get().take().filter(|(id, _, onto)| {
             now_drawn.item(*id).and_then(|placed| placed.spot) == Some(*onto)
         });
@@ -162,7 +164,9 @@ pub(crate) fn Stage(
         if let (Some(from), Some(to)) = (from, hit(pos))
             && from != to
         {
-            dropped.get().set(carried.map(|carried| (carried.id, carried.rect, to)));
+            dropped
+                .get()
+                .set(carried.map(|carried| (carried.id, carried.rect, to)));
             play.dropped(from, to);
         }
     };
@@ -330,12 +334,7 @@ pub(crate) fn Stage(
                     <Canvas view={canvas} @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                         <ForEach keys={item_keys}>
                             {move |id: ItemId| view! {
-                                <TableItem
-                                    id
-                                    layout={layout}
-                                    play={play}
-                                    hidden={hidden}
-                                />
+                                <TableItem id layout={layout} play={play} hidden={hidden} />
                             }}
                         </ForEach>
                         <ForEach keys={spot_keys}>
@@ -468,7 +467,9 @@ fn SpotItem(spot: Spot, layout: Memo<Layout>, play: Play) -> CanvasItem {
 #[component]
 fn FlightItem(id: ItemId, motion: Motion) -> CanvasItem {
     let flight = create_memo(move || {
-        motion.flights.with(|flights| flights.iter().find(|flight| flight.id == id).cloned())
+        motion
+            .flights
+            .with(|flights| flights.iter().find(|flight| flight.id == id).cloned())
     });
     let rect = create_memo(move || {
         let now = motion.clock.get();

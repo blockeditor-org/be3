@@ -1,4 +1,3 @@
-
 use block_editor_beui::BlockParent;
 use block_editor_beui::be_block::{
     EditorView, EditorViewContent, Settings, SettingsContent, WORKSPACE_EDITOR,

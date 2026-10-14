@@ -46,9 +46,7 @@ pub fn PresentationView(editor: Editor) -> NodeId {
         true => Color32::BLACK,
         false => theme.background.get(),
     });
-    let keys = move |press: KeyPress| {
-        presenting.get_untracked() && navigate(slides, press)
-    };
+    let keys = move |press: KeyPress| presenting.get_untracked() && navigate(slides, press);
 
     view! {
         <Interactive focusable=true focused={presenting} on_key={keys}>
@@ -86,8 +84,7 @@ pub fn PresentationView(editor: Editor) -> NodeId {
 #[component]
 pub fn PresentationPreview(editor: Editor) -> NodeId {
     let slides = Slides::new(editor);
-    let first =
-        create_memo(move || slides.keys().with(|keys| keys.first().copied()));
+    let first = create_memo(move || slides.keys().with(|keys| keys.first().copied()));
     view! {
         <Stage
             editor={editor}
@@ -233,9 +230,8 @@ fn Playback(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
             .map_or(0, |index| index + 1);
         format!("{current} / {count}")
     });
-    let at_start = create_memo(
-        move || slides.selected().get().and_then(|id| slides.index_of(id)) == Some(0),
-    );
+    let at_start =
+        create_memo(move || slides.selected().get().and_then(|id| slides.index_of(id)) == Some(0));
     let at_end = create_memo(move || {
         let count = slides.count();
         slides.selected().get().and_then(|id| slides.index_of(id)) == count.checked_sub(1)
@@ -369,7 +365,10 @@ fn SlideTile(editor: Editor, slides: Slides, selected: Prop<bool>, id: Uuid) -> 
     let ghost = move |held: Uuid| {
         let label = create_memo(move || {
             let number = slides.index_of(held).map_or(0, |index| index + 1);
-            let name = slides.slide(held).map(|slide| slide.name).unwrap_or_default();
+            let name = slides
+                .slide(held)
+                .map(|slide| slide.name)
+                .unwrap_or_default();
             format!("{number}  {name}")
         });
         let theme = use_theme();

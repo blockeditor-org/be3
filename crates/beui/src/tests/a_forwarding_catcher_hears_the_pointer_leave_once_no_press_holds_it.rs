@@ -3,10 +3,12 @@ use crate::reactive::{Canvas, CanvasItem, Frame, Interactive, build, view};
 use crate::{Forwarded, ForwardedInput};
 
 fn lefts(heard: ReadSignal<Vec<Forwarded>>) -> usize {
-    heard.with_untracked(|heard| heard
-        .iter()
-        .filter(|event| **event == Forwarded::Left)
-        .count())
+    heard.with_untracked(|heard| {
+        heard
+            .iter()
+            .filter(|event| **event == Forwarded::Left)
+            .count()
+    })
 }
 
 #[test]
@@ -37,11 +39,7 @@ fn a_forwarding_catcher_hears_the_pointer_leave_once_no_press_holds_it() {
     harness.frame(vec![Event::PointerMoved(inside)]);
     harness.frame(vec![Event::PointerMoved(outside)]);
     harness.frame(vec![Event::PointerMoved(pos2(260.0, 50.0))]);
-    assert_eq!(
-        lefts(heard),
-        1,
-        "the catcher hears the pointer leave, once"
-    );
+    assert_eq!(lefts(heard), 1, "the catcher hears the pointer leave, once");
 
     set_heard.update(|heard| heard.clear());
     harness.press_at(inside);

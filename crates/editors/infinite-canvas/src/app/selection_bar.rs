@@ -1,4 +1,3 @@
-
 use super::actions::{CanvasActions, embedded_block};
 use super::paint::resolve_color;
 use super::sidebar::{PRESETS, set_foreground, styled_entities};

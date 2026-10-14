@@ -66,7 +66,11 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
     };
 
     harness.key(Key::K, Modifiers::CTRL);
-    assert_eq!(globals.get_untracked(), 2, "global keys are heard while unlocked");
+    assert_eq!(
+        globals.get_untracked(),
+        2,
+        "global keys are heard while unlocked"
+    );
     set(&mut harness, set_locked, true);
     assert!(harness.document().locked());
 
@@ -86,7 +90,11 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
     let before = globals.get_untracked();
     harness.key(Key::K, Modifiers::CTRL);
     harness.key(Key::L, Modifiers::LOGO);
-    assert_eq!(globals.get_untracked(), before, "no global key is heard while locked");
+    assert_eq!(
+        globals.get_untracked(),
+        before,
+        "no global key is heard while locked"
+    );
     harness.key(Key::VolumeUp, Modifiers::NONE);
     assert!(
         globals.get_untracked() > before,
