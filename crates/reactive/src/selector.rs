@@ -8,7 +8,7 @@ use crate::computation::create_effect;
 use crate::memo::{Memo, create_memo};
 use crate::runtime::tracking;
 use crate::scope::on_cleanup;
-use crate::signal::Source;
+use crate::signal::{Source, track};
 
 struct Watched {
     source: Rc<Source>,
@@ -92,7 +92,7 @@ impl<K: Clone + Eq + Hash + 'static> Selector<K> {
             watched.watchers += 1;
             watched.source.clone()
         };
-        source.track();
+        track(source);
         let key = key.clone();
         on_cleanup(move || {
             let mut keys = keys.borrow_mut();
