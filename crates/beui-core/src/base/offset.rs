@@ -369,7 +369,9 @@ impl Document {
         if self.arena.get_as::<OffsetNode>(offset).overscroll == overscroll {
             return;
         }
-        self.arena.relayout_alone_mut_as::<OffsetNode>(offset).overscroll = overscroll;
+        self.arena
+            .relayout_alone_mut_as::<OffsetNode>(offset)
+            .overscroll = overscroll;
     }
 
     pub fn first_offset_within(&self, id: NodeId) -> Option<NodeOf<OffsetNode>> {

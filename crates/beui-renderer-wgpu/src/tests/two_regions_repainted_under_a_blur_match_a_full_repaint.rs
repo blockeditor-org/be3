@@ -7,7 +7,8 @@ fn two_regions_repainted_under_a_blur_match_a_full_repaint() {
         blur: 2.0,
         ..Filter::default()
     };
-    let square = |left: f32, top: f32| Rect::from_min_max(pos2(left, top), pos2(left + 6.0, top + 6.0));
+    let square =
+        |left: f32, top: f32| Rect::from_min_max(pos2(left, top), pos2(left + 6.0, top + 6.0));
     let painted = |shift: f32| {
         move |painter: &Painter| {
             painter.rect_filled(square(4.0 + shift, 4.0), 0.0, Color32::WHITE);

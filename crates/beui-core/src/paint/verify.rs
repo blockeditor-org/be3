@@ -87,7 +87,8 @@ impl Walk {
                 Part::Shapes { start, end, .. } => {
                     for shape in &display.shapes[*start as usize..*end as usize] {
                         let placed = placed_shape(shape, at, clip);
-                        if !bounds(&placed).is_positive() && !matches!(placed, Shape::Drawing { .. })
+                        if !bounds(&placed).is_positive()
+                            && !matches!(placed, Shape::Drawing { .. })
                         {
                             continue;
                         }
@@ -205,7 +206,8 @@ impl Compare<'_> {
     }
 
     fn need(&mut self, rects: impl IntoIterator<Item = Rect>, why: Why) {
-        self.needed.extend(rects.into_iter().map(|rect| (rect, why)));
+        self.needed
+            .extend(rects.into_iter().map(|rect| (rect, why)));
     }
 
     fn outside(&self, rect: Rect) -> Vec<Rect> {
@@ -238,7 +240,9 @@ impl Compare<'_> {
             shapes
                 .iter()
                 .flat_map(|shapes| shapes.iter())
-                .fold(Rect::NOTHING, |reach, (_, shape)| reach.union(bounds(shape)))
+                .fold(Rect::NOTHING, |reach, (_, shape)| {
+                    reach.union(bounds(shape))
+                })
         };
         if was.fades != now.fades {
             let reach = reach(&[&was.shapes, &now.shapes]);
@@ -264,7 +268,8 @@ impl Compare<'_> {
                 .filter(|(index, _)| self.visible_new(*index))
                 .cloned()
                 .collect();
-            let shifted_fades: Vec<Fade> = was.fades.iter().map(|fade| fade.translate(by)).collect();
+            let shifted_fades: Vec<Fade> =
+                was.fades.iter().map(|fade| fade.translate(by)).collect();
             if shifted_fades != now.fades {
                 let reach = reach(&[&shifted, &shown]);
                 for fade in fade_changes(&shifted_fades, &now.fades) {

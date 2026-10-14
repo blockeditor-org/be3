@@ -432,7 +432,10 @@ impl PaintCache {
                 continue;
             }
             for band in held.fade.bands() {
-                stale(&mut self.stale, (before.place(held.path, band), held.scroll));
+                stale(
+                    &mut self.stale,
+                    (before.place(held.path, band), held.scroll),
+                );
             }
             for band in mask.fade.bands() {
                 self.damage.add(absolute(after.place(mask.path, band), now));
@@ -667,7 +670,9 @@ impl<'a> Elements<'a> {
         let visible = drawn.rect.intersect(drawn.clip);
         let mut region = Region::NOTHING;
         for damaged in damage.rects() {
-            let rect = damaged.translate(drawn.rect.min.to_vec2()).intersect(visible);
+            let rect = damaged
+                .translate(drawn.rect.min.to_vec2())
+                .intersect(visible);
             region.add(self.place(drawn.path, rect));
         }
         Some(region)
@@ -1029,4 +1034,3 @@ pub fn paint(doc: &Document, painter: &Painter, rects: &Rects, id: NodeId) {
     }
     painter.paint_child(id, at);
 }
-

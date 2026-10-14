@@ -20,7 +20,10 @@ pub enum Group {
         viewport: Rect,
         offset: Vec2,
     },
-    Mask { space: SpaceId, fade: Fade },
+    Mask {
+        space: SpaceId,
+        fade: Fade,
+    },
     Filter(Filter),
 }
 
