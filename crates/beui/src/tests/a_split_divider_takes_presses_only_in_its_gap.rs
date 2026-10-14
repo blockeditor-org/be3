@@ -25,7 +25,11 @@ fn a_split_divider_takes_presses_only_in_its_gap() {
         left.width(),
         moved.width()
     );
-    assert_eq!(presses.get(), 0, "the pane beside the gap never heard the press");
+    assert_eq!(
+        presses.get(),
+        0,
+        "the pane beside the gap never heard the press"
+    );
 
     let right = harness.rect(harness.find("content.2"));
     let inside = pos2(right.left() + 2.0, right.center().y);
@@ -42,5 +46,9 @@ fn a_split_divider_takes_presses_only_in_its_gap() {
         moved.width(),
         "a press on the pane's content leaves the divider alone"
     );
-    assert_eq!(presses.get(), 1, "the pane hears a press right beside the gap");
+    assert_eq!(
+        presses.get(),
+        1,
+        "the pane hears a press right beside the gap"
+    );
 }

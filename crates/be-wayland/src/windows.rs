@@ -173,8 +173,9 @@ impl Windows {
         if self.signals(id).is_none() {
             return;
         }
-        *self.0.raised.borrow_mut().entry(id).or_default() += 1;
-        self.0.revision.set(self.0.revision.get() + 1);
+        let inner = self.0.get();
+        *inner.raised.borrow_mut().entry(id).or_default() += 1;
+        inner.revision.set(inner.revision.get() + 1);
     }
 
     pub fn raised(&self, id: WindowId) -> u64 {
