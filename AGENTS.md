@@ -11,7 +11,8 @@ Guides:
 - guides/performance.md: benchmarks, comparing builds, profiling with perf, and ideas already set aside
 - guides/beui/overview.md: beui, the UI framework; the entry point to the other beui guides
 - guides/beui/views.md: writing views and layout
-- guides/beui/components.md: the catalog of beui components (scrolling, overlays, docking, drag and drop, ...)
+- guides/beui/components.md: the catalog of beui components (scrolling, overlays, drag and drop, ...)
+- guides/beui/docking.md: the dock: split panes, tabs, floating windows, dialogs attached to tabs
 - guides/beui/writing_components.md: developing unstyled, styled and base components, text and themes
 - guides/beui/apps.md: beui in a standalone app, runners and adapters, the inspector and debugging tools
 - guides/beui/reactive.md: the reactive graph under beui

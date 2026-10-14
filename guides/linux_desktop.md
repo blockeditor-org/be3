@@ -115,7 +115,7 @@ by where they happen. Every panic is logged with its backtrace.
 - A top-level window opens as a tab in the workspace shell and floats in a dock window of its own
   in the desktop shell.
 - A window with a parent (`xdg_toplevel.set_parent`) instead hangs over its parent's tab as a dock
-  dialog (the dock in guides/beui/components.md), showing and hiding with it.
+  dialog (guides/beui/docking.md), showing and hiding with it.
 - `xdg-dialog-v1` (be-wayland's `dialog.rs`) lets a program mark such a window modal:
   `WindowInfo::modal` is set, and `Windows::blocked_by` names the innermost modal dialog of a
   window. be-wayland gives that dialog the keyboard whenever the parent would get it, and drops

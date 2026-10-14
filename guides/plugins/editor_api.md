@@ -619,7 +619,7 @@ other editor needs.
 ### Docks and host panels
 
 - An editor whose layout is a dock of tabs builds it with beui's `Docking` inside its own frame
-  (`guides/beui/components.md`, docking). The dock and any window popped out of it live inside
+  (`guides/beui/docking.md`). The dock and any window popped out of it live inside
   the plugin.
 - The host's debugging panels (`HostPanel`: the block stack, performance, plugins and version) are
   drawn by the host but placed by the workspace. The app menu asks the shell to show one
@@ -656,7 +656,7 @@ The host draws a window only for the instance that draws the app's window.
 - Fullscreen: a window that wants fullscreen (the program asked, or linux-desktop's Super+F
   toggled the focused one with `WindowAction::Fullscreen`) is listed with `fullscreen` set to the
   rect of its screen, in the plugin's coordinates. The window tab then makes its dock tab
-  fullscreen over that rect (`guides/beui/components.md`, docking); if the dock lets go first,
+  fullscreen over that rect (`guides/beui/docking.md`); if the dock lets go first,
   the tab asks the host to leave fullscreen (`WindowAction::Fullscreen`).
 - Maximize only tells the program it is maximized; it already fills its tab.
 - Super-drag: linux-desktop gives its dock `drag_modifier` Super, so Super+drag anywhere on a

@@ -7,7 +7,8 @@ beui guides take it from there:
 | Guide | Read it for |
 | --- | --- |
 | `guides/beui/views.md` | writing views: `view!`, children, control flow, layout, the frame's phases |
-| `guides/beui/components.md` | what beui already offers: scrolling, lists, overlays, docking, drag and drop, ... |
+| `guides/beui/components.md` | what beui already offers: scrolling, lists, overlays, drag and drop, ... |
+| `guides/beui/docking.md` | the dock: split panes, tabs, floating windows, dialogs attached to tabs |
 | `guides/beui/writing_components.md` | developing unstyled, styled and base components; text; themes |
 | `guides/beui/apps.md` | beui in a standalone app or a plugin, the runners underneath, the inspector |
 | `guides/beui/reactive.md` | signals, memos, stores, effects, scopes, context, controlled state, keyed lists |
