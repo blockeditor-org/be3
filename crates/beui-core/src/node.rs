@@ -17,6 +17,22 @@ impl NodeId {
     pub(crate) fn key(self) -> u64 {
         (u64::from(self.generation) << 32) | u64::from(self.index)
     }
+
+    fn from_key(key: u64) -> Self {
+        Self {
+            index: key as u32,
+            generation: (key >> 32) as u32,
+        }
+    }
+}
+
+#[derive(Default)]
+struct Removals(RefCell<Vec<NodeId>>);
+
+impl ::reactive::Release for Removals {
+    fn release(&self, key: u64) {
+        self.0.borrow_mut().push(NodeId::from_key(key));
+    }
 }
 
 pub struct NodeOf<T> {
@@ -496,7 +512,7 @@ pub struct Arena {
     parents: RefCell<Vec<Option<NodeId>>>,
     owners: Vec<Option<::reactive::ScopeContext>>,
     removed: Vec<bool>,
-    removals: std::rc::Rc<RefCell<Vec<NodeId>>>,
+    removals: std::rc::Rc<Removals>,
     fence: Option<NodeId>,
     adopting: RefCell<Vec<NodeId>>,
     adoption: RefCell<Vec<Adoption>>,
@@ -575,17 +591,16 @@ impl Arena {
         let Some(owner) = ::reactive::current_scope() else {
             return;
         };
-        let removals = std::rc::Rc::clone(&self.removals);
-        ::reactive::on_cleanup(move || removals.borrow_mut().push(id));
+        ::reactive::on_release(self.removals.clone(), id.key());
         self.owners[id.index as usize] = Some(owner);
     }
 
     pub(crate) fn take_removals(&self) -> Vec<NodeId> {
-        std::mem::take(&mut *self.removals.borrow_mut())
+        std::mem::take(&mut *self.removals.0.borrow_mut())
     }
 
     pub(crate) fn removals_pending(&self) -> bool {
-        !self.removals.borrow().is_empty()
+        !self.removals.0.borrow().is_empty()
     }
 
     pub fn owner(&self, id: NodeId) -> Option<::reactive::ScopeContext> {
