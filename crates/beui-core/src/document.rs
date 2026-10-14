@@ -783,23 +783,57 @@ impl Document {
             let installed = matches!(guard, crate::current::DocumentGuard::Installed(..));
             match installed {
                 true => context.run(|| {
-                    crate::current::with_document(|document| {
-                        for id in removals {
-                            document.remove_node(id);
-                        }
-                    })
+                    crate::current::with_document(|document| document.remove_nodes(&removals))
                 }),
                 false => {
                     drop(guard);
-                    for id in removals {
-                        self.remove_node(id);
-                    }
+                    self.remove_nodes(&removals);
                 }
             }
         }
     }
 
     pub fn remove_node(&mut self, id: NodeId) {
+        self.remove_nodes(&[id]);
+    }
+
+    fn remove_nodes(&mut self, ids: &[NodeId]) {
+        let leaving: HashSet<NodeId> = ids.iter().copied().collect();
+        let mut parents: HashMap<NodeId, Vec<NodeId>> = HashMap::new();
+        for &id in ids {
+            if let Some(parent) = self.arena.parent(id).filter(|parent| !leaving.contains(parent))
+            {
+                parents.entry(parent).or_default().push(id);
+            }
+        }
+        for &id in ids {
+            self.remove_subtree(id);
+        }
+        for (parent, children) in parents {
+            self.unlink_children(parent, &children);
+        }
+    }
+
+    fn unlink_children(&mut self, parent: NodeId, children: &[NodeId]) {
+        if !self.arena.contains(parent) {
+            return;
+        }
+        let held: HashSet<NodeId> = self.arena.get(parent).children().into_iter().collect();
+        let children: Vec<NodeId> = children
+            .iter()
+            .copied()
+            .filter(|child| held.contains(child))
+            .collect();
+        if children.is_empty() {
+            return;
+        }
+        let element = self.arena.get_mut(parent);
+        for child in children {
+            element.remove_child(child);
+        }
+    }
+
+    fn remove_subtree(&mut self, id: NodeId) {
         if !self.arena.contains(id) {
             return;
         }

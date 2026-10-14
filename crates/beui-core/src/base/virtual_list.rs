@@ -407,6 +407,10 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
         self.placed.iter().map(|row| row.node).collect()
     }
 
+    fn remove_child(&mut self, child: NodeId) {
+        self.placed.retain(|row| row.node != child);
+    }
+
     fn kind(&self) -> &'static str {
         "virtual list"
     }

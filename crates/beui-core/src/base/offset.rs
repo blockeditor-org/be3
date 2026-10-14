@@ -43,7 +43,7 @@ struct OffsetAnchor {
 
 pub struct OffsetNode {
     pub direction: Direction,
-    pub child: NodeId,
+    pub child: Option<NodeId>,
     pub offset: f32,
     pub overscroll: f32,
     pub fits: bool,
@@ -60,7 +60,7 @@ impl OffsetNode {
     pub fn new(child: NodeId) -> Self {
         Self {
             direction: Direction::Vertical,
-            child,
+            child: Some(child),
             offset: 0.0,
             overscroll: 0.0,
             fits: false,
@@ -75,10 +75,13 @@ impl OffsetNode {
     }
 
     fn content_length(&self, doc: &mut Document, painter: &Painter, cross: f32) -> f32 {
+        let Some(child) = self.child else {
+            return 0.0;
+        };
         self.direction.main(crate::layout::measure(
             doc,
             painter,
-            self.child,
+            child,
             self.direction.axes(f32::INFINITY, cross),
         ))
     }
@@ -109,13 +112,15 @@ impl OffsetNode {
         let entered = doc.enter_space(host, 1, painter, self.translation, rect, out);
         doc.enter_scroll_host(host);
         let start = self.direction.main(rect.min.to_vec2());
-        crate::layout::layout(
-            doc,
-            &entered,
-            self.child,
-            item_rect(self.direction, rect, start, position.content),
-            out,
-        );
+        if let Some(child) = self.child {
+            crate::layout::layout(
+                doc,
+                &entered,
+                child,
+                item_rect(self.direction, rect, start, position.content),
+                out,
+            );
+        }
         doc.leave_scroll_host();
     }
 
@@ -169,7 +174,7 @@ impl OffsetNode {
         if !self.anchored {
             return None;
         }
-        let mut anchor = self.child;
+        let mut anchor = self.child?;
         for _ in 0..ANCHOR_DEPTH {
             if doc.is_culled(anchor) || !doc.arena.get(anchor).passes_scroll_anchor() {
                 break;
@@ -209,12 +214,9 @@ fn revealed_offset(start: f32, end: f32, offset: f32, length: f32) -> Option<f32
 impl Element for OffsetNode {
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         let (_, cross) = self.direction.main_and_cross(available);
-        let size = crate::layout::measure(
-            doc,
-            painter,
-            self.child,
-            self.direction.axes(f32::INFINITY, cross),
-        );
+        let size = self.child.map_or(Vec2::ZERO, |child| {
+            crate::layout::measure(doc, painter, child, self.direction.axes(f32::INFINITY, cross))
+        });
         let (length, content) = self.direction.main_and_cross(size);
         let length = match self.fits {
             true => length,
@@ -238,7 +240,7 @@ impl Element for OffsetNode {
             + self.drift(doc, out, host, anchor)
             + self.revealed(doc, out, host, main);
         let measured = self.content_length(doc, painter, cross);
-        if shift != 0.0 || measured != content || doc.arena.unplaced(self.child) {
+        if shift != 0.0 || measured != content || self.child.is_some_and(|child| doc.arena.unplaced(child)) {
             self.offset = (self.offset + shift).max(0.0);
             position = self.settled(main, measured);
             doc.rewind_placing(base);
@@ -257,15 +259,21 @@ impl Element for OffsetNode {
         let Some(host) = self.host else {
             return;
         };
-        if !rects.contains_key(&self.child) {
+        let Some(child) = self.child.filter(|child| rects.contains_key(child)) else {
             return;
-        }
+        };
         let entered = painter.shifted(SpaceId::inside(host, 1), self.translation, rect);
-        crate::paint::paint(doc, &entered, rects, self.child);
+        crate::paint::paint(doc, &entered, rects, child);
     }
 
     fn children(&self) -> Vec<NodeId> {
-        vec![self.child]
+        self.child.into_iter().collect()
+    }
+
+    fn remove_child(&mut self, child: NodeId) {
+        if self.child == Some(child) {
+            self.child = None;
+        }
     }
 
     fn kind(&self) -> &'static str {

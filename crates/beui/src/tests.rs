@@ -175,6 +175,7 @@ mod a_narrow_window_shows_the_inspector_below_a_tab_bar;
 mod a_nested_container_reports_its_own_width_not_the_windows;
 mod a_nested_overlay_closes_with_its_parent_whatever_the_parents_policy;
 mod a_node_ref_lets_go_of_a_removed_node;
+mod a_node_whose_scope_is_disposed_leaves_the_parent_that_held_it;
 mod a_number_input_reports_what_was_typed_within_its_range;
 mod a_pan_zoom_follows_the_view_its_caller_sets;
 mod a_panel_between_two_damaged_ones_is_left_alone;
@@ -1869,6 +1870,10 @@ impl Element for Counted {
 
     fn children(&self) -> Vec<NodeId> {
         self.inner.children()
+    }
+
+    fn remove_child(&mut self, child: NodeId) {
+        self.inner.remove_child(child);
     }
 
     fn pointer_children(&self) -> Vec<NodeId> {

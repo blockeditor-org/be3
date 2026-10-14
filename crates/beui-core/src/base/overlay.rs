@@ -293,6 +293,12 @@ impl Element for OverlayNode {
         children
     }
 
+    fn remove_child(&mut self, child: NodeId) {
+        if self.content == Some(child) {
+            self.content = None;
+        }
+    }
+
     fn pointer_children(&self) -> Vec<NodeId> {
         Vec::new()
     }
